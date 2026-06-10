@@ -12,9 +12,9 @@ Phase 9 of the roadmap implements Architecture Decision Record (ADR) 005 by
 introducing a harness adapter layer so framework-specific integrations (Tokio,
 Graphical Processing User Interface (GPUI), Bevy) live in opt-in crates rather
 than the core runtime or macros. Phases 9.1 and 9.2 delivered the core harness
-traits (`HarnessAdapter`, `AttributePolicy`) and macro integration
-(`harness =`, `attributes =` parameters). Phase 9.3 delivers the first official
-framework adapter: `rstest-bdd-harness-tokio`.
+traits (`HarnessAdapter`, `AttributePolicy`) and macro integration (`harness =`,
+`attributes =` parameters). Phase 9.3 delivers the first official framework
+adapter: `rstest-bdd-harness-tokio`.
 
 After this change, users can write:
 
@@ -171,9 +171,9 @@ Success is observable when:
 - Decision: update compile-time error message for async+harness rejection to
   remove "planned for phase 9.3" and guide users towards using synchronous
   scenario functions with `TokioHarness`. Rationale: phase 9.3 is delivered;
-  `TokioHarness` provides the Tokio runtime for step functions without
-  requiring `async fn` scenario signatures. The `.stderr` fixture was updated
-  to match. Date/Author: 2026-02-22 / code review.
+  `TokioHarness` provides the Tokio runtime for step functions without requiring
+  `async fn` scenario signatures. The `.stderr` fixture was updated to match.
+  Date/Author: 2026-02-22 / code review.
 
 ## Outcomes & retrospective
 
@@ -282,8 +282,8 @@ Go/no-go: `make test` exits 0.
 Create the directory `crates/rstest-bdd-harness-tokio/` with:
 
 - `Cargo.toml` — workspace-inherited metadata, dependency on
-  `rstest-bdd-harness` (workspace) and `tokio` (version "1", features =
-  ["rt"]), dev-dependency on `rstest` (workspace).
+  `rstest-bdd-harness` (workspace) and `tokio` (version "1", features = ["
+  rt"]), dev-dependency on `rstest` (workspace).
 - `README.md` — brief description of the crate.
 - `src/lib.rs` — module-level doc comment, module declarations, and public
   re-exports (initially empty, filled in stages C and D).

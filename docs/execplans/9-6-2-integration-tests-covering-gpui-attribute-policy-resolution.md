@@ -1,9 +1,8 @@
 # ExecPlan 9.6.2: add GPUI attribute-policy resolution integration tests
 
-This ExecPlan (execution plan) is a living document. The sections
-`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & discoveries`,
-`Decision log`, and `Outcomes & retrospective` must be kept up to date as work
-proceeds.
+This ExecPlan (execution plan) is a living document. The sections `Constraints`,
+`Tolerances`, `Risks`, `Progress`, `Surprises & discoveries`, `Decision log`,
+and `Outcomes & retrospective` must be kept up to date as work proceeds.
 
 Status: DONE
 
@@ -39,12 +38,11 @@ After this work:
   required gates pass.
 
 Success is observable when the new GPUI policy-resolution tests fail before the
-implementation, pass afterward, and the repository gates pass:
-`make check-fmt`, `make lint`, and `make test`. Because `make test` uses
-`cargo-nextest` when available and therefore skips the `trybuild` compile-test
-suite, this milestone also requires an explicit
-`cargo test -p rstest-bdd --test trybuild_macros` run as part of focused
-validation.
+implementation, pass afterward, and the repository gates pass: `make check-fmt`,
+`make lint`, and `make test`. Because `make test` uses `cargo-nextest` when
+available and therefore skips the `trybuild` compile-test suite, this milestone
+also requires an explicit `cargo test -p rstest-bdd --test trybuild_macros` run
+as part of focused validation.
 
 ## Constraints
 
@@ -108,7 +106,7 @@ validation.
   because `nextest` skips `tests/trybuild_macros.rs`. Severity: high.
   Likelihood: high. Mitigation: make the focused
   `cargo test -p rstest-bdd --test trybuild_macros step_macros_compile -- --exact`
-   run a mandatory validation step in this plan.
+  run a mandatory validation step in this plan.
 
 - Risk: GPUI-specific tests are feature-gated and could be edited without
   actually running them. Severity: medium. Likelihood: medium. Mitigation:

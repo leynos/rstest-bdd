@@ -1,7 +1,7 @@
 # ExecPlan 10.1.3: add the feature-gated GPUI regression suite
 
 This ExecPlan (execution plan) is a living document. The sections `Constraints`,
- `Tolerances`, `Risks`, `Progress`, `Surprises & discoveries`, `Decision log`,
+`Tolerances`, `Risks`, `Progress`, `Surprises & discoveries`, `Decision log`,
 and `Outcomes & retrospective` must be kept up to date as work proceeds.
 
 Status: COMPLETE
@@ -342,8 +342,8 @@ locking with an isolated Cargo cache. Wait for shared Cargo locks, naturally.
   `VisualTestContext`, `TestAppContext::add_window_view`, and
   `TestAppContext::windows`.
 - [x] 2026-05-21T12:24:00+02:00 Implemented durable-handle state,
-  reset-before-assignment, and per-step
-  visual-context reconstruction in the GPUI harness test suite.
+  reset-before-assignment, and per-step visual-context reconstruction in the
+  GPUI harness test suite.
 - [x] 2026-05-21T12:27:00+02:00 Ran the focused GPUI gate after the
   implementation; 19 GPUI harness tests passed, including the two new
   `stateful_window` scenarios.
@@ -403,8 +403,8 @@ locking with an isolated Cargo cache. Wait for shared Cargo locks, naturally.
 - 2026-05-21T12:25:00+02:00: `make fmt` applied Rust formatting but its
   Markdown phase reported pre-existing Markdown line-length and reference
   issues across unrelated files. The unrelated formatter edits were restored,
-  and subsequent validation uses `make check-fmt` plus targeted Markdown
-  checks for files changed by this task.
+  and subsequent validation uses `make check-fmt` plus targeted Markdown checks
+  for files changed by this task.
 - 2026-05-21T12:36:00+02:00: CodeRabbit flagged silent invalid-handle updates
   in the GPUI shim. The shim now returns `Result<(), String>` from
   `VisualTestContext::update_entity`, keeping invalid durable handles visible
@@ -445,16 +445,16 @@ locking with an isolated Cargo cache. Wait for shared Cargo locks, naturally.
   without changing the crate's external names.
 - 2026-05-21T12:39:00+02:00: Make `VisualTestContext::update_entity` return
   `Result<(), String>` for invalid handles. Rationale: this is a local shim
-  test-support API and a failed reconstruction/update should be explicit
-  rather than silently ignored.
+  test-support API and a failed reconstruction/update should be explicit rather
+  than silently ignored.
 - 2026-05-21T13:08:00+02:00: Replace the temporary `String` update error with
   `gpui::EntityError`. Rationale: even in the local shim, a semantic error
   keeps invalid-handle failures typed and easier to assert later.
 - 2026-05-21T13:27:00+02:00: Keep `TestAppContext::windows() -> Vec<_>` and a
-  manual `EntityError` implementation. Rationale: the plan intentionally
-  models the upstream-like `windows()` handle list, and adding `thiserror` to
-  the local GPUI shim would violate the no-new-dependency constraint for a
-  small test-support error.
+  manual `EntityError` implementation. Rationale: the plan intentionally models
+  the upstream-like `windows()` handle list, and adding `thiserror` to the
+  local GPUI shim would violate the no-new-dependency constraint for a small
+  test-support error.
 
 ## Outcomes & retrospective
 

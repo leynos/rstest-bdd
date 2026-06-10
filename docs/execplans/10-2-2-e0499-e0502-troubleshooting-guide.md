@@ -76,15 +76,15 @@ macro codegen at
 or any harness implementation. The whole point of the entry is that the v0.6
 contract is what it is and the reader has to work around it; an entry that
 secretly demands an API change would be re-scoping the work into 11.x or 12.x.
-The exception added after review on 2026-06-07 is compile-time UI coverage
-under `crates/rstest-bdd-macros/tests/`, which pins the documented failure
-modes without changing the implementation surface.
+The exception added after review on 2026-06-07 is compile-time UI coverage under
+`crates/rstest-bdd-macros/tests/`, which pins the documented failure modes
+without changing the implementation surface.
 
 Implementation required explicit approval before proceeding past the DRAFT
-status; the user granted that approval on 2026-06-06. The
-community-of-experts review attached to this plan (see "Surprises &
-discoveries") must also be reflected back into any later revision before any
-user-visible commits are produced.
+status; the user granted that approval on 2026-06-06. The community-of-experts
+review attached to this plan (see "Surprises & discoveries") must also be
+reflected back into any later revision before any user-visible commits are
+produced.
 
 ## Constraints
 
@@ -149,11 +149,10 @@ user-visible commits are produced.
   able to pick an escape after one read, and must come away understanding that
   mixed mutability is **not** a fix.
 - The Common errors and fixes section is the legacy entry-point for
-  rustc-error symptoms in this guide. Add a short bullet pair there ("Error:
-  …" / "Fix: see the [Two mutable fixtures…] subsection") rather than
-  duplicating the rationale. The bullet must use the exact rustc message
-  strings from the canonical error index so a reader pattern-matches by string
-  search.
+  rustc-error symptoms in this guide. Add a short bullet pair there ("Error: …"
+  / "Fix: see the [Two mutable fixtures…] subsection") rather than duplicating
+  the rationale. The bullet must use the exact rustc message strings from the
+  canonical error index so a reader pattern-matches by string search.
 - Update `docs/v0-6-0-migration-guide.md` only. Do not edit
   `docs/users-guide.md`, the design document, or `docs/known-issues.md` unless
   reflecting the design document accurately requires a small cross-reference
@@ -305,8 +304,8 @@ user-visible commits are produced.
 - [x] Stage E: validation gates (`make check-fmt`, `make lint`,
   `make test`, `make markdownlint`) and CodeRabbit review on the resulting
   commit. Acceptance: all gates exit zero sequentially; CodeRabbit returns no
-  unresolved concerns. Deterministic gates passed 2026-06-06; CodeRabbit
-  review on `f918d5f` completed with zero findings.
+  unresolved concerns. Deterministic gates passed 2026-06-06; CodeRabbit review
+  on `f918d5f` completed with zero findings.
 - [x] Stage F: roadmap close-out. Mark `docs/roadmap.md` item 10.2.2 as
   done with a delivery date and one-sentence summary; finalise Outcomes &
   retrospective in this plan. Completed 2026-06-06.
@@ -419,11 +418,10 @@ implementation on 2026-06-06 after explicit user approval.
   (Buzzy Bee — drift) the failing snippet is tagged `rust,ignore` rather than
   `rust,compile_fail,ignore` (rejected — see Constraints) to avoid spurious CI
   red on a future codegen split; compile-time drift detection was originally a
-  deferred 11.x trybuild fixture, superseded by the 2026-06-07 UI-test
-  revision recorded below. (Dinolump — anti-cargo-cult)
-  the redirect escape carries an explicit "do not adopt for single-mutable
-  scenarios" warning, in addition to the v0.6-interim callout. (Wafflecat —
-  alternative)
+  deferred 11.x trybuild fixture, superseded by the 2026-06-07 UI-test revision
+  recorded below. (Dinolump — anti-cargo-cult) the redirect escape carries an
+  explicit "do not adopt for single-mutable scenarios" warning, in addition to
+  the v0.6-interim callout. (Wafflecat — alternative)
   `#[diagnostic::on_unimplemented]` on a sealed marker trait emitted by the
   wrapper is recorded as the strongest alternative and deferred to 11.x. The
   Buzzy Bee improvement to show a non-GPUI failing snippet alongside the GPUI
@@ -472,19 +470,18 @@ implementation on 2026-06-06 after explicit user approval.
   would assert a failure mode that depends on the v0.6 generated wrapper. A
   future codegen change or rustc edition shift that legitimately resolves the
   conflict would flip the doctest into a spurious "expected compile failure
-  didn't fail" CI red.
-  `rust,ignore` decays gracefully into a stale-but-quiet snippet. Compile-time
-  drift detection is covered separately by trybuild UI fixtures added under
-  `crates/rstest-bdd-macros/tests/ui/` after CodeRabbit review. Date/author:
-  2026-06-04 (drafting agent, revised after Logisphere review; corrected
-  2026-06-07 after CodeRabbit review).
+  didn't fail" CI red. `rust,ignore` decays gracefully into a stale-but-quiet
+  snippet. Compile-time drift detection is covered separately by trybuild UI
+  fixtures added under `crates/rstest-bdd-macros/tests/ui/` after CodeRabbit
+  review. Date/author: 2026-06-04 (drafting agent, revised after Logisphere
+  review; corrected 2026-06-07 after CodeRabbit review).
 - Decision: name the escape hatches in the order (1) redirect to the
   GPUI playbook when the second mutable is harness context, (2) reshape both
   parameters to `&T` when read-only access suffices for both (one `&T` plus one
   `&mut T` reproduces `E0502` and is therefore **not** a fix), (3) split the
   step. Rationale: the most common shape that triggers the error in the field
-  is the GPUI stateful one; reshaping both fixtures to `&T` is second because it
-  is the cheapest structural change; splitting the step is last because it
+  is the GPUI stateful one; reshaping both fixtures to `&T` is second because
+  it is the cheapest structural change; splitting the step is last because it
   requires reordering Gherkin. Date/author: 2026-06-04 (drafting agent;
   corrected 2026-06-06 during implementation to match the Logisphere review;
   clarified 2026-06-06 after follow-up review; corrected after review).
@@ -900,8 +897,7 @@ Acceptance is observable when:
 
 - `docs/v0-6-0-migration-guide.md` contains the
   `### Two mutable fixtures trigger E0499 or E0502` subsection inside the
-  existing
-  `## Common errors and fixes` section. The failing snippets are tagged
+  existing `## Common errors and fixes` section. The failing snippets are tagged
   `rust,ignore`, carry the warning caption above the fence, and use the
   identifiers from design §2.7.6.1 plus a second non-GPUI shape.
 - `## Common errors and fixes` gains a bullet pair at the head of its
@@ -1005,15 +1001,15 @@ proposed `## Troubleshooting` umbrella into a level-3 subsection of the existing
 `## Common errors and fixes` (Pandalump); switched the failing-snippet tag from
 `compile_fail,ignore` (rejected — see Constraints) to `rust,ignore` with an
 above-fence caption, and initially promised a trybuild follow-up for
-compile-time drift detection (Buzzy Bee);
-added an inline anti- cargo-cult warning under the playbook-redirect escape
-(Dinolump); recorded `#[diagnostic::on_unimplemented]` as the strongest
-alternative, deferred to 11.x (Wafflecat); and absorbed the non-GPUI
-failing-snippet improvement plus the anchor-stubs-upfront note (Buzzy Bee
-improvement, Pandalump green). Approved and implemented on 2026-06-06. Revised
-2026-06-07 after CodeRabbit review to replace the trybuild deferral with
-concrete compile-fail UI fixtures for the two-mutable and mixed-mutability
-generated-wrapper cases, then revised again to add compile-pass UI fixtures for
-the documented single-mutable and all-immutable workarounds. Any later edit
-must update the Status field at the top of the plan, append a brief note to
-this section, and keep the living sections current.
+compile-time drift detection (Buzzy Bee); added an inline anti- cargo-cult
+warning under the playbook-redirect escape (Dinolump); recorded
+`#[diagnostic::on_unimplemented]` as the strongest alternative, deferred to
+11.x (Wafflecat); and absorbed the non-GPUI failing-snippet improvement plus
+the anchor-stubs-upfront note (Buzzy Bee improvement, Pandalump green).
+Approved and implemented on 2026-06-06. Revised 2026-06-07 after CodeRabbit
+review to replace the trybuild deferral with concrete compile-fail UI fixtures
+for the two-mutable and mixed-mutability generated-wrapper cases, then revised
+again to add compile-pass UI fixtures for the documented single-mutable and
+all-immutable workarounds. Any later edit must update the Status field at the
+top of the plan, append a brief note to this section, and keep the living
+sections current.

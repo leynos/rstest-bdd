@@ -462,14 +462,14 @@ ______________________________________________________________________
 
 ## Comparison at a glance
 
-| Feature          | `rstest-bdd` (proposed)                     | `cucumber` (Rust)                 |
-| ---------------- | ------------------------------------------- | --------------------------------- |
-| Test runner      | `cargo test` (`rstest` under the hood)      | Custom runner (`World::run(...)`) |
-| State management | `rstest` fixtures                           | `World` struct                    |
-| Step discovery   | Compile‑time registration + runtime match   | Runner‑driven collection          |
-| Scenario Outline | Maps to `rstest` parametrisation            | Built into runner                 |
-| Async            | Runtime‑agnostic via harness adapters       | Built‑in with specified runtime   |
-| Philosophy       | BDD as an **extension** of `rstest`         | Rust port of classic Cucumber     |
+| Feature          | `rstest-bdd` (proposed)                   | `cucumber` (Rust)                 |
+| ---------------- | ----------------------------------------- | --------------------------------- |
+| Test runner      | `cargo test` (`rstest` under the hood)    | Custom runner (`World::run(...)`) |
+| State management | `rstest` fixtures                         | `World` struct                    |
+| Step discovery   | Compile‑time registration + runtime match | Runner‑driven collection          |
+| Scenario Outline | Maps to `rstest` parametrisation          | Built into runner                 |
+| Async            | Runtime‑agnostic via harness adapters     | Built‑in with specified runtime   |
+| Philosophy       | BDD as an **extension** of `rstest`       | Rust port of classic Cucumber     |
 
 ______________________________________________________________________
 

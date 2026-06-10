@@ -721,8 +721,8 @@ async fn async_data_fetcher() -> String {
 ```
 
 The example above uses `async_std::task::sleep` purely as a convenient
-stand-in; the fixture may call into whichever runtime the project adopts
-because `rstest` simply awaits the returned future.
+stand-in; the fixture may call into whichever runtime the project adopts because
+`rstest` simply awaits the returned future.
 
 ### B. Writing asynchronous tests (`async fn` with `#[rstest]`)
 
@@ -1345,20 +1345,20 @@ provided by `rstest`:
 
 **Table 2:** Key `rstest` attributes quick reference
 
-| Attribute                    | Core Purpose                                                                                 |
-| ---------------------------- | -------------------------------------------------------------------------------------------- |
-| #[rstest]                    | Marks a function as an rstest test; enables fixture injection and parameterization.          |
-| #[fixture]                   | Defines a function that provides a test fixture (setup data or services).                    |
-| #[case(…)]                   | Defines a single parameterized test case with specific input values.                         |
-| #[values(…)]                 | Defines a list of values for an argument, generating tests for each value or combination.    |
-| #[once]                      | Marks a fixture to be initialized only once and shared (as a static reference) across tests. |
-| #[future]                    | Simplifies async argument types by removing impl Future boilerplate.                         |
-| #[awt]                       | (Function or argument level) Automatically .awaits future arguments in async tests.          |
-| #[from(original_name)]       | Allows renaming an injected fixture argument in the test function.                           |
-| #[with(…)]                   | Overrides default arguments of a fixture for a specific test.                                |
-| #[default(…)]                | Provides default values for arguments within a fixture function.                             |
-| #[timeout(…)]                | Sets a timeout for an asynchronous test.                                                     |
-| #[files("glob_pattern",…)]   | Injects file paths (or contents, with mode=) matching a glob pattern as test arguments.      |
+| Attribute                  | Core Purpose                                                                                 |
+| -------------------------- | -------------------------------------------------------------------------------------------- |
+| #[rstest]                  | Marks a function as an rstest test; enables fixture injection and parameterization.          |
+| #[fixture]                 | Defines a function that provides a test fixture (setup data or services).                    |
+| #[case(…)]                 | Defines a single parameterized test case with specific input values.                         |
+| #[values(…)]               | Defines a list of values for an argument, generating tests for each value or combination.    |
+| #[once]                    | Marks a fixture to be initialized only once and shared (as a static reference) across tests. |
+| #[future]                  | Simplifies async argument types by removing impl Future boilerplate.                         |
+| #[awt]                     | (Function or argument level) Automatically .awaits future arguments in async tests.          |
+| #[from(original_name)]     | Allows renaming an injected fixture argument in the test function.                           |
+| #[with(…)]                 | Overrides default arguments of a fixture for a specific test.                                |
+| #[default(…)]              | Provides default values for arguments within a fixture function.                             |
+| #[timeout(…)]              | Sets a timeout for an asynchronous test.                                                     |
+| #[files("glob_pattern",…)] | Injects file paths (or contents, with mode=) matching a glob pattern as test arguments.      |
 
 By mastering `rstest`, Rust developers can significantly elevate the quality
 and efficiency of their testing practices, leading to more reliable,

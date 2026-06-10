@@ -1,9 +1,8 @@
 # ExecPlan issue 397: close the stale policy-enum drift recommendation
 
-This ExecPlan (execution plan) is a living document. The sections
-`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
-`Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
-proceeds.
+This ExecPlan (execution plan) is a living document. The sections `Constraints`,
+`Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
+and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 Status: COMPLETE
 
@@ -145,8 +144,7 @@ reintroduced locally in either crate.
 - Observation: `crates/rstest-bdd/src/execution/mod.rs` now re-exports
   `RuntimeMode` and `TestAttributeHint` from `rstest_bdd_policy`, and
   `crates/rstest-bdd-macros/src/macros/scenarios/macro_args/mod.rs` imports
-  them from the same crate. Evidence:
-  `pub use rstest_bdd_policy::RuntimeMode;`,
+  them from the same crate. Evidence: `pub use rstest_bdd_policy::RuntimeMode;`,
   `pub use rstest_bdd_policy::TestAttributeHint;`, and
   `pub(crate) use rstest_bdd_policy::{RuntimeMode, TestAttributeHint};`.
   Impact: issue 397 is no longer a duplicate-enum problem.

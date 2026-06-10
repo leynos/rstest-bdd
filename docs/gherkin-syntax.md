@@ -55,8 +55,8 @@ is accomplished through a sequence of steps that follow a clear, logical
 progression: context, action, and outcome.
 
 - `Feature`: Every `.feature` file must begin with the `Feature` keyword. This
-  keyword provides a high-level name and description for the functionality
-  being tested.[^3] The text following the `Feature` keyword, up to the first
+  keyword provides a high-level name and description for the functionality being
+  tested.[^3] The text following the `Feature` keyword, up to the first
   `Scenario` or other structural keyword, serves as a free-form description.
   While this description is ignored by test automation tools during execution,
   it is often included in generated reports and serves as valuable
@@ -73,8 +73,8 @@ progression: context, action, and outcome.
   `Scenario`. It describes the state of the world *before* the main event of
   the scenario occurs.[^1] A `Given` step should put the system into a known
   state, such as preparing test data in a database or ensuring a user is logged
-  in.[^8] Best practices strongly advise against describing user interactions
-  in `Given` steps; they are about establishing the scene, not the action.[^8]
+  in.[^8] Best practices strongly advise against describing user interactions in
+  `Given` steps; they are about establishing the scene, not the action.[^8]
 - `When`: This keyword describes an event or an action. This is typically an
   interaction performed by a user (e.g., "the user clicks the login button") or
   an event triggered by an external system.[^1] To maintain the "one behaviour
@@ -165,8 +165,8 @@ In many feature files, it is common to find that several scenarios share the
 exact same set of initial `Given` steps. For instance, multiple tests for an
 e-commerce site might all require the user to be logged in and have items in
 their cart. Repeating these steps in every scenario is inefficient and clutters
-the file. The `Background` keyword solves this problem by allowing definition
-of `Given` steps that are common to all `Scenarios` within that `Feature`
+the file. The `Background` keyword solves this problem by allowing definition of
+`Given` steps that are common to all `Scenarios` within that `Feature`
 file.[^1] These steps are automatically executed before each and every
 `Scenario` in the file, acting as a shared setup routine.[^12]
 
@@ -558,9 +558,9 @@ decorators.
   ```
 
 - **Step Decorators (**`@given`**,** `@when`**,** `@then`**):** Each Gherkin
-  step is mapped to a Python function using a corresponding decorator:
-  `@given`, `@when`, or `@then`. The string argument passed to the decorator
-  must exactly match the text of the step in the `.feature` file.[^20] For
+  step is mapped to a Python function using a corresponding decorator: `@given`,
+  `@when`, or `@then`. The string argument passed to the decorator must
+  exactly match the text of the step in the `.feature` file.[^20] For
   readability and maintainability, step aliases can be created by stacking
   multiple decorators on a single function, allowing different Gherkin phrases
   to execute the same code.[^23]
@@ -595,8 +595,8 @@ system for managing and sharing state between steps.[^24] This represents a
 philosophical shift from explicit state passing to implicit dependency
 injection.
 
-In this model, `Given` steps act as fixture factories. A function decorated
-with `@given` can return a value. By using the `target_fixture` argument in the
+In this model, `Given` steps act as fixture factories. A function decorated with
+`@given` can return a value. By using the `target_fixture` argument in the
 decorator, this return value is injected into the `pytest` context as a named
 fixture, available exclusively for the duration of that scenario.[^22]
 
@@ -797,8 +797,8 @@ into Rust types.
   `Data Table` or `Docstring` attached to a step, the step definition function
   must include an argument of type `&cucumber::gherkin::Step`. The table or doc
   string can then be accessed as an `Option` on this `Step` object:
-  `step.table` or `step.docstring`.[^29] **Feature File
-  (**`user_creation.feature`**):**
+  `step.table` or `step.docstring`.[^29] **Feature File (**
+  `user_creation.feature`**):**
 
 ```gherkin
   Scenario: Create a user with a bio

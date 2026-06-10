@@ -1,9 +1,8 @@
 # ExecPlan 9.3.7: negative trybuild test for `async fn` + `TokioHarness`
 
-This ExecPlan (execution plan) is a living document. The sections
-`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
-`Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
-proceeds.
+This ExecPlan (execution plan) is a living document. The sections `Constraints`,
+`Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
+and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 Status: COMPLETE
 
@@ -247,7 +246,7 @@ fn main() {}
 
 Create
 `crates/rstest-bdd/tests/fixtures_macros/scenario_harness_tokio_async_rejected.stderr`.
- The content mirrors the existing `scenario_harness_async_rejected.stderr` with
+The content mirrors the existing `scenario_harness_async_rejected.stderr` with
 two differences:
 
 1. The `-->` path references the new fixture file name.

@@ -2,8 +2,8 @@
 
 Writing robust, reliable, and parallelizable tests requires an intentional
 approach to handling external dependencies such as environment variables, the
-filesystem, or the system clock. Functions that directly call `std::env::var`
-or `SystemTime::now()` are difficult to test because they depend on global,
+filesystem, or the system clock. Functions that directly call `std::env::var` or
+`SystemTime::now()` are difficult to test because they depend on global,
 non-deterministic state.
 
 This leads to several problems:

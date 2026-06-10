@@ -1,7 +1,7 @@
 # ExecPlan 5.1.7: Normalize implicit fixture keys consistently
 
-This Execution Plan (ExecPlan) is a living document. The sections
-`Constraints`, `Tolerances`, `Risks`, `Progress`, `Decision log`, and
+This Execution Plan (ExecPlan) is a living document. The sections `Constraints`,
+`Tolerances`, `Risks`, `Progress`, `Decision log`, and
 `Outcomes & retrospective` must be kept up to date as work proceeds.
 
 Status: INCOMPLETE
@@ -225,9 +225,9 @@ Skill signposts:
    `crates/rstest-bdd-macros/src/codegen/wrapper/args/classify/tests.rs` for
    implicit `_world`, implicit `__world`, and explicit `#[from(_world)]`.
 5. Extend behavioural coverage in
-   `crates/rstest-bdd/tests/underscore_fixture.rs`
-   or a nearby integration test so scenario-side registration and step-side
-   extraction agree in one executable scenario.
+   `crates/rstest-bdd/tests/underscore_fixture.rs` or a nearby integration test
+   so scenario-side registration and step-side extraction agree in one
+   executable scenario.
 6. Update `docs/users-guide.md` and ADR-009 with the final documented rule.
 7. Mark roadmap item 5.1.7 done in `docs/roadmap.md`.
 8. Run the full validation suite and inspect logs before considering the work

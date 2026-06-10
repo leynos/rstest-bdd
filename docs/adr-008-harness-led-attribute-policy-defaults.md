@@ -163,8 +163,8 @@ For first-party harnesses, the intended defaults are:
 - `TokioHarness` -> `TokioAttributePolicy`
 - `GpuiHarness` -> `GpuiAttributePolicy`
 
-For screen readers: The following class diagram shows the separation between
-the `HarnessAdapter` and `AttributePolicy` traits, the first-party harness and
+For screen readers: The following class diagram shows the separation between the
+`HarnessAdapter` and `AttributePolicy` traits, the first-party harness and
 policy implementations, and the way `ScenarioMacro` delegates default-policy
 selection to `PolicyResolver`.
 

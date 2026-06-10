@@ -1075,14 +1075,14 @@ across steps.
 #### GPUI panic diagnostics carry scenario context
 
 When a step running under `GpuiHarness` panics, the harness prepends the
-feature path, scenario name, and feature-file line number to the panic
-message before re-raising it through `panic::resume_unwind`. The same fields
-are emitted as a `tracing::error!` record (`harness_type`, `feature_path`,
+feature path, scenario name, and feature-file line number to the panic message
+before re-raising it through `panic::resume_unwind`. The same fields are
+emitted as a `tracing::error!` record (`harness_type`, `feature_path`,
 `scenario_name`, `scenario_line`) and as a matching `stderr` line, so test
-runners that do not collect `tracing` events still surface the scenario name
-on failure. This makes a failing GPUI scenario identifiable from the
-`cargo test` or `cargo nextest` output without cross-referencing libtest
-function names against feature files. For a concrete regression example, see
+runners that do not collect `tracing` events still surface the scenario name on
+failure. This makes a failing GPUI scenario identifiable from the `cargo test`
+or `cargo nextest` output without cross-referencing libtest function names
+against feature files. For a concrete regression example, see
 `crates/rstest-bdd-harness-gpui/tests/scenario_name_in_logs.rs`.
 
 #### Stateful GPUI scenarios with durable handles
@@ -1104,40 +1104,39 @@ function names against feature files. For a concrete regression example, see
 ##### When to reach for the stateful playbook
 
 Stateful GPUI scenarios are those whose steps share durable resources, such as
-a typed view entity and the window that owns it, and need mutable access to
-the harness-provided `gpui::TestAppContext` as well. Scenarios that only read
-the harness context, or that share state through ordinary
+a typed view entity and the window that owns it, and need mutable access to the
+harness-provided `gpui::TestAppContext` as well. Scenarios that only read the
+harness context, or that share state through ordinary
 [`rstest`](https://docs.rs/rstest/) fixtures without also borrowing
 `TestAppContext` mutably, should keep using plain fixtures and skip this
-playbook. The pattern below is needed precisely when a single step must
-borrow both `&mut TestAppContext` and shared mutable scenario state, which
-the v0.6 `StepContext` API cannot express in one borrow.
+playbook. The pattern below is needed precisely when a single step must borrow
+both `&mut TestAppContext` and shared mutable scenario state, which the v0.6
+`StepContext` API cannot express in one borrow.
 
 ##### Durable handles versus visual context
 
 `gpui::TestAppContext::add_window_view` creates a test window and returns
-`(Entity<T>, VisualTestContext)`. `Entity<T>` is the typed, durable handle
-to the stored view; `VisualTestContext::window_handle()` returns the
-`AnyWindowHandle` that identifies the window itself. Both are cheap to copy
-and remain valid across steps. `VisualTestContext`, by contrast, borrows
-from the `TestAppContext` it was created against and must not be stored
-across steps: a later step is handed a fresh `&mut TestAppContext` from the
-harness, so any saved `VisualTestContext` would be tied to a stale borrow.
-Stateful steps therefore store `Entity<T>` and `AnyWindowHandle` only, and
-rebuild a fresh `VisualTestContext` inside each step that needs visual
-interaction using
+`(Entity<T>, VisualTestContext)`. `Entity<T>` is the typed, durable handle to
+the stored view; `VisualTestContext::window_handle()` returns the
+`AnyWindowHandle` that identifies the window itself. Both are cheap to copy and
+remain valid across steps. `VisualTestContext`, by contrast, borrows from the
+`TestAppContext` it was created against and must not be stored across steps: a
+later step is handed a fresh `&mut TestAppContext` from the harness, so any
+saved `VisualTestContext` would be tied to a stale borrow. Stateful steps
+therefore store `Entity<T>` and `AnyWindowHandle` only, and rebuild a fresh
+`VisualTestContext` inside each step that needs visual interaction using
 `gpui::VisualTestContext::from_window(window, &mut cx)`.
 
 ##### Reset protocol
 
-Thread-local scenario state outlives any single scenario, so each scenario
-must observe a two-sided reset protocol to prevent handle leakage across
-serial scenarios on the same test thread:
+Thread-local scenario state outlives any single scenario, so each scenario must
+observe a two-sided reset protocol to prevent handle leakage across serial
+scenarios on the same test thread:
 
 - **Reset before assignment.** The first `#[given]` that opens a window
   resets the thread-local state before storing fresh handles. This makes a
-  reused thread observe a clean slate even if the previous scenario aborted
-  in a way that bypassed unwinding.
+  reused thread observe a clean slate even if the previous scenario aborted in
+  a way that bypassed unwinding.
 - **Reset after teardown.** A `Drop`-based fixture guard runs at scenario
   exit. Threading the guard through a `#[fixture]` ensures the reset runs on
   every unwind path: success, assertion failure, and panic alike.
@@ -1150,16 +1149,16 @@ suppressed `Drop`. The `Drop` reset covers the symmetric case where the
 constructed when teardown happens. Deleting either call is a correctness
 regression: the regression suite at
 `crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` asserts
-`stale_window_count == 0` after the constructor-side reset to make the
-ordering observable, and the second scenario in
-`tests/features/stateful_window.feature` ("Opening a second GPUI window
-starts from reset state") fails if the `Drop` reset is removed.
+`stale_window_count == 0` after the constructor-side reset to make the ordering
+observable, and the second scenario in `tests/features/stateful_window.feature`
+("Opening a second GPUI window starts from reset state") fails if the `Drop`
+reset is removed.
 
-Each `#[scenario]` that participates in this protocol must carry
-`#[serial]` from the [`serial_test`](https://docs.rs/serial_test/) crate.
-GPUI scenarios share a process-wide `TestAppContext` slot, and the
-thread-local reset protocol assumes sequential execution; running stateful
-GPUI scenarios in parallel breaks both invariants.
+Each `#[scenario]` that participates in this protocol must carry `#[serial]`
+from the [`serial_test`](https://docs.rs/serial_test/) crate. GPUI scenarios
+share a process-wide `TestAppContext` slot, and the thread-local reset protocol
+assumes sequential execution; running stateful GPUI scenarios in parallel
+breaks both invariants.
 
 ##### Worked example
 
@@ -1169,11 +1168,11 @@ identifier. Treat that file as the executable reference: if a snippet here
 drifts from the suite, the suite wins and this section should be updated to
 match.
 
-The first snippet declares the scenario-state container, the two reset
-helpers, the `Drop`-based cleanup type, and the two `#[scenario]` functions
-that bind to the feature file. Each scenario carries `#[serial]` and pulls
-in the `scenario_state_cleanup` fixture so its constructor-side reset runs
-before any step:
+The first snippet declares the scenario-state container, the two reset helpers,
+the `Drop`-based cleanup type, and the two `#[scenario]` functions that bind to
+the feature file. Each scenario carries `#[serial]` and pulls in the
+`scenario_state_cleanup` fixture so its constructor-side reset runs before any
+step:
 
 ```rust,no_run
 # use rstest::fixture;
@@ -1279,13 +1278,12 @@ fn fresh_gpui_window_is_opened(
 ```
 
 The third snippet shows a `#[when]` and a `#[then]` step that rebuild
-`VisualTestContext` from the stored window handle plus the
-harness-provided `TestAppContext`. `VisualTestContext::from_window`
-returns `Option<VisualTestContext>` because the window handle and the
-borrowed context must come from the same `TestAppContext`; the
-`unwrap_or_else(|| panic!(...))` shape is appropriate here because a
-`None` value means an invariant of the playbook has been violated, not a
-legitimate test outcome:
+`VisualTestContext` from the stored window handle plus the harness-provided
+`TestAppContext`. `VisualTestContext::from_window` returns
+`Option<VisualTestContext>` because the window handle and the borrowed context
+must come from the same `TestAppContext`; the `unwrap_or_else(|| panic!(...))`
+shape is appropriate here because a `None` value means an invariant of the
+playbook has been violated, not a legitimate test outcome:
 
 ```rust,no_run
 # use rstest_bdd_macros::{then, when};
@@ -1321,8 +1319,8 @@ fn durable_handles_identify_the_updated_view(
 The error shape is consistent across all three snippets: surfaces of
 infrastructure invariants (handle reconstruction, fixture-stored handles)
 panic, and step-level domain assertions use `assert_eq!`. Steps that need to
-distinguish a legitimate failure mode from a programming invariant should
-return `StepResult<()>` and propagate the failure with `?`; mixing
+distinguish a legitimate failure mode from a programming invariant should return
+`StepResult<()>` and propagate the failure with `?`; mixing
 `unwrap_or_else(|| panic!(...))` and `StepResult` within the same playbook
 reads ambiguously, so pick one shape per scenario.
 
@@ -1330,30 +1328,29 @@ reads ambiguously, so pick one shape per scenario.
 
 Steps request the GPUI context through the *reserved fixture key*
 `rstest_bdd_harness_context`. The key is part of the public contract: every
-first-party adapter (Tokio, GPUI, and any future harness) injects its
-typed context through the same key, so step authors can rely on it across
-adapters. The *parameter name* used on the receiving side (`context` in the
-snippets above and in the regression suite) is adapter-agnostic and chosen
-by the step author for readability. The `#[from(rstest_bdd_harness_context)]`
-attribute is what binds the key, so do not let parameter naming convince a
-reader the binding name is part of the contract.
+first-party adapter (Tokio, GPUI, and any future harness) injects its typed
+context through the same key, so step authors can rely on it across adapters.
+The *parameter name* used on the receiving side (`context` in the snippets
+above and in the regression suite) is adapter-agnostic and chosen by the step
+author for readability. The `#[from(rstest_bdd_harness_context)]` attribute is
+what binds the key, so do not let parameter naming convince a reader the
+binding name is part of the contract.
 
 ##### Where to read more
 
 - [rstest-bdd design](rstest-bdd-design.md) §2.7.6.1 and §2.7.6.2 explain
-  why the workaround takes this shape and what the borrow contract
-  currently allows.
+  why the workaround takes this shape and what the borrow contract currently
+  allows.
 - [rstest-bdd design](rstest-bdd-design.md) §2.7.6.5 records the v0.7.0
   redesign target that retires the thread-local approach.
 - `crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` is the
-  executable reference suite. Read it to confirm that the snippet here
-  still matches the regression coverage.
+  executable reference suite. Read it to confirm that the snippet here still
+  matches the regression coverage.
 - `crates/rstest-bdd-harness-gpui/tests/features/stateful_window.feature`
   shows the Gherkin shape the suite binds to.
 - The v0.6.0 migration guide's [Migrate a stateful GPUI
-  test][gpui-migration] subsection (inside "Adopt GPUI harness
-  configuration") walks readers through moving an existing scenario to the
-  playbook.
+  test][gpui-migration] subsection (inside "Adopt GPUI harness configuration")
+  walks readers through moving an existing scenario to the playbook.
 
 [gpui-migration]:
 v0-6-0-migration-guide.md#migrate-a-stateful-gpui-test
@@ -1421,9 +1418,8 @@ Tests that exercise skip-heavy flows no longer need to match on enums to verify
 that a step or scenario stopped executing. Use
 `rstest_bdd::assert_step_skipped!` to unwrap a `StepExecution::Skipped`
 outcome, optionally constraining its message, and
-`rstest_bdd::assert_scenario_skipped!` to inspect
-[`ScenarioStatus`][scenario-status] records. Both macros accept
-`message_absent = true` to assert
+`rstest_bdd::assert_scenario_skipped!` to inspect [`ScenarioStatus`][
+scenario-status] records. Both macros accept `message_absent = true` to assert
 that no message was provided and substring matching to confirm that a message
 contains the expected reason.
 
@@ -1890,25 +1886,24 @@ Best practices for writing effective scenarios include:
   (for example, `1e3`, `-1E-9`), and the special values `NaN`, `inf`, and
   `Infinity` (matched case-insensitively). Matching is anchored: the entire
   step text must match the pattern; partial matches do not succeed. Escape
-  literal braces with `{{` and `}}`. Use
-  `\` to match a single backslash. A trailing `\` or any other backslash escape
-  is treated literally, so `\d` matches the two-character sequence `\d`. Nested
-  braces inside placeholders are not supported. Braces are not allowed inside
-  type hints. Placeholders use `{name}` or `{name:type}`; the type hint must
-  not contain braces (for example, `{n:{u32}}` and `{n:Vec<{u32}>}` are
-  rejected). To describe braces in the surrounding step text (for example,
-  referring to `{u32}`), escape them as `{{` and `}}` rather than placing them
-  inside `{name:type}`. The lexer closes the placeholder at the first `}` after
-  the optional type hint; any characters between the `:type` and that first `}`
-  are ignored (for example, `{n:u32 extra}` parses as `name = n`, `type = u32`).
-  `name` must start with a letter or underscore and may contain letters,
-  digits, or underscores (`[A-Za-z_][A-Za-z0-9_]*`). Whitespace within the type
-  hint is ignored (for example, `{count: u32}` and `{count:u32}` are both
-  accepted), but whitespace is not allowed between the name and the colon.
-  Prefer the compact form `{count:u32}` in new code. When a pattern contains no
-  placeholders, the step text must match exactly. Unknown type hints are
-  treated as generic placeholders and capture any non-newline text using a
-  non-greedy match.
+  literal braces with `{{` and `}}`. Use `\` to match a single backslash. A
+  trailing `\` or any other backslash escape is treated literally, so `\d`
+  matches the two-character sequence `\d`. Nested braces inside placeholders
+  are not supported. Braces are not allowed inside type hints. Placeholders use
+  `{name}` or `{name:type}`; the type hint must not contain braces (for example,
+  `{n:{u32}}` and `{n:Vec<{u32}>}` are rejected). To describe braces in the
+  surrounding step text (for example, referring to `{u32}`), escape them as
+  `{{` and `}}` rather than placing them inside `{name:type}`. The lexer closes
+  the placeholder at the first `}` after the optional type hint; any characters
+  between the `:type` and that first `}` are ignored (for example,
+  `{n:u32 extra}` parses as `name = n`, `type = u32`). `name` must start with a
+  letter or underscore and may contain letters, digits, or underscores
+  (`[A-Za-z_][A-Za-z0-9_]*`). Whitespace within the type hint is ignored (for
+  example, `{count: u32}` and `{count:u32}` are both accepted), but whitespace
+  is not allowed between the name and the colon. Prefer the compact form
+  `{count:u32}` in new code. When a pattern contains no placeholders, the step
+  text must match exactly. Unknown type hints are treated as generic
+  placeholders and capture any non-newline text using a non-greedy match.
 
 ## Data tables and doc strings
 

@@ -1,9 +1,8 @@
 # ExecPlan 10.1.2: provide detailed missing-fixture diagnostics
 
-This ExecPlan (execution plan) is a living document. The sections
-`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & discoveries`,
-`Decision log`, and `Outcomes & retrospective` must be kept up to date as work
-proceeds.
+This ExecPlan (execution plan) is a living document. The sections `Constraints`,
+`Tolerances`, `Risks`, `Progress`, `Surprises & discoveries`, `Decision log`,
+and `Outcomes & retrospective` must be kept up to date as work proceeds.
 
 Status: PENDING
 
@@ -173,10 +172,10 @@ requested type, inserted fixture list, and harness suggestion.
 
 - Observation: `make fmt` runs Markdown formatting after `cargo fmt` and then
   fails on repository-wide pre-existing Markdown line-length findings.
-  Evidence: the run reported many MD013 failures outside files touched for
-  this task. Impact: keep Rust formatting via `cargo fmt --all`; run
-  task-scoped Markdown validation while preserving the final `make
-  markdownlint` evidence separately.
+  Evidence: the run reported many MD013 failures outside files touched for this
+  task. Impact: keep Rust formatting via `cargo fmt --all`; run task-scoped
+  Markdown validation while preserving the final `make markdownlint` evidence
+  separately.
 
 - Observation: Firecrawl prior-art research found `miette`'s diagnostic model,
   where structured diagnostics can include help text while remaining ordinary
@@ -594,8 +593,8 @@ error[E0560]: struct `MissingFixturesDetails` has no field named `missing_requir
 error[E0560]: struct `MissingFixturesDetails` has no field named `suggestion`
 ```
 
-Record focused red and green evidence here as implementation proceeds. Keep
-log paths parameterized with `${PR_BRANCH}` so they are reproducible across
+Record focused red and green evidence here as implementation proceeds. Keep log
+paths parameterized with `${PR_BRANCH}` so they are reproducible across
 worktrees.
 
 Expected final diagnostic facts:
