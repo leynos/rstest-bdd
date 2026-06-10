@@ -2118,17 +2118,17 @@ The release strategy is therefore split by compatibility risk:
 ##### 2.7.6.5 v0.7.0 pre-1.0.0 redesign
 
 - **v0.7.0 / pre-1.0.0:** reserve breaking cleanups for a migration guide. The
-  main target is a `StepContext` redesign where fixture borrowing is
-  guard-based and can borrow distinct mutable fixtures concurrently. This
-  redesign is a *committed direction*, not an ambition, following the first
-  downstream GPUI adopter report confirming the thread-local workaround tax.
-  The guard-based redesign supersedes the v0.6 thread-local interim pattern and
+  main target — a `StepContext` redesign where fixture borrowing is
+  guard-based and can borrow distinct mutable fixtures concurrently — is now
+  implemented per [ADR-012](adr-012-guard-based-stepcontext-borrowing.md):
+  borrow methods take `&self`, `try_borrow`/`try_borrow_mut` return a typed
+  `FixtureBorrowError`, the guard types are opaque, and the scenario-boundary
+  reset that the section 2.7.6.2 thread-local pattern simulated is guaranteed
+  by the framework. This supersedes the v0.6 thread-local interim pattern and
   the v0.6.1 `ScenarioStore<T>` helper, providing a migration path for both.
-  The decision is governed by
-  [ADR-012](adr-012-guard-based-stepcontext-borrowing.md), which includes the
-  v0.6→v0.7 migration mapping table. Other redesign candidates are typed
-  harness-context extractors that hide the reserved fixture key, configurable
-  harness construction without a `Default` requirement, a declarative
+  The remaining candidates are typed harness-context extractors that hide the
+  reserved fixture key, configurable harness construction without a `Default`
+  requirement, a declarative
   attribute-policy extension model, first-class world lifecycle hooks, and a
   unified generated-test model for scenarios and outline rows.
 

@@ -1035,26 +1035,28 @@ to a committed direction (ADR-012).
 
 ### 12.1. Redesign state and context borrowing
 
-- [ ] 12.1.1. `StepContext` supports guard-based interior borrowing, so callers
+- [x] 12.1.1. `StepContext` supports guard-based interior borrowing, so callers
   can concurrently borrow distinct mutable fixtures, including mutable harness
-  context and mutable world state when fixture keys differ. Previous `Option`
-  -based borrow APIs are replaced with `Result`-returning APIs carrying
-  `FixtureBorrowError`, with generated-wrapper regression coverage. The
+  context and mutable world state when fixture keys differ. `Result`-returning
+  `try_borrow`/`try_borrow_mut` APIs carry `FixtureBorrowError`; the
+  `Option`-based borrow methods remain as conveniences delegating to them
+  (recorded in ADR-012), with generated-wrapper regression coverage. The
   v0.6.0 migration guide includes the v0.6-to-v0.7 mapping from thread-local
   durable-handle patterns to lifecycle hooks. Finish line: runtime unit tests
   prove concurrent distinct mutable borrows succeed, same-fixture conflicts
   fail, generated-wrapper tests cover harness context plus world state, and
   the migration guide carries the mapping table. ADR:
   `docs/adr-012-guard-based-stepcontext-borrowing.md`. Design Doc:
-  `docs/rstest-bdd-design.md` §2.7.6.5. (Pandalump, Telefono)
-- [ ] 12.1.2. `FixtureRefMut` exposes a stable, opaque public API that preserves
+  `docs/rstest-bdd-design.md` §2.7.6.5.
+  (Pandalump, Telefono)
+- [x] 12.1.2. `FixtureRefMut` exposes a stable, opaque public API that preserves
   value-accessor methods while hiding internal enum and representation details.
   Public callers retain value access methods, and internal variants are no
   longer part of the public surface. Prerequisite: 12.1.1. Design Doc:
   `docs/rstest-bdd-design.md` §2.7.6.5. Finish line: public API tests compile
   against accessor methods, and no downstream test can match internal variants.
   (Telefono)
-- [ ] 12.1.3. A stable world lifecycle contract guarantees before-scenario
+- [x] 12.1.3. A stable world lifecycle contract guarantees before-scenario
   reset, after-scenario cleanup, and cleanup on failure or skip, so users can
   model scenario state without thread-local reset conventions. The migration
   guide explains how v0.6 workarounds map to the v0.7 lifecycle. Prerequisite:

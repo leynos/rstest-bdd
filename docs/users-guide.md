@@ -1059,21 +1059,22 @@ function names against feature files. For a concrete regression example, see
 
 #### Stateful GPUI scenarios with durable handles
 
-> **Note: this is a v0.6 interim workaround.**
+> **Note: this workaround is superseded from v0.7.0.**
 >
-> The thread-local scenario-state pattern below is the recommended way to
-> share mutable GPUI state across BDD steps in `rstest-bdd` 0.6.0, but it
-> exists to work around the current `StepContext::borrow_mut` contract
-> selected by
-> [ADR-007](https://github.com/leynos/rstest-bdd/blob/main/docs/adr-007-harness-context-injection.md).
-> Sections
-> 2.7.6.2 and 2.7.6.5 of the design document
-> ([rstest-bdd design][rstest-bdd-design]) and roadmap items 12.1.x track
-> the v0.7.0 redesign that will retire the thread-local approach in favour
-> of guard-based concurrent fixture borrowing and typed harness-context
-> extractors. New code adopted on 0.6 should expect to migrate when the
-> redesign lands; do not build wider abstractions on top of the thread-local
-> shape.
+> The thread-local scenario-state pattern below worked around the
+> `StepContext::borrow_mut` contract in `rstest-bdd` 0.6.x (selected by
+> [ADR-007][adr-007]), which prevented
+> one step from borrowing two mutable fixtures (such as mutable harness
+> context plus mutable world state) at once. From v0.7.0, fixture borrowing
+> is guard-based ([ADR-012][adr-012]): steps can take `&mut` parameters for
+> distinct fixtures — including
+> `#[from(rstest_bdd_harness_context)] cx: &mut gpui::TestAppContext`
+> alongside `world: &mut UiWorld` — and the framework constructs and drops
+> scenario state at scenario boundaries, so no thread-local reset
+> discipline is required. **New code should declare ordinary `&mut` fixture
+> parameters instead of the pattern below.** The playbook is retained only
+> for projects still on 0.6.x; migrate by moving thread-local state into an
+> `rstest` fixture and deleting the reset calls.
 
 <!-- -->
 
@@ -1085,28 +1086,12 @@ function names against feature files. For a concrete regression example, see
 > the *published* `gpui 0.2.2` on crates.io encounter a different test API.
 > The four shapes that differ are:
 >
-<!-- markdownlint-disable MD013 -->
->
-> | Operation | Vendored gpui (regression suite + these snippets) | Published `gpui 0.2.2` (downstream adopters) |
+> | Operation | Vendored gpui (this playbook + regression suite) | Published `gpui 0.2.2` |
 > | --- | --- | --- |
 > | `add_window_view` closure | `\|_context\| View::default()` (one argument) | `\|_window, view_cx\| View::new(view_cx)` (two arguments) |
-> | obtain window handle | `visual_cx.window_handle()` (inherent method on `VisualTestContext`) | `vcx.window_handle()` (same call, but `window_handle` is a `VisualContext` trait method, so add `use gpui::VisualContext;`) |
-> | `VisualTestContext::from_window` | returns `Option<VisualTestContext>` (`let … else { panic!(…) }`) | returns `VisualTestContext` by value (no `Option`) |
+> | obtain window handle | `visual_cx.window_handle()` on `VisualTestContext` | `vcx.update(\|window, _app\| window.window_handle())` via `Window::window_handle()` |
+> | `VisualTestContext::from_window` | returns `Option<VisualTestContext>` | returns `VisualTestContext` by value (no `Option`) |
 > | `read_entity` / `update_entity` | `Option`/`Result` wrappers (`Some(1)`, `Ok(())`) | identity `type Result<T> = T`; returns `R` directly |
->
-<!-- markdownlint-enable MD013 -->
->
-> *Table: Vendored-to-published gpui 0.2.2 API shape differences.*
->
-> Beyond those four shapes, published `gpui 0.2.2` returns
-> `(Entity<V>, &mut VisualTestContext)` from `add_window_view`, while the
-> vendored fork returns `(Entity<T>, VisualTestContext)` by value. Adopters
-> bind the visual context by mutable reference rather than owning it.
->
-> The vendored fork also gives `update_entity` a typed
-> `Result<(), EntityError>` missing-entity path and wraps `read_entity` in
-> `Option<R>`. Published `gpui` returns `R` directly, so adopters cannot depend
-> on that typed error channel.
 >
 > Adapt call sites when consuming the published crate. The harness itself
 > (which only deals in `TestAppContext`) is not affected by this divergence.
@@ -1266,6 +1251,40 @@ defensively re-runs the reset before storing handles and observes the
 
 ```rust,no_run
 # use rstest_bdd_macros::given;
+
+#[derive(Debug, PartialEq, Eq)]
+struct UserRow {
+    name: String,
+    email: String,
+    active: bool,
+}
+
+impl DataTableRow for UserRow {
+    const REQUIRES_HEADER: bool = true;
+
+    fn parse_row(mut row: RowSpec<'_>) -> Result<Self, DataTableError> {
+        let name = row.take_column("name")?;
+        let email = row.take_column("email")?;
+        let active = row.parse_column_with(
+            "active",
+            datatable::truthy_bool,
+        )?;
+        Ok(Self { name, email, active })
+    }
+}
+
+#[given("the following users exist:")]
+fn users_exist(#[datatable] rows: Rows<UserRow>) {
+    for row in rows {
+        assert!(row.active || row.name == "Bob");
+    }
+}
+```
+
+Projects that prefer to work with raw rows can declare the argument as
+`Vec<Vec<String>>` and handle parsing manually. Both forms can co-exist within
+the same project, allowing incremental adoption of typed tables.
+
 # fn reset_state_before_assignment() {}
 # fn with_state<R>(_: impl FnOnce(&mut ()) -> R) -> R { unimplemented!() }
 #[given("a fresh GPUI window is opened")]
@@ -1358,10 +1377,9 @@ reader the binding name is part of the contract.
 #### Where to read more
 
 - [rstest-bdd design][rstest-bdd-design] §2.7.6.1 and §2.7.6.2 explain
-  why the workaround takes this shape and what the borrow contract currently
-  allows.
-- [rstest-bdd design][rstest-bdd-design] §2.7.6.5 records the v0.7.0
-  redesign target that retires the thread-local approach.
+  why the workaround took this shape under the 0.6.x borrow contract.
+- [ADR-012][adr-012] records the v0.7.0 guard-based borrowing redesign that
+  supersedes the thread-local approach.
 - `crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` is the
   executable reference suite. Read it to confirm that the snippet here
   still matches the regression coverage.
@@ -2775,6 +2793,8 @@ three amigos in the specification process.
 
 [scenario-status]: https://docs.rs/rstest-bdd/latest/rstest_bdd/reporting/enum.ScenarioStatus.html
 [adr-001]: https://github.com/leynos/rstest-bdd/blob/main/docs/adr-001-async-fixtures-and-test.md
+[adr-007]: https://github.com/leynos/rstest-bdd/blob/main/docs/adr-007-harness-context-injection.md
+[adr-012]: https://github.com/leynos/rstest-bdd/blob/main/docs/adr-012-guard-based-stepcontext-borrowing.md
 [adr-013]: https://github.com/leynos/rstest-bdd/blob/main/docs/adr-013-adopt-whitaker-no-unwrap-or-else-panic.md
 [gherkin-syntax]: https://github.com/leynos/rstest-bdd/blob/main/docs/gherkin-syntax.md#section-12-the-anatomy-of-a-feature-file
 [migration-async-patterns]: https://github.com/leynos/rstest-bdd/blob/main/docs/cucumber-rs-migration-and-async-patterns.md
