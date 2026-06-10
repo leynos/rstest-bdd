@@ -845,6 +845,34 @@ feature-gated regression suite in
 `crates/rstest-bdd-harness-gpui/tests/scenario_name_in_logs.rs` apply the
 attribute to every `GpuiHarness::run`-driving test.
 
+
+## Canonical diagnostic publish path
+
+All LSP diagnostic publishing in `rstest-bdd-server` flows through the
+canonical `publish_with` helper in
+`crates/rstest-bdd-server/src/handlers/diagnostics/publish.rs`. It owns the
+publish boundary exactly once: the client-socket guard, the
+path-to-URI guard, `PublishDiagnosticsParams` construction, the
+`textDocument/publishDiagnostics` notification, and failure logging.
+
+- **Ownership:** the diagnostics handler layer owns the helper; it is private
+  to the `diagnostics::publish` module.
+- **Permitted call-sites:** the public per-file-kind functions
+  (`publish_feature_diagnostics`, `publish_rust_diagnostics`, and any future
+  variant). New diagnostic publishers must delegate to `publish_with` with a
+  compute closure rather than re-implementing the guards or notify call.
+- **Composition rules:** the compute closure returns
+  `Option<Vec<Diagnostic>>` — `None` skips publishing entirely (used when a
+  feature file has no index, preserving previously published diagnostics),
+  while `Some(vec![])` still publishes so stale diagnostics are cleared.
+  `prepare_publish` separates parameter construction from the notify side
+  effect so tests can pin payloads without a client socket.
+
+The published payloads for representative feature and Rust files are pinned
+by `insta` snapshots, and the publish invariants (count preserved, empty
+vector still published) by a property test, both in
+`handlers/diagnostics/publish.rs`.
+
 ## Registry lookup usage-marking invariant
 
 Every public step-lookup function in `crates/rstest-bdd/src/registry/`

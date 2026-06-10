@@ -1,0 +1,48 @@
+---
+source: crates/rstest-bdd-server/src/handlers/diagnostics/publish.rs
+expression: params
+---
+PublishDiagnosticsParams {
+    uri: Url {
+        scheme: "file",
+        cannot_be_a_base: false,
+        username: "",
+        password: None,
+        host: None,
+        port: None,
+        path: "[TMP]/test.feature",
+        query: None,
+        fragment: None,
+    },
+    diagnostics: [
+        Diagnostic {
+            range: Range {
+                start: Position {
+                    line: 3,
+                    character: 4,
+                },
+                end: Position {
+                    line: 3,
+                    character: 30,
+                },
+            },
+            severity: Some(
+                Warning,
+            ),
+            code: Some(
+                String(
+                    "unimplemented-step",
+                ),
+            ),
+            code_description: None,
+            source: Some(
+                "rstest-bdd",
+            ),
+            message: "No Rust implementation found for When  step: \"an unimplemented step\"",
+            related_information: None,
+            tags: None,
+            data: None,
+        },
+    ],
+    version: None,
+}
