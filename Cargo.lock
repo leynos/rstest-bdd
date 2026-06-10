@@ -1709,6 +1709,7 @@ dependencies = [
  "gherkin",
  "lsp-types",
  "proc-macro2",
+ "proptest",
  "regex",
  "rstest",
  "rstest-bdd-patterns",

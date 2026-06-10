@@ -44,6 +44,7 @@ rstest-bdd-patterns.workspace = true
 tempfile = { workspace = true, optional = true }
 
 [dev-dependencies]
+proptest.workspace = true
 rstest.workspace = true
 rstest-bdd-server = { path = ".", features = ["test-support"] }
 tempfile.workspace = true

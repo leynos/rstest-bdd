@@ -722,3 +722,28 @@ module-level docs; both the in-module unit tests in
 feature-gated regression suite in
 `crates/rstest-bdd-harness-gpui/tests/scenario_name_in_logs.rs` apply the
 attribute to every `GpuiHarness::run`-driving test.
+
+## Language-server handler conventions
+
+### Canonical extension predicate: `has_extension`
+
+`rstest_bdd_server::handlers::util::has_extension(path, ext)` is the single
+canonical predicate for testing a path's file extension in handler code. It
+compares the path's final extension against `ext` (supplied without a leading
+dot) using ASCII case-insensitive equality, and returns `false` for paths
+with no extension.
+
+- **Ownership:** the helper lives in `handlers/util.rs` and is owned by the
+  language-server handler layer.
+- **Permitted call-sites:** any LSP handler that needs to distinguish `.rs`
+  from `.feature` paths (definition, implementation, text-document save, and
+  future handlers). Code outside the server crate should not depend on it.
+- **Composition rules:** call it directly with a literal extension
+  (`has_extension(&path, "rs")`); do not wrap it in per-handler `is_*_file`
+  aliases, because such wrappers reintroduce the duplication this helper
+  removed. If a handler needs a new file kind, pass the new literal at the
+  call-site.
+
+Invariants (ASCII-case insensitivity, rejection of differing extensions, and
+behaviour for missing, repeated, and trailing dots) are pinned by the
+property suite in `crates/rstest-bdd-server/tests/has_extension_props.rs`.

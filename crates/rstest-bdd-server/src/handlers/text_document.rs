@@ -16,6 +16,7 @@ use crate::server::ServerState;
 use super::diagnostics::{
     publish_all_feature_diagnostics, publish_feature_diagnostics, publish_rust_diagnostics,
 };
+use super::util::has_extension;
 
 /// Handle `textDocument/didSave` notifications.
 ///
@@ -30,9 +31,9 @@ pub fn handle_did_save_text_document(state: &mut ServerState, params: DidSaveTex
         return;
     };
 
-    if is_feature_file_path(&path) {
+    if has_extension(&path, "feature") {
         handle_feature_file_save(state, &path, params.text.as_deref());
-    } else if is_rust_file_path(&path) {
+    } else if has_extension(&path, "rs") {
         handle_rust_file_save(state, &path, params.text.as_deref());
     }
 }
@@ -59,18 +60,6 @@ fn handle_feature_file_save(state: &mut ServerState, path: &std::path::Path, tex
             warn!(path = %path.display(), error = %err, "failed to index feature file");
         }
     }
-}
-
-fn is_feature_file_path(path: &std::path::Path) -> bool {
-    path.extension()
-        .and_then(std::ffi::OsStr::to_str)
-        .is_some_and(|ext| ext.eq_ignore_ascii_case("feature"))
-}
-
-fn is_rust_file_path(path: &std::path::Path) -> bool {
-    path.extension()
-        .and_then(std::ffi::OsStr::to_str)
-        .is_some_and(|ext| ext.eq_ignore_ascii_case("rs"))
 }
 
 fn handle_rust_file_save(state: &mut ServerState, path: &std::path::Path, text: Option<&str>) {

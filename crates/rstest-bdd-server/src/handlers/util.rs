@@ -1,10 +1,14 @@
-//! Handler utilities for LSP type conversions.
+//! Handler utilities for LSP type conversions and path predicates.
 //!
 //! This module provides helper functions for converting between `gherkin` types
-//! and LSP protocol types, particularly for span and position conversions.
+//! and LSP protocol types, particularly for span and position conversions, and
+//! the canonical [`has_extension`] predicate handlers use to distinguish `.rs`
+//! from `.feature` paths.
 //!
 //! Note: Fundamental UTF-16 conversion utilities are in [`crate::util`] to avoid
 //! circular dependencies between modules.
+
+use std::path::Path;
 
 use gherkin::Span;
 use lsp_types::{Position, Range};
@@ -13,6 +17,36 @@ use crate::util::utf16_code_units;
 
 // Re-export for backwards compatibility
 pub use crate::util::byte_col_to_utf16_col;
+
+/// Check whether `path` has the file extension `ext`, ignoring ASCII case.
+///
+/// This is the canonical extension predicate for handler code. Handlers
+/// distinguishing `.rs` from `.feature` paths must call this helper rather
+/// than reimplementing the check locally; see the developers' guide for the
+/// ownership and composition rules.
+///
+/// `ext` is supplied without a leading dot. The comparison is
+/// case-insensitive over ASCII only, matching how file extensions are
+/// conventionally compared on case-preserving filesystems. Paths without an
+/// extension never match.
+///
+/// # Examples
+///
+/// ```
+/// use std::path::Path;
+/// use rstest_bdd_server::handlers::util::has_extension;
+///
+/// assert!(has_extension(Path::new("steps.rs"), "rs"));
+/// assert!(has_extension(Path::new("demo.FEATURE"), "feature"));
+/// assert!(!has_extension(Path::new("notes.txt"), "rs"));
+/// assert!(!has_extension(Path::new("no_extension"), "rs"));
+/// ```
+#[must_use]
+pub fn has_extension(path: &Path, ext: &str) -> bool {
+    path.extension()
+        .and_then(std::ffi::OsStr::to_str)
+        .is_some_and(|actual| actual.eq_ignore_ascii_case(ext))
+}
 
 /// Convert a `gherkin::Span` (byte offsets) to an `lsp_types::Range` (0-based line/col).
 ///

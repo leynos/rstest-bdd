@@ -15,7 +15,7 @@ use tracing::debug;
 use crate::indexing::CompiledStepDefinition;
 use crate::server::ServerState;
 
-use super::util::gherkin_span_to_lsp_range;
+use super::util::{gherkin_span_to_lsp_range, has_extension};
 
 /// Handle `textDocument/definition` requests.
 ///
@@ -39,7 +39,7 @@ pub fn handle_definition(
         return Ok(None);
     };
 
-    if !is_rust_file(&path) {
+    if !has_extension(&path, "rs") {
         debug!(?path, "ignoring definition request for non-Rust file");
         return Ok(None);
     }
@@ -65,13 +65,6 @@ pub fn handle_definition(
     );
 
     Ok(Some(GotoDefinitionResponse::Array(locations)))
-}
-
-/// Check if a path has a `.rs` extension.
-fn is_rust_file(path: &Path) -> bool {
-    path.extension()
-        .and_then(std::ffi::OsStr::to_str)
-        .is_some_and(|ext| ext.eq_ignore_ascii_case("rs"))
 }
 
 /// Check if a position falls within an attribute span.
@@ -194,20 +187,6 @@ mod tests {
     #[fixture]
     fn test_state() -> ServerState {
         ServerState::new(ServerConfig::default())
-    }
-
-    #[rstest]
-    fn is_rust_file_returns_true_for_rs_extension() {
-        assert!(is_rust_file(Path::new("foo.rs")));
-        assert!(is_rust_file(Path::new("/path/to/file.rs")));
-        assert!(is_rust_file(Path::new("file.RS"))); // case-insensitive
-    }
-
-    #[rstest]
-    fn is_rust_file_returns_false_for_other_extensions() {
-        assert!(!is_rust_file(Path::new("foo.feature")));
-        assert!(!is_rust_file(Path::new("foo.txt")));
-        assert!(!is_rust_file(Path::new("foo")));
     }
 
     #[rstest]
