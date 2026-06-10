@@ -10,6 +10,7 @@ mod error;
 #[doc(hidden)]
 pub mod macrotest_support;
 mod policy;
+pub mod policy_conformance;
 mod runner;
 mod std_harness;
 #[cfg(test)]
