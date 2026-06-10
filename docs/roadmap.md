@@ -247,8 +247,8 @@ experience by introducing more powerful and intuitive APIs.
 
 - [x] 5.1.1. Implicit fixture injection: Automatically inject fixtures when a
   step function's parameter name matches a fixture name, removing the need for
-  `#[from(...)]` in most cases. [user guide][implicit-fixture-guide] · [
-  trybuild][implicit-fixture-trybuild]
+  `#[from(...)]` in most cases. [user guide][implicit-fixture-guide] ·
+  [trybuild][implicit-fixture-trybuild]
 - [x] 5.1.2. Inferred step patterns: Allow step definition macros (`#[given]`,
   etc.) to be used without an explicit pattern string. The pattern will be
   inferred from the function's name (e.g., `fn user_logs_in()` becomes "user
