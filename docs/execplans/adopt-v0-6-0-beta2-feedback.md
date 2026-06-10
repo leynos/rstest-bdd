@@ -221,7 +221,15 @@ Thresholds that trigger escalation when breached.
   and 11.1.4 (ScenarioStore naming + pull-forward notes), added Phase 11.3
   (rebuild gap + ADR-008 follow-up note), and amended Phase 12 heading and
   12.1.1 to reference ADR-012; `make markdownlint` clean.
-- [ ] Stage D: apply the design-document and adoption-guide edits.
+- [x] (2026-06-10) Stage D complete: applied design-document and adoption-guide
+  edits — added which-gpui banner + mapping table in §2.7.6.2, added ADR-011
+  reference in §2.7.6.4, updated §2.7.6.5 to committed direction + ADR-012
+  reference, added §2.7.6.6 (feature-file rebuild invalidation) and §2.7.6.7
+  (test-runner parallelism matrix), tightened §3.2.2; updated users-guide with
+  banner, nextest caveat, lint-clean variant, bulk-migration cookbook, and
+  design-doc cross-links; added feature-file rebuild caveat to v0-6-0 migration
+  guide. `make markdownlint` and `make nixie` clean; `vale` not installed on
+  this system — gate noted as unavailable.
 
 ## Surprises & discoveries
 
@@ -380,9 +388,42 @@ Doggylump, Dinolump):
 
 ## Outcomes & retrospective
 
-To be completed at delivery. Will compare the landed edits against the four
-observable outcomes in `Purpose / big picture`, and record any feedback item
-that could not be scheduled and why.
+All four observable outcomes from `Purpose / big picture` are met:
+
+1. **Roadmap records every new or re-scoped work item.** Added items 10.2.4–10.2.7
+   (gpui-version banner + mapping table, lint-clean playbook variant, nextest
+   interaction note, bulk-migration cookbook), re-scoped 11.1.3/11.1.4 (naming
+   the correct `ScenarioStore<T>` / `GpuiScenarioStore` types and cleanup-guard
+   fixture macro, with pull-forward scheduling notes), added Phase 11.3 with
+   item 11.3.1 (feature-file rebuild fix), and amended Phase 12 intro and 12.1.1
+   to record the committed direction and reference ADR-012.
+
+2. **Design document `§2.7.6.x` corrected and extended.** Added a which-gpui
+   banner and vendored-to-published mapping table in `§2.7.6.2`, ADR references
+   in `§2.7.6.4` and `§2.7.6.5`, new `§2.7.6.6` (feature-file rebuild
+   invalidation), and new `§2.7.6.7` (test-runner parallelism matrix). Tightened
+   `§3.2.2` to distinguish invalidation from caching.
+
+3. **Three new ADRs drafted in `Proposed` status.** ADR-010 (feature-file change
+   detection), ADR-011 (first-party scenario-state helpers and cleanup), and
+   ADR-012 (guard-based `StepContext` borrowing committed for v0.7.0), each
+   cross-referencing the roadmap items and design subsections they govern.
+
+4. **Adoption guides carry the corrections.** `docs/users-guide.md` carries the
+   gpui-version banner + mapping table, nextest/`serial_test` caveat, lint-clean
+   variant, bulk-migration cookbook, and design-doc cross-links.
+   `docs/v0-6-0-migration-guide.md` carries a "Feature-file edits do not trigger
+   a rebuild" caveat under "Common errors and fixes", marked removable once
+   11.3.1 lands.
+
+No feedback item was left unscheduled. Stage E (rebuild-invalidation code fix)
+was deferred to a separate ExecPlan and roadmap item (11.3.1) per explicit
+maintainer decision; it is not unscheduled, just not implemented in this
+documentation branch.
+
+Open items remaining after this plan: (a) the ADR-008 Proposed→Accepted
+advancement (separately gated, orthogonal); (b) the retarget-onto-published-gpui
+architectural decision (Wafflecat's alternative, deferred).
 
 ## Context and orientation
 

@@ -573,6 +573,35 @@ the playbook redirect instead.
 - [Stateful GPUI scenarios with durable handles][users-guide-playbook] is the
   user-guide playbook.
 
+### Feature-file edits do not trigger a rebuild
+
+> **This caveat applies until roadmap item 11.3.1 lands.** Once the
+> rebuild-invalidation fix ships, this section can be removed.
+
+`#[scenario(path = "...")]` and `scenarios!` read `.feature` files with
+ordinary filesystem I/O at macro-expansion time. Cargo does not track those
+reads, so editing only a `.feature` file does not cause Cargo to recompile the
+scenario binary. The stale binary and all its compiled expectations are reused
+from the build cache until an unrelated `.rs` file in the crate changes.
+
+**Symptom:** a corrupted or changed expectation in a `.feature` file appears to
+pass after the edit, as if the change were not picked up.
+
+**Fix:** force a rebuild by touching a `.rs` file in the same crate, or run:
+
+```bash
+cargo clean -p <your-crate-name>
+```
+
+before re-running tests whenever you edit a `.feature` file without also
+editing any `.rs` file.
+
+**Root cause and roadmap:** see design-document
+[§2.7.6.6](rstest-bdd-design.md#2766-feature-file-rebuild-invalidation) and
+[ADR-010](adr-010-feature-file-change-detection.md) for the analysis and
+the chosen fix mechanism. Roadmap item 11.3.1 tracks the implementation,
+approved for v0.6.0 final.
+
 ## Further reading
 
 - [Developer's guide](developers-guide.md)
