@@ -1,0 +1,5 @@
+---
+source: crates/cargo-bdd/src/output.rs
+expression: output
+---
+skipped features/checkout.feature :: declined card is rejected
