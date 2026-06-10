@@ -284,22 +284,34 @@ fn step_specificity(step: &Step) -> SpecificityScore {
     })
 }
 
+/// Mark a resolved step as used and apply a projection to it.
+///
+/// This is the canonical post-resolution path shared by every public lookup
+/// function: the `mark_used` call lives here exactly once, so any lookup
+/// variant that returns `Some` is guaranteed to record the step for
+/// unused-step diagnostics. New lookup variants must resolve a step and pass
+/// it through this helper rather than calling `mark_used` directly; see the
+/// developers' guide for the invariant.
+fn mark_and_project<T>(
+    step: Option<&'static Step>,
+    project: impl FnOnce(&'static Step) -> T,
+) -> Option<T> {
+    step.map(|step| {
+        mark_used((step.keyword, step.pattern));
+        project(step)
+    })
+}
+
 /// Look up a registered step by keyword and pattern.
 #[must_use]
 pub fn lookup_step(keyword: StepKeyword, pattern: PatternStr<'_>) -> Option<StepFn> {
-    resolve_exact_step(keyword, pattern).map(|step| {
-        mark_used((step.keyword, step.pattern));
-        step.run
-    })
+    mark_and_project(resolve_exact_step(keyword, pattern), |step| step.run)
 }
 
 /// Find a registered step whose pattern matches the provided text.
 #[must_use]
 pub fn find_step(keyword: StepKeyword, text: StepText<'_>) -> Option<StepFn> {
-    resolve_step(keyword, text).map(|step| {
-        mark_used((step.keyword, step.pattern));
-        step.run
-    })
+    mark_and_project(resolve_step(keyword, text), |step| step.run)
 }
 
 /// Look up a registered async step by keyword and pattern.
@@ -309,10 +321,7 @@ pub fn find_step(keyword: StepKeyword, text: StepText<'_>) -> Option<StepFn> {
 /// definitions.
 #[must_use]
 pub fn lookup_step_async(keyword: StepKeyword, pattern: PatternStr<'_>) -> Option<AsyncStepFn> {
-    resolve_exact_step(keyword, pattern).map(|step| {
-        mark_used((step.keyword, step.pattern));
-        step.run_async
-    })
+    mark_and_project(resolve_exact_step(keyword, pattern), |step| step.run_async)
 }
 
 /// Find a registered async step whose pattern matches the provided text.
@@ -322,10 +331,7 @@ pub fn lookup_step_async(keyword: StepKeyword, pattern: PatternStr<'_>) -> Optio
 /// definitions.
 #[must_use]
 pub fn find_step_async(keyword: StepKeyword, text: StepText<'_>) -> Option<AsyncStepFn> {
-    resolve_step(keyword, text).map(|step| {
-        mark_used((step.keyword, step.pattern));
-        step.run_async
-    })
+    mark_and_project(resolve_step(keyword, text), |step| step.run_async)
 }
 
 /// Find a registered step and return its full metadata.
@@ -347,9 +353,7 @@ pub fn find_step_async(keyword: StepKeyword, text: StepText<'_>) -> Option<Async
 /// ```
 #[must_use]
 pub fn find_step_with_metadata(keyword: StepKeyword, text: StepText<'_>) -> Option<&'static Step> {
-    resolve_step(keyword, text).inspect(|step| {
-        mark_used((step.keyword, step.pattern));
-    })
+    mark_and_project(resolve_step(keyword, text), |step| step)
 }
 
 /// Return registered steps that were never executed.
