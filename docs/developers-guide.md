@@ -723,6 +723,27 @@ feature-gated regression suite in
 `crates/rstest-bdd-harness-gpui/tests/scenario_name_in_logs.rs` apply the
 attribute to every `GpuiHarness::run`-driving test.
 
+## cargo-bdd scenario output formatting
+
+`crates/cargo-bdd/src/output.rs` owns the rendering of skipped-scenario and
+bypassed-step listings.
+
+- **Options:** construct `ScenarioDisplayOptions` via the named constructors —
+  `compact()` (`cargo bdd skipped`), `with_reasons()`
+  (`cargo bdd skipped --reasons`), or `step_listing_appendix()`
+  (`cargo bdd steps`). Do not build the struct with positional booleans at
+  call-sites; add a new constructor when a new mode is needed.
+- **Canonical formatter:** `format_scenario_line` renders one scenario line.
+  The location, tag, and reason fragments come from the shared
+  `format_location`, `append_tags`, and `append_reason` helpers — also used by
+  `write_bypassed_steps` — gated by the display options. There are no
+  per-mode `*_scenario_*` duplicates; new fragments belong in the shared
+  helpers, gated in `format_scenario_line`.
+- Rendered output per mode is pinned by `insta` snapshots, and the structural
+  invariants (empty tag list emits no `[tags: …]` fragment; `:line` suffix
+  appears only when requested and known; the leading separator newline
+  appears iff requested) by property tests, both in `output.rs`.
+
 ## Language-server handler conventions
 
 ### Canonical extension predicate: `has_extension`

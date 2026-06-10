@@ -238,6 +238,8 @@ dependencies = [
  "cargo_metadata",
  "clap",
  "eyre",
+ "insta",
+ "proptest",
  "rstest",
  "rstest-bdd",
  "rstest-bdd-harness",
