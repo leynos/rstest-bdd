@@ -82,11 +82,11 @@ macro_rules! assert_unique_fixture_can_be_overridden_twice {
     ($ctx:expr) => {{
         let first = $ctx.insert_value(Box::new(5u32));
         assert!(
-            first.is_none(),
-            "first override should have no previous value"
+            matches!(first, InsertOutcome::Inserted(None)),
+            "first override should insert with no previous value"
         );
 
-        let Some(second) = $ctx.insert_value(Box::new(7u32)) else {
+        let Some(second) = $ctx.insert_value(Box::new(7u32)).into_previous() else {
             panic!("expected previous override to be returned");
         };
         let Ok(previous) = second.downcast::<u32>() else {
@@ -127,7 +127,10 @@ fn insert_value_behaviour(_logger: (), #[case] scenario: InsertValueScenario) {
             ctx.insert("two", &fixture_two);
 
             let result = ctx.insert_value(Box::new(5u32));
-            assert!(result.is_none(), "ambiguous overrides must be ignored");
+            assert!(
+                matches!(result, InsertOutcome::AmbiguousIgnored),
+                "ambiguous overrides must be reported as AmbiguousIgnored"
+            );
             assert_eq!(ctx.get::<u32>("one"), Some(&1));
             assert_eq!(ctx.get::<u32>("two"), Some(&2));
         }
@@ -135,7 +138,10 @@ fn insert_value_behaviour(_logger: (), #[case] scenario: InsertValueScenario) {
             ctx.insert("text", &fixture_text);
 
             let result = ctx.insert_value(Box::new(5u32));
-            assert!(result.is_none(), "missing fixture should skip override");
+            assert!(
+                matches!(result, InsertOutcome::NoMatch),
+                "missing fixture type must be reported as NoMatch"
+            );
             assert!(ctx.get::<u32>("text").is_none());
         }
     }
@@ -150,6 +156,39 @@ enum AvailableFixturesScenario {
     SharedAndOwned,
     /// No fixtures at all.
     Empty,
+}
+
+fn available_fixtures_behaviour(
+    #[case] scenario: AvailableFixturesScenario,
+    #[case] expected: &[&str],
+) {
+    // Storage for fixtures must outlive the context
+    let value_a: u32 = 1;
+    let value_b: &str = "text";
+    let shared_value: u32 = 42;
+    let cell: RefCell<Box<dyn Any>> = RefCell::new(Box::new(String::from("owned")));
+
+    let mut ctx = StepContext::default();
+
+    match scenario {
+        AvailableFixturesScenario::SharedOnly => {
+            ctx.insert("fixture_a", &value_a);
+            ctx.insert("fixture_b", &value_b);
+        }
+        AvailableFixturesScenario::SharedAndOwned => {
+            ctx.insert("shared", &shared_value);
+            ctx.insert_owned::<String>("owned", &cell);
+        }
+        AvailableFixturesScenario::Empty => {
+            // No fixtures inserted
+        }
+    }
+
+    let names: Vec<_> = ctx.available_fixtures().collect();
+    assert_eq!(names.len(), expected.len());
+    for name in expected {
+        assert!(names.contains(name));
+    }
 }
 
 #[rstest::rstest]
