@@ -2,7 +2,8 @@
 
 use rstest_bdd::localization::{ScopedLocalization, strip_directional_isolates};
 use rstest_bdd::{
-    StepContext, StepError, StepKeyword, assert_step_err, assert_step_ok, lookup_step,
+    InsertOutcome, StepContext, StepError, StepKeyword, assert_step_err, assert_step_ok,
+    lookup_step,
 };
 use rstest_bdd_macros::given;
 use unic_langid::langid;
@@ -102,12 +103,12 @@ fn insert_value_overrides_fixture() {
 
     let first = ctx.insert_value(Box::new(5u32));
     assert!(
-        first.is_none(),
+        matches!(first, InsertOutcome::Inserted(None)),
         "first override should insert without prior value"
     );
 
     let second = ctx.insert_value(Box::new(7u32));
-    let Some(prev) = second else {
+    let Some(prev) = second.into_previous() else {
         panic!("expected previous override to be returned");
     };
     let Ok(prev) = prev.downcast::<u32>() else {
@@ -128,7 +129,10 @@ fn insert_value_ignored_when_type_not_unique() {
     ctx.insert("two", &two);
 
     let result = ctx.insert_value(Box::new(5u32));
-    assert!(result.is_none(), "ambiguous override should be ignored");
+    assert!(
+        matches!(result, InsertOutcome::AmbiguousIgnored),
+        "ambiguous override should be reported as AmbiguousIgnored"
+    );
     assert_eq!(ctx.get::<u32>("one"), Some(&1));
     assert_eq!(ctx.get::<u32>("two"), Some(&2));
 }
