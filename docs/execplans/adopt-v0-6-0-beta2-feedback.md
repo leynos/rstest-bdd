@@ -5,7 +5,7 @@ This ExecPlan (execution plan) is a living document. The sections
 `Decision log`, and `Outcomes & retrospective` must be kept up to date as work
 proceeds.
 
-Status: DRAFT
+Status: APPROVED — implementation in progress
 
 ## Purpose / big picture
 
@@ -207,13 +207,16 @@ Thresholds that trigger escalation when breached.
   rebuild item to Phase 11.3, elevated the pull-forward recommendation, added
   the tested cleanup lifecycle, the v0.6→v0.7 mapping sketch, the gpui
   maintenance-tax note, and the open scheduling/divergence decisions.
-- [ ] Awaiting maintainer approval (execplans approval gate) before executing
-  the edits below.
-- [ ] Stage B: write the three ADR drafts (`adr-010`, `adr-011`, `adr-012`).
+- [x] (2026-06-10) Maintainer approval received. Open decisions resolved:
+  (a) pull-forward recommendation accepted — 11.1.3/11.1.4 (`ScenarioStore`/
+  cleanup helper) and 11.3.1 (rebuild-invalidation fix) will be scheduled in
+  v0.6.0 final; (b) Stage E code fix deferred — to be added as a roadmap item
+  and implemented under its own ExecPlan rather than in this branch.
+- [x] (2026-06-10) Stage B complete: wrote `adr-010-feature-file-change-detection.md`,
+  `adr-011-first-party-scenario-state-and-cleanup.md`, and
+  `adr-012-guard-based-stepcontext-borrowing.md`; `make markdownlint` clean.
 - [ ] Stage C: apply the roadmap edits.
 - [ ] Stage D: apply the design-document and adoption-guide edits.
-- [ ] Stage E (optional, maintainer-gated): land the rebuild-invalidation fix
-  plus a portability-aware regression test.
 
 ## Surprises & discoveries
 
@@ -354,11 +357,15 @@ Doggylump, Dinolump):
   recommendation is recorded separately. Date/Author: 2026-06-09 / Claude
   (panel: Pandalump).
 
-- Open decision (maintainer): whether to pull 11.1.3/11.1.4 (the
+- Decision (2026-06-10, maintainer): pull 11.1.3/11.1.4 (the
   `ScenarioStore`/cleanup helper) and 11.3.1 (the rebuild fix) forward into
-  v0.6.0 final. This plan recommends yes — the thread-local tax otherwise
-  persists across the whole v0.6.x line — but does not reschedule unilaterally.
-  (panel: Dinolump, Buzzy Bee.)
+  v0.6.0 final. Rationale: the pull-forward recommendation was accepted; the
+  thread-local tax will not persist across the v0.6.x line.
+
+- Decision (2026-06-10, maintainer): Stage E code change is deferred to its own
+  ExecPlan and roadmap item rather than being landed in this documentation
+  branch. The rebuild-invalidation fix is added to the roadmap as 11.3.1 with a
+  v0.6.0 final target and will be implemented under a separate ExecPlan.
 
 - Open decision (deferred, separate architectural call): whether to retire the
   vendored→published gpui mapping table by retargeting the regression suite and
