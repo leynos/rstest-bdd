@@ -5,7 +5,7 @@
 
 use proc_macro_crate::{FoundCrate, crate_name};
 #[cfg(not(test))]
-use proc_macro_error::emit_warning;
+use proc_macro_error2::emit_warning;
 use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
 use quote::quote;
 use rstest_bdd_policy::TestAttributeHint;
@@ -20,8 +20,11 @@ struct CrateSpec {
     adapter_type_names: &'static [&'static str],
 }
 
+mod adapter_fallback;
 pub(crate) mod scenario;
 pub(crate) mod wrapper;
+
+pub(crate) use adapter_fallback::first_party_adapter_fallback_warning_tokens;
 
 /// Specification for the core `rstest-bdd` runtime crate.
 const RSTEST_BDD: CrateSpec = CrateSpec {

@@ -21,7 +21,7 @@ use std::{
 use crate_id::{current_crate_id, normalize_crate_id};
 use messages::{format_ambiguous_step_error, format_missing_step_error};
 #[cfg(not(test))]
-use proc_macro_error::emit_warning;
+use proc_macro_error2::emit_warning;
 
 use crate::{StepKeyword, parsing::feature::ParsedStep, pattern::MacroPattern};
 
