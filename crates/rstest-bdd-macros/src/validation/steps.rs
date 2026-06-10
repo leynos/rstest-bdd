@@ -12,7 +12,6 @@
 
 mod crate_id;
 mod messages;
-
 use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
 
@@ -20,10 +19,10 @@ use crate::StepKeyword;
 use crate::parsing::feature::ParsedStep;
 use crate::pattern::MacroPattern;
 #[cfg(not(test))]
-use proc_macro_error::emit_warning;
 
 use crate_id::{current_crate_id, normalize_crate_id};
 use messages::{format_ambiguous_step_error, format_missing_step_error};
+use proc_macro_error2::emit_warning;
 
 type Registry = HashMap<Box<str>, CrateDefs>;
 

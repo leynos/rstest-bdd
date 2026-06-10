@@ -122,7 +122,10 @@ fn generate_trait_assertions(
 
     let harness_assertion = harness.map(|harness_path| {
         let harness_crate = crate::codegen::rstest_bdd_harness_api_path_for(harness_path);
+        let fallback_warning =
+            crate::codegen::first_party_adapter_fallback_warning_tokens(harness_path);
         quote! {
+            #fallback_warning
             const _: () = {
                 fn __assert_harness<T: #harness_crate::HarnessAdapter + Default>() {}
                 fn __call() { __assert_harness::<#harness_path>(); }
@@ -131,7 +134,10 @@ fn generate_trait_assertions(
     });
     let attributes_assertion = attributes.map(|policy_path| {
         let harness_crate = crate::codegen::rstest_bdd_harness_api_path_for(policy_path);
+        let fallback_warning =
+            crate::codegen::first_party_adapter_fallback_warning_tokens(policy_path);
         quote! {
+            #fallback_warning
             const _: () = {
                 fn __assert_attr_policy<T: #harness_crate::AttributePolicy>() {}
                 fn __call() { __assert_attr_policy::<#policy_path>(); }
