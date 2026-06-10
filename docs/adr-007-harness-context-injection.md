@@ -173,6 +173,31 @@ mapping. We chose explicit helper methods on `StepContext` instead
 the integration path local to existing context APIs and reduce codegen
 indirection.
 
+### Harness-context wrapper contract
+
+`StepContext` exposes a fixed set of thin wrappers that hard-code the
+reserved `RSTEST_BDD_HARNESS_CONTEXT_FIXTURE` key over the generic fixture
+API. They are deliberate API surface, not dead code, and divide into two
+roles:
+
+| Wrapper | Role |
+| --- | --- |
+| `insert_owned_harness_context` | **Required by codegen.** Emitted by macro-generated harness scenarios (`codegen/scenario/runtime/harness.rs`), which wrap `HarnessAdapter::Context` in an owned cell so steps can borrow it mutably. |
+| `insert_harness_context` | Insert-side counterpart for adapters that keep ownership of their context and share it by reference. |
+| `borrow_harness_context` / `borrow_harness_context_mut` | The supported typed read/write accessors for context stored by the owned insert path. |
+| `harness_context` | Typed accessor for the shared-reference insert path (returns `None` for owned entries). |
+
+Collapsing these onto the generic API
+(`ctx.get(RSTEST_BDD_HARNESS_CONTEXT_FIXTURE)` and friends) was considered
+and rejected: the reserved key would then be repeated at every call-site,
+including inside generated code, and the typed pairing between the insert
+and borrow sides would no longer be discoverable from the API surface.
+
+The wrapper set is intentionally closed. New generic fixture-access patterns
+on `StepContext` must **not** gain a matching `*_harness_context` wrapper by
+default; add one only when macro-generated code or the documented
+step-authoring path needs it, and record the addition here.
+
 ## Goals and non-goals
 
 ### Goals
