@@ -1,9 +1,8 @@
 # ExecPlan 9.6.3: add a third-party harness cookbook
 
-This ExecPlan (execution plan) is a living document. The sections
-`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
-`Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
-proceeds.
+This ExecPlan (execution plan) is a living document. The sections `Constraints`,
+`Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
+and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 Status: COMPLETE - implemented and validated on 2026-05-08
 
@@ -13,10 +12,10 @@ ExecPlan is the governing plan for roadmap item 9.6.3.
 ## Purpose / big picture
 
 Roadmap item 9.6.3 closes the author-facing documentation gap for third-party
-harness adapters. Architecture Decision Record 005 (ADR-005) introduced a
-small harness adapter layer so Tokio, Graphical Processing User Interface
-(GPUI), Bevy, and other framework-specific integrations can live in opt-in
-crates rather than the core runtime or macros. ADR-007 then added
+harness adapters. Architecture Decision Record 005 (ADR-005) introduced a small
+harness adapter layer so Tokio, Graphical Processing User Interface (GPUI),
+Bevy, and other framework-specific integrations can live in opt-in crates
+rather than the core runtime or macros. ADR-007 then added
 `HarnessAdapter::Context` so a harness can pass typed framework state, such as
 a Bevy `World`, into generated scenario execution.
 
@@ -216,8 +215,8 @@ within the tolerances in this plan.
 
 - Observation: `make fmt` still fails because its `mdformat-all` step invokes
   `markdownlint --fix` in a way that reports many pre-existing MD013 line
-  length findings across unrelated documents. Impact: unrelated formatter
-  side effects were restored, the changed Markdown files were validated with
+  length findings across unrelated documents. Impact: unrelated formatter side
+  effects were restored, the changed Markdown files were validated with
   `markdownlint-cli2`, and the repository's actual `make markdownlint` gate
   passed.
 
@@ -228,8 +227,8 @@ within the tolerances in this plan.
   plan must be approved before implementation. Date/Author: 2026-05-08 / Codex.
 
 - Decision: locate the cookbook in `docs/users-guide.md` under the existing
-  `Harness adapter and attribute policy` material, with cross-links to the
-  later `Harness adapter core APIs` section. Rationale: that keeps user-facing
+  `Harness adapter and attribute policy` material, with cross-links to the later
+  `Harness adapter core APIs` section. Rationale: that keeps user-facing
   usage, custom adapter steps, and API reference discoverable without
   duplicating all low-level contract details. Date/Author: 2026-05-08 / Codex.
 
@@ -301,9 +300,9 @@ Primary roadmap target:
 
 Primary user-facing documentation:
 
-- `docs/users-guide.md` has the existing `Harness adapter and attribute
-  policy` section and the smaller `Writing a custom harness
-  adapter` passage. This is the main implementation target.
+- `docs/users-guide.md` has the existing `Harness adapter and attribute policy`
+  section and the smaller `Writing a custom harness adapter` passage. This is
+  the main implementation target.
 - `docs/users-guide.md` also has `Harness adapter core APIs`, which should
   remain the deeper API reference for `HarnessAdapter`, `ScenarioRunRequest`,
   and `AttributePolicy`.

@@ -72,8 +72,8 @@ workspace, rewrites manifests to target crates.io, and then executes the
 `cargo publish` commands in the required order. The dry-run workflow also
 builds a standalone archive for `rstest-bdd-harness-gpui` and compiles a
 generated validator crate against upstream `gpui`, while the live workflow
-preserves the `--dry-run` guard rails before each publish invocation and
-applies `--locked` for `cargo-bdd`.
+preserves the `--dry-run` guard rails before each publish invocation and applies
+`--locked` for `cargo-bdd`.
 
 Cargo enforces that published dependencies already exist on crates.io. This is
 why the crates must be released in the order shown above.

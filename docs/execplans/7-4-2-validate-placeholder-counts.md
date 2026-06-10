@@ -1,9 +1,8 @@
 # Validate placeholder counts, typed placeholders, and data table/docstring expectations
 
-This execution plan (ExecPlan) is a living document. The sections
-`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
-`Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
-proceeds.
+This execution plan (ExecPlan) is a living document. The sections `Constraints`,
+`Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
+and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 Status: IN PROGRESS
 
@@ -294,10 +293,10 @@ struct SpecificityScore {
   | Function signature | Step args | Diagnostic? |
   | ------------------ | --------- | ----------- |
 
-  | `fn compare() {}`             | 0 | Yes — 2 ≠ 0                      |
-  | `fn compare(x: u32) {}`       | 1 | Yes — 2 ≠ 1                      |
-  | `fn compare(x: u32, y: u32)`  | 1 | Yes — 2 ≠ 1 (`y` not in set)     |
-  | `fn compare(x: u32, _x: u32)` | 2 | No — 2 = 2 (both normalize)      |
+  | `fn compare() {}`             | 0 | Yes — 2 ≠ 0                  |
+  | `fn compare(x: u32) {}`       | 1 | Yes — 2 ≠ 1                  |
+  | `fn compare(x: u32, y: u32)`  | 1 | Yes — 2 ≠ 1 (`y` not in set) |
+  | `fn compare(x: u32, _x: u32)` | 2 | No — 2 = 2 (both normalize)  |
 
   In the last row both `x` and `_x` normalize to `x`, which is in the
   placeholder set, so each counts as a step argument.

@@ -110,10 +110,9 @@ After this change:
 ## Surprises & discoveries
 
 - Observation: project-memory Model Context Protocol (MCP) resources
-  (including qdrant-backed notes) are unavailable in this environment.
-  Evidence: `list_mcp_resources` and `list_mcp_resource_templates` returned no
-  entries. Impact: planning relied on repository documents and code inspection
-  only.
+  (including qdrant-backed notes) are unavailable in this environment. Evidence:
+  `list_mcp_resources` and `list_mcp_resource_templates` returned no entries.
+  Impact: planning relied on repository documents and code inspection only.
 
 - Observation: current macro code deliberately rejects `harness` combined with
   async scenario generation, which is directly adjacent to 9.2.3 alias work.

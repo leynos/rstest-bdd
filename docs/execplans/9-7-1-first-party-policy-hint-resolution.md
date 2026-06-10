@@ -1,9 +1,8 @@
 # Extend first-party policy hint resolution
 
-This ExecPlan (execution plan) is a living document. The sections
-`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
-`Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
-proceeds.
+This ExecPlan (execution plan) is a living document. The sections `Constraints`,
+`Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
+and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 Status: COMPLETE
 
@@ -268,20 +267,20 @@ gates all agree.
   formatter rewrites were restored, and the clean Markdown gate is recorded via
   `make markdownlint`.
 - Observation: the full test gate still fails in an unrelated GPUI compile
-  fixture. Evidence:
-  `/tmp/test-9-7-1-first-party-policy-hint-resolution.out` reports
-  `rstest-bdd-harness-gpui::macro_compile::gpui_macro_fixtures_compile` failed
-  with `Os { code: 2, kind: NotFound, message: "No such file or directory" }`
-  after 616 tests passed, 1 failed, and 7 were skipped. Impact: per the
-  validation tolerance, do not mark roadmap item 9.7.1 done and do not commit
-  until this existing failure is resolved or the maintainer explicitly directs
-  a different close-out policy.
+  fixture. Evidence: `/tmp/test-9-7-1-first-party-policy-hint-resolution.out`
+  reports `rstest-bdd-harness-gpui::macro_compile::gpui_macro_fixtures_compile`
+  failed with
+  `Os { code: 2, kind: NotFound, message: "No such file or directory" }` after
+  616 tests passed, 1 failed, and 7 were skipped. Impact: per the validation
+  tolerance, do not mark roadmap item 9.7.1 done and do not commit until this
+  existing failure is resolved or the maintainer explicitly directs a different
+  close-out policy.
 - Observation: the GPUI compile fixture failure was caused by the shared
   `copy_dir_tree` staging helper rather than GPUI codegen. Evidence:
   `stage_trybuild_support_files` copies `tests/features/auto` into
   `target/tests/trybuild/rstest-bdd-harness-gpui/tests/features/auto`, and the
-  overlap check canonicalized the missing immediate parent
-  `.../tests/features` before creating it. Impact: the fix belongs in
+  overlap check canonicalized the missing immediate parent `.../tests/features`
+  before creating it. Impact: the fix belongs in
   `crates/rstest-bdd-harness/src/trybuild_staging/mod.rs`, with a focused
   regression test in the same module.
 - Observation: after fixing the staging helper, the previously failing GPUI
@@ -324,10 +323,9 @@ gates all agree.
   2026-05-08 / Codex.
 - Decision: do not update `docs/roadmap.md` or commit this patch while
   `make test` is red. Rationale: the ExecPlan acceptance criteria and
-  repository instructions require the full test gate before closing the
-  roadmap item or committing, even though the observed failure appears
-  unrelated to this focused policy test change. Date/Author: 2026-05-08 /
-  Codex.
+  repository instructions require the full test gate before closing the roadmap
+  item or committing, even though the observed failure appears unrelated to
+  this focused policy test change. Date/Author: 2026-05-08 / Codex.
 - Decision: include the trybuild-staging fix in this implementation branch
   rather than leaving 9.7.1 blocked. Rationale: the failure blocks the required
   `make test` gate, the root cause is a small shared test-support bug with a
@@ -344,10 +342,10 @@ paired attribute-policy path. The harness resolver negative matrix now also
 covers wrong first-party-looking prefixes and extra path segments.
 
 During full validation, `make test` exposed a pre-existing GPUI trybuild
-staging failure. The fix broadened the shared staging helper so
-`copy_dir_tree` can copy into a destination whose parent chain does not yet
-exist while still rejecting overlapping source and destination trees. A focused
-regression test now covers that case.
+staging failure. The fix broadened the shared staging helper so `copy_dir_tree`
+can copy into a destination whose parent chain does not yet exist while still
+rejecting overlapping source and destination trees. A focused regression test
+now covers that case.
 
 The required gates pass: `make check-fmt`, `make lint`, `make test`,
 `make markdownlint`, and `make nixie`.
@@ -440,7 +438,7 @@ Stage B adds or completes the shared resolver. In
 `TOKIO_ATTRIBUTE_POLICY_PATH`, `TOKIO_HARNESS_PATH`,
 `GPUI_ATTRIBUTE_POLICY_PATH`, and `GPUI_HARNESS_PATH`. Keep or add a
 `resolve_test_attribute_hint_for_harness_path(path_segments: &[&str]) -> Option<TestAttributeHint>`
- helper beside `resolve_test_attribute_hint_for_policy_path`. The harness
+helper beside `resolve_test_attribute_hint_for_policy_path`. The harness
 resolver must match only exact canonical path segments and return `None` for
 single-segment names, wrong crate prefixes, similarly named third-party types,
 and arbitrary unknown paths.

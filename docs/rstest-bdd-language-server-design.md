@@ -3,9 +3,10 @@
 ## Introduction and goals
 
 `rstest-bdd` is a Behaviour-Driven Development (BDD) framework for Rust,
-integrating Gherkin feature files with Rust's `rstest` testing framework in line
-with the [design goals](rstest-bdd-design.md#121-step-1-the-feature-file) and
-the [step definition file](rstest-bdd-design.md#122-step-2-the-step-definition-file).
+integrating Gherkin feature files with Rust's `rstest` testing framework in
+line with the [design goals](rstest-bdd-design.md#121-step-1-the-feature-file)
+and the
+[step definition file](rstest-bdd-design.md#122-step-2-the-step-definition-file).
 
 To enhance developer experience, this document proposes a dedicated language
 server (LSP) for `rstest-bdd` (to be implemented as a new crate,
@@ -83,9 +84,9 @@ patterns appear. To implement Go-to-Definition:
   `{phrase}` as a placeholder.
 
 **Rationale:** This mirrors the design goal in the roadmap for IDE integration,
-where "Go to Definition" from Rust code should jump to the Gherkin
-scenario[^2]. By using the same pattern syntax and parser as the `rstest-bdd`
-macros, the navigation remains accurate and only triggers when the texts truly
+where "Go to Definition" from Rust code should jump to the Gherkin scenario
+[^2]. By using the same pattern syntax and parser as the `rstest-bdd` macros,
+the navigation remains accurate and only triggers when the texts truly
 correspond. (Notably, the `rstest-bdd` macros use a shared
 `rstest-bdd-patterns` crate to compile step patterns into regexes so that
 compile-time and runtime agree on semantics. The LSP will reuse this library to
@@ -131,8 +132,8 @@ the project's plan to support editor features for jumping from `.feature` steps
 to code[^1]. Using the exact same pattern matching logic as the test runtime
 ensures that "Go to Implementation" only succeeds when the code truly
 implements the step, preventing false positives. (The use of the shared pattern
-parser ensures placeholders and regex in step definitions are handled
-correctly[^4].)
+parser ensures placeholders and regex in step definitions are handled correctly
+[^4].)
 
 ### 3. Diagnostics and error reporting
 
@@ -248,9 +249,9 @@ to Rust Analyzer.
 - plus standard initialization, shutdown, etc.
 
 - **Feature File Parser (Gherkin):** The server uses the `gherkin` crate to
-  parse `.feature` files into an abstract syntax tree (AST) or data
-  structure[^10]. This allows extraction of scenarios, steps (with their text,
-  line numbers, and possibly step type), and example tables. The parser handles
+  parse `.feature` files into an abstract syntax tree (AST) or data structure
+  [^10]. This allows extraction of scenarios, steps (with their text, line
+  numbers, and possibly step type), and example tables. The parser handles
   Gherkin syntax (including language variations if needed, though initial focus
   is likely English by default). Each feature file parse yields:
 
@@ -575,8 +576,8 @@ Diagnostics are produced by cross-referencing the feature and code indices:
 - Verify that if the function expects a `datatable` parameter or `docstring`,
   the pattern should allow those (in Gherkin, a data table or docstring isn't
   part of the step text pattern but an attached structure). The LSP cannot
-  infer from the pattern alone, but it can ensure, for example, that at most
-  one `datatable` parameter is present and that the feature actually supplies a
+  infer from the pattern alone, but it can ensure, for example, that at most one
+  `datatable` parameter is present and that the feature actually supplies a
   table for steps known to use this function. If a `datatable` parameter is
   present in a step function, and some scenario uses that step text without a
   table, either the feature or the code is flagged. However, this might better
@@ -627,8 +628,8 @@ specification (feature files) and implementation (Rust code) remains
 consistent. Many of these checks are analogous to what the `rstest-bdd` macros
 and runtime do (or will do) at compile/run time, but the LSP provides them
 earlier in the development flow. This immediate feedback loop will greatly
-improve the developer experience (a focus of Phase 5 and 6 in the
-roadmap[^15][^2]).
+improve the developer experience (a focus of Phase 5 and 6 in the roadmap[^15]
+[^2]).
 
 ## Editor integration and usage
 
@@ -1007,8 +1008,8 @@ experience for BDD-style testing in Rust. By providing cross-navigation between
 Gherkin and Rust and early detection of mismatches, it closes the feedback loop
 envisioned in the `rstest-bdd` project's design. Implementing it as a
 standalone, async LSP server ensures it remains modular and editor-independent,
-aligning with modern Rust tooling practices. By building on existing crates
-like `gherkin` for parsing and reusing the `rstest-bdd` framework's own pattern
+aligning with modern Rust tooling practices. By building on existing crates like
+`gherkin` for parsing and reusing the `rstest-bdd` framework's own pattern
 logic[^7], this approach guarantees consistency between what developers see in
 their IDE and what happens at compile/test time. This design lays out a clear
 path to deliver the three core capabilities, with an eye toward future

@@ -1,7 +1,7 @@
 # ExecPlan 5.1.6: Fallible scenario bodies
 
-This Execution Plan (ExecPlan) is a living document. The sections
-`Constraints`, `Plan of work`, `Concrete steps`, `Decision log`, and
+This Execution Plan (ExecPlan) is a living document. The sections `Constraints`,
+`Plan of work`, `Concrete steps`, `Decision log`, and
 `Outcomes & retrospective` must be kept up to date as work proceeds.
 
 ## Objective
@@ -40,7 +40,7 @@ module names and crate boundaries when locating code.
 
 - In the scenario runtime generator (currently
   `crates/rstest-bdd-macros/src/codegen/scenario/runtime/generators/scenario.rs`
-   in `rstest-bdd-macros`), make `generate_skip_handler` accept the scenario
+  in `rstest-bdd-macros`), make `generate_skip_handler` accept the scenario
   return kind (or a boolean).
 - Return `Ok(())` for fallible scenarios and `return;` for infallible ones.
 
@@ -57,12 +57,12 @@ module names and crate boundaries when locating code.
    `crates/rstest-bdd-macros/src/macros/scenario/mod.rs`) to accept only unit
    return kinds.
 2. Wrap fallible scenario bodies in the runtime scaffolding (currently in
-   `rstest-bdd-macros` under `crates/rstest-bdd-macros/src/codegen/scenario`
-   and `crates/rstest-bdd-macros/src/codegen/scenario/runtime`) to mark the
-   guard before returning errors.
+   `rstest-bdd-macros` under `crates/rstest-bdd-macros/src/codegen/scenario` and
+   `crates/rstest-bdd-macros/src/codegen/scenario/runtime`) to mark the guard
+   before returning errors.
 3. Adjust skip handler generation in the runtime generators (currently in
-   `crates/rstest-bdd-macros/src/codegen/scenario/runtime/generators`) to
-   return `Ok(())` for fallible scenarios.
+   `crates/rstest-bdd-macros/src/codegen/scenario/runtime/generators`) to return
+   `Ok(())` for fallible scenarios.
 4. Add trybuild fixtures and behavioural tests in the `rstest-bdd` test suite
    (currently under `crates/rstest-bdd/tests`) to cover success, error, and
    invalid return signatures.

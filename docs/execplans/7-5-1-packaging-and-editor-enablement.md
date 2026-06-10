@@ -1,9 +1,8 @@
 # Packaging and editor enablement
 
-This execution plan (ExecPlan) is a living document. The sections
-`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
-`Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
-proceeds.
+This execution plan (ExecPlan) is a living document. The sections `Constraints`,
+`Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
+and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 Status: COMPLETE
 
@@ -216,8 +215,8 @@ Add `debounce_ms: Option<u64>` to the `Args` struct and pass it through to
 ### Stage B: Add `workspace_root` to config (~30 lines)
 
 Add the `workspace_root: Option<PathBuf>` field to `ServerConfig`, read the
-`RSTEST_BDD_LSP_WORKSPACE_ROOT` env var, extend `apply_overrides()`, and add
-the `--workspace-root` CLI flag.
+`RSTEST_BDD_LSP_WORKSPACE_ROOT` env var, extend `apply_overrides()`, and add the
+`--workspace-root` CLI flag.
 
 ### Stage C: Use in lifecycle handler (~5 lines)
 

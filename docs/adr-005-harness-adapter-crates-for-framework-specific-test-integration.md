@@ -60,8 +60,8 @@ harness integrations as separate crates.
 
 ### Option A: Monolithic integrations in `rstest-bdd`
 
-Continue implementing Tokio, GPUI, and future harnesses directly in the
-existing `rstest-bdd` crates, typically behind feature flags.
+Continue implementing Tokio, GPUI, and future harnesses directly in the existing
+`rstest-bdd` crates, typically behind feature flags.
 
 This keeps the crate count small, but moves complexity into conditional
 compilation, increases maintenance cost in the core, and risks dependency creep.

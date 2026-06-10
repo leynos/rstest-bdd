@@ -1,7 +1,7 @@
 # Add shared policy crate and ADR
 
-This execution plan (ExecPlan) is a living document. The sections
-`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises and Discoveries`,
+This execution plan (ExecPlan) is a living document. The sections `Constraints`,
+`Tolerances`, `Risks`, `Progress`, `Surprises and Discoveries`,
 `Decision Log`, and `Outcomes and Retrospective` must be kept up to date as
 work proceeds.
 

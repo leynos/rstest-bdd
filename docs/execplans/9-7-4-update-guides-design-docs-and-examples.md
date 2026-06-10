@@ -1,7 +1,7 @@
 # Update harness-led defaults documentation and examples
 
 This ExecPlan (execution plan) is a living document. The sections `Constraints`,
- `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
+`Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
 and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 Status: COMPLETE
@@ -286,8 +286,8 @@ repository gates.
   `/tmp/fmt-9-7-4-update-guides-design-docs-and-examples.out` contains the
   failed `markdownlint --fix` output; unrelated formatter churn was restored
   before continuing. Impact: keep only task-owned files in the worktree and use
-  `make markdownlint` plus the Rust formatting check as the authoritative
-  gates for the final branch state.
+  `make markdownlint` plus the Rust formatting check as the authoritative gates
+  for the final branch state.
 
 ## Decision log
 
@@ -330,12 +330,11 @@ repository gates.
   Tokio reminders and GPUI counter scenario tests. Rationale: the roadmap item
   requires first-party examples to no longer require both parameters by
   default, and focused example tests prove that the delivered harness-led
-  defaults cover these examples. Date/Author: 2026-05-26T00:00:00+02:00 /
-  Codex.
+  defaults cover these examples. Date/Author: 2026-05-26T00:00:00+02:00 / Codex.
 - Decision: Author the four harness-led-default expansion snapshots in the
   pruned style of the existing override-default and Tokio attributes snapshots,
-  rather than capturing the full macro expansion. Rationale: `cargo expand`
-  is not available in this sandbox, the existing snapshots follow the same
+  rather than capturing the full macro expansion. Rationale: `cargo expand` is
+  not available in this sandbox, the existing snapshots follow the same
   hand-curated convention, and the `*_snapshots_encode_attribute_boundaries`
   tests assert against discriminating substrings rather than literal token
   equality. The opt-in `macrotest::expand_without_refresh` runner can refresh
@@ -357,7 +356,7 @@ findings. Roadmap item 9.7.4 is marked done.
 
 The harness adapter architecture comes from ADR-005 and is documented in
 `docs/adr-005-harness-adapter-crates-for-framework-specific-test-integration.md`.
- It keeps framework-specific runtime integration out of the core runtime and
+It keeps framework-specific runtime integration out of the core runtime and
 macro crates. The shared `rstest-bdd-harness` crate defines `HarnessAdapter`,
 `ScenarioRunRequest`, `ScenarioRunner`, `AttributePolicy`, and
 `DefaultAttributePolicy`.

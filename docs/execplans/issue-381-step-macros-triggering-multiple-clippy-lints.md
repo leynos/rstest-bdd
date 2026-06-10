@@ -142,7 +142,7 @@ gates succeed.
 
 All commands run from the repository root
 `/data/leynos/Projects/rstest-bdd.worktrees/issue-381-step-macros-triggering-multiple-clippy-lints`.
- Use `tee` for long outputs as required. If `get-project` is unavailable,
+Use `tee` for long outputs as required. If `get-project` is unavailable,
 replace `$(get-project)` with `$(basename "$PWD")`.
 
 1. Inspect wrapper assembly and argument preparation:

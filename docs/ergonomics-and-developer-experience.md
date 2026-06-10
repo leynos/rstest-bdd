@@ -167,8 +167,8 @@ A new derive macro, StepArgs, will be introduced in rstest-bdd-macros.
       `Vec<String>` and then call `try_into()` to populate the struct.
 
 Implementation note: procedural macros cannot reliably detect whether an
-arbitrary type derives `StepArgs`. The final design therefore uses a
-lightweight `#[step_args]` marker on the relevant parameter to signal that all
+arbitrary type derives `StepArgs`. The final design therefore uses a lightweight
+`#[step_args]` marker on the relevant parameter to signal that all
 placeholders should be routed into the derived struct. The derive macro still
 produces the `TryFrom<Vec<String>>` implementation and records the field names,
 so the wrapper can validate the capture count at compile time.
@@ -270,12 +270,12 @@ fn results_are_displayed(results: Vec<SearchResult>) {
 
 **Goal:** Provide a structured and type-safe alternative to manually crafting
 state objects with `RefCell<Option<T>>`. This is the most requested ergonomic
-feature aimed at creating a single "world" or "state" object with less
-ceremony. `rstest-bdd` now registers fixtures provided by `#[scenario]` tests
-with exclusive access, so step functions can request `&mut World` and mutate
-the shared state directly when that is all they need. The `Slot<T>` helper
-still serves as the ergonomic option for optional fields or when steps must
-stash data lazily without replacing the entire struct.
+feature aimed at creating a single "world" or "state" object with less ceremony.
+`rstest-bdd` now registers fixtures provided by `#[scenario]` tests with
+exclusive access, so step functions can request `&mut World` and mutate the
+shared state directly when that is all they need. The `Slot<T>` helper still
+serves as the ergonomic option for optional fields or when steps must stash
+data lazily without replacing the entire struct.
 
 Proposed Design:
 

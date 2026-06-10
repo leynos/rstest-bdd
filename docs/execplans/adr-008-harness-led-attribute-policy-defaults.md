@@ -1,9 +1,8 @@
 # ExecPlan: implement ADR-008 harness-led attribute-policy defaults
 
-This ExecPlan (execution plan) is a living document. The sections
-`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
-`Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
-proceeds.
+This ExecPlan (execution plan) is a living document. The sections `Constraints`,
+`Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
+and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 Status: IMPLEMENTED
 
@@ -140,7 +139,7 @@ Success is observable in three ways:
   `crates/rstest-bdd/tests/trybuild_macros.rs`. Severity: high. Likelihood:
   high. Mitigation: keep a separate
   `cargo test -p rstest-bdd --test trybuild_macros step_macros_compile -- --exact`
-   command in the required validation recipe.
+  command in the required validation recipe.
 - Risk: the user guide could drift if only the ADR and design doc are updated.
   Severity: medium. Likelihood: medium. Mitigation: make the user-guide update
   a first-class milestone and do not close the work until its examples and

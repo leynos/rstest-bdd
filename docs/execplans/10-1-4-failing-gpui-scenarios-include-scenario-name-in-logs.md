@@ -638,9 +638,8 @@ make markdownlint: exits 0 when Markdown changed
 
 This change does not introduce any new public types, traits, or functions. As
 implemented in `crates/rstest-bdd-harness-gpui/src/gpui_harness.rs`, the
-augmentation is split across several private helpers on `impl GpuiHarness`
-and one module-private RAII guard, none of which are reachable outside the
-crate:
+augmentation is split across several private helpers on `impl GpuiHarness` and
+one module-private RAII guard, none of which are reachable outside the crate:
 
 ```rust
 // Builds the augmented panic string from the original payload and metadata.
@@ -663,20 +662,19 @@ fn write_stderr_diagnostic_to(
 struct ContextCleanup<'a> { /* dispatcher and context borrows */ }
 ```
 
-The earlier draft of this section described a single `augment_panic`
-helper that returned a re-boxed payload. The implementation diverged into
-the helpers above so observability (tracing) and I/O (stderr) are
-separable, the writer is an explicit dependency, and cleanup runs via
-`Drop` rather than by guarding a single point of return. All helpers
-remain private; integration tests exercise them end-to-end through
-`HarnessAdapter::run`, and the lone unit test that needs the I/O
-primitive directly (`write_stderr_diagnostic_to_returns_err_on_io_failure`)
-lives in the crate-internal `#[cfg(test)] mod tests` block alongside the
-implementation.
+The earlier draft of this section described a single `augment_panic` helper
+that returned a re-boxed payload. The implementation diverged into the helpers
+above so observability (tracing) and I/O (stderr) are separable, the writer is
+an explicit dependency, and cleanup runs via `Drop` rather than by guarding a
+single point of return. All helpers remain private; integration tests exercise
+them end-to-end through `HarnessAdapter::run`, and the lone unit test that
+needs the I/O primitive directly
+(`write_stderr_diagnostic_to_returns_err_on_io_failure`) lives in the
+crate-internal `#[cfg(test)] mod tests` block alongside the implementation.
 
 If a future refactor moves any helper into
-`crates/rstest-bdd-harness-gpui/src/diagnostics.rs`, the visibility
-remains `pub(crate)` at most; do not export it.
+`crates/rstest-bdd-harness-gpui/src/diagnostics.rs`, the visibility remains
+`pub(crate)` at most; do not export it.
 
 The change relies on the following existing public surfaces, which are not
 modified:
@@ -708,12 +706,13 @@ in Stage C and record the addition in `Decision log`.
   `10-1-4-failing-gpui-scenarios-include-scenario-name-in-logs`, tracking
   `origin/10-1-4-failing-gpui-scenarios-include-scenario-name-in-logs`. The
   branch name was already correct; no rename was needed.
-- [x] (2026-05-24 17:50 CEST) Capture baseline `cargo test -p
-  rstest-bdd-harness-gpui --features native-gpui-tests`, `make check-fmt`,
-  and `make lint`; verify all pass; record test count. The focused GPUI
-  baseline passed with 24 tests: 2 attribute-policy tests,
-  6 harness-behaviour tests, 1 trybuild macro test, 8 scenario-macro
-  tests, and 7 stateful-window tests.
+- [x] (2026-05-24 17:50 CEST) Capture baseline
+      `cargo test -p rstest-bdd-harness-gpui --features native-gpui-tests`,
+      `make check-fmt`,
+      and `make lint`; verify all pass; record test count. The focused GPUI
+      baseline passed with 24 tests: 2 attribute-policy tests, 6
+      harness-behaviour tests, 1 trybuild macro test, 8 scenario-macro tests,
+      and 7 stateful-window tests.
 - [x] (2026-05-24 17:50 CEST) Decide regression test channel (resumed panic
   payload vs. tracing subscriber capture) and record decision.
 - [x] (2026-05-24 17:52 CEST) Add the red regression test binary

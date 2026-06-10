@@ -33,7 +33,7 @@ barrier to adoption for teams already invested in the Rust testing ecosystem.[
 ^3]
 
 The design is heavily modelled on `pytest-bdd`, a successful plugin for Python's
- `pytest` framework.[^4]
+`pytest` framework.[^4]
 
 `pytest-bdd`'s success stems from its ability to leverage the full power of its
 host framework—including fixtures, parameterisation, and a vast plugin
@@ -374,7 +374,7 @@ classDiagram
   generated code matches `DataTableError::MissingColumn` and
   `DataTableError::MissingCell` to drive optional and default behaviour while
   propagating all other failures unchanged. The `truthy` attribute is limited to
-   `bool` fields to maintain clear semantics.
+  `bool` fields to maintain clear semantics.
 
   Trybuild fixtures lock down these invariants. Dedicated compile-fail cases
   assert that `#[datatable(optional)]` only applies to `Option<T>` fields,
@@ -589,7 +589,7 @@ macro has a distinct role in the compile-time orchestration of the BDD tests.
 
 - Doc strings: A multi-line text block immediately following a step is
   exposed to the step function through an optional `docstring` parameter of type
-   `String`. The runner passes the raw block to the wrapper as `Option<&str>`,
+  `String`. The runner passes the raw block to the wrapper as `Option<&str>`,
   and the wrapper clones it into an owned `String` before calling the step
   function. As with data tables, the parameter must use this exact name and
   concrete type for detection. The wrapper fails at runtime if the docstring is
@@ -1289,7 +1289,7 @@ fail-fast behaviour prevents silent runtime issues.
 
 The initial implementation targets Tokio current-thread mode (
 `#[tokio::test(flavor = "current_thread")]`). This mode aligns with the existing
- `RefCell`-backed fixture model:
+`RefCell`-backed fixture model:
 
 - Step futures may be `!Send` because they execute on a single thread.
 - Steps can hold `RefMut` guards or `&mut T` borrows across `.await` points.
@@ -1764,7 +1764,7 @@ resolved via `resolve_test_attribute_hint_for_harness_path` in
 `rstest-bdd-policy`. Third, if no explicit path or known harness mapping is
 present, the deprecated `runtime = "tokio-current-thread"` alias still reaches
 Tokio behaviour through `RuntimeMode::test_attribute_hint()` when the runtime is
- `TokioCurrentThread`. Fourth, all remaining cases fall back to the sync or
+`TokioCurrentThread`. Fourth, all remaining cases fall back to the sync or
 generic-async baseline, which emits `#[rstest::rstest]` only. This preserves
 ADR-008's "explicit policy beats harness default beats compatibility alias
 beats fallback" ordering while still producing `TokenStream2` output from one
@@ -1821,7 +1821,7 @@ The harness-side lookup that makes the second precedence level work lives in
 segments and returns `Option<TestAttributeHint>`, with the canonical mappings
 held in the `KNOWN_HARNESS_HINTS` table: `STD_HARNESS_PATH` (
 `["rstest_bdd_harness", "StdHarness"]`) maps to `TestAttributeHint::RstestOnly`,
- `TOKIO_HARNESS_PATH` (`["rstest_bdd_harness_tokio", "TokioHarness"]`) maps to
+`TOKIO_HARNESS_PATH` (`["rstest_bdd_harness_tokio", "TokioHarness"]`) maps to
 `TestAttributeHint::RstestWithTokioCurrentThread`, and `GPUI_HARNESS_PATH` (
 `["rstest_bdd_harness_gpui", "GpuiHarness"]`) maps to
 `TestAttributeHint::RstestWithGpuiTest`. Unknown third-party paths return
@@ -1863,7 +1863,7 @@ The first official adapters and policies are:
   attributes end-to-end, while the crate's unit tests cover the explicit
   `flush().await` coordination pattern. User-facing examples should therefore
   lead with `harness = rstest_bdd_harness_tokio::TokioHarness` alone and reserve
-   `attributes = ...` for explicit overrides or attributes-only cases.
+  `attributes = ...` for explicit overrides or attributes-only cases.
 - `rstest-bdd-harness-gpui` (implemented, phase 9.4): provides `GpuiHarness`
   and `GpuiAttributePolicy`. `GpuiHarness` implements `HarnessAdapter` by
   running each `ScenarioRunRequest` inside `gpui::run_test`, building a
@@ -1904,7 +1904,7 @@ Validation for the delivered model is intentionally split across layers:
 - behavioural and integration tests in `rstest-bdd` verify custom harness
   delegation, `rstest_bdd_harness_context` injection, Tokio runtime
   compatibility, GPUI integration, GPUI attribute-policy resolution through both
-   `#[scenario]` and `scenarios!`, and the deprecated runtime alias path.
+  `#[scenario]` and `scenarios!`, and the deprecated runtime alias path.
 
 #### 2.7.6 First-cut beta feedback and adoption implications
 
@@ -2085,7 +2085,7 @@ incrementally.
 
 - Implement the `inventory`-based step registry. Define the `Step` struct and
   the `#[given]`, `#[when]`, and `#[then]` macros to populate the registry using
-   `inventory::submit!`.
+  `inventory::submit!`.
 
 - Implement a basic `#[scenario]` macro. This includes compile-time Gherkin
   file parsing and a lookup map built at runtime from the step registry.
@@ -2166,7 +2166,7 @@ incrementally.
   innermost scope at runtime, so helper functions can call it transparently.
   When no scope is active the macro panics with
   `rstest_bdd::skip! may only be used inside a step or hook generated by rstest-bdd`,
-   which surfaces misuse without breaking helper-based flows. The guard records
+  which surfaces misuse without breaking helper-based flows. The guard records
   the originating file, function, and thread id; `skip!` verifies that the
   calling thread matches the one that entered the guard and panics with a
   descriptive message if another thread attempts to short-circuit execution.
@@ -2213,7 +2213,7 @@ skip details in diagnostic tooling and IDE integrations.
   sets alongside skip reasons, and tracks bypassed step definitions when
   execution halts early. `cargo bdd skipped` and `cargo bdd steps --skipped`
   surface this data (with JSON fields `feature`, `scenario`, `line`, `tags`, and
-   `reason`) to support IDE integrations and CLI consumers.
+  `reason`) to support IDE integrations and CLI consumers.
 - 2025-12-12: Bypassed-step recording is gated at codegen time with
   `cfg(feature = "diagnostics")` to keep non-diagnostic builds linkable. The
   runtime reuses the scenario tag vector for reporting to avoid repeated
@@ -2339,16 +2339,16 @@ between their BDD acceptance tests and their other unit/integration tests.
 
 The following table summarizes the key differences:
 
-| Feature          | rstest-bdd (Proposed)                                                                                                                            | cucumber                                                                        |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
-| Test Runner      | Standard cargo test (via rstest expansion)                                                                                                       | Custom runner invoked from a main function (World::run(…)) [^19]                |
-| State Management | rstest fixtures; dependency injection model [^1]                                                                                                 | Mandatory World struct; a central state object per scenario [^11]               |
-| Step Discovery   | Automatic via compile-time registration (inventory) and runtime matching                                                                         | Explicit collection in the test runner setup (World::cucumber().steps(…)) [^20] |
-| Parameterisation | Gherkin Scenario Outline maps to rstest's #[case] parameterisation [^21]                                                                         | Handled internally by the cucumber runner                                       |
-| Async Support    | Tokio current-thread mode delivered via `TokioHarness`; multi-thread runtimes future work ([ADR-001](adr-001-async-fixtures-and-test.md))        | Built-in; requires specifying an async runtime [^11]                            |
-| Ecosystem        | Seamless integration with rstest and cargo features                                                                                              | Self-contained framework; can use any Rust library within steps                 |
-| Ergonomics       | pytest-bdd-like; explicit #[scenario] binding links test code to features [^6]                                                                   | cucumber-jvm/js-like; feature-driven, with a central test runner                |
-| Core Philosophy  | BDD as an extension of the existing rstest framework                                                                                             | A native Rust implementation of the Cucumber framework standard                 |
+| Feature          | rstest-bdd (Proposed)                                                                                                                     | cucumber                                                                        |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Test Runner      | Standard cargo test (via rstest expansion)                                                                                                | Custom runner invoked from a main function (World::run(…)) [^19]                |
+| State Management | rstest fixtures; dependency injection model [^1]                                                                                          | Mandatory World struct; a central state object per scenario [^11]               |
+| Step Discovery   | Automatic via compile-time registration (inventory) and runtime matching                                                                  | Explicit collection in the test runner setup (World::cucumber().steps(…)) [^20] |
+| Parameterisation | Gherkin Scenario Outline maps to rstest's #[case] parameterisation [^21]                                                                  | Handled internally by the cucumber runner                                       |
+| Async Support    | Tokio current-thread mode delivered via `TokioHarness`; multi-thread runtimes future work ([ADR-001](adr-001-async-fixtures-and-test.md)) | Built-in; requires specifying an async runtime [^11]                            |
+| Ecosystem        | Seamless integration with rstest and cargo features                                                                                       | Self-contained framework; can use any Rust library within steps                 |
+| Ergonomics       | pytest-bdd-like; explicit #[scenario] binding links test code to features [^6]                                                            | cucumber-jvm/js-like; feature-driven, with a central test runner                |
+| Core Philosophy  | BDD as an extension of the existing rstest framework                                                                                      | A native Rust implementation of the Cucumber framework standard                 |
 
 ### 3.5 Potential extensions
 
@@ -3049,7 +3049,7 @@ These macros keep test code succinct while still surfacing detailed diagnostics.
   unsupported locales fall back to English.
 - **Refactor diagnostic messages:** Keep proc‑macro diagnostics stable and in
   English for deterministic builds. Localize user‑facing runtime messages in the
-   `rstest-bdd` crate using `FluentLanguageLoader` and `i18n-embed`'s locale
+  `rstest-bdd` crate using `FluentLanguageLoader` and `i18n-embed`'s locale
   requesters. Avoid compile‑time locale switches in macros.
 
 #### Implemented localization harness

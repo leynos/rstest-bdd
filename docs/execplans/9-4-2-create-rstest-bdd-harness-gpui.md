@@ -1,9 +1,8 @@
 # ExecPlan 9.4.2-9.4.4: Create `rstest-bdd-harness-gpui`
 
-This ExecPlan (execution plan) is a living document. The sections
-`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
-`Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
-proceeds.
+This ExecPlan (execution plan) is a living document. The sections `Constraints`,
+`Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
+and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 Status: COMPLETE (2026-03-06)
 
@@ -157,8 +156,8 @@ fixture injection, and the required gates all pass: `make check-fmt`,
 - Decision: patch `gpui` locally with a stable-compatible test-support shim
   instead of keeping upstream Linux portal/keyring dependencies in the
   workspace graph. Rationale: the harness adapter only uses `run_test`,
-  `TestAppContext`, and `#[gpui::test]`, while the repository policy forbids
-  any `async-trait` dependency, including transitive lockfile entries.
+  `TestAppContext`, and `#[gpui::test]`, while the repository policy forbids any
+  `async-trait` dependency, including transitive lockfile entries.
   Date/Author: 2026-03-06 / Codex.
 
 - Decision: keep GPUI behavioural and integration tests behind explicit cargo

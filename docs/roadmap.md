@@ -682,10 +682,10 @@ implementation commitments.
   first-party test attributes when the generated signature permits it, explicit
   overrides win, and `attributes`-only behaviour remains unchanged.
   Prerequisite: 9.7.2. Design Doc:
-  `docs/adr-008-harness-led-attribute-policy-defaults.md`. Delivered
-  2026-05-21 with unit coverage for precedence and unknown-path negatives,
-  trybuild fixtures for first-party override and attributes-only expansion,
-  and behavioural Tokio and GPUI scenario coverage. (Buzzy Bee)
+  `docs/adr-008-harness-led-attribute-policy-defaults.md`. Delivered 2026-05-21
+  with unit coverage for precedence and unknown-path negatives, trybuild
+  fixtures for first-party override and attributes-only expansion, and
+  behavioural Tokio and GPUI scenario coverage. (Buzzy Bee)
 - [x] 9.7.4. Update the user guide, design document, and first-party example
   prose to lead with harness-only configuration once the default-inference
   behaviour lands. Retain `attributes = ...` as an override pattern and keep
@@ -693,10 +693,10 @@ implementation commitments.
   and `docs/rstest-bdd-design.md` recommend harness-led defaults for the
   first-party integrations, examples no longer require both parameters by
   default, and `make markdownlint` passes. Prerequisite: 9.7.3. Design Doc:
-  `docs/adr-008-harness-led-attribute-policy-defaults.md`. Delivered
-  2026-05-26 with harness-only Tokio and GPUI example code, updated guide,
-  design, and migration prose, focused example tests, full repository gates,
-  and CodeRabbit review. (Dinolump)
+  `docs/adr-008-harness-led-attribute-policy-defaults.md`. Delivered 2026-05-26
+  with harness-only Tokio and GPUI example code, updated guide, design, and
+  migration prose, focused example tests, full repository gates, and CodeRabbit
+  review. (Dinolump)
 
 ## 10. First-cut beta feedback: v0.6.0-beta2 quick wins
 
@@ -750,10 +750,10 @@ changing the public trait contracts.
   topics. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.2. (Dinolump)
   Delivered 2026-06-04: the user guide carries a complete "Stateful GPUI
   scenarios with durable handles" playbook that mirrors the regression suite
-  identifier-for-identifier, and the v0.6.0 migration guide carries a
-  matching "Migrate a stateful GPUI test" subsection inside "Adopt GPUI
-  harness configuration", with the design-document schematic at §2.7.6.2
-  realigned to the regression-suite shape in the same commit set. See
+  identifier-for-identifier, and the v0.6.0 migration guide carries a matching
+  "Migrate a stateful GPUI test" subsection inside "Adopt GPUI harness
+  configuration", with the design-document schematic at §2.7.6.2 realigned to
+  the regression-suite shape in the same commit set. See
   `docs/execplans/10-2-1-migration-guide-for-gpui-stateful-tests.md`.
 - [x] 10.2.2. The migration guide provides a troubleshooting entry explaining
   the `E0499`/`E0502` symptoms for two mutable `StepContext` fixtures, why the
@@ -771,11 +771,10 @@ changing the public trait contracts.
   such as `cargo test --all-features` or a project `make test`, before API
   diagnosis. Finish line: the migration checklist names both command shapes and
   `make markdownlint` passes. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.3.
-  (Doggylump)
-  Delivered 2026-06-07: the v0.6.0 migration checklist now tells downstream
-  users to run `cargo test --workspace --all-features` or their Continuous
-  Integration (CI)-equivalent gate, such as `make test`, before assuming
-  v0.6.0 broke their API. See
+  (Doggylump) Delivered 2026-06-07: the v0.6.0 migration checklist now tells
+  downstream users to run `cargo test --workspace --all-features` or their
+  Continuous Integration (CI)-equivalent gate, such as `make test`, before
+  assuming v0.6.0 broke their API. See
   `docs/execplans/10-2-3-migration-guide-downstream-test-advice.md`.
 
 ## 11. Early life support: v0.6.1 additive hardening

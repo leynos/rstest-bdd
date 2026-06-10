@@ -294,8 +294,8 @@ The harness crate (`crates/rstest-bdd-harness/`) provides:
 
 - `HarnessAdapter` trait (`src/adapter.rs`):
   `fn run<T>(&self, request: ScenarioRunRequest<'_, T>) -> T`
-- `ScenarioRunner<'a, T>` (`src/runner.rs`): wraps `Box<dyn FnOnce() -> T +
-  'a>`; constructed via `ScenarioRunner::new(closure)`.
+- `ScenarioRunner<'a, T>` (`src/runner.rs`): wraps
+  `Box<dyn FnOnce() -> T + 'a>`; constructed via `ScenarioRunner::new(closure)`.
 - `ScenarioRunRequest<'a, T>` (`src/runner.rs`): bundles `ScenarioMetadata` +
   `ScenarioRunner`; constructed via `ScenarioRunRequest::new(metadata, runner)`.
 - `ScenarioMetadata` (`src/runner.rs`): `new(feature_path: impl Into<String>,

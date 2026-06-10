@@ -14,8 +14,8 @@ ExecPlan is the governing plan for this task.
 Phase 9.1 introduced the framework-agnostic harness foundation in
 `rstest-bdd-harness` (the `HarnessAdapter` trait, `AttributePolicy` trait,
 `StdHarness`, and `DefaultAttributePolicy`). These contracts exist but are not
-yet accessible from the macro layer. After this work, users of `#[scenario]`
-and `scenarios!` can specify a harness adapter and attribute policy via new
+yet accessible from the macro layer. After this work, users of `#[scenario]` and
+`scenarios!` can specify a harness adapter and attribute policy via new
 optional parameters:
 
     #[scenario(

@@ -1,9 +1,8 @@
 # Implement first-party harness-led attribute defaults
 
-This ExecPlan (execution plan) is a living document. The sections
-`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
-`Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
-proceeds.
+This ExecPlan (execution plan) is a living document. The sections `Constraints`,
+`Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
+and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 Status: COMPLETE
 
@@ -359,8 +358,8 @@ path that keeps ADR-008 precedence centralised. The preferred shape is:
 - `rstest-bdd-policy` remains the canonical table for first-party path
   mappings.
 
-Do not move third-party inference into macro codegen. Do not make the macro
-call `AttributePolicy::test_attributes()` for user-provided types; that is not
+Do not move third-party inference into macro codegen. Do not make the macro call
+`AttributePolicy::test_attributes()` for user-provided types; that is not
 available at proc-macro expansion time.
 
 Run the same focused tests as Milestone 1 after implementation. Then run

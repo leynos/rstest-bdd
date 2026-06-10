@@ -1,8 +1,8 @@
 # Developer guide
 
-For engineers and contributors working on the rstest-bdd codebase.  This
-guide covers workspace tooling, test infrastructure, macro internals, and
-the patterns used across crates — it is not a user-facing tutorial.
+For engineers and contributors working on the rstest-bdd codebase.  This guide
+covers workspace tooling, test infrastructure, macro internals, and the
+patterns used across crates — it is not a user-facing tutorial.
 
 ## Workspace dependency policy
 
@@ -28,8 +28,8 @@ edges. `rstest-bdd-patterns` owns shared pattern parsing, `rstest-bdd-policy`
 owns shared runtime and attribute-policy classification, and
 `rstest-bdd-harness` owns adapter contracts and test-staging helpers. The
 procedural macro crate may depend on those shared crates, but it must not
-depend on `rstest-bdd`; macro/runtime integration tests live under
-`rstest-bdd` instead.
+depend on `rstest-bdd`; macro/runtime integration tests live under `rstest-bdd`
+instead.
 
 Do not restore root-level `[patch.crates-io]` entries for normal development.
 Patches make local resolution differ from publish-time resolution and can hide
@@ -73,28 +73,27 @@ is rejected even when part of the destination path is not yet present.
 The `rstest-bdd-harness` crate exposes a `#[doc(hidden)]` module
 `macrotest_support` that provides shared helpers for the `macro_compile`
 integration suites in the Tokio and GPUI harness crates. Both suites run
-`macrotest` against committed `.expanded.rs` snapshots and need a common way
-to gate snapshot refresh, perform substring assertions over snapshot contents,
-and resolve per-crate trybuild scratch directories. The module is not part
-of the supported public surface of `rstest-bdd-harness`.
+`macrotest` against committed `.expanded.rs` snapshots and need a common way to
+gate snapshot refresh, perform substring assertions over snapshot contents, and
+resolve per-crate trybuild scratch directories. The module is not part of the
+supported public surface of `rstest-bdd-harness`.
 
 ### Snapshot refresh gating
 
 `snapshot_refresh_is_enabled()` returns `true` only when the
-`RSTEST_BDD_RUN_MACROTEST` environment variable is set and the
-`cargo expand` subcommand is available on `PATH`. It gates
-`macrotest::expand_without_refresh` calls so snapshot comparisons are
-skipped in ordinary CI and local development, and only exercised during
-deliberate snapshot-refresh workflows.
+`RSTEST_BDD_RUN_MACROTEST` environment variable is set and the `cargo expand`
+subcommand is available on `PATH`. It gates `macrotest::expand_without_refresh`
+calls so snapshot comparisons are skipped in ordinary CI and local development,
+and only exercised during deliberate snapshot-refresh workflows.
 
 ### Snapshot substring assertions
 
 - `assert_snapshot_contains(path, needles)` — asserts that each needle
-  substring appears at least once in the snapshot file at `path`. Panics on
-  I/O failure or when any needle is absent from the snapshot contents.
+  substring appears at least once in the snapshot file at `path`. Panics on I/O
+  failure or when any needle is absent from the snapshot contents.
 - `assert_snapshot_omits(path, needle)` — asserts that `needle` does not
-  appear anywhere in the snapshot file at `path`. Panics on I/O failure or
-  when the needle is found in the snapshot contents.
+  appear anywhere in the snapshot file at `path`. Panics on I/O failure or when
+  the needle is found in the snapshot contents.
 
 Both functions read the full snapshot into memory and use substring matching,
 so they are intended for small, human-readable `.expanded.rs` snapshots.
@@ -104,8 +103,8 @@ so they are intended for small, human-readable `.expanded.rs` snapshots.
 `trybuild_crate_root(manifest_path, target_subdir)` resolves the per-crate
 trybuild scratch directory by querying `cargo metadata` for the workspace
 `target` directory and appending `tests/trybuild/<target_subdir>`. It returns
-`Result<PathBuf, Box<dyn Error>>` and is consumed by `stage_trybuild_support_files`
-in each harness crate's `macro_compile.rs` test.
+`Result<PathBuf, Box<dyn Error>>` and is consumed by
+`stage_trybuild_support_files` in each harness crate's `macro_compile.rs` test.
 
 ## nextest on Windows: trybuild deadlock
 
@@ -134,7 +133,8 @@ Mitigation:
 Tokio and GPUI harness integration tests are co-located with their respective
 harness crates:
 
-Table: Test binaries for `rstest-bdd-harness-tokio` and `rstest-bdd-harness-gpui`
+Table: Test binaries for `rstest-bdd-harness-tokio` and
+`rstest-bdd-harness-gpui`
 
 | Crate                      | Test binary                  | What it tests                                                        |
 | -------------------------- | ---------------------------- | -------------------------------------------------------------------- |
@@ -626,49 +626,45 @@ releases as more harness infrastructure failures become typed and inspectable.
 ## GpuiHarness panic-handling internals
 
 The `rstest-bdd-harness-gpui` adapter wraps `gpui::run_test` in a thin
-panic-aware envelope so that failing scenarios surface the originating
-feature path, scenario name, and feature-file line in both the resumed
-panic payload and observability sinks. The internals are intentionally
-private but worth understanding when modifying the harness:
+panic-aware envelope so that failing scenarios surface the originating feature
+path, scenario name, and feature-file line in both the resumed panic payload
+and observability sinks. The internals are intentionally private but worth
+understanding when modifying the harness:
 
 - `GpuiHarness::run_request_once` is the single entry point that drives
-  `gpui::run_test`. It builds the per-scenario `TestAppContext`,
-  constructs a `ContextCleanup` RAII guard, and wraps the runner closure
-  in a `panic::catch_unwind(AssertUnwindSafe(..))` boundary. On the
-  success path the result is stored in an output mutex; on the panic
-  path the boxed `Any + Send` payload is rendered through
-  `augmented_panic_message`, recorded via
-  `record_and_write_panic_diagnostic`, leaked with `std::mem::forget`
-  to neutralize any user-defined `Drop` that could double-panic, and
-  finally re-raised as `Box<String>` through `panic::resume_unwind`.
-  The caller injects the stderr writer (`AssertUnwindSafe<RefCell<W>>`)
-  so I/O routing stays visible at the call site rather than hidden
-  behind a no-argument default.
+  `gpui::run_test`. It builds the per-scenario `TestAppContext`, constructs a
+  `ContextCleanup` RAII guard, and wraps the runner closure in a
+  `panic::catch_unwind(AssertUnwindSafe(..))` boundary. On the success path the
+  result is stored in an output mutex; on the panic path the boxed `Any + Send`
+  payload is rendered through `augmented_panic_message`, recorded via
+  `record_and_write_panic_diagnostic`, leaked with `std::mem::forget` to
+  neutralize any user-defined `Drop` that could double-panic, and finally
+  re-raised as `Box<String>` through `panic::resume_unwind`. The caller injects
+  the stderr writer (`AssertUnwindSafe<RefCell<W>>`) so I/O routing stays
+  visible at the call site rather than hidden behind a no-argument default.
 - `ContextCleanup` is an RAII guard that calls `finish_context` from
-  its `Drop` impl. It is constructed immediately after the
-  `TestAppContext` is built so the cleanup contract is honoured on
-  both the success and the panic paths. `finish_context` drains the
-  dispatcher with `run_until_parked`, calls `forbid_parking` on the
-  executor, and quits the context, so parked timers or background
-  work cannot leak into the next scenario.
+  its `Drop` impl. It is constructed immediately after the `TestAppContext` is
+  built so the cleanup contract is honoured on both the success and the panic
+  paths. `finish_context` drains the dispatcher with `run_until_parked`, calls
+  `forbid_parking` on the executor, and quits the context, so parked timers or
+  background work cannot leak into the next scenario.
 - `augmented_panic_message` renders the boxed `Any + Send` payload via
-  the workspace-shared `rstest_bdd::panic_message` downcast ladder
-  (handles `&str`, `String`, common scalars, and falls back to an
-  opaque `TypeId`-bearing description), then prepends the feature
-  path, scenario name, and line drawn from `ScenarioMetadata`.
+  the workspace-shared `rstest_bdd::panic_message` downcast ladder (handles
+  `&str`, `String`, common scalars, and falls back to an opaque
+  `TypeId`-bearing description), then prepends the feature path, scenario name,
+  and line drawn from `ScenarioMetadata`.
 - `record_and_write_panic_diagnostic` calls `record_panic_event` to
-  emit a `tracing::error!` record (with the harness, feature path,
-  scenario name, scenario line, and rendered error as structured
-  fields) and then writes the same message to the injected writer via
-  `write_stderr_diagnostic_to`. Write errors are downgraded to
-  `tracing::debug!` so an uncooperative stderr never escalates into a
-  double panic.
+  emit a `tracing::error!` record (with the harness, feature path, scenario
+  name, scenario line, and rendered error as structured fields) and then writes
+  the same message to the injected writer via `write_stderr_diagnostic_to`.
+  Write errors are downgraded to `tracing::debug!` so an uncooperative stderr
+  never escalates into a double panic.
 
-Because the runtime mutates an `Rc`-backed `TestAppContext`, every test
-that drives `GpuiHarness::run` from within the same process must be
-serialized under `#[serial_test::serial]`. The harness exposes that
-constraint in its module-level docs; both the in-module unit tests in
+Because the runtime mutates an `Rc`-backed `TestAppContext`, every test that
+drives `GpuiHarness::run` from within the same process must be serialized under
+`#[serial_test::serial]`. The harness exposes that constraint in its
+module-level docs; both the in-module unit tests in
 `crates/rstest-bdd-harness-gpui/src/gpui_harness/tests.rs` and the
 feature-gated regression suite in
-`crates/rstest-bdd-harness-gpui/tests/scenario_name_in_logs.rs` apply
-the attribute to every `GpuiHarness::run`-driving test.
+`crates/rstest-bdd-harness-gpui/tests/scenario_name_in_logs.rs` apply the
+attribute to every `GpuiHarness::run`-driving test.

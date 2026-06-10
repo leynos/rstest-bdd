@@ -1,9 +1,8 @@
 # First-party adapters compile without direct base harness dependency
 
-This ExecPlan (execution plan) is a living document. The sections
-`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
-`Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
-proceeds.
+This ExecPlan (execution plan) is a living document. The sections `Constraints`,
+`Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
+and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 Status: COMPLETE
 
@@ -66,8 +65,8 @@ item 10.1.1 done.
 - Scope: if implementation requires more than 18 files or more than 900 net
   lines, stop and ask for approval before widening the change.
 - Public API: if any public signature in `rstest-bdd-harness`,
-  `rstest-bdd-harness-tokio`, `rstest-bdd-harness-gpui`, `rstest-bdd-macros`,
-  or `rstest-bdd` must change, stop and present options.
+  `rstest-bdd-harness-tokio`, `rstest-bdd-harness-gpui`, `rstest-bdd-macros`, or
+  `rstest-bdd` must change, stop and present options.
 - Dependencies: if a new external dependency is needed, stop and explain why
   existing workspace tooling cannot cover the proof.
 - Code generation: if custom harness users would lose support for direct
@@ -213,9 +212,9 @@ generated code still requires a visible `rstest_bdd_harness` crate path.
 
 ### Milestone 2: choose the narrow dependency mechanism
 
-Use `leta` to inspect references to `rstest_bdd_harness_path`,
-`HarnessAdapter`, `ScenarioRunRequest`, `ScenarioRunner`, and first-party
-adapter paths. Decide whether the narrowest compatible mechanism is:
+Use `leta` to inspect references to `rstest_bdd_harness_path`, `HarnessAdapter`,
+`ScenarioRunRequest`, `ScenarioRunner`, and first-party adapter paths. Decide
+whether the narrowest compatible mechanism is:
 
 - to make first-party adapters re-export the base harness API needed by
   generated code and teach codegen to use the selected first-party adapter
@@ -360,10 +359,9 @@ Acceptance is met when all of the following are true:
 - [ ] Run focused validation and full gates.
 - [x] 2026-05-08: Ran focused validation:
   `cargo check -p tokio-reminders --tests`,
-  `cargo check -p gpui-counter --tests`,
-  `cargo test -p rstest-bdd-macros`,
-  `cargo test -p tokio-reminders`,
-  `cargo test -p gpui-counter`, and the GPUI macro compile test.
+  `cargo check -p gpui-counter --tests`, `cargo test -p rstest-bdd-macros`,
+  `cargo test -p tokio-reminders`, `cargo test -p gpui-counter`, and the GPUI
+  macro compile test.
 - [x] 2026-05-08: Ran full gates successfully:
   `make check-fmt`, `make lint`, `make test`, `make markdownlint`, and
   `make nixie`.
@@ -446,8 +444,8 @@ Acceptance is met when all of the following are true:
 - Decision: include the `copy_dir_tree` nested-destination fix in this change.
   Rationale: the required GPUI compile proof depends on staging a feature tree
   under a nested trybuild directory, and the helper's existing overlap guard
-  failed before the actual adapter-only compile proof could run.
-  Date/Author: 2026-05-08 / Implementation pass.
+  failed before the actual adapter-only compile proof could run. Date/Author:
+  2026-05-08 / Implementation pass.
 
 ## Outcomes & Retrospective
 

@@ -238,8 +238,8 @@ uncovers an actual mismatch that would mislead an implementer.
   These compile checks complement the unit tests that assert the exact
   attribute-precedence outcome.
 - Tokio attributes-only behavioural coverage cannot assert `spawn_local`
-  availability. `TokioAttributePolicy` emits `#[tokio::test]`, which provides
-  a Tokio runtime, while `TokioHarness` additionally provides the `LocalSet`
+  availability. `TokioAttributePolicy` emits `#[tokio::test]`, which provides a
+  Tokio runtime, while `TokioHarness` additionally provides the `LocalSet`
   needed by `tokio::task::spawn_local`.
 - `make fmt` was retried during implementation and still stopped on
   pre-existing repository-wide Markdown line-length and footnote findings. The
@@ -263,8 +263,8 @@ uncovers an actual mismatch that would mislead an implementer.
   its own macros, and adding a new testing framework would exceed a
   coverage-only milestone without explicit approval.
 - Decision: treat the 2026-05-21 maintainer clarification as superseding the
-  earlier `rust-rspec` request. Rationale: the maintainer confirmed `rspec`
-  was bootstrap history, and this repository now intentionally dogfoods its own
+  earlier `rust-rspec` request. Rationale: the maintainer confirmed `rspec` was
+  bootstrap history, and this repository now intentionally dogfoods its own
   `rstest-bdd` behavioural tests.
 - Decision: do not plan Kani or Verus work for the default coverage matrix.
   Rationale: the requirement concerns a finite, table-backed precedence rule
@@ -413,14 +413,14 @@ Firecrawl was used to resolve tooling and prior-art gaps:
 
 ## Outcomes & Retrospective
 
-Implemented the 9.7.3 coverage matrix without production resolver changes.
-Unit coverage now proves first-party path recognition, explicit override
-precedence, attributes-only preservation, signature-permitted emission, and
-unknown harness-path negatives. Trybuild coverage now exercises explicit
-default-policy overrides and Tokio attributes-only expansion in the
-first-party harness crates. Behavioural coverage now proves Tokio
-attributes-only runtime availability plus explicit default-policy overrides for
-Tokio and GPUI harness-led scenarios.
+Implemented the 9.7.3 coverage matrix without production resolver changes. Unit
+coverage now proves first-party path recognition, explicit override precedence,
+attributes-only preservation, signature-permitted emission, and unknown
+harness-path negatives. Trybuild coverage now exercises explicit default-policy
+overrides and Tokio attributes-only expansion in the first-party harness
+crates. Behavioural coverage now proves Tokio attributes-only runtime
+availability plus explicit default-policy overrides for Tokio and GPUI
+harness-led scenarios.
 
 Focused validation passed for policy and macro unit tests, Tokio and GPUI
 trybuild suites, and Tokio and GPUI behavioural suites. Final repository gates
