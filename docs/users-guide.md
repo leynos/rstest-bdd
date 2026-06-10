@@ -1022,17 +1022,6 @@ path when `attributes = ...` is omitted:
 
 ```rust,no_run
 # use rstest_bdd_macros::scenario;
-#[scenario(
-    path = "tests/features/reminders.feature",
-    name = "Scheduling a reminder queues it for later delivery",
-    harness = rstest_bdd_harness_tokio::TokioHarness,
-)]
-fn queues_a_scheduled_reminder() {}
-```
-
-Keep explicit `attributes = ...` only for overrides, attributes-only tests, or
-unrecognized paths where the default cannot be inferred.
-
 ### Using the GPUI harness
 
 The `rstest-bdd-harness-gpui` crate provides Graphical Processing User
@@ -1055,23 +1044,6 @@ when `attributes = ...` is omitted:
 
 ```rust,no_run
 # use rstest_bdd_macros::scenario;
-#[scenario(
-    path = "tests/features/counter.feature",
-    name = "Increment a counter and observe GPUI context",
-    harness = rstest_bdd_harness_gpui::GpuiHarness,
-)]
-fn increment_and_observe_gpui_context() {}
-```
-
-Focused integration coverage in
-`crates/rstest-bdd-harness-gpui/tests/macro_compile.rs`,
-`crates/rstest-bdd-harness-gpui/tests/scenario_macros.rs`, and
-`crates/rstest-bdd-harness-gpui/tests/stateful_window.rs`. Those suites verify
-GPUI attribute-policy resolution for `#[scenario]` and `scenarios!`,
-deduplication when a `#[scenario]` test already carries an explicit
-`#[gpui::test]`, and stateful window scenarios that carry durable handles
-across steps.
-
 #### GPUI panic diagnostics carry scenario context
 
 When a step running under `GpuiHarness` panics, the harness prepends the
@@ -1087,19 +1059,22 @@ function names against feature files. For a concrete regression example, see
 
 #### Stateful GPUI scenarios with durable handles
 
-> **Note: this is a v0.6 interim workaround.**
+> **Note: this workaround is superseded from v0.7.0.**
 >
-> The thread-local scenario-state pattern below is the recommended way to
-> share mutable GPUI state across BDD steps in `rstest-bdd` 0.6.0, but it
-> exists to work around the current `StepContext::borrow_mut` contract
-> selected by [ADR-007][adr-007]. Sections
-> 2.7.6.2 and 2.7.6.5 of the design document
-> ([rstest-bdd design][rstest-bdd-design]) and roadmap items 12.1.x track
-> the v0.7.0 redesign that will retire the thread-local approach in favour
-> of guard-based concurrent fixture borrowing and typed harness-context
-> extractors. New code adopted on 0.6 should expect to migrate when the
-> redesign lands; do not build wider abstractions on top of the thread-local
-> shape.
+> The thread-local scenario-state pattern below worked around the
+> `StepContext::borrow_mut` contract in `rstest-bdd` 0.6.x (selected by
+> [ADR-007][adr-007]), which prevented
+> one step from borrowing two mutable fixtures (such as mutable harness
+> context plus mutable world state) at once. From v0.7.0, fixture borrowing
+> is guard-based ([ADR-010][adr-010]): steps can take `&mut` parameters for
+> distinct fixtures — including
+> `#[from(rstest_bdd_harness_context)] cx: &mut gpui::TestAppContext`
+> alongside `world: &mut UiWorld` — and the framework constructs and drops
+> scenario state at scenario boundaries, so no thread-local reset
+> discipline is required. **New code should declare ordinary `&mut` fixture
+> parameters instead of the pattern below.** The playbook is retained only
+> for projects still on 0.6.x; migrate by moving thread-local state into an
+> `rstest` fixture and deleting the reset calls.
 
 <!-- -->
 
@@ -1286,6 +1261,40 @@ defensively re-runs the reset before storing handles and observes the
 
 ```rust,no_run
 # use rstest_bdd_macros::given;
+
+#[derive(Debug, PartialEq, Eq)]
+struct UserRow {
+    name: String,
+    email: String,
+    active: bool,
+}
+
+impl DataTableRow for UserRow {
+    const REQUIRES_HEADER: bool = true;
+
+    fn parse_row(mut row: RowSpec<'_>) -> Result<Self, DataTableError> {
+        let name = row.take_column("name")?;
+        let email = row.take_column("email")?;
+        let active = row.parse_column_with(
+            "active",
+            datatable::truthy_bool,
+        )?;
+        Ok(Self { name, email, active })
+    }
+}
+
+#[given("the following users exist:")]
+fn users_exist(#[datatable] rows: Rows<UserRow>) {
+    for row in rows {
+        assert!(row.active || row.name == "Bob");
+    }
+}
+```
+
+Projects that prefer to work with raw rows can declare the argument as
+`Vec<Vec<String>>` and handle parsing manually. Both forms can co-exist within
+the same project, allowing incremental adoption of typed tables.
+
 # fn reset_state_before_assignment() {}
 # fn with_state<R>(_: impl FnOnce(&mut ()) -> R) -> R { unimplemented!() }
 #[given("a fresh GPUI window is opened")]
@@ -1375,10 +1384,9 @@ reader the binding name is part of the contract.
 ##### Where to read more
 
 - [rstest-bdd design][rstest-bdd-design] §2.7.6.1 and §2.7.6.2 explain
-  why the workaround takes this shape and what the borrow contract currently
-  allows.
-- [rstest-bdd design][rstest-bdd-design] §2.7.6.5 records the v0.7.0
-  redesign target that retires the thread-local approach.
+  why the workaround took this shape under the 0.6.x borrow contract.
+- [ADR-010][adr-010] records the v0.7.0 guard-based borrowing redesign that
+  supersedes the thread-local approach.
 - `crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` is the
   executable reference suite. Read it to confirm that the snippet here
   still matches the regression coverage.
@@ -2667,6 +2675,7 @@ three amigos in the specification process.
 [scenario-status]: https://docs.rs/rstest-bdd/latest/rstest_bdd/reporting/enum.ScenarioStatus.html
 [adr-001]: https://github.com/leynos/rstest-bdd/blob/main/docs/adr-001-async-fixtures-and-test.md
 [adr-007]: https://github.com/leynos/rstest-bdd/blob/main/docs/adr-007-harness-context-injection.md
+[adr-010]: https://github.com/leynos/rstest-bdd/blob/main/docs/adr-010-guard-based-fixture-borrowing.md
 [gherkin-syntax]: https://github.com/leynos/rstest-bdd/blob/main/docs/gherkin-syntax.md#section-12-the-anatomy-of-a-feature-file
 [migration-async-patterns]: https://github.com/leynos/rstest-bdd/blob/main/docs/cucumber-rs-migration-and-async-patterns.md
 [rstest-bdd-design]: https://github.com/leynos/rstest-bdd/blob/main/docs/rstest-bdd-design.md

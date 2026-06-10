@@ -1,12 +1,37 @@
 //! Step execution context, fixture access, and step return overrides.
+//!
 //! `StepContext` stores named fixture references plus a map of last-seen step
-//! results keyed by fixture name. Returned values must be `'static` so they can
-//! be boxed. When exactly one fixture matches a returned type, its name records
-//! the override (last write wins); ambiguous matches leave fixtures untouched.
+//! results keyed by fixture name. Returned values must be `'static` so they
+//! can be boxed. When exactly one fixture matches a returned type, its name
+//! records the override (last write wins); ambiguous matches leave fixtures
+//! untouched.
+//!
+//! Borrowing is guard-based (ADR-010): borrow methods take `&self`, so
+//! guards for **distinct** fixtures may be held concurrently — including
+//! multiple mutable guards — without tripping `E0499`/`E0502`. Conflicting
+//! borrows of the **same** fixture surface as
+//! [`FixtureBorrowError::AlreadyBorrowed`] from the `try_*` methods rather
+//! than panicking.
+//!
+//! # World lifecycle contract
+//!
+//! A fresh `StepContext` is constructed for every scenario run by the
+//! generated test, and the owned fixture cells backing it live in that test
+//! function's body. They are dropped when the scenario finishes — whether it
+//! passes, fails (unwinds), or is skipped — so no fixture state leaks across
+//! scenario boundaries and no caller-side reset discipline is required.
 
 use std::any::{Any, TypeId};
 use std::cell::{Ref, RefCell, RefMut};
 use std::collections::HashMap;
+
+mod entry;
+mod error;
+mod guards;
+
+use entry::FixtureEntry;
+pub use error::FixtureBorrowError;
+pub use guards::{FixtureRef, FixtureRefMut};
 
 /// Reserved fixture key used for harness-provided context.
 ///
@@ -22,6 +47,23 @@ pub const RSTEST_BDD_HARNESS_CONTEXT_FIXTURE: &str = "rstest_bdd_harness_context
 /// [`insert_owned`](Self::insert_owned) when a fixture should be shared
 /// mutably across steps; step functions may then request `&mut T` and mutate
 /// world state without resorting to interior mutability wrappers.
+///
+/// Distinct fixtures can be borrowed mutably at the same time:
+///
+/// ```
+/// use rstest_bdd::StepContext;
+///
+/// let mut ctx = StepContext::default();
+/// let first = StepContext::owned_cell(1_u32);
+/// let second = StepContext::owned_cell(String::from("hi"));
+/// ctx.insert_owned::<u32>("first", &first);
+/// ctx.insert_owned::<String>("second", &second);
+///
+/// let mut a = ctx.try_borrow_mut::<u32>("first").expect("first fixture");
+/// let mut b = ctx.try_borrow_mut::<String>("second").expect("second fixture");
+/// *a += 1;
+/// b.push('!');
+/// ```
 ///
 /// # Examples
 ///
@@ -50,17 +92,7 @@ pub const RSTEST_BDD_HARNESS_CONTEXT_FIXTURE: &str = "rstest_bdd_harness_context
 #[derive(Default)]
 pub struct StepContext<'a> {
     fixtures: HashMap<&'static str, FixtureEntry<'a>>,
-    values: HashMap<&'static str, Box<dyn Any>>,
-}
-
-struct FixtureEntry<'a> {
-    kind: FixtureKind<'a>,
-    type_id: TypeId,
-}
-
-enum FixtureKind<'a> {
-    Shared(&'a dyn Any),
-    Mutable(&'a RefCell<Box<dyn Any>>),
+    values: HashMap<&'static str, RefCell<Box<dyn Any>>>,
 }
 
 impl<'a> StepContext<'a> {
@@ -101,6 +133,16 @@ impl<'a> StepContext<'a> {
         self.fixtures.insert(name, FixtureEntry::owned::<T>(cell));
     }
 
+    // ------------------------------------------------------------------
+    // Harness-context wrappers (ADR-007).
+    //
+    // These thin wrappers hard-code the reserved
+    // `RSTEST_BDD_HARNESS_CONTEXT_FIXTURE` key over the generic fixture API.
+    // They are deliberate API surface: the insert side is emitted by
+    // macro-generated harness scenarios, and the borrow side is the
+    // supported typed-extraction surface for adapters and step code.
+    // ------------------------------------------------------------------
+
     /// Insert harness-provided context using the reserved fixture key.
     pub fn insert_harness_context<T: Any>(&mut self, context: &'a T) {
         self.insert(RSTEST_BDD_HARNESS_CONTEXT_FIXTURE, context);
@@ -134,57 +176,123 @@ impl<'a> StepContext<'a> {
     }
 
     /// Borrow harness-provided context mutably by type.
-    pub fn borrow_harness_context_mut<'b, T: Any>(&'b mut self) -> Option<FixtureRefMut<'b, T>>
+    #[must_use]
+    pub fn borrow_harness_context_mut<'b, T: Any>(&'b self) -> Option<FixtureRefMut<'b, T>>
     where
         'a: 'b,
     {
         self.borrow_mut(RSTEST_BDD_HARNESS_CONTEXT_FIXTURE)
     }
 
-    /// Retrieve a fixture reference by name and type.
+    /// Retrieve a shared fixture reference by name and type.
     ///
-    /// Values returned from prior `#[when]` steps override fixtures of the same
-    /// type when that type is unique among fixtures. This enables a functional
-    /// style where step return values feed into later assertions without having
-    /// to define ad-hoc fixtures.
+    /// Only fixtures inserted with [`insert`](Self::insert) are served:
+    /// mutable (`insert_owned`) fixtures and step-returned override values
+    /// live behind interior mutability and must be accessed through the
+    /// guard-based [`borrow_ref`](Self::borrow_ref) /
+    /// [`try_borrow`](Self::try_borrow) API instead.
     #[must_use]
     pub fn get<T: Any>(&'a self, name: &str) -> Option<&'a T> {
-        if let Some(val) = self.values.get(name) {
-            return val.downcast_ref::<T>();
-        }
-        match self.fixtures.get(name)?.kind {
-            FixtureKind::Shared(value) => value.downcast_ref::<T>(),
-            FixtureKind::Mutable(_) => None,
-        }
+        self.fixtures.get(name)?.shared_value()?.downcast_ref::<T>()
     }
 
     /// Borrow a fixture by name, keeping the guard alive until dropped.
+    ///
+    /// Step-returned override values take precedence over fixtures of the
+    /// same name. Returns `None` when the fixture is missing, stores a
+    /// different type, or is currently borrowed mutably; use
+    /// [`try_borrow`](Self::try_borrow) to distinguish these cases.
+    #[must_use]
     pub fn borrow_ref<'b, T: Any>(&'b self, name: &str) -> Option<FixtureRef<'b, T>>
     where
         'a: 'b,
     {
-        if let Some(val) = self.values.get(name) {
-            return val.downcast_ref::<T>().map(FixtureRef::Shared);
+        self.try_borrow(name).ok()
+    }
+
+    /// Borrow a fixture by name, reporting the failure reason on error.
+    ///
+    /// Step-returned override values take precedence over fixtures of the
+    /// same name.
+    ///
+    /// # Errors
+    ///
+    /// - [`FixtureBorrowError::NotFound`] when no fixture or override is
+    ///   registered under `name`.
+    /// - [`FixtureBorrowError::TypeMismatch`] when the entry stores a
+    ///   different type than `T`.
+    /// - [`FixtureBorrowError::AlreadyBorrowed`] when a mutable guard for
+    ///   the same fixture is alive.
+    pub fn try_borrow<'b, T: Any>(
+        &'b self,
+        name: &str,
+    ) -> Result<FixtureRef<'b, T>, FixtureBorrowError>
+    where
+        'a: 'b,
+    {
+        if let Some(cell) = self.values.get(name) {
+            let guard = cell
+                .try_borrow()
+                .map_err(|_| FixtureBorrowError::already_borrowed(name))?;
+            return Ref::filter_map(guard, |boxed| boxed.downcast_ref::<T>())
+                .map(FixtureRef::borrowed)
+                .map_err(|_| FixtureBorrowError::type_mismatch(name));
         }
-        self.fixtures.get(name)?.borrow_ref::<T>()
+        self.fixtures
+            .get(name)
+            .ok_or_else(|| FixtureBorrowError::not_found(name))?
+            .try_borrow::<T>(name)
     }
 
     /// Borrow a fixture mutably by name.
     ///
-    /// # Panics
-    ///
-    /// The underlying fixtures use `RefCell` for interior mutability. Attempting
-    /// to borrow the same fixture mutably while an existing mutable guard is
-    /// alive will panic via `RefCell::borrow_mut`. Callers must drop guards
-    /// before requesting another mutable borrow of the same fixture.
-    pub fn borrow_mut<'b, T: Any>(&'b mut self, name: &str) -> Option<FixtureRefMut<'b, T>>
+    /// Takes `&self`, so mutable guards for **distinct** fixtures may be held
+    /// concurrently. Returns `None` when the fixture is missing, stores a
+    /// different type, was inserted by shared reference, or is already
+    /// borrowed; use [`try_borrow_mut`](Self::try_borrow_mut) to distinguish
+    /// these cases.
+    #[must_use]
+    pub fn borrow_mut<'b, T: Any>(&'b self, name: &str) -> Option<FixtureRefMut<'b, T>>
     where
         'a: 'b,
     {
-        if let Some(val) = self.values.get_mut(name) {
-            return val.downcast_mut::<T>().map(FixtureRefMut::Override);
+        self.try_borrow_mut(name).ok()
+    }
+
+    /// Borrow a fixture mutably by name, reporting the failure reason on error.
+    ///
+    /// Takes `&self`, so mutable guards for **distinct** fixtures may be held
+    /// concurrently; only conflicting borrows of the *same* fixture fail.
+    ///
+    /// # Errors
+    ///
+    /// - [`FixtureBorrowError::NotFound`] when no fixture or override is
+    ///   registered under `name`.
+    /// - [`FixtureBorrowError::TypeMismatch`] when the entry stores a
+    ///   different type than `T`.
+    /// - [`FixtureBorrowError::AlreadyBorrowed`] when any guard for the same
+    ///   fixture is alive.
+    /// - [`FixtureBorrowError::NotMutable`] when the fixture was inserted by
+    ///   shared reference ([`insert`](Self::insert)).
+    pub fn try_borrow_mut<'b, T: Any>(
+        &'b self,
+        name: &str,
+    ) -> Result<FixtureRefMut<'b, T>, FixtureBorrowError>
+    where
+        'a: 'b,
+    {
+        if let Some(cell) = self.values.get(name) {
+            let guard = cell
+                .try_borrow_mut()
+                .map_err(|_| FixtureBorrowError::already_borrowed(name))?;
+            return RefMut::filter_map(guard, |boxed| boxed.downcast_mut::<T>())
+                .map(FixtureRefMut::borrowed)
+                .map_err(|_| FixtureBorrowError::type_mismatch(name));
         }
-        self.fixtures.get(name)?.borrow_mut::<T>()
+        self.fixtures
+            .get(name)
+            .ok_or_else(|| FixtureBorrowError::not_found(name))?
+            .try_borrow_mut::<T>(name)
     }
 
     /// Returns an iterator over the names of all available fixtures.
@@ -236,106 +344,9 @@ impl<'a> StepContext<'a> {
             }
             return None;
         }
-        self.values.insert(name, value)
-    }
-}
-
-impl<'a> FixtureEntry<'a> {
-    fn shared<T: Any>(value: &'a T) -> Self {
-        Self {
-            kind: FixtureKind::Shared(value),
-            type_id: TypeId::of::<T>(),
-        }
-    }
-
-    fn owned<T: Any>(cell: &'a RefCell<Box<dyn Any>>) -> Self {
-        Self {
-            kind: FixtureKind::Mutable(cell),
-            type_id: TypeId::of::<T>(),
-        }
-    }
-
-    fn borrow_ref<T: Any>(&self) -> Option<FixtureRef<'_, T>> {
-        match self.kind {
-            FixtureKind::Shared(value) => {
-                if self.type_id != TypeId::of::<T>() {
-                    return None;
-                }
-                value.downcast_ref::<T>().map(FixtureRef::Shared)
-            }
-            FixtureKind::Mutable(cell) => {
-                if self.type_id != TypeId::of::<T>() {
-                    return None;
-                }
-                let guard = cell.borrow();
-                let mapped = Ref::filter_map(guard, |b| b.downcast_ref::<T>()).ok()?;
-                Some(FixtureRef::Borrowed(mapped))
-            }
-        }
-    }
-
-    fn borrow_mut<T: Any>(&self) -> Option<FixtureRefMut<'_, T>> {
-        if self.type_id != TypeId::of::<T>() {
-            return None;
-        }
-        match self.kind {
-            FixtureKind::Shared(_) => None,
-            FixtureKind::Mutable(cell) => {
-                let guard = cell.borrow_mut();
-                let mapped = RefMut::filter_map(guard, |b| b.downcast_mut::<T>()).ok()?;
-                Some(FixtureRefMut::Borrowed(mapped))
-            }
-        }
-    }
-}
-/// Borrowed fixture reference that keeps any underlying `RefCell` borrow alive
-/// for the duration of a step.
-pub enum FixtureRef<'a, T> {
-    /// Reference bound directly to a shared fixture.
-    Shared(&'a T),
-    /// Borrow guard taken from a backing `RefCell`.
-    Borrowed(Ref<'a, T>),
-}
-
-impl<T> FixtureRef<'_, T> {
-    /// Access the borrowed value as an immutable reference.
-    #[must_use]
-    pub fn value(&self) -> &T {
-        match self {
-            Self::Shared(value) => value,
-            Self::Borrowed(guard) => guard,
-        }
-    }
-}
-
-impl<T> AsRef<T> for FixtureRef<'_, T> {
-    fn as_ref(&self) -> &T {
-        self.value()
-    }
-}
-
-/// Borrowed mutable fixture reference tied to the lifetime of the step borrow.
-pub enum FixtureRefMut<'a, T> {
-    /// Mutable reference produced by a prior step override.
-    Override(&'a mut T),
-    /// Borrow guard obtained from the underlying `RefCell`.
-    Borrowed(RefMut<'a, T>),
-}
-
-impl<T> FixtureRefMut<'_, T> {
-    /// Access the borrowed value mutably.
-    #[must_use]
-    pub fn value_mut(&mut self) -> &mut T {
-        match self {
-            Self::Override(value) => value,
-            Self::Borrowed(guard) => guard,
-        }
-    }
-}
-
-impl<T> AsMut<T> for FixtureRefMut<'_, T> {
-    fn as_mut(&mut self) -> &mut T {
-        self.value_mut()
+        self.values
+            .insert(name, RefCell::new(value))
+            .map(RefCell::into_inner)
     }
 }
 

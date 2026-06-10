@@ -474,10 +474,13 @@ users-guide.md#stateful-gpui-scenarios-with-durable-handles
 
 ### Two mutable fixtures trigger `E0499` or `E0502`
 
-> This is a v0.6 interim workaround. The limitation is recorded in
-> [rstest-bdd design §2.7.6.1][design-borrow-constraint]; the replacement
-> borrow model is tracked in [§2.7.6.5][design-redesign] and roadmap items
-> 12.1.x.
+> This is a v0.6 interim workaround, superseded from v0.7.0. The limitation
+> is recorded in [rstest-bdd design §2.7.6.1][design-borrow-constraint]; the
+> replacement guard-based borrow model shipped with
+> [ADR-010](adr-010-guard-based-fixture-borrowing.md), which lets one step
+> borrow distinct mutable fixtures concurrently. Apply the workarounds below
+> only while staying on 0.6.x; on upgrade, declare ordinary `&mut` fixture
+> parameters and delete the thread-local reset discipline.
 
 The symptom is a rustc borrow-checker error in generated wrapper code, not in
 the step body itself. Two mutable fixture parameters usually produce [`E0499`][

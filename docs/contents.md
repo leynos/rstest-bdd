@@ -80,6 +80,7 @@
 - [ADR 008: harness-led attribute policy defaults][adr-008]
   records the harness-led attribute-policy default decision.
 - [ADR 009: consistent implicit fixture name normalization][adr-009]
+- [ADR 010: guard-based fixture borrowing][adr-010]
   records the fixture-name normalization decision.
 
 ## Execution plans
@@ -91,6 +92,7 @@
 [adr-005a-harness]: adr-005-harness-adapter-crates-for-framework-specific-test-integration.md
 [adr-008]: adr-008-harness-led-attribute-policy-defaults.md
 [adr-009]: adr-009-consistent-implicit-fixture-name-normalization.md
+[adr-010]: adr-010-guard-based-fixture-borrowing.md
 [complexity-guide]: complexity-antipatterns-and-refactoring-strategies.md
 [cucumber-async]: cucumber-rs-migration-and-async-patterns.md
 [dependency-injection]: reliable-testing-in-rust-via-dependency-injection.md

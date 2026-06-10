@@ -113,8 +113,10 @@ fn insert_value_overrides_fixture() {
     };
     assert_eq!(*prev, 5);
 
-    let retrieved: Option<&u32> = ctx.get("number");
-    assert_eq!(retrieved, Some(&7));
+    let Ok(retrieved) = ctx.try_borrow::<u32>("number") else {
+        panic!("override should be borrowable");
+    };
+    assert_eq!(*retrieved.value(), 7);
 }
 
 #[test]
