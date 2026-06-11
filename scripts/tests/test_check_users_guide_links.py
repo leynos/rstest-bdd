@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import typing as typ
 
 import pytest
@@ -14,9 +15,20 @@ from check_users_guide_links import (
     heading_anchors,
     reference_definitions,
 )
+from hypothesis import given
+from hypothesis import strategies as st
 
 if typ.TYPE_CHECKING:
     from pathlib import Path
+
+# Characters at which str.splitlines() breaks a line. Heading strategies
+# exclude them so a generated heading stays on a single Markdown line.
+LINE_BREAKS = "\n\r\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029"
+
+single_line_text = st.text(
+    alphabet=st.characters(exclude_characters=LINE_BREAKS),
+    max_size=80,
+)
 
 
 class TestGithubHeadingAnchor:
@@ -187,3 +199,48 @@ class TestCheckGuide:
         assert len(violations) == 2
         assert any("missing-one.md" in violation for violation in violations)
         assert any("missing-two.md" in violation for violation in violations)
+
+class TestGithubHeadingAnchorProperties:
+    """Property tests for :func:`check_users_guide_links.github_heading_anchor`."""
+
+    @given(heading=st.text())
+    def test_output_is_lowercase(self, heading: str) -> None:
+        """Anchors should never contain uppercase characters."""
+        result = github_heading_anchor(heading)
+        assert result == result.lower()
+
+    @given(heading=st.text())
+    def test_output_contains_no_spaces(self, heading: str) -> None:
+        """Every space should have been replaced or stripped."""
+        assert " " not in github_heading_anchor(heading)
+
+    @given(heading=st.text())
+    def test_output_contains_only_word_chars_and_hyphens(self, heading: str) -> None:
+        """Anchors should consist solely of word characters and hyphens."""
+        assert re.fullmatch(r"[\w\-]*", github_heading_anchor(heading))
+
+    @given(heading=st.text(alphabet=st.characters(max_codepoint=0x7F)))
+    def test_ascii_output_matches_github_slug_alphabet(self, heading: str) -> None:
+        """ASCII headings should slug to ``[a-z0-9_-]*`` exactly."""
+        assert re.fullmatch(r"[a-z0-9_\-]*", github_heading_anchor(heading))
+
+    @given(heading=st.text())
+    def test_idempotent(self, heading: str) -> None:
+        """Slugging an existing anchor should not change it."""
+        once = github_heading_anchor(heading)
+        assert github_heading_anchor(once) == once
+
+class TestHeadingAnchorsProperties:
+    """Property tests for :func:`check_users_guide_links.heading_anchors`."""
+
+    @given(heading=single_line_text)
+    def test_top_level_heading_is_collected(self, heading: str) -> None:
+        """A lone ``# heading`` line should yield exactly its anchor."""
+        markdown = f"# {heading}\n"
+        assert heading_anchors(markdown) == {github_heading_anchor(heading)}
+
+    @given(heading=single_line_text)
+    def test_fenced_heading_is_ignored(self, heading: str) -> None:
+        """A heading inside a balanced code fence should be ignored."""
+        markdown = f"```\n# {heading}\n```\n"
+        assert heading_anchors(markdown) == set()
