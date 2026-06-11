@@ -9,6 +9,7 @@ __pycache__/
 rust_out
 .agents/mcp/context_pack/packs/
 crates/rstest-bdd-harness/.proptest-regressions/
+.hypothesis/
 
 # Local spelling-policy caches and helper tool state
 .coverage
