@@ -4,13 +4,13 @@ error[E0277]: the trait bound `String: TryFrom<Vec<Vec<String>>>` is not satisfi
 8 | #[given("a step with wrong table type")]
   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `From<Vec<Vec<String>>>` is not implemented for `String`
   |
-  = help: the following other types implement trait `From<T>`:
-            `String` implements `From<&String>`
-            `String` implements `From<&mut str>`
-            `String` implements `From<&str>`
-            `String` implements `From<Box<str>>`
-            `String` implements `From<Cow<'_, str>>`
-            `String` implements `From<char>`
+  = help: `String` implements trait `From<T>`:
+            From<&String>
+            From<&mut str>
+            From<&str>
+            From<Box<str>>
+            From<Cow<'_, str>>
+            From<char>
   = note: required for `Vec<Vec<String>>` to implement `Into<String>`
   = note: required for `String` to implement `TryFrom<Vec<Vec<String>>>`
   = note: required for `Vec<Vec<String>>` to implement `TryInto<String>`
