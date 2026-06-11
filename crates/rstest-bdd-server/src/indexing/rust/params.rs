@@ -81,26 +81,29 @@ fn parameter_is_docstring(name: Option<&str>, ty: &syn::Type) -> bool {
     type_is_string(ty)
 }
 
+/// Whether a type names the standard `String`, either bare (`String`) or
+/// fully qualified through its owning module (`std::string::String` /
+/// `alloc::string::String`).
 fn type_is_string(ty: &syn::Type) -> bool {
     let syn::Type::Path(type_path) = ty else {
         return false;
     };
-
-    let mut segments = type_path.path.segments.iter();
-    let Some(first) = segments.next() else {
-        return false;
-    };
-    let Some(second) = segments.next() else {
-        return first.ident == "String";
-    };
-    let Some(third) = segments.next() else {
-        return false;
-    };
-    if segments.next().is_some() {
-        return false;
+    let segments: Vec<&syn::Ident> = type_path
+        .path
+        .segments
+        .iter()
+        .map(|segment| &segment.ident)
+        .collect();
+    match segments.as_slice() {
+        [name] => *name == "String",
+        [root, module, name] => {
+            is_string_crate_root(root) && *module == "string" && *name == "String"
+        }
+        _ => false,
     }
+}
 
-    (first.ident == "std" || first.ident == "alloc")
-        && second.ident == "string"
-        && third.ident == "String"
+/// Whether `ident` is a crate root that re-exports `string::String`.
+fn is_string_crate_root(ident: &syn::Ident) -> bool {
+    ident == "std" || ident == "alloc"
 }
