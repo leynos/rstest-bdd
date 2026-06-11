@@ -2,7 +2,12 @@
 //!
 //! Each [`FixtureEntry`] records how a fixture was inserted (shared
 //! reference or owned `RefCell`) together with its `TypeId`, and implements
-//! the guard-based borrow operations over that storage (ADR-010).
+//! the guard-based borrow operations over that storage (ADR-010). The
+//! [`borrow_cell`] / [`borrow_cell_mut`] primitives are the single home for
+//! "borrow a type-erased cell and downcast" — both owned fixtures and
+//! step-returned override values borrow through them. The shared/mutable
+//! pair is irreducible: `std::cell` exposes shared and mutable borrowing
+//! through the distinct `Ref`/`RefMut` types.
 
 use std::any::{Any, TypeId};
 use std::cell::{Ref, RefCell, RefMut};
@@ -56,14 +61,7 @@ impl<'a> FixtureEntry<'a> {
                 .downcast_ref::<T>()
                 .map(FixtureRef::shared)
                 .ok_or_else(|| FixtureBorrowError::type_mismatch(name)),
-            FixtureKind::Mutable(cell) => {
-                let guard = cell
-                    .try_borrow()
-                    .map_err(|_| FixtureBorrowError::already_borrowed(name))?;
-                Ref::filter_map(guard, |boxed| boxed.downcast_ref::<T>())
-                    .map(FixtureRef::borrowed)
-                    .map_err(|_| FixtureBorrowError::type_mismatch(name))
-            }
+            FixtureKind::Mutable(cell) => borrow_cell(cell, name),
         }
     }
 
@@ -76,14 +74,41 @@ impl<'a> FixtureEntry<'a> {
         }
         match self.kind {
             FixtureKind::Shared(_) => Err(FixtureBorrowError::not_mutable(name)),
-            FixtureKind::Mutable(cell) => {
-                let guard = cell
-                    .try_borrow_mut()
-                    .map_err(|_| FixtureBorrowError::already_borrowed(name))?;
-                RefMut::filter_map(guard, |boxed| boxed.downcast_mut::<T>())
-                    .map(FixtureRefMut::borrowed)
-                    .map_err(|_| FixtureBorrowError::type_mismatch(name))
-            }
+            FixtureKind::Mutable(cell) => borrow_cell_mut(cell, name),
         }
     }
+}
+
+/// Borrow a type-erased cell immutably and downcast its contents to `T`.
+///
+/// Canonical shared-borrow primitive for `RefCell<Box<dyn Any>>` storage:
+/// owned fixtures and step-returned overrides both resolve through it. A
+/// live mutable guard yields [`FixtureBorrowError::AlreadyBorrowed`]; a
+/// failed downcast yields [`FixtureBorrowError::TypeMismatch`].
+pub(super) fn borrow_cell<'b, T: Any>(
+    cell: &'b RefCell<Box<dyn Any>>,
+    name: &str,
+) -> Result<FixtureRef<'b, T>, FixtureBorrowError> {
+    let guard = cell
+        .try_borrow()
+        .map_err(|_| FixtureBorrowError::already_borrowed(name))?;
+    Ref::filter_map(guard, |boxed| boxed.downcast_ref::<T>())
+        .map(FixtureRef::borrowed)
+        .map_err(|_| FixtureBorrowError::type_mismatch(name))
+}
+
+/// Borrow a type-erased cell mutably and downcast its contents to `T`.
+///
+/// Mutable counterpart of [`borrow_cell`]; any live guard for the same cell
+/// yields [`FixtureBorrowError::AlreadyBorrowed`].
+pub(super) fn borrow_cell_mut<'b, T: Any>(
+    cell: &'b RefCell<Box<dyn Any>>,
+    name: &str,
+) -> Result<FixtureRefMut<'b, T>, FixtureBorrowError> {
+    let guard = cell
+        .try_borrow_mut()
+        .map_err(|_| FixtureBorrowError::already_borrowed(name))?;
+    RefMut::filter_map(guard, |boxed| boxed.downcast_mut::<T>())
+        .map(FixtureRefMut::borrowed)
+        .map_err(|_| FixtureBorrowError::type_mismatch(name))
 }

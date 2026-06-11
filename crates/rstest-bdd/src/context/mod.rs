@@ -22,7 +22,7 @@
 //! scenario boundaries and no caller-side reset discipline is required.
 
 use std::any::{Any, TypeId};
-use std::cell::{Ref, RefCell, RefMut};
+use std::cell::RefCell;
 use std::collections::HashMap;
 
 mod entry;
@@ -230,18 +230,10 @@ impl<'a> StepContext<'a> {
     where
         'a: 'b,
     {
-        if let Some(cell) = self.values.get(name) {
-            let guard = cell
-                .try_borrow()
-                .map_err(|_| FixtureBorrowError::already_borrowed(name))?;
-            return Ref::filter_map(guard, |boxed| boxed.downcast_ref::<T>())
-                .map(FixtureRef::borrowed)
-                .map_err(|_| FixtureBorrowError::type_mismatch(name));
+        match self.values.get(name) {
+            Some(cell) => entry::borrow_cell(cell, name),
+            None => self.fixture_entry(name)?.try_borrow::<T>(name),
         }
-        self.fixtures
-            .get(name)
-            .ok_or_else(|| FixtureBorrowError::not_found(name))?
-            .try_borrow::<T>(name)
     }
 
     /// Borrow a fixture mutably by name.
@@ -281,18 +273,18 @@ impl<'a> StepContext<'a> {
     where
         'a: 'b,
     {
-        if let Some(cell) = self.values.get(name) {
-            let guard = cell
-                .try_borrow_mut()
-                .map_err(|_| FixtureBorrowError::already_borrowed(name))?;
-            return RefMut::filter_map(guard, |boxed| boxed.downcast_mut::<T>())
-                .map(FixtureRefMut::borrowed)
-                .map_err(|_| FixtureBorrowError::type_mismatch(name));
+        match self.values.get(name) {
+            Some(cell) => entry::borrow_cell_mut(cell, name),
+            None => self.fixture_entry(name)?.try_borrow_mut::<T>(name),
         }
+    }
+
+    /// Look up the storage entry for `name`, reporting
+    /// [`FixtureBorrowError::NotFound`] when no fixture is registered.
+    fn fixture_entry(&self, name: &str) -> Result<&FixtureEntry<'a>, FixtureBorrowError> {
         self.fixtures
             .get(name)
-            .ok_or_else(|| FixtureBorrowError::not_found(name))?
-            .try_borrow_mut::<T>(name)
+            .ok_or_else(|| FixtureBorrowError::not_found(name))
     }
 
     /// Returns an iterator over the names of all available fixtures.
