@@ -3,7 +3,10 @@
 
 use rstest_bdd_macros::given;
 
-type Wrong = String;
+// A local type with no `From`/`TryFrom` impls keeps the E0277 diagnostic free
+// of rustc's candidate-impl suggestion list, whose rendering varies between
+// stable releases.
+struct Wrong;
 
 #[given("a step with wrong table type")]
 fn step(#[datatable] _table: Wrong) {}

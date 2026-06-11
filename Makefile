@@ -32,7 +32,8 @@ test: ## Run tests with warnings treated as errors
 	fi
 	# Exercise the Python release automation alongside the Rust suite.
 	$(UV) run --with pytest --with cyclopts --with plumbum --with tomlkit \
-		python -m pytest scripts/tests/publish_check
+		python -m pytest scripts/tests/publish_check \
+		scripts/tests/test_check_users_guide_links.py
 
 target/%/$(APP): ## Build binary in debug or release mode
 	$(CARGO) build $(BUILD_JOBS) $(if $(findstring release,$(@)),--release) --bin $(APP)
@@ -41,6 +42,7 @@ lint: ## Run Clippy with warnings denied
 	$(CARGO) clippy $(CLIPPY_FLAGS)
 	find scripts -type f -name "*.py" -print0 | xargs -r -0 $(UVX) ruff check
 	python3 scripts/check_rs_file_lengths.py
+	python3 scripts/check_users_guide_links.py
 
 typecheck: ## Run cargo check with warnings denied
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) check $(CARGO_FLAGS) $(BUILD_JOBS)

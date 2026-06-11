@@ -1,17 +1,15 @@
-error[E0277]: the trait bound `String: TryFrom<Vec<Vec<String>>>` is not satisfied
- --> tests/ui_macros/datatable_wrong_type.rs:8:1
-  |
-8 | #[given("a step with wrong table type")]
-  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `From<Vec<Vec<String>>>` is not implemented for `String`
-  |
-  = help: the following other types implement trait `From<T>`:
-            `String` implements `From<&String>`
-            `String` implements `From<&mut str>`
-            `String` implements `From<&str>`
-            `String` implements `From<Box<str>>`
-            `String` implements `From<Cow<'_, str>>`
-            `String` implements `From<char>`
-  = note: required for `Vec<Vec<String>>` to implement `Into<String>`
-  = note: required for `String` to implement `TryFrom<Vec<Vec<String>>>`
-  = note: required for `Vec<Vec<String>>` to implement `TryInto<String>`
-  = note: this error originates in the attribute macro `given` (in Nightly builds, run with -Z macro-backtrace for more info)
+error[E0277]: the trait bound `Wrong: TryFrom<Vec<Vec<String>>>` is not satisfied
+  --> tests/ui_macros/datatable_wrong_type.rs:11:1
+   |
+11 | #[given("a step with wrong table type")]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ unsatisfied trait bound
+   |
+help: the trait `From<Vec<Vec<String>>>` is not implemented for `Wrong`
+  --> tests/ui_macros/datatable_wrong_type.rs:9:1
+   |
+ 9 | struct Wrong;
+   | ^^^^^^^^^^^^
+   = note: required for `Vec<Vec<String>>` to implement `Into<Wrong>`
+   = note: required for `Wrong` to implement `TryFrom<Vec<Vec<String>>>`
+   = note: required for `Vec<Vec<String>>` to implement `TryInto<Wrong>`
+   = note: this error originates in the attribute macro `given` (in Nightly builds, run with -Z macro-backtrace for more info)

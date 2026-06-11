@@ -43,7 +43,7 @@ wrappers normalize results into `StepExecution`.
 
 | Role ("amigo")                     | Primary concerns                                                                                                                  | Features provided by `rstest‑bdd`                                                                                                                                                                                                                                                                                                                                                                         |
 | ---------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Business analyst/product owner** | Writing and reviewing business-readable specifications; ensuring that acceptance criteria are expressed clearly.                  | Gherkin `.feature` files are plain text and start with a `Feature` declaration; each `Scenario` describes a single behaviour. Steps are written using keywords `Given`, `When`, and `Then` ([syntax](gherkin-syntax.md#L72-L91)), producing living documentation that can be read by non-technical stakeholders.                                                                                          |
+| **Business analyst/product owner** | Writing and reviewing business-readable specifications; ensuring that acceptance criteria are expressed clearly.                  | Gherkin `.feature` files are plain text and start with a `Feature` declaration; each `Scenario` describes a single behaviour. Steps are written using keywords `Given`, `When`, and `Then` ([syntax][gherkin-syntax]), producing living documentation that can be read by non-technical stakeholders.                                                                                                     |
 | **Developer**                      | Implementing step definitions in Rust and wiring them to the business specifications; using existing fixtures for setup/teardown. | Attribute macros `#[given]`, `#[when]` and `#[then]` register step functions and their pattern strings in a global step registry. A `#[scenario]` macro reads a feature file at compile time and generates a test that drives the registered steps. Fixtures whose parameter names match are injected automatically; use `#[from(name)]` only when a parameter name differs from the fixture.             |
 | **Tester/QA**                      | Executing behaviour tests, ensuring correct sequencing of steps and verifying outcomes observable by the user.                    | Scenarios are executed via the standard `cargo test` runner; test functions annotated with `#[scenario]` run each step in order and panic if a step is missing. Assertions belong in `Then` steps; guidelines discourage inspecting internal state and encourage verifying observable outcomes. Testers can use `cargo test` filters and parallelism because the generated tests are ordinary Rust tests. |
 
@@ -131,8 +131,8 @@ argument, the wrapper panics with
 `pattern '<pattern>' missing capture for argument '<name>'`, making the
 mismatch explicit.
 
-For cucumber-rs migration compatibility notes, see
-[Migration and async patterns](cucumber-rs-migration-and-async-patterns.md).
+For cucumber-rs migration compatibility notes, see [Migration and async
+patterns][migration-async-patterns].
 
 The procedural macro implementation expands the annotated function into two
 parts: the original function and a wrapper function that registers the step in
@@ -1092,9 +1092,9 @@ against feature files. For a concrete regression example, see
 > The thread-local scenario-state pattern below is the recommended way to
 > share mutable GPUI state across BDD steps in `rstest-bdd` 0.6.0, but it
 > exists to work around the current `StepContext::borrow_mut` contract
-> selected by [ADR-007](adr-007-harness-context-injection.md). Sections
+> selected by [ADR-007][adr-007]. Sections
 > 2.7.6.2 and 2.7.6.5 of the design document
-> ([rstest-bdd design](rstest-bdd-design.md)) and roadmap items 12.1.x track
+> ([rstest-bdd design][rstest-bdd-design]) and roadmap items 12.1.x track
 > the v0.7.0 redesign that will retire the thread-local approach in favour
 > of guard-based concurrent fixture borrowing and typed harness-context
 > extractors. New code adopted on 0.6 should expect to migrate when the
@@ -1338,10 +1338,10 @@ binding name is part of the contract.
 
 ##### Where to read more
 
-- [rstest-bdd design](rstest-bdd-design.md) §2.7.6.1 and §2.7.6.2 explain
+- [rstest-bdd design][rstest-bdd-design] §2.7.6.1 and §2.7.6.2 explain
   why the workaround takes this shape and what the borrow contract currently
   allows.
-- [rstest-bdd design](rstest-bdd-design.md) §2.7.6.5 records the v0.7.0
+- [rstest-bdd design][rstest-bdd-design] §2.7.6.5 records the v0.7.0
   redesign target that retires the thread-local approach.
 - `crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` is the
   executable reference suite. Read it to confirm that the snippet here still
@@ -1575,8 +1575,8 @@ synchronous steps that drive async work via `tokio::spawn_local`.
 Async scenarios run on Tokio's current-thread runtime. Step functions may be
 `async fn` and are awaited sequentially, keeping fixture borrows valid across
 `.await` points. Use one of the following patterns to keep async work safe and
-predictable. This section summarizes the canonical guidance in
-[Migration and async patterns](cucumber-rs-migration-and-async-patterns.md).
+predictable. This section summarizes the canonical guidance in [Migration and
+async patterns][migration-async-patterns].
 
 - **Prefer async fixtures:** If a step needs async data, move the async call
   into a fixture and inject the resolved value into the step. The scenario
@@ -1739,8 +1739,8 @@ fn async_wrapper_with_aliases<'ctx>(
 ### Current limitations
 
 - **Tokio current-thread mode only:** Multi-threaded Tokio mode would require
-  `Send` futures, which conflicts with the `RefCell`-backed fixture storage. See
-  [ADR-001](adr-001-async-fixtures-and-test.md) for the full design rationale.
+  `Send` futures, which conflicts with the `RefCell`-backed fixture storage.
+  See [ADR-001][adr-001] for the full design rationale.
 - **Nested runtime safeguards:** Async-only steps running in synchronous
   scenarios use a per-step runtime fallback, which refuses to run when a Tokio
   runtime is already active on the current thread.
@@ -2545,3 +2545,8 @@ integrate acceptance criteria into their Rust test suites and to engage all
 three amigos in the specification process.
 
 [scenario-status]: https://docs.rs/rstest-bdd/latest/rstest_bdd/reporting/enum.ScenarioStatus.html
+[adr-001]: https://github.com/leynos/rstest-bdd/blob/main/docs/adr-001-async-fixtures-and-test.md
+[adr-007]: https://github.com/leynos/rstest-bdd/blob/main/docs/adr-007-harness-context-injection.md
+[gherkin-syntax]: https://github.com/leynos/rstest-bdd/blob/main/docs/gherkin-syntax.md#section-12-the-anatomy-of-a-feature-file
+[migration-async-patterns]: https://github.com/leynos/rstest-bdd/blob/main/docs/cucumber-rs-migration-and-async-patterns.md
+[rstest-bdd-design]: https://github.com/leynos/rstest-bdd/blob/main/docs/rstest-bdd-design.md

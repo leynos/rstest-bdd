@@ -14,7 +14,7 @@ slow-timeout = { period = "180s", terminate-after = 1, grace-period = "5s" }
 [[profile.default.overrides]]
 # trybuild-based compile tests invoke `cargo build` against a large dependency
 # tree; on cold caches this can legitimately exceed the default 60 s limit.
-filter = "binary_id(rstest-bdd-harness-tokio::macro_compile) | binary_id(rstest-bdd::trybuild_macros)"
+filter = "binary_id(rstest-bdd-harness-tokio::macro_compile) | binary_id(rstest-bdd-harness-gpui::macro_compile) | binary_id(rstest-bdd::trybuild_macros)"
 slow-timeout = { period = "180s", terminate-after = 1, grace-period = "5s" }
 
 [profile.long]
