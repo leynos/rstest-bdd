@@ -11,6 +11,13 @@ fragment that no longer matches a heading in the target document. A branch
 rename or doc relocation therefore surfaces as a lint failure with one
 constant to update. It is invoked automatically by the ``make lint`` target.
 
+Proportionality (issue #540): the validator was judged proportionate and
+retained. The users guide is vendored into consumer projects, so a broken
+absolute link ships silently to downstream users and is otherwise caught
+only by manual review; the checker turns that drift into a deterministic
+lint failure. Scope deliberately stays limited to the guide's repository
+reference links rather than all documentation cross-references.
+
 Usage
 -----
 python3 scripts/check_users_guide_links.py [--root PATH]
