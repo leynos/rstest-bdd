@@ -156,6 +156,32 @@ Mitigation:
   `trybuild` or `cargo_metadata`) to nextest-managed binaries intended to run
   on Windows.
 
+## Users-guide link validation (`scripts/check_users_guide_links.py`)
+
+`docs/users-guide.md` is vendored into consumer projects, so its
+cross-references to other documents in this repository use absolute GitHub
+URLs (collected as reference-style definitions at the bottom of the file)
+rather than relative paths. `scripts/check_users_guide_links.py`, run
+automatically by `make lint`, keeps those URLs honest:
+
+- Every repository reference must start with the canonical base URL recorded
+  in the script's `BASE_URL` constant (currently
+  `https://github.com/leynos/rstest-bdd/blob/main/docs/`). If the repository
+  moves, the default branch is renamed, or the documents relocate, update
+  that one constant and the reference block; the check pinpoints every
+  definition that disagrees.
+- Each link must resolve to an existing file under `docs/`, and any `#`
+  fragment must match a heading anchor in the target document (the script
+  derives anchors with GitHub's slug rules). Prefer heading fragments over
+  `#L<n>` line anchors, which silently break on reflows.
+- The check also fails if the guide contains no repository references at
+  all, so a reformat cannot silently defang it.
+
+Non-repository URLs (for example docs.rs links) are ignored. Unit tests live
+in `scripts/tests/test_check_users_guide_links.py` and run with the Python
+suite in `make test`. Issue #537 tracks generating the reference block from
+`BASE_URL` so the base lives in exactly one place.
+
 ## Test organization: harness-owned integration tests
 
 Tokio and GPUI harness integration tests are co-located with their respective
