@@ -106,6 +106,34 @@ trybuild scratch directory by querying `cargo metadata` for the workspace
 `Result<PathBuf, Box<dyn Error>>` and is consumed by
 `stage_trybuild_support_files` in each harness crate's `macro_compile.rs` test.
 
+## nextest configuration (`.config/nextest.toml`)
+
+cargo-nextest reads its configuration from `.config/nextest.toml` at the
+workspace root; this is the only nextest configuration file the runner loads.
+The file sets the timeout policy for the test suite:
+
+- The default profile kills any test that runs past a 60 s `slow-timeout`
+  (`terminate-after = 1`, 5 s grace period) and applies a 5 m `global-timeout`
+  to the whole run.
+- A `[[profile.default.overrides]]` entry raises the `slow-timeout` to 180 s
+  for `cargo-bdd::cli`, whose smoke tests spawn `cargo` to build fixture
+  crates and can legitimately exceed 60 s on cold caches.
+- A second override applies the same 180 s `slow-timeout` to the
+  trybuild-based compile-test binaries:
+  `rstest-bdd-harness-tokio::macro_compile`,
+  `rstest-bdd-harness-gpui::macro_compile`, and
+  `rstest-bdd::trybuild_macros`. These tests invoke `cargo build` against a
+  large dependency tree, so a cold cache (or CPU contention when several
+  compile tests run concurrently) can push a single test well past the
+  default limit even though nothing is wrong.
+- A `long` profile (`--profile long`) relaxes the limits further (180 s
+  `slow-timeout`, 15 m `global-timeout`) for deliberately slow local runs.
+
+When adding a test binary that shells out to `cargo`, extend the relevant
+override's `filter` expression rather than raising the default
+`slow-timeout`: the tight default is what surfaces genuinely hung tests
+quickly.
+
 ## nextest on Windows: trybuild deadlock
 
 nextest wraps test binaries in Windows Job Objects. Child `cargo` processes
@@ -120,10 +148,10 @@ Mitigation:
 - Continuous Integration (CI) sets `use-nextest: false` for all Windows
   matrix legs (see `.github/workflows/ci.yml`). Windows coverage runs use
   `cargo llvm-cov test` (libtest) instead.
-- `.cargo/nextest.toml` raises the `slow-timeout` for `binary(macro_compile)`
-  on Windows to 300 s as a local-development safety net. This does not fix the
-  deadlock; it only delays termination to allow the build to complete on fast
-  machines.
+- `.config/nextest.toml` raises the `slow-timeout` for the trybuild
+  compile-test binaries (including both `macro_compile` binaries) to 180 s as
+  a local-development safety net. This does not fix the deadlock; it only
+  delays termination to allow the build to complete on fast machines.
 - Do not add `macro_compile`-style tests (tests that spawn `cargo` via
   `trybuild` or `cargo_metadata`) to nextest-managed binaries intended to run
   on Windows.
