@@ -32,7 +32,7 @@ test: ## Run tests with warnings treated as errors
 	fi
 	# Exercise the Python release automation alongside the Rust suite.
 	$(UV) run --with pytest --with cyclopts --with plumbum --with tomlkit \
-		--with cuprum \
+		--with hypothesis --with cuprum \
 		python -m pytest scripts/tests/publish_check \
 		scripts/tests/test_check_users_guide_links.py \
 		scripts/tests/test_check_users_guide_links_cli.py

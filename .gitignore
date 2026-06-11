@@ -8,3 +8,4 @@ __pycache__/
 rust_out
 .agents/mcp/context_pack/packs/
 crates/rstest-bdd-harness/.proptest-regressions/
+.hypothesis/
