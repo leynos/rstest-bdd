@@ -41,6 +41,7 @@ lint: ## Run Clippy with warnings denied
 	$(CARGO) clippy $(CLIPPY_FLAGS)
 	find scripts -type f -name "*.py" -print0 | xargs -r -0 $(UVX) ruff check
 	python3 scripts/check_rs_file_lengths.py
+	python3 scripts/check_users_guide_links.py
 
 typecheck: ## Run cargo check with warnings denied
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) check $(CARGO_FLAGS) $(BUILD_JOBS)
