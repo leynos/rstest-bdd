@@ -425,12 +425,12 @@ Implementation details:
 
 Go/no-go validation:
 
-- `RUSTFLAGS="-D warnings" cargo test -p rstest-bdd --test trybuild_macros
-  step_macros_compile -- --exact` passes.
-- `RUSTFLAGS="-D warnings" cargo test -p rstest-bdd --test
-  scenario_harness_tokio` passes.
-- `RUSTFLAGS="-D warnings" cargo test -p rstest-bdd --test
-  scenario_harness_gpui --features gpui-harness-tests` passes.
+- `cargo test -p rstest-bdd --test trybuild_macros step_macros_compile -- --exact`
+  passes with `RUSTFLAGS="-D warnings"`.
+- `cargo test -p rstest-bdd --test scenario_harness_tokio` passes with
+  `RUSTFLAGS="-D warnings"`.
+- `cargo test -p rstest-bdd --test scenario_harness_gpui --features gpui-harness-tests`
+  passes with `RUSTFLAGS="-D warnings"`.
 
 ### Stage D: update the user guide and design doc
 

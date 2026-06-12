@@ -400,9 +400,8 @@ What landed against the DRAFT outline:
   regression" caption, matching the Logisphere conditions.
 - The v0.6/v0.7 framing shipped as a
   `> **Note: this is a v0.6 interim workaround.**` admonition on both guides,
-  satisfying the set-off-
-  callout requirement that was promoted from a single-sentence opener during
-  the Logisphere revision.
+  satisfying the set-off- callout requirement that was promoted from a
+  single-sentence opener during the Logisphere revision.
 
 Drift signal status: as planned, this delivery anchored the playbook to the
 regression suite by name only. Compile-time drift detection through

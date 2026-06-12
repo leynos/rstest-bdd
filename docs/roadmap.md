@@ -247,8 +247,8 @@ experience by introducing more powerful and intuitive APIs.
 
 - [x] 5.1.1. Implicit fixture injection: Automatically inject fixtures when a
   step function's parameter name matches a fixture name, removing the need for
-  `#[from(...)]` in most cases. [user guide][implicit-fixture-guide] ·
-  [trybuild][implicit-fixture-trybuild]
+  `#[from(...)]` in most cases. See the [user guide][implicit-fixture-guide]
+  and [trybuild][implicit-fixture-trybuild] coverage.
 - [x] 5.1.2. Inferred step patterns: Allow step definition macros (`#[given]`,
   etc.) to be used without an explicit pattern string. The pattern will be
   inferred from the function's name (e.g., `fn user_logs_in()` becomes "user
@@ -680,12 +680,14 @@ implementation commitments.
   scenarios, and unknown third-party harness paths where relevant. Finish line:
   tests prove that harness-only Tokio and GPUI scenarios receive their
   first-party test attributes when the generated signature permits it, explicit
-  overrides win, and `attributes`-only behaviour remains unchanged.
-  Prerequisite: 9.7.2. Design Doc:
-  `docs/adr-008-harness-led-attribute-policy-defaults.md`. Delivered 2026-05-21
-  with unit coverage for precedence and unknown-path negatives, trybuild
-  fixtures for first-party override and attributes-only expansion, and
-  behavioural Tokio and GPUI scenario coverage. (Buzzy Bee)
+  overrides win, `attributes`-only behaviour remains unchanged, harness
+  initialisation errors propagate before step execution, and harness-dependent
+  steps fail loudly when only an attribute policy is supplied. Prerequisite:
+  9.7.2. Design Doc: `docs/adr-008-harness-led-attribute-policy-defaults.md`.
+  Delivered 2026-05-21 with unit coverage for precedence and unknown-path
+  negatives, trybuild fixtures for first-party override and attributes-only
+  expansion, behavioural Tokio and GPUI scenario coverage, and runtime
+  error-path and mismatch coverage added for issue #498. (Buzzy Bee)
 - [x] 9.7.4. Update the user guide, design document, and first-party example
   prose to lead with harness-only configuration once the default-inference
   behaviour lands. Retain `attributes = ...` as an override pattern and keep

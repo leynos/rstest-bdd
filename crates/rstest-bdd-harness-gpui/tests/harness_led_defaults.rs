@@ -56,21 +56,62 @@ fn failing_harness_panics_with_meaningful_message() {}
 mod native {
     //! Inferred-policy coverage that drives the real GPUI test runtime.
 
-    use rstest_bdd_macros::{given, scenario};
+    use rstest_bdd_macros::{given, scenario, then, when};
     use serial_test::serial;
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
+    static CONTEXT_POINTER: AtomicUsize = AtomicUsize::new(0);
+    static CONTEXT_MUTATED: AtomicBool = AtomicBool::new(false);
 
     #[given("the inferred GPUI context is observed")]
-    fn inferred_gpui_context_is_observed(
+    async fn inferred_gpui_context_is_observed(
         #[from(rstest_bdd_harness_context)] context: &gpui::TestAppContext,
     ) {
         // Receiving the reserved harness-context fixture proves the
         // inferred policy + harness pairing injected the GPUI context.
+        CONTEXT_POINTER.store(std::ptr::from_ref(context) as usize, Ordering::SeqCst);
+        CONTEXT_MUTATED.store(false, Ordering::SeqCst);
         assert!(context.test_function_name().is_none());
+        std::future::ready(()).await;
+    }
+
+    #[when("the inferred GPUI context is mutated")]
+    async fn inferred_gpui_context_is_mutated(
+        #[from(rstest_bdd_harness_context)] context: &mut gpui::TestAppContext,
+    ) {
+        assert_eq!(
+            std::ptr::from_ref(context) as usize,
+            CONTEXT_POINTER.load(Ordering::SeqCst),
+            "harness should inject one stable TestAppContext instance"
+        );
+        context.on_quit(|| {});
+        CONTEXT_MUTATED.store(true, Ordering::SeqCst);
+        std::future::ready(()).await;
+    }
+
+    #[then("the inferred GPUI context remains available")]
+    async fn inferred_gpui_context_remains_available(
+        #[from(rstest_bdd_harness_context)] context: &gpui::TestAppContext,
+    ) {
+        assert_eq!(
+            std::ptr::from_ref(context) as usize,
+            CONTEXT_POINTER.load(Ordering::SeqCst),
+            "later steps should observe the same injected TestAppContext"
+        );
+        assert!(
+            CONTEXT_MUTATED.load(Ordering::SeqCst),
+            "mutations through &mut TestAppContext should be visible later"
+        );
+        let _executor = context.executor();
+        std::future::ready(()).await;
     }
 
     /// `harness = GpuiHarness` with no `attributes = ...`: the macro infers
     /// `GpuiAttributePolicy` (ADR-008) and the step observes the injected
-    /// `TestAppContext` at runtime.
+    /// `TestAppContext` at runtime. Async steps force the macro to execute
+    /// the scenario body through the async step path, while the reserved
+    /// fixture proves the context came from `GpuiHarness` rather than from
+    /// `GpuiAttributePolicy` alone.
     #[scenario(
         path = "tests/features/harness_led_defaults.feature",
         name = "Inferred GPUI policy provides the test context",
