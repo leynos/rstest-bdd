@@ -5,7 +5,6 @@
 //! line in a feature file, the handler returns the locations of all Rust
 //! functions that implement that step.
 
-use std::path::Path;
 use std::sync::Arc;
 
 use async_lsp::ResponseError;
@@ -16,7 +15,7 @@ use tracing::debug;
 use crate::indexing::{CompiledStepDefinition, FeatureFileIndex, IndexedStep};
 use crate::server::ServerState;
 
-use super::util::lsp_position_to_byte_offset;
+use super::util::{has_extension, lsp_position_to_byte_offset};
 
 /// Handle `textDocument/implementation` requests.
 ///
@@ -40,7 +39,7 @@ pub fn handle_implementation(
         return Ok(None);
     };
 
-    if !is_feature_file(&path) {
+    if !has_extension(&path, "feature") {
         debug!(
             ?path,
             "ignoring implementation request for non-feature file"
@@ -75,13 +74,6 @@ pub fn handle_implementation(
     );
 
     Ok(Some(GotoImplementationResponse::Array(locations)))
-}
-
-/// Check if a path has a `.feature` extension.
-fn is_feature_file(path: &Path) -> bool {
-    path.extension()
-        .and_then(std::ffi::OsStr::to_str)
-        .is_some_and(|ext| ext.eq_ignore_ascii_case("feature"))
 }
 
 /// Find the step at the given cursor position.
@@ -146,20 +138,6 @@ mod tests {
     use lsp_types::{DidSaveTextDocumentParams, TextDocumentIdentifier};
     use std::path::PathBuf;
     use tempfile::TempDir;
-
-    #[test]
-    fn is_feature_file_returns_true_for_feature_extension() {
-        assert!(is_feature_file(Path::new("foo.feature")));
-        assert!(is_feature_file(Path::new("/path/to/file.feature")));
-        assert!(is_feature_file(Path::new("file.FEATURE"))); // case-insensitive
-    }
-
-    #[test]
-    fn is_feature_file_returns_false_for_other_extensions() {
-        assert!(!is_feature_file(Path::new("foo.rs")));
-        assert!(!is_feature_file(Path::new("foo.txt")));
-        assert!(!is_feature_file(Path::new("foo")));
-    }
 
     #[test]
     fn find_step_at_position_returns_none_for_empty_index() {
