@@ -392,12 +392,12 @@ in-depth reference; the steps below mirror its outline:
    step reconstruct the visual context with
    `gpui::VisualTestContext::from_window(window, cx)`. The return is
    `Option<VisualTestContext>`; treat `None` as an invariant violation (for
-   example, with `let Some(visual_cx) = ... else { panic!(...) };`).
+   example, with `.unwrap_or_else(|| panic!(...))`).
 
 For a worked-out example, see the regression suite at
 `crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` and the [stateful
-playbook][users-guide-playbook] subsection. The pattern's rationale lives in
-§§2.7.6.1–2.7.6.2 of the [rstest-bdd design](rstest-bdd-design.md).
+GPUI user-guide playbook][users-guide-playbook]. The pattern's rationale lives
+in §§2.7.6.1–2.7.6.2 of the [rstest-bdd design](rstest-bdd-design.md).
 
 [adr-007]: adr-007-harness-context-injection.md
 
