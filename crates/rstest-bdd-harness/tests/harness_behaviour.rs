@@ -13,7 +13,7 @@ use std::rc::Rc;
 #[path = "../src/test_utils.rs"]
 mod test_utils;
 
-use test_utils::{STD_HARNESS_PANIC_MESSAGE, panic_payload_matches};
+use test_utils::{FailingHarness, STD_HARNESS_PANIC_MESSAGE, panic_payload_matches};
 
 #[fixture]
 fn default_metadata() -> ScenarioMetadata {
@@ -117,6 +117,20 @@ fn std_harness_error_path_propagates_runtime_build_failed(default_metadata: Scen
         format!("{err}"),
         "failed to build runtime: std probe failure"
     );
+}
+
+#[rstest]
+fn failing_harness_test_helper_returns_runtime_build_failed(default_metadata: ScenarioMetadata) {
+    let request = ScenarioRunRequest::new(
+        default_metadata,
+        ScenarioRunner::new_without_context(|| "unreachable"),
+    );
+    let result = FailingHarness.run(request);
+
+    let Err(HarnessError::RuntimeBuildFailed(err)) = result else {
+        panic!("expected RuntimeBuildFailed, got {result:?}");
+    };
+    assert_eq!(err.to_string(), "synthetic harness initialisation failure");
 }
 
 #[test]

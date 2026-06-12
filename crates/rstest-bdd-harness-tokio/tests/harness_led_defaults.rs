@@ -15,7 +15,7 @@
 //!   policy alone fails loudly (a `LocalSet` panic from `spawn_local`), not
 //!   silently.
 
-use rstest_bdd_harness::{HarnessAdapter, HarnessError, HarnessResult, ScenarioRunRequest};
+use rstest_bdd_harness::FailingHarness;
 use rstest_bdd_harness_tokio::TokioTestContext;
 use rstest_bdd_macros::{given, scenario, then, when};
 
@@ -61,20 +61,6 @@ async fn runtime_flavour_is_current_thread(
 fn inferred_policy_runs_scenario_through_tokio_harness() {}
 
 // --- Failing-harness error path ------------------------------------------
-
-/// Harness whose `run` always fails before invoking the scenario runner.
-#[derive(Default)]
-struct FailingHarness;
-
-impl HarnessAdapter for FailingHarness {
-    type Context = ();
-
-    fn run<T>(&self, _request: ScenarioRunRequest<'_, Self::Context, T>) -> HarnessResult<T> {
-        Err(HarnessError::RuntimeBuildFailed(std::io::Error::other(
-            "synthetic harness initialisation failure",
-        )))
-    }
-}
 
 #[given("a step that must never run")]
 fn step_that_must_never_run() {
