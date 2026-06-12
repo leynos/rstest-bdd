@@ -723,6 +723,25 @@ feature-gated regression suite in
 `crates/rstest-bdd-harness-gpui/tests/scenario_name_in_logs.rs` apply the
 attribute to every `GpuiHarness::run`-driving test.
 
+## Attribute-policy conformance check
+
+`rstest_bdd_harness::policy_conformance::assert_attribute_policy_conformance::<P>(expected_rendered)`
+is the canonical conformance test for `AttributePolicy` implementations. It
+pins three invariants for any policy `P`:
+
+1. **Emit** — the policy emits exactly the expected number of attributes.
+2. **Render** — each attribute renders to the corresponding expected string,
+   in order.
+3. **rstest is first** — the first attribute path is `rstest::rstest`, so
+   fixture expansion precedes the runtime-specific test macro.
+
+Harness adapter crates (`rstest-bdd-harness-tokio`,
+`rstest-bdd-harness-gpui`, and any future adapter) must exercise their policy
+through this helper, supplying only the crate-specific expected rendered
+attributes; do not re-implement the emit/render/ordering assertions per
+crate. New harness crates get the policy contract for free by calling the
+helper from one `#[test]`.
+
 ## Language-server handler conventions
 
 ### Canonical extension predicate: `has_extension`
