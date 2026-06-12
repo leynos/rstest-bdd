@@ -2,8 +2,10 @@
 # Kill any test once it crosses 60s.
 slow-timeout = { period = "60s", terminate-after = 1, grace-period = "5s" }
 
-# Put a hard ceiling on the whole run.
-global-timeout = "5m"
+# Put a hard ceiling on the whole run. Sized so a cold-cache
+# `rstest-bdd::trybuild_macros` run (up to ~5 minutes) cannot exhaust the
+# whole budget by itself.
+global-timeout = "10m"
 
 [[profile.default.overrides]]
 # `cargo-bdd` CLI smoke tests spawn `cargo` to build fixture crates, which can
@@ -13,9 +15,11 @@ slow-timeout = { period = "180s", terminate-after = 1, grace-period = "5s" }
 
 [[profile.default.overrides]]
 # trybuild-based compile tests invoke `cargo build` against a large dependency
-# tree; on cold caches this can legitimately exceed the default 60 s limit.
+# tree; on cold caches this can legitimately take several minutes
+# (`rstest-bdd::trybuild_macros` stages 57 fixture cases and brushes 180 s
+# when its staging directory is cold).
 filter = "binary_id(rstest-bdd-harness-tokio::macro_compile) | binary_id(rstest-bdd-harness-gpui::macro_compile) | binary_id(rstest-bdd::trybuild_macros)"
-slow-timeout = { period = "180s", terminate-after = 1, grace-period = "5s" }
+slow-timeout = { period = "300s", terminate-after = 1, grace-period = "5s" }
 
 [profile.long]
 slow-timeout = { period = "180s", terminate-after = 1, grace-period = "5s" }
