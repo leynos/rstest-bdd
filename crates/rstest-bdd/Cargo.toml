@@ -39,7 +39,7 @@ cap-std.workspace = true
 insta.workspace = true
 rstest.workspace = true
 rstest-bdd-macros.workspace = true
-rstest-bdd-harness.workspace = true
+rstest-bdd-harness = { workspace = true, features = ["testing"] }
 trybuild.workspace = true
 proptest.workspace = true
 serial_test.workspace = true

@@ -22,6 +22,7 @@ tokio = { version = "1", features = ["rt"] }
 [dev-dependencies]
 rstest.workspace = true
 rstest-bdd.workspace = true
+rstest-bdd-harness = { workspace = true, features = ["testing"] }
 rstest-bdd-macros.workspace = true
 cargo_metadata.workspace = true
 macrotest.workspace = true
