@@ -1,0 +1,5 @@
+---
+source: crates/cargo-bdd/src/output.rs
+expression: output
+---
+Given 'a declined card' (tests/steps.rs:7) - skipped in features/checkout.feature:42 :: declined card is rejected [tags: payments] - sandbox unavailable
