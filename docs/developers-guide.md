@@ -234,7 +234,10 @@ than relative paths. `scripts/check_users_guide_links.py`, run automatically by
 - The check also fails if the guide contains no repository references at
   all, so a reformat cannot silently defang it.
 
-Non-repository URLs (for example docs.rs links) are ignored.
+Non-repository URLs (for example docs.rs links) are ignored. Unit tests live in
+`scripts/tests/test_check_users_guide_links.py` and run with the Python suite in
+`make test`. Issue #537 tracks generating the reference block from `BASE_URL`
+so the base lives in exactly one place.
 
 ### Running the checker
 
@@ -364,10 +367,12 @@ Table: Test binaries for `rstest-bdd-harness-tokio` and
 | `rstest-bdd-harness-tokio` | `harness_behaviour`          | Tokio harness adapter execution semantics                            |
 | `rstest-bdd-harness-tokio` | `attribute_policy_behaviour` | Tokio attribute policy output                                        |
 | `rstest-bdd-harness-tokio` | `scenario_macros`            | `#[scenario]` + Tokio adapter                                        |
+| `rstest-bdd-harness-tokio` | `harness_led_defaults`       | harness-led default inference and runtime error paths                |
 | `rstest-bdd-harness-tokio` | `macro_compile`              | trybuild compile-pass/fail for Tokio fixtures                        |
 | `rstest-bdd-harness-gpui`  | `harness_behaviour`          | GPUI harness adapter execution semantics (feature-gated)             |
 | `rstest-bdd-harness-gpui`  | `attribute_policy_behaviour` | GPUI attribute policy output (feature-gated)                         |
 | `rstest-bdd-harness-gpui`  | `scenario_macros`            | `#[scenario]` + GPUI adapter (feature-gated)                         |
+| `rstest-bdd-harness-gpui`  | `harness_led_defaults`       | harness-led default inference and runtime error paths                |
 | `rstest-bdd-harness-gpui`  | `stateful_window`            | durable GPUI handles + visual context reconstruction (feature-gated) |
 | `rstest-bdd-harness-gpui`  | `scenario_name_in_logs`      | GPUI step-panic diagnostics include scenario context (feature-gated) |
 | `rstest-bdd-harness-gpui`  | `macro_compile`              | trybuild compile-pass for GPUI fixtures (feature-gated)              |
@@ -375,6 +380,11 @@ Table: Test binaries for `rstest-bdd-harness-tokio` and
 These tests were moved out of `rstest-bdd` in this release to decouple the core
 crate from Tokio and GPUI dev-dependencies, making it publishable to crates.io
 without carrying those dependencies.
+
+The GPUI `harness_led_defaults` happy-path scenario is gated by
+`native-gpui-tests` and uses `#[serial]`, matching the native GPUI runtime
+suite. Its failing-harness error-path scenario does not require the native GPUI
+runtime and runs without the feature gate.
 
 ### Bulk-migration cookbook reference suite
 

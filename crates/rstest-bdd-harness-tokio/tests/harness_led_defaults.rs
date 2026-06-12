@@ -16,26 +16,37 @@
 //!   silently.
 
 use rstest_bdd_harness::{HarnessAdapter, HarnessError, HarnessResult, ScenarioRunRequest};
+use rstest_bdd_harness_tokio::TokioTestContext;
 use rstest_bdd_macros::{given, scenario, then, when};
 
 // --- Inferred-policy happy path -----------------------------------------
 
 #[given("the inferred Tokio runtime is active")]
-fn inferred_runtime_is_active() {
+async fn inferred_runtime_is_active(
+    #[from(rstest_bdd_harness_context)] context: &TokioTestContext,
+) {
     // Panics if the inferred policy + harness did not stand up a runtime.
-    let _handle = tokio::runtime::Handle::current();
+    assert_eq!(
+        context.handle().runtime_flavor(),
+        tokio::runtime::RuntimeFlavor::CurrentThread
+    );
+    std::future::ready(()).await;
 }
 
 #[when("a local task is spawned under the inferred policy")]
-fn local_task_spawned() {
+async fn local_task_spawned() {
     // Panics without the `LocalSet` provided by `TokioHarness`.
     tokio::task::spawn_local(async {});
+    std::future::ready(()).await;
 }
 
 #[then("the inferred runtime flavour is current thread")]
-fn runtime_flavour_is_current_thread() {
+async fn runtime_flavour_is_current_thread(
+    #[from(rstest_bdd_harness_context)] context: &TokioTestContext,
+) {
+    std::future::ready(()).await;
     assert_eq!(
-        tokio::runtime::Handle::current().runtime_flavor(),
+        context.handle().runtime_flavor(),
         tokio::runtime::RuntimeFlavor::CurrentThread
     );
 }

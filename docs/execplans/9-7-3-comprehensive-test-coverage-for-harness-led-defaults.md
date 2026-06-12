@@ -21,13 +21,16 @@ first-party harness choices can imply their matching first-party test
 attributes when `attributes = ...` is omitted.
 
 After this work is implemented, maintainers can change the macro code with
-confidence because the test suite will prove four observable behaviours:
+confidence because the test suite will prove these observable behaviours:
 
 - harness-only Tokio and GPUI scenarios receive first-party test attributes
   when the generated function signature permits those attributes;
 - explicit `attributes = ...` overrides beat any harness-led default;
-- `attributes`-only scenarios keep their existing behaviour; and
-- unknown third-party harness paths do not infer first-party defaults.
+- `attributes`-only scenarios keep their existing behaviour;
+- unknown third-party harness paths do not infer first-party defaults;
+- harness initialisation errors propagate before any step function runs; and
+- harness-dependent steps fail loudly when a scenario supplies only an
+  attribute policy.
 
 The work is deliberately coverage-focused. The current documentation already
 describes harness-led defaults, and roadmap item 9.7.4 is the dedicated
@@ -420,7 +423,12 @@ harness-path negatives. Trybuild coverage now exercises explicit default-policy
 overrides and Tokio attributes-only expansion in the first-party harness
 crates. Behavioural coverage now proves Tokio attributes-only runtime
 availability plus explicit default-policy overrides for Tokio and GPUI
-harness-led scenarios.
+harness-led scenarios. Issue #498 follow-up coverage adds unconditional runtime
+integration binaries for Tokio and GPUI harness-led defaults: async happy-path
+steps exercise inferred first-party policy selection, failing harnesses prove
+`HarnessAdapter::run` errors surface before step execution, and a Tokio
+policy-only mismatch proves harness-dependent `spawn_local` steps fail loudly
+instead of passing silently.
 
 Focused validation passed for policy and macro unit tests, Tokio and GPUI
 trybuild suites, and Tokio and GPUI behavioural suites. Final repository gates
