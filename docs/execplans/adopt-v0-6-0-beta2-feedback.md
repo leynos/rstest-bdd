@@ -230,6 +230,20 @@ Thresholds that trigger escalation when breached.
   design-doc cross-links; added feature-file rebuild caveat to v0-6-0 migration
   guide. `make markdownlint` and `make nixie` clean; `vale` not installed on
   this system — gate noted as unavailable.
+- [x] (2026-06-12) Rebased onto `origin/main` twice as upstream advanced
+  (markdown reformat `51d7c7e`; portable-links + GPUI override + link-checker
+  `68c951e`). Resolved a recurring `weave`-driver mangling of `users-guide.md`
+  via a clean `git merge-file --diff3` 3-way merge, preserving main's portable
+  reference-style links and the new `check_users_guide_links.py` lint. The
+  redundant nextest-override commit was dropped (main landed the identical fix).
+- [x] (2026-06-12) Addressed three PR review warnings: (1) documented the
+  ADR-010–012 decisions in `docs/developers-guide.md` (new "Planned internal
+  APIs and tooling" section); (2) added a *Testing strategy* section to ADR-011
+  (property-based `proptest` over scenario-store/borrow sequences) and ADR-012
+  (stateful `proptest` over borrow/drop orderings, with Kani/Verus noted as an
+  optional escalation); (3) added a *Testing strategy* section to ADR-010
+  recommending a `trybuild` compile-time test and redacted `insta` snapshots
+  alongside the portability-aware rebuild regression test.
 
 ## Surprises & discoveries
 

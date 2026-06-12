@@ -208,6 +208,37 @@ Binding constraints for the implementing ExecPlan:
    compile performance, not invalidation correctness; `§3.2.2` tracks it
    separately.
 
+## Testing strategy
+
+The implementing ExecPlan (roadmap item 11.3.1) must cover three layers, in
+addition to the binding constraint that invalidation is a tested contract:
+
+1. **Rebuild-invalidation regression test (required).** A portability-aware
+   integration test proves a `.feature`-only edit forces recompilation and a
+   fresh failure, modelled on `theoremc`'s `tests/build_discovery_bdd.rs`. It
+   must tolerate coarse filesystem `mtime` granularity (touch to a
+   guaranteed-later timestamp, or tick a second), run serialised in its own
+   process with an isolated `target`/temp directory so nextest's
+   process-per-test parallelism cannot race on a shared workspace `target`,
+   and — for the `include_str!` path — assert no absolute `CARGO_MANIFEST_DIR`
+   path is embedded in the artefact (inspect expanded output or the compiled
+   `.d` dep-info).
+2. **Trybuild compile-time test (recommended).** Because the mechanism is
+   emitted by the `#[scenario]`/`scenarios!` proc-macros, add a `trybuild`
+   compile-pass fixture proving the emitted `include_str!` (or build-script
+   wiring) compiles cleanly for a representative `.feature` binding, and a
+   compile-fail fixture proving a `#[scenario(path = …)]` pointing at a missing
+   `.feature` file still fails at compile time with a clear diagnostic (so the
+   invalidation change does not regress the existing missing-file error path).
+   These join the existing `rstest-bdd::trybuild_macros` /
+   `*::macro_compile` suites and inherit their nextest slow-timeout override.
+3. **Diagnostic snapshots (recommended).** For any user-facing diagnostic the
+   change touches (for example the missing-`.feature` error), pin the rendered
+   message with a focused `insta` snapshot using stable redaction
+   (`insta::with_settings!` filters over absolute paths, line/column numbers,
+   and rustc version strings) so the snapshot is portable across machines and
+   toolchains and does not drift like a raw `.stderr`.
+
 ## Consequences
 
 - The rebuild-invalidation foot-gun is closed once 11.3.1 lands.

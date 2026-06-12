@@ -111,6 +111,42 @@ variants for:
 Roadmap item 11.1.1 adds an early version of this surface in v0.6.1 to begin
 the transition; v0.7.0 completes it.
 
+## Testing strategy
+
+Guard-based interior borrowing is the highest-risk invariant in the v0.7.0
+surface: it must permit concurrent borrows of *distinct* keys while rejecting
+aliasing borrows of the *same* key, across arbitrary borrow/drop orderings.
+Example tests cannot cover that interleaving space, so the implementing
+ExecPlan (roadmap items 12.1.1–12.1.3) should layer:
+
+1. **Unit and generated-wrapper tests (required).** Prove the canonical cases:
+   two distinct-key mutable borrows coexist; a second mutable borrow of a live
+   key fails with `FixtureBorrowError::AlreadyBorrowed`; a missing key yields
+   `MissingFixture`; a downcast failure yields `TypeMismatch`; and a generated
+   wrapper requesting both `&mut TestAppContext` and `&mut World` compiles and
+   runs.
+2. **Property-based tests (recommended).** Use `proptest` to generate random
+   sequences of borrow and drop operations over a small key set and assert the
+   borrow-checker-like invariants for *any* sequence: at most one live mutable
+   guard exists per key at a time; a borrow succeeds iff no live guard holds
+   its key; releasing (dropping) a guard makes its key borrowable again; and
+   distinct-key borrows never interfere. A stateful `proptest`
+   model (a reference `HashMap<Key, BorrowState>` shadowing the real
+   `StepContext`) is the natural shape and catches reordering regressions that
+   fixed-sequence tests miss.
+3. **Lifecycle tests (required).** Prove the before-scenario reset and
+   after-scenario cleanup hooks fire on success, assertion failure, and skip
+   (12.1.3), reusing the three-state pattern from ADR-011.
+4. **Diagnostic snapshots (recommended).** Pin `FixtureBorrowError`
+   `Display`/`Debug` output and any generated-wrapper diagnostic with focused
+   `insta` snapshots under stable redaction, so error-message wording is
+   reviewed deliberately rather than drifting.
+
+Formal verification (Kani for the bounded borrow-state machine, or Verus for
+the aliasing invariant) is recorded as an **optional** escalation if
+property-based testing proves insufficient during implementation; it is not a
+prerequisite for v0.7.0.
+
 ## Consequences
 
 - v0.7.0 is a migration-guide-worthy breaking change: the `&mut self`

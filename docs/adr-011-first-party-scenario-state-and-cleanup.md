@@ -224,6 +224,38 @@ The v0.6.0 thread-local interim pattern remains supported throughout v0.6.x.
 ADR-012's guard-based redesign supersedes both at v0.7.0 and provides a
 migration mapping.
 
+## Testing strategy
+
+`ScenarioStore<T>` is a small state machine — `set`/`with`/`with_mut`/`take`/
+`reset` plus the two-sided reset protocol — so example-based unit tests alone
+under-sample the operation orderings that matter. The implementing ExecPlan
+(roadmap items 11.1.3/11.1.4) should layer:
+
+1. **Unit tests (required).** Exercise each of the five operations directly,
+   and the three-state cleanup lifecycle (success, assertion failure, skip),
+   asserting the store returns to `T::default()` for the next scenario in
+   every case.
+2. **Property-based tests (recommended).** Use `proptest` to generate random
+   sequences of store operations (`set`, `with_mut`, `take`, `reset`,
+   interleaved with simulated scenario boundaries) and assert the invariants
+   that must hold for *any* sequence: a scenario boundary always observes a
+   reset store (no handle leaks across the boundary); `take` followed by a read
+   without an intervening `set` yields the default; and `with`/`with_mut`
+   never observe state from a prior scenario. This is the class of
+   state-transition invariant that example tests systematically miss, and it is
+   the cheapest guard against a future refactor reordering the reset protocol.
+   The crate already depends on `proptest` (see
+   `crates/rstest-bdd-harness-gpui/tests/stateful_window.rs`), so this adds no
+   new dependency.
+3. **Thread-isolation coverage (recommended).** Because the store is
+   thread-local, include a `serial_test`-guarded test that proves two
+   sequential scenarios on the same test thread do not share state, mirroring
+   the existing `stateful_window.rs` `stale_window_count == 0` assertion.
+
+Formal proof (Kani/Verus) is **not** recommended here: the invariants are
+sequential and bounded, so `proptest` gives adequate coverage without the
+harness cost of a model checker.
+
 ## Consequences
 
 - Additive and semver-compatible change for v0.6.1.
