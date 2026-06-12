@@ -15,24 +15,10 @@
 //!   `native-gpui-tests` gate (and `#[serial]` discipline) with the rest of
 //!   the GPUI scenario suite.
 
-use rstest_bdd_harness::{HarnessAdapter, HarnessError, HarnessResult, ScenarioRunRequest};
+use rstest_bdd_harness::FailingHarness;
 use rstest_bdd_macros::{given, scenario};
 
 // --- Failing-harness error path (no native GPUI runtime required) --------
-
-/// Harness whose `run` always fails before invoking the scenario runner.
-#[derive(Default)]
-struct FailingHarness;
-
-impl HarnessAdapter for FailingHarness {
-    type Context = ();
-
-    fn run<T>(&self, _request: ScenarioRunRequest<'_, Self::Context, T>) -> HarnessResult<T> {
-        Err(HarnessError::RuntimeBuildFailed(std::io::Error::other(
-            "synthetic harness initialisation failure",
-        )))
-    }
-}
 
 #[given("a step that must never run")]
 fn step_that_must_never_run() {
