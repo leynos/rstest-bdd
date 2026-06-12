@@ -11,9 +11,20 @@ fragment that no longer matches a heading in the target document. A branch
 rename or doc relocation therefore surfaces as a lint failure with one
 constant to update. It is invoked automatically by the ``make lint`` target.
 
+Proportionality (issue #540): the validator was judged proportionate and
+retained. The users guide is vendored into consumer projects, so a broken
+absolute link ships silently to downstream users and is otherwise caught
+only by manual review; the checker turns that drift into a deterministic
+lint failure. Scope deliberately stays limited to the guide's repository
+reference links rather than all documentation cross-references.
+
 Usage
 -----
-python3 scripts/check_users_guide_links.py
+python3 scripts/check_users_guide_links.py [--root PATH]
+
+``--root`` overrides the repository root (the directory containing
+``docs/``); it defaults to the parent of this script's directory. The
+override exists so tests can point the checker at a temporary tree.
 
 Exit codes
 ----------
@@ -26,9 +37,14 @@ Exit codes
 
 from __future__ import annotations
 
+import argparse
 import re
 import sys
+import typing as typ
 from pathlib import Path
+
+if typ.TYPE_CHECKING:
+    import collections.abc as cabc
 
 GUIDE = Path("docs/users-guide.md")
 # Canonical prefix for cross-references into this repository. Update this
@@ -185,9 +201,30 @@ def check_guide(root: Path) -> list[str]:
     return violations
 
 
-def main() -> int:
-    """Check the guide's repository links and report any violations."""
-    root = Path(__file__).resolve().parents[1]
+def main(argv: cabc.Sequence[str] | None = None) -> int:
+    """
+    Check the guide's repository links and report any violations.
+
+    Parameters
+    ----------
+    argv : collections.abc.Sequence[str] | None
+        Command-line arguments, excluding the program name. ``None``
+        (the default) reads :data:`sys.argv`.
+
+    Returns
+    -------
+    int
+        ``0`` when every link is valid, ``1`` otherwise.
+    """
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--root",
+        type=Path,
+        default=None,
+        help="repository root containing docs/ (defaults to this script's parent)",
+    )
+    args = parser.parse_args(argv)
+    root = args.root if args.root is not None else Path(__file__).resolve().parents[1]
     violations = check_guide(root)
     for violation in violations:
         print(violation, file=sys.stderr)
