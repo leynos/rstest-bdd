@@ -723,7 +723,6 @@ feature-gated regression suite in
 `crates/rstest-bdd-harness-gpui/tests/scenario_name_in_logs.rs` apply the
 attribute to every `GpuiHarness::run`-driving test.
 
-
 ## Registry lookup usage-marking invariant
 
 Every public step-lookup function in `crates/rstest-bdd/src/registry/`
@@ -747,6 +746,7 @@ bookkeeping exactly once and applies the caller's projection to the resolved
   registration and a lazily built hash map, which a bounded harness cannot
   model cheaply, and the property suite already exercises every variant
   against hit and miss lookups.
+
 ## Planned internal APIs and tooling (ADR-010 to ADR-012)
 
 Three accepted-as-`Proposed` ADRs schedule internal-API and build-tooling

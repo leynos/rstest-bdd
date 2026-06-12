@@ -8,6 +8,8 @@
 //! the invariant via `unused_steps`.
 
 use proptest::prelude::*;
+use std::collections::BTreeSet;
+
 use rstest_bdd::{
     StepContext, StepError, StepExecution, StepKeyword, find_step, find_step_async,
     find_step_async_with_mode, find_step_with_metadata, lookup_step, lookup_step_async,
@@ -37,6 +39,15 @@ const TARGET_PATTERNS: [&str; 3] = [
 /// Patterns for sentinel steps that are never looked up successfully; they
 /// must remain unused throughout, proving failed lookups mark nothing.
 const SENTINEL_PATTERNS: [&str; 2] = ["mark-used prop sentinel one", "mark-used prop sentinel two"];
+
+/// Patterns for every step whose usage state is asserted by this suite.
+const OBSERVED_PATTERNS: [&str; 5] = [
+    "mark-used prop target alpha",
+    "mark-used prop target beta",
+    "mark-used prop target gamma",
+    "mark-used prop sentinel one",
+    "mark-used prop sentinel two",
+];
 
 step!(
     StepKeyword::Given,
@@ -78,6 +89,36 @@ fn keyword_for(index: usize) -> StepKeyword {
     }
 }
 
+/// Keyword each sentinel pattern was registered under.
+fn sentinel_keyword_for(index: usize) -> StepKeyword {
+    match index {
+        0 => StepKeyword::Given,
+        _ => StepKeyword::When,
+    }
+}
+
+/// Return a keyword that is guaranteed to differ from the given keyword.
+fn mismatched_keyword(keyword: StepKeyword) -> StepKeyword {
+    match keyword {
+        StepKeyword::Given => StepKeyword::When,
+        StepKeyword::When => StepKeyword::Then,
+        StepKeyword::Then | StepKeyword::And | StepKeyword::But => StepKeyword::Given,
+    }
+}
+
+/// Return the observed patterns the registry currently reports as unused.
+fn unused_observed_patterns() -> BTreeSet<&'static str> {
+    unused_steps()
+        .iter()
+        .filter_map(|step| {
+            OBSERVED_PATTERNS
+                .iter()
+                .copied()
+                .find(|pattern| step.pattern.as_str() == *pattern)
+        })
+        .collect()
+}
+
 /// Return whether the registry currently reports `pattern` as unused.
 fn is_unused(pattern: &str) -> bool {
     unused_steps()
@@ -114,8 +155,20 @@ proptest! {
         let keyword = keyword_for(target);
 
         if hit {
+            let before_unused = unused_observed_patterns();
             let resolved = run_variant(variant, keyword, pattern);
             prop_assert!(resolved, "registered step must resolve");
+            let after_unused = unused_observed_patterns();
+            let newly_used = before_unused
+                .difference(&after_unused)
+                .copied()
+                .collect::<Vec<_>>();
+
+            prop_assert!(
+                newly_used.iter().all(|used_pattern| *used_pattern == *pattern),
+                "successful lookup marked unrelated steps used: {:?}",
+                newly_used
+            );
             prop_assert!(
                 !is_unused(pattern),
                 "successful lookup must mark the step used"
@@ -132,5 +185,31 @@ proptest! {
                 "failed lookups must not mark sentinel steps used"
             );
         }
+    }
+
+    /// A lookup whose text matches a registered pattern but whose keyword does
+    /// not match must behave as a miss and leave the step unused.
+    #[test]
+    fn mismatched_keyword_lookups_do_not_resolve_or_mark_used(
+        variant in 0usize..7,
+        sentinel in 0usize..SENTINEL_PATTERNS.len(),
+    ) {
+        let pattern = SENTINEL_PATTERNS
+            .get(sentinel)
+            .ok_or_else(|| TestCaseError::fail("sentinel index in range"))?;
+        let keyword = sentinel_keyword_for(sentinel);
+        let wrong_keyword = mismatched_keyword(keyword);
+
+        let resolved = run_variant(variant, wrong_keyword, pattern);
+        prop_assert!(
+            !resolved,
+            "lookup unexpectedly resolved step with mismatched keyword: {:?} vs {:?}",
+            wrong_keyword,
+            keyword
+        );
+        prop_assert!(
+            is_unused(pattern),
+            "lookup with mismatched keyword marked pattern as used: {pattern}"
+        );
     }
 }
