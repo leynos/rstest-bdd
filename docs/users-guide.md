@@ -1111,12 +1111,24 @@ function names against feature files. For a concrete regression example, see
 > the *published* `gpui 0.2.2` on crates.io encounter a different test API.
 > The four shapes that differ are:
 >
-> | Operation | Vendored gpui (this playbook + regression suite) | Published `gpui 0.2.2` |
+> | Operation | Vendored gpui (regression suite + these snippets) | Published `gpui 0.2.2` (downstream adopters) |
 > | --- | --- | --- |
 > | `add_window_view` closure | `\|_context\| View::default()` (one argument) | `\|_window, view_cx\| View::new(view_cx)` (two arguments) |
-> | obtain window handle | `visual_cx.window_handle()` on `VisualTestContext` | `vcx.update(\|window, _app\| window.window_handle())` via `Window::window_handle()` |
-> | `VisualTestContext::from_window` | returns `Option<VisualTestContext>` | returns `VisualTestContext` by value (no `Option`) |
+> | obtain window handle | `visual_cx.window_handle()` (inherent method on `VisualTestContext`) | `vcx.window_handle()` (same call, but `window_handle` is a `VisualContext` trait method, so add `use gpui::VisualContext;`) |
+> | `VisualTestContext::from_window` | returns `Option<VisualTestContext>` (`.unwrap_or_else`/`.ok_or`) | returns `VisualTestContext` by value (no `Option`) |
 > | `read_entity` / `update_entity` | `Option`/`Result` wrappers (`Some(1)`, `Ok(())`) | identity `type Result<T> = T`; returns `R` directly |
+>
+> *Table: Vendored-to-published gpui 0.2.2 API shape differences.*
+>
+> Beyond those four shapes, published `gpui 0.2.2` returns
+> `(Entity<V>, &mut VisualTestContext)` from `add_window_view`, while the
+> vendored fork returns `(Entity<T>, VisualTestContext)` by value. Adopters
+> bind the visual context by mutable reference rather than owning it.
+>
+> The vendored fork also gives `update_entity` a typed
+> `Result<(), EntityError>` missing-entity path and wraps `read_entity` in
+> `Option<R>`. Published `gpui` returns `R` directly, so adopters cannot depend
+> on that typed error channel.
 >
 > Adapt call sites when consuming the published crate. The harness itself
 > (which only deals in `TestAppContext`) is not affected by this divergence.

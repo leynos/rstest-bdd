@@ -4,7 +4,7 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Tolerances`, `Risks`, `Progress`, `Surprises & discoveries`, `Decision log`,
 and `Outcomes & retrospective` must be kept up to date as work proceeds.
 
-Status: DRAFT
+Status: ACTIVE
 
 ## Purpose / big picture
 
@@ -161,19 +161,20 @@ marked `[x]`.
 
 ## Progress
 
-- [ ] Capture user approval for this plan (gate before implementation begins).
-- [ ] Stage A — verification and reconciliation audit (no edits). Re-read both
+- [x] Capture user approval for this plan (gate before implementation begins).
+  User asked to proceed with implementation on 2026-06-13.
+- [x] Stage A — verification and reconciliation audit (no edits). Re-read both
   tables and the surrounding prose; confirm the row-2 inaccuracy and the
   header/parenthetical divergences against the recorded research; run the
   vendored-arity and prose-audit greps; quantify the prose lines Stage C touches.
-- [ ] Stage B — red checks. Run the consistency check (Stage D artifact) or the
+- [x] Stage B — red checks. Run the consistency check (Stage D artifact) or the
   fallback grep so it fails against the current diverging/inaccurate tables,
   proving the gap before the fix.
-- [ ] Stage C — correct row 2 in both documents, add the two `>`-quoted
+- [x] Stage C — correct row 2 in both documents, add the two `>`-quoted
   beyond-the-four prose differences, reconcile headers/row-3/caption so the data
   rows match, adjust any prose asserting the verbose `.update(...)` form, and run
   `make markdownlint` as a mid-stage check.
-- [ ] Stage D — (go/no-go) add `scripts/check_gpui_mapping_table.py` and its
+- [x] Stage D — (go/no-go) add `scripts/check_gpui_mapping_table.py` and its
   pytest (incl. the whitespace-only pass case), wire it into `make lint`, add the
   `docs/developers-guide.md` table-sync note, and confirm the gate passes.
 - [ ] Stage E — run `make markdownlint`, `make check-fmt`, `make lint`,
@@ -219,6 +220,18 @@ marked `[x]`.
   The vendored fork's one-arg closure, `Option<VisualTestContext>` from
   `from_window`, and `Option`/`Result`-wrapped entity reads are all genuine
   divergences. Impact: leave rows 1, 3, 4 as they are.
+- Observation: the initial Stage D checker matched exact heading text and failed
+  on the design document before reaching the intended row-drift comparison,
+  because the real heading is numbered as "2.7.6.2 Interim GPUI state pattern".
+  Evidence: `python3 scripts/check_gpui_mapping_table.py` first reported
+  `heading not found: Interim GPUI state pattern`; after accepting numbered
+  heading prefixes, it reported the intended row-3 divergence. Impact: the
+  checker now accepts heading prefixes while still anchoring on the configured
+  text.
+- Observation: the ExecPlan file contained a duplicate copy of itself before
+  implementation edits. Evidence: `make markdownlint` reported duplicate
+  headings starting at line 817. Impact: the duplicate copy was removed as plan
+  maintenance before continuing; no implementation files were affected.
 
 ## Decision log
 
@@ -293,6 +306,11 @@ marked `[x]`.
   prose), and no input-domain invariant warranting property/model-checking/
   proof. The script's own logic is the only new executable surface and pytest is
   the repo-idiomatic adversary for it. Date/Author: 2026-06-13, planning agent.
+- Decision: proceed with Stage D rather than defer the drift gate. Rationale:
+  Stages A-C stayed within the named file scope and line-count tolerances, the
+  script uses only the Python standard library, and its focused pytest proves
+  the parser handles numbered headings and whitespace-only table alignment
+  changes. Date/Author: 2026-06-13, implementing agent.
 
 ### Research provenance (published gpui 0.2.2)
 
@@ -731,10 +749,27 @@ issue and re-run; do not undo earlier edits unless the rule code points at them.
 
 ## Artifacts and notes
 
-- Stage B red output (to be captured): expect `RED: inaccurate row 2 present`
-  for both files, or the consistency script reporting the tables differ.
-- Stage E gate summaries (to be captured): the trailing "0 error(s)" /
-  "All checks passed!" / "N passed" lines from each `make` target.
+- Stage A audit: the vendored regression suite contains one-argument
+  `add_window_view(|_context| ...)` call sites at lines 85, 110, 170, 174, 205,
+  210, 226, and 228; prose hits for the inaccurate published handle path were
+  limited to the two mapping-table row-2 cells.
+- Stage B red output: after fixing numbered-heading anchoring in the checker,
+  `python3 scripts/check_gpui_mapping_table.py` failed with
+  `GPUI mapping table data rows differ` and identified row 3, where the users'
+  guide lacked the design table's `.unwrap_or_else`/`.ok_or` parenthetical.
+- Stage C green output: after table reconciliation,
+  `python3 scripts/check_gpui_mapping_table.py` exited zero, and
+  `make markdownlint` exited zero after removing the duplicate ExecPlan copy.
+- Stage D green output: `uv run --with pytest python -m pytest
+  scripts/tests/test_check_gpui_mapping_table.py -q` reported `9 passed`, and
+  `make lint` later ran `python3 scripts/check_gpui_mapping_table.py` as part
+  of the full lint target.
+- Stage E gate summaries so far: `make markdownlint` reported
+  `Summary: 0 error(s)`; `make check-fmt` reported `34 files already
+  formatted`; `make lint` reported `All checks passed!` from Ruff and completed
+  the file-length, users-guide-link, and GPUI-table checks; `make test` reported
+  `1487 tests run: 1487 passed, 7 skipped` from nextest and `95 passed` from
+  pytest.
 - CodeRabbit review (to be captured): the terminal
   `{"type":"complete","status":"review_completed","findings":0}` line.
 
