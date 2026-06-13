@@ -723,6 +723,92 @@ feature-gated regression suite in
 `crates/rstest-bdd-harness-gpui/tests/scenario_name_in_logs.rs` apply the
 attribute to every `GpuiHarness::run`-driving test.
 
+## Planned internal APIs and tooling (ADR-010 to ADR-012)
+
+Three accepted-as-`Proposed` ADRs schedule internal-API and build-tooling
+changes that contributors will encounter as the v0.6.1 and v0.7.0 work lands.
+They are summarised here so the decisions are discoverable from the developer
+guide; the ADRs remain the authoritative source, and the planning rationale
+lives in
+[`docs/execplans/adopt-v0-6-0-beta2-feedback.md`](execplans/adopt-v0-6-0-beta2-feedback.md).
+
+### Scenario-state helpers and per-scenario cleanup (ADR-011)
+
+[ADR-011](adr-011-first-party-scenario-state-and-cleanup.md) introduces a
+first-party replacement for the hand-rolled thread-local `RefCell` plus `Drop`
+cleanup guard that stateful GPUI scenarios use today:
+
+- A generic `ScenarioStore<T>` core lives in `rstest-bdd`, exposing
+  `set`/`with`/`with_mut`/`take`/`reset` and wrapping the two-sided reset
+  protocol. It is named to avoid colliding with the already-shipped
+  `pub trait ScenarioState` and `pub struct Slot<T>` in
+  `crates/rstest-bdd/src/state.rs`; it composes with `Slot<T>` rather than
+  shadowing it.
+- A `GpuiScenarioStore` specialisation plus a cleanup-guard fixture macro ship
+  from `rstest-bdd-harness-gpui`. The layering is acyclic: the harness crate
+  already depends on `rstest-bdd`, and the core never imports the harness.
+- The cleanup-ordering contract (reset before assignment; `Drop` cleanup on
+  success, assertion failure, and skip) is fixed by the ADR and must be covered
+  by unit, property-based (`proptest`), and `serial_test`-guarded
+  thread-isolation tests — see the ADR's _Testing strategy_.
+
+Tracked by roadmap items 11.1.3 and 11.1.4 (pulled forward to v0.6.0 final);
+design coverage is in `rstest-bdd-design.md` §2.7.6.4.
+
+### Guard-based `StepContext` borrowing and `FixtureBorrowError` (ADR-012)
+
+[ADR-012](adr-012-guard-based-stepcontext-borrowing.md) records the v0.7.0
+redesign of `StepContext` borrowing as a committed direction, not an ambition.
+Contributors touching the borrow machinery should expect:
+
+- `StepContext::borrow_mut(&mut self, …)` is replaced by interior borrowing
+  that returns `FixtureRefMut` guards, so two guards for _distinct_ keys can
+  coexist (for example `&mut TestAppContext` alongside `&mut World`) while two
+  guards for the _same_ key fail. This removes the `E0499`/`E0502` constraint
+  that forces today's thread-local workaround.
+- Borrow APIs return `Result` carrying a structured `FixtureBorrowError`
+  (`MissingFixture`, `TypeMismatch`, `AlreadyBorrowed`). Roadmap item 11.1.1
+  introduces an early version of this error surface in v0.6.1; v0.7.0 completes
+  it.
+- `FixtureRefMut` exposes a stable, opaque accessor API (12.1.2), and a
+  first-class world lifecycle contract (12.1.3) supersedes the thread-local
+  reset protocol and the v0.6.1 `ScenarioStore<T>` helper. The ADR carries the
+  v0.6→v0.7 migration mapping.
+- Borrow-state invariants are the highest-risk part of the surface and must be
+  covered by generated-wrapper, property-based (`proptest`), and lifecycle
+  tests — see the ADR's _Testing strategy_.
+
+Tracked by roadmap items 12.1.1–12.1.3; design coverage is in
+`rstest-bdd-design.md` §2.7.6.5.
+
+### Feature-file rebuild invalidation (ADR-010)
+
+[ADR-010](adr-010-feature-file-change-detection.md) closes a build-tooling
+foot-gun: `#[scenario(path = …)]` and `scenarios!` read `.feature` files with
+`std::fs` at macro-expansion time, so Cargo never sees them as inputs and a
+`.feature`-only edit does not trigger a rebuild. The decision:
+
+- For single-file `#[scenario]` binding, prefer emitting a **relative-path**
+  `include_str!` so rustc registers the file in dep-info automatically. An
+  absolute `CARGO_MANIFEST_DIR`-rooted path is **rejected** because it breaks
+  reproducible builds (Nix sandboxes, `sccache`, Windows/POSIX separators).
+- For `scenarios!` directory-glob binding, prefer a build-script helper
+  emitting `cargo::rerun-if-changed` for the features directory and each
+  discovered file (the `theoremc` pattern), which embeds nothing in the
+  artefact.
+- The unstable `proc_macro::tracked_path` API is the long-term answer, usable
+  behind a `nightly` feature gate once stabilised.
+- Invalidation must be a _tested contract_: a portability-aware rebuild
+  regression test, a `trybuild` compile-time test for the emitted binding, and
+  redacted `insta` snapshots for any touched diagnostic — see the ADR's
+  _Testing strategy_. This is distinct from the OUT_DIR AST _caching_
+  performance idea in `rstest-bdd-design.md` §3.2.2.
+
+Tracked by roadmap item 11.3.1 (pulled forward to v0.6.0 final); design
+coverage is in `rstest-bdd-design.md` §2.7.6.6. Until it lands,
+`v0-6-0-migration-guide.md` carries a caveat that `.feature`-only edits do not
+trigger a rebuild.
+
 ## Language-server handler conventions
 
 ### Canonical extension predicate: `has_extension`

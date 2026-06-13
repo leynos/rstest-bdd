@@ -738,6 +738,11 @@ changing the public trait contracts.
   name appears in emitted diagnostics, or the GPUI harness docs state the
   upstream limitation and link the skipped test. Prerequisite: 9.4.3. Design
   Doc: `docs/rstest-bdd-design.md` §2.7.5. (Buzzy Bee)
+  Delivered (affirmative branch): the scenario name is embedded in the
+  augmented panic message and tracing events by `augmented_panic_message` in
+  `crates/rstest-bdd-harness-gpui/src/gpui_harness.rs`. Regression coverage:
+  `crates/rstest-bdd-harness-gpui/tests/scenario_name_in_logs.rs` and the
+  `augmented_panic_message_includes_scenario_name_for_payload_type` test.
 
 ### 10.2. Update adoption documentation before v0.6.0 final
 
@@ -776,6 +781,42 @@ changing the public trait contracts.
   Continuous Integration (CI)-equivalent gate, such as `make test`, before
   assuming v0.6.0 broke their API. See
   `docs/execplans/10-2-3-migration-guide-downstream-test-advice.md`.
+- [ ] 10.2.4. The GPUI playbook and design snippets state which gpui version
+  they target and carry a vendored-to-published `gpui 0.2.2` mapping table
+  documenting the four API shape differences, so downstream adopters using the
+  published crate do not encounter a silent compile-error mismatch. Finish
+  line: a which-gpui banner and the mapping table appear in both
+  `docs/users-guide.md` and `docs/rstest-bdd-design.md`; `make markdownlint`
+  passes. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.2.
+- [ ] 10.2.5. A lint-clean playbook variant compiles under a pedantic lint
+  profile, including `clippy::shadow_reuse`, `clippy::expect_used`, and the
+  in-house `no_unwrap_or_else_panic` lint. Finish line: the playbook in
+  `docs/users-guide.md` offers a no-shadowing, no-`unwrap_or_else`-panic
+  accessor variant using `let … else { panic!(…) }`. Design Doc:
+  `docs/rstest-bdd-design.md` §2.7.6.2.
+- [ ] 10.2.6. The playbook documents how cargo-nextest's process-per-test
+  scheduling interacts with `#[serial]` and per-process thread-local scenario
+  state. Finish line: the playbook in `docs/users-guide.md` states that
+  `#[serial]` is required for `cargo test`, redundant-but-harmless under
+  nextest (process-per-test already isolates per-process state), and that
+  cross-process exclusivity requires `#[file_serial]` or a nextest test-group.
+  Design Doc: `docs/rstest-bdd-design.md` §2.7.6.7.
+- [ ] 10.2.7. A bulk-migration cookbook in the user guide shows how to share
+  one durable-handle step library across many GPUI scenarios in a single
+  consuming crate, so teams migrating large test suites do not copy the helper
+  code per-scenario. Finish line: a cookbook subsection is present in
+  `docs/users-guide.md`. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.2.
+
+> **Note (dual-track maintenance):** items 10.2.4 and 10.2.5 introduce a
+> vendored-to-published mapping table that must be kept in sync with any
+> future gpui bump touching the test API. Every such bump must update both
+> branches of the table. To make staleness a CI failure rather than a silent
+> drift, consider compile-testing the playbook snippets via a doc-test or a
+> small example crate that the gate builds. The larger alternative — retargeting
+> the regression suite and docs onto the published `gpui` so the mapping table
+> can eventually be retired — is recorded as an open architectural decision in
+> `docs/execplans/adopt-v0-6-0-beta2-feedback.md` and is out of scope for
+> this phase.
 
 ## 11. Early life support: v0.6.1 additive hardening
 
@@ -801,19 +842,33 @@ remove the existing `StepContext`, harness, or macro surfaces.
   helper without breaking the existing `borrow_mut` API, or the documented
   deferral includes a failing-shape test. Design Doc:
   `docs/rstest-bdd-design.md` §2.7.6.4. (Pandalump)
-- [ ] 11.1.3. The scenario-local state helper exposes `set`, `with`,
-  `with_mut`, `take`, and `reset` operations for complex adapters without
-  per-scenario thread-local `RefCell` boilerplate. Unit tests cover the helper,
-  and docs present it as an additive alternative to ad-hoc GPUI world state.
-  Finish line: unit tests exercise all five operations, and docs show a GPUI
-  world-state example using the helper. Design Doc: `docs/rstest-bdd-design.md`
-  §2.7.6.4. (Dinolump)
-- [ ] 11.1.4. Users can register per-scenario cleanup for stateful adapters, so
-  scenarios can reset automatically without every `#[given]` implementation
-  remembering the reset call. Prerequisite: 11.1.3. Design Doc:
+- [ ] 11.1.3. A generic `ScenarioStore<T>` core (in `rstest-bdd`) replaces
+  per-scenario thread-local `RefCell` boilerplate; it exposes `set`, `with`,
+  `with_mut`, `take`, and `reset` operations and wraps the two-sided reset
+  protocol. Naming note: the name `ScenarioStore<T>` is chosen to avoid
+  colliding with the already-shipped `pub trait ScenarioState: Default` and
+  `pub struct Slot<T>` in `crates/rstest-bdd/src/state.rs`. A GPUI-specific
+  `GpuiScenarioStore` re-export ships in `rstest-bdd-harness-gpui`. Finish
+  line: unit tests exercise all five operations; a GPUI integration test uses
+  `GpuiScenarioStore` and the cleanup fixture macro without hand-written
+  `thread_local!` boilerplate; docs present it as the additive v0.6.1
+  alternative to the v0.6.0 thread-local interim pattern. ADR:
+  `docs/adr-011-first-party-scenario-state-and-cleanup.md`. Design Doc:
+  `docs/rstest-bdd-design.md` §2.7.6.4. (Dinolump)
+  **Scheduling note:** the maintainer has approved pulling this item forward
+  to v0.6.0 final, as the thread-local boilerplate is the largest adoption
+  friction in the v0.6.x line (per the first downstream GPUI adopter report).
+- [ ] 11.1.4. A cleanup-guard fixture-generating macro in
+  `rstest-bdd-harness-gpui` produces the `ScenarioStateCleanup` `Drop` guard
+  and the `#[fixture] fn scenario_state_cleanup()` function, so GPUI scenarios
+  can adopt the two-sided reset protocol with a single macro call. A regression
+  test proves the three-state lifecycle (success, assertion failure, skip) each
+  leave the store in the default state. Prerequisite: 11.1.3. ADR:
+  `docs/adr-011-first-party-scenario-state-and-cleanup.md`. Design Doc:
   `docs/rstest-bdd-design.md` §2.7.6.4. Finish line: an integration test shows
-  cleanup running after success and failure, and the docs state the required
+  cleanup running after success, failure, and skip; the docs state the required
   registration order. (Doggylump)
+  **Scheduling note:** pull-forward approved alongside 11.1.3.
 
 ### 11.2. Smooth integration ergonomics
 
@@ -841,12 +896,40 @@ remove the existing `StepContext`, harness, or macro surfaces.
   shapes. Finish line: CI runs and passes one compatibility test for each
   listed shape. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.4. (Buzzy Bee)
 
-## 12. Pre-1.0.0 API consolidation: v0.7.0 ambitions
+### 11.3. Close the feature-file rebuild gap
+
+- [ ] 11.3.1. Editing only a `.feature` file triggers a rebuild of the scenario
+  binary. The `#[scenario]`/`scenarios!` expansion registers each bound feature
+  file as a Cargo rebuild dependency without embedding an absolute path into the
+  compiled artefact, and a portability-aware regression test proves a
+  `.feature`-only edit forces recompilation and a fresh test failure. The fix is
+  non-breaking: no existing call site changes. Finish line: the regression test
+  fails against the current `std::fs`-read macro and passes after the fix;
+  required `trybuild` compile-pass and compile-fail fixtures pin the emitted
+  binding and the missing-`.feature` diagnostic; a redacted `insta` snapshot
+  with semantic assertions pins any touched diagnostic wording; no absolute
+  `CARGO_MANIFEST_DIR` path appears in the artefact; `make test` is green. ADR:
+  `docs/adr-010-feature-file-change-detection.md` (see its *Testing strategy*).
+  Design Doc: `docs/rstest-bdd-design.md` §2.7.6.6.
+  **Scheduling note:** the maintainer has approved pulling this item forward
+  to v0.6.0 final. Until it lands, a caveat in `docs/v0-6-0-migration-guide.md`
+  alerts adopters that `.feature`-only edits do not trigger a rebuild.
+
+> **Note (ADR-008 follow-up):** roadmap items 9.7.1–9.7.4 shipped the
+> harness-led attribute defaults under maintainer authorisation, but
+> `docs/adr-008-harness-led-attribute-policy-defaults.md` remains in
+> `Proposed` status. Advancing it to `Accepted` is orthogonal to the GPUI
+> adopter feedback and requires separate maintainer approval; it is recorded
+> here only so the inconsistency is tracked.
+
+## 12. Pre-1.0.0 API consolidation: v0.7.0 committed direction
 
 The v0.7.0 line is the last planned place for migration-guide-worthy API
 cleanup before v1.0.0. This phase intentionally collects changes that would be
 too disruptive for v0.6.x but would make the v1 surface smaller and more
-predictable.
+predictable. Following the first downstream adopter migration report, the
+guard-based `StepContext` borrow redesign is elevated from a v0.7.0 ambition
+to a committed direction (ADR-012).
 
 ### 12.1. Redesign state and context borrowing
 
@@ -854,11 +937,14 @@ predictable.
   can concurrently borrow distinct mutable fixtures, including mutable harness
   context and mutable world state when fixture keys differ. Previous `Option`
   -based borrow APIs are replaced with `Result`-returning APIs carrying
-  `FixtureBorrowError`, with generated-wrapper regression coverage. Finish
-  line: runtime unit tests prove concurrent distinct mutable borrows succeed,
-  same-fixture conflicts fail, and generated-wrapper tests cover harness
-  context plus world state. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.5.
-  (Pandalump, Telefono)
+  `FixtureBorrowError`, with generated-wrapper regression coverage. The
+  v0.6.0 migration guide includes the v0.6-to-v0.7 mapping from thread-local
+  durable-handle patterns to lifecycle hooks. Finish line: runtime unit tests
+  prove concurrent distinct mutable borrows succeed, same-fixture conflicts
+  fail, generated-wrapper tests cover harness context plus world state, and
+  the migration guide carries the mapping table. ADR:
+  `docs/adr-012-guard-based-stepcontext-borrowing.md`. Design Doc:
+  `docs/rstest-bdd-design.md` §2.7.6.5. (Pandalump, Telefono)
 - [ ] 12.1.2. `FixtureRefMut` exposes a stable, opaque public API that preserves
   value-accessor methods while hiding internal enum and representation details.
   Public callers retain value access methods, and internal variants are no

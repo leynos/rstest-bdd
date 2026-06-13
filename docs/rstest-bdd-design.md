@@ -1966,8 +1966,30 @@ BDD tests should store durable handles such as `Entity<T>` and
 and the harness-provided `TestAppContext` inside each step that needs visual
 interaction.
 
+> **Which gpui does this section target?** The code snippets below, and the
+> companion regression suite at
+> `crates/rstest-bdd-harness-gpui/tests/stateful_window.rs`, are written
+> against the *vendored* gpui under `vendor/gpui` (the `path` dependency in
+> `Cargo.toml`). Downstream crates that depend on the *published* `gpui 0.2.2`
+> on crates.io encounter a different test API. The four shapes that differ are
+> documented in the mapping table below; adapt snippets accordingly when
+> consuming the published crate.
+>
+> | Operation | Vendored gpui (regression suite + these snippets) | Published `gpui 0.2.2` (downstream adopters) |
+> | --- | --- | --- |
+> | `add_window_view` closure | `\|_context\| View::default()` (one argument) | `\|_window, view_cx\| View::new(view_cx)` (two arguments) |
+> | obtain window handle | `visual_cx.window_handle()` on `VisualTestContext` | `vcx.update(\|window, _app\| window.window_handle())` via `Window::window_handle()` |
+> | `VisualTestContext::from_window` | returns `Option<VisualTestContext>` (`.unwrap_or_else`/`.ok_or`) | returns `VisualTestContext` by value (no `Option`) |
+> | `read_entity` / `update_entity` | `Option`/`Result` wrappers (`Some(1)`, `Ok(())`) | identity `type Result<T> = T`; returns `R` directly |
+>
+> *Table: Vendored-to-published gpui 0.2.2 API shape differences.*
+>
+> The lint-clean variant of the playbook avoids `shadow_reuse` and
+> `unwrap_or_else(|| panic!(…))`; see roadmap 10.2.5 and the user guide for
+> the `let … else { panic!(…) }` accessor form suitable for pedantic profiles.
+
 The recommended v0.6-compatible shape keeps only durable handles in resettable
-scenario state. In schematic form:
+scenario state. In schematic form (vendored gpui API):
 
 ```rust
 thread_local! {
@@ -2053,18 +2075,112 @@ The release strategy is therefore split by compatibility risk:
   additions include an explicit harness-context parameter marker, a prelude for
   common integration imports, a typed borrow-error enum, a scenario-local state
   helper with reset semantics, and generated-wrapper coverage for mutable
-  harness context plus scenario state.
+  harness context plus scenario state. The placement of the first-party
+  scenario-state helper (`ScenarioStore<T>` in `rstest-bdd`, `GpuiScenarioStore`
+  in `rstest-bdd-harness-gpui`) and the cleanup-guard fixture macro is governed
+  by [ADR-011](adr-011-first-party-scenario-state-and-cleanup.md).
 
 ##### 2.7.6.5 v0.7.0 pre-1.0.0 redesign
 
 - **v0.7.0 / pre-1.0.0:** reserve breaking cleanups for a migration guide. The
   main target is a `StepContext` redesign where fixture borrowing is
-  guard-based and can borrow distinct mutable fixtures concurrently. Other
-  candidates are typed harness-context extractors that hide the reserved
-  fixture key, configurable harness construction without a `Default`
-  requirement, a declarative attribute-policy extension model, first-class
-  world lifecycle hooks, and a unified generated-test model for scenarios and
-  outline rows.
+  guard-based and can borrow distinct mutable fixtures concurrently. This
+  redesign is a *committed direction*, not an ambition, following the first
+  downstream GPUI adopter report confirming the thread-local workaround tax.
+  The guard-based redesign supersedes the v0.6 thread-local interim pattern and
+  the v0.6.1 `ScenarioStore<T>` helper, providing a migration path for both.
+  The decision is governed by
+  [ADR-012](adr-012-guard-based-stepcontext-borrowing.md), which includes the
+  v0.6→v0.7 migration mapping table. Other redesign candidates are typed
+  harness-context extractors that hide the reserved fixture key, configurable
+  harness construction without a `Default` requirement, a declarative
+  attribute-policy extension model, first-class world lifecycle hooks, and a
+  unified generated-test model for scenarios and outline rows.
+
+##### 2.7.6.6 Feature-file rebuild invalidation
+
+`#[scenario(path = "...")]` and `scenarios!` read `.feature` files via
+`std::fs` at macro-expansion time. Cargo does not track these reads; only
+files referenced through `include_str!`, `include_bytes!`, `include!`, or
+build-script `cargo::rerun-if-changed` directives appear in the dep-info
+file that Cargo consults to decide whether to re-run the compiler.
+
+The consequence is a silent foot-gun: editing only a `.feature` file does
+not trigger a rebuild, so a corrupted expectation can appear to pass from
+the stale build cache until an unrelated `.rs` file changes and forces
+recompilation. This is especially hazardous in a *testing* framework, where
+the correctness of test expectations is the whole point.
+
+Two mechanisms close the gap (evaluated in detail by
+[ADR-010](adr-010-feature-file-change-detection.md)):
+
+1. **Macro-emitted `include_str!` (preferred for `#[scenario]`).** The
+   macro emits an `include_str!` expression discarded into a hidden item, so
+   rustc registers the feature file in dep-info automatically. The path must
+   be resolved *relative to the invoking source file* from the call-site
+   `Span`; embedding an absolute `CARGO_MANIFEST_DIR`-rooted path is
+   **rejected** because it breaks reproducible builds (Nix sandboxes,
+   `sccache`, Windows/POSIX path divergence).
+2. **Build-script helper (preferred for `scenarios!` directory-glob
+   binding).** A helper emits `cargo::rerun-if-changed` for the features
+   directory and for each discovered `.feature` file (the
+   [`theoremc`](https://github.com/leynos/theoremc) pattern). This avoids
+   embedding any file content or absolute path into the artefact and handles
+   the case where the file set is not known at macro-expansion time.
+
+The unstable `proc_macro::tracked_path` API is the right long-term answer
+and is usable behind a `nightly` feature gate pending stabilisation.
+
+OUT_DIR AST caching (noted in `§3.2.2` below) is a *performance*
+optimisation, not an invalidation mechanism; it does not close this gap.
+
+Until roadmap item 11.3.1 lands, a caveat in the adoption guide notes that
+`.feature`-only edits do not trigger a rebuild, and users should `touch` an
+affected `.rs` file or `cargo clean` when an updated expectation is not
+picked up.
+
+##### 2.7.6.7 Test-runner parallelism and scenario state
+
+Stateful GPUI scenarios carry `#[serial]` from the
+[`serial_test`](https://docs.rs/serial_test/) crate to prevent concurrent
+execution from corrupting thread-local state. The effect of `#[serial]`
+differs significantly between the two common test runners:
+
+**Under `cargo test`** (the default): all integration tests in a binary run
+in a single process using multiple threads. `#[serial]` serialises tests
+that carry the same `name` argument (or all `#[serial]` tests when no name
+is given) using an in-process mutex, ensuring that only one scenario runs at
+a time and the thread-local reset protocol is respected. `#[serial]` is
+**required** for stateful GPUI scenarios under `cargo test`.
+
+**Under cargo-nextest** (`cargo nextest run`, which `make test` uses): each
+test is run in its own process. Every `#[serial]` test therefore runs in
+isolation by default; the in-process mutex serialises nothing across the
+process boundary. `#[serial]` is **redundant-but-harmless** under nextest
+for single-binary scenarios, because process-per-test already isolates
+per-process thread-local state.
+
+**Cross-binary and cross-process serialisation:** if two scenario binaries
+must not run concurrently (for example, both share a locked hardware
+resource or a single-process GPUI session), `#[serial]` is insufficient
+under both runners. Use `#[file_serial]` (a file-lock-backed variant in
+`serial_test`) or configure a
+[nextest test-group](https://nexte.st/docs/configuration/test-groups/)
+with `max-threads = 1`.
+
+| Runner | `#[serial]` effect | Cross-process exclusivity |
+| --- | --- | --- |
+| `cargo test` | In-process mutex; required | Not provided by `#[serial]` |
+| nextest (process-per-test) | Redundant-but-harmless | `#[file_serial]` or test-group |
+
+*Table: `#[serial]` behaviour by test runner.*
+
+The `make test` target in this repository uses nextest. Adopters whose
+consuming crates also use nextest will find `#[serial]` is still a safe
+annotation but provides no within-binary serialisation benefit. The
+recommendation is to keep `#[serial]` annotations so that `cargo test`
+continues to work correctly, and to rely on nextest's process isolation for
+the default safe-execution guarantee.
 
 ## Part 3: Implementation and strategic analysis
 
@@ -2274,12 +2390,18 @@ scan for step definitions and generate a central registry file (e.g.,
 macro.
 
 - **Compile-Time Overhead:** The `#[scenario]` macro performs file reads and
-  writes and parsing during compilation. For projects with many feature files,
-  this could introduce a noticeable overhead to compile times. **Mitigation:**
-  This can be significantly optimized by caching the parsed Gherkin ASTs in the
+  parsing during compilation. For projects with many feature files, this could
+  introduce a noticeable overhead to compile times. **Mitigation (performance):**
+  This can be significantly optimised by caching the parsed Gherkin ASTs in
   `OUT_DIR`. The macro would only re-parse a `.feature` file if its
   modification time has changed, similar to how tools like `prost-build` handle
-  `.proto` files.
+  `.proto` files. **Note:** OUT_DIR caching is a *performance* optimisation and
+  is orthogonal to *rebuild invalidation* (making Cargo aware that a
+  `.feature`-only edit requires recompilation). The invalidation problem is
+  separate and addressed by `§2.7.6.6` and
+  [ADR-010](adr-010-feature-file-change-detection.md). Confusing the two leads
+  to a plausible-sounding but ineffective mitigation: a cache that checks
+  `mtime` still does not tell Cargo to re-run the compiler.
 
 - **Runtime Step Matching:** The connection between a Gherkin step and its
   implementing function is resolved at the beginning of each scenario's
