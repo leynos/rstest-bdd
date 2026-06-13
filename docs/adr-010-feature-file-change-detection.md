@@ -223,21 +223,35 @@ addition to the binding constraint that invalidation is a tested contract:
    and — for the `include_str!` path — assert no absolute `CARGO_MANIFEST_DIR`
    path is embedded in the artefact (inspect expanded output or the compiled
    `.d` dep-info).
-2. **Trybuild compile-time test (recommended).** Because the mechanism is
-   emitted by the `#[scenario]`/`scenarios!` proc-macros, add a `trybuild`
-   compile-pass fixture proving the emitted `include_str!` (or build-script
-   wiring) compiles cleanly for a representative `.feature` binding, and a
-   compile-fail fixture proving a `#[scenario(path = …)]` pointing at a missing
-   `.feature` file still fails at compile time with a clear diagnostic (so the
-   invalidation change does not regress the existing missing-file error path).
-   These join the existing `rstest-bdd::trybuild_macros` /
-   `*::macro_compile` suites and inherit their nextest slow-timeout override.
-3. **Diagnostic snapshots (recommended).** For any user-facing diagnostic the
-   change touches (for example the missing-`.feature` error), pin the rendered
-   message with a focused `insta` snapshot using stable redaction
-   (`insta::with_settings!` filters over absolute paths, line/column numbers,
-   and rustc version strings) so the snapshot is portable across machines and
-   toolchains and does not drift like a raw `.stderr`.
+2. **Trybuild compile-time test (required).** Because the mechanism is emitted
+   by the `#[scenario]`/`scenarios!` proc-macros, compile-time behaviour is
+   part of the contract and must be pinned by `trybuild` fixtures, not left to
+   the runtime regression test alone:
+   - a **compile-pass** fixture proving the emitted `include_str!` (or
+     build-script wiring) compiles cleanly for a representative `.feature`
+     binding; and
+   - a **compile-fail** fixture proving a `#[scenario(path = …)]` pointing at a
+     missing `.feature` file still fails at compile time with a clear
+     diagnostic, so the invalidation change does not regress the existing
+     missing-file error path.
+
+   These join the existing `rstest-bdd::trybuild_macros` / `*::macro_compile`
+   suites and inherit their nextest slow-timeout override. Both fixtures are
+   required acceptance criteria for roadmap item 11.3.1.
+3. **Diagnostic snapshots (required for any touched diagnostic).** For any
+   user-facing diagnostic the change touches (for example the missing-`.feature`
+   error), pin the rendered message with a focused `insta` snapshot using stable
+   redaction (`insta::with_settings!` filters over absolute paths, line/column
+   numbers, and rustc version strings) so the snapshot is portable across
+   machines and toolchains and does not drift like a raw `.stderr`. Prefer a
+   focused snapshot over a whole-`.stderr` capture, and back it with explicit
+   semantic or substring assertions on the load-bearing fragments — for example
+   that the message names the offending `.feature` path and the `#[scenario]`
+   call-site — so the test fails loudly on a meaning change even if an
+   unrelated reflow would otherwise let a full-text snapshot drift unnoticed.
+   The `trybuild` compile-fail `.stderr` and the `insta` snapshot are
+   complementary: the former gates the diagnostic at the macro boundary, the
+   latter pins its wording with redaction the raw `.stderr` cannot express.
 
 ## Consequences
 
@@ -251,6 +265,9 @@ addition to the binding constraint that invalidation is a tested contract:
   *invalidation* (this ADR) from *caching* (performance, a separate concern).
 - A portability-aware regression test is added alongside the implementation,
   asserting invalidation as a contract.
+- Compile-time behaviour is pinned as a required contract: `trybuild`
+  compile-pass and compile-fail fixtures, plus redacted `insta` snapshots with
+  semantic assertions for any touched diagnostic (see *Testing strategy*).
 
 ## Governs
 

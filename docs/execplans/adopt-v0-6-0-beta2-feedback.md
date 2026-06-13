@@ -244,6 +244,12 @@ Thresholds that trigger escalation when breached.
   optional escalation); (3) added a *Testing strategy* section to ADR-010
   recommending a `trybuild` compile-time test and redacted `insta` snapshots
   alongside the portability-aware rebuild regression test.
+- [x] (2026-06-13) Follow-up review warning: elevated ADR-010's `trybuild`
+  compile-pass and compile-fail fixtures from *recommended* to *required*
+  acceptance criteria, and strengthened the snapshot guidance to require
+  focused `insta` snapshots backed by semantic/substring assertions on the
+  load-bearing diagnostic fragments. Mirrored the requirement in roadmap item
+  11.3.1's finish line.
 
 ## Surprises & discoveries
 

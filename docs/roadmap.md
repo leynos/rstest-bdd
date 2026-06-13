@@ -904,10 +904,13 @@ remove the existing `StepContext`, harness, or macro surfaces.
   compiled artefact, and a portability-aware regression test proves a
   `.feature`-only edit forces recompilation and a fresh test failure. The fix is
   non-breaking: no existing call site changes. Finish line: the regression test
-  fails against the current `std::fs`-read macro and passes after the fix; no
-  absolute `CARGO_MANIFEST_DIR` path appears in the artefact; `make test` is
-  green. ADR: `docs/adr-010-feature-file-change-detection.md`. Design Doc:
-  `docs/rstest-bdd-design.md` §2.7.6.6.
+  fails against the current `std::fs`-read macro and passes after the fix;
+  required `trybuild` compile-pass and compile-fail fixtures pin the emitted
+  binding and the missing-`.feature` diagnostic; a redacted `insta` snapshot
+  with semantic assertions pins any touched diagnostic wording; no absolute
+  `CARGO_MANIFEST_DIR` path appears in the artefact; `make test` is green. ADR:
+  `docs/adr-010-feature-file-change-detection.md` (see its *Testing strategy*).
+  Design Doc: `docs/rstest-bdd-design.md` §2.7.6.6.
   **Scheduling note:** the maintainer has approved pulling this item forward
   to v0.6.0 final. Until it lands, a caveat in `docs/v0-6-0-migration-guide.md`
   alerts adopters that `.feature`-only edits do not trigger a rebuild.
