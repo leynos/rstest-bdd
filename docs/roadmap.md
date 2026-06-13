@@ -781,13 +781,19 @@ changing the public trait contracts.
   Continuous Integration (CI)-equivalent gate, such as `make test`, before
   assuming v0.6.0 broke their API. See
   `docs/execplans/10-2-3-migration-guide-downstream-test-advice.md`.
-- [ ] 10.2.4. The GPUI playbook and design snippets state which gpui version
+- [x] 10.2.4. The GPUI playbook and design snippets state which gpui version
   they target and carry a vendored-to-published `gpui 0.2.2` mapping table
   documenting the four API shape differences, so downstream adopters using the
   published crate do not encounter a silent compile-error mismatch. Finish
   line: a which-gpui banner and the mapping table appear in both
   `docs/users-guide.md` and `docs/rstest-bdd-design.md`; `make markdownlint`
   passes. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.2.
+  Delivered 2026-06-13: corrected the published-column window-handle row in the
+  vendored-to-published `gpui 0.2.2` mapping table in both
+  `docs/users-guide.md` and `docs/rstest-bdd-design.md` (published
+  `VisualTestContext` exposes `window_handle()` via the `VisualContext` trait),
+  reconciled the two tables, and added a drift gate. See
+  `docs/execplans/10-2-4-gpui-version-banner-and-mapping-table.md`.
 - [ ] 10.2.5. A lint-clean playbook variant compiles under a pedantic lint
   profile, including `clippy::shadow_reuse`, `clippy::expect_used`, and the
   in-house `no_unwrap_or_else_panic` lint. Finish line: the playbook in

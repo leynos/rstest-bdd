@@ -4,7 +4,7 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Tolerances`, `Risks`, `Progress`, `Surprises & discoveries`, `Decision log`,
 and `Outcomes & retrospective` must be kept up to date as work proceeds.
 
-Status: ACTIVE
+Status: COMPLETE
 
 ## Purpose / big picture
 
@@ -177,10 +177,10 @@ marked `[x]`.
 - [x] Stage D — (go/no-go) add `scripts/check_gpui_mapping_table.py` and its
   pytest (incl. the whitespace-only pass case), wire it into `make lint`, add the
   `docs/developers-guide.md` table-sync note, and confirm the gate passes.
-- [ ] Stage E — run `make markdownlint`, `make check-fmt`, `make lint`,
+- [x] Stage E — run `make markdownlint`, `make check-fmt`, `make lint`,
   `make test` (teed to `/tmp`); then `coderabbit review --agent`; clear all
   concerns.
-- [ ] Stage F — mark roadmap item 10.2.4 `[x]` with a dated one-line summary
+- [x] Stage F — mark roadmap item 10.2.4 `[x]` with a dated one-line summary
   referencing this ExecPlan; re-run `make markdownlint`.
 
 ## Surprises & discoveries
@@ -347,10 +347,18 @@ All four operations are exercised by
 
 ## Outcomes & retrospective
 
-To be completed at delivery. Compare against the three reader outcomes and the
-success criteria in Purpose: corrected banner/table in both documents, identical
-table bodies, all gates green, the consistency check failing on drift and
-passing on agreement, and roadmap 10.2.4 marked done.
+Delivered 2026-06-13. Both `docs/users-guide.md` and
+`docs/rstest-bdd-design.md` now carry the corrected published-column
+window-handle row, matching four-row mapping tables, and the two explicitly
+framed beyond-the-four API differences. The new
+`scripts/check_gpui_mapping_table.py` gate catches doc-vs-doc table drift under
+`make lint`, and its pytest covers pass, content-drift, whitespace-only, and
+missing-anchor cases. `docs/developers-guide.md` records the maintenance rule
+and the published-crate verification recipe for future GPUI bumps.
+
+All required gates passed: `make markdownlint`, `make check-fmt`, `make lint`,
+and `make test`. CodeRabbit completed with zero findings. `docs/roadmap.md`
+marks item 10.2.4 delivered with a dated summary.
 
 ## Context and orientation
 
@@ -770,8 +778,11 @@ issue and re-run; do not undo earlier edits unless the rule code points at them.
   the file-length, users-guide-link, and GPUI-table checks; `make test` reported
   `1487 tests run: 1487 passed, 7 skipped` from nextest and `95 passed` from
   pytest.
-- CodeRabbit review (to be captured): the terminal
-  `{"type":"complete","status":"review_completed","findings":0}` line.
+- CodeRabbit review: `coderabbit review --agent` completed with
+  `{"type":"complete","status":"review_completed","findings":0}`.
+- Stage F roadmap tick: `docs/roadmap.md` marks item 10.2.4 `[x]` with a
+  2026-06-13 delivery note, and the follow-up `make markdownlint` run reported
+  `Summary: 0 error(s)`.
 
 ## Interfaces and dependencies
 
