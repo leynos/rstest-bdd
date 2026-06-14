@@ -723,6 +723,30 @@ feature-gated regression suite in
 `crates/rstest-bdd-harness-gpui/tests/scenario_name_in_logs.rs` apply the
 attribute to every `GpuiHarness::run`-driving test.
 
+## Registry lookup usage-marking invariant
+
+Every public step-lookup function in `crates/rstest-bdd/src/registry/`
+(`lookup_step`, `find_step`, `lookup_step_async`, `find_step_async`,
+`lookup_step_async_with_mode`, `find_step_async_with_mode`, and
+`find_step_with_metadata`) funnels through the canonical private helper
+`mark_and_project` in `registry/mod.rs`. The helper performs the `mark_used`
+bookkeeping exactly once and applies the caller's projection to the resolved
+`Step`.
+
+- **Invariant:** every lookup that returns `Some` marks exactly the resolved
+  step as used (feeding the unused-step diagnostics behind `cargo bdd`); a
+  lookup that returns `None` marks nothing.
+- **Permitted call-sites:** the public lookup wrappers in `registry/mod.rs`
+  and `registry/async_lookup.rs`. New lookup variants must resolve a step
+  (via `resolve_exact_step` / `resolve_step`) and pass it through
+  `mark_and_project`; calling `mark_used` directly from a lookup is a bug.
+- The invariant is pinned across all variants by the property suite in
+  `crates/rstest-bdd/tests/registry_mark_used_props.rs`. A `kani` harness was
+  considered and omitted: the registry is backed by link-time `inventory`
+  registration and a lazily built hash map, which a bounded harness cannot
+  model cheaply, and the property suite already exercises every variant
+  against hit and miss lookups.
+
 ## Planned internal APIs and tooling (ADR-010 to ADR-012)
 
 Three accepted-as-`Proposed` ADRs schedule internal-API and build-tooling

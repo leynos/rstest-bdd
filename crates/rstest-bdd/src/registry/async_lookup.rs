@@ -31,8 +31,7 @@ pub fn lookup_step_async_with_mode(
     keyword: StepKeyword,
     pattern: PatternStr<'_>,
 ) -> Option<(AsyncStepFn, StepExecutionMode)> {
-    super::resolve_exact_step(keyword, pattern).map(|step| {
-        super::mark_used((step.keyword, step.pattern));
+    super::mark_and_project(super::resolve_exact_step(keyword, pattern), |step| {
         (step.run_async, step.execution_mode)
     })
 }
@@ -59,8 +58,7 @@ pub fn find_step_async_with_mode(
     keyword: StepKeyword,
     text: StepText<'_>,
 ) -> Option<(AsyncStepFn, StepExecutionMode)> {
-    super::resolve_step(keyword, text).map(|step| {
-        super::mark_used((step.keyword, step.pattern));
+    super::mark_and_project(super::resolve_step(keyword, text), |step| {
         (step.run_async, step.execution_mode)
     })
 }
