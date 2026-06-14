@@ -9,36 +9,37 @@ Status: COMPLETE
 ## Purpose / big picture
 
 Downstream teams that adopt the stateful GPUI playbook copy its snippets into
-their own crates, which depend on the **published** `gpui 0.2.2` from crates.io.
-The playbook and design snippets, however, are written against the **vendored**
-`gpui` fork under `vendor/gpui` (a `path` dependency in the workspace
-`Cargo.toml`). The two crates share the version string `0.2.2` but expose
-different test-support APIs. Without a clear "which gpui am I reading?" banner
-and an accurate vendored-to-published mapping table, an adopter who pastes a
-snippet hits a compile error that looks like a regression in `rstest-bdd` rather
-than an expected API divergence.
+their own crates, which depend on the **published** `gpui 0.2.2` from
+crates.io. The playbook and design snippets, however, are written against the
+**vendored** `gpui` fork under `vendor/gpui` (a `path` dependency in the
+workspace `Cargo.toml`). The two crates share the version string `0.2.2` but
+expose different test-support APIs. Without a clear "which gpui am I reading?"
+banner and an accurate vendored-to-published mapping table, an adopter who
+pastes a snippet hits a compile error that looks like a regression in
+`rstest-bdd` rather than an expected API divergence.
 
 Roadmap item 10.2.4 closes that gap. A which-gpui banner and a mapping table of
 the API shape differences must appear in **both** `docs/users-guide.md` and
 `docs/rstest-bdd-design.md`, and `make markdownlint` must pass.
 
 The banner and table already exist in both documents — they landed in PR #519
-(commit `bb95cb0`) as a side effect of the broad "v0.6.0-beta2 adopter feedback"
-planning ExecPlan, before 10.2.4 had its own owner. This item therefore is not
-greenfield authoring. Its real work is to **verify, correct, reconcile, and
-gate** that pre-seeded content so it actually delivers on its stated intent
-(no silent compile-error mismatch), and then to mark the roadmap entry done.
+(commit `bb95cb0`) as a side effect of the broad "v0.6.0-beta2 adopter
+feedback" planning ExecPlan, before 10.2.4 had its own owner. This item
+therefore is not greenfield authoring. Its real work is to **verify, correct,
+reconcile, and gate** that pre-seeded content so it actually delivers on its
+stated intent (no silent compile-error mismatch), and then to mark the roadmap
+entry done.
 
 Independent source verification (recorded in Decision log) established that the
 table is **mostly accurate but contains one material inaccuracy in row 2** and
 one omitted-but-real difference. The published `gpui 0.2.2` *does* expose
-`VisualTestContext::window_handle()` (through the `VisualContext` trait), so the
-current table's claim that the handle must be obtained via a verbose
+`VisualTestContext::window_handle()` (through the `VisualContext` trait), so
+the current table's claim that the handle must be obtained via a verbose
 `vcx.update(|window, _app| window.window_handle())` closure is misleading: it
 overstates the divergence and would push adopters toward needlessly awkward
-code. Shipping a table that misdescribes the published API is itself the "silent
-mismatch" 10.2.4 exists to prevent, so correcting row 2 is the spine of this
-plan.
+code. Shipping a table that misdescribes the published API is itself the
+"silent mismatch" 10.2.4 exists to prevent, so correcting row 2 is the spine of
+this plan.
 
 A reader who finishes this work will be able to:
 
@@ -74,8 +75,8 @@ marked `[x]`.
 - The table must continue to document exactly **four** API shape differences as
   named in the roadmap. The two additional real differences discovered (see
   Surprises) are recorded as `>`-quoted prose immediately after the table,
-  explicitly framed as "beyond the four shapes", not as extra table rows. Do not
-  widen to five-plus rows without maintainer approval.
+  explicitly framed as "beyond the four shapes", not as extra table rows. Do
+  not widen to five-plus rows without maintainer approval.
 - The vendored ("left") column of every row must match the real vendored fork
   under `vendor/gpui`; the published ("right") column must match the real
   published `gpui 0.2.2` on crates.io. Neither column may be changed on
@@ -84,9 +85,10 @@ marked `[x]`.
   Paragraphs and bullets wrap at 80 columns; fenced code blocks wrap at 120;
   tables and headings are not wrapped.
 - `docs/users-guide.md` is vendored into consumer projects and uses absolute
-  GitHub cross-reference links validated by `scripts/check_users_guide_links.py`
-  under `make lint`; any new cross-reference in that file must use the canonical
-  `BASE_URL` form, or `make lint` will fail.
+  GitHub cross-reference links validated by
+  `scripts/check_users_guide_links.py` under `make lint`; any new
+  cross-reference in that file must use the canonical `BASE_URL` form, or
+  `make lint` will fail.
 - `make markdownlint`, `make lint`, `make check-fmt`, and `make test` must all
   pass before any `coderabbit review --agent` is requested.
 
@@ -114,11 +116,11 @@ marked `[x]`.
 
 - Risk: correcting row 2 changes the recommended idiom and could contradict the
   surrounding prose, which currently describes reconstructing
-  `VisualTestContext` and reading a window handle. Severity: medium. Likelihood:
-  medium. Mitigation: read the full §2.7.6.2 (design) and the "Stateful GPUI
-  scenarios" section (users' guide) around each table; adjust any prose that
-  asserts the verbose `.update(...)` form is required, and keep the vendored
-  snippet unchanged (it is correct against the vendored fork).
+  `VisualTestContext` and reading a window handle. Severity: medium.
+  Likelihood: medium. Mitigation: read the full §2.7.6.2 (design) and the
+  "Stateful GPUI scenarios" section (users' guide) around each table; adjust
+  any prose that asserts the verbose `.update(...)` form is required, and keep
+  the vendored snippet unchanged (it is correct against the vendored fork).
 - Risk: the two tables drift again after this fix, reintroducing the silent
   mismatch. Severity: medium. Likelihood: medium (the roadmap explicitly flags
   this as a recurring maintenance tax for every future gpui bump). Mitigation:
@@ -131,8 +133,9 @@ marked `[x]`.
   `crates/rstest-bdd-harness-gpui/tests/stateful_window.rs`; the published
   column is verified out-of-band against the published crate source and the
   verification is recorded in the Decision log. Optionally cross-reference the
-  existing publish-time validator (`scripts/publish_check_gpui*.py`), which does
-  build against the real published `gpui`, as the durable compile-time anchor.
+  existing publish-time validator (`scripts/publish_check_gpui*.py`), which
+  does build against the real published `gpui`, as the durable compile-time
+  anchor.
 - Risk: a markdownlint table-formatting rule (escaped pipes inside table cells,
   line length) rejects the edited row 2 or the new `>`-quoted prose. Severity:
   low. Likelihood: medium. Mitigation: keep the existing escaped-pipe (`\|`)
@@ -166,36 +169,42 @@ marked `[x]`.
 - [x] Stage A — verification and reconciliation audit (no edits). Re-read both
   tables and the surrounding prose; confirm the row-2 inaccuracy and the
   header/parenthetical divergences against the recorded research; run the
-  vendored-arity and prose-audit greps; quantify the prose lines Stage C touches.
+  vendored-arity and prose-audit greps; quantify the prose lines Stage C
+  touches.
 - [x] Stage B — red checks. Run the consistency check (Stage D artifact) or the
   fallback grep so it fails against the current diverging/inaccurate tables,
   proving the gap before the fix.
 - [x] Stage C — correct row 2 in both documents, add the two `>`-quoted
-  beyond-the-four prose differences, reconcile headers/row-3/caption so the data
-  rows match, adjust any prose asserting the verbose `.update(...)` form, and run
-  `make markdownlint` as a mid-stage check.
+  beyond-the-four prose differences, reconcile headers/row-3/caption so the
+  data rows match, adjust any prose asserting the verbose `.update(...)` form,
+  and run `make markdownlint` as a mid-stage check.
 - [x] Stage D — (go/no-go) add `scripts/check_gpui_mapping_table.py` and its
-  pytest (incl. the whitespace-only pass case), wire it into `make lint`, add the
-  `docs/developers-guide.md` table-sync note, and confirm the gate passes.
+  pytest (incl. the whitespace-only pass case), wire it into `make lint`, add
+  the `docs/developers-guide.md` table-sync note, and confirm the gate passes.
 - [x] Stage E — run `make markdownlint`, `make check-fmt`, `make lint`,
   `make test` (teed to `/tmp`); then `coderabbit review --agent`; clear all
   concerns.
 - [x] Stage F — mark roadmap item 10.2.4 `[x]` with a dated one-line summary
   referencing this ExecPlan; re-run `make markdownlint`.
+- [x] Post-completion maintenance — imported the Python template Ruff, Pylint,
+  and `ty` gates into the repository Makefile and CI on 2026-06-14; refactored
+  helper scripts so the new deterministic gates pass before CodeRabbit review.
+  Final CodeRabbit review completed with zero findings after the compatibility
+  type contract for publish-check command output was made explicit.
 
 ## Surprises & discoveries
 
 - Observation: the banner and mapping table for 10.2.4 already exist in both
-  target documents. Evidence: `git show bb95cb0 -- docs/users-guide.md
-  docs/rstest-bdd-design.md` shows the "Stage D" commit of the broad
-  v0.6.0-beta2 feedback ExecPlan added them; the table is at
-  `docs/rstest-bdd-design.md:1978-1985` and `docs/users-guide.md:1114-1119`.
-  Impact: 10.2.4 is a verify/correct/reconcile/gate item, not greenfield
-  authoring.
+  target documents. Evidence:
+  `git show bb95cb0 -- docs/users-guide.md docs/rstest-bdd-design.md` shows the
+  "Stage D" commit of the broad v0.6.0-beta2 feedback ExecPlan added them; the
+  table is at `docs/rstest-bdd-design.md:1978-1985` and
+  `docs/users-guide.md:1114-1119`. Impact: 10.2.4 is a
+  verify/correct/reconcile/gate item, not greenfield authoring.
 - Observation: row 2 of the table is inaccurate. Evidence: the published
   `gpui 0.2.2` source (crate tarball, commit `69e2130`) defines
-  `impl VisualContext for VisualTestContext { fn window_handle(&self) ->
-  AnyWindowHandle { self.window } }` at `src/app/test_context.rs:985-989`, and
+  `VisualContext for VisualTestContext`, whose `window_handle` method returns
+  `AnyWindowHandle`, at `src/app/test_context.rs:985-989`, and
   `Window::window_handle()` at `src/window.rs:1362`. So
   `VisualTestContext::window_handle()` *does* exist in published gpui; the only
   real difference from the vendored inherent method is that the published one is
@@ -232,13 +241,28 @@ marked `[x]`.
   implementation edits. Evidence: `make markdownlint` reported duplicate
   headings starting at line 817. Impact: the duplicate copy was removed as plan
   maintenance before continuing; no implementation files were affected.
+- Observation: importing the Python template lints made the previously accepted
+  helper-script shape too broad for deterministic CI. Evidence: Pylint rejected
+  `scripts/check_forbidden_async_trait.py` and `scripts/run_publish_check.py`
+  for exceeding the 400-line module limit, and `ty` caught several loose helper
+  interfaces. Impact: the helper scripts were compacted and split into
+  `scripts/publish_check_context.py` and `scripts/publish_check_impl.py` while
+  preserving the `run_publish_check.py` module-level compatibility surface used
+  by existing tests.
+- Observation: CodeRabbit suggested removing byte-stream handling from the
+  publish-check output marker path based on the original `CommandResult`
+  annotation, but the existing focused tests intentionally exercise byte
+  streams. Evidence: `scripts/tests/publish_check/test_command_handling.py`
+  failed until the dataclass contract was widened to `str | bytes` and output
+  rendering decoded bytes with replacement. Impact: the compatibility behaviour
+  is retained, and `ty` now sees the same contract the tests already covered.
 
 ## Decision log
 
 - Decision: treat 10.2.4 as a verify/correct/reconcile/gate item rather than
-  re-authoring the banner and table from scratch. Rationale: the content already
-  exists in both documents (Surprises), so re-authoring would be churn; the
-  unmet part of the intent is accuracy, cross-document consistency, and a
+  re-authoring the banner and table from scratch. Rationale: the content
+  already exists in both documents (Surprises), so re-authoring would be churn;
+  the unmet part of the intent is accuracy, cross-document consistency, and a
   drift-prevention gate. Date/Author: 2026-06-13, planning agent.
 - Decision: correct row 2 to state that published `gpui 0.2.2` exposes
   `vcx.window_handle()` via the `VisualContext` trait (requires
@@ -256,23 +280,25 @@ marked `[x]`.
   changes the contract, and the panel (Pandalump 🐼, Telefono ☎️) found that
   cramming the return-type detail into row 1 overloaded the cell, made the row
   asymmetric, risked a markdownlint width failure, and blurred two separable
-  concerns. Prose after the table documents both honestly while leaving each row
-  single-concern. Escalate only if the maintainer prefers widening the table.
-  Date/Author: 2026-06-13, planning agent (revised after community-of-experts
-  panel).
+  concerns. Prose after the table documents both honestly while leaving each
+  row single-concern. Escalate only if the maintainer prefers widening the
+  table. Date/Author: 2026-06-13, planning agent (revised after
+  community-of-experts panel).
 - Decision: implement drift prevention as a Python consistency script wired into
-  `make lint`, backed by a pytest, mirroring `scripts/check_users_guide_links.py`
-  and its test `scripts/tests/test_check_users_guide_links.py`. Rationale: this
-  is the repository's established idiom for doc-invariant linting; the roadmap's
+  `make lint`, backed by a pytest, mirroring
+  `scripts/check_users_guide_links.py` and its test
+  `scripts/tests/test_check_users_guide_links.py`. Rationale: this is the
+  repository's established idiom for doc-invariant linting; the roadmap's
   dual-track note explicitly asks to "make staleness a CI failure rather than a
   silent drift". Date/Author: 2026-06-13, planning agent.
 - Decision: make the Stage D check robust by design — anchor the table by its
   preceding heading, compare normalised whole data rows (never split on `\|`),
   and prove with a whitespace-only-mutation pytest case that `make fmt` reflow
   cannot make it fire. Rationale: the panel pre-mortem (Doggylump 🐶) showed a
-  naive byte-compare parser would false-positive on escaped pipes and the repo's
-  known non-idempotent markdown formatting, turning the guard into a CI nuisance
-  on unrelated doc PRs. Date/Author: 2026-06-13, planning agent (post-panel).
+  naive byte-compare parser would false-positive on escaped pipes and the
+  repo's known non-idempotent markdown formatting, turning the guard into a CI
+  nuisance on unrelated doc PRs. Date/Author: 2026-06-13, planning agent
+  (post-panel).
 - Decision: state the gate's scope honestly — it catches doc-vs-doc drift, not
   drift from the real published `gpui`, which is checked at release time by
   `scripts/publish_check_gpui*.py`. Capture the published-column verification
@@ -281,36 +307,51 @@ marked `[x]`.
   false assurance and that the hand verification is labour-intensive to repeat.
   Date/Author: 2026-06-13, planning agent (post-panel).
 - Decision: keep Stage D a genuine go/no-go and rely on Stages A–C plus
-  `make markdownlint` for the finish line. Rationale: the roadmap finish line is
-  narrow ("banner+table in both docs; markdownlint passes"); siblings 10.2.1–
-  10.2.3 shipped doc-only with no new gate. The panel (Wafflecat 🐈🧇, Dinolump
-  🦕) judged the gate justified by the recurring dual-track tax but optional
-  against the finish line; the single-source-of-truth alternative was rejected
-  (no markdown-include tooling in the repo). Date/Author: 2026-06-13, planning
-  agent (post-panel).
+  `make markdownlint` for the finish line. Rationale: the roadmap finish line
+  is narrow ("banner+table in both docs; markdownlint passes"); siblings
+  10.2.1– 10.2.3 shipped doc-only with no new gate. The panel (Wafflecat 🐈🧇,
+  Dinolump 🦕) judged the gate justified by the recurring dual-track tax but
+  optional against the finish line; the single-source-of-truth alternative was
+  rejected (no markdown-include tooling in the repo). Date/Author: 2026-06-13,
+  planning agent (post-panel).
 - Decision: do not attempt to compile-check the published column inside the
   workspace. Rationale: the workspace pins `gpui` to `vendor/gpui` via a `path`
-  dependency, so the published API cannot be exercised here. The vendored column
-  is already covered by `stateful_window.rs`; the published column is verified
-  out-of-band and may be cross-referenced to `scripts/publish_check_gpui*.py`,
-  which builds against the real published crate at release time. Date/Author:
-  2026-06-13, planning agent.
+  dependency, so the published API cannot be exercised here. The vendored
+  column is already covered by `stateful_window.rs`; the published column is
+  verified out-of-band and may be cross-referenced to
+  `scripts/publish_check_gpui*.py`, which builds against the real published
+  crate at release time. Date/Author: 2026-06-13, planning agent.
 - Decision (testing rigour): apply pytest unit tests to the new consistency
-  script and rely on the existing GPUI regression suite for the vendored column;
-  do not add rstest unit tests, rust-rspec/`rstest-bdd` behavioural tests,
-  `insta` snapshots, `proptest`, Kani, or Verus. Rationale: the change is
-  documentation plus a pure file-parsing lint script. There is no Rust behaviour
-  to unit-test, no externally observable workflow to drive with BDD, no
-  multivariant runtime output (the cross-document consistency check is the
+  script and rely on the existing GPUI regression suite for the vendored
+  column; do not add rstest unit tests, rust-rspec/`rstest-bdd` behavioural
+  tests, `insta` snapshots, `proptest`, Kani, or Verus. Rationale: the change
+  is documentation plus a pure file-parsing lint script. There is no Rust
+  behaviour to unit-test, no externally observable workflow to drive with BDD,
+  no multivariant runtime output (the cross-document consistency check is the
   apt "output consistency" guard, superseding an `insta` snapshot of static
   prose), and no input-domain invariant warranting property/model-checking/
-  proof. The script's own logic is the only new executable surface and pytest is
-  the repo-idiomatic adversary for it. Date/Author: 2026-06-13, planning agent.
+  proof. The script's own logic is the only new executable surface and pytest
+  is the repo-idiomatic adversary for it. Date/Author: 2026-06-13, planning
+  agent.
 - Decision: proceed with Stage D rather than defer the drift gate. Rationale:
   Stages A-C stayed within the named file scope and line-count tolerances, the
   script uses only the Python standard library, and its focused pytest proves
   the parser handles numbered headings and whitespace-only table alignment
   changes. Date/Author: 2026-06-13, implementing agent.
+- Decision: use the repository `pyproject.toml` as the source of truth for
+  Python helper tooling, mirroring the imported Python template's Ruff, Pylint,
+  and `ty` policies, and wire those through `make lint-python`,
+  `make typecheck`, `make check-fmt`, `make fmt`, and CI. Rationale: keeping
+  the tool policy in one project file avoids one-off `uvx` invocations and lets
+  CI, local Make targets, and `uv.lock` resolve the same toolchain.
+  Date/Author: 2026-06-14, implementing agent.
+- Decision: keep `run_publish_check.py` as the public facade and move stable
+  command context types plus implementation-heavy helpers into
+  `publish_check_context.py` and `publish_check_impl.py`. Rationale: existing
+  tests and callers monkeypatch `run_publish_check.py` names directly, so a
+  wholesale move would break the script's practical interface; a facade split
+  satisfies the template's module-size and type-checking requirements without
+  changing caller behaviour. Date/Author: 2026-06-14, implementing agent.
 
 ### Research provenance (published gpui 0.2.2)
 
@@ -333,8 +374,8 @@ latest published gpui. Findings:
 
 Vendored fork (path dependency, version `0.2.2`) confirmed divergent:
 
-- `add_window_view(impl FnOnce(&mut VisualTestContext) -> T) ->
-  (Entity<T>, VisualTestContext)` (`vendor/gpui/src/lib.rs:145-148`).
+- `add_window_view(impl FnOnce(&mut VisualTestContext) -> T) -> (Entity<T>, VisualTestContext)`
+  (`vendor/gpui/src/lib.rs:145-148`).
 - inherent `VisualTestContext::window_handle() -> AnyWindowHandle`
   (`vendor/gpui/src/test_window.rs:200-204`).
 - `from_window(...) -> Option<Self>` (`vendor/gpui/src/test_window.rs:191-198`).
@@ -360,6 +401,12 @@ All required gates passed: `make markdownlint`, `make check-fmt`, `make lint`,
 and `make test`. CodeRabbit completed with zero findings. `docs/roadmap.md`
 marks item 10.2.4 delivered with a dated summary.
 
+Post-delivery maintenance on 2026-06-14 imported the Python template Ruff,
+Pylint, and `ty` checks into `Makefile` and CI. The final maintenance gates
+passed: `make check-fmt`, `make lint-python`, `make typecheck`, the focused
+Python helper pytest suite (`95 passed`), and `coderabbit review --agent` with
+zero findings.
+
 ## Context and orientation
 
 `rstest-bdd` is a Rust behaviour-driven-development (BDD) framework that drives
@@ -370,9 +417,9 @@ feature-gated GPUI harness crate, `rstest-bdd-harness-gpui`, for testing
 Key terms (no prior knowledge assumed):
 
 - **Vendored gpui**: the in-repo fork at `vendor/gpui`, pulled in as a `path`
-  dependency by the workspace `Cargo.toml` (`gpui = { version = "0.2.2", path =
-  "vendor/gpui", ... }`). The regression suite and all design/playbook snippets
-  compile against this fork.
+  dependency by the workspace `Cargo.toml`
+  (`gpui = { version = "0.2.2", path = "vendor/gpui", ... }`). The regression
+  suite and all design/playbook snippets compile against this fork.
 - **Published gpui 0.2.2**: the crate of the same name and version on
   crates.io, which downstream adopters depend on. It exposes a different
   test-support API despite the shared version string.
@@ -414,12 +461,12 @@ implementer has the whole target in one place (rendered as a real table so it
 mirrors the on-disk form; in both documents it lives inside the `>`-quoted
 banner blockquote):
 
-| Operation | Vendored gpui (regression suite + these snippets) | Published `gpui 0.2.2` (downstream adopters) |
-| --- | --- | --- |
-| `add_window_view` closure | `\|_context\| View::default()` (one argument) | `\|_window, view_cx\| View::new(view_cx)` (two arguments) |
-| obtain window handle | `visual_cx.window_handle()` (inherent method on `VisualTestContext`) | `vcx.window_handle()` (same call, but `window_handle` is a `VisualContext` trait method, so add `use gpui::VisualContext;`) |
-| `VisualTestContext::from_window` | returns `Option<VisualTestContext>` (`.unwrap_or_else`/`.ok_or`) | returns `VisualTestContext` by value (no `Option`) |
-| `read_entity` / `update_entity` | `Option`/`Result` wrappers (`Some(1)`, `Ok(())`) | identity `type Result<T> = T`; returns `R` directly |
+| Operation                        | Vendored gpui (regression suite + these snippets)                    | Published `gpui 0.2.2` (downstream adopters)                                                                                |
+| -------------------------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `add_window_view` closure        | `\|_context\| View::default()` (one argument)                        | `\|_window, view_cx\| View::new(view_cx)` (two arguments)                                                                   |
+| obtain window handle             | `visual_cx.window_handle()` (inherent method on `VisualTestContext`) | `vcx.window_handle()` (same call, but `window_handle` is a `VisualContext` trait method, so add `use gpui::VisualContext;`) |
+| `VisualTestContext::from_window` | returns `Option<VisualTestContext>` (`.unwrap_or_else`/`.ok_or`)     | returns `VisualTestContext` by value (no `Option`)                                                                          |
+| `read_entity` / `update_entity`  | `Option`/`Result` wrappers (`Some(1)`, `Ok(())`)                     | identity `type Result<T> = T`; returns `R` directly                                                                         |
 
 The single substantive correction is row 2: the published column previously
 claimed the handle had to be obtained through a verbose
@@ -449,8 +496,8 @@ each row about a single concern:
 Stage C unifies the header wording, the row-3 parenthetical, and the caption
 across both documents so the rendered tables are identical. The Stage D check
 (if it proceeds) compares the four **normalised data rows** — it does not split
-cells on `\|`, so escaped pipes and `make fmt` whitespace reflow do not trip it;
-headers and caption are unified by Stage C but the data rows are the
+cells on `\|`, so escaped pipes and `make fmt` whitespace reflow do not trip
+it; headers and caption are unified by Stage C but the data rows are the
 load-bearing content the gate enforces.
 
 ## Plan of work
@@ -495,8 +542,8 @@ grep -n 'window_handle\|\.update(\|windows()' \
 ```
 
 Record the divergences and the prose hits in `Surprises & discoveries` if any
-differ from those already listed, and quantify how many prose lines Stage C must
-touch. No edits in this stage.
+differ from those already listed, and quantify how many prose lines Stage C
+must touch. No edits in this stage.
 
 ### Stage B — red checks (prove the gap before fixing)
 
@@ -521,8 +568,8 @@ deferred.
 
    Expected before the fix: `RED: inaccurate row 2 present` for both files. If
    this prints `row 2 already corrected` while the on-disk cell still shows the
-   verbose form, the escaping has drifted — inspect the raw cell with
-   `sed -n` before trusting the result.
+   verbose form, the escaping has drifted — inspect the raw cell with `sed -n`
+   before trusting the result.
 
 Record the red output in `Artifacts and notes`.
 
@@ -535,8 +582,8 @@ In `docs/rstest-bdd-design.md` (§2.7.6.2, the table at `:1978-1985`):
 
 1. Replace row 2's published cell with the trait-method form:
    `vcx.window_handle()` (same call, but `window_handle` is a `VisualContext`
-   trait method, so add `use gpui::VisualContext;`). Leave row 2's vendored cell
-   as the inherent-method wording.
+   trait method, so add `use gpui::VisualContext;`). Leave row 2's vendored
+   cell as the inherent-method wording.
 2. Leave rows 1, 3, and 4, the banner prose, and the caption intact.
 3. Add the two prose differences (return type; `update_entity` error channel)
    as `>`-quoted lines continuing the banner blockquote, immediately after the
@@ -579,25 +626,27 @@ parsing is the main design risk (the panel pre-mortem flagged escaped pipes,
 
 - **Anchor the table, do not grab the first match.** Locate the table by the
   heading that precedes it: "Interim GPUI state pattern" in
-  `docs/rstest-bdd-design.md` and "Stateful GPUI scenarios with durable handles"
-  (or the which-gpui banner lead-in) in `docs/users-guide.md`. Within that
-  section, take the first `| Operation |`-prefixed table.
+  `docs/rstest-bdd-design.md` and "Stateful GPUI scenarios with durable
+  handles" (or the which-gpui banner lead-in) in `docs/users-guide.md`. Within
+  that section, take the first `| Operation |`-prefixed table.
 - **Compare normalised whole rows, never split cells on `\|`.** Extract the four
-  data rows (the lines after the `| --- |` separator, up to the first
-  non-table line). Normalise each row by collapsing internal whitespace runs to
-  a single space and trimming ends. Compare the two ordered lists of normalised
-  rows. Not splitting on `\|` makes escaped pipes and `make fmt` alignment
-  reflow harmless, because both documents reflow identically.
+  data rows (the lines after the `| --- |` separator, up to the first non-table
+  line). Normalise each row by collapsing internal whitespace runs to a single
+  space and trimming ends. Compare the two ordered lists of normalised rows.
+  Not splitting on `\|` makes escaped pipes and `make fmt` alignment reflow
+  harmless, because both documents reflow identically.
 - **Exit non-zero** with a diff-style message naming the first offending row
   (its index and both normalised forms) when the lists differ; exit zero when
-  they agree. Pure standard-library file parsing; no subprocess. (If a shell-out
-  is ever needed, use `cuprum`, not `subprocess`, per repo convention.)
+  they agree. Pure standard-library file parsing; no subprocess. (If a
+  shell-out is ever needed, use `cuprum`, not `subprocess`, per repo
+  convention.)
 - **Document the gate's scope in the module docstring.** It catches
-  *doc-vs-doc* drift (the two copies disagreeing). It does **not** verify either
-  copy against the real published `gpui` — that cannot be done in-workspace
-  because `gpui` is pinned to `vendor/gpui`. The published column's compile-time
-  anchor is the release-time validator `scripts/publish_check_gpui*.py`; name it
-  in the docstring so a future maintainer knows where reality is checked.
+  *doc-vs-doc* drift (the two copies disagreeing). It does **not** verify
+  either copy against the real published `gpui` — that cannot be done
+  in-workspace because `gpui` is pinned to `vendor/gpui`. The published
+  column's compile-time anchor is the release-time validator
+  `scripts/publish_check_gpui*.py`; name it in the docstring so a future
+  maintainer knows where reality is checked.
 
 Add `scripts/tests/test_check_gpui_mapping_table.py` mirroring
 `scripts/tests/test_check_users_guide_links.py`: cover (a) the pass case
@@ -616,9 +665,9 @@ the GPUI mapping table is duplicated in `docs/users-guide.md` and
 `check_gpui_mapping_table.py` to enforce this; and the published column is
 verified by extracting the published `gpui` crate tarball (record the
 `git show <commit>:crates/gpui/src/app/test_context.rs` / tarball-extraction
-recipe) when gpui is next bumped. This converts the one-off research recipe into
-durable guidance and primes future maintainers and the neighbouring 10.2.5–
-10.2.7 items to keep the two copies in step.
+recipe) when gpui is next bumped. This converts the one-off research recipe
+into durable guidance and primes future maintainers and the neighbouring
+10.2.5– 10.2.7 items to keep the two copies in step.
 
 ### Stage E — validate
 
@@ -632,8 +681,8 @@ make lint         2>&1 | tee /tmp/lint-rstest-bdd-${BRANCH}.out
 make test         2>&1 | tee /tmp/test-rstest-bdd-${BRANCH}.out
 ```
 
-Each must exit zero before the next. Then run the green-stage consistency
-check (or grep), confirm the row-2 correction is present in both files, and run
+Each must exit zero before the next. Then run the green-stage consistency check
+(or grep), confirm the row-2 correction is present in both files, and run
 `coderabbit review --agent`; clear all concerns before promoting the PR out of
 draft. CodeRabbit must not be used to catch what these gates catch
 deterministically, so do not request it until all four gates are green.
@@ -675,8 +724,8 @@ current directory.
    `Artifacts and notes`.
 
 3. Apply the Stage C edits to `docs/rstest-bdd-design.md` and
-   `docs/users-guide.md`. Re-run the Stage B check; it must now report the row 2
-   correction is present (and, if Stage D is in place, that the tables match).
+   `docs/users-guide.md`. Re-run the Stage B check; it must now report the row
+   2 correction is present (and, if Stage D is in place, that the tables match).
 
 4. (Stage D, if go) add the script, its pytest, and the `Makefile` wiring; run
    the script directly and confirm it exits zero.
@@ -684,9 +733,9 @@ current directory.
 5. Run the Stage E gates in order (`make markdownlint`, `make check-fmt`,
    `make lint`, `make test`), stopping on the first failure and fixing the root
    cause. Commit the documentation correction and the gate as small, focused
-   commits with imperative subjects naming the roadmap item, e.g.
-   "Correct published gpui window-handle row in mapping table (10.2.4)" and
-   "Gate vendored-to-published gpui mapping-table drift (10.2.4)".
+   commits with imperative subjects naming the roadmap item, e.g. "Correct
+   published gpui window-handle row in mapping table (10.2.4)" and "Gate
+   vendored-to-published gpui mapping-table drift (10.2.4)".
 
 6. Run `coderabbit review --agent`; clear all concerns; re-run the local gates
    from `make check-fmt` onwards if prose changes result.
@@ -708,8 +757,8 @@ Acceptance is observable as:
 2. The Stage B red check fails before the fix and the Stage E green check passes
    after it.
 3. If Stage D proceeds: `scripts/check_gpui_mapping_table.py` exits zero on the
-   corrected tables and non-zero when either table's body is mutated; its pytest
-   passes under `make test`.
+   corrected tables and non-zero when either table's body is mutated; its
+   pytest passes under `make test`.
 4. `make markdownlint`, `make check-fmt`, `make lint`, and `make test` all exit
    zero.
 5. `coderabbit review --agent` reports no remaining concerns.
@@ -734,10 +783,10 @@ Quality method:
 
 Red-Green-Refactor note: the production change here is documentation plus a
 pure-parsing lint script, so the code RGR cycle applies directly to the Stage D
-script (write the failing pytest fail-case first, then the script, then refactor)
-and a documentation-shaped substitute (Stage B red grep / failing consistency
-check) covers the table correction itself, per the execplans skill's "nearest
-observable substitute" allowance.
+script (write the failing pytest fail-case first, then the script, then
+refactor) and a documentation-shaped substitute (Stage B red grep / failing
+consistency check) covers the table correction itself, per the execplans
+skill's "nearest observable substitute" allowance.
 
 ## Idempotence and recovery
 
@@ -768,14 +817,14 @@ issue and re-run; do not undo earlier edits unless the rule code points at them.
 - Stage C green output: after table reconciliation,
   `python3 scripts/check_gpui_mapping_table.py` exited zero, and
   `make markdownlint` exited zero after removing the duplicate ExecPlan copy.
-- Stage D green output: `uv run --with pytest python -m pytest
-  scripts/tests/test_check_gpui_mapping_table.py -q` reported `9 passed`, and
+- Stage D green output:
+  the mapping-table pytest command reported `9 passed`, and
   `make lint` later ran `python3 scripts/check_gpui_mapping_table.py` as part
   of the full lint target.
 - Stage E gate summaries so far: `make markdownlint` reported
-  `Summary: 0 error(s)`; `make check-fmt` reported `34 files already
-  formatted`; `make lint` reported `All checks passed!` from Ruff and completed
-  the file-length, users-guide-link, and GPUI-table checks; `make test` reported
+  `Summary: 0 error(s)`; `make check-fmt` reported `34 files already formatted`;
+  `make lint` reported `All checks passed!` from Ruff and completed the
+  file-length, users-guide-link, and GPUI-table checks; `make test` reported
   `1487 tests run: 1487 passed, 7 skipped` from nextest and `95 passed` from
   pytest.
 - CodeRabbit review: `coderabbit review --agent` completed with
@@ -791,9 +840,9 @@ module and its test, and one `make lint` invocation line:
 
 - `scripts/check_gpui_mapping_table.py` — a standard-library-only validator
   exposing a `main()` that returns an exit code; reads `docs/users-guide.md` and
-  `docs/rstest-bdd-design.md`, extracts the `| Operation | … |` table from each,
-  and asserts the four data rows match. No third-party imports; if a shell-out
-  is ever required, use `cuprum` rather than `subprocess`.
+  `docs/rstest-bdd-design.md`, extracts the `| Operation | … |` table from
+  each, and asserts the four data rows match. No third-party imports; if a
+  shell-out is ever required, use `cuprum` rather than `subprocess`.
 - `scripts/tests/test_check_gpui_mapping_table.py` — pytest covering pass, fail,
   and table-not-found cases, following
   `scripts/tests/test_check_users_guide_links.py`.
@@ -817,11 +866,13 @@ validator `scripts/publish_check_gpui*.py`; and the Make gate targets
 - Execution-plan authoring: the `execplans` skill (loaded this session).
 - Code navigation/refactoring: the `leta` skill and workspace (loaded this
   session); `rust-router` for any Rust follow-on.
-- Rust testing strategy/terminology: `docs/rust-testing-with-rstest-fixtures.md`,
+- Rust testing strategy/terminology:
+  `docs/rust-testing-with-rstest-fixtures.md`,
   `docs/testing-strategy.md` (no Rust test work is added by this plan; the
   vendored column is covered by the existing GPUI regression suite).
 - Doc-test DRY guidance: `docs/rust-doctest-dry-guide.md`.
-- Complexity/refactoring heuristics: `docs/complexity-antipatterns-and-refactoring-strategies.md`.
+- Complexity/refactoring heuristics:
+  `docs/complexity-antipatterns-and-refactoring-strategies.md`.
 - Documentation style: `docs/documentation-style-guide.md`; en-GB Oxford
   spelling per the `en-gb-oxendict` skill.
 - Gherkin terminology: `docs/gherkin-syntax.md`.

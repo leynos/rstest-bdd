@@ -1,6 +1,6 @@
 VALE ?= vale
 
-.PHONY: help all clean test build release lint typecheck fmt check-fmt markdownlint nixie publish-check forbid-async-trait vale update-ui-lints-lock
+.PHONY: help all clean test build build-python release lint lint-python typecheck fmt check-fmt markdownlint nixie publish-check forbid-async-trait vale update-ui-lints-lock
 
 SHELL := bash
 export PATH := $(HOME)/.cargo/bin:$(HOME)/.bun/bin:$(HOME)/.local/bin:$(PATH)
@@ -14,8 +14,13 @@ MDLINT ?= $(or $(shell command -v markdownlint-cli2 2>/dev/null),$(HOME)/.bun/bi
 ACRONYM_SCRIPT ?= scripts/update_acronym_allowlist.py
 UV ?= $(or $(shell command -v uv 2>/dev/null),$(HOME)/.local/bin/uv)
 UVX ?= $(or $(shell command -v uvx 2>/dev/null),$(HOME)/.local/bin/uvx)
+UV_ENV = UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools
+PYTHON_TARGETS ?= $(shell find scripts -maxdepth 1 -type f -name "*.py" -print | sort)
+PYLINT_TARGETS ?= $(PYTHON_TARGETS)
 
 build: target/debug/$(APP) ## Build debug binary
+build-python: pyproject.toml ## Build Python tooling environment
+	$(UV_ENV) $(UV) sync --group python-tools
 release: target/release/$(APP) ## Build release binary
 
 all: release ## Default target builds release binary
@@ -41,24 +46,31 @@ target/%/$(APP): ## Build binary in debug or release mode
 
 lint: ## Run Clippy with warnings denied
 	$(CARGO) clippy $(CLIPPY_FLAGS)
-	find scripts -type f -name "*.py" -print0 | xargs -r -0 $(UVX) ruff check
+	$(MAKE) lint-python
 	python3 scripts/check_rs_file_lengths.py
 	python3 scripts/check_users_guide_links.py
 	python3 scripts/check_gpui_mapping_table.py
 
-typecheck: ## Run cargo check with warnings denied
+lint-python: build-python ## Run Python linters
+	$(UV_ENV) $(UV) run ruff check $(PYTHON_TARGETS)
+	$(UV_ENV) $(UV) run pylint $(PYLINT_TARGETS)
+
+typecheck: build-python ## Run cargo and Python type checks with warnings denied
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) check $(CARGO_FLAGS) $(BUILD_JOBS)
+	$(UV_ENV) $(UV) run ty check $(PYTHON_TARGETS)
 
 forbid-async-trait: ## Ensure the async-trait crate and macro remain absent
 	python3 scripts/check_forbidden_async_trait.py
 
 fmt: ## Format Rust and Markdown sources
 	$(CARGO) fmt --all
+	$(UV_ENV) $(UV) run ruff format $(PYTHON_TARGETS)
+	$(UV_ENV) $(UV) run ruff check --select I --fix $(PYTHON_TARGETS)
 	mdformat-all
 
 check-fmt: ## Verify formatting
 	$(CARGO) fmt --all -- --check
-	find scripts -type f -name "*.py" -print0 | xargs -r -0 $(UVX) ruff format --check
+	$(UV_ENV) $(UV) run ruff format --check $(PYTHON_TARGETS)
 
 markdownlint: ## Lint Markdown files
 	find . -type f -name '*.md' -not -path '*/target/*' -not -path '*/node_modules/*' -print0 | xargs -0 $(MDLINT)

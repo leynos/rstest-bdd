@@ -32,9 +32,8 @@ True
 
 from __future__ import annotations
 
-import typing as typ
-
 import tomllib
+import typing as typ
 
 if typ.TYPE_CHECKING:
     from pathlib import Path
@@ -46,7 +45,7 @@ def _normalize_dependency_spec(name: str, value: object) -> dict[str, object]:
         case str():
             return {"version": value}
         case dict():
-            return value
+            return typ.cast("dict[str, object]", value)
         case _:
             message = (
                 f"unsupported dependency spec for {name!r}: expected str or dict, "
@@ -179,21 +178,36 @@ def _packaged_manifest(workspace_root: Path, version: str, harness_crate: str) -
         if dependency_name != "gpui"
     ]
     rendered_dependencies.append(f"gpui = {gpui_spec}")
-    dependencies_block = "\n".join(rendered_dependencies)
+    manifest_fields = {
+        "name": _escape_toml_string(package["name"]),
+        "version": _escape_toml_string(version),
+        "edition": _escape_toml_string(workspace_package["edition"]),
+        "license": _escape_toml_string(workspace_package["license"]),
+        "authors": _toml_list(workspace_package["authors"]),
+        "description": _escape_toml_string(package["description"]),
+        "homepage": _escape_toml_string(workspace_package["homepage"]),
+        "repository": _escape_toml_string(workspace_package["repository"]),
+        "readme": _escape_toml_string(package["readme"]),
+        "keywords": _toml_list(workspace_package["keywords"]),
+        "categories": _toml_list(workspace_package["categories"]),
+        "rust_version": _escape_toml_string(workspace_package["rust-version"]),
+        "dependencies": "\n".join(rendered_dependencies),
+    }
+    field = manifest_fields.__getitem__
 
-    return """[package]
-name = "{name}"
-version = "{version}"
-edition = "{edition}"
-license = "{license}"
-authors = {authors}
-description = "{description}"
-homepage = "{homepage}"
-repository = "{repository}"
-readme = "{readme}"
-keywords = {keywords}
-categories = {categories}
-rust-version = "{rust_version}"
+    return f"""[package]
+name = "{field("name")}"
+version = "{field("version")}"
+edition = "{field("edition")}"
+license = "{field("license")}"
+authors = {field("authors")}
+description = "{field("description")}"
+homepage = "{field("homepage")}"
+repository = "{field("repository")}"
+readme = "{field("readme")}"
+keywords = {field("keywords")}
+categories = {field("categories")}
+rust-version = "{field("rust_version")}"
 
 [lib]
 doctest = false
@@ -203,22 +217,8 @@ test = false
 native-gpui-tests = []
 
 [dependencies]
-{dependencies_block}
-""".format(
-        name=_escape_toml_string(package["name"]),
-        version=_escape_toml_string(version),
-        edition=_escape_toml_string(workspace_package["edition"]),
-        license=_escape_toml_string(workspace_package["license"]),
-        authors=_toml_list(workspace_package["authors"]),
-        description=_escape_toml_string(package["description"]),
-        homepage=_escape_toml_string(workspace_package["homepage"]),
-        repository=_escape_toml_string(workspace_package["repository"]),
-        readme=_escape_toml_string(package["readme"]),
-        keywords=_toml_list(workspace_package["keywords"]),
-        categories=_toml_list(workspace_package["categories"]),
-        rust_version=_escape_toml_string(workspace_package["rust-version"]),
-        dependencies_block=dependencies_block,
-    )
+{field("dependencies")}
+"""
 
 
 def _validator_test_source() -> str:

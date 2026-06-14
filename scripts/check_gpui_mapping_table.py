@@ -230,13 +230,11 @@ def check_mapping_tables(root: Path) -> list[str]:
         zip(design_rows, users_rows, strict=True), start=1
     ):
         if design_row != users_row:
-            violations.extend(
-                [
-                    f"row {index}:",
-                    f"  {DESIGN_DOC}: {design_row}",
-                    f"  {USERS_GUIDE}: {users_row}",
-                ]
-            )
+            violations.extend([
+                f"row {index}:",
+                f"  {DESIGN_DOC}: {design_row}",
+                f"  {USERS_GUIDE}: {users_row}",
+            ])
             break
     return violations
 

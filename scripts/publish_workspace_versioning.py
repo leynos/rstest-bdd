@@ -6,9 +6,8 @@ contextual diagnostics when required keys are missing.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import tomllib
+from pathlib import Path
 
 __all__ = [
     "_extract_section_lines",
@@ -17,6 +16,8 @@ __all__ = [
     "_workspace_section_excerpt",
     "workspace_version",
 ]
+
+WORKSPACE_EXCERPT_MAX_LINES = 8
 
 
 def workspace_version(manifest: Path) -> str:
@@ -73,7 +74,7 @@ def _should_include_more_lines(lines: list[str], end: int, start: int) -> bool:
     if end >= len(lines):
         return False
 
-    if end - start >= 8:
+    if end - start >= WORKSPACE_EXCERPT_MAX_LINES:
         return False
 
     stripped = lines[end].strip()

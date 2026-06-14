@@ -1,0 +1,151 @@
+[project]
+name = "rstest-bdd-python-tooling"
+version = "0.0.0"
+description = "Python tooling environment for rstest-bdd helper scripts"
+requires-python = ">=3.13"
+dependencies = []
+
+[dependency-groups]
+python-tools = [
+    "cyclopts",
+    "plumbum",
+    "pylint",
+    "pytest",
+    "ruff",
+    "stilyagi",
+    "tomlkit",
+    "ty",
+]
+
+[tool.pylint.main]
+recursive = true
+max-module-lines = 400
+
+[tool.pylint.design]
+max-args = 4
+max-locals = 20
+max-statements = 70
+max-positional-arguments = 4
+
+[tool.pylint."messages control"]
+disable = [
+    "all",
+    # Managed PyPy can lag the requested CPython syntax; keep the PyPy-backed
+    # pass useful on files it can parse.
+    "syntax-error",
+]
+enable = [
+    # Logging format safety.
+    "logging-format-interpolation",
+    "logging-format-truncated",
+    "logging-fstring-interpolation",
+    "logging-not-lazy",
+    "logging-too-few-args",
+    "logging-too-many-args",
+    "logging-unsupported-format",
+
+    # Pattern matching correctness and readability.
+    "bare-name-capture-pattern",
+    "invalid-match-args-definition",
+    "match-class-bind-self",
+    "match-class-positional-attributes",
+    "multiple-class-sub-patterns",
+    "too-many-positional-sub-patterns",
+
+    # Control-flow simplification.
+    "chained-comparison",
+    "condition-evals-to-constant",
+    "consider-merging-isinstance",
+    "consider-swap-variables",
+    "consider-using-in",
+    "consider-using-max-builtin",
+    "consider-using-min-builtin",
+    "consider-using-sys-exit",
+    "consider-using-ternary",
+    "inconsistent-return-statements",
+    "no-else-break",
+    "no-else-continue",
+    "no-else-raise",
+    "no-else-return",
+    "redefined-argument-from-local",
+    "simplifiable-condition",
+    "simplifiable-if-expression",
+    "simplifiable-if-statement",
+    "simplify-boolean-expression",
+    "stop-iteration-return",
+    "super-with-arguments",
+    "trailing-comma-tuple",
+    "unnecessary-negation",
+    "useless-return",
+
+    # Collection and iterator idioms.
+    "consider-iterating-dictionary",
+    "consider-using-dict-comprehension",
+    "consider-using-dict-items",
+    "consider-using-enumerate",
+    "consider-using-f-string",
+    "consider-using-generator",
+    "consider-using-get",
+    "consider-using-join",
+    "consider-using-set-comprehension",
+    "unnecessary-comprehension",
+    "unnecessary-dict-index-lookup",
+    "unnecessary-list-index-lookup",
+    "use-a-generator",
+    "use-dict-literal",
+    "use-implicit-booleaness-not-comparison",
+    "use-implicit-booleaness-not-comparison-to-string",
+    "use-implicit-booleaness-not-len",
+    "use-list-literal",
+    "use-maxsplit-arg",
+    "use-sequence-for-iteration",
+    "use-yield-from",
+
+    # Runtime APIs, resources, and compatibility hazards.
+    "bad-open-mode",
+    "bad-thread-instantiation",
+    "boolean-datetime",
+    "consider-using-with",
+    "deprecated-argument",
+    "deprecated-attribute",
+    "deprecated-class",
+    "deprecated-decorator",
+    "deprecated-method",
+    "forgotten-debug-statement",
+    "invalid-envvar-default",
+    "invalid-envvar-value",
+    "method-cache-max-size-none",
+    "redundant-unittest-assert",
+    "shallow-copy-environ",
+    "singledispatch-method",
+    "singledispatchmethod-function",
+    "subprocess-popen-preexec-fn",
+    "subprocess-run-check",
+    "unnecessary-dunder-call",
+    "unnecessary-ellipsis",
+    "unspecified-encoding",
+
+    # Source layout and text hygiene.
+    "missing-final-newline",
+    "mixed-line-endings",
+    "superfluous-parens",
+    "trailing-newlines",
+    "trailing-whitespace",
+    "unexpected-line-ending-format",
+
+    # Mutation during iteration.
+    "modified-iterating-dict",
+    "modified-iterating-list",
+    "modified-iterating-set",
+
+    # Structural complexity limits.
+    "too-many-arguments",
+    "too-many-boolean-expressions",
+    "too-many-branches",
+    "too-many-lines",
+    "too-many-locals",
+    "too-many-nested-blocks",
+    "too-many-positional-arguments",
+    "too-many-public-methods",
+    "too-many-statements",
+]

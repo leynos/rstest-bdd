@@ -13,7 +13,6 @@ Example
 
 from __future__ import annotations
 
-import sys
 import tarfile
 import tempfile
 from pathlib import Path
@@ -151,9 +150,6 @@ def _extract_archive(archive_path: Path, destination: Path) -> None:
 def _extract_members(
     tar: tarfile.TarFile, destination: Path, safe_members: list[tarfile.TarInfo]
 ) -> None:
-    """Extract ``safe_members`` into ``destination`` with version-aware safety."""
-    extract_kwargs = {}
-    if sys.version_info >= (3, 12):
-        extract_kwargs["filter"] = "data"
+    """Extract ``safe_members`` into ``destination`` with tar data filtering."""
     for member in safe_members:
-        tar.extract(member, destination, **extract_kwargs)
+        tar.extract(member, destination, filter="data")

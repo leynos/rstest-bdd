@@ -344,7 +344,7 @@ def _archive_target_path(
     windows_path = pathlib.PureWindowsPath(path_name)
     if _is_rooted_path(posix_path, windows_path):
         return None
-    relative_parts = [part for part in posix_path.parts if part not in ("", ".")]
+    relative_parts = [part for part in posix_path.parts if part not in {"", "."}]
     return base_directory.joinpath(*relative_parts).resolve(strict=False)
 
 

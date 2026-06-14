@@ -268,7 +268,7 @@ def build_inline_dependency(
     dependency["version"] = version
     for key, item in extra_items:
         dependency[key] = item
-    dependency.trailing_comma = False
+    typ.cast("typ.Any", dependency).trailing_comma = False
     return dependency
 
 

@@ -87,7 +87,7 @@ def _convert_list_to_array(workspace: dict, members: list) -> Array:
     rebuilt_members = array()
     rebuilt_members.extend(members)
     workspace["members"] = rebuilt_members
-    return typ.cast("Array", rebuilt_members)
+    return rebuilt_members
 
 
 def _filter_workspace_members(members: Array) -> bool:
