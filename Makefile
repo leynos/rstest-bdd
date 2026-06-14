@@ -60,13 +60,13 @@ typecheck: build-python ## Run cargo and Python type checks with warnings denied
 forbid-async-trait: ## Ensure the async-trait crate and macro remain absent
 	python3 scripts/check_forbidden_async_trait.py
 
-fmt: ## Format Rust and Markdown sources
+fmt: build-python ## Format Rust and Markdown sources
 	$(CARGO) fmt --all
 	$(UV_ENV) $(UV) run ruff format $(PYTHON_TARGETS)
 	$(UV_ENV) $(UV) run ruff check --select I --fix $(PYTHON_TARGETS)
 	mdformat-all
 
-check-fmt: ## Verify formatting
+check-fmt: build-python ## Verify formatting
 	$(CARGO) fmt --all -- --check
 	$(UV_ENV) $(UV) run ruff format --check $(PYTHON_TARGETS)
 
