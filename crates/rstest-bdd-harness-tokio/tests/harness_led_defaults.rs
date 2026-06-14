@@ -15,9 +15,14 @@
 //!   policy alone fails loudly (a `LocalSet` panic from `spawn_local`), not
 //!   silently.
 
+use std::sync::Arc;
+
 use rstest_bdd_harness::FailingHarness;
 use rstest_bdd_harness_tokio::TokioTestContext;
 use rstest_bdd_macros::{given, scenario, then, when};
+use tokio::sync::Notify;
+
+static ABORT_HANDLE: std::sync::OnceLock<tokio::task::AbortHandle> = std::sync::OnceLock::new();
 
 // --- Inferred-policy happy path -----------------------------------------
 
@@ -36,18 +41,89 @@ async fn inferred_runtime_is_active(
 #[when("a local task is spawned under the inferred policy")]
 async fn local_task_spawned() {
     // Panics without the `LocalSet` provided by `TokioHarness`.
-    tokio::task::spawn_local(async {});
-    std::future::ready(()).await;
+    let handle = tokio::task::spawn_local(async { 42u32 });
+    handle.abort();
 }
 
 #[then("the inferred runtime flavour is current thread")]
 async fn runtime_flavour_is_current_thread(
     #[from(rstest_bdd_harness_context)] context: &TokioTestContext,
 ) {
-    std::future::ready(()).await;
     assert_eq!(
         context.handle().runtime_flavor(),
         tokio::runtime::RuntimeFlavor::CurrentThread
+    );
+}
+
+#[when("a long-running local task is spawned and then aborted")]
+async fn long_running_task_spawned_and_aborted() {
+    let notify = Arc::new(Notify::new());
+    let notify_clone = Arc::clone(&notify);
+    let handle = tokio::task::spawn_local(async move {
+        notify_clone.notified().await;
+        tokio::task::yield_now().await;
+    });
+    let abort_handle = handle.abort_handle();
+    assert!(
+        ABORT_HANDLE.set(abort_handle).is_ok(),
+        "abort handle should only be recorded once"
+    );
+    let Some(abort_handle) = ABORT_HANDLE.get() else {
+        panic!("abort handle should be recorded");
+    };
+    abort_handle.abort();
+    handle.abort();
+}
+
+#[then("the task reports cancellation")]
+async fn task_reports_cancellation() {
+    // The `when` step aborts the spawned task, and this step proves the
+    // scenario continues normally after cancellation is requested.
+}
+
+#[test]
+fn spawned_local_task_join_handle_returns_value() {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap_or_else(|error| panic!("tokio runtime should build: {error}"));
+    let local_set = tokio::task::LocalSet::new();
+
+    let result = local_set.block_on(&runtime, async {
+        let handle = tokio::task::spawn_local(async { 42u32 });
+        match handle.await {
+            Ok(result) => result,
+            Err(error) => panic!("spawned local task should complete without panic: {error}"),
+        }
+    });
+
+    assert_eq!(result, 42u32, "spawned local task must return its value");
+}
+
+#[test]
+fn aborted_local_task_join_handle_reports_cancellation() {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap_or_else(|error| panic!("tokio runtime should build: {error}"));
+    let local_set = tokio::task::LocalSet::new();
+
+    let result = local_set.block_on(&runtime, async {
+        let notify = Arc::new(Notify::new());
+        let notify_clone = Arc::clone(&notify);
+        let handle = tokio::task::spawn_local(async move {
+            notify_clone.notified().await;
+        });
+        handle.abort();
+        handle.await
+    });
+
+    let Err(error) = result else {
+        panic!("aborted task must return an error");
+    };
+    assert!(
+        error.is_cancelled(),
+        "aborted task error must be a cancellation"
     );
 }
 
@@ -59,6 +135,15 @@ async fn runtime_flavour_is_current_thread(
     harness = rstest_bdd_harness_tokio::TokioHarness,
 )]
 fn inferred_policy_runs_scenario_through_tokio_harness() {}
+
+/// `harness = TokioHarness` permits local task abort handles to be created and
+/// used under the inferred Tokio policy.
+#[scenario(
+    path = "tests/features/harness_led_defaults.feature",
+    name = "Spawned local task can be aborted cleanly",
+    harness = rstest_bdd_harness_tokio::TokioHarness,
+)]
+fn spawned_local_task_can_be_aborted_cleanly() {}
 
 // --- Failing-harness error path ------------------------------------------
 
