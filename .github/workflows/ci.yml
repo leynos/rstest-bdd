@@ -16,6 +16,7 @@ jobs:
       CODESCENE_CLI_SHA256: ${{ vars.CODESCENE_CLI_SHA256 }}
       RUSTFLAGS: -D warnings
       RUSTDOCFLAGS: -D warnings
+      LADING_REF: d3217a599ea34adad6a6e3845845fff2fe923758
     strategy:
       fail-fast: false
       matrix:

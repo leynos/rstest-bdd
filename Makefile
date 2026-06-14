@@ -15,6 +15,8 @@ ACRONYM_SCRIPT ?= scripts/update_acronym_allowlist.py
 UV ?= $(or $(shell command -v uv 2>/dev/null),$(HOME)/.local/bin/uv)
 UVX ?= $(or $(shell command -v uvx 2>/dev/null),$(HOME)/.local/bin/uvx)
 UV_ENV = UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools
+LADING_REF ?= d3217a599ea34adad6a6e3845845fff2fe923758
+LADING_SPEC ?= lading @ git+https://github.com/leynos/lading@$(LADING_REF)
 PYTHON_TARGETS ?= $(shell find scripts -maxdepth 1 -type f -name "*.py" -print | sort)
 PYLINT_TARGETS ?= $(PYTHON_TARGETS)
 
@@ -78,8 +80,8 @@ nixie:
 	# environment variable control for this option
 	nixie --no-sandbox
 
-publish-check: ## Package crates in release order to validate publish readiness
-	$(UV_ENV) $(UV) run lading publish --workspace-root .
+publish-check: build-python ## Package crates in release order to validate publish readiness
+	$(UV_ENV) $(UV) run --with "$(LADING_SPEC)" lading publish --workspace-root .
 
 update-ui-lints-lock: ## Refresh ui_lints trybuild lockfile for `--locked` CI
 	$(CARGO) generate-lockfile --manifest-path crates/rstest-bdd/tests/ui_lints/Cargo.toml
