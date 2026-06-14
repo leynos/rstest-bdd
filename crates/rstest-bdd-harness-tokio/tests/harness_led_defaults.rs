@@ -22,8 +22,6 @@ use rstest_bdd_harness_tokio::TokioTestContext;
 use rstest_bdd_macros::{given, scenario, then, when};
 use tokio::sync::Notify;
 
-static ABORT_HANDLE: std::sync::OnceLock<tokio::task::AbortHandle> = std::sync::OnceLock::new();
-
 // --- Inferred-policy happy path -----------------------------------------
 
 #[given("the inferred Tokio runtime is active")]
@@ -42,7 +40,11 @@ async fn inferred_runtime_is_active(
 async fn local_task_spawned() {
     // Panics without the `LocalSet` provided by `TokioHarness`.
     let handle = tokio::task::spawn_local(async { 42u32 });
-    handle.abort();
+    let result = match handle.await {
+        Ok(result) => result,
+        Err(error) => panic!("spawned local task should complete without panic: {error}"),
+    };
+    assert_eq!(result, 42u32, "spawned local task must return its value");
 }
 
 #[then("the inferred runtime flavour is current thread")]
@@ -61,24 +63,27 @@ async fn long_running_task_spawned_and_aborted() {
     let notify_clone = Arc::clone(&notify);
     let handle = tokio::task::spawn_local(async move {
         notify_clone.notified().await;
-        tokio::task::yield_now().await;
+        loop {
+            tokio::task::yield_now().await;
+        }
     });
-    let abort_handle = handle.abort_handle();
-    assert!(
-        ABORT_HANDLE.set(abort_handle).is_ok(),
-        "abort handle should only be recorded once"
-    );
-    let Some(abort_handle) = ABORT_HANDLE.get() else {
-        panic!("abort handle should be recorded");
-    };
-    abort_handle.abort();
     handle.abort();
+    let result = handle.await;
+    assert!(result.is_err(), "aborted task must return an error");
+    assert!(
+        result.unwrap_err().is_cancelled(),
+        "aborted task error must be a cancellation"
+    );
 }
 
 #[then("the task reports cancellation")]
 async fn task_reports_cancellation() {
-    // The `when` step aborts the spawned task, and this step proves the
-    // scenario continues normally after cancellation is requested.
+    // The `when` step verified cancellation; reaching this step proves the
+    // scenario continued normally after `abort()` and `await`.
+    assert!(
+        true,
+        "scenario must reach this step after task cancellation"
+    );
 }
 
 #[test]
