@@ -43,6 +43,7 @@ rstest-bdd-harness = { workspace = true, features = ["testing"] }
 trybuild.workspace = true
 proptest.workspace = true
 serial_test.workspace = true
+temp-env.workspace = true
 the-newtype = "0.1.1"
 tokio.workspace = true
 
