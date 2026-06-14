@@ -845,7 +845,6 @@ feature-gated regression suite in
 `crates/rstest-bdd-harness-gpui/tests/scenario_name_in_logs.rs` apply the
 attribute to every `GpuiHarness::run`-driving test.
 
-
 ## Canonical diagnostic publish path
 
 All LSP diagnostic publishing in `rstest-bdd-server` flows through the
