@@ -94,28 +94,10 @@ def normalise_table_row(row: str) -> str:
     return re.sub(r"\s+", " ", row).strip()
 
 
-def _collect_lines_until_peer(
-    lines: list[str],
-    start: int,
-    peer_pattern: re.Pattern[str],
+def _collect_section_lines(
+    lines: list[str], start: int, peer_pattern: re.Pattern[str]
 ) -> list[str]:
-    """
-    Collect lines until the next peer heading.
-
-    Parameters
-    ----------
-    lines : list[str]
-        Markdown document lines.
-    start : int
-        Index of the first line to collect.
-    peer_pattern : re.Pattern[str]
-        Compiled pattern that identifies the next peer heading.
-
-    Returns
-    -------
-    list[str]
-        Lines before the first matching peer heading.
-    """
+    """Collect lines from *start* until a same-or-higher-level heading."""
     section: list[str] = []
     for candidate in lines[start:]:
         if peer_pattern.match(candidate):
@@ -146,12 +128,37 @@ def find_section_after_heading(markdown: str, heading: str) -> list[str] | None:
     )
 
     for index, line in enumerate(lines):
-        if match := heading_pattern.match(line):
-            level = len(match.group("level"))
-            peer_pattern = re.compile(rf"^#{{1,{level}}}\s+")
-            return _collect_lines_until_peer(lines, index + 1, peer_pattern)
+        match = heading_pattern.match(line)
+        if match is None:
+            continue
+        level = len(match.group("level"))
+        peer_pattern = re.compile(rf"^#{{1,{level}}}\s+")
+        return _collect_section_lines(lines, index + 1, peer_pattern)
 
     return None
+
+
+def _collect_table_rows(section: list[str], start: int) -> list[str]:
+    """Return normalised data rows from *start*, stopping at the first non-row line."""
+    rows: list[str] = []
+    for row in section[start:]:
+        if not row.startswith("> |"):
+            break
+        rows.append(normalise_table_row(row))
+    return rows
+
+
+def _parse_table_at(section: list[str], header_index: int, heading: str) -> list[str]:
+    """Validate the separator row and return the validated data rows."""
+    separator_index = header_index + 1
+    if separator_index >= len(section) or not section[separator_index].startswith(
+        TABLE_SEPARATOR
+    ):
+        raise MappingTableError.separator_not_found(heading)
+    rows = _collect_table_rows(section, separator_index + 1)
+    if len(rows) != EXPECTED_DATA_ROWS:
+        raise MappingTableError.wrong_row_count(heading, len(rows))
+    return rows
 
 
 def extract_mapping_rows(markdown: str, heading: str) -> list[str]:
@@ -181,23 +188,8 @@ def extract_mapping_rows(markdown: str, heading: str) -> list[str]:
         raise MappingTableError.heading_not_found(heading)
 
     for index, line in enumerate(section):
-        if not line.startswith(TABLE_HEADER):
-            continue
-        separator_index = index + 1
-        if separator_index >= len(section) or not section[separator_index].startswith(
-            TABLE_SEPARATOR
-        ):
-            raise MappingTableError.separator_not_found(heading)
-
-        rows: list[str] = []
-        for row in section[separator_index + 1 :]:
-            if not row.startswith("> |"):
-                break
-            rows.append(normalise_table_row(row))
-
-        if len(rows) != EXPECTED_DATA_ROWS:
-            raise MappingTableError.wrong_row_count(heading, len(rows))
-        return rows
+        if line.startswith(TABLE_HEADER):
+            return _parse_table_at(section, index, heading)
 
     raise MappingTableError.table_not_found(heading)
 
