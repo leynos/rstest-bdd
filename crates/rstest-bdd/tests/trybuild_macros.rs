@@ -43,17 +43,28 @@ fn step_macros_compile() {
     if env::var_os("NEXTEST_RUN_ID").is_some() {
         return;
     }
-    let t = trybuild::TestCases::new();
+    // Prevent RUST_BACKTRACE from contaminating compiler diagnostic output.
+    // Trybuild snapshots are compared verbatim; CI's `RUST_BACKTRACE=short`
+    // injects backtrace fragments on Windows MSVC that diverge from the
+    // Linux-generated snapshots. Trybuild tests are about structured
+    // diagnostics, not runtime backtraces.
+    //
+    // `std::env::remove_var` is unsafe from Rust 1.87 onward, and this
+    // workspace forbids unsafe code. `temp_env` provides the same scoped
+    // mutation without weakening that lint.
+    temp_env::with_var_unset("RUST_BACKTRACE", || {
+        let t = trybuild::TestCases::new();
 
-    run_passing_macro_tests(&t);
-    run_failing_macro_tests(&t);
-    run_failing_ui_tests(&t);
-    run_lint_ui_tests();
-    t.compile_fail(
-        macros_fixture(MacroFixtureCase::from("scenarios_missing_dir.rs")).as_std_path(),
-    );
-    run_conditional_ordering_tests(&t);
-    run_conditional_ambiguous_step_test(&t);
+        run_passing_macro_tests(&t);
+        run_failing_macro_tests(&t);
+        run_failing_ui_tests(&t);
+        run_lint_ui_tests();
+        t.compile_fail(
+            macros_fixture(MacroFixtureCase::from("scenarios_missing_dir.rs")).as_std_path(),
+        );
+        run_conditional_ordering_tests(&t);
+        run_conditional_ambiguous_step_test(&t);
+    });
 }
 
 fn run_passing_macro_tests(t: &trybuild::TestCases) {
