@@ -105,8 +105,8 @@ jobs:
         uses: leynos/shared-actions/.github/actions/generate-coverage@aebb3f5b831102e2a10ef909c83d7d50ea86c332
         continue-on-error: true
         with:
-          output-path: lcov.info
-          format: lcov
+          output-path: coverage.xml
+          format: cobertura
           features: rstest-bdd/diagnostics rstest-bdd-server/test-support ${{ matrix.features }}
           with-default-features: ${{ matrix.with-default-features }}
           use-cargo-nextest: ${{ matrix.use-nextest }}
@@ -116,8 +116,8 @@ jobs:
         uses: leynos/shared-actions/.github/actions/generate-coverage@aebb3f5b831102e2a10ef909c83d7d50ea86c332
         continue-on-error: true
         with:
-          output-path: lcov.info
-          format: lcov
+          output-path: coverage.xml
+          format: cobertura
           features: rstest-bdd/diagnostics rstest-bdd-macros/compile-time-validation rstest-bdd-server/test-support
           with-default-features: ${{ matrix.with-default-features }}
           use-cargo-nextest: ${{ matrix.use-nextest }}
@@ -127,7 +127,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -s lcov.info
+          test -s coverage.xml
 
       - name: Publish dry run
         run: make publish-check
@@ -136,6 +136,6 @@ jobs:
         if: ${{ matrix.coverage && env.CS_ACCESS_TOKEN && matrix.tools && vars.CODESCENE_CLI_SHA256 }}
         uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@aebb3f5b831102e2a10ef909c83d7d50ea86c332
         with:
-          format: lcov
+          format: cobertura
           access-token: ${{ env.CS_ACCESS_TOKEN }}
           installer-checksum: ${{ vars.CODESCENE_CLI_SHA256 }}
