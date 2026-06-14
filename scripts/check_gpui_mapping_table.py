@@ -94,6 +94,36 @@ def normalise_table_row(row: str) -> str:
     return re.sub(r"\s+", " ", row).strip()
 
 
+def _collect_lines_until_peer(
+    lines: list[str],
+    start: int,
+    peer_pattern: re.Pattern[str],
+) -> list[str]:
+    """
+    Collect lines until the next peer heading.
+
+    Parameters
+    ----------
+    lines : list[str]
+        Markdown document lines.
+    start : int
+        Index of the first line to collect.
+    peer_pattern : re.Pattern[str]
+        Compiled pattern that identifies the next peer heading.
+
+    Returns
+    -------
+    list[str]
+        Lines before the first matching peer heading.
+    """
+    section: list[str] = []
+    for candidate in lines[start:]:
+        if peer_pattern.match(candidate):
+            break
+        section.append(candidate)
+    return section
+
+
 def find_section_after_heading(markdown: str, heading: str) -> list[str] | None:
     """
     Return the lines after a named heading and before the next same-level peer.
@@ -119,12 +149,7 @@ def find_section_after_heading(markdown: str, heading: str) -> list[str] | None:
         if match := heading_pattern.match(line):
             level = len(match.group("level"))
             peer_pattern = re.compile(rf"^#{{1,{level}}}\s+")
-            section: list[str] = []
-            for candidate in lines[index + 1 :]:
-                if peer_pattern.match(candidate):
-                    break
-                section.append(candidate)
-            return section
+            return _collect_lines_until_peer(lines, index + 1, peer_pattern)
 
     return None
 
