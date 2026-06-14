@@ -207,8 +207,8 @@ This means local development continues to use the latest in-tree `rstest-bdd-*`
 crates even after the same version exists on crates.io. During packaging, Cargo
 uses the version requirement for the published dependency surface. The GPUI
 shim uses the same approach: local builds use `vendor/gpui`, while the
-publish-check validator strips that path and checks `rstest-bdd-harness-gpui`
-against upstream `gpui`.
+`lading publish` release workflow strips local patches from the staged
+workspace before packaging against upstream `gpui`.
 
 External users should not copy the workspace paths. Downstream projects should
 depend on published crates by version only, for example

@@ -7,7 +7,8 @@ The users' guide and the design document both explain how the vendored
 This script catches doc-vs-doc drift between those two copies. It deliberately
 does not prove either table against the real published ``gpui`` API: local
 workspace builds use ``vendor/gpui`` through a path dependency, so that external
-surface is checked during release by ``scripts/publish_check_gpui*.py``.
+surface is checked during release by ``lading publish`` after the staged
+workspace strips local patch entries.
 
 Usage
 -----

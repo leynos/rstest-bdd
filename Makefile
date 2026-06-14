@@ -35,10 +35,8 @@ test: ## Run tests with warnings treated as errors
 	else \
 		RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) test $(CARGO_FLAGS) $(BUILD_JOBS); \
 	fi
-	# Exercise the Python release automation alongside the Rust suite.
-	$(UV) run --with pytest --with cyclopts --with plumbum --with tomlkit \
-		python -m pytest scripts/tests/publish_check \
-		scripts/tests/test_check_users_guide_links.py \
+	# Exercise the Python documentation helpers alongside the Rust suite.
+	$(UV_ENV) $(UV) run pytest scripts/tests/test_check_users_guide_links.py \
 		scripts/tests/test_check_gpui_mapping_table.py
 
 target/%/$(APP): ## Build binary in debug or release mode
@@ -81,7 +79,7 @@ nixie:
 	nixie --no-sandbox
 
 publish-check: ## Package crates in release order to validate publish readiness
-	$(UV) run scripts/run_publish_check.py
+	$(UV_ENV) $(UV) run lading publish --workspace-root .
 
 update-ui-lints-lock: ## Refresh ui_lints trybuild lockfile for `--locked` CI
 	$(CARGO) generate-lockfile --manifest-path crates/rstest-bdd/tests/ui_lints/Cargo.toml

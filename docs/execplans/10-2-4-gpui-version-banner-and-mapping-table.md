@@ -72,6 +72,11 @@ marked `[x]`.
   `make markdownlint` passes. The consistency gate (Stage D) is value-add that
   implements the roadmap's own dual-track note; it must not compromise the
   finish line and is subject to a go/no-go.
+- The 2026-06-14 follow-up maintenance scope intentionally widens beyond the
+  original 10.2.4 documentation files because the user asked to remove publish
+  scripts if `leynos/lading` makes them redundant. That follow-up may modify
+  release-tooling files, `lading.toml`, Python tooling metadata, and release
+  documentation, but it must still leave the original roadmap behaviour intact.
 - The table must continue to document exactly **four** API shape differences as
   named in the roadmap. The two additional real differences discovered (see
   Surprises) are recorded as `>`-quoted prose immediately after the table,
@@ -132,10 +137,9 @@ marked `[x]`.
   locked to reality by the regression suite
   `crates/rstest-bdd-harness-gpui/tests/stateful_window.rs`; the published
   column is verified out-of-band against the published crate source and the
-  verification is recorded in the Decision log. Optionally cross-reference the
-  existing publish-time validator (`scripts/publish_check_gpui*.py`), which
-  does build against the real published `gpui`, as the durable compile-time
-  anchor.
+  verification is recorded in the Decision log. The release workflow now runs
+  through `lading publish`, which stages the workspace and strips local patch
+  entries before packaging.
 - Risk: a markdownlint table-formatting rule (escaped pipes inside table cells,
   line length) rejects the edited row 2 or the new `>`-quoted prose. Severity:
   low. Likelihood: medium. Mitigation: keep the existing escaped-pipe (`\|`)
@@ -154,8 +158,8 @@ marked `[x]`.
   `gpui 0.2.3+` that changes the API mid-line would leave the table stale while
   the gate stays green. Severity: medium. Likelihood: medium. Mitigation: state
   this limitation in the script docstring and the developers-guide note; point
-  at `scripts/publish_check_gpui*.py` as the release-time reality check; record
-  the verification recipe so the next gpui bump re-checks the published column.
+  at `lading publish` as the release-time workflow; record the verification
+  recipe so the next gpui bump re-checks the published column.
 - Risk: scope creep into roadmap items 10.2.5–10.2.7 (lint-clean variant,
   nextest/serial note, bulk-migration cookbook), which share §2.7.6.2 and the
   same users'-guide region. Severity: low. Likelihood: medium. Mitigation: edit
@@ -191,6 +195,15 @@ marked `[x]`.
   helper scripts so the new deterministic gates pass before CodeRabbit review.
   Final CodeRabbit review completed with zero findings after the compatibility
   type contract for publish-check command output was made explicit.
+- [x] Follow-up maintenance — removed the local publish-check Python scripts on
+  2026-06-14 after confirming `lading publish` now owns the release workflow;
+  `make publish-check` delegates to `lading publish --workspace-root .`.
+  Deterministic gates passed: `make check-fmt`, `make lint-python`,
+  `make typecheck`, `make markdownlint`, `make lint`, `make test`, and
+  `make publish-check`. The `publish-check` run completed the `lading publish`
+  preflight, package, and `cargo publish --dry-run` phases for the eight
+  publishable crates, with `rstest-bdd-server` excluded by `lading.toml`.
+  CodeRabbit review completed after those gates with zero findings.
 
 ## Surprises & discoveries
 
@@ -256,6 +269,14 @@ marked `[x]`.
   failed until the dataclass contract was widened to `str | bytes` and output
   rendering decoded bytes with replacement. Impact: the compatibility behaviour
   is retained, and `ty` now sees the same contract the tests already covered.
+- Observation: `lading` now provides a first-class `publish` command with
+  preflight checks, staging, patch stripping, publish ordering, dry-run
+  publishing, live publishing, and already-published handling. Evidence:
+  `lading/commands/publish*.py` in `leynos/lading` at
+  `d3217a599ea34adad6a6e3845845fff2fe923758` covers those responsibilities.
+  Impact: the repository-local publish-check orchestration scripts and tests
+  are redundant and were removed; only `lading.toml` keeps the rstest-bdd
+  publish order and `rstest-bdd-server` exclusion local to this repository.
 
 ## Decision log
 
@@ -300,12 +321,12 @@ marked `[x]`.
   nuisance on unrelated doc PRs. Date/Author: 2026-06-13, planning agent
   (post-panel).
 - Decision: state the gate's scope honestly — it catches doc-vs-doc drift, not
-  drift from the real published `gpui`, which is checked at release time by
-  `scripts/publish_check_gpui*.py`. Capture the published-column verification
-  recipe in `docs/developers-guide.md` for the next gpui bump. Rationale: the
-  panel (Doggylump 🐶, Wafflecat 🐈🧇, Dinolump 🦕) warned the gate could give
-  false assurance and that the hand verification is labour-intensive to repeat.
-  Date/Author: 2026-06-13, planning agent (post-panel).
+  drift from the real published `gpui`; the current release workflow is
+  `lading publish`. Capture the published-column verification recipe in
+  `docs/developers-guide.md` for the next gpui bump. Rationale: the panel
+  warned the gate could give false assurance and that the hand verification is
+  labour-intensive to repeat. Date/Author: 2026-06-13, planning agent
+  (post-panel; updated 2026-06-14 for `lading publish`).
 - Decision: keep Stage D a genuine go/no-go and rely on Stages A–C plus
   `make markdownlint` for the finish line. Rationale: the roadmap finish line
   is narrow ("banner+table in both docs; markdownlint passes"); siblings
@@ -318,9 +339,9 @@ marked `[x]`.
   workspace. Rationale: the workspace pins `gpui` to `vendor/gpui` via a `path`
   dependency, so the published API cannot be exercised here. The vendored
   column is already covered by `stateful_window.rs`; the published column is
-  verified out-of-band and may be cross-referenced to
-  `scripts/publish_check_gpui*.py`, which builds against the real published
-  crate at release time. Date/Author: 2026-06-13, planning agent.
+  verified out-of-band and the release workflow now runs through
+  `lading publish`. Date/Author: 2026-06-13, planning agent (updated
+  2026-06-14 for `lading publish`).
 - Decision (testing rigour): apply pytest unit tests to the new consistency
   script and rely on the existing GPUI regression suite for the vendored
   column; do not add rstest unit tests, rust-rspec/`rstest-bdd` behavioural
@@ -352,6 +373,11 @@ marked `[x]`.
   wholesale move would break the script's practical interface; a facade split
   satisfies the template's module-size and type-checking requirements without
   changing caller behaviour. Date/Author: 2026-06-14, implementing agent.
+- Decision: retire the local publish-check facade and helper modules in favour
+  of `lading publish`. Rationale: `lading` is now the shared release workflow
+  implementation, so carrying duplicate publish orchestration in this
+  repository adds maintenance burden and conflicting behaviour risk.
+  Date/Author: 2026-06-14, implementing agent.
 
 ### Research provenance (published gpui 0.2.2)
 
@@ -447,9 +473,8 @@ Stable anchors for a new reader:
   `make lint` (`Makefile:45`), with its pytest at
   `scripts/tests/test_check_users_guide_links.py` (run by `make test`,
   `Makefile:36`).
-- Publish-time validator that builds against the real published gpui:
-  `scripts/publish_check_gpui.py`, `scripts/publish_check_gpui_manifest.py`,
-  run via `scripts/run_publish_check.py` (`Makefile:70`).
+- Release-time workflow: `make publish-check` runs `lading publish
+  --workspace-root .` using `lading.toml` for publish order and patch stripping.
 
 ### The corrected, shared table
 
@@ -644,9 +669,8 @@ parsing is the main design risk (the panel pre-mortem flagged escaped pipes,
   *doc-vs-doc* drift (the two copies disagreeing). It does **not** verify
   either copy against the real published `gpui` — that cannot be done
   in-workspace because `gpui` is pinned to `vendor/gpui`. The published
-  column's compile-time anchor is the release-time validator
-  `scripts/publish_check_gpui*.py`; name it in the docstring so a future
-  maintainer knows where reality is checked.
+  column's release-time anchor is `lading publish`; name it in the docstring so
+  a future maintainer knows where reality is checked.
 
 Add `scripts/tests/test_check_gpui_mapping_table.py` mirroring
 `scripts/tests/test_check_users_guide_links.py`: cover (a) the pass case
@@ -855,11 +879,11 @@ module and its test, and one `make lint` invocation line:
   extracting the published `gpui` crate tarball at the next gpui bump (with the
   `git show <commit>:crates/gpui/src/app/test_context.rs` recipe recorded).
 
-It depends on, and must stay consistent with, these existing surfaces (not
-modified): the vendored fork under `vendor/gpui`; the regression suite
-`crates/rstest-bdd-harness-gpui/tests/stateful_window.rs`; the publish-time
-validator `scripts/publish_check_gpui*.py`; and the Make gate targets
-`markdownlint`, `lint`, `check-fmt`, `test`.
+It depends on, and must stay consistent with, these existing surfaces: the
+vendored fork under `vendor/gpui`; the regression suite
+`crates/rstest-bdd-harness-gpui/tests/stateful_window.rs`; `lading.toml`; and
+the Make gate targets `markdownlint`, `lint`, `check-fmt`, `test`, and
+`publish-check`.
 
 ## Reference and skill signposts
 
@@ -899,7 +923,7 @@ validator `scripts/publish_check_gpui*.py`; and the Make gate targets
     anchor by heading, compare normalised whole data rows (no `\|` splitting),
     with a whitespace-only pytest case proving `make fmt` reflow cannot trip it;
     (3) the gate's scope is stated honestly (doc-vs-doc only, not external gpui
-    drift) and cross-references `scripts/publish_check_gpui*.py`; (4) Stage A
+    drift) and cross-references `lading publish`; (4) Stage A
     gains explicit vendored-arity and prose-audit greps; (5) Stage B's fallback
     grep now accounts for escaped pipes and is secondary to the Stage D check;
     (6) Stage F carries the exact roadmap delivery-note wording; (7) a

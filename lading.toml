@@ -1,18 +1,13 @@
-[bump]
-exclude = ["gpui", "gpui-macros"]
-
-[bump.documentation]
-globs = ["README.md", "docs/users-guide.md", "docs/lading-users-guide.md"]
-
 [publish]
+exclude = ["rstest-bdd-server"]
 order = [
-    "rstest-bdd-harness",
     "rstest-bdd-patterns",
     "rstest-bdd-policy",
-    "rstest-bdd-macros",
-    "rstest-bdd",
+    "rstest-bdd-harness",
     "rstest-bdd-harness-gpui",
     "rstest-bdd-harness-tokio",
-    "rstest-bdd-server",
+    "rstest-bdd-macros",
+    "rstest-bdd",
     "cargo-bdd",
 ]
+strip_patches = "per-crate"

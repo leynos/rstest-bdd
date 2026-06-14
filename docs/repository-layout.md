@@ -14,6 +14,8 @@ where to place code, tests, examples, documentation, and support automation.
   versions, features, and member crates.
 - [Makefile](../Makefile) provides the canonical quality-gate targets. Prefer
   these targets over running the underlying tools directly.
+- [lading.toml](../lading.toml) configures `lading publish` release ordering
+  and patch-stripping policy for the `make publish-check` gate.
 - [README.md](../README.md) is the public project introduction and quick-start
   reference.
 - [CONTRIBUTING.md](../CONTRIBUTING.md) explains contribution expectations for
@@ -82,9 +84,8 @@ truth for requirements, design rationale, process notes, and planning.
 - [.cargo](../.cargo/) contains Cargo configuration, including nextest policy.
 - [.config](../.config/) contains tool configuration used by the local and CI
   workflows.
-- [scripts](../scripts/) contains repository automation, release checks, and
-  policy-enforcement scripts. Tests for these scripts live in
-  [scripts/tests](../scripts/tests/).
+- [scripts](../scripts/) contains repository automation and policy-enforcement
+  scripts. Tests for these scripts live in [scripts/tests](../scripts/tests/).
 - [.markdownlint-cli2.jsonc](../.markdownlint-cli2.jsonc) configures Markdown
   linting.
 - [.vale.ini](../.vale.ini) configures prose linting.

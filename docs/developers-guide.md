@@ -34,15 +34,14 @@ instead.
 Do not restore root-level `[patch.crates-io]` entries for normal development.
 Patches make local resolution differ from publish-time resolution and can hide
 registry-only failures. If a temporary patch is required for a one-off
-diagnostic, remove it before committing or teach the publish-check automation
-to strip it explicitly.
+diagnostic, remove it before committing or configure `lading.toml` so
+`lading publish` strips it from staged release workspaces.
 
 The GPUI test shim follows the same pattern. The workspace dependency for
 `gpui` points at `vendor/gpui` with a matching crates.io version, so local
-tests use the stable-compatible shim. The publish-check GPUI package validator
-strips that local path when it generates the standalone harness manifest, so
-`rstest-bdd-harness-gpui` is still checked against the upstream `gpui`
-dependency surface before publication.
+tests use the stable-compatible shim. `lading publish` stages the workspace and
+strips local patch entries before packaging, so the staged release surface uses
+the upstream `gpui` dependency declaration before publication.
 
 ## Staging fixtures for trybuild tests
 
@@ -191,11 +190,10 @@ normalization, so doc-vs-doc drift fails locally and in Continuous
 Integration (CI).
 
 This check does not prove the published column against crates.io. Local
-workspace builds resolve `gpui` to `vendor/gpui`, while the published crate is
-checked at release time by `scripts/publish_check_gpui.py` and
-`scripts/publish_check_gpui_manifest.py`. When the workspace bumps GPUI,
-re-verify the published column from the published crate source before editing
-the table. One reproducible path is:
+workspace builds resolve `gpui` to `vendor/gpui`, while release validation now
+runs through `lading publish`, which strips local patch entries in the staged
+workspace. When the workspace bumps GPUI, re-verify the published column from
+the published crate source before editing the table. One reproducible path is:
 
 ```bash
 mkdir -p /tmp/rstest-bdd-gpui-check

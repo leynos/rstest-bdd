@@ -14,66 +14,37 @@ After bumping workspace versions:
   dependencies introduced since the last release.
 
 `rstest-bdd-harness-gpui` remains developed against the workspace-local GPUI
-shim through a `version` plus `path` workspace dependency, so the main
-repository stays free of `async-trait` during local development without
-reintroducing a root `[patch.crates-io]` table. The publish-check automation
-synthesizes a standalone package artifact for the crate and compiles a
-generated validator crate against the upstream `gpui` dependency, so the
-crates.io dependency surface is verified before publication.
+shim through a `version` plus `path` workspace dependency, so local builds use
+the stable-compatible shim while the publish path still declares the matching
+crates.io `gpui` version.
 
 1. **Run the full quality gate.** Execute `make fmt`, `make lint`,
    `make markdownlint`, and `make test` from the workspace root. Resolve any
    failures before proceeding.
-2. **Publish `rstest-bdd-patterns`.**
-   - `cd crates/rstest-bdd-patterns`
-   - `cargo publish --dry-run`
-   - `cargo publish`
-3. **Publish `rstest-bdd-policy`.**
-   - `cd crates/rstest-bdd-policy`
-   - `cargo publish --dry-run`
-   - `cargo publish`
-4. **Publish `rstest-bdd-harness`.**
-   - `cd crates/rstest-bdd-harness`
-   - `cargo publish --dry-run`
-   - `cargo publish`
-5. **Publish `rstest-bdd-harness-gpui`.**
-   - `cd crates/rstest-bdd-harness-gpui`
-   - `cargo publish --dry-run`
-   - `cargo publish`
-6. **Publish `rstest-bdd-harness-tokio`.**
-   - `cd crates/rstest-bdd-harness-tokio`
-   - `cargo publish --dry-run`
-   - `cargo publish`
-7. **Publish `rstest-bdd-macros`.**
-   - `cd crates/rstest-bdd-macros`
-   - `cargo publish --dry-run`
-   - `cargo publish`
-8. **Publish `rstest-bdd`.**
-   - `cd crates/rstest-bdd`
-   - `cargo publish --dry-run`
-   - `cargo publish`
-9. **Publish `cargo-bdd`.** This binary depends on the `rstest-bdd`
-   diagnostics feature, so wait until crates.io finishes indexing the library
-   release before packaging it.
-   - `cd crates/cargo-bdd`
-   - Optionally run `cargo install --path . --locked` from the same directory to
-     validate that the crate installs correctly before publishing.
-   - `cargo publish --dry-run --locked`
-   - `cargo publish --locked`
-10. **Tag the release.** Create a git tag matching the published version and
+2. **Run the publish dry run.** Execute `make publish-check`, which delegates to
+   `lading publish --workspace-root .` using the release order in
+   `lading.toml`.
+3. **Publish the crates.** Execute `uv run lading publish --workspace-root .
+   --live` from the workspace root. The configured order is:
+
+   - `rstest-bdd-patterns`
+   - `rstest-bdd-policy`
+   - `rstest-bdd-harness`
+   - `rstest-bdd-harness-gpui`
+   - `rstest-bdd-harness-tokio`
+   - `rstest-bdd-macros`
+   - `rstest-bdd`
+   - `cargo-bdd`
+
+   `rstest-bdd-server` remains excluded from publication by `lading.toml`.
+4. **Tag the release.** Create a git tag matching the published version and
    push it to the repository.
 
     - `git tag -a vX.Y.Z -m "rstest-bdd vX.Y.Z"`
     - `git push origin vX.Y.Z`
 
-The manual steps above are now automated by
-`uv run scripts/run_publish_check.py --live`, which exports a clean copy of the
-workspace, rewrites manifests to target crates.io, and then executes the
-`cargo publish` commands in the required order. The dry-run workflow also
-builds a standalone archive for `rstest-bdd-harness-gpui` and compiles a
-generated validator crate against upstream `gpui`, while the live workflow
-preserves the `--dry-run` guard rails before each publish invocation and applies
-`--locked` for `cargo-bdd`.
-
-Cargo enforces that published dependencies already exist on crates.io. This is
-why the crates must be released in the order shown above.
+`lading publish` stages a clean workspace copy, strips local patches according
+to `publish.strip_patches = "per-crate"`, runs pre-flight Cargo checks, and
+then packages and publishes crates in the configured order. Cargo enforces that
+published dependencies already exist on crates.io. This is why the crates must
+be released in the order shown above.

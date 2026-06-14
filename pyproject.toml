@@ -7,13 +7,11 @@ dependencies = []
 
 [dependency-groups]
 python-tools = [
-    "cyclopts",
-    "plumbum",
+    "lading @ git+https://github.com/leynos/lading@d3217a599ea34adad6a6e3845845fff2fe923758",
     "pylint",
     "pytest",
     "ruff",
     "stilyagi",
-    "tomlkit",
     "ty",
 ]
 
