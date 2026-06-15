@@ -22,8 +22,10 @@ crates.io `gpui` version.
    `make markdownlint`, and `make test` from the workspace root. Resolve any
    failures before proceeding.
 2. **Run the publish dry run.** Execute `make publish-check`, which delegates to
-   `lading publish --workspace-root .` using the release order in
-   `lading.toml`.
+   `lading publish --workspace-root . --allow-unpublished-workspace-deps` using
+   the release order in `lading.toml`. The unpublished-workspace override is
+   for dry runs only; it lets CI validate a release train whose workspace crates
+   share a new version before any crate has been uploaded.
 3. **Publish the crates.** Execute `uv run lading publish --workspace-root .
    --live` from the workspace root. The configured order is:
 

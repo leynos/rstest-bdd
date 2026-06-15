@@ -81,7 +81,7 @@ nixie:
 	nixie --no-sandbox
 
 publish-check: build-python ## Package crates in release order to validate publish readiness
-	$(UV_ENV) $(UV) run --with "$(LADING_SPEC)" lading publish --workspace-root .
+	$(UV_ENV) $(UV) run --with "$(LADING_SPEC)" lading publish --workspace-root . --allow-unpublished-workspace-deps
 
 update-ui-lints-lock: ## Refresh ui_lints trybuild lockfile for `--locked` CI
 	$(CARGO) generate-lockfile --manifest-path crates/rstest-bdd/tests/ui_lints/Cargo.toml

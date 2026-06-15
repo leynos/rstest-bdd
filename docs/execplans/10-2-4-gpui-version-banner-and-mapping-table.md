@@ -209,6 +209,10 @@ marked `[x]`.
   `rstest-bdd-harness-gpui` and `rstest-bdd-harness-tokio`. The framework
   harness crates depend on those crates directly or as dev-dependencies, and
   `cargo package` resolves dev-dependencies during live release packaging.
+- [x] Follow-up maintenance — updated `make publish-check` on 2026-06-15 to
+  pass `--allow-unpublished-workspace-deps` to `lading publish`. This keeps the
+  dry-run gate useful for version-bump release trains where missing dependency
+  versions are part of the same planned workspace publish set.
 
 ## Surprises & discoveries
 
@@ -290,6 +294,12 @@ marked `[x]`.
   `cargo package` resolves dev-dependencies. Impact: the publish order now
   places `rstest-bdd-macros` and `rstest-bdd` before both framework harness
   crates to avoid failures when releasing a version not yet on crates.io.
+- Observation: dry-run publishing still checks the live crates.io index for
+  workspace dependency versions. Evidence: the local lading guide documents
+  `--allow-unpublished-workspace-deps` as the dry-run and CI override when the
+  missing dependency is itself in the planned publish set. Impact:
+  `make publish-check` now passes that override so version-bump PRs can be
+  validated before any crate in the release train is published.
 
 ## Decision log
 
@@ -397,6 +407,11 @@ marked `[x]`.
   so the framework harness crates must not be packaged before the core crates
   they require are available from crates.io. Date/Author: 2026-06-15,
   implementing agent.
+- Decision: pass `--allow-unpublished-workspace-deps` from `make publish-check`
+  but not from the documented live publish command. Rationale: this target is
+  the dry-run/CI gate, and lading scopes the override to planned workspace
+  crates that are not yet available in the live index. Date/Author:
+  2026-06-15, implementing agent.
 
 ### Research provenance (published gpui 0.2.2)
 
