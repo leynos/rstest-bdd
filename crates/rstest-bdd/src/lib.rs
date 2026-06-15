@@ -45,7 +45,9 @@ mod types;
 #[cfg(feature = "test-support")]
 pub mod test_support;
 
-pub use context::{FixtureRef, FixtureRefMut, RSTEST_BDD_HARNESS_CONTEXT_FIXTURE, StepContext};
+pub use context::{
+    FixtureBorrowError, FixtureRef, FixtureRefMut, RSTEST_BDD_HARNESS_CONTEXT_FIXTURE, StepContext,
+};
 pub use localization::{
     LocalizationError, Localizations, current_languages, install_localization_loader,
     select_localizations,
