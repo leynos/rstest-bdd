@@ -30,10 +30,10 @@ crates.io `gpui` version.
    - `rstest-bdd-patterns`
    - `rstest-bdd-policy`
    - `rstest-bdd-harness`
-   - `rstest-bdd-harness-gpui`
-   - `rstest-bdd-harness-tokio`
    - `rstest-bdd-macros`
    - `rstest-bdd`
+   - `rstest-bdd-harness-gpui`
+   - `rstest-bdd-harness-tokio`
    - `cargo-bdd`
 
    `rstest-bdd-server` remains excluded from publication by `lading.toml`.

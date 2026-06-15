@@ -4,10 +4,10 @@ order = [
     "rstest-bdd-patterns",
     "rstest-bdd-policy",
     "rstest-bdd-harness",
-    "rstest-bdd-harness-gpui",
-    "rstest-bdd-harness-tokio",
     "rstest-bdd-macros",
     "rstest-bdd",
+    "rstest-bdd-harness-gpui",
+    "rstest-bdd-harness-tokio",
     "cargo-bdd",
 ]
 strip_patches = "per-crate"

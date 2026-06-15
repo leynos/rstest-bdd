@@ -204,6 +204,11 @@ marked `[x]`.
   preflight, package, and `cargo publish --dry-run` phases for the eight
   publishable crates, with `rstest-bdd-server` excluded by `lading.toml`.
   CodeRabbit review completed after those gates with zero findings.
+- [x] Follow-up maintenance — corrected the `lading.toml` publish order on
+  2026-06-15 so `rstest-bdd-macros` and `rstest-bdd` publish before
+  `rstest-bdd-harness-gpui` and `rstest-bdd-harness-tokio`. The framework
+  harness crates depend on those crates directly or as dev-dependencies, and
+  `cargo package` resolves dev-dependencies during live release packaging.
 
 ## Surprises & discoveries
 
@@ -277,6 +282,14 @@ marked `[x]`.
   Impact: the repository-local publish-check orchestration scripts and tests
   are redundant and were removed; only `lading.toml` keeps the rstest-bdd
   publish order and `rstest-bdd-server` exclusion local to this repository.
+- Observation: live releases must publish `rstest-bdd-macros` and `rstest-bdd`
+  before the framework harness crates. Evidence: `rstest-bdd-harness-gpui` has
+  a normal dependency on `rstest-bdd`, and both `rstest-bdd-harness-gpui` and
+  `rstest-bdd-harness-tokio` dev-depend on `rstest-bdd` and
+  `rstest-bdd-macros`; `lading publish --live` follows `publish.order`, and
+  `cargo package` resolves dev-dependencies. Impact: the publish order now
+  places `rstest-bdd-macros` and `rstest-bdd` before both framework harness
+  crates to avoid failures when releasing a version not yet on crates.io.
 
 ## Decision log
 
@@ -378,6 +391,12 @@ marked `[x]`.
   implementation, so carrying duplicate publish orchestration in this
   repository adds maintenance burden and conflicting behaviour risk.
   Date/Author: 2026-06-14, implementing agent.
+- Decision: publish `rstest-bdd-macros` and `rstest-bdd` before
+  `rstest-bdd-harness-gpui` and `rstest-bdd-harness-tokio`. Rationale: live
+  release packaging resolves dev-dependencies as well as normal dependencies,
+  so the framework harness crates must not be packaged before the core crates
+  they require are available from crates.io. Date/Author: 2026-06-15,
+  implementing agent.
 
 ### Research provenance (published gpui 0.2.2)
 
