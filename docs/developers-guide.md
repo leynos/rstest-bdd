@@ -116,23 +116,21 @@ The file sets the timeout policy for the test suite:
   (`terminate-after = 1`, 5 s grace period) and applies a 5 m `global-timeout`
   to the whole run.
 - A `[[profile.default.overrides]]` entry raises the `slow-timeout` to 180 s
-  for `cargo-bdd::cli`, whose smoke tests spawn `cargo` to build fixture
-  crates and can legitimately exceed 60 s on cold caches.
+  for `cargo-bdd::cli`, whose smoke tests spawn `cargo` to build fixture crates
+  and can legitimately exceed 60 s on cold caches.
 - A second override applies the same 180 s `slow-timeout` to the
   trybuild-based compile-test binaries:
   `rstest-bdd-harness-tokio::macro_compile`,
-  `rstest-bdd-harness-gpui::macro_compile`, and
-  `rstest-bdd::trybuild_macros`. These tests invoke `cargo build` against a
-  large dependency tree, so a cold cache (or CPU contention when several
-  compile tests run concurrently) can push a single test well past the
-  default limit even though nothing is wrong.
+  `rstest-bdd-harness-gpui::macro_compile`, and `rstest-bdd::trybuild_macros`.
+  These tests invoke `cargo build` against a large dependency tree, so a cold
+  cache (or CPU contention when several compile tests run concurrently) can
+  push a single test well past the default limit even though nothing is wrong.
 - A `long` profile (`--profile long`) relaxes the limits further (180 s
   `slow-timeout`, 15 m `global-timeout`) for deliberately slow local runs.
 
 When adding a test binary that shells out to `cargo`, extend the relevant
-override's `filter` expression rather than raising the default
-`slow-timeout`: the tight default is what surfaces genuinely hung tests
-quickly.
+override's `filter` expression rather than raising the default `slow-timeout`:
+the tight default is what surfaces genuinely hung tests quickly.
 
 ## nextest on Windows: trybuild deadlock
 
@@ -149,9 +147,9 @@ Mitigation:
   matrix legs (see `.github/workflows/ci.yml`). Windows coverage runs use
   `cargo llvm-cov test` (libtest) instead.
 - `.config/nextest.toml` raises the `slow-timeout` for the trybuild
-  compile-test binaries (including both `macro_compile` binaries) to 180 s as
-  a local-development safety net. This does not fix the deadlock; it only
-  delays termination to allow the build to complete on fast machines.
+  compile-test binaries (including both `macro_compile` binaries) to 180 s as a
+  local-development safety net. This does not fix the deadlock; it only delays
+  termination to allow the build to complete on fast machines.
 - Do not add `macro_compile`-style tests (tests that spawn `cargo` via
   `trybuild` or `cargo_metadata`) to nextest-managed binaries intended to run
   on Windows.
@@ -159,17 +157,17 @@ Mitigation:
 ## Users-guide link validation (`scripts/check_users_guide_links.py`)
 
 `docs/users-guide.md` is vendored into consumer projects, so its
-cross-references to other documents in this repository use absolute GitHub
-URLs (collected as reference-style definitions at the bottom of the file)
-rather than relative paths. `scripts/check_users_guide_links.py`, run
-automatically by `make lint`, keeps those URLs honest:
+cross-references to other documents in this repository use absolute GitHub URLs
+(collected as reference-style definitions at the bottom of the file) rather
+than relative paths. `scripts/check_users_guide_links.py`, run automatically by
+`make lint`, keeps those URLs honest:
 
 - Every repository reference must start with the canonical base URL recorded
   in the script's `BASE_URL` constant (currently
   `https://github.com/leynos/rstest-bdd/blob/main/docs/`). If the repository
-  moves, the default branch is renamed, or the documents relocate, update
-  that one constant and the reference block; the check pinpoints every
-  definition that disagrees.
+  moves, the default branch is renamed, or the documents relocate, update that
+  one constant and the reference block; the check pinpoints every definition
+  that disagrees.
 - Each link must resolve to an existing file under `docs/`, and any `#`
   fragment must match a heading anchor in the target document (the script
   derives anchors with GitHub's slug rules). Prefer heading fragments over
@@ -177,10 +175,10 @@ automatically by `make lint`, keeps those URLs honest:
 - The check also fails if the guide contains no repository references at
   all, so a reformat cannot silently defang it.
 
-Non-repository URLs (for example docs.rs links) are ignored. Unit tests live
-in `scripts/tests/test_check_users_guide_links.py` and run with the Python
-suite in `make test`. Issue #537 tracks generating the reference block from
-`BASE_URL` so the base lives in exactly one place.
+Non-repository URLs (for example docs.rs links) are ignored. Unit tests live in
+`scripts/tests/test_check_users_guide_links.py` and run with the Python suite in
+`make test`. Issue #537 tracks generating the reference block from `BASE_URL`
+so the base lives in exactly one place.
 
 ## Test organization: harness-owned integration tests
 
@@ -730,8 +728,8 @@ attribute to every `GpuiHarness::run`-driving test.
 `rstest_bdd_server::handlers::util::has_extension(path, ext)` is the single
 canonical predicate for testing a path's file extension in handler code. It
 compares the path's final extension against `ext` (supplied without a leading
-dot) using ASCII case-insensitive equality, and returns `false` for paths
-with no extension.
+dot) using ASCII case-insensitive equality, and returns `false` for paths with
+no extension.
 
 - **Ownership:** the helper lives in `handlers/util.rs` and is owned by the
   language-server handler layer.
@@ -745,5 +743,5 @@ with no extension.
   call-site.
 
 Invariants (ASCII-case insensitivity, rejection of differing extensions, and
-behaviour for missing, repeated, and trailing dots) are pinned by the
-property suite in `crates/rstest-bdd-server/tests/has_extension_props.rs`.
+behaviour for missing, repeated, and trailing dots) are pinned by the property
+suite in `crates/rstest-bdd-server/tests/has_extension_props.rs`.

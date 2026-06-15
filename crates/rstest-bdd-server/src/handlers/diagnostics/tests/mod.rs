@@ -24,25 +24,30 @@ fn scenario_builder() -> ScenarioBuilder {
 }
 
 /// Helper to compute feature diagnostics for a path.
-#[expect(
-    clippy::expect_used,
-    reason = "test helper requires explicit panic for debugging failures"
-)]
 fn compute_feature_diagnostics_for_path(
     state: &ServerState,
     feature_path: &Path,
-) -> Vec<Diagnostic> {
-    let feature_index = state.feature_index(feature_path).expect("feature index");
-    compute_unimplemented_step_diagnostics(state, feature_index)
+) -> Result<Vec<Diagnostic>, Box<dyn std::error::Error>> {
+    let feature_index = state.feature_index(feature_path).ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("feature index missing for {}", feature_path.display()),
+        )
+    })?;
+    Ok(compute_unimplemented_step_diagnostics(state, feature_index))
 }
 
-fn assert_feature_has_no_unimplemented_steps(state: &ServerState, feature_path: &Path) {
-    let diags = compute_feature_diagnostics_for_path(state, feature_path);
+fn assert_feature_has_no_unimplemented_steps(
+    state: &ServerState,
+    feature_path: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let diags = compute_feature_diagnostics_for_path(state, feature_path)?;
     assert!(
         diags.is_empty(),
         "expected no unimplemented steps, found {}",
         diags.len()
     );
+    Ok(())
 }
 
 fn assert_rust_has_no_unused_steps(state: &ServerState, rust_path: &Path) {
@@ -55,23 +60,13 @@ fn assert_rust_has_no_unused_steps(state: &ServerState, rust_path: &Path) {
 }
 
 /// Asserts exactly one diagnostic exists with the expected code and returns it.
-#[expect(
-    clippy::expect_used,
-    reason = "test helper - diagnostics.len() was asserted to be 1 above"
-)]
 fn assert_single_diagnostic_with_code<'a>(
     diagnostics: &'a [Diagnostic],
     expected_code: &str,
 ) -> &'a Diagnostic {
-    assert_eq!(
-        diagnostics.len(),
-        1,
-        "expected exactly 1 diagnostic, found {}",
-        diagnostics.len()
-    );
-    let diag = diagnostics
-        .first()
-        .expect("diagnostics.len() was asserted to be 1 above");
+    let [diag] = diagnostics else {
+        panic!("expected exactly 1 diagnostic, found {}", diagnostics.len());
+    };
     assert_eq!(
         diag.code,
         Some(lsp_types::NumberOrString::String(expected_code.to_owned())),
@@ -92,11 +87,9 @@ fn assert_diagnostic_message_contains(diag: &Diagnostic, fragments: &[&str]) {
 }
 
 #[rstest]
-#[expect(
-    clippy::expect_used,
-    reason = "test requires explicit panic for debugging failures"
-)]
-fn unimplemented_step_produces_diagnostic(scenario_builder: ScenarioBuilder) {
+fn unimplemented_step_produces_diagnostic(
+    scenario_builder: ScenarioBuilder,
+) -> Result<(), Box<dyn std::error::Error>> {
     let scenario = scenario_builder.with_single_file_pair(
         "Feature: test\n  Scenario: s\n    Given an unimplemented step\n",
         concat!(
@@ -106,30 +99,20 @@ fn unimplemented_step_produces_diagnostic(scenario_builder: ScenarioBuilder) {
         ),
     );
 
-    let feature_index = scenario
-        .state
-        .feature_index(&scenario.feature_path)
-        .expect("index");
-    let diagnostics = compute_unimplemented_step_diagnostics(&scenario.state, feature_index);
+    let diagnostics =
+        compute_feature_diagnostics_for_path(&scenario.state, &scenario.feature_path)?;
 
     assert_eq!(diagnostics.len(), 1);
-    let diag = diagnostics.first().expect("diagnostic");
+    let diag = assert_single_diagnostic_with_code(&diagnostics, CODE_UNIMPLEMENTED_STEP);
     assert_eq!(diag.severity, Some(DiagnosticSeverity::WARNING));
     assert!(diag.message.contains("an unimplemented step"));
-    assert_eq!(
-        diag.code,
-        Some(lsp_types::NumberOrString::String(
-            CODE_UNIMPLEMENTED_STEP.to_owned()
-        ))
-    );
+    Ok(())
 }
 
 #[rstest]
-#[expect(
-    clippy::expect_used,
-    reason = "test requires explicit panic for debugging failures"
-)]
-fn unused_step_definition_produces_diagnostic(scenario_builder: ScenarioBuilder) {
+fn unused_step_definition_produces_diagnostic(
+    scenario_builder: ScenarioBuilder,
+) -> Result<(), Box<dyn std::error::Error>> {
     let scenario = scenario_builder.with_single_file_pair(
         "Feature: test\n  Scenario: s\n    Given a step\n",
         concat!(
@@ -144,7 +127,9 @@ fn unused_step_definition_produces_diagnostic(scenario_builder: ScenarioBuilder)
     let diagnostics = compute_unused_step_diagnostics(&scenario.state, &scenario.rust_path);
 
     assert_eq!(diagnostics.len(), 1);
-    let diag = diagnostics.first().expect("diagnostic");
+    let diag = diagnostics
+        .first()
+        .ok_or_else(|| std::io::Error::other("unused-step diagnostic missing"))?;
     assert!(diag.message.contains("unused step"));
     assert_eq!(
         diag.code,
@@ -152,6 +137,7 @@ fn unused_step_definition_produces_diagnostic(scenario_builder: ScenarioBuilder)
             CODE_UNUSED_STEP_DEFINITION.to_owned()
         ))
     );
+    Ok(())
 }
 
 #[rstest]
@@ -187,24 +173,27 @@ fn no_diagnostics_scenarios(
     #[case] feature_content: &str,
     #[case] rust_content: &str,
     #[case] check_type: DiagnosticCheckType,
-) {
+) -> Result<(), Box<dyn std::error::Error>> {
     let scenario = scenario_builder.with_single_file_pair(feature_content, rust_content);
     match check_type {
         DiagnosticCheckType::Feature => {
-            assert_feature_has_no_unimplemented_steps(&scenario.state, &scenario.feature_path);
+            assert_feature_has_no_unimplemented_steps(&scenario.state, &scenario.feature_path)?;
         }
         DiagnosticCheckType::Rust => {
             assert_rust_has_no_unused_steps(&scenario.state, &scenario.rust_path);
         }
         DiagnosticCheckType::Both => {
-            assert_feature_has_no_unimplemented_steps(&scenario.state, &scenario.feature_path);
+            assert_feature_has_no_unimplemented_steps(&scenario.state, &scenario.feature_path)?;
             assert_rust_has_no_unused_steps(&scenario.state, &scenario.rust_path);
         }
     }
+    Ok(())
 }
 
 #[rstest]
-fn keyword_matching_is_enforced(scenario_builder: ScenarioBuilder) {
+fn keyword_matching_is_enforced(
+    scenario_builder: ScenarioBuilder,
+) -> Result<(), Box<dyn std::error::Error>> {
     // Given step should not match When implementation
     let scenario = scenario_builder.with_single_file_pair(
         "Feature: test\n  Scenario: s\n    Given a step\n",
@@ -217,12 +206,13 @@ fn keyword_matching_is_enforced(scenario_builder: ScenarioBuilder) {
 
     // Feature step should be unimplemented (Given != When)
     let feature_diags =
-        compute_feature_diagnostics_for_path(&scenario.state, &scenario.feature_path);
+        compute_feature_diagnostics_for_path(&scenario.state, &scenario.feature_path)?;
     assert_eq!(feature_diags.len(), 1, "keyword mismatch should be caught");
 
     // Rust step should be unused (When != Given)
     let rust_diags = compute_unused_step_diagnostics(&scenario.state, &scenario.rust_path);
     assert_eq!(rust_diags.len(), 1, "When step should be unused");
+    Ok(())
 }
 
 #[rstest]

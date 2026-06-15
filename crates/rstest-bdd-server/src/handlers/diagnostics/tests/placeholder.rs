@@ -1,4 +1,12 @@
-//! Placeholder count mismatch diagnostic tests.
+//! Placeholder count mismatch diagnostics for the diagnostics test suite.
+//!
+//! This module verifies alignment between feature-step placeholders and Rust step
+//! function arguments, ignoring framework-reserved parameters such as fixtures,
+//! table handles and docstrings.
+//! It belongs to `diagnostics::tests` and focuses on signature-shape mismatch
+//! reporting used by the language server.
+//! Assertions here validate the number, code and message fragments of emitted LSP
+//! diagnostics so consumers can surface precise feedback to users.
 
 use super::*;
 

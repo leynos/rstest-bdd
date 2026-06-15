@@ -1,18 +1,26 @@
-//! Table and docstring expectation mismatch diagnostic tests.
+//! Table and docstring expectation diagnostics for the diagnostics test suite.
+//!
+//! This module checks whether feature step attachments (tables and docstrings) and
+//! Rust function signatures agree about optional parameters.
+//! It sits in `diagnostics::tests` alongside other mismatch-focused suites and
+//! verifies diagnostic emission for both unexpected and missing attachments.
+//! Assertions target LSP diagnostic output (presence, code and ordering) to keep
+//! table/docstring errors consistently reportable in editor integrations.
 
 use super::*;
 
 /// Helper to compute table/docstring mismatch diagnostics.
-#[expect(
-    clippy::expect_used,
-    reason = "test helper requires explicit panic for debugging failures"
-)]
 fn compute_table_docstring_diagnostics_for_path(
     state: &ServerState,
     feature_path: &Path,
-) -> Vec<Diagnostic> {
-    let feature_index = state.feature_index(feature_path).expect("feature index");
-    table_docstring::compute_table_docstring_mismatch_diagnostics(state, feature_index)
+) -> Result<Vec<Diagnostic>, Box<dyn std::error::Error>> {
+    let feature_index = state.feature_index(feature_path).ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("feature index missing for {}", feature_path.display()),
+        )
+    })?;
+    Ok(table_docstring::compute_table_docstring_mismatch_diagnostics(state, feature_index))
 }
 
 #[rstest]
@@ -92,10 +100,10 @@ fn table_docstring_validation(
     #[case] feature_content: &str,
     #[case] rust_content: &str,
     #[case] expected_code: Option<&str>,
-) {
+) -> Result<(), Box<dyn std::error::Error>> {
     let scenario = scenario_builder.with_single_file_pair(feature_content, rust_content);
     let diagnostics =
-        compute_table_docstring_diagnostics_for_path(&scenario.state, &scenario.feature_path);
+        compute_table_docstring_diagnostics_for_path(&scenario.state, &scenario.feature_path)?;
 
     match expected_code {
         Some(code) => {
@@ -109,4 +117,5 @@ fn table_docstring_validation(
             );
         }
     }
+    Ok(())
 }
