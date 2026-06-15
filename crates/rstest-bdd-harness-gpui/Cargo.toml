@@ -31,6 +31,7 @@ tracing.workspace = true
 [dev-dependencies]
 rstest.workspace = true
 rstest-bdd.workspace = true
+rstest-bdd-harness = { workspace = true, features = ["testing"] }
 rstest-bdd-macros.workspace = true
 cargo_metadata.workspace = true
 insta = { workspace = true, features = ["filters"] }
@@ -38,6 +39,7 @@ macrotest.workspace = true
 prettyplease.workspace = true
 proptest.workspace = true
 serial_test.workspace = true
+tokio.workspace = true
 tracing-subscriber.workspace = true
 trybuild.workspace = true
 

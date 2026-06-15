@@ -2,8 +2,8 @@
 //! `attributes` parameters and delegates execution through the harness adapter.
 
 use rstest_bdd_harness::{
-    HarnessAdapter, HarnessError, ScenarioMetadata, ScenarioRunRequest, StdScenarioRunRequest,
-    StdScenarioRunner,
+    FailingHarness, HarnessAdapter, HarnessError, ScenarioMetadata, ScenarioRunRequest,
+    StdScenarioRunRequest, StdScenarioRunner,
 };
 use rstest_bdd_macros::{given, scenario, then, when};
 use serial_test::serial;
@@ -274,19 +274,6 @@ impl HarnessAdapter for StepContextInjectingHarness {
     }
 }
 
-#[derive(Default)]
-struct FailingHarness;
-
-impl HarnessAdapter for FailingHarness {
-    type Context = ();
-
-    fn run<T>(&self, _request: StdScenarioRunRequest<'_, T>) -> Result<T, HarnessError> {
-        Err(HarnessError::RuntimeBuildFailed(std::io::Error::other(
-            "synthetic harness failure",
-        )))
-    }
-}
-
 #[given("harness context starts with {start}")]
 fn harness_context_starts_with(
     #[from(rstest_bdd_harness_context)] context: &HarnessCounterContext,
@@ -354,5 +341,5 @@ fn harness_initialization_panic_includes_error_context() {
         .or_else(|| payload.downcast_ref::<String>().map(String::as_str))
         .unwrap_or_else(|| panic!("expected panic payload to be a string"));
     assert!(message.contains("harness failed to initialise scenario"));
-    assert!(message.contains("synthetic harness failure"));
+    assert!(message.contains("synthetic harness initialisation failure"));
 }

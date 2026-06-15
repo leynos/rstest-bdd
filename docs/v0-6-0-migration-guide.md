@@ -395,11 +395,9 @@ in-depth reference; the steps below mirror its outline:
    example, with `.unwrap_or_else(|| panic!(...))`).
 
 For a worked-out example, see the regression suite at
-`crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` and the user guide
-[Stateful GPUI scenarios with durable handles][users-guide-playbook]
-subsection.
-The pattern's rationale lives in §§2.7.6.1–2.7.6.2 of the
-[rstest-bdd design](rstest-bdd-design.md).
+`crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` and the [stateful
+GPUI user-guide playbook][users-guide-playbook]. The pattern's rationale lives
+in §§2.7.6.1–2.7.6.2 of the [rstest-bdd design](rstest-bdd-design.md).
 
 [adr-007]: adr-007-harness-context-injection.md
 

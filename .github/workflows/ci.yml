@@ -37,13 +37,17 @@ jobs:
             features: ''
             with-default-features: true
             tools: false
-            use-nextest: false   # trybuild + nextest deadlocks on Windows
+            # Avoid Windows nested Cargo/nextest hangs; see
+            # rust-lang/cargo#15744 and nextest-rs/nextest#2463.
+            use-nextest: false
           - os: windows-latest
             coverage: true
             features: strict-compile-time-validation
             with-default-features: false
             tools: false
-            use-nextest: false   # trybuild + nextest deadlocks on Windows
+            # Avoid Windows nested Cargo/nextest hangs; see
+            # rust-lang/cargo#15744 and nextest-rs/nextest#2463.
+            use-nextest: false
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v5
