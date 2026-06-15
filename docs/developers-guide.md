@@ -309,6 +309,13 @@ The GPUI `harness_led_defaults` happy-path scenario is gated by
 suite. Its failing-harness error-path scenario does not require the native GPUI
 runtime and runs without the feature gate.
 
+The `Failing harness initialisation propagates` scenario's panic assertion is
+de-duplicated for harness integration coverage: the shared scenario assertion
+macro lives under `crates/rstest-bdd-harness/tests/support/` and is included
+from both `harness_led_defaults.rs` test binaries (Tokio and GPUI) to keep
+runtime-error-path assertions aligned. The guard step remains local to each
+test binary so the `#[scenario]` macro can discover it from the test source.
+
 ### Bulk-migration cookbook reference suite
 
 The user guide's "Bulk-migration cookbook" subsection is backed by a
