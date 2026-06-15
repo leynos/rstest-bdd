@@ -17,10 +17,11 @@
 
 use std::sync::Arc;
 
-use rstest_bdd_harness::FailingHarness;
 use rstest_bdd_harness_tokio::TokioTestContext;
 use rstest_bdd_macros::{given, scenario, then, when};
 use tokio::sync::Notify;
+
+include!("../../rstest-bdd-harness/tests/support/failing_harness_error_path.rs");
 
 // --- Inferred-policy happy path -----------------------------------------
 
@@ -108,23 +109,12 @@ fn aborted_local_task_join_handle_reports_cancellation() {
 )]
 fn inferred_policy_runs_scenario_through_tokio_harness() {}
 
-// --- Failing-harness error path ------------------------------------------
-
 #[given("a step that must never run")]
 fn step_that_must_never_run() {
     unreachable!("the failing harness must abort the scenario before steps run");
 }
 
-/// A harness `run` returning `Err` must surface the macro's
-/// `harness failed to initialise scenario: ...` panic, carrying the
-/// underlying error and scenario context, and must not execute any step.
-#[scenario(
-    path = "tests/features/harness_led_defaults.feature",
-    name = "Failing harness initialisation propagates",
-    harness = FailingHarness,
-)]
-#[should_panic(expected = "harness failed to initialise scenario: failed to build runtime")]
-fn failing_harness_panics_with_meaningful_message() {}
+failing_harness_error_path_scenario!();
 
 // --- Policy-without-harness mismatch -------------------------------------
 

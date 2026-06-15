@@ -15,8 +15,9 @@
 //!   `native-gpui-tests` gate (and `#[serial]` discipline) with the rest of
 //!   the GPUI scenario suite.
 
-use rstest_bdd_harness::FailingHarness;
 use rstest_bdd_macros::{given, scenario};
+
+include!("../../rstest-bdd-harness/tests/support/failing_harness_error_path.rs");
 
 // --- Failing-harness error path (no native GPUI runtime required) --------
 
@@ -25,16 +26,7 @@ fn step_that_must_never_run() {
     unreachable!("the failing harness must abort the scenario before steps run");
 }
 
-/// A harness `run` returning `Err` must surface the macro's
-/// `harness failed to initialise scenario: ...` panic, carrying the
-/// underlying error and scenario context, and must not execute any step.
-#[scenario(
-    path = "tests/features/harness_led_defaults.feature",
-    name = "Failing harness initialisation propagates",
-    harness = FailingHarness,
-)]
-#[should_panic(expected = "harness failed to initialise scenario: failed to build runtime")]
-fn failing_harness_panics_with_meaningful_message() {}
+failing_harness_error_path_scenario!();
 
 // --- Inferred-policy happy path (requires the native GPUI runtime) -------
 
@@ -58,6 +50,10 @@ mod native {
         CONTEXT_POINTER.store(std::ptr::from_ref(context) as usize, Ordering::SeqCst);
         CONTEXT_MUTATED.store(false, Ordering::SeqCst);
         assert!(context.test_function_name().is_none());
+        assert!(
+            !context.did_prompt_for_new_path(),
+            "freshly-injected GPUI context must not have prompted for a new path"
+        );
         std::future::ready(()).await;
     }
 
@@ -87,6 +83,10 @@ mod native {
         assert!(
             CONTEXT_MUTATED.load(Ordering::SeqCst),
             "mutations through &mut TestAppContext should be visible later"
+        );
+        assert!(
+            !context.did_prompt_for_new_path(),
+            "later steps should observe the same unprompted GPUI context"
         );
         let _executor = context.executor();
         std::future::ready(()).await;
