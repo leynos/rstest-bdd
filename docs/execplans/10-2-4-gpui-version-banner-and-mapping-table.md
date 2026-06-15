@@ -213,6 +213,9 @@ marked `[x]`.
   pass `--allow-unpublished-workspace-deps` to `lading publish`. This keeps the
   dry-run gate useful for version-bump release trains where missing dependency
   versions are part of the same planned workspace publish set.
+- [x] Follow-up maintenance — made `make test` depend on `build-python` on
+  2026-06-15 so the Python helper pytest suite runs after syncing the
+  `python-tools` group that contains `pytest`.
 
 ## Surprises & discoveries
 
@@ -300,6 +303,11 @@ marked `[x]`.
   missing dependency is itself in the planned publish set. Impact:
   `make publish-check` now passes that override so version-bump PRs can be
   validated before any crate in the release train is published.
+- Observation: `pytest` is now only in the non-default `python-tools`
+  dependency group. Evidence: `pyproject.toml` has an empty default dependency
+  set and lists `pytest` under `[dependency-groups].python-tools`; plain
+  `uv run pytest` can therefore create an environment without pytest on a clean
+  checkout. Impact: `make test` now runs `build-python` first.
 
 ## Decision log
 
@@ -411,6 +419,11 @@ marked `[x]`.
   but not from the documented live publish command. Rationale: this target is
   the dry-run/CI gate, and lading scopes the override to planned workspace
   crates that are not yet available in the live index. Date/Author:
+  2026-06-15, implementing agent.
+- Decision: make `test` depend on `build-python` instead of adding a separate
+  group flag to its pytest command. Rationale: this matches the existing
+  Makefile pattern for Python-backed targets and keeps the project environment
+  synchronized once before the mixed Rust/Python test gate runs. Date/Author:
   2026-06-15, implementing agent.
 
 ### Research provenance (published gpui 0.2.2)
