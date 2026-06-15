@@ -53,9 +53,7 @@ impl<'a> FixtureEntry<'a> {
         &self,
         name: &str,
     ) -> Result<FixtureRef<'_, T>, FixtureBorrowError> {
-        if self.type_id != TypeId::of::<T>() {
-            return Err(FixtureBorrowError::type_mismatch(name));
-        }
+        self.check_type_id::<T>(name)?;
         match self.kind {
             FixtureKind::Shared(value) => value
                 .downcast_ref::<T>()
@@ -69,12 +67,18 @@ impl<'a> FixtureEntry<'a> {
         &self,
         name: &str,
     ) -> Result<FixtureRefMut<'_, T>, FixtureBorrowError> {
-        if self.type_id != TypeId::of::<T>() {
-            return Err(FixtureBorrowError::type_mismatch(name));
-        }
+        self.check_type_id::<T>(name)?;
         match self.kind {
             FixtureKind::Shared(_) => Err(FixtureBorrowError::not_mutable(name)),
             FixtureKind::Mutable(cell) => borrow_cell_mut(cell, name),
+        }
+    }
+
+    fn check_type_id<T: Any>(&self, name: &str) -> Result<(), FixtureBorrowError> {
+        if self.type_id == TypeId::of::<T>() {
+            Ok(())
+        } else {
+            Err(FixtureBorrowError::type_mismatch(name))
         }
     }
 }
