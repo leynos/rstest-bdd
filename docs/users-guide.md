@@ -1086,17 +1086,17 @@ function names against feature files. For a concrete regression example, see
 > the *published* `gpui 0.2.2` on crates.io encounter a different test API.
 > The four shapes that differ are:
 >
-> | Operation | Vendored gpui (this playbook + regression suite) | Published `gpui 0.2.2` |
+> | Operation | Vendored gpui | Published `gpui 0.2.2` |
 > | --- | --- | --- |
-> | `add_window_view` closure | `\|_context\| View::default()` (one argument) | `\|_window, view_cx\| View::new(view_cx)` (two arguments) |
-> | obtain window handle | `visual_cx.window_handle()` on `VisualTestContext` | `vcx.update(\|window, _app\| window.window_handle())` via `Window::window_handle()` |
-> | `VisualTestContext::from_window` | returns `Option<VisualTestContext>` | returns `VisualTestContext` by value (no `Option`) |
-> | `read_entity` / `update_entity` | `Option`/`Result` wrappers (`Some(1)`, `Ok(())`) | identity `type Result<T> = T`; returns `R` directly |
+> | `add_window_view` closure | `\|_context\| View::default()` | `\|_window, view_cx\| View::new(view_cx)` |
+> | obtain window handle | `visual_cx.window_handle()` | `vcx.update(\|window, _app\| window.window_handle())` |
+> | `VisualTestContext::from_window` | returns `Option<VisualTestContext>` | returns `VisualTestContext` |
+> | `read_entity` / `update_entity` | wrapped `Option`/`Result` values | returns `R` directly |
 >
 > Adapt call sites when consuming the published crate. The harness itself
 > (which only deals in `TestAppContext`) is not affected by this divergence.
 
-##### When to reach for the stateful playbook
+#### When to reach for the stateful playbook
 
 Stateful GPUI scenarios are those whose steps share durable resources, such as
 a typed view entity and the window that owns it, and need mutable access to
@@ -1160,7 +1160,7 @@ See [test-runner parallelism and scenario state](#test-runner-parallelism-and-sc
 for the full `#[serial]`, cargo-nextest, `#[file_serial]`, and nextest
 test-group matrix.
 
-##### Worked example
+#### Worked example
 
 The snippets below mirror the regression suite at
 `crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` identifier for
