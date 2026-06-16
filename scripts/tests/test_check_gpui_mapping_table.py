@@ -19,27 +19,35 @@ if typ.TYPE_CHECKING:
     from pathlib import Path
 
 
-TABLE = "\n".join(
-    [
+TABLE = "\n".join([
+    (
         "> | Operation | Vendored gpui (regression suite + these snippets) | "
-        "Published `gpui 0.2.2` (downstream adopters) |",
-        "> | --- | --- | --- |",
+        "Published `gpui 0.2.2` (downstream adopters) |"
+    ),
+    "> | --- | --- | --- |",
+    (
         "> | `add_window_view` closure | `\\|_context\\| View::default()` "
         "(one argument) | `\\|_window, view_cx\\| View::new(view_cx)` "
-        "(two arguments) |",
+        "(two arguments) |"
+    ),
+    (
         "> | obtain window handle | `visual_cx.window_handle()` (inherent "
         "method on `VisualTestContext`) | `vcx.window_handle()` (same call, "
         "but `window_handle` is a `VisualContext` trait method, so add "
-        "`use gpui::VisualContext;`) |",
+        "`use gpui::VisualContext;`) |"
+    ),
+    (
         "> | `VisualTestContext::from_window` | returns "
         "`Option<VisualTestContext>` (`.unwrap_or_else`/`.ok_or`) | returns "
-        "`VisualTestContext` by value (no `Option`) |",
+        "`VisualTestContext` by value (no `Option`) |"
+    ),
+    (
         "> | `read_entity` / `update_entity` | `Option`/`Result` wrappers "
         "(`Some(1)`, `Ok(())`) | identity `type Result<T> = T`; returns `R` "
-        "directly |",
-        "",
-    ]
-)
+        "directly |"
+    ),
+    "",
+])
 
 
 def document(heading: str, table: str = TABLE) -> str:
@@ -103,7 +111,7 @@ class TestCheckMappingTables:
     def test_passes_for_identical_data_rows(self, tmp_path: Path) -> None:
         """Identical mapping-table rows should pass."""
         write_repo_docs(tmp_path)
-        assert check_mapping_tables(tmp_path) == []
+        assert not check_mapping_tables(tmp_path)
 
     def test_reports_content_mutation(self, tmp_path: Path) -> None:
         """A changed data cell should produce a row-specific violation."""
@@ -124,7 +132,7 @@ class TestCheckMappingTables:
         )
         write_repo_docs(tmp_path, users_table=mutated)
 
-        assert check_mapping_tables(tmp_path) == []
+        assert not check_mapping_tables(tmp_path)
 
     def test_reports_missing_table_anchor(self, tmp_path: Path) -> None:
         """A missing heading should fail rather than silently skipping a table."""

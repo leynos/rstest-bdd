@@ -794,6 +794,9 @@ changing the public trait contracts.
   `VisualTestContext` exposes `window_handle()` via the `VisualContext` trait),
   reconciled the two tables, and added a drift gate. See
   `docs/execplans/10-2-4-gpui-version-banner-and-mapping-table.md`.
+  Follow-up 2026-06-16: extended the Python lint, format, and type-check
+  targets to include `scripts/tests/`, fixed the mapping-table test lint debt,
+  and revalidated the branch-wide `make lint` gate.
 - [ ] 10.2.5. A lint-clean playbook variant compiles under a pedantic lint
   profile, including `clippy::shadow_reuse`, `clippy::expect_used`, and the
   in-house `no_unwrap_or_else_panic` lint. Finish line: the playbook in

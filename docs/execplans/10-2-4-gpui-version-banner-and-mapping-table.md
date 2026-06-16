@@ -216,6 +216,10 @@ marked `[x]`.
 - [x] Follow-up maintenance — made `make test` depend on `build-python` on
   2026-06-15 so the Python helper pytest suite runs after syncing the
   `python-tools` group that contains `pytest`.
+- [x] Follow-up maintenance — on 2026-06-16, addressed the branch-hardening
+  review by extending `PYTHON_TARGETS` to every Python file below `scripts/`,
+  fixing the mapping-table test's Ruff `ISC004` string-concatenation findings,
+  and cleaning Pylint boolean-emptiness assertions in the Python tests.
 
 ## Surprises & discoveries
 
@@ -308,6 +312,18 @@ marked `[x]`.
   set and lists `pytest` under `[dependency-groups].python-tools`; plain
   `uv run pytest` can therefore create an environment without pytest on a clean
   checkout. Impact: `make test` now runs `build-python` first.
+- Observation: `scripts/tests/` was outside the Python lint, format, and
+  type-check target set because `PYTHON_TARGETS` used `find scripts
+  -maxdepth 1`. Evidence: running `make lint-python` with recursive Python
+  targets exposed five Ruff `ISC004` findings in
+  `scripts/tests/test_check_gpui_mapping_table.py` and six Pylint
+  `use-implicit-booleaness-not-comparison` findings across the Python tests.
+  Impact: `PYTHON_TARGETS` is now recursive, and those test issues are fixed.
+- Observation: the branch contains 10.2.4 implementation commits plus
+  follow-up lading, publish-order, CI, and Python-tooling maintenance. Evidence:
+  the review noted the mixed workstreams; the maintainer asked to address all
+  issues on the branch rather than split them. Impact: branch-wide gates are
+  treated as the acceptance condition for this hardening pass.
 
 ## Decision log
 
@@ -425,6 +441,10 @@ marked `[x]`.
   Makefile pattern for Python-backed targets and keeps the project environment
   synchronized once before the mixed Rust/Python test gate runs. Date/Author:
   2026-06-15, implementing agent.
+- Decision: make `PYTHON_TARGETS` recursive below `scripts/`. Rationale:
+  Python tests exercise repository helper contracts and should be held to the
+  same Ruff, Pylint, Ruff format, and `ty` gates as the helper scripts they
+  validate. Date/Author: 2026-06-16, implementing agent.
 
 ### Research provenance (published gpui 0.2.2)
 

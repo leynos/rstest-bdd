@@ -17,7 +17,7 @@ UVX ?= $(or $(shell command -v uvx 2>/dev/null),$(HOME)/.local/bin/uvx)
 UV_ENV = UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools
 LADING_REF ?= d3217a599ea34adad6a6e3845845fff2fe923758
 LADING_SPEC ?= lading @ git+https://github.com/leynos/lading@$(LADING_REF)
-PYTHON_TARGETS ?= $(shell find scripts -maxdepth 1 -type f -name "*.py" -print | sort)
+PYTHON_TARGETS ?= $(shell find scripts -type f -name "*.py" -print | sort)
 PYLINT_TARGETS ?= $(PYTHON_TARGETS)
 
 build: target/debug/$(APP) ## Build debug binary
