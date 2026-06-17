@@ -450,6 +450,25 @@ def test_spy_and_record(cmd_mox, monkeypatch, tmp_path):
 - Dependencies must remain minimal. Any new package should be added to the `uv`
   block and the rationale documented within the script or companion tests.
 
+## Quality gates
+
+Python helper scripts are checked with the repository-level tooling declared in
+`pyproject.toml`. Run the Make targets rather than calling tools ad hoc:
+
+- `make lint-python` runs Ruff and Pylint over top-level helper scripts in
+  `scripts/`.
+- `make typecheck` runs the Rust workspace check and then `ty check` over those
+  Python helper scripts.
+- `make check-fmt` validates Ruff formatting for Python helper scripts in
+  addition to Rust formatting.
+- `make fmt` applies Ruff formatting and import ordering for Python helper
+  scripts alongside the existing Rust and Markdown formatters.
+
+When a helper grows past the Pylint module limit, split stable collaborator
+types or implementation helpers into neighbouring `scripts/publish_*` modules
+instead of suppressing the lint. Keep entry-point modules as thin facades when
+tests or callers depend on their public names.
+
 ## Migration guidance (Typer → Cyclopts)
 
 1. Dependencies: replace Typer with Cyclopts in the script’s `uv` block.

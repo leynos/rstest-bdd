@@ -102,12 +102,12 @@ class TestCheckRepoLink:
 
     def test_accepts_canonical_link_without_fragment(self, repo: Path) -> None:
         """A canonical link to an existing document is valid."""
-        assert check_repo_link(repo, "ok", f"{BASE_URL}target.md") == []
+        assert not check_repo_link(repo, "ok", f"{BASE_URL}target.md")
 
     def test_accepts_fragment_matching_heading(self, repo: Path) -> None:
         """A fragment matching a heading anchor is valid."""
         url = f"{BASE_URL}target.md#section-12-details-here"
-        assert check_repo_link(repo, "ok", url) == []
+        assert not check_repo_link(repo, "ok", url)
 
     def test_rejects_non_canonical_base(self, repo: Path) -> None:
         """A URL outside the canonical base should be reported."""
@@ -149,7 +149,7 @@ class TestCheckGuide:
             f"[other]: {BASE_URL}other.md\n"
             "[docs-rs]: https://docs.rs/rstest-bdd/latest/\n",
         )
-        assert check_guide(tmp_path) == []
+        assert not check_guide(tmp_path)
 
     def test_skips_non_repository_links(self, tmp_path: Path) -> None:
         """External links such as docs.rs are not validated."""
@@ -160,7 +160,7 @@ class TestCheckGuide:
             f"[other]: {BASE_URL}other.md\n"
             "[external]: https://example.com/blob/main/docs/missing.md\n",
         )
-        assert check_guide(tmp_path) == []
+        assert not check_guide(tmp_path)
 
     def test_reports_missing_guide(self, tmp_path: Path) -> None:
         """An absent guide file should be reported, not raised."""

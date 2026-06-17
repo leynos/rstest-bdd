@@ -16,6 +16,7 @@ jobs:
       CODESCENE_CLI_SHA256: ${{ vars.CODESCENE_CLI_SHA256 }}
       RUSTFLAGS: -D warnings
       RUSTDOCFLAGS: -D warnings
+      LADING_REF: d3217a599ea34adad6a6e3845845fff2fe923758
     strategy:
       fail-fast: false
       matrix:
@@ -57,6 +58,11 @@ jobs:
         with:
           bun-version: '1.2.21'
 
+      - name: Setup uv
+        uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57  # v8.0.0
+        with:
+          version: '0.11.8'
+
       - name: Check formatting
         if: ${{ matrix.tools }}
         run: make check-fmt
@@ -68,11 +74,6 @@ jobs:
           bun install --no-progress --global @mermaid-js/mermaid-cli@11.9.0
           bun x @puppeteer/browsers browsers install chrome-headless-shell
           mmdc --version
-
-      - name: Setup uv
-        uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57  # v8.0.0
-        with:
-          version: '0.11.8'
 
       - name: Install Nixie
         if: ${{ matrix.tools }}
@@ -96,13 +97,17 @@ jobs:
         if: ${{ matrix.tools }}
         run: make forbid-async-trait
 
+      - name: Type check
+        if: ${{ matrix.tools }}
+        run: make typecheck
+
       - name: Test and Measure Coverage (with features)
         if: ${{ matrix.coverage && matrix.features != '' }}
         uses: leynos/shared-actions/.github/actions/generate-coverage@aebb3f5b831102e2a10ef909c83d7d50ea86c332
         continue-on-error: true
         with:
-          output-path: lcov.info
-          format: lcov
+          output-path: coverage.xml
+          format: cobertura
           features: rstest-bdd/diagnostics rstest-bdd-server/test-support ${{ matrix.features }}
           with-default-features: ${{ matrix.with-default-features }}
           use-cargo-nextest: ${{ matrix.use-nextest }}
@@ -112,8 +117,8 @@ jobs:
         uses: leynos/shared-actions/.github/actions/generate-coverage@aebb3f5b831102e2a10ef909c83d7d50ea86c332
         continue-on-error: true
         with:
-          output-path: lcov.info
-          format: lcov
+          output-path: coverage.xml
+          format: cobertura
           features: rstest-bdd/diagnostics rstest-bdd-macros/compile-time-validation rstest-bdd-server/test-support
           with-default-features: ${{ matrix.with-default-features }}
           use-cargo-nextest: ${{ matrix.use-nextest }}
@@ -123,7 +128,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -s lcov.info
+          test -s coverage.xml
 
       - name: Publish dry run
         run: make publish-check
@@ -132,6 +137,6 @@ jobs:
         if: ${{ matrix.coverage && env.CS_ACCESS_TOKEN && matrix.tools && vars.CODESCENE_CLI_SHA256 }}
         uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@aebb3f5b831102e2a10ef909c83d7d50ea86c332
         with:
-          format: lcov
+          format: cobertura
           access-token: ${{ env.CS_ACCESS_TOKEN }}
           installer-checksum: ${{ vars.CODESCENE_CLI_SHA256 }}

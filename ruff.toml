@@ -1,4 +1,6 @@
 line-length = 88
+preview = true
+target-version = "py313"
 
 [lint]
 select = [
@@ -35,9 +37,30 @@ select = [
     "EM",
     "D",
     "ANN",
+    "C90",
+    "PLR",
+    "PLE4703",
+    "PLR0202",
+    "PLR0203",
+    "PLR0914",
+    "PLR0916",
+    "PLR1702",
+    "PLR6104",
+    "PLR6201",
+    "PLR6301",
+    "PLW0108",
+    "RUF036",
+    "RUF053",
+    "RUF055",
+    "RUF064",
+    "RUF066",
 ]
-per-file-ignores = {"**/test_*.py" = ["S101"]}
-ignore = ["D205"]
+per-file-ignores = {"**/__init__.py" = ["RUF067"], "**/test_*.py" = ["S101", "PLR0913", "PLR0917", "PLR2004", "PLR6301"]}
+ignore = [
+    "D203",
+    "D205",
+    "D213",
+]
 
 [lint.flake8-import-conventions]
 # Declare the banned `from` imports.
@@ -49,7 +72,6 @@ banned-from = [
     "enum",
     "unittest.mock",
     "msgspec",
-    "msgspec.json",
 ]
 
 [lint.flake8-import-conventions.aliases]
@@ -61,5 +83,49 @@ msgspec = "ms"
 typing = "typ"
 
 [lint.pydocstyle]
-# Enforce NumPy docstring 
+# Enforce NumPy docstring
 convention = "numpy"
+
+[lint.flake8-tidy-imports.banned-api]
+"typing.AbstractSet".msg = "Use collections.abc.Set instead of deprecated typing generics."
+"typing.AsyncContextManager".msg = "Use contextlib.AbstractAsyncContextManager instead of deprecated typing generics."
+"typing.AsyncGenerator".msg = "Use collections.abc.AsyncGenerator instead of deprecated typing generics."
+"typing.AsyncIterable".msg = "Use collections.abc.AsyncIterable instead of deprecated typing generics."
+"typing.AsyncIterator".msg = "Use collections.abc.AsyncIterator instead of deprecated typing generics."
+"typing.Awaitable".msg = "Use collections.abc.Awaitable instead of deprecated typing generics."
+"typing.Callable".msg = "Use collections.abc.Callable instead of deprecated typing generics."
+"typing.ChainMap".msg = "Use collections.ChainMap instead of deprecated typing generics."
+"typing.Collection".msg = "Use collections.abc.Collection instead of deprecated typing generics."
+"typing.Container".msg = "Use collections.abc.Container instead of deprecated typing generics."
+"typing.ContextManager".msg = "Use contextlib.AbstractContextManager instead of deprecated typing generics."
+"typing.Coroutine".msg = "Use collections.abc.Coroutine instead of deprecated typing generics."
+"typing.Counter".msg = "Use collections.Counter instead of deprecated typing generics."
+"typing.DefaultDict".msg = "Use collections.defaultdict instead of deprecated typing generics."
+"typing.Deque".msg = "Use collections.deque instead of deprecated typing generics."
+"typing.Dict".msg = "Use dict instead of deprecated typing generics."
+"typing.FrozenSet".msg = "Use frozenset instead of deprecated typing generics."
+"typing.Generator".msg = "Use collections.abc.Generator instead of deprecated typing generics."
+"typing.ItemsView".msg = "Use collections.abc.ItemsView instead of deprecated typing generics."
+"typing.Iterator".msg = "Use collections.abc.Iterator instead of deprecated typing generics."
+"typing.List".msg = "Use list instead of deprecated typing generics."
+"typing.Mapping".msg = "Use collections.abc.Mapping instead of deprecated typing generics."
+"typing.Match".msg = "Use re.Match instead of deprecated typing generics."
+"typing.MutableMapping".msg = "Use collections.abc.MutableMapping instead of deprecated typing generics."
+"typing.MutableSequence".msg = "Use collections.abc.MutableSequence instead of deprecated typing generics."
+"typing.MutableSet".msg = "Use collections.abc.MutableSet instead of deprecated typing generics."
+"typing.OrderedDict".msg = "Use collections.OrderedDict instead of deprecated typing generics."
+"typing.Pattern".msg = "Use re.Pattern instead of deprecated typing generics."
+"typing.Reversible".msg = "Use collections.abc.Reversible instead of deprecated typing generics."
+"typing.Sequence".msg = "Use collections.abc.Sequence instead of deprecated typing generics."
+"typing.Set".msg = "Use set instead of deprecated typing generics."
+"typing.Tuple".msg = "Use tuple instead of deprecated typing generics."
+"typing.Type".msg = "Use type instead of deprecated typing generics."
+"typing.ValuesView".msg = "Use collections.abc.ValuesView instead of deprecated typing generics."
+
+[lint.mccabe]
+max-complexity = 8
+
+[lint.pylint]
+max-args = 4
+max-bool-expr = 2
+max-locals = 10

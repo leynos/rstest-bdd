@@ -34,15 +34,14 @@ instead.
 Do not restore root-level `[patch.crates-io]` entries for normal development.
 Patches make local resolution differ from publish-time resolution and can hide
 registry-only failures. If a temporary patch is required for a one-off
-diagnostic, remove it before committing or teach the publish-check automation
-to strip it explicitly.
+diagnostic, remove it before committing or configure `lading.toml` so
+`lading publish` strips it from staged release workspaces.
 
 The GPUI test shim follows the same pattern. The workspace dependency for
 `gpui` points at `vendor/gpui` with a matching crates.io version, so local
-tests use the stable-compatible shim. The publish-check GPUI package validator
-strips that local path when it generates the standalone harness manifest, so
-`rstest-bdd-harness-gpui` is still checked against the upstream `gpui`
-dependency surface before publication.
+tests use the stable-compatible shim. `lading publish` stages the workspace and
+strips local patch entries before packaging, so the staged release surface uses
+the upstream `gpui` dependency declaration before publication.
 
 ## Staging fixtures for trybuild tests
 
@@ -178,8 +177,42 @@ automatically by `make lint`, keeps those URLs honest:
   all, so a reformat cannot silently defang it.
 
 Non-repository URLs (for example docs.rs links) are ignored. Unit tests live
-in `scripts/tests/test_check_users_guide_links.py` and run with the Python
-suite in `make test`. Issue #537 tracks generating the reference block from
+under `scripts/tests/test_check_users_guide_links.py`.
+
+## GPUI mapping-table validation (`scripts/check_gpui_mapping_table.py`)
+
+The vendored-to-published GPUI mapping table is duplicated in
+`docs/users-guide.md` and `docs/rstest-bdd-design.md`. Update both copies
+together whenever a GPUI test API shape changes. `make lint` runs
+`scripts/check_gpui_mapping_table.py`, which anchors each table by its
+surrounding heading and compares the four data rows after whitespace
+normalization, so doc-vs-doc drift fails locally and in Continuous
+Integration (CI).
+
+This check does not prove the published column against crates.io. Local
+workspace builds resolve `gpui` to `vendor/gpui`, while release validation now
+runs through `lading publish`, which strips local patch entries in the staged
+workspace. When the workspace bumps GPUI, re-verify the published column from
+the published crate source before editing the table. One reproducible path is:
+
+```bash
+mkdir -p /tmp/rstest-bdd-gpui-check
+curl -L https://static.crates.io/crates/gpui/gpui-${VERSION}.crate \
+  -o /tmp/rstest-bdd-gpui-check/gpui-${VERSION}.crate
+tar -xf /tmp/rstest-bdd-gpui-check/gpui-${VERSION}.crate \
+  -C /tmp/rstest-bdd-gpui-check
+sed -n '1,220p' \
+  /tmp/rstest-bdd-gpui-check/gpui-${VERSION}/src/app/test_context.rs
+```
+
+If the crate's embedded repository commit is needed for cross-checking, inspect
+the extracted manifest metadata and compare the relevant files against the Zed
+repository with `git show <commit>:crates/gpui/src/app/test_context.rs`.
+Unit tests for the table checker live in
+`scripts/tests/test_check_gpui_mapping_table.py`.
+
+Both link-checker and table-checker tests run with the Python suite in
+`make test`. Issue #537 tracks generating the users-guide reference block from
 `BASE_URL` so the base lives in exactly one place.
 
 ## Test organization: harness-owned integration tests
