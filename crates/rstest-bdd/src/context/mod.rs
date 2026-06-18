@@ -8,6 +8,10 @@ use std::any::{Any, TypeId};
 use std::cell::{Ref, RefCell, RefMut};
 use std::collections::HashMap;
 
+mod insert_outcome;
+
+pub use insert_outcome::InsertOutcome;
+
 /// Reserved fixture key used for harness-provided context.
 ///
 /// Harness-backed scenarios insert `HarnessAdapter::Context` into
@@ -213,14 +217,41 @@ impl<'a> StepContext<'a> {
     /// The value overrides a fixture only if exactly one fixture has the same
     /// type; otherwise it is ignored to avoid ambiguity.
     ///
-    /// Returns the previous override for that fixture when one existed.
-    pub fn insert_value(&mut self, value: Box<dyn Any>) -> Option<Box<dyn Any>> {
+    /// The returned [`InsertOutcome`] distinguishes the three results that a
+    /// bare `Option` previously conflated: a recorded override (carrying any
+    /// displaced previous override), a value dropped because no fixture
+    /// matches its type, and a value dropped because multiple fixtures match
+    /// (ambiguous). The ambiguous case additionally logs a warning — with a
+    /// deliberate `eprintln!` fallback when warn-level logging is disabled —
+    /// so silently dropped values remain observable in test output.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rstest_bdd::{InsertOutcome, StepContext};
+    ///
+    /// let fixture = 1_u32;
+    /// let mut ctx = StepContext::default();
+    /// ctx.insert("number", &fixture);
+    ///
+    /// let first = ctx.insert_value(Box::new(5_u32));
+    /// assert!(matches!(first, InsertOutcome::Inserted(None)));
+    ///
+    /// let second = ctx.insert_value(Box::new(7_u32));
+    /// assert!(matches!(second, InsertOutcome::Inserted(Some(_))));
+    ///
+    /// let unmatched = ctx.insert_value(Box::new("text"));
+    /// assert!(matches!(unmatched, InsertOutcome::NoMatch));
+    /// ```
+    pub fn insert_value(&mut self, value: Box<dyn Any>) -> InsertOutcome {
         let ty = value.as_ref().type_id();
         let mut matches = self
             .fixtures
             .iter()
             .filter_map(|(&name, entry)| (entry.type_id == ty).then_some(name));
-        let name = matches.next()?;
+        let Some(name) = matches.next() else {
+            return InsertOutcome::NoMatch;
+        };
         if matches.next().is_some() {
             let message =
                 crate::localization::message_with_args("step-context-ambiguous-override", |args| {
@@ -234,9 +265,9 @@ impl<'a> StepContext<'a> {
             if !log::log_enabled!(log::Level::Warn) {
                 eprintln!("{message}");
             }
-            return None;
+            return InsertOutcome::AmbiguousIgnored;
         }
-        self.values.insert(name, value)
+        InsertOutcome::Inserted(self.values.insert(name, value))
     }
 }
 

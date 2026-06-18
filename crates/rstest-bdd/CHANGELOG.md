@@ -4,6 +4,12 @@
 
 ### Added (Unreleased)
 
+- `StepContext::insert_value` now returns an `InsertOutcome` enum instead of
+  `Option<Box<dyn Any>>`, distinguishing a recorded override (carrying any
+  displaced previous override) from values dropped because no fixture matches
+  the type (`NoMatch`) or because multiple fixtures match
+  (`AmbiguousIgnored`). The previous `None` conflated all three cases. Use
+  `into_previous()` where the old `Option` behaviour is needed.
 - Added `ExecutionError` enum for structured step execution failures, replacing
   string-encoded skip messages with proper error variants: `Skip`,
   `StepNotFound`, `MissingFixtures`, and `HandlerFailed`. Both `ExecutionError`

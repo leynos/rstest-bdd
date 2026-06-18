@@ -78,12 +78,13 @@ enum InsertValueScenario {
 fn assert_unique_fixture_can_be_overridden_twice(ctx: &mut StepContext<'_>) {
     let first = ctx.insert_value(Box::new(5u32));
     assert!(
-        first.is_none(),
-        "first override should have no previous value"
+        matches!(first, InsertOutcome::Inserted(None)),
+        "first override should insert with no previous value"
     );
 
     let second = ctx
         .insert_value(Box::new(7u32))
+        .into_previous()
         .expect("expected previous override to be returned");
     let previous = second
         .downcast::<u32>()
@@ -122,7 +123,10 @@ fn insert_value_behavior(_logger: (), #[case] scenario: InsertValueScenario) {
             ctx.insert("two", &fixture_two);
 
             let result = ctx.insert_value(Box::new(5u32));
-            assert!(result.is_none(), "ambiguous overrides must be ignored");
+            assert!(
+                matches!(result, InsertOutcome::AmbiguousIgnored),
+                "ambiguous overrides must be reported as AmbiguousIgnored"
+            );
             assert_eq!(ctx.get::<u32>("one"), Some(&1));
             assert_eq!(ctx.get::<u32>("two"), Some(&2));
         }
@@ -130,7 +134,10 @@ fn insert_value_behavior(_logger: (), #[case] scenario: InsertValueScenario) {
             ctx.insert("text", &fixture_text);
 
             let result = ctx.insert_value(Box::new(5u32));
-            assert!(result.is_none(), "missing fixture should skip override");
+            assert!(
+                matches!(result, InsertOutcome::NoMatch),
+                "missing fixture type must be reported as NoMatch"
+            );
             assert!(ctx.get::<u32>("text").is_none());
         }
     }

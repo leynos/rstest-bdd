@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- `StepContext::insert_value` now returns an `InsertOutcome` enum instead of
+  `Option<Box<dyn Any>>`, distinguishing a recorded override (carrying any
+  displaced previous override) from values dropped because no fixture matches
+  the type (`NoMatch`) or because multiple fixtures match
+  (`AmbiguousIgnored`). The previous `None` conflated all three cases. Use
+  `into_previous()` where the old `Option` behaviour is needed.
 - Mandated `cap-std` and `camino` for cross-platform file system access.
 - Documented `E0499`/`E0502` troubleshooting for two mutable `StepContext`
   fixtures in the v0.6.0 migration guide, with workarounds and a cross-link to
