@@ -14,12 +14,27 @@ mod step_struct;
 
 pub(super) use step_struct::{classify_step_struct, extract_step_struct_attribute};
 
+/// Diagnostic for a `datatable` parameter declared with an unsupported type.
 const DATATABLE_TYPE_ERROR: &str = concat!(
     "parameter named `datatable` must have type `Vec<Vec<String>>` or `CachedTable` ",
     "(or use `#[datatable]` with a type that implements `TryFrom<Vec<Vec<String>>>`)",
 );
+/// Diagnostic for a duplicate or wrongly typed `docstring` parameter.
 const DOCSTRING_TYPE_ERROR: &str =
     "only one docstring parameter is permitted and it must have type `String`";
+/// Diagnostic for `#[datatable]` applied to the reserved `docstring` parameter.
+const DATATABLE_ON_DOCSTRING_ERROR: &str =
+    "parameter `docstring` cannot be annotated with #[datatable]";
+/// Diagnostic for a second `DataTable` parameter in one signature.
+///
+/// Shared with `crate::macros` so the help text stays aligned with the
+/// emitted error.
+pub(crate) const DUPLICATE_DATATABLE_ERROR: &str = "only one DataTable parameter is permitted";
+/// Diagnostic for a `DataTable` parameter declared after a `DocString`.
+const DATATABLE_AFTER_DOCSTRING_ERROR: &str =
+    "DataTable must be declared before DocString to match Gherkin ordering";
+/// Diagnostic for combining `#[datatable]` with `#[from]`.
+const DATATABLE_WITH_FROM_ERROR: &str = "#[datatable] cannot be combined with #[from]";
 
 pub(super) struct ClassificationContext<'a> {
     pub(super) extracted: &'a mut ExtractedArgs,
@@ -203,28 +218,19 @@ pub(super) fn classify_datatable(
         return Ok(false);
     };
     if flag_match.via_attr && pat == "docstring" {
-        return Err(syn::Error::new_spanned(
-            arg,
-            "parameter `docstring` cannot be annotated with #[datatable]",
-        ));
+        return Err(syn::Error::new_spanned(arg, DATATABLE_ON_DOCSTRING_ERROR));
     }
     if st.datatable_idx.is_some() {
-        return Err(syn::Error::new_spanned(
-            arg,
-            "only one DataTable parameter is permitted",
-        ));
+        return Err(syn::Error::new_spanned(arg, DUPLICATE_DATATABLE_ERROR));
     }
     if st.docstring_idx.is_some() {
         return Err(syn::Error::new_spanned(
             arg,
-            "DataTable must be declared before DocString to match Gherkin ordering",
+            DATATABLE_AFTER_DOCSTRING_ERROR,
         ));
     }
     if has_from {
-        return Err(syn::Error::new_spanned(
-            arg,
-            "#[datatable] cannot be combined with #[from]",
-        ));
+        return Err(syn::Error::new_spanned(arg, DATATABLE_WITH_FROM_ERROR));
     }
     let idx = st.push(Arg::DataTable {
         pat: pat.clone(),
