@@ -76,7 +76,7 @@ fn errors_when_step_ambiguous(
 #[serial]
 fn aborts_on_invalid_step_pattern() {
     clear_registry();
-    // proc-macro-error panics outside macro contexts; assert expected message
+    // proc-macro-error2 panics outside macro contexts; assert expected message
     let Err(err) = std::panic::catch_unwind(|| {
         register_step(
             StepKeyword::Given,
@@ -91,7 +91,7 @@ fn aborts_on_invalid_step_pattern() {
         .or_else(|| err.downcast_ref::<&str>().copied())
         .unwrap_or_else(|| panic!("panic payload must be a string"));
     assert!(
-        msg.contains("proc-macro-error API cannot be used outside of `entry_point` invocation")
+        msg.contains("proc-macro-error2 API cannot be used outside of `entry_point` invocation")
     );
 
     assert!(rstest_bdd_patterns::build_regex_from_pattern("unclosed {").is_err());
