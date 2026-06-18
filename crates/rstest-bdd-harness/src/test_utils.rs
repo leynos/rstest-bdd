@@ -1,4 +1,15 @@
 //! Shared test helpers for `rstest-bdd-harness`.
+//!
+//! Provides panic-payload matching utilities for harness tests that assert
+//! panic propagation. Harness adapters must re-raise scenario panics so test
+//! runners report the original failure; these helpers let tests verify the
+//! re-raised payload carries the expected message regardless of whether the
+//! payload is a `&str` (from `panic!("literal")`) or a `String` (from
+//! `panic!("{interpolated}")` or `std::panic::resume_unwind`).
+//!
+//! Harness implementations should use [`panic_payload_matches`] when writing
+//! `catch_unwind`-based propagation tests instead of downcasting payloads
+//! inline, so the `&str`/`String` asymmetry is handled in one place.
 
 use std::any::Any;
 
