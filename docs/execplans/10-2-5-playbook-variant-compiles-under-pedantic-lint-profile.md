@@ -190,7 +190,7 @@ Hard invariants; violation requires escalation, not a workaround.
   `make check-fmt`, `make lint`, and `make test` passed. The Dylint run still
   reports the existing Tokio compatibility-alias deprecation warning under the
   nightly driver, but not as a failing diagnostic.
-- [ ] (Stage D — docs) design §2.7.6.2, ADR-013, developers guide, users-guide
+- [x] (Stage D — docs) design §2.7.6.2, ADR-013, developers guide, users-guide
   playbook, CI, roadmap tick 10.2.5 + new v0.6.1 item; full gates green;
   CodeRabbit clean.
   Documentation implementation on 2026-06-21 updated the user-guide playbook
@@ -199,7 +199,7 @@ Hard invariants; violation requires escalation, not a workaround.
   developer guide, ticked roadmap 10.2.5, and added the v0.6.1 full-Whitaker
   suite follow-up item. Validation passed with `make markdownlint`,
   `make check-fmt`, `make lint`, `make test`, and `make nixie`; CodeRabbit
-  remains pending.
+  review completed with zero findings.
 
 ## Surprises & discoveries
 
@@ -324,7 +324,23 @@ choice and any `unreachable!` boundary finding.)
 
 ## Outcomes & retrospective
 
-(To be completed at milestones and at completion. Compare against Purpose.)
+Roadmap item 10.2.5 is delivered. The workspace no longer contains real
+Whitaker `no_unwrap_or_else_panic` hits, `make lint` now runs the pinned
+Whitaker lint after Clippy, and the GPUI playbook teaches the tested
+`let … else { panic!(…) }` accessor form as primary rather than as a future
+variant. ADR-013 records the decision and contributor tooling cost; the roadmap
+tracks full Whitaker-suite adoption separately under v0.6.1.
+
+Validation passed on 2026-06-21 with `mbake validate Makefile`,
+`make check-fmt`, `make lint`, `make test`, `make markdownlint`, and
+`make nixie`. CodeRabbit reviewed the Rust conversion, Whitaker gate, and docs
+milestones with zero findings.
+
+Retrospective: the highest-risk part was Dylint integration, not the mechanical
+Rust rewrite. The metadata path was insufficient for Whitaker `v0.2.5`, so the
+durable integration is an explicit build/copy/run target with an absolute
+`DYLINT_LIBRARY_PATH`. Future Whitaker bumps should treat that path as the
+contract to revalidate first.
 
 ## Context and orientation
 
