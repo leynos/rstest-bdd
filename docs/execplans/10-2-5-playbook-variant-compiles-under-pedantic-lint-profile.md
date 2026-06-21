@@ -5,7 +5,7 @@ This ExecPlan (execution plan) is a living document. The sections
 `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
 proceeds.
 
-Status: DRAFT
+Status: EXECUTING
 
 ## Purpose / big picture
 
@@ -165,8 +165,14 @@ Hard invariants; violation requires escalation, not a workaround.
 ## Progress
 
 - [ ] (Stage 0 — spike) Whitaker/Dylint integration proven locally and in a
-  CI-equivalent; mechanism and pins chosen; go/no-go recorded.
-- [ ] (Stage A) Orientation and this plan approved.
+  CI-equivalent; mechanism and pins chosen; go/no-go recorded. Local spike on
+  2026-06-21 proved the real lint can run only via an explicit Whitaker
+  build/copy/library-path flow for tag `v0.2.5`; implementation paused because
+  the real lint expands the Rust conversion scope beyond this plan's tolerance.
+- [x] (Stage A) Orientation and this plan approved. Implementation requested on
+  2026-06-21; branch tracking configured to
+  `origin/10-2-5-playbook-variant-compiles-under-pedantic-lint-profile`; PR #546
+  title/body and Lody session title updated before code changes.
 - [ ] (Stage B — red) Gate wired so `make lint` runs the lint and fails on the
   38 known sites (proof the lint is active).
 - [ ] (Stage C — green) All sites converted to `let … else { panic!(…) }` (or
@@ -186,6 +192,29 @@ Hard invariants; violation requires escalation, not a workaround.
   hatch; closing it forces `let … else { panic!(…) }` as the universal compliant
   form. Evidence: `Cargo.toml` lints + `clippy.toml`; 38 existing sites.
   Impact: uniform conversion rule; the playbook accessor is unambiguous.
+
+- Observation: the documented `[workspace.metadata.dylint]` path builds
+  Whitaker `v0.2.5`'s `no_unwrap_or_else_panic` crate, but it does not produce a
+  loadable lint library in this repository. Without explicit features, the crate
+  lacks the `dylint_version` entrypoint; Dylint metadata also rejected adding
+  `features = ["dylint-driver"]` to the git library entry. The working local
+  mechanism is Whitaker's own Makefile shape: clone tag `v0.2.5`, build package
+  `no_unwrap_or_else_panic` with `--features dylint-driver` under
+  `nightly-2025-09-18`, copy
+  `libno_unwrap_or_else_panic.so` to
+  `libno_unwrap_or_else_panic@nightly-2025-09-18-x86_64-unknown-linux-gnu.so`,
+  then run `cargo dylint --lib no_unwrap_or_else_panic --no-metadata --no-build`
+  with `DYLINT_LIBRARY_PATH` pointing at that directory. Impact: Stage 0 should
+  choose the explicit build/copy/library-path gate unless the maintainer prefers
+  a Whitaker installer wrapper.
+
+- Observation: the real lint found additional panicking `unwrap_or_else` sites
+  beyond the 38 originally identified by the single-line text search. A broad
+  search for `unwrap_or_else` forms whose closure panics or is unreachable spans
+  about 41 Rust files, including `crates/rstest-bdd-harness/src/macrotest_support.rs`
+  and `crates/rstest-bdd-patterns/src/capture.rs` in the first red Dylint run.
+  Impact: the conversion scope breaches the plan's ~25-file tolerance, so
+  implementation is paused for maintainer direction before widening the cleanup.
 
 (Append further discoveries during execution.)
 
@@ -219,6 +248,20 @@ Hard invariants; violation requires escalation, not a workaround.
   follows the existing "mirror the suite identifier-for-identifier" discipline.
   Rationale: minimise blast radius and avoid redundant machinery.
   Date/Author: 2026-06-18, planning agent.
+
+- Decision: pause implementation after Stage 0 local proof because the real lint
+  scope exceeds the ExecPlan tolerance.
+  Rationale: the plan requires escalation if the conversion balloons past about
+  25 files or 600 net lines. The real lint's broad `unwrap_or_else` coverage
+  expands the Rust conversion to roughly 41 files before documentation, CI, and
+  gate wiring. Continuing would violate the approved manage-by-exception rule.
+  Options: (1) widen this ExecPlan to convert all real lint hits now, (2) narrow
+  the lint gate temporarily with documented Dylint configuration if available,
+  or (3) split the repository-wide conversion into staged commits/PRs and keep
+  10.2.5 focused on the GPUI playbook plus a smaller gate. Option (1) is the
+  most direct route to a clean real lint gate; options (2) and (3) reduce
+  immediate diff size but defer full enforcement.
+  Date/Author: 2026-06-21, implementation agent.
 
 (Append further decisions during execution, especially the Stage 0 mechanism
 choice and any `unreachable!` boundary finding.)
