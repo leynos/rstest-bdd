@@ -53,6 +53,14 @@ impl HarnessAdapter for MetadataProbeHarness {
     }
 }
 
+fn run_std_harness<T>(request: StdScenarioRunRequest<'_, T>) -> T {
+    let harness = StdHarness::new();
+    let Ok(result) = harness.run(request) else {
+        panic!("std harness should not fail");
+    };
+    result
+}
+
 #[rstest]
 fn std_harness_executes_runner_once(default_metadata: ScenarioMetadata) {
     let call_count = Rc::new(Cell::new(0u8));
@@ -65,11 +73,7 @@ fn std_harness_executes_runner_once(default_metadata: ScenarioMetadata) {
         }),
     );
 
-    let harness = StdHarness::new();
-    let result = match harness.run(request) {
-        Ok(result) => result,
-        Err(err) => panic!("std harness should not fail: {err}"),
-    };
+    let result = run_std_harness(request);
     assert_eq!(result, "done");
     assert_eq!(call_count.get(), 1);
 }
@@ -151,11 +155,7 @@ fn std_harness_supports_non_static_runner_borrows(default_metadata: ScenarioMeta
         }),
     );
 
-    let harness = StdHarness::new();
-    let result = match harness.run(request) {
-        Ok(result) => result,
-        Err(err) => panic!("std harness should not fail: {err}"),
-    };
+    let result = run_std_harness(request);
     assert_eq!(result, 1);
     assert_eq!(counter, 1);
 }
