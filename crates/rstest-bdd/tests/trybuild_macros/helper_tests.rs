@@ -8,6 +8,17 @@ use rstest::rstest;
 use std::borrow::Cow;
 use std::panic;
 
+fn write_fixture_file(crate_dir: &Dir, path: &Utf8Path, bytes: &[u8], label: &str) {
+    if let Some(parent) = path.parent() {
+        if let Err(error) = crate_dir.create_dir_all(parent.as_std_path()) {
+            panic!("failed to create directory for {label}: {error}");
+        }
+    }
+    if let Err(error) = crate_dir.write(path.as_std_path(), bytes) {
+        panic!("failed to write {label}: {error}");
+    }
+}
+
 struct NormaliserFixture {
     expected_path: Utf8PathBuf,
     actual_path: Utf8PathBuf,
@@ -29,26 +40,20 @@ impl NormaliserFixture {
         };
 
         let expected_path = expected_stderr_path(test_path.as_std_path());
-        if let Some(parent) = expected_path.parent() {
-            if let Err(error) = crate_dir.create_dir_all(parent.as_std_path()) {
-                panic!("failed to create directory for expected stderr fixture: {error}");
-            }
-        }
-        if let Err(error) =
-            crate_dir.write(expected_path.as_std_path(), expected.as_ref().as_bytes())
-        {
-            panic!("failed to write expected stderr fixture: {error}");
-        }
+        write_fixture_file(
+            &crate_dir,
+            &expected_path,
+            expected.as_ref().as_bytes(),
+            "expected stderr fixture",
+        );
 
         let actual_path = wip_stderr_path(test_path.as_std_path());
-        if let Some(parent) = actual_path.parent() {
-            if let Err(error) = crate_dir.create_dir_all(parent.as_std_path()) {
-                panic!("failed to create directory for wip stderr fixture: {error}");
-            }
-        }
-        if let Err(error) = crate_dir.write(actual_path.as_std_path(), actual.as_ref().as_bytes()) {
-            panic!("failed to write wip stderr fixture: {error}");
-        }
+        write_fixture_file(
+            &crate_dir,
+            &actual_path,
+            actual.as_ref().as_bytes(),
+            "wip stderr fixture",
+        );
 
         Self {
             expected_path,
