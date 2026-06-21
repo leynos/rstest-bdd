@@ -797,12 +797,18 @@ changing the public trait contracts.
   Follow-up 2026-06-16: extended the Python lint, format, and type-check
   targets to include `scripts/tests/`, fixed the mapping-table test lint debt,
   and revalidated the branch-wide `make lint` gate.
-- [ ] 10.2.5. A lint-clean playbook variant compiles under a pedantic lint
+- [x] 10.2.5. A lint-clean playbook variant compiles under a pedantic lint
   profile, including `clippy::shadow_reuse`, `clippy::expect_used`, and the
   in-house `no_unwrap_or_else_panic` lint. Finish line: the playbook in
   `docs/users-guide.md` offers a no-shadowing, no-`unwrap_or_else`-panic
   accessor variant using `let … else { panic!(…) }`. Design Doc:
   `docs/rstest-bdd-design.md` §2.7.6.2.
+  Delivered 2026-06-21: converted the GPUI playbook and executable regression
+  suite to the `let … else { panic!(…) }` accessor form, removed the
+  repository's panicking `unwrap_or_else` escape hatch, and wired Whitaker
+  `no_unwrap_or_else_panic` into `make lint`. See
+  `docs/execplans/10-2-5-playbook-variant-compiles-under-pedantic-lint-profile.md`
+  and `docs/adr-013-adopt-whitaker-no-unwrap-or-else-panic.md`.
 - [ ] 10.2.6. The playbook documents how cargo-nextest's process-per-test
   scheduling interacts with `#[serial]` and per-process thread-local scenario
   state. Finish line: the playbook in `docs/users-guide.md` states that
@@ -904,6 +910,16 @@ remove the existing `StepContext`, harness, or macro surfaces.
   GPUI harness with mutable context and scenario state, and scenario outline
   shapes. Finish line: CI runs and passes one compatibility test for each
   listed shape. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.4. (Buzzy Bee)
+- [ ] 11.2.5. The full Whitaker lint suite is evaluated and, where feasible,
+  adopted behind a pinned gate. Scope includes the remaining Whitaker lints
+  `bumpy_road_function`, `conditional_max_n_branches`,
+  `function_attrs_follow_docs`, `module_max_lines`,
+  `module_must_have_inner_docs`, `no_expect_outside_tests`,
+  `no_std_fs_operations`, and `test_must_not_have_example`. Finish line: an
+  ExecPlan records whether full-suite adoption requires a repository-wide
+  nightly migration, the accepted subset is enforced in CI, and any deferred
+  lints have explicit rationale. Precedent:
+  `docs/adr-013-adopt-whitaker-no-unwrap-or-else-panic.md`.
 
 ### 11.3. Close the feature-file rebuild gap
 

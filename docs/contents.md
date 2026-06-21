@@ -81,6 +81,14 @@
   records the harness-led attribute-policy default decision.
 - [ADR 009: consistent implicit fixture name normalization][adr-009]
   records the fixture-name normalization decision.
+- [ADR 010: feature-file change detection][adr-010] records the decision for
+  making `.feature` files rebuild inputs.
+- [ADR 011: first-party scenario-state helpers][adr-011] records the planned
+  state-store and cleanup-helper direction for stateful harnesses.
+- [ADR 012: guard-based `StepContext` borrowing][adr-012] records the
+  committed v0.7.0 borrowing redesign direction.
+- [ADR 013: adopt Whitaker `no_unwrap_or_else_panic`][adr-013] records the
+  single-lint Whitaker gate decision.
 
 ## Execution plans
 
@@ -91,6 +99,10 @@
 [adr-005a-harness]: adr-005-harness-adapter-crates-for-framework-specific-test-integration.md
 [adr-008]: adr-008-harness-led-attribute-policy-defaults.md
 [adr-009]: adr-009-consistent-implicit-fixture-name-normalization.md
+[adr-010]: adr-010-feature-file-change-detection.md
+[adr-011]: adr-011-first-party-scenario-state-and-cleanup.md
+[adr-012]: adr-012-guard-based-stepcontext-borrowing.md
+[adr-013]: adr-013-adopt-whitaker-no-unwrap-or-else-panic.md
 [complexity-guide]: complexity-antipatterns-and-refactoring-strategies.md
 [cucumber-async]: cucumber-rs-migration-and-async-patterns.md
 [dependency-injection]: reliable-testing-in-rust-via-dependency-injection.md

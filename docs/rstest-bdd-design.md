@@ -1979,7 +1979,7 @@ interaction.
 > | --- | --- | --- |
 > | `add_window_view` closure | `\|_context\| View::default()` (one argument) | `\|_window, view_cx\| View::new(view_cx)` (two arguments) |
 > | obtain window handle | `visual_cx.window_handle()` (inherent method on `VisualTestContext`) | `vcx.window_handle()` (same call, but `window_handle` is a `VisualContext` trait method, so add `use gpui::VisualContext;`) |
-> | `VisualTestContext::from_window` | returns `Option<VisualTestContext>` (`.unwrap_or_else`/`.ok_or`) | returns `VisualTestContext` by value (no `Option`) |
+> | `VisualTestContext::from_window` | returns `Option<VisualTestContext>` (`let … else`/`.ok_or`) | returns `VisualTestContext` by value (no `Option`) |
 > | `read_entity` / `update_entity` | `Option`/`Result` wrappers (`Some(1)`, `Ok(())`) | identity `type Result<T> = T`; returns `R` directly |
 >
 > *Table: Vendored-to-published gpui 0.2.2 API shape differences.*
@@ -1994,9 +1994,10 @@ interaction.
 > `Option<R>`. Published `gpui` returns `R` directly, so adopters cannot depend
 > on that typed error channel.
 >
-> The lint-clean variant of the playbook avoids `shadow_reuse` and
-> `unwrap_or_else(|| panic!(…))`; see roadmap 10.2.5 and the user guide for
-> the `let … else { panic!(…) }` accessor form suitable for pedantic profiles.
+> The playbook's primary accessor form avoids `shadow_reuse` and
+> `unwrap_or_else(|| panic!(…))`. ADR-013 records the `make lint` Whitaker gate
+> that enforces `no_unwrap_or_else_panic`, and the user guide carries the
+> executable `let … else { panic!(…) }` shape mirrored by the regression suite.
 
 The recommended v0.6-compatible shape keeps only durable handles in resettable
 scenario state. In schematic form (vendored gpui API):
@@ -2020,9 +2021,9 @@ fn given_shell_open(
     let window = visual_cx.window_handle();
 
     WORLD.with(|world| {
-        let mut world = world.borrow_mut();
-        world.shell = Some(shell);
-        world.window = Some(window);
+        let mut world_guard = world.borrow_mut();
+        world_guard.shell = Some(shell);
+        world_guard.window = Some(window);
     });
 
     Ok(())
@@ -2033,8 +2034,9 @@ fn press_tab(
     #[from(rstest_bdd_harness_context)] cx: &mut gpui::TestAppContext,
 ) -> StepResult<()> {
     let window = WORLD.with(|world| world.borrow().window.ok_or("missing window"))?;
-    let mut visual_cx = gpui::VisualTestContext::from_window(window, cx)
-        .ok_or("stored window handle should reconstruct visual context")?;
+    let Some(mut visual_cx) = gpui::VisualTestContext::from_window(window, cx) else {
+        panic!("stored window handle should reconstruct visual context");
+    };
 
     visual_cx.simulate_keystrokes("tab");
     Ok(())
@@ -2043,7 +2045,10 @@ fn press_tab(
 
 The reset must run before assigning new scenario state. The world stores the
 window handle, not `VisualTestContext`, so later steps can rebuild the visual
-context from the handle and the current harness context.
+context from the handle and the current harness context. The schematic uses a
+fresh `world_guard` binding and `let … else { panic!(…) }` for infrastructure
+invariants so it passes `clippy::shadow_reuse`, `clippy::expect_used`,
+`clippy::unwrap_used`, and Whitaker `no_unwrap_or_else_panic`.
 
 The feature-gated GPUI harness regression suite under
 `crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` exercises this

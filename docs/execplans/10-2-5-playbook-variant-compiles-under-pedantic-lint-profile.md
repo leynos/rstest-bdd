@@ -193,6 +193,13 @@ Hard invariants; violation requires escalation, not a workaround.
 - [ ] (Stage D — docs) design §2.7.6.2, ADR-013, developers guide, users-guide
   playbook, CI, roadmap tick 10.2.5 + new v0.6.1 item; full gates green;
   CodeRabbit clean.
+  Documentation implementation on 2026-06-21 updated the user-guide playbook
+  to make `let … else { panic!(…) }` the primary accessor form, updated
+  design §2.7.6.2, added ADR-013, documented local/CI Whitaker setup in the
+  developer guide, ticked roadmap 10.2.5, and added the v0.6.1 full-Whitaker
+  suite follow-up item. Validation passed with `make markdownlint`,
+  `make check-fmt`, `make lint`, `make test`, and `make nixie`; CodeRabbit
+  remains pending.
 
 ## Surprises & discoveries
 
@@ -236,6 +243,13 @@ Hard invariants; violation requires escalation, not a workaround.
   before linting begins. Impact: the Makefile derives `WHITAKER_LIBRARY_DIR`
   with `abspath`, while leaving the checkout and build target under
   `target/whitaker` for cache locality.
+
+- Observation: `make fmt` is currently not a clean documentation formatter for
+  the whole repository. It completed Rust and Python formatting, then
+  `markdownlint-cli2 --fix` reported pre-existing MD013/MD039 issues in
+  unrelated documents. Impact: the unrelated formatter churn was reverted, the
+  active ExecPlan line-length issue was fixed manually, and `make markdownlint`
+  remains the authoritative Markdown gate for this task.
 
 (Append further discoveries during execution.)
 
