@@ -59,9 +59,10 @@ mod tests {
     fn std_harness_runs_request(harness: StdHarness, metadata: ScenarioMetadata) {
         let request =
             StdScenarioRunRequest::new(metadata, StdScenarioRunner::new_without_context(|| 21 * 2));
-        let result = harness
-            .run(request)
-            .unwrap_or_else(|err| panic!("std harness should not fail: {err}"));
+        let result = match harness.run(request) {
+            Ok(result) => result,
+            Err(err) => panic!("std harness should not fail: {err}"),
+        };
         assert_eq!(result, 42);
     }
 

@@ -30,8 +30,11 @@ pub struct Localizations;
 
 static LANGUAGE_LOADER: LazyLock<RwLock<FluentLanguageLoader>> = LazyLock::new(|| {
     let loader = fluent_language_loader!();
-    i18n_embed::select(&loader, &Localizations, &[unic_langid::langid!("en-US")])
-        .unwrap_or_else(|error| panic!("failed to load default English translations: {error}"));
+    if let Err(error) =
+        i18n_embed::select(&loader, &Localizations, &[unic_langid::langid!("en-US")])
+    {
+        panic!("failed to load default English translations: {error}");
+    }
     RwLock::new(loader)
 });
 

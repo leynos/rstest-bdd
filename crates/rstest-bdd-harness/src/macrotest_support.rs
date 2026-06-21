@@ -37,8 +37,10 @@ fn cargo_expand_is_available() -> bool {
 
 /// Reads a snapshot file at `path`, panicking with file context on failure.
 fn read_snapshot(path: &Path) -> String {
-    fs::read_to_string(path)
-        .unwrap_or_else(|err| panic!("failed to read snapshot {}: {err}", path.display()))
+    match fs::read_to_string(path) {
+        Ok(contents) => contents,
+        Err(err) => panic!("failed to read snapshot {}: {err}", path.display()),
+    }
 }
 
 /// Asserts that every needle appears at least once in the snapshot at `path`.

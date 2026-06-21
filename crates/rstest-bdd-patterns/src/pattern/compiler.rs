@@ -80,8 +80,10 @@ mod tests {
 
     #[test]
     fn builds_regex_for_placeholder_patterns() {
-        let regex = build_regex_from_pattern("I have {count:u32} cukes")
-            .unwrap_or_else(|err| panic!("pattern should compile: {err}"));
+        let regex = match build_regex_from_pattern("I have {count:u32} cukes") {
+            Ok(regex) => regex,
+            Err(err) => panic!("pattern should compile: {err}"),
+        };
         assert_eq!(regex, r"^I have (\d+) cukes$");
     }
 

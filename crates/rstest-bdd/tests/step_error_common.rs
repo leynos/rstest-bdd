@@ -269,8 +269,10 @@ impl<'a> StepInvocation<'a> {
 /// Panics if the requested step has not been registered in the global registry.
 pub fn invoke_step(invocation: &StepInvocation<'_>) -> Result<StepExecution, StepError> {
     let mut ctx = StepContext::default();
-    let step_fn = rstest_bdd::lookup_step(invocation.keyword, invocation.step_pattern.into())
-        .unwrap_or_else(|| panic!("step '{}' not found in registry", invocation.step_pattern));
+    let Some(step_fn) = rstest_bdd::lookup_step(invocation.keyword, invocation.step_pattern.into())
+    else {
+        panic!("step '{}' not found in registry", invocation.step_pattern);
+    };
     step_fn(
         &mut ctx,
         invocation.step_text,

@@ -88,8 +88,10 @@ fn aborts_on_invalid_step_pattern() {
     let msg = err
         .downcast_ref::<String>()
         .map(String::as_str)
-        .or_else(|| err.downcast_ref::<&str>().copied())
-        .unwrap_or_else(|| panic!("panic payload must be a string"));
+        .or_else(|| err.downcast_ref::<&str>().copied());
+    let Some(msg) = msg else {
+        panic!("panic payload must be a string");
+    };
     assert!(
         msg.contains("proc-macro-error API cannot be used outside of `entry_point` invocation")
     );

@@ -99,9 +99,10 @@ mod tests {
             ),
             ScenarioRunner::new(|_context: TokioTestContext| 21 * 2),
         );
-        let result = harness
-            .run(request)
-            .unwrap_or_else(|err| panic!("tokio harness should not fail: {err}"));
+        let result = match harness.run(request) {
+            Ok(result) => result,
+            Err(err) => panic!("tokio harness should not fail: {err}"),
+        };
         assert_eq!(result, 42);
     }
 
@@ -115,9 +116,10 @@ mod tests {
                 true
             }),
         );
-        let result = harness
-            .run(request)
-            .unwrap_or_else(|err| panic!("tokio harness should not fail: {err}"));
+        let result = match harness.run(request) {
+            Ok(result) => result,
+            Err(err) => panic!("tokio harness should not fail: {err}"),
+        };
         assert!(result);
     }
 }

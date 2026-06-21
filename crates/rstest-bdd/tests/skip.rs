@@ -239,14 +239,13 @@ fn json_writer_emits_lowercase_skipped_status() {
         Ok(value) => value,
         Err(error) => panic!("expected JSON report to parse: {error}"),
     };
-    let scenarios = parsed
-        .get("scenarios")
-        .and_then(Value::as_array)
-        .unwrap_or_else(|| panic!("scenarios array missing"));
+    let Some(scenarios) = parsed.get("scenarios").and_then(Value::as_array) else {
+        panic!("scenarios array missing");
+    };
     assert_eq!(scenarios.len(), records.len());
-    let scenario = scenarios
-        .first()
-        .unwrap_or_else(|| panic!("scenario entry present"));
+    let Some(scenario) = scenarios.first() else {
+        panic!("scenario entry present");
+    };
     assert_eq!(
         scenario.get("status").and_then(Value::as_str),
         Some("skipped"),
@@ -261,10 +260,9 @@ fn json_writer_emits_lowercase_skipped_status() {
         Some("allowed skip"),
         "scenario name should surface in JSON output",
     );
-    let skip = scenario
-        .get("skip")
-        .and_then(Value::as_object)
-        .unwrap_or_else(|| panic!("skip details present"));
+    let Some(skip) = scenario.get("skip").and_then(Value::as_object) else {
+        panic!("skip details present");
+    };
     assert_eq!(
         skip.get("message").and_then(Value::as_str),
         Some("skip requested for coverage"),
@@ -286,19 +284,24 @@ fn json_writer_omits_absent_skip_messages() {
     let guard = FailOnSkippedGuard::enable();
     allowed_skip_without_message();
     drop(guard);
-    let json = reporting::json::snapshot_string()
-        .unwrap_or_else(|error| panic!("expected JSON report: {error}"));
-    let parsed: Value =
-        serde_json::from_str(&json).unwrap_or_else(|error| panic!("expected valid JSON: {error}"));
-    let scenario = parsed
+    let json = match reporting::json::snapshot_string() {
+        Ok(json) => json,
+        Err(error) => panic!("expected JSON report: {error}"),
+    };
+    let parsed: Value = match serde_json::from_str(&json) {
+        Ok(parsed) => parsed,
+        Err(error) => panic!("expected valid JSON: {error}"),
+    };
+    let Some(scenario) = parsed
         .get("scenarios")
         .and_then(Value::as_array)
         .and_then(|entries| entries.first())
-        .unwrap_or_else(|| panic!("scenario entry present"));
-    let skip = scenario
-        .get("skip")
-        .and_then(Value::as_object)
-        .unwrap_or_else(|| panic!("skip details present"));
+    else {
+        panic!("scenario entry present");
+    };
+    let Some(skip) = scenario.get("skip").and_then(Value::as_object) else {
+        panic!("skip details present");
+    };
     assert!(skip.get("message").is_none() || skip.get("message") == Some(&Value::Null));
     let _ = drain_reports();
 }

@@ -15,7 +15,10 @@ use thiserror::Error;
 /// and punctuation commonly used in Gherkin Examples headers.
 pub(crate) static PLACEHOLDER_RE: LazyLock<Regex> = LazyLock::new(|| {
     // Safe: The regex pattern is a compile-time constant and is valid.
-    Regex::new(r"<([^>\s][^>]*)>").unwrap_or_else(|_| unreachable!("placeholder regex is valid"))
+    let Ok(regex) = Regex::new(r"<([^>\s][^>]*)>") else {
+        unreachable!("placeholder regex is valid");
+    };
+    regex
 });
 
 /// Error returned when a placeholder references a non-existent column.
@@ -81,9 +84,9 @@ pub fn substitute_placeholders(
             })?;
 
         // Invariant: headers and row must have equal length; panic if violated.
-        let value = row.get(idx).unwrap_or_else(|| {
+        let Some(value) = row.get(idx) else {
             panic!("row length must match headers length; this indicates a parsing bug");
-        });
+        };
         result = result.replace(full_match.as_str(), value);
     }
 

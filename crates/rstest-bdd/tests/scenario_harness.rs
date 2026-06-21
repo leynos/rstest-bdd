@@ -351,8 +351,10 @@ fn harness_initialization_panic_includes_error_context() {
     let message = payload
         .downcast_ref::<&str>()
         .copied()
-        .or_else(|| payload.downcast_ref::<String>().map(String::as_str))
-        .unwrap_or_else(|| panic!("expected panic payload to be a string"));
+        .or_else(|| payload.downcast_ref::<String>().map(String::as_str));
+    let Some(message) = message else {
+        panic!("expected panic payload to be a string");
+    };
     assert!(message.contains("harness failed to initialise scenario"));
     assert!(message.contains("synthetic harness failure"));
 }

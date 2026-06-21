@@ -168,7 +168,8 @@ Hard invariants; violation requires escalation, not a workaround.
   CI-equivalent; mechanism and pins chosen; go/no-go recorded. Local spike on
   2026-06-21 proved the real lint can run only via an explicit Whitaker
   build/copy/library-path flow for tag `v0.2.5`; implementation paused because
-  the real lint expands the Rust conversion scope beyond this plan's tolerance.
+  the real lint expands the Rust conversion scope beyond this plan's original
+  tolerance. Maintainer accepted the increased tolerance on 2026-06-21.
 - [x] (Stage A) Orientation and this plan approved. Implementation requested on
   2026-06-21; branch tracking configured to
   `origin/10-2-5-playbook-variant-compiles-under-pedantic-lint-profile`; PR #546
@@ -177,6 +178,15 @@ Hard invariants; violation requires escalation, not a workaround.
   38 known sites (proof the lint is active).
 - [ ] (Stage C — green) All sites converted to `let … else { panic!(…) }` (or
   `?`); GPUI suite and playbook converted; `make lint`/`make test` green.
+  Rust conversion portion completed on 2026-06-21 across all real Whitaker hits;
+  playbook documentation remains pending. Evidence:
+  the command
+  `cargo dylint --keep-going --lib no_unwrap_or_else_panic --no-metadata
+  --no-build -- --workspace --all-targets --all-features`
+  passed with no `no_unwrap_or_else_panic` diagnostics;
+  `make check-fmt`, `make lint`, and `make test` passed. The Dylint run still
+  reports the existing Tokio compatibility-alias deprecation warning under the
+  nightly driver, but not as a failing diagnostic.
 - [ ] (Stage D — docs) design §2.7.6.2, ADR-013, developers guide, users-guide
   playbook, CI, roadmap tick 10.2.5 + new v0.6.1 item; full gates green;
   CodeRabbit clean.
@@ -262,6 +272,15 @@ Hard invariants; violation requires escalation, not a workaround.
   most direct route to a clean real lint gate; options (2) and (3) reduce
   immediate diff size but defer full enforcement.
   Date/Author: 2026-06-21, implementation agent.
+
+- Decision: widen this ExecPlan to convert all real Whitaker
+  `no_unwrap_or_else_panic` hits now.
+  Rationale: the maintainer accepted the increased tolerance after the Stage 0
+  discovery. Workspace-wide enforcement remains the target, so partial cleanup
+  would create a weaker gate and defer the main behavioural proof. Continue with
+  the explicit Whitaker build/copy/library-path mechanism and iterative Dylint
+  runs until the real lint is clean.
+  Date/Author: 2026-06-21, implementation agent with maintainer approval.
 
 (Append further decisions during execution, especially the Stage 0 mechanism
 choice and any `unreachable!` boundary finding.)

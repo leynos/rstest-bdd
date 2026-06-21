@@ -29,9 +29,10 @@ fn gpui_harness_executes_runner_once(default_metadata: ScenarioMetadata) {
     );
 
     let harness = GpuiHarness::new();
-    let result = harness
-        .run(request)
-        .unwrap_or_else(|err| panic!("gpui harness should not fail: {err}"));
+    let result = match harness.run(request) {
+        Ok(result) => result,
+        Err(err) => panic!("gpui harness should not fail: {err}"),
+    };
     assert_eq!(result, "done");
     assert_eq!(call_count.get(), 1);
 }
@@ -94,9 +95,10 @@ fn gpui_harness_supports_non_static_runner_borrows(default_metadata: ScenarioMet
     );
 
     let harness = GpuiHarness::new();
-    let result = harness
-        .run(request)
-        .unwrap_or_else(|err| panic!("gpui harness should not fail: {err}"));
+    let result = match harness.run(request) {
+        Ok(result) => result,
+        Err(err) => panic!("gpui harness should not fail: {err}"),
+    };
     assert_eq!(result, 1);
     assert_eq!(counter, 1);
 }
@@ -110,9 +112,10 @@ fn gpui_context_is_active_inside_harness() {
         }),
     );
     let harness = GpuiHarness::new();
-    let result = harness
-        .run(request)
-        .unwrap_or_else(|err| panic!("gpui harness should not fail: {err}"));
+    let result = match harness.run(request) {
+        Ok(result) => result,
+        Err(err) => panic!("gpui harness should not fail: {err}"),
+    };
     assert!(result);
 }
 
@@ -133,8 +136,9 @@ fn gpui_harness_passes_metadata_through() {
     );
     assert_eq!(request.metadata().scenario_name(), "Payment succeeds");
     let harness = GpuiHarness::new();
-    let result = harness
-        .run(request)
-        .unwrap_or_else(|err| panic!("gpui harness should not fail: {err}"));
+    let result = match harness.run(request) {
+        Ok(result) => result,
+        Err(err) => panic!("gpui harness should not fail: {err}"),
+    };
     assert_eq!(result, 200);
 }

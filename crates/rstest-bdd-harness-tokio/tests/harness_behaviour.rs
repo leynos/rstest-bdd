@@ -28,9 +28,10 @@ fn tokio_harness_executes_runner_once(default_metadata: ScenarioMetadata) {
     );
 
     let harness = TokioHarness::new();
-    let result = harness
-        .run(request)
-        .unwrap_or_else(|err| panic!("tokio harness should not fail: {err}"));
+    let result = match harness.run(request) {
+        Ok(result) => result,
+        Err(err) => panic!("tokio harness should not fail: {err}"),
+    };
     assert_eq!(result, "done");
     assert_eq!(call_count.get(), 1);
 }
@@ -85,9 +86,10 @@ fn tokio_harness_supports_non_static_runner_borrows(default_metadata: ScenarioMe
     );
 
     let harness = TokioHarness::new();
-    let result = harness
-        .run(request)
-        .unwrap_or_else(|err| panic!("tokio harness should not fail: {err}"));
+    let result = match harness.run(request) {
+        Ok(result) => result,
+        Err(err) => panic!("tokio harness should not fail: {err}"),
+    };
     assert_eq!(result, 1);
     assert_eq!(counter, 1);
 }
@@ -105,9 +107,10 @@ fn tokio_runtime_is_active_inside_harness() {
         }),
     );
     let harness = TokioHarness::new();
-    let result = harness
-        .run(request)
-        .unwrap_or_else(|err| panic!("tokio harness should not fail: {err}"));
+    let result = match harness.run(request) {
+        Ok(result) => result,
+        Err(err) => panic!("tokio harness should not fail: {err}"),
+    };
     assert!(result);
 }
 
@@ -131,9 +134,10 @@ fn tokio_harness_supports_spawn_local(default_metadata: ScenarioMetadata) {
     );
 
     let harness = TokioHarness::new();
-    let result = harness
-        .run(request)
-        .unwrap_or_else(|err| panic!("tokio harness should not fail: {err}"));
+    let result = match harness.run(request) {
+        Ok(result) => result,
+        Err(err) => panic!("tokio harness should not fail: {err}"),
+    };
     assert_eq!(result, "spawned");
     // The LocalSet drives the spawned task to completion before block_on
     // returns, so the flag should be set.
@@ -160,9 +164,10 @@ fn tokio_harness_single_tick_does_not_fully_drain_localset(default_metadata: Sce
     );
 
     let harness = TokioHarness::new();
-    let result = harness
-        .run(request)
-        .unwrap_or_else(|err| panic!("tokio harness should not fail: {err}"));
+    let result = match harness.run(request) {
+        Ok(result) => result,
+        Err(err) => panic!("tokio harness should not fail: {err}"),
+    };
     assert_eq!(result, "spawned-yielding");
     assert!(
         !completed.get(),
@@ -188,8 +193,9 @@ fn tokio_harness_passes_metadata_through() {
     );
     assert_eq!(request.metadata().scenario_name(), "Payment succeeds");
     let harness = TokioHarness::new();
-    let result = harness
-        .run(request)
-        .unwrap_or_else(|err| panic!("tokio harness should not fail: {err}"));
+    let result = match harness.run(request) {
+        Ok(result) => result,
+        Err(err) => panic!("tokio harness should not fail: {err}"),
+    };
     assert_eq!(result, 200);
 }

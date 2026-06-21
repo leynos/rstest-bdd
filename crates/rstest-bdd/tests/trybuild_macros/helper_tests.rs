@@ -20,39 +20,35 @@ impl NormaliserFixture {
         actual: FixtureStderr<'_>,
     ) -> Self {
         let test_path = Utf8Path::new(test_path.as_ref());
-        let crate_dir = Dir::open_ambient_dir(
+        let crate_dir = match Dir::open_ambient_dir(
             Utf8Path::new(env!("CARGO_MANIFEST_DIR")),
             ambient_authority(),
-        )
-        .unwrap_or_else(|error| panic!("failed to open crate directory: {error}"));
+        ) {
+            Ok(crate_dir) => crate_dir,
+            Err(error) => panic!("failed to open crate directory: {error}"),
+        };
 
         let expected_path = expected_stderr_path(test_path.as_std_path());
         if let Some(parent) = expected_path.parent() {
-            crate_dir
-                .create_dir_all(parent.as_std_path())
-                .unwrap_or_else(|error| {
-                    panic!("failed to create directory for expected stderr fixture: {error}");
-                });
+            if let Err(error) = crate_dir.create_dir_all(parent.as_std_path()) {
+                panic!("failed to create directory for expected stderr fixture: {error}");
+            }
         }
-        crate_dir
-            .write(expected_path.as_std_path(), expected.as_ref().as_bytes())
-            .unwrap_or_else(|error| {
-                panic!("failed to write expected stderr fixture: {error}");
-            });
+        if let Err(error) =
+            crate_dir.write(expected_path.as_std_path(), expected.as_ref().as_bytes())
+        {
+            panic!("failed to write expected stderr fixture: {error}");
+        }
 
         let actual_path = wip_stderr_path(test_path.as_std_path());
         if let Some(parent) = actual_path.parent() {
-            crate_dir
-                .create_dir_all(parent.as_std_path())
-                .unwrap_or_else(|error| {
-                    panic!("failed to create directory for wip stderr fixture: {error}");
-                });
+            if let Err(error) = crate_dir.create_dir_all(parent.as_std_path()) {
+                panic!("failed to create directory for wip stderr fixture: {error}");
+            }
         }
-        crate_dir
-            .write(actual_path.as_std_path(), actual.as_ref().as_bytes())
-            .unwrap_or_else(|error| {
-                panic!("failed to write wip stderr fixture: {error}");
-            });
+        if let Err(error) = crate_dir.write(actual_path.as_std_path(), actual.as_ref().as_bytes()) {
+            panic!("failed to write wip stderr fixture: {error}");
+        }
 
         Self {
             expected_path,

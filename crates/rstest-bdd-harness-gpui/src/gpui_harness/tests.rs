@@ -49,9 +49,10 @@ fn gpui_harness_runs_request(harness: GpuiHarness) {
         ),
         ScenarioRunner::new(|_context: gpui::TestAppContext| 21 * 2),
     );
-    let result = harness
-        .run(request)
-        .unwrap_or_else(|err| panic!("gpui harness should not fail: {err}"));
+    let result = match harness.run(request) {
+        Ok(result) => result,
+        Err(err) => panic!("gpui harness should not fail: {err}"),
+    };
     assert_eq!(result, 42);
 }
 
@@ -62,9 +63,10 @@ fn gpui_test_context_is_available_during_run(harness: GpuiHarness) {
         ScenarioMetadata::default(),
         ScenarioRunner::new(|context: gpui::TestAppContext| context.test_function_name().is_none()),
     );
-    let result = harness
-        .run(request)
-        .unwrap_or_else(|err| panic!("gpui harness should not fail: {err}"));
+    let result = match harness.run(request) {
+        Ok(result) => result,
+        Err(err) => panic!("gpui harness should not fail: {err}"),
+    };
     assert!(result);
 }
 

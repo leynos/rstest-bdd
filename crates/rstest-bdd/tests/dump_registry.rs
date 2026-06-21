@@ -26,7 +26,9 @@ step!(
 );
 
 fn execute_and_validate_step(keyword: StepKeyword, pattern: &str) {
-    let runner = find_step(keyword, pattern.into()).unwrap_or_else(|| panic!("step not found"));
+    let Some(runner) = find_step(keyword, pattern.into()) else {
+        panic!("step not found");
+    };
     let mut ctx = StepContext::default();
     match runner(&mut ctx, pattern, None, None) {
         Ok(StepExecution::Continue { .. }) => {}
@@ -36,10 +38,12 @@ fn execute_and_validate_step(keyword: StepKeyword, pattern: &str) {
 }
 
 fn validate_skipped_scenario(scenarios: &[Value]) {
-    let skipped = scenarios
+    let Some(skipped) = scenarios
         .iter()
         .find(|entry| entry.get("status") == Some(&Value::String("skipped".into())))
-        .unwrap_or_else(|| panic!("skipped scenario present"));
+    else {
+        panic!("skipped scenario present");
+    };
     assert_eq!(
         skipped.get("message").and_then(Value::as_str),
         Some("reason"),
@@ -58,10 +62,12 @@ fn validate_skipped_scenario(scenarios: &[Value]) {
 }
 
 fn validate_passed_scenario(scenarios: &[Value]) {
-    let passing = scenarios
+    let Some(passing) = scenarios
         .iter()
         .find(|entry| entry.get("status") == Some(&Value::String("passed".into())))
-        .unwrap_or_else(|| panic!("passed scenario present"));
+    else {
+        panic!("passed scenario present");
+    };
     assert!(
         passing.get("message").is_none() || passing.get("message") == Some(&Value::Null),
         "passed scenarios should not include a skip message",
@@ -79,7 +85,10 @@ fn validate_passed_scenario(scenarios: &[Value]) {
 }
 
 fn parse_registry_json(json: &str) -> Value {
-    serde_json::from_str(json).unwrap_or_else(|e| panic!("valid json: {e}"))
+    match serde_json::from_str(json) {
+        Ok(value) => value,
+        Err(e) => panic!("valid json: {e}"),
+    }
 }
 
 fn validate_step_usage_flags(steps: &[Value]) {
@@ -104,10 +113,12 @@ fn validate_step_usage_flags(steps: &[Value]) {
 }
 
 fn validate_scenario_metadata(scenarios: &[Value]) {
-    let skipped = scenarios
+    let Some(skipped) = scenarios
         .iter()
         .find(|entry| entry["scenario_name"] == "skipped entry")
-        .unwrap_or_else(|| panic!("skipped scenario present"));
+    else {
+        panic!("skipped scenario present");
+    };
     assert_eq!(skipped["line"].as_u64(), Some(3));
     assert_eq!(
         skipped["tags"]
@@ -131,14 +142,13 @@ fn validate_bypassed_steps_metadata(bypassed_steps: &[Value]) {
         }),
         "expected bypassed entry for skipped entry to capture the skip reason"
     );
-    let entry = bypassed_steps
-        .iter()
-        .find(|value| {
-            value["pattern"] == "dump unused"
-                && value["scenario_name"] == "skipped entry"
-                && value["scenario_line"].as_u64() == Some(3)
-        })
-        .unwrap_or_else(|| panic!("bypassed entry present"));
+    let Some(entry) = bypassed_steps.iter().find(|value| {
+        value["pattern"] == "dump unused"
+            && value["scenario_name"] == "skipped entry"
+            && value["scenario_line"].as_u64() == Some(3)
+    }) else {
+        panic!("bypassed entry present");
+    };
     assert_eq!(entry["scenario_line"].as_u64(), Some(3));
     assert_eq!(
         entry["tags"]
@@ -185,27 +195,27 @@ fn reports_usage_flags() {
 
     execute_and_validate_step(StepKeyword::Given, "dump used");
 
-    let json = dump_registry().unwrap_or_else(|e| panic!("dump registry: {e}"));
+    let json = match dump_registry() {
+        Ok(json) => json,
+        Err(e) => panic!("dump registry: {e}"),
+    };
     let parsed = parse_registry_json(&json);
-    let steps = parsed
-        .get("steps")
-        .and_then(Value::as_array)
-        .unwrap_or_else(|| panic!("steps array"));
+    let Some(steps) = parsed.get("steps").and_then(Value::as_array) else {
+        panic!("steps array");
+    };
     validate_step_usage_flags(steps);
 
-    let scenarios = parsed
-        .get("scenarios")
-        .and_then(Value::as_array)
-        .unwrap_or_else(|| panic!("scenarios array"));
+    let Some(scenarios) = parsed.get("scenarios").and_then(Value::as_array) else {
+        panic!("scenarios array");
+    };
     assert!(scenarios.iter().all(|entry| entry.get("status").is_some()));
     validate_skipped_scenario(scenarios);
     validate_passed_scenario(scenarios);
     validate_scenario_metadata(scenarios);
 
-    let bypassed_steps = parsed
-        .get("bypassed_steps")
-        .and_then(Value::as_array)
-        .unwrap_or_else(|| panic!("bypassed_steps array"));
+    let Some(bypassed_steps) = parsed.get("bypassed_steps").and_then(Value::as_array) else {
+        panic!("bypassed_steps array");
+    };
     validate_bypassed_steps_metadata(bypassed_steps);
     let _ = reporting::drain();
 }

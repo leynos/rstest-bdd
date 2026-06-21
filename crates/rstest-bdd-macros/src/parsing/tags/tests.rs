@@ -8,7 +8,10 @@ use rstest::rstest;
 use super::TagExpression;
 
 fn parse_expression(input: &str) -> TagExpression {
-    TagExpression::parse(input).unwrap_or_else(|err| panic!("parse expression `{input}`: {err}"))
+    match TagExpression::parse(input) {
+        Ok(expression) => expression,
+        Err(err) => panic!("parse expression `{input}`: {err}"),
+    }
 }
 
 fn parse_error_message(input: &str) -> String {

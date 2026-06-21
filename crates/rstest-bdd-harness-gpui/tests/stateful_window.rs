@@ -65,12 +65,12 @@ fn with_state<R>(operation: impl FnOnce(&mut ScenarioState) -> R) -> R {
 
 fn current_handles() -> (gpui::Entity<CounterView>, gpui::AnyWindowHandle) {
     with_state(|state| {
-        let entity = state
-            .entity
-            .unwrap_or_else(|| panic!("scenario should have stored an entity handle"));
-        let window = state
-            .window
-            .unwrap_or_else(|| panic!("scenario should have stored a window handle"));
+        let Some(entity) = state.entity else {
+            panic!("scenario should have stored an entity handle");
+        };
+        let Some(window) = state.window else {
+            panic!("scenario should have stored a window handle");
+        };
         (entity, window)
     })
 }
@@ -95,9 +95,10 @@ fn read_counter_from_window(
     window: gpui::AnyWindowHandle,
     entity: gpui::Entity<CounterView>,
 ) -> Option<usize> {
-    gpui::VisualTestContext::from_window(window, context)
-        .unwrap_or_else(|| panic!("owned window handle should reconstruct visual context"))
-        .read_entity(entity, |view| view.value)
+    let Some(visual_context) = gpui::VisualTestContext::from_window(window, context) else {
+        panic!("owned window handle should reconstruct visual context");
+    };
+    visual_context.read_entity(entity, |view| view.value)
 }
 
 #[given("a fresh GPUI window is opened")]
@@ -127,8 +128,9 @@ fn view_is_updated_through_reconstructed_visual_context(
     #[from(rstest_bdd_harness_context)] context: &mut gpui::TestAppContext,
 ) {
     let (entity, window) = current_handles();
-    let mut visual_context = gpui::VisualTestContext::from_window(window, context)
-        .unwrap_or_else(|| panic!("stored window handle should reconstruct visual context"));
+    let Some(mut visual_context) = gpui::VisualTestContext::from_window(window, context) else {
+        panic!("stored window handle should reconstruct visual context");
+    };
     assert_eq!(
         visual_context.update_entity(entity, |view| view.value += 1),
         Ok(())
@@ -140,8 +142,9 @@ fn durable_handles_identify_the_updated_view(
     #[from(rstest_bdd_harness_context)] context: &mut gpui::TestAppContext,
 ) {
     let (entity, window) = current_handles();
-    let visual_context = gpui::VisualTestContext::from_window(window, context)
-        .unwrap_or_else(|| panic!("stored window handle should reconstruct visual context"));
+    let Some(visual_context) = gpui::VisualTestContext::from_window(window, context) else {
+        panic!("stored window handle should reconstruct visual context");
+    };
 
     assert_eq!(
         visual_context.read_entity(entity, |view| view.value),
@@ -172,11 +175,12 @@ fn update_entity_returns_not_found_for_unknown_handle() {
     let mut unrelated_context = gpui::TestAppContext::single();
     let (_entity, visual_context) =
         unrelated_context.add_window_view(|_context| CounterView::default());
-    let mut unrelated_visual_context = gpui::VisualTestContext::from_window(
+    let Some(mut unrelated_visual_context) = gpui::VisualTestContext::from_window(
         visual_context.window_handle(),
         &mut unrelated_context,
-    )
-    .unwrap_or_else(|| panic!("fresh window handle should reconstruct visual context"));
+    ) else {
+        panic!("fresh window handle should reconstruct visual context");
+    };
 
     let result = unrelated_visual_context.update_entity(stale_entity, |view| {
         view.value += 1;
@@ -233,9 +237,11 @@ fn entity_access_is_rejected_from_the_wrong_window() {
         "the owning visual context should be able to read its own entity"
     );
 
-    let mut second_visual_context =
+    let Some(mut second_visual_context) =
         gpui::VisualTestContext::from_window(second_visual_context.window_handle(), &mut context)
-            .unwrap_or_else(|| panic!("second window handle should reconstruct visual context"));
+    else {
+        panic!("second window handle should reconstruct visual context");
+    };
     let update_result = second_visual_context.update_entity(first_entity, |view| {
         view.value += 1;
         panic!("cross-window entity updates should not invoke the update closure");
@@ -283,15 +289,19 @@ proptest! {
         };
         let entity_index = entity_index_seed.min(entity_handles.len() - 1);
         let visual_index = visual_index_seed.min(visual_handles.len() - 1);
-        let (entity, entity_window) = entity_handles
+        let Some((entity, entity_window)) = entity_handles
             .get(entity_index)
             .copied()
-            .unwrap_or_else(|| panic!("generated entity index should be in bounds"));
-        let visual_window = visual_handles
+        else {
+            panic!("generated entity index should be in bounds");
+        };
+        let Some(visual_window_handle) = visual_handles
             .get(visual_index)
             .copied()
-            .unwrap_or_else(|| panic!("generated visual index should be in bounds"))
-            .1;
+        else {
+            panic!("generated visual index should be in bounds");
+        };
+        let visual_window = visual_window_handle.1;
         let original_value = if entity_context == 0 {
             entity_index
         } else {
@@ -300,15 +310,21 @@ proptest! {
         let should_allow_access = entity_context == visual_context && entity_index == visual_index;
 
         let (read_result, update_result) = if visual_context == 0 {
-            let mut visual = gpui::VisualTestContext::from_window(visual_window, &mut first_context)
-                .unwrap_or_else(|| panic!("visual window should belong to first context"));
+            let Some(mut visual) =
+                gpui::VisualTestContext::from_window(visual_window, &mut first_context)
+            else {
+                panic!("visual window should belong to first context");
+            };
             let read_result = visual.read_entity(entity, |view| view.value);
             let update_result =
                 visual.update_entity(entity, |view| view.value += update_delta);
             (read_result, update_result)
         } else {
-            let mut visual = gpui::VisualTestContext::from_window(visual_window, &mut second_context)
-                .unwrap_or_else(|| panic!("visual window should belong to second context"));
+            let Some(mut visual) =
+                gpui::VisualTestContext::from_window(visual_window, &mut second_context)
+            else {
+                panic!("visual window should belong to second context");
+            };
             let read_result = visual.read_entity(entity, |view| view.value);
             let update_result =
                 visual.update_entity(entity, |view| view.value += update_delta);

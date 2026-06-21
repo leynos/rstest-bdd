@@ -66,9 +66,10 @@ fn std_harness_executes_runner_once(default_metadata: ScenarioMetadata) {
     );
 
     let harness = StdHarness::new();
-    let result = harness
-        .run(request)
-        .unwrap_or_else(|err| panic!("std harness should not fail: {err}"));
+    let result = match harness.run(request) {
+        Ok(result) => result,
+        Err(err) => panic!("std harness should not fail: {err}"),
+    };
     assert_eq!(result, "done");
     assert_eq!(call_count.get(), 1);
 }
@@ -132,9 +133,10 @@ fn std_harness_passes_metadata_through() {
         StdScenarioRunner::new_without_context(|| 200),
     );
     let harness = MetadataProbeHarness::new(expected_metadata);
-    let result = harness
-        .run(request)
-        .unwrap_or_else(|err| panic!("probe harness should not fail: {err}"));
+    let result = match harness.run(request) {
+        Ok(result) => result,
+        Err(err) => panic!("probe harness should not fail: {err}"),
+    };
     assert_eq!(result, 200);
 }
 
@@ -150,9 +152,10 @@ fn std_harness_supports_non_static_runner_borrows(default_metadata: ScenarioMeta
     );
 
     let harness = StdHarness::new();
-    let result = harness
-        .run(request)
-        .unwrap_or_else(|err| panic!("std harness should not fail: {err}"));
+    let result = match harness.run(request) {
+        Ok(result) => result,
+        Err(err) => panic!("std harness should not fail: {err}"),
+    };
     assert_eq!(result, 1);
     assert_eq!(counter, 1);
 }
@@ -189,8 +192,9 @@ fn harness_can_supply_non_unit_context() {
         ScenarioRunner::new(|context: u32| context + 1),
     );
     let harness = ContextValueHarness;
-    let result = harness
-        .run(request)
-        .unwrap_or_else(|err| panic!("context value harness should not fail: {err}"));
+    let result = match harness.run(request) {
+        Ok(result) => result,
+        Err(err) => panic!("context value harness should not fail: {err}"),
+    };
     assert_eq!(result, 43);
 }

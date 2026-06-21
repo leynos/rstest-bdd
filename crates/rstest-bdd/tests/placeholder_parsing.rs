@@ -237,8 +237,10 @@ fn invalid_pattern_error_display() {
 
 #[test]
 fn placeholder_error_display_in_french() {
-    let guard = ScopedLocalization::new(&[langid!("fr")])
-        .unwrap_or_else(|error| panic!("failed to scope French locale: {error}"));
+    let guard = match ScopedLocalization::new(&[langid!("fr")]) {
+        Ok(guard) => guard,
+        Err(error) => panic!("failed to scope French locale: {error}"),
+    };
     let pat = StepPattern::from("value {n:}");
     #[expect(clippy::expect_used, reason = "test asserts error variant")]
     let err = extract_placeholders(&pat, StepText::from("value 1"))

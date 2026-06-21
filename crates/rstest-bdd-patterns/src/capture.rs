@@ -57,10 +57,11 @@ mod tests {
     }
 
     fn capture_values(regex: &Regex, input: &str) -> Vec<String> {
-        extract_captured_values(regex, input).unwrap_or_else(|| {
+        let Some(captures) = extract_captured_values(regex, input) else {
             let pattern_text = regex.as_str();
-            panic!("expected captures for input {input:?} using pattern {pattern_text:?}")
-        })
+            panic!("expected captures for input {input:?} using pattern {pattern_text:?}");
+        };
+        captures
     }
 
     #[test]

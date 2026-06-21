@@ -171,8 +171,10 @@ pub(crate) fn assert_handler_failure_context(
         expected_suffix = regex::escape(expected_suffix),
         scenario_name = regex::escape(scenario_name),
     );
-    let matcher = Regex::new(&pattern)
-        .unwrap_or_else(|error| panic!("handler-failure matcher should compile: {error}"));
+    let matcher = match Regex::new(&pattern) {
+        Ok(matcher) => matcher,
+        Err(error) => panic!("handler-failure matcher should compile: {error}"),
+    };
     assert!(
         matcher.is_match(&normalized_message),
         "panic message should include the handler failure context: {message}",
@@ -189,9 +191,11 @@ pub(crate) fn assert_handler_failure_context(
 /// Panics if the feature file cannot be read or if no matching scenario is found.
 pub(crate) fn scenario_line(scenario_name: &str) -> u32 {
     let feature_path = Path::new(env!("CARGO_MANIFEST_DIR")).join(FEATURE_PATH);
-    let feature = std::fs::read_to_string(&feature_path)
-        .unwrap_or_else(|error| panic!("feature file should be readable: {error}"));
-    feature
+    let feature = match std::fs::read_to_string(&feature_path) {
+        Ok(feature) => feature,
+        Err(error) => panic!("feature file should be readable: {error}"),
+    };
+    let scenario_line = feature
         .lines()
         .enumerate()
         .find_map(|(index, line)| {
@@ -199,8 +203,11 @@ pub(crate) fn scenario_line(scenario_name: &str) -> u32 {
                 .filter(|name| *name == scenario_name)
                 .map(|_| index + 1)
         })
-        .and_then(|line| u32::try_from(line).ok())
-        .unwrap_or_else(|| panic!("scenario '{scenario_name}' should exist in {FEATURE_PATH}"))
+        .and_then(|line| u32::try_from(line).ok());
+    let Some(scenario_line) = scenario_line else {
+        panic!("scenario '{scenario_name}' should exist in {FEATURE_PATH}");
+    };
+    scenario_line
 }
 
 fn parse_scenario_heading(line: &str) -> Option<&str> {
@@ -242,10 +249,9 @@ pub(crate) fn assert_bypassed_step_recorded(query: BypassedStepQuery<'_>) {
         Ok(parsed) => parsed,
         Err(error) => panic!("registry dump should be valid JSON: {error}"),
     };
-    let bypassed_steps = parsed
-        .get("bypassed_steps")
-        .and_then(Value::as_array)
-        .unwrap_or_else(|| panic!("registry dump should include bypassed_steps"));
+    let Some(bypassed_steps) = parsed.get("bypassed_steps").and_then(Value::as_array) else {
+        panic!("registry dump should include bypassed_steps");
+    };
     assert!(
         bypassed_steps.iter().any(|entry| {
             entry.get("scenario_name") == Some(&Value::String(scenario_name.into()))

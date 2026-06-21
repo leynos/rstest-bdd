@@ -197,14 +197,14 @@ static STEP_MAP: LazyLock<HashMap<StepKey, &'static Step>> = LazyLock::new(|| {
     let steps: Vec<_> = iter::<Step>.into_iter().collect();
     let mut map = HashMap::with_capacity(steps.len());
     for step in steps {
-        step.pattern.compile().unwrap_or_else(|e| {
+        if let Err(e) = step.pattern.compile() {
             panic!(
                 "invalid step pattern '{}' at {}:{}: {e}",
                 step.pattern.as_str(),
                 step.file,
                 step.line
-            )
-        });
+            );
+        }
         let key = (step.keyword, step.pattern);
         assert!(
             !map.contains_key(&key),

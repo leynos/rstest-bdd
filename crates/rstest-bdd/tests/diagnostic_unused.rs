@@ -22,8 +22,9 @@ step!(
 
 #[test]
 fn reports_unused_steps() {
-    let runner = find_step(StepKeyword::Given, "a used step".into())
-        .unwrap_or_else(|| panic!("step not found"));
+    let Some(runner) = find_step(StepKeyword::Given, "a used step".into()) else {
+        panic!("step not found");
+    };
     let mut ctx = StepContext::default();
     match runner(&mut ctx, "a used step", None, None) {
         Ok(StepExecution::Continue { .. }) => {}

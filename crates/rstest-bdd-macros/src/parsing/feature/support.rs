@@ -261,10 +261,13 @@ pub(super) fn assert_feature_extraction(
     scenario_index: Option<usize>,
 ) {
     let feature = feature_builder.build();
-    let ExtractedScenarioData { steps, .. } = extract_scenario_steps(&feature, scenario_index)
-        .unwrap_or_else(|e| {
-            panic!("failed to extract scenario steps at index {scenario_index:?}: {e}")
-        });
+    let ExtractedScenarioData { steps, .. } = match extract_scenario_steps(&feature, scenario_index)
+    {
+        Ok(data) => data,
+        Err(e) => {
+            panic!("failed to extract scenario steps at index {scenario_index:?}: {e}");
+        }
+    };
     assert_eq!(
         steps, expected_steps,
         "extracted steps did not match expectation",
