@@ -1,6 +1,8 @@
 VALE ?= vale
 
-.PHONY: help all clean test build build-python release lint lint-python typecheck fmt check-fmt markdownlint nixie publish-check forbid-async-trait vale update-ui-lints-lock
+.PHONY: help all clean test build build-python release lint lint-python
+.PHONY: lint-whitaker typecheck fmt check-fmt markdownlint nixie publish-check
+.PHONY: forbid-async-trait vale update-ui-lints-lock
 
 SHELL := bash
 export PATH := $(HOME)/.cargo/bin:$(HOME)/.bun/bin:$(HOME)/.local/bin:$(PATH)
@@ -19,6 +21,16 @@ LADING_REF ?= d3217a599ea34adad6a6e3845845fff2fe923758
 LADING_SPEC ?= lading @ git+https://github.com/leynos/lading@$(LADING_REF)
 PYTHON_TARGETS ?= $(shell find scripts -type f -name "*.py" -print | sort)
 PYLINT_TARGETS ?= $(PYTHON_TARGETS)
+WHITAKER_REPO ?= https://github.com/leynos/whitaker.git
+WHITAKER_TAG ?= v0.2.5
+WHITAKER_TOOLCHAIN ?= nightly-2025-09-18
+WHITAKER_LINT ?= no_unwrap_or_else_panic
+WHITAKER_HOST ?= $(shell rustc -vV | awk '/^host:/ {print $$2}')
+WHITAKER_ROOT ?= target/whitaker
+WHITAKER_SRC ?= $(WHITAKER_ROOT)/$(WHITAKER_LINT)-src
+WHITAKER_TARGET_DIR ?= $(WHITAKER_ROOT)/$(WHITAKER_LINT)-target
+WHITAKER_LIBRARY_DIR ?= $(abspath $(WHITAKER_TARGET_DIR)/dylint/libraries/$(WHITAKER_TOOLCHAIN)-$(WHITAKER_HOST)/release)
+WHITAKER_LIBRARY ?= $(WHITAKER_LIBRARY_DIR)/lib$(WHITAKER_LINT)@$(WHITAKER_TOOLCHAIN)-$(WHITAKER_HOST).so
 
 build: target/debug/$(APP) ## Build debug binary
 build-python: pyproject.toml ## Build Python tooling environment
@@ -46,10 +58,37 @@ target/%/$(APP): ## Build binary in debug or release mode
 
 lint: ## Run Clippy with warnings denied
 	$(CARGO) clippy $(CLIPPY_FLAGS)
+	$(MAKE) lint-whitaker
 	$(MAKE) lint-python
 	python3 scripts/check_rs_file_lengths.py
 	python3 scripts/check_users_guide_links.py
 	python3 scripts/check_gpui_mapping_table.py
+
+lint-whitaker: $(WHITAKER_LIBRARY) ## Run Whitaker no_unwrap_or_else_panic
+	cargo dylint --version >/dev/null
+	DYLINT_LIBRARY_PATH="$(WHITAKER_LIBRARY_DIR)" \
+		RUSTUP_TOOLCHAIN=stable \
+		$(CARGO) dylint --keep-going --lib $(WHITAKER_LINT) \
+		--no-metadata --no-build -- $(CARGO_FLAGS)
+
+$(WHITAKER_SRC)/.git:
+	mkdir -p "$(WHITAKER_ROOT)"
+	if [ ! -d "$(WHITAKER_SRC)/.git" ]; then \
+		git clone --depth 1 --branch "$(WHITAKER_TAG)" \
+			"$(WHITAKER_REPO)" "$(WHITAKER_SRC)"; \
+	fi
+
+$(WHITAKER_LIBRARY): $(WHITAKER_SRC)/.git
+	rustup toolchain install "$(WHITAKER_TOOLCHAIN)" \
+		--component rustc-dev --component rust-src \
+		--component llvm-tools-preview
+	cd "$(WHITAKER_SRC)" && \
+		CARGO_TARGET_DIR="$(abspath $(WHITAKER_TARGET_DIR))" \
+		cargo +"$(WHITAKER_TOOLCHAIN)" build --release \
+		-p "$(WHITAKER_LINT)" --features dylint-driver
+	mkdir -p "$(WHITAKER_LIBRARY_DIR)"
+	cp "$(WHITAKER_TARGET_DIR)/release/lib$(WHITAKER_LINT).so" \
+		"$(WHITAKER_LIBRARY)"
 
 lint-python: build-python ## Run Python linters
 	$(UV_ENV) $(UV) run ruff check $(PYTHON_TARGETS)
