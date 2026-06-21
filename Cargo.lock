@@ -1707,6 +1707,7 @@ dependencies = [
  "cargo_metadata",
  "clap",
  "gherkin",
+ "insta",
  "lsp-types",
  "proc-macro2",
  "proptest",

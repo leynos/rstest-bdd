@@ -1,0 +1,48 @@
+---
+source: crates/rstest-bdd-server/src/handlers/diagnostics/publish.rs
+expression: params
+---
+PublishDiagnosticsParams {
+    uri: Url {
+        scheme: "file",
+        cannot_be_a_base: false,
+        username: "",
+        password: None,
+        host: None,
+        port: None,
+        path: "[TMP]/steps.rs",
+        query: None,
+        fragment: None,
+    },
+    diagnostics: [
+        Diagnostic {
+            range: Range {
+                start: Position {
+                    line: 5,
+                    character: 0,
+                },
+                end: Position {
+                    line: 5,
+                    character: 25,
+                },
+            },
+            severity: Some(
+                Warning,
+            ),
+            code: Some(
+                String(
+                    "unused-step-definition",
+                ),
+            ),
+            code_description: None,
+            source: Some(
+                "rstest-bdd",
+            ),
+            message: "Step definition is not used by any feature file: #[when(\"an unused step\")]",
+            related_information: None,
+            tags: None,
+            data: None,
+        },
+    ],
+    version: None,
+}
