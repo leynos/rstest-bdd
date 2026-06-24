@@ -4,7 +4,7 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
 and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: EXECUTING
+Status: COMPLETE
 
 ## Purpose / big picture
 
@@ -200,6 +200,17 @@ Hard invariants; violation requires escalation, not a workaround.
   suite follow-up item. Validation passed with `make markdownlint`,
   `make check-fmt`, `make lint`, `make test`, and `make nixie`; CodeRabbit
   review completed with zero findings.
+- [x] (Post-delivery hardening) Follow-up cleanup and CI-collection fix
+  completed on 2026-06-24. Extracted private test helpers for repeated fixture
+  and harness-run boilerplate in the trybuild normaliser fixture and the std,
+  Tokio, and GPUI harness behaviour suites. Added root pytest `testpaths` so
+  coverage jobs running `pytest` from the repository root collect only
+  `scripts/tests/`, not generated Dylint source under `target/whitaker`.
+  Evidence: `make check-fmt`, `make lint`, `make test`, and root
+  `uv run pytest -v` passed; root pytest collected 33 items from
+  `scripts/tests` and did not collect `target/...`.
+- [x] (Review readiness) PR #546 marked ready for review on 2026-06-24 after
+  the post-delivery hardening commits were pushed.
 
 ## Surprises & discoveries
 
@@ -250,6 +261,22 @@ Hard invariants; violation requires escalation, not a workaround.
   unrelated documents. Impact: the unrelated formatter churn was reverted, the
   active ExecPlan line-length issue was fixed manually, and `make markdownlint`
   remains the authoritative Markdown gate for this task.
+
+- Observation: `make lint-whitaker` mirrors Whitaker sources into
+  `target/whitaker/no_unwrap_or_else_panic-src`. A root-level pytest invocation
+  with no path restriction can recurse into that generated tree and collect
+  Whitaker's own `tests/workflows/conftest.py`, which imports a helper module
+  absent from this repository. Impact: `pyproject.toml` now restricts pytest
+  default collection to `scripts/tests`; explicit Makefile pytest paths still
+  override that default.
+
+- Observation: small CodeScene-style "Bumpy Road" findings remained in test
+  setup code after the main lint work. Impact: private, module-local helpers
+  were extracted only where duplication was exact: `write_fixture_file` for the
+  trybuild stderr normaliser fixture, `run_std_harness`, `run_expecting_ok`,
+  and `run_gpui_harness` for the first-party harness behaviour suites. These
+  helpers keep panic diagnostics unchanged and use `match` or `let … else`
+  forms compatible with Whitaker.
 
 (Append further discoveries during execution.)
 
@@ -319,6 +346,21 @@ Hard invariants; violation requires escalation, not a workaround.
   with `--lib no_unwrap_or_else_panic --no-metadata --no-build`. Date/Author:
   2026-06-21, implementation agent.
 
+- Decision: keep post-delivery boilerplate helpers private to their test
+  modules rather than adding shared test-support APIs. Rationale: the repeated
+  code was local, structurally identical, and not a public behaviour change.
+  A shared abstraction would cross crate/test-module boundaries without a
+  reuse need. Date/Author: 2026-06-21 through 2026-06-23, implementation
+  agent.
+
+- Decision: configure pytest default collection with
+  `[tool.pytest.ini_options] testpaths = ["scripts/tests"]`. Rationale: the
+  repository's Python tests live exclusively in `scripts/tests`, while the
+  Whitaker/Dylint build produces generated Python files under `target/` that
+  are not part of this repository's test suite. Restricting default collection
+  fixes root-level coverage runs without changing explicit-path Makefile
+  invocations. Date/Author: 2026-06-23, implementation agent.
+
 (Append further decisions during execution, especially the Stage 0 mechanism
 choice and any `unreachable!` boundary finding.)
 
@@ -335,6 +377,16 @@ Validation passed on 2026-06-21 with `mbake validate Makefile`,
 `make check-fmt`, `make lint`, `make test`, `make markdownlint`, and
 `make nixie`. CodeRabbit reviewed the Rust conversion, Whitaker gate, and docs
 milestones with zero findings.
+
+Additional cleanup and CI hardening landed by 2026-06-24. The std, Tokio, and
+GPUI harness behaviour tests now share private run helpers within their own
+modules, the trybuild stderr normaliser fixture writes expected and actual
+files through one private helper, and root pytest collection is restricted to
+`scripts/tests` so generated Dylint artefacts under `target/whitaker` are not
+collected by coverage jobs. Validation passed with `make check-fmt`,
+`make lint`, `make test`, and `uv run pytest -v`; the latter collected 33
+items, all under `scripts/tests`, with no `target/...` collection errors. PR
+number 546 was marked ready for review on 2026-06-24.
 
 Retrospective: the highest-risk part was Dylint integration, not the mechanical
 Rust rewrite. The metadata path was insufficient for Whitaker `v0.2.5`, so the
@@ -635,6 +687,11 @@ Edited files: root `Cargo.toml` (`[workspace.metadata.dylint]`), optional
 `crates/rstest-bdd-harness-gpui/tests/stateful_window.rs`,
 `docs/users-guide.md`, `docs/rstest-bdd-design.md` (§2.7.6.2),
 `docs/developers-guide.md`, `docs/roadmap.md` (tick 10.2.5 + new v0.6.1 item).
+Post-delivery hardening also touched `pyproject.toml`,
+`crates/rstest-bdd/tests/trybuild_macros/helper_tests.rs`,
+`crates/rstest-bdd-harness/tests/harness_behaviour.rs`,
+`crates/rstest-bdd-harness-tokio/tests/harness_behaviour.rs`, and
+`crates/rstest-bdd-harness-gpui/tests/harness_behaviour.rs`.
 
 New files: `docs/adr-013-adopt-whitaker-no-unwrap-or-else-panic.md`.
 
@@ -676,3 +733,7 @@ a proxy), converts the 38 existing `unwrap_or_else(|| panic!())` sites to
 de-risk Dylint, keeps the repo on stable, and reframes ADR-013 as "adopt
 Whitaker no_unwrap_or_else_panic in the lint gate". The bespoke textual
 doc-sync script is dropped. Awaiting user approval before implementation.
+
+Revision 4 (2026-06-24): recorded completion state after implementation,
+post-delivery test-helper cleanups, root pytest collection hardening for
+Dylint-generated artefacts, final validation evidence, and PR readiness.

@@ -809,6 +809,13 @@ changing the public trait contracts.
   `no_unwrap_or_else_panic` into `make lint`. See
   `docs/execplans/10-2-5-playbook-variant-compiles-under-pedantic-lint-profile.md`
   and `docs/adr-013-adopt-whitaker-no-unwrap-or-else-panic.md`.
+  Follow-up 2026-06-24: extracted private helpers for repeated trybuild
+  fixture-file writing and std, Tokio, and GPUI harness execution boilerplate,
+  then restricted root-level pytest collection to `scripts/tests` so Dylint's
+  generated Whitaker source under `target/whitaker` is not collected by
+  coverage jobs. Validation: root `uv run pytest -v` collected 33
+  `scripts/tests` items and no `target/...` files; `make check-fmt`,
+  `make lint`, and `make test` passed.
 - [ ] 10.2.6. The playbook documents how cargo-nextest's process-per-test
   scheduling interacts with `#[serial]` and per-process thread-local scenario
   state. Finish line: the playbook in `docs/users-guide.md` states that
