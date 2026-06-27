@@ -88,6 +88,16 @@ mod tests {
         TokioHarness::new()
     }
 
+    fn run_expecting_ok<T>(
+        harness: TokioHarness,
+        request: ScenarioRunRequest<'_, TokioTestContext, T>,
+    ) -> T {
+        match harness.run(request) {
+            Ok(result) => result,
+            Err(err) => panic!("tokio harness should not fail: {err}"),
+        }
+    }
+
     #[rstest]
     fn tokio_harness_runs_request(harness: TokioHarness) {
         let request = ScenarioRunRequest::new(
@@ -99,10 +109,7 @@ mod tests {
             ),
             ScenarioRunner::new(|_context: TokioTestContext| 21 * 2),
         );
-        let result = match harness.run(request) {
-            Ok(result) => result,
-            Err(err) => panic!("tokio harness should not fail: {err}"),
-        };
+        let result = run_expecting_ok(harness, request);
         assert_eq!(result, 42);
     }
 
@@ -116,10 +123,7 @@ mod tests {
                 true
             }),
         );
-        let result = match harness.run(request) {
-            Ok(result) => result,
-            Err(err) => panic!("tokio harness should not fail: {err}"),
-        };
+        let result = run_expecting_ok(harness, request);
         assert!(result);
     }
 }

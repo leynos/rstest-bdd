@@ -833,6 +833,11 @@ changing the public trait contracts.
   `actionlint .github/workflows/ci.yml`, `make markdownlint`, `make lint`, and
   `make nixie` passed; CodeRabbit `review --agent` completed with zero
   findings.
+  Follow-up 2026-06-28: review findings were verified against current code.
+  The CI cache and behavioural Tokio helper findings were already addressed;
+  remaining valid localisation, Tokio unit-test, ADR/prose, users-guide, and
+  Whitaker Python test comments were fixed. Validation: `make check-fmt`,
+  `make lint`, `make typecheck`, `make test`, and `make markdownlint` passed.
 - [ ] 10.2.6. The playbook documents how cargo-nextest's process-per-test
   scheduling interacts with `#[serial]` and per-process thread-local scenario
   state. Finish line: the playbook in `docs/users-guide.md` states that

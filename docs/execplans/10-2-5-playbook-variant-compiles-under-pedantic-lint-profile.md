@@ -18,8 +18,8 @@ The in-house `no_unwrap_or_else_panic` lint is **real**: it is one of the lints
 in **Whitaker** (<https://github.com/leynos/whitaker>), a Dylint lint library
 (current stable tag `v0.2.5`). It denies `unwrap_or_else(|| panic!(…))` (and
 the nested `unwrap_or_else(|| value.unwrap())` form) on `Option`/`Result`,
-including in tests. So this item is not a documentation-only change: we will
-**enforce the real lint in the gate**, workspace-wide, and remove the pattern
+including in tests. So this item is not a documentation-only change: the real
+lint must be **enforced in the gate**, workspace-wide, and the pattern removed
 from the codebase.
 
 A pivotal discovery sharpens the design. This workspace denies
@@ -190,7 +190,7 @@ Hard invariants; violation requires escalation, not a workaround.
   `make check-fmt`, `make lint`, and `make test` passed. The Dylint run still
   reports the existing Tokio compatibility-alias deprecation warning under the
   nightly driver, but not as a failing diagnostic.
-- [x] (Stage D — docs) design §2.7.6.2, ADR-013, developers guide, users-guide
+- [x] (Stage D — docs) design §2.7.6.2, ADR-013, developers' guide, users-guide
   playbook, CI, roadmap tick 10.2.5 + new v0.6.1 item; full gates green;
   CodeRabbit clean.
   Documentation implementation on 2026-06-21 updated the user-guide playbook
@@ -234,6 +234,13 @@ Hard invariants; violation requires escalation, not a workaround.
   passed with `actionlint .github/workflows/ci.yml`, `make markdownlint`,
   `make lint`, and `make nixie`; CodeRabbit `review --agent` completed with
   zero findings.
+- [x] (Review finding sweep) On 2026-06-28, verified the workflow cache comment
+  and behavioural Tokio helper comment against current code; both were already
+  addressed. Fixed the still-valid localisation setup simplification, Tokio
+  unit-test helper duplication, ADR/developer-guide/users-guide/ExecPlan prose
+  issues, and Whitaker Python test diagnostics/platform suffix handling.
+  Validation passed with `make check-fmt`, `make lint`, `make typecheck`,
+  `make test`, and `make markdownlint`.
 
 ## Surprises & discoveries
 
@@ -570,7 +577,7 @@ Stage C — green. Convert and make the gate pass:
    `state.rs` `unreachable!` site per the Stage 0 finding. Commit per file or
    per small group; run the focused tests after each.
 2. In `crates/rstest-bdd-harness-gpui/tests/stateful_window.rs`, convert
-   `current_handles`, `read_counter_from_window`, and the two step bodies to the
+   `current_handles`, `read_counter_from_window`, and the two-step bodies to the
    `let … else` accessor form. This becomes the lint-clean reference suite the
    playbook mirrors.
 3. Run `make lint` (expect green, lint now satisfied) and `make test` (expect
@@ -684,7 +691,7 @@ Quality criteria ("done"):
   change.
 - Docs: `make markdownlint` passes; users-guide playbook teaches the
   `let … else`
-  accessor; design §2.7.6.2, ADR-013, developers guide updated; roadmap 10.2.5
+  accessor; design §2.7.6.2, ADR-013, developers' guide updated; roadmap 10.2.5
   ticked and the v0.6.1 full-suite item added.
 - No new workspace dependency; no public API change; repo stays on stable.
 

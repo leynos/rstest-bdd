@@ -1115,7 +1115,7 @@ function names against feature files. For a concrete regression example, see
 > | --- | --- | --- |
 > | `add_window_view` closure | `\|_context\| View::default()` (one argument) | `\|_window, view_cx\| View::new(view_cx)` (two arguments) |
 > | obtain window handle | `visual_cx.window_handle()` (inherent method on `VisualTestContext`) | `vcx.window_handle()` (same call, but `window_handle` is a `VisualContext` trait method, so add `use gpui::VisualContext;`) |
-> | `VisualTestContext::from_window` | returns `Option<VisualTestContext>` (`let … else`/`.ok_or`) | returns `VisualTestContext` by value (no `Option`) |
+> | `VisualTestContext::from_window` | returns `Option<VisualTestContext>` (`let … else { panic!(…) }`) | returns `VisualTestContext` by value (no `Option`) |
 > | `read_entity` / `update_entity` | `Option`/`Result` wrappers (`Some(1)`, `Ok(())`) | identity `type Result<T> = T`; returns `R` directly |
 >
 > *Table: Vendored-to-published gpui 0.2.2 API shape differences.*
@@ -1370,9 +1370,10 @@ The error shape is consistent across all three snippets: surfaces of
 infrastructure invariants (handle reconstruction, fixture-stored handles)
 panic, and step-level domain assertions use `assert_eq!`. Steps that need to
 distinguish a legitimate failure mode from a programming invariant should
-return `StepResult<()>` and propagate the failure with `?`; mixing infallible
-`let … else { panic!(…) }` invariants and `StepResult` within the same
-playbook reads ambiguously, so pick one shape per scenario.
+return `StepResult<()>` and propagate the failure with `?`; mixing
+panic-on-invariant-violation `let … else { panic!(…) }` branches and
+`StepResult` within the same playbook reads ambiguously, so pick one shape per
+scenario.
 
 ##### Fixture key versus parameter name
 

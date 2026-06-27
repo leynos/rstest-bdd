@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted
+Accepted (2026-06-21): Adopt Whitaker `no_unwrap_or_else_panic` as the
+workspace lint gate for panic-only `unwrap_or_else` closures.
 
 ## Date
 

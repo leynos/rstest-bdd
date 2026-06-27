@@ -395,11 +395,9 @@ in-depth reference; the steps below mirror its outline:
    example, with `.unwrap_or_else(|| panic!(...))`).
 
 For a worked-out example, see the regression suite at
-`crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` and the user guide
-[Stateful GPUI scenarios with durable handles][users-guide-playbook]
-subsection.
-The pattern's rationale lives in §§2.7.6.1–2.7.6.2 of the
-[rstest-bdd design](rstest-bdd-design.md).
+`crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` and the [stateful
+playbook][users-guide-playbook] subsection. The pattern's rationale lives in
+§§2.7.6.1–2.7.6.2 of the [rstest-bdd design](rstest-bdd-design.md).
 
 [adr-007]: adr-007-harness-context-injection.md
 
@@ -598,9 +596,9 @@ editing any `.rs` file.
 
 **Root cause and roadmap:** see design-document
 [§2.7.6.6](rstest-bdd-design.md#2766-feature-file-rebuild-invalidation) and
-[ADR-010](adr-010-feature-file-change-detection.md) for the analysis and
-the chosen fix mechanism. Roadmap item 11.3.1 tracks the implementation,
-approved for v0.6.0 final.
+[ADR-010](adr-010-feature-file-change-detection.md) for the analysis and the
+chosen fix mechanism. Roadmap item 11.3.1 tracks the implementation, approved
+for v0.6.0 final.
 
 ## Further reading
 
