@@ -5,7 +5,7 @@ This ExecPlan (execution plan) is a living document. The sections
 `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
 proceeds.
 
-Status: IN PROGRESS (approved for implementation on 2026-06-27)
+Status: COMPLETE (delivered on 2026-06-27)
 
 ## Purpose / big picture
 
@@ -201,10 +201,10 @@ escalation, not a workaround.
   worked test-group stanza, the file-lock temp-dir default, and the minimum
   nextest version for groups); add the canonical convention note to
   `docs/developers-guide.md`. Make the gate pass.
-- [ ] (Stage D) Refactor; wire the gate into `make lint` and the companion into
+- [x] (Stage D) Refactor; wire the gate into `make lint` and the companion into
   the `make test` pytest line; run all gates; run `coderabbit review --agent`;
   clear concerns.
-- [ ] (Stage E) Mark roadmap 10.2.6 `[x]`; finalise the living sections.
+- [x] (Stage E) Mark roadmap 10.2.6 `[x]`; finalise the living sections.
 
 ## Surprises & discoveries
 
@@ -285,6 +285,13 @@ escalation, not a workaround.
   helper tests `44 passed`; `make markdownlint` reported `0 error(s)`.
   Impact: The branch is ready for the requested CodeRabbit milestone review
   after committing and pushing the Stage B-D implementation.
+
+- Observation: CodeRabbit found no concerns after the Stage B-D implementation
+  commit was pushed.
+  Evidence: `coderabbit review --agent` completed with
+  `{"type":"complete","status":"review_completed","findings":0}`.
+  Impact: No follow-up implementation changes were required before closing the
+  roadmap item.
 
 - Observation: The first-draft executable demonstration was non-falsifiable and
   fragile under coverage runners.
@@ -385,10 +392,30 @@ escalation, not a workaround.
 
 ## Outcomes & retrospective
 
-To be completed at delivery. Compare against the three purpose questions and the
-roadmap finish line; confirm the table-parity gate stays green across a
-`make fmt` cycle and that the developer-guide note reads as the single canonical
-rationale.
+Delivered. The user guide now answers the three purpose questions in a
+standalone "Test-runner parallelism and scenario state" subsection:
+
+- `#[serial]` is required for `cargo test` stateful scenarios.
+- `#[serial]` is redundant-but-harmless under nextest because nextest runs each
+  test in a separate process.
+- Cross-process exclusivity requires `#[file_serial]` with `serial_test`'s
+  `file_locks` feature, or a cargo-nextest test-group with `max-threads = 1`.
+
+The design document carries the same matrix and corrected caveats, and the
+developer guide now records the canonical maintainer rationale for keeping
+`#[serial]` while not adding a live repository test-group. The new
+`scripts/check_serial_nextest_matrix.py` gate is wired into `make lint`, and
+its pytest companion is wired into `make test`. The checker compares normalised
+matrix rows and accepts formatter-aligned Markdown tables, avoiding the brittle
+literal-prefix failure observed during the `make fmt` cycle.
+
+Validation completed: `make check-fmt`, `make lint`, `make test`, and
+`make markdownlint` passed. `make fmt` was attempted; it exposed an existing
+repository-wide Markdown formatter non-idempotence where `mdtablefix` rewrites
+unrelated documents and `markdownlint-cli2 --fix` then reports unrelated
+MD013/MD039 errors. Those unrelated formatter edits were reverted, the active
+docs were kept focused, and `make markdownlint` passed on the final tree.
+CodeRabbit reviewed the pushed milestone with zero findings.
 
 ## Context and orientation
 
