@@ -5,7 +5,7 @@ This ExecPlan (execution plan) is a living document. The sections
 `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
 proceeds.
 
-Status: DRAFT (revised after community-of-experts review)
+Status: IN PROGRESS (approved for implementation on 2026-06-27)
 
 ## Purpose / big picture
 
@@ -188,13 +188,13 @@ escalation, not a workaround.
 
 ## Progress
 
-- [ ] (Stage A) Confirm placement and validation rigour with the maintainer;
+- [x] (Stage A) Confirm placement and validation rigour with the maintainer;
   capture the verbatim "before" text of the three required claims. (No code
   changes.)
-- [ ] (Stage B) Red: add the failing `scripts/check_serial_nextest_matrix.py`
+- [x] (Stage B) Red: add the failing `scripts/check_serial_nextest_matrix.py`
   gate and its pytest companion. Observe the gate failing because the user guide
   has no matrix table yet (only §2.7.6.7 does).
-- [ ] (Stage C) Green: add the runner matrix table and the corrected,
+- [x] (Stage C) Green: add the runner matrix table and the corrected,
   consolidated subsection to `docs/users-guide.md`; correct
   `docs/rstest-bdd-design.md` §2.7.6.7 (drop the "single-binary" qualifier; add
   the `file_locks` caveat, the serial-vs-file_serial non-exclusion note, the
@@ -207,6 +207,23 @@ escalation, not a workaround.
 - [ ] (Stage E) Mark roadmap 10.2.6 `[x]`; finalise the living sections.
 
 ## Surprises & discoveries
+
+- Observation: Implementation approval arrived in the user request for this
+  session, so the ExecPlan approval gate is satisfied without a separate review
+  pause.
+  Evidence: The user asked to "proceed with implementation of the planned
+  functionality" in this plan.
+  Impact: The default scope decisions remain active: table-parity gate, no Rust
+  tests, and a promoted runner-agnostic subsection.
+
+- Observation: PR metadata was still plan-shaped at implementation start.
+  Evidence: `gh pr view --json number,title,body,url` showed PR #547 titled
+  `Plan: Document nextest process-per-test scheduling and #[serial]
+  interaction (10.2.6)`.
+  Impact: The PR title was updated to remove `Plan:`, the Lody session title
+  was renamed to the new PR title, and the PR description's Lody session link
+  was updated to
+  `https://lody.ai/leynos/sessions/77300eb4-3c2c-489d-88f3-f28539dd420b`.
 
 - Observation: The roadmap finish line is already met in prose by PR #519.
   Evidence: `docs/users-guide.md` ~1196–1208 and §2.7.6.7 already state all
@@ -233,6 +250,42 @@ escalation, not a workaround.
   Impact: Confirms the worked stanza, the matrix wording, and the dropped
   "single-binary" qualifier.
 
+- Observation: The red gate failed for the intended reason before the user-guide
+  subsection existed.
+  Evidence: `python3 scripts/check_serial_nextest_matrix.py; echo "exit=$?"`
+  printed `heading not found: Test-runner parallelism and scenario state` and
+  `exit=1`; `uv run --group python-tools pytest
+  scripts/tests/test_check_serial_nextest_matrix.py` reported `10 passed`.
+  Impact: The Stage B matcher is executable and falsifiable before any
+  production documentation change.
+
+- Observation: The matrix gate passed after adding the user-guide subsection
+  and correcting the design matrix prose.
+  Evidence: `python3 scripts/check_serial_nextest_matrix.py; echo "exit=$?"`
+  printed `exit=0`, and the focused pytest command reported `10 passed`.
+  Impact: The duplicated runner matrix is now machine-checked before Makefile
+  wiring.
+
+- Observation: `make fmt` is not idempotent for all existing Markdown files in
+  this repository.
+  Evidence: `make fmt` completed Rust and Python formatting, then
+  `markdownlint-cli2 --fix` reported unrelated MD013/MD039 failures in existing
+  documents. The formatter also wrapped the existing blockquoted GPUI table and
+  aligned the new runner table.
+  Impact: Reverted the unrelated formatter changes, restored the GPUI table
+  rows to the established checker-compatible shape, and made
+  `scripts/check_serial_nextest_matrix.py` accept normal Markdown table
+  alignment so `make fmt` table alignment cannot trip the new gate.
+
+- Observation: The deterministic quality gates passed after the table-parser
+  robustness fix.
+  Evidence: `make check-fmt` passed; `make lint` passed including Clippy, Ruff,
+  Pylint, users-guide links, GPUI table parity, and serial/nextest matrix
+  parity; `make test` passed with nextest `1489 passed, 7 skipped` and Python
+  helper tests `44 passed`; `make markdownlint` reported `0 error(s)`.
+  Impact: The branch is ready for the requested CodeRabbit milestone review
+  after committing and pushing the Stage B-D implementation.
+
 - Observation: The first-draft executable demonstration was non-falsifiable and
   fragile under coverage runners.
   Evidence: Community-of-experts panel review (Wafflecat, Doggylump, Dinolump);
@@ -248,6 +301,13 @@ escalation, not a workaround.
   examples, improves discoverability, and adds a table-parity regression gate,
   paralleling 10.2.4.
   Date/Author: 2026-06-27, planning agent.
+
+- Decision: Proceed with the plan's default scope decisions.
+  Rationale: The maintainer's implementation request did not redirect the two
+  open decisions, so the accepted implementation uses the table-parity gate
+  with no Rust tests and promotes the guidance to a runner-agnostic user-guide
+  subsection.
+  Date/Author: 2026-06-27, implementation agent.
 
 - Decision: Cut the executable demonstration test, the rstest-bdd scenario, the
   `NEXTEST_EXECUTION_MODE` runtime guard, and the `serial_test` dev-dependency.
@@ -269,6 +329,28 @@ escalation, not a workaround.
   Naming follows the sibling (`check_gpui_mapping_table.py`) and names the
   structured artefact (the matrix), not the prose.
   Date/Author: 2026-06-27, planning agent (post-panel).
+
+- Decision: Anchor both matrices with the exact heading
+  "Test-runner parallelism and scenario state".
+  Rationale: The design document already uses that phrase, and the red gate's
+  missing-heading failure proves the user guide must grow the same
+  runner-agnostic section rather than hiding the matrix inside the GPUI reset
+  blockquote.
+  Date/Author: 2026-06-27, implementation agent.
+
+- Decision: Document the new checker in `docs/developers-guide.md` alongside
+  the existing users-guide link and GPUI mapping-table validators.
+  Rationale: The script is an internal maintenance interface enforced by
+  `make lint`; the developer guide is the canonical home for such repository
+  workflow conventions.
+  Date/Author: 2026-06-27, implementation agent.
+
+- Decision: Let the new runner-matrix checker accept aligned Markdown tables.
+  Rationale: `mdtablefix` aligns table columns, so requiring a literal
+  `| Runner |` prefix would make the gate brittle against the repository's own
+  formatter. The checker still compares normalised data rows and the pytest
+  companion now covers formatter-aligned input.
+  Date/Author: 2026-06-27, implementation agent.
 
 - Decision: Make the developer-guide convention note the canonical home for the
   "why keep `#[serial]`" rationale and the `file_locks` caveat.
