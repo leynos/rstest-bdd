@@ -242,6 +242,11 @@ Hard invariants; violation requires escalation, not a workaround.
   Validation passed with `make check-fmt`, `make lint`, `make typecheck`,
   `make test`, and `make markdownlint`; CodeRabbit `review --agent` completed
   with zero findings.
+- [x] (Documentation polish sweep) On 2026-06-28, verified and fixed three
+  still-valid documentation comments: developer-guide punctuation,
+  migration-guide panic-pattern guidance, and roadmap spelling. Validation
+  passed with `make fmt`, `make markdownlint`, `make nixie`, and
+  `git diff --check`.
 
 ## Surprises & discoveries
 

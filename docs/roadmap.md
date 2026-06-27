@@ -829,7 +829,7 @@ changing the public trait contracts.
   Follow-up 2026-06-27: fixed the Linux CI cache-hit path by giving the
   Whitaker cache step an id and skipping `Install Dylint tools` when the cache
   already restores `cargo-dylint` and `dylint-link`, preserving the cache
-  optimization without using `cargo install --force`. Validation:
+  optimisation without using `cargo install --force`. Validation:
   `actionlint .github/workflows/ci.yml`, `make markdownlint`, `make lint`, and
   `make nixie` passed; CodeRabbit `review --agent` completed with zero
   findings.
@@ -839,6 +839,10 @@ changing the public trait contracts.
   Whitaker Python test comments were fixed. Validation: `make check-fmt`,
   `make lint`, `make typecheck`, `make test`, and `make markdownlint` passed;
   CodeRabbit `review --agent` completed with zero findings.
+  Follow-up 2026-06-28: fixed developer-guide punctuation, replaced the
+  migration guide's deprecated `.unwrap_or_else(|| panic!(...))` suggestion,
+  and corrected `optimization` to `optimisation`. Validation: `make fmt`,
+  `make markdownlint`, `make nixie`, and `git diff --check` passed.
 - [ ] 10.2.6. The playbook documents how cargo-nextest's process-per-test
   scheduling interacts with `#[serial]` and per-process thread-local scenario
   state. Finish line: the playbook in `docs/users-guide.md` states that
