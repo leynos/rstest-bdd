@@ -824,7 +824,8 @@ changing the public trait contracts.
   Validation: `make check-fmt`, `mbake validate Makefile`,
   `make markdownlint`, `make lint`, `make test`, `make nixie`, and root
   `uv run pytest -v` passed; root pytest collected 35 `scripts/tests` items
-  and no `target/...` files.
+  and no `target/...` files. CodeRabbit `review --agent` completed after the
+  requested rate-limit backoff with zero findings.
 - [ ] 10.2.6. The playbook documents how cargo-nextest's process-per-test
   scheduling interacts with `#[serial]` and per-process thread-local scenario
   state. Finish line: the playbook in `docs/users-guide.md` states that

@@ -222,7 +222,9 @@ Hard invariants; violation requires escalation, not a workaround.
   passed with `make check-fmt`, `mbake validate Makefile`,
   `make markdownlint`, `make lint`, `make test`, `make nixie`, and root
   `uv run pytest -v`, which collected 35 `scripts/tests` items and no
-  `target/...` files.
+  `target/...` files. CodeRabbit `review --agent` initially hit the service
+  rate limit; after the instructed randomized `vsleep` backoff, the retry
+  completed with zero findings.
 
 ## Surprises & discoveries
 
@@ -422,6 +424,8 @@ Whitaker integration tests are part of the standard gate. Validation passed
 with `make check-fmt`, `mbake validate Makefile`, `make markdownlint`,
 `make lint`, `make test`, `make nixie`, and root `uv run pytest -v`; root
 pytest collected 35 `scripts/tests` items and no `target/...` files.
+CodeRabbit `review --agent` completed after the requested rate-limit backoff
+with zero findings.
 
 Retrospective: the highest-risk part was Dylint integration, not the mechanical
 Rust rewrite. The metadata path was insufficient for Whitaker `v0.2.5`, so the
