@@ -232,7 +232,8 @@ Hard invariants; violation requires escalation, not a workaround.
   `Cache Whitaker lint library` step with `id: whitaker-cache` and restricted
   `Install Dylint tools` to non-Linux runners or Linux cache misses. Validation
   passed with `actionlint .github/workflows/ci.yml`, `make markdownlint`,
-  `make lint`, and `make nixie`.
+  `make lint`, and `make nixie`; CodeRabbit `review --agent` completed with
+  zero findings.
 
 ## Surprises & discoveries
 

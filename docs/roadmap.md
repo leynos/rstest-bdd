@@ -831,7 +831,8 @@ changing the public trait contracts.
   already restores `cargo-dylint` and `dylint-link`, preserving the cache
   optimization without using `cargo install --force`. Validation:
   `actionlint .github/workflows/ci.yml`, `make markdownlint`, `make lint`, and
-  `make nixie` passed.
+  `make nixie` passed; CodeRabbit `review --agent` completed with zero
+  findings.
 - [ ] 10.2.6. The playbook documents how cargo-nextest's process-per-test
   scheduling interacts with `#[serial]` and per-process thread-local scenario
   state. Finish line: the playbook in `docs/users-guide.md` states that
