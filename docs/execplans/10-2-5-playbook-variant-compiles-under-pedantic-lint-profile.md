@@ -240,7 +240,8 @@ Hard invariants; violation requires escalation, not a workaround.
   unit-test helper duplication, ADR/developer-guide/users-guide/ExecPlan prose
   issues, and Whitaker Python test diagnostics/platform suffix handling.
   Validation passed with `make check-fmt`, `make lint`, `make typecheck`,
-  `make test`, and `make markdownlint`.
+  `make test`, and `make markdownlint`; CodeRabbit `review --agent` completed
+  with zero findings.
 
 ## Surprises & discoveries
 
