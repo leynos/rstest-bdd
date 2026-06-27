@@ -80,6 +80,7 @@ jobs:
         run: uv tool install nixie-cli==1.0.0
 
       - name: Cache Whitaker lint library
+        id: whitaker-cache
         if: ${{ matrix.tools && runner.os == 'Linux' }}
         uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809  # v4.2.4
         with:
@@ -90,7 +91,7 @@ jobs:
           key: whitaker-no-unwrap-or-else-panic-v0.2.5-cargo-dylint-5.0.0
 
       - name: Install Dylint tools
-        if: ${{ matrix.tools }}
+        if: ${{ matrix.tools && (runner.os != 'Linux' || steps.whitaker-cache.outputs.cache-hit != 'true') }}
         run: |
           set -euxo pipefail
           cargo install --locked cargo-dylint --version 5.0.0

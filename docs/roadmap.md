@@ -826,6 +826,12 @@ changing the public trait contracts.
   `uv run pytest -v` passed; root pytest collected 35 `scripts/tests` items
   and no `target/...` files. CodeRabbit `review --agent` completed after the
   requested rate-limit backoff with zero findings.
+  Follow-up 2026-06-27: fixed the Linux CI cache-hit path by giving the
+  Whitaker cache step an id and skipping `Install Dylint tools` when the cache
+  already restores `cargo-dylint` and `dylint-link`, preserving the cache
+  optimization without using `cargo install --force`. Validation:
+  `actionlint .github/workflows/ci.yml`, `make markdownlint`, `make lint`, and
+  `make nixie` passed.
 - [ ] 10.2.6. The playbook documents how cargo-nextest's process-per-test
   scheduling interacts with `#[serial]` and per-process thread-local scenario
   state. Finish line: the playbook in `docs/users-guide.md` states that

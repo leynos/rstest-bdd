@@ -225,6 +225,14 @@ Hard invariants; violation requires escalation, not a workaround.
   `target/...` files. CodeRabbit `review --agent` initially hit the service
   rate limit; after the instructed randomized `vsleep` backoff, the retry
   completed with zero findings.
+- [x] (CI cache-hit fix) CI review on 2026-06-27 found Linux tool jobs fail
+  when the Whitaker cache restores `~/.cargo/bin/cargo-dylint` and
+  `~/.cargo/bin/dylint-link`, because `cargo install --locked ... --version
+  5.0.0` refuses to overwrite existing binaries. Updated the
+  `Cache Whitaker lint library` step with `id: whitaker-cache` and restricted
+  `Install Dylint tools` to non-Linux runners or Linux cache misses. Validation
+  passed with `actionlint .github/workflows/ci.yml`, `make markdownlint`,
+  `make lint`, and `make nixie`.
 
 ## Surprises & discoveries
 
@@ -300,6 +308,13 @@ Hard invariants; violation requires escalation, not a workaround.
   `unwrap_or_else(|| panic!(…))`, and Rust tests that assert the
   `write_fixture_file` panic prefixes still preserve the original fixture
   labels.
+
+- Observation: GitHub Actions restores `~/.cargo/bin/cargo-dylint` and
+  `~/.cargo/bin/dylint-link` from the Whitaker cache on Linux, so a cache hit
+  makes an unconditional `cargo install --locked ... --version 5.0.0` fail with
+  "binary already exists". Impact: the install step now depends on the cache
+  step's `cache-hit` output instead of using `--force`, preserving the cache
+  optimization and avoiding needless reinstalls.
 
 (Append further discoveries during execution.)
 
@@ -389,6 +404,12 @@ Hard invariants; violation requires escalation, not a workaround.
   repository's pytest root, newly added Python integration tests must be
   exercised by the normal commit gate without updating the Makefile for each
   file. Date/Author: 2026-06-27, implementation agent.
+
+- Decision: skip `Install Dylint tools` on Linux cache hits rather than adding
+  `cargo install --force`. Rationale: the cache intentionally restores both
+  Dylint binaries and the Whitaker lint library, so reinstalling on cache hit
+  loses the optimization and caused CI status 101. Date/Author: 2026-06-27,
+  implementation agent.
 
 (Append further decisions during execution, especially the Stage 0 mechanism
 choice and any `unreachable!` boundary finding.)
