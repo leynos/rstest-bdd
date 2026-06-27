@@ -77,6 +77,7 @@ lint: ## Run Clippy with warnings denied
 	python3 scripts/check_rs_file_lengths.py
 	python3 scripts/check_users_guide_links.py
 	python3 scripts/check_gpui_mapping_table.py
+	python3 scripts/check_serial_nextest_matrix.py
 
 lint-whitaker: $(WHITAKER_LIBRARY) ## Run Whitaker no_unwrap_or_else_panic
 	$(CARGO) dylint --version >/dev/null

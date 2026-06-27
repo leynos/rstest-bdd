@@ -133,6 +133,32 @@ override's `filter` expression rather than raising the default
 `slow-timeout`: the tight default is what surfaces genuinely hung tests
 quickly.
 
+
+## `#[serial]`, `#[file_serial]`, and nextest test-groups
+
+Stateful GPUI scenarios keep `#[serial]` even though this repository's
+`make test` target runs under cargo-nextest. The annotation is required for
+`cargo test`, where all tests in one binary share a process and the
+`serial_test` mutex prevents stateful scenarios from interleaving on the same
+test thread. Under nextest each test runs in its own process, so `#[serial]` is
+redundant-but-harmless and exists for runner compatibility rather than nextest
+scheduling.
+
+Do not add a live test-group to `.config/nextest.toml` for the current stateful
+GPUI suite. The repository has no shared cross-process resource that needs a
+nextest-level mutex; process-per-test isolation is enough for the local
+thread-local state. Add a test-group only when a new test resource is genuinely
+global across processes or binaries, and keep the filter as narrow as the
+resource allows.
+
+Treat `#[file_serial]` as adopter guidance, not a repository dependency. It is
+useful when a consuming workspace wants the exclusion to live on Rust tests
+rather than in nextest configuration, but it requires `serial_test`'s
+`file_locks` feature and does not mutually exclude `#[serial]` tests because
+the two attributes use different lock mechanisms. If a future repository test
+does need cross-process exclusion, choose one convention for that resource and
+document the choice beside the test or nextest override.
+
 ## nextest on Windows: trybuild deadlock
 
 nextest wraps test binaries in Windows Job Objects. Child `cargo` processes
@@ -211,9 +237,25 @@ repository with `git show <commit>:crates/gpui/src/app/test_context.rs`.
 Unit tests for the table checker live in
 `scripts/tests/test_check_gpui_mapping_table.py`.
 
-Both link-checker and table-checker tests run with the Python suite in
-`make test`. Issue #537 tracks generating the users-guide reference block from
-`BASE_URL` so the base lives in exactly one place.
+
+## `#[serial]`/nextest matrix validation (`scripts/check_serial_nextest_matrix.py`)
+
+The runner matrix for `#[serial]`, cargo-nextest, `#[file_serial]`, and
+nextest test-groups is duplicated in `docs/users-guide.md` and
+`docs/rstest-bdd-design.md`. Update both copies together whenever the
+repository changes its runner guidance. `make lint` runs
+`scripts/check_serial_nextest_matrix.py`, which anchors both copies by the
+"Test-runner parallelism and scenario state" heading and compares the two data
+rows after whitespace normalisation.
+
+The check only enforces doc-vs-doc parity. It does not validate nextest or
+`serial_test` behaviour directly; verify those facts from the upstream
+nextest and docs.rs references before changing the matrix. Unit tests for the
+checker live in `scripts/tests/test_check_serial_nextest_matrix.py`.
+
+Link-checker and table-checker tests run with the Python suite in `make test`.
+Issue #537 tracks generating the users-guide reference block from `BASE_URL`
+so the base lives in exactly one place.
 
 ## Test organization: harness-owned integration tests
 
