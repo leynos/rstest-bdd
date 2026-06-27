@@ -39,7 +39,8 @@ test: build-python ## Run tests with warnings treated as errors
 	fi
 	# Exercise the Python documentation helpers alongside the Rust suite.
 	$(UV_ENV) $(UV) run pytest scripts/tests/test_check_users_guide_links.py \
-		scripts/tests/test_check_gpui_mapping_table.py
+		scripts/tests/test_check_gpui_mapping_table.py \
+		scripts/tests/test_check_serial_nextest_matrix.py
 
 target/%/$(APP): ## Build binary in debug or release mode
 	$(CARGO) build $(BUILD_JOBS) $(if $(findstring release,$(@)),--release) --bin $(APP)
@@ -50,6 +51,7 @@ lint: ## Run Clippy with warnings denied
 	python3 scripts/check_rs_file_lengths.py
 	python3 scripts/check_users_guide_links.py
 	python3 scripts/check_gpui_mapping_table.py
+	python3 scripts/check_serial_nextest_matrix.py
 
 lint-python: build-python ## Run Python linters
 	$(UV_ENV) $(UV) run ruff check $(PYTHON_TARGETS)

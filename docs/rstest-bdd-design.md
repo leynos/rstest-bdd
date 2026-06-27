@@ -2167,8 +2167,7 @@ a time and the thread-local reset protocol is respected. `#[serial]` is
 test is run in its own process. Every `#[serial]` test therefore runs in
 isolation by default; the in-process mutex serialises nothing across the
 process boundary. `#[serial]` is **redundant-but-harmless** under nextest
-for single-binary scenarios, because process-per-test already isolates
-per-process thread-local state.
+because process-per-test already isolates per-process thread-local state.
 
 **Cross-binary and cross-process serialisation:** if two scenario binaries
 must not run concurrently (for example, both share a locked hardware
@@ -2191,6 +2190,36 @@ annotation but provides no within-binary serialisation benefit. The
 recommendation is to keep `#[serial]` annotations so that `cargo test`
 continues to work correctly, and to rely on nextest's process isolation for
 the default safe-execution guarantee.
+
+Use a nextest test-group when nextest-managed tests must not overlap across
+processes or binaries. Test-groups are available in cargo-nextest 0.9.48 and
+later, and a `max-threads = 1` group acts as a logical mutex across the whole
+nextest run:
+
+```toml
+[test-groups]
+stateful-gpui = { max-threads = 1 }
+
+[[profile.default.overrides]]
+filter = 'test(stateful_gpui::)'
+test-group = 'stateful-gpui'
+```
+
+Use `#[file_serial]` when the same cross-process exclusion should live in the
+Rust test annotation rather than the nextest configuration. The attribute is
+available only when the `serial_test` crate's `file_locks` feature is enabled:
+
+```toml
+[dev-dependencies]
+serial_test = { version = "...", features = ["file_locks"] }
+```
+
+The `file_locks` feature is the load-bearing part of the manifest fragment;
+choose the major version already used by the consuming workspace. The file
+lock defaults to a file under the operating system's temporary directory, and
+can be customised with `path` and key arguments. `#[file_serial]` does not
+mutually exclude tests annotated with `#[serial]`, because the two attributes
+lock using different mechanisms.
 
 ## Part 3: Implementation and strategic analysis
 
