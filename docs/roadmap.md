@@ -816,6 +816,15 @@ changing the public trait contracts.
   coverage jobs. Validation: root `uv run pytest -v` collected 33
   `scripts/tests` items and no `target/...` files; `make check-fmt`,
   `make lint`, and `make test` passed.
+  Follow-up 2026-06-27: added deterministic pytest coverage for the
+  `lint-whitaker` Makefile target using clean and failing fixture crates,
+  added Rust regression tests proving `write_fixture_file` preserves its
+  original panic labels, and changed `make test` to run every test under
+  `scripts/tests` so new Python integration tests enter the normal gate.
+  Validation: `make check-fmt`, `mbake validate Makefile`,
+  `make markdownlint`, `make lint`, `make test`, `make nixie`, and root
+  `uv run pytest -v` passed; root pytest collected 35 `scripts/tests` items
+  and no `target/...` files.
 - [ ] 10.2.6. The playbook documents how cargo-nextest's process-per-test
   scheduling interacts with `#[serial]` and per-process thread-local scenario
   state. Finish line: the playbook in `docs/users-guide.md` states that

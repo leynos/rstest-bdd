@@ -50,8 +50,7 @@ test: build-python ## Run tests with warnings treated as errors
 		RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) test $(CARGO_FLAGS) $(BUILD_JOBS); \
 	fi
 	# Exercise the Python documentation helpers alongside the Rust suite.
-	$(UV_ENV) $(UV) run pytest scripts/tests/test_check_users_guide_links.py \
-		scripts/tests/test_check_gpui_mapping_table.py
+	$(UV_ENV) $(UV) run pytest scripts/tests
 
 target/%/$(APP): ## Build binary in debug or release mode
 	$(CARGO) build $(BUILD_JOBS) $(if $(findstring release,$(@)),--release) --bin $(APP)

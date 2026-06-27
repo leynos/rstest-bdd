@@ -45,6 +45,7 @@ proptest.workspace = true
 serial_test.workspace = true
 the-newtype = "0.1.1"
 tokio.workspace = true
+tempfile.workspace = true
 
 [features]
 default = ["diagnostics"]

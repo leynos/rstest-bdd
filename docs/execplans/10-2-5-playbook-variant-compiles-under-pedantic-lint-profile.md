@@ -211,6 +211,18 @@ Hard invariants; violation requires escalation, not a workaround.
   `scripts/tests` and did not collect `target/...`.
 - [x] (Review readiness) PR #546 marked ready for review on 2026-06-24 after
   the post-delivery hardening commits were pushed.
+- [x] (Review hardening) PR review on 2026-06-27 requested deterministic
+  coverage for the Whitaker Makefile/Dylint gate and extracted helper panic
+  diagnostics. Added focused regression tests for `write_fixture_file`, added
+  pytest integration tests that run `make lint-whitaker` against clean and
+  failing fixture crates, and changed `make test` to run all of
+  `scripts/tests` so that coverage is part of the normal gate. Focused
+  validation passed with the filtered `rstest-bdd` trybuild helper test and
+  `uv run pytest -v scripts/tests/test_whitaker_lint_gate.py`. Full validation
+  passed with `make check-fmt`, `mbake validate Makefile`,
+  `make markdownlint`, `make lint`, `make test`, `make nixie`, and root
+  `uv run pytest -v`, which collected 35 `scripts/tests` items and no
+  `target/...` files.
 
 ## Surprises & discoveries
 
@@ -277,6 +289,15 @@ Hard invariants; violation requires escalation, not a workaround.
   and `run_gpui_harness` for the first-party harness behaviour suites. These
   helpers keep panic diagnostics unchanged and use `match` or `let … else`
   forms compatible with Whitaker.
+
+- Observation: PR review flagged that the Whitaker/Dylint Makefile gate and the
+  extracted helper panic diagnostics needed deterministic tests rather than
+  relying on `make lint` and review inspection alone. Impact: the branch now
+  contains a pytest integration test that drives `make lint-whitaker` against
+  purpose-built fixture crates, proving both a clean pass and rejection of
+  `unwrap_or_else(|| panic!(…))`, and Rust tests that assert the
+  `write_fixture_file` panic prefixes still preserve the original fixture
+  labels.
 
 (Append further discoveries during execution.)
 
@@ -361,6 +382,12 @@ Hard invariants; violation requires escalation, not a workaround.
   fixes root-level coverage runs without changing explicit-path Makefile
   invocations. Date/Author: 2026-06-23, implementation agent.
 
+- Decision: make `make test` run the whole `scripts/tests` tree, not just the
+  two legacy Python test files. Rationale: once `scripts/tests` is the
+  repository's pytest root, newly added Python integration tests must be
+  exercised by the normal commit gate without updating the Makefile for each
+  file. Date/Author: 2026-06-27, implementation agent.
+
 (Append further decisions during execution, especially the Stage 0 mechanism
 choice and any `unreachable!` boundary finding.)
 
@@ -387,6 +414,14 @@ collected by coverage jobs. Validation passed with `make check-fmt`,
 `make lint`, `make test`, and `uv run pytest -v`; the latter collected 33
 items, all under `scripts/tests`, with no `target/...` collection errors. PR
 number 546 was marked ready for review on 2026-06-24.
+
+Review hardening on 2026-06-27 adds deterministic coverage for the
+`lint-whitaker` Makefile target and for `write_fixture_file` panic labels.
+`make test` now executes all Python tests under `scripts/tests`, so the new
+Whitaker integration tests are part of the standard gate. Validation passed
+with `make check-fmt`, `mbake validate Makefile`, `make markdownlint`,
+`make lint`, `make test`, `make nixie`, and root `uv run pytest -v`; root
+pytest collected 35 `scripts/tests` items and no `target/...` files.
 
 Retrospective: the highest-risk part was Dylint integration, not the mechanical
 Rust rewrite. The metadata path was insufficient for Whitaker `v0.2.5`, so the
