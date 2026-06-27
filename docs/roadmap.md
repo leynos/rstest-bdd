@@ -849,13 +849,20 @@ changing the public trait contracts.
   with `mbake validate Makefile`, `make check-fmt`, `make lint-whitaker`,
   `uv run pytest -v scripts/tests/test_whitaker_lint_gate.py`, `make lint`, and
   `make test`; CodeRabbit `review --agent` completed with zero findings.
-- [ ] 10.2.6. The playbook documents how cargo-nextest's process-per-test
+- [x] 10.2.6. The playbook documents how cargo-nextest's process-per-test
   scheduling interacts with `#[serial]` and per-process thread-local scenario
   state. Finish line: the playbook in `docs/users-guide.md` states that
   `#[serial]` is required for `cargo test`, redundant-but-harmless under
   nextest (process-per-test already isolates per-process state), and that
   cross-process exclusivity requires `#[file_serial]` or a nextest test-group.
   Design Doc: `docs/rstest-bdd-design.md` §2.7.6.7.
+  Delivered 2026-06-27: promoted the guidance to a runner-agnostic
+  user-guide subsection, corrected the `#[file_serial]` `file_locks` caveat
+  and the nextest redundancy wording, added worked `#[file_serial]` and
+  nextest test-group examples, and added
+  `scripts/check_serial_nextest_matrix.py` to keep the user-guide and design
+  matrices in step. See
+  `docs/execplans/10-2-6-documents-nextest-process-per-test-scheduling-and-serial-interraction.md`.
 - [ ] 10.2.7. A bulk-migration cookbook in the user guide shows how to share
   one durable-handle step library across many GPUI scenarios in a single
   consuming crate, so teams migrating large test suites do not copy the helper
