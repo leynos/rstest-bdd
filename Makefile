@@ -29,8 +29,8 @@ WHITAKER_HOST ?= $(shell rustc -vV | awk '/^host:/ {print $$2}')
 WHITAKER_ROOT ?= target/whitaker
 WHITAKER_SRC ?= $(WHITAKER_ROOT)/$(WHITAKER_LINT)-src
 WHITAKER_TARGET_DIR ?= $(WHITAKER_ROOT)/$(WHITAKER_LINT)-target
-WHITAKER_LIBRARY_DIR ?= $(abspath $(WHITAKER_TARGET_DIR)/dylint/libraries/$(WHITAKER_TOOLCHAIN)-$(WHITAKER_HOST)/release)
-WHITAKER_LIBRARY ?= $(WHITAKER_LIBRARY_DIR)/lib$(WHITAKER_LINT)@$(WHITAKER_TOOLCHAIN)-$(WHITAKER_HOST).so
+WHITAKER_LIBRARY_DIR ?= $(abspath $(WHITAKER_TARGET_DIR)/dylint/libraries/$(WHITAKER_TOOLCHAIN)/release)
+WHITAKER_LIBRARY ?= $(WHITAKER_LIBRARY_DIR)/lib$(WHITAKER_LINT)@$(WHITAKER_TOOLCHAIN).so
 
 build: target/debug/$(APP) ## Build debug binary
 build-python: pyproject.toml ## Build Python tooling environment

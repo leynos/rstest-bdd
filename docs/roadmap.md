@@ -844,6 +844,11 @@ changing the public trait contracts.
   and corrected `optimization` to `optimisation`. Validation: `make fmt`,
   `make markdownlint`, `make nixie`, and `git diff --check` passed; CodeRabbit
   `review --agent` completed with zero findings.
+  Follow-up 2026-06-28: fixed the Whitaker Dylint library path so Dylint sees
+  `nightly-2025-09-18`, not a host-suffixed rustup channel. Validation passed
+  with `mbake validate Makefile`, `make check-fmt`, `make lint-whitaker`,
+  `uv run pytest -v scripts/tests/test_whitaker_lint_gate.py`, `make lint`, and
+  `make test`.
 - [ ] 10.2.6. The playbook documents how cargo-nextest's process-per-test
   scheduling interacts with `#[serial]` and per-process thread-local scenario
   state. Finish line: the playbook in `docs/users-guide.md` states that

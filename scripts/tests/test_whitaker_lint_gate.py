@@ -5,7 +5,6 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess  # noqa: S404 - integration test invokes trusted local tooling.
-import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -66,12 +65,6 @@ def run_lint_whitaker(manifest_path: Path) -> subprocess.CompletedProcess[str]:
 
 def whitaker_libraries() -> list[Path]:
     """Return built Whitaker Dylint library artefacts."""
-    if sys.platform == "win32":
-        library_pattern = f"{WHITAKER_TOOLCHAIN}-*/release/{WHITAKER_LINT}@*.dll"
-    elif sys.platform == "darwin":
-        library_pattern = f"{WHITAKER_TOOLCHAIN}-*/release/lib{WHITAKER_LINT}@*.dylib"
-    else:
-        library_pattern = f"{WHITAKER_TOOLCHAIN}-*/release/lib{WHITAKER_LINT}@*.so"
     library_root = (
         REPO_ROOT
         / "target"
@@ -80,7 +73,11 @@ def whitaker_libraries() -> list[Path]:
         / "dylint"
         / "libraries"
     )
-    return sorted(library_root.glob(library_pattern))
+    return sorted(
+        library_root.glob(
+            f"{WHITAKER_TOOLCHAIN}/release/lib{WHITAKER_LINT}@{WHITAKER_TOOLCHAIN}.so"
+        )
+    )
 
 
 def test_lint_whitaker_target_accepts_clean_fixture(tmp_path: Path) -> None:

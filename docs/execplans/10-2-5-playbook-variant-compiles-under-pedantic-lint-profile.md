@@ -248,6 +248,15 @@ Hard invariants; violation requires escalation, not a workaround.
   passed with `make fmt`, `make markdownlint`, `make nixie`, and
   `git diff --check`; CodeRabbit `review --agent` completed with zero
   findings.
+- [x] (Dylint toolchain suffix fix) On 2026-06-28, verified `make
+  lint-whitaker` still copied the Whitaker library into a host-suffixed
+  toolchain directory/name that Dylint parsed as an invalid rustup channel.
+  Updated the Makefile and Python integration test to use
+  `nightly-2025-09-18` without `-$(WHITAKER_HOST)`. Validation passed with
+  `mbake validate Makefile`, `make check-fmt`, `make lint-whitaker`,
+  `uv run pytest -v scripts/tests/test_whitaker_lint_gate.py`, `make lint`,
+  and `make test`; the copied artefact exists at
+  `target/whitaker/no_unwrap_or_else_panic-target/dylint/libraries/nightly-2025-09-18/release/libno_unwrap_or_else_panic@nightly-2025-09-18.so`.
 
 ## Surprises & discoveries
 
