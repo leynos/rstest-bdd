@@ -30,7 +30,20 @@ WHITAKER_ROOT ?= target/whitaker
 WHITAKER_SRC ?= $(WHITAKER_ROOT)/$(WHITAKER_LINT)-src
 WHITAKER_TARGET_DIR ?= $(WHITAKER_ROOT)/$(WHITAKER_LINT)-target
 WHITAKER_LIBRARY_DIR ?= $(abspath $(WHITAKER_TARGET_DIR)/dylint/libraries/$(WHITAKER_TOOLCHAIN)/release)
-WHITAKER_LIBRARY ?= $(WHITAKER_LIBRARY_DIR)/lib$(WHITAKER_LINT)@$(WHITAKER_TOOLCHAIN).so
+UNAME_S := $(shell uname -s 2>/dev/null || echo unknown)
+
+ifeq ($(OS),Windows_NT)
+WHITAKER_DLL_PREFIX :=
+WHITAKER_DLL_SUFFIX := .dll
+else ifeq ($(UNAME_S),Darwin)
+WHITAKER_DLL_PREFIX := lib
+WHITAKER_DLL_SUFFIX := .dylib
+else
+WHITAKER_DLL_PREFIX := lib
+WHITAKER_DLL_SUFFIX := .so
+endif
+
+WHITAKER_LIBRARY ?= $(WHITAKER_LIBRARY_DIR)/$(WHITAKER_DLL_PREFIX)$(WHITAKER_LINT)@$(WHITAKER_TOOLCHAIN)$(WHITAKER_DLL_SUFFIX)
 
 build: target/debug/$(APP) ## Build debug binary
 build-python: pyproject.toml ## Build Python tooling environment
@@ -86,7 +99,7 @@ $(WHITAKER_LIBRARY): $(WHITAKER_SRC)/.git
 		cargo +"$(WHITAKER_TOOLCHAIN)" build --release \
 		-p "$(WHITAKER_LINT)" --features dylint-driver
 	mkdir -p "$(WHITAKER_LIBRARY_DIR)"
-	cp "$(WHITAKER_TARGET_DIR)/release/lib$(WHITAKER_LINT).so" \
+	cp "$(WHITAKER_TARGET_DIR)/release/$(WHITAKER_DLL_PREFIX)$(WHITAKER_LINT)$(WHITAKER_DLL_SUFFIX)" \
 		"$(WHITAKER_LIBRARY)"
 
 lint-python: build-python ## Run Python linters
