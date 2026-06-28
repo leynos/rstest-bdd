@@ -48,7 +48,7 @@ as `module_max_lines`, `no_expect_outside_tests`, `bumpy_road_function`) is a
 **separate, larger initiative** and is added to the roadmap as a new v0.6.1
 item, not done here.
 
-You can observe success as follows:
+Success is observable as follows:
 
 1. `make lint` runs the real Whitaker `no_unwrap_or_else_panic` lint over the
    workspace and passes; before the conversion it fails on the 38 known sites

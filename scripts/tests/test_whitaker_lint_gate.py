@@ -5,7 +5,10 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess  # noqa: S404 - integration test invokes trusted local tooling.
+import sys
 from pathlib import Path
+
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WHITAKER_LINT = "no_unwrap_or_else_panic"
@@ -65,6 +68,12 @@ def run_lint_whitaker(manifest_path: Path) -> subprocess.CompletedProcess[str]:
 
 def whitaker_libraries() -> list[Path]:
     """Return built Whitaker Dylint library artefacts."""
+    if sys.platform == "darwin":
+        library_extension = "dylib"
+    elif sys.platform.startswith("linux"):
+        library_extension = "so"
+    else:
+        pytest.skip(f"Whitaker artefact assertion unsupported on {sys.platform}")
     library_root = (
         REPO_ROOT
         / "target"
@@ -75,7 +84,7 @@ def whitaker_libraries() -> list[Path]:
     )
     return sorted(
         library_root.glob(
-            f"{WHITAKER_TOOLCHAIN}/release/lib{WHITAKER_LINT}@{WHITAKER_TOOLCHAIN}.so"
+            f"{WHITAKER_TOOLCHAIN}/release/lib{WHITAKER_LINT}@{WHITAKER_TOOLCHAIN}.{library_extension}"
         )
     )
 
