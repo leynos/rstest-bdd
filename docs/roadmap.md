@@ -842,7 +842,8 @@ changing the public trait contracts.
   Follow-up 2026-06-28: fixed developer-guide punctuation, replaced the
   migration guide's deprecated `.unwrap_or_else(|| panic!(...))` suggestion,
   and corrected `optimization` to `optimisation`. Validation: `make fmt`,
-  `make markdownlint`, `make nixie`, and `git diff --check` passed.
+  `make markdownlint`, `make nixie`, and `git diff --check` passed; CodeRabbit
+  `review --agent` completed with zero findings.
 - [ ] 10.2.6. The playbook documents how cargo-nextest's process-per-test
   scheduling interacts with `#[serial]` and per-process thread-local scenario
   state. Finish line: the playbook in `docs/users-guide.md` states that

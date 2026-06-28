@@ -246,7 +246,8 @@ Hard invariants; violation requires escalation, not a workaround.
   still-valid documentation comments: developer-guide punctuation,
   migration-guide panic-pattern guidance, and roadmap spelling. Validation
   passed with `make fmt`, `make markdownlint`, `make nixie`, and
-  `git diff --check`.
+  `git diff --check`; CodeRabbit `review --agent` completed with zero
+  findings.
 
 ## Surprises & discoveries
 
