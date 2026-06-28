@@ -66,14 +66,18 @@ def run_lint_whitaker(manifest_path: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
+def whitaker_library_extension() -> str:
+    """Return the Dylint library extension for this platform."""
+    if sys.platform == "darwin":
+        return "dylib"
+    if sys.platform.startswith("linux"):
+        return "so"
+    return pytest.skip(f"Whitaker artefact assertion unsupported on {sys.platform}")
+
+
 def whitaker_libraries() -> list[Path]:
     """Return built Whitaker Dylint library artefacts."""
-    if sys.platform == "darwin":
-        library_extension = "dylib"
-    elif sys.platform.startswith("linux"):
-        library_extension = "so"
-    else:
-        pytest.skip(f"Whitaker artefact assertion unsupported on {sys.platform}")
+    library_extension = whitaker_library_extension()
     library_root = (
         REPO_ROOT
         / "target"
