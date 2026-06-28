@@ -257,6 +257,7 @@ Hard invariants; violation requires escalation, not a workaround.
   `uv run pytest -v scripts/tests/test_whitaker_lint_gate.py`, `make lint`,
   and `make test`; the copied artefact exists at
   `target/whitaker/no_unwrap_or_else_panic-target/dylint/libraries/nightly-2025-09-18/release/libno_unwrap_or_else_panic@nightly-2025-09-18.so`.
+  CodeRabbit `review --agent` completed with zero findings.
 
 ## Surprises & discoveries
 
