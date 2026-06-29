@@ -12,8 +12,21 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WHITAKER_LINT = "no_unwrap_or_else_panic"
+WHITAKER_TAG = "v0.2.5"
 WHITAKER_TOOLCHAIN = "nightly-2025-09-18"
+WHITAKER_TARGET_NAME = f"{WHITAKER_LINT}-{WHITAKER_TAG}-target"
 WHITAKER_TEST_TARGET = REPO_ROOT / "target" / "pytest-whitaker-fixtures"
+
+
+def cargo_dylint_available() -> bool:
+    """Return whether the cargo-dylint subcommand is available."""
+    return shutil.which("cargo-dylint") is not None
+
+
+pytestmark = pytest.mark.skipif(
+    not cargo_dylint_available(),
+    reason="cargo-dylint is only installed in Whitaker/tooling environments",
+)
 
 
 def make_executable() -> str:
@@ -66,31 +79,30 @@ def run_lint_whitaker(manifest_path: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
-def whitaker_library_extension() -> str:
-    """Return the Dylint library extension for this platform."""
+def whitaker_library_name() -> str:
+    """Return the expected Dylint library filename for this platform."""
     if sys.platform == "darwin":
-        return "dylib"
+        return f"lib{WHITAKER_LINT}@{WHITAKER_TOOLCHAIN}.dylib"
     if sys.platform.startswith("linux"):
-        return "so"
+        return f"lib{WHITAKER_LINT}@{WHITAKER_TOOLCHAIN}.so"
+    if sys.platform == "win32":
+        return f"{WHITAKER_LINT}@{WHITAKER_TOOLCHAIN}.dll"
     return pytest.skip(f"Whitaker artefact assertion unsupported on {sys.platform}")
 
 
 def whitaker_libraries() -> list[Path]:
     """Return built Whitaker Dylint library artefacts."""
-    library_extension = whitaker_library_extension()
     library_root = (
         REPO_ROOT
         / "target"
         / "whitaker"
-        / f"{WHITAKER_LINT}-target"
+        / WHITAKER_TARGET_NAME
         / "dylint"
         / "libraries"
+        / WHITAKER_TOOLCHAIN
+        / "release"
     )
-    return sorted(
-        library_root.glob(
-            f"{WHITAKER_TOOLCHAIN}/release/lib{WHITAKER_LINT}@{WHITAKER_TOOLCHAIN}.{library_extension}"
-        )
-    )
+    return sorted(library_root.glob(whitaker_library_name()))
 
 
 def test_lint_whitaker_target_accepts_clean_fixture(tmp_path: Path) -> None:

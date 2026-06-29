@@ -1,7 +1,7 @@
 VALE ?= vale
 
 .PHONY: help all clean test build build-python release lint lint-python
-.PHONY: lint-whitaker typecheck fmt check-fmt markdownlint nixie publish-check
+.PHONY: lint-whitaker ensure-whitaker-tools typecheck fmt check-fmt markdownlint nixie publish-check
 .PHONY: forbid-async-trait vale update-ui-lints-lock
 
 SHELL := bash
@@ -83,6 +83,9 @@ lint-whitaker: $(WHITAKER_LIBRARY) ## Run Whitaker no_unwrap_or_else_panic
 		$(CARGO) dylint --keep-going --lib $(WHITAKER_LINT) \
 		--no-metadata --no-build -- $(CARGO_FLAGS)
 
+ensure-whitaker-tools:
+	$(CARGO) dylint --version >/dev/null
+
 $(WHITAKER_SRC)/.git:
 	mkdir -p "$(WHITAKER_ROOT)"
 	if [ ! -d "$(WHITAKER_SRC)/.git" ]; then \
@@ -90,7 +93,7 @@ $(WHITAKER_SRC)/.git:
 			"$(WHITAKER_REPO)" "$(WHITAKER_SRC)"; \
 	fi
 
-$(WHITAKER_LIBRARY): $(WHITAKER_SRC)/.git
+$(WHITAKER_LIBRARY): ensure-whitaker-tools $(WHITAKER_SRC)/.git
 	rustup toolchain install "$(WHITAKER_TOOLCHAIN)" \
 		--component rustc-dev --component rust-src \
 		--component llvm-tools-preview
