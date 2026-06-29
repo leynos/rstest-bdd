@@ -27,8 +27,8 @@ WHITAKER_TOOLCHAIN ?= nightly-2025-09-18
 WHITAKER_LINT ?= no_unwrap_or_else_panic
 WHITAKER_HOST ?= $(shell rustc -vV | awk '/^host:/ {print $$2}')
 WHITAKER_ROOT ?= target/whitaker
-WHITAKER_SRC ?= $(WHITAKER_ROOT)/$(WHITAKER_LINT)-src
-WHITAKER_TARGET_DIR ?= $(WHITAKER_ROOT)/$(WHITAKER_LINT)-target
+WHITAKER_SRC ?= $(WHITAKER_ROOT)/$(WHITAKER_LINT)-$(WHITAKER_TAG)-src
+WHITAKER_TARGET_DIR ?= $(WHITAKER_ROOT)/$(WHITAKER_LINT)-$(WHITAKER_TAG)-target
 WHITAKER_LIBRARY_DIR ?= $(abspath $(WHITAKER_TARGET_DIR)/dylint/libraries/$(WHITAKER_TOOLCHAIN)/release)
 UNAME_S := $(shell uname -s 2>/dev/null || echo unknown)
 
@@ -77,7 +77,7 @@ lint: ## Run Clippy with warnings denied
 	python3 scripts/check_gpui_mapping_table.py
 
 lint-whitaker: $(WHITAKER_LIBRARY) ## Run Whitaker no_unwrap_or_else_panic
-	cargo dylint --version >/dev/null
+	$(CARGO) dylint --version >/dev/null
 	DYLINT_LIBRARY_PATH="$(WHITAKER_LIBRARY_DIR)" \
 		RUSTUP_TOOLCHAIN=stable \
 		$(CARGO) dylint --keep-going --lib $(WHITAKER_LINT) \
@@ -96,7 +96,7 @@ $(WHITAKER_LIBRARY): $(WHITAKER_SRC)/.git
 		--component llvm-tools-preview
 	cd "$(WHITAKER_SRC)" && \
 		CARGO_TARGET_DIR="$(abspath $(WHITAKER_TARGET_DIR))" \
-		cargo +"$(WHITAKER_TOOLCHAIN)" build --release \
+		$(CARGO) +"$(WHITAKER_TOOLCHAIN)" build --release \
 		-p "$(WHITAKER_LINT)" --features dylint-driver
 	mkdir -p "$(WHITAKER_LIBRARY_DIR)"
 	cp "$(WHITAKER_TARGET_DIR)/release/$(WHITAKER_DLL_PREFIX)$(WHITAKER_LINT)$(WHITAKER_DLL_SUFFIX)" \
