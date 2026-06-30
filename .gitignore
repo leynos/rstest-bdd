@@ -5,6 +5,7 @@ target/
 __pycache__/
 .vale/
 .grepai/
+.memdb/
 rust_out
 .agents/mcp/context_pack/packs/
 crates/rstest-bdd-harness/.proptest-regressions/
