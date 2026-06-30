@@ -92,7 +92,7 @@ jobs:
             target/whitaker
             ~/.cargo/bin/cargo-dylint
             ~/.cargo/bin/dylint-link
-          key: whitaker-no-unwrap-or-else-panic-${{ env.WHITAKER_TAG }}-${{ env.WHITAKER_TOOLCHAIN }}-cargo-dylint-${{ env.CARGO_DYLINT_VERSION }}
+          key: whitaker-no-unwrap-or-else-panic-${{ runner.os }}-${{ env.WHITAKER_TAG }}-${{ env.WHITAKER_TOOLCHAIN }}-cargo-dylint-${{ env.CARGO_DYLINT_VERSION }}
 
       - name: Install Dylint tools
         if: ${{ matrix.tools && (runner.os != 'Linux' || steps.whitaker-cache.outputs.cache-hit != 'true') }}
