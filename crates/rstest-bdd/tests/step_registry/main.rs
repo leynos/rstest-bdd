@@ -8,9 +8,11 @@ use rstest_bdd::{
 };
 use unic_langid::langid;
 
-#[path = "../common/mod.rs"]
-mod common;
-use common::poll_step_future;
+#[path = "../common/async_wrapper.rs"]
+mod async_wrapper;
+#[path = "../common/poll_step_future.rs"]
+mod poll_step_future_support;
+use poll_step_future_support::poll_step_future;
 
 mod execute_step_tests;
 mod wrappers;

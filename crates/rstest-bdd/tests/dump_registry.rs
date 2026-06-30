@@ -7,8 +7,9 @@ use rstest_bdd::{
 };
 use serde_json::Value;
 
-mod common;
-use common::{noop_async_wrapper, noop_wrapper};
+#[path = "common/noop_steps.rs"]
+mod noop_steps;
+use noop_steps::{noop_async_wrapper, noop_wrapper};
 
 step!(
     StepKeyword::Given,

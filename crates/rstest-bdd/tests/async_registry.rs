@@ -12,8 +12,12 @@ use rstest_bdd::{
     lookup_step_async, step, unused_steps,
 };
 
-mod common;
-use common::{noop_async_wrapper, noop_wrapper, poll_step_future};
+#[path = "common/noop_steps.rs"]
+mod noop_steps;
+#[path = "common/poll_step_future.rs"]
+mod poll_step_future_support;
+use noop_steps::{noop_async_wrapper, noop_wrapper};
+use poll_step_future_support::poll_step_future;
 
 // ----------------------------------------------------------------------------
 // Test helper functions

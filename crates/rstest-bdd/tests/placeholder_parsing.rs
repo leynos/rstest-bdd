@@ -8,9 +8,6 @@ use unic_langid::langid;
 mod support;
 use support::{compiled, expect_placeholder_syntax};
 
-/// Anchor the helper so it is not flagged as dead code when compiling this test.
-const _: fn(&'static str, &str) -> Vec<String> = support::compile_and_extract;
-
 #[rstest]
 #[case("literal text", true)]
 #[case("value {n:}", false)]

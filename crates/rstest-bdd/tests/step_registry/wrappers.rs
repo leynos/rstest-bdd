@@ -12,7 +12,7 @@ use rstest_bdd::{
     panic_message, step, submit,
 };
 
-use super::common::{StepInvocationParams, wrap_sync_step_as_async};
+use super::async_wrapper::{StepInvocationParams, wrap_sync_step_as_async};
 
 /// Generates an async wrapper function that delegates to a sync step function.
 ///

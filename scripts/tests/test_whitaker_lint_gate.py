@@ -14,7 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 WHITAKER_LINT = "no_unwrap_or_else_panic"
 WHITAKER_TAG = "v0.2.5"
 WHITAKER_TOOLCHAIN = "nightly-2025-09-18"
-WHITAKER_TARGET_NAME = f"{WHITAKER_LINT}-{WHITAKER_TAG}-target"
+WHITAKER_TARGET_NAME = f"{WHITAKER_LINT}-{WHITAKER_TAG}-{WHITAKER_TOOLCHAIN}-target"
 WHITAKER_TEST_TARGET = REPO_ROOT / "target" / "pytest-whitaker-fixtures"
 
 

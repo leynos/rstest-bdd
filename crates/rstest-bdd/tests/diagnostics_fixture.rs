@@ -15,9 +15,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use rstest_bdd::{StepContext, StepExecution, StepFuture, StepKeyword, step};
 
 #[cfg(feature = "diagnostics")]
-mod common;
+#[path = "common/async_wrapper.rs"]
+mod async_wrapper;
 #[cfg(feature = "diagnostics")]
-use common::{StepInvocationParams, wrap_sync_step_as_async};
+use async_wrapper::{StepInvocationParams, wrap_sync_step_as_async};
 
 #[cfg(feature = "diagnostics")]
 step!(

@@ -4,7 +4,14 @@ mod support;
 
 use rstest::rstest;
 use rstest_bdd::{StepPattern, StepPatternError, StepText, extract_placeholders};
-use support::{compile_and_extract, compiled, expect_placeholder_syntax};
+use support::{compiled, expect_placeholder_syntax};
+
+#[must_use]
+#[expect(clippy::expect_used, reason = "test helper should fail loudly")]
+fn compile_and_extract(pattern: &'static str, text: &str) -> Vec<String> {
+    let pat = compiled(pattern);
+    extract_placeholders(&pat, StepText::from(text)).expect("match expected")
+}
 
 #[test]
 fn handles_escaped_braces() {
