@@ -30,6 +30,8 @@ WHITAKER_ROOT ?= target/whitaker
 WHITAKER_SRC ?= $(WHITAKER_ROOT)/$(WHITAKER_LINT)-$(WHITAKER_TAG)-src
 WHITAKER_TARGET_DIR ?= $(WHITAKER_ROOT)/$(WHITAKER_LINT)-$(WHITAKER_TAG)-target
 WHITAKER_LIBRARY_DIR ?= $(abspath $(WHITAKER_TARGET_DIR)/dylint/libraries/$(WHITAKER_TOOLCHAIN)/release)
+WHITAKER_TOOLCHAIN_STAMP ?= $(WHITAKER_TARGET_DIR)/.toolchain-installed
+WHITAKER_BUILD_STAMP ?= $(WHITAKER_TARGET_DIR)/.whitaker-built
 UNAME_S := $(shell uname -s 2>/dev/null || echo unknown)
 
 ifeq ($(OS),Windows_NT)
@@ -93,14 +95,21 @@ $(WHITAKER_SRC)/.git:
 			"$(WHITAKER_REPO)" "$(WHITAKER_SRC)"; \
 	fi
 
-$(WHITAKER_LIBRARY): ensure-whitaker-tools $(WHITAKER_SRC)/.git
+$(WHITAKER_TOOLCHAIN_STAMP): | ensure-whitaker-tools
+	mkdir -p "$(WHITAKER_TARGET_DIR)"
 	rustup toolchain install "$(WHITAKER_TOOLCHAIN)" \
 		--component rustc-dev --component rust-src \
 		--component llvm-tools-preview
+	touch "$@"
+
+$(WHITAKER_BUILD_STAMP): $(WHITAKER_SRC)/.git $(WHITAKER_TOOLCHAIN_STAMP)
 	cd "$(WHITAKER_SRC)" && \
 		CARGO_TARGET_DIR="$(abspath $(WHITAKER_TARGET_DIR))" \
 		$(CARGO) +"$(WHITAKER_TOOLCHAIN)" build --release \
 		-p "$(WHITAKER_LINT)" --features dylint-driver
+	touch "$@"
+
+$(WHITAKER_LIBRARY): $(WHITAKER_BUILD_STAMP) | ensure-whitaker-tools
 	mkdir -p "$(WHITAKER_LIBRARY_DIR)"
 	cp "$(WHITAKER_TARGET_DIR)/release/$(WHITAKER_DLL_PREFIX)$(WHITAKER_LINT)$(WHITAKER_DLL_SUFFIX)" \
 		"$(WHITAKER_LIBRARY)"

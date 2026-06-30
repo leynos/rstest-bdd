@@ -81,13 +81,15 @@ def run_lint_whitaker(manifest_path: Path) -> subprocess.CompletedProcess[str]:
 
 def whitaker_library_name() -> str:
     """Return the expected Dylint library filename for this platform."""
-    if sys.platform == "darwin":
-        return f"lib{WHITAKER_LINT}@{WHITAKER_TOOLCHAIN}.dylib"
-    if sys.platform.startswith("linux"):
-        return f"lib{WHITAKER_LINT}@{WHITAKER_TOOLCHAIN}.so"
-    if sys.platform == "win32":
-        return f"{WHITAKER_LINT}@{WHITAKER_TOOLCHAIN}.dll"
-    return pytest.skip(f"Whitaker artefact assertion unsupported on {sys.platform}")
+    match sys.platform:
+        case "darwin":
+            return f"lib{WHITAKER_LINT}@{WHITAKER_TOOLCHAIN}.dylib"
+        case platform if platform.startswith("linux"):
+            return f"lib{WHITAKER_LINT}@{WHITAKER_TOOLCHAIN}.so"
+        case "win32":
+            return f"{WHITAKER_LINT}@{WHITAKER_TOOLCHAIN}.dll"
+        case platform:
+            return pytest.skip(f"Whitaker artefact assertion unsupported on {platform}")
 
 
 def whitaker_libraries() -> list[Path]:
