@@ -21,6 +21,8 @@ use wrappers::{
 
 #[path = "trybuild_macros/staging.rs"]
 mod staging;
+#[path = "trybuild_macros/whitaker.rs"]
+mod whitaker;
 #[path = "trybuild_macros/wrappers.rs"]
 mod wrappers;
 

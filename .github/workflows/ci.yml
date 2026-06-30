@@ -17,6 +17,10 @@ jobs:
       RUSTFLAGS: -D warnings
       RUSTDOCFLAGS: -D warnings
       LADING_REF: d3217a599ea34adad6a6e3845845fff2fe923758
+      WHITAKER_TAG: v0.2.5
+      WHITAKER_TOOLCHAIN: nightly-2025-09-18
+      CARGO_DYLINT_VERSION: 5.0.0
+      DYLINT_LINK_VERSION: 5.0.0
     strategy:
       fail-fast: false
       matrix:
@@ -88,14 +92,14 @@ jobs:
             target/whitaker
             ~/.cargo/bin/cargo-dylint
             ~/.cargo/bin/dylint-link
-          key: whitaker-no-unwrap-or-else-panic-v0.2.5-cargo-dylint-5.0.0
+          key: whitaker-no-unwrap-or-else-panic-${{ env.WHITAKER_TAG }}-${{ env.WHITAKER_TOOLCHAIN }}-cargo-dylint-${{ env.CARGO_DYLINT_VERSION }}
 
       - name: Install Dylint tools
         if: ${{ matrix.tools && (runner.os != 'Linux' || steps.whitaker-cache.outputs.cache-hit != 'true') }}
         run: |
           set -euxo pipefail
-          cargo install --locked cargo-dylint --version 5.0.0
-          cargo install --locked dylint-link --version 5.0.0
+          cargo install --locked cargo-dylint --version "${CARGO_DYLINT_VERSION}"
+          cargo install --locked dylint-link --version "${DYLINT_LINK_VERSION}"
 
       - name: Nixie
         if: ${{ matrix.tools }}
