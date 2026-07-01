@@ -129,7 +129,8 @@ Development (BDD) frameworks and improves the developer experience.
 - [x] 3.4.1. Allow the `#[scenario]` macro to select scenarios by tag expression
   at macro-expansion time.
 - [x] 3.4.2. Extend the `scenarios!` macro to filter scenarios using the same
-  tag syntax at macro-expansion time. See [design §1.3.4].
+  tag syntax at macro-expansion time. See
+  [design §1.3.4](./rstest-bdd-design.md#134-filtering-scenarios-with-tags).
 - [x] 3.4.3. Document tag-expression grammar and precedence (§1.3.4).
 - [x] 3.4.4. Filter at macro-expansion time and emit `compile_error!`
       diagnostics
@@ -176,11 +177,6 @@ Development (BDD) frameworks and improves the developer experience.
   consistent casing.
 - [x] 3.5.4. Document the `skip!` macro, the `@allow_skipped` tag and migration
   guidance for adopting Rust 1.85 / edition 2024.
-
-[design §1.3.4]: ./rstest-bdd-design.md#134-filtering-scenarios-with-tags
-[implicit-fixture-guide]: users-guide.md#implicit-fixture-injection
-[implicit-fixture-trybuild]:
-../crates/rstest-bdd-macros/tests/ui/implicit_fixture_missing.rs
 
 ### 3.6. Boilerplate reduction
 
@@ -247,8 +243,9 @@ experience by introducing more powerful and intuitive APIs.
 
 - [x] 5.1.1. Implicit fixture injection: Automatically inject fixtures when a
   step function's parameter name matches a fixture name, removing the need for
-  `#[from(...)]` in most cases. [user guide][implicit-fixture-guide] ·
-  [trybuild][implicit-fixture-trybuild]
+  `#[from(...)]` in most cases.
+  [user guide](users-guide.md#implicit-fixture-injection) ·
+  [trybuild](../crates/rstest-bdd-macros/tests/ui/implicit_fixture_missing.rs)
 - [x] 5.1.2. Inferred step patterns: Allow step definition macros (`#[given]`,
   etc.) to be used without an explicit pattern string. The pattern will be
   inferred from the function's name (e.g., `fn user_logs_in()` becomes "user
