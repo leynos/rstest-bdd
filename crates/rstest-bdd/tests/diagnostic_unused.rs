@@ -2,8 +2,9 @@
 
 use rstest_bdd::{StepContext, StepExecution, StepKeyword, find_step, step, unused_steps};
 
-mod common;
-use common::{noop_async_wrapper, noop_wrapper};
+#[path = "common/noop_steps.rs"]
+mod noop_steps;
+use noop_steps::{noop_async_wrapper, noop_wrapper};
 
 step!(
     StepKeyword::Given,
@@ -22,8 +23,9 @@ step!(
 
 #[test]
 fn reports_unused_steps() {
-    let runner = find_step(StepKeyword::Given, "a used step".into())
-        .unwrap_or_else(|| panic!("step not found"));
+    let Some(runner) = find_step(StepKeyword::Given, "a used step".into()) else {
+        panic!("step not found");
+    };
     let mut ctx = StepContext::default();
     match runner(&mut ctx, "a used step", None, None) {
         Ok(StepExecution::Continue { .. }) => {}

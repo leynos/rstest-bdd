@@ -797,12 +797,58 @@ changing the public trait contracts.
   Follow-up 2026-06-16: extended the Python lint, format, and type-check
   targets to include `scripts/tests/`, fixed the mapping-table test lint debt,
   and revalidated the branch-wide `make lint` gate.
-- [ ] 10.2.5. A lint-clean playbook variant compiles under a pedantic lint
+- [x] 10.2.5. A lint-clean playbook variant compiles under a pedantic lint
   profile, including `clippy::shadow_reuse`, `clippy::expect_used`, and the
   in-house `no_unwrap_or_else_panic` lint. Finish line: the playbook in
   `docs/users-guide.md` offers a no-shadowing, no-`unwrap_or_else`-panic
   accessor variant using `let … else { panic!(…) }`. Design Doc:
   `docs/rstest-bdd-design.md` §2.7.6.2.
+  Delivered 2026-06-21: converted the GPUI playbook and executable regression
+  suite to the `let … else { panic!(…) }` accessor form, removed the
+  repository's panicking `unwrap_or_else` escape hatch, and wired Whitaker
+  `no_unwrap_or_else_panic` into `make lint`. See
+  `docs/execplans/10-2-5-playbook-variant-compiles-under-pedantic-lint-profile.md`
+  and `docs/adr-013-adopt-whitaker-no-unwrap-or-else-panic.md`.
+  Follow-up 2026-06-24: extracted private helpers for repeated trybuild
+  fixture-file writing and std, Tokio, and GPUI harness execution boilerplate,
+  then restricted root-level pytest collection to `scripts/tests` so Dylint's
+  generated Whitaker source under `target/whitaker` is not collected by
+  coverage jobs. Validation: root `uv run pytest -v` collected 33
+  `scripts/tests` items and no `target/...` files; `make check-fmt`,
+  `make lint`, and `make test` passed.
+  Follow-up 2026-06-27: added deterministic pytest coverage for the
+  `lint-whitaker` Makefile target using clean and failing fixture crates,
+  added Rust regression tests proving `write_fixture_file` preserves its
+  original panic labels, and changed `make test` to run every test under
+  `scripts/tests` so new Python integration tests enter the normal gate.
+  Validation: `make check-fmt`, `mbake validate Makefile`,
+  `make markdownlint`, `make lint`, `make test`, `make nixie`, and root
+  `uv run pytest -v` passed; root pytest collected 35 `scripts/tests` items
+  and no `target/...` files. CodeRabbit `review --agent` completed after the
+  requested rate-limit backoff with zero findings.
+  Follow-up 2026-06-27: fixed the Linux CI cache-hit path by giving the
+  Whitaker cache step an id and skipping `Install Dylint tools` when the cache
+  already restores `cargo-dylint` and `dylint-link`, preserving the cache
+  optimisation without using `cargo install --force`. Validation:
+  `actionlint .github/workflows/ci.yml`, `make markdownlint`, `make lint`, and
+  `make nixie` passed; CodeRabbit `review --agent` completed with zero
+  findings.
+  Follow-up 2026-06-28: review findings were verified against current code.
+  The CI cache and behavioural Tokio helper findings were already addressed;
+  remaining valid localisation, Tokio unit-test, ADR/prose, users-guide, and
+  Whitaker Python test comments were fixed. Validation: `make check-fmt`,
+  `make lint`, `make typecheck`, `make test`, and `make markdownlint` passed;
+  CodeRabbit `review --agent` completed with zero findings.
+  Follow-up 2026-06-28: fixed developer-guide punctuation, replaced the
+  migration guide's deprecated `.unwrap_or_else(|| panic!(...))` suggestion,
+  and corrected `optimization` to `optimisation`. Validation: `make fmt`,
+  `make markdownlint`, `make nixie`, and `git diff --check` passed; CodeRabbit
+  `review --agent` completed with zero findings.
+  Follow-up 2026-06-28: fixed the Whitaker Dylint library path so Dylint sees
+  `nightly-2025-09-18`, not a host-suffixed rustup channel. Validation passed
+  with `mbake validate Makefile`, `make check-fmt`, `make lint-whitaker`,
+  `uv run pytest -v scripts/tests/test_whitaker_lint_gate.py`, `make lint`, and
+  `make test`; CodeRabbit `review --agent` completed with zero findings.
 - [ ] 10.2.6. The playbook documents how cargo-nextest's process-per-test
   scheduling interacts with `#[serial]` and per-process thread-local scenario
   state. Finish line: the playbook in `docs/users-guide.md` states that
@@ -904,6 +950,16 @@ remove the existing `StepContext`, harness, or macro surfaces.
   GPUI harness with mutable context and scenario state, and scenario outline
   shapes. Finish line: CI runs and passes one compatibility test for each
   listed shape. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.4. (Buzzy Bee)
+- [ ] 11.2.5. The full Whitaker lint suite is evaluated and, where feasible,
+  adopted behind a pinned gate. Scope includes the remaining Whitaker lints
+  `bumpy_road_function`, `conditional_max_n_branches`,
+  `function_attrs_follow_docs`, `module_max_lines`,
+  `module_must_have_inner_docs`, `no_expect_outside_tests`,
+  `no_std_fs_operations`, and `test_must_not_have_example`. Finish line: an
+  ExecPlan records whether full-suite adoption requires a repository-wide
+  nightly migration, the accepted subset is enforced in CI, and any deferred
+  lints have explicit rationale. Precedent:
+  `docs/adr-013-adopt-whitaker-no-unwrap-or-else-panic.md`.
 
 ### 11.3. Close the feature-file rebuild gap
 

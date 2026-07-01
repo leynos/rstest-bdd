@@ -21,6 +21,8 @@ use wrappers::{
 
 #[path = "trybuild_macros/staging.rs"]
 mod staging;
+#[path = "trybuild_macros/whitaker.rs"]
+mod whitaker;
 #[path = "trybuild_macros/wrappers.rs"]
 mod wrappers;
 
@@ -152,7 +154,7 @@ fn run_lint_ui_case(bin: &str, lint_args: &[&str]) {
     // artefact/cache conflicts and cross-test contamination; this makes
     // per-bin `cargo clippy` checks deterministic.
     let target_dir = manifest_dir.join("target/tests/ui_lints_clippy");
-    let output = Command::new("cargo")
+    let output = match Command::new("cargo")
         .current_dir(manifest_dir.as_std_path())
         .env("CARGO_TARGET_DIR", target_dir.as_str())
         .arg("clippy")
@@ -164,7 +166,10 @@ fn run_lint_ui_case(bin: &str, lint_args: &[&str]) {
         .arg("--")
         .args(lint_args)
         .output()
-        .unwrap_or_else(|err| panic!("failed to run cargo clippy for {bin}: {err}"));
+    {
+        Ok(output) => output,
+        Err(err) => panic!("failed to run cargo clippy for {bin}: {err}"),
+    };
 
     if !output.status.success() {
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -276,17 +281,18 @@ fn wip_stderr_path(test_path: &StdPath) -> Utf8PathBuf {
     let Some(file_name) = test_path.file_name() else {
         panic!("trybuild test path must include file name");
     };
-    let file_name = file_name
-        .to_str()
-        .unwrap_or_else(|| panic!("file name must be valid UTF-8"));
+    let Some(file_name) = file_name.to_str() else {
+        panic!("file name must be valid UTF-8");
+    };
     let mut path = Utf8PathBuf::from(file_name);
     path.set_extension("stderr");
     Utf8PathBuf::from("target/tests/wip").join(path)
 }
 
 fn expected_stderr_path(test_path: &StdPath) -> Utf8PathBuf {
-    let mut path = Utf8PathBuf::from_path_buf(test_path.to_path_buf())
-        .unwrap_or_else(|_| panic!("test_path must be valid UTF-8"));
+    let Ok(mut path) = Utf8PathBuf::from_path_buf(test_path.to_path_buf()) else {
+        panic!("test_path must be valid UTF-8");
+    };
     path.set_extension("stderr");
     path
 }

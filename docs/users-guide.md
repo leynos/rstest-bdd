@@ -1115,7 +1115,7 @@ function names against feature files. For a concrete regression example, see
 > | --- | --- | --- |
 > | `add_window_view` closure | `\|_context\| View::default()` (one argument) | `\|_window, view_cx\| View::new(view_cx)` (two arguments) |
 > | obtain window handle | `visual_cx.window_handle()` (inherent method on `VisualTestContext`) | `vcx.window_handle()` (same call, but `window_handle` is a `VisualContext` trait method, so add `use gpui::VisualContext;`) |
-> | `VisualTestContext::from_window` | returns `Option<VisualTestContext>` (`.unwrap_or_else`/`.ok_or`) | returns `VisualTestContext` by value (no `Option`) |
+> | `VisualTestContext::from_window` | returns `Option<VisualTestContext>` (`let … else { panic!(…) }`) | returns `VisualTestContext` by value (no `Option`) |
 > | `read_entity` / `update_entity` | `Option`/`Result` wrappers (`Some(1)`, `Ok(())`) | identity `type Result<T> = T`; returns `R` directly |
 >
 > *Table: Vendored-to-published gpui 0.2.2 API shape differences.*
@@ -1329,9 +1329,9 @@ The third snippet shows a `#[when]` and a `#[then]` step that rebuild
 harness-provided `TestAppContext`. `VisualTestContext::from_window`
 returns `Option<VisualTestContext>` because the window handle and the
 borrowed context must come from the same `TestAppContext`; the
-`unwrap_or_else(|| panic!(...))` shape is appropriate here because a
-`None` value means an invariant of the playbook has been violated, not a
-legitimate test outcome:
+`let … else { panic!(…) }` shape is appropriate here because a `None` value
+means an invariant of the playbook has been violated, not a legitimate test
+outcome. This form also passes the repository's pedantic lint profile:
 
 ```rust,no_run
 # use rstest_bdd_macros::{then, when};
@@ -1341,8 +1341,9 @@ fn view_is_updated_through_reconstructed_visual_context(
     #[from(rstest_bdd_harness_context)] context: &mut gpui::TestAppContext,
 ) {
     let (entity, window) = current_handles();
-    let mut visual_context = gpui::VisualTestContext::from_window(window, context)
-        .unwrap_or_else(|| panic!("stored window handle should reconstruct visual context"));
+    let Some(mut visual_context) = gpui::VisualTestContext::from_window(window, context) else {
+        panic!("stored window handle should reconstruct visual context");
+    };
     assert_eq!(
         visual_context.update_entity(entity, |view| view.value += 1),
         Ok(())
@@ -1354,8 +1355,9 @@ fn durable_handles_identify_the_updated_view(
     #[from(rstest_bdd_harness_context)] context: &mut gpui::TestAppContext,
 ) {
     let (entity, window) = current_handles();
-    let visual_context = gpui::VisualTestContext::from_window(window, context)
-        .unwrap_or_else(|| panic!("stored window handle should reconstruct visual context"));
+    let Some(visual_context) = gpui::VisualTestContext::from_window(window, context) else {
+        panic!("stored window handle should reconstruct visual context");
+    };
 
     assert_eq!(
         visual_context.read_entity(entity, |view| view.value),
@@ -1369,8 +1371,9 @@ infrastructure invariants (handle reconstruction, fixture-stored handles)
 panic, and step-level domain assertions use `assert_eq!`. Steps that need to
 distinguish a legitimate failure mode from a programming invariant should
 return `StepResult<()>` and propagate the failure with `?`; mixing
-`unwrap_or_else(|| panic!(...))` and `StepResult` within the same playbook
-reads ambiguously, so pick one shape per scenario.
+panic-on-invariant-violation `let … else { panic!(…) }` branches and
+`StepResult` within the same playbook reads ambiguously, so pick one shape per
+scenario.
 
 ##### Fixture key versus parameter name
 
@@ -1406,31 +1409,29 @@ reader the binding name is part of the contract.
 - Design-document §2.7.6.7 documents the full cargo test versus nextest matrix
   for `#[serial]` and thread-local state.
 
-##### Lint-clean variant
+##### Pedantic lint profile
 
-The snippets above contain two patterns that can fail a pedantic lint profile:
+The snippets above are the lint-clean form used by the regression suite. The
+repository runs Whitaker's `no_unwrap_or_else_panic` Dylint lint from
+`make lint`, so `unwrap_or_else(|| panic!(…))` is rejected even when it encodes
+an infrastructure invariant. The workspace also denies `clippy::expect_used`
+and `clippy::unwrap_used`, so `.expect(...)` and `.unwrap()` are not acceptable
+replacements.
 
-1. **`shadow_reuse`:** the playbook re-uses the same name for a trimmed or
-   borrowed binding (for example `let mut world = world.borrow_mut()`).
-   Under `clippy::shadow_reuse`, rename the inner binding:
-   `let mut world_guard = world.borrow_mut()`.
-2. **`unwrap_or_else(|| panic!(…))`:** a `no_unwrap_or_else_panic` lint or
-   equivalent rejects this form even when it encodes an infrastructure
-   invariant. `clippy::expect_used` often also fires. Use a `let … else`
-   binding instead:
+Use `let … else { panic!(…) }` with a fresh binding name:
 
-   ```rust,no_run
-   # fn current_handles() -> Option<gpui::AnyWindowHandle> { unimplemented!() }
-   let Some(window) = current_handles() else {
-       panic!("scenario should have stored a window handle");
-   };
-   ```
+```rust,no_run
+# fn current_handles() -> Option<gpui::AnyWindowHandle> { unimplemented!() }
+let Some(window) = current_handles() else {
+    panic!("scenario should have stored a window handle");
+};
+```
 
-   This form is accepted by both `clippy::shadow_reuse` and typical
-   `no_unwrap_or_else_panic` lints, and communicates the same invariant.
-
-Roadmap item 10.2.5 tracks updating this playbook to offer the lint-clean
-variant as the primary form once it is verified against the regression suite.
+Under `clippy::shadow_reuse`, avoid re-using the same name for a trimmed or
+borrowed binding. For example, prefer a fresh guard name such as
+`world_guard` over shadowing `world`. [ADR-013][adr-013] records the decision
+to enforce this single Whitaker lint now while deferring the full Whitaker
+suite.
 
 ##### Bulk-migration cookbook
 
@@ -2679,6 +2680,7 @@ three amigos in the specification process.
 [scenario-status]: https://docs.rs/rstest-bdd/latest/rstest_bdd/reporting/enum.ScenarioStatus.html
 [adr-001]: https://github.com/leynos/rstest-bdd/blob/main/docs/adr-001-async-fixtures-and-test.md
 [adr-007]: https://github.com/leynos/rstest-bdd/blob/main/docs/adr-007-harness-context-injection.md
+[adr-013]: https://github.com/leynos/rstest-bdd/blob/main/docs/adr-013-adopt-whitaker-no-unwrap-or-else-panic.md
 [gherkin-syntax]: https://github.com/leynos/rstest-bdd/blob/main/docs/gherkin-syntax.md#section-12-the-anatomy-of-a-feature-file
 [migration-async-patterns]: https://github.com/leynos/rstest-bdd/blob/main/docs/cucumber-rs-migration-and-async-patterns.md
 [rstest-bdd-design]: https://github.com/leynos/rstest-bdd/blob/main/docs/rstest-bdd-design.md

@@ -39,8 +39,9 @@ fn successful_scenario_returns_without_failure_marker() {
         ScenarioRunner::new(|_context: gpui::TestAppContext| "ok"),
     );
 
-    let result =
-        run_scenario(request).unwrap_or_else(|err| panic!("gpui harness should not fail: {err}"));
+    let Ok(result) = run_scenario(request) else {
+        panic!("gpui harness should not fail");
+    };
 
     assert_eq!(result, "ok");
 }
@@ -81,18 +82,20 @@ fn failing_scenario_diagnostic_is_emitted_to_tracing_error() {
     });
     let request = failing_scenario_request();
 
-    tracing::subscriber::set_global_default(subscriber).unwrap_or_else(|error| {
+    if let Err(error) = tracing::subscriber::set_global_default(subscriber) {
         panic!("child process should install tracing subscriber once: {error}");
-    });
+    }
     let _message = catch_scenario_panic(request);
 
-    let events = events.lock().unwrap_or_else(|error| {
-        panic!("captured tracing events should not be poisoned: {error}");
-    });
-    let event = events
+    let Ok(events) = events.lock() else {
+        panic!("captured tracing events should not be poisoned");
+    };
+    let Some(event) = events
         .iter()
         .find(|event| event.contains("GPUI scenario panicked"))
-        .unwrap_or_else(|| panic!("expected GPUI panic tracing event, got: {events:?}"));
+    else {
+        panic!("expected GPUI panic tracing event, got: {events:?}");
+    };
     configured_snapshot_settings().bind(|| insta::assert_snapshot!(event));
 }
 
@@ -111,33 +114,30 @@ fn failing_scenario_diagnostic_is_written_to_stderr() {
         STDERR_CHILD_ENV,
         true,
     );
-    let stderr = String::from_utf8(output.stderr)
-        .unwrap_or_else(|error| panic!("stderr should be UTF-8: {error}"));
+    let Ok(stderr) = String::from_utf8(output.stderr) else {
+        panic!("stderr should be UTF-8");
+    };
     configured_snapshot_settings().bind(|| insta::assert_snapshot!(&stderr));
 }
 
-/// Spawns a child process running the named test with the given environment
-/// marker, returning the process output.
-///
-/// If `expect_success` is true, panics when the child exits non-zero. Set it
-/// to false for tests that exercise double-panics or deliberate aborts.
-///
-/// Used by tests that must inspect tracing events or stderr from a separate
-/// process to avoid interference with the test harness.
+/// Runs an assertion in a child process so stderr/tracing capture is isolated.
 fn run_child_assertion(
     test_name: &str,
     child_env: &str,
     expect_success: bool,
 ) -> std::process::Output {
-    let current_exe = std::env::current_exe()
-        .unwrap_or_else(|error| panic!("test binary path is available: {error}"));
-    let output = Command::new(current_exe)
+    let Ok(current_exe) = std::env::current_exe() else {
+        panic!("test binary path is available");
+    };
+    let Ok(output) = Command::new(current_exe)
         .arg(test_name)
         .arg("--exact")
         .arg("--nocapture")
         .env(child_env, "1")
         .output()
-        .unwrap_or_else(|error| panic!("child test process should run: {error}"));
+    else {
+        panic!("child test process should run");
+    };
 
     if expect_success {
         assert!(
@@ -166,8 +166,9 @@ fn second_scenario_after_failure_runs_with_fresh_context() {
         ScenarioRunner::new(|_context: gpui::TestAppContext| "fresh"),
     );
 
-    let result = run_scenario(next_request)
-        .unwrap_or_else(|err| panic!("gpui harness should not fail: {err}"));
+    let Ok(result) = run_scenario(next_request) else {
+        panic!("gpui harness should not fail");
+    };
 
     assert_eq!(result, "fresh");
 }
@@ -183,13 +184,10 @@ fn scenario_metadata(name: &str) -> ScenarioMetadata {
     )
 }
 
-/// Runs a scenario request through a fresh [`GpuiHarness`].
 fn run_scenario<T>(request: ScenarioRunRequest<'_, gpui::TestAppContext, T>) -> HarnessResult<T> {
     GpuiHarness::new().run(request)
 }
 
-/// Runs a scenario through [`run_scenario`] inside `catch_unwind`, expecting
-/// a panic, and returns the rendered panic payload as a string.
 fn catch_scenario_panic<T>(request: ScenarioRunRequest<'_, gpui::TestAppContext, T>) -> String {
     let result = catch_unwind(AssertUnwindSafe(|| run_scenario(request)));
     let Err(payload) = result else {
@@ -344,8 +342,9 @@ fn teardown_panic_does_not_suppress_original_diagnostic() {
             !output.status.success(),
             "expected child process to abort after double-panic, got success"
         );
-        let stderr = String::from_utf8(output.stderr)
-            .unwrap_or_else(|error| panic!("stderr should be UTF-8: {error}"));
+        let Ok(stderr) = String::from_utf8(output.stderr) else {
+            panic!("stderr should be UTF-8");
+        };
         configured_snapshot_settings().bind(|| insta::assert_snapshot!(&stderr));
         return;
     }
@@ -373,12 +372,11 @@ where
     fn on_event(&self, event: &Event<'_>, _context: Context<'_, S>) {
         let mut visitor = EventVisitor::default();
         event.record(&mut visitor);
-        self.events
-            .lock()
-            .unwrap_or_else(|error| {
-                panic!("captured tracing events should not be poisoned: {error}")
-            })
-            .push(visitor.fields.join(" "));
+        let mut events = match self.events.lock() {
+            Ok(events) => events,
+            Err(error) => panic!("captured tracing events should not be poisoned: {error}"),
+        };
+        events.push(visitor.fields.join(" "));
     }
 }
 

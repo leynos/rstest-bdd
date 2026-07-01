@@ -780,13 +780,13 @@ bookkeeping exactly once and applies the caller's projection to the resolved
   model cheaply, and the property suite already exercises every variant
   against hit and miss lookups.
 
-## Planned internal APIs and tooling (ADR-010 to ADR-012)
+## Planned internal APIs and tooling (ADR-010 to ADR-013)
 
 Three accepted-as-`Proposed` ADRs schedule internal-API and build-tooling
 changes that contributors will encounter as the v0.6.1 and v0.7.0 work lands.
-They are summarised here so the decisions are discoverable from the developer
-guide; the ADRs remain the authoritative source, and the planning rationale
-lives in
+ADR-013 is already accepted and governs the current Whitaker lint gate. They
+are summarized here, so the decisions are discoverable from the developer guide;
+the ADRs remain the authoritative source, and the planning rationale lives in
 [`docs/execplans/adopt-v0-6-0-beta2-feedback.md`](execplans/adopt-v0-6-0-beta2-feedback.md).
 
 ### Scenario-state helpers and per-scenario cleanup (ADR-011)
@@ -865,6 +865,42 @@ Tracked by roadmap item 11.3.1 (pulled forward to v0.6.0 final); design
 coverage is in `rstest-bdd-design.md` §2.7.6.6. Until it lands,
 `v0-6-0-migration-guide.md` carries a caveat that `.feature`-only edits do not
 trigger a rebuild.
+
+### Whitaker `no_unwrap_or_else_panic` lint gate (ADR-013)
+
+[ADR-013](adr-013-adopt-whitaker-no-unwrap-or-else-panic.md) adopts one
+Whitaker lint, `no_unwrap_or_else_panic`, as part of `make lint`.
+
+Local setup requires the pinned Dylint tools:
+
+```bash
+cargo install --locked cargo-dylint --version 5.0.0
+cargo install --locked dylint-link --version 5.0.0
+```
+
+`make lint` then runs `make lint-whitaker` after Clippy. The first run clones
+Whitaker tag `v0.2.5` under `target/whitaker`, installs the Dylint driver
+toolchain `nightly-2025-09-18` with `rustc-dev`, `rust-src`, and
+`llvm-tools-preview`, builds only the `no_unwrap_or_else_panic` lint crate with
+the `dylint-driver` feature, and runs the resulting dynamic library against
+`--workspace --all-targets --all-features`.
+
+The repository's ordinary build, test, and Clippy commands remain on the stable
+toolchain. The pinned nightly is scoped to building the Dylint lint library.
+
+When maintaining the pin:
+
+1. Update `WHITAKER_TAG` and, if Whitaker changes its driver, update
+   `WHITAKER_TOOLCHAIN` in `Makefile`.
+2. Update the CI cache key in `.github/workflows/ci.yml` so stale lint
+   libraries are not reused.
+3. Re-run `make lint-whitaker`, then the full `make lint` gate.
+4. Update ADR-013 only if the mechanism or adopted lint set changes.
+
+Do not replace invariant checks with `.expect(...)`, `.unwrap()`, or
+`unwrap_or_else(|| panic!(…))`. Use `let … else { panic!(…) }` for invariant
+panics, or return `Result` and use `?` where the failure is part of the tested
+domain behaviour.
 
 ## Language-server handler conventions
 

@@ -8,9 +8,11 @@ use rstest_bdd::{
 };
 use unic_langid::langid;
 
-#[path = "../common/mod.rs"]
-mod common;
-use common::poll_step_future;
+#[path = "../common/async_wrapper.rs"]
+mod async_wrapper;
+#[path = "../common/poll_step_future.rs"]
+mod poll_step_future_support;
+use poll_step_future_support::poll_step_future;
 
 mod execute_step_tests;
 mod wrappers;
@@ -100,8 +102,10 @@ fn wrapper_errors_localize(
     #[case] pattern: &str,
     #[case] expected_snippet: &str,
 ) {
-    let _guard = ScopedLocalization::new(&[langid!("fr")])
-        .unwrap_or_else(|error| panic!("failed to scope French locale: {error}"));
+    let _guard = match ScopedLocalization::new(&[langid!("fr")]) {
+        Ok(guard) => guard,
+        Err(error) => panic!("failed to scope French locale: {error}"),
+    };
     let step_fn = iter::<Step>
         .into_iter()
         .find(|s| s.pattern.as_str() == pattern && s.keyword == keyword)

@@ -204,7 +204,9 @@ pub fn request_skip(scope: &StepScopeGuard, message: Option<String>) -> ! {
         metadata: scope.metadata,
         thread: scope.thread,
     };
-    entry.ensure_thread().unwrap_or_else(|err| panic!("{err}"));
+    if let Err(err) = entry.ensure_thread() {
+        panic!("{err}");
+    }
     SkipRequest::raise(message);
 }
 
@@ -223,7 +225,9 @@ where
 #[doc(hidden)]
 pub fn request_current_skip(message: Option<String>) -> ! {
     with_current_scope(|scope| {
-        scope.ensure_thread().unwrap_or_else(|err| panic!("{err}"));
+        if let Err(err) = scope.ensure_thread() {
+            panic!("{err}");
+        }
         SkipRequest::raise(message)
     })
 }
@@ -316,8 +320,10 @@ mod tests {
         let rendered = payload
             .downcast::<String>()
             .map(|msg| *msg)
-            .or_else(|payload| payload.downcast::<&'static str>().map(|s| s.to_string()))
-            .unwrap_or_else(|_| panic!("panic payload should be a string"));
+            .or_else(|payload| payload.downcast::<&'static str>().map(|s| s.to_string()));
+        let Ok(rendered) = rendered else {
+            panic!("panic payload should be a string");
+        };
         assert!(
             rendered.contains("rstest_bdd::skip! may only run on the thread"),
             "panic message should describe thread restrictions: {rendered}",

@@ -75,8 +75,10 @@ fn assert_step_executor_delegates_to_runtime(
     tokens: proc_macro2::TokenStream,
     expectation: StepExecutorExpectation<'_>,
 ) {
-    let file: syn::File = syn::parse2(tokens)
-        .unwrap_or_else(|e| panic!("{}: failed to parse tokens: {e}", expectation.description));
+    let file: syn::File = match syn::parse2(tokens) {
+        Ok(file) => file,
+        Err(e) => panic!("{}: failed to parse tokens: {e}", expectation.description),
+    };
 
     let item = find_function_by_name(&file, expectation.function_name);
 
@@ -96,13 +98,13 @@ fn assert_step_executor_delegates_to_runtime(
         );
     }
 
-    let execute_step_call = find_call_in_block(&item.block, expectation.runtime_function)
-        .unwrap_or_else(|| {
-            panic!(
-                "{}: expected call to {}",
-                expectation.description, expectation.runtime_function
-            )
-        });
+    let Some(execute_step_call) = find_call_in_block(&item.block, expectation.runtime_function)
+    else {
+        panic!(
+            "{}: expected call to {}",
+            expectation.description, expectation.runtime_function
+        );
+    };
 
     let func_path = extract_path(execute_step_call.func.as_ref());
     match expectation.runtime_function {

@@ -8,9 +8,10 @@ use std::str::FromStr;
 use unic_langid::langid;
 
 fn kw_from_type(ty: StepType) -> StepKeyword {
-    StepKeyword::try_from(ty)
-        .map_err(UnsupportedStepType::from)
-        .unwrap_or_else(|e| panic!("failed to convert '{ty:?}' into StepKeyword: {e}"))
+    match StepKeyword::try_from(ty).map_err(UnsupportedStepType::from) {
+        Ok(keyword) => keyword,
+        Err(e) => panic!("failed to convert '{ty:?}' into StepKeyword: {e}"),
+    }
 }
 
 #[rstest]
@@ -33,8 +34,10 @@ fn maps_step_type(#[case] input: StepType, #[case] expected: StepKeyword) {
 
 #[test]
 fn unsupported_step_type_display_mentions_variant() {
-    let _guard = ScopedLocalization::new(&[langid!("en-US")])
-        .unwrap_or_else(|error| panic!("failed to scope English locale: {error}"));
+    let _guard = match ScopedLocalization::new(&[langid!("en-US")]) {
+        Ok(guard) => guard,
+        Err(error) => panic!("failed to scope English locale: {error}"),
+    };
     let err = UnsupportedStepType(StepType::Then);
     let message = strip_directional_isolates(&err.to_string());
     assert!(

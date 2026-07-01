@@ -234,11 +234,14 @@ mod tests {
         override_hint: Option<ReturnOverride>,
         expected: ReturnKind,
     ) {
-        let func: syn::ItemFn = syn::parse2(func_tokens).unwrap_or_else(|err| {
-            panic!("test input should be valid function syntax: {err}");
-        });
-        let kind = classify_return_type(&func.sig.output, override_hint)
-            .unwrap_or_else(|err| panic!("expected classification to succeed: {err}"));
+        let func: syn::ItemFn = match syn::parse2(func_tokens) {
+            Ok(func) => func,
+            Err(err) => panic!("test input should be valid function syntax: {err}"),
+        };
+        let kind = match classify_return_type(&func.sig.output, override_hint) {
+            Ok(kind) => kind,
+            Err(err) => panic!("expected classification to succeed: {err}"),
+        };
         assert_eq!(kind, expected);
     }
 

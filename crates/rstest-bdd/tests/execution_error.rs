@@ -139,8 +139,10 @@ fn execution_error_display_uses_localized_messages_and_context(
     #[case] expected: &str,
 ) {
     // Scope to en-US to avoid environment-dependent output on non-English systems
-    let _guard = ScopedLocalization::new(&[langid!("en-US")])
-        .unwrap_or_else(|e| panic!("en-US locale should always be available: {e}"));
+    let _guard = match ScopedLocalization::new(&[langid!("en-US")]) {
+        Ok(guard) => guard,
+        Err(e) => panic!("en-US locale should always be available: {e}"),
+    };
     assert_eq!(strip_directional_isolates(&error.to_string()), expected);
 }
 
@@ -180,8 +182,10 @@ fn execution_error_formats_in_locales(
     #[case] error: ExecutionError,
     #[case] expected: &str,
 ) {
-    let _guard = ScopedLocalization::new(std::slice::from_ref(&locale))
-        .unwrap_or_else(|e| panic!("failed to scope locale {locale}: {e}"));
+    let _guard = match ScopedLocalization::new(std::slice::from_ref(&locale)) {
+        Ok(guard) => guard,
+        Err(e) => panic!("failed to scope locale {locale}: {e}"),
+    };
     assert_eq!(strip_directional_isolates(&error.to_string()), expected);
 }
 
@@ -261,8 +265,9 @@ fn execution_error_format_with_loader_wires_i18n_and_context(
     #[case] expected_substrings: &[(&str, &str)],
 ) {
     let loader = fluent_language_loader!();
-    i18n_embed::select(&loader, &Localizations, std::slice::from_ref(&locale))
-        .unwrap_or_else(|e| panic!("failed to load {locale} translations: {e}"));
+    if let Err(e) = i18n_embed::select(&loader, &Localizations, std::slice::from_ref(&locale)) {
+        panic!("failed to load {locale} translations: {e}");
+    }
 
     let formatted = error.format_with_loader(&loader);
     assert_contains_all(&formatted, expected_substrings);
@@ -277,9 +282,10 @@ const NON_ENGLISH_LOCALES: &[&str] = &[
 #[test]
 fn non_english_missing_fixture_diagnostics_include_runtime_arguments() {
     for locale in NON_ENGLISH_LOCALES {
-        let locale = locale
-            .parse::<LanguageIdentifier>()
-            .unwrap_or_else(|e| panic!("invalid locale {locale}: {e}"));
+        let locale = match locale.parse::<LanguageIdentifier>() {
+            Ok(locale) => locale,
+            Err(e) => panic!("invalid locale {locale}: {e}"),
+        };
         assert_non_english_missing_fixture_diagnostics_include_runtime_arguments(&locale);
     }
 }
@@ -288,8 +294,9 @@ fn assert_non_english_missing_fixture_diagnostics_include_runtime_arguments(
     locale: &LanguageIdentifier,
 ) {
     let loader = fluent_language_loader!();
-    i18n_embed::select(&loader, &Localizations, std::slice::from_ref(locale))
-        .unwrap_or_else(|e| panic!("failed to load {locale} translations: {e}"));
+    if let Err(e) = i18n_embed::select(&loader, &Localizations, std::slice::from_ref(locale)) {
+        panic!("failed to load {locale} translations: {e}");
+    }
 
     let formatted =
         strip_directional_isolates(&missing_harness_fixture().format_with_loader(&loader));
@@ -314,8 +321,10 @@ fn assert_non_english_missing_fixture_diagnostics_include_runtime_arguments(
 
 #[test]
 fn missing_fixtures_format_includes_typed_request_details_and_suggestion() {
-    let _guard = ScopedLocalization::new(&[langid!("en-US")])
-        .unwrap_or_else(|e| panic!("en-US locale should always be available: {e}"));
+    let _guard = match ScopedLocalization::new(&[langid!("en-US")]) {
+        Ok(guard) => guard,
+        Err(e) => panic!("en-US locale should always be available: {e}"),
+    };
     let error = missing_harness_fixture();
 
     assert_contains_all(
@@ -331,8 +340,10 @@ fn missing_fixtures_format_includes_typed_request_details_and_suggestion() {
 
 #[test]
 fn missing_fixtures_snapshot() {
-    let _guard = ScopedLocalization::new(&[langid!("en-US")])
-        .unwrap_or_else(|e| panic!("en-US locale should always be available: {e}"));
+    let _guard = match ScopedLocalization::new(&[langid!("en-US")]) {
+        Ok(guard) => guard,
+        Err(e) => panic!("en-US locale should always be available: {e}"),
+    };
     let details = MissingFixturesDetails {
         step_pattern: "needs fixture".to_string(),
         step_location: "src/steps.rs:42".to_string(),
@@ -354,8 +365,9 @@ fn missing_fixtures_snapshot() {
 #[test]
 fn execution_error_handler_failed_formats_nested_error_with_loader() {
     let loader = fluent_language_loader!();
-    i18n_embed::select(&loader, &Localizations, &[langid!("pl")])
-        .unwrap_or_else(|e| panic!("failed to load Polish translations: {e}"));
+    if let Err(e) = i18n_embed::select(&loader, &Localizations, &[langid!("pl")]) {
+        panic!("failed to load Polish translations: {e}");
+    }
 
     let error = handler_failed();
     let formatted = error.format_with_loader(&loader);

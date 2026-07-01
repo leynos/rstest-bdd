@@ -55,8 +55,10 @@ fn context_missing_fixture_returns_error() {
 #[test]
 #[expect(clippy::expect_used, reason = "step lookup must succeed for test")]
 fn context_missing_fixture_localizes_error() {
-    let guard = ScopedLocalization::new(&[langid!("fr")])
-        .unwrap_or_else(|error| panic!("failed to scope French locale: {error}"));
+    let guard = match ScopedLocalization::new(&[langid!("fr")]) {
+        Ok(guard) => guard,
+        Err(error) => panic!("failed to scope French locale: {error}"),
+    };
     let mut ctx = StepContext::default();
     let step_fn = lookup_step(StepKeyword::Given, "a value".into())
         .expect("step 'a value' not found in registry");

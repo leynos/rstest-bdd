@@ -48,8 +48,10 @@ fn panic_with_unicode_str() {
 
 /// Helper to test panic messages in French locale.
 fn assert_panic_in_french(op: impl FnOnce(), expected_substring: &str) {
-    let _guard = ScopedLocalization::new(&[langid!("fr")])
-        .unwrap_or_else(|error| panic!("failed to scope French locale: {error}"));
+    let _guard = match ScopedLocalization::new(&[langid!("fr")]) {
+        Ok(guard) => guard,
+        Err(error) => panic!("failed to scope French locale: {error}"),
+    };
     let message = capture_panic_message(op);
     assert!(
         message.contains(expected_substring),

@@ -179,17 +179,17 @@ impl GpuiHarness {
         context: TestAppContext,
         scenario_name: &str,
     ) -> T {
-        runner_slot
+        let runner = runner_slot
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .take()
-            .unwrap_or_else(|| {
-                panic!(
-                    "rstest-bdd-harness-gpui: scenario runner invoked more than once: \
-                     {scenario_name}"
-                )
-            })
-            .run(context)
+            .take();
+        let Some(runner) = runner else {
+            panic!(
+                "rstest-bdd-harness-gpui: scenario runner invoked more than once: \
+                 {scenario_name}"
+            );
+        };
+        runner.run(context)
     }
 
     /// Drains the dispatcher, forbids further parking, and quits the context.
@@ -219,15 +219,14 @@ impl GpuiHarness {
     /// Panics if the output slot is still `None`, which indicates the GPUI
     /// test runner never produced a result.
     fn extract_output<T>(output: Mutex<Option<T>>, scenario_name: &str) -> T {
+        let output = output.into_inner().unwrap_or_else(PoisonError::into_inner);
+        let Some(output) = output else {
+            panic!(
+                "rstest-bdd-harness-gpui: test harness produced no scenario result: \
+                {scenario_name}"
+            );
+        };
         output
-            .into_inner()
-            .unwrap_or_else(PoisonError::into_inner)
-            .unwrap_or_else(|| {
-                panic!(
-                    "rstest-bdd-harness-gpui: test harness produced no scenario result: \
-                    {scenario_name}"
-                )
-            })
     }
 
     /// Records the augmented panic message as a structured `tracing::error!`

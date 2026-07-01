@@ -11,6 +11,18 @@ use std::cell::Cell;
 use std::io;
 use std::rc::Rc;
 
+/// Runs a [`GpuiHarness`] with `request`, returning the runner's output.
+///
+/// Panics with a diagnostic message if the harness returns an error, keeping
+/// individual tests free of this boilerplate.
+fn run_gpui_harness<T>(request: ScenarioRunRequest<'_, gpui::TestAppContext, T>) -> T {
+    let harness = GpuiHarness::new();
+    match harness.run(request) {
+        Ok(result) => result,
+        Err(err) => panic!("gpui harness should not fail: {err}"),
+    }
+}
+
 #[fixture]
 fn default_metadata() -> ScenarioMetadata {
     ScenarioMetadata::default()
@@ -28,10 +40,7 @@ fn gpui_harness_executes_runner_once(default_metadata: ScenarioMetadata) {
         }),
     );
 
-    let harness = GpuiHarness::new();
-    let result = harness
-        .run(request)
-        .unwrap_or_else(|err| panic!("gpui harness should not fail: {err}"));
+    let result = run_gpui_harness(request);
     assert_eq!(result, "done");
     assert_eq!(call_count.get(), 1);
 }
@@ -93,10 +102,7 @@ fn gpui_harness_supports_non_static_runner_borrows(default_metadata: ScenarioMet
         }),
     );
 
-    let harness = GpuiHarness::new();
-    let result = harness
-        .run(request)
-        .unwrap_or_else(|err| panic!("gpui harness should not fail: {err}"));
+    let result = run_gpui_harness(request);
     assert_eq!(result, 1);
     assert_eq!(counter, 1);
 }
@@ -109,10 +115,7 @@ fn gpui_context_is_active_inside_harness() {
             context.test_function_name().is_none() && !context.did_prompt_for_new_path()
         }),
     );
-    let harness = GpuiHarness::new();
-    let result = harness
-        .run(request)
-        .unwrap_or_else(|err| panic!("gpui harness should not fail: {err}"));
+    let result = run_gpui_harness(request);
     assert!(result);
 }
 
@@ -132,9 +135,6 @@ fn gpui_harness_passes_metadata_through() {
         "tests/features/payment.feature"
     );
     assert_eq!(request.metadata().scenario_name(), "Payment succeeds");
-    let harness = GpuiHarness::new();
-    let result = harness
-        .run(request)
-        .unwrap_or_else(|err| panic!("gpui harness should not fail: {err}"));
+    let result = run_gpui_harness(request);
     assert_eq!(result, 200);
 }

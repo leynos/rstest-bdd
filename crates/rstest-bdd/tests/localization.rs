@@ -1,5 +1,10 @@
 //! Behavioural coverage for localisation helpers and diagnostics.
 
+#![expect(
+    clippy::expect_used,
+    reason = "localization tests use expect for concise setup failures"
+)]
+
 use i18n_embed::fluent::fluent_language_loader;
 use rstest_bdd::localization::{
     ScopedLocalization, current_languages, install_localization_loader, message, message_with_args,
@@ -13,7 +18,7 @@ use unic_langid::langid;
 fn scoped_localization_overrides_current_thread() {
     let english_id = langid!("en-US");
     let base = ScopedLocalization::new(std::slice::from_ref(&english_id))
-        .unwrap_or_else(|error| panic!("failed to scope English locale: {error}"));
+        .expect("failed to scope English locale");
 
     let err = StepError::MissingFixture {
         name: "n".into(),
@@ -29,7 +34,7 @@ fn scoped_localization_overrides_current_thread() {
     {
         let french_id = langid!("fr");
         let french_guard = ScopedLocalization::new(std::slice::from_ref(&french_id))
-            .unwrap_or_else(|error| panic!("failed to scope French locale: {error}"));
+            .expect("failed to scope French locale");
         let french = strip_directional_isolates(&err.to_string());
         assert_eq!(
             french,
@@ -47,10 +52,9 @@ fn scoped_localization_overrides_current_thread() {
 
 #[test]
 fn select_localizations_respects_thread_override() {
-    let guard = ScopedLocalization::new(&[langid!("en-US")])
-        .unwrap_or_else(|error| panic!("failed to scope English locale: {error}"));
-    select_localizations(&[langid!("fr")])
-        .unwrap_or_else(|error| panic!("failed to switch to French: {error}"));
+    let guard =
+        ScopedLocalization::new(&[langid!("en-US")]).expect("failed to scope English locale");
+    select_localizations(&[langid!("fr")]).expect("failed to switch to French");
 
     let err = StepError::PanicError {
         pattern: "p".into(),
@@ -69,10 +73,8 @@ fn select_localizations_respects_thread_override() {
 
 #[test]
 fn current_languages_reports_thread_override() {
-    let guard = ScopedLocalization::new(&[langid!("fr")])
-        .unwrap_or_else(|error| panic!("failed to scope French locale: {error}"));
-    let active = current_languages()
-        .unwrap_or_else(|error| panic!("failed to query current languages: {error}"));
+    let guard = ScopedLocalization::new(&[langid!("fr")]).expect("failed to scope French locale");
+    let active = current_languages().expect("failed to query current languages");
     assert_eq!(active, vec![langid!("fr"), langid!("en-US")]);
     // Keep the scoped localization active for the lifetime of the assertion.
     let _ = &guard;
@@ -84,34 +86,31 @@ fn install_localization_loader_replaces_global_loader() {
     let replacement = {
         let loader = fluent_language_loader!();
         i18n_embed::select(&loader, &Localizations, &[langid!("fr")])
-            .unwrap_or_else(|error| panic!("failed to prepare replacement loader: {error}"));
+            .expect("failed to prepare replacement loader");
         loader
     };
 
-    install_localization_loader(replacement)
-        .unwrap_or_else(|error| panic!("failed to install replacement loader: {error}"));
+    install_localization_loader(replacement).expect("failed to install replacement loader");
 
-    let languages = current_languages()
-        .unwrap_or_else(|error| panic!("failed to query languages after install: {error}"));
+    let languages = current_languages().expect("failed to query languages after install");
     assert_eq!(languages, vec![langid!("fr"), langid!("en-US")]);
 
     let restore = {
         let loader = fluent_language_loader!();
         i18n_embed::select(&loader, &Localizations, &[langid!("en-US")])
-            .unwrap_or_else(|error| panic!("failed to prepare restoration loader: {error}"));
+            .expect("failed to prepare restoration loader");
         loader
     };
 
-    install_localization_loader(restore)
-        .unwrap_or_else(|error| panic!("failed to restore original loader: {error}"));
+    install_localization_loader(restore).expect("failed to restore original loader");
 }
 
 #[test]
 fn select_localizations_falls_back_to_english() {
-    let guard = ScopedLocalization::new(&[langid!("en-US")])
-        .unwrap_or_else(|error| panic!("failed to scope English locale: {error}"));
-    let selected = select_localizations(&[langid!("zz")])
-        .unwrap_or_else(|error| panic!("failed to select fallback locale: {error}"));
+    let guard =
+        ScopedLocalization::new(&[langid!("en-US")]).expect("failed to scope English locale");
+    let selected =
+        select_localizations(&[langid!("zz")]).expect("failed to select fallback locale");
     assert_eq!(selected, vec![langid!("en-US")]);
     // Keep the scoped localization active for the lifetime of the assertion.
     let _ = &guard;
@@ -119,10 +118,10 @@ fn select_localizations_falls_back_to_english() {
 
 #[test]
 fn localizations_embed_resources() {
-    let asset = Localizations::get("en-US/rstest-bdd.ftl")
-        .unwrap_or_else(|| panic!("expected embedded English translations"));
-    let contents = std::str::from_utf8(&asset.data)
-        .unwrap_or_else(|error| panic!("embedded translations should be UTF-8: {error}"));
+    let Some(asset) = Localizations::get("en-US/rstest-bdd.ftl") else {
+        panic!("expected embedded English translations");
+    };
+    let contents = std::str::from_utf8(&asset.data).expect("embedded translations should be UTF-8");
     assert!(
         contents.contains("step-error-missing-fixture"),
         "embedded catalogue should include step error messages"
@@ -131,8 +130,7 @@ fn localizations_embed_resources() {
 
 #[test]
 fn message_helpers_use_active_locale() {
-    let guard = ScopedLocalization::new(&[langid!("fr")])
-        .unwrap_or_else(|error| panic!("failed to scope French locale: {error}"));
+    let guard = ScopedLocalization::new(&[langid!("fr")]).expect("failed to scope French locale");
     let plain = strip_directional_isolates(&message("assert-step-err-success"));
     assert!(plain.contains("réussi"));
     let detailed = strip_directional_isolates(&message_with_args(

@@ -32,8 +32,10 @@ fn str_reference_variants_are_classified_as_step_arguments(
     #[case] func: syn::ItemFn,
     #[case] description: &str,
 ) {
-    let args = test_extract_args_scenario(func, vec!["tag"])
-        .unwrap_or_else(|e| panic!("failed to extract args for {description}: {e}"));
+    let args = match test_extract_args_scenario(func, vec!["tag"]) {
+        Ok(args) => args,
+        Err(e) => panic!("failed to extract args for {description}: {e}"),
+    };
     assert_eq!(
         step_arg_count(&args),
         1,

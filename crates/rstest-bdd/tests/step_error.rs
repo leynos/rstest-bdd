@@ -68,8 +68,10 @@ fn step_error_formats_in_locales(
     #[case] err: StepError,
     #[case] expected: &str,
 ) {
-    let guard = ScopedLocalization::new(std::slice::from_ref(&locale))
-        .unwrap_or_else(|error| panic!("failed to scope locale {locale}: {error}"));
+    let guard = match ScopedLocalization::new(std::slice::from_ref(&locale)) {
+        Ok(guard) => guard,
+        Err(error) => panic!("failed to scope locale {locale}: {error}"),
+    };
     assert_eq!(strip_directional_isolates(&err.to_string()), expected);
     drop(guard);
 }
@@ -77,8 +79,9 @@ fn step_error_formats_in_locales(
 #[test]
 fn format_with_loader_uses_provided_loader() {
     let loader = fluent_language_loader!();
-    i18n_embed::select(&loader, &Localizations, &[langid!("fr")])
-        .unwrap_or_else(|error| panic!("failed to load French translations: {error}"));
+    if let Err(error) = i18n_embed::select(&loader, &Localizations, &[langid!("fr")]) {
+        panic!("failed to load French translations: {error}");
+    }
     let err = StepError::ExecutionError {
         pattern: "p".into(),
         function: "f".into(),

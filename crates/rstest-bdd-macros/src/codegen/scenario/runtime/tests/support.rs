@@ -84,13 +84,13 @@ pub(super) fn assert_path_is_execution_execute_step_async(path: &syn::Path) {
 /// Panics if the file does not contain a function with the requested name.
 #[expect(clippy::panic, reason = "test helper panics for clearer failures")]
 pub(super) fn find_function_by_name<'a>(file: &'a syn::File, name: &str) -> &'a syn::ItemFn {
-    file.items
-        .iter()
-        .find_map(|item| match item {
-            syn::Item::Fn(f) if f.sig.ident == name => Some(f),
-            _ => None,
-        })
-        .unwrap_or_else(|| panic!("expected {name} function"))
+    let Some(function) = file.items.iter().find_map(|item| match item {
+        syn::Item::Fn(f) if f.sig.ident == name => Some(f),
+        _ => None,
+    }) else {
+        panic!("expected {name} function");
+    };
+    function
 }
 
 /// Visitor to find function calls by name.
@@ -164,8 +164,10 @@ pub(super) fn find_call_in_block(
 /// expression.
 #[expect(clippy::panic, reason = "test helper panics for clearer failures")]
 pub(super) fn parse_skip_handler(return_kind: ScenarioReturnKind) -> syn::ExprIf {
-    let stmt: syn::Stmt = syn::parse2(generate_skip_handler(return_kind))
-        .unwrap_or_else(|err| panic!("expected skip handler to parse as a statement: {err}"));
+    let stmt: syn::Stmt = match syn::parse2(generate_skip_handler(return_kind)) {
+        Ok(stmt) => stmt,
+        Err(err) => panic!("expected skip handler to parse as a statement: {err}"),
+    };
     match stmt {
         syn::Stmt::Expr(syn::Expr::If(expr_if), _) => expr_if,
         other => panic!("expected if expression in skip handler, got {other:?}"),

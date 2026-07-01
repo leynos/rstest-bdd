@@ -147,3 +147,6 @@ enable = [
     "too-many-public-methods",
     "too-many-statements",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["scripts/tests"]

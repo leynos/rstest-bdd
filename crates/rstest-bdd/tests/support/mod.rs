@@ -1,8 +1,6 @@
 //! Shared helpers for placeholder parsing integration tests.
 
-use rstest_bdd::{
-    PlaceholderSyntaxError, StepPattern, StepPatternError, StepText, extract_placeholders,
-};
+use rstest_bdd::{PlaceholderSyntaxError, StepPattern, StepPatternError};
 
 /// Compile a placeholder pattern for use in assertions.
 ///
@@ -26,26 +24,6 @@ pub fn compiled(pattern: &'static str) -> StepPattern {
     let pat = StepPattern::from(pattern);
     pat.compile().expect("failed to compile pattern");
     pat
-}
-
-/// Compile a pattern and extract placeholders, returning the captured values.
-///
-/// # Example
-///
-/// ```no_run
-/// use support::compile_and_extract;
-///
-/// let caps = compile_and_extract("value {n:u32}", "value 42");
-/// assert_eq!(caps, vec!["42"]);
-/// ```
-///
-/// # Panics
-/// Panics if the pattern fails to compile or if matching fails.
-#[must_use]
-#[expect(clippy::expect_used, reason = "test helper should fail loudly")]
-pub fn compile_and_extract(pattern: &'static str, text: &str) -> Vec<String> {
-    let pat = compiled(pattern);
-    extract_placeholders(&pat, StepText::from(text)).expect("match expected")
 }
 
 /// Expect the provided pattern to emit a placeholder syntax error.

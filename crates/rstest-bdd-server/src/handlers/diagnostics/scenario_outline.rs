@@ -28,8 +28,12 @@ use super::{CODE_EXAMPLE_COLUMN_MISSING, CODE_EXAMPLE_COLUMN_SURPLUS, DIAGNOSTIC
 ///
 /// The `unreachable!()` is safe here because this is a compile-time constant
 /// regex pattern that has been validated and cannot fail to compile.
-static OUTLINE_PLACEHOLDER_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"<([^>\s][^>]*)>").unwrap_or_else(|_| unreachable!()));
+static OUTLINE_PLACEHOLDER_RE: LazyLock<Regex> = LazyLock::new(|| {
+    let Ok(regex) = Regex::new(r"<([^>\s][^>]*)>") else {
+        unreachable!("scenario outline placeholder regex is valid");
+    };
+    regex
+});
 
 /// Collected placeholders from a scenario outline with first-step tracking.
 ///
