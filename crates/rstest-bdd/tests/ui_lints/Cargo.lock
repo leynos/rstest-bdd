@@ -738,7 +738,7 @@ dependencies = [
  "rust-embed",
  "serde",
  "serde_json",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
  "unic-langid",
 ]
 
@@ -747,7 +747,7 @@ name = "rstest-bdd-harness"
 version = "0.6.0-beta2"
 dependencies = [
  "cargo_metadata",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
  "tracing",
 ]
 
@@ -770,7 +770,7 @@ dependencies = [
  "rstest-bdd-patterns",
  "rstest-bdd-policy",
  "syn 2.0.117",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
  "walkdir",
 ]
 
@@ -780,7 +780,7 @@ version = "0.6.0-beta2"
 dependencies = [
  "gherkin",
  "regex",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
