@@ -9,13 +9,39 @@ updates:
       - "github-actions"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
 
-  # Enable version updates for Cargo
+  # Enable version updates for Cargo. The workspace root covers all member
+  # crates; the additional directories are standalone test-fixture packages
+  # that are not workspace members.
   - package-ecosystem: "cargo"
-    directory: "/"
+    directories:
+      - "/"
+      - "/crates/cargo-bdd/tests/fixtures/minimal"
+      - "/crates/rstest-bdd/tests/fixtures_macros"
+      - "/crates/rstest-bdd/tests/ui_macros"
+      - "/crates/rstest-bdd/tests/ui_lints"
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
       - "cargo"
     schedule:
       interval: "daily"
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+
+  # Enable version updates for the uv-managed Python tooling environment
+  - package-ecosystem: "uv"
+    directory: "/"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python"
+    schedule:
+      interval: "daily"
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
