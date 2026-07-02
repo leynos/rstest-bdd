@@ -781,20 +781,14 @@ checksum = "e5274423e17b7c9fc20b6e7e208532f9b19825d82dfd615708b70edd83df41f1"
 
 [[package]]
 name = "hashbrown"
-version = "0.16.1"
+version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "841d1cc9bed7f9236f321df977030373f4a4163ae1a7dbfe1a51a2c1a51d9100"
+checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
 dependencies = [
  "allocator-api2",
  "equivalent",
  "foldhash",
 ]
-
-[[package]]
-name = "hashbrown"
-version = "0.17.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
 
 [[package]]
 name = "heck"
@@ -1529,7 +1523,7 @@ dependencies = [
  "derive_more",
  "fluent",
  "gherkin",
- "hashbrown 0.16.1",
+ "hashbrown 0.17.1",
  "i18n-embed",
  "insta",
  "inventory",
@@ -1547,7 +1541,7 @@ dependencies = [
  "serial_test 2.0.0",
  "tempfile",
  "the-newtype",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
  "tokio",
  "trybuild",
  "unic-langid",
@@ -1563,7 +1557,7 @@ dependencies = [
  "rstest",
  "temp-env",
  "tempfile",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
  "tracing",
 ]
 
@@ -1626,7 +1620,7 @@ dependencies = [
  "serial_test 2.0.0",
  "syn 2.0.117",
  "tempfile",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
  "walkdir",
 ]
 
@@ -1637,7 +1631,7 @@ dependencies = [
  "gherkin",
  "regex",
  "rstest",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -1666,7 +1660,7 @@ dependencies = [
  "serde_json",
  "syn 2.0.117",
  "tempfile",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
  "tokio",
  "tokio-util",
  "tower",
@@ -2222,7 +2216,7 @@ dependencies = [
  "rstest-bdd",
  "rstest-bdd-harness-tokio",
  "rstest-bdd-macros",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
  "tokio",
 ]
 
