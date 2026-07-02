@@ -11,7 +11,6 @@ updates:
       interval: "weekly"
     cooldown:
       default-days: 7
-      semver-major-days: 14
 
   # Enable version updates for Cargo. The workspace root covers all member
   # crates; the additional directories are standalone test-fixture packages
