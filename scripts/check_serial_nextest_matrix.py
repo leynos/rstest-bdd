@@ -36,6 +36,11 @@ class SerialNextestMatrixError(ValueError):
     """A `#[serial]`/nextest runner matrix is missing or malformed."""
 
     @classmethod
+    def _for_heading(cls, template: str, heading: str) -> SerialNextestMatrixError:
+        """Build an error from a heading-only message template."""
+        return cls(template.format(heading=heading))
+
+    @classmethod
     def heading_not_found(cls, heading: str) -> SerialNextestMatrixError:
         """
         Build an error for a missing anchor heading.
@@ -52,8 +57,7 @@ class SerialNextestMatrixError(ValueError):
         SerialNextestMatrixError
             Error raised when the heading cannot be found.
         """
-        message = f"heading not found: {heading}"
-        return cls(message)
+        return cls._for_heading("heading not found: {heading}", heading)
 
     @classmethod
     def separator_not_found(cls, heading: str) -> SerialNextestMatrixError:
@@ -72,8 +76,9 @@ class SerialNextestMatrixError(ValueError):
         SerialNextestMatrixError
             Error raised when the separator row is missing.
         """
-        message = f"runner matrix under {heading!r} has no separator row"
-        return cls(message)
+        return cls._for_heading(
+            "runner matrix under {heading!r} has no separator row", heading
+        )
 
     @classmethod
     def wrong_row_count(cls, heading: str, actual: int) -> SerialNextestMatrixError:
@@ -117,8 +122,9 @@ class SerialNextestMatrixError(ValueError):
         SerialNextestMatrixError
             Error raised when the table cannot be found.
         """
-        message = f"runner matrix not found under heading: {heading}"
-        return cls(message)
+        return cls._for_heading(
+            "runner matrix not found under heading: {heading}", heading
+        )
 
     @classmethod
     def document_unreadable(
