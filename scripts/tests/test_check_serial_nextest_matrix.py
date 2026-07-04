@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-import runpy
+import os
+import shutil
+import subprocess  # noqa: S404 - behavioural tests invoke trusted local scripts.
+import sys
 from pathlib import Path
 
 import pytest
@@ -44,6 +47,34 @@ def write_repo_docs(
     (root / DESIGN_DOC).write_text(
         document(MATRIX_HEADING, design_table), encoding="utf-8"
     )
+
+
+def copy_checker_script(root: Path) -> None:
+    """Copy the checker script into a temporary repository root."""
+    script = Path("scripts/check_serial_nextest_matrix.py")
+    target = root / script
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(script, target)
+
+
+def run_checker_script(root: Path) -> subprocess.CompletedProcess[str]:
+    """Run the checker script from a temporary repository root."""
+    return subprocess.run(
+        [sys.executable, "scripts/check_serial_nextest_matrix.py"],
+        cwd=root,
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+
+
+def chmod_cannot_block_reads() -> bool:
+    """Return whether chmod-based read denial is unsupported here."""
+    if os.name == "nt":
+        return True
+    if hasattr(os, "geteuid"):
+        return os.geteuid() == 0
+    return False
 
 
 class TestNormaliseTableRow:
@@ -219,25 +250,72 @@ class TestCheckMatrixTables:
             "an unreadable matrix document should identify the failed path"
         )
 
+    def test_reports_permission_denied_document(self, tmp_path: Path) -> None:
+        """Unreadable matrix documents should surface the read failure."""
+        if chmod_cannot_block_reads():
+            pytest.skip("chmod-based unreadable files stay readable here")
 
-class TestCli:
+        write_repo_docs(tmp_path)
+        path = tmp_path / USERS_GUIDE
+
+        try:
+            path.chmod(0o000)
+            violations = check_matrix_tables(tmp_path)
+        finally:
+            path.chmod(0o600)
+
+        assert len(violations) == 1, (
+            "an unreadable matrix document should produce exactly one violation"
+        )
+        assert f"could not read {USERS_GUIDE}" in violations[0], (
+            "an unreadable matrix document should identify the failed path"
+        )
+
+    def test_reports_malformed_separator_row(self, tmp_path: Path) -> None:
+        """Malformed matrix separators should surface the separator failure."""
+        malformed_table = TABLE.replace("| --- | --- | --- |", "| xxx | yyy | zzz |")
+        write_repo_docs(tmp_path, users_table=malformed_table)
+
+        violations = check_matrix_tables(tmp_path)
+
+        assert len(violations) == 1, (
+            "a malformed separator should produce exactly one violation"
+        )
+        assert "has no separator row" in violations[0], (
+            "a malformed separator should identify the separator failure"
+        )
+
+
+class TestCliEntrypoint:
     """Behavioural tests for the script entrypoint."""
 
-    def test_cli_passes_for_repository_docs(
-        self, capsys: pytest.CaptureFixture[str]
-    ) -> None:
-        """The command-line script should pass against the repository docs."""
-        with pytest.raises(SystemExit) as exc_info:
-            runpy.run_path(
-                "scripts/check_serial_nextest_matrix.py", run_name="__main__"
-            )
+    def test_cli_passes_when_matrices_match(self, tmp_path: Path) -> None:
+        """The command-line script should pass when both matrices match."""
+        write_repo_docs(tmp_path)
+        copy_checker_script(tmp_path)
 
-        captured = capsys.readouterr()
+        result = run_checker_script(tmp_path)
 
-        assert exc_info.value.code == 0, (
-            "CLI should accept the checked-in users-guide and design matrices"
+        assert result.returncode == 0, (
+            "CLI should accept matching users-guide and design matrices"
         )
-        assert not captured.err, "CLI should not report violations on success"
+        assert not result.stderr, "CLI should not report violations on success"
+
+    def test_cli_reports_when_matrices_diverge(self, tmp_path: Path) -> None:
+        """The command-line script should report drift between the matrices."""
+        mutated = TABLE.replace("Redundant-but-harmless", "Required")
+        write_repo_docs(tmp_path, users_table=mutated)
+        copy_checker_script(tmp_path)
+
+        result = run_checker_script(tmp_path)
+
+        assert result.returncode == 1, "CLI should fail when matrix rows diverge"
+        assert "`#[serial]`/nextest runner matrix data rows differ:" in result.stderr, (
+            "CLI should describe matrix drift on stderr"
+        )
+        assert f"{USERS_GUIDE}:" in result.stderr, (
+            "CLI drift output should identify the users-guide source"
+        )
 
 
 class TestMakefileHook:
@@ -246,7 +324,10 @@ class TestMakefileHook:
     def test_make_lint_runs_serial_matrix_checker(self) -> None:
         """The lint target should exercise the serial/nextest matrix checker."""
         makefile = Path("Makefile").read_text(encoding="utf-8")
+        lint_target = makefile.split("\nlint:", maxsplit=1)[1].split(
+            "\nlint-whitaker:", maxsplit=1
+        )[0]
 
-        assert "python3 scripts/check_serial_nextest_matrix.py" in makefile, (
+        assert "python3 scripts/check_serial_nextest_matrix.py" in lint_target, (
             "make lint should run the serial/nextest matrix checker"
         )
