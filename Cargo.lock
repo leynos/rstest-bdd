@@ -1547,7 +1547,7 @@ dependencies = [
  "serial_test 2.0.0",
  "tempfile",
  "the-newtype",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
  "tokio",
  "trybuild",
  "unic-langid",
@@ -1563,7 +1563,7 @@ dependencies = [
  "rstest",
  "temp-env",
  "tempfile",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
  "tracing",
 ]
 
@@ -1626,7 +1626,7 @@ dependencies = [
  "serial_test 2.0.0",
  "syn 2.0.117",
  "tempfile",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
  "walkdir",
 ]
 
@@ -1637,7 +1637,7 @@ dependencies = [
  "gherkin",
  "regex",
  "rstest",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -1666,7 +1666,7 @@ dependencies = [
  "serde_json",
  "syn 2.0.117",
  "tempfile",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
  "tokio",
  "tokio-util",
  "tower",
@@ -2222,7 +2222,7 @@ dependencies = [
  "rstest-bdd",
  "rstest-bdd-harness-tokio",
  "rstest-bdd-macros",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
  "tokio",
 ]
 

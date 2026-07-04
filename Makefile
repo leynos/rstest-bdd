@@ -106,7 +106,7 @@ $(WHITAKER_TOOLCHAIN_STAMP): | ensure-whitaker-tools
 $(WHITAKER_BUILD_STAMP): $(WHITAKER_SRC)/.git $(WHITAKER_TOOLCHAIN_STAMP)
 	cd "$(WHITAKER_SRC)" && \
 		CARGO_TARGET_DIR="$(abspath $(WHITAKER_TARGET_DIR))" \
-		$(CARGO) +"$(WHITAKER_TOOLCHAIN)" build --release \
+		rustup run "$(WHITAKER_TOOLCHAIN)" cargo build --release \
 		-p "$(WHITAKER_LINT)" --features dylint-driver
 	touch "$@"
 

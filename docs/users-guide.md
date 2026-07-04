@@ -1064,7 +1064,9 @@ function names against feature files. For a concrete regression example, see
 > The thread-local scenario-state pattern below is the recommended way to
 > share mutable GPUI state across BDD steps in `rstest-bdd` 0.6.0, but it
 > exists to work around the current `StepContext::borrow_mut` contract
-> selected by [ADR-007][adr-007]. Sections
+> selected by
+> [ADR-007](https://github.com/leynos/rstest-bdd/blob/main/docs/adr-007-harness-context-injection.md).
+> Sections
 > 2.7.6.2 and 2.7.6.5 of the design document
 > ([rstest-bdd design][rstest-bdd-design]) and roadmap items 12.1.x track
 > the v0.7.0 redesign that will retire the thread-local approach in favour
@@ -1083,12 +1085,16 @@ function names against feature files. For a concrete regression example, see
 > the *published* `gpui 0.2.2` on crates.io encounter a different test API.
 > The four shapes that differ are:
 >
+<!-- markdownlint-disable MD013 -->
+>
 > | Operation | Vendored gpui (regression suite + these snippets) | Published `gpui 0.2.2` (downstream adopters) |
 > | --- | --- | --- |
 > | `add_window_view` closure | `\|_context\| View::default()` (one argument) | `\|_window, view_cx\| View::new(view_cx)` (two arguments) |
 > | obtain window handle | `visual_cx.window_handle()` (inherent method on `VisualTestContext`) | `vcx.window_handle()` (same call, but `window_handle` is a `VisualContext` trait method, so add `use gpui::VisualContext;`) |
 > | `VisualTestContext::from_window` | returns `Option<VisualTestContext>` (`let … else { panic!(…) }`) | returns `VisualTestContext` by value (no `Option`) |
 > | `read_entity` / `update_entity` | `Option`/`Result` wrappers (`Some(1)`, `Ok(())`) | identity `type Result<T> = T`; returns `R` directly |
+>
+<!-- markdownlint-enable MD013 -->
 >
 > *Table: Vendored-to-published gpui 0.2.2 API shape differences.*
 >
@@ -1165,9 +1171,9 @@ GPUI scenarios share a process-wide `TestAppContext` slot, and the
 thread-local reset protocol assumes sequential execution; running stateful
 GPUI scenarios in parallel breaks both invariants.
 
-See [test-runner parallelism and scenario state][runner-parallelism-guide] for
-the full `#[serial]`, cargo-nextest, `#[file_serial]`, and nextest test-group
-matrix.
+See [test-runner parallelism and scenario state](#test-runner-parallelism-and-scenario-state)
+for the full `#[serial]`, cargo-nextest, `#[file_serial]`, and nextest
+test-group matrix.
 
 ##### Worked example
 
@@ -1260,40 +1266,6 @@ defensively re-runs the reset before storing handles and observes the
 
 ```rust,no_run
 # use rstest_bdd_macros::given;
-
-#[derive(Debug, PartialEq, Eq)]
-struct UserRow {
-    name: String,
-    email: String,
-    active: bool,
-}
-
-impl DataTableRow for UserRow {
-    const REQUIRES_HEADER: bool = true;
-
-    fn parse_row(mut row: RowSpec<'_>) -> Result<Self, DataTableError> {
-        let name = row.take_column("name")?;
-        let email = row.take_column("email")?;
-        let active = row.parse_column_with(
-            "active",
-            datatable::truthy_bool,
-        )?;
-        Ok(Self { name, email, active })
-    }
-}
-
-#[given("the following users exist:")]
-fn users_exist(#[datatable] rows: Rows<UserRow>) {
-    for row in rows {
-        assert!(row.active || row.name == "Bob");
-    }
-}
-```
-
-Projects that prefer to work with raw rows can declare the argument as
-`Vec<Vec<String>>` and handle parsing manually. Both forms can co-exist within
-the same project, allowing incremental adoption of typed tables.
-
 # fn reset_state_before_assignment() {}
 # fn with_state<R>(_: impl FnOnce(&mut ()) -> R) -> R { unimplemented!() }
 #[given("a fresh GPUI window is opened")]
@@ -1371,7 +1343,7 @@ panic-on-invariant-violation `let … else { panic!(…) }` branches and
 `StepResult` within the same playbook reads ambiguously, so pick one shape per
 scenario.
 
-##### Fixture key versus parameter name
+#### Fixture key versus parameter name
 
 Steps request the GPUI context through the *reserved fixture key*
 `rstest_bdd_harness_context`. The key is part of the public contract: every
@@ -1383,7 +1355,7 @@ by the step author for readability. The `#[from(rstest_bdd_harness_context)]`
 attribute is what binds the key, so do not let parameter naming convince a
 reader the binding name is part of the contract.
 
-##### Where to read more
+#### Where to read more
 
 - [rstest-bdd design][rstest-bdd-design] §2.7.6.1 and §2.7.6.2 explain
   why the workaround takes this shape and what the borrow contract currently
@@ -1405,7 +1377,7 @@ reader the binding name is part of the contract.
 - Design-document §2.7.6.7 documents the full cargo test versus nextest matrix
   for `#[serial]` and thread-local state.
 
-##### Pedantic lint profile
+#### Pedantic lint profile
 
 The snippets above are the lint-clean form used by the regression suite. The
 repository runs Whitaker's `no_unwrap_or_else_panic` Dylint lint from
@@ -1429,7 +1401,7 @@ borrowed binding. For example, prefer a fresh guard name such as
 to enforce this single Whitaker lint now while deferring the full Whitaker
 suite.
 
-##### Bulk-migration cookbook
+#### Bulk-migration cookbook
 
 When migrating a large GPUI test suite, factor the durable-handle scaffolding
 into one shared steps module per consuming crate rather than copying it into
@@ -1479,8 +1451,7 @@ Once roadmap 11.1.3/11.1.4 ship (`ScenarioStore<T>` and the cleanup-guard
 fixture macro), the `common/mod.rs` block will shrink to a single import
 and the `#[scenario]` cleanup parameter will be generated automatically.
 
-
-##### Test-runner parallelism and scenario state
+#### Test-runner parallelism and scenario state
 
 Stateful scenarios that share thread-local or process-wide state need different
 serialisation tools depending on the test runner. The `#[serial]` attribute
@@ -2754,7 +2725,6 @@ three amigos in the specification process.
 
 [scenario-status]: https://docs.rs/rstest-bdd/latest/rstest_bdd/reporting/enum.ScenarioStatus.html
 [adr-001]: https://github.com/leynos/rstest-bdd/blob/main/docs/adr-001-async-fixtures-and-test.md
-[adr-007]: https://github.com/leynos/rstest-bdd/blob/main/docs/adr-007-harness-context-injection.md
 [adr-013]: https://github.com/leynos/rstest-bdd/blob/main/docs/adr-013-adopt-whitaker-no-unwrap-or-else-panic.md
 [gherkin-syntax]: https://github.com/leynos/rstest-bdd/blob/main/docs/gherkin-syntax.md#section-12-the-anatomy-of-a-feature-file
 [migration-async-patterns]: https://github.com/leynos/rstest-bdd/blob/main/docs/cucumber-rs-migration-and-async-patterns.md
@@ -2762,4 +2732,3 @@ three amigos in the specification process.
 [design-runner-parallelism]: https://github.com/leynos/rstest-bdd/blob/main/docs/rstest-bdd-design.md#2767-test-runner-parallelism-and-scenario-state
 [developer-serial-nextest]: https://github.com/leynos/rstest-bdd/blob/main/docs/developers-guide.md#serial-file_serial-and-nextest-test-groups
 [nextest-test-groups]: https://nexte.st/docs/configuration/test-groups/
-[runner-parallelism-guide]: #test-runner-parallelism-and-scenario-state

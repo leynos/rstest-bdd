@@ -133,7 +133,6 @@ override's `filter` expression rather than raising the default
 `slow-timeout`: the tight default is what surfaces genuinely hung tests
 quickly.
 
-
 ## `#[serial]`, `#[file_serial]`, and nextest test-groups
 
 Stateful GPUI scenarios keep `#[serial]` even though this repository's
@@ -236,7 +235,6 @@ the extracted manifest metadata and compare the relevant files against the Zed
 repository with `git show <commit>:crates/gpui/src/app/test_context.rs`.
 Unit tests for the table checker live in
 `scripts/tests/test_check_gpui_mapping_table.py`.
-
 
 ## `#[serial]`/nextest matrix validation (`scripts/check_serial_nextest_matrix.py`)
 
