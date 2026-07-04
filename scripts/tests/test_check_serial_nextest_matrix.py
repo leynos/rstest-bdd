@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-import typing as typ
+import runpy
+from pathlib import Path
 
 import pytest
 from check_serial_nextest_matrix import (
@@ -13,10 +14,6 @@ from check_serial_nextest_matrix import (
     extract_matrix_rows,
     normalise_table_row,
 )
-
-if typ.TYPE_CHECKING:
-    from pathlib import Path
-
 
 TABLE = "\n".join([
     "| Runner | `#[serial]` effect | Cross-process exclusivity |",
@@ -40,6 +37,7 @@ def write_repo_docs(
 ) -> None:
     """Write both documents beneath a temporary repository root."""
     (root / USERS_GUIDE.parent).mkdir(parents=True, exist_ok=True)
+    (root / DESIGN_DOC.parent).mkdir(parents=True, exist_ok=True)
     (root / USERS_GUIDE).write_text(
         document(MATRIX_HEADING, users_table), encoding="utf-8"
     )
@@ -89,6 +87,21 @@ class TestExtractMatrixRows:
             extract_matrix_rows(
                 "# Top\n\n## Test-runner parallelism and scenario state\n",
                 MATRIX_HEADING,
+            )
+
+    def test_reports_missing_separator(self) -> None:
+        """A runner table without a separator row should be rejected."""
+        malformed_table = "\n".join([
+            "| Runner | `#[serial]` effect | Cross-process exclusivity |",
+            (
+                "| `cargo test` | In-process mutex; required | "
+                "Not provided by `#[serial]` |"
+            ),
+            "",
+        ])
+        with pytest.raises(ValueError, match="has no separator row"):
+            extract_matrix_rows(
+                document(MATRIX_HEADING, malformed_table), MATRIX_HEADING
             )
 
 
@@ -190,4 +203,50 @@ class TestCheckMatrixTables:
         )
         assert "has 1 data rows; expected 2" in violations[0], (
             "removing a matrix row should report the shortened table"
+        )
+
+    def test_reports_unreadable_document(self, tmp_path: Path) -> None:
+        """Missing documents should surface the read failure."""
+        write_repo_docs(tmp_path)
+        (tmp_path / USERS_GUIDE).unlink()
+
+        violations = check_matrix_tables(tmp_path)
+
+        assert len(violations) == 1, (
+            "an unreadable matrix document should produce exactly one violation"
+        )
+        assert f"could not read {USERS_GUIDE}" in violations[0], (
+            "an unreadable matrix document should identify the failed path"
+        )
+
+
+class TestCli:
+    """Behavioural tests for the script entrypoint."""
+
+    def test_cli_passes_for_repository_docs(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """The command-line script should pass against the repository docs."""
+        with pytest.raises(SystemExit) as exc_info:
+            runpy.run_path(
+                "scripts/check_serial_nextest_matrix.py", run_name="__main__"
+            )
+
+        captured = capsys.readouterr()
+
+        assert exc_info.value.code == 0, (
+            "CLI should accept the checked-in users-guide and design matrices"
+        )
+        assert not captured.err, "CLI should not report violations on success"
+
+
+class TestMakefileHook:
+    """Tests for the Makefile lint integration."""
+
+    def test_make_lint_runs_serial_matrix_checker(self) -> None:
+        """The lint target should exercise the serial/nextest matrix checker."""
+        makefile = Path("Makefile").read_text(encoding="utf-8")
+
+        assert "python3 scripts/check_serial_nextest_matrix.py" in makefile, (
+            "make lint should run the serial/nextest matrix checker"
         )

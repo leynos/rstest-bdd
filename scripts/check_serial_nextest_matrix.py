@@ -37,19 +37,63 @@ class SerialNextestMatrixError(ValueError):
 
     @classmethod
     def heading_not_found(cls, heading: str) -> SerialNextestMatrixError:
-        """Build an error for a missing anchor heading."""
+        """
+        Build an error for a missing anchor heading.
+
+        Parameters
+        ----------
+        cls : type[SerialNextestMatrixError]
+            The error type being constructed.
+        heading : str
+            The heading that was expected in the document.
+
+        Returns
+        -------
+        SerialNextestMatrixError
+            Error raised when the heading cannot be found.
+        """
         message = f"heading not found: {heading}"
         return cls(message)
 
     @classmethod
     def separator_not_found(cls, heading: str) -> SerialNextestMatrixError:
-        """Build an error for a table without its separator row."""
+        """
+        Build an error for a table without its separator row.
+
+        Parameters
+        ----------
+        cls : type[SerialNextestMatrixError]
+            The error type being constructed.
+        heading : str
+            The heading that anchors the table.
+
+        Returns
+        -------
+        SerialNextestMatrixError
+            Error raised when the separator row is missing.
+        """
         message = f"runner matrix under {heading!r} has no separator row"
         return cls(message)
 
     @classmethod
     def wrong_row_count(cls, heading: str, actual: int) -> SerialNextestMatrixError:
-        """Build an error for a table with the wrong number of data rows."""
+        """
+        Build an error for a table with the wrong number of data rows.
+
+        Parameters
+        ----------
+        cls : type[SerialNextestMatrixError]
+            The error type being constructed.
+        heading : str
+            The heading that anchors the table.
+        actual : int
+            The number of data rows that were found.
+
+        Returns
+        -------
+        SerialNextestMatrixError
+            Error raised when the table has the wrong number of rows.
+        """
         message = (
             f"runner matrix under {heading!r} has {actual} data rows; "
             f"expected {EXPECTED_DATA_ROWS}"
@@ -58,7 +102,21 @@ class SerialNextestMatrixError(ValueError):
 
     @classmethod
     def table_not_found(cls, heading: str) -> SerialNextestMatrixError:
-        """Build an error for a missing runner matrix."""
+        """
+        Build an error for a missing runner matrix.
+
+        Parameters
+        ----------
+        cls : type[SerialNextestMatrixError]
+            The error type being constructed.
+        heading : str
+            The heading that should contain the table.
+
+        Returns
+        -------
+        SerialNextestMatrixError
+            Error raised when the table cannot be found.
+        """
         message = f"runner matrix not found under heading: {heading}"
         return cls(message)
 
@@ -66,7 +124,23 @@ class SerialNextestMatrixError(ValueError):
     def document_unreadable(
         cls, relative_path: Path, error: OSError
     ) -> SerialNextestMatrixError:
-        """Build an error for a document that could not be read."""
+        """
+        Build an error for a document that could not be read.
+
+        Parameters
+        ----------
+        cls : type[SerialNextestMatrixError]
+            The error type being constructed.
+        relative_path : Path
+            The document path relative to the repository root.
+        error : OSError
+            The underlying read failure.
+
+        Returns
+        -------
+        SerialNextestMatrixError
+            Error raised when the document cannot be read.
+        """
         message = f"could not read {relative_path}: {error}"
         return cls(message)
 
