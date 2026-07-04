@@ -244,7 +244,7 @@ nextest test-groups is duplicated in `docs/users-guide.md` and
 repository changes its runner guidance. `make lint` runs
 `scripts/check_serial_nextest_matrix.py`, which anchors both copies by the
 "Test-runner parallelism and scenario state" heading and compares the two data
-rows after whitespace normalisation.
+rows after whitespace normalization.
 
 The check only enforces doc-vs-doc parity. It does not validate nextest or
 `serial_test` behaviour directly; verify those facts from the upstream

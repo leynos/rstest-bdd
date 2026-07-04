@@ -54,7 +54,9 @@ class TestNormaliseTableRow:
     def test_collapses_whitespace_runs(self) -> None:
         """Spacing-only table alignment changes should disappear."""
         row = "| a |  b   c |"
-        assert normalise_table_row(row) == "| a | b c |"
+        assert normalise_table_row(row) == "| a | b c |", (
+            "table row normalization should collapse spacing-only changes"
+        )
 
 
 class TestExtractMatrixRows:
@@ -63,14 +65,18 @@ class TestExtractMatrixRows:
     def test_extracts_two_data_rows_from_anchored_section(self) -> None:
         """The table anchored below the requested heading should be read."""
         rows = extract_matrix_rows(document(MATRIX_HEADING), MATRIX_HEADING)
-        assert len(rows) == 2
-        assert rows[1].startswith("| nextest (process-per-test) |")
+        assert len(rows) == 2, "matrix extraction should return both data rows"
+        assert rows[1].startswith("| nextest (process-per-test) |"), (
+            "matrix extraction should preserve the nextest row"
+        )
 
     def test_accepts_numbered_heading_prefix(self) -> None:
         """Design headings may include section numbers before the anchor text."""
         markdown = document(f"2.7.6.7 {MATRIX_HEADING}")
         rows = extract_matrix_rows(markdown, MATRIX_HEADING)
-        assert len(rows) == 2
+        assert len(rows) == 2, (
+            "matrix extraction should accept numbered design heading prefixes"
+        )
 
     def test_reports_missing_heading(self) -> None:
         """A missing anchor heading is an explicit error."""
@@ -92,7 +98,9 @@ class TestCheckMatrixTables:
     def test_passes_for_identical_data_rows(self, tmp_path: Path) -> None:
         """Identical runner-matrix rows should pass."""
         write_repo_docs(tmp_path)
-        assert not check_matrix_tables(tmp_path)
+        assert not check_matrix_tables(tmp_path), (
+            "identical user-guide and design matrix rows should pass"
+        )
 
     def test_reports_content_mutation(self, tmp_path: Path) -> None:
         """A changed data cell should produce a row-specific violation."""
@@ -101,9 +109,13 @@ class TestCheckMatrixTables:
 
         violations = check_matrix_tables(tmp_path)
 
-        assert violations[0] == "`#[serial]`/nextest runner matrix data rows differ:"
-        assert "row 2:" in violations
-        assert any(str(USERS_GUIDE) in violation for violation in violations)
+        assert violations[0] == "`#[serial]`/nextest runner matrix data rows differ:", (
+            "content drift should report a matrix row mismatch header"
+        )
+        assert "row 2:" in violations, "content drift should identify the changed row"
+        assert any(str(USERS_GUIDE) in violation for violation in violations), (
+            "content drift should identify the changed user-guide source"
+        )
 
     def test_ignores_whitespace_only_mutation(self, tmp_path: Path) -> None:
         """Extra table alignment whitespace must not count as drift."""
@@ -113,7 +125,9 @@ class TestCheckMatrixTables:
         )
         write_repo_docs(tmp_path, users_table=mutated)
 
-        assert not check_matrix_tables(tmp_path)
+        assert not check_matrix_tables(tmp_path), (
+            "whitespace-only matrix alignment changes should not count as drift"
+        )
 
     def test_accepts_aligned_markdown_table(self, tmp_path: Path) -> None:
         """Markdown formatter alignment should not hide the runner matrix."""
@@ -138,7 +152,9 @@ class TestCheckMatrixTables:
         ])
         write_repo_docs(tmp_path, users_table=aligned_table, design_table=aligned_table)
 
-        assert not check_matrix_tables(tmp_path)
+        assert not check_matrix_tables(tmp_path), (
+            "aligned Markdown tables should still match after normalization"
+        )
 
     def test_reports_missing_table_anchor(self, tmp_path: Path) -> None:
         """A missing heading should fail rather than silently skipping a table."""
@@ -149,8 +165,12 @@ class TestCheckMatrixTables:
 
         violations = check_matrix_tables(tmp_path)
 
-        assert len(violations) == 1
-        assert "heading not found" in violations[0]
+        assert len(violations) == 1, (
+            "missing matrix anchor should produce exactly one violation"
+        )
+        assert "heading not found" in violations[0], (
+            "missing matrix anchor should explain the missing heading"
+        )
 
     def test_reports_removed_table_row(self, tmp_path: Path) -> None:
         """Deleting a matrix row must fail instead of weakening the matcher."""
@@ -165,5 +185,9 @@ class TestCheckMatrixTables:
 
         violations = check_matrix_tables(tmp_path)
 
-        assert len(violations) == 1
-        assert "has 1 data rows; expected 2" in violations[0]
+        assert len(violations) == 1, (
+            "removing a matrix row should produce exactly one violation"
+        )
+        assert "has 1 data rows; expected 2" in violations[0], (
+            "removing a matrix row should report the shortened table"
+        )

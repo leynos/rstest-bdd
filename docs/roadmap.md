@@ -862,7 +862,7 @@ changing the public trait contracts.
   nextest test-group examples, and added
   `scripts/check_serial_nextest_matrix.py` to keep the user-guide and design
   matrices in step. See
-  `docs/execplans/10-2-6-documents-nextest-process-per-test-scheduling-and-serial-interraction.md`.
+  `docs/execplans/10-2-6-documents-nextest-process-per-test-scheduling-and-serial-interaction.md`.
 - [ ] 10.2.7. A bulk-migration cookbook in the user guide shows how to share
   one durable-handle step library across many GPUI scenarios in a single
   consuming crate, so teams migrating large test suites do not copy the helper

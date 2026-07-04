@@ -75,7 +75,7 @@ Success is observable as:
 This plan was stress-tested by the Logisphere community-of-experts panel
 (Pandalump, Wafflecat, Buzzy Bee, Telefono, Doggylump, Dinolump). The panel
 verdict was **🔄 Revise: viable but over-scoped**. The first draft proposed an
-executable demonstration test (rstest unit cases, an rstest-bdd scenario, a
+executable demonstration test (rstest unit cases, a rstest-bdd scenario, a
 `NEXTEST_EXECUTION_MODE` runtime guard, and a new `serial_test` dev-dependency)
 plus a prose phrase-matching drift gate. The panel rejected both:
 
@@ -537,8 +537,7 @@ referencing this execplan. Update all living sections.
 
 ## Concrete steps
 
-Run from the repository root
-(`/home/leynos/.lody/repos/github---leynos---rstest-bdd/worktrees/76544b9b-687c-4179-82b7-0c4aacfc1b87`).
+Run from the repository root.
 
 Use `tee` into a per-action log, per the workspace command guidance:
 
