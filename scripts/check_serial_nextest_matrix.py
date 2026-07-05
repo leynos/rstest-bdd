@@ -37,41 +37,33 @@ class SerialNextestMatrixError(ValueError):
 
     @classmethod
     def _for_heading(cls, template: str, heading: str) -> SerialNextestMatrixError:
-        """Build an error from a heading-only message template."""
+        """
+        Build an error from a heading-only message template.
+
+        Parameters
+        ----------
+        cls : type[SerialNextestMatrixError]
+            The error type being constructed.
+        template : str
+            Format string that accepts a ``heading`` field.
+        heading : str
+            Heading text to interpolate into ``template``.
+
+        Returns
+        -------
+        SerialNextestMatrixError
+            Error built from the formatted heading template.
+        """
         return cls(template.format(heading=heading))
 
     @classmethod
     def heading_not_found(cls, heading: str) -> SerialNextestMatrixError:
-        """
-        Build an error for a missing anchor heading.
-
-        Parameters
-        ----------
-        heading : str
-            The heading that was expected in the document.
-
-        Returns
-        -------
-        SerialNextestMatrixError
-            Error raised when the heading cannot be found.
-        """
+        """Build an error for a missing anchor heading."""
         return cls._for_heading("heading not found: {heading}", heading)
 
     @classmethod
     def separator_not_found(cls, heading: str) -> SerialNextestMatrixError:
-        """
-        Build an error for a table without its separator row.
-
-        Parameters
-        ----------
-        heading : str
-            The heading that anchors the table.
-
-        Returns
-        -------
-        SerialNextestMatrixError
-            Error raised when the separator row is missing.
-        """
+        """Build an error for a table without its separator row."""
         return cls._for_heading(
             "runner matrix under {heading!r} has no separator row", heading
         )
@@ -101,19 +93,7 @@ class SerialNextestMatrixError(ValueError):
 
     @classmethod
     def table_not_found(cls, heading: str) -> SerialNextestMatrixError:
-        """
-        Build an error for a missing runner matrix.
-
-        Parameters
-        ----------
-        heading : str
-            The heading that should contain the table.
-
-        Returns
-        -------
-        SerialNextestMatrixError
-            Error raised when the table cannot be found.
-        """
+        """Build an error for a missing runner matrix."""
         return cls._for_heading(
             "runner matrix not found under heading: {heading}", heading
         )
