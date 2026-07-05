@@ -47,8 +47,6 @@ class SerialNextestMatrixError(ValueError):
 
         Parameters
         ----------
-        cls : type[SerialNextestMatrixError]
-            The error type being constructed.
         heading : str
             The heading that was expected in the document.
 
@@ -66,8 +64,6 @@ class SerialNextestMatrixError(ValueError):
 
         Parameters
         ----------
-        cls : type[SerialNextestMatrixError]
-            The error type being constructed.
         heading : str
             The heading that anchors the table.
 
@@ -87,8 +83,6 @@ class SerialNextestMatrixError(ValueError):
 
         Parameters
         ----------
-        cls : type[SerialNextestMatrixError]
-            The error type being constructed.
         heading : str
             The heading that anchors the table.
         actual : int
@@ -112,8 +106,6 @@ class SerialNextestMatrixError(ValueError):
 
         Parameters
         ----------
-        cls : type[SerialNextestMatrixError]
-            The error type being constructed.
         heading : str
             The heading that should contain the table.
 
@@ -135,8 +127,6 @@ class SerialNextestMatrixError(ValueError):
 
         Parameters
         ----------
-        cls : type[SerialNextestMatrixError]
-            The error type being constructed.
         relative_path : Path
             The document path relative to the repository root.
         error : OSError

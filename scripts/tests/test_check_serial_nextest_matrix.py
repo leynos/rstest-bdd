@@ -122,14 +122,11 @@ class TestExtractMatrixRows:
 
     def test_reports_missing_separator(self) -> None:
         """A runner table without a separator row should be rejected."""
-        malformed_table = "\n".join([
-            "| Runner | `#[serial]` effect | Cross-process exclusivity |",
-            (
-                "| `cargo test` | In-process mutex; required | "
-                "Not provided by `#[serial]` |"
-            ),
-            "",
-        ])
+        malformed_table = (
+            "| Runner | `#[serial]` effect | Cross-process exclusivity |\n"
+            "| `cargo test` | In-process mutex; required | "
+            "Not provided by `#[serial]` |\n"
+        )
         with pytest.raises(ValueError, match="has no separator row"):
             extract_matrix_rows(
                 document(MATRIX_HEADING, malformed_table), MATRIX_HEADING
