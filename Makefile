@@ -77,6 +77,7 @@ lint: ## Run Clippy with warnings denied
 	python3 scripts/check_rs_file_lengths.py
 	python3 scripts/check_users_guide_links.py
 	python3 scripts/check_gpui_mapping_table.py
+	python3 scripts/check_serial_nextest_matrix.py
 
 lint-whitaker: $(WHITAKER_LIBRARY) ## Run Whitaker no_unwrap_or_else_panic
 	$(CARGO) dylint --version >/dev/null
@@ -105,7 +106,7 @@ $(WHITAKER_TOOLCHAIN_STAMP): | ensure-whitaker-tools
 $(WHITAKER_BUILD_STAMP): $(WHITAKER_SRC)/.git $(WHITAKER_TOOLCHAIN_STAMP)
 	cd "$(WHITAKER_SRC)" && \
 		CARGO_TARGET_DIR="$(abspath $(WHITAKER_TARGET_DIR))" \
-		$(CARGO) +"$(WHITAKER_TOOLCHAIN)" build --release \
+		rustup run "$(WHITAKER_TOOLCHAIN)" cargo build --release \
 		-p "$(WHITAKER_LINT)" --features dylint-driver
 	touch "$@"
 

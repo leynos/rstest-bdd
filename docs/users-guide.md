@@ -1022,17 +1022,6 @@ path when `attributes = ...` is omitted:
 
 ```rust,no_run
 # use rstest_bdd_macros::scenario;
-#[scenario(
-    path = "tests/features/reminders.feature",
-    name = "Scheduling a reminder queues it for later delivery",
-    harness = rstest_bdd_harness_tokio::TokioHarness,
-)]
-fn queues_a_scheduled_reminder() {}
-```
-
-Keep explicit `attributes = ...` only for overrides, attributes-only tests, or
-unrecognized paths where the default cannot be inferred.
-
 ### Using the GPUI harness
 
 The `rstest-bdd-harness-gpui` crate provides Graphical Processing User
@@ -1055,23 +1044,6 @@ when `attributes = ...` is omitted:
 
 ```rust,no_run
 # use rstest_bdd_macros::scenario;
-#[scenario(
-    path = "tests/features/counter.feature",
-    name = "Increment a counter and observe GPUI context",
-    harness = rstest_bdd_harness_gpui::GpuiHarness,
-)]
-fn increment_and_observe_gpui_context() {}
-```
-
-Focused integration coverage in
-`crates/rstest-bdd-harness-gpui/tests/macro_compile.rs`,
-`crates/rstest-bdd-harness-gpui/tests/scenario_macros.rs`, and
-`crates/rstest-bdd-harness-gpui/tests/stateful_window.rs`. Those suites verify
-GPUI attribute-policy resolution for `#[scenario]` and `scenarios!`,
-deduplication when a `#[scenario]` test already carries an explicit
-`#[gpui::test]`, and stateful window scenarios that carry durable handles
-across steps.
-
 #### GPUI panic diagnostics carry scenario context
 
 When a step running under `GpuiHarness` panics, the harness prepends the
@@ -1092,7 +1064,9 @@ function names against feature files. For a concrete regression example, see
 > The thread-local scenario-state pattern below is the recommended way to
 > share mutable GPUI state across BDD steps in `rstest-bdd` 0.6.0, but it
 > exists to work around the current `StepContext::borrow_mut` contract
-> selected by [ADR-007][adr-007]. Sections
+> selected by
+> [ADR-007](https://github.com/leynos/rstest-bdd/blob/main/docs/adr-007-harness-context-injection.md).
+> Sections
 > 2.7.6.2 and 2.7.6.5 of the design document
 > ([rstest-bdd design][rstest-bdd-design]) and roadmap items 12.1.x track
 > the v0.7.0 redesign that will retire the thread-local approach in favour
@@ -1111,12 +1085,16 @@ function names against feature files. For a concrete regression example, see
 > the *published* `gpui 0.2.2` on crates.io encounter a different test API.
 > The four shapes that differ are:
 >
+<!-- markdownlint-disable MD013 -->
+>
 > | Operation | Vendored gpui (regression suite + these snippets) | Published `gpui 0.2.2` (downstream adopters) |
 > | --- | --- | --- |
 > | `add_window_view` closure | `\|_context\| View::default()` (one argument) | `\|_window, view_cx\| View::new(view_cx)` (two arguments) |
 > | obtain window handle | `visual_cx.window_handle()` (inherent method on `VisualTestContext`) | `vcx.window_handle()` (same call, but `window_handle` is a `VisualContext` trait method, so add `use gpui::VisualContext;`) |
 > | `VisualTestContext::from_window` | returns `Option<VisualTestContext>` (`let … else { panic!(…) }`) | returns `VisualTestContext` by value (no `Option`) |
 > | `read_entity` / `update_entity` | `Option`/`Result` wrappers (`Some(1)`, `Ok(())`) | identity `type Result<T> = T`; returns `R` directly |
+>
+<!-- markdownlint-enable MD013 -->
 >
 > *Table: Vendored-to-published gpui 0.2.2 API shape differences.*
 >
@@ -1193,19 +1171,9 @@ GPUI scenarios share a process-wide `TestAppContext` slot, and the
 thread-local reset protocol assumes sequential execution; running stateful
 GPUI scenarios in parallel breaks both invariants.
 
-> **`#[serial]` and cargo-nextest.** Under `cargo test`, all tests in one
-> binary run in a single process and `#[serial]` serialises them with an
-> in-process mutex — **required** for stateful GPUI scenarios. Under
-> cargo-nextest (`cargo nextest run`, which `make test` uses), each test
-> runs in its own process and the mutex is never contended: `#[serial]` is
-> *redundant-but-harmless* because process-per-test already isolates per-process
-> thread-local state. Keep `#[serial]` annotations so that `cargo test`
-> continues to work correctly; do not remove them on the assumption that nextest
-> makes them unnecessary. If two scenario binaries must not run concurrently
-> (for example, they share a hardware resource), use `#[file_serial]` (a
-> file-lock-backed variant in `serial_test`) or a
-> [nextest test-group](https://nexte.st/docs/configuration/test-groups/)
-> with `max-threads = 1`. See design-document §2.7.6.7 for the full matrix.
+See [test-runner parallelism and scenario state](#test-runner-parallelism-and-scenario-state)
+for the full `#[serial]`, cargo-nextest, `#[file_serial]`, and nextest
+test-group matrix.
 
 ##### Worked example
 
@@ -1375,7 +1343,7 @@ panic-on-invariant-violation `let … else { panic!(…) }` branches and
 `StepResult` within the same playbook reads ambiguously, so pick one shape per
 scenario.
 
-##### Fixture key versus parameter name
+#### Fixture key versus parameter name
 
 Steps request the GPUI context through the *reserved fixture key*
 `rstest_bdd_harness_context`. The key is part of the public contract: every
@@ -1387,7 +1355,7 @@ by the step author for readability. The `#[from(rstest_bdd_harness_context)]`
 attribute is what binds the key, so do not let parameter naming convince a
 reader the binding name is part of the contract.
 
-##### Where to read more
+#### Where to read more
 
 - [rstest-bdd design][rstest-bdd-design] §2.7.6.1 and §2.7.6.2 explain
   why the workaround takes this shape and what the borrow contract currently
@@ -1409,7 +1377,7 @@ reader the binding name is part of the contract.
 - Design-document §2.7.6.7 documents the full cargo test versus nextest matrix
   for `#[serial]` and thread-local state.
 
-##### Pedantic lint profile
+#### Pedantic lint profile
 
 The snippets above are the lint-clean form used by the regression suite. The
 repository runs Whitaker's `no_unwrap_or_else_panic` Dylint lint from
@@ -1433,7 +1401,7 @@ borrowed binding. For example, prefer a fresh guard name such as
 to enforce this single Whitaker lint now while deferring the full Whitaker
 suite.
 
-##### Bulk-migration cookbook
+#### Bulk-migration cookbook
 
 When migrating a large GPUI test suite, factor the durable-handle scaffolding
 into one shared steps module per consuming crate rather than copying it into
@@ -1482,6 +1450,84 @@ skip) observable from a single module.
 Once roadmap 11.1.3/11.1.4 ship (`ScenarioStore<T>` and the cleanup-guard
 fixture macro), the `common/mod.rs` block will shrink to a single import
 and the `#[scenario]` cleanup parameter will be generated automatically.
+
+#### Test-runner parallelism and scenario state
+
+Stateful scenarios that share thread-local or process-wide state need different
+serialisation tools depending on the test runner. The `#[serial]` attribute
+from the [`serial_test`](https://docs.rs/serial_test/) crate is still required
+for `cargo test` compatibility, even though cargo-nextest runs each test in a
+separate operating-system process.
+
+| Runner | `#[serial]` effect | Cross-process exclusivity |
+| --- | --- | --- |
+| `cargo test` | In-process mutex; required | Not provided by `#[serial]` |
+| nextest (process-per-test) | Redundant-but-harmless | `#[file_serial]` or test-group |
+
+*Table: `#[serial]` behaviour by test runner.*
+
+Under `cargo test`, all tests in one integration-test binary run in a single
+process using multiple threads. `#[serial]` serialises tests that carry the
+same key, or all unkeyed `#[serial]` tests together, with an in-process mutex.
+Stateful GPUI scenarios therefore keep `#[serial]` so the reset protocol is
+respected when the suite runs without nextest.
+
+Under cargo-nextest (`cargo nextest run`, which this repository's `make test`
+target uses), each test is run in its own process. The `#[serial]` mutex is not
+contended across process boundaries, so the annotation is
+redundant-but-harmless for nextest runs. Keep it for `cargo test`; do not
+remove it just because nextest already isolates per-process thread-local state.
+The design rationale is recorded in
+[design-document §2.7.6.7][design-runner-parallelism], and the maintainer
+convention is summarised in
+[the developer guide][developer-serial-nextest].
+
+When separate test processes or separate test binaries must not overlap, use a
+cross-process mechanism instead of `#[serial]`. cargo-nextest
+[test-groups][nextest-test-groups] define logical mutexes across the whole
+nextest run. This example makes any test whose name contains `stateful_gpui::`
+run one at a time:
+
+```toml
+[test-groups]
+stateful-gpui = { max-threads = 1 }
+
+[[profile.default.overrides]]
+filter = 'test(stateful_gpui::)'
+test-group = 'stateful-gpui'
+```
+
+Test-groups are available in cargo-nextest 0.9.48 and later. They apply only to
+nextest scheduling; they do not change `cargo test` behaviour.
+
+The `serial_test` crate also provides `#[file_serial]`, which uses a file lock
+instead of the in-process mutex. Enable the crate's `file_locks` feature before
+using it:
+
+```toml
+[dev-dependencies]
+serial_test = { version = "...", features = ["file_locks"] }
+```
+
+The feature flag is the important part; choose the major version already used
+by the consuming workspace. The `file_locks` feature is available in both the
+2.x and 3.x `serial_test` lines.
+
+```rust,no_run
+
+# use serial_test::file_serial;
+#[test]
+#[file_serial(stateful_gpui)]
+fn opens_shared_gpui_resource() {
+    // Exercise the shared resource.
+}
+```
+
+`#[file_serial]` defaults to a lock file under the operating system's temporary
+directory, and supports explicit `path` and key arguments. It does not mutually
+exclude tests annotated with `#[serial]`; the two attributes use different lock
+mechanisms. Use one cross-process convention consistently for tests that must
+exclude one another.
 
 [gpui-migration]:
 v0-6-0-migration-guide.md#migrate-a-stateful-gpui-test
@@ -2679,8 +2725,10 @@ three amigos in the specification process.
 
 [scenario-status]: https://docs.rs/rstest-bdd/latest/rstest_bdd/reporting/enum.ScenarioStatus.html
 [adr-001]: https://github.com/leynos/rstest-bdd/blob/main/docs/adr-001-async-fixtures-and-test.md
-[adr-007]: https://github.com/leynos/rstest-bdd/blob/main/docs/adr-007-harness-context-injection.md
 [adr-013]: https://github.com/leynos/rstest-bdd/blob/main/docs/adr-013-adopt-whitaker-no-unwrap-or-else-panic.md
 [gherkin-syntax]: https://github.com/leynos/rstest-bdd/blob/main/docs/gherkin-syntax.md#section-12-the-anatomy-of-a-feature-file
 [migration-async-patterns]: https://github.com/leynos/rstest-bdd/blob/main/docs/cucumber-rs-migration-and-async-patterns.md
 [rstest-bdd-design]: https://github.com/leynos/rstest-bdd/blob/main/docs/rstest-bdd-design.md
+[design-runner-parallelism]: https://github.com/leynos/rstest-bdd/blob/main/docs/rstest-bdd-design.md#2767-test-runner-parallelism-and-scenario-state
+[developer-serial-nextest]: https://github.com/leynos/rstest-bdd/blob/main/docs/developers-guide.md#serial-file_serial-and-nextest-test-groups
+[nextest-test-groups]: https://nexte.st/docs/configuration/test-groups/
