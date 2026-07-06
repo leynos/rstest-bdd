@@ -2,7 +2,7 @@ VALE ?= vale
 
 .PHONY: help all clean test build build-python release lint lint-python
 .PHONY: lint-whitaker ensure-whitaker-tools typecheck fmt check-fmt markdownlint nixie publish-check
-.PHONY: forbid-async-trait vale update-ui-lints-lock
+.PHONY: forbid-async-trait vale update-ui-lints-lock test-workflow-contracts
 
 SHELL := bash
 export PATH := $(HOME)/.cargo/bin:$(HOME)/.bun/bin:$(HOME)/.local/bin:$(PATH)
@@ -146,6 +146,9 @@ nixie:
 
 publish-check: build-python ## Package crates in release order to validate publish readiness
 	$(UV_ENV) $(UV) run --with "$(LADING_SPEC)" lading publish --workspace-root . --allow-unpublished-workspace-deps
+
+test-workflow-contracts: ## Validate the mutation-testing caller contract
+	$(UV_ENV) $(UV) run --with 'pytest>=8' --with 'pyyaml>=6' pytest tests/workflow_contracts -q
 
 update-ui-lints-lock: ## Refresh ui_lints trybuild lockfile for `--locked` CI
 	$(CARGO) generate-lockfile --manifest-path crates/rstest-bdd/tests/ui_lints/Cargo.toml
