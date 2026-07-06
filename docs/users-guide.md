@@ -1403,53 +1403,103 @@ suite.
 
 #### Bulk-migration cookbook
 
-When migrating a large GPUI test suite, factor the durable-handle scaffolding
-into one shared steps module per consuming crate rather than copying it into
-each test file.
+When migrating a large test suite, factor the whole durable-handle **step
+library** — the `#[given]`/`#[when]`/`#[then]` steps together with the state
+scaffolding — into one shared module per consuming crate, rather than copying it
+into every test file. This is the v0.6.0 shape, and it is deliberately explicit.
+Once roadmap items 11.1.3 and 11.1.4 ship (`ScenarioStore<T>` and the
+cleanup-guard fixture macro), the shared block shrinks to a single import and the
+`#[scenario]` cleanup parameter is generated for you. Adopt the pattern now and
+expect to shrink it then.
 
-A typical layout for a crate with many GPUI scenarios:
+##### Why one shared module works
+
+Steps register globally at binary link time through the
+[`inventory`](https://docs.rs/inventory/) crate, so every step compiled into a
+test binary is discoverable by every scenario in that binary, whatever module
+defined it. Placing the steps in a module that each binding file compiles in
+(through a `#[path]` include) therefore makes one library serve many scenarios
+across many feature files. Each integration-test file is its own binary with its
+own registry, so the same step text in two binaries never collides.
+
+Keep the shared module in the `tests/common/` **subdirectory** form
+(`tests/common/<name>.rs`), not `tests/<name>.rs`: Cargo compiles files placed
+directly under `tests/` as their own test binaries, but treats files in a
+subdirectory as ordinary modules. Mark every item a binding file references as
+`pub`, because a `#[path]`-included module is a real module boundary — the
+single-file worked example above never needed this.
+
+##### Layout
 
 ```text
 tests/
   common/
-    mod.rs          # shared ScenarioState, reset helpers, Drop guard, fixture
+    ledger_steps.rs   # shared: state scaffolding + fixture + given/when/then
   features/
-    scenario_a.feature
-    scenario_b.feature
-  scenario_a_bdd.rs # #[scenario] + #[serial] bindings, mod common;
-  scenario_b_bdd.rs
+    first.feature
+    second.feature
+  first_bdd.rs        # #[path] include + one #[scenario]; no steps here
+  second_bdd.rs
 ```
 
-`tests/common/mod.rs` contains exactly the boilerplate from the worked example
-above: the `ScenarioState` struct, `thread_local!`, `reset_state_before_assignment`,
-`reset_state_after_scenario`, `ScenarioStateCleanup`, and the
-`scenario_state_cleanup` fixture. Each scenario file imports it with
-`mod common;` (or `#[path = "common/mod.rs"] mod common;` if the layout
-requires it) and binds each `#[scenario]` with:
+##### Binding a scenario
+
+Each binding file includes the shared library and binds a `#[scenario]` with no
+steps of its own. Bind the shared fixture with a module-qualified `#[from(...)]`
+path so its provenance stays visible at the binding site:
 
 ```rust,no_run
-# use rstest_bdd_macros::scenario;
-# use serial_test::serial;
-# mod common { pub struct ScenarioStateCleanup; }
+#[path = "common/ledger_steps.rs"]
+mod ledger_steps;
+
+use rstest_bdd_macros::scenario;
+
 #[scenario(
-    path = "tests/features/scenario_a.feature",
-    name = "My scenario A",
-    harness = rstest_bdd_harness_gpui::GpuiHarness,
+    path = "tests/features/first.feature",
+    name = "First scenario reuses the shared step library",
 )]
-#[serial]
-fn scenario_a(
-    #[from(common::scenario_state_cleanup)] _cleanup: common::ScenarioStateCleanup,
+fn first(
+    #[from(ledger_steps::ledger_state)] _state: ledger_steps::LedgerState,
 ) {
 }
 ```
 
-This keeps the reset protocol and `Drop` guard in one place, avoids
-copy-paste drift, and makes the three-state lifecycle (success, failure,
-skip) observable from a single module.
+The shared module keeps durable scenario state in a regular `rstest` fixture
+backed by `Slot<T>` — the clean shape recommended when steps do not also need
+mutable harness context — and defines the `#[given]`/`#[when]`/`#[then]` steps
+once. This keeps the library in one place, avoids copy-paste drift, and makes a
+consuming crate's growth cost one binding file per scenario rather than a fresh
+copy of the helpers.
 
-Once roadmap 11.1.3/11.1.4 ship (`ScenarioStore<T>` and the cleanup-guard
-fixture macro), the `common/mod.rs` block will shrink to a single import
-and the `#[scenario]` cleanup parameter will be generated automatically.
+The executable reference for this shape lives at
+`crates/rstest-bdd/tests/bulk_migration_cookbook_a.rs` and `_b.rs`, both sharing
+`crates/rstest-bdd/tests/common/bulk_migration_steps.rs`; the compile-checked
+mirror is the trybuild fixture
+`crates/rstest-bdd/tests/fixtures_macros/scenario_bulk_migration_cookbook.rs`.
+If a snippet here drifts from those, the suite wins.
+
+##### Applying it to stateful GPUI scenarios
+
+For GPUI, the shared module holds the durable-handle library from the
+"Worked example" above: the `ScenarioState`, `thread_local!`,
+the two reset helpers, the `ScenarioStateCleanup` `Drop` guard, the
+`scenario_state_cleanup` fixture, and the `#[given]`/`#[when]`/`#[then]` steps
+that store `Entity<T>` and `AnyWindowHandle` and rebuild `VisualTestContext`.
+Each binding then adds `harness = rstest_bdd_harness_gpui::GpuiHarness` and
+`#[serial]` and binds the cleanup fixture the same module-qualified way, exactly
+as the single-scenario worked example shows. The executable reference for the
+GPUI half is `crates/rstest-bdd-harness-gpui/tests/stateful_window.rs`, so the
+sharing mechanism (this suite) and the GPUI durable-handle specifics
+(`stateful_window.rs`) are each backed by a runnable reference.
+
+Those GPUI snippets are written against the *vendored* gpui. Adopters on the
+published `gpui 0.2.2` — the audience migrating real suites — should adapt them
+using the vendored-to-published mapping table above (under "Durable handles
+versus visual context").
+
+Editing only a `.feature` file does not trigger a rebuild (see design-document
+§2.7.6.6), so touch a binding `.rs` file (or run `cargo clean -p <crate>`) after
+changing feature text; otherwise a stale build can mask the change.
 
 #### Test-runner parallelism and scenario state
 

@@ -280,6 +280,30 @@ These tests were moved out of `rstest-bdd` in this release to decouple the core
 crate from Tokio and GPUI dev-dependencies, making it publishable to crates.io
 without carrying those dependencies.
 
+### Bulk-migration cookbook reference suite
+
+The user guide's "Bulk-migration cookbook" subsection is backed by a
+harness-agnostic reference in the core `rstest-bdd` crate:
+`tests/common/bulk_migration_steps.rs` is one shared durable-state step library
+that `tests/bulk_migration_cookbook_a.rs` and `_b.rs` each include through a
+`#[path]` module and bind to their own feature file under
+`tests/features/bulk_migration/`. The binding files carry no step definitions;
+that "zero steps in the binding" property is the reuse proof and must be
+preserved. A trybuild compile-pass mirror,
+`tests/fixtures_macros/scenario_bulk_migration_cookbook.rs`, compile-checks the
+same shape and is registered in `run_passing_macro_tests`
+(`tests/trybuild_macros.rs`); like all trybuild fixtures it runs under plain
+`cargo test`, not nextest.
+
+Doc↔suite parity for this cookbook is guarded by prose, not a checker (the
+subsection states "if a snippet drifts, the suite wins"), matching the
+third-party harness cookbook convention rather than the doc↔doc parity scripts.
+The GPUI durable-handle specialisation of the pattern is documented in prose and
+remains proven by the `stateful_window` binary above; keep the cookbook's GPUI
+snippets bridged to published `gpui 0.2.2` through the vendored-to-published
+mapping table, and keep edits near that table and the `#[serial]`/nextest matrix
+green under `check_gpui_mapping_table.py` and `check_serial_nextest_matrix.py`.
+
 ## First-party adapter dependency boundary
 
 `rstest-bdd-harness` remains the owner of `HarnessAdapter`, `AttributePolicy`,
