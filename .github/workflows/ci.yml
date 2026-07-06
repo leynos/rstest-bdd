@@ -115,6 +115,10 @@ jobs:
         if: ${{ matrix.tools }}
         run: make lint
 
+      - name: Workflow contract tests
+        if: ${{ matrix.tools && matrix.features == '' }}
+        run: make test-workflow-contracts
+
       - name: Ensure async-trait is absent
         if: ${{ matrix.tools }}
         run: make forbid-async-trait

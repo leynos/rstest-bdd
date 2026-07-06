@@ -1,0 +1,46 @@
+name: Mutation testing
+
+# Thin caller of the shared mutation-testing reusable workflow; caller
+# guide: leynos/shared-actions docs/mutation-cargo-workflow.md.
+# Scheduled runs mutate only files changed within the detection window;
+# manual dispatch runs mutate everything, fanned out across shards. To
+# test a branch, select it in the Actions "Run workflow" control.
+
+on:
+  schedule:
+    - cron: "35 3 * * *" # Daily, 03:35 UTC
+  workflow_dispatch:
+
+# Default the token to no scopes; the job opts in explicitly.
+permissions: {}
+
+# Serialize runs per ref: a dispatch during a scheduled run (or vice
+# versa) queues rather than racing. Runs are informational, so queued
+# runs wait instead of cancelling.
+concurrency:
+  group: mutation-testing-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  mutation:
+    permissions:
+      contents: read
+      id-token: write # OIDC workflow-source resolution
+    uses: leynos/shared-actions/.github/workflows/mutation-cargo.yml@47aea18960d24f33aedc4782ec6b73e365418313
+    with:
+      # The workspace's mutable source lives under crates/; the root
+      # Cargo.toml is a virtual manifest with no src/. The vendored
+      # gpui crates under vendor/ sit outside the workspace and are
+      # deliberately not added via extra-crate-dirs: mutants in
+      # third-party vendored code would be pure noise.
+      paths: "crates/"
+      # Example applications, test-fixture crates (cargo-bdd's minimal
+      # fixture workspace, trybuild/macrotest fixture and UI-expectation
+      # crates), and test-support modules compiled into src/ exist only
+      # to exercise the framework; their survivors are noise and UI-test
+      # expectations must never be mutated.
+      exclude-globs: "examples/**,crates/cargo-bdd/tests/fixtures/**,crates/*/tests/fixtures_macros/**,crates/rstest-bdd/tests/ui_lints/**,crates/rstest-bdd/tests/ui_macros/**,crates/rstest-bdd/src/test_support.rs,crates/rstest-bdd-server/src/test_support.rs,crates/rstest-bdd-harness/src/binary_test_support.rs,crates/rstest-bdd-harness/src/macrotest_support.rs,crates/rstest-bdd-harness/src/test_utils.rs,crates/rstest-bdd-harness/src/trybuild_staging/**"
+      # Match the repository's test baseline (`make test` runs with
+      # --workspace --all-targets --all-features) so feature-gated
+      # tests run against mutants.
+      extra-args: "--all-features"
