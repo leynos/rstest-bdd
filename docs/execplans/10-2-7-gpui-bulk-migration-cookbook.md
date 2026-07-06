@@ -5,11 +5,12 @@ This ExecPlan (execution plan) is a living document. The sections
 `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
 proceeds.
 
-Status: APPROVED
+Status: COMPLETE
 
 Approved 2026-07-06: the maintainer accepted both Decision 1 (harness-agnostic
 validation vehicle) and Decision 2 (published-`gpui 0.2.2` bridge as a hard
-requirement). Implementation may proceed within tolerances.
+requirement). Implemented and delivered the same day; all gates and CodeRabbit
+green. See "Outcomes & retrospective".
 
 Roadmap item: 10.2.7 (phase 10, "First-cut beta feedback: v0.6.0-beta3 quick
 wins"). Design reference: `docs/rstest-bdd-design.md` §2.7.6.2.
@@ -281,9 +282,13 @@ Stop and escalate (document in Decision Log, await direction) when:
       `run_passing_macro_tests`, green under plain `cargo test`.
 - [x] (2026-07-06) Stage C-unit: added the `ledger_reset_clears_accumulated_balance`
       rstest unit test in binding A.
-- [ ] Stage D-refactor: full gates via `scrutineer` (running); then CodeRabbit;
-      clear findings.
-- [ ] Mark roadmap 10.2.7 done; refresh the draft PR.
+- [x] (2026-07-06) Stage D-refactor: full gates green via `scrutineer` —
+      `make check-fmt`, `make lint`, `make test` (1496 Rust + 53 Python tests),
+      `make markdownlint` (98 files), `make nixie`, and the plain-`cargo test`
+      trybuild pass (56 fixtures). `coderabbit review --agent` completed with
+      zero findings.
+- [x] (2026-07-06) Marked roadmap 10.2.7 done with a delivery note; PR #571
+      updated to reflect the completed implementation.
 
 ## Surprises & discoveries
 
@@ -377,8 +382,38 @@ Stop and escalate (document in Decision Log, await direction) when:
 
 ## Outcomes & retrospective
 
-To be completed at milestones and at the end. Compare against the four
-observable-success criteria in "Purpose".
+Delivered against all four success criteria in "Purpose":
+
+1. `docs/users-guide.md` "Bulk-migration cookbook" now documents sharing the
+   step library (not only scaffolding), framed v0.6.0→v0.6.1, bridged to
+   published `gpui 0.2.2`, and pointing at the executable references.
+2. The harness-agnostic reference suite proves one shared step library serves
+   two scenarios across two feature files, with zero step definitions in the
+   binding files.
+3. Red→Green was demonstrated: disabling the shared `Given` step produced
+   `Step not found at index 0: Given a fresh ledger`; restoring it turned both
+   bindings green.
+4. `make check-fmt`, `make lint`, `make test`, `make markdownlint`, `make nixie`,
+   and the plain-`cargo test` trybuild pass all succeeded; the two named
+   scenarios appear in the test output; CodeRabbit found zero issues.
+
+What went well: the six-lens design review caught, before any code was written,
+that the originally planned feature-gated GPUI suite was the wrong vehicle
+(obsolescence against 11.1.3/11.1.4, dead-code lint, vendored-vs-published
+mismatch, and duplication of `stateful_window.rs`). Switching to a
+harness-agnostic proof built on the shipped `Slot<T>`/`ScenarioState` primitives
+made the suite lint-clean, cheap, and durable.
+
+Lessons: (1) rstest's `#[from]` accepts a module-qualified path, so the existing
+cookbook prose was valid — verify such assumptions with a compile before
+"correcting" docs. (2) User-guide Markdown is not compiled as doctests here, so
+a trybuild fixture is the right compile-backing for a snippet; the runtime suite
+is
+the execution-backing. (3) The stepless-module Red is the honest shape — a
+missing-`mod` compile error would have proved nothing about step resolution.
+
+Would do differently: draft the plan against the harness-agnostic vehicle from
+the start rather than reaching it via review, saving one revision cycle.
 
 ## Context and orientation
 
