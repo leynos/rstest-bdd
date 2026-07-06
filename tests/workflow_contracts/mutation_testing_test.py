@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 import yaml
 
 WORKFLOW_PATH = (
@@ -48,7 +49,7 @@ EXPECTED_WITH = {
         "crates/rstest-bdd-harness/src/test_utils.rs,"
         "crates/rstest-bdd-harness/src/trybuild_staging/**"
     ),
-    "extra-args": "--all-features",
+    "extra-args": "--all-features --test-workspace=true",
 }
 
 
@@ -75,9 +76,23 @@ def _mutation_job(workflow: dict[str, object]) -> dict[str, object]:
     return jobs["mutation"]
 
 
-def test_uses_reference_is_pinned_to_the_documented_sha() -> None:
+@pytest.fixture(scope="module")
+def workflow() -> dict[str, object]:
+    """Parse the workflow file once for the module."""
+    return _load()
+
+
+@pytest.fixture(scope="module")
+def mutation_job(workflow: dict[str, object]) -> dict[str, object]:
+    """Return the single calling job."""
+    return _mutation_job(workflow)
+
+
+def test_uses_reference_is_pinned_to_the_documented_sha(
+    mutation_job: dict[str, object],
+) -> None:
     """The job must call the shared workflow at the exact documented SHA."""
-    uses = _mutation_job(_load()).get("uses")
+    uses = mutation_job.get("uses")
     assert uses is not None, "jobs.mutation.uses is missing"
     path, _, ref = uses.partition("@")
     assert path == "leynos/shared-actions/.github/workflows/mutation-cargo.yml", (
@@ -97,27 +112,32 @@ def test_uses_reference_is_pinned_to_the_documented_sha() -> None:
     )
 
 
-def test_job_permissions_are_exactly_least_privilege() -> None:
+def test_job_permissions_are_exactly_least_privilege(
+    mutation_job: dict[str, object],
+) -> None:
     """The job grants contents: read and id-token: write, nothing broader."""
-    permissions = _mutation_job(_load()).get("permissions")
+    permissions = mutation_job.get("permissions")
     assert permissions == {"contents": "read", "id-token": "write"}, (
         "jobs.mutation.permissions must be exactly "
         f"{{'contents': 'read', 'id-token': 'write'}}, got {permissions!r}"
     )
 
 
-def test_workflow_default_permissions_are_empty() -> None:
+def test_workflow_default_permissions_are_empty(
+    workflow: dict[str, object],
+) -> None:
     """The workflow-level default token scope is empty."""
-    workflow = _load()
     assert workflow.get("permissions") == {}, (
         f"top-level permissions must be an empty mapping, got "
         f"{workflow.get('permissions')!r}"
     )
 
 
-def test_concurrency_serializes_per_ref_without_cancelling() -> None:
+def test_concurrency_serializes_per_ref_without_cancelling(
+    workflow: dict[str, object],
+) -> None:
     """Runs queue per ref instead of cancelling one another."""
-    concurrency = _load().get("concurrency")
+    concurrency = workflow.get("concurrency")
     assert isinstance(concurrency, dict), "the workflow must declare concurrency"
     assert concurrency.get("group") == "mutation-testing-${{ github.ref }}", (
         f"concurrency.group must key on the triggering ref, got "
@@ -129,9 +149,11 @@ def test_concurrency_serializes_per_ref_without_cancelling() -> None:
     )
 
 
-def test_triggers_keep_schedule_and_plain_dispatch() -> None:
+def test_triggers_keep_schedule_and_plain_dispatch(
+    workflow: dict[str, object],
+) -> None:
     """The daily schedule stays; dispatch has no legacy branch input."""
-    triggers = _triggers(_load())
+    triggers = _triggers(workflow)
     schedule = triggers.get("schedule")
     assert schedule == [{"cron": "35 3 * * *"}], (
         f"on.schedule must be the daily 03:35 UTC cron, got {schedule!r}"
@@ -145,9 +167,11 @@ def test_triggers_keep_schedule_and_plain_dispatch() -> None:
     )
 
 
-def test_with_block_carries_the_caller_configuration() -> None:
+def test_with_block_carries_the_caller_configuration(
+    mutation_job: dict[str, object],
+) -> None:
     """The caller passes exactly the paths, excludes, and feature args."""
-    with_block = _mutation_job(_load()).get("with")
+    with_block = mutation_job.get("with")
     assert isinstance(with_block, dict), "jobs.mutation.with is missing"
     assert with_block == EXPECTED_WITH, (
         "jobs.mutation.with must configure exactly the workspace paths, the "
