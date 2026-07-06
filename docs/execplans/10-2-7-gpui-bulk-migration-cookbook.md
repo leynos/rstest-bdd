@@ -5,7 +5,11 @@ This ExecPlan (execution plan) is a living document. The sections
 `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
 proceeds.
 
-Status: DRAFT
+Status: APPROVED
+
+Approved 2026-07-06: the maintainer accepted both Decision 1 (harness-agnostic
+validation vehicle) and Decision 2 (published-`gpui 0.2.2` bridge as a hard
+requirement). Implementation may proceed within tolerances.
 
 Roadmap item: 10.2.7 (phase 10, "First-cut beta feedback: v0.6.0-beta3 quick
 wins"). Design reference: `docs/rstest-bdd-design.md` §2.7.6.2.
@@ -49,6 +53,12 @@ You can see success four ways:
 4. `make check-fmt`, `make lint`, `make test`, `make markdownlint`, and
    `make nixie` all pass, and the two named scenario tests appear in the
    `make test` output (not merely a green exit code).
+5. **Every code example in the cookbook is backed by a test.** No fenced Rust
+   example in the new or expanded cookbook subsection is illustrative-only:
+   each maps to a named runtime test or a trybuild compile-pass fixture (or, for
+   a GPUI-specific snippet that cannot run in the harness-agnostic crate, to a
+   named item in the existing `stateful_window.rs` reference), and the prose
+   names that backing so a reader can find it.
 
 ### Why this is not "already done"
 
@@ -165,6 +175,26 @@ must state it is written against vendored gpui. This is a hard requirement
    existing vendored-vs-published mapping table and mark any GPUI snippet as
    vendored-API. Do not hand adopters vendored-only step bodies without the
    bridge.
+9. **Every example is test-backed (no unbacked snippets).** Each fenced Rust
+   code example introduced or expanded by this change must be validated by a
+   test, using exactly one of these backings, and the nearby prose must name it:
+   - a runtime integration test that executes the example (the new shared-library
+     suite, for the sharing snippets); or
+   - a trybuild compile-pass fixture that compiles the example (for structural
+     snippets that are not worth executing); or
+   - for a GPUI-specific snippet that cannot compile or run in the harness-
+     agnostic `rstest-bdd` crate, an explicit cross-reference to the concrete
+     item in `crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` that
+     exercises the same shape.
+
+   A snippet that is genuinely non-compilable by nature (for example a file-tree
+   `text` block, a `toml` fragment, or a `gherkin` feature body) is exempt from
+   *compilation* but its Rust counterpart must still be backed; feature bodies
+   used by the suite are inherently covered because the suite binds to them.
+   The trybuild compile-pass fixture is therefore **required**, not optional
+   (see Stage C), because the cookbook's structural Rust snippet is not otherwise
+   compiled — user-guide Markdown code blocks are not compiled as doctests in
+   this repository.
 
 ## Tolerances (exception triggers)
 
@@ -172,8 +202,8 @@ Stop and escalate (document in Decision Log, await direction) when:
 
 1. **Scope:** more than ~10 files touched, or more than ~400 net lines of
    non-generated code (excluding prose and feature files). Intended footprint:
-   1 shared module, 2 binding files, 2 feature files, optionally 1 trybuild
-   fixture + 1 fixture feature file, plus edits to `users-guide.md`,
+   1 shared module, 2 binding files, 2 feature files, 1 required trybuild
+   compile-pass fixture + 1 fixture feature file, plus edits to `users-guide.md`,
    design §2.7.6.2, and `developers-guide.md`.
 2. **Interface:** any change touching a public API signature (Constraint 1) —
    stop immediately.
@@ -231,9 +261,11 @@ Stop and escalate (document in Decision Log, await direction) when:
 
 ## Progress
 
-- [ ] Stage A: orientation confirmed; Decision 1 and Decision 2 approved;
-      strict-validation behaviour under `--all-features` observed (completed:
-      research and design review; remaining: maintainer approval).
+- [x] (2026-07-06) Stage A: Decision 1 (harness-agnostic vehicle) and Decision 2
+      (published-gpui bridge) approved by the maintainer; design review complete.
+      Remaining sub-item, to do at the start of implementation: observe whether
+      `--all-features` activates `strict-compile-time-validation` (affects only
+      how the Red is described, not its shape).
 - [ ] Stage B-red: add two feature files and two binding files, plus the shared
       module with scaffolding + `pub` fixture but **no steps**; `cargo clean -p
       rstest-bdd`; run the focused suite; record the `StepNotFound` failure.
@@ -292,12 +324,21 @@ Stop and escalate (document in Decision Log, await direction) when:
   mapping table and marks GPUI snippets vendored-API. Rationale: the audience
   runs published gpui; vendored-only snippets would not compile for them.
   Date/Author: 2026-07-06 (post-review). (Decision 2, Constraint 8.)
-- Decision: No trybuild GPUI fixture; an optional harness-agnostic trybuild
-  compile-pass fixture may be added to guard the cookbook's structural snippet,
-  mirroring `scenario_third_party_harness_cookbook.rs`. Rationale: that sibling
-  mirrors against a minimal stand-in, not a real framework, so a compile guard
-  needs no gpui. Kept optional to respect the scope tolerance. Date/Author:
-  2026-07-06 (post-review).
+- Decision: No trybuild GPUI fixture; a harness-agnostic trybuild compile-pass
+  fixture guards the cookbook's structural snippet, mirroring
+  `scenario_third_party_harness_cookbook.rs`. Rationale: that sibling mirrors
+  against a minimal stand-in, not a real framework, so a compile guard needs no
+  gpui. Originally kept optional for scope; **made required** by the maintainer
+  instruction that tests are required for all examples (Constraint 9) — user-
+  guide Markdown is not compiled as doctests here, so the structural Rust snippet
+  needs this fixture to be test-backed. Date/Author: 2026-07-06 (post-review;
+  updated per "tests required for all examples").
+- Decision: Every cookbook example must be test-backed (Constraint 9), by a
+  runtime test, a trybuild compile-pass fixture, or a cross-reference to a
+  concrete `stateful_window.rs` item; non-compilable blocks (`text`/`toml`/
+  `gherkin`) are exempt from compilation but their Rust counterparts are not.
+  Rationale: maintainer instruction; also matches the repository convention that
+  every playbook snippet has an executable mirror. Date/Author: 2026-07-06.
 - Decision: No new ADR. Rationale: an additive, reversible, test-only
   documentation-and-testing convention resting on existing ADR-007/ADR-011 and
   design §2.7.6.2; AGENTS.md routes such conventions to the design doc and
@@ -511,12 +552,17 @@ the presence of the shared *steps*.
 3. Stage C-unit: add one rstest unit test (in the shared module under
    `#[cfg(test)]`) asserting the reset helper returns the world to its default;
    use plain `assert_eq!`.
-4. Optional: add the trybuild compile-pass fixture
+4. Required (Constraint 9): add the trybuild compile-pass fixture
    `crates/rstest-bdd/tests/fixtures_macros/scenario_bulk_migration_cookbook.rs`
    plus its feature file and register it in `run_passing_macro_tests`
-   (`trybuild_macros.rs`). If added, remember it runs under plain `cargo test`,
-   not nextest (the `NEXTEST_RUN_ID` skip guard), so validate it with
-   `cargo test -p rstest-bdd step_macros_compile`.
+   (`trybuild_macros.rs`), so the cookbook's structural Rust snippet is
+   compile-checked. It runs under plain `cargo test`, not nextest (the
+   `NEXTEST_RUN_ID` skip guard), so validate it with
+   `cargo test -p rstest-bdd step_macros_compile` (repository memory: nextest
+   skips trybuild fixtures). This fixture is the compile-backing for the
+   cookbook's binding/shared-module snippet; the runtime suite is the execution-
+   backing. Every other Rust snippet in the subsection must reuse one of these
+   two backings or cross-reference `stateful_window.rs`.
 
 ### Stage D — refactor, gates, review
 
@@ -583,14 +629,20 @@ Acceptance is behavioural and observable:
 3. **Reuse proof.** The two binding files contain no
    `#[given]`/`#[when]`/`#[then]` — a reviewer confirms by grepping and finding
    none (Constraint 3).
-4. **Full gates.** `make check-fmt`, `make lint`, `make test`,
+4. **Every example is test-backed (Constraint 9).** Each Rust snippet in the
+   cookbook subsection is traceable to a named runtime test, the trybuild
+   compile-pass fixture, or a named `stateful_window.rs` item, and the prose
+   names it. `cargo test -p rstest-bdd step_macros_compile` passes with the new
+   fixture registered. A reviewer can enumerate the subsection's Rust code
+   blocks and point at a backing test for each.
+5. **Full gates.** `make check-fmt`, `make lint`, `make test`,
    `make markdownlint`, `make nixie` all pass; the two named scenarios appear in
    `make test` output.
-5. **Docs finish line.** `docs/users-guide.md` carries the expanded
+6. **Docs finish line.** `docs/users-guide.md` carries the expanded
    "Bulk-migration cookbook" covering the shared step library, framed as the
    v0.6.0 shape, bridged to published gpui, and pointing at the executable
    suite; §2.7.6.2 and the developer guide reference it.
-6. **CodeRabbit.** `coderabbit review --agent` reports no outstanding concerns.
+7. **CodeRabbit.** `coderabbit review --agent` reports no outstanding concerns.
 
 Quality criteria ("done"):
 
@@ -698,5 +750,14 @@ target vendored gpui for a published-gpui audience, and duplicate
 `cargo clean -p rstest-bdd` cache guard for the feature-file rebuild foot-gun,
 a "named tests must appear" acceptance guard, the qualified `#[from]` form and
 `pub` requirement, the published-gpui bridge, the "v0.6.0 shape, shrinks in
-v0.6.1" framing, and dead-code/doc-parity-script constraints. Pending: maintainer
-approval of Decisions 1 and 2 before any implementation begins.
+v0.6.1" framing, and dead-code/doc-parity-script constraints.
+
+Revision 3 (2026-07-06). Added Constraint 9 — every cookbook example must be
+test-backed (a runtime test, the now-required trybuild compile-pass fixture, or
+a named cross-reference to `stateful_window.rs`); non-compilable `text`/`toml`/
+`gherkin` blocks are exempt from compilation but their Rust counterparts are
+not. Promoted the trybuild fixture from optional to required and threaded the
+requirement through the success criteria, tolerances footprint, validation
+acceptance, and decision log, per the maintainer instruction that tests are
+required for all examples. Marked the plan APPROVED after the maintainer
+accepted Decisions 1 and 2; implementation may now proceed within tolerances.
