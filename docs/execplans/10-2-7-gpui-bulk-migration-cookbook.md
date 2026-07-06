@@ -288,7 +288,14 @@ Stop and escalate (document in Decision Log, await direction) when:
       trybuild pass (56 fixtures). `coderabbit review --agent` completed with
       zero findings.
 - [x] (2026-07-06) Marked roadmap 10.2.7 done with a delivery note; PR #571
-      updated to reflect the completed implementation.
+      updated to reflect the completed implementation and marked ready.
+- [x] (2026-07-06) Post-review round: addressed two review findings — (1)
+      strengthened the reference scenarios so the first posts two entries and
+      asserts their sum (10 + 5 = 15, catching a set-instead-of-add regression)
+      and the second resets mid-scenario before re-posting (100 → reset → 25 =
+      25, making a no-op reset observable), adding a "the running total is reset"
+      step; (2) gave the trybuild fixture's inline `mod shared` its own `//!`
+      docstring. Re-ran the full gates and CodeRabbit: all green, zero findings.
 
 ## Surprises & discoveries
 
