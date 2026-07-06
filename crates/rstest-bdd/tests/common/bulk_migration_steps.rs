@@ -40,10 +40,24 @@ pub fn a_fresh_ledger(ledger_state: &LedgerState) {
 }
 
 /// Post an entry, accumulating it into the durable balance slot.
+///
+/// Accumulation (rather than overwrite) is what a multi-posting scenario
+/// exercises: posting 10 then 5 must leave 15, so a `set(amount)` regression
+/// would fail the balance assertion.
 #[when("an entry of {amount:i32} is posted")]
 pub fn an_entry_is_posted(ledger_state: &LedgerState, amount: i32) {
     let running = ledger_state.balance.get().unwrap_or_default();
     ledger_state.balance.set(running + amount);
+}
+
+/// Reset the running total mid-scenario, clearing the durable balance slot.
+///
+/// A scenario that resets after posting and then asserts only the post-reset
+/// total makes a no-op reset observable: without the clear, the earlier posting
+/// would still be counted.
+#[when("the running total is reset")]
+pub fn the_running_total_is_reset(ledger_state: &LedgerState) {
+    ledger_state.reset();
 }
 
 /// Assert the durable balance matches the expected total.

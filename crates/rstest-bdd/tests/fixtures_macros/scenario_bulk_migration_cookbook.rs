@@ -8,6 +8,15 @@
 //! at `crates/rstest-bdd/tests/bulk_migration_cookbook_a.rs` and `_b.rs`.
 
 mod shared {
+    //! Inline stand-in for the cookbook's shared step-library module.
+    //!
+    //! Mirrors `crates/rstest-bdd/tests/common/bulk_migration_steps.rs` in a
+    //! single compile unit so trybuild can check the shape without staging that
+    //! module: the durable-state type, its fixture, and the
+    //! `#[given]`/`#[when]`/`#[then]` steps that a scenario binding reuses
+    //! through a module-qualified `#[from]`. The runtime reference lives at
+    //! `crates/rstest-bdd/tests/bulk_migration_cookbook_a.rs` and `_b.rs`.
+
     use rstest::fixture;
     use rstest_bdd::ScenarioState as _;
     use rstest_bdd::Slot;
