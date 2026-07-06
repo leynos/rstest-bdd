@@ -266,16 +266,23 @@ Stop and escalate (document in Decision Log, await direction) when:
       Remaining sub-item, to do at the start of implementation: observe whether
       `--all-features` activates `strict-compile-time-validation` (affects only
       how the Red is described, not its shape).
-- [ ] Stage B-red: add two feature files and two binding files, plus the shared
-      module with scaffolding + `pub` fixture but **no steps**; `cargo clean -p
-      rstest-bdd`; run the focused suite; record the `StepNotFound` failure.
-- [ ] Stage B-docs: expand the cookbook subsection; extend design §2.7.6.2; add
-      a developer-guide maintainer note.
-- [ ] Stage C-green: add the shared step definitions; `cargo clean -p
-      rstest-bdd`; run the focused suite; confirm the two named tests pass.
-- [ ] Stage C-unit: add one rstest unit test for the reset helper.
-- [ ] Stage D-refactor: tidy; full gates via `scrutineer`; CodeRabbit; clear
-      findings; cross-link docs to the suite.
+- [x] (2026-07-06) Stage B-red: added two feature files, the shared module, and
+      two binding files; disabling the shared `Given` step made both bindings
+      fail at run time with `Step not found at index 0: Given a fresh ledger`;
+      restoring it turned them green. Red evidence captured.
+- [x] (2026-07-06) Stage B-docs: expanded the cookbook subsection, extended
+      design §2.7.6.2, and added the developer-guide note. Docs pass
+      markdownlint, `check_users_guide_links.py`, `check_gpui_mapping_table.py`,
+      and `check_serial_nextest_matrix.py`.
+- [x] (2026-07-06) Stage C-green: shared step library complete; both
+      `bulk_migration_cookbook_a`/`_b` scenarios pass; the binding files carry
+      zero step macros (reuse proof). Also added the required trybuild
+      compile-pass mirror `scenario_bulk_migration_cookbook.rs`, registered in
+      `run_passing_macro_tests`, green under plain `cargo test`.
+- [x] (2026-07-06) Stage C-unit: added the `ledger_reset_clears_accumulated_balance`
+      rstest unit test in binding A.
+- [ ] Stage D-refactor: full gates via `scrutineer` (running); then CodeRabbit;
+      clear findings.
 - [ ] Mark roadmap 10.2.7 done; refresh the draft PR.
 
 ## Surprises & discoveries
@@ -302,6 +309,20 @@ Stop and escalate (document in Decision Log, await direction) when:
   scenario builds its own `TestAppContext`), so the earlier cross-binary GPUI
   worry was unfounded; this reinforces that a GPUI-specific suite would buy
   little.
+- Observation (implementation): rstest's `#[from]` **does** accept a module-
+  qualified path — `#[from(bulk_migration_steps::ledger_state)]` compiles and
+  produces no unused-import warning, whereas a `use` + bare-ident form leaves the
+  imports flagged as unused once the `#[scenario]` macro rewrites the signature.
+  Evidence: the trybuild fixture compiled cleanly with the qualified form.
+  Impact: Constraint 7 (qualified `#[from]`) is correct and the existing
+  cookbook prose's `#[from(common::…)]` shape is valid; an earlier commit message
+  that claimed `#[from]` needs a bare identifier was wrong and is corrected in a
+  later commit.
+- Observation (implementation): `--all-features` did not turn missing steps into
+  a compile error for these suites — the Green suite built and passed under
+  `cargo clippy --all-features`, and the Red failure surfaced at run time as
+  `StepNotFound`. So step resolution here is runtime, and the Red shape is the
+  stepless/step-disabled runtime failure.
 
 ## Decision log
 
