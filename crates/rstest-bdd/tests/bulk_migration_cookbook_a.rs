@@ -3,7 +3,8 @@
 //! This file defines no steps of its own: it includes the shared step library
 //! via `#[path]` and binds one scenario to it, demonstrating that a consuming
 //! crate reuses one durable-handle step library across many scenarios without
-//! copying the helper code per scenario.
+//! copying the helper code per scenario. The fixture provenance stays visible
+//! at the binding site through the module-qualified `#[from(...)]` path.
 
 #[path = "common/bulk_migration_steps.rs"]
 mod bulk_migration_steps;
@@ -17,7 +18,10 @@ use rstest_bdd_macros::scenario;
     path = "tests/features/bulk_migration/first.feature",
     name = "First scenario reuses the shared step library"
 )]
-fn scenario_first_reuses_shared_steps(#[from(ledger_state)] _state: LedgerState) {}
+fn scenario_first_reuses_shared_steps(
+    #[from(bulk_migration_steps::ledger_state)] _state: bulk_migration_steps::LedgerState,
+) {
+}
 
 /// Unit-test the durable-state reset the shared library relies on, using the
 /// shared `ledger_state` fixture directly.
