@@ -839,16 +839,16 @@ application, and that configuration should stay out of `rstest-bdd` itself:
 ```toml
 [package]
 name = "rstest-bdd-harness-bevy"
-version = "0.6.0-beta2"
+version = "0.6.0-beta3"
 edition = "2024"
 
 [dependencies]
 bevy = { version = "0.14", default-features = false }
-rstest-bdd-harness = "0.6.0-beta2"
+rstest-bdd-harness = "0.6.0-beta3"
 
 [dev-dependencies]
-rstest-bdd = "0.6.0-beta2"
-rstest-bdd-macros = "0.6.0-beta2"
+rstest-bdd = "0.6.0-beta3"
+rstest-bdd-macros = "0.6.0-beta3"
 ```
 
 The harness type must implement `Default` because generated scenario tests
@@ -1008,7 +1008,7 @@ It is available as a dev-dependency:
 
 ```toml
 [dev-dependencies]
-rstest-bdd-harness-tokio = "0.6.0-beta2"
+rstest-bdd-harness-tokio = "0.6.0-beta3"
 ```
 
 A direct `rstest-bdd-harness` dependency is not required when using
@@ -1030,7 +1030,7 @@ as a dev-dependency:
 
 ```toml
 [dev-dependencies]
-rstest-bdd-harness-gpui = "0.6.0-beta2"
+rstest-bdd-harness-gpui = "0.6.0-beta3"
 ```
 
 A direct `rstest-bdd-harness` dependency is not required when using
@@ -2077,14 +2077,14 @@ To enable validation, pin a feature in the project's `dev-dependencies`:
 
 ```toml
 [dev-dependencies]
-rstest-bdd-macros = { version = "0.6.0-beta2", features = ["compile-time-validation"] }
+rstest-bdd-macros = { version = "0.6.0-beta3", features = ["compile-time-validation"] }
 ```
 
 For strict checking use:
 
 ```toml
 [dev-dependencies]
-rstest-bdd-macros = { version = "0.6.0-beta2", features = ["strict-compile-time-validation"] }
+rstest-bdd-macros = { version = "0.6.0-beta3", features = ["strict-compile-time-validation"] }
 ```
 
 Steps are only validated when one of these features is enabled.
@@ -2390,7 +2390,7 @@ Localization tooling can be added to `Cargo.toml` as follows:
 
 ```toml
 [dependencies]
-rstest-bdd = "0.6.0-beta2"
+rstest-bdd = "0.6.0-beta3"
 i18n-embed = { version = "0.16", features = ["fluent-system", "desktop-requester"] }
 unic-langid = "0.9"
 ```

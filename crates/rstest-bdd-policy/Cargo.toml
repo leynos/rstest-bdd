@@ -1,6 +1,6 @@
 [package]
 name = "rstest-bdd-policy"
-version = "0.6.0-beta2"
+version = "0.6.0-beta3"
 edition.workspace = true
 license.workspace = true
 authors.workspace = true

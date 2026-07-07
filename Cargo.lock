@@ -226,7 +226,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-bdd"
-version = "0.6.0-beta2"
+version = "0.6.0-beta3"
 dependencies = [
  "assert_cmd",
  "cargo_metadata",
@@ -755,7 +755,7 @@ dependencies = [
 
 [[package]]
 name = "gpui-counter"
-version = "0.6.0-beta2"
+version = "0.6.0-beta3"
 dependencies = [
  "gpui",
  "rstest",
@@ -1068,7 +1068,7 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
 name = "japanese-ledger"
-version = "0.6.0-beta2"
+version = "0.6.0-beta3"
 dependencies = [
  "rstest",
  "rstest-bdd",
@@ -1521,7 +1521,7 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd"
-version = "0.6.0-beta2"
+version = "0.6.0-beta3"
 dependencies = [
  "camino",
  "cap-std",
@@ -1555,7 +1555,7 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd-harness"
-version = "0.6.0-beta2"
+version = "0.6.0-beta3"
 dependencies = [
  "cargo_metadata",
  "insta",
@@ -1569,7 +1569,7 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd-harness-gpui"
-version = "0.6.0-beta2"
+version = "0.6.0-beta3"
 dependencies = [
  "cargo_metadata",
  "gpui",
@@ -1589,7 +1589,7 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd-harness-tokio"
-version = "0.6.0-beta2"
+version = "0.6.0-beta3"
 dependencies = [
  "cargo_metadata",
  "macrotest",
@@ -1605,7 +1605,7 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd-macros"
-version = "0.6.0-beta2"
+version = "0.6.0-beta3"
 dependencies = [
  "camino",
  "cap-std",
@@ -1632,7 +1632,7 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd-patterns"
-version = "0.6.0-beta2"
+version = "0.6.0-beta3"
 dependencies = [
  "gherkin",
  "regex",
@@ -1642,14 +1642,14 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd-policy"
-version = "0.6.0-beta2"
+version = "0.6.0-beta3"
 dependencies = [
  "rstest",
 ]
 
 [[package]]
 name = "rstest-bdd-server"
-version = "0.6.0-beta2"
+version = "0.6.0-beta3"
 dependencies = [
  "async-lsp",
  "cargo_metadata",
@@ -2175,7 +2175,7 @@ dependencies = [
 
 [[package]]
 name = "todo-cli"
-version = "0.6.0-beta2"
+version = "0.6.0-beta3"
 dependencies = [
  "assert_cmd",
  "assert_fs",
@@ -2216,7 +2216,7 @@ dependencies = [
 
 [[package]]
 name = "tokio-reminders"
-version = "0.6.0-beta2"
+version = "0.6.0-beta3"
 dependencies = [
  "rstest",
  "rstest-bdd",

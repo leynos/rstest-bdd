@@ -11,3 +11,6 @@ order = [
     "cargo-bdd",
 ]
 strip_patches = "per-crate"
+
+[bump]
+exclude = ["gpui", "gpui-macros"]
