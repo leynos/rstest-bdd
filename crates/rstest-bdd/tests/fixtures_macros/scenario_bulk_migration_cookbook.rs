@@ -1,11 +1,13 @@
 //! Compile-pass fixture mirroring the bulk-migration cookbook shape.
 //!
 //! Mirrors the cookbook's structural Rust snippet: a shared durable-state step
-//! library lives in one module, and a scenario binding reuses it by bringing
-//! the fixture into scope with `use` and binding it with `#[from]`. Kept
-//! self-contained (an inline `shared` module) so trybuild can compile it
-//! without staging the real `tests/common` module. The runtime reference lives
-//! at `crates/rstest-bdd/tests/bulk_migration_cookbook_a.rs` and `_b.rs`.
+//! library lives in one module, and a scenario binding reuses it by binding the
+//! fixture with a module-qualified `#[from(shared::ledger_state)]` path, which
+//! keeps the fixture's provenance visible at the binding site and needs no
+//! `use` import. Kept self-contained (an inline `shared` module) so trybuild can
+//! compile it without staging the real `tests/common` module. The runtime
+//! reference lives at `crates/rstest-bdd/tests/bulk_migration_cookbook_a.rs` and
+//! `_b.rs`.
 
 mod shared {
     //! Inline stand-in for the cookbook's shared step-library module.

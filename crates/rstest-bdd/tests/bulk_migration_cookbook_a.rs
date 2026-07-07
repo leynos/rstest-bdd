@@ -9,6 +9,8 @@
 #[path = "common/bulk_migration_steps.rs"]
 mod bulk_migration_steps;
 
+// Imported for the `#[rstest]` unit test below, which injects the fixture by
+// name; the `#[scenario]` binding itself uses the module-qualified `#[from]`.
 use bulk_migration_steps::{LedgerState, ledger_state};
 use rstest::rstest;
 use rstest_bdd::ScenarioState as _;
