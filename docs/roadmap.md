@@ -860,11 +860,29 @@ changing the public trait contracts.
   `scripts/check_serial_nextest_matrix.py` to keep the user-guide and design
   matrices in step. See
   `docs/execplans/10-2-6-documents-nextest-process-per-test-scheduling-and-serial-interaction.md`.
-- [ ] 10.2.7. A bulk-migration cookbook in the user guide shows how to share
+- [x] 10.2.7. A bulk-migration cookbook in the user guide shows how to share
   one durable-handle step library across many GPUI scenarios in a single
   consuming crate, so teams migrating large test suites do not copy the helper
   code per-scenario. Finish line: a cookbook subsection is present in
   `docs/users-guide.md`. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.2.
+  Delivered 2026-07-06: expanded the user-guide "Bulk-migration cookbook" to
+  share the whole step library (given/when/then plus the state scaffolding) in
+  one `#[path]`-included module per crate, framed as the v0.6.0 shape that
+  v0.6.1 (11.1.3/11.1.4) shrinks, with inventory-per-binary and `pub`/
+  subdirectory rationale, the module-qualified `#[from(...)]` form, and the GPUI
+  specialisation bridged to published `gpui 0.2.2` via the mapping table and
+  cross-linked to `stateful_window.rs`. Backed by a harness-agnostic runtime
+  reference suite (`crates/rstest-bdd/tests/common/bulk_migration_steps.rs`
+  shared by `bulk_migration_cookbook_a`/`_b` across two feature files, with zero
+  steps in the bindings) and a required trybuild compile-pass mirror
+  (`scenario_bulk_migration_cookbook.rs`). Design §2.7.6.2 and the developer
+  guide record the convention. A six-lens Logisphere design review moved the
+  validation vehicle from a feature-gated GPUI suite to the harness-agnostic
+  proof. See
+  `docs/execplans/10-2-7-gpui-bulk-migration-cookbook.md`. Validation:
+  `make check-fmt`, `make lint`, `make test`, `make markdownlint`, `make nixie`,
+  and `cargo test -p rstest-bdd --test trybuild_macros step_macros_compile`
+  passed; CodeRabbit `review --agent` completed with zero findings.
 
 > **Note (dual-track maintenance):** items 10.2.4 and 10.2.5 introduce a
 > vendored-to-published mapping table that must be kept in sync with any

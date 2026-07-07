@@ -2057,6 +2057,26 @@ interim pattern. It creates a window, stores durable `Entity<T>` and
 `VisualTestContext` from the window handle in later steps, and comments the
 reset-before-assignment protocol beside the reset helper.
 
+For teams migrating a large suite, the recommended bulk-migration shape is to
+place the whole durable-handle *step library* — the `#[given]`/`#[when]`/
+`#[then]` steps together with the state scaffolding and cleanup fixture — in one
+shared module per consuming crate, included by each `#[scenario]` binding
+through a `#[path]` module. Because steps register per binary through
+`inventory`, one shared module serves many scenarios across many feature files
+with no per-scenario copy; the binding files carry no step definitions of their
+own. This sharing mechanism is harness-agnostic, so it is proven by a
+harness-agnostic runtime reference,
+`crates/rstest-bdd/tests/bulk_migration_cookbook_a.rs` and `_b.rs` sharing
+`crates/rstest-bdd/tests/common/bulk_migration_steps.rs`, plus a trybuild
+compile-pass mirror,
+`crates/rstest-bdd/tests/fixtures_macros/scenario_bulk_migration_cookbook.rs`;
+the GPUI durable-handle specialisation remains proven by `stateful_window.rs`.
+The user guide's "Bulk-migration cookbook" subsection documents the shape and
+bridges its GPUI snippets to published `gpui 0.2.2` through the vendored-to-
+published mapping table. This hand-written shared block is superseded in v0.6.1
+by `ScenarioStore<T>` and the cleanup-guard fixture macro (roadmap 11.1.3 and
+11.1.4).
+
 ##### 2.7.6.3 v0.6.0-beta2 quick wins
 
 The release strategy is therefore split by compatibility risk:
