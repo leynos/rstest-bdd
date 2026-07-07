@@ -9,9 +9,6 @@
 #[path = "common/bulk_migration_steps.rs"]
 mod bulk_migration_steps;
 
-// Imported for the `#[rstest]` unit test below, which injects the fixture by
-// name; the `#[scenario]` binding itself uses the module-qualified `#[from]`.
-use bulk_migration_steps::{LedgerState, ledger_state};
 use rstest::rstest;
 use rstest_bdd::ScenarioState as _;
 use rstest_bdd_macros::scenario;
@@ -26,9 +23,12 @@ fn scenario_first_reuses_shared_steps(
 }
 
 /// Unit-test the durable-state reset the shared library relies on, using the
-/// shared `ledger_state` fixture directly.
+/// shared `ledger_state` fixture through the same module-qualified `#[from]`
+/// path as the scenario binding, so no separate import is needed.
 #[rstest]
-fn ledger_reset_clears_accumulated_balance(ledger_state: LedgerState) {
+fn ledger_reset_clears_accumulated_balance(
+    #[from(bulk_migration_steps::ledger_state)] ledger_state: bulk_migration_steps::LedgerState,
+) {
     ledger_state.balance.set(42);
     assert_eq!(ledger_state.balance.get(), Some(42));
     ledger_state.reset();
