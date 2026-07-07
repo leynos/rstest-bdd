@@ -292,8 +292,11 @@ that "zero steps in the binding" property is the reuse proof and must be
 preserved. A trybuild compile-pass mirror,
 `tests/fixtures_macros/scenario_bulk_migration_cookbook.rs`, compile-checks the
 same shape and is registered in `run_passing_macro_tests`
-(`tests/trybuild_macros.rs`); like all trybuild fixtures it runs under plain
-`cargo test`, not nextest.
+(`tests/trybuild_macros.rs`). Because `step_macros_compile` returns early when
+`NEXTEST_RUN_ID` is set, this fixture is skipped under nextest and must be
+validated with plain `cargo test`. (This is specific to `step_macros_compile`;
+the harness `macro_compile` binaries have no such guard and do run their
+trybuild fixtures under nextest.)
 
 Doc↔suite parity for this cookbook is guarded by prose, not a checker (the
 subsection states "if a snippet drifts, the suite wins"), matching the
