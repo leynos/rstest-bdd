@@ -49,7 +49,7 @@
 - [Cucumber-rs migration and async patterns][cucumber-async]
   records migration knowledge for async behaviour-driven testing.
 - [Localizable Rust libraries with Fluent][fluent-guide]
-  explains localisation patterns relevant to diagnostics and messages.
+  explains localization patterns relevant to diagnostics and messages.
 - [Reliable testing in Rust via dependency injection][dependency-injection]
   captures testing design guidance for injectable dependencies.
 - [Rust doctest DRY guide](rust-doctest-dry-guide.md) explains how to keep

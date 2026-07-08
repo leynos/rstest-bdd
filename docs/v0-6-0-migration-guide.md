@@ -605,4 +605,4 @@ for v0.6.0 final.
 - [Developer's guide](developers-guide.md)
 - [ADR 006 – Fallible scenario functions](adr-006-fallible-scenario-functions.md)
 - [ADR 007 – Harness context injection](adr-007-harness-context-injection.md)
-- [ADR 009 – Consistent implicit fixture-name normalisation](adr-009-consistent-implicit-fixture-name-normalization.md)
+- [ADR 009 – Consistent implicit fixture-name normalization](adr-009-consistent-implicit-fixture-name-normalization.md)

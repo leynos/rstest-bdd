@@ -14,6 +14,6 @@ cargo test -p japanese-ledger
 
 The scenarios live in `tests/features/household_ledger.feature` and use the
 `# language: ja` directive so that Gherkin keywords such as `フィーチャ`,
-`シナリオ`, `前提`, `もし`, `ならば`, and `しかし` are recognised. Step
+`シナリオ`, `前提`, `もし`, `ならば`, and `しかし` are recognized. Step
 definitions in `tests/ledger.rs` are registered with the same Japanese phrases,
 illustrating how non-English teams can collaborate on executable specifications.

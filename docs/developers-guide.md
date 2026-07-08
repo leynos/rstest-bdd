@@ -255,6 +255,93 @@ Link-checker and table-checker tests run with the Python suite in `make test`.
 Issue #537 tracks generating the users-guide reference block from `BASE_URL`
 so the base lives in exactly one place.
 
+## Spelling gate (`typos` and `scripts/generate_typos_config.py`)
+
+`make markdownlint` lints Markdown files and enforces en-GB-oxendict (Oxford)
+spelling. It runs `markdownlint-cli2` over the shared Markdown file list, then
+invokes `make spellcheck`.
+
+`make spellcheck` runs [`typos`](https://github.com/crate-ci/typos) over the
+same Markdown file list with `--config typos.toml --force-exclude`.
+
+The `typos` version is pinned via `TYPOS_VERSION` in the Makefile (currently
+`1.48.0`) and invoked through `uv tool run typos@$(TYPOS_VERSION)`, so local
+runs and Continuous Integration (CI) use the same binary. CI inherits the pin
+by calling `make spellcheck` and runs the gate as a step named
+`Spelling (en-GB-oxendict)` on the tool-enabled matrix legs
+(`.github/workflows/ci.yml`).
+
+### Configuration layers (`typos.toml`)
+
+The config lives in the repository-root `typos.toml` and works in two layers:
+
+- **`en-gb` locale** — corrects American spellings (`color` to `colour`,
+  `behavior` to `behaviour`, `analyzed` to `analysed`). The locale alone
+  prefers `-ise` endings over Oxford `-ize`.
+- **`extend-words` table** — restores Oxford spelling by adding identity
+  entries that accept `-ize` inflections the locale would otherwise "correct"
+  to `-ise`, and correction entries that rewrite `-ise` forms to `-ize`.
+  Stems taking `-yse` (`analyse`, `paralyse`) are left to the locale, which
+  already enforces them.
+
+The `extend-ignore-re` patterns in the config exempt whole regions from
+spelling checks:
+
+- Inline code spans and fenced code blocks (APIs and identifiers keep their
+  upstream spelling; for example, `color` inside backticks is ignored).
+- Tool names kept at their upstream spelling outside code spans
+  (`rust-analyzer`, `Rust Analyzer`).
+- The ExecPlan template section heading (`Artifacts and notes`) and inline
+  references to it.
+- A verbatim Microsoft Learn citation title (`Center | Microsoft Learn`).
+
+Quoted APIs keep US spelling per the documentation style guide, so put them
+in backticks rather than adding word-level exceptions.
+
+### Generated file — do not edit by hand
+
+`typos.toml` is a **generated** file. Never edit its entries by hand; change
+`scripts/generate_typos_config.py` and regenerate:
+
+```bash
+uv run scripts/generate_typos_config.py
+```
+
+The generator owns three maintainer-facing lists:
+
+- `STEMS` — word stems that take Oxford `-ize`. When the gate flags a
+  legitimate `-ize` word (or silently accepts its `-ise` variant) because the
+  stem is missing, add the stem here and regenerate. Do not add genuinely
+  `-ise`-only words (`advise`, `revise`, `exercise`, `supervise`).
+- `EXTRA_ACCEPTED_WORDS` — words accepted verbatim; for example the `astroid`
+  library, the `-yse` suffix fragment, the `mis-` prefix fragment, and the
+  `inventario` Spanish Gherkin example from the users' guide.
+- `extend-ignore-re` patterns in the generator's `HEADER` — regions exempt
+  from spelling checks (described above).
+
+### Fixing findings
+
+To fix findings mechanically, rerun the gate with `--write-changes` appended,
+using the same pinned version:
+
+```bash
+env UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools \
+  uv tool run typos@<TYPOS_VERSION> --config typos.toml --force-exclude \
+  --write-changes <files>
+```
+
+Automated rewrites must be reviewed before committing, and must not touch
+code samples, API names, or quoted material.
+
+### Generator tests
+
+The generator has unit and property-based (`hypothesis`) tests in
+`scripts/tests/test_generate_typos_config.py`. The test
+`test_committed_config_matches_generator_output` fails if the committed
+`typos.toml` drifts from the generator output. These tests run under
+`make test` via `uv run pytest scripts/tests`. `hypothesis` is declared in
+the `python-tools` dependency group in `pyproject.toml`.
+
 ## Test organization: harness-owned integration tests
 
 Tokio and GPUI harness integration tests are co-located with their respective
@@ -301,7 +388,7 @@ trybuild fixtures under nextest.)
 Doc↔suite parity for this cookbook is guarded by prose, not a checker (the
 subsection states "if a snippet drifts, the suite wins"), matching the
 third-party harness cookbook convention rather than the doc↔doc parity scripts.
-The GPUI durable-handle specialisation of the pattern is documented in prose and
+The GPUI durable-handle specialization of the pattern is documented in prose and
 remains proven by the `stateful_window` binary above; keep the cookbook's GPUI
 snippets bridged to published `gpui 0.2.2` through the vendored-to-published
 mapping table, and keep edits near that table and the `#[serial]`/nextest matrix
@@ -431,7 +518,7 @@ sidecar remain valid and report `<unknown>` as the requested fixture type.
 
 The workspace owns policy type definitions in `rstest-bdd-policy`.[^1] That
 crate is the single source of truth for `RuntimeMode`, `TestAttributeHint`, and
-their helper behavior inside this workspace.
+their helper behaviour inside this workspace.
 
 `rstest-bdd` re-exports both shared policy types from the runtime API to
 preserve its public contract.[^2]
@@ -868,7 +955,7 @@ cleanup guard that stateful GPUI scenarios use today:
   `pub trait ScenarioState` and `pub struct Slot<T>` in
   `crates/rstest-bdd/src/state.rs`; it composes with `Slot<T>` rather than
   shadowing it.
-- A `GpuiScenarioStore` specialisation plus a cleanup-guard fixture macro ship
+- A `GpuiScenarioStore` specialization plus a cleanup-guard fixture macro ship
   from `rstest-bdd-harness-gpui`. The layering is acyclic: the harness crate
   already depends on `rstest-bdd`, and the core never imports the harness.
 - The cleanup-ordering contract (reset before assignment; `Drop` cleanup on
@@ -921,7 +1008,7 @@ foot-gun: `#[scenario(path = …)]` and `scenarios!` read `.feature` files with
   discovered file (the `theoremc` pattern), which embeds nothing in the
   artefact.
 - The unstable `proc_macro::tracked_path` API is the long-term answer, usable
-  behind a `nightly` feature gate once stabilised.
+  behind a `nightly` feature gate once stabilized.
 - Invalidation must be a _tested contract_: a portability-aware rebuild
   regression test, a `trybuild` compile-time test for the emitted binding, and
   redacted `insta` snapshots for any touched diagnostic — see the ADR's

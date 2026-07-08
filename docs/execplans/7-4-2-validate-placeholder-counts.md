@@ -192,11 +192,11 @@ already provides:
   and `StepDefinitionRegistry`
 - `crates/rstest-bdd-server/src/test_support.rs`: Test utilities
   (`ScenarioBuilder`, `SingleFilePairScenario`)
-- `crates/rstest-bdd-server/tests/diagnostics_basic.rs`: Behavioral tests for
+- `crates/rstest-bdd-server/tests/diagnostics_basic.rs`: Behavioural tests for
   unimplemented step and unused definition diagnostics
-- `crates/rstest-bdd-server/tests/diagnostics_placeholder.rs`: Behavioral tests
+- `crates/rstest-bdd-server/tests/diagnostics_placeholder.rs`: Behavioural tests
   for placeholder count mismatch diagnostics
-- `crates/rstest-bdd-server/tests/diagnostics_table_docstring.rs`: Behavioral
+- `crates/rstest-bdd-server/tests/diagnostics_table_docstring.rs`: Behavioural
   tests for table/docstring expectation mismatch diagnostics
 - `crates/rstest-bdd-patterns/src/specificity.rs`: `SpecificityScore` with
   `placeholder_count`

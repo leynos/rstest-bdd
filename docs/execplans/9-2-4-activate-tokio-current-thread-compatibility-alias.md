@@ -137,7 +137,7 @@ incidental follow-up.
 - [x] (2026-03-16) Stage D: aligned behavioural coverage and documentation.
       Updated `rstest-bdd-design.md` sections §2.5.5 and §2.7.3 to reflect
       activated alias semantics. Updated `users-guide.md` to document the
-      deprecation, explain the new behavior, and update code examples to use
+      deprecation, explain the new behaviour, and update code examples to use
       explicit harness form.
 - [x] (2026-03-16) Stage E: ran final quality gates and marked roadmap item
       9.2.4
@@ -245,7 +245,7 @@ now behaves exactly like explicit
   semantics
 - `docs/rstest-bdd-design.md` §2.7.3: updated runtime compatibility alias
   section
-- `docs/users-guide.md`: added deprecation notice, updated behavior description,
+- `docs/users-guide.md`: added deprecation notice, updated behaviour description,
   and converted code example to use explicit harness form
 - `docs/roadmap.md`: marked item 9.2.4 as complete with delivery date 2026-03-16
 

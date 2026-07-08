@@ -19,7 +19,7 @@ gate locally and confirmed the failure shape.
 
 A reader who finishes the new section will be able to:
 
-1. Identify the two command shapes that exercize feature-gated tests — the
+1. Identify the two command shapes that exercise feature-gated tests — the
    project's own `make test` (or equivalent gate) and a generic
    `cargo test --workspace --all-features` invocation for projects without a
    Make-based gate.

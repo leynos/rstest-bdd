@@ -399,7 +399,7 @@ also use the `gherkin` crate (the same one used by the procedural macro at
 compile time[^10]) to parse feature files in the LSP context.
 
 Co-locating the server in the repository ensures it stays in sync with changes
-to the `rstest-bdd` macro semantics. If new features (like localised keywords
+to the `rstest-bdd` macro semantics. If new features (like localized keywords
 or new step types) are added, the LSP can be updated simultaneously.
 
 ### Maintaining the index and handling file events
@@ -515,7 +515,7 @@ With the registry in place, handling the LSP requests is straightforward:
   corresponds to a step line in the Gherkin AST (the parser output identifies
   which lines are steps). It retrieves the full step text (without the leading
   keyword, which might be needed or not depending on how patterns were
-  normalised). Then the registry is consulted to find any step definition whose
+  normalized). Then the registry is consulted to find any step definition whose
   pattern matches this text:
 
 - Each pattern is likely stored as a compiled regex or a structured pattern.

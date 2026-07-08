@@ -346,7 +346,7 @@ evidence in `Progress`.
 ### Milestone 2: Complete code generation
 
 If reconciliation shows code is missing or incomplete, update the smallest code
-path that keeps ADR-008 precedence centralised. The preferred shape is:
+path that keeps ADR-008 precedence centralized. The preferred shape is:
 
 - `ScenarioConfig` continues to carry both `runtime` for execution and
   `attribute_runtime` for attribute fallback.

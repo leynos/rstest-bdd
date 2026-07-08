@@ -16,7 +16,7 @@ without leaving the user guide:
 1. Is `#[serial]` required? (Yes, under `cargo test`.)
 2. Is `#[serial]` redundant under nextest? (Yes — redundant-but-harmless,
    because nextest runs each test in its own process.)
-3. How do I serialise tests that must not run concurrently *across* processes
+3. How do I serialize tests that must not run concurrently *across* processes
    or binaries? (Use `serial_test`'s `#[file_serial]` — which requires the
    `file_locks` feature — or a cargo-nextest *test-group* with
    `max-threads = 1`.)
@@ -131,7 +131,7 @@ escalation, not a workaround.
   lines ~307–314): en-GB Oxford spelling; prose and bullets wrap at 80 columns;
   code blocks at 120; tables and headings are not wrapped; dashes for bullets.
 - **The user-guide matrix and the §2.7.6.7 matrix must be identical** after
-  normalisation; the new gate enforces this row for row.
+  normalization; the new gate enforces this row for row.
 
 ## Tolerances (exception triggers)
 
@@ -156,7 +156,7 @@ escalation, not a workaround.
 - Risk: A table-parity gate, like 10.2.4's, fires when the two matrices are
   legitimately reworded together.
   Severity: low. Likelihood: medium.
-  Mitigation: Compare normalised *data rows only* (collapse internal
+  Mitigation: Compare normalized *data rows only* (collapse internal
   whitespace, ignore the header/separator), as `check_gpui_mapping_table.py`
   does; reword both tables together and the gate stays green. The pytest
   companion proves the gate fails on a single-row divergence.
@@ -204,7 +204,7 @@ escalation, not a workaround.
 - [x] (Stage D) Refactor; wire the gate into `make lint` and the companion into
   the `make test` pytest line; run all gates; run `coderabbit review --agent`;
   clear concerns.
-- [x] (Stage E) Mark roadmap 10.2.6 `[x]`; finalise the living sections.
+- [x] (Stage E) Mark roadmap 10.2.6 `[x]`; finalize the living sections.
 
 ## Surprises & discoveries
 
@@ -331,7 +331,7 @@ escalation, not a workaround.
   (`scripts/check_serial_nextest_matrix.py`).
   Rationale: Panel verdict — phrase-matching free prose is brittle (false
   positives on `make fmt` reflow, e.g. `max-threads = 1` wrapping; invites
-  "fix the script not the doc"). Comparing normalised matrix rows between the
+  "fix the script not the doc"). Comparing normalized matrix rows between the
   two documents is the objective, newline-stable contract 10.2.4 already proved.
   Naming follows the sibling (`check_gpui_mapping_table.py`) and names the
   structured artefact (the matrix), not the prose.
@@ -355,7 +355,7 @@ escalation, not a workaround.
 - Decision: Let the new runner-matrix checker accept aligned Markdown tables.
   Rationale: `mdtablefix` aligns table columns, so requiring a literal
   `| Runner |` prefix would make the gate brittle against the repository's own
-  formatter. The checker still compares normalised data rows and the pytest
+  formatter. The checker still compares normalized data rows and the pytest
   companion now covers formatter-aligned input.
   Date/Author: 2026-06-27, implementation agent.
 
@@ -405,7 +405,7 @@ The design document carries the same matrix and corrected caveats, and the
 developer guide now records the canonical maintainer rationale for keeping
 `#[serial]` while not adding a live repository test-group. The new
 `scripts/check_serial_nextest_matrix.py` gate is wired into `make lint`, and
-its pytest companion is wired into `make test`. The checker compares normalised
+its pytest companion is wired into `make test`. The checker compares normalized
 matrix rows and accepts formatter-aligned Markdown tables, avoiding the brittle
 literal-prefix failure observed during the `make fmt` cycle.
 
@@ -452,17 +452,17 @@ Key files (full repository-relative paths):
   `scripts/tests/`.
 - `scripts/check_gpui_mapping_table.py` and its companion
   `scripts/tests/test_check_gpui_mapping_table.py` — the structural model for
-  the new gate (heading lookup, whitespace-normalised row comparison, exit
+  the new gate (heading lookup, whitespace-normalized row comparison, exit
   codes, custom error type).
 
 Terms of art (defined on first use):
 
 - **process-per-test**: cargo-nextest spawns a fresh OS process for each test;
   `NEXTEST_EXECUTION_MODE` is `"process-per-test"` at test runtime.
-- **`#[serial]`**: a `serial_test` attribute that serialises annotated tests via
+- **`#[serial]`**: a `serial_test` attribute that serializes annotated tests via
   an *in-process* mutex. It has no effect across process boundaries.
 - **`#[file_serial]`**: a `serial_test` attribute (feature `file_locks`) that
-  serialises annotated tests via a *file lock* (default path under the OS temp
+  serializes annotated tests via a *file lock* (default path under the OS temp
   directory), so it works across processes and binaries. It does not lock
   against `#[serial]`.
 - **nextest test-group**: a named concurrency limit in `.config/nextest.toml`;
@@ -481,7 +481,7 @@ structurally on `scripts/check_gpui_mapping_table.py`:
 
 - It locates the runner matrix table under the relevant heading in *both*
   `docs/users-guide.md` and `docs/rstest-bdd-design.md` §2.7.6.7, extracts the
-  data rows, normalises internal whitespace per row, and exits non-zero with a
+  data rows, normalizes internal whitespace per row, and exits non-zero with a
   human-readable per-row diff if the two tables differ or either is missing.
 - Before Stage C it fails for the intended reason: the user guide has no matrix
   table yet (heading/table not found), so the gate reports "table not found
@@ -532,7 +532,7 @@ pytest invocation. Run `make check-fmt`, `make lint`, `make test`, then
 `make fmt` and `make markdownlint` (the last after `make fmt`). Only once all
 are green, run `coderabbit review --agent` and clear every concern.
 
-Stage E — finalise. Mark `docs/roadmap.md` 10.2.6 `[x]` with a delivery note
+Stage E — finalize. Mark `docs/roadmap.md` 10.2.6 `[x]` with a delivery note
 referencing this execplan. Update all living sections.
 
 ## Concrete steps
@@ -605,7 +605,7 @@ green.
 All edits are additive: documentation edits, one new script, one new pytest
 companion, one `make lint` line, one `make test` pytest path. Steps are
 re-runnable. If the gate is over-strict (false positive on valid prose), confirm
-it compares only normalised data rows and reword both matrices together; do not
+it compares only normalized data rows and reword both matrices together; do not
 weaken the documentation to satisfy a brittle matcher, and do not fall back to
 prose phrase-matching (escalate instead). To roll back, revert the feature-
 branch commits; nothing mutates shared state, `.config/nextest.toml`, or other

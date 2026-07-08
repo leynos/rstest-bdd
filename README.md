@@ -12,7 +12,7 @@ ______________________________________________________________________
 
 `rstest-bdd` brings the collaborative clarity of BDD to Rust **without** asking
 you to adopt a bespoke runner or a monolithic “world” object. Instead, it
-builds on the excellent `rstest` fixture and parametrisation model:
+builds on the excellent `rstest` fixture and parametrization model:
 
 - **One runner to rule them all**: execute scenarios with `cargo test`.
 
@@ -168,7 +168,7 @@ cargo test -p your-crate -- --nocapture
 Everything grows on the same trellis: your fixtures, your filters
 (`cargo test search`), and your parallelism all continue to work as usual.
 
-## Internationalisation in practice
+## Internationalization in practice
 
 Feature files can opt into another language by adding `# language: <code>` to
 the first line. The Gherkin parser loads the appropriate keyword catalogue so
@@ -288,7 +288,7 @@ recommended for new code as it is more concise.
 
 ______________________________________________________________________
 
-## Scenario outline ≈ parametrised tests
+## Scenario outline ≈ parametrized tests
 
 Write once, test many:
 
@@ -330,7 +330,7 @@ async fn see_message(browser: &mut WebDriver, message: String) {
 }
 ```
 
-Under the rind, `#[scenario]` expands to an `rstest` parametrised test, so
+Under the rind, `#[scenario]` expands to an `rstest` parametrized test, so
 cases show up individually in your runner.
 
 ______________________________________________________________________
@@ -447,7 +447,7 @@ ______________________________________________________________________
 
 1. **Core mechanics**: step registry, `#[scenario]`, exact matching (done/PoC).
 
-2. **Fixtures & parametrisation**: typed placeholders, Scenario Outline →
+2. **Fixtures & parametrization**: typed placeholders, Scenario Outline →
    `#[case]`.
 
 3. **Feature parity & ergonomics**: Background, tables, docstrings,
@@ -467,7 +467,7 @@ ______________________________________________________________________
 | Test runner      | `cargo test` (`rstest` under the hood)    | Custom runner (`World::run(...)`) |
 | State management | `rstest` fixtures                         | `World` struct                    |
 | Step discovery   | Compile‑time registration + runtime match | Runner‑driven collection          |
-| Scenario Outline | Maps to `rstest` parametrisation          | Built into runner                 |
+| Scenario Outline | Maps to `rstest` parametrization          | Built into runner                 |
 | Async            | Runtime‑agnostic via harness adapters     | Built‑in with specified runtime   |
 | Philosophy       | BDD as an **extension** of `rstest`       | Rust port of classic Cucumber     |
 

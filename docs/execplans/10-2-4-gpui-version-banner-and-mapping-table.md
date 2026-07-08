@@ -149,7 +149,7 @@ marked `[x]`.
   reflow (known non-idempotent for markdown in this repo), or a second
   `| Operation |` table could cause false CI failures on unrelated doc PRs,
   turning a drift guard into a nuisance. Severity: medium. Likelihood: medium.
-  Mitigation: anchor the table by its preceding heading, compare normalised
+  Mitigation: anchor the table by its preceding heading, compare normalized
   whole rows (never split cells on `\|`), and add a whitespace-only-mutation
   pytest case that must still pass. If the gate still proves flaky in review,
   defer it (go/no-go) rather than ship a nuisance.
@@ -175,7 +175,7 @@ marked `[x]`.
   header/parenthetical divergences against the recorded research; run the
   vendored-arity and prose-audit greps; quantify the prose lines Stage C
   touches.
-- [x] Stage B — red checks. Run the consistency check (Stage D artifact) or the
+- [x] Stage B — red checks. Run the consistency check (Stage D artefact) or the
   fallback grep so it fails against the current diverging/inaccurate tables,
   proving the gap before the fix.
 - [x] Stage C — correct row 2 in both documents, add the two `>`-quoted
@@ -360,7 +360,7 @@ marked `[x]`.
   dual-track note explicitly asks to "make staleness a CI failure rather than a
   silent drift". Date/Author: 2026-06-13, planning agent.
 - Decision: make the Stage D check robust by design — anchor the table by its
-  preceding heading, compare normalised whole data rows (never split on `\|`),
+  preceding heading, compare normalized whole data rows (never split on `\|`),
   and prove with a whitespace-only-mutation pytest case that `make fmt` reflow
   cannot make it fire. Rationale: the panel pre-mortem (Doggylump 🐶) showed a
   naive byte-compare parser would false-positive on escaped pipes and the
@@ -587,7 +587,7 @@ each row about a single concern:
 
 Stage C unifies the header wording, the row-3 parenthetical, and the caption
 across both documents so the rendered tables are identical. The Stage D check
-(if it proceeds) compares the four **normalised data rows** — it does not split
+(if it proceeds) compares the four **normalized data rows** — it does not split
 cells on `\|`, so escaped pipes and `make fmt` whitespace reflow do not trip
 it; headers and caption are unified by Stage C but the data rows are the
 load-bearing content the gate enforces.
@@ -721,14 +721,14 @@ parsing is the main design risk (the panel pre-mortem flagged escaped pipes,
   `docs/rstest-bdd-design.md` and "Stateful GPUI scenarios with durable
   handles" (or the which-gpui banner lead-in) in `docs/users-guide.md`. Within
   that section, take the first `| Operation |`-prefixed table.
-- **Compare normalised whole rows, never split cells on `\|`.** Extract the four
+- **Compare normalized whole rows, never split cells on `\|`.** Extract the four
   data rows (the lines after the `| --- |` separator, up to the first non-table
-  line). Normalise each row by collapsing internal whitespace runs to a single
-  space and trimming ends. Compare the two ordered lists of normalised rows.
+  line). Normalize each row by collapsing internal whitespace runs to a single
+  space and trimming ends. Compare the two ordered lists of normalized rows.
   Not splitting on `\|` makes escaped pipes and `make fmt` alignment reflow
   harmless, because both documents reflow identically.
 - **Exit non-zero** with a diff-style message naming the first offending row
-  (its index and both normalised forms) when the lists differ; exit zero when
+  (its index and both normalized forms) when the lists differ; exit zero when
   they agree. Pure standard-library file parsing; no subprocess. (If a
   shell-out is ever needed, use `cuprum`, not `subprocess`, per repo
   convention.)
@@ -743,7 +743,7 @@ Add `scripts/tests/test_check_gpui_mapping_table.py` mirroring
 `scripts/tests/test_check_users_guide_links.py`: cover (a) the pass case
 (identical tables), (b) a content-mutation fail case (a data row changed in a
 tmp copy), (c) a whitespace-only mutation that must STILL PASS (extra alignment
-spaces in one copy — proves normalisation works and the gate will not fire after
+spaces in one copy — proves normalization works and the gate will not fire after
 `make fmt`), and (d) the table-not-found case (anchor heading missing).
 
 Wire the script into `make lint` beside `check_users_guide_links.py`
@@ -841,7 +841,7 @@ Acceptance is observable as:
 
 1. Both `docs/rstest-bdd-design.md` and `docs/users-guide.md` carry the
    which-gpui banner and a four-row mapping table whose four data rows are
-   identical (after whitespace normalisation) and whose row 2 states that
+   identical (after whitespace normalization) and whose row 2 states that
    published `gpui 0.2.2` exposes `vcx.window_handle()` via the `VisualContext`
    trait (requiring `use gpui::VisualContext;`); and both carry the same two
    `>`-quoted "beyond the four shapes" prose differences after the table.
@@ -987,7 +987,7 @@ the Make gate targets `markdownlint`, `lint`, `check-fmt`, `test`, and
     are now `>`-quoted prose after the table rather than folded into row 1's
     cells, keeping each row single-concern and avoiding cell overload and
     markdownlint width risk; (2) Stage D's comparison model is now unambiguous —
-    anchor by heading, compare normalised whole data rows (no `\|` splitting),
+    anchor by heading, compare normalized whole data rows (no `\|` splitting),
     with a whitespace-only pytest case proving `make fmt` reflow cannot trip it;
     (3) the gate's scope is stated honestly (doc-vs-doc only, not external gpui
     drift) and cross-references `lading publish`; (4) Stage A

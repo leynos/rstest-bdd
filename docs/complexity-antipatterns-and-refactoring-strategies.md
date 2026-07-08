@@ -111,7 +111,7 @@ Thresholds and Implications:
 
 Code with high Cognitive Complexity is harder to read, understand, test, and
 modify.[^8] SonarQube, for example, raises issues when a function's Cognitive
-Complexity exceeds a certain threshold, signaling that the code should likely
+Complexity exceeds a certain threshold, signalling that the code should likely
 be refactored into smaller, more manageable pieces.[^8] The primary impact of
 high Cognitive Complexity is a slowdown in development and an increase in
 maintenance costs.[^8]

@@ -839,7 +839,7 @@ implementation across different programming languages and frameworks reveals
 distinct philosophies and technical quirks. A deep dive into `pytest-bdd` for
 Python and `cucumber-rs` for Rust highlights a fundamental divergence in
 approach: one prioritizes deep integration with an existing, powerful testing
-ecosystem, while the other favors a purpose-built, "pure" implementation of the
+ecosystem, while the other favours a purpose-built, "pure" implementation of the
 Cucumber paradigm.
 
 ### Section 6.1: A comparative analysis: `pytest-bdd` vs. `cucumber-rs`
@@ -899,7 +899,7 @@ developers should be aware of specific implementation details that can act as
 ### Section 6.3: The evolving landscape: Gherkin as living documentation
 
 Gherkin's syntax is deceptively simple. The true challenge and reward of
-adopting it lie not in memorising keywords but in embracing the collaborative,
+adopting it lie not in memorizing keywords but in embracing the collaborative,
 behaviour-first mindset it is designed to foster.[^4] When used effectively,
 Gherkin transforms testing from a purely technical, after-the-fact verification
 activity into an integral part of the requirements and design process. The

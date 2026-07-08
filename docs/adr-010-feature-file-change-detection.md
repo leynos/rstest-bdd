@@ -147,7 +147,7 @@ Pros:
 
 Cons:
 
-- Blocked on stabilisation (`proc_macro::tracked_path` is nightly-only as of
+- Blocked on stabilization (`proc_macro::tracked_path` is nightly-only as of
   the decision date).
 - Usable behind a `nightly` feature gate during the window, but not as a
   default mechanism.
@@ -158,7 +158,7 @@ Cache the parsed Gherkin ASTs in `OUT_DIR` so the macro only re-parses a
 `.feature` file when its modification time has changed (noted in
 `§3.2.2` of the design document).
 
-This option is **orthogonal** — it is a *performance* optimisation (reducing
+This option is **orthogonal** — it is a *performance* optimization (reducing
 compile-time overhead for large suites) and does not by itself make Cargo
 aware of `.feature` file changes. It does not close the rebuild-invalidation
 foot-gun. Recorded here to keep the analysis complete; addressed separately
@@ -191,7 +191,7 @@ Binding constraints for the implementing ExecPlan:
    regression test must prove that a `.feature`-only edit forces recompilation
    and a fresh test failure, modelled on `theoremc`'s
    `tests/build_discovery_bdd.rs`. The test must tolerate coarse filesystem
-   `mtime` granularity and must be serialised so nextest's process-per-test
+   `mtime` granularity and must be serialized so nextest's process-per-test
    parallelism cannot race on the workspace `target` directory.
 3. **Option B (build script) is the preferred default** for
    `scenarios!` directory-glob binding. It avoids binary-size overhead and
@@ -202,7 +202,7 @@ Binding constraints for the implementing ExecPlan:
    reliable relative path that rustc resolves correctly. This is the path of
    zero consumer friction.
 5. **Option C (`tracked_path`)** is recorded as the right long-term answer.
-   Usable behind a `nightly` feature gate; stabilisation should be monitored
+   Usable behind a `nightly` feature gate; stabilization should be monitored
    and adopted when available.
 6. **Option D (OUT_DIR cache)** is out of scope for this ADR. It addresses
    compile performance, not invalidation correctness; `§3.2.2` tracks it
@@ -217,7 +217,7 @@ addition to the binding constraint that invalidation is a tested contract:
    integration test proves a `.feature`-only edit forces recompilation and a
    fresh failure, modelled on `theoremc`'s `tests/build_discovery_bdd.rs`. It
    must tolerate coarse filesystem `mtime` granularity (touch to a
-   guaranteed-later timestamp, or tick a second), run serialised in its own
+   guaranteed-later timestamp, or tick a second), run serialized in its own
    process with an isolated `target`/temp directory so nextest's
    process-per-test parallelism cannot race on a shared workspace `target`,
    and — for the `include_str!` path — assert no absolute `CARGO_MANIFEST_DIR`
