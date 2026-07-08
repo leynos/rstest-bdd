@@ -5,6 +5,12 @@ description = "Python tooling environment for rstest-bdd helper scripts"
 requires-python = ">=3.13"
 dependencies = []
 
+[tool.uv]
+# Install the python-tools group by default so bare `uv run`/`uv sync`
+# invocations (without an explicit --group) still provide the helper-script
+# toolchain: hypothesis, lading, pylint, pytest, ruff, stilyagi, and ty.
+default-groups = ["python-tools"]
+
 [dependency-groups]
 python-tools = [
     "hypothesis",
