@@ -117,7 +117,7 @@ milestone-by-milestone within the tolerances below.
   before `panic::resume_unwind`. The regression test asserts on both positions.
 
 - Risk: a deliberately panicking step inside a feature-gated GPUI scenario
-  could destabilise the test process if any teardown path (e.g. the
+  could destabilize the test process if any teardown path (e.g. the
   `serial_test` fixture in `stateful_window.rs`) leaks state into a later
   scenario. Severity: medium. Likelihood: low. Mitigation: keep the new
   regression in its own test binary (`scenario_name_in_logs.rs`) so its

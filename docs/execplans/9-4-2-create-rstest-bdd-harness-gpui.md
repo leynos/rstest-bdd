@@ -433,13 +433,13 @@ Acceptance criteria:
 - All commands above are re-runnable.
 - If a stage fails, keep successful prior edits and rerun only the failing
   stage plus dependent tests.
-- Preserve `/tmp/9-4-2-*.log` artifacts for troubleshooting and review.
+- Preserve `/tmp/9-4-2-*.log` artefacts for troubleshooting and review.
 - If GPUI API discovery contradicts assumptions, update this ExecPlan first,
   then continue implementation.
 
 ## Artifacts and notes
 
-Expected log artifacts:
+Expected log artefacts:
 
 ```plaintext
 /tmp/9-4-2-baseline-harness.log
@@ -452,7 +452,7 @@ Expected log artifacts:
 /tmp/9-4-2-test.log
 ```
 
-Primary implementation artifacts:
+Primary implementation artefacts:
 
 - New `rstest-bdd-harness-gpui` crate.
 - Policy mapping updates in `rstest-bdd-policy` and macro codegen.

@@ -259,7 +259,7 @@ user-visible commits are produced.
   (Stages B, C, and the cumulative state).
 - [x] Stage F complete: roadmap entry 10.2.1 marked done in `docs/roadmap.md`
   with a delivery date and one-paragraph summary, and the Outcomes section of
-  this plan finalised. Closed 2026-06-04.
+  this plan finalized. Closed 2026-06-04.
 - [x] Follow-up complete: the user-guide worked example now includes the
   second stateful scenario binding, "Opening a second GPUI window starts from
   reset state", with `#[serial]` and the `scenario_state_cleanup` fixture so

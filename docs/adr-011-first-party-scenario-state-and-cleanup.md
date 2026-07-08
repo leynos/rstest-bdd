@@ -43,7 +43,7 @@ corrupts subsequent scenarios on the same test thread.
 
 Roadmap items 11.1.3 and 11.1.4 propose a generic state helper and cleanup
 registration. The first downstream adopter specifically requests a
-GPUI-specialised helper and a cleanup-guard fixture macro so the 50-line
+GPUI-specialized helper and a cleanup-guard fixture macro so the 50-line
 block is replaced with a first-party type.
 
 ### Naming constraint
@@ -57,7 +57,7 @@ that would collide with naive names:
 Both are re-exported from the crate root. The new generic helper must
 therefore **not** be named `ScenarioState` and must be designed to compose
 with — not shadow — `Slot<T>`. This ADR proposes `ScenarioStore<T>` as the
-generic core and `GpuiScenarioStore` as the GPUI-specific specialisation.
+generic core and `GpuiScenarioStore` as the GPUI-specific specialization.
 
 ## Decision drivers
 
@@ -109,11 +109,11 @@ Cons:
 - Not reusable: the cleanup-ordering contract lives in GPUI-specific code.
 - No core abstraction to test the lifecycle contract against.
 
-### Option C: generic core in `rstest-bdd` plus GPUI specialisation in `rstest-bdd-harness-gpui` (selected)
+### Option C: generic core in `rstest-bdd` plus GPUI specialization in `rstest-bdd-harness-gpui` (selected)
 
 Ship a generic `ScenarioStore<T>` in `rstest-bdd` (implementing the
 `set`/`with`/`with_mut`/`take`/`reset` operations plus cleanup registration)
-and re-export a `GpuiScenarioStore` specialisation and a cleanup-guard
+and re-export a `GpuiScenarioStore` specialization and a cleanup-guard
 fixture-generating macro from `rstest-bdd-harness-gpui`.
 
 Pros:

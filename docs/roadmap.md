@@ -826,13 +826,13 @@ changing the public trait contracts.
   Follow-up 2026-06-27: fixed the Linux CI cache-hit path by giving the
   Whitaker cache step an id and skipping `Install Dylint tools` when the cache
   already restores `cargo-dylint` and `dylint-link`, preserving the cache
-  optimisation without using `cargo install --force`. Validation:
+  optimization without using `cargo install --force`. Validation:
   `actionlint .github/workflows/ci.yml`, `make markdownlint`, `make lint`, and
   `make nixie` passed; CodeRabbit `review --agent` completed with zero
   findings.
   Follow-up 2026-06-28: review findings were verified against current code.
   The CI cache and behavioural Tokio helper findings were already addressed;
-  remaining valid localisation, Tokio unit-test, ADR/prose, users-guide, and
+  remaining valid localization, Tokio unit-test, ADR/prose, users-guide, and
   Whitaker Python test comments were fixed. Validation: `make check-fmt`,
   `make lint`, `make typecheck`, `make test`, and `make markdownlint` passed;
   CodeRabbit `review --agent` completed with zero findings.
@@ -870,7 +870,7 @@ changing the public trait contracts.
   one `#[path]`-included module per crate, framed as the v0.6.0 shape that
   v0.6.1 (11.1.3/11.1.4) shrinks, with inventory-per-binary and `pub`/
   subdirectory rationale, the module-qualified `#[from(...)]` form, and the GPUI
-  specialisation bridged to published `gpui 0.2.2` via the mapping table and
+  specialization bridged to published `gpui 0.2.2` via the mapping table and
   cross-linked to `stateful_window.rs`. Backed by a harness-agnostic runtime
   reference suite (`crates/rstest-bdd/tests/common/bulk_migration_steps.rs`
   shared by `bulk_migration_cookbook_a`/`_b` across two feature files, with zero
@@ -1003,7 +1003,7 @@ remove the existing `StepContext`, harness, or macro surfaces.
   alerts adopters that `.feature`-only edits do not trigger a rebuild.
 
 > **Note (ADR-008 follow-up):** roadmap items 9.7.1–9.7.4 shipped the
-> harness-led attribute defaults under maintainer authorisation, but
+> harness-led attribute defaults under maintainer authorization, but
 > `docs/adr-008-harness-led-attribute-policy-defaults.md` remains in
 > `Proposed` status. Advancing it to `Accepted` is orthogonal to the GPUI
 > adopter feedback and requires separate maintainer approval; it is recorded

@@ -24,7 +24,7 @@ error.
 - See [Testing Strategy](docs/testing-strategy.md) for the preferred patterns
   and invariants to cover.
 
-## Localisation guidelines
+## Localization guidelines
 
 - Keep feature files and step definitions in the same language. If you add a
   new locale, include feature coverage in `tests/features/i18n/` or under an

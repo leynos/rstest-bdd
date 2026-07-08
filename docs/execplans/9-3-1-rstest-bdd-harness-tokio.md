@@ -463,7 +463,7 @@ In `crates/rstest-bdd-harness-tokio/src/policy.rs`:
         TestAttribute::new("rstest::rstest"),
         TestAttribute::with_arguments(
             "tokio::test",
-            "flavor = \"current_thread\"",
+            "flavour = \"current_thread\"",
         ),
     ];
 

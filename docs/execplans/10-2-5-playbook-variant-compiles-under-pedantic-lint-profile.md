@@ -202,7 +202,7 @@ Hard invariants; violation requires escalation, not a workaround.
   review completed with zero findings.
 - [x] (Post-delivery hardening) Follow-up cleanup and CI-collection fix
   completed on 2026-06-24. Extracted private test helpers for repeated fixture
-  and harness-run boilerplate in the trybuild normaliser fixture and the std,
+  and harness-run boilerplate in the trybuild normalizer fixture and the std,
   Tokio, and GPUI harness behaviour suites. Added root pytest `testpaths` so
   coverage jobs running `pytest` from the repository root collect only
   `scripts/tests/`, not generated Dylint source under `target/whitaker`.
@@ -236,7 +236,7 @@ Hard invariants; violation requires escalation, not a workaround.
   zero findings.
 - [x] (Review finding sweep) On 2026-06-28, verified the workflow cache comment
   and behavioural Tokio helper comment against current code; both were already
-  addressed. Fixed the still-valid localisation setup simplification, Tokio
+  addressed. Fixed the still-valid localization setup simplification, Tokio
   unit-test helper duplication, ADR/developer-guide/users-guide/ExecPlan prose
   issues, and Whitaker Python test diagnostics/platform suffix handling.
   Validation passed with `make check-fmt`, `make lint`, `make typecheck`,
@@ -320,7 +320,7 @@ Hard invariants; violation requires escalation, not a workaround.
 - Observation: small CodeScene-style "Bumpy Road" findings remained in test
   setup code after the main lint work. Impact: private, module-local helpers
   were extracted only where duplication was exact: `write_fixture_file` for the
-  trybuild stderr normaliser fixture, `run_std_harness`, `run_expecting_ok`,
+  trybuild stderr normalizer fixture, `run_std_harness`, `run_expecting_ok`,
   and `run_gpui_harness` for the first-party harness behaviour suites. These
   helpers keep panic diagnostics unchanged and use `match` or `let … else`
   forms compatible with Whitaker.
@@ -372,7 +372,7 @@ Hard invariants; violation requires escalation, not a workaround.
   toolchain. Do not add a bespoke textual doc-sync script (the earlier draft's
   proxy): the real lint gates the compiled suite, and the playbook snippet
   follows the existing "mirror the suite identifier-for-identifier" discipline.
-  Rationale: minimise blast radius and avoid redundant machinery. Date/Author:
+  Rationale: minimize blast radius and avoid redundant machinery. Date/Author:
   2026-06-18, planning agent.
 
 - Decision: pause implementation after Stage 0 local proof because the real lint
@@ -455,7 +455,7 @@ milestones with zero findings.
 
 Additional cleanup and CI hardening landed by 2026-06-24. The std, Tokio, and
 GPUI harness behaviour tests now share private run helpers within their own
-modules, the trybuild stderr normaliser fixture writes expected and actual
+modules, the trybuild stderr normalizer fixture writes expected and actual
 files through one private helper, and root pytest collection is restricted to
 `scripts/tests` so generated Dylint artefacts under `target/whitaker` are not
 collected by coverage jobs. Validation passed with `make check-fmt`,
@@ -731,7 +731,7 @@ Test rigour judgement (per the task's testing menu):
 ## Idempotence and recovery
 
 Conversions are mechanical and committed per file/group, so any step reverts via
-`git revert`. The Makefile/CI/`Cargo.toml` edits are localised. If `make fmt`
+`git revert`. The Makefile/CI/`Cargo.toml` edits are localized. If `make fmt`
 trips Markdown lints, run `make markdownlint` and fix before committing (Risk
 R6). The Stage 0 spike changes are throwaway — remove the experimental
 `metadata.dylint` entry before committing the real one.
@@ -761,7 +761,7 @@ Research citations to fold into ADR-013:
   recommends
   `unwrap_or_else(|| panic!())` (which is why no built-in Clippy lint catches
   it) — <https://rust-lang.github.io/rust-clippy/master/index.html>.
-- let-else stabilised in Rust 1.65 —
+- let-else stabilized in Rust 1.65 —
   <https://blog.rust-lang.org/2022/11/03/Rust-1.65.0/>.
 
 ## Interfaces and dependencies
@@ -805,7 +805,7 @@ its own nightly driver.
 Initial draft (2026-06-17): textual-proxy verification (assumed no real lint).
 
 Revision 2 (2026-06-17, Logisphere review): ungated accessor, reuse existing
-feature file, explicit doc-sync normalisation, two-tier acceptance.
+feature file, explicit doc-sync normalization, two-tier acceptance.
 
 Revision 3 (2026-06-18): **major redirection.** The maintainer identified
 `no_unwrap_or_else_panic` as a real Whitaker (Dylint) lint and chose

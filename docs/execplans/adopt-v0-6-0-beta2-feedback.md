@@ -162,14 +162,14 @@ Thresholds that trigger escalation when breached.
   `theoremc` prior art.
 
 - Risk: the optional Stage E fix could embed an absolute `CARGO_MANIFEST_DIR`
-  path into the compiled artifact (via a naive `include_str!`), breaking
+  path into the compiled artefact (via a naive `include_str!`), breaking
   reproducible/portable builds and distributed caching (Nix sandbox paths,
   Windows separators, `sccache` cache-key divergence), and the discarded item
   could trip `dead_code` under the pedantic lint profile.
   Severity: high. Likelihood: medium (only if Stage E is approved and takes the
   absolute-path route).
   Mitigation: ADR-010 rejects the absolute-path variant; Stage E uses either the
-  build-script `cargo::rerun-if-changed` route (no artifact change) or a
+  build-script `cargo::rerun-if-changed` route (no artefact change) or a
   relative-path `include_str!` resolved from the call-site span, and the
   regression test is portability-aware and serialized against nextest's
   process-per-test parallelism.
@@ -379,7 +379,7 @@ Doggylump, Dinolump):
 - Decision: make ADR-010 evaluate the mechanisms even-handedly and reject the
   absolute-path `include_str!` variant; defer the binding choice (build-script
   vs relative-path `include_str!`) to the implementing ExecPlan. Rationale:
-  embedding an absolute `CARGO_MANIFEST_DIR` path into the artifact breaks
+  embedding an absolute `CARGO_MANIFEST_DIR` path into the artefact breaks
   reproducible/portable builds (Nix sandbox, Windows, `sccache`); the
   build-script route avoids embedding entirely and fits `scenarios!` globs.
   Date/Author: 2026-06-09 / Claude (panel: Doggylump, Wafflecat, Buzzy Bee).
@@ -596,7 +596,7 @@ separate roadmap ExecPlan. Following Red-Green-Refactor:
    so nextest's process-per-test parallelism cannot race on a shared workspace
    `target`. Run it; expect failure against the current `std::fs`-read macro.
 2. Green: implement the ADR-010 mechanism chosen by the maintainer — either the
-   build-script `cargo::rerun-if-changed` route (no artifact change) or a
+   build-script `cargo::rerun-if-changed` route (no artefact change) or a
    relative-path `include_str!` resolved from the call-site span. Do **not**
    embed an absolute path (reproducibility/portability), and ensure the
    generated item does not trip `dead_code` under the pedantic profile. Re-run
@@ -767,7 +767,7 @@ the tolerance bound and must be re-approved.
      the *invoking source file*, so the macro must emit a path that rustc
      resolves to the right file from the call site — a **relative** path
      computed against the call-site span, *not* an absolute `CARGO_MANIFEST_DIR`
-     path, because embedding an absolute path into the artifact breaks
+     path, because embedding an absolute path into the artefact breaks
      reproducible/portable builds (Nix sandbox, Windows, `sccache`/`buildcache`
      cache-key divergence). The discarded item must avoid a `dead_code` warning
      under the pedantic profile (e.g. an under-`#[doc(hidden)]` use, not a bare
@@ -776,7 +776,7 @@ the tolerance bound and must be re-approved.
   2. A shipped build-script helper emitting `cargo::rerun-if-changed` for the
      features directory plus one line per discovered `.feature` file (the
      `theoremc` pattern). It does **not** embed feature text or any absolute
-     path into the artifact, so it sidesteps the reproducibility and binary-size
+     path into the artefact, so it sidesteps the reproducibility and binary-size
      concerns, and is the natural fit for the directory-glob `scenarios!` case
      where the file set is unknown until build time. Costs: a build-script
      obligation and the "emit one `rerun-if` line per file or silently regress"
@@ -798,7 +798,7 @@ the tolerance bound and must be re-approved.
   invalidation from caching in `§3.2.2`.
 - Consequences: closes the foot-gun; the chosen mechanism must be covered by a
   portability-aware regression test; no absolute path is embedded into the
-  artifact.
+  artefact.
 - Governs roadmap item: new Phase 11.3 rebuild item. Design Doc: new `§2.7.6.6`.
 
 ### ADR-011 — First-party scenario-state helpers and per-scenario cleanup
@@ -884,7 +884,7 @@ new item carries a finish line and a `Design Doc:` / ADR reference):
   `11.3.1`: "Editing only a `.feature` file triggers a scenario rebuild." Finish
   line: the `#[scenario]`/`scenarios!` expansion registers each bound feature
   file as a Cargo rebuild dependency (per ADR-010, without embedding an absolute
-  path into the artifact), and a portability-aware regression test proves a
+  path into the artefact), and a portability-aware regression test proves a
   `.feature`-only edit forces recompilation and a fresh failure. The item lives
   in Phase 11 (the open v0.6.x line) rather than the delivered Phase 10, and
   carries a recommendation to pull it forward to v0.6.0 final. Non-breaking.

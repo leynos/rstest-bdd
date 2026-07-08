@@ -44,7 +44,7 @@ consuming the raw output.
 4. Stitch the responses together and apply whichever subcommand filter you
    requested.
 
-Any binary that crashes without recognising `--dump-steps` is politely skipped
+Any binary that crashes without recognizing `--dump-steps` is politely skipped
 (the tool assumes it simply is not an `rstest-bdd` test). Binaries that fail
 for other reasons cause the subcommand to error, so you still notice genuinely
 broken builds.

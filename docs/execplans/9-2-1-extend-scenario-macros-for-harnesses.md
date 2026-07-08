@@ -344,7 +344,7 @@ The assertions are emitted inside the generated test function body (alongside
 the existing scenario scaffolding) so they participate in the same compilation
 unit as the user's types.
 
-When neither parameter is specified, the existing behavior is unchanged.
+When neither parameter is specified, the existing behaviour is unchanged.
 
 Update all call sites of `generate_test_attrs`:
 

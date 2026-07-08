@@ -52,7 +52,7 @@ same shared lint list and reason string.
     - Risk: a shared lint list used in tests diverges from codegen logic.
       Severity: medium
       Likelihood: low
-      Mitigation: centralise lint names in one constant and reuse it in both
+      Mitigation: centralize lint names in one constant and reuse it in both
       generation and tests.
 
     - Risk: documentation reference changes could break existing links.

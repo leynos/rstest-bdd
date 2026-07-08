@@ -36,7 +36,7 @@ The design is heavily modelled on `pytest-bdd`, a successful plugin for Python's
 `pytest` framework.[^4]
 
 `pytest-bdd`'s success stems from its ability to leverage the full power of its
-host framework—including fixtures, parameterisation, and a vast plugin
+host framework—including fixtures, parameterization, and a vast plugin
 ecosystem—rather than replacing it.[^1] By emulating this model,
 
 `rstest-bdd` will provide a familiar and robust BDD experience that feels
@@ -179,15 +179,15 @@ work out of the box.[^7]
 Beyond the basic workflow, `rstest-bdd` is designed to support the advanced
 Gherkin features necessary for comprehensive testing.
 
-#### 1.3.1 Parameterisation with `Scenario Outline`
+#### 1.3.1 Parameterization with `Scenario Outline`
 
 Gherkin's `Scenario Outline` allows a single scenario to be run with multiple
 sets of data from an `Examples` table.[^8]
 
 `rstest-bdd` will map this concept directly to `rstest`'s powerful
-parameterisation capabilities. The `#[scenario]` macro will detect a
+parameterization capabilities. The `#[scenario]` macro will detect a
 `Scenario Outline` and generate code equivalent to a standard `rstest`
-parameterised test using multiple `#[case]` attributes.[^9]
+parameterized test using multiple `#[case]` attributes.[^9]
 
 **Feature File (**`login.feature`**):**
 
@@ -1378,7 +1378,7 @@ be considered when designing step implementations.
 ### 2.6 Runtime execution module
 
 The `rstest_bdd::execution` module provides the runtime infrastructure for step
-execution, centralising policy decisions that were previously embedded in the
+execution, centralizing policy decisions that were previously embedded in the
 codegen layer. This separation keeps macro-generated code lightweight and makes
 runtime behaviour easier to test independently.
 
@@ -1462,7 +1462,7 @@ fn __rstest_bdd_extract_skip_message(error: &ExecutionError) -> Option<Option<St
 }
 ```
 
-This reduces generated code size and centralises policy logic where it can be
+This reduces generated code size and centralizes policy logic where it can be
 tested and modified without regenerating macro output.
 
 ### 2.7 Harness adapters and attribute policy plugins (ADR-005, ADR-007)
@@ -1874,7 +1874,7 @@ The first official adapters and policies are:
   `version` plus `path` dependency for local GPUI test support so the harness
   keeps the stable-compatible `run_test`/`TestAppContext`/`#[gpui::test]`
   surface without reintroducing `async-trait` or a root patch table.
-  Publish-check automation synthesizes a standalone package artifact for
+  Publish-check automation synthesizes a standalone package artefact for
   `rstest-bdd-harness-gpui` and compiles a generated validator crate against
   upstream `gpui`; GPUI behavioural and integration tests remain feature-gated
   behind `native-gpui-tests` as an explicit opt-in suite. A user-facing
@@ -2070,7 +2070,7 @@ harness-agnostic runtime reference,
 `crates/rstest-bdd/tests/common/bulk_migration_steps.rs`, plus a trybuild
 compile-pass mirror,
 `crates/rstest-bdd/tests/fixtures_macros/scenario_bulk_migration_cookbook.rs`;
-the GPUI durable-handle specialisation remains proven by `stateful_window.rs`.
+the GPUI durable-handle specialization remains proven by `stateful_window.rs`.
 The user guide's "Bulk-migration cookbook" subsection documents the shape and
 bridges its GPUI snippets to published `gpui 0.2.2` through the vendored-to-
 published mapping table. This hand-written shared block is superseded in v0.6.1
@@ -2164,10 +2164,10 @@ Two mechanisms close the gap (evaluated in detail by
    the case where the file set is not known at macro-expansion time.
 
 The unstable `proc_macro::tracked_path` API is the right long-term answer
-and is usable behind a `nightly` feature gate pending stabilisation.
+and is usable behind a `nightly` feature gate pending stabilization.
 
 OUT_DIR AST caching (noted in `§3.2.2` below) is a *performance*
-optimisation, not an invalidation mechanism; it does not close this gap.
+optimization, not an invalidation mechanism; it does not close this gap.
 
 Until roadmap item 11.3.1 lands, a caveat in the adoption guide notes that
 `.feature`-only edits do not trigger a rebuild, and users should `touch` an
@@ -2182,7 +2182,7 @@ execution from corrupting thread-local state. The effect of `#[serial]`
 differs significantly between the two common test runners:
 
 **Under `cargo test`** (the default): all integration tests in a binary run
-in a single process using multiple threads. `#[serial]` serialises tests
+in a single process using multiple threads. `#[serial]` serializes tests
 that carry the same `name` argument (or all `#[serial]` tests when no name
 is given) using an in-process mutex, ensuring that only one scenario runs at
 a time and the thread-local reset protocol is respected. `#[serial]` is
@@ -2190,11 +2190,11 @@ a time and the thread-local reset protocol is respected. `#[serial]` is
 
 **Under cargo-nextest** (`cargo nextest run`, which `make test` uses): each
 test is run in its own process. Every `#[serial]` test therefore runs in
-isolation by default; the in-process mutex serialises nothing across the
+isolation by default; the in-process mutex serializes nothing across the
 process boundary. `#[serial]` is **redundant-but-harmless** under nextest
 because process-per-test already isolates per-process thread-local state.
 
-**Cross-binary and cross-process serialisation:** if two scenario binaries
+**Cross-binary and cross-process serialization:** if two scenario binaries
 must not run concurrently (for example, both share a locked hardware
 resource or a single-process GPUI session), `#[serial]` is insufficient
 under both runners. Use `#[file_serial]` (a file-lock-backed variant in
@@ -2211,7 +2211,7 @@ with `max-threads = 1`.
 
 The `make test` target in this repository uses nextest. Adopters whose
 consuming crates also use nextest will find `#[serial]` is still a safe
-annotation but provides no within-binary serialisation benefit. The
+annotation but provides no within-binary serialization benefit. The
 recommendation is to keep `#[serial]` annotations so that `cargo test`
 continues to work correctly, and to rely on nextest's process isolation for
 the default safe-execution guarantee.
@@ -2242,7 +2242,7 @@ serial_test = { version = "...", features = ["file_locks"] }
 The `file_locks` feature is the load-bearing part of the manifest fragment;
 choose the major version already used by the consuming workspace. The file
 lock defaults to a file under the operating system's temporary directory, and
-can be customised with `path` and key arguments. `#[file_serial]` does not
+can be customized with `path` and key arguments. `#[file_serial]` does not
 mutually exclude tests annotated with `#[serial]`, because the two attributes
 lock using different mechanisms.
 
@@ -2276,7 +2276,7 @@ incrementally.
   `#[scenario]` macro can successfully find and execute steps registered by
   other macros at runtime.
 
-- **Phase 2: Fixtures and Parameterisation**
+- **Phase 2: Fixtures and Parameterization**
 
 - Enhance the macro system to inspect the signatures of step functions and
   integrate with `rstest`'s fixture system. This allows steps to request
@@ -2456,10 +2456,10 @@ macro.
 - **Compile-Time Overhead:** The `#[scenario]` macro performs file reads and
   parsing during compilation. For projects with many feature files, this could
   introduce a noticeable overhead to compile times. **Mitigation (performance):**
-  This can be significantly optimised by caching the parsed Gherkin ASTs in
+  This can be significantly optimized by caching the parsed Gherkin ASTs in
   `OUT_DIR`. The macro would only re-parse a `.feature` file if its
   modification time has changed, similar to how tools like `prost-build` handle
-  `.proto` files. **Note:** OUT_DIR caching is a *performance* optimisation and
+  `.proto` files. **Note:** OUT_DIR caching is a *performance* optimization and
   is orthogonal to *rebuild invalidation* (making Cargo aware that a
   `.feature`-only edit requires recompilation). The invalidation problem is
   separate and addressed by `§2.7.6.6` and
@@ -2530,7 +2530,7 @@ The following table summarizes the key differences:
 | Test Runner      | Standard cargo test (via rstest expansion)                                                                                                | Custom runner invoked from a main function (World::run(…)) [^19]                |
 | State Management | rstest fixtures; dependency injection model [^1]                                                                                          | Mandatory World struct; a central state object per scenario [^11]               |
 | Step Discovery   | Automatic via compile-time registration (inventory) and runtime matching                                                                  | Explicit collection in the test runner setup (World::cucumber().steps(…)) [^20] |
-| Parameterisation | Gherkin Scenario Outline maps to rstest's #[case] parameterisation [^21]                                                                  | Handled internally by the cucumber runner                                       |
+| Parameterization | Gherkin Scenario Outline maps to rstest's #[case] parameterization [^21]                                                                  | Handled internally by the cucumber runner                                       |
 | Async Support    | Tokio current-thread mode delivered via `TokioHarness`; multi-thread runtimes future work ([ADR-001](adr-001-async-fixtures-and-test.md)) | Built-in; requires specifying an async runtime [^11]                            |
 | Ecosystem        | Seamless integration with rstest and cargo features                                                                                       | Self-contained framework; can use any Rust library within steps                 |
 | Ergonomics       | pytest-bdd-like; explicit #[scenario] binding links test code to features [^6]                                                            | cucumber-jvm/js-like; feature-driven, with a central test runner                |
@@ -2545,7 +2545,7 @@ functionality is implemented:
 - `scenarios!` **Macro:** Implemented to reduce boilerplate. The macro walks a
   directory recursively using the `walkdir` crate, discovers `.feature` files,
   and generates a module containing a test for each `Scenario`. Function names
-  derive from the feature file stem and scenario title, sanitised and
+  derive from the feature file stem and scenario title, sanitized and
   deduplicated. Generated tests do not currently accept fixtures.
 
   The following diagram summarizes the relationships between the macro and its
@@ -3316,7 +3316,7 @@ These macros keep test code succinct while still surfacing detailed diagnostics.
     <https://qaautomation.expert/2024/04/11/scenario-outline-in-pytest-bdd/>.
     See also chapter 5 of Behaviour-Driven Python with pytest-bdd,
     <https://testautomationu.applitools.com/behaviour-driven-python-with-pytest-bdd/chapter5.html>.
-[^9]: How can developers create parameterised tests in Rust? - Stack Overflow,
+[^9]: How can developers create parameterized tests in Rust? - Stack Overflow,
     accessed on 20 July 2025,
     <https://stackoverflow.com/questions/34662713/how-can-i-create-parameterised-tests-in-rust>.
 [^10]: pytest-bdd - Read the Docs, accessed on 20 July 2025,
@@ -3354,5 +3354,5 @@ These macros keep test code succinct while still surfacing detailed diagnostics.
     <https://docs.rs/cucumber>.
 [^20]: cucumber crate step collection API, accessed on 20 July 2025,
     <https://docs.rs/cucumber/latest/cucumber/struct.World.html#method.steps>.
-[^21]: rstest crate documentation for `#[case]` parameterisation, accessed on
+[^21]: rstest crate documentation for `#[case]` parameterization, accessed on
     20 July 2025, <https://docs.rs/rstest/latest/rstest/attr.case.html>.

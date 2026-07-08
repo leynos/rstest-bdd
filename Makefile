@@ -1,7 +1,7 @@
 VALE ?= vale
 
 .PHONY: help all clean test build build-python release lint lint-python
-.PHONY: lint-whitaker ensure-whitaker-tools typecheck fmt check-fmt markdownlint nixie publish-check
+.PHONY: lint-whitaker ensure-whitaker-tools typecheck fmt check-fmt markdownlint spellcheck nixie publish-check
 .PHONY: forbid-async-trait vale update-ui-lints-lock test-workflow-contracts
 
 SHELL := bash
@@ -17,6 +17,14 @@ ACRONYM_SCRIPT ?= scripts/update_acronym_allowlist.py
 UV ?= $(or $(shell command -v uv 2>/dev/null),$(HOME)/.local/bin/uv)
 UVX ?= $(or $(shell command -v uvx 2>/dev/null),$(HOME)/.local/bin/uvx)
 UV_ENV = UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools
+# Single source of truth for the typos version; CI inherits it by calling
+# `make spellcheck`, so the Makefile and CI cannot drift apart.
+TYPOS_VERSION ?= 1.48.0
+# The env prefix lets xargs execute the command despite the leading
+# variable assignments in UV_ENV.
+TYPOS = env $(UV_ENV) $(UV) tool run typos@$(TYPOS_VERSION)
+# Shared Markdown file list used by markdownlint and the spelling gate.
+MD_FILES_FIND = find . -type f -name '*.md' -not -path '*/target/*' -not -path '*/node_modules/*' -print0
 LADING_REF ?= d3217a599ea34adad6a6e3845845fff2fe923758
 LADING_SPEC ?= lading @ git+https://github.com/leynos/lading@$(LADING_REF)
 PYTHON_TARGETS ?= $(shell find scripts -type f -name "*.py" -print | sort)
@@ -136,8 +144,12 @@ check-fmt: build-python ## Verify formatting
 	$(CARGO) fmt --all -- --check
 	$(UV_ENV) $(UV) run ruff format --check $(PYTHON_TARGETS)
 
-markdownlint: ## Lint Markdown files
-	find . -type f -name '*.md' -not -path '*/target/*' -not -path '*/node_modules/*' -print0 | xargs -0 $(MDLINT)
+markdownlint: ## Lint Markdown files and enforce en-GB-oxendict spelling
+	$(MD_FILES_FIND) | xargs -0 $(MDLINT)
+	$(MAKE) spellcheck
+
+spellcheck: ## Enforce en-GB-oxendict (Oxford) spelling in Markdown with typos
+	$(MD_FILES_FIND) | xargs -0 $(TYPOS) --config typos.toml --force-exclude
 
 nixie:
 	# CI currently requires --no-sandbox; remove once nixie supports

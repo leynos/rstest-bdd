@@ -339,7 +339,7 @@ Stop and escalate (document in Decision Log, await direction) when:
 ## Decision log
 
 - Decision: Target Interpretation B — documentation plus an executable
-  reference suite — over prose-only. Rationale: the roadmap emphasises sharing a
+  reference suite — over prose-only. Rationale: the roadmap emphasizes sharing a
   *step library* and not copying *helper code*, and the sibling cookbook has an
   executable mirror; a prose-only change would leave this the only unbacked
   cookbook. Date/Author: 2026-07-06. Status: confirm at approval.
@@ -455,7 +455,7 @@ Key terms:
   need mutable harness context (design §2.7.6.2, first bullet).
 - **Durable handle (GPUI):** a value valid across steps such as
   `gpui::Entity<T>` or `gpui::AnyWindowHandle`. `VisualTestContext` is not
-  durable and is rebuilt on demand. This is the GPUI-specific specialisation of
+  durable and is rebuilt on demand. This is the GPUI-specific specialization of
   the shared-state idea and is covered in prose only, cross-linked to the
   existing executable reference.
 
@@ -573,10 +573,10 @@ the presence of the shared *steps*.
      subdirectory form (and why it avoids an accidental empty test binary).
    - Call out the `pub`-visibility requirement — the one thing that differs from
      copy-pasting the single-file worked example.
-   - Standardise on the qualified `#[from(<module>::scenario_state_cleanup)]`
+   - Standardize on the qualified `#[from(<module>::scenario_state_cleanup)]`
      form; update the existing file-tree and binding snippet to match the shipped
      module name and include form.
-   - For the GPUI specialisation: keep durable-handle guidance as prose/`no_run`
+   - For the GPUI specialization: keep durable-handle guidance as prose/`no_run`
      snippets marked vendored-API, add the one-line pointer to the existing
      published-vs-vendored mapping table (Constraint 8), and cross-link to
      `stateful_window.rs` as the executable GPUI reference.
@@ -733,7 +733,7 @@ tests.
 ## Interfaces and dependencies
 
 No production interfaces change. Test-only shapes to create (names illustrative;
-finalise the domain in Stage A):
+finalize the domain in Stage A):
 
 Shared module `crates/rstest-bdd/tests/common/bulk_migration_steps.rs`:
 

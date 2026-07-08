@@ -33,7 +33,7 @@ troubleshooting entry that a downstream user lands on the first time they hit
 `E0499` or `E0502` in step code. Today, a reader who follows the borrow-checker
 error to its rustc diagnostic gets generic Rust-language guidance and has to do
 "compiler-error archaeology" — read the macro expansion, then track down
-§2.7.6.1 — before they realise the fix is in the stateful GPUI playbook they
+§2.7.6.1 — before they realize the fix is in the stateful GPUI playbook they
 have not yet been told about. The migration guide must close that loop.
 
 After this work is implemented, a Behaviour-Driven Development (BDD) author
@@ -133,7 +133,7 @@ produced.
   from the same anchor. Cross-link the rustc canonical pages
   `https://doc.rust-lang.org/error_codes/E0499.html` and
   `https://doc.rust-lang.org/error_codes/E0502.html` once in the rationale
-  paragraph so a reader who lands from a rustc diagnostic recognises the page.
+  paragraph so a reader who lands from a rustc diagnostic recognizes the page.
 - The rationale paragraph must be honest about *why* the wrapper triggers
   these errors at all: it is not the step body, it is the generated wrapper's
   two `ctx.borrow_mut(...)` calls on `&mut self`. Quoting or paraphrasing the
@@ -267,7 +267,7 @@ produced.
 - Risk: the entry duplicates content with the user-guide playbook
   (already shipped under 10.2.1) and the two drift over time. Severity: medium.
   Likelihood: medium. Mitigation: keep the migration-guide entry strictly about
-  *recognising the symptom and choosing an escape*. The worked-out playbook
+  *recognizing the symptom and choosing an escape*. The worked-out playbook
   lives in the user guide; the migration-guide entry links to it by anchor and
   does not reproduce the snippet.
 - Risk: the failing-shape snippet's parameter names drift from the
@@ -307,7 +307,7 @@ produced.
   unresolved concerns. Deterministic gates passed 2026-06-06; CodeRabbit review
   on `f918d5f` completed with zero findings.
 - [x] Stage F: roadmap close-out. Mark `docs/roadmap.md` item 10.2.2 as
-  done with a delivery date and one-sentence summary; finalise Outcomes &
+  done with a delivery date and one-sentence summary; finalize Outcomes &
   retrospective in this plan. Completed 2026-06-06.
 - [x] Stage G: add compile-time UI drift coverage after review.
   Acceptance: `crates/rstest-bdd-macros/tests/ui/` contains trybuild
@@ -368,7 +368,7 @@ implementation on 2026-06-06 after explicit user approval.
   parameters to `&T` (when read-only access suffices for both), or split the
   step. Evidence: Firecrawl research pass dated 2026-06-04. Impact: cite the
   rustc pages once in the rationale paragraph so readers who arrive via a rustc
-  diagnostic recognise the page, but do not claim the rustc pages recommend the
+  diagnostic recognize the page, but do not claim the rustc pages recommend the
   rstest-bdd workaround shape — they don't, and they shouldn't.
 - Observation: cucumber-rs (the closest Rust BDD peer) sidesteps the
   problem by passing `&mut World` to every step. There is therefore no
@@ -487,7 +487,7 @@ implementation on 2026-06-06 after explicit user approval.
   clarified 2026-06-06 after follow-up review; corrected after review).
 - Decision: cite the rustc canonical error pages once each in the
   rationale paragraph; do not cite the cucumber-rs book. Rationale: rustc
-  citations help readers who arrive from a compiler diagnostic recognise the
+  citations help readers who arrive from a compiler diagnostic recognize the
   page they are on; cucumber-rs's contract differs enough that a
   cross-reference invites a "why don't you do it this way" discussion in user
   issues that the v0.7.0 redesign will pre-empt. Date/author: 2026-06-04
@@ -621,7 +621,7 @@ opened, and close the loop in a later plan revision.
    be updated with the new diagnostic message.
 3. **First downstream review of the entry.** Capture the first
    downstream beta consumer's experience reading the new troubleshooting
-   subsection — did they recognise the symptom from the rustc message, did they
+   subsection — did they recognize the symptom from the rustc message, did they
    pick the right escape on the first read, and did they avoid cargo-culting
    the thread-local pattern into a single-mutable scenario? If any of those
    broke, revise the entry before the v0.6.0 final cut.

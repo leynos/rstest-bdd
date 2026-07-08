@@ -111,6 +111,10 @@ jobs:
         with:
           globs: '**/*.md'
 
+      - name: Spelling (en-GB-oxendict)
+        if: ${{ matrix.tools }}
+        run: make spellcheck
+
       - name: Lint
         if: ${{ matrix.tools }}
         run: make lint
