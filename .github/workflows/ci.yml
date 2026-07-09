@@ -27,7 +27,6 @@ jobs:
         include:
           - os: ubuntu-latest
             coverage: true
-            codescene-check: true
             features: ''
             with-default-features: true
             tools: true
@@ -176,9 +175,12 @@ jobs:
       - name: Test and Measure Coverage (no features)
         if: ${{ matrix.coverage && matrix.features == '' }}
         uses: leynos/shared-actions/.github/actions/generate-coverage@927edd45ae77be4251a8a18ca9eb5613a2e32cbd
-        # The CodeScene leg gates on the ratchet, so a coverage failure must
-        # fail the build there; other legs stay best-effort as before.
-        continue-on-error: ${{ !matrix.codescene-check }}
+        # The CodeScene leg (the default-features Linux leg) gates on the
+        # ratchet, so a coverage failure must fail the build there; other
+        # legs stay best-effort as before. Selected by matrix values rather
+        # than a dedicated key so the job name (a required check context)
+        # is unchanged.
+        continue-on-error: ${{ !(matrix.os == 'ubuntu-latest' && matrix.features == '') }}
         env:
           # Windows coverage runs (build plus doctests) exceed the shared
           # action's 600s per-invocation default; give them headroom.
@@ -193,9 +195,10 @@ jobs:
           # integration test shells out to `cargo dylint`, so parallel
           # xdist workers race on the cargo package-cache lock.
           pytest-workers: ''
-          # Ratchet only the single CodeScene leg: the two Linux coverage
-          # legs would otherwise collide on the per-run baseline cache key.
-          with-ratchet: ${{ matrix.codescene-check && 'true' || 'false' }}
+          # Ratchet only the default-features Linux leg: the two Linux
+          # coverage legs would otherwise collide on the per-run baseline
+          # cache key.
+          with-ratchet: ${{ (matrix.os == 'ubuntu-latest' && matrix.features == '') && 'true' || 'false' }}
 
       - name: Verify coverage output exists
         if: ${{ matrix.coverage }}
@@ -213,9 +216,11 @@ jobs:
       # the received project-config isn't valid. Lacks the gates
       # configuration." — a CodeScene-side per-project setting, not a CI
       # defect (ddlint and chutoro projects hit the byte-identical error).
-      # It would attach to the single `matrix.codescene-check` leg (with
-      # project-url https://api.codescene.io/v2/projects/69391) alongside
-      # the ratchet. Add it in a fast-follow PR once coverage-main.yml has
+      # It would attach to the single default-features Linux leg
+      # (matrix.os == 'ubuntu-latest' && matrix.features == '', which
+      # carries the ratchet) with project-url
+      # https://api.codescene.io/v2/projects/69391. Add it in a fast-follow
+      # PR once coverage-main.yml has
       # uploaded to main at least once and the gate is confirmed to
       # resolve, or once CodeScene confirms the project's coverage gate is
       # enabled.
