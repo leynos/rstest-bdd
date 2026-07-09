@@ -1,0 +1,50 @@
+# Configuration for the Whitaker Dylint suite (see `make lint-whitaker`).
+
+[no_std_fs_operations]
+excluded_crates = [
+    # Test support utilities: rstest-bdd-harness stages trybuild and
+    # macrotest fixture trees on the ambient filesystem so that the
+    # compile-test runners it wraps can consume them. The crate exists to
+    # manage those ambient paths on behalf of test suites, so a
+    # capability-based `cap_std::fs::Dir` surface offers no benefit here.
+    "rstest_bdd_harness",
+    # Procedural macro crate: feature-file discovery and caching run at
+    # macro expansion time on the host, where paths derive from
+    # `CARGO_MANIFEST_DIR` and macro attributes. There is no ambient
+    # capability to grant a `cap_std::fs::Dir` from inside `rustc`, so
+    # std::fs is the appropriate surface here.
+    "rstest_bdd_macros",
+    # Integration test crate (tests/binary_test_support_cargo.rs): exercises
+    # spawning `cargo` against ambient workspace and temp-dir paths, so the
+    # ambient filesystem is the behaviour under test.
+    "binary_test_support_cargo",
+    # Integration test crate (crates/cargo-bdd/tests/cli.rs): smoke-tests the
+    # `cargo bdd` subcommand against the ambient workspace target directory,
+    # which `cargo` itself resolves ambiently.
+    "cli",
+    # Language server: the LSP protocol supplies absolute file URIs chosen by
+    # the client, and workspace discovery mirrors `cargo`'s own ambient
+    # manifest resolution, so there is no capability root to thread through.
+    "rstest_bdd_server",
+    # Integration test crates for the language server: each stages feature
+    # and Rust fixture files in ambient temp directories so the server can
+    # index them via the same ambient paths the LSP client would supply.
+    "definition_navigation",
+    "feature_indexing_on_save",
+    "implementation_navigation",
+    "rust_step_indexing_on_save",
+    "smoke_lsp",
+    "step_registry_on_save",
+    # Integration test crate (crates/rstest-bdd/tests): reads the feature
+    # file under `CARGO_MANIFEST_DIR` to mirror the ambient path resolution
+    # performed by the `#[scenario]` macro it exercises.
+    "async_semantic_behaviour",
+    # Integration test crate (crates/rstest-bdd-harness-gpui/tests): stages
+    # trybuild fixture trees in the ambient cargo target directory, matching
+    # where the trybuild runner expects them.
+    "macro_compile",
+    # Integration test crate (crates/rstest-bdd/tests): writes throwaway
+    # fixture crates into ambient temp directories and drives `make
+    # lint-whitaker` against them, so ambient paths are the point.
+    "trybuild_macros",
+]

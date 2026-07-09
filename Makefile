@@ -1,7 +1,7 @@
 VALE ?= vale
 
 .PHONY: help all clean test build build-python release lint lint-python
-.PHONY: lint-whitaker ensure-whitaker-tools typecheck fmt check-fmt markdownlint spellcheck nixie publish-check
+.PHONY: lint-whitaker typecheck fmt check-fmt markdownlint spellcheck nixie publish-check
 .PHONY: forbid-async-trait vale update-ui-lints-lock test-workflow-contracts
 
 SHELL := bash
@@ -29,31 +29,7 @@ LADING_REF ?= d3217a599ea34adad6a6e3845845fff2fe923758
 LADING_SPEC ?= lading @ git+https://github.com/leynos/lading@$(LADING_REF)
 PYTHON_TARGETS ?= $(shell find scripts -type f -name "*.py" -print | sort)
 PYLINT_TARGETS ?= $(PYTHON_TARGETS)
-WHITAKER_REPO ?= https://github.com/leynos/whitaker.git
-WHITAKER_TAG ?= v0.2.5
-WHITAKER_TOOLCHAIN ?= nightly-2025-09-18
-WHITAKER_LINT ?= no_unwrap_or_else_panic
-WHITAKER_HOST ?= $(shell rustc -vV | awk '/^host:/ {print $$2}')
-WHITAKER_ROOT ?= target/whitaker
-WHITAKER_SRC ?= $(WHITAKER_ROOT)/$(WHITAKER_LINT)-$(WHITAKER_TAG)-src
-WHITAKER_TARGET_DIR ?= $(WHITAKER_ROOT)/$(WHITAKER_LINT)-$(WHITAKER_TAG)-$(WHITAKER_TOOLCHAIN)-target
-WHITAKER_LIBRARY_DIR ?= $(abspath $(WHITAKER_TARGET_DIR)/dylint/libraries/$(WHITAKER_TOOLCHAIN)/release)
-WHITAKER_TOOLCHAIN_STAMP ?= $(WHITAKER_TARGET_DIR)/.toolchain-installed
-WHITAKER_BUILD_STAMP ?= $(WHITAKER_TARGET_DIR)/.whitaker-built
-UNAME_S := $(shell uname -s 2>/dev/null || echo unknown)
-
-ifeq ($(OS),Windows_NT)
-WHITAKER_DLL_PREFIX :=
-WHITAKER_DLL_SUFFIX := .dll
-else ifeq ($(UNAME_S),Darwin)
-WHITAKER_DLL_PREFIX := lib
-WHITAKER_DLL_SUFFIX := .dylib
-else
-WHITAKER_DLL_PREFIX := lib
-WHITAKER_DLL_SUFFIX := .so
-endif
-
-WHITAKER_LIBRARY ?= $(WHITAKER_LIBRARY_DIR)/$(WHITAKER_DLL_PREFIX)$(WHITAKER_LINT)@$(WHITAKER_TOOLCHAIN)$(WHITAKER_DLL_SUFFIX)
+WHITAKER ?= whitaker
 
 build: target/debug/$(APP) ## Build debug binary
 build-python: pyproject.toml ## Build Python tooling environment
@@ -78,7 +54,7 @@ test: build-python ## Run tests with warnings treated as errors
 target/%/$(APP): ## Build binary in debug or release mode
 	$(CARGO) build $(BUILD_JOBS) $(if $(findstring release,$(@)),--release) --bin $(APP)
 
-lint: ## Run Clippy with warnings denied
+lint: ## Run Clippy and the Whitaker Dylint suite with warnings denied
 	$(CARGO) clippy $(CLIPPY_FLAGS)
 	$(MAKE) lint-whitaker
 	$(MAKE) lint-python
@@ -87,41 +63,8 @@ lint: ## Run Clippy with warnings denied
 	python3 scripts/check_gpui_mapping_table.py
 	python3 scripts/check_serial_nextest_matrix.py
 
-lint-whitaker: $(WHITAKER_LIBRARY) ## Run Whitaker no_unwrap_or_else_panic
-	$(CARGO) dylint --version >/dev/null
-	DYLINT_LIBRARY_PATH="$(WHITAKER_LIBRARY_DIR)" \
-		RUSTUP_TOOLCHAIN=stable \
-		$(CARGO) dylint --keep-going --lib $(WHITAKER_LINT) \
-		--no-metadata --no-build -- $(CARGO_FLAGS)
-
-ensure-whitaker-tools:
-	$(CARGO) dylint --version >/dev/null
-
-$(WHITAKER_SRC)/.git:
-	mkdir -p "$(WHITAKER_ROOT)"
-	if [ ! -d "$(WHITAKER_SRC)/.git" ]; then \
-		git clone --depth 1 --branch "$(WHITAKER_TAG)" \
-			"$(WHITAKER_REPO)" "$(WHITAKER_SRC)"; \
-	fi
-
-$(WHITAKER_TOOLCHAIN_STAMP): | ensure-whitaker-tools
-	mkdir -p "$(WHITAKER_TARGET_DIR)"
-	rustup toolchain install "$(WHITAKER_TOOLCHAIN)" \
-		--component rustc-dev --component rust-src \
-		--component llvm-tools-preview
-	touch "$@"
-
-$(WHITAKER_BUILD_STAMP): $(WHITAKER_SRC)/.git $(WHITAKER_TOOLCHAIN_STAMP)
-	cd "$(WHITAKER_SRC)" && \
-		CARGO_TARGET_DIR="$(abspath $(WHITAKER_TARGET_DIR))" \
-		rustup run "$(WHITAKER_TOOLCHAIN)" cargo build --release \
-		-p "$(WHITAKER_LINT)" --features dylint-driver
-	touch "$@"
-
-$(WHITAKER_LIBRARY): $(WHITAKER_BUILD_STAMP) | ensure-whitaker-tools
-	mkdir -p "$(WHITAKER_LIBRARY_DIR)"
-	cp "$(WHITAKER_TARGET_DIR)/release/$(WHITAKER_DLL_PREFIX)$(WHITAKER_LINT)$(WHITAKER_DLL_SUFFIX)" \
-		"$(WHITAKER_LIBRARY)"
+lint-whitaker: ## Run the Whitaker Dylint suite with warnings denied
+	RUSTFLAGS="$(RUST_FLAGS)" $(WHITAKER) --all -- $(CARGO_FLAGS)
 
 lint-python: build-python ## Run Python linters
 	$(UV_ENV) $(UV) run ruff check $(PYTHON_TARGETS)

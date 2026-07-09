@@ -17,10 +17,7 @@ jobs:
       RUSTFLAGS: -D warnings
       RUSTDOCFLAGS: -D warnings
       LADING_REF: d3217a599ea34adad6a6e3845845fff2fe923758
-      WHITAKER_TAG: v0.2.5
-      WHITAKER_TOOLCHAIN: nightly-2025-09-18
-      CARGO_DYLINT_VERSION: 5.0.0
-      DYLINT_LINK_VERSION: 5.0.0
+      WHITAKER_INSTALLER_VERSION: '0.2.5'
     strategy:
       fail-fast: false
       matrix:
@@ -83,23 +80,27 @@ jobs:
         if: ${{ matrix.tools }}
         run: uv tool install nixie-cli==1.0.0
 
-      - name: Cache Whitaker lint library
-        id: whitaker-cache
-        if: ${{ matrix.tools && runner.os == 'Linux' }}
+      - name: Cache Whitaker installer
+        if: ${{ matrix.tools }}
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: |
-            target/whitaker
-            ~/.cargo/bin/cargo-dylint
-            ~/.cargo/bin/dylint-link
-          key: whitaker-no-unwrap-or-else-panic-${{ runner.os }}-${{ env.WHITAKER_TAG }}-${{ env.WHITAKER_TOOLCHAIN }}-cargo-dylint-${{ env.CARGO_DYLINT_VERSION }}
+            ~/.cargo/bin/whitaker-installer
+            ~/.cache/cargo-binstall
+          key: whitaker-installer-${{ runner.os }}-${{ runner.arch }}-${{ env.WHITAKER_INSTALLER_VERSION }}
 
-      - name: Install Dylint tools
-        if: ${{ matrix.tools && (runner.os != 'Linux' || steps.whitaker-cache.outputs.cache-hit != 'true') }}
+      - name: Install Whitaker
+        if: ${{ matrix.tools }}
         run: |
-          set -euxo pipefail
-          cargo install --locked cargo-dylint --version "${CARGO_DYLINT_VERSION}"
-          cargo install --locked dylint-link --version "${DYLINT_LINK_VERSION}"
+          if ! command -v whitaker-installer >/dev/null 2>&1; then
+            if cargo binstall --version >/dev/null 2>&1; then
+              cargo binstall --no-confirm --locked "whitaker-installer@${WHITAKER_INSTALLER_VERSION}"
+            else
+              echo "cargo-binstall unavailable; building whitaker-installer from crates.io"
+              cargo install --locked whitaker-installer --version "${WHITAKER_INSTALLER_VERSION}"
+            fi
+          fi
+          whitaker-installer
 
       - name: Nixie
         if: ${{ matrix.tools }}
