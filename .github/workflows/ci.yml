@@ -58,6 +58,24 @@ jobs:
           # its merge base, so the full history must be reachable.
           fetch-depth: 0
 
+      - name: Free disk space
+        if: ${{ runner.os == 'Linux' }}
+        shell: bash
+        run: |
+          set -uo pipefail
+          # Coverage builds the workspace once; `make publish-check` then
+          # compiles it again into a separate target directory. On the
+          # strict-feature leg the two builds exhaust the runner's disk, so
+          # reclaim space from large preinstalled toolchains we do not use.
+          sudo rm -rf \
+            /usr/share/dotnet \
+            /usr/local/lib/android \
+            /opt/ghc \
+            /opt/hostedtoolcache/CodeQL \
+            /usr/local/share/boost \
+            /usr/local/share/powershell || true
+          df -h /
+
       - name: Setup Rust
         uses: leynos/shared-actions/.github/actions/setup-rust@927edd45ae77be4251a8a18ca9eb5613a2e32cbd
 
