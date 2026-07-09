@@ -168,6 +168,10 @@ jobs:
           features: rstest-bdd/diagnostics rstest-bdd-server/test-support ${{ matrix.features }}
           with-default-features: ${{ matrix.with-default-features }}
           use-cargo-nextest: ${{ matrix.use-nextest }}
+          # Run the Python coverage suite serially: the whitaker lint-gate
+          # integration test shells out to `cargo dylint`, so parallel
+          # xdist workers race on the cargo package-cache lock.
+          pytest-workers: ''
 
       - name: Test and Measure Coverage (no features)
         if: ${{ matrix.coverage && matrix.features == '' }}
@@ -185,6 +189,10 @@ jobs:
           features: rstest-bdd/diagnostics rstest-bdd-macros/compile-time-validation rstest-bdd-server/test-support
           with-default-features: ${{ matrix.with-default-features }}
           use-cargo-nextest: ${{ matrix.use-nextest }}
+          # Run the Python coverage suite serially: the whitaker lint-gate
+          # integration test shells out to `cargo dylint`, so parallel
+          # xdist workers race on the cargo package-cache lock.
+          pytest-workers: ''
           # Ratchet only the single CodeScene leg: the two Linux coverage
           # legs would otherwise collide on the per-run baseline cache key.
           with-ratchet: ${{ matrix.codescene-check && 'true' || 'false' }}

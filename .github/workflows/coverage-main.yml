@@ -53,6 +53,10 @@ jobs:
           features: rstest-bdd/diagnostics rstest-bdd-macros/compile-time-validation rstest-bdd-server/test-support
           with-default-features: true
           use-cargo-nextest: true
+          # Run the Python coverage suite serially: the whitaker lint-gate
+          # integration test shells out to `cargo dylint`, so parallel
+          # xdist workers race on the cargo package-cache lock.
+          pytest-workers: ''
           with-ratchet: 'true'
 
       - name: Verify coverage output exists
