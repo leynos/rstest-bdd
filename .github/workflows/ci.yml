@@ -52,9 +52,31 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v5
+        with:
+          # CodeScene's `cs-coverage check` diffs the pull request against
+          # its merge base, so the full history must be reachable.
+          fetch-depth: 0
+
+      - name: Free disk space
+        if: ${{ runner.os == 'Linux' }}
+        shell: bash
+        run: |
+          set -uo pipefail
+          # Coverage builds the workspace once; `make publish-check` then
+          # compiles it again into a separate target directory. On the
+          # strict-feature leg the two builds exhaust the runner's disk, so
+          # reclaim space from large preinstalled toolchains we do not use.
+          sudo rm -rf \
+            /usr/share/dotnet \
+            /usr/local/lib/android \
+            /opt/ghc \
+            /opt/hostedtoolcache/CodeQL \
+            /usr/local/share/boost \
+            /usr/local/share/powershell || true
+          df -h /
 
       - name: Setup Rust
-        uses: leynos/shared-actions/.github/actions/setup-rust@aebb3f5b831102e2a10ef909c83d7d50ea86c332
+        uses: leynos/shared-actions/.github/actions/setup-rust@927edd45ae77be4251a8a18ca9eb5613a2e32cbd
 
       - name: Install bun
         if: ${{ matrix.tools }}
@@ -133,25 +155,50 @@ jobs:
 
       - name: Test and Measure Coverage (with features)
         if: ${{ matrix.coverage && matrix.features != '' }}
-        uses: leynos/shared-actions/.github/actions/generate-coverage@aebb3f5b831102e2a10ef909c83d7d50ea86c332
+        uses: leynos/shared-actions/.github/actions/generate-coverage@927edd45ae77be4251a8a18ca9eb5613a2e32cbd
         continue-on-error: true
+        env:
+          # Windows coverage runs (build plus doctests) exceed the shared
+          # action's 600s per-invocation default; give them headroom.
+          RUN_RUST_CARGO_WAIT_TIMEOUT: '1800'
         with:
           output-path: coverage.xml
           format: cobertura
           features: rstest-bdd/diagnostics rstest-bdd-server/test-support ${{ matrix.features }}
           with-default-features: ${{ matrix.with-default-features }}
           use-cargo-nextest: ${{ matrix.use-nextest }}
+          # Run the Python coverage suite serially: the whitaker lint-gate
+          # integration test shells out to `cargo dylint`, so parallel
+          # xdist workers race on the cargo package-cache lock.
+          pytest-workers: ''
 
       - name: Test and Measure Coverage (no features)
         if: ${{ matrix.coverage && matrix.features == '' }}
-        uses: leynos/shared-actions/.github/actions/generate-coverage@aebb3f5b831102e2a10ef909c83d7d50ea86c332
-        continue-on-error: true
+        uses: leynos/shared-actions/.github/actions/generate-coverage@927edd45ae77be4251a8a18ca9eb5613a2e32cbd
+        # The CodeScene leg (the default-features Linux leg) gates on the
+        # ratchet, so a coverage failure must fail the build there; other
+        # legs stay best-effort as before. Selected by matrix values rather
+        # than a dedicated key so the job name (a required check context)
+        # is unchanged.
+        continue-on-error: ${{ !(matrix.os == 'ubuntu-latest' && matrix.features == '') }}
+        env:
+          # Windows coverage runs (build plus doctests) exceed the shared
+          # action's 600s per-invocation default; give them headroom.
+          RUN_RUST_CARGO_WAIT_TIMEOUT: '1800'
         with:
           output-path: coverage.xml
           format: cobertura
           features: rstest-bdd/diagnostics rstest-bdd-macros/compile-time-validation rstest-bdd-server/test-support
           with-default-features: ${{ matrix.with-default-features }}
           use-cargo-nextest: ${{ matrix.use-nextest }}
+          # Run the Python coverage suite serially: the whitaker lint-gate
+          # integration test shells out to `cargo dylint`, so parallel
+          # xdist workers race on the cargo package-cache lock.
+          pytest-workers: ''
+          # Ratchet only the default-features Linux leg: the two Linux
+          # coverage legs would otherwise collide on the per-run baseline
+          # cache key.
+          with-ratchet: ${{ (matrix.os == 'ubuntu-latest' && matrix.features == '') && 'true' || 'false' }}
 
       - name: Verify coverage output exists
         if: ${{ matrix.coverage }}
@@ -163,10 +210,17 @@ jobs:
       - name: Publish dry run
         run: make publish-check
 
-      - name: Upload coverage data to CodeScene
-        if: ${{ matrix.coverage && env.CS_ACCESS_TOKEN && matrix.tools && vars.CODESCENE_CLI_SHA256 }}
-        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@aebb3f5b831102e2a10ef909c83d7d50ea86c332
-        with:
-          format: cobertura
-          access-token: ${{ env.CS_ACCESS_TOKEN }}
-          installer-checksum: ${{ vars.CODESCENE_CLI_SHA256 }}
+      # The `mode: check` coverage gate is deliberately not wired in yet:
+      # CodeScene project 69391 has no coverage-gates configuration, so
+      # `cs-coverage check` fails every run with "HTTP call succeeded, but
+      # the received project-config isn't valid. Lacks the gates
+      # configuration." — a CodeScene-side per-project setting, not a CI
+      # defect (ddlint and chutoro projects hit the byte-identical error).
+      # It would attach to the single default-features Linux leg
+      # (matrix.os == 'ubuntu-latest' && matrix.features == '', which
+      # carries the ratchet) with project-url
+      # https://api.codescene.io/v2/projects/69391. Add it in a fast-follow
+      # PR once coverage-main.yml has
+      # uploaded to main at least once and the gate is confirmed to
+      # resolve, or once CodeScene confirms the project's coverage gate is
+      # enabled.
