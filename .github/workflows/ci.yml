@@ -140,6 +140,10 @@ jobs:
         if: ${{ matrix.coverage && matrix.features != '' }}
         uses: leynos/shared-actions/.github/actions/generate-coverage@927edd45ae77be4251a8a18ca9eb5613a2e32cbd
         continue-on-error: true
+        env:
+          # Windows coverage runs (build plus doctests) exceed the shared
+          # action's 600s per-invocation default; give them headroom.
+          RUN_RUST_CARGO_WAIT_TIMEOUT: '1800'
         with:
           output-path: coverage.xml
           format: cobertura
@@ -153,6 +157,10 @@ jobs:
         # The CodeScene leg gates on the ratchet, so a coverage failure must
         # fail the build there; other legs stay best-effort as before.
         continue-on-error: ${{ !matrix.codescene-check }}
+        env:
+          # Windows coverage runs (build plus doctests) exceed the shared
+          # action's 600s per-invocation default; give them headroom.
+          RUN_RUST_CARGO_WAIT_TIMEOUT: '1800'
         with:
           output-path: coverage.xml
           format: cobertura

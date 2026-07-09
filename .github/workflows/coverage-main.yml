@@ -44,6 +44,9 @@ jobs:
       # default-features suite), so the uploaded report matches the PR gate.
       - name: Test and Measure Coverage
         uses: leynos/shared-actions/.github/actions/generate-coverage@927edd45ae77be4251a8a18ca9eb5613a2e32cbd
+        env:
+          # Match the per-invocation coverage timeout used in ci.yml.
+          RUN_RUST_CARGO_WAIT_TIMEOUT: '1800'
         with:
           output-path: coverage.xml
           format: cobertura
