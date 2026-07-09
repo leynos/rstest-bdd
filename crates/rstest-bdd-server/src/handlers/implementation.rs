@@ -131,6 +131,8 @@ fn build_rust_location(step_def: &Arc<CompiledStepDefinition>) -> Option<Locatio
     reason = "tests require explicit panic messages for debugging failures"
 )]
 mod tests {
+    //! Unit tests for go-to-implementation handling.
+
     use super::*;
     use crate::config::ServerConfig;
     use crate::handlers::handle_did_save_text_document;

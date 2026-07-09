@@ -150,6 +150,8 @@ fn clear_feature_path_cache() {
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for canonical feature path handling.
+
     use super::{canonical_feature_path, canonicalise_with_cap_std, clear_feature_path_cache};
     use rstest::{fixture, rstest};
     use serial_test::serial;

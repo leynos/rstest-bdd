@@ -156,6 +156,8 @@ fn response_error(err: &ServerError, code: async_lsp::ErrorCode) -> ResponseErro
     reason = "tests require explicit panic messages for debugging failures"
 )]
 mod tests {
+    //! Unit tests for server lifecycle handling.
+
     use super::*;
     use crate::config::ServerConfig;
     use lsp_types::{ClientCapabilities, WorkspaceFolder};

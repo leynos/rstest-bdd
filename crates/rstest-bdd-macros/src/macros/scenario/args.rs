@@ -193,6 +193,8 @@ fn selector_conflict_error(
     reason = "test code uses infallible expects for clarity"
 )]
 mod tests {
+    //! Unit tests for `#[scenario]` attribute argument parsing.
+
     use super::ScenarioArgs;
     use quote::quote;
 

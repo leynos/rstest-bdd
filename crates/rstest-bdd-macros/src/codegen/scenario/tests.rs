@@ -3,16 +3,47 @@ use super::test_attrs::{TestAttrPolicy, generate_test_attrs};
 use super::*;
 use crate::parsing::feature::ParsedStep;
 
+/// Parse a `syn::Path` from a string literal.
+///
+/// A macro rather than a helper function so that panic line numbers point at
+/// the calling test.
+macro_rules! parse_path {
+    ($s:expr) => {{
+        let path = syn::parse_str::<syn::Path>($s).expect("valid path");
+        path
+    }};
+}
+
+/// Parse the first attribute from an attribute string applied to a unit struct.
+///
+/// A macro rather than a helper function so that panic line numbers point at
+/// the calling test.
+macro_rules! parse_attr {
+    ($s:expr) => {{
+        let attr = syn::parse_str::<syn::DeriveInput>(&format!("{} struct S;", $s))
+            .expect("parse derive input")
+            .attrs
+            .into_iter()
+            .next()
+            .expect("at least one attribute");
+        attr
+    }};
+}
+
 mod gpui_policy;
 mod harness_defaults;
 mod runtime_split;
 mod trait_assertions;
 
-#[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
-fn kw(ts: &TokenStream2) -> crate::StepKeyword {
-    let path = syn::parse2::<syn::Path>(ts.clone()).expect("keyword path");
-    let ident = path.segments.last().expect("last").ident.to_string();
-    crate::StepKeyword::try_from(ident.as_str()).expect("valid step keyword")
+fn kw(ts: &TokenStream2) -> syn::Result<crate::StepKeyword> {
+    let path = syn::parse2::<syn::Path>(ts.clone())?;
+    let last = path
+        .segments
+        .last()
+        .ok_or_else(|| syn::Error::new_spanned(&path, "empty keyword path"))?;
+    let ident = last.ident.to_string();
+    crate::StepKeyword::try_from(ident.as_str())
+        .map_err(|err| syn::Error::new_spanned(&path, err.to_string()))
 }
 
 fn blank() -> ParsedStep {
@@ -56,7 +87,10 @@ fn normalises_sequences(
         })
         .collect();
     let (keyword_tokens, _, _, _) = process_steps(&steps);
-    let parsed: Vec<_> = keyword_tokens.iter().map(kw).collect();
+    let parsed = match keyword_tokens.iter().map(kw).collect::<syn::Result<Vec<_>>>() {
+        Ok(parsed) => parsed,
+        Err(err) => panic!("keyword tokens should parse: {err}"),
+    };
     assert_eq!(parsed, expect);
 }
 
@@ -73,16 +107,6 @@ fn detects_allow_skipped_tag(#[case] tags: Vec<String>, #[case] expected: bool) 
     assert_eq!(scenario_allows_skip(&tags), expected);
 }
 
-#[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
-fn parse_attr(s: &str) -> syn::Attribute {
-    syn::parse_str::<syn::DeriveInput>(&format!("{s} struct S;"))
-        .expect("parse derive input")
-        .attrs
-        .into_iter()
-        .next()
-        .expect("at least one attribute")
-}
-
 fn tokens_contain(tokens: &TokenStream2, needle: &str) -> bool {
     tokens.to_string().contains(needle)
 }
@@ -97,7 +121,7 @@ fn tokens_contain(tokens: &TokenStream2, needle: &str) -> bool {
 #[case::rstest_test("#[rstest::rstest]", false)]
 #[case::tokio_runtime_not_test("#[tokio::main]", false)]
 fn has_tokio_test_detection(#[case] attr_str: &str, #[case] expected_tokio: bool) {
-    let attr = parse_attr(attr_str);
+    let attr = parse_attr!(attr_str);
     let attrs = vec![attr];
 
     let tokens = generate_test_attrs(
@@ -135,7 +159,7 @@ fn generate_test_attrs_output(
     #[case] attr_strs: Vec<&str>,
     #[case] expect_tokio_test: bool,
 ) {
-    let attrs: Vec<syn::Attribute> = attr_strs.iter().map(|s| parse_attr(s)).collect();
+    let attrs: Vec<syn::Attribute> = attr_strs.iter().map(|s| parse_attr!(s)).collect();
     let tokens = generate_test_attrs(
         &attrs,
         &TestAttrPolicy {
@@ -166,28 +190,23 @@ fn generate_test_attrs_output(
     }
 }
 
-#[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
-fn parse_path(s: &str) -> syn::Path {
-    syn::parse_str::<syn::Path>(s).expect("valid path")
-}
-
 #[rstest::rstest]
 #[case::with_default_policy_skips_tokio(
-    Some(parse_path("rstest_bdd_harness::DefaultAttributePolicy")),
+    Some(parse_path!("rstest_bdd_harness::DefaultAttributePolicy")),
     false
 )]
-#[case::with_unknown_policy_skips_tokio(Some(parse_path("my::Policy")), false)]
+#[case::with_unknown_policy_skips_tokio(Some(parse_path!("my::Policy")), false)]
 #[case::with_tokio_policy_emits_tokio(
-    Some(parse_path("rstest_bdd_harness_tokio::TokioAttributePolicy")),
+    Some(parse_path!("rstest_bdd_harness_tokio::TokioAttributePolicy")),
     true
 )]
 #[case::with_absolute_tokio_policy_path_emits_tokio(
-    Some(parse_path("::rstest_bdd_harness_tokio::TokioAttributePolicy")),
+    Some(parse_path!("::rstest_bdd_harness_tokio::TokioAttributePolicy")),
     true
 )]
-#[case::unresolved_tokio_policy(Some(parse_path("TokioAttributePolicy")), false)]
+#[case::unresolved_tokio_policy(Some(parse_path!("TokioAttributePolicy")), false)]
 #[case::with_unknown_prefix_tokio_name_skips_tokio(
-    Some(parse_path("my::TokioAttributePolicy")),
+    Some(parse_path!("my::TokioAttributePolicy")),
     false
 )]
 #[case::without_attributes_uses_runtime(None, true)]
@@ -219,7 +238,7 @@ fn generate_test_attrs_respects_attributes_policy(
 }
 
 #[rstest::rstest]
-#[case::tokio_policy_on_sync_function(Some(parse_path(
+#[case::tokio_policy_on_sync_function(Some(parse_path!(
     "rstest_bdd_harness_tokio::TokioAttributePolicy"
 )))]
 #[case::runtime_tokio_on_sync_function(None)]
@@ -251,7 +270,7 @@ fn generate_test_attrs_dedupes_tokio_policy_and_user_attribute() {
     let tokio_attr: syn::Attribute = syn::parse_quote!(#[tokio::test]);
     let attrs = vec![tokio_attr];
 
-    let policy_path = parse_path("rstest_bdd_harness_tokio::TokioAttributePolicy");
+    let policy_path = parse_path!("rstest_bdd_harness_tokio::TokioAttributePolicy");
     let generated_attrs = generate_test_attrs(
         &attrs,
         &TestAttrPolicy {

@@ -40,19 +40,19 @@ fn expected_lints(lints: &[&str]) -> HashSet<String> {
 
 /// Parse and validate the expect attribute from a wrapper function.
 /// Returns (`lint_names`, reason, `has_unexpected_meta`).
-#[expect(
-    clippy::expect_used,
-    reason = "test helper asserts wrapper expect attribute presence and shape"
-)]
 fn parse_expect_attribute(wrapper_fn: &syn::ItemFn) -> (HashSet<String>, Option<String>, bool) {
-    let expect_attr = wrapper_fn
+    let Some(expect_attr) = wrapper_fn
         .attrs
         .iter()
         .find(|attr| attr.path().is_ident("expect"))
-        .expect("wrapper should include expect attribute");
-    let metas: Punctuated<syn::Meta, Token![,]> = expect_attr
-        .parse_args_with(Punctuated::parse_terminated)
-        .expect("parse expect attribute arguments");
+    else {
+        panic!("wrapper should include expect attribute");
+    };
+    let metas: Punctuated<syn::Meta, Token![,]> =
+        match expect_attr.parse_args_with(Punctuated::parse_terminated) {
+            Ok(metas) => metas,
+            Err(err) => panic!("parse expect attribute arguments: {err}"),
+        };
 
     let mut lint_names = HashSet::new();
     let mut reason = None;
@@ -73,10 +73,6 @@ fn parse_expect_attribute(wrapper_fn: &syn::ItemFn) -> (HashSet<String>, Option<
     (lint_names, reason, unexpected_meta)
 }
 
-#[expect(
-    clippy::expect_used,
-    reason = "test helper ensures wrapper tokens parse as a function"
-)]
 fn assemble_wrapper_for_test(
     prepared: PreparedArgs,
     capture_count: usize,
@@ -110,7 +106,10 @@ fn assemble_wrapper_for_test(
         false,
     );
 
-    syn::parse2(tokens).expect("wrapper should parse")
+    match syn::parse2(tokens) {
+        Ok(wrapper_fn) => wrapper_fn,
+        Err(err) => panic!("wrapper should parse: {err}"),
+    }
 }
 
 /// Configuration for wrapper assembly test scenarios.

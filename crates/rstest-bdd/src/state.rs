@@ -142,6 +142,8 @@ pub trait ScenarioState: Default {
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for scenario state management.
+
     use super::*;
     use rstest_bdd_macros::ScenarioState as ScenarioStateDerive;
 

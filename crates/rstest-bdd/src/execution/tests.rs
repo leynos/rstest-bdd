@@ -87,15 +87,16 @@ fn test_attribute_hint_exhaustive_variant_guard() {
     };
 }
 
-/// Tests for deprecated skip encoding functions.
-///
-/// FIXME: Remove this module when deprecated skip encoding functions are removed.
-/// See: <https://github.com/leynos/rstest-bdd/issues/409>
 #[expect(
     deprecated,
     reason = "FIXME: https://github.com/leynos/rstest-bdd/issues/409 - testing deprecated skip encoding functions"
 )]
 mod deprecated_skip_encoding {
+    //! Tests for deprecated skip encoding functions.
+    //!
+    //! FIXME: Remove this module when deprecated skip encoding functions are
+    //! removed. See: <https://github.com/leynos/rstest-bdd/issues/409>
+
     use rstest::rstest;
 
     use super::super::{

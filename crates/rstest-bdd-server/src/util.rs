@@ -73,6 +73,8 @@ pub fn byte_col_to_utf16_col(source: &str, line_0: usize, byte_col: usize) -> u3
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for shared utility helpers.
+
     use rstest::rstest;
 
     use super::*;

@@ -369,7 +369,10 @@ mod tests {
         assert_feature_extraction(
             FeatureBuilder::new("demo")
                 .with_scenario("only", vec![StepBuilder::new(StepType::Given, "x").build()]),
-            &[ParsedStep::from(&expected_step)],
+            &[match ParsedStep::try_from(&expected_step) {
+                Ok(step) => step,
+                Err(err) => unreachable!("step should convert: {err}"),
+            }],
             Some(99),
         );
     }

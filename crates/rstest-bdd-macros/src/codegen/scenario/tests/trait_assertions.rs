@@ -1,6 +1,6 @@
 //! Tests for generated compile-time trait assertions.
 
-use super::{generate_trait_assertions, parse_path};
+use super::generate_trait_assertions;
 
 #[derive(Clone, Copy)]
 enum ParamKind {
@@ -98,31 +98,31 @@ fn assert_trait_assertion_crate_path(
 #[rstest::rstest]
 #[case::tokio_harness_uses_tokio_crate(
     ParamKind::Harness,
-    parse_path("rstest_bdd_harness_tokio::TokioHarness"),
+    parse_path!("rstest_bdd_harness_tokio::TokioHarness"),
     TraitName::HarnessAdapter,
     ExpectedCrate::TokioAdapter
 )]
 #[case::tokio_policy_uses_tokio_crate(
     ParamKind::Attributes,
-    parse_path("rstest_bdd_harness_tokio::TokioAttributePolicy"),
+    parse_path!("rstest_bdd_harness_tokio::TokioAttributePolicy"),
     TraitName::AttributePolicy,
     ExpectedCrate::TokioAdapter
 )]
 #[case::gpui_policy_uses_gpui_crate(
     ParamKind::Attributes,
-    parse_path("rstest_bdd_harness_gpui::GpuiAttributePolicy"),
+    parse_path!("rstest_bdd_harness_gpui::GpuiAttributePolicy"),
     TraitName::AttributePolicy,
     ExpectedCrate::GpuiAdapter
 )]
 #[case::custom_harness_uses_base_harness_crate(
     ParamKind::Harness,
-    parse_path("my_crate::MyHarness"),
+    parse_path!("my_crate::MyHarness"),
     TraitName::HarnessAdapter,
     ExpectedCrate::BaseHarness
 )]
 #[case::custom_policy_uses_base_harness_crate(
     ParamKind::Attributes,
-    parse_path("my_crate::MyPolicy"),
+    parse_path!("my_crate::MyPolicy"),
     TraitName::AttributePolicy,
     ExpectedCrate::BaseHarness
 )]
@@ -138,13 +138,13 @@ fn trait_assertions_resolve_correct_crate_path(
 #[rstest::rstest]
 #[case::harness(
     ParamKind::Harness,
-    parse_path("my::Harness"),
+    parse_path!("my::Harness"),
     TraitName::HarnessAdapter,
     TraitName::AttributePolicy
 )]
 #[case::attributes(
     ParamKind::Attributes,
-    parse_path("my::Policy"),
+    parse_path!("my::Policy"),
     TraitName::AttributePolicy,
     TraitName::HarnessAdapter
 )]
@@ -159,8 +159,8 @@ fn trait_assertions_single_param(
 
 #[test]
 fn trait_assertions_with_both() {
-    let harness_path = parse_path("my::Harness");
-    let policy_path = parse_path("my::Policy");
+    let harness_path = parse_path!("my::Harness");
+    let policy_path = parse_path!("my::Policy");
     let tokens = generate_trait_assertions(Some(&harness_path), Some(&policy_path));
     let output = tokens.to_string();
 
@@ -191,7 +191,7 @@ fn trait_assertions_with_neither() {
 
 #[test]
 fn trait_assertions_harness_includes_default_bound() {
-    let harness_path = parse_path("my::Harness");
+    let harness_path = parse_path!("my::Harness");
     let tokens = generate_trait_assertions(Some(&harness_path), None);
     let output = tokens.to_string();
 

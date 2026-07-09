@@ -89,9 +89,10 @@ pub struct TestScenario {
 /// # Panics
 ///
 /// Panics if the file path cannot be converted to a valid URI.
-#[expect(clippy::expect_used, reason = "test helper uses expect for clarity")]
 pub fn index_file(state: &mut ServerState, path: &Path) {
-    let uri = Url::from_file_path(path).expect("file URI");
+    let Ok(uri) = Url::from_file_path(path) else {
+        panic!("file URI: path is not absolute: {}", path.display());
+    };
     let params = DidSaveTextDocumentParams {
         text_document: TextDocumentIdentifier { uri },
         text: None,
@@ -116,10 +117,12 @@ impl ScenarioBuilder {
     /// # Panics
     ///
     /// Panics if the temporary directory cannot be created.
-    #[expect(clippy::expect_used, reason = "builder panics on temp dir failure")]
     #[must_use]
     pub fn new() -> Self {
-        let dir = TempDir::new().expect("temp dir");
+        let dir = match TempDir::new() {
+            Ok(dir) => dir,
+            Err(err) => panic!("temp dir: {err}"),
+        };
         Self {
             dir,
             feature_files: Vec::new(),
@@ -170,19 +173,22 @@ impl ScenarioBuilder {
     /// # Panics
     ///
     /// Panics if any file cannot be written.
-    #[expect(clippy::expect_used, reason = "builder panics on write failure")]
     #[must_use]
     pub fn build(mut self) -> TestScenario {
         // Write and index feature files first
         for (filename, content) in &self.feature_files {
             let path = self.dir.path().join(filename);
-            std::fs::write(&path, content).expect("write feature file");
+            if let Err(err) = std::fs::write(&path, content) {
+                panic!("write feature file {}: {err}", path.display());
+            }
             index_file(&mut self.state, &path);
         }
         // Write and index Rust files
         for (filename, content) in &self.rust_files {
             let path = self.dir.path().join(filename);
-            std::fs::write(&path, content).expect("write rust file");
+            if let Err(err) = std::fs::write(&path, content) {
+                panic!("write rust file {}: {err}", path.display());
+            }
             index_file(&mut self.state, &path);
         }
         TestScenario {

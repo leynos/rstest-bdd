@@ -76,6 +76,8 @@ const RUST_KEYWORDS: &[&str] = &[
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for identifier sanitization helpers.
+
     use super::sanitize_ident;
     use rstest::rstest;
 

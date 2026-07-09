@@ -312,6 +312,8 @@ fn build_surplus_column_diagnostic(
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for scenario outline column diagnostics.
+
     use super::*;
 
     #[test]

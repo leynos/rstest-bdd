@@ -170,15 +170,10 @@ impl TryFrom<StepType> for StepKeyword {
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for step keyword parsing and conversion.
+
     use super::*;
     use rstest::rstest;
-
-    #[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
-    fn parse_kw(input: &str) -> StepKeyword {
-        input
-            .parse()
-            .expect("test input should parse to a valid keyword")
-    }
 
     #[rstest]
     #[case("Given", StepKeyword::Given)]
@@ -188,7 +183,10 @@ mod tests {
     #[case("AND", StepKeyword::And)]
     #[case(" but ", StepKeyword::But)]
     fn parses_case_insensitively(#[case] input: &str, #[case] expected: StepKeyword) {
-        assert_eq!(parse_kw(input), expected);
+        let Ok(parsed) = input.parse::<StepKeyword>() else {
+            panic!("test input should parse to a valid keyword: {input}");
+        };
+        assert_eq!(parsed, expected);
     }
 
     #[test]
@@ -203,17 +201,15 @@ mod tests {
         assert_eq!(err.0, "invalid");
     }
 
-    #[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
-    fn kw_from_type(ty: StepType) -> StepKeyword {
-        StepKeyword::try_from(ty).expect("test StepType should convert to StepKeyword")
-    }
-
     #[rstest]
     #[case(StepType::Given, StepKeyword::Given)]
     #[case(StepType::When, StepKeyword::When)]
     #[case(StepType::Then, StepKeyword::Then)]
     fn maps_step_type(#[case] ty: StepType, #[case] expected: StepKeyword) {
-        assert_eq!(kw_from_type(ty), expected);
+        let Ok(keyword) = StepKeyword::try_from(ty) else {
+            panic!("test StepType should convert to StepKeyword: {ty:?}");
+        };
+        assert_eq!(keyword, expected);
     }
 
     #[test]

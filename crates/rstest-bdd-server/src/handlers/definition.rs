@@ -176,6 +176,8 @@ fn find_matching_feature_locations(
     reason = "tests require explicit panic messages for debugging failures"
 )]
 mod tests {
+    //! Unit tests for go-to-definition handling.
+
     use super::*;
     use crate::config::ServerConfig;
     use crate::handlers::handle_did_save_text_document;

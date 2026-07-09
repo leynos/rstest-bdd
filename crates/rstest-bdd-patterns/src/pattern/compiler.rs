@@ -76,6 +76,8 @@ pub fn build_regex_from_pattern(pat: &str) -> Result<String, PatternError> {
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for pattern-to-regex compilation.
+
     use super::*;
 
     #[test]

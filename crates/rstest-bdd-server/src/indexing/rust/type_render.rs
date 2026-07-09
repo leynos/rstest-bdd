@@ -245,6 +245,8 @@ fn render_expr(expr: &Expr) -> String {
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for rendering Rust types in the index.
+
     use super::*;
     use syn::{Type, parse_quote};
 

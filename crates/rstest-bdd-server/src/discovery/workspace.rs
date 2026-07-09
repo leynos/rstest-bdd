@@ -184,14 +184,17 @@ fn collect_feature_files_recursive(dir: &Path, features: &mut Vec<PathBuf>) {
     reason = "tests require explicit panic messages for debugging failures"
 )]
 mod tests {
+    //! Unit tests for workspace discovery.
+
     use super::*;
     use rstest::{fixture, rstest};
     use std::fs;
+    use std::io;
     use tempfile::TempDir;
 
     #[fixture]
-    fn create_test_workspace() -> TempDir {
-        let dir = TempDir::new().expect("failed to create temp dir");
+    fn create_test_workspace() -> io::Result<TempDir> {
+        let dir = TempDir::new()?;
         let cargo_toml = dir.path().join("Cargo.toml");
         fs::write(
             &cargo_toml,
@@ -200,35 +203,38 @@ name = "test-project"
 version = "0.1.0"
 edition = "2024"
 "#,
-        )
-        .expect("failed to write Cargo.toml");
+        )?;
 
         // Create a simple src/lib.rs so the package is valid
         let src_dir = dir.path().join("src");
-        fs::create_dir_all(&src_dir).expect("failed to create src dir");
-        fs::write(src_dir.join("lib.rs"), "").expect("failed to write lib.rs");
+        fs::create_dir_all(&src_dir)?;
+        fs::write(src_dir.join("lib.rs"), "")?;
 
-        dir
+        Ok(dir)
     }
 
     #[rstest]
-    fn discovers_workspace_from_root(create_test_workspace: TempDir) {
-        let workspace = create_test_workspace;
+    fn discovers_workspace_from_root(create_test_workspace: io::Result<TempDir>) -> io::Result<()> {
+        let workspace = create_test_workspace?;
         let result = discover_workspace(workspace.path());
         assert!(result.is_ok());
         let info = result.expect("should discover workspace");
         assert_eq!(info.root, workspace.path());
         assert!(info.packages.contains(&"test-project".to_string()));
+        Ok(())
     }
 
     #[rstest]
-    fn discovers_workspace_from_subdirectory(create_test_workspace: TempDir) {
-        let workspace = create_test_workspace;
+    fn discovers_workspace_from_subdirectory(
+        create_test_workspace: io::Result<TempDir>,
+    ) -> io::Result<()> {
+        let workspace = create_test_workspace?;
         let subdir = workspace.path().join("src");
         let result = discover_workspace(&subdir);
         assert!(result.is_ok());
         let info = result.expect("should discover workspace");
         assert_eq!(info.root, workspace.path());
+        Ok(())
     }
 
     #[rstest]
@@ -255,16 +261,16 @@ edition = "2024"
         relative_dir: &[&str],
         filename: &str,
         content: &str,
-    ) -> Vec<PathBuf> {
-        let workspace = create_test_workspace();
+    ) -> io::Result<Vec<PathBuf>> {
+        let workspace = create_test_workspace()?;
         let mut dir = workspace.path().to_path_buf();
         for segment in relative_dir {
             dir = dir.join(segment);
         }
-        fs::create_dir_all(&dir).expect("failed to create feature dir");
-        fs::write(dir.join(filename), content).expect("failed to write feature file");
+        fs::create_dir_all(&dir)?;
+        fs::write(dir.join(filename), content)?;
 
-        find_feature_files(workspace.path())
+        Ok(find_feature_files(workspace.path()))
     }
 
     #[rstest]
@@ -274,8 +280,8 @@ edition = "2024"
         #[case] relative_dir: &[&str],
         #[case] filename: &str,
         #[case] content: &str,
-    ) {
-        let features = create_workspace_with_feature(relative_dir, filename, content);
+    ) -> io::Result<()> {
+        let features = create_workspace_with_feature(relative_dir, filename, content)?;
 
         assert_eq!(features.len(), 1);
         assert!(
@@ -284,11 +290,15 @@ edition = "2024"
                 .expect("should have one feature")
                 .ends_with(filename)
         );
+        Ok(())
     }
 
     #[rstest]
-    fn returns_empty_when_no_feature_files(create_test_workspace: TempDir) {
-        let features = find_feature_files(create_test_workspace.path());
+    fn returns_empty_when_no_feature_files(
+        create_test_workspace: io::Result<TempDir>,
+    ) -> io::Result<()> {
+        let features = find_feature_files(create_test_workspace?.path());
         assert!(features.is_empty());
+        Ok(())
     }
 }

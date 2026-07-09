@@ -94,6 +94,8 @@ impl AttributePolicy for DefaultAttributePolicy {
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for the attribute policy abstraction.
+
     use super::{AttributePolicy, DefaultAttributePolicy, TestAttribute};
 
     #[test]

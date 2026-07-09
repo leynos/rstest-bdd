@@ -2,6 +2,8 @@
 
 #[cfg(feature = "compile-time-validation")]
 mod validation {
+    //! Lazily compiled step patterns used for compile-time validation.
+
     use std::sync::OnceLock;
 
     use proc_macro_error::abort;
@@ -59,6 +61,8 @@ mod validation {
 
     #[cfg(test)]
     mod tests {
+        //! Unit tests for compile-time pattern helpers.
+
         use super::MacroPattern;
         use proc_macro2::Span;
 

@@ -206,6 +206,8 @@ fn find_from_attr(attrs: &[syn::Attribute]) -> syn::Result<Option<syn::Path>> {
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for fixture extraction from function signatures.
+
     use super::*;
     use rstest::rstest;
     use syn::parse_quote;

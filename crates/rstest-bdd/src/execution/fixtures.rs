@@ -104,6 +104,8 @@ fn has_harness_suggestion(missing: &[&str]) -> bool {
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for execution fixture handling.
+
     use super::*;
     use crate::registry::FixtureRequirement;
 
