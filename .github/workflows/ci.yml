@@ -27,6 +27,7 @@ jobs:
         include:
           - os: ubuntu-latest
             coverage: true
+            codescene-check: true
             features: ''
             with-default-features: true
             tools: true
@@ -52,9 +53,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v5
+        with:
+          # CodeScene's `cs-coverage check` diffs the pull request against
+          # its merge base, so the full history must be reachable.
+          fetch-depth: 0
 
       - name: Setup Rust
-        uses: leynos/shared-actions/.github/actions/setup-rust@aebb3f5b831102e2a10ef909c83d7d50ea86c332
+        uses: leynos/shared-actions/.github/actions/setup-rust@927edd45ae77be4251a8a18ca9eb5613a2e32cbd
 
       - name: Install bun
         if: ${{ matrix.tools }}
@@ -133,7 +138,7 @@ jobs:
 
       - name: Test and Measure Coverage (with features)
         if: ${{ matrix.coverage && matrix.features != '' }}
-        uses: leynos/shared-actions/.github/actions/generate-coverage@aebb3f5b831102e2a10ef909c83d7d50ea86c332
+        uses: leynos/shared-actions/.github/actions/generate-coverage@927edd45ae77be4251a8a18ca9eb5613a2e32cbd
         continue-on-error: true
         with:
           output-path: coverage.xml
@@ -144,14 +149,19 @@ jobs:
 
       - name: Test and Measure Coverage (no features)
         if: ${{ matrix.coverage && matrix.features == '' }}
-        uses: leynos/shared-actions/.github/actions/generate-coverage@aebb3f5b831102e2a10ef909c83d7d50ea86c332
-        continue-on-error: true
+        uses: leynos/shared-actions/.github/actions/generate-coverage@927edd45ae77be4251a8a18ca9eb5613a2e32cbd
+        # The CodeScene leg gates on the ratchet, so a coverage failure must
+        # fail the build there; other legs stay best-effort as before.
+        continue-on-error: ${{ !matrix.codescene-check }}
         with:
           output-path: coverage.xml
           format: cobertura
           features: rstest-bdd/diagnostics rstest-bdd-macros/compile-time-validation rstest-bdd-server/test-support
           with-default-features: ${{ matrix.with-default-features }}
           use-cargo-nextest: ${{ matrix.use-nextest }}
+          # Ratchet only the single CodeScene leg: the two Linux coverage
+          # legs would otherwise collide on the per-run baseline cache key.
+          with-ratchet: ${{ matrix.codescene-check && 'true' || 'false' }}
 
       - name: Verify coverage output exists
         if: ${{ matrix.coverage }}
@@ -163,10 +173,14 @@ jobs:
       - name: Publish dry run
         run: make publish-check
 
-      - name: Upload coverage data to CodeScene
-        if: ${{ matrix.coverage && env.CS_ACCESS_TOKEN && matrix.tools && vars.CODESCENE_CLI_SHA256 }}
-        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@aebb3f5b831102e2a10ef909c83d7d50ea86c332
+      - name: Check coverage against CodeScene gates
+        # Run on a single leg only, or CodeScene receives duplicate uploads
+        # per commit. The guard lets token-less runs (forks) skip cleanly.
+        if: ${{ matrix.codescene-check && env.CS_ACCESS_TOKEN != '' }}
+        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@927edd45ae77be4251a8a18ca9eb5613a2e32cbd
         with:
           format: cobertura
+          mode: check
+          project-url: https://api.codescene.io/v2/projects/69391
           access-token: ${{ env.CS_ACCESS_TOKEN }}
           installer-checksum: ${{ vars.CODESCENE_CLI_SHA256 }}
