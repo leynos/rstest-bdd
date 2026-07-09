@@ -87,7 +87,8 @@ fn normalises_sequences(
         })
         .collect();
     let (keyword_tokens, _, _, _) = process_steps(&steps);
-    let parsed = match keyword_tokens.iter().map(kw).collect::<syn::Result<Vec<_>>>() {
+    let collected: syn::Result<Vec<_>> = keyword_tokens.iter().map(kw).collect();
+    let parsed = match collected {
         Ok(parsed) => parsed,
         Err(err) => panic!("keyword tokens should parse: {err}"),
     };

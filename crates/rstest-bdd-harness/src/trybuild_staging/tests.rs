@@ -36,8 +36,8 @@ fn copy_file_overwrites_existing_destination(
 ) -> io::Result<()> {
     let staging = copy_file_staging?;
     let CopyFileStaging { src, dst, .. } = &staging;
-    copy_file(&src, &dst)?;
-    assert_eq!(fs::read(&dst)?, b"new");
+    copy_file(src, dst)?;
+    assert_eq!(fs::read(dst)?, b"new");
     Ok(())
 }
 
@@ -88,7 +88,7 @@ fn copy_dir_tree_replaces_existing_directory(
 ) -> io::Result<()> {
     let staging = replace_dir_staging?;
     let ReplaceDstStaging { src, dst, .. } = &staging;
-    copy_dir_tree(&src, &dst)?;
+    copy_dir_tree(src, dst)?;
     assert!(dst.join("sub").join("a.txt").exists());
     // Stale directory must be gone.
     assert!(!dst.join("stale").exists());
@@ -102,7 +102,7 @@ fn copy_dir_tree_creates_missing_destination_parents(
     let staging = replace_dir_staging?;
     let ReplaceDstStaging { src, dst, .. } = &staging;
     let nested_dst = dst.join("nested").join("tree");
-    copy_dir_tree(&src, &nested_dst)?;
+    copy_dir_tree(src, &nested_dst)?;
     assert!(nested_dst.join("sub").join("a.txt").exists());
     Ok(())
 }
@@ -127,7 +127,7 @@ fn copy_dir_tree_replaces_existing_file_destination(
 ) -> io::Result<()> {
     let staging = replace_file_dest_staging?;
     let ReplaceDstStaging { src, dst, .. } = &staging;
-    copy_dir_tree(&src, &dst)?;
+    copy_dir_tree(src, dst)?;
     assert!(dst.join("f.txt").exists());
     Ok(())
 }
@@ -169,7 +169,7 @@ fn copy_dir_tree_rejects_missing_tail_overlap_destinations(
         }
         MissingTailDestination::ResolvedBackToSource => (missing.join("..").join("src"), missing),
     };
-    let err = match copy_dir_tree(&src, &dst) {
+    let err = match copy_dir_tree(src, &dst) {
         Ok(()) => panic!("expected overlap rejection"),
         Err(err) => err,
     };
@@ -216,7 +216,7 @@ fn copy_dir_tree_rejects_symlink_in_source(
     let staging = symlink_in_source_staging?;
     let SymlinkInSourceStaging { src, dst, .. } = &staging;
     #[expect(clippy::expect_used, reason = "the test asserts the copy is rejected")]
-    let err = { copy_dir_tree(&src, &dst).expect_err("failed to copy dir tree") };
+    let err = { copy_dir_tree(src, dst).expect_err("failed to copy dir tree") };
     assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
     assert!(
         err.to_string().contains("refusing to follow symlink"),

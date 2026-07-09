@@ -50,21 +50,12 @@ fn type_is_string(ty: &syn::Type) -> bool {
         return false;
     };
 
-    let mut segments = type_path.path.segments.iter();
-    let Some(first) = segments.next() else {
-        return false;
-    };
-    let Some(second) = segments.next() else {
-        return first.ident == "String";
-    };
-    let Some(third) = segments.next() else {
-        return false;
-    };
-    if segments.next().is_some() {
-        return false;
+    let segments: Vec<&syn::Ident> = type_path.path.segments.iter().map(|s| &s.ident).collect();
+    match segments.as_slice() {
+        [only] => *only == "String",
+        [first, second, third] => {
+            (*first == "std" || *first == "alloc") && *second == "string" && *third == "String"
+        }
+        _ => false,
     }
-
-    (first.ident == "std" || first.ident == "alloc")
-        && second.ident == "string"
-        && third.ident == "String"
 }

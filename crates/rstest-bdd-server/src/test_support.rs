@@ -175,25 +175,27 @@ impl ScenarioBuilder {
     /// Panics if any file cannot be written.
     #[must_use]
     pub fn build(mut self) -> TestScenario {
-        // Write and index feature files first
-        for (filename, content) in &self.feature_files {
-            let path = self.dir.path().join(filename);
-            if let Err(err) = std::fs::write(&path, content) {
-                panic!("write feature file {}: {err}", path.display());
-            }
-            index_file(&mut self.state, &path);
-        }
-        // Write and index Rust files
-        for (filename, content) in &self.rust_files {
-            let path = self.dir.path().join(filename);
-            if let Err(err) = std::fs::write(&path, content) {
-                panic!("write rust file {}: {err}", path.display());
-            }
-            index_file(&mut self.state, &path);
-        }
+        // Write and index feature files first, then Rust files.
+        Self::stage_files(&mut self.state, &self.dir, &self.feature_files, "feature");
+        Self::stage_files(&mut self.state, &self.dir, &self.rust_files, "rust");
         TestScenario {
             dir: self.dir,
             state: self.state,
+        }
+    }
+
+    /// Write each `(filename, content)` pair under `dir` and index it.
+    ///
+    /// # Panics
+    ///
+    /// Panics if any file cannot be written.
+    fn stage_files(state: &mut ServerState, dir: &TempDir, files: &[(String, String)], kind: &str) {
+        for (filename, content) in files {
+            let path = dir.path().join(filename);
+            if let Err(err) = std::fs::write(&path, content) {
+                panic!("write {kind} file {}: {err}", path.display());
+            }
+            index_file(state, &path);
         }
     }
 
