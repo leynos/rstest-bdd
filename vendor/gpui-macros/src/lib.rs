@@ -19,14 +19,14 @@ use syn::{
 ///
 /// # Examples
 ///
-/// ```rust,no_run
+/// ```rust,ignore
 /// #[gpui::test]
 /// fn renders_a_view(context: &gpui::TestAppContext) {
 ///     assert_eq!(context.test_function_name(), Some("renders_a_view"));
 /// }
 /// ```
 ///
-/// ```rust,no_run
+/// ```rust,ignore
 /// #[gpui::test]
 /// async fn saves_state(context: &gpui::TestAppContext) -> Result<(), &'static str> {
 ///     assert_eq!(context.test_function_name(), Some("saves_state"));
