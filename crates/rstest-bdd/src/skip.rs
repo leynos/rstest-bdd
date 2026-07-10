@@ -241,13 +241,10 @@ impl fmt::Display for SkipRequest {
     }
 }
 
-/// Panic with a [`SkipRequest`] payload to indicate the current scenario should
-/// be skipped.
-///
-/// This function underpins the [`skip!`](crate::skip!) macro and is intentionally
-/// public so behavioural tests can trigger skips without importing the macro.
 #[cfg(test)]
 mod tests {
+    //! Unit tests for scenario skip handling.
+
     use super::*;
     use rstest::rstest;
     use std::panic::{self, UnwindSafe};

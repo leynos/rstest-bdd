@@ -71,21 +71,23 @@ fn parses_registry_dump_with_bypassed_steps() {
     assert_eq!(bypassed.reason.as_deref(), Some("reason"));
 }
 
-#[expect(
-    clippy::expect_used,
-    reason = "Test helper should abort when the embedded cargo JSON payload is invalid."
-)]
-fn parse_message(json: &str) -> MetadataMessage {
-    serde_json::from_str(json).expect("message should parse")
+fn parse_message(json: &str) -> serde_json::Result<MetadataMessage> {
+    serde_json::from_str(json)
 }
 
-#[expect(
-    clippy::needless_pass_by_value,
-    reason = "Test helper keeps call sites compact and mirrors asserted values."
-)]
-fn verify_extraction(json: &str, expected: Option<PathBuf>) {
-    let msg = parse_message(json);
-    assert_eq!(extract_test_executable(&msg), expected);
+/// Assert that `extract_test_executable` maps a cargo JSON message to the
+/// expected executable path.
+///
+/// A macro rather than a helper function so that panic line numbers point at
+/// the calling test.
+macro_rules! assert_extracts_executable {
+    ($json:expr, $expected:expr) => {{
+        let msg = match parse_message($json) {
+            Ok(msg) => msg,
+            Err(err) => panic!("message should parse: {err}"),
+        };
+        assert_eq!(extract_test_executable(&msg), $expected);
+    }};
 }
 
 #[rstest]
@@ -146,5 +148,5 @@ fn verify_extraction(json: &str, expected: Option<PathBuf>) {
     Some(PathBuf::from("/tmp/test-bin"))
 )]
 fn extract_test_executable_behaviour(#[case] json: &str, #[case] expected: Option<PathBuf>) {
-    verify_extraction(json, expected);
+    assert_extracts_executable!(json, expected);
 }

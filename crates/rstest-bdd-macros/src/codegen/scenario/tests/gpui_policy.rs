@@ -1,17 +1,17 @@
 //! GPUI-specific attribute policy tests for scenario test-attribute generation.
 
-use super::{RuntimeMode, TestAttrPolicy, generate_test_attrs, parse_path};
+use super::{RuntimeMode, TestAttrPolicy, generate_test_attrs};
 
 #[rstest::rstest]
 #[case::with_gpui_policy_emits_gpui(
-    Some(parse_path("rstest_bdd_harness_gpui::GpuiAttributePolicy")),
+    Some(parse_path!("rstest_bdd_harness_gpui::GpuiAttributePolicy")),
     true
 )]
 #[case::with_absolute_gpui_policy_path_emits_gpui(
-    Some(parse_path("::rstest_bdd_harness_gpui::GpuiAttributePolicy")),
+    Some(parse_path!("::rstest_bdd_harness_gpui::GpuiAttributePolicy")),
     true
 )]
-#[case::with_unresolved_gpui_policy_name_skips_gpui(Some(parse_path("GpuiAttributePolicy")), false)]
+#[case::with_unresolved_gpui_policy_name_skips_gpui(Some(parse_path!("GpuiAttributePolicy")), false)]
 fn generate_test_attrs_respects_gpui_policy_paths(
     #[case] policy_path: Option<syn::Path>,
     #[case] expect_gpui_test: bool,
@@ -44,7 +44,7 @@ fn generate_test_attrs_respects_gpui_policy_paths(
 
 #[test]
 fn generate_test_attrs_emits_gpui_for_sync_functions() {
-    let policy_path = parse_path("rstest_bdd_harness_gpui::GpuiAttributePolicy");
+    let policy_path = parse_path!("rstest_bdd_harness_gpui::GpuiAttributePolicy");
     let tokens = generate_test_attrs(
         &[],
         &TestAttrPolicy {
@@ -71,7 +71,7 @@ fn generate_test_attrs_dedupes_gpui_policy_and_user_attribute() {
     let gpui_attr: syn::Attribute = syn::parse_quote!(#[gpui::test]);
     let attrs = vec![gpui_attr];
 
-    let policy_path = parse_path("rstest_bdd_harness_gpui::GpuiAttributePolicy");
+    let policy_path = parse_path!("rstest_bdd_harness_gpui::GpuiAttributePolicy");
     let generated_attrs = generate_test_attrs(
         &attrs,
         &TestAttrPolicy {

@@ -117,24 +117,37 @@ fn process_line_for_docstring(
     state: &mut DocstringState,
 ) -> Option<Span> {
     match state.pending_delimiter {
-        None => {
-            if let Some(delim) = parse_docstring_delimiter(line_trimmed) {
-                state.pending_delimiter = Some(delim);
-                state.docstring_start = bounds.cursor;
-            }
-            None
-        }
-        Some(delim) => {
-            if matches_docstring_closing(line_trimmed, delim) {
-                Some(Span {
-                    start: state.docstring_start,
-                    end: bounds.end,
-                })
-            } else {
-                None
-            }
-        }
+        None => record_docstring_opening(line_trimmed, bounds, state),
+        Some(delim) => close_docstring_span(line_trimmed, delim, bounds, state),
     }
+}
+
+/// Record the opening delimiter of a docstring, if this line starts one.
+///
+/// Always returns `None`: an opening line never completes a span.
+fn record_docstring_opening(
+    line_trimmed: LineContent<'_>,
+    bounds: LineBounds,
+    state: &mut DocstringState,
+) -> Option<Span> {
+    if let Some(delim) = parse_docstring_delimiter(line_trimmed) {
+        state.pending_delimiter = Some(delim);
+        state.docstring_start = bounds.cursor;
+    }
+    None
+}
+
+/// Complete the docstring span when this line matches the closing delimiter.
+fn close_docstring_span(
+    line_trimmed: LineContent<'_>,
+    delim: &'static str,
+    bounds: LineBounds,
+    state: &DocstringState,
+) -> Option<Span> {
+    matches_docstring_closing(line_trimmed, delim).then_some(Span {
+        start: state.docstring_start,
+        end: bounds.end,
+    })
 }
 
 fn parse_docstring_delimiter(line_trimmed: LineContent<'_>) -> Option<&'static str> {

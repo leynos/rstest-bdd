@@ -231,13 +231,21 @@ impl<'a> StepContext<'a> {
                 clippy::print_stderr,
                 reason = "surface ambiguous overrides when logging is disabled"
             )]
-            if !log::log_enabled!(log::Level::Warn) {
+            if warn_logging_is_disabled() {
                 eprintln!("{message}");
             }
             return None;
         }
         self.values.insert(name, value)
     }
+}
+
+/// Report whether `log::warn!` output is currently discarded.
+///
+/// Kept as a named predicate so the mirrored `eprintln!` call site stays a
+/// simple two-branch condition.
+fn warn_logging_is_disabled() -> bool {
+    !log::log_enabled!(log::Level::Warn)
 }
 
 impl<'a> FixtureEntry<'a> {

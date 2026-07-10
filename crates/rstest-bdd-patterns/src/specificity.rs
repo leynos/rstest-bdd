@@ -120,6 +120,8 @@ impl PartialOrd for SpecificityScore {
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for pattern specificity scoring.
+
     use super::*;
 
     /// Unwrap a result with a descriptive panic message on failure.

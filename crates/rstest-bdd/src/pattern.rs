@@ -73,25 +73,22 @@ impl StepPattern {
     /// - This method is thread-safe; concurrent calls may race to build a
     ///   `Regex`, but only the first successful value is cached.
     pub fn compile(&self) -> Result<(), StepPatternError> {
-        if self.regex.get().is_some() {
-            return Ok(());
-        }
-        let regex = compile_regex_from_pattern(self.text)?;
-        let _ = self.regex.set(regex);
-        Ok(())
+        self.compiled_regex().map(|_| ())
     }
 
-    /// Return the cached regular expression without checking compilation status.
+    /// Return the compiled regular expression, compiling it on first use.
     ///
-    /// # Panics
-    /// Panics if called before [`compile`](Self::compile) has succeeded.
-    #[must_use]
-    #[expect(
-        clippy::expect_used,
-        reason = "internal method; callers guarantee prior compilation"
-    )]
-    pub(crate) fn regex_unchecked(&self) -> &Regex {
-        self.regex.get().expect("regex accessed before compilation")
+    /// # Errors
+    /// Returns an error if the pattern contains invalid placeholders or the
+    /// generated regex fails to compile.
+    pub(crate) fn compiled_regex(&self) -> Result<&Regex, StepPatternError> {
+        if let Some(regex) = self.regex.get() {
+            return Ok(regex);
+        }
+        let regex = compile_regex_from_pattern(self.text)?;
+        // A concurrent compilation may have won the race; `get_or_init`
+        // returns whichever value was cached first.
+        Ok(self.regex.get_or_init(|| regex))
     }
 
     /// Calculate and cache the specificity score for this pattern.
@@ -140,18 +137,20 @@ impl From<&'static str> for StepPattern {
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for step pattern compilation and caching.
+
     use super::*;
     use std::ptr;
 
     #[test]
     #[expect(clippy::expect_used, reason = "test helper validates success path")]
-    fn regex_unchecked_returns_cached_regex_after_compilation() {
+    fn compiled_regex_returns_cached_regex_after_compilation() {
         let pattern = StepPattern::from("literal text");
         pattern.compile().expect("literal pattern should compile");
 
         // Repeated calls return the same cached instance
-        let re1 = pattern.regex_unchecked();
-        let re2 = pattern.regex_unchecked();
+        let re1 = pattern.compiled_regex().expect("regex should be cached");
+        let re2 = pattern.compiled_regex().expect("regex should be cached");
 
         assert!(ptr::eq(re1, re2));
         assert!(re1.is_match("literal text"));
@@ -164,20 +163,19 @@ mod tests {
 
         // First compile succeeds
         pattern.compile().expect("literal pattern should compile");
-        let re1 = pattern.regex_unchecked();
+        let re1 = pattern.compiled_regex().expect("regex should be cached");
 
         // Second compile is a no-op and returns the same regex
         pattern.compile().expect("recompile should succeed");
-        let re2 = pattern.regex_unchecked();
+        let re2 = pattern.compiled_regex().expect("regex should be cached");
 
         assert!(ptr::eq(re1, re2), "compile should be idempotent");
     }
 
     #[test]
-    #[should_panic(expected = "regex accessed before compilation")]
-    fn regex_unchecked_panics_without_prior_compilation() {
+    fn regex_is_not_cached_without_prior_compilation() {
         let pattern = StepPattern::from("literal text");
-        // This should panic because compile() was never called
-        let _ = pattern.regex_unchecked();
+        // No call to compile() has happened, so nothing is cached yet.
+        assert!(pattern.regex.get().is_none());
     }
 }

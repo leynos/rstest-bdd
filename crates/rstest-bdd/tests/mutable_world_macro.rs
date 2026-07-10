@@ -21,6 +21,8 @@
 
 #[cfg(feature = "mutable_world_macro")]
 mod macro_world {
+    //! Step definitions exercising a mutable world via macros.
+
     use rstest::fixture;
     use rstest_bdd_macros::{given, scenario, then, when};
 

@@ -83,6 +83,8 @@ pub(crate) fn placeholder_error(
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for pattern error construction and display.
+
     use super::*;
 
     #[test]

@@ -14,6 +14,8 @@ pub type OwnedTableArc = Arc<Vec<Vec<String>>>;
 
 #[cfg(any(test, feature = "diagnostics"))]
 mod diagnostics {
+    //! Per-thread cache-miss counters used by tests and diagnostics builds.
+
     use std::collections::HashMap;
     use std::sync::{Mutex, OnceLock};
     use std::thread;

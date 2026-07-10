@@ -67,6 +67,8 @@ fn parse_row_type(meta: &syn::meta::ParseNestedMeta) -> syn::Result<Type> {
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for `#[datatable]` table attribute parsing.
+
     use super::*;
     use syn::parse_quote;
 

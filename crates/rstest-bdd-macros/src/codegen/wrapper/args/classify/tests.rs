@@ -27,10 +27,6 @@ fn pat_ident(arg: &syn::PatType) -> syn::Ident {
 }
 
 /// Helper to execute `classify_fixture_or_step` and return the results for assertion.
-#[expect(
-    clippy::expect_used,
-    reason = "tests must panic with context when classification unexpectedly fails"
-)]
 fn execute_classify_fixture_or_step(
     placeholders_init: HashSet<String>,
     arg_tokens: TokenStream2,
@@ -50,8 +46,10 @@ fn execute_classify_fixture_or_step(
     };
 
     let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
-    let handled = classify_fixture_or_step(&mut ctx, &mut arg, pat, ty)
-        .expect("classification should succeed");
+    let handled = match classify_fixture_or_step(&mut ctx, &mut arg, pat, ty) {
+        Ok(handled) => handled,
+        Err(err) => panic!("classification should succeed: {err}"),
+    };
 
     (extracted, handled, placeholders)
 }
@@ -249,12 +247,14 @@ fn classify_fixture_or_step_uses_parameter_span_for_normalized_fixture_name() {
     };
 
     assert!(handled);
+    // Named predicate keeps the `matches!` guard within the two-branch limit.
+    let spans_match = |name: &syn::Ident| {
+        name.span().start() == pat_span.start() && name.span().end() == pat_span.end()
+    };
     assert!(matches!(
         extracted.args.as_slice(),
         [Arg::Fixture { name, .. }]
-        if name == &ident("world")
-            && name.span().start() == pat_span.start()
-            && name.span().end() == pat_span.end()
+        if name == &ident("world") && spans_match(name)
     ));
 }
 

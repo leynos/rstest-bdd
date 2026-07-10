@@ -11,9 +11,17 @@ fn try_parse_scenarios_args(tokens: proc_macro2::TokenStream) -> syn::Result<Sce
     syn::parse2(tokens)
 }
 
-#[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
-fn parse_scenarios_args(tokens: proc_macro2::TokenStream) -> ScenariosArgs {
-    try_parse_scenarios_args(tokens).expect("scenarios args should parse")
+/// Parse `scenarios!` arguments, panicking on failure.
+///
+/// A macro rather than a helper function so that panic line numbers point at
+/// the calling test.
+macro_rules! parse_scenarios_args {
+    ($tokens:expr) => {{
+        match try_parse_scenarios_args($tokens) {
+            Ok(args) => args,
+            Err(err) => panic!("scenarios args should parse: {err}"),
+        }
+    }};
 }
 
 fn parse_fixture_spec(tokens: proc_macro2::TokenStream) -> syn::Result<FixtureSpec> {
@@ -42,15 +50,15 @@ fn assert_fixture_parse_fails(tokens: proc_macro2::TokenStream) {
     assert!(parse_fixture_spec(tokens).is_err(), "parsing should fail");
 }
 // Unwraps the optional tag filter so callers don't repeat the Option dance.
-#[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
-fn assert_tag_filter_eq(args: &ScenariosArgs, expected: &str) {
-    assert_eq!(
-        args.tag_filter
-            .as_ref()
-            .expect("tag_filter should be set")
-            .value(),
-        expected
-    );
+// A macro rather than a helper function so that panic line numbers point at
+// the calling test.
+macro_rules! assert_tag_filter_eq {
+    ($args:expr, $expected:expr) => {{
+        let Some(tag_filter) = $args.tag_filter.as_ref() else {
+            panic!("tag_filter should be set");
+        };
+        assert_eq!(tag_filter.value(), $expected);
+    }};
 }
 
 mod combined_arguments;
@@ -94,7 +102,7 @@ fn fixture_spec_rejects_missing_type() {
 }
 #[test]
 fn scenarios_args_parses_positional_dir() {
-    let args: ScenariosArgs = parse_scenarios_args(parse_quote!("tests/features"));
+    let args: ScenariosArgs = parse_scenarios_args!(parse_quote!("tests/features"));
     assert_eq!(args.dir.value(), "tests/features");
     assert!(args.tag_filter.is_none());
     assert!(args.fixtures.is_empty());
@@ -102,28 +110,28 @@ fn scenarios_args_parses_positional_dir() {
 
 #[test]
 fn scenarios_args_parses_named_dir() {
-    let args: ScenariosArgs = parse_scenarios_args(parse_quote!(dir = "tests/features"));
+    let args: ScenariosArgs = parse_scenarios_args!(parse_quote!(dir = "tests/features"));
     assert_eq!(args.dir.value(), "tests/features");
 }
 
 #[test]
 fn scenarios_args_parses_named_path() {
-    let args: ScenariosArgs = parse_scenarios_args(parse_quote!(path = "tests/features"));
+    let args: ScenariosArgs = parse_scenarios_args!(parse_quote!(path = "tests/features"));
     assert_eq!(args.dir.value(), "tests/features");
 }
 
 #[test]
 fn scenarios_args_parses_with_tags() {
-    let args: ScenariosArgs = parse_scenarios_args(parse_quote!("tests/features", tags = "@fast"));
+    let args: ScenariosArgs = parse_scenarios_args!(parse_quote!("tests/features", tags = "@fast"));
     assert_eq!(args.dir.value(), "tests/features");
-    assert_tag_filter_eq(&args, "@fast");
+    assert_tag_filter_eq!(&args, "@fast");
 }
 
 #[test]
 #[expect(clippy::expect_used, reason = "test with descriptive failures")]
 fn scenarios_args_parses_single_fixture() {
     let args: ScenariosArgs =
-        parse_scenarios_args(parse_quote!("tests/features", fixtures = [world: TestWorld]));
+        parse_scenarios_args!(parse_quote!("tests/features", fixtures = [world: TestWorld]));
     assert_eq!(args.fixtures.len(), 1);
     assert_eq!(
         args.fixtures
@@ -138,7 +146,7 @@ fn scenarios_args_parses_single_fixture() {
 #[test]
 #[expect(clippy::expect_used, reason = "test with descriptive failures")]
 fn scenarios_args_parses_multiple_fixtures() {
-    let args: ScenariosArgs = parse_scenarios_args(parse_quote!(
+    let args: ScenariosArgs = parse_scenarios_args!(parse_quote!(
         "tests/features",
         fixtures = [world: TestWorld, db: Database]
     ));
@@ -197,13 +205,13 @@ fn scenarios_args_rejects_unknown_argument() {
 
 #[test]
 fn scenarios_args_parses_empty_fixtures() {
-    let args: ScenariosArgs = parse_scenarios_args(parse_quote!("tests/features", fixtures = []));
+    let args: ScenariosArgs = parse_scenarios_args!(parse_quote!("tests/features", fixtures = []));
     assert!(args.fixtures.is_empty());
 }
 
 #[test]
 fn scenarios_args_parses_fixtures_with_trailing_comma() {
-    let args: ScenariosArgs = parse_scenarios_args(parse_quote!(
+    let args: ScenariosArgs = parse_scenarios_args!(parse_quote!(
         "tests/features",
         fixtures = [world: TestWorld,]
     ));
@@ -212,7 +220,7 @@ fn scenarios_args_parses_fixtures_with_trailing_comma() {
 
 #[test]
 fn scenarios_args_defaults_to_sync_runtime() {
-    let args: ScenariosArgs = parse_scenarios_args(parse_quote!("tests/features"));
+    let args: ScenariosArgs = parse_scenarios_args!(parse_quote!("tests/features"));
     assert_eq!(args.runtime, RuntimeMode::Sync);
     assert_eq!(runtime_compatibility_alias(args.runtime), None);
     assert!(!args.runtime.is_async());
@@ -220,7 +228,7 @@ fn scenarios_args_defaults_to_sync_runtime() {
 
 #[test]
 fn scenarios_args_parses_runtime_tokio_current_thread() {
-    let args: ScenariosArgs = parse_scenarios_args(parse_quote!(
+    let args: ScenariosArgs = parse_scenarios_args!(parse_quote!(
         "tests/features",
         runtime = "tokio-current-thread"
     ));
@@ -281,14 +289,25 @@ fn test_attribute_hint_is_imported_from_policy_crate() {
 }
 
 // Extracts the harness or attributes field, renders it, and checks the other is None.
-#[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
-fn assert_extension_param(args: &ScenariosArgs, expected_fragment: &str, is_harness: bool) {
+// A macro rather than a helper function so that panic line numbers point at
+// the calling test.
+macro_rules! assert_extension_param {
+    ($args:expr, $expected_fragment:expr, $is_harness:expr) => {{
+        assert_extension_param_body($args, $expected_fragment, $is_harness);
+    }};
+}
+
+fn assert_extension_param_body(args: &ScenariosArgs, expected_fragment: &str, is_harness: bool) {
     let (rendered, other_is_none) = if is_harness {
-        let h = args.harness.as_ref().expect("harness should be set");
-        (quote!(#h).to_string(), args.attributes.is_none())
+        let (Some(h), other) = (args.harness.as_ref(), args.attributes.is_none()) else {
+            panic!("harness should be set");
+        };
+        (quote!(#h).to_string(), other)
     } else {
-        let a = args.attributes.as_ref().expect("attributes should be set");
-        (quote!(#a).to_string(), args.harness.is_none())
+        let (Some(a), other) = (args.attributes.as_ref(), args.harness.is_none()) else {
+            panic!("attributes should be set");
+        };
+        (quote!(#a).to_string(), other)
     };
     assert!(
         rendered.contains(expected_fragment),
@@ -313,14 +332,14 @@ fn scenarios_args_parses_single_extension_param(
     #[case] expected_fragment: &str,
     #[case] is_harness: bool,
 ) {
-    let args: ScenariosArgs = parse_scenarios_args(tokens);
+    let args: ScenariosArgs = parse_scenarios_args!(tokens);
     assert_eq!(args.dir.value(), "tests/features");
-    assert_extension_param(&args, expected_fragment, is_harness);
+    assert_extension_param!(&args, expected_fragment, is_harness);
 }
 
 #[test]
 fn scenarios_args_parses_harness_and_attributes_together() {
-    let args: ScenariosArgs = parse_scenarios_args(parse_quote!(
+    let args: ScenariosArgs = parse_scenarios_args!(parse_quote!(
         "tests/features",
         harness = my::Harness,
         attributes = my::Policy
@@ -331,7 +350,7 @@ fn scenarios_args_parses_harness_and_attributes_together() {
 
 #[test]
 fn scenarios_args_defaults_harness_and_attributes_to_none() {
-    let args: ScenariosArgs = parse_scenarios_args(parse_quote!("tests/features"));
+    let args: ScenariosArgs = parse_scenarios_args!(parse_quote!("tests/features"));
     assert!(args.harness.is_none());
     assert!(args.attributes.is_none());
 }

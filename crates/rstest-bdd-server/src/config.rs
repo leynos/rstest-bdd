@@ -189,6 +189,8 @@ impl ServerConfig {
     reason = "tests require explicit panic messages for debugging failures"
 )]
 mod tests {
+    //! Unit tests for server configuration parsing.
+
     use super::*;
 
     #[test]

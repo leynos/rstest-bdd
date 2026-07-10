@@ -10,6 +10,8 @@ pub use compiler::build_regex_from_pattern;
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for the pattern module surface.
+
     use super::build_regex_from_pattern;
     use crate::{PatternError, compile_regex_from_pattern};
     use std::fmt::Display;

@@ -229,6 +229,8 @@ pub fn build_server_capabilities() -> ServerCapabilities {
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for server state management.
+
     use super::*;
 
     #[test]

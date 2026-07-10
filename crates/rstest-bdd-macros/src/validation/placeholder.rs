@@ -149,6 +149,8 @@ fn step_span(_step: &ParsedStep) -> Span {
 #[cfg(test)]
 #[expect(clippy::unwrap_used, reason = "tests use unwrap for brevity")]
 mod tests {
+    //! Unit tests for placeholder validation against example headers.
+
     use super::*;
     use crate::StepKeyword;
     use rstest::rstest;

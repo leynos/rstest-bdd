@@ -107,22 +107,32 @@ impl TryFrom<gherkin::StepType> for StepKeyword {
     }
 }
 
+/// Detect an English textual conjunction ("And"/"But") in a step keyword.
+///
+/// Non-English conjunctions rely on `gherkin::StepType` and are resolved
+/// centrally, so only the English spellings are recognized here.
+fn conjunction_from_keyword(keyword: &str) -> Option<StepKeyword> {
+    let trimmed = keyword.trim();
+    if trimmed.eq_ignore_ascii_case("and") {
+        Some(StepKeyword::And)
+    } else if trimmed.eq_ignore_ascii_case("but") {
+        Some(StepKeyword::But)
+    } else {
+        None
+    }
+}
+
 impl TryFrom<&Step> for StepKeyword {
     type Error = UnsupportedStepType;
 
     fn try_from(step: &Step) -> Result<Self, Self::Error> {
+        let conjunction = conjunction_from_keyword(&step.keyword);
         match Self::try_from(step.ty) {
-            Ok(primary @ (Self::Given | Self::When | Self::Then)) => match step.keyword.trim() {
-                s if s.eq_ignore_ascii_case("and") => Ok(Self::And),
-                s if s.eq_ignore_ascii_case("but") => Ok(Self::But),
-                _ => Ok(primary),
-            },
+            Ok(primary @ (Self::Given | Self::When | Self::Then)) => {
+                Ok(conjunction.unwrap_or(primary))
+            }
             Ok(k) => Ok(k),
-            Err(_) => match step.keyword.trim() {
-                s if s.eq_ignore_ascii_case("and") => Ok(Self::And),
-                s if s.eq_ignore_ascii_case("but") => Ok(Self::But),
-                _ => Err(UnsupportedStepType(step.ty)),
-            },
+            Err(_) => conjunction.ok_or(UnsupportedStepType(step.ty)),
         }
     }
 }
@@ -145,14 +155,11 @@ impl ToTokens for StepKeyword {
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for step keyword parsing and conversion.
+
     use super::*;
     use gherkin::StepType;
     use rstest::rstest;
-
-    #[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
-    fn parse_kw(input: &str) -> StepKeyword {
-        StepKeyword::try_from(input).expect("valid step keyword")
-    }
 
     #[rstest]
     #[case("Given", StepKeyword::Given)]
@@ -161,7 +168,10 @@ mod tests {
     #[case("AND", StepKeyword::And)]
     #[case(" but ", StepKeyword::But)]
     fn parses_case_insensitively(#[case] input: &str, #[case] expected: StepKeyword) {
-        assert_eq!(parse_kw(input), expected);
+        let Ok(parsed) = StepKeyword::try_from(input) else {
+            panic!("valid step keyword: {input}");
+        };
+        assert_eq!(parsed, expected);
     }
 
     #[test]

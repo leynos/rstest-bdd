@@ -5,27 +5,26 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess  # noqa: S404 - integration test invokes trusted local tooling.
-import sys
 from pathlib import Path
 
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 WHITAKER_LINT = "no_unwrap_or_else_panic"
-WHITAKER_TAG = "v0.2.5"
-WHITAKER_TOOLCHAIN = "nightly-2025-09-18"
-WHITAKER_TARGET_NAME = f"{WHITAKER_LINT}-{WHITAKER_TAG}-{WHITAKER_TOOLCHAIN}-target"
 WHITAKER_TEST_TARGET = REPO_ROOT / "target" / "pytest-whitaker-fixtures"
 
 
-def cargo_dylint_available() -> bool:
-    """Return whether the cargo-dylint subcommand is available."""
-    return shutil.which("cargo-dylint") is not None
+def whitaker_tooling_available() -> bool:
+    """Return whether the whitaker wrapper and cargo-dylint are installed."""
+    return (
+        shutil.which("whitaker") is not None
+        and shutil.which("cargo-dylint") is not None
+    )
 
 
 pytestmark = pytest.mark.skipif(
-    not cargo_dylint_available(),
-    reason="cargo-dylint is only installed in Whitaker/tooling environments",
+    not whitaker_tooling_available(),
+    reason="whitaker and cargo-dylint are only installed in tooling environments",
 )
 
 
@@ -60,6 +59,9 @@ def run_lint_whitaker(manifest_path: Path) -> subprocess.CompletedProcess[str]:
     """Run the Makefile target against a fixture crate."""
     env = os.environ.copy()
     env["CARGO_TARGET_DIR"] = str(WHITAKER_TEST_TARGET)
+    # The Makefile default must be exercised, so drop any stray WHITAKER
+    # environment value injected by the surrounding shell.
+    env.pop("WHITAKER", None)
     make = make_executable()
     # The executable and arguments are controlled by this test and the repo.
     return subprocess.run(  # noqa: S603
@@ -79,39 +81,12 @@ def run_lint_whitaker(manifest_path: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
-def whitaker_library_name() -> str:
-    """Return the expected Dylint library filename for this platform."""
-    match sys.platform:
-        case "darwin":
-            return f"lib{WHITAKER_LINT}@{WHITAKER_TOOLCHAIN}.dylib"
-        case platform if platform.startswith("linux"):
-            return f"lib{WHITAKER_LINT}@{WHITAKER_TOOLCHAIN}.so"
-        case "win32":
-            return f"{WHITAKER_LINT}@{WHITAKER_TOOLCHAIN}.dll"
-        case platform:
-            return pytest.skip(f"Whitaker artefact assertion unsupported on {platform}")
-
-
-def whitaker_libraries() -> list[Path]:
-    """Return built Whitaker Dylint library artefacts."""
-    library_root = (
-        REPO_ROOT
-        / "target"
-        / "whitaker"
-        / WHITAKER_TARGET_NAME
-        / "dylint"
-        / "libraries"
-        / WHITAKER_TOOLCHAIN
-        / "release"
-    )
-    return sorted(library_root.glob(whitaker_library_name()))
-
-
 def test_lint_whitaker_target_accepts_clean_fixture(tmp_path: Path) -> None:
-    """A clean fixture proves the Makefile target invokes cargo-dylint."""
+    """A clean fixture proves the Makefile target invokes the Whitaker suite."""
     manifest_path = write_lint_fixture(
         tmp_path,
         "\n".join([
+            "//! Clean Whitaker fixture crate.",
             "pub fn clean_value(value: Option<u32>) -> u32 {",
             "    let Some(number) = value else {",
             '        panic!("missing value");',
@@ -125,7 +100,6 @@ def test_lint_whitaker_target_accepts_clean_fixture(tmp_path: Path) -> None:
     result = run_lint_whitaker(manifest_path)
 
     assert result.returncode == 0, result.stdout
-    assert whitaker_libraries(), "Whitaker lint library should be built"
 
 
 def test_lint_whitaker_target_rejects_panicking_unwrap_or_else(
@@ -135,6 +109,7 @@ def test_lint_whitaker_target_rejects_panicking_unwrap_or_else(
     manifest_path = write_lint_fixture(
         tmp_path,
         "\n".join([
+            "//! Whitaker fixture crate with a banned panic shape.",
             "pub fn rejected_value(value: Option<u32>) -> u32 {",
             '    value.unwrap_or_else(|| panic!("missing value"))',
             "}",

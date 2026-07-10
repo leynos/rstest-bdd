@@ -248,6 +248,8 @@ fn compile_step_definition(
     reason = "tests use explicit failures for clarity"
 )]
 mod tests {
+    //! Unit tests for the step registry index.
+
     use super::*;
     use crate::indexing::index_rust_source;
 

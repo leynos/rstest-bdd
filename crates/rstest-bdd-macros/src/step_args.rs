@@ -200,6 +200,8 @@ fn expand_named_struct(
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for step argument parsing.
+
     use super::expand;
     use proc_macro2::TokenStream as TokenStream2;
     use quote::quote;

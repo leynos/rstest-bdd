@@ -91,29 +91,31 @@ pub(crate) fn parse_step_keyword(kw: &str, ty: StepType) -> crate::StepKeyword {
 ///
 /// Uses the textual keyword when present to honour conjunctions
 /// (And/But). Falls back to the typed step when not a conjunction.
-impl From<&Step> for ParsedStep {
-    fn from(step: &Step) -> Self {
+impl TryFrom<&Step> for ParsedStep {
+    type Error = syn::Error;
+
+    fn try_from(step: &Step) -> Result<Self, Self::Error> {
         // The Gherkin parser exposes both a textual keyword (e.g. "And") and a
         // typed variant (Given/When/Then). We prioritise the textual value so
         // that conjunctions are preserved and can be used to improve
         // diagnostics. Trimming avoids surprises from trailing spaces in
         // .feature files.
-        #[expect(
-            clippy::expect_used,
-            reason = "gherkin::StepType is limited to Given/When/Then"
-        )]
-        let keyword =
-            crate::StepKeyword::try_from(step).expect("valid step keyword from gherkin::Step");
+        let keyword = crate::StepKeyword::try_from(step).map_err(|err| {
+            syn::Error::new(
+                proc_macro2::Span::call_site(),
+                format!("unsupported step keyword in feature file: {err}"),
+            )
+        })?;
         let table = step.table.as_ref().map(|t| t.rows.clone());
         let docstring = step.docstring.clone();
-        Self {
+        Ok(Self {
             keyword,
             text: step.value.clone(),
             docstring,
             table,
             #[cfg(feature = "compile-time-validation")]
             span: proc_macro2::Span::call_site(),
-        }
+        })
     }
 }
 /// Validate that the feature path exists and points to a file.
@@ -153,11 +155,11 @@ pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro2
     // Canonicalise for stable cache keys; missing files fall back to the joined path.
     let canonical = std::fs::canonicalize(&feature_path).ok();
     if let Some(feature) = {
-        #[expect(
-            clippy::expect_used,
-            reason = "lock poisoning is unrecoverable; panic with clear message"
-        )]
-        let cache = FEATURE_CACHE.read().expect("feature cache poisoned");
+        // Recover from a poisoned lock: the cache only holds parsed features,
+        // so a writer panicking mid-insert cannot leave it logically invalid.
+        let cache = FEATURE_CACHE
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         canonical
             .as_ref()
             .into_iter()
@@ -187,11 +189,11 @@ pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro2
     })?;
 
     let key = canonical.unwrap_or_else(|| feature_path.clone());
-    #[expect(
-        clippy::expect_used,
-        reason = "lock poisoning is unrecoverable; panic with clear message"
-    )]
-    let mut cache = FEATURE_CACHE.write().expect("feature cache poisoned");
+    // Recover from a poisoned lock: the cache only holds parsed features,
+    // so a writer panicking mid-insert cannot leave it logically invalid.
+    let mut cache = FEATURE_CACHE
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     cache.insert(key.clone(), feature.clone());
     if key != feature_path {
         cache.insert(feature_path.clone(), feature.clone());
@@ -202,11 +204,10 @@ pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro2
 
 #[cfg(test)]
 pub(crate) fn clear_feature_cache() {
-    #[expect(
-        clippy::expect_used,
-        reason = "lock poisoning is unrecoverable; panic with clear message"
-    )]
-    let mut guard = FEATURE_CACHE.write().expect("feature cache poisoned");
+    // Recover from a poisoned lock: clearing discards the contents anyway.
+    let mut guard = FEATURE_CACHE
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     guard.clear();
 }
 
@@ -235,7 +236,9 @@ pub(crate) fn extract_scenario_steps(
         error_to_tokens(&syn::Error::new(proc_macro2::Span::call_site(), msg))
     })?;
 
-    let steps = iter_parsed_steps_with_background(feature, scenario).collect();
+    let steps = iter_parsed_steps_with_background(feature, scenario)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|err| error_to_tokens(&err))?;
 
     let base_tags = collect_base_tags(feature, scenario);
     let examples = crate::parsing::examples::extract_examples(scenario, &base_tags)?;
@@ -260,14 +263,14 @@ mod tests;
 fn iter_parsed_steps_with_background<'a>(
     feature: &'a Feature,
     scenario: &'a Scenario,
-) -> impl Iterator<Item = ParsedStep> + 'a {
+) -> impl Iterator<Item = Result<ParsedStep, syn::Error>> + 'a {
     feature
         .background
         .as_ref()
         .into_iter()
         .flat_map(|background| background.steps.iter())
         .chain(scenario.steps.iter())
-        .map(ParsedStep::from)
+        .map(ParsedStep::try_from)
 }
 
 fn collect_base_tags(feature: &Feature, scenario: &Scenario) -> Vec<String> {

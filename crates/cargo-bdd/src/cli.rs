@@ -228,6 +228,8 @@ fn write_skip_reports_json(reports: &[SkipReport<'_>]) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for command-line argument parsing.
+
     use super::*;
 
     #[test]

@@ -356,6 +356,8 @@ pub(crate) fn process_steps_substituted(
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for scenario code generation helpers.
+
     use super::*;
     use rstest::rstest;
     use syn::parse_quote;

@@ -1020,41 +1020,52 @@ coverage is in `rstest-bdd-design.md` §2.7.6.6. Until it lands,
 `v0-6-0-migration-guide.md` carries a caveat that `.feature`-only edits do not
 trigger a rebuild.
 
-### Whitaker `no_unwrap_or_else_panic` lint gate (ADR-013)
+### Whitaker Dylint suite lint gate (ADR-013)
 
-[ADR-013](adr-013-adopt-whitaker-no-unwrap-or-else-panic.md) adopts one
-Whitaker lint, `no_unwrap_or_else_panic`, as part of `make lint`.
+[ADR-013](adr-013-adopt-whitaker-no-unwrap-or-else-panic.md) introduced the
+first Whitaker lint; the repository now runs the full Whitaker Dylint suite
+as part of `make lint`, matching the estate-wide rollout that began with
+leynos/netsuke#410.
 
-Local setup requires the pinned Dylint tools:
+Local setup installs the `whitaker` wrapper and its pinned Dylint driver
+toolchain via the installer:
 
 ```bash
-cargo install --locked cargo-dylint --version 5.0.0
-cargo install --locked dylint-link --version 5.0.0
+cargo install --locked whitaker-installer --version 0.2.5
+whitaker-installer
 ```
 
-`make lint` then runs `make lint-whitaker` after Clippy. The first run clones
-Whitaker tag `v0.2.5` under `target/whitaker`, installs the Dylint driver
-toolchain `nightly-2025-09-18` with `rustc-dev`, `rust-src`, and
-`llvm-tools-preview`, builds only the `no_unwrap_or_else_panic` lint crate with
-the `dylint-driver` feature, and runs the resulting dynamic library against
-`--workspace --all-targets --all-features`.
+`make lint` then runs `make lint-whitaker` after Clippy, which invokes:
 
-The repository's ordinary build, test, and Clippy commands remain on the stable
-toolchain. The pinned nightly is scoped to building the Dylint lint library.
+```bash
+RUSTFLAGS="-D warnings" whitaker --all -- --workspace --all-targets --all-features
+```
+
+The repository's ordinary build, test, and Clippy commands remain on the
+stable toolchain. The pinned nightly used by the Dylint driver is managed by
+`whitaker-installer` and scoped to lint runs.
+
+Per-lint configuration lives in the root `dylint.toml`. Every
+`excluded_crates` entry carries a rationale comment; keep that discipline
+when adding entries. In-source `allow`/`expect` attributes do not suppress
+`no_std_fs_operations` findings, so exclusions are the only sanctioned
+escape hatch for legitimately-ambient code such as test-support crates and
+integration test crates.
 
 When maintaining the pin:
 
-1. Update `WHITAKER_TAG` and, if Whitaker changes its driver, update
-   `WHITAKER_TOOLCHAIN` in `Makefile`.
-2. Update the CI cache key in `.github/workflows/ci.yml` so stale lint
-   libraries are not reused.
-3. Re-run `make lint-whitaker`, then the full `make lint` gate.
-4. Update ADR-013 only if the mechanism or adopted lint set changes.
+1. Update `WHITAKER_INSTALLER_VERSION` in `.github/workflows/ci.yml`; the
+   suite itself is rolling and updated by rerunning `whitaker-installer`.
+2. Re-run `make lint-whitaker`, then the full `make lint` gate.
+3. Update ADR-013 only if the mechanism or adopted lint set changes.
 
 Do not replace invariant checks with `.expect(...)`, `.unwrap()`, or
 `unwrap_or_else(|| panic!(…))`. Use `let … else { panic!(…) }` for invariant
 panics, or return `Result` and use `?` where the failure is part of the tested
-domain behaviour.
+domain behaviour. Fixture functions and test helpers are not tests: they must
+return `Result` and propagate errors rather than calling `.expect(...)`, and
+shared assertion shapes belong in macros so panic line numbers point at the
+calling test.
 
 ## Language-server handler conventions
 

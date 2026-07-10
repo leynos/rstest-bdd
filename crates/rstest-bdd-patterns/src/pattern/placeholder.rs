@@ -302,6 +302,8 @@ fn is_valid_hint_format(hint: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for placeholder extraction and capture handling.
+
     use super::*;
     use crate::pattern::test_support::{parse_err, parse_ok};
 

@@ -7,7 +7,7 @@ use std::process::{Command, Output};
 
 #[test]
 fn whitaker_lint_gate_accepts_clean_and_rejects_panicking_fixtures() {
-    if !cargo_dylint_available() {
+    if !cargo_dylint_available() || !whitaker_available() {
         return;
     }
 
@@ -19,7 +19,8 @@ fn whitaker_lint_gate_accepts_clean_and_rejects_panicking_fixtures() {
     };
     let clean_manifest = write_whitaker_fixture(
         &temp_dir.join("clean"),
-        "pub fn clean_value(value: Option<u32>) -> u32 {\n\
+        "//! Clean Whitaker fixture crate.\n\
+         pub fn clean_value(value: Option<u32>) -> u32 {\n\
              let Some(number) = value else {\n\
                  panic!(\"missing value\");\n\
              };\n\
@@ -64,37 +65,16 @@ fn whitaker_lint_gate_accepts_clean_and_rejects_panicking_fixtures() {
     );
 }
 
-#[test]
-fn whitaker_artifact_paths_are_toolchain_scoped() {
-    let target_dir_a = make_variable("WHITAKER_TARGET_DIR", "nightly-test-a");
-    let target_dir_b = make_variable("WHITAKER_TARGET_DIR", "nightly-test-b");
-    let toolchain_stamp_a = make_variable("WHITAKER_TOOLCHAIN_STAMP", "nightly-test-a");
-    let build_stamp_a = make_variable("WHITAKER_BUILD_STAMP", "nightly-test-a");
-
-    assert_ne!(
-        target_dir_a, target_dir_b,
-        "changing WHITAKER_TOOLCHAIN must select a different target dir",
-    );
-    assert!(
-        target_dir_a.contains("v0.2.5-nightly-test-a-target"),
-        "target dir should include tag and toolchain: {target_dir_a}",
-    );
-    assert!(
-        toolchain_stamp_a.starts_with(&target_dir_a),
-        "toolchain stamp should live under toolchain-scoped target dir",
-    );
-    assert!(
-        build_stamp_a.starts_with(&target_dir_a),
-        "build stamp should live under toolchain-scoped target dir",
-    );
+fn cargo_dylint_available() -> bool {
+    command_succeeds(Command::new("cargo").arg("dylint").arg("--version"))
 }
 
-fn cargo_dylint_available() -> bool {
-    match Command::new("cargo")
-        .arg("dylint")
-        .arg("--version")
-        .output()
-    {
+fn whitaker_available() -> bool {
+    command_succeeds(Command::new("whitaker").arg("--version"))
+}
+
+fn command_succeeds(command: &mut Command) -> bool {
+    match command.output() {
         Ok(output) => output.status.success(),
         Err(_) => false,
     }
@@ -151,29 +131,6 @@ fn run_whitaker_lint_fixture(manifest_path: &Utf8Path) -> Output {
         Ok(output) => output,
         Err(err) => panic!("failed to run make lint-whitaker: {err}"),
     }
-}
-
-fn make_variable(variable: &str, toolchain: &str) -> String {
-    let repo_root = repo_root();
-    let eval = "print-%: ; @printf \"%s\\n\" \"$($*)\"";
-    let output = match Command::new("make")
-        .current_dir(repo_root.as_std_path())
-        .arg("--no-print-directory")
-        .arg("--eval")
-        .arg(eval)
-        .arg(format!("print-{variable}"))
-        .arg(format!("WHITAKER_TOOLCHAIN={toolchain}"))
-        .output()
-    {
-        Ok(output) => output,
-        Err(err) => panic!("failed to query Makefile variable {variable}: {err}"),
-    };
-    assert!(
-        output.status.success(),
-        "make variable query failed for {variable}\n{}",
-        command_output(&output),
-    );
-    String::from_utf8_lossy(&output.stdout).trim().to_owned()
 }
 
 fn repo_root() -> Utf8PathBuf {

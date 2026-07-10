@@ -77,6 +77,8 @@ pub trait StepArgs: Sized {
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for step argument extraction.
+
     use super::StepArgsError;
 
     #[test]

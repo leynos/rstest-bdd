@@ -972,7 +972,7 @@ remove the existing `StepContext`, harness, or macro surfaces.
   GPUI harness with mutable context and scenario state, and scenario outline
   shapes. Finish line: CI runs and passes one compatibility test for each
   listed shape. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.4. (Buzzy Bee)
-- [ ] 11.2.5. The full Whitaker lint suite is evaluated and, where feasible,
+- [x] 11.2.5. The full Whitaker lint suite is evaluated and, where feasible,
   adopted behind a pinned gate. Scope includes the remaining Whitaker lints
   `bumpy_road_function`, `conditional_max_n_branches`,
   `function_attrs_follow_docs`, `module_max_lines`,
@@ -981,7 +981,10 @@ remove the existing `StepContext`, harness, or macro surfaces.
   ExecPlan records whether full-suite adoption requires a repository-wide
   nightly migration, the accepted subset is enforced in CI, and any deferred
   lints have explicit rationale. Precedent:
-  `docs/adr-013-adopt-whitaker-no-unwrap-or-else-panic.md`.
+  `docs/adr-013-adopt-whitaker-no-unwrap-or-else-panic.md`. Completed
+  2026-07-09: the full suite (installer 0.2.5, rolling suite) is enforced in
+  `make lint` and CI via the `whitaker` wrapper; per-crate
+  `no_std_fs_operations` exclusions with rationale live in `dylint.toml`.
 
 ### 11.3. Close the feature-file rebuild gap
 

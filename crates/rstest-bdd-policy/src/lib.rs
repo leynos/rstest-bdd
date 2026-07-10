@@ -185,6 +185,8 @@ pub fn resolve_test_attribute_hint_for_harness_path(
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for policy configuration parsing and defaults.
+
     use super::{
         DEFAULT_ATTRIBUTE_POLICY_PATH, GPUI_ATTRIBUTE_POLICY_PATH, GPUI_HARNESS_PATH, RuntimeMode,
         STD_HARNESS_PATH, TOKIO_ATTRIBUTE_POLICY_PATH, TOKIO_HARNESS_PATH, TestAttributeHint,

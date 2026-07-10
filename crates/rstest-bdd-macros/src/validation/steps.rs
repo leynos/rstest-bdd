@@ -64,11 +64,11 @@ fn register_step_inner(keyword: StepKeyword, pattern: &syn::LitStr, crate_id: im
     let leaked: &'static str = Box::leak(pattern.value().into_boxed_str());
     let stored: &'static MacroPattern = Box::leak(Box::new(MacroPattern::new(leaked)));
     let _ = stored.regex(pattern.span());
-    #[expect(
-        clippy::expect_used,
-        reason = "lock poisoning is unrecoverable; panic with clear message"
-    )]
-    let mut reg = REGISTERED.lock().expect("step registry poisoned");
+    // Recover from a poisoned lock: entries are inserted atomically, so a
+    // panicking macro expansion cannot leave the registry logically invalid.
+    let mut reg = REGISTERED
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let crate_id = normalise_crate_id(crate_id.as_ref());
     let defs = reg.entry(crate_id).or_default();
     defs.by_kw.entry(keyword).or_default().push(stored);
@@ -190,11 +190,11 @@ fn validate_individual_steps(
 
 /// Ensure all parsed steps have matching definitions.
 pub(crate) fn validate_steps_exist(steps: &[ParsedStep], strict: bool) -> Result<(), syn::Error> {
-    #[expect(
-        clippy::expect_used,
-        reason = "lock poisoning is unrecoverable; panic with clear message"
-    )]
-    let reg = REGISTERED.lock().expect("step registry poisoned");
+    // Recover from a poisoned lock: entries are inserted atomically, so a
+    // panicking macro expansion cannot leave the registry logically invalid.
+    let reg = REGISTERED
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     let current = current_crate_id();
     let defs_owned = reg.get(current).cloned();
     match validate_registry_state(defs_owned.as_ref(), current, strict) {

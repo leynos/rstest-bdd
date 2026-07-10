@@ -18,22 +18,20 @@ use rstest_bdd_harness::binary_test_support::{
 };
 
 /// Directory under [`std::env::temp_dir()`] guaranteed absent before the test runs.
-#[expect(
-    clippy::expect_used,
-    reason = "test setup panics on improbable clock skew or temp-dir cleanup failures"
-)]
-fn unique_absent_temp_dir(label: &str) -> PathBuf {
+fn unique_absent_temp_dir(label: &str) -> std::io::Result<PathBuf> {
+    // A clock before the epoch degrades to zero nanoseconds; the process id
+    // and label still keep the path unique enough for test scratch space.
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .expect("system clock before UNIX epoch")
+        .unwrap_or_default()
         .as_nanos();
     let dir =
         std::env::temp_dir().join(format!("rstest_bdd_{label}_{}_{nanos}", std::process::id()));
     if dir.exists() {
-        fs::remove_dir_all(&dir).expect("remove stale temp dir for test");
+        fs::remove_dir_all(&dir)?;
     }
     assert!(!dir.exists(), "temp dir should be absent before test");
-    dir
+    Ok(dir)
 }
 
 fn workspace_root() -> PathBuf {
@@ -43,8 +41,8 @@ fn workspace_root() -> PathBuf {
 }
 
 #[test]
-fn target_directory_for_invalid_manifest_returns_err() {
-    let manifest = unique_absent_temp_dir("missing_manifest").join("Cargo.toml");
+fn target_directory_for_invalid_manifest_returns_err() -> std::io::Result<()> {
+    let manifest = unique_absent_temp_dir("missing_manifest")?.join("Cargo.toml");
     assert!(
         !manifest.exists(),
         "test setup: manifest path must not exist: {}",
@@ -55,6 +53,7 @@ fn target_directory_for_invalid_manifest_returns_err() {
         result.is_err(),
         "expected error for non-existent manifest, got: {result:?}"
     );
+    Ok(())
 }
 
 #[test]
@@ -75,13 +74,14 @@ fn target_directory_for_workspace_manifest_returns_ok() {
 }
 
 #[test]
-fn build_binary_returns_err_for_nonexistent_workspace() {
-    let workspace = unique_absent_temp_dir("no_workspace");
+fn build_binary_returns_err_for_nonexistent_workspace() -> std::io::Result<()> {
+    let workspace = unique_absent_temp_dir("no_workspace")?;
     let result = build_binary(&workspace, BinaryName::new("nonexistent-binary"));
     assert!(
         result.is_err(),
         "expected build_binary to fail when the workspace directory does not exist, got: {result:?}"
     );
+    Ok(())
 }
 
 #[expect(
@@ -108,9 +108,9 @@ fn build_binary_captures_output_on_failure() {
 }
 
 #[test]
-fn locate_or_build_binary_returns_err_for_invalid_manifest() {
-    let workspace = unique_absent_temp_dir("locate_invalid_workspace");
-    let manifest = unique_absent_temp_dir("locate_invalid_manifest").join("Cargo.toml");
+fn locate_or_build_binary_returns_err_for_invalid_manifest() -> std::io::Result<()> {
+    let workspace = unique_absent_temp_dir("locate_invalid_workspace")?;
+    let manifest = unique_absent_temp_dir("locate_invalid_manifest")?.join("Cargo.toml");
     assert!(
         !manifest.exists(),
         "test setup: manifest path must not exist: {}",
@@ -125,6 +125,7 @@ fn locate_or_build_binary_returns_err_for_invalid_manifest() {
         result.is_err(),
         "expected error for invalid manifest, got: {result:?}"
     );
+    Ok(())
 }
 
 #[expect(

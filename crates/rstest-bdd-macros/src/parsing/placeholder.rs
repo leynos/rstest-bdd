@@ -115,6 +115,8 @@ fn extract_placeholder_names(text: &str) -> Vec<String> {
 #[cfg(test)]
 #[expect(clippy::unwrap_used, reason = "tests use unwrap for brevity")]
 mod tests {
+    //! Unit tests for parsing placeholder syntax.
+
     use super::*;
     use rstest::rstest;
 

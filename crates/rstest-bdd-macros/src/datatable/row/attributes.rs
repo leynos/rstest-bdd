@@ -240,6 +240,8 @@ fn ensure_when(violation: bool, span: Span, message: &str) -> syn::Result<()> {
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for `#[datatable]` row attribute parsing.
+
     use super::*;
     use syn::{Data, parse_quote};
 

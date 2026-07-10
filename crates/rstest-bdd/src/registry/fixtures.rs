@@ -50,6 +50,8 @@ pub fn fixture_requirements_for_step(step: &Step) -> Option<&'static [FixtureReq
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for step fixture requirement metadata.
+
     use super::*;
     use crate::StepKeyword;
     use crate::registry::Step;

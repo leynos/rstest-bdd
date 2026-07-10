@@ -46,22 +46,20 @@ impl TodoList {
     /// Render the list into a user-facing string.
     #[must_use]
     pub fn display(&self) -> String {
-        let mut out = String::new();
-        use std::fmt::Write as _;
-        for (i, t) in self.tasks.iter().enumerate() {
-            writeln!(
-                out,
-                "{}. [{}] {}",
-                i + 1,
-                if t.done { "x" } else { " " },
-                t.description
-            )
-            .expect("writing to a String cannot fail");
-        }
-        if out.ends_with('\n') {
-            out.pop();
-        }
-        out
+        let lines: Vec<String> = self
+            .tasks
+            .iter()
+            .enumerate()
+            .map(|(i, t)| {
+                format!(
+                    "{}. [{}] {}",
+                    i + 1,
+                    if t.done { "x" } else { " " },
+                    t.description
+                )
+            })
+            .collect();
+        lines.join("\n")
     }
 
     /// Return task descriptions and completion state for verification.

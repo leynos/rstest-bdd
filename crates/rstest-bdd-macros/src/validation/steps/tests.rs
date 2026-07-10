@@ -136,19 +136,22 @@ fn normalises_windows_drive_letter_out_dir() {
 
 #[test]
 #[serial]
-#[expect(
-    clippy::expect_used,
-    reason = "test arranges filesystem state with explicit expect messages"
-)]
-fn normalises_relative_out_dir_paths() {
-    let temp = tempdir_in(".").expect("create temp dir in current directory");
-    let abs = Utf8PathBuf::from_path_buf(temp.path().to_path_buf())
-        .expect("temporary directory should be valid UTF-8");
-    let cwd = std::env::current_dir().expect("obtain current directory");
-    let cwd = Utf8PathBuf::from_path_buf(cwd).expect("current directory should be valid UTF-8");
-    let relative = abs
-        .strip_prefix(&cwd)
-        .expect("temporary directory to reside under current directory");
+fn normalises_relative_out_dir_paths() -> Result<(), Box<dyn std::error::Error>> {
+    let temp = tempdir_in(".")?;
+    let abs = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).map_err(|path| {
+        format!(
+            "temporary directory should be valid UTF-8: {}",
+            path.display()
+        )
+    })?;
+    let cwd = std::env::current_dir()?;
+    let cwd = Utf8PathBuf::from_path_buf(cwd).map_err(|path| {
+        format!(
+            "current directory should be valid UTF-8: {}",
+            path.display()
+        )
+    })?;
+    let relative = abs.strip_prefix(&cwd)?;
     let crate_id = format!("demo:./{}", relative.as_str());
     let normalised = normalise_crate_id(&crate_id);
     let canonical_abs = abs
@@ -157,6 +160,7 @@ fn normalises_relative_out_dir_paths() {
         .unwrap_or_else(|_| abs.clone());
     let expected = format!("demo:{}", canonical_abs.as_str());
     assert_eq!(normalised.as_ref(), expected);
+    Ok(())
 }
 
 #[test]
@@ -237,22 +241,24 @@ fn canonicalise_out_dir_returns_original_when_unresolvable() {
 
 #[test]
 #[serial]
-#[expect(
-    clippy::expect_used,
-    reason = "registry fixture wiring relies on explicit expect diagnostics"
-)]
-fn canonicalises_equivalent_crate_paths_in_registry() {
+fn canonicalises_equivalent_crate_paths_in_registry() -> Result<(), Box<dyn std::error::Error>> {
     clear_registry();
-    let temp = tempdir().expect("create temp directory");
-    let abs = Utf8PathBuf::from_path_buf(temp.path().to_path_buf())
-        .expect("temporary directory should be valid UTF-8");
+    let temp = tempdir()?;
+    let abs = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).map_err(|path| {
+        format!(
+            "temporary directory should be valid UTF-8: {}",
+            path.display()
+        )
+    })?;
     let crate_id = format!("demo:{}", abs.as_str());
     let alt_id = format!("demo:{}/.", abs.as_str());
 
     register_step_for_crate(StepKeyword::Given, "first pattern", &crate_id);
     register_step_for_crate(StepKeyword::Given, "second pattern", &alt_id);
 
-    let registry = REGISTERED.lock().expect("step registry poisoned");
+    let registry = REGISTERED
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     assert_eq!(
         registry.len(),
         1,
@@ -261,7 +267,7 @@ fn canonicalises_equivalent_crate_paths_in_registry() {
     let (stored_id, defs) = registry
         .iter()
         .next()
-        .expect("expected at least one crate entry");
+        .ok_or("expected at least one crate entry")?;
     let expected_id = normalise_crate_id(&crate_id);
     assert_eq!(stored_id.as_ref(), expected_id.as_ref());
 
@@ -269,4 +275,5 @@ fn canonicalises_equivalent_crate_paths_in_registry() {
     assert_eq!(patterns.len(), 2, "expected both patterns to be stored");
     drop(registry);
     clear_registry();
+    Ok(())
 }

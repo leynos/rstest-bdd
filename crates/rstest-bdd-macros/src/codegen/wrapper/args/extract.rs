@@ -189,6 +189,8 @@ pub fn extract_args(
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for extracting wrapper argument metadata.
+
     use super::*;
     use syn::parse_quote;
 
@@ -199,13 +201,11 @@ mod tests {
         }
     }
 
-    #[expect(clippy::expect_used, reason = "test helper with descriptive failures")]
     fn first_input(func: syn::ItemFn) -> syn::FnArg {
-        func.sig
-            .inputs
-            .into_iter()
-            .next()
-            .expect("test input should contain one argument")
+        let Some(input) = func.sig.inputs.into_iter().next() else {
+            panic!("test input should contain one argument");
+        };
+        input
     }
 
     #[test]

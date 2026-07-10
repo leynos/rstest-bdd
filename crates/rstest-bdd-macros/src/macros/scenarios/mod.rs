@@ -263,6 +263,8 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
 #[cfg(unix)]
 #[cfg(test)]
 mod tests {
+    //! Unit tests for the `scenarios!` macro entry point.
+
     use super::feature_discovery::collect_feature_files;
     use std::fs;
     use std::io;

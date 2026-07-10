@@ -135,6 +135,8 @@ impl FieldLabel<'_> {
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for the `ScenarioState` derive helpers.
+
     use super::*;
     use quote::quote;
 

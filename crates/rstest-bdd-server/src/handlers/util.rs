@@ -220,6 +220,8 @@ fn byte_offset_to_position(source: &str, byte_offset: usize) -> Position {
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for handler utility helpers.
+
     use super::*;
 
     #[test]

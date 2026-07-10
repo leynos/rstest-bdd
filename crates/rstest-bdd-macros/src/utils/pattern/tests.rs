@@ -28,17 +28,23 @@ fn ident_matches_normalized_cases(
     assert_eq!(ident_matches_normalized(&ident, header), expected);
 }
 
-/// Helper to assert placeholder extraction for a single-placeholder pattern.
-#[expect(
-    clippy::expect_used,
-    clippy::indexing_slicing,
-    reason = "test asserts valid pattern"
-)]
-fn assert_single_placeholder(pattern: &str, expected_name: &str, expected_hint: Option<&str>) {
-    let summary = placeholder_names(pattern).expect("valid pattern");
-    assert_eq!(summary.ordered.len(), 1);
-    assert_eq!(summary.ordered[0].name, expected_name);
-    assert_eq!(summary.ordered[0].hint, expected_hint.map(String::from));
+/// Assert placeholder extraction for a single-placeholder pattern.
+///
+/// A macro rather than a helper function so that panic line numbers point at
+/// the calling test.
+macro_rules! assert_single_placeholder {
+    ($pattern:expr, $expected_name:expr, $expected_hint:expr) => {{
+        let summary = match placeholder_names($pattern) {
+            Ok(summary) => summary,
+            Err(err) => panic!("valid pattern: {err}"),
+        };
+        assert_eq!(summary.ordered.len(), 1);
+        let Some(first) = summary.ordered.first() else {
+            panic!("summary should contain one placeholder");
+        };
+        assert_eq!(first.name, $expected_name);
+        assert_eq!(first.hint, $expected_hint.map(String::from));
+    }};
 }
 
 /// Test that single-placeholder patterns correctly extract name and hint.
@@ -51,7 +57,7 @@ fn placeholder_hint_extraction(
     #[case] expected_name: &str,
     #[case] expected_hint: Option<&str>,
 ) {
-    assert_single_placeholder(pattern, expected_name, expected_hint);
+    assert_single_placeholder!(pattern, expected_name, expected_hint);
 }
 
 #[test]

@@ -94,6 +94,8 @@ pub(crate) fn classify_step_struct(
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for classifying step struct parameters.
+
     use super::*;
     use proc_macro2::{Span, TokenStream as TokenStream2};
     use quote::quote;

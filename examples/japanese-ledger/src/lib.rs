@@ -73,6 +73,8 @@ impl HouseholdLedger {
 
 #[cfg(test)]
 mod tests {
+    //! Behavioural tests for the household ledger example.
+
     use super::HouseholdLedger;
     use rstest::{fixture, rstest};
 

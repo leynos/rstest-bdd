@@ -51,6 +51,8 @@ pub fn init_logging(config: &ServerConfig) {
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for logging configuration.
+
     use super::*;
     use crate::config::LogLevel;
 

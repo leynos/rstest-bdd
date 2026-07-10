@@ -64,6 +64,8 @@ pub fn clear_fail_on_skipped_override() {
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for runtime configuration handling.
+
     use super::*;
     use serial_test::serial;
 

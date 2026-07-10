@@ -33,6 +33,8 @@ pub fn requires_quote_stripping(type_hint: Option<&str>) -> bool {
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for placeholder hint rendering.
+
     use super::*;
 
     #[test]

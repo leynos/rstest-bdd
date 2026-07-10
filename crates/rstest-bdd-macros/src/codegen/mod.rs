@@ -214,6 +214,8 @@ fn handle_missing_crate(spec: &CrateSpec, err: &proc_macro_crate::Error) -> Toke
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for shared code generation utilities.
+
     use super::{
         GPUI_HARNESS, RSTEST_BDD, RSTEST_BDD_HARNESS, TOKIO_HARNESS, handle_missing_crate,
     };
@@ -229,9 +231,11 @@ mod tests {
         }
     }
 
-    #[expect(clippy::expect_used, reason = "test path literals should parse")]
     fn parse_path(path: &str) -> syn::Path {
-        syn::parse_str(path).expect("parse path")
+        match syn::parse_str(path) {
+            Ok(parsed) => parsed,
+            Err(err) => panic!("parse path {path}: {err}"),
+        }
     }
 
     fn adapter_spec(is_tokio: bool) -> &'static super::CrateSpec {

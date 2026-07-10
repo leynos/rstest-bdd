@@ -23,11 +23,53 @@ fn deduplicates_duplicate_titles() {
     assert_eq!(second, "dup_same_name_1");
 }
 
-fn make_fixture_spec(name: &str, ty: &str) -> FixtureSpec {
-    FixtureSpec {
-        name: syn::parse_str(name).expect("fixture name should parse"),
-        ty: syn::parse_str(ty).expect("fixture type should parse"),
-    }
+/// Build a `FixtureSpec` from string literals.
+///
+/// A macro rather than a helper function so that panic line numbers point at
+/// the calling test.
+macro_rules! make_fixture_spec {
+    ($name:expr, $ty:expr) => {{
+        let name = match syn::parse_str($name) {
+            Ok(name) => name,
+            Err(err) => panic!("fixture name should parse: {err}"),
+        };
+        let ty = match syn::parse_str($ty) {
+            Ok(ty) => ty,
+            Err(err) => panic!("fixture type should parse: {err}"),
+        };
+        FixtureSpec { name, ty }
+    }};
+}
+
+/// Assert fixture parameters precede example parameters in a generated
+/// signature, returning the rendered signature for further checks.
+///
+/// A macro rather than a helper function so that panic line numbers point at
+/// the calling test.
+macro_rules! assert_fixtures_before_examples {
+    ($is_async:expr) => {{
+    let fn_ident = syn::Ident::new("test_name", proc_macro2::Span::call_site());
+    let fixture_params: Vec<TokenStream2> = vec![quote!(world: TestWorld)];
+    let example_params: Vec<TokenStream2> = vec![
+        quote!(#[case] col1: &'static str),
+        quote!(#[case] col2: &'static str),
+    ];
+
+    let sig = build_test_signature(&fn_ident, &fixture_params, &example_params, $is_async);
+    let sig_str = sig_to_string(&sig);
+
+    let Some(world_pos) = sig_str.find("world") else {
+        panic!("should contain world: {sig_str}");
+    };
+    let Some(col1_pos) = sig_str.find("col1") else {
+        panic!("should contain col1: {sig_str}");
+    };
+    assert!(
+        world_pos < col1_pos,
+        "fixture 'world' should appear before example 'col1'"
+    );
+    sig_str
+    }};
 }
 
 fn sig_to_string(sig: &syn::Signature) -> String {
@@ -42,7 +84,7 @@ fn build_lint_attributes_empty_fixtures_produces_no_attributes() {
 
 #[test]
 fn build_lint_attributes_with_fixtures_produces_expect_attribute() {
-    let fixtures = vec![make_fixture_spec("world", "TestWorld")];
+    let fixtures = vec![make_fixture_spec!("world", "TestWorld")];
     let attrs = build_lint_attributes(&fixtures);
 
     assert_eq!(attrs.len(), 1);
@@ -67,8 +109,8 @@ fn build_lint_attributes_with_fixtures_produces_expect_attribute() {
 #[test]
 fn build_lint_attributes_multiple_fixtures_still_produces_single_attribute() {
     let fixtures = vec![
-        make_fixture_spec("world", "TestWorld"),
-        make_fixture_spec("db", "Database"),
+        make_fixture_spec!("world", "TestWorld"),
+        make_fixture_spec!("db", "Database"),
     ];
     let attrs = build_lint_attributes(&fixtures);
     assert_eq!(attrs.len(), 1);
@@ -116,32 +158,12 @@ fn build_test_signature_examples_only() {
 
 #[test]
 fn build_test_signature_fixtures_then_examples() {
-    assert_fixtures_before_examples(false);
-}
-
-fn assert_fixtures_before_examples(is_async: bool) -> String {
-    let fn_ident = syn::Ident::new("test_name", proc_macro2::Span::call_site());
-    let fixture_params: Vec<TokenStream2> = vec![quote!(world: TestWorld)];
-    let example_params: Vec<TokenStream2> = vec![
-        quote!(#[case] col1: &'static str),
-        quote!(#[case] col2: &'static str),
-    ];
-
-    let sig = build_test_signature(&fn_ident, &fixture_params, &example_params, is_async);
-    let sig_str = sig_to_string(&sig);
-
-    let world_pos = sig_str.find("world").expect("should contain world");
-    let col1_pos = sig_str.find("col1").expect("should contain col1");
-    assert!(
-        world_pos < col1_pos,
-        "fixture 'world' should appear before example 'col1'"
-    );
-    sig_str
+    assert_fixtures_before_examples!(false);
 }
 
 #[test]
 fn build_test_signature_async_fixtures_then_examples() {
-    let sig_str = assert_fixtures_before_examples(true);
+    let sig_str = assert_fixtures_before_examples!(true);
     assert!(sig_str.starts_with("async fn"), "should be async fn");
 }
 
@@ -153,7 +175,7 @@ fn build_fixture_params_empty() {
 
 #[test]
 fn build_fixture_params_single() {
-    let fixtures = vec![make_fixture_spec("world", "TestWorld")];
+    let fixtures = vec![make_fixture_spec!("world", "TestWorld")];
     let params = build_fixture_params(&fixtures);
 
     assert_eq!(params.len(), 1);
@@ -165,8 +187,8 @@ fn build_fixture_params_single() {
 #[test]
 fn build_fixture_params_multiple() {
     let fixtures = vec![
-        make_fixture_spec("world", "TestWorld"),
-        make_fixture_spec("db", "Database"),
+        make_fixture_spec!("world", "TestWorld"),
+        make_fixture_spec!("db", "Database"),
     ];
     let params = build_fixture_params(&fixtures);
 
@@ -299,111 +321,4 @@ fn runtime_harness_signature_pipeline(
     );
 }
 
-// -- Tests for resolve_fixture_error_type ---
-
-#[rstest]
-#[case("Result<MyWorld, String>")]
-#[case("StepResult<MyWorld, String>")]
-fn resolve_fixture_error_type_single_result_uses_fixture_error(#[case] fixture_ty: &str) {
-    let fixtures = vec![make_fixture_spec("world", fixture_ty)];
-    let error_ty = resolve_fixture_error_type(&fixtures);
-    let error_str = quote!(#error_ty).to_string();
-    assert!(
-        error_str.contains("String"),
-        "single result-like fixture should use its error type, got: {error_str}"
-    );
-    assert!(
-        !error_str.contains("Box"),
-        "single result-like fixture should not use Box<dyn Error>, got: {error_str}"
-    );
-}
-
-#[rstest]
-#[case("Result<MyWorld, String>", "Result<Database, String>")]
-#[case("StepResult<MyWorld, String>", "StepResult<Database, String>")]
-#[case("Result<MyWorld, String>", "StepResult<Database, String>")]
-fn resolve_fixture_error_type_multiple_same_error_uses_shared_type(
-    #[case] fixture1_ty: &str,
-    #[case] fixture2_ty: &str,
-) {
-    let fixtures = vec![
-        make_fixture_spec("world", fixture1_ty),
-        make_fixture_spec("db", fixture2_ty),
-    ];
-    let error_ty = resolve_fixture_error_type(&fixtures);
-    let error_str = quote!(#error_ty).to_string();
-    assert!(
-        error_str.contains("String"),
-        "fixtures sharing the same error type should use it directly, got: {error_str}"
-    );
-}
-
-#[test]
-fn resolve_fixture_error_type_different_errors_falls_back_to_box() {
-    let fixtures = vec![
-        make_fixture_spec("world", "Result<MyWorld, String>"),
-        make_fixture_spec("db", "Result<Database, std::io::Error>"),
-    ];
-    let error_ty = resolve_fixture_error_type(&fixtures);
-    let error_str = quote!(#error_ty).to_string();
-    assert!(
-        error_str.contains("Box"),
-        "different error types should fall back to Box<dyn Error>, got: {error_str}"
-    );
-}
-
-#[test]
-fn resolve_fixture_error_type_no_result_fixtures_falls_back_to_box() {
-    let fixtures = vec![make_fixture_spec("world", "MyWorld")];
-    let error_ty = resolve_fixture_error_type(&fixtures);
-    let error_str = quote!(#error_ty).to_string();
-    assert!(
-        error_str.contains("Box"),
-        "no Result fixtures should fall back to Box<dyn Error>, got: {error_str}"
-    );
-}
-
-#[rstest]
-#[case("Result<Database, String>")]
-#[case("StepResult<Database, String>")]
-fn resolve_fixture_error_type_mixed_plain_and_result_uses_result_error(#[case] fallible_ty: &str) {
-    let fixtures = vec![
-        make_fixture_spec("plain", "MyWorld"),
-        make_fixture_spec("fallible", fallible_ty),
-    ];
-    let error_ty = resolve_fixture_error_type(&fixtures);
-    let error_str = quote!(#error_ty).to_string();
-    assert!(
-        error_str.contains("String"),
-        "mixed fixtures with one result-like type should use its error type, got: {error_str}"
-    );
-}
-
-#[rstest]
-#[case(
-    "Result<Database, std::io::Error>",
-    "Box",
-    "non-consecutive different error types should fall back to Box<dyn Error>"
-)]
-#[case(
-    "Result<Database, String>",
-    "String",
-    "all same error types (even non-consecutive) should return the shared type"
-)]
-fn resolve_fixture_error_type_non_consecutive_three_fixtures(
-    #[case] second_ty: &str,
-    #[case] expected_fragment: &str,
-    #[case] msg: &str,
-) {
-    let fixtures = vec![
-        make_fixture_spec("first", "Result<MyWorld, String>"),
-        make_fixture_spec("second", second_ty),
-        make_fixture_spec("third", "Result<Config, String>"),
-    ];
-    let error_ty = resolve_fixture_error_type(&fixtures);
-    let error_str = quote!(#error_ty).to_string();
-    assert!(
-        error_str.contains(expected_fragment),
-        "{msg}, got: {error_str}"
-    );
-}
+mod fixture_error_type;

@@ -39,6 +39,8 @@ pub enum ServerError {
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for server error types.
+
     use super::*;
 
     #[test]
