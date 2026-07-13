@@ -59,3 +59,61 @@ fn type_is_string(ty: &syn::Type) -> bool {
         _ => false,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    //! Unit tests for indexed step-function parameter classification.
+
+    use rstest::rstest;
+
+    use super::{
+        param_name, parameter_is_datatable, parameter_is_docstring, parameter_is_step_struct,
+    };
+
+    fn typed_parameter(arg: syn::FnArg) -> syn::PatType {
+        match arg {
+            syn::FnArg::Typed(pat_type) => pat_type,
+            syn::FnArg::Receiver(_) => panic!("test parameter should be a typed argument"),
+        }
+    }
+
+    #[test]
+    fn param_name_ignores_non_identifier_patterns() {
+        let pat_type = typed_parameter(syn::parse_quote!((left, right): (u32, u32)));
+        assert_eq!(param_name(&pat_type.pat), None);
+    }
+
+    #[rstest]
+    #[case::attribute(syn::parse_quote!(#[datatable] rows: Vec<Vec<String>>), true)]
+    #[case::name(syn::parse_quote!(datatable: Vec<Vec<String>>), true)]
+    #[case::plain(syn::parse_quote!(count: u32), false)]
+    fn datatable_parameters_are_detected(#[case] arg: syn::FnArg, #[case] expected: bool) {
+        let pat_type = typed_parameter(arg);
+        let name = param_name(&pat_type.pat);
+        assert_eq!(parameter_is_datatable(&pat_type, name.as_deref()), expected);
+    }
+
+    #[rstest]
+    #[case::attribute(syn::parse_quote!(#[step_args] args: LoginArgs), true)]
+    #[case::plain(syn::parse_quote!(args: LoginArgs), false)]
+    fn step_struct_parameters_are_detected(#[case] arg: syn::FnArg, #[case] expected: bool) {
+        assert_eq!(parameter_is_step_struct(&typed_parameter(arg)), expected);
+    }
+
+    #[rstest]
+    #[case::bare_string(syn::parse_quote!(docstring: String), true)]
+    #[case::std_path(syn::parse_quote!(docstring: std::string::String), true)]
+    #[case::alloc_path(syn::parse_quote!(docstring: alloc::string::String), true)]
+    #[case::wrong_type(syn::parse_quote!(docstring: u32), false)]
+    #[case::wrong_name(syn::parse_quote!(body: String), false)]
+    #[case::reference(syn::parse_quote!(docstring: &str), false)]
+    #[case::two_segments(syn::parse_quote!(docstring: string::String), false)]
+    fn docstring_parameters_require_a_string_type(#[case] arg: syn::FnArg, #[case] expected: bool) {
+        let pat_type = typed_parameter(arg);
+        let name = param_name(&pat_type.pat);
+        assert_eq!(
+            parameter_is_docstring(name.as_deref(), &pat_type.ty),
+            expected
+        );
+    }
+}

@@ -54,3 +54,45 @@ pub fn duplicate_steps() -> Vec<Vec<&'static Step>> {
 pub fn dump_registry() -> serde_json::Result<String> {
     super::diagnostics::dump_registry()
 }
+
+#[cfg(test)]
+#[expect(
+    clippy::expect_used,
+    reason = "test code uses infallible expects for clarity"
+)]
+mod tests {
+    //! Unit tests for registry introspection queries.
+
+    use super::{all_steps, duplicate_steps, unused_steps};
+
+    #[test]
+    fn unused_steps_is_a_subset_of_the_registry() {
+        let registered = all_steps().len();
+        let unused = unused_steps().len();
+        assert!(
+            unused <= registered,
+            "unused steps ({unused}) should never exceed registered steps ({registered})"
+        );
+    }
+
+    #[test]
+    fn duplicate_groups_contain_at_least_two_steps() {
+        for group in duplicate_steps() {
+            assert!(
+                group.len() >= 2,
+                "a duplicate group must contain at least two steps, found {}",
+                group.len()
+            );
+        }
+    }
+
+    #[cfg(feature = "diagnostics")]
+    #[test]
+    fn dump_registry_serializes_the_step_list() {
+        let json = super::dump_registry().expect("registry serialization should succeed");
+        assert!(
+            json.contains("\"steps\""),
+            "registry dump should contain a steps key: {json}"
+        );
+    }
+}
