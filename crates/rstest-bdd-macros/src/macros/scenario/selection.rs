@@ -219,6 +219,7 @@ mod tests {
 
     use gherkin::{Feature, GherkinEnv};
     use proc_macro2::Span;
+    use rstest::rstest;
 
     use super::{find_scenario_by_name, format_available_tags, scenario_not_found_error};
 
@@ -251,21 +252,39 @@ mod tests {
         assert_eq!(index, 1);
     }
 
-    #[test]
-    fn missing_name_diagnostic_lists_available_titles() {
-        let feature = parse_feature(TWO_SCENARIOS);
-        let Err(err) = find_scenario_by_name(&feature, "third", Span::call_site()) else {
-            panic!("unknown scenario name should not resolve");
+    #[rstest]
+    #[case::missing_name(
+        TWO_SCENARIOS,
+        "third",
+        [
+            "scenario named \"third\" not found",
+            "available titles: \"first\", \"second\"",
+        ],
+    )]
+    #[case::duplicate_name(
+        DUPLICATE_SCENARIOS,
+        "twin",
+        [
+            "found multiple scenarios named \"twin\"",
+            "matching indexes: 0, 1",
+        ],
+    )]
+    fn rejected_scenario_names_produce_relevant_diagnostics(
+        #[case] source: &str,
+        #[case] scenario_name: &str,
+        #[case] expected_fragments: [&str; 2],
+    ) {
+        let feature = parse_feature(source);
+        let Err(err) = find_scenario_by_name(&feature, scenario_name, Span::call_site()) else {
+            panic!("scenario name should be rejected");
         };
         let message = err.to_string();
-        assert!(
-            message.contains("scenario named \"third\" not found"),
-            "diagnostic should name the missing scenario: {message}"
-        );
-        assert!(
-            message.contains("available titles: \"first\", \"second\""),
-            "diagnostic should list the available titles: {message}"
-        );
+        for expected_fragment in expected_fragments {
+            assert!(
+                message.contains(expected_fragment),
+                "diagnostic should contain {expected_fragment:?}: {message}"
+            );
+        }
     }
 
     #[test]
@@ -275,23 +294,6 @@ mod tests {
         assert!(
             message.contains("feature contains no scenarios"),
             "diagnostic should note the empty feature: {message}"
-        );
-    }
-
-    #[test]
-    fn duplicate_names_produce_an_ambiguity_diagnostic() {
-        let feature = parse_feature(DUPLICATE_SCENARIOS);
-        let Err(err) = find_scenario_by_name(&feature, "twin", Span::call_site()) else {
-            panic!("duplicate scenario names should be rejected");
-        };
-        let message = err.to_string();
-        assert!(
-            message.contains("found multiple scenarios named \"twin\""),
-            "diagnostic should report the ambiguity: {message}"
-        );
-        assert!(
-            message.contains("matching indexes: 0, 1"),
-            "diagnostic should list the matching indexes: {message}"
         );
     }
 
