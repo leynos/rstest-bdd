@@ -234,6 +234,6 @@ impl std::error::Error for StepError {}
 
 /// Convenient alias for fallible step return values.
 ///
-/// The `#[given]`, `#[when]`, and `#[then]` macros recognise this alias when
+/// The `#[given]`, `#[when]`, and `#[then]` macros recognize this alias when
 /// determining whether a step returns a `Result<..>` or a payload value.
 pub type StepResult<T, E = StepError> = Result<T, E>;

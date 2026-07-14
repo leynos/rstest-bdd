@@ -2,7 +2,7 @@
 //!
 //! This module provides utilities for substituting `<placeholder>` tokens in
 //! Gherkin step text with values from an Examples table row. This enables the
-//! cucumber-rs-style parameterisation where `Given I have <count> items` with
+//! cucumber-rs-style parameterization where `Given I have <count> items` with
 //! an Examples row `| count | = | 5 |` becomes `Given I have 5 items`.
 
 use regex::Regex;

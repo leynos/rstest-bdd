@@ -1,4 +1,4 @@
-//! Tokenises tag expressions into keywords, parentheses, and tag identifiers.
+//! Tokenizes tag expressions into keywords, parentheses, and tag identifiers.
 //!
 //! The lexer accepts tags that already include the leading `@` and supports
 //! alphanumeric, underscore, and hyphen characters. Keywords are case

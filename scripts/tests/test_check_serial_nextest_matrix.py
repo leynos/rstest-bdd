@@ -15,7 +15,7 @@ from check_serial_nextest_matrix import (
     USERS_GUIDE,
     check_matrix_tables,
     extract_matrix_rows,
-    normalise_table_row,
+    normalize_table_row,
 )
 
 TABLE = "\n".join([
@@ -77,13 +77,13 @@ def chmod_cannot_block_reads() -> bool:
     return False
 
 
-class TestNormaliseTableRow:
-    """Tests for :func:`check_serial_nextest_matrix.normalise_table_row`."""
+class TestNormalizeTableRow:
+    """Tests for :func:`check_serial_nextest_matrix.normalize_table_row`."""
 
     def test_collapses_whitespace_runs(self) -> None:
         """Spacing-only table alignment changes should disappear."""
         row = "| a |  b   c |"
-        assert normalise_table_row(row) == "| a | b c |", (
+        assert normalize_table_row(row) == "| a | b c |", (
             "table row normalization should collapse spacing-only changes"
         )
 

@@ -18,9 +18,9 @@ use syn::LitStr;
 /// - `SCREAMING-KEBAB-CASE`: words are separated by hyphens and all letters are
 ///   uppercase.
 /// - `camelCase`: the first word is lowercase and subsequent words are
-///   capitalised.
-/// - `PascalCase`: each word is capitalised with no separators.
-/// - `Title Case`: each word is capitalised and separated by spaces. This is
+///   capitalized.
+/// - `PascalCase`: each word is capitalized with no separators.
+/// - `Title Case`: each word is capitalized and separated by spaces. This is
 ///   distinct from `PascalCase`, which concatenates words, and mirrors the
 ///   human-readable headers often used in Gherkin scenarios (for example
 ///   `Given Name`).

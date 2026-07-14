@@ -173,7 +173,7 @@ pub(super) fn assemble_test_tokens_with_harness(
                 %err,
                 "harness failed to initialize scenario"
             );
-            panic!("harness failed to initialise scenario: {err}")
+            panic!("harness failed to initialize scenario: {err}")
         })
     }
 }

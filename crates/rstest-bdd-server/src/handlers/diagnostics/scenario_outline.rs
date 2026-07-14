@@ -353,7 +353,7 @@ mod tests {
     fn extract_placeholders_handles_nested_angles() {
         // Test that nested angle brackets result in the inner-most valid match
         // The regex `<([^>\s][^>]*)>` matches from < to the first >, so
-        // `<a<b>` matches `a<b` as the placeholder name (not ideal, but documented behavior)
+        // `<a<b>` matches `a<b` as the placeholder name (not ideal, but documented behaviour)
         let text = "I have <outer<inner>> and <valid>";
         let placeholders = extract_placeholders_from_text(text);
         // <outer<inner> matches "outer<inner", and <valid> matches "valid"

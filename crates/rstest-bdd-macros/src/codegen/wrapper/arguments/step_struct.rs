@@ -18,7 +18,7 @@ pub(super) struct PlaceholderInfo<'a> {
     pub(super) hints: &'a [Option<String>],
 }
 
-/// Context for generating capture initialisers in struct-based step arguments.
+/// Context for generating capture initializers in struct-based step arguments.
 ///
 /// Groups the parameters required by [`generate_capture_initializers`] to reduce
 /// the function's argument count.

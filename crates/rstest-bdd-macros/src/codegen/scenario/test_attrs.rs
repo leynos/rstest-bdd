@@ -7,7 +7,7 @@
 //! 1. An explicit `attributes = …` path supplied to the `#[scenario]` or
 //!    `#[scenarios]` macro takes highest precedence.
 //! 2. A `harness = …` path is consulted next; first-party adapter types
-//!    (`TokioHarness`, `GpuiHarness`) are recognised via
+//!    (`TokioHarness`, `GpuiHarness`) are recognized via
 //!    [`crate::codegen::first_party_adapter_attribute_hint`].
 //! 3. The `RuntimeMode` derived from `runtime = …` or the macro's defaults
 //!    provides the final fallback.

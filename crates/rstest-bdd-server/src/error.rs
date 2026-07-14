@@ -20,11 +20,11 @@ pub enum ServerError {
     #[error("cargo metadata failed: {0}")]
     CargoMetadata(#[from] cargo_metadata::Error),
 
-    /// Server received a request before initialisation completed.
+    /// Server received a request before initialization completed.
     #[error("server not initialised")]
     NotInitialised,
 
-    /// Server received a duplicate initialisation request.
+    /// Server received a duplicate initialization request.
     #[error("server already initialised")]
     AlreadyInitialised,
 
@@ -53,13 +53,13 @@ mod tests {
     }
 
     #[test]
-    fn not_initialised_error_displays_message() {
+    fn not_initialized_error_displays_message() {
         let error = ServerError::NotInitialised;
         assert_eq!(error.to_string(), "server not initialised");
     }
 
     #[test]
-    fn already_initialised_error_displays_message() {
+    fn already_initialized_error_displays_message() {
         let error = ServerError::AlreadyInitialised;
         assert_eq!(error.to_string(), "server already initialised");
     }

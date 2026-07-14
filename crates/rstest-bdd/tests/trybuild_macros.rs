@@ -4,7 +4,7 @@
 //! diagnostics. Trybuild executes the fixture crates and compares stderr
 //! against checked-in snapshots.
 //!
-//! Normalisers rewrite fixture paths and strip nightly-only hints so the
+//! Normalizers rewrite fixture paths and strip nightly-only hints so the
 //! assertions remain stable across platforms.
 use camino::{Utf8Path, Utf8PathBuf};
 use cap_std::{ambient_authority, fs::Dir};
@@ -15,7 +15,7 @@ use std::panic::{self, AssertUnwindSafe};
 use std::path::Path as StdPath;
 use std::process::Command;
 use wrappers::{
-    MacroFixtureCase, NormaliserInput, UiFixtureCase, normalise_fixture_paths,
+    MacroFixtureCase, NormalizerInput, UiFixtureCase, normalize_fixture_paths,
     strip_nightly_macro_backtrace_hint,
 };
 
@@ -216,40 +216,40 @@ fn run_conditional_ambiguous_step_test(t: &trybuild::TestCases) {
     }
 }
 
-type Normaliser = for<'a> fn(NormaliserInput<'a>) -> String;
+type Normalizer = for<'a> fn(NormalizerInput<'a>) -> String;
 
 fn compile_fail_missing_step_warning(t: &trybuild::TestCases) {
-    compile_fail_with_normalised_output(
+    compile_fail_with_normalized_output(
         t,
         macros_fixture(MacroFixtureCase::from("scenario_missing_step_warning.rs")),
-        &[strip_nightly_macro_backtrace_hint, normalise_fixture_paths],
+        &[strip_nightly_macro_backtrace_hint, normalize_fixture_paths],
     );
 }
 
-fn compile_fail_with_normalised_output(
+fn compile_fail_with_normalized_output(
     t: &trybuild::TestCases,
     test_path: impl AsRef<Utf8Path>,
-    normalisers: &[Normaliser],
+    normalizers: &[Normalizer],
 ) {
     let test_path = test_path.as_ref();
-    run_compile_fail_with_normalised_output(
+    run_compile_fail_with_normalized_output(
         || t.compile_fail(test_path.as_std_path()),
         test_path,
-        normalisers,
+        normalizers,
     );
 }
 
-fn run_compile_fail_with_normalised_output<F>(
+fn run_compile_fail_with_normalized_output<F>(
     compile_fail: F,
     test_path: &Utf8Path,
-    normalisers: &[Normaliser],
+    normalizers: &[Normalizer],
 ) where
     F: FnOnce(),
 {
     match panic::catch_unwind(AssertUnwindSafe(compile_fail)) {
         Ok(()) => (),
         Err(panic) => {
-            if normalised_outputs_match(test_path, normalisers).unwrap_or(false) {
+            if normalized_outputs_match(test_path, normalizers).unwrap_or(false) {
                 return;
             }
 
@@ -258,7 +258,7 @@ fn run_compile_fail_with_normalised_output<F>(
     }
 }
 
-fn normalised_outputs_match(test_path: &Utf8Path, normalisers: &[Normaliser]) -> io::Result<bool> {
+fn normalized_outputs_match(test_path: &Utf8Path, normalizers: &[Normalizer]) -> io::Result<bool> {
     let crate_dir = Dir::open_ambient_dir(
         Utf8Path::new(env!("CARGO_MANIFEST_DIR")).as_std_path(),
         ambient_authority(),
@@ -268,8 +268,8 @@ fn normalised_outputs_match(test_path: &Utf8Path, normalisers: &[Normaliser]) ->
     let actual = crate_dir.read_to_string(actual_path.as_std_path())?;
     let expected = crate_dir.read_to_string(expected_path.as_std_path())?;
 
-    if apply_normalisers(NormaliserInput::from(actual.as_str()), normalisers)
-        == apply_normalisers(NormaliserInput::from(expected.as_str()), normalisers)
+    if apply_normalizers(NormalizerInput::from(actual.as_str()), normalizers)
+        == apply_normalizers(NormalizerInput::from(expected.as_str()), normalizers)
     {
         let _ = crate_dir.remove_file(actual_path.as_std_path());
         return Ok(true);
@@ -298,10 +298,10 @@ fn expected_stderr_path(test_path: &StdPath) -> Utf8PathBuf {
     path
 }
 
-fn apply_normalisers<'a>(input: NormaliserInput<'a>, normalisers: &[Normaliser]) -> Cow<'a, str> {
+fn apply_normalizers<'a>(input: NormalizerInput<'a>, normalizers: &[Normalizer]) -> Cow<'a, str> {
     let mut value = Cow::Borrowed(input.0);
-    for normalise in normalisers {
-        value = Cow::Owned(normalise(NormaliserInput::from(value.as_ref())));
+    for normalize in normalizers {
+        value = Cow::Owned(normalize(NormalizerInput::from(value.as_ref())));
     }
     value
 }

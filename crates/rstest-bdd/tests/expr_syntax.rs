@@ -12,8 +12,8 @@ thread_local! {
 }
 
 /// Step using `expr = "..."` syntax (cucumber-rs style).
-#[given(expr = "a counter initialised to zero")]
-fn counter_initialised() {
+#[given(expr = "a counter initialized to zero")]
+fn counter_initialized() {
     COUNTER.set(0);
 }
 
@@ -34,7 +34,7 @@ fn expr_syntax_scenario() {}
 
 // Verify that expr syntax registers steps identically to direct literal syntax.
 #[rstest]
-#[case(StepKeyword::Given, "a counter initialised to zero")]
+#[case(StepKeyword::Given, "a counter initialized to zero")]
 #[case(StepKeyword::When, "the counter is incremented by {amount}")]
 #[case(StepKeyword::Then, "the counter equals {expected}")]
 #[case(StepKeyword::When, "an alias result returns ok")]

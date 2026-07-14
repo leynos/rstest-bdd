@@ -92,7 +92,7 @@ impl fmt::Display for FancyError {
     }
 }
 
-/// Step that surfaces an alias error to exercise step wrapper normalisation.
+/// Step that surfaces an alias error to exercise step wrapper normalization.
 ///
 /// # Errors
 /// Always returns an error describing the failure.

@@ -245,7 +245,7 @@ fn handle_binary_execution_failure(
     output: &std::process::Output,
 ) -> Result<Option<RegistryDump>> {
     let err = String::from_utf8_lossy(&output.stderr);
-    if is_unrecognised_dump_steps(&err) {
+    if is_unrecognized_dump_steps(&err) {
         Ok(None)
     } else {
         bail!("test binary {} failed: {err}", bin.display());
@@ -253,8 +253,8 @@ fn handle_binary_execution_failure(
 }
 
 /// Determine whether stderr output indicates the test binary does not
-/// recognise the `--dump-steps` flag.
-pub(crate) fn is_unrecognised_dump_steps(stderr: &str) -> bool {
+/// recognize the `--dump-steps` flag.
+pub(crate) fn is_unrecognized_dump_steps(stderr: &str) -> bool {
     let lower = stderr.to_ascii_lowercase();
     lower.lines().any(|line| {
         let mentions_flag = line.contains("--dump-steps") || line.contains("'dump-steps'");
@@ -273,10 +273,10 @@ pub(crate) fn is_unrecognised_dump_steps(stderr: &str) -> bool {
 /// Attempt to extract the test executable path from a Cargo message.
 pub(crate) fn extract_test_executable(msg: &Message) -> Option<PathBuf> {
     match msg {
-        Message::CompilerArtifact(artifact)
-            if artifact.target.kind.iter().any(|kind| kind == "test") =>
+        Message::CompilerArtifact(artefact)
+            if artefact.target.kind.iter().any(|kind| kind == "test") =>
         {
-            artifact.executable.clone().map(PathBuf::from)
+            artefact.executable.clone().map(PathBuf::from)
         }
         _ => None,
     }

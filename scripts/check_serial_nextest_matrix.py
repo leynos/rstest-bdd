@@ -5,7 +5,7 @@ Validate that the duplicated `#[serial]`/nextest matrices stay in step.
 The users' guide and the design document both explain how `#[serial]` behaves
 under `cargo test` and cargo-nextest. This script catches doc-vs-doc drift
 between those two copies by comparing their Markdown table data rows after
-whitespace normalisation.
+whitespace normalization.
 
 Usage
 -----
@@ -14,7 +14,7 @@ python3 scripts/check_serial_nextest_matrix.py
 Exit codes
 ----------
 0
-    The two runner-matrix data rows match after whitespace normalisation.
+    The two runner-matrix data rows match after whitespace normalization.
 1
     A table is missing, malformed, or the two table bodies differ.
 """
@@ -121,7 +121,7 @@ class SerialNextestMatrixError(ValueError):
         return cls(message)
 
 
-def normalise_table_row(row: str) -> str:
+def normalize_table_row(row: str) -> str:
     """
     Collapse insignificant spacing in a Markdown table row.
 
@@ -205,12 +205,12 @@ def _is_separator_row(line: str) -> bool:
 
 
 def _collect_table_rows(section: list[str], start: int) -> list[str]:
-    """Return normalised data rows from *start*, stopping at the first non-row line."""
+    """Return normalized data rows from *start*, stopping at the first non-row line."""
     rows: list[str] = []
     for row in section[start:]:
         if not _is_table_row(row):
             break
-        rows.append(normalise_table_row(row))
+        rows.append(normalize_table_row(row))
     return rows
 
 
@@ -229,7 +229,7 @@ def _parse_table_at(section: list[str], header_index: int, heading: str) -> list
 
 def extract_matrix_rows(markdown: str, heading: str) -> list[str]:
     """
-    Extract normalised runner-matrix data rows from one document.
+    Extract normalized runner-matrix data rows from one document.
 
     Parameters
     ----------
@@ -241,7 +241,7 @@ def extract_matrix_rows(markdown: str, heading: str) -> list[str]:
     Returns
     -------
     list[str]
-        The two ordered data rows, normalised for whitespace.
+        The two ordered data rows, normalized for whitespace.
 
     Raises
     ------
@@ -276,7 +276,7 @@ def read_matrix_rows(root: Path, relative_path: Path, heading: str) -> list[str]
     Returns
     -------
     list[str]
-        Normalised data rows.
+        Normalized data rows.
     """
     path = root / relative_path
     try:

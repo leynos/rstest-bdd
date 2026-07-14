@@ -319,7 +319,7 @@ In `docs/v0-6-0-migration-guide.md`:
      `[design-borrow-constraint]` and `[design-interim-gpui]` precedent at
      lines 405-410.
 2. Add the new label-style link definition near the other definitions at
-   lines 403-420, alphabetised within the existing cluster.
+   lines 403-420, alphabetized within the existing cluster.
 
 No new sub-heading is introduced. The "why" remains in the design document; the
 checklist keeps its single-imperative voice.
@@ -543,7 +543,7 @@ must remain consistent with, the following existing surfaces:
   `docs/v0-6-0-migration-guide.md:403-420`.
 - The migration guide's existing label-style reference cluster at
   `docs/v0-6-0-migration-guide.md:403-420`. The plan adds one new label,
-  alphabetised.
+  alphabetized.
 
 No new crates, no new feature flags, no new Cargo configuration.
 

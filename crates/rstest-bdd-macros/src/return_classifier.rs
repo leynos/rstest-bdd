@@ -177,7 +177,7 @@ where
     })
 }
 
-/// Returns `true` when `path` matches a recognised `Result` or `StepResult`
+/// Returns `true` when `path` matches a recognized `Result` or `StepResult`
 /// shape, combining both [`is_result_path`] and [`is_step_result_path`].
 pub(crate) fn is_result_like_path(path: &Path) -> bool {
     is_result_path(path) || is_step_result_path(path)

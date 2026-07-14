@@ -2073,7 +2073,7 @@ compile-pass mirror,
 the GPUI durable-handle specialization remains proven by `stateful_window.rs`.
 The user guide's "Bulk-migration cookbook" subsection documents the shape and
 bridges its GPUI snippets to published `gpui 0.2.2` through the vendored-to-
-published mapping table. This hand-written shared block is superseded in v0.6.1
+published mapping table. This handwritten shared block is superseded in v0.6.1
 by `ScenarioStore<T>` and the cleanup-guard fixture macro (roadmap 11.1.3 and
 11.1.4).
 
@@ -3160,7 +3160,7 @@ These macros keep test code succinct while still surfacing detailed diagnostics.
 ### Skipped outcome assertions (2025-11-15)
 
 - Added `assert_step_skipped!(expr, message = ..?)`, so unit tests can unwrap a
-  `StepExecution::Skipped` outcome without hand-written `match` expressions. An
+  `StepExecution::Skipped` outcome without handwritten `match` expressions. An
   optional `message_absent = true` guard asserts that no skip reason was
   provided, whilst the string forms accept any type implementing `Into<String>`
   and check for substring matches.

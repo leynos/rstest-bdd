@@ -15,7 +15,7 @@ use std::str::FromStr;
 // Re-export error types from the patterns crate.
 pub(crate) use rstest_bdd_patterns::UnsupportedStepType;
 
-/// Keyword used to categorise a step definition.
+/// Keyword used to categorize a step definition.
 ///
 /// This is a newtype wrapper around [`rstest_bdd_patterns::StepKeyword`] that
 /// enables implementing `ToTokens` and other macro-specific traits while

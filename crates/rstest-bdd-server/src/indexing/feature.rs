@@ -64,7 +64,7 @@ impl<'a> From<&'a str> for FeatureSource<'a> {
 
 /// Parse and index a `.feature` file from disk.
 ///
-/// The returned index uses byte offsets within the (normalised) feature text,
+/// The returned index uses byte offsets within the (normalized) feature text,
 /// matching the behaviour of `gherkin` which appends a trailing newline when
 /// missing.
 ///
@@ -94,7 +94,7 @@ impl<'a> From<&'a str> for FeatureSource<'a> {
 /// ```
 pub fn index_feature_file(path: &Path) -> Result<FeatureFileIndex, FeatureIndexError> {
     let mut text = std::fs::read_to_string(path)?;
-    normalise_trailing_newline(&mut text);
+    normalize_trailing_newline(&mut text);
     index_feature_text(path.to_path_buf(), FeatureSource::new(&text))
 }
 
@@ -126,7 +126,7 @@ pub fn index_feature_source(
     path: PathBuf,
     source: &str,
 ) -> Result<FeatureFileIndex, FeatureIndexError> {
-    let source = normalise_source_text(source);
+    let source = normalize_source_text(source);
     index_feature_text(path, FeatureSource::new(source.as_ref()))
 }
 
@@ -230,13 +230,13 @@ fn process_rule(
     )
 }
 
-fn normalise_trailing_newline(text: &mut String) {
+fn normalize_trailing_newline(text: &mut String) {
     if !text.ends_with('\n') {
         text.push('\n');
     }
 }
 
-fn normalise_source_text(source: &str) -> Cow<'_, str> {
+fn normalize_source_text(source: &str) -> Cow<'_, str> {
     if source.ends_with('\n') {
         return Cow::Borrowed(source);
     }

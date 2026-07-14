@@ -315,7 +315,7 @@ pub type StepFuture<'a> =
 
 /// Function pointer type for async step wrappers.
 ///
-/// Async step definitions are normalised into this interface by the
+/// Async step definitions are normalized into this interface by the
 /// macro-generated wrapper code. Sync step definitions are wrapped in
 /// immediately-ready futures when async mode is enabled, allowing mixed sync
 /// and async steps within a single scenario.

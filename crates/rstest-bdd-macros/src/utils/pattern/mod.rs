@@ -2,9 +2,9 @@
 //!
 //! Provides helper to extract placeholder names from step patterns so the macro
 //! can distinguish fixtures from step arguments. The parser is intentionally
-//! minimal and recognises the same escape rules as the runtime pattern parser.
+//! minimal and recognizes the same escape rules as the runtime pattern parser.
 //!
-//! Also provides name normalisation for underscore-prefixed parameters, enabling
+//! Also provides name normalization for underscore-prefixed parameters, enabling
 //! `_param` to match placeholder `param` for idiomatic unused parameter marking.
 
 use std::collections::HashSet;
@@ -281,7 +281,7 @@ pub(crate) fn normalize_param_name(name: &str) -> &str {
     name.strip_prefix('_').unwrap_or(name)
 }
 
-/// Check if an identifier matches a header after normalisation.
+/// Check if an identifier matches a header after normalization.
 ///
 /// Compares the identifier to the header, applying the same underscore-stripping
 /// logic as [`normalize_param_name`]. If the ident starts with `_`, compares the

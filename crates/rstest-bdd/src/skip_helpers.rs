@@ -5,7 +5,7 @@ use crate::{StepExecution, panic_localized};
 
 #[doc(hidden)]
 /// Ensure a skip message contains the expected substring, otherwise panic with
-/// a localised error explaining what was missing.
+/// a localized error explaining what was missing.
 pub fn __rstest_bdd_expect_skip_message_contains(
     actual: Option<&str>,
     expected: &str,
@@ -46,8 +46,8 @@ pub fn __rstest_bdd_unwrap_step_skipped(exec: StepExecution) -> Option<String> {
 }
 
 // Shared helper that extracts skip messages from `StepExecution`.
-// Panics with a localised message if the execution was not skipped.
-// Used by public assertion helpers to centralise skip extraction logic.
+// Panics with a localized message if the execution was not skipped.
+// Used by public assertion helpers to centralize skip extraction logic.
 fn unwrap_skipped_message(exec: StepExecution) -> Option<String> {
     match exec {
         StepExecution::Skipped { message } => message,

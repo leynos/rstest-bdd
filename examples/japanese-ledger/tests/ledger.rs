@@ -1,7 +1,7 @@
 //! BDD acceptance tests for the household ledger using Japanese-language
 //! Gherkin scenarios.
 //!
-//! These tests demonstrate internationalised step definitions and fixture
+//! These tests demonstrate internationalized step definitions and fixture
 //! injection with `rstest-bdd`.
 
 use japanese_ledger::HouseholdLedger;

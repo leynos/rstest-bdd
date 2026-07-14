@@ -1,6 +1,6 @@
 //! Tests for step-definition validation: missing/single/ambiguous outcomes and registry behaviour.
 // Intentionally left without file-wide lint suppressions; add per-function #[expect(...)] where needed.
-use super::crate_id::{canonicalise_out_dir, normalise_crate_id};
+use super::crate_id::{canonicalize_out_dir, normalize_crate_id};
 use super::*;
 use camino::Utf8PathBuf;
 use rstest::rstest;
@@ -123,20 +123,20 @@ fn errors_when_step_matches_three_definitions() {
 }
 
 #[test]
-fn normalises_crate_id_without_out_dir_component() {
-    assert_eq!(normalise_crate_id("my_crate").as_ref(), "my_crate");
+fn normalizes_crate_id_without_out_dir_component() {
+    assert_eq!(normalize_crate_id("my_crate").as_ref(), "my_crate");
 }
 
 #[cfg(windows)]
 #[test]
-fn normalises_windows_drive_letter_out_dir() {
-    let id = normalise_crate_id("demo:C:/a/b");
+fn normalizes_windows_drive_letter_out_dir() {
+    let id = normalize_crate_id("demo:C:/a/b");
     assert_eq!(id.as_ref(), "demo:C:/a/b");
 }
 
 #[test]
 #[serial]
-fn normalises_relative_out_dir_paths() -> Result<(), Box<dyn std::error::Error>> {
+fn normalizes_relative_out_dir_paths() -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir_in(".")?;
     let abs = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).map_err(|path| {
         format!(
@@ -153,13 +153,13 @@ fn normalises_relative_out_dir_paths() -> Result<(), Box<dyn std::error::Error>>
     })?;
     let relative = abs.strip_prefix(&cwd)?;
     let crate_id = format!("demo:./{}", relative.as_str());
-    let normalised = normalise_crate_id(&crate_id);
+    let normalized = normalize_crate_id(&crate_id);
     let canonical_abs = abs
         .as_path()
         .canonicalize_utf8()
         .unwrap_or_else(|_| abs.clone());
     let expected = format!("demo:{}", canonical_abs.as_str());
-    assert_eq!(normalised.as_ref(), expected);
+    assert_eq!(normalized.as_ref(), expected);
     Ok(())
 }
 
@@ -173,20 +173,20 @@ fn leaves_unresolvable_out_dir_paths_unchanged() {
     let missing = temp.path().join("missing");
     let missing = Utf8PathBuf::from_path_buf(missing).expect("path should be valid UTF-8");
     let crate_id = format!("demo:{}", missing.as_str());
-    let normalised = normalise_crate_id(&crate_id);
-    assert_eq!(normalised.as_ref(), crate_id);
+    let normalized = normalize_crate_id(&crate_id);
+    assert_eq!(normalized.as_ref(), crate_id);
 }
 
 #[rstest]
 #[serial]
-fn canonicalise_out_dir_resolves_relative_components(
+fn canonicalize_out_dir_resolves_relative_components(
     temp_working_dir: std::io::Result<TempWorkingDir>,
 ) -> std::io::Result<()> {
     let temp_working_dir = temp_working_dir?;
     let nested_dir = temp_working_dir.join("nested");
     create_dir_all_cap(nested_dir.as_path())?;
     let nested = temp_working_dir.join("nested/.");
-    let canonical = canonicalise_out_dir(nested.as_path());
+    let canonical = canonicalize_out_dir(nested.as_path());
     let expected_dir = temp_working_dir.path().join("nested");
     let expected = expected_dir
         .as_path()
@@ -207,18 +207,18 @@ fn canonicalise_out_dir_resolves_relative_components(
     clippy::expect_used,
     reason = "symlink setup uses expect to surface filesystem failures"
 )]
-fn canonicalise_out_dir_resolves_symlinks() {
+fn canonicalize_out_dir_resolves_symlinks() {
     let temp = tempdir().expect("create temp directory");
     let base = Utf8PathBuf::from_path_buf(temp.path().to_path_buf())
         .expect("temporary directory should be valid UTF-8");
     let target = base.join("target");
-    create_dir_all_cap(target.as_path()).expect("create target directory for canonicalisation");
+    create_dir_all_cap(target.as_path()).expect("create target directory for canonicalization");
     let link = base.join("link");
     #[cfg(unix)]
     std::os::unix::fs::symlink(target.as_std_path(), link.as_std_path())
         .expect("create symlink to target"); // replace with cap-std when available
 
-    let canonical = canonicalise_out_dir(link.as_path());
+    let canonical = canonicalize_out_dir(link.as_path());
     let expected = target
         .as_path()
         .canonicalize_utf8()
@@ -232,16 +232,16 @@ fn canonicalise_out_dir_resolves_symlinks() {
     clippy::expect_used,
     reason = "test asserts fallback path handling with explicit expect messaging"
 )]
-fn canonicalise_out_dir_returns_original_when_unresolvable() {
+fn canonicalize_out_dir_returns_original_when_unresolvable() {
     let temp = tempdir().expect("create temp directory");
     let missing = temp.path().join("missing");
     let missing = Utf8PathBuf::from_path_buf(missing).expect("path should be valid UTF-8");
-    assert_eq!(canonicalise_out_dir(missing.as_path()), missing);
+    assert_eq!(canonicalize_out_dir(missing.as_path()), missing);
 }
 
 #[test]
 #[serial]
-fn canonicalises_equivalent_crate_paths_in_registry() -> Result<(), Box<dyn std::error::Error>> {
+fn canonicalizes_equivalent_crate_paths_in_registry() -> Result<(), Box<dyn std::error::Error>> {
     clear_registry();
     let temp = tempdir()?;
     let abs = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).map_err(|path| {
@@ -268,7 +268,7 @@ fn canonicalises_equivalent_crate_paths_in_registry() -> Result<(), Box<dyn std:
         .iter()
         .next()
         .ok_or("expected at least one crate entry")?;
-    let expected_id = normalise_crate_id(&crate_id);
+    let expected_id = normalize_crate_id(&crate_id);
     assert_eq!(stored_id.as_ref(), expected_id.as_ref());
 
     let patterns = defs.patterns(StepKeyword::Given);

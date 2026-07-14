@@ -14,14 +14,14 @@
 //!   constraint).
 //! - **Panic-path helpers:**
 //!   [`augmented_panic_message_includes_scenario_name_for_payload_type`]
-//!   is an `rstest`-parametrised test that covers all three downcast arms
+//!   is an `rstest`-parametrized test that covers all three downcast arms
 //!   of [`super::GpuiHarness::augmented_panic_message`] (owned `String`,
 //!   `&'static str`, and an opaque `Debug`-only payload).
 //!   [`write_stderr_diagnostic_to_returns_err_on_broken_pipe`] asserts
 //!   that [`super::GpuiHarness::write_stderr_diagnostic_to`] surfaces an
 //!   `Err` rather than panicking when the writer reports `BrokenPipe`.
 //!   Neither helper test touches GPUI runtime state, so they run in
-//!   parallel without serialisation.
+//!   parallel without serialization.
 
 /// An opaque panic-payload type that is neither `String` nor `&str`, used to
 /// exercise the fallback downcast arm of `augmented_panic_message`.
