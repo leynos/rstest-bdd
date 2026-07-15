@@ -1760,7 +1760,7 @@ fn counter() -> Counter {
     Counter::default()
 }
 
-#[given("a counter initialised to 0")]
+#[given("a counter initialized to 0")]
 fn init(counter: &mut Counter) {
     counter.value = 0;
 }

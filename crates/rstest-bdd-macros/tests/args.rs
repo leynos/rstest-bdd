@@ -154,7 +154,7 @@ fn call_order_preserves_parameter_sequence() {
 }
 
 #[rstest]
-fn datatable_attribute_recognised_and_preserves_type() {
+fn datatable_attribute_recognized_and_preserves_type() {
     let mut func: syn::ItemFn = parse_quote! {
         fn step(#[datatable] table: my_mod::MyTable) {}
     };

@@ -163,10 +163,10 @@ fn gen_step_parses_uses_direct_assignment_for_str_reference() {
         !code.contains("parse"),
         "&str should not use parse(): {code}"
     );
-    // Use whitespace-normalised comparison to avoid fragility from token stream formatting
-    let normalised = code.split_whitespace().collect::<Vec<_>>().join(" ");
+    // Use whitespace-normalized comparison to avoid fragility from token stream formatting
+    let normalized = code.split_whitespace().collect::<Vec<_>>().join(" ");
     assert!(
-        normalised.contains("__raw0 : & str"),
+        normalized.contains("__raw0 : & str"),
         "should have typed raw variable: {code}"
     );
 }

@@ -1,8 +1,8 @@
 //! Tag-expression parsing, lexing, and tag-set utilities backing the BDD macros.
 //!
-//! The submodules compose into a full pipeline: `lexer` tokenises raw
+//! The submodules compose into a full pipeline: `lexer` tokenizes raw
 //! expressions, `parser` builds the [`TagExpression`] AST, `ast` evaluates
-//! expressions against tag collections, and `sets` keeps tag lists normalised
+//! expressions against tag collections, and `sets` keeps tag lists normalized
 //! so diagnostics are consistent across macro invocations.
 //!
 //! # Grammar
@@ -29,7 +29,7 @@
 //! parentheses override the default precedence when a different grouping is
 //! required.
 //!
-//! # Tokens recognised by the lexer
+//! # Tokens recognized by the lexer
 //!
 //! - Tag names written as `@identifier`, where identifiers may contain ASCII
 //!   letters, digits, underscores, and hyphens.

@@ -24,14 +24,14 @@ use crate::indexing::{FeatureFileIndex, RustStepFileIndex, StepDefinitionRegistr
 /// Note: `Debug` is manually implemented because `ClientSocket` does not
 /// derive `Debug`.
 pub struct ServerState {
-    /// Client capabilities received during initialisation.
+    /// Client capabilities received during initialization.
     client_capabilities: Option<ClientCapabilities>,
     /// Discovered workspace information.
     workspace_info: Option<WorkspaceInfo>,
     /// Workspace folders from the client.
     workspace_folders: Vec<WorkspaceFolder>,
-    /// Whether the server has been initialised.
-    initialised: bool,
+    /// Whether the server has been initialized.
+    initialized: bool,
     /// Configuration loaded from environment and client.
     config: ServerConfig,
     /// Indexed `.feature` files keyed by absolute path.
@@ -50,7 +50,7 @@ impl std::fmt::Debug for ServerState {
             .field("client_capabilities", &self.client_capabilities)
             .field("workspace_info", &self.workspace_info)
             .field("workspace_folders", &self.workspace_folders)
-            .field("initialised", &self.initialised)
+            .field("initialised", &self.initialized)
             .field("config", &self.config)
             .field("feature_indices", &self.feature_indices)
             .field("rust_step_indices", &self.rust_step_indices)
@@ -79,7 +79,7 @@ impl ServerState {
             client_capabilities: None,
             workspace_info: None,
             workspace_folders: Vec::new(),
-            initialised: false,
+            initialized: false,
             config,
             feature_indices: HashMap::new(),
             rust_step_indices: HashMap::new(),
@@ -138,15 +138,15 @@ impl ServerState {
         &self.config
     }
 
-    /// Mark the server as initialised.
+    /// Mark the server as initialized.
     pub fn mark_initialised(&mut self) {
-        self.initialised = true;
+        self.initialized = true;
     }
 
-    /// Check if the server is initialised.
+    /// Check if the server is initialized.
     #[must_use]
     pub fn is_initialised(&self) -> bool {
-        self.initialised
+        self.initialized
     }
 
     /// Insert or update the cached index for a `.feature` file.
@@ -234,7 +234,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn new_state_is_not_initialised() {
+    fn new_state_is_not_initialized() {
         let config = ServerConfig::default();
         let state = ServerState::new(config);
         assert!(!state.is_initialised());
@@ -252,7 +252,7 @@ mod tests {
     }
 
     #[test]
-    fn mark_initialised_sets_flag() {
+    fn mark_initialized_sets_flag() {
         let config = ServerConfig::default();
         let mut state = ServerState::new(config);
         state.mark_initialised();

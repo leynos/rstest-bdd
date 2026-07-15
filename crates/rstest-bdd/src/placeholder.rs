@@ -8,7 +8,7 @@ use rstest_bdd_patterns::extract_captured_values;
 
 /// Extract placeholder values from a step string using a pattern.
 ///
-/// The runtime uses this helper to materialise step arguments before
+/// The runtime uses this helper to materialize step arguments before
 /// invoking the registered implementation. The pattern is compiled on first
 /// use and cached for subsequent calls.
 ///

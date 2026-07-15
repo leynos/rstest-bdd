@@ -31,7 +31,7 @@ fn type_to_string(ty: &syn::Type) -> String {
     quote!(#ty).to_string()
 }
 
-// Centralises error-message checking so individual rejection tests stay one-liners.
+// Centralizes error-message checking so individual rejection tests stay one-liners.
 fn assert_parse_error_contains(result: syn::Result<ScenariosArgs>, expected_keyword: &str) {
     match result {
         Ok(_) => panic!("parsing should fail"),

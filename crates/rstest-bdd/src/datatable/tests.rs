@@ -178,7 +178,7 @@ fn uneven_rows_are_rejected() {
 fn truthy_bool_accepts_common_forms(#[case] input: &str, #[case] expected: bool) {
     match truthy_bool(input) {
         Ok(actual) => assert_eq!(actual, expected),
-        Err(err) => panic!("expected recognised boolean: {err}"),
+        Err(err) => panic!("expected recognized boolean: {err}"),
     }
 }
 

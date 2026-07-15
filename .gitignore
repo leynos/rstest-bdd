@@ -9,3 +9,11 @@ __pycache__/
 rust_out
 .agents/mcp/context_pack/packs/
 crates/rstest-bdd-harness/.proptest-regressions/
+
+# Local spelling-policy caches and helper tool state
+.coverage
+.pytest_cache/
+.typos-oxendict-base.json
+.typos-oxendict-base.toml
+.uv-cache/
+.uv-tools/

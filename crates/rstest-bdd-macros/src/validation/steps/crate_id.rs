@@ -1,23 +1,23 @@
-//! Crate ID normalisation utilities for step validation.
+//! Crate ID normalization utilities for step validation.
 
 use camino::{Utf8Path, Utf8PathBuf};
 use std::sync::LazyLock;
 
 pub(super) static CURRENT_CRATE_ID: LazyLock<Box<str>> =
-    LazyLock::new(|| normalise_crate_id(&current_crate_id_raw()));
+    LazyLock::new(|| normalize_crate_id(&current_crate_id_raw()));
 
 pub(super) fn current_crate_id() -> &'static str {
     CURRENT_CRATE_ID.as_ref()
 }
 
-pub(super) fn normalise_crate_id(id: &str) -> Box<str> {
+pub(super) fn normalize_crate_id(id: &str) -> Box<str> {
     let (name, path) = id.split_once(':').unwrap_or((id, ""));
     if path.is_empty() {
         return name.into();
     }
 
     let original = Utf8Path::new(path);
-    let canonical = canonicalise_out_dir(original);
+    let canonical = canonicalize_out_dir(original);
     format!("{name}:{canonical}").into_boxed_str()
 }
 
@@ -30,7 +30,7 @@ fn current_crate_id_raw() -> String {
     format!("{name}:{out_dir}")
 }
 
-pub(super) fn canonicalise_out_dir(path: &Utf8Path) -> Utf8PathBuf {
+pub(super) fn canonicalize_out_dir(path: &Utf8Path) -> Utf8PathBuf {
     std::fs::canonicalize(path.as_std_path())
         .ok()
         .and_then(|pb| Utf8PathBuf::from_path_buf(pb).ok())

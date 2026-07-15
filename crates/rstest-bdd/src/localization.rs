@@ -138,7 +138,7 @@ pub fn current_languages() -> Result<Vec<LanguageIdentifier>, LocalizationError>
 }
 
 #[must_use]
-/// Retrieve a localised string without interpolation arguments.
+/// Retrieve a localized string without interpolation arguments.
 ///
 /// # Examples
 /// ```
@@ -153,7 +153,7 @@ pub fn message(id: &str) -> String {
 }
 
 #[must_use]
-/// Retrieve a localised string with Fluent arguments supplied via a closure.
+/// Retrieve a localized string with Fluent arguments supplied via a closure.
 ///
 /// # Examples
 /// ```

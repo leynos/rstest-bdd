@@ -59,7 +59,7 @@ impl AsRef<str> for FileContent {
     }
 }
 
-/// Specifies which diagnostic checks to run in parameterised tests.
+/// Specifies which diagnostic checks to run in parameterized tests.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DiagnosticCheckType {
     /// Check only Rust file diagnostics.

@@ -1,4 +1,4 @@
-//! Behavioural coverage for localisation helpers and diagnostics.
+//! Behavioural coverage for localization helpers and diagnostics.
 
 #![expect(
     clippy::expect_used,

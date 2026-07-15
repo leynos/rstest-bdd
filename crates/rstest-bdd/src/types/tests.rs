@@ -44,7 +44,7 @@ fn unsupported_step_type_display_mentions_variant() {
         message.contains("Then"),
         "display should include offending variant: {message}",
     );
-    // Guard lives until function exit so the localisation context remains active.
+    // Guard lives until function exit so the localization context remains active.
 }
 
 #[test]

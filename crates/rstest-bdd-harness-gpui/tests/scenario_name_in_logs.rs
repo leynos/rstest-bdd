@@ -218,7 +218,7 @@ fn configured_snapshot_settings() -> insta::Settings {
     for (pattern, replacement) in &[
         // Anchor the thread-id redaction to the Rust panic-header form
         // `thread '<name>' (<id>) panicked at ...` so unrelated
-        // parenthesised integers in panic payloads (e.g. struct variants)
+        // parenthesized integers in panic payloads (e.g. struct variants)
         // are preserved in snapshots.
         (r"(thread '[^']*') \(\d+\)", "$1 ([TID])"),
         (r"\.rs:\d+:\d+", ".rs:[LINE]:[COL]"),

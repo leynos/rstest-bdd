@@ -22,7 +22,7 @@ use crate::pattern::MacroPattern;
 #[cfg(not(test))]
 use proc_macro_error::emit_warning;
 
-use crate_id::{current_crate_id, normalise_crate_id};
+use crate_id::{current_crate_id, normalize_crate_id};
 use messages::{format_ambiguous_step_error, format_missing_step_error};
 
 type Registry = HashMap<Box<str>, CrateDefs>;
@@ -44,7 +44,7 @@ impl CrateDefs {
 /// Global registry of step definitions.
 ///
 /// Patterns are leaked into static memory and stored for the process lifetime.
-/// Registration occurs during macro expansion and test initialisation, so
+/// Registration occurs during macro expansion and test initialization, so
 /// total allocation is bounded by the step definitions registered in the
 /// current compilation session. Entries are grouped by crate to enable
 /// fast, crate-scoped lookups during validation.
@@ -55,7 +55,7 @@ static REGISTERED: LazyLock<Mutex<Registry>> = LazyLock::new(|| Mutex::new(HashM
 /// Patterns are stored in a global static registry for the life of the
 /// process. Macros therefore require 'static lifetimes, satisfied by
 /// leaking each boxed pattern into static memory. Registration happens
-/// during macro expansion and test initialisation, so the leak is bounded
+/// during macro expansion and test initialization, so the leak is bounded
 /// by the number of step definitions registered in the current compilation
 /// session, including those registered by tests.
 /// Patterns are leaked into static memory because macros require `'static` lifetimes.
@@ -69,7 +69,7 @@ fn register_step_inner(keyword: StepKeyword, pattern: &syn::LitStr, crate_id: im
     let mut reg = REGISTERED
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let crate_id = normalise_crate_id(crate_id.as_ref());
+    let crate_id = normalize_crate_id(crate_id.as_ref());
     let defs = reg.entry(crate_id).or_default();
     defs.by_kw.entry(keyword).or_default().push(stored);
 }

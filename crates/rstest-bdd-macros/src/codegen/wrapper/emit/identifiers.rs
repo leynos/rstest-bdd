@@ -1,7 +1,7 @@
 //! Identifier helpers for wrapper emission.
 //!
 //! Generates the internal wrapper, pattern, and fixture identifiers used by
-//! emitted step wrappers. The identifiers are sanitised to ASCII to avoid
+//! emitted step wrappers. The identifiers are sanitized to ASCII to avoid
 //! generating invalid symbols when step function names contain Unicode.
 //! A global counter ensures uniqueness across all generated wrappers.
 
@@ -36,7 +36,7 @@ pub(in crate::codegen::wrapper::emit) struct WrapperIdents {
 /// # Thread Safety
 ///
 /// Rust tests run in parallel by default. Tests that call this function must
-/// be serialised to avoid non-deterministic identifier generation. Use one of:
+/// be serialized to avoid non-deterministic identifier generation. Use one of:
 ///
 /// - The `#[serial]` attribute from the `serial_test` crate
 /// - The `--test-threads=1` flag when running tests
@@ -69,7 +69,7 @@ pub(crate) fn reset_wrapper_counter_for_tests() {
 /// Generate unique identifiers for the wrapper components.
 ///
 /// The provided step function identifier may contain Unicode. It is
-/// sanitised to ASCII before constructing constant names to avoid emitting
+/// sanitized to ASCII before constructing constant names to avoid emitting
 /// invalid identifiers.
 ///
 /// Returns identifiers for the sync wrapper function, async wrapper function,

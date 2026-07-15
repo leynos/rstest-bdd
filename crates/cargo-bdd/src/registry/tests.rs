@@ -5,15 +5,15 @@ use cargo_metadata::Message as MetadataMessage;
 use rstest::rstest;
 
 #[test]
-fn detects_unrecognised_flag_from_libtest_getopts() {
+fn detects_unrecognized_flag_from_libtest_getopts() {
     let stderr = "error: Unrecognized option: 'dump-steps'\n";
-    assert!(is_unrecognised_dump_steps(stderr));
+    assert!(is_unrecognized_dump_steps(stderr));
 }
 
 #[test]
-fn detects_unrecognised_flag_from_clap() {
+fn detects_unrecognized_flag_from_clap() {
     let stderr = "error: Found argument '--dump-steps' which wasn't expected\n";
-    assert!(is_unrecognised_dump_steps(stderr));
+    assert!(is_unrecognized_dump_steps(stderr));
 }
 
 #[test]
@@ -22,7 +22,7 @@ fn ignores_unrelated_failures_containing_dump_steps() {
         "test failed: invalid option for upstream tool\n",
         "hint: rerun with --dump-steps for diagnostics\n"
     );
-    assert!(!is_unrecognised_dump_steps(stderr));
+    assert!(!is_unrecognized_dump_steps(stderr));
 }
 
 #[test]

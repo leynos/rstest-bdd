@@ -1,6 +1,6 @@
 //! Structured logging with environment variable configuration.
 //!
-//! This module initialises the logging subsystem for the language server.
+//! This module initializes the logging subsystem for the language server.
 //! Logs are written to stderr to avoid interfering with JSON-RPC communication
 //! on stdout.
 
@@ -13,7 +13,7 @@ fn filter_from_config(config: &ServerConfig) -> EnvFilter {
     EnvFilter::new(config.log_level.as_filter_str())
 }
 
-/// Initialise the logging subsystem based on configuration.
+/// Initialize the logging subsystem based on configuration.
 ///
 /// Sets up tracing with the specified log level. Logs are written to stderr
 /// to avoid interfering with the JSON-RPC communication on stdout.
@@ -30,7 +30,7 @@ fn filter_from_config(config: &ServerConfig) -> EnvFilter {
 ///
 /// If a global subscriber is already set, this function silently ignores
 /// the error. This is expected behaviour in tests or when multiple
-/// components attempt to initialise logging.
+/// components attempt to initialize logging.
 pub fn init_logging(config: &ServerConfig) {
     let filter = filter_from_config(config);
 

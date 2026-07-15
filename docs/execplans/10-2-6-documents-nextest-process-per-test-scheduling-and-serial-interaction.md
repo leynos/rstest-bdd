@@ -617,7 +617,7 @@ crates.
   library only; if it ever shells out, use `cuprum` rather than `subprocess` per
   repository convention), with `main() -> int` returning non-zero on violations,
   modelled on `scripts/check_gpui_mapping_table.py` (heading lookup,
-  `normalise_table_row`, custom error type, exit codes).
+  `normalize_table_row`, custom error type, exit codes).
 - New pytest companion:
   `scripts/tests/test_check_serial_nextest_matrix.py`, added to the `make test`
   pytest invocation alongside the existing companions.

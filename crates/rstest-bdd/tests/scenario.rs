@@ -131,7 +131,7 @@ fn scenario_filtered_by_tags() {
 #[scenario(
     path = "tests/features/tag_filter.feature",
     tags = "@fast",
-    name = "parameterised scenario"
+    name = "parameterized scenario"
 )]
 #[serial]
 fn outline_filtered_examples(num: String) {

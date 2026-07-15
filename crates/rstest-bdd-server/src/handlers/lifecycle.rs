@@ -99,7 +99,7 @@ pub fn handle_initialise(
 /// # Arguments
 ///
 /// * `state` - Mutable reference to the server state
-/// * `_params` - Initialised notification parameters (currently unused)
+/// * `_params` - Initialized notification parameters (currently unused)
 pub fn handle_initialised(state: &mut ServerState, _params: InitializedParams) {
     state.mark_initialised();
     info!("server initialized");
@@ -189,7 +189,7 @@ mod tests {
     }
 
     #[rstest]
-    fn handle_initialise_stores_client_capabilities(
+    fn handle_initialize_stores_client_capabilities(
         mut create_test_state: ServerState,
         create_init_params: InitializeParams,
     ) {
@@ -200,7 +200,7 @@ mod tests {
     }
 
     #[rstest]
-    fn handle_initialise_returns_server_info(
+    fn handle_initialize_returns_server_info(
         mut create_test_state: ServerState,
         create_init_params: InitializeParams,
     ) {
@@ -214,7 +214,7 @@ mod tests {
     }
 
     #[rstest]
-    fn handle_initialise_fails_when_already_initialised(
+    fn handle_initialize_fails_when_already_initialized(
         mut create_test_state: ServerState,
         create_init_params: InitializeParams,
     ) {
@@ -226,7 +226,7 @@ mod tests {
     }
 
     #[rstest]
-    fn handle_initialised_marks_state_as_initialised(mut create_test_state: ServerState) {
+    fn handle_initialized_marks_state_as_initialized(mut create_test_state: ServerState) {
         assert!(!create_test_state.is_initialised());
 
         handle_initialised(&mut create_test_state, InitializedParams {});
@@ -298,7 +298,7 @@ mod tests {
     }
 
     #[rstest]
-    fn handle_initialise_prefers_config_workspace_root_over_client(
+    fn handle_initialize_prefers_config_workspace_root_over_client(
         create_init_params: InitializeParams,
     ) {
         let override_path = PathBuf::from("/override/workspace");

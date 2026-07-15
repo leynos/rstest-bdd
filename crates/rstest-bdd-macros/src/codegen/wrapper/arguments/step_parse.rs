@@ -38,7 +38,7 @@ struct CodeTokens<'a> {
 /// it binds `stripped` to the substring excluding the first and last characters.
 ///
 /// This helper is shared between single-argument parsing and struct-based
-/// capture initialisation.
+/// capture initialization.
 pub(super) fn gen_quote_strip_to_stripped(
     raw_ident: &proc_macro2::Ident,
     malformed_err: &TokenStream2,
