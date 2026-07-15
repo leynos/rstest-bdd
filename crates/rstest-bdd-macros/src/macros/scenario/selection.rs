@@ -208,3 +208,108 @@ fn ambiguous_scenario_error(
     );
     syn::Error::new(span, message)
 }
+
+#[cfg(test)]
+mod tests {
+    //! Unit tests for scenario-name resolution and selection diagnostics.
+
+    use gherkin::{Feature, GherkinEnv};
+    use proc_macro2::Span;
+    use rstest::rstest;
+
+    use super::{find_scenario_by_name, format_available_tags, scenario_not_found_error};
+
+    const TWO_SCENARIOS: &str = concat!(
+        "Feature: demo\n",
+        " Scenario: first\n",
+        "   Given a step\n",
+        " Scenario: second\n",
+        "   Given a step\n",
+    );
+
+    const DUPLICATE_SCENARIOS: &str = concat!(
+        "Feature: demo\n",
+        " Scenario: twin\n",
+        "   Given a step\n",
+        " Scenario: twin\n",
+        "   Given a step\n",
+    );
+
+    fn parse_feature(source: &str) -> Result<Feature, gherkin::ParseError> {
+        Feature::parse(source, GherkinEnv::default())
+    }
+
+    #[test]
+    #[expect(
+        clippy::expect_used,
+        reason = "this test asserts successful scenario selection"
+    )]
+    fn finds_a_uniquely_named_scenario() -> Result<(), gherkin::ParseError> {
+        let feature = parse_feature(TWO_SCENARIOS)?;
+        let index = find_scenario_by_name(&feature, "second", Span::call_site())
+            .expect("uniquely named scenario should resolve");
+        assert_eq!(index, 1);
+        Ok(())
+    }
+
+    #[rstest]
+    #[case::missing_name(
+        TWO_SCENARIOS,
+        "third",
+        [
+            "scenario named \"third\" not found",
+            "available titles: \"first\", \"second\"",
+        ],
+    )]
+    #[case::duplicate_name(
+        DUPLICATE_SCENARIOS,
+        "twin",
+        [
+            "found multiple scenarios named \"twin\"",
+            "matching indexes: 0, 1",
+        ],
+    )]
+    fn rejected_scenario_names_produce_relevant_diagnostics(
+        #[case] source: &str,
+        #[case] scenario_name: &str,
+        #[case] expected_fragments: [&str; 2],
+    ) -> Result<(), gherkin::ParseError> {
+        let feature = parse_feature(source)?;
+        let Err(err) = find_scenario_by_name(&feature, scenario_name, Span::call_site()) else {
+            panic!("scenario name should be rejected");
+        };
+        let message = err.to_string();
+        for expected_fragment in expected_fragments {
+            assert!(
+                message.contains(expected_fragment),
+                "diagnostic should contain {expected_fragment:?}: {message}"
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn missing_name_diagnostic_notes_empty_features() -> Result<(), gherkin::ParseError> {
+        let feature = parse_feature("Feature: demo\n")?;
+        let message = scenario_not_found_error(&feature, "any", Span::call_site()).to_string();
+        assert!(
+            message.contains("feature contains no scenarios"),
+            "diagnostic should note the empty feature: {message}"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn available_tags_placeholder_covers_no_examined_scenarios() {
+        assert_eq!(format_available_tags(&[]), "available tags: <none>");
+    }
+
+    #[test]
+    fn available_tags_serialize_each_examined_set() {
+        let tag_sets = vec![vec!["@fast".to_string(), "@ui".to_string()], Vec::new()];
+        assert_eq!(
+            format_available_tags(&tag_sets),
+            "available tags: @fast, @ui; <none>"
+        );
+    }
+}
