@@ -208,20 +208,21 @@ jobs:
           set -euo pipefail
           test -s coverage.xml
 
+      - name: Check coverage against CodeScene gates
+        env:
+          CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
+        if: >-
+          matrix.os == 'ubuntu-latest' &&
+          matrix.features == '' &&
+          github.event_name == 'pull_request' &&
+          env.CS_ACCESS_TOKEN != ''
+        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@927edd45ae77be4251a8a18ca9eb5613a2e32cbd
+        with:
+          format: cobertura
+          mode: check
+          project-url: https://api.codescene.io/v2/projects/69391
+          access-token: ${{ env.CS_ACCESS_TOKEN }}
+          installer-checksum: ${{ vars.CODESCENE_CLI_SHA256 }}
+
       - name: Publish dry run
         run: make publish-check
-
-      # The `mode: check` coverage gate is deliberately not wired in yet:
-      # CodeScene project 69391 has no coverage-gates configuration, so
-      # `cs-coverage check` fails every run with "HTTP call succeeded, but
-      # the received project-config isn't valid. Lacks the gates
-      # configuration." — a CodeScene-side per-project setting, not a CI
-      # defect (ddlint and chutoro projects hit the byte-identical error).
-      # It would attach to the single default-features Linux leg
-      # (matrix.os == 'ubuntu-latest' && matrix.features == '', which
-      # carries the ratchet) with project-url
-      # https://api.codescene.io/v2/projects/69391. Add it in a fast-follow
-      # PR once coverage-main.yml has
-      # uploaded to main at least once and the gate is confirmed to
-      # resolve, or once CodeScene confirms the project's coverage gate is
-      # enabled.
