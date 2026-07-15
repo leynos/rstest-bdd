@@ -210,10 +210,6 @@ fn ambiguous_scenario_error(
 }
 
 #[cfg(test)]
-#[expect(
-    clippy::expect_used,
-    reason = "test code uses infallible expects for clarity"
-)]
 mod tests {
     //! Unit tests for scenario-name resolution and selection diagnostics.
 
@@ -223,33 +219,37 @@ mod tests {
 
     use super::{find_scenario_by_name, format_available_tags, scenario_not_found_error};
 
-    const TWO_SCENARIOS: &str = "Feature: demo\n\
-                                 \x20 Scenario: first\n\
-                                 \x20   Given a step\n\
-                                 \x20 Scenario: second\n\
-                                 \x20   Given a step\n";
+    const TWO_SCENARIOS: &str = concat!(
+        "Feature: demo\n",
+        " Scenario: first\n",
+        "   Given a step\n",
+        " Scenario: second\n",
+        "   Given a step\n",
+    );
 
-    const DUPLICATE_SCENARIOS: &str = "Feature: demo\n\
-                                       \x20 Scenario: twin\n\
-                                       \x20   Given a step\n\
-                                       \x20 Scenario: twin\n\
-                                       \x20   Given a step\n";
+    const DUPLICATE_SCENARIOS: &str = concat!(
+        "Feature: demo\n",
+        " Scenario: twin\n",
+        "   Given a step\n",
+        " Scenario: twin\n",
+        "   Given a step\n",
+    );
 
-    fn parse_feature(source: &str) -> Feature {
-        // The Whitaker suite only recognizes `#[test]` functions as test
-        // context, so this helper panics via `match` rather than `expect`.
-        match Feature::parse(source, GherkinEnv::default()) {
-            Ok(feature) => feature,
-            Err(err) => panic!("feature source should parse: {err}"),
-        }
+    fn parse_feature(source: &str) -> Result<Feature, gherkin::ParseError> {
+        Feature::parse(source, GherkinEnv::default())
     }
 
     #[test]
-    fn finds_a_uniquely_named_scenario() {
-        let feature = parse_feature(TWO_SCENARIOS);
+    #[expect(
+        clippy::expect_used,
+        reason = "this test asserts successful scenario selection"
+    )]
+    fn finds_a_uniquely_named_scenario() -> Result<(), gherkin::ParseError> {
+        let feature = parse_feature(TWO_SCENARIOS)?;
         let index = find_scenario_by_name(&feature, "second", Span::call_site())
             .expect("uniquely named scenario should resolve");
         assert_eq!(index, 1);
+        Ok(())
     }
 
     #[rstest]
@@ -273,8 +273,8 @@ mod tests {
         #[case] source: &str,
         #[case] scenario_name: &str,
         #[case] expected_fragments: [&str; 2],
-    ) {
-        let feature = parse_feature(source);
+    ) -> Result<(), gherkin::ParseError> {
+        let feature = parse_feature(source)?;
         let Err(err) = find_scenario_by_name(&feature, scenario_name, Span::call_site()) else {
             panic!("scenario name should be rejected");
         };
@@ -285,16 +285,18 @@ mod tests {
                 "diagnostic should contain {expected_fragment:?}: {message}"
             );
         }
+        Ok(())
     }
 
     #[test]
-    fn missing_name_diagnostic_notes_empty_features() {
-        let feature = parse_feature("Feature: demo\n");
+    fn missing_name_diagnostic_notes_empty_features() -> Result<(), gherkin::ParseError> {
+        let feature = parse_feature("Feature: demo\n")?;
         let message = scenario_not_found_error(&feature, "any", Span::call_site()).to_string();
         assert!(
             message.contains("feature contains no scenarios"),
             "diagnostic should note the empty feature: {message}"
         );
+        Ok(())
     }
 
     #[test]

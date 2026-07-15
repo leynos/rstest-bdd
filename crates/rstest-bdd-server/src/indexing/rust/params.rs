@@ -85,6 +85,10 @@ mod tests {
 
     #[rstest]
     #[case::attribute(syn::parse_quote!(#[datatable] rows: Vec<Vec<String>>), true)]
+    #[case::qualified_attribute(
+        syn::parse_quote!(#[rstest_bdd::datatable] rows: Vec<Vec<String>>),
+        true
+    )]
     #[case::name(syn::parse_quote!(datatable: Vec<Vec<String>>), true)]
     #[case::plain(syn::parse_quote!(count: u32), false)]
     fn datatable_parameters_are_detected(#[case] arg: syn::FnArg, #[case] expected: bool) {
@@ -95,6 +99,10 @@ mod tests {
 
     #[rstest]
     #[case::attribute(syn::parse_quote!(#[step_args] args: LoginArgs), true)]
+    #[case::qualified_attribute(
+        syn::parse_quote!(#[rstest_bdd::step_args] args: LoginArgs),
+        true
+    )]
     #[case::plain(syn::parse_quote!(args: LoginArgs), false)]
     fn step_struct_parameters_are_detected(#[case] arg: syn::FnArg, #[case] expected: bool) {
         assert_eq!(parameter_is_step_struct(&typed_parameter(arg)), expected);
