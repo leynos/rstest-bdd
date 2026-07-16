@@ -573,7 +573,7 @@ the playbook redirect instead.
 
 ### Feature-file edits do not trigger a rebuild
 
-> **This caveat applies until roadmap item 11.3.1 lands.** Once the
+> **This caveat applies until roadmap item 10.3.3 lands.** Once the
 > rebuild-invalidation fix ships, this section can be removed.
 
 `#[scenario(path = "...")]` and `scenarios!` read `.feature` files with
@@ -597,7 +597,7 @@ editing any `.rs` file.
 **Root cause and roadmap:** see design-document
 [§2.7.6.6](rstest-bdd-design.md#2766-feature-file-rebuild-invalidation) and
 [ADR-010](adr-010-feature-file-change-detection.md) for the analysis and the
-chosen fix mechanism. Roadmap item 11.3.1 tracks the implementation, approved
+chosen fix mechanism. Roadmap item 10.3.3 tracks the implementation, approved
 for v0.6.0 final.
 
 ## Further reading

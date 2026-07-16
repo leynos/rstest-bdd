@@ -1618,7 +1618,7 @@ body did not consume a fallible scenario's `Result`, producing
 reason to weaken the fallible-scenario contract: every harness path must
 consume or propagate the scenario result. Unit-returning scenario functions
 already propagate fallible step errors and remain the simpler shape when the
-user body does not itself need `?` (ADR-006; roadmap 11.4.2).
+user body does not itself need `?` (ADR-006; roadmap 11.3.2).
 
 **Context handoff (Phase 9.4.1 / ADR-007).** The harness contract now includes
 an associated context type:
@@ -2091,8 +2091,8 @@ the GPUI durable-handle specialization remains proven by `stateful_window.rs`.
 The user guide's "Bulk-migration cookbook" subsection documents the shape and
 bridges its GPUI snippets to published `gpui 0.2.2` through the vendored-to-
 published mapping table. This handwritten shared block is superseded in v0.6.1
-by `ScenarioStore<T>` and the cleanup-guard fixture macro (roadmap 11.1.3 and
-11.1.4).
+by `ScenarioStore<T>` and the cleanup-guard fixture macro (roadmap 10.3.1 and
+10.3.2).
 
 ##### 2.7.6.3 v0.6.0-beta2 quick wins
 
@@ -2186,7 +2186,7 @@ and is usable behind a `nightly` feature gate pending stabilization.
 OUT_DIR AST caching (noted in `§3.2.2` below) is a *performance*
 optimization, not an invalidation mechanism; it does not close this gap.
 
-Until roadmap item 11.3.1 lands, a caveat in the adoption guide notes that
+Until roadmap item 10.3.3 lands, a caveat in the adoption guide notes that
 `.feature`-only edits do not trigger a rebuild, and users should `touch` an
 affected `.rs` file or `cargo clean` when an updated expectation is not
 picked up.
@@ -2834,7 +2834,7 @@ named return type can also be a legitimate value alias, the macro cannot
 simply classify every unresolved path as a result. The stable contract must
 instead require or diagnose an explicit `result`/`value` choice where
 classification is unresolved, with regression coverage for both fallible and
-genuine-value aliases (ADR-002; roadmap 11.4.1).
+genuine-value aliases (ADR-002; roadmap 11.3.1).
 
 The following diagrams illustrate how the wrapper captures step outputs and how
 later steps consume overrides from the context.

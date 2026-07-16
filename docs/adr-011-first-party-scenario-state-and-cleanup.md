@@ -41,7 +41,7 @@ mechanical, and a mistake in any of the four parts (missing reset-before,
 missing `Drop`, wrong reset order, or omitting the fixture parameter) silently
 corrupts subsequent scenarios on the same test thread.
 
-Roadmap items 11.1.3 and 11.1.4 propose a generic state helper and cleanup
+Roadmap items 10.3.1 and 10.3.2 propose a generic state helper and cleanup
 registration. The first downstream adopter specifically requests a
 GPUI-specialized helper and a cleanup-guard fixture macro so the 50-line
 block is replaced with a first-party type.
@@ -229,7 +229,7 @@ migration mapping.
 `ScenarioStore<T>` is a small state machine — `set`/`with`/`with_mut`/`take`/
 `reset` plus the two-sided reset protocol — so example-based unit tests alone
 under-sample the operation orderings that matter. The implementing ExecPlan
-(roadmap items 11.1.3/11.1.4) should layer:
+(roadmap items 10.3.1/10.3.2) should layer:
 
 1. **Unit tests (required).** Exercise each of the five operations directly,
    and the three-state cleanup lifecycle (success, assertion failure, skip),
@@ -261,14 +261,14 @@ harness cost of a model checker.
 - Additive and semver-compatible change for v0.6.1.
 - GPUI adopters can replace ~50 lines of boilerplate with a single import.
 - The cleanup-ordering contract is tested and cannot silently regress.
-- The GPUI re-export depends on the generic core landing first (11.1.3 before
-  11.1.4).
+- The GPUI re-export depends on the generic core landing first (10.3.1 before
+  10.3.2).
 - `rstest-bdd`'s public API gains `ScenarioStore<T>`; naming is verified not
   to collide with existing `ScenarioState` trait and `Slot<T>`.
 
 ## Governs
 
-- Roadmap items: re-scoped 11.1.3 (`ScenarioStore<T>` generic core) and 11.1.4
+- Roadmap items: re-scoped 10.3.1 (`ScenarioStore<T>` generic core) and 10.3.2
   (`GpuiScenarioStore` + cleanup-guard fixture macro, three-state lifecycle
   test), both targeted at v0.6.0 final per the maintainer pull-forward decision.
 - Design document: `§2.7.6.4` (v0.6.1 early-life support helpers).

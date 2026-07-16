@@ -101,7 +101,7 @@ Thresholds that trigger escalation when breached.
   `docs/rstest-bdd-design.md`, `docs/users-guide.md`,
   `docs/v0-6-0-migration-guide.md`, and this plan), stop and escalate.
 - Roadmap scheduling: this plan *recommends* pulling the scenario-state helper
-  (11.1.3/11.1.4) and the rebuild-invalidation fix forward to v0.6.0 final, but
+  (10.3.1/10.3.2) and the rebuild-invalidation fix forward to v0.6.0 final, but
   the actual release-train placement is a maintainer decision. If executing the
   plan would require committing to a release schedule not yet agreed, stop and
   present the trade-off rather than choosing unilaterally.
@@ -208,8 +208,8 @@ Thresholds that trigger escalation when breached.
   the tested cleanup lifecycle, the v0.6→v0.7 mapping sketch, the gpui
   maintenance-tax note, and the open scheduling/divergence decisions.
 - [x] (2026-06-10) Maintainer approval received. Open decisions resolved:
-  (a) pull-forward recommendation accepted — 11.1.3/11.1.4 (`ScenarioStore`/
-  cleanup helper) and 11.3.1 (rebuild-invalidation fix) will be scheduled in
+  (a) pull-forward recommendation accepted — 10.3.1/10.3.2 (`ScenarioStore`/
+  cleanup helper) and 10.3.3 (rebuild-invalidation fix) will be scheduled in
   v0.6.0 final; (b) Stage E code fix deferred — to be added as a roadmap item
   and implemented under its own ExecPlan rather than in this branch.
 - [x] (2026-06-10) Stage B complete: wrote `adr-010-feature-file-change-detection.md`,
@@ -217,8 +217,8 @@ Thresholds that trigger escalation when breached.
   `adr-012-guard-based-stepcontext-borrowing.md`; `make markdownlint` clean.
 - [x] (2026-06-10) Stage C complete: applied roadmap edits — clarified
   10.1.4 (affirmative outcome + test reference), added 10.2.4–10.2.7
-  (documentation items) with dual-track maintenance note, re-scoped 11.1.3
-  and 11.1.4 (ScenarioStore naming + pull-forward notes), added Phase 11.3
+  (documentation items) with dual-track maintenance note, re-scoped 10.3.1
+  and 10.3.2 (ScenarioStore naming + pull-forward notes), added Phase 11.3
   (rebuild gap + ADR-008 follow-up note), and amended Phase 12 heading and
   12.1.1 to reference ADR-012; `make markdownlint` clean.
 - [x] (2026-06-10) Stage D complete: applied design-document and adoption-guide
@@ -249,7 +249,7 @@ Thresholds that trigger escalation when breached.
   acceptance criteria, and strengthened the snapshot guidance to require
   focused `insta` snapshots backed by semantic/substring assertions on the
   load-bearing diagnostic fragments. Mirrored the requirement in roadmap item
-  11.3.1's finish line.
+  10.3.3's finish line.
 
 ## Surprises & discoveries
 
@@ -317,7 +317,7 @@ Thresholds that trigger escalation when breached.
   the test reference, removing the "or documented limitation" ambiguity.
 
 - Observation: a generic helper named `ScenarioState<T>` (as loosely implied by
-  roadmap 11.1.3) would collide with an already-shipped public surface.
+  roadmap 10.3.1) would collide with an already-shipped public surface.
   Evidence: `crates/rstest-bdd/src/state.rs` defines `pub trait ScenarioState:
   Default` (line 136) and `pub struct Slot<T>` (line 30), both re-exported from
   the crate root.
@@ -390,14 +390,14 @@ Doggylump, Dinolump):
   recommendation is recorded separately. Date/Author: 2026-06-09 / Claude
   (panel: Pandalump).
 
-- Decision (2026-06-10, maintainer): pull 11.1.3/11.1.4 (the
-  `ScenarioStore`/cleanup helper) and 11.3.1 (the rebuild fix) forward into
+- Decision (2026-06-10, maintainer): pull 10.3.1/10.3.2 (the
+  `ScenarioStore`/cleanup helper) and 10.3.3 (the rebuild fix) forward into
   v0.6.0 final. Rationale: the pull-forward recommendation was accepted; the
   thread-local tax will not persist across the v0.6.x line.
 
 - Decision (2026-06-10, maintainer): Stage E code change is deferred to its own
   ExecPlan and roadmap item rather than being landed in this documentation
-  branch. The rebuild-invalidation fix is added to the roadmap as 11.3.1 with a
+  branch. The rebuild-invalidation fix is added to the roadmap as 10.3.3 with a
   v0.6.0 final target and will be implemented under a separate ExecPlan.
 
 - Open decision (deferred, separate architectural call): whether to retire the
@@ -412,10 +412,10 @@ All four observable outcomes from `Purpose / big picture` are met:
 
 1. **Roadmap records every new or re-scoped work item.** Added items 10.2.4–10.2.7
    (gpui-version banner + mapping table, lint-clean playbook variant, nextest
-   interaction note, bulk-migration cookbook), re-scoped 11.1.3/11.1.4 (naming
+   interaction note, bulk-migration cookbook), re-scoped 10.3.1/10.3.2 (naming
    the correct `ScenarioStore<T>` / `GpuiScenarioStore` types and cleanup-guard
    fixture macro, with pull-forward scheduling notes), added Phase 11.3 with
-   item 11.3.1 (feature-file rebuild fix), and amended Phase 12 intro and 12.1.1
+   item 10.3.3 (feature-file rebuild fix), and amended Phase 12 intro and 12.1.1
    to record the committed direction and reference ADR-012.
 
 2. **Design document `§2.7.6.x` corrected and extended.** Added a which-gpui
@@ -434,10 +434,10 @@ All four observable outcomes from `Purpose / big picture` are met:
    variant, bulk-migration cookbook, and design-doc cross-links.
    `docs/v0-6-0-migration-guide.md` carries a "Feature-file edits do not trigger
    a rebuild" caveat under "Common errors and fixes", marked removable once
-   11.3.1 lands.
+   10.3.3 lands.
 
 No feedback item was left unscheduled. Stage E (rebuild-invalidation code fix)
-was deferred to a separate ExecPlan and roadmap item (11.3.1) per explicit
+was deferred to a separate ExecPlan and roadmap item (10.3.3) per explicit
 maintainer decision; it is not unscheduled, just not implemented in this
 documentation branch.
 
@@ -534,7 +534,7 @@ Apply, in document order, the additions and clarifications specified in
 3. Add new Phase 10.2 documentation items for: the gpui-version banner and
    mapping table; the lint-clean playbook variant; the nextest/`serial_test`
    interaction note; and the bulk-migration cookbook.
-4. Re-scope Phase 11 items 11.1.3 and 11.1.4 to name the GPUI-specialized
+4. Re-scope Phase 11 items 10.3.1 and 10.3.2 to name the GPUI-specialized
    `GpuiScenarioState` helper and the cleanup-guard fixture macro, referencing
    `adr-011`; add a priority note recommending they (and the rebuild fix) be
    pulled forward to v0.6.0 final, flagged as a maintainer scheduling decision.
@@ -657,7 +657,7 @@ Acceptance is observable in the repository:
   and design subsection.
 - `docs/roadmap.md` contains: the new feature-file rebuild item referencing
   `adr-010`; a clarified 10.1.4 naming the `scenario_name_in_logs.rs` evidence;
-  the four new documentation items; re-scoped 11.1.3/11.1.4 referencing
+  the four new documentation items; re-scoped 10.3.1/10.3.2 referencing
   `adr-011`; an amended 12.1.1 referencing `adr-012`; and the labelled ADR-008
   follow-up note.
 - `docs/rstest-bdd-design.md` contains the which-gpui banner and mapping table
@@ -808,7 +808,7 @@ the tolerance bound and must be re-approved.
   plus a `Drop` cleanup guard and a two-sided reset protocol (see
   `crates/rstest-bdd-harness-gpui/tests/stateful_window.rs`, ~50 lines of
   scaffolding per consuming crate per the adopter report — the largest single
-  source of handwritten boilerplate the migration hit). Roadmap 11.1.3/11.1.4
+  source of handwritten boilerplate the migration hit). Roadmap 10.3.1/10.3.2
   propose a generic helper and cleanup registration; the adopter asks
   specifically for a GPUI-shaped helper and a cleanup-guard fixture macro.
 - Naming constraint (verified): `rstest-bdd` already ships
@@ -844,7 +844,7 @@ the tolerance bound and must be re-approved.
   explicitly so adopters know which pattern is current per release.
 - Consequences: additive and semver-compatible (v0.6.1); the GPUI re-export
   depends on the generic core landing first.
-- Governs roadmap items: re-scoped 11.1.3/11.1.4 and a new cleanup-guard-macro
+- Governs roadmap items: re-scoped 10.3.1/10.3.2 and a new cleanup-guard-macro
   item. Design Doc: `§2.7.6.4`.
 
 ### ADR-012 — Guard-based `StepContext` borrowing committed for v0.7.0
@@ -881,7 +881,7 @@ Prescriptive list (apply in document order, matching existing item style — eac
 new item carries a finish line and a `Design Doc:` / ADR reference):
 
 - New subsection `### 11.3. Close the feature-file rebuild gap` with item
-  `11.3.1`: "Editing only a `.feature` file triggers a scenario rebuild." Finish
+  `10.3.3`: "Editing only a `.feature` file triggers a scenario rebuild." Finish
   line: the `#[scenario]`/`scenarios!` expansion registers each bound feature
   file as a Cargo rebuild dependency (per ADR-010, without embedding an absolute
   path into the artefact), and a portability-aware regression test proves a
@@ -918,17 +918,17 @@ new item carries a finish line and a `Design Doc:` / ADR reference):
   - `10.2.7`: a bulk-migration cookbook shows sharing one durable-handle step
     library across many GPUI scenarios in a single consuming crate. Finish line:
     a cookbook subsection in the user guide. Design Doc: `§2.7.6.2`.
-- Re-scope `11.1.3` to name the generic `ScenarioStore<T>` core in `rstest-bdd`
+- Re-scope `10.3.1` to name the generic `ScenarioStore<T>` core in `rstest-bdd`
   (named to avoid colliding with the shipped `ScenarioState` trait and `Slot<T>`
   in `crates/rstest-bdd/src/state.rs`) *and* the GPUI-specialized
-  `GpuiScenarioStore` re-export in `rstest-bdd-harness-gpui`; re-scope `11.1.4`
+  `GpuiScenarioStore` re-export in `rstest-bdd-harness-gpui`; re-scope `10.3.2`
   to add a cleanup-guard fixture-generating macro with a tested three-state
   lifecycle (success, failure, skip). Reference ADR-011.
 - **Recommended scheduling decision (maintainer call, surfaced prominently):**
   the adopter report identifies the thread-local boilerplate as the single
   largest adoption cost, so the next adopter keeps paying it for the whole
-  v0.6.x line unless 11.1.3/11.1.4 (the `ScenarioStore`/cleanup helper) and
-  11.3.1 (the rebuild fix) ship in v0.6.0 final rather than v0.6.1. This plan
+  v0.6.x line unless 10.3.1/10.3.2 (the `ScenarioStore`/cleanup helper) and
+  10.3.3 (the rebuild fix) ship in v0.6.0 final rather than v0.6.1. This plan
   recommends pulling all three forward but does not reschedule them
   unilaterally; the maintainer must confirm the release-train placement. This
   decision is logged as open in the Decision Log.

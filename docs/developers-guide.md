@@ -898,7 +898,7 @@ cleanup guard that stateful GPUI scenarios use today:
   by unit, property-based (`proptest`), and `serial_test`-guarded
   thread-isolation tests — see the ADR's _Testing strategy_.
 
-Tracked by roadmap items 11.1.3 and 11.1.4 (pulled forward to v0.6.0 final);
+Tracked by roadmap items 10.3.1 and 10.3.2 (pulled forward to v0.6.0 final);
 design coverage is in `rstest-bdd-design.md` §2.7.6.4.
 
 ### Guard-based `StepContext` borrowing and `FixtureBorrowError` (ADR-012)
@@ -950,7 +950,7 @@ foot-gun: `#[scenario(path = …)]` and `scenarios!` read `.feature` files with
   _Testing strategy_. This is distinct from the OUT_DIR AST _caching_
   performance idea in `rstest-bdd-design.md` §3.2.2.
 
-Tracked by roadmap item 11.3.1 (pulled forward to v0.6.0 final); design
+Tracked by roadmap item 10.3.3 (pulled forward to v0.6.0 final); design
 coverage is in `rstest-bdd-design.md` §2.7.6.6. Until it lands,
 `v0-6-0-migration-guide.md` carries a caveat that `.feature`-only edits do not
 trigger a rebuild.
