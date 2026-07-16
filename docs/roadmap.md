@@ -1108,23 +1108,43 @@ to a committed direction (ADR-012).
   `docs/rstest-bdd-design.md` §§2.7.3, 2.7.6.5. (Pandalump)
 - [ ] 12.2.3. A declarative extension model lets first-party and third-party
   harness crates participate through one explicit metadata mechanism instead of
-  macro-local path tables. Finish line: one first-party and one example
-  third-party harness use the metadata mechanism in tests, and docs describe
-  the extension contract. Design Doc: `docs/rstest-bdd-design.md`
-  §§2.7.3-2.7.6.5. (Telefono)
-- [ ] 12.2.4. The generated-test model gives each `#[scenario]`, `scenarios!`,
+  macro-local path tables. Before implementation, an ADR chooses between this
+  proc-macro-readable model and an explicitly closed first-party inference
+  facility in which custom harnesses supply test attributes directly. The ADR
+  must make the public `AttributePolicy` contract match the selected scope and
+  reject runtime plug-in discovery as unnecessary for compile-time attribute
+  generation. Finish line: the ADR records the decision and migration impact;
+  if the declarative model is selected, one first-party and one example
+  third-party harness use it in compile and runtime tests; if closed inference
+  is selected, unknown policy paths produce an actionable diagnostic rather
+  than silently falling back to plain `#[rstest::rstest]`. Documentation must
+  describe the selected extension contract without presenting marker policies
+  as executable when the macro cannot read them. Design Doc:
+  `docs/rstest-bdd-design.md` §§2.7.3-2.7.6.5. (Telefono)
+- [ ] 12.2.4. Ratify `HarnessAdapter::Context: Any` as an explicit owned
+  `'static` context invariant, or replace it deliberately before v1 if borrowed
+  harness contexts are required. The decision records the supported lifecycle,
+  ownership, and downcasting model; explains that process handles,
+  `Rc<RefCell<App>>`, and owned client contexts fit the boundary; and states
+  whether contexts may borrow from a harness or surrounding fixtures. Finish
+  line: an ADR updates the harness contract and migration guidance; compile
+  tests accept representative owned contexts and either reject a borrowed
+  context with a documented diagnostic or prove the selected borrowing design.
+  ADR: `docs/adr-007-harness-context-injection.md`. Design Doc:
+  `docs/rstest-bdd-design.md` §§2.7.2-2.7.6.5. (Pandalump, Telefono)
+- [ ] 12.2.5. The generated-test model gives each `#[scenario]`, `scenarios!`,
   scenario, and outline row a readable Rust test name, isolated lifecycle, and
   failure reports that no longer depend on hidden loops over unrelated
   scenarios. Finish line: integration tests assert generated names, lifecycle
   isolation, and per-row failure reporting for `#[scenario]` and `scenarios!`.
   Design Doc: `docs/rstest-bdd-design.md` §2.7.6.5. (Doggylump)
-- [ ] 12.2.5. The recorded async harness trait surface gives Tokio and future
+- [ ] 12.2.6. The recorded async harness trait surface gives Tokio and future
   async adapters coherent migration, multi-poll, cancellation, and runtime
   ownership semantics, whether the v1 contract remains synchronous or moves to
   an async harness trait. Finish line: an ADR records the decision, Tokio tests
   cover the selected semantics, and migration docs explain the rejected path.
   Design Doc: `docs/rstest-bdd-design.md` §§2.5, 2.7.6.5. (Buzzy Bee)
-- [ ] 12.2.6. The v1 packaging model records whether first-party integrations
+- [ ] 12.2.7. The v1 packaging model records whether first-party integrations
   are feature-gated on `rstest-bdd` or remain explicit adapter crates, and the
   choice is captured in an ADR and migration guidance. Finish line: the ADR,
   migration guide, and publish/package tests all reflect the same packaging
