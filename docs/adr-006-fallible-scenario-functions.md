@@ -123,3 +123,11 @@ fn my_scenario() -> Result<(), MyError> {
   fail to compile and must move payloads into fixtures or state.
 - The error message is fixed to unit-return expectations; any future need for
   payloads would require a new ADR and API design.
+- In v0.6.0-beta3, a harness-generated test can leave the fallible scenario's
+  outer `Result` unconsumed. The scenario behaves correctly at runtime, but
+  rustc emits `unused_must_use`, which becomes a hard error under `-D warnings`.
+  Roadmap item 11.4.2 tracks consuming or propagating this result across the
+  standard, Tokio, and GPUI generated-test paths.
+- A unit-returning scenario still propagates `Err` from fallible steps. Users
+  only need a fallible scenario signature when the scenario body itself needs
+  to use `?`; this distinction should remain explicit in migration guidance.
