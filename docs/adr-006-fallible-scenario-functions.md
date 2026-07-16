@@ -126,7 +126,7 @@ fn my_scenario() -> Result<(), MyError> {
 - In v0.6.0-beta3, a harness-generated test can leave the fallible scenario's
   outer `Result` unconsumed. The scenario behaves correctly at runtime, but
   rustc emits `unused_must_use`, which becomes a hard error under `-D warnings`.
-  Roadmap item 11.4.2 tracks consuming or propagating this result across the
+  Roadmap item 11.3.2 tracks consuming or propagating this result across the
   standard, Tokio, and GPUI generated-test paths.
 - A unit-returning scenario still propagates `Err` from fallible steps. Users
   only need a fallible scenario signature when the scenario body itself needs

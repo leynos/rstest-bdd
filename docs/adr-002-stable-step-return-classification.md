@@ -68,7 +68,7 @@ and assumes `Result<..>` semantics; if the return type is not actually
   required; prose guidance alone is not an adequate guard against a false
   green.
 - The implementation must therefore make unresolved classification explicit
-  without treating every named type as fallible. Roadmap item 11.4.1 tracks
+  without treating every named type as fallible. Roadmap item 11.3.1 tracks
   the diagnostic or required-hint contract and its compile and runtime
   regression matrix. Until it lands, fallible steps must spell `Result<...>`
   or `rstest_bdd::StepResult<...>`, or use the `result` hint.
