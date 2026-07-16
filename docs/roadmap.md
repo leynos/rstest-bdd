@@ -883,6 +883,16 @@ changing the public trait contracts.
   `make check-fmt`, `make lint`, `make test`, `make markdownlint`, `make nixie`,
   and `cargo test -p rstest-bdd --test trybuild_macros step_macros_compile`
   passed; CodeRabbit `review --agent` completed with zero findings.
+- [ ] 10.2.8. The stateful GPUI playbook includes compile-checked
+  published-`gpui 0.2.2` `given` and `when` variants, so adopters do not have
+  to translate the vendored-only worked example from the mapping table alone.
+  The guide also states that step functions and their helpers are ordinary
+  functions for Clippy's `allow-expect-in-tests` policy, and recommends the
+  lint-clean `let ... else { panic!(...) }` invariant form. Finish line: the
+  published snippets compile against crates.io `gpui 0.2.2`, the vendored and
+  published variants are visibly paired, and a drift gate covers both. Design
+  Doc: `docs/rstest-bdd-design.md` §2.7.6.2. Origin:
+  `leynos/rstest-bdd#575` and the gauss v0.6.0-beta3 adoption report.
 
 > **Note (dual-track maintenance):** items 10.2.4 and 10.2.5 introduce a
 > vendored-to-published mapping table that must be kept in sync with any
@@ -1004,6 +1014,37 @@ remove the existing `StepContext`, harness, or macro surfaces.
   **Scheduling note:** the maintainer has approved pulling this item forward
   to v0.6.0 final. Until it lands, a caveat in `docs/v0-6-0-migration-guide.md`
   alerts adopters that `.feature`-only edits do not trigger a rebuild.
+  The gauss v0.6.0-beta3 migration independently reproduced this failure mode
+  and had to falsify a scenario by editing its Rust step file instead.
+
+### 11.4. Prevent beta3 false greens and generated-result warnings
+
+This hardening step closes two failure modes found by the gauss beta trial. It
+asks whether every fallible step and scenario result is observably consumed, so
+an assertion cannot disappear behind macro classification or generated code.
+
+- [ ] 11.4.1. A step returning a local alias of `Result<T, E>` cannot silently
+  pass when it returns `Err`. Adopt an explicit, stable classification contract
+  for syntactically unresolved return types, with a migration diagnostic or
+  required `result`/`value` hint where the macro cannot prove the return kind.
+  Preserve ordinary value-returning steps without guessing that every alias is
+  fallible. Finish line: compile and runtime regressions cover an alias that
+  returns `Err`, spelled `Result`, `StepResult`, an alias explicitly marked
+  `result`, and a genuine value alias; no `Err` case is boxed and discarded as
+  an opaque payload. ADR: `docs/adr-002-stable-step-return-classification.md`.
+  Design Doc: `docs/rstest-bdd-design.md` §2.1. Origin:
+  `leynos/rstest-bdd#573` and the gauss v0.6.0-beta3 validation matrix.
+- [ ] 11.4.2. Harness-generated tests consume the result of fallible scenario
+  functions, including under `GpuiHarness`, without triggering
+  `unused_must_use` under `-D warnings`. Unit-returning scenarios continue to
+  propagate fallible step errors, and the guide makes clear that a fallible
+  scenario signature is only needed when the scenario body itself uses `?`.
+  Finish line: compile-pass tests exercise standard, Tokio, and GPUI harnesses
+  with `Result<(), E>` scenario bodies under denied warnings; runtime tests
+  prove scenario-body and step errors both fail the test. ADR:
+  `docs/adr-006-fallible-scenario-functions.md`. Design Doc:
+  `docs/rstest-bdd-design.md` §§2.7.2-2.7.4. Origin:
+  `leynos/rstest-bdd#574` and the gauss v0.6.0-beta3 validation matrix.
 
 > **Note (ADR-008 follow-up):** roadmap items 9.7.1–9.7.4 shipped the
 > harness-led attribute defaults under maintainer authorization, but
