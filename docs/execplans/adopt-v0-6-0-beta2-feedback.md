@@ -198,25 +198,24 @@ Thresholds that trigger escalation when breached.
   `make nixie`), and cleared a `coderabbit review --agent` pass (0 findings).
 - [x] (2026-06-09) Community-of-experts (Logisphere) panel reviewed the plan;
   revised in response — renamed the helper to `ScenarioStore<T>` (collision
-  fix), made ADR-010 even-handed and rejected absolute-path embedding, moved
-  the rebuild item to Phase 11.3, elevated the pull-forward recommendation,
-  added the tested cleanup lifecycle, the v0.6→v0.7 mapping sketch, the gpui
+  fix), made ADR-010 even-handed and rejected absolute-path embedding, moved the
+  rebuild item to step 10.3, elevated the pull-forward recommendation, added
+  the tested cleanup lifecycle, the v0.6→v0.7 mapping sketch, the gpui
   maintenance-tax note, and the open scheduling/divergence decisions.
 - [x] (2026-06-10) Maintainer approval received. Open decisions resolved:
   (a) pull-forward recommendation accepted — 10.3.1/10.3.2 (`ScenarioStore`/
   cleanup helper) and 10.3.3 (rebuild-invalidation fix) will be scheduled in
   v0.6.0 final; (b) Stage E code fix deferred — to be added as a roadmap item
   and implemented under its own ExecPlan rather than in this branch.
-- [x] (2026-06-10) Stage B complete: wrote
-      `adr-010-feature-file-change-detection.md`,
+- [x] (2026-06-10) Stage B complete: wrote `adr-010-feature-file-change-detection.md`,
   `adr-011-first-party-scenario-state-and-cleanup.md`, and
   `adr-012-guard-based-stepcontext-borrowing.md`; `make markdownlint` clean.
 - [x] (2026-06-10) Stage C complete: applied roadmap edits — clarified
   10.1.4 (affirmative outcome + test reference), added 10.2.4–10.2.7
-  (documentation items) with dual-track maintenance note, re-scoped 10.3.1 and
-  10.3.2 (ScenarioStore naming + pull-forward notes), added Phase 11.3 (rebuild
-  gap + ADR-008 follow-up note), and amended Phase 12 heading and 12.1.1 to
-  reference ADR-012; `make markdownlint` clean.
+  (documentation items) with dual-track maintenance note, re-scoped 10.3.1
+  and 10.3.2 (ScenarioStore naming + pull-forward notes), added 10.3.3
+  (rebuild gap + ADR-008 follow-up note), and amended Phase 12 heading and
+  12.1.1 to reference ADR-012; `make markdownlint` clean.
 - [x] (2026-06-10) Stage D complete: applied design-document and adoption-guide
   edits — added which-gpui banner + mapping table in §2.7.6.2, added ADR-011
   reference in §2.7.6.4, updated §2.7.6.5 to committed direction + ADR-012
@@ -242,8 +241,8 @@ Thresholds that trigger escalation when breached.
   alongside the portability-aware rebuild regression test.
 - [x] (2026-06-13) Follow-up review warning: elevated ADR-010's `trybuild`
   compile-pass and compile-fail fixtures from *recommended* to *required*
-  acceptance criteria, and strengthened the snapshot guidance to require focused
-  `insta` snapshots backed by semantic/substring assertions on the
+  acceptance criteria, and strengthened the snapshot guidance to require
+  focused `insta` snapshots backed by semantic/substring assertions on the
   load-bearing diagnostic fragments. Mirrored the requirement in roadmap item
   10.3.3's finish line.
 
@@ -330,25 +329,25 @@ Thresholds that trigger escalation when breached.
 ## Decision log
 
 - Decision: assign the three new ADRs the next free numbers — `adr-010`
-  (feature-file change detection), `adr-011` (first-party scenario-state
-  helpers and cleanup), `adr-012` (guard-based `StepContext` borrowing
-  committed for v0.7.0). Rationale: the highest existing ADR is 009; sequential
-  numbering matches the established convention. Date/Author: 2026-06-09 /
-  Claude (plan author).
+  (feature-file change detection), `adr-011` (first-party scenario-state helpers
+  and cleanup), `adr-012` (guard-based `StepContext` borrowing committed for
+  v0.7.0). Rationale: the highest existing ADR is 009; sequential numbering
+  matches the established convention. Date/Author: 2026-06-09 / Claude (plan
+  author).
 
 - Decision: document the gpui API divergence with a banner plus a mapping table
   rather than rewriting the snippets to a single API. Rationale: the regression
-  suite compiles against the vendored gpui; a one-API rewrite would either
-  break the suite's mirroring contract or misrepresent what adopters compile
-  against. Date/Author: 2026-06-09 / Claude.
+  suite compiles against the vendored gpui; a one-API rewrite would either break
+  the suite's mirroring contract or misrepresent what adopters compile against.
+  Date/Author: 2026-06-09 / Claude.
 
 - Decision: recommend macro-emitted `include_str!` as the preferred
-  rebuild-invalidation mechanism, with the build-script
-  (`cargo::rerun-if-changed`) route as a documented fallback for the
-  directory-glob `scenarios!` case. Rationale: `include_str!` closes the loop
-  invisibly to consumers and cannot be forgotten per call site; the
-  build-script route is proven by `theoremc` but reintroduces the "emit one
-  rerun-if line per file or regress" trap. Date/Author: 2026-06-09 / Claude.
+  rebuild-invalidation mechanism, with the build-script (`cargo::rerun-if-changed`)
+  route as a documented fallback for the directory-glob `scenarios!` case.
+  Rationale: `include_str!` closes the loop invisibly to consumers and cannot be
+  forgotten per call site; the build-script route is proven by `theoremc` but
+  reintroduces the "emit one rerun-if line per file or regress" trap. Date/Author:
+  2026-06-09 / Claude.
 
 - Decision: keep ADR-008's `Proposed`→`Accepted` resolution as a separable,
   clearly-labelled roadmap follow-up, not a dependency of this feedback work.
@@ -379,11 +378,10 @@ Doggylump, Dinolump):
   build-script route avoids embedding entirely and fits `scenarios!` globs.
   Date/Author: 2026-06-09 / Claude (panel: Doggylump, Wafflecat, Buzzy Bee).
 
-- Decision: place the rebuild-invalidation item in Phase 11 (`11.3`), not a new
-  subsection of the delivered Phase 10. Rationale: Phase 10 is delivered;
-  adding work to it muddies phase semantics. The pull-forward-to-v0.6.0-final
-  recommendation is recorded separately. Date/Author: 2026-06-09 / Claude
-  (panel: Pandalump).
+- Decision: place the rebuild-invalidation item in step 10.3 as item 10.3.3.
+  Rationale: the maintainer accepted the pull-forward-to-v0.6.0-final
+  recommendation, and the roadmap now collects all final-release requirements
+  under one step. Date/Author: 2026-06-10 / maintainer.
 
 - Decision (2026-06-10, maintainer): pull 10.3.1/10.3.2 (the
   `ScenarioStore`/cleanup helper) and 10.3.3 (the rebuild fix) forward into
@@ -405,14 +403,13 @@ Doggylump, Dinolump):
 
 All four observable outcomes from `Purpose / big picture` are met:
 
-1. **Roadmap records every new or re-scoped work item.** Added items
-   10.2.4–10.2.7 (gpui-version banner + mapping table, lint-clean playbook
-   variant, nextest interaction note, bulk-migration cookbook), re-scoped
-   10.3.1/10.3.2 (naming the correct `ScenarioStore<T>` / `GpuiScenarioStore`
-   types and cleanup-guard fixture macro, with pull-forward scheduling notes),
-   added Phase 11.3 with item 10.3.3 (feature-file rebuild fix), and amended
-   Phase 12 intro and 12.1.1 to record the committed direction and reference
-   ADR-012.
+1. **Roadmap records every new or re-scoped work item.** Added items 10.2.4–10.2.7
+   (gpui-version banner + mapping table, lint-clean playbook variant, nextest
+   interaction note, bulk-migration cookbook), re-scoped 10.3.1/10.3.2 (naming
+   the correct `ScenarioStore<T>` / `GpuiScenarioStore` types and cleanup-guard
+   fixture macro, with pull-forward scheduling notes), added item 10.3.3 to
+   step 10.3 (feature-file rebuild fix), and amended Phase 12 intro and 12.1.1
+   to record the committed direction and reference ADR-012.
 
 2. **Design document `§2.7.6.x` corrected and extended.** Added a which-gpui
    banner and vendored-to-published mapping table in `§2.7.6.2`, ADR references
@@ -426,11 +423,11 @@ All four observable outcomes from `Purpose / big picture` are met:
    cross-referencing the roadmap items and design subsections they govern.
 
 4. **Adoption guides carry the corrections.** `docs/users-guide.md` carries the
-   gpui-version banner + mapping table, nextest/`serial_test` caveat,
-   lint-clean variant, bulk-migration cookbook, and design-doc cross-links.
-   `docs/v0-6-0-migration-guide.md` carries a "Feature-file edits do not
-   trigger a rebuild" caveat under "Common errors and fixes", marked removable
-   once 10.3.3 lands.
+   gpui-version banner + mapping table, nextest/`serial_test` caveat, lint-clean
+   variant, bulk-migration cookbook, and design-doc cross-links.
+   `docs/v0-6-0-migration-guide.md` carries a "Feature-file edits do not trigger
+   a rebuild" caveat under "Common errors and fixes", marked removable once
+   10.3.3 lands.
 
 No feedback item was left unscheduled. Stage E (rebuild-invalidation code fix)
 was deferred to a separate ExecPlan and roadmap item (10.3.3) per explicit
@@ -438,9 +435,8 @@ maintainer decision; it is not unscheduled, just not implemented in this
 documentation branch.
 
 Open items remaining after this plan: (a) the ADR-008 Proposed→Accepted
-advancement (separately gated, orthogonal); (b) the
-retarget-onto-published-gpui architectural decision (Wafflecat's alternative,
-deferred).
+advancement (separately gated, orthogonal); (b) the retarget-onto-published-gpui
+architectural decision (Wafflecat's alternative, deferred).
 
 ## Context and orientation
 
@@ -798,7 +794,8 @@ the tolerance bound and must be re-approved.
 - Consequences: closes the foot-gun; the chosen mechanism must be covered by a
   portability-aware regression test; no absolute path is embedded into the
   artefact.
-- Governs roadmap item: new Phase 11.3 rebuild item. Design Doc: new `§2.7.6.6`.
+- Governs roadmap item: 10.3.3 in the v0.6.0 final requirements step. Design
+  Doc: new `§2.7.6.6`.
 
 ### ADR-011 — First-party scenario-state helpers and per-scenario cleanup
 
@@ -879,15 +876,15 @@ the tolerance bound and must be re-approved.
 Prescriptive list (apply in document order, matching existing item style — each
 new item carries a finish line and a `Design Doc:` / ADR reference):
 
-- New subsection `### 11.3. Close the feature-file rebuild gap` with item
-  `10.3.3`: "Editing only a `.feature` file triggers a scenario rebuild."
-  Finish line: the `#[scenario]`/`scenarios!` expansion registers each bound
-  feature file as a Cargo rebuild dependency (per ADR-010, without embedding an
-  absolute path into the artefact), and a portability-aware regression test
-  proves a `.feature`-only edit forces recompilation and a fresh failure. The
-  item lives in Phase 11 (the open v0.6.x line) rather than the delivered Phase
-  10, and carries a recommendation to pull it forward to v0.6.0 final.
-  Non-breaking. Design Doc: `§2.7.6.6`; ADR-010.
+- Add item `10.3.3` to `### 10.3. v0.6.0 final requirements`: "Editing only a
+  `.feature` file triggers a scenario rebuild." Finish
+  line: the `#[scenario]`/`scenarios!` expansion registers each bound feature
+  file as a Cargo rebuild dependency (per ADR-010, without embedding an absolute
+  path into the artefact), and a portability-aware regression test proves a
+  `.feature`-only edit forces recompilation and a fresh failure. The item lives
+  in Phase 11 (the open v0.6.x line) rather than the delivered Phase 10, and
+  carries a recommendation to pull it forward to v0.6.0 final. Non-breaking.
+  Design Doc: `§2.7.6.6`; ADR-010.
 - Clarify delivered `10.1.4`: append that the affirmative branch shipped — the
   scenario name is embedded in the augmented panic message and tracing events
   (`crates/rstest-bdd-harness-gpui/src/gpui_harness.rs`), with regression tests
@@ -918,8 +915,8 @@ new item carries a finish line and a `Design Doc:` / ADR reference):
     library across many GPUI scenarios in a single consuming crate. Finish line:
     a cookbook subsection in the user guide. Design Doc: `§2.7.6.2`.
 - Re-scope `10.3.1` to name the generic `ScenarioStore<T>` core in `rstest-bdd`
-  (named to avoid colliding with the shipped `ScenarioState` trait and
-  `Slot<T>` in `crates/rstest-bdd/src/state.rs`) *and* the GPUI-specialized
+  (named to avoid colliding with the shipped `ScenarioState` trait and `Slot<T>`
+  in `crates/rstest-bdd/src/state.rs`) *and* the GPUI-specialized
   `GpuiScenarioStore` re-export in `rstest-bdd-harness-gpui`; re-scope `10.3.2`
   to add a cleanup-guard fixture-generating macro with a tested three-state
   lifecycle (success, failure, skip). Reference ADR-011.
@@ -945,8 +942,8 @@ new item carries a finish line and a `Design Doc:` / ADR reference):
   (a) compile-testing the playbook snippets (a doc-test or a tiny example crate
   that the gate builds) so staleness fails CI, and (b) recording the larger
   alternative of retargeting the regression suite and docs onto the published
-  `gpui` so the mapping table can eventually be retired — deferred as a
-  separate architectural decision outwith this plan (see Decision Log).
+  `gpui` so the mapping table can eventually be retired — deferred as a separate
+  architectural decision outwith this plan (see Decision Log).
 
 ### Design-document edits (`docs/rstest-bdd-design.md`)
 
@@ -984,8 +981,8 @@ review: renamed the proposed helper from `ScenarioState<T>` to
 `ScenarioStore<T>`/`GpuiScenarioStore` to avoid a verified collision with the
 shipped `ScenarioState` trait and `Slot<T>`; rewrote ADR-010 to weigh the
 mechanisms even-handedly and reject absolute-path `include_str!` embedding for
-build reproducibility; relocated the rebuild item from `10.3` to `11.3` to
-respect the delivered Phase 10 boundary; surfaced the pull-forward scheduling
+build reproducibility; placed the rebuild item at `10.3.3` under the consolidated
+v0.6.0 final requirements; surfaced the pull-forward scheduling
 recommendation as an explicit open maintainer decision; added a tested
 three-state cleanup lifecycle to ADR-011, a concrete v0.6→v0.7
 migration-mapping sketch to ADR-012, a gpui dual-track maintenance-tax note
