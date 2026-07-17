@@ -464,7 +464,7 @@ Key terms:
 
 1. `docs/roadmap.md` around lines 866-870 — the 10.2.7 item and finish line;
    lines 907-933 — items 10.3.1/10.3.2 (`ScenarioStore<T>` and the cleanup-guard
-   macro) that shrink this boilerplate in v0.6.1.
+   macro) that shrink this boilerplate in v0.6.0 final.
 2. `docs/rstest-bdd-design.md` §2.7.6.2 (lines ~1947-2058) — the interim GPUI
    state pattern and the vendored-vs-published mapping table.
 3. `docs/users-guide.md`: "Stateful GPUI scenarios with durable handles"

@@ -2090,7 +2090,7 @@ compile-pass mirror,
 the GPUI durable-handle specialization remains proven by `stateful_window.rs`.
 The user guide's "Bulk-migration cookbook" subsection documents the shape and
 bridges its GPUI snippets to published `gpui 0.2.2` through the vendored-to-
-published mapping table. This handwritten shared block is superseded in v0.6.1
+published mapping table. This handwritten shared block is superseded in v0.6.0 final
 by `ScenarioStore<T>` and the cleanup-guard fixture macro (roadmap 10.3.1 and
 10.3.2).
 

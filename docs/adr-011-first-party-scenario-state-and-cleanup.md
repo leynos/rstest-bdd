@@ -270,5 +270,6 @@ harness cost of a model checker.
 
 - Roadmap items: re-scoped 10.3.1 (`ScenarioStore<T>` generic core) and 10.3.2
   (`GpuiScenarioStore` + cleanup-guard fixture macro, three-state lifecycle
-  test), both targeted at v0.6.0 final per the maintainer pull-forward decision.
+  test), both preferred from v0.6.1 while the v0.6.0 thread-local pattern
+  remains supported throughout v0.6.x.
 - Design document: `§2.7.6.4` (v0.6.1 early-life support helpers).

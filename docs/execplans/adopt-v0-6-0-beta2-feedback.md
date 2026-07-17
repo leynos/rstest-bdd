@@ -204,7 +204,7 @@ Thresholds that trigger escalation when breached.
 - [x] (2026-06-09) Community-of-experts (Logisphere) panel reviewed the plan;
   revised in response — renamed the helper to `ScenarioStore<T>` (collision
   fix), made ADR-010 even-handed and rejected absolute-path embedding, moved the
-  rebuild item to Phase 11.3, elevated the pull-forward recommendation, added
+  rebuild item to step 10.3, elevated the pull-forward recommendation, added
   the tested cleanup lifecycle, the v0.6→v0.7 mapping sketch, the gpui
   maintenance-tax note, and the open scheduling/divergence decisions.
 - [x] (2026-06-10) Maintainer approval received. Open decisions resolved:
@@ -218,7 +218,7 @@ Thresholds that trigger escalation when breached.
 - [x] (2026-06-10) Stage C complete: applied roadmap edits — clarified
   10.1.4 (affirmative outcome + test reference), added 10.2.4–10.2.7
   (documentation items) with dual-track maintenance note, re-scoped 10.3.1
-  and 10.3.2 (ScenarioStore naming + pull-forward notes), added Phase 11.3
+  and 10.3.2 (ScenarioStore naming + pull-forward notes), added 10.3.3
   (rebuild gap + ADR-008 follow-up note), and amended Phase 12 heading and
   12.1.1 to reference ADR-012; `make markdownlint` clean.
 - [x] (2026-06-10) Stage D complete: applied design-document and adoption-guide
@@ -384,11 +384,10 @@ Doggylump, Dinolump):
   build-script route avoids embedding entirely and fits `scenarios!` globs.
   Date/Author: 2026-06-09 / Claude (panel: Doggylump, Wafflecat, Buzzy Bee).
 
-- Decision: place the rebuild-invalidation item in Phase 11 (`11.3`), not a new
-  subsection of the delivered Phase 10. Rationale: Phase 10 is delivered; adding
-  work to it muddies phase semantics. The pull-forward-to-v0.6.0-final
-  recommendation is recorded separately. Date/Author: 2026-06-09 / Claude
-  (panel: Pandalump).
+- Decision: place the rebuild-invalidation item in step 10.3 as item 10.3.3.
+  Rationale: the maintainer accepted the pull-forward-to-v0.6.0-final
+  recommendation, and the roadmap now collects all final-release requirements
+  under one step. Date/Author: 2026-06-10 / maintainer.
 
 - Decision (2026-06-10, maintainer): pull 10.3.1/10.3.2 (the
   `ScenarioStore`/cleanup helper) and 10.3.3 (the rebuild fix) forward into
@@ -414,8 +413,8 @@ All four observable outcomes from `Purpose / big picture` are met:
    (gpui-version banner + mapping table, lint-clean playbook variant, nextest
    interaction note, bulk-migration cookbook), re-scoped 10.3.1/10.3.2 (naming
    the correct `ScenarioStore<T>` / `GpuiScenarioStore` types and cleanup-guard
-   fixture macro, with pull-forward scheduling notes), added Phase 11.3 with
-   item 10.3.3 (feature-file rebuild fix), and amended Phase 12 intro and 12.1.1
+   fixture macro, with pull-forward scheduling notes), added item 10.3.3 to
+   step 10.3 (feature-file rebuild fix), and amended Phase 12 intro and 12.1.1
    to record the committed direction and reference ADR-012.
 
 2. **Design document `§2.7.6.x` corrected and extended.** Added a which-gpui
@@ -799,7 +798,8 @@ the tolerance bound and must be re-approved.
 - Consequences: closes the foot-gun; the chosen mechanism must be covered by a
   portability-aware regression test; no absolute path is embedded into the
   artefact.
-- Governs roadmap item: new Phase 11.3 rebuild item. Design Doc: new `§2.7.6.6`.
+- Governs roadmap item: 10.3.3 in the v0.6.0 final requirements step. Design
+  Doc: new `§2.7.6.6`.
 
 ### ADR-011 — First-party scenario-state helpers and per-scenario cleanup
 
@@ -880,8 +880,8 @@ the tolerance bound and must be re-approved.
 Prescriptive list (apply in document order, matching existing item style — each
 new item carries a finish line and a `Design Doc:` / ADR reference):
 
-- New subsection `### 11.3. Close the feature-file rebuild gap` with item
-  `10.3.3`: "Editing only a `.feature` file triggers a scenario rebuild." Finish
+- Add item `10.3.3` to `### 10.3. v0.6.0 final requirements`: "Editing only a
+  `.feature` file triggers a scenario rebuild." Finish
   line: the `#[scenario]`/`scenarios!` expansion registers each bound feature
   file as a Cargo rebuild dependency (per ADR-010, without embedding an absolute
   path into the artefact), and a portability-aware regression test proves a
@@ -985,8 +985,8 @@ review: renamed the proposed helper from `ScenarioState<T>` to
 `ScenarioStore<T>`/`GpuiScenarioStore` to avoid a verified collision with the
 shipped `ScenarioState` trait and `Slot<T>`; rewrote ADR-010 to weigh the
 mechanisms even-handedly and reject absolute-path `include_str!` embedding for
-build reproducibility; relocated the rebuild item from `10.3` to `11.3` to
-respect the delivered Phase 10 boundary; surfaced the pull-forward scheduling
+build reproducibility; placed the rebuild item at `10.3.3` under the consolidated
+v0.6.0 final requirements; surfaced the pull-forward scheduling
 recommendation as an explicit open maintainer decision; added a tested
 three-state cleanup lifecycle to ADR-011, a concrete v0.6→v0.7 migration-mapping
 sketch to ADR-012, a gpui dual-track maintenance-tax note with a compile-tested
