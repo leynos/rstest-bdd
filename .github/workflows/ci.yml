@@ -18,7 +18,7 @@ jobs:
       RUSTDOCFLAGS: -D warnings
       LADING_REF: d3217a599ea34adad6a6e3845845fff2fe923758
       MERMAN_CLI_VERSION: '0.7.0'
-      WHITAKER_INSTALLER_VERSION: '0.2.5'
+      WHITAKER_INSTALLER_VERSION: '0.2.6'
     strategy:
       fail-fast: false
       matrix:

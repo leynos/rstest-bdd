@@ -966,7 +966,7 @@ Local setup installs the `whitaker` wrapper and its pinned Dylint driver
 toolchain via the installer:
 
 ```bash
-cargo install --locked whitaker-installer --version 0.2.5
+cargo install --locked whitaker-installer --version 0.2.6
 whitaker-installer
 ```
 
