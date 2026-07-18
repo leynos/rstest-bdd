@@ -1,7 +1,7 @@
 //! Discovers `.feature` files for the `scenarios!` macro.
 //!
 //! Walks a directory tree without following directory symlinks so workspace
-//! boundaries remain intact. Individual file entries are canonicalised via the
+//! boundaries remain intact. Individual file entries are canonicalized via the
 //! path-resolution helper to weed out broken symlinks while preserving the
 //! original display path for diagnostics. Results are sorted to keep generated
 //! code stable regardless of filesystem traversal order.
@@ -27,7 +27,7 @@ fn process_regular_file(path: PathBuf) -> Option<std::io::Result<PathBuf>> {
     }
 }
 
-/// Process a special entry (e.g., symlink) by canonicalising and checking if
+/// Process a special entry (e.g., symlink) by canonicalizing and checking if
 /// it's a feature file.
 fn process_special_entry(original_path: PathBuf) -> Option<std::io::Result<PathBuf>> {
     match canonicalize_path(&original_path) {

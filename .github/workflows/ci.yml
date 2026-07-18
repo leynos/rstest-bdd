@@ -17,6 +17,7 @@ jobs:
       RUSTFLAGS: -D warnings
       RUSTDOCFLAGS: -D warnings
       LADING_REF: d3217a599ea34adad6a6e3845845fff2fe923758
+      MERMAN_CLI_VERSION: '0.7.0'
       WHITAKER_INSTALLER_VERSION: '0.2.5'
     strategy:
       fail-fast: false
@@ -90,6 +91,22 @@ jobs:
         if: ${{ matrix.tools }}
         run: make check-fmt
 
+      - name: Set up isolated Rust for Merman
+        if: ${{ matrix.tools }}
+        run: rustup toolchain install 1.95.0
+
+      - name: Cache Merman CLI
+        if: ${{ matrix.tools }}
+        id: cache-merman-cli
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.cargo/bin/merman-cli
+          key: merman-cli-${{ runner.os }}-${{ runner.arch }}-${{ env.MERMAN_CLI_VERSION }}
+
+      - name: Install Merman CLI
+        if: ${{ matrix.tools && steps.cache-merman-cli.outputs.cache-hit != 'true' }}
+        run: cargo +1.95.0 install merman-cli --version "=${MERMAN_CLI_VERSION}" --locked
+
       - name: Install Mermaid CLI
         if: ${{ matrix.tools }}
         run: |
@@ -100,7 +117,7 @@ jobs:
 
       - name: Install Nixie
         if: ${{ matrix.tools }}
-        run: uv tool install nixie-cli==1.0.0
+        run: uv tool install nixie-cli==1.1.0
 
       - name: Cache Whitaker installer
         if: ${{ matrix.tools }}
@@ -136,7 +153,7 @@ jobs:
 
       - name: Spelling (en-GB-oxendict)
         if: ${{ matrix.tools }}
-        run: make spellcheck
+        run: make spelling
 
       - name: Lint
         if: ${{ matrix.tools }}
@@ -208,20 +225,21 @@ jobs:
           set -euo pipefail
           test -s coverage.xml
 
+      - name: Check coverage against CodeScene gates
+        env:
+          CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
+        if: >-
+          matrix.os == 'ubuntu-latest' &&
+          matrix.features == '' &&
+          github.event_name == 'pull_request' &&
+          env.CS_ACCESS_TOKEN != ''
+        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@927edd45ae77be4251a8a18ca9eb5613a2e32cbd
+        with:
+          format: cobertura
+          mode: check
+          project-url: https://api.codescene.io/v2/projects/69391
+          access-token: ${{ env.CS_ACCESS_TOKEN }}
+          installer-checksum: ${{ vars.CODESCENE_CLI_SHA256 }}
+
       - name: Publish dry run
         run: make publish-check
-
-      # The `mode: check` coverage gate is deliberately not wired in yet:
-      # CodeScene project 69391 has no coverage-gates configuration, so
-      # `cs-coverage check` fails every run with "HTTP call succeeded, but
-      # the received project-config isn't valid. Lacks the gates
-      # configuration." — a CodeScene-side per-project setting, not a CI
-      # defect (ddlint and chutoro projects hit the byte-identical error).
-      # It would attach to the single default-features Linux leg
-      # (matrix.os == 'ubuntu-latest' && matrix.features == '', which
-      # carries the ratchet) with project-url
-      # https://api.codescene.io/v2/projects/69391. Add it in a fast-follow
-      # PR once coverage-main.yml has
-      # uploaded to main at least once and the gate is confirmed to
-      # resolve, or once CodeScene confirms the project's coverage gate is
-      # enabled.

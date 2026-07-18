@@ -927,7 +927,7 @@ remove the existing `StepContext`, harness, or macro surfaces.
   `pub struct Slot<T>` in `crates/rstest-bdd/src/state.rs`. A GPUI-specific
   `GpuiScenarioStore` re-export ships in `rstest-bdd-harness-gpui`. Finish
   line: unit tests exercise all five operations; a GPUI integration test uses
-  `GpuiScenarioStore` and the cleanup fixture macro without hand-written
+  `GpuiScenarioStore` and the cleanup fixture macro without handwritten
   `thread_local!` boilerplate; docs present it as the additive v0.6.1
   alternative to the v0.6.0 thread-local interim pattern. ADR:
   `docs/adr-011-first-party-scenario-state-and-cleanup.md`. Design Doc:

@@ -75,7 +75,7 @@ fn blank() -> ParsedStep {
     vec![crate::StepKeyword::Given, crate::StepKeyword::Given, crate::StepKeyword::Given],
 )]
 #[case::empty(vec![], vec![])]
-fn normalises_sequences(
+fn normalizes_sequences(
     #[case] seq: Vec<crate::StepKeyword>,
     #[case] expect: Vec<crate::StepKeyword>,
 ) {

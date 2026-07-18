@@ -8,6 +8,6 @@ fn basic_discovers_a_gpui_scenario() {
         __rstest_bdd_request,
     )
     .unwrap_or_else(|err| {
-        panic!("harness failed to initialise scenario: {err}")
+        panic!("harness failed to initialize scenario: {err}")
     })
 }

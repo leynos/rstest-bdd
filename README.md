@@ -517,7 +517,7 @@ ______________________________________________________________________
 - Inspired by the ergonomics of **pytest‑bdd** and the fixture model of
   **rstest**.
 
-- Uses a global step registry pattern popularised in Rust by the **inventory**
+- Uses a global step registry pattern popularized in Rust by the **inventory**
   crate.
 
 - Tips the hat to **cucumber‑rs** for bringing Cucumber’s ideas to Rust.

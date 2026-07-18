@@ -68,7 +68,7 @@ impl<T> Slot<T> {
         }
         RefMut::map(borrow, |opt| {
             let Some(value) = opt.as_mut() else {
-                unreachable!("slot initialised immediately before mapping");
+                unreachable!("slot initialized immediately before mapping");
             };
             value
         })
@@ -160,7 +160,7 @@ mod tests {
     }
 
     #[test]
-    fn slot_get_or_insert_with_initialises() {
+    fn slot_get_or_insert_with_initializes() {
         let slot = Slot::default();
         {
             let mut value = slot.get_or_insert_with(|| String::from("hello"));

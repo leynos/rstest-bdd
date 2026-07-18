@@ -28,7 +28,7 @@ fn matches_any_case_insensitive(s: &str, candidates: &[&str]) -> bool {
 
 /// Parses boolean values in a tolerant, human-friendly fashion.
 ///
-/// `truthy_bool` recognises common affirmative and negative forms, returning a
+/// `truthy_bool` recognizes common affirmative and negative forms, returning a
 /// [`TruthyBoolError`] when the value cannot be classified.
 ///
 /// # Examples
@@ -40,7 +40,7 @@ fn matches_any_case_insensitive(s: &str, candidates: &[&str]) -> bool {
 ///
 /// # Errors
 ///
-/// Returns [`TruthyBoolError`] when the input does not match a recognised form.
+/// Returns [`TruthyBoolError`] when the input does not match a recognized form.
 pub fn truthy_bool(value: &str) -> Result<bool, TruthyBoolError> {
     const TRUTHY_VALUES: &[&str] = &["yes", "y", "true"];
     const FALSY_VALUES: &[&str] = &["no", "n", "false"];
@@ -74,7 +74,7 @@ impl TruthyBoolError {
 
 /// Trims leading and trailing whitespace before parsing a value.
 ///
-/// `trimmed` delegates to [`FromStr`] implementations after normalising the
+/// `trimmed` delegates to [`FromStr`] implementations after normalizing the
 /// input. Errors from the inner parser are preserved.
 ///
 /// # Examples

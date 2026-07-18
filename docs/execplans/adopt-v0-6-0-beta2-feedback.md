@@ -278,7 +278,7 @@ Thresholds that trigger escalation when breached.
 
 - Observation: under cargo-nextest, `#[serial]` does not serialize stateful
   GPUI scenarios against each other.
-  Evidence: nextest runs each test in its own process and parallelises across
+  Evidence: nextest runs each test in its own process and parallelizes across
   them (<https://nexte.st/docs/design/how-it-works/>); `serial_test`'s
   `#[serial]` is an in-process mutex, and cross-process serialization requires
   `#[file_serial]` (<https://docs.rs/serial_test/>). Process-per-test therefore
@@ -715,7 +715,7 @@ Cited sources backing the external-tooling claims (gathered Stage A):
   directories with per-file lines, generates an OUT_DIR suite via `include!()`,
   and asserts the literal directive strings in `tests/build_discovery_bdd.rs`
   (with a one-second mtime tick before edits): <https://github.com/leynos/theoremc>.
-- nextest runs each test in its own process and parallelises across them
+- nextest runs each test in its own process and parallelizes across them
   (<https://nexte.st/docs/design/how-it-works/>); `serial_test`'s `#[serial]`
   is in-process only, so cross-process serialization needs `#[file_serial]`
   (<https://docs.rs/serial_test/>, <https://github.com/palfrey/serial_test>).
@@ -808,7 +808,7 @@ the tolerance bound and must be re-approved.
   plus a `Drop` cleanup guard and a two-sided reset protocol (see
   `crates/rstest-bdd-harness-gpui/tests/stateful_window.rs`, ~50 lines of
   scaffolding per consuming crate per the adopter report — the largest single
-  source of hand-written boilerplate the migration hit). Roadmap 11.1.3/11.1.4
+  source of handwritten boilerplate the migration hit). Roadmap 11.1.3/11.1.4
   propose a generic helper and cleanup registration; the adopter asks
   specifically for a GPUI-shaped helper and a cleanup-guard fixture macro.
 - Naming constraint (verified): `rstest-bdd` already ships

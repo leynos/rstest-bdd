@@ -19,7 +19,7 @@ thread_local! {
     static ASYNC_COUNTER: RefCell<i32> = const { RefCell::new(0) };
 }
 
-#[given("an async counter is initialised to 0")]
+#[given("an async counter is initialized to 0")]
 fn async_counter_init() {
     ASYNC_COUNTER.with(|c| *c.borrow_mut() = 0);
 }

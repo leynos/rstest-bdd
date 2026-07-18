@@ -8,7 +8,7 @@ use gherkin::StepType;
 use std::fmt;
 use std::str::FromStr;
 
-/// Keyword used to categorise a step definition.
+/// Keyword used to categorize a step definition.
 ///
 /// The enum includes `And` and `But` variants for completeness, but feature
 /// parsing resolves them against the preceding `Given`/`When`/`Then` using
@@ -81,7 +81,7 @@ impl StepKeyword {
 
 /// Error returned when parsing a [`StepKeyword`] from a string fails.
 ///
-/// Contains the unrecognised keyword text for diagnostic purposes.
+/// Contains the unrecognized keyword text for diagnostic purposes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StepKeywordParseError(pub String);
 

@@ -12,7 +12,7 @@ from check_gpui_mapping_table import (
     USERS_HEADING,
     check_mapping_tables,
     extract_mapping_rows,
-    normalise_table_row,
+    normalize_table_row,
 )
 
 if typ.TYPE_CHECKING:
@@ -68,13 +68,13 @@ def write_repo_docs(
     )
 
 
-class TestNormaliseTableRow:
-    """Tests for :func:`check_gpui_mapping_table.normalise_table_row`."""
+class TestNormalizeTableRow:
+    """Tests for :func:`check_gpui_mapping_table.normalize_table_row`."""
 
     def test_collapses_whitespace_runs(self) -> None:
         """Spacing-only table alignment changes should disappear."""
         row = "> | a |  b   c |"
-        assert normalise_table_row(row) == "> | a | b c |"
+        assert normalize_table_row(row) == "> | a | b c |"
 
 
 class TestExtractMappingRows:

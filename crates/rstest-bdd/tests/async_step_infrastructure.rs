@@ -38,6 +38,6 @@ fn then_ready_future() {
 
 #[scenario(path = "tests/features/async_step.feature")]
 #[test]
-fn sync_step_normalised_to_async() {
+fn sync_step_normalized_to_async() {
     reset_executed();
 }

@@ -194,7 +194,7 @@ alternative for the thread-local interim pattern.
   that implements the two-sided reset protocol: `reset_before_assignment()` in
   the constructor, `reset_after_scenario()` in `Drop`.
 
-This replaces the hand-written 50-line block with an import and a one-line
+This replaces the handwritten 50-line block with an import and a one-line
 scenario parameter.
 
 ### Lifecycle contract

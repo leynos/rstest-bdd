@@ -17,7 +17,7 @@ python3 scripts/check_gpui_mapping_table.py
 Exit codes
 ----------
 0
-    The four mapping-table data rows match after whitespace normalisation.
+    The four mapping-table data rows match after whitespace normalization.
 1
     A table is missing, malformed, or the two table bodies differ.
 """
@@ -77,7 +77,7 @@ class MappingTableError(ValueError):
         return cls(message)
 
 
-def normalise_table_row(row: str) -> str:
+def normalize_table_row(row: str) -> str:
     """
     Collapse insignificant spacing in a Markdown table row.
 
@@ -139,12 +139,12 @@ def find_section_after_heading(markdown: str, heading: str) -> list[str] | None:
 
 
 def _collect_table_rows(section: list[str], start: int) -> list[str]:
-    """Return normalised data rows from *start*, stopping at the first non-row line."""
+    """Return normalized data rows from *start*, stopping at the first non-row line."""
     rows: list[str] = []
     for row in section[start:]:
         if not row.startswith("> |"):
             break
-        rows.append(normalise_table_row(row))
+        rows.append(normalize_table_row(row))
     return rows
 
 
@@ -163,7 +163,7 @@ def _parse_table_at(section: list[str], header_index: int, heading: str) -> list
 
 def extract_mapping_rows(markdown: str, heading: str) -> list[str]:
     """
-    Extract normalised GPUI mapping-table data rows from one document.
+    Extract normalized GPUI mapping-table data rows from one document.
 
     Parameters
     ----------
@@ -175,7 +175,7 @@ def extract_mapping_rows(markdown: str, heading: str) -> list[str]:
     Returns
     -------
     list[str]
-        The four ordered data rows, normalised for whitespace.
+        The four ordered data rows, normalized for whitespace.
 
     Raises
     ------
@@ -210,7 +210,7 @@ def read_mapping_rows(root: Path, relative_path: Path, heading: str) -> list[str
     Returns
     -------
     list[str]
-        Normalised data rows.
+        Normalized data rows.
     """
     path = root / relative_path
     try:

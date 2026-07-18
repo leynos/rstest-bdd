@@ -9,7 +9,7 @@ use super::placeholder::{PlaceholderSpec, parse_placeholder};
 
 /// Token produced by the pattern lexer.
 ///
-/// Patterns are tokenised into a sequence of literal text segments and
+/// Patterns are tokenized into a sequence of literal text segments and
 /// placeholder markers. Stray braces that do not form valid placeholders
 /// are preserved as separate tokens.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -81,7 +81,7 @@ impl<'pattern> LexerContext<'pattern> {
     }
 }
 
-/// Tokenise a step pattern into literals and placeholders.
+/// Tokenize a step pattern into literals and placeholders.
 ///
 /// # Errors
 ///

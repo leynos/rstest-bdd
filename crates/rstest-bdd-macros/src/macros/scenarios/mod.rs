@@ -2,7 +2,7 @@
 //!
 //! The module is split into focused helpers: `macro_args` parses the macro
 //! input, `feature_discovery` walks the filesystem to enumerate `.feature`
-//! files, `path_resolution` canonicalises paths so diagnostics remain stable
+//! files, `path_resolution` canonicalizes paths so diagnostics remain stable
 //! across builds, and `test_generation` creates rstest-backed test functions.
 //! This file stitches those pieces together, applying any compile-time tag
 //! filters and generating the rstest-backed test functions.

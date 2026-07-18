@@ -15,6 +15,7 @@ default-groups = ["python-tools"]
 python-tools = [
     "hypothesis",
     "lading @ git+https://github.com/leynos/lading@d3217a599ea34adad6a6e3845845fff2fe923758",
+    "pathspec==1.1.1",
     "pylint",
     "pytest",
     "ruff",

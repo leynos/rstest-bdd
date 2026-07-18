@@ -1,5 +1,5 @@
-//! Wrapper newtypes used by the trybuild macro fixtures and normaliser helpers.
-//! They centralise UTF-8 conversions so tests can work with camino paths and
+//! Wrapper newtypes used by the trybuild macro fixtures and normalizer helpers.
+//! They centralize UTF-8 conversions so tests can work with camino paths and
 //! expose standard-path views when talking to trybuild.
 use camino::{Utf8Path, Utf8PathBuf};
 use std::env;
@@ -88,7 +88,7 @@ impl AsRef<StdPath> for UiFixtureCase {
     }
 }
 
-borrowed_str_newtype!(NormaliserInput);
+borrowed_str_newtype!(NormalizerInput);
 
 borrowed_str_newtype!(FixturePathLine);
 
@@ -96,22 +96,22 @@ borrowed_str_newtype!(FixtureTestPath);
 
 borrowed_str_newtype!(FixtureStderr);
 
-/// Normalises fixture paths in trybuild error output by stripping directory
+/// Normalizes fixture paths in trybuild error output by stripping directory
 /// prefixes, making assertions platform-independent.
-pub(crate) fn normalise_fixture_paths(input: NormaliserInput<'_>) -> String {
-    let text = normalise_target_dir(input.as_ref());
-    let mut normalised = text
+pub(crate) fn normalize_fixture_paths(input: NormalizerInput<'_>) -> String {
+    let text = normalize_target_dir(input.as_ref());
+    let mut normalized = text
         .lines()
-        .map(|line| normalise_fixture_path_line(FixturePathLine::from(line)))
+        .map(|line| normalize_fixture_path_line(FixturePathLine::from(line)))
         .collect::<Vec<_>>()
         .join("\n");
     if text.ends_with('\n') {
-        normalised.push('\n');
+        normalized.push('\n');
     }
-    normalised
+    normalized
 }
 
-fn normalise_target_dir(text: &str) -> String {
+fn normalize_target_dir(text: &str) -> String {
     env::var_os("CARGO_TARGET_DIR")
         .and_then(|value| value.into_string().ok())
         .map_or_else(
@@ -120,7 +120,7 @@ fn normalise_target_dir(text: &str) -> String {
         )
 }
 
-fn normalise_fixture_path_line(line: FixturePathLine<'_>) -> String {
+fn normalize_fixture_path_line(line: FixturePathLine<'_>) -> String {
     const ARROW: &str = "-->";
     let value = line.as_ref();
     let Some((prefix, remainder)) = value.split_once(ARROW) else {
@@ -148,7 +148,7 @@ fn normalise_fixture_path_line(line: FixturePathLine<'_>) -> String {
 }
 
 /// Strips nightly-only macro backtrace hints from compiler output.
-pub(crate) fn strip_nightly_macro_backtrace_hint(input: NormaliserInput<'_>) -> String {
+pub(crate) fn strip_nightly_macro_backtrace_hint(input: NormalizerInput<'_>) -> String {
     input.as_ref().replace(
         " (in Nightly builds, run with -Z macro-backtrace for more info)",
         "",

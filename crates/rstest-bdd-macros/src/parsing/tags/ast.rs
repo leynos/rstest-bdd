@@ -1,6 +1,6 @@
 //! Abstract syntax tree and evaluation helpers for tag expressions.
 //!
-//! Tag expressions recognise tags (`@tag`), unary `not`, binary `and` and `or`,
+//! Tag expressions recognize tags (`@tag`), unary `not`, binary `and` and `or`,
 //! and parentheses for grouping. The parser accepts nested combinations such as
 //! `@fast and (not @wip or @nightly)` so macro invocations can describe complex
 //! filters.

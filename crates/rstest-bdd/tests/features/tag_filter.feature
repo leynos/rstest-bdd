@@ -12,7 +12,7 @@ Feature: Tagged filters
     When an action occurs
     Then a result is produced
 
-  Scenario Outline: parameterised scenario
+  Scenario Outline: parameterized scenario
     Given a precondition
     When an action occurs
     Then a result is produced

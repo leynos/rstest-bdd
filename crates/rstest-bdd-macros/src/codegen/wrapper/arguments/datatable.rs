@@ -12,7 +12,7 @@
 //! - Diagnostics for cache misses to aid tests and telemetry.
 //!   The `CacheIdents` passed in are the identifiers produced by the emitter
 //!   for the key type and the cache `OnceLock<HashMap<...>>`, so we can
-//!   reference them while generating argument initialisation code.
+//!   reference them while generating argument initialization code.
 
 use super::super::args::{DataTableArg, classify::is_cached_table};
 use super::BoundDataTableArg;

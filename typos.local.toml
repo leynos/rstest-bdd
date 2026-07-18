@@ -1,0 +1,58 @@
+# Repository-specific APIs, external contracts and deliberate fixtures.
+
+schema = 1
+
+[oxford]
+stems = []
+
+[words]
+# Hyphenated prefixes are tokenized independently by Typos.
+accepted = ["mis"]
+
+[words.corrections]
+
+[patterns]
+ignore = [
+  # GitHub Actions and Cargo machine interfaces retain upstream spelling.
+  '(?m)^\s*CARGO_TERM_COLOR: always$',
+  '(?m)^\s*types: \[opened, reopened, synchronize, labeled, ready_for_review\]$',
+  '\bCompilerArtifact\b',
+  '"reason": "compiler-artifact"',
+  # Tokio names and attributes are external Rust APIs.
+  '\bRuntimeFlavor\b',
+  '\bruntime_flavor\b',
+  'flavor = \\"current_thread\\"',
+  'flavor = "current_thread"',
+  'expected current_thread flavor in output',
+  # The language-server lifecycle surface and diagnostics are stable public
+  # contracts whose established spellings cannot be renamed in this rollout.
+  '\b(?:NotInitialised|AlreadyInitialised)\b',
+  '\b(?:handle_initialise|handle_initialised)\b',
+  '\b(?:is_initialised|mark_initialised)\b',
+  '"initialised"',
+  'server (?:not|already) initialised',
+  'unrecognised boolean value',
+  # Formal upstream names and the ExecPlan template retain their titles.
+  'Rust Analyzer',
+  'Artifacts and [Nn]otes',
+  'Center \| Microsoft Learn',
+  # Deliberate mixed-case and translated fixture text is asserted verbatim.
+  '\bnOt\b',
+  '\bTrUe\b',
+  '\{color\}',
+  '\bcaf\b',
+  "n'aurait pas dû signaler une étape ignorée",
+  'La fixture « n » de type « u32 » est introuvable pour la fonction « s »',
+  'syntaxe de paramètre invalide',
+  "Erreur lors de l'exécution de l'étape « p » via la fonction « f » : boom",
+  "Panique dans l'étape « p », fonction « f » : boom",
+]
+
+[files]
+exclude = [
+  # Fluent catalogues and localized Gherkin fixtures are foreign-language
+  # machine inputs, not English prose.
+  "crates/rstest-bdd/i18n",
+  "crates/rstest-bdd/tests/features/i18n/addition_de.feature",
+  "crates/rstest-bdd/tests/features/i18n/addition_es.feature",
+]

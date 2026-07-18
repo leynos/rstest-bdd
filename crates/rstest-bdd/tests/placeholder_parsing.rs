@@ -82,7 +82,7 @@ fn extract_placeholders_returns_error_for_invalid_pattern() {
 }
 
 #[test]
-fn type_hint_uses_specialised_fragment() {
+fn type_hint_uses_specialized_fragment() {
     // u32: positive integer
     let pat = compiled("value {n:u32}");
     let text = StepText::from("value 42");

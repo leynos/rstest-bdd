@@ -1,4 +1,4 @@
-//! Provides cached canonicalisation of feature file paths for `#[scenario]`.
+//! Provides cached canonicalization of feature file paths for `#[scenario]`.
 //! The cache keeps diagnostics stable across builds by keying entries to the
 //! `CARGO_MANIFEST_DIR`-scoped path supplied to the macro and resolving
 //! symlinks through `cap-std` ambient directories. Missing files fall back
@@ -9,19 +9,19 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{LazyLock, RwLock};
 
-/// Cache of canonicalised feature paths to avoid repeated filesystem lookups.
+/// Cache of canonicalized feature paths to avoid repeated filesystem lookups.
 static FEATURE_PATH_CACHE: LazyLock<RwLock<HashMap<PathBuf, String>>> =
     LazyLock::new(|| RwLock::new(HashMap::new()));
 
-/// Normalise path components so equivalent inputs share cache entries.
+/// Normalize path components so equivalent inputs share cache entries.
 ///
 /// Policy:
 /// - Do not alter absolute or prefixed paths; leave absolute resolution to the
-///   filesystem canonicalisation.
+///   filesystem canonicalization.
 /// - Collapse internal `.` segments.
 /// - Collapse `..` only when a prior non-`..` segment exists; otherwise
 ///   preserve leading `..`.
-fn normalise(path: &Path) -> PathBuf {
+fn normalize(path: &Path) -> PathBuf {
     use std::ffi::OsString;
     use std::path::Component;
 
@@ -53,23 +53,23 @@ fn normalise(path: &Path) -> PathBuf {
 
 #[cfg(all(test, windows))]
 mod windows_paths {
-    use super::normalise;
+    use super::normalize;
     use std::path::Path;
 
     #[test]
     fn preserves_drive_relative_parent_segments() {
         let p = Path::new(r"C:foo\..\bar");
-        assert_eq!(normalise(p).to_string_lossy(), r"C:bar");
+        assert_eq!(normalize(p).to_string_lossy(), r"C:bar");
     }
 
     #[test]
     fn does_not_mangle_unc_prefix() {
         let p = Path::new(r"\\server\share\.\dir\..\file");
-        assert_eq!(normalise(p), p);
+        assert_eq!(normalize(p), p);
     }
 }
 
-fn canonicalise_with_cap_std(path: &Path) -> Option<PathBuf> {
+fn canonicalize_with_cap_std(path: &Path) -> Option<PathBuf> {
     let authority = ambient_authority();
     if path.is_absolute() {
         let Some(parent) = path.parent() else {
@@ -90,9 +90,9 @@ fn canonicalise_with_cap_std(path: &Path) -> Option<PathBuf> {
     }
 }
 
-/// Canonicalise the feature path for stable diagnostics.
+/// Canonicalize the feature path for stable diagnostics.
 ///
-/// Resolves symlinks via cap-std directory canonicalisation so diagnostics
+/// Resolves symlinks via cap-std directory canonicalization so diagnostics
 /// and generated code reference a consistent absolute path across builds.
 /// The returned `String` is produced with [`Path::display`], so non-UTF-8
 /// components are lossy.
@@ -109,11 +109,11 @@ pub(super) fn canonical_feature_path(path: &Path) -> String {
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").ok().map(PathBuf::from);
     // Scope cache keys by manifest dir to avoid cross-crate collisions.
     let key = if path.is_absolute() {
-        normalise(path)
+        normalize(path)
     } else if let Some(ref dir) = manifest_dir {
-        dir.join(normalise(path))
+        dir.join(normalize(path))
     } else {
-        normalise(path)
+        normalize(path)
     };
 
     if let Some(cached) = {
@@ -128,7 +128,7 @@ pub(super) fn canonical_feature_path(path: &Path) -> String {
     let canonical = manifest_dir
         .as_ref()
         .map(|d| d.join(path))
-        .and_then(|p| canonicalise_with_cap_std(&p))
+        .and_then(|p| canonicalize_with_cap_std(&p))
         .unwrap_or_else(|| PathBuf::from(path))
         .display()
         .to_string();
@@ -152,7 +152,7 @@ fn clear_feature_path_cache() {
 mod tests {
     //! Unit tests for canonical feature path handling.
 
-    use super::{canonical_feature_path, canonicalise_with_cap_std, clear_feature_path_cache};
+    use super::{canonical_feature_path, canonicalize_with_cap_std, clear_feature_path_cache};
     use rstest::{fixture, rstest};
     use serial_test::serial;
     use std::env;
@@ -229,12 +229,12 @@ mod tests {
         clippy::expect_used,
         reason = "tests require explicit failure messages"
     )]
-    fn canonicalises_with_manifest_dir(_cache_cleared: ()) {
+    fn canonicalizes_with_manifest_dir(_cache_cleared: ()) {
         let manifest = PathBuf::from(
             env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is required for tests"),
         );
         let path = Path::new("Cargo.toml");
-        let expected = canonicalise_with_cap_std(&manifest.join(path))
+        let expected = canonicalize_with_cap_std(&manifest.join(path))
             .expect("canonical path")
             .display()
             .to_string();

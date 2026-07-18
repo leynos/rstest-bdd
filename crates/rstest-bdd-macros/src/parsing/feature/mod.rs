@@ -96,7 +96,7 @@ impl TryFrom<&Step> for ParsedStep {
 
     fn try_from(step: &Step) -> Result<Self, Self::Error> {
         // The Gherkin parser exposes both a textual keyword (e.g. "And") and a
-        // typed variant (Given/When/Then). We prioritise the textual value so
+        // typed variant (Given/When/Then). We prioritize the textual value so
         // that conjunctions are preserved and can be used to improve
         // diagnostics. Trimming avoids surprises from trailing spaces in
         // .feature files.
@@ -152,7 +152,7 @@ pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro2
     let feature_path = std::env::var("CARGO_MANIFEST_DIR")
         .map_or_else(|_| PathBuf::from(path), |dir| PathBuf::from(dir).join(path));
 
-    // Canonicalise for stable cache keys; missing files fall back to the joined path.
+    // Canonicalize for stable cache keys; missing files fall back to the joined path.
     let canonical = std::fs::canonicalize(&feature_path).ok();
     if let Some(feature) = {
         // Recover from a poisoned lock: the cache only holds parsed features,

@@ -67,8 +67,8 @@ impl TryFrom<Vec<Vec<String>>> for StatusEntries {
             let mut cells = row.into_iter();
             let task = cells.next().expect("row.len() == 2 just asserted");
             let done_cell = cells.next().expect("row.len() == 2 just asserted");
-            let normalised = done_cell.trim().to_ascii_lowercase();
-            let done = match normalised.as_str() {
+            let normalized = done_cell.trim().to_ascii_lowercase();
+            let done = match normalized.as_str() {
                 "yes" | "y" | "true" => true,
                 "no" | "n" | "false" => false,
                 _ => {
@@ -110,13 +110,13 @@ fn I_add_the_following_tasks(
 
 #[then]
 fn the_list_displays(todo_list: &TodoList, docstring: String) {
-    // Normalise docstring indentation to prevent false negatives.
+    // Normalize docstring indentation to prevent false negatives.
     let expected = dedent(&docstring);
     assert_eq!(expected, todo_list.display());
 }
 
 fn dedent(input: &str) -> String {
-    // Normalise Windows line endings to LF to keep comparisons stable.
+    // Normalize Windows line endings to LF to keep comparisons stable.
     let s = input.replace("\r\n", "\n");
     if s.trim().is_empty() {
         return String::new();

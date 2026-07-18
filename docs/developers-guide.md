@@ -255,92 +255,27 @@ Link-checker and table-checker tests run with the Python suite in `make test`.
 Issue #537 tracks generating the users-guide reference block from `BASE_URL`
 so the base lives in exactly one place.
 
-## Spelling gate (`typos` and `scripts/generate_typos_config.py`)
+## Spelling policy
 
-`make markdownlint` lints Markdown files and enforces en-GB-oxendict (Oxford)
-spelling. It runs `markdownlint-cli2` over the shared Markdown file list, then
-invokes `make spellcheck`.
+`make spelling` enforces en-GB-oxendict spelling over tracked text with the
+pinned Typos release. `make spellcheck` remains an alias for existing tooling,
+and `make markdownlint` depends on the same gate, so prose checks cannot bypass
+the repository-wide spelling policy.
 
-`make spellcheck` runs [`typos`](https://github.com/crate-ci/typos) over the
-same Markdown file list with `--config typos.toml --force-exclude`.
+The checked-in `typos.toml` is generated from the shared dictionary and the
+repository overlay in `typos.local.toml`. Do not edit generated entries by
+hand. Run `make spelling-config-write` after changing the overlay or after the
+shared dictionary is updated, and use `make spelling-config` to verify that the
+checked-in result is current. The builder keeps its downloaded shared base in
+untracked cache files and refreshes the local copy only when the published
+source is newer.
 
-The `typos` version is pinned via `TYPOS_VERSION` in the Makefile (currently
-`1.48.0`) and invoked through `uv tool run typos@$(TYPOS_VERSION)`, so local
-runs and Continuous Integration (CI) use the same binary. CI inherits the pin
-by calling `make spellcheck` and runs the gate as a step named
-`Spelling (en-GB-oxendict)` on the tool-enabled matrix legs
-(`.github/workflows/ci.yml`).
-
-### Configuration layers (`typos.toml`)
-
-The config lives in the repository-root `typos.toml` and works in two layers:
-
-- **`en-gb` locale** — corrects American spellings (`color` to `colour`,
-  `behavior` to `behaviour`, `analyzed` to `analysed`). The locale alone
-  prefers `-ise` endings over Oxford `-ize`.
-- **`extend-words` table** — restores Oxford spelling by adding identity
-  entries that accept `-ize` inflections the locale would otherwise "correct"
-  to `-ise`, and correction entries that rewrite `-ise` forms to `-ize`.
-  Stems taking `-yse` (`analyse`, `paralyse`) are left to the locale, which
-  already enforces them.
-
-The `extend-ignore-re` patterns in the config exempt whole regions from
-spelling checks:
-
-- Inline code spans and fenced code blocks (APIs and identifiers keep their
-  upstream spelling; for example, `color` inside backticks is ignored).
-- Tool names kept at their upstream spelling outside code spans
-  (`rust-analyzer`, `Rust Analyzer`).
-- The ExecPlan template section heading (`Artifacts and notes`) and inline
-  references to it.
-- A verbatim Microsoft Learn citation title (`Center | Microsoft Learn`).
-
-Quoted APIs keep US spelling per the documentation style guide, so put them
-in backticks rather than adding word-level exceptions.
-
-### Generated file — do not edit by hand
-
-`typos.toml` is a **generated** file. Never edit its entries by hand; change
-`scripts/generate_typos_config.py` and regenerate:
-
-```bash
-uv run scripts/generate_typos_config.py
-```
-
-The generator owns three maintainer-facing lists:
-
-- `STEMS` — word stems that take Oxford `-ize`. When the gate flags a
-  legitimate `-ize` word (or silently accepts its `-ise` variant) because the
-  stem is missing, add the stem here and regenerate. Do not add genuinely
-  `-ise`-only words (`advise`, `revise`, `exercise`, `supervise`).
-- `EXTRA_ACCEPTED_WORDS` — words accepted verbatim; for example the `astroid`
-  library, the `-yse` suffix fragment, the `mis-` prefix fragment, and the
-  `inventario` Spanish Gherkin example from the users' guide.
-- `extend-ignore-re` patterns in the generator's `HEADER` — regions exempt
-  from spelling checks (described above).
-
-### Fixing findings
-
-To fix findings mechanically, rerun the gate with `--write-changes` appended,
-using the same pinned version:
-
-```bash
-env UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools \
-  uv tool run typos@<TYPOS_VERSION> --config typos.toml --force-exclude \
-  --write-changes <files>
-```
-
-Automated rewrites must be reviewed before committing, and must not touch
-code samples, API names, or quoted material.
-
-### Generator tests
-
-The generator has unit and property-based (`hypothesis`) tests in
-`scripts/tests/test_generate_typos_config.py`. The test
-`test_committed_config_matches_generator_output` fails if the committed
-`typos.toml` drifts from the generator output. These tests run under
-`make test` via `uv run pytest scripts/tests`. `hypothesis` is declared in
-the `python-tools` dependency group in `pyproject.toml`.
+Repository exceptions must protect machine interfaces, formal upstream names,
+foreign-language catalogues, or exact serialized fixtures. Use the narrowest
+anchored pattern or path exclusion possible and explain why it is required. Do
+not add broad word-level exceptions for prose. The consumer phrase checker also
+rejects punctuation-sensitive shared corrections that single-token spelling
+scans cannot enforce reliably.
 
 ## Test organization: harness-owned integration tests
 
@@ -771,7 +706,7 @@ Generated tests unwrap harness execution with:
 unwrap_or_else(|err| panic!("harness failed to initialize scenario: {err}"))
 ```
 
-Use the same pattern in hand-written tests instead of bare `.unwrap()`. This
+Use the same pattern in handwritten tests instead of bare `.unwrap()`. This
 keeps the concrete `HarnessError` visible in the panic message when a harness
 cannot initialize its infrastructure.
 

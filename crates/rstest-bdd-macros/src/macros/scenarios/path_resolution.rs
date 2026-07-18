@@ -1,4 +1,4 @@
-//! Canonicalises feature file paths for `scenarios!`, preferring capability-aware
+//! Canonicalizes feature file paths for `scenarios!`, preferring capability-aware
 //! resolution through `cap-std` before falling back to `std::fs` for escape
 //! hatches.
 
@@ -58,7 +58,7 @@ fn try_std_canonicalize_fallback(path: &Path, err: std::io::Error) -> std::io::R
     if err.kind() == std::io::ErrorKind::PermissionDenied
         && err.to_string().contains("outside of the filesystem")
     {
-        // cap-std denies canonicalising absolute symlinks that escape a
+        // cap-std denies canonicalizing absolute symlinks that escape a
         // capability root. Falling back to std ensures we still support such
         // links whilst preferring capability-aware resolution for every other
         // case.

@@ -1,7 +1,7 @@
 //! Diagnostics fixture to expose skip reporting to cargo-bdd.
 //!
 //! When the diagnostics runner (`cargo bdd`) requests a registry dump the
-//! environment variable `RSTEST_BDD_DUMP_STEPS` is present. We synthesise a
+//! environment variable `RSTEST_BDD_DUMP_STEPS` is present. We synthesize a
 //! couple of scenario outcomes in that mode so the CLI can exercise the
 //! reporting pipeline without running a full behaviour suite.
 

@@ -109,7 +109,7 @@ macro_rules! assert_unique_fixture_can_be_overridden_twice {
     clippy::used_underscore_binding,
     reason = "rstest fixture injection requires the parameter"
 )]
-fn insert_value_behavior(_logger: (), #[case] scenario: InsertValueScenario) {
+fn insert_value_behaviour(_logger: (), #[case] scenario: InsertValueScenario) {
     // Storage for fixtures must outlive the context
     let fixture_one: u32 = 1;
     let fixture_two: u32 = 2;
@@ -156,7 +156,7 @@ enum AvailableFixturesScenario {
 #[case::shared_only(AvailableFixturesScenario::SharedOnly, &["fixture_a", "fixture_b"])]
 #[case::shared_and_owned(AvailableFixturesScenario::SharedAndOwned, &["shared", "owned"])]
 #[case::empty(AvailableFixturesScenario::Empty, &[])]
-fn available_fixtures_behavior(
+fn available_fixtures_behaviour(
     #[case] scenario: AvailableFixturesScenario,
     #[case] expected: &[&str],
 ) {

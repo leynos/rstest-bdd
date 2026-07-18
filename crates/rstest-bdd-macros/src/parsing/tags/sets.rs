@@ -1,4 +1,4 @@
-//! Normalises and combines tag sets for consistent filtering.
+//! Normalizes and combines tag sets for consistent filtering.
 //!
 //! The macros merge feature-level and scenario-level tags before evaluating
 //! expressions. These helpers trim whitespace, ensure every tag includes the
@@ -7,7 +7,7 @@
 
 use std::collections::HashSet;
 
-/// Normalise a tag to start with '@'.
+/// Normalize a tag to start with '@'.
 fn normalize_tag(tag: &str) -> String {
     let trimmed = tag.trim();
     if trimmed.starts_with('@') {
@@ -17,7 +17,7 @@ fn normalize_tag(tag: &str) -> String {
     }
 }
 
-/// Normalise all tags in the target vector to start with '@'.
+/// Normalize all tags in the target vector to start with '@'.
 #[expect(clippy::ptr_arg, reason = "Review request fixed the helper signature")]
 fn normalize_existing_tags(target: &mut Vec<String>) {
     for tag in target.iter_mut() {
@@ -41,8 +41,8 @@ fn add_unique_tags(target: &mut Vec<String>, additions: &[String]) {
 /// removing duplicates.
 ///
 /// Both `target` and `additions` may contain tags without a leading `@` or
-/// repeated entries. Normalisation occurs in-place so callers do not need to
-/// pre-sanitise their inputs.
+/// repeated entries. Normalization occurs in-place so callers do not need to
+/// pre-sanitize their inputs.
 pub(crate) fn extend_tag_set(target: &mut Vec<String>, additions: &[String]) {
     normalize_existing_tags(target);
 
@@ -55,7 +55,7 @@ pub(crate) fn extend_tag_set(target: &mut Vec<String>, additions: &[String]) {
 /// Merge two tag sets, preserving insertion order and de-duplicating values.
 ///
 /// The returned collection always uses `@tag` formatting and omits duplicates
-/// even if `base` or `additions` contain un-normalised values.
+/// even if `base` or `additions` contain un-normalized values.
 ///
 /// # Examples
 ///
