@@ -137,7 +137,6 @@ pub fn current_languages() -> Result<Vec<LanguageIdentifier>, LocalizationError>
     })
 }
 
-#[must_use]
 /// Retrieve a localized string without interpolation arguments.
 ///
 /// # Examples
@@ -148,11 +147,11 @@ pub fn current_languages() -> Result<Vec<LanguageIdentifier>, LocalizationError>
 ///     "pattern mismatch"
 /// );
 /// ```
+#[must_use]
 pub fn message(id: &str) -> String {
     with_loader(|loader| loader.get(id))
 }
 
-#[must_use]
 /// Retrieve a localized string with Fluent arguments supplied via a closure.
 ///
 /// # Examples
@@ -163,6 +162,7 @@ pub fn message(id: &str) -> String {
 /// });
 /// assert!(rendered.contains("Example"));
 /// ```
+#[must_use]
 pub fn message_with_args<F>(id: &str, configure: F) -> String
 where
     F: FnOnce(&mut FluentArgs<'static>),

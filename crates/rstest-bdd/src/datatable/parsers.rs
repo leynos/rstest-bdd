@@ -122,7 +122,6 @@ where
         }
     }
 
-    #[must_use]
     /// Return the original, untrimmed string that failed to parse.
     ///
     /// # Examples
@@ -131,6 +130,7 @@ where
     /// let err: TrimmedParseError<_> = trimmed::<u8>(" not a number ").unwrap_err();
     /// assert_eq!(err.original_input(), " not a number ");
     /// ```
+    #[must_use]
     pub fn original_input(&self) -> &str {
         &self.original_input
     }
