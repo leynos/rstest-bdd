@@ -1,5 +1,8 @@
 # rstest-bdd
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](
+https://deepwiki.com/leynos/rstest-bdd)
+
 *Where Rustaceans come for their gourd‑related puns.*
 
 > **TL;DR**: Behaviour‑Driven Development (BDD), idiomatic to Rust. Keep your
