@@ -255,6 +255,73 @@ Link-checker and table-checker tests run with the Python suite in `make test`.
 Issue #537 tracks generating the users-guide reference block from `BASE_URL`
 so the base lives in exactly one place.
 
+## Mutation-testing workflow contract tests
+
+This repository runs scheduled, informational mutation testing through a thin
+caller workflow, [`.github/workflows/mutation-testing.yml`](../.github/workflows/mutation-testing.yml),
+which delegates to the shared reusable workflow
+`leynos/shared-actions/.github/workflows/mutation-cargo.yml`. The heavy lifting
+— running `cargo-mutants`, sharding, and summarizing survivors — lives in
+`shared-actions`; this repository carries only declarative configuration. The
+run is **informational only**: it never gates a pull request. Survivors are
+reported through the job summary and downloadable artefacts so they can be
+triaged into tests, not enforced as a blocking check.
+
+The workflow runs in two modes. A **daily schedule** fires a change-scoped run
+that mutates only the source files touched within the detection window, so
+quiet days are cheap no-ops. A **manual dispatch** (the Actions "Run workflow"
+control) mutates the whole workspace, fanned out across shards; select a
+branch in that control to exercise a feature branch.
+
+The caller passes a small set of configuration inputs, each carrying intent:
+
+- `paths` — the change-detection globs (`crates/`) that decide whether a
+  scheduled run has anything to mutate, bounding the scheduled run to the
+  workspace's mutable source. The root `Cargo.toml` is a virtual manifest with
+  no `src/`, and the vendored `gpui` crates under `vendor/` sit outside the
+  workspace and are deliberately excluded.
+- `exclude-globs` — example applications, test-fixture crates
+  (`cargo-bdd`'s minimal fixture workspace, and the trybuild/macrotest fixture
+  and UI-expectation crates), and test-support modules compiled into `src/`,
+  whose surviving mutants are noise rather than genuine test gaps. UI-test
+  expectation crates must never be mutated.
+- `extra-args` — `--all-features --test-workspace=true`, so feature-gated
+  tests run against mutants and each mutant is tested with the whole
+  workspace's suites, matching the repository's `make test` baseline
+  (`--workspace --all-targets --all-features`). `--test-workspace=true` in
+  particular avoids `cargo-mutants`' per-package default, which would miss
+  coverage that the macro and policy crates receive only through dependent
+  crates' trybuild and integration tests.
+
+The `uses:` reference pins the shared workflow to a full 40-character commit
+SHA rather than a branch or tag, so a force-push upstream cannot silently
+change what runs here. The contract test hard-codes the expected SHA in a
+`PINNED_SHA` constant and asserts the `uses:` line matches it, so bumping the
+pin means editing the workflow's `uses:` line and that constant together in
+the same change.
+
+Because the caller is configuration rather than code, a contract test pins the
+shape it must uphold, failing the pull request when the caller drifts —
+repointing the pin at a branch, widening the token scope, or dropping a
+configuration input — rather than letting the breakage surface only in a
+scheduled run. Run it locally with `make test-workflow-contracts` (which
+invokes `uv run --with 'pytest>=8' --with 'pyyaml>=6' pytest
+tests/workflow_contracts -q`, covering both this contract and the CodeScene
+coverage-caller contract in the same directory). The test module
+`tests/workflow_contracts/mutation_testing_test.py` validates:
+
+- the `uses:` reference targets `mutation-cargo.yml` pinned to the documented
+  full commit SHA;
+- job permissions are exactly least-privilege (`contents: read`,
+  `id-token: write`);
+- the workflow-level default token scope is an empty mapping;
+- `concurrency` serializes runs per ref (`mutation-testing-${{ github.ref
+  }}`) without cancelling one in progress;
+- the triggers keep the daily 03:35 UTC schedule and a plain
+  `workflow_dispatch` with no legacy branch input; and
+- the `with:` block carries exactly the expected `paths`, `exclude-globs`,
+  and `extra-args` shown above.
+
 ## Spelling policy
 
 `make spelling` enforces en-GB-oxendict spelling over tracked text with the
