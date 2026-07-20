@@ -982,9 +982,11 @@ remove the existing `StepContext`, harness, or macro surfaces.
   nightly migration, the accepted subset is enforced in CI, and any deferred
   lints have explicit rationale. Precedent:
   `docs/adr-013-adopt-whitaker-no-unwrap-or-else-panic.md`. Completed
-  2026-07-09: the full suite (installer 0.2.5, rolling suite) is enforced in
-  `make lint` and CI via the `whitaker` wrapper; per-crate
-  `no_std_fs_operations` exclusions with rationale live in `dylint.toml`.
+  2026-07-09: the full suite (installer `0.2.5` as pinned at that date, rolling
+  suite) was wired into `make lint` and CI via the `whitaker` wrapper; per-crate
+  `no_std_fs_operations` exclusions with rationale live in `dylint.toml`. CI has
+  since bumped the pin; the current `WHITAKER_INSTALLER_VERSION` is recorded in
+  the follow-up below and in ADR-013.
   Follow-up 2026-07-20: reconciled the Whitaker integration documentation with
   the current published suite after leynos/whitaker#238 advanced the bundled
   toolchain to `nightly-2026-05-28` and Dylint `6.0.1` (`dylint_linting = 6`).
