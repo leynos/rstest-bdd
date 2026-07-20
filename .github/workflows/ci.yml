@@ -74,7 +74,7 @@ jobs:
           df -h /
 
       - name: Setup Rust
-        uses: leynos/shared-actions/.github/actions/setup-rust@927edd45ae77be4251a8a18ca9eb5613a2e32cbd
+        uses: leynos/shared-actions/.github/actions/setup-rust@18bed1ca49a6de3d8882bd72635a32ae3f023d57
 
       - name: Install bun
         if: ${{ matrix.tools }}
@@ -173,7 +173,7 @@ jobs:
 
       - name: Test and Measure Coverage (with features)
         if: ${{ matrix.coverage && matrix.features != '' }}
-        uses: leynos/shared-actions/.github/actions/generate-coverage@927edd45ae77be4251a8a18ca9eb5613a2e32cbd
+        uses: leynos/shared-actions/.github/actions/generate-coverage@18bed1ca49a6de3d8882bd72635a32ae3f023d57
         continue-on-error: true
         env:
           # Windows coverage runs (build plus doctests) exceed the shared
@@ -192,7 +192,7 @@ jobs:
 
       - name: Test and Measure Coverage (no features)
         if: ${{ matrix.coverage && matrix.features == '' }}
-        uses: leynos/shared-actions/.github/actions/generate-coverage@927edd45ae77be4251a8a18ca9eb5613a2e32cbd
+        uses: leynos/shared-actions/.github/actions/generate-coverage@18bed1ca49a6de3d8882bd72635a32ae3f023d57
         # The CodeScene leg (the default-features Linux leg) gates on the
         # ratchet, so a coverage failure must fail the build there; other
         # legs stay best-effort as before. Selected by matrix values rather
@@ -233,7 +233,7 @@ jobs:
           matrix.features == '' &&
           github.event_name == 'pull_request' &&
           env.CS_ACCESS_TOKEN != ''
-        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@927edd45ae77be4251a8a18ca9eb5613a2e32cbd
+        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@18bed1ca49a6de3d8882bd72635a32ae3f023d57
         with:
           format: cobertura
           mode: check

@@ -28,7 +28,7 @@ jobs:
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v5
 
       - name: Setup Rust
-        uses: leynos/shared-actions/.github/actions/setup-rust@927edd45ae77be4251a8a18ca9eb5613a2e32cbd
+        uses: leynos/shared-actions/.github/actions/setup-rust@18bed1ca49a6de3d8882bd72635a32ae3f023d57
 
       - name: Install bun
         uses: oven-sh/setup-bun@ecf28ddc73e819eb6fa29df6b34ef8921c743461  # v2
@@ -43,7 +43,7 @@ jobs:
       # Mirrors the "no features" coverage leg in ci.yml (the broadest
       # default-features suite), so the uploaded report matches the PR gate.
       - name: Test and Measure Coverage
-        uses: leynos/shared-actions/.github/actions/generate-coverage@927edd45ae77be4251a8a18ca9eb5613a2e32cbd
+        uses: leynos/shared-actions/.github/actions/generate-coverage@18bed1ca49a6de3d8882bd72635a32ae3f023d57
         env:
           # Match the per-invocation coverage timeout used in ci.yml.
           RUN_RUST_CARGO_WAIT_TIMEOUT: '1800'
@@ -67,7 +67,7 @@ jobs:
 
       - name: Upload coverage data to CodeScene
         if: ${{ env.CS_ACCESS_TOKEN != '' }}
-        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@927edd45ae77be4251a8a18ca9eb5613a2e32cbd
+        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@18bed1ca49a6de3d8882bd72635a32ae3f023d57
         with:
           format: cobertura
           access-token: ${{ env.CS_ACCESS_TOKEN }}
