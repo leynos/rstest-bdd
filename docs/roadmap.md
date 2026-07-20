@@ -985,6 +985,16 @@ remove the existing `StepContext`, harness, or macro surfaces.
   2026-07-09: the full suite (installer 0.2.5, rolling suite) is enforced in
   `make lint` and CI via the `whitaker` wrapper; per-crate
   `no_std_fs_operations` exclusions with rationale live in `dylint.toml`.
+  Follow-up 2026-07-20: reconciled the Whitaker integration documentation with
+  the current published suite after leynos/whitaker#238 advanced the bundled
+  toolchain to `nightly-2026-05-28` and Dylint `6.0.1` (`dylint_linting = 6`).
+  Amended `docs/adr-013-adopt-whitaker-no-unwrap-or-else-panic.md` with a
+  validated current compatibility contract, labelled the obsolete
+  `nightly-2025-09-18` / Dylint 5 mechanism in ADR-013 and
+  `docs/execplans/10-2-5-playbook-variant-compiles-under-pedantic-lint-profile.md`
+  as historical, and confirmed the repository consumes the
+  `whitaker-installer` flow (CI pins `WHITAKER_INSTALLER_VERSION` at `0.2.6`)
+  rather than building a pinned Whitaker tag. See leynos/rstest-bdd#597.
 
 ### 11.3. Close the feature-file rebuild gap
 
