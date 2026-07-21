@@ -44,9 +44,16 @@ and can avoid `clippy::shadow_reuse` by choosing a fresh binding name.
 
 ## Decision drivers
 
+These drivers applied to the original 2026-06-21 decision. The full-suite
+scoping driver has since been overtaken by events (see
+[Update (2026-07-20)](#update-2026-07-20-current-compatibility-contract)); the
+remainder still hold.
+
 - Enforce the real lint rather than a textual proxy.
 - Keep the repository's normal build, test, and Clippy toolchain on stable.
 - Avoid enabling the full Whitaker suite as part of a narrow roadmap item.
+  (Historical: the full suite was subsequently adopted on 2026-07-09 under
+  roadmap item 11.2.5.)
 - Keep the GPUI playbook and executable regression suite aligned.
 - Make contributor and Continuous Integration (CI) setup explicit.
 
@@ -105,9 +112,16 @@ repeatable local and CI mechanism.
 Enable the whole Whitaker suite, including lints such as `module_max_lines`,
 `no_expect_outside_tests`, and `bumpy_road_function`.
 
-Deferred. Full-suite adoption is materially larger than roadmap item 10.2.5
-and is tracked as a v0.6.1 hardening item. This decision intentionally adopts
-only `no_unwrap_or_else_panic`.
+Deferred at the time of this decision (2026-06-21). Full-suite adoption was
+materially larger than roadmap item 10.2.5 and was tracked as a v0.6.1
+hardening item, so this decision intentionally adopted only
+`no_unwrap_or_else_panic`.
+
+> **Superseded (2026-07-09).** The deferral no longer applies: the full
+> Whitaker suite was adopted under roadmap item 11.2.5 and is now the current
+> gate. Contributors should follow the
+> [Update (2026-07-20): current compatibility contract](#update-2026-07-20-current-compatibility-contract),
+> not this out-of-scope framing.
 
 ## Consequences
 
