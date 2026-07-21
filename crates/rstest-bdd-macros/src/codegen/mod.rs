@@ -169,9 +169,11 @@ fn found_crate_path(found: FoundCrate, spec: &CrateSpec) -> TokenStream2 {
 }
 
 #[cfg(test)]
-fn handle_missing_crate(spec: &CrateSpec, err: &proc_macro_crate::Error) -> TokenStream2 {
-    let crate_name = spec.package_name;
-    panic!("{crate_name} crate not found: {err}");
+fn handle_missing_crate(spec: &CrateSpec, _: &proc_macro_crate::Error) -> TokenStream2 {
+    // Tests compile the macros crate in isolation without dependency crates, so
+    // fall back to the default package name.
+    let ident = Ident::new(spec.default_crate_name, Span::call_site());
+    quote! { ::#ident }
 }
 
 #[cfg(not(test))]
