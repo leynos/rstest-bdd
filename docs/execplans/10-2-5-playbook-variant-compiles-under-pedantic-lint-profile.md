@@ -6,6 +6,21 @@ and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 Status: COMPLETE
 
+> **Historical record — mechanism superseded (2026-07-20).** This ExecPlan
+> documents the delivery of roadmap item 10.2.5 as it happened, so it describes
+> the original single-lint mechanism: Whitaker tag `v0.2.5` built locally
+> against `nightly-2025-09-18` with Dylint `5.0.0` / `dylint_linting = 5`, via
+> a `target/whitaker` build-and-copy step and `cargo dylint`. That mechanism
+> has since been replaced. The repository now consumes the **full** published
+> Whitaker suite through `whitaker-installer` (pinned in CI by
+> `WHITAKER_INSTALLER_VERSION`), whose bundled toolchain is
+> `nightly-2026-05-28` with Dylint `6.0.1` (`dylint_linting = 6`). The
+> toolchain versions, tag pins, and build-and-copy commands recorded below are
+> retained for the historical record only and no longer describe how the gate
+> runs. For the current compatibility contract see
+> [ADR-013 → Update (2026-07-20)](../adr-013-adopt-whitaker-no-unwrap-or-else-panic.md#update-2026-07-20-current-compatibility-contract)
+> and `docs/developers-guide.md` ("Whitaker Dylint suite lint gate (ADR-013)").
+
 ## Purpose / big picture
 
 Roadmap item 10.2.5 asks for a playbook variant that "compiles under a pedantic
