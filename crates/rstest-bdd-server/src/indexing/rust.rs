@@ -29,9 +29,7 @@ use super::{
 mod params;
 mod type_render;
 
-use params::{
-    param_name, parameter_is_datatable, parameter_is_docstring, parameter_is_step_struct,
-};
+use params::parse_function_parameters;
 
 /// Parse and index a Rust source file from disk.
 ///
