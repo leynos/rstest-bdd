@@ -6,16 +6,15 @@
 
 - Redesigned `StepContext` borrowing to be guard-based (ADR-012): borrow
   methods take `&self`, so one step can hold mutable guards for distinct
-  fixtures concurrently — including mutable harness context plus mutable
-  world state — without `E0499`/`E0502`. New `try_borrow` and
-  `try_borrow_mut` methods return a typed `FixtureBorrowError` (`NotFound`,
-  `TypeMismatch`, `AlreadyBorrowed`, `NotMutable`) instead of panicking on
-  conflicting borrows; the `Option`-based borrow methods remain as
-  conveniences. `FixtureRef`/`FixtureRefMut` are now opaque structs with
-  `Deref`/`DerefMut` (their enum variants are no longer public), and
-  `StepContext::get` serves shared fixtures only — read step-returned
-  overrides through `try_borrow`/`borrow_ref`. The v0.6 thread-local GPUI
-  workaround is superseded.
+  fixtures concurrently — including mutable harness context plus mutable world
+  state — without `E0499`/`E0502`. New `try_borrow` and `try_borrow_mut`
+  methods return a typed `FixtureBorrowError` (`NotFound`, `TypeMismatch`,
+  `AlreadyBorrowed`, `NotMutable`) instead of panicking on conflicting borrows;
+  the `Option`-based borrow methods remain as conveniences. `FixtureRef`/
+  `FixtureRefMut` are now opaque structs with `Deref`/`DerefMut` (their enum
+  variants are no longer public), and `StepContext::get` serves shared fixtures
+  only — read step-returned overrides through `try_borrow`/`borrow_ref`. The
+  v0.6 thread-local GPUI workaround is superseded.
 - Added `ExecutionError` enum for structured step execution failures, replacing
   string-encoded skip messages with proper error variants: `Skip`,
   `StepNotFound`, `MissingFixtures`, and `HandlerFailed`. Both `ExecutionError`

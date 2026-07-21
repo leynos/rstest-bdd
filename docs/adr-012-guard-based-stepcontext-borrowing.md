@@ -13,17 +13,17 @@ types opaque.
 ## Context and problem statement
 
 `StepContext::borrow_mut` took `&mut self` and returned a guard tied to that
-exclusive borrow. Generated step wrappers therefore could not hold two
-mutable fixture guards at once: a step requesting both
+exclusive borrow. Generated step wrappers therefore could not hold two mutable
+fixture guards at once: a step requesting both
 `#[from(rstest_bdd_harness_context)] cx: &mut gpui::TestAppContext` and
-`world: &mut UiWorld` failed with `E0499`/`E0502`, even though the fixtures
-are distinct entries behind separate `RefCell`s
-([design document][design-2761] §2.7.6.1).
+`world: &mut UiWorld` failed with `E0499`/`E0502`, even though the fixtures are
+distinct entries behind separate `RefCell`s ([design document][design-2761]
+§2.7.6.1).
 
-Downstream GPUI adoption worked around this with thread-local domain state
-plus `RefCell`, relying on caller-enforced reset-at-scenario-boundary
-discipline — a framework constraint leaking into domain modelling. The v0.7.0
-roadmap (items 12.1.1–12.1.3) committed to retiring that workaround.
+Downstream GPUI adoption worked around this with thread-local domain state plus
+`RefCell`, relying on caller-enforced reset-at-scenario-boundary discipline — a
+framework constraint leaking into domain modelling. The v0.7.0 roadmap (items
+12.1.1–12.1.3) committed to retiring that workaround.
 
 Two secondary problems shared the same surface:
 
@@ -55,20 +55,20 @@ constraint would simply resurface inside the generated closure.
 
 ### Option B: `&self`-receiver guard-based borrowing (selected)
 
-Borrow methods take `&self`; aliasing is enforced per fixture by the
-underlying `RefCell`, surfaced as guards. Step-returned override values move
-behind `RefCell` so the mutable override path no longer needs `&mut self`.
-New `try_borrow`/`try_borrow_mut` methods return
-`Result<_, FixtureBorrowError>`; the existing `borrow_ref`/`borrow_mut`
-remain as `Option`-returning conveniences delegating to them. Guards become
-opaque structs with `Deref`/`DerefMut` plus the existing accessor methods.
+Borrow methods take `&self`; aliasing is enforced per fixture by the underlying
+`RefCell`, surfaced as guards. Step-returned override values move behind
+`RefCell` so the mutable override path no longer needs `&mut self`. New
+`try_borrow`/`try_borrow_mut` methods return `Result<_, FixtureBorrowError>`;
+the existing `borrow_ref`/`borrow_mut` remain as `Option`-returning
+conveniences delegating to them. Guards become opaque structs with `Deref`/
+`DerefMut` plus the existing accessor methods.
 
-Pros: distinct-fixture concurrent mutable borrows work; same-fixture
-conflicts become typed errors; generated code is source-compatible (it calls
+Pros: distinct-fixture concurrent mutable borrows work; same-fixture conflicts
+become typed errors; generated code is source-compatible (it calls
 `borrow_mut(...)` on an owned context, and `&self` accepts that call). Cons:
 `get` can no longer serve step-returned overrides (they now live behind
-`RefCell`, so handing out a plain `&T` is unsound); override reads must use
-the guard API.
+`RefCell`, so handing out a plain `&T` is unsound); override reads must use the
+guard API.
 
 ### Option C: lock-free per-fixture cells with raw pointers
 
@@ -84,14 +84,14 @@ Adopt Option B.
   `Result<FixtureRefMut<T>, FixtureBorrowError>` with variants `NotFound`,
   `TypeMismatch`, `AlreadyBorrowed`, and `NotMutable`.
 - `borrow_ref` / `borrow_mut` / the harness-context wrappers keep their
-  `Option` signatures as conveniences over the `try_*` methods; `borrow_mut`
-  no longer panics on conflicting borrows.
+  `Option` signatures as conveniences over the `try_*` methods; `borrow_mut` no
+  longer panics on conflicting borrows.
 - `FixtureRef` / `FixtureRefMut` are opaque structs (internals private) with
-  `Deref`/`DerefMut`, `AsRef`/`AsMut`, `Debug`, and the existing
-  `value`/`value_mut` accessors.
+  `Deref`/`DerefMut`, `AsRef`/`AsMut`, `Debug`, and the existing `value`/
+  `value_mut` accessors.
 - Step-returned override values are stored as `RefCell<Box<dyn Any>>`;
-  `StepContext::get` serves shared fixtures only, and override reads go
-  through the guard API.
+  `StepContext::get` serves shared fixtures only, and override reads go through
+  the guard API.
 
 ## World lifecycle contract
 
@@ -100,8 +100,8 @@ The framework — not caller discipline — guarantees scenario-boundary reset:
 - The generated test constructs a fresh `StepContext` and fresh fixture
   values per scenario run; nothing is shared across scenarios.
 - Owned fixture cells live in the generated test function body and are
-  dropped when the scenario finishes — on success, on failure (unwinding),
-  and on skip. The cleanup-probe behavioural suite pins drop-on-success and
+  dropped when the scenario finishes — on success, on failure (unwinding), and
+  on skip. The cleanup-probe behavioural suite pins drop-on-success and
   drop-on-failure; the skip path drops through the same scope exit.
 - The v0.6.x thread-local + manual-reset pattern is superseded; migration
   guidance lives in the users' guide.

@@ -38,11 +38,12 @@ After this work:
   required gates pass.
 
 Success is observable when the new GPUI policy-resolution tests fail before the
-implementation, pass afterwards, and the repository gates pass: `make check-fmt`,
-`make lint`, and `make test`. Because `make test` uses `cargo-nextest` when
-available and therefore skips the `trybuild` compile-test suite, this milestone
-also requires an explicit `cargo test -p rstest-bdd --test trybuild_macros` run
-as part of focused validation.
+implementation, pass afterwards, and the repository gates pass:
+`make check-fmt`, `make lint`, and `make test`. Because `make test` uses
+`cargo-nextest` when available and therefore skips the `trybuild` compile-test
+suite, this milestone also requires an explicit
+`cargo test -p rstest-bdd --test trybuild_macros` run as part of focused
+validation.
 
 ## Constraints
 

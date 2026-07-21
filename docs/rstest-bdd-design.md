@@ -1975,12 +1975,12 @@ interaction.
 > documented in the mapping table below; adapt snippets accordingly when
 > consuming the published crate.
 >
-> | Operation | Vendored gpui (regression suite + these snippets) | Published `gpui 0.2.2` (downstream adopters) |
+> | Operation | Vendored gpui | Published `gpui 0.2.2` |
 > | --- | --- | --- |
-> | `add_window_view` closure | `\|_context\| View::default()` (one argument) | `\|_window, view_cx\| View::new(view_cx)` (two arguments) |
-> | obtain window handle | `visual_cx.window_handle()` (inherent method on `VisualTestContext`) | `vcx.window_handle()` (same call, but `window_handle` is a `VisualContext` trait method, so add `use gpui::VisualContext;`) |
-> | `VisualTestContext::from_window` | returns `Option<VisualTestContext>` (`let … else { panic!(…) }`) | returns `VisualTestContext` by value (no `Option`) |
-> | `read_entity` / `update_entity` | `Option`/`Result` wrappers (`Some(1)`, `Ok(())`) | identity `type Result<T> = T`; returns `R` directly |
+> | closure arity | one argument | two arguments |
+> | window handle | inherent method | `VisualContext` trait method |
+> | `from_window` | `Option<VisualTestContext>` | `VisualTestContext` |
+> | read/update | `Option`/`Result` wrappers | direct `R` |
 >
 > *Table: Vendored-to-published gpui 0.2.2 API shape differences.*
 >
@@ -2059,8 +2059,8 @@ reset-before-assignment protocol beside the reset helper.
 
 For teams migrating a large suite, the recommended bulk-migration shape is to
 place the whole durable-handle *step library* — the `#[given]`/`#[when]`/
-`#[then]` steps together with the state scaffolding and cleanup fixture — in one
-shared module per consuming crate, included by each `#[scenario]` binding
+`#[then]` steps together with the state scaffolding and cleanup fixture — in
+one shared module per consuming crate, included by each `#[scenario]` binding
 through a `#[path]` module. Because steps register per binary through
 `inventory`, one shared module serves many scenarios across many feature files
 with no per-scenario copy; the binding files carry no step definitions of their
@@ -2111,51 +2111,52 @@ The release strategy is therefore split by compatibility risk:
   common integration imports, a typed borrow-error enum, a scenario-local state
   helper with reset semantics, and generated-wrapper coverage for mutable
   harness context plus scenario state. The placement of the first-party
-  scenario-state helper (`ScenarioStore<T>` in `rstest-bdd`, `GpuiScenarioStore`
-  in `rstest-bdd-harness-gpui`) and the cleanup-guard fixture macro is governed
-  by [ADR-011](adr-011-first-party-scenario-state-and-cleanup.md).
+  scenario-state helper (`ScenarioStore<T>` in `rstest-bdd`,
+  `GpuiScenarioStore` in `rstest-bdd-harness-gpui`) and the cleanup-guard
+  fixture macro is governed by
+  [ADR-011](adr-011-first-party-scenario-state-and-cleanup.md).
 
 ##### 2.7.6.5 v0.7.0 pre-1.0.0 redesign
 
 - **v0.7.0 / pre-1.0.0:** reserve breaking cleanups for a migration guide. The
-  main target — a `StepContext` redesign where fixture borrowing is
-  guard-based and can borrow distinct mutable fixtures concurrently — is now
-  implemented per [ADR-012](adr-012-guard-based-stepcontext-borrowing.md):
-  borrow methods take `&self`, `try_borrow`/`try_borrow_mut` return a typed
-  `FixtureBorrowError`, the guard types are opaque, and the scenario-boundary
-  reset that the section 2.7.6.2 thread-local pattern simulated is guaranteed
-  by the framework. This supersedes the v0.6 thread-local interim pattern and
-  the v0.6.1 `ScenarioStore<T>` helper, providing a migration path for both.
-  The remaining candidates are typed harness-context extractors that hide the
-  reserved fixture key, configurable harness construction without a `Default`
-  requirement, a declarative
-  attribute-policy extension model, first-class world lifecycle hooks, and a
-  unified generated-test model for scenarios and outline rows.
+  main target — a `StepContext` redesign where fixture borrowing is guard-based
+  and can borrow distinct mutable fixtures concurrently — is now implemented per
+  [ADR-012](adr-012-guard-based-stepcontext-borrowing.md): borrow methods take
+  `&self`, `try_borrow`/`try_borrow_mut` return a typed `FixtureBorrowError`,
+  the guard types are opaque, and the scenario-boundary reset that the section
+  2.7.6.2 thread-local pattern simulated is guaranteed by the framework. This
+  supersedes the v0.6 thread-local interim pattern and the v0.6.1
+  `ScenarioStore<T>` helper, providing a migration path for both. The remaining
+  candidates are typed harness-context extractors that hide the reserved
+  fixture key, configurable harness construction without a `Default`
+  requirement, a declarative attribute-policy extension model, first-class
+  world lifecycle hooks, and a unified generated-test model for scenarios and
+  outline rows.
 
 ##### 2.7.6.6 Feature-file rebuild invalidation
 
 `#[scenario(path = "...")]` and `scenarios!` read `.feature` files via
-`std::fs` at macro-expansion time. Cargo does not track these reads; only
-files referenced through `include_str!`, `include_bytes!`, `include!`, or
-build-script `cargo::rerun-if-changed` directives appear in the dep-info
-file that Cargo consults to decide whether to re-run the compiler.
+`std::fs` at macro-expansion time. Cargo does not track these reads; only files
+referenced through `include_str!`, `include_bytes!`, `include!`, or build-script
+`cargo::rerun-if-changed` directives appear in the dep-info file that Cargo
+consults to decide whether to re-run the compiler.
 
-The consequence is a silent foot-gun: editing only a `.feature` file does
-not trigger a rebuild, so a corrupted expectation can appear to pass from
-the stale build cache until an unrelated `.rs` file changes and forces
-recompilation. This is especially hazardous in a *testing* framework, where
-the correctness of test expectations is the whole point.
+The consequence is a silent foot-gun: editing only a `.feature` file does not
+trigger a rebuild, so a corrupted expectation can appear to pass from the stale
+build cache until an unrelated `.rs` file changes and forces recompilation.
+This is especially hazardous in a *testing* framework, where the correctness of
+test expectations is the whole point.
 
 Two mechanisms close the gap (evaluated in detail by
 [ADR-010](adr-010-feature-file-change-detection.md)):
 
 1. **Macro-emitted `include_str!` (preferred for `#[scenario]`).** The
    macro emits an `include_str!` expression discarded into a hidden item, so
-   rustc registers the feature file in dep-info automatically. The path must
-   be resolved *relative to the invoking source file* from the call-site
-   `Span`; embedding an absolute `CARGO_MANIFEST_DIR`-rooted path is
-   **rejected** because it breaks reproducible builds (Nix sandboxes,
-   `sccache`, Windows/POSIX path divergence).
+   rustc registers the feature file in dep-info automatically. The path must be
+   resolved *relative to the invoking source file* from the call-site `Span`;
+   embedding an absolute `CARGO_MANIFEST_DIR`-rooted path is **rejected**
+   because it breaks reproducible builds (Nix sandboxes, `sccache`,
+   Windows/POSIX path divergence).
 2. **Build-script helper (preferred for `scenarios!` directory-glob
    binding).** A helper emits `cargo::rerun-if-changed` for the features
    directory and for each discovered `.feature` file (the
@@ -2163,30 +2164,30 @@ Two mechanisms close the gap (evaluated in detail by
    embedding any file content or absolute path into the artefact and handles
    the case where the file set is not known at macro-expansion time.
 
-The unstable `proc_macro::tracked_path` API is the right long-term answer
-and is usable behind a `nightly` feature gate pending stabilization.
+The unstable `proc_macro::tracked_path` API is the right long-term answer and
+is usable behind a `nightly` feature gate pending stabilization.
 
-OUT_DIR AST caching (noted in `§3.2.2` below) is a *performance*
-optimization, not an invalidation mechanism; it does not close this gap.
+OUT_DIR AST caching (noted in `§3.2.2` below) is a *performance* optimization,
+not an invalidation mechanism; it does not close this gap.
 
 Until roadmap item 11.3.1 lands, a caveat in the adoption guide notes that
 `.feature`-only edits do not trigger a rebuild, and users should `touch` an
-affected `.rs` file or `cargo clean` when an updated expectation is not
-picked up.
+affected `.rs` file or `cargo clean` when an updated expectation is not picked
+up.
 
 ##### 2.7.6.7 Test-runner parallelism and scenario state
 
 Stateful GPUI scenarios carry `#[serial]` from the
 [`serial_test`](https://docs.rs/serial_test/) crate to prevent concurrent
-execution from corrupting thread-local state. The effect of `#[serial]`
-differs significantly between the two common test runners:
+execution from corrupting thread-local state. The effect of `#[serial]` differs
+significantly between the two common test runners:
 
-**Under `cargo test`** (the default): all integration tests in a binary run
-in a single process using multiple threads. `#[serial]` serializes tests
-that carry the same `name` argument (or all `#[serial]` tests when no name
-is given) using an in-process mutex, ensuring that only one scenario runs at
-a time and the thread-local reset protocol is respected. `#[serial]` is
-**required** for stateful GPUI scenarios under `cargo test`.
+**Under `cargo test`** (the default): all integration tests in a binary run in
+a single process using multiple threads. `#[serial]` serializes tests that
+carry the same `name` argument (or all `#[serial]` tests when no name is given)
+using an in-process mutex, ensuring that only one scenario runs at a time and
+the thread-local reset protocol is respected. `#[serial]` is **required** for
+stateful GPUI scenarios under `cargo test`.
 
 **Under cargo-nextest** (`cargo nextest run`, which `make test` uses): each
 test is run in its own process. Every `#[serial]` test therefore runs in
@@ -2194,18 +2195,17 @@ isolation by default; the in-process mutex serializes nothing across the
 process boundary. `#[serial]` is **redundant-but-harmless** under nextest
 because process-per-test already isolates per-process thread-local state.
 
-**Cross-binary and cross-process serialization:** if two scenario binaries
-must not run concurrently (for example, both share a locked hardware
-resource or a single-process GPUI session), `#[serial]` is insufficient
-under both runners. Use `#[file_serial]` (a file-lock-backed variant in
-`serial_test`) or configure a
-[nextest test-group](https://nexte.st/docs/configuration/test-groups/)
-with `max-threads = 1`.
+**Cross-binary and cross-process serialization:** if two scenario binaries must
+not run concurrently (for example, both share a locked hardware resource or a
+single-process GPUI session), `#[serial]` is insufficient under both runners.
+Use `#[file_serial]` (a file-lock-backed variant in `serial_test`) or configure
+a [nextest test-group](https://nexte.st/docs/configuration/test-groups/) with
+`max-threads = 1`.
 
-| Runner | `#[serial]` effect | Cross-process exclusivity |
-| --- | --- | --- |
-| `cargo test` | In-process mutex; required | Not provided by `#[serial]` |
-| nextest (process-per-test) | Redundant-but-harmless | `#[file_serial]` or test-group |
+| Runner                     | `#[serial]` effect         | Cross-process exclusivity      |
+| -------------------------- | -------------------------- | ------------------------------ |
+| `cargo test`               | In-process mutex; required | Not provided by `#[serial]`    |
+| nextest (process-per-test) | Redundant-but-harmless     | `#[file_serial]` or test-group |
 
 *Table: `#[serial]` behaviour by test runner.*
 
@@ -2213,8 +2213,8 @@ The `make test` target in this repository uses nextest. Adopters whose
 consuming crates also use nextest will find `#[serial]` is still a safe
 annotation but provides no within-binary serialization benefit. The
 recommendation is to keep `#[serial]` annotations so that `cargo test`
-continues to work correctly, and to rely on nextest's process isolation for
-the default safe-execution guarantee.
+continues to work correctly, and to rely on nextest's process isolation for the
+default safe-execution guarantee.
 
 Use a nextest test-group when nextest-managed tests must not overlap across
 processes or binaries. Test-groups are available in cargo-nextest 0.9.48 and
@@ -2240,11 +2240,11 @@ serial_test = { version = "...", features = ["file_locks"] }
 ```
 
 The `file_locks` feature is the load-bearing part of the manifest fragment;
-choose the major version already used by the consuming workspace. The file
-lock defaults to a file under the operating system's temporary directory, and
-can be customized with `path` and key arguments. `#[file_serial]` does not
-mutually exclude tests annotated with `#[serial]`, because the two attributes
-lock using different mechanisms.
+choose the major version already used by the consuming workspace. The file lock
+defaults to a file under the operating system's temporary directory, and can be
+customized with `path` and key arguments. `#[file_serial]` does not mutually
+exclude tests annotated with `#[serial]`, because the two attributes lock using
+different mechanisms.
 
 ## Part 3: Implementation and strategic analysis
 
@@ -2455,14 +2455,14 @@ macro.
 
 - **Compile-Time Overhead:** The `#[scenario]` macro performs file reads and
   parsing during compilation. For projects with many feature files, this could
-  introduce a noticeable overhead to compile times. **Mitigation (performance):**
-  This can be significantly optimized by caching the parsed Gherkin ASTs in
-  `OUT_DIR`. The macro would only re-parse a `.feature` file if its
-  modification time has changed, similar to how tools like `prost-build` handle
-  `.proto` files. **Note:** OUT_DIR caching is a *performance* optimization and
-  is orthogonal to *rebuild invalidation* (making Cargo aware that a
-  `.feature`-only edit requires recompilation). The invalidation problem is
-  separate and addressed by `§2.7.6.6` and
+  introduce a noticeable overhead to compile times. **Mitigation
+  (performance):** This can be significantly optimized by caching the parsed
+  Gherkin ASTs in `OUT_DIR`. The macro would only re-parse a `.feature` file if
+  its modification time has changed, similar to how tools like `prost-build`
+  handle `.proto` files. **Note:** OUT_DIR caching is a *performance*
+  optimization and is orthogonal to *rebuild invalidation* (making Cargo aware
+  that a `.feature`-only edit requires recompilation). The invalidation problem
+  is separate and addressed by `§2.7.6.6` and
   [ADR-010](adr-010-feature-file-change-detection.md). Confusing the two leads
   to a plausible-sounding but ineffective mitigation: a cache that checks
   `mtime` still does not tell Cargo to re-run the compiler.

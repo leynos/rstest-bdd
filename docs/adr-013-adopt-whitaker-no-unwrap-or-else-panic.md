@@ -67,9 +67,9 @@ remainder still hold.
 Enforce only Whitaker `no_unwrap_or_else_panic` workspace-wide from
 `make lint`, pinned to Whitaker tag `v0.2.5`.
 
-The Makefile builds the single Whitaker lint crate with Dylint's driver
-feature under `nightly-2025-09-18`, copies the resulting dynamic library to
-Dylint's expected suffixed filename under `target/whitaker`, and runs:
+The Makefile builds the single Whitaker lint crate with Dylint's driver feature
+under `nightly-2025-09-18`, copies the resulting dynamic library to Dylint's
+expected suffixed filename under `target/whitaker`, and runs:
 
 ```bash
 cargo dylint --keep-going --lib no_unwrap_or_else_panic \
@@ -77,13 +77,13 @@ cargo dylint --keep-going --lib no_unwrap_or_else_panic \
 ```
 
 `DYLINT_LIBRARY_PATH` is absolute because `cargo dylint` rejects relative
-library paths. The repository itself remains on the stable Rust toolchain;
-only the lint-library build uses the pinned nightly Dylint driver.
+library paths. The repository itself remains on the stable Rust toolchain; only
+the lint-library build uses the pinned nightly Dylint driver.
 
-The stateful GPUI playbook and regression suite use
-`let … else { panic!(…) }` for infrastructure invariants. `.expect(...)`,
-`.unwrap()`, and `unwrap_or_else(|| panic!(…))` are not accepted replacements
-under the repository lint profile.
+The stateful GPUI playbook and regression suite use `let … else { panic!(…) }`
+for infrastructure invariants. `.expect(...)`, `.unwrap()`, and
+`unwrap_or_else(|| panic!(…))` are not accepted replacements under the
+repository lint profile.
 
 ## Options considered
 
@@ -102,10 +102,10 @@ The preferred first attempt was a `[workspace.metadata.dylint]` entry pinned to
 Whitaker tag `v0.2.5` and the single lint crate path.
 
 Rejected for this repository. The metadata path built the crate but did not
-produce the suffixed loadable lint library. Adding `features =
-["dylint-driver"]` to the metadata entry was rejected by `cargo-dylint`
-metadata handling. The explicit Makefile build/copy/run flow is therefore the
-repeatable local and CI mechanism.
+produce the suffixed loadable lint library. Adding
+`features = ["dylint-driver"]` to the metadata entry was rejected by
+`cargo-dylint` metadata handling. The explicit Makefile build/copy/run flow is
+therefore the repeatable local and CI mechanism.
 
 ### Option C: Whitaker full-suite adoption
 

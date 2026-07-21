@@ -245,8 +245,8 @@ now behaves exactly like explicit
   semantics
 - `docs/rstest-bdd-design.md` §2.7.3: updated runtime compatibility alias
   section
-- `docs/users-guide.md`: added deprecation notice, updated behaviour description,
-  and converted code example to use explicit harness form
+- `docs/users-guide.md`: added deprecation notice, updated behaviour
+  description, and converted code example to use explicit harness form
 - `docs/roadmap.md`: marked item 9.2.4 as complete with delivery date 2026-03-16
 
 **Quality gates:** All gates passed successfully:

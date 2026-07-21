@@ -25,6 +25,10 @@ use std::any::{Any, TypeId};
 use std::cell::RefCell;
 use std::collections::HashMap;
 
+use entry::FixtureEntry;
+pub use error::FixtureBorrowError;
+pub use guards::{FixtureRef, FixtureRefMut};
+
 /// Reserved fixture key used for harness-provided context.
 ///
 /// Harness-backed scenarios insert `HarnessAdapter::Context` into
@@ -341,6 +345,7 @@ fn warn_logging_is_disabled() -> bool {
     !log::log_enabled!(log::Level::Warn)
 }
 
+#[cfg(test)]
 mod tests;
 
 mod entry;
