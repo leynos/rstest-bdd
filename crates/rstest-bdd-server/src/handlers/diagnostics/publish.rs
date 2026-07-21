@@ -149,6 +149,7 @@ pub fn publish_rust_diagnostics(state: &ServerState, rust_path: &Path) {
 
 #[cfg(test)]
 mod tests {
+    //! Snapshot and property tests for diagnostic publication payloads.
 
     use lsp_types::{DiagnosticSeverity, Position, Range};
     use proptest::prelude::*;
@@ -180,8 +181,9 @@ mod tests {
     /// that is what the `PublishDiagnosticsParams` debug output contains.
     fn snapshot_settings(dir: &Path) -> insta::Settings {
         let mut settings = insta::Settings::clone_current();
-        #[expect(clippy::expect_used, reason = "temp dirs are absolute paths")]
-        let dir_url = Url::from_file_path(dir).expect("temp dir converts to URL");
+        let Ok(dir_url) = Url::from_file_path(dir) else {
+            panic!("temp dir should convert to a URL: {}", dir.display());
+        };
         settings.add_filter(&regex::escape(dir_url.path()), "[TMP]");
         settings
     }
