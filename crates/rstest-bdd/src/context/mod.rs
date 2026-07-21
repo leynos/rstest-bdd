@@ -8,6 +8,10 @@ use std::any::{Any, TypeId};
 use std::cell::{Ref, RefCell, RefMut};
 use std::collections::HashMap;
 
+mod insert_outcome;
+
+pub use insert_outcome::InsertOutcome;
+
 /// Reserved fixture key used for harness-provided context.
 ///
 /// Harness-backed scenarios insert `HarnessAdapter::Context` into
@@ -376,5 +380,3 @@ impl<T> AsMut<T> for FixtureRefMut<'_, T> {
 
 #[cfg(test)]
 mod tests;
-
-mod insert_outcome;
