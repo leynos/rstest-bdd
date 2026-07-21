@@ -57,7 +57,7 @@ class TestMain:
         result = run_checker(tmp_path)
 
         assert result.exit_code == 0
-        assert result.stderr == ""
+        assert not result.stderr
 
     def test_missing_document_exits_one(self, tmp_path: Path) -> None:
         """A link to an absent document should exit 1 and name it."""

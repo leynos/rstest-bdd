@@ -200,6 +200,7 @@ class TestCheckGuide:
         assert any("missing-one.md" in violation for violation in violations)
         assert any("missing-two.md" in violation for violation in violations)
 
+
 class TestGithubHeadingAnchorProperties:
     """Property tests for :func:`check_users_guide_links.github_heading_anchor`."""
 
@@ -229,6 +230,7 @@ class TestGithubHeadingAnchorProperties:
         """Slugging an existing anchor should not change it."""
         once = github_heading_anchor(heading)
         assert github_heading_anchor(once) == once
+
 
 class TestHeadingAnchorsProperties:
     """Property tests for :func:`check_users_guide_links.heading_anchors`."""
