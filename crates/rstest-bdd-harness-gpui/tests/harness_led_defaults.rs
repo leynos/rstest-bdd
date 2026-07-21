@@ -6,7 +6,7 @@
 //! observable runtime behaviour:
 //!
 //! - A harness whose `HarnessAdapter::run` returns `Err` propagates the
-//!   `harness failed to initialise scenario: ...` panic emitted by the
+//!   `harness failed to initialize scenario: ...` panic emitted by the
 //!   expanded macro, and the scenario body never runs. This path needs no
 //!   native GPUI runtime, so it is not feature-gated.
 //! - `harness = GpuiHarness` without `attributes = ...` runs through the

@@ -9,7 +9,7 @@
 //!   inferred `TokioAttributePolicy` path with a live current-thread runtime
 //!   and `LocalSet`.
 //! - A harness whose `HarnessAdapter::run` returns `Err` propagates the
-//!   `harness failed to initialise scenario: ...` panic emitted by the
+//!   `harness failed to initialize scenario: ...` panic emitted by the
 //!   expanded macro, and the scenario body never runs.
 //! - Pairing steps that rely on the harness contract with an attribute
 //!   policy alone fails loudly (a `LocalSet` panic from `spawn_local`), not
