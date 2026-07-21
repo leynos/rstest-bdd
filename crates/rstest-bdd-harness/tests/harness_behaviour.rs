@@ -124,6 +124,7 @@ fn std_harness_error_path_propagates_runtime_build_failed(default_metadata: Scen
     );
 }
 
+#[rstest]
 fn failing_harness_test_helper_returns_runtime_build_failed(default_metadata: ScenarioMetadata) {
     let request = ScenarioRunRequest::new(
         default_metadata,
@@ -136,6 +137,8 @@ fn failing_harness_test_helper_returns_runtime_build_failed(default_metadata: Sc
     };
     assert_eq!(err.to_string(), "synthetic harness initialisation failure");
 }
+
+#[test]
 fn std_harness_passes_metadata_through() {
     let expected_metadata = ScenarioMetadata::new(
         "tests/features/payment.feature",
