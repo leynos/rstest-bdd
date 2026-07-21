@@ -205,6 +205,8 @@ pub(crate) fn write_bypassed_steps(writer: &mut dyn Write, steps: &[BypassedStep
 
 #[cfg(test)]
 mod tests {
+    //! Snapshot and property tests for scenario output formatting.
+
     use proptest::prelude::*;
 
     use super::*;
@@ -225,8 +227,8 @@ mod tests {
 
     fn render_scenarios(scenarios: &[Scenario], options: ScenarioDisplayOptions) -> String {
         let mut buffer = Vec::new();
-        #[expect(clippy::expect_used, reason = "Vec<u8> writes cannot fail")]
-        write_scenarios(&mut buffer, scenarios, options).expect("render scenarios");
+        let result = write_scenarios(&mut buffer, scenarios, options);
+        assert!(result.is_ok(), "rendering into Vec<u8> should not fail");
         String::from_utf8(buffer).unwrap_or_else(|_| String::from("<invalid utf-8>"))
     }
 
