@@ -2,7 +2,7 @@
 //!
 //! Each [`FixtureEntry`] records how a fixture was inserted (shared
 //! reference or owned `RefCell`) together with its `TypeId`, and implements
-//! the guard-based borrow operations over that storage (ADR-010). The
+//! the guard-based borrow operations over that storage (ADR-012). The
 //! [`borrow_cell`] / [`borrow_cell_mut`] primitives are the single home for
 //! "borrow a type-erased cell and downcast" — both owned fixtures and
 //! step-returned override values borrow through them. The shared/mutable

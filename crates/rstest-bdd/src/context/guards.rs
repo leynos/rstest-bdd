@@ -2,7 +2,7 @@
 //!
 //! [`FixtureRef`] and [`FixtureRefMut`] keep the underlying `RefCell` borrow
 //! alive for as long as the guard exists. Their internals are deliberately
-//! private (ADR-010): whether a fixture is backed by a shared reference, an
+//! private (ADR-012): whether a fixture is backed by a shared reference, an
 //! owned cell, or a step-returned override is an implementation detail that
 //! may change without breaking downstream code. Access the value through
 //! `Deref`/`DerefMut`, [`FixtureRef::value`], or

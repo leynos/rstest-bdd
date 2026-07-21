@@ -1,4 +1,4 @@
-//! End-to-end regression test for ADR-010 guard-based borrowing.
+//! End-to-end regression test for ADR-012 guard-based borrowing.
 //!
 //! A single step takes two `&mut` fixture parameters. Before the redesign
 //! this could not compile: `StepContext::borrow_mut` took `&mut self`, so the
