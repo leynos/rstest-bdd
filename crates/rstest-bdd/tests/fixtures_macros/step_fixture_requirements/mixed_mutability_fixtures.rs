@@ -1,4 +1,9 @@
-//! Compile-fail fixture for mixed immutable and mutable fixture borrows.
+//! Compile-pass fixture for mixed immutable and mutable fixture borrows.
+//!
+//! Before ADR-010 this was a compile-fail case: the generated wrapper held
+//! a shared borrow of the context while requesting a mutable one, tripping
+//! `E0502`. Guard-based borrowing makes the wrapper compile; this fixture
+//! pins that capability.
 
 use rstest_bdd_macros::given;
 

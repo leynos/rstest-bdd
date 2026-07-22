@@ -364,9 +364,9 @@ interim thread-local pattern documented under
 
 Apply this migration when an existing scenario stored a `VisualTestContext`
 between steps or relied on a non-thread-local mutable world together with
-`#[from(rstest_bdd_harness_context)]`. The [Stateful GPUI scenarios with
-durable handles][users-guide-playbook] subsection of the user guide is the
-in-depth reference; the steps below mirror its outline:
+`#[from(rstest_bdd_harness_context)]`. The
+[Stateful GPUI scenarios with durable handles][users-guide-playbook] subsection
+of the user guide is the in-depth reference; the steps below mirror its outline:
 
 1. **Update the dev-dependency.** In `Cargo.toml`, depend on
    `rstest-bdd-harness-gpui = "0.6.0"` and add `serial_test` and `rstest` as
@@ -395,9 +395,9 @@ in-depth reference; the steps below mirror its outline:
    example, with `let Some(visual_cx) = ... else { panic!(...) };`).
 
 For a worked-out example, see the regression suite at
-`crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` and the [stateful
-playbook][users-guide-playbook] subsection. The pattern's rationale lives in
-§§2.7.6.1–2.7.6.2 of the [rstest-bdd design](rstest-bdd-design.md).
+`crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` and the
+[stateful playbook][users-guide-playbook] subsection. The pattern's rationale
+lives in §§2.7.6.1–2.7.6.2 of the [rstest-bdd design](rstest-bdd-design.md).
 
 [adr-007]: adr-007-harness-context-injection.md
 
@@ -446,8 +446,8 @@ users-guide.md#stateful-gpui-scenarios-with-durable-handles
 - [ ] Run feature-gated downstream tests before assuming v0.6.0 broke the API:
   use `cargo test --workspace --all-features`, or the project's Continuous
   Integration (CI)-equivalent gate such as `make test` when a Make-based gate
-  wraps the same feature set; the design note tracks this [v0.6.0-beta2 quick
-  win][design-beta2-quick-wins].
+  wraps the same feature set; the design note tracks this
+  [v0.6.0-beta2 quick win][design-beta2-quick-wins].
 
 ## Common errors and fixes
 
@@ -472,15 +472,19 @@ users-guide.md#stateful-gpui-scenarios-with-durable-handles
 
 ### Two mutable fixtures trigger `E0499` or `E0502`
 
-> This is a v0.6 interim workaround. The limitation is recorded in
-> [rstest-bdd design §2.7.6.1][design-borrow-constraint]; the replacement
-> borrow model is tracked in [§2.7.6.5][design-redesign] and roadmap items
-> 12.1.x.
+> This is a v0.6 interim workaround, superseded from v0.7.0. The limitation
+> is recorded in [rstest-bdd design §2.7.6.1][design-borrow-constraint]; the
+> replacement guard-based borrow model shipped with
+> [ADR-012](adr-012-guard-based-stepcontext-borrowing.md), which lets one step
+> borrow distinct mutable fixtures concurrently. Apply the workarounds below
+> only while staying on 0.6.x; on upgrade, declare ordinary `&mut` fixture
+> parameters and delete the thread-local reset discipline.
 
 The symptom is a rustc borrow-checker error in generated wrapper code, not in
-the step body itself. Two mutable fixture parameters usually produce [`E0499`][
-rustc-e0499], ``cannot borrow `*ctx` as mutable more than once at a time``. One
-mutable fixture plus one immutable fixture can produce [`E0502`][rustc-e0502],
+the step body itself. Two mutable fixture parameters usually produce
+[`E0499`][ rustc-e0499],
+``cannot borrow `*ctx` as mutable more than once at a time``. One mutable
+fixture plus one immutable fixture can produce [`E0502`][rustc-e0502],
 ``cannot borrow `*ctx` as mutable because it is also borrowed as immutable``.
 
 This GPUI-shaped snippet is intentionally rejected by the v0.6 generated

@@ -734,9 +734,9 @@ changing the public trait contracts.
   scenarios. Finish line: a failing-harness regression asserts the scenario
   name appears in emitted diagnostics, or the GPUI harness docs state the
   upstream limitation and link the skipped test. Prerequisite: 9.4.3. Design
-  Doc: `docs/rstest-bdd-design.md` §2.7.5. (Buzzy Bee)
-  Delivered (affirmative branch): the scenario name is embedded in the
-  augmented panic message and tracing events by `augmented_panic_message` in
+  Doc: `docs/rstest-bdd-design.md` §2.7.5. (Buzzy Bee) Delivered (affirmative
+  branch): the scenario name is embedded in the augmented panic message and
+  tracing events by `augmented_panic_message` in
   `crates/rstest-bdd-harness-gpui/src/gpui_harness.rs`. Regression coverage:
   `crates/rstest-bdd-harness-gpui/tests/scenario_name_in_logs.rs` and the
   `augmented_panic_message_includes_scenario_name_for_payload_type` test.
@@ -784,64 +784,62 @@ changing the public trait contracts.
   published crate do not encounter a silent compile-error mismatch. Finish
   line: a which-gpui banner and the mapping table appear in both
   `docs/users-guide.md` and `docs/rstest-bdd-design.md`; `make markdownlint`
-  passes. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.2.
-  Delivered 2026-06-13: corrected the published-column window-handle row in the
+  passes. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.2. Delivered
+  2026-06-13: corrected the published-column window-handle row in the
   vendored-to-published `gpui 0.2.2` mapping table in both
   `docs/users-guide.md` and `docs/rstest-bdd-design.md` (published
   `VisualTestContext` exposes `window_handle()` via the `VisualContext` trait),
   reconciled the two tables, and added a drift gate. See
-  `docs/execplans/10-2-4-gpui-version-banner-and-mapping-table.md`.
-  Follow-up 2026-06-16: extended the Python lint, format, and type-check
-  targets to include `scripts/tests/`, fixed the mapping-table test lint debt,
-  and revalidated the branch-wide `make lint` gate.
+  `docs/execplans/10-2-4-gpui-version-banner-and-mapping-table.md`. Follow-up
+  2026-06-16: extended the Python lint, format, and type-check targets to
+  include `scripts/tests/`, fixed the mapping-table test lint debt, and
+  revalidated the branch-wide `make lint` gate.
 - [x] 10.2.5. A lint-clean playbook variant compiles under a pedantic lint
   profile, including `clippy::shadow_reuse`, `clippy::expect_used`, and the
   in-house `no_unwrap_or_else_panic` lint. Finish line: the playbook in
   `docs/users-guide.md` offers a no-shadowing, no-`unwrap_or_else`-panic
   accessor variant using `let … else { panic!(…) }`. Design Doc:
-  `docs/rstest-bdd-design.md` §2.7.6.2.
-  Delivered 2026-06-21: converted the GPUI playbook and executable regression
-  suite to the `let … else { panic!(…) }` accessor form, removed the
-  repository's panicking `unwrap_or_else` escape hatch, and wired Whitaker
-  `no_unwrap_or_else_panic` into `make lint`. See
+  `docs/rstest-bdd-design.md` §2.7.6.2. Delivered 2026-06-21: converted the
+  GPUI playbook and executable regression suite to the
+  `let … else { panic!(…) }` accessor form, removed the repository's panicking
+  `unwrap_or_else` escape hatch, and wired Whitaker `no_unwrap_or_else_panic`
+  into `make lint`. See
   `docs/execplans/10-2-5-playbook-variant-compiles-under-pedantic-lint-profile.md`
-  and `docs/adr-013-adopt-whitaker-no-unwrap-or-else-panic.md`.
-  Follow-up 2026-06-24: extracted private helpers for repeated trybuild
-  fixture-file writing and std, Tokio, and GPUI harness execution boilerplate,
-  then restricted root-level pytest collection to `scripts/tests` so Dylint's
+  and `docs/adr-013-adopt-whitaker-no-unwrap-or-else-panic.md`. Follow-up
+  2026-06-24: extracted private helpers for repeated trybuild fixture-file
+  writing and std, Tokio, and GPUI harness execution boilerplate, then
+  restricted root-level pytest collection to `scripts/tests` so Dylint's
   generated Whitaker source under `target/whitaker` is not collected by
   coverage jobs. Validation: root `uv run pytest -v` collected 33
   `scripts/tests` items and no `target/...` files; `make check-fmt`,
-  `make lint`, and `make test` passed.
-  Follow-up 2026-06-27: added deterministic pytest coverage for the
-  `lint-whitaker` Makefile target using clean and failing fixture crates,
-  added Rust regression tests proving `write_fixture_file` preserves its
-  original panic labels, and changed `make test` to run every test under
-  `scripts/tests` so new Python integration tests enter the normal gate.
-  Validation: `make check-fmt`, `mbake validate Makefile`,
-  `make markdownlint`, `make lint`, `make test`, `make nixie`, and root
-  `uv run pytest -v` passed; root pytest collected 35 `scripts/tests` items
-  and no `target/...` files. CodeRabbit `review --agent` completed after the
-  requested rate-limit backoff with zero findings.
+  `make lint`, and `make test` passed. Follow-up 2026-06-27: added
+  deterministic pytest coverage for the `lint-whitaker` Makefile target using
+  clean and failing fixture crates, added Rust regression tests proving
+  `write_fixture_file` preserves its original panic labels, and changed
+  `make test` to run every test under `scripts/tests` so new Python integration
+  tests enter the normal gate. Validation: `make check-fmt`,
+  `mbake validate Makefile`, `make markdownlint`, `make lint`, `make test`,
+  `make nixie`, and root `uv run pytest -v` passed; root pytest collected 35
+  `scripts/tests` items and no `target/...` files. CodeRabbit `review --agent`
+  completed after the requested rate-limit backoff with zero findings.
   Follow-up 2026-06-27: fixed the Linux CI cache-hit path by giving the
   Whitaker cache step an id and skipping `Install Dylint tools` when the cache
   already restores `cargo-dylint` and `dylint-link`, preserving the cache
   optimization without using `cargo install --force`. Validation:
   `actionlint .github/workflows/ci.yml`, `make markdownlint`, `make lint`, and
   `make nixie` passed; CodeRabbit `review --agent` completed with zero
-  findings.
-  Follow-up 2026-06-28: review findings were verified against current code.
-  The CI cache and behavioural Tokio helper findings were already addressed;
-  remaining valid localization, Tokio unit-test, ADR/prose, users-guide, and
-  Whitaker Python test comments were fixed. Validation: `make check-fmt`,
-  `make lint`, `make typecheck`, `make test`, and `make markdownlint` passed;
-  CodeRabbit `review --agent` completed with zero findings.
-  Follow-up 2026-06-28: fixed developer-guide punctuation, replaced the
-  migration guide's deprecated `.unwrap_or_else(|| panic!(...))` suggestion,
-  and corrected `optimization` to `optimisation`. Validation: `make fmt`,
-  `make markdownlint`, `make nixie`, and `git diff --check` passed; CodeRabbit
-  `review --agent` completed with zero findings.
-  Follow-up 2026-06-28: fixed the Whitaker Dylint library path so Dylint sees
+  findings. Follow-up 2026-06-28: review findings were verified against current
+  code. The CI cache and behavioural Tokio helper findings were already
+  addressed; remaining valid localization, Tokio unit-test, ADR/prose,
+  users-guide, and Whitaker Python test comments were fixed. Validation:
+  `make check-fmt`, `make lint`, `make typecheck`, `make test`, and
+  `make markdownlint` passed; CodeRabbit `review --agent` completed with zero
+  findings. Follow-up 2026-06-28: fixed developer-guide punctuation, replaced
+  the migration guide's deprecated `.unwrap_or_else(|| panic!(...))`
+  suggestion, and corrected `optimization` to `optimisation`. Validation:
+  `make fmt`, `make markdownlint`, `make nixie`, and `git diff --check` passed;
+  CodeRabbit `review --agent` completed with zero findings. Follow-up
+  2026-06-28: fixed the Whitaker Dylint library path so Dylint sees
   `nightly-2025-09-18`, not a host-suffixed rustup channel. Validation passed
   with `mbake validate Makefile`, `make check-fmt`, `make lint-whitaker`,
   `uv run pytest -v scripts/tests/test_whitaker_lint_gate.py`, `make lint`, and
@@ -852,11 +850,10 @@ changing the public trait contracts.
   `#[serial]` is required for `cargo test`, redundant-but-harmless under
   nextest (process-per-test already isolates per-process state), and that
   cross-process exclusivity requires `#[file_serial]` or a nextest test-group.
-  Design Doc: `docs/rstest-bdd-design.md` §2.7.6.7.
-  Delivered 2026-06-27: promoted the guidance to a runner-agnostic
-  user-guide subsection, corrected the `#[file_serial]` `file_locks` caveat
-  and the nextest redundancy wording, added worked `#[file_serial]` and
-  nextest test-group examples, and added
+  Design Doc: `docs/rstest-bdd-design.md` §2.7.6.7. Delivered 2026-06-27:
+  promoted the guidance to a runner-agnostic user-guide subsection, corrected
+  the `#[file_serial]` `file_locks` caveat and the nextest redundancy wording,
+  added worked `#[file_serial]` and nextest test-group examples, and added
   `scripts/check_serial_nextest_matrix.py` to keep the user-guide and design
   matrices in step. See
   `docs/execplans/10-2-6-documents-nextest-process-per-test-scheduling-and-serial-interaction.md`.
@@ -869,20 +866,21 @@ changing the public trait contracts.
   share the whole step library (given/when/then plus the state scaffolding) in
   one `#[path]`-included module per crate, framed as the v0.6.0 shape that
   v0.6.1 (11.1.3/11.1.4) shrinks, with inventory-per-binary and `pub`/
-  subdirectory rationale, the module-qualified `#[from(...)]` form, and the GPUI
-  specialization bridged to published `gpui 0.2.2` via the mapping table and
-  cross-linked to `stateful_window.rs`. Backed by a harness-agnostic runtime
-  reference suite (`crates/rstest-bdd/tests/common/bulk_migration_steps.rs`
-  shared by `bulk_migration_cookbook_a`/`_b` across two feature files, with zero
-  steps in the bindings) and a required trybuild compile-pass mirror
+  subdirectory rationale, the module-qualified `#[from(...)]` form, and the
+  GPUI specialization bridged to published `gpui 0.2.2` via the mapping table
+  and cross-linked to `stateful_window.rs`. Backed by a harness-agnostic
+  runtime reference suite
+  (`crates/rstest-bdd/tests/common/bulk_migration_steps.rs` shared by
+  `bulk_migration_cookbook_a`/`_b` across two feature files, with zero steps in
+  the bindings) and a required trybuild compile-pass mirror
   (`scenario_bulk_migration_cookbook.rs`). Design §2.7.6.2 and the developer
   guide record the convention. A six-lens Logisphere design review moved the
   validation vehicle from a feature-gated GPUI suite to the harness-agnostic
-  proof. See
-  `docs/execplans/10-2-7-gpui-bulk-migration-cookbook.md`. Validation:
-  `make check-fmt`, `make lint`, `make test`, `make markdownlint`, `make nixie`,
-  and `cargo test -p rstest-bdd --test trybuild_macros step_macros_compile`
-  passed; CodeRabbit `review --agent` completed with zero findings.
+  proof. See `docs/execplans/10-2-7-gpui-bulk-migration-cookbook.md`.
+  Validation: `make check-fmt`, `make lint`, `make test`, `make markdownlint`,
+  `make nixie`, and
+  `cargo test -p rstest-bdd --test trybuild_macros step_macros_compile` passed;
+  CodeRabbit `review --agent` completed with zero findings.
 
 > **Note (dual-track maintenance):** items 10.2.4 and 10.2.5 introduce a
 > vendored-to-published mapping table that must be kept in sync with any
@@ -931,10 +929,10 @@ remove the existing `StepContext`, harness, or macro surfaces.
   `thread_local!` boilerplate; docs present it as the additive v0.6.1
   alternative to the v0.6.0 thread-local interim pattern. ADR:
   `docs/adr-011-first-party-scenario-state-and-cleanup.md`. Design Doc:
-  `docs/rstest-bdd-design.md` §2.7.6.4. (Dinolump)
-  **Scheduling note:** the maintainer has approved pulling this item forward
-  to v0.6.0 final, as the thread-local boilerplate is the largest adoption
-  friction in the v0.6.x line (per the first downstream GPUI adopter report).
+  `docs/rstest-bdd-design.md` §2.7.6.4. (Dinolump) **Scheduling note:** the
+  maintainer has approved pulling this item forward to v0.6.0 final, as the
+  thread-local boilerplate is the largest adoption friction in the v0.6.x line
+  (per the first downstream GPUI adopter report).
 - [ ] 11.1.4. A cleanup-guard fixture-generating macro in
   `rstest-bdd-harness-gpui` produces the `ScenarioStateCleanup` `Drop` guard
   and the `#[fixture] fn scenario_state_cleanup()` function, so GPUI scenarios
@@ -944,8 +942,8 @@ remove the existing `StepContext`, harness, or macro surfaces.
   `docs/adr-011-first-party-scenario-state-and-cleanup.md`. Design Doc:
   `docs/rstest-bdd-design.md` §2.7.6.4. Finish line: an integration test shows
   cleanup running after success, failure, and skip; the docs state the required
-  registration order. (Doggylump)
-  **Scheduling note:** pull-forward approved alongside 11.1.3.
+  registration order. (Doggylump) **Scheduling note:** pull-forward approved
+  alongside 11.1.3.
 
 ### 11.2. Smooth integration ergonomics
 
@@ -984,15 +982,15 @@ remove the existing `StepContext`, harness, or macro surfaces.
   `docs/adr-013-adopt-whitaker-no-unwrap-or-else-panic.md`. Completed
   2026-07-09: the full suite (installer `0.2.5` as pinned at that date, rolling
   suite) was wired into `make lint` and CI via the `whitaker` wrapper; per-crate
-  `no_std_fs_operations` exclusions with rationale live in `dylint.toml`. CI has
-  since bumped the pin; the current `WHITAKER_INSTALLER_VERSION` is recorded in
-  the follow-up below and in ADR-013.
-  Follow-up 2026-07-20: reconciled the Whitaker integration documentation with
-  the current published suite after leynos/whitaker#238 advanced the bundled
-  toolchain to `nightly-2026-05-28` and Dylint `6.0.1` (`dylint_linting = 6`).
-  Amended `docs/adr-013-adopt-whitaker-no-unwrap-or-else-panic.md` with a
-  validated current compatibility contract, labelled the obsolete
-  `nightly-2025-09-18` / Dylint 5 mechanism in ADR-013 and
+  `no_std_fs_operations` exclusions with rationale live in `dylint.toml`. CI
+  has since bumped the pin; the current `WHITAKER_INSTALLER_VERSION` is
+  recorded in the follow-up below and in ADR-013. Follow-up 2026-07-20:
+  reconciled the Whitaker integration documentation with the current published
+  suite after leynos/whitaker#238 advanced the bundled toolchain to
+  `nightly-2026-05-28` and Dylint `6.0.1` (`dylint_linting = 6`). Amended
+  `docs/adr-013-adopt-whitaker-no-unwrap-or-else-panic.md` with a validated
+  current compatibility contract, labelled the obsolete `nightly-2025-09-18` /
+  Dylint 5 mechanism in ADR-013 and
   `docs/execplans/10-2-5-playbook-variant-compiles-under-pedantic-lint-profile.md`
   as historical, and confirmed the repository consumes the
   `whitaker-installer` flow (CI pins `WHITAKER_INSTALLER_VERSION` at `0.2.6`)
@@ -1002,20 +1000,20 @@ remove the existing `StepContext`, harness, or macro surfaces.
 
 - [ ] 11.3.1. Editing only a `.feature` file triggers a rebuild of the scenario
   binary. The `#[scenario]`/`scenarios!` expansion registers each bound feature
-  file as a Cargo rebuild dependency without embedding an absolute path into the
-  compiled artefact, and a portability-aware regression test proves a
-  `.feature`-only edit forces recompilation and a fresh test failure. The fix is
-  non-breaking: no existing call site changes. Finish line: the regression test
-  fails against the current `std::fs`-read macro and passes after the fix;
+  file as a Cargo rebuild dependency without embedding an absolute path into
+  the compiled artefact, and a portability-aware regression test proves a
+  `.feature`-only edit forces recompilation and a fresh test failure. The fix
+  is non-breaking: no existing call site changes. Finish line: the regression
+  test fails against the current `std::fs`-read macro and passes after the fix;
   required `trybuild` compile-pass and compile-fail fixtures pin the emitted
   binding and the missing-`.feature` diagnostic; a redacted `insta` snapshot
   with semantic assertions pins any touched diagnostic wording; no absolute
   `CARGO_MANIFEST_DIR` path appears in the artefact; `make test` is green. ADR:
   `docs/adr-010-feature-file-change-detection.md` (see its *Testing strategy*).
-  Design Doc: `docs/rstest-bdd-design.md` §2.7.6.6.
-  **Scheduling note:** the maintainer has approved pulling this item forward
-  to v0.6.0 final. Until it lands, a caveat in `docs/v0-6-0-migration-guide.md`
-  alerts adopters that `.feature`-only edits do not trigger a rebuild.
+  Design Doc: `docs/rstest-bdd-design.md` §2.7.6.6. **Scheduling note:** the
+  maintainer has approved pulling this item forward to v0.6.0 final. Until it
+  lands, a caveat in `docs/v0-6-0-migration-guide.md` alerts adopters that
+  `.feature`-only edits do not trigger a rebuild.
 
 > **Note (ADR-008 follow-up):** roadmap items 9.7.1–9.7.4 shipped the
 > harness-led attribute defaults under maintainer authorization, but
@@ -1030,31 +1028,32 @@ The v0.7.0 line is the last planned place for migration-guide-worthy API
 cleanup before v1.0.0. This phase intentionally collects changes that would be
 too disruptive for v0.6.x but would make the v1 surface smaller and more
 predictable. Following the first downstream adopter migration report, the
-guard-based `StepContext` borrow redesign is elevated from a v0.7.0 ambition
-to a committed direction (ADR-012).
+guard-based `StepContext` borrow redesign is elevated from a v0.7.0 ambition to
+a committed direction (ADR-012).
 
 ### 12.1. Redesign state and context borrowing
 
-- [ ] 12.1.1. `StepContext` supports guard-based interior borrowing, so callers
+- [x] 12.1.1. `StepContext` supports guard-based interior borrowing, so callers
   can concurrently borrow distinct mutable fixtures, including mutable harness
-  context and mutable world state when fixture keys differ. Previous `Option`
-  -based borrow APIs are replaced with `Result`-returning APIs carrying
-  `FixtureBorrowError`, with generated-wrapper regression coverage. The
-  v0.6.0 migration guide includes the v0.6-to-v0.7 mapping from thread-local
+  context and mutable world state when fixture keys differ. `Result`-returning
+  `try_borrow`/`try_borrow_mut` APIs carry `FixtureBorrowError`; the
+  `Option`-based borrow methods remain as conveniences delegating to them
+  (recorded in ADR-012), with generated-wrapper regression coverage. The v0.6.0
+  migration guide includes the v0.6-to-v0.7 mapping from thread-local
   durable-handle patterns to lifecycle hooks. Finish line: runtime unit tests
   prove concurrent distinct mutable borrows succeed, same-fixture conflicts
-  fail, generated-wrapper tests cover harness context plus world state, and
-  the migration guide carries the mapping table. ADR:
+  fail, generated-wrapper tests cover harness context plus world state, and the
+  migration guide carries the mapping table. ADR:
   `docs/adr-012-guard-based-stepcontext-borrowing.md`. Design Doc:
   `docs/rstest-bdd-design.md` §2.7.6.5. (Pandalump, Telefono)
-- [ ] 12.1.2. `FixtureRefMut` exposes a stable, opaque public API that preserves
+- [x] 12.1.2. `FixtureRefMut` exposes a stable, opaque public API that preserves
   value-accessor methods while hiding internal enum and representation details.
   Public callers retain value access methods, and internal variants are no
   longer part of the public surface. Prerequisite: 12.1.1. Design Doc:
   `docs/rstest-bdd-design.md` §2.7.6.5. Finish line: public API tests compile
   against accessor methods, and no downstream test can match internal variants.
   (Telefono)
-- [ ] 12.1.3. A stable world lifecycle contract guarantees before-scenario
+- [x] 12.1.3. A stable world lifecycle contract guarantees before-scenario
   reset, after-scenario cleanup, and cleanup on failure or skip, so users can
   model scenario state without thread-local reset conventions. The migration
   guide explains how v0.6 workarounds map to the v0.7 lifecycle. Prerequisite:

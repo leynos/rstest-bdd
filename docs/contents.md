@@ -80,7 +80,6 @@
 - [ADR 008: harness-led attribute policy defaults][adr-008]
   records the harness-led attribute-policy default decision.
 - [ADR 009: consistent implicit fixture name normalization][adr-009]
-  records the fixture-name normalization decision.
 - [ADR 010: feature-file change detection][adr-010] records the decision for
   making `.feature` files rebuild inputs.
 - [ADR 011: first-party scenario-state helpers][adr-011] records the planned

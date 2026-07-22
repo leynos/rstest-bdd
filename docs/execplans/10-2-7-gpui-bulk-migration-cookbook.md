@@ -1,9 +1,8 @@
 # Bulk-migration cookbook: share one durable-handle step library across many scenarios (10.2.7)
 
-This ExecPlan (execution plan) is a living document. The sections
-`Constraints`, `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`,
-`Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
-proceeds.
+This ExecPlan (execution plan) is a living document. The sections `Constraints`,
+`Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
+and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 Status: COMPLETE
 
@@ -27,16 +26,16 @@ faces a copy-paste tax. The durable-handle interim pattern — a resettable
 scenario-state container, a reset protocol, a cleanup fixture, and the
 `#[given]`/`#[when]`/`#[then]` steps that store and rebuild handles — is
 documented as a *single-scenario* worked example. When a crate has twenty
-scenarios, a naive reader copies both the scaffolding *and* the step definitions
-into every test file.
+scenarios, a naive reader copies both the scaffolding *and* the step
+definitions into every test file.
 
-After this change, a reader can follow one cookbook subsection that shows how to
-place the durable-handle **step library** (the steps *and* the state
+After this change, a reader can follow one cookbook subsection that shows how
+to place the durable-handle **step library** (the steps *and* the state
 scaffolding) in a single shared module inside a consuming crate, and reuse it
-across many scenarios and many feature files without duplication. The reader can
-also observe the mechanism working: a small executable reference suite binds two
-scenarios in two feature files to one shared step library and passes under
-`make test`.
+across many scenarios and many feature files without duplication. The reader
+can also observe the mechanism working: a small executable reference suite
+binds two scenarios in two feature files to one shared step library and passes
+under `make test`.
 
 You can see success four ways:
 
@@ -46,8 +45,8 @@ You can see success four ways:
    GPUI specifics to published `gpui 0.2.2`, and points at the executable
    reference.
 2. A new executable reference suite proves one shared step library is reused by
-   two scenarios across two feature files, with **zero** step definitions in the
-   binding files.
+   two scenarios across two feature files, with **zero** step definitions in
+   the binding files.
 3. That suite fails for the expected reason before the shared *steps* exist
    (Red), then passes after they are added (Green), proving the reuse is real
    rather than incidental.
@@ -56,10 +55,10 @@ You can see success four ways:
    `make test` output (not merely a green exit code).
 5. **Every code example in the cookbook is backed by a test.** No fenced Rust
    example in the new or expanded cookbook subsection is illustrative-only:
-   each maps to a named runtime test or a trybuild compile-pass fixture (or, for
-   a GPUI-specific snippet that cannot run in the harness-agnostic crate, to a
-   named item in the existing `stateful_window.rs` reference), and the prose
-   names that backing so a reader can find it.
+   each maps to a named runtime test or a trybuild compile-pass fixture (or,
+   for a GPUI-specific snippet that cannot run in the harness-agnostic crate,
+   to a named item in the existing `stateful_window.rs` reference), and the
+   prose names that backing so a reader can find it.
 
 ### Why this is not "already done"
 
@@ -74,8 +73,9 @@ worked example above". It does **not** show the `#[given]`/`#[when]`/`#[then]`
 **helper code** per-scenario". It also has **no executable mirror**, unlike the
 sibling "Third-party harness adapter cookbook" (mirrored by a trybuild fixture
 `crates/rstest-bdd/tests/fixtures_macros/scenario_third_party_harness_cookbook.rs`
-plus a runtime test `crates/rstest-bdd/tests/third_party_harness_cookbook.rs`).
-This plan closes both gaps.
+plus a runtime test
+`crates/rstest-bdd/tests/third_party_harness_cookbook.rs`). This plan closes
+both gaps.
 
 ## Approach and its two live decisions
 
@@ -114,11 +114,11 @@ composes the two: it teaches the GPUI durable-handle library and cross-links to
 the executable *sharing* reference.
 
 The rejected alternative — a second feature-gated GPUI suite with two
-window-opening binaries — was declined because it re-proves the harness-agnostic
-sharing mechanism at high cost, hand-builds boilerplate scheduled for deletion
-in v0.6.1, trips the dead-code lint, and would be built by copying
-`stateful_window.rs` wholesale (Constraint 2 forbids refactoring it), i.e. the
-anti-duplication exemplar would itself be duplication.
+window-opening binaries — was declined because it re-proves the
+harness-agnostic sharing mechanism at high cost, hand-builds boilerplate
+scheduled for deletion in v0.6.1, trips the dead-code lint, and would be built
+by copying `stateful_window.rs` wholesale (Constraint 2 forbids refactoring
+it), i.e. the anti-duplication exemplar would itself be duplication.
 
 Confirm at approval: harness-agnostic executable proof plus GPUI prose
 cross-linked to `stateful_window.rs` (recommended), versus a new GPUI-specific
@@ -130,10 +130,10 @@ The cookbook's audience is teams migrating real suites, who depend on the
 **published** `gpui 0.2.2`, not the vendored fork the repository tests against.
 Published gpui differs from vendored in four documented ways (see the mapping
 table in `docs/users-guide.md` under "Durable handles versus visual context"
-and design §2.7.6.2). The cookbook prose must therefore carry a one-line pointer
-to that existing mapping table rather than duplicating it, and any GPUI snippet
-must state it is written against vendored gpui. This is a hard requirement
-(Constraint 8), not a nicety.
+and design §2.7.6.2). The cookbook prose must therefore carry a one-line
+pointer to that existing mapping table rather than duplicating it, and any GPUI
+snippet must state it is written against vendored gpui. This is a hard
+requirement (Constraint 8), not a nicety.
 
 ## Constraints
 
@@ -146,15 +146,16 @@ must state it is written against vendored gpui. This is a hard requirement
    `crates/rstest-bdd/tests/scenario_state.rs` and their feature files keep
    passing unchanged. New files are added alongside.
 3. **Binding files contain zero step definitions.** No new test file that binds
-   a `#[scenario]` may itself define a `#[given]`/`#[when]`/`#[then]`. Every step
-   comes from the shared module. This is both the reuse proof and a guard
+   a `#[scenario]` may itself define a `#[given]`/`#[when]`/`#[then]`. Every
+   step comes from the shared module. This is both the reuse proof and a guard
    against duplicate-step registration within a binary.
 4. **Lint-clean under the pedantic profile.** New Rust code passes
    `clippy::expect_used`, `clippy::unwrap_used`, `clippy::shadow_reuse`,
    Whitaker `no_unwrap_or_else_panic`, and — specifically — `dead_code`: every
    step and helper in the shared module must be exercised by at least one
-   including binary, or carry a tightly scoped `#[expect(dead_code, reason = …)]`.
-   Prefer designing the two feature files so their union uses every shared item.
+   including binary, or carry a tightly scoped
+   `#[expect(dead_code, reason = …)]`. Prefer designing the two feature files
+   so their union uses every shared item.
 5. **Documentation style.** Markdown obeys `docs/documentation-style-guide.md`:
    prose and bullets wrapped at 80 columns, code blocks at 120, dashes for
    bullets (never `+` or `*`), no inline HTML (keep angle-bracket placeholders
@@ -171,7 +172,8 @@ must state it is written against vendored gpui. This is a hard requirement
    qualified), matching the existing cookbook subsection, so provenance is
    visible at the `#[scenario]` site. The shared fixture and any items the
    binding files reference must be `pub`. Do not switch to an un-qualified
-   `use` import (it disagrees with the existing subsection and hides provenance).
+   `use` import (it disagrees with the existing subsection and hides
+   provenance).
 8. **GPUI prose bridges to published gpui.** The cookbook must point at the
    existing vendored-vs-published mapping table and mark any GPUI snippet as
    vendored-API. Do not hand adopters vendored-only step bodies without the
@@ -179,7 +181,8 @@ must state it is written against vendored gpui. This is a hard requirement
 9. **Every example is test-backed (no unbacked snippets).** Each fenced Rust
    code example introduced or expanded by this change must be validated by a
    test, using exactly one of these backings, and the nearby prose must name it:
-   - a runtime integration test that executes the example (the new shared-library
+   - a runtime integration test that executes the example (the new
+     shared-library
      suite, for the sharing snippets); or
    - a trybuild compile-pass fixture that compiles the example (for structural
      snippets that are not worth executing); or
@@ -189,13 +192,13 @@ must state it is written against vendored gpui. This is a hard requirement
      exercises the same shape.
 
    A snippet that is genuinely non-compilable by nature (for example a file-tree
-   `text` block, a `toml` fragment, or a `gherkin` feature body) is exempt from
-   *compilation* but its Rust counterpart must still be backed; feature bodies
-   used by the suite are inherently covered because the suite binds to them.
-   The trybuild compile-pass fixture is therefore **required**, not optional
-   (see Stage C), because the cookbook's structural Rust snippet is not otherwise
-   compiled — user-guide Markdown code blocks are not compiled as doctests in
-   this repository.
+   `text` block, a `toml` fragment, or a `gherkin` feature body) is exempt
+   from *compilation* but its Rust counterpart must still be backed; feature
+   bodies used by the suite are inherently covered because the suite binds to
+   them. The trybuild compile-pass fixture is therefore **required**, not
+   optional (see Stage C), because the cookbook's structural Rust snippet is
+   not otherwise compiled — user-guide Markdown code blocks are not compiled as
+   doctests in this repository.
 
 ## Tolerances (exception triggers)
 
@@ -204,8 +207,8 @@ Stop and escalate (document in Decision Log, await direction) when:
 1. **Scope:** more than ~10 files touched, or more than ~400 net lines of
    non-generated code (excluding prose and feature files). Intended footprint:
    1 shared module, 2 binding files, 2 feature files, 1 required trybuild
-   compile-pass fixture + 1 fixture feature file, plus edits to `users-guide.md`,
-   design §2.7.6.2, and `developers-guide.md`.
+   compile-pass fixture + 1 fixture feature file, plus edits to
+   `users-guide.md`, design §2.7.6.2, and `developers-guide.md`.
 2. **Interface:** any change touching a public API signature (Constraint 1) —
    stop immediately.
 3. **Dependencies:** any new crate or feature flag required — stop.
@@ -229,23 +232,23 @@ Stop and escalate (document in Decision Log, await direction) when:
    Adding the steps turns it green. (If a future build enables
    `rstest-bdd-macros/strict-compile-time-validation`, the same shape fails at
    macro-expansion instead; either is an acceptable Red because both are caused
-   by the missing *steps*, not a missing module. Confirm which occurs in
-   Stage A.)
+   by the missing *steps*, not a missing module. Confirm which occurs in Stage
+   A.)
 2. Risk: The feature-file rebuild foot-gun (design §2.7.6.6) fakes the Red→Green
-   delta. `#[scenario(path = …)]` reads `.feature` files via `std::fs` at macro-
-   expansion time with no `include_str!`, so Cargo does not track them; editing
-   only a `.feature` may not trigger a rebuild, producing a stale-cache false
-   pass or fail. Severity: high (the plan's evidence is a build-state
+   delta. `#[scenario(path = …)]` reads `.feature` files via `std::fs` at
+   macro- expansion time with no `include_str!`, so Cargo does not track them;
+   editing only a `.feature` may not trigger a rebuild, producing a stale-cache
+   false pass or fail. Severity: high (the plan's evidence is a build-state
    transition). Likelihood: high. Mitigation: run `cargo clean -p rstest-bdd`
-   immediately before the Red run and before the Green run, and cite §2.7.6.6 in
-   the cookbook so adopters learn the trap.
+   immediately before the Red run and before the Green run, and cite §2.7.6.6
+   in the cookbook so adopters learn the trap.
 3. Risk: A feature-gated or mis-discovered binary compiles to zero tests and
    exits 0, so "make test is green" hides "the suite did not run". Severity:
-   medium. Likelihood: medium (the recommended suite is not feature-gated, which
-   lowers this, but auto-discovery still applies). Mitigation: acceptance asserts
-   the two *named* scenario tests appear in the nextest output; the binding files
-   are auto-discovered like `scenario_state.rs` — do not add `[[test]]` entries
-   and do not set `autotests = false`.
+   medium. Likelihood: medium (the recommended suite is not feature-gated,
+   which lowers this, but auto-discovery still applies). Mitigation: acceptance
+   asserts the two *named* scenario tests appear in the nextest output; the
+   binding files are auto-discovered like `scenario_state.rs` — do not add
+   `[[test]]` entries and do not set `autotests = false`.
 4. Risk: Dead-code lint on shared steps/helpers not used by every including
    binary. Severity: medium. Likelihood: medium. Mitigation: Constraint 4 —
    design the two feature files so their union exercises every shared item, or
@@ -280,7 +283,8 @@ Stop and escalate (document in Decision Log, await direction) when:
       zero step macros (reuse proof). Also added the required trybuild
       compile-pass mirror `scenario_bulk_migration_cookbook.rs`, registered in
       `run_passing_macro_tests`, green under plain `cargo test`.
-- [x] (2026-07-06) Stage C-unit: added the `ledger_reset_clears_accumulated_balance`
+- [x] (2026-07-06) Stage C-unit: added the
+      `ledger_reset_clears_accumulated_balance`
       rstest unit test in binding A.
 - [x] (2026-07-06) Stage D-refactor: full gates green via `scrutineer` —
       `make check-fmt`, `make lint`, `make test` (1496 Rust + 53 Python tests),
@@ -308,28 +312,28 @@ Stop and escalate (document in Decision Log, await direction) when:
   `diagnostic_unused.rs`. Impact: strong in-repo precedent for the recommended
   harness-agnostic vehicle.
 - Observation: `crates/rstest-bdd/tests/scenario_state.rs` demonstrates durable
-  scenario state via `#[derive(ScenarioState)]` + `Slot<T>` + `#[fixture]`, with
-  no gpui and no thread-local. Impact: the recommended suite builds on shipped
-  primitives and is not obsoleted by 11.1.3.
+  scenario state via `#[derive(ScenarioState)]` + `Slot<T>` + `#[fixture]`,
+  with no gpui and no thread-local. Impact: the recommended suite builds on
+  shipped primitives and is not obsoleted by 11.1.3.
 - Observation: `make test` uses `--workspace --all-targets --all-features`
   (Makefile line 13). Impact: the recommended (non-gated) suite runs in the
   standard gate; whether `--all-features` also flips
-  `rstest-bdd-macros/strict-compile-time-validation` (turning missing steps into
-  a compile error) is to be confirmed in Stage A — the Red shape in Risk 1 is
-  robust to either answer.
+  `rstest-bdd-macros/strict-compile-time-validation` (turning missing steps
+  into a compile error) is to be confirmed in Stage A — the Red shape in Risk 1
+  is robust to either answer.
 - Observation: the design review verified no process-global GPUI init (each
   scenario builds its own `TestAppContext`), so the earlier cross-binary GPUI
   worry was unfounded; this reinforces that a GPUI-specific suite would buy
   little.
 - Observation (implementation): rstest's `#[from]` **does** accept a module-
   qualified path — `#[from(bulk_migration_steps::ledger_state)]` compiles and
-  produces no unused-import warning, whereas a `use` + bare-ident form leaves the
-  imports flagged as unused once the `#[scenario]` macro rewrites the signature.
-  Evidence: the trybuild fixture compiled cleanly with the qualified form.
-  Impact: Constraint 7 (qualified `#[from]`) is correct and the existing
-  cookbook prose's `#[from(common::…)]` shape is valid; an earlier commit message
-  that claimed `#[from]` needs a bare identifier was wrong and is corrected in a
-  later commit.
+  produces no unused-import warning, whereas a `use` + bare-ident form leaves
+  the imports flagged as unused once the `#[scenario]` macro rewrites the
+  signature. Evidence: the trybuild fixture compiled cleanly with the qualified
+  form. Impact: Constraint 7 (qualified `#[from]`) is correct and the existing
+  cookbook prose's `#[from(common::…)]` shape is valid; an earlier commit
+  message that claimed `#[from]` needs a bare identifier was wrong and is
+  corrected in a later commit.
 - Observation (implementation): `--all-features` did not turn missing steps into
   a compile error for these suites — the Green suite built and passed under
   `cargo clippy --all-features`, and the Red failure surfaced at run time as
@@ -339,52 +343,52 @@ Stop and escalate (document in Decision Log, await direction) when:
 ## Decision log
 
 - Decision: Target Interpretation B — documentation plus an executable
-  reference suite — over prose-only. Rationale: the roadmap emphasizes sharing a
-  *step library* and not copying *helper code*, and the sibling cookbook has an
-  executable mirror; a prose-only change would leave this the only unbacked
+  reference suite — over prose-only. Rationale: the roadmap emphasizes sharing
+  a *step library* and not copying *helper code*, and the sibling cookbook has
+  an executable mirror; a prose-only change would leave this the only unbacked
   cookbook. Date/Author: 2026-07-06. Status: confirm at approval.
 - Decision (changed by design review): Use a **harness-agnostic** executable
   proof in `rstest-bdd`, not a new feature-gated GPUI suite. Rationale: the
-  reuse property is harness-agnostic and already precedented by `noop_steps.rs`;
-  a GPUI suite re-proves it at high cost, hand-builds thread-local boilerplate
-  that 11.1.3/11.1.4 delete in v0.6.1, trips the dead-code lint, targets vendored
-  gpui for a published-gpui audience, and would be built by copying
-  `stateful_window.rs` (which Constraint 2 forbids refactoring), making the
-  anti-duplication exemplar out of duplication. The GPUI half is already proven
-  by `stateful_window.rs`; the cookbook prose cross-links to it. Date/Author:
-  2026-07-06 (post-review). Status: confirm at approval (Decision 1).
-- Decision: The cookbook prose bridges to published `gpui 0.2.2` via the existing
-  mapping table and marks GPUI snippets vendored-API. Rationale: the audience
-  runs published gpui; vendored-only snippets would not compile for them.
-  Date/Author: 2026-07-06 (post-review). (Decision 2, Constraint 8.)
+  reuse property is harness-agnostic and already precedented by
+  `noop_steps.rs`; a GPUI suite re-proves it at high cost, hand-builds
+  thread-local boilerplate that 11.1.3/11.1.4 delete in v0.6.1, trips the
+  dead-code lint, targets vendored gpui for a published-gpui audience, and
+  would be built by copying `stateful_window.rs` (which Constraint 2 forbids
+  refactoring), making the anti-duplication exemplar out of duplication. The
+  GPUI half is already proven by `stateful_window.rs`; the cookbook prose
+  cross-links to it. Date/Author: 2026-07-06 (post-review). Status: confirm at
+  approval (Decision 1).
+- Decision: The cookbook prose bridges to published `gpui 0.2.2` via the
+  existing mapping table and marks GPUI snippets vendored-API. Rationale: the
+  audience runs published gpui; vendored-only snippets would not compile for
+  them. Date/Author: 2026-07-06 (post-review). (Decision 2, Constraint 8.)
 - Decision: No trybuild GPUI fixture; a harness-agnostic trybuild compile-pass
   fixture guards the cookbook's structural snippet, mirroring
   `scenario_third_party_harness_cookbook.rs`. Rationale: that sibling mirrors
   against a minimal stand-in, not a real framework, so a compile guard needs no
   gpui. Originally kept optional for scope; **made required** by the maintainer
   instruction that tests are required for all examples (Constraint 9) — user-
-  guide Markdown is not compiled as doctests here, so the structural Rust snippet
-  needs this fixture to be test-backed. Date/Author: 2026-07-06 (post-review;
-  updated per "tests required for all examples").
+  guide Markdown is not compiled as doctests here, so the structural Rust
+  snippet needs this fixture to be test-backed. Date/Author: 2026-07-06
+  (post-review; updated per "tests required for all examples").
 - Decision: Every cookbook example must be test-backed (Constraint 9), by a
   runtime test, a trybuild compile-pass fixture, or a cross-reference to a
   concrete `stateful_window.rs` item; non-compilable blocks (`text`/`toml`/
   `gherkin`) are exempt from compilation but their Rust counterparts are not.
-  Rationale: maintainer instruction; also matches the repository convention that
-  every playbook snippet has an executable mirror. Date/Author: 2026-07-06.
+  Rationale: maintainer instruction; also matches the repository convention
+  that every playbook snippet has an executable mirror. Date/Author: 2026-07-06.
 - Decision: No new ADR. Rationale: an additive, reversible, test-only
   documentation-and-testing convention resting on existing ADR-007/ADR-011 and
   design §2.7.6.2; AGENTS.md routes such conventions to the design doc and
   developer guide. Date/Author: 2026-07-06. (Panel concurred.)
 - Decision: Rigour level — behavioural tests (rstest-bdd) are the core
-  deliverable; one rstest unit test guards the reset helper;
-  `insta`/`proptest`/`kani`/`verus` are not added. Rationale: no new formatted
-  multivariant output (no snapshot need) and no new invariant over input ranges
-  beyond what `stateful_window.rs`'s proptest already covers. Date/Author:
-  2026-07-06.
+  deliverable; one rstest unit test guards the reset helper; `insta`/`proptest`/
+  `kani`/`verus` are not added. Rationale: no new formatted multivariant
+  output (no snapshot need) and no new invariant over input ranges beyond what
+  `stateful_window.rs`'s proptest already covers. Date/Author: 2026-07-06.
 - Decision: Fixture binding uses the qualified `#[from(<module>::…)]` form and
-  `pub` items, not a `use` import. Rationale: matches the existing subsection and
-  the only working precedents; the `use` form's `#[from]` resolution is
+  `pub` items, not a `use` import. Rationale: matches the existing subsection
+  and the only working precedents; the `use` form's `#[from]` resolution is
   unproven. Date/Author: 2026-07-06 (post-review). (Constraint 7.)
 
 ## Outcomes & retrospective
@@ -400,24 +404,24 @@ Delivered against all four success criteria in "Purpose":
 3. Red→Green was demonstrated: disabling the shared `Given` step produced
    `Step not found at index 0: Given a fresh ledger`; restoring it turned both
    bindings green.
-4. `make check-fmt`, `make lint`, `make test`, `make markdownlint`, `make nixie`,
-   and the plain-`cargo test` trybuild pass all succeeded; the two named
-   scenarios appear in the test output; CodeRabbit found zero issues.
+4. `make check-fmt`, `make lint`, `make test`, `make markdownlint`,
+   `make nixie`, and the plain-`cargo test` trybuild pass all succeeded; the
+   two named scenarios appear in the test output; CodeRabbit found zero issues.
 
 What went well: the six-lens design review caught, before any code was written,
 that the originally planned feature-gated GPUI suite was the wrong vehicle
 (obsolescence against 11.1.3/11.1.4, dead-code lint, vendored-vs-published
 mismatch, and duplication of `stateful_window.rs`). Switching to a
-harness-agnostic proof built on the shipped `Slot<T>`/`ScenarioState` primitives
-made the suite lint-clean, cheap, and durable.
+harness-agnostic proof built on the shipped `Slot<T>`/`ScenarioState`
+primitives made the suite lint-clean, cheap, and durable.
 
-Lessons: (1) rstest's `#[from]` accepts a module-qualified path, so the existing
-cookbook prose was valid — verify such assumptions with a compile before
-"correcting" docs. (2) User-guide Markdown is not compiled as doctests here, so
-a trybuild fixture is the right compile-backing for a snippet; the runtime suite
-is
-the execution-backing. (3) The stepless-module Red is the honest shape — a
-missing-`mod` compile error would have proved nothing about step resolution.
+Lessons: (1) rstest's `#[from]` accepts a module-qualified path, so the
+existing cookbook prose was valid — verify such assumptions with a compile
+before "correcting" docs. (2) User-guide Markdown is not compiled as doctests
+here, so a trybuild fixture is the right compile-backing for a snippet; the
+runtime suite is the execution-backing. (3) The stepless-module Red is the
+honest shape — a missing-`mod` compile error would have proved nothing about
+step resolution.
 
 Would do differently: draft the plan against the harness-agnostic vehicle from
 the start rather than reaching it via review, saving one revision cycle.
@@ -427,7 +431,7 @@ the start rather than reaching it via review, saving one revision cycle.
 You are working in the `rstest-bdd` Cargo workspace. `rstest-bdd` is a
 behaviour-driven-development (BDD) layer over the `rstest` fixture framework:
 you write Gherkin `.feature` files and bind Rust step functions to their
-`Given`/`When`/`Then` lines with `#[given]`/`#[when]`/`#[then]`, and bind a
+`Given` /`When`/`Then` lines with `#[given]`/`#[when]`/`#[then]`, and bind a
 scenario to a feature with `#[scenario(path = …, name = …)]`.
 
 Key terms:
@@ -462,8 +466,8 @@ Key terms:
 ### Files to read first
 
 1. `docs/roadmap.md` around lines 866-870 — the 10.2.7 item and finish line;
-   lines 907-933 — items 11.1.3/11.1.4 (`ScenarioStore<T>` and the cleanup-guard
-   macro) that shrink this boilerplate in v0.6.1.
+   lines 907-933 — items 11.1.3/11.1.4 (`ScenarioStore<T>` and the
+   cleanup-guard macro) that shrink this boilerplate in v0.6.1.
 2. `docs/rstest-bdd-design.md` §2.7.6.2 (lines ~1947-2058) — the interim GPUI
    state pattern and the vendored-vs-published mapping table.
 3. `docs/users-guide.md`: "Stateful GPUI scenarios with durable handles"
@@ -473,13 +477,15 @@ Key terms:
    "compile-checked mirror lives at …" maintenance note to imitate.
 4. Executable precedents:
    `crates/rstest-bdd/tests/common/noop_steps.rs` and one includer
-   (`crates/rstest-bdd/tests/diagnostic_unused.rs`) — shared step library across
-   binaries; `crates/rstest-bdd/tests/scenario_state.rs` — `Slot<T>` + fixture
-   durable state; `crates/rstest-bdd/tests/third_party_harness_cookbook.rs` and
-   `crates/rstest-bdd/tests/fixtures_macros/scenario_third_party_harness_cookbook.rs`
-   — the runtime + trybuild mirror pair; and, for the GPUI-specific reference the
-   prose cross-links to, `crates/rstest-bdd-harness-gpui/tests/stateful_window.rs`
-   with `tests/features/stateful_window.feature`.
+   (`crates/rstest-bdd/tests/diagnostic_unused.rs`) — shared step library
+   across binaries; `crates/rstest-bdd/tests/scenario_state.rs` — `Slot<T>` +
+   fixture durable state;
+   `crates/rstest-bdd/tests/third_party_harness_cookbook.rs` and the
+   `crates/rstest-bdd/tests/fixtures_macros/` directory's
+   `scenario_third_party_harness_cookbook.rs` fixture — the runtime + trybuild
+   mirror pair; and, for the GPUI-specific reference the prose cross-links to,
+   `crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` with
+   `tests/features/stateful_window.feature`.
 5. `crates/rstest-bdd/tests/trybuild_macros.rs` (function `step_macros_compile`,
    the `run_passing_macro_tests` list, and the `NEXTEST_RUN_ID` skip guard) —
    only if the optional trybuild fixture is added.
@@ -487,13 +493,15 @@ Key terms:
 ### Repository conventions that constrain the design
 
 - `make test` runs cargo-nextest with `--all-features`; each test binary runs in
-  its own process. `#[serial]` is only needed when a binary shares mutable state
-  across scenarios (the recommended suite uses per-scenario `#[fixture]` state,
-  so it does not need `#[serial]`; add it only if a single binary hosts multiple
-  scenarios sharing a process-global). Design §2.7.6.7 has the full matrix.
+  its own process. `#[serial]` is only needed when a binary shares mutable
+  state across scenarios (the recommended suite uses per-scenario `#[fixture]`
+  state, so it does not need `#[serial]`; add it only if a single binary hosts
+  multiple scenarios sharing a process-global). Design §2.7.6.7 has the full
+  matrix.
 - Every user-guide playbook snippet has an executable mirror and the prose
-  states the suite is authoritative on drift (doc↔suite parity is prose-guarded,
-  matching the third-party cookbook; no snippet-extraction checker is required).
+  states the suite is authoritative on drift (doc↔suite parity is
+  prose-guarded, matching the third-party cookbook; no snippet-extraction
+  checker is required).
 - `make lint` also runs `check_users_guide_links.py`,
   `check_gpui_mapping_table.py`, and `check_serial_nextest_matrix.py`.
 
@@ -525,9 +533,9 @@ the presence of the shared *steps*.
    bridge) at the approval gate.
 3. Empirically confirm whether `make test`'s `--all-features` activates
    `rstest-bdd-macros/strict-compile-time-validation` (build the crate under
-   `--all-features` and check whether a scenario with a missing step is a compile
-   error or a runtime failure). Record the answer; it only affects how the Red is
-   described, not the Red shape.
+   `--all-features` and check whether a scenario with a missing step is a
+   compile error or a runtime failure). Record the answer; it only affects how
+   the Red is described, not the Red shape.
 4. Choose the two example domains and step text so their union exercises every
    shared item (Constraint 4). A ledger/counter world with, for example,
    `Given a fresh ledger`, `When an entry of {int} is posted`,
@@ -537,9 +545,8 @@ the presence of the shared *steps*.
 ### Stage B-red — failing behavioural specification
 
 1. Add two feature files under
-   `crates/rstest-bdd/tests/features/bulk_migration/`:
-   `first.feature` and `second.feature`, each one scenario built from the shared
-   step text.
+   `crates/rstest-bdd/tests/features/bulk_migration/`: `first.feature` and
+   `second.feature`, each one scenario built from the shared step text.
 2. Add the shared module
    `crates/rstest-bdd/tests/common/bulk_migration_steps.rs` containing the
    `ScenarioState`-derived world, a `pub #[fixture]` cleanup/state fixture, and
@@ -557,17 +564,19 @@ the presence of the shared *steps*.
      /tmp/red-rstest-bdd-$(git branch --show-current).out
    ```
 
-   Expected: the binary links (the module and fixture exist), the scenario runs,
-   and it fails with `StepNotFound` naming the first unresolved step. Record the
-   exact message in `Concrete steps`.
+   Expected: the binary links (the module and fixture exist), the scenario
+   runs, and it fails with `StepNotFound` naming the first unresolved step.
+   Record the exact message in `Concrete steps`.
 
 ### Stage B-docs — documentation
 
 1. Expand `docs/users-guide.md` "Bulk-migration cookbook":
-   - Open with the frame: this is the v0.6.0 shape; v0.6.1 (roadmap 11.1.3/11.1.4,
+   - Open with the frame: this is the v0.6.0 shape; v0.6.1 (roadmap
+     11.1.3/11.1.4,
      `ScenarioStore<T>` + cleanup-guard macro) collapses the shared block to an
      import and generates the cleanup parameter — adopt now, expect to shrink.
-   - State that the shared module holds the **step library** (the given/when/then
+   - State that the shared module holds the **step library** (the
+     given/when/then
      functions) *and* the state scaffolding, not only the scaffolding.
    - Explain inventory-per-binary registration and the `tests/common/<file>.rs`
      subdirectory form (and why it avoids an accidental empty test binary).
@@ -580,7 +589,8 @@ the presence of the shared *steps*.
      snippets marked vendored-API, add the one-line pointer to the existing
      published-vs-vendored mapping table (Constraint 8), and cross-link to
      `stateful_window.rs` as the executable GPUI reference.
-   - Add the pointer to the new executable reference suite with the "if a snippet
+   - Add the pointer to the new executable reference suite with the "if a
+     snippet
      drifts, the suite wins" note.
    - Cite the feature-file rebuild foot-gun (§2.7.6.6) so adopters know to touch
      a `.rs` after editing only a `.feature`.
@@ -591,16 +601,17 @@ the presence of the shared *steps*.
    that doc↔suite parity is deliberately prose-guarded (no checker), and that
    edits near the mapping table or serial matrix must keep
    `check_gpui_mapping_table.py` / `check_serial_nextest_matrix.py` green.
-4. `make fmt` then `make markdownlint`; `python3 scripts/check_users_guide_links.py`
-   if links or anchors changed; `make nixie` if any diagram is added (none
-   expected).
+4. `make fmt` then `make markdownlint`;
+   `python3 scripts/check_users_guide_links.py` if links or anchors changed;
+   `make nixie` if any diagram is added (none expected).
 
 ### Stage C — implementation (green)
 
 1. Add the `#[given]`/`#[when]`/`#[then]` functions to
-   `bulk_migration_steps.rs`, using the shared `ScenarioState`/`Slot<T>` fixture
-   for durable state. Make every step and helper `pub` where a binding file needs
-   it. Ensure the two feature files' union uses every step (Constraint 4).
+   `bulk_migration_steps.rs`, using the shared `ScenarioState`/`Slot<T>`
+   fixture for durable state. Make every step and helper `pub` where a binding
+   file needs it. Ensure the two feature files' union uses every step
+   (Constraint 4).
 2. Force a clean build and run both binaries (Green):
 
    ```bash
@@ -610,8 +621,8 @@ the presence of the shared *steps*.
      /tmp/green-rstest-bdd-$(git branch --show-current).out
    ```
 
-   Assert the two named scenario tests appear and pass — grep the output for the
-   scenario test names, not just exit code 0 (Risk 3).
+   Assert the two named scenario tests appear and pass — grep the output for
+   the scenario test names, not just exit code 0 (Risk 3).
 3. Stage C-unit: add one rstest unit test (in the shared module under
    `#[cfg(test)]`) asserting the reset helper returns the world to its default;
    use plain `assert_eq!`.
@@ -623,9 +634,9 @@ the presence of the shared *steps*.
    `NEXTEST_RUN_ID` skip guard), so validate it with
    `cargo test -p rstest-bdd step_macros_compile` (repository memory: nextest
    skips trybuild fixtures). This fixture is the compile-backing for the
-   cookbook's binding/shared-module snippet; the runtime suite is the execution-
-   backing. Every other Rust snippet in the subsection must reuse one of these
-   two backings or cross-reference `stateful_window.rs`.
+   cookbook's binding/shared-module snippet; the runtime suite is the
+   execution- backing. Every other Rust snippet in the subsection must reuse
+   one of these two backings or cross-reference `stateful_window.rs`.
 
 ### Stage D — refactor, gates, review
 
@@ -634,8 +645,9 @@ the presence of the shared *steps*.
    files for step macros (expect none).
 2. Run the full gate sequence via the `scrutineer` subagent, sequentially:
    `make check-fmt`, `make lint`, `make test`, then `make markdownlint` and
-   `make nixie`. On failure, read the cited `/tmp` log and fix before re-running.
-   Never silence a lint except as a scoped last resort with a reason.
+   `make nixie`. On failure, read the cited `/tmp` log and fix before
+   re-running. Never silence a lint except as a scoped last resort with a
+   reason.
 3. Only once all deterministic gates pass, request `coderabbit review --agent`;
    clear all findings before proceeding.
 4. Update `Progress`, `Surprises`, `Decision Log`, `Outcomes`.
@@ -680,15 +692,16 @@ test scenario_second_reuses_shared_steps ... ok
 Acceptance is behavioural and observable:
 
 1. **Red proof.** With the shared module present but step-free,
-   `cargo test -p rstest-bdd --test bulk_migration_cookbook_a` fails at run time
-   with `StepNotFound` naming a specific step line (or, if strict compile-time
-   validation is active, a macro-expansion error citing the missing step) —
-   caused by the missing *steps*, not a missing module. Record the message.
+   `cargo test -p rstest-bdd --test bulk_migration_cookbook_a` fails at run
+   time with `StepNotFound` naming a specific step line (or, if strict
+   compile-time validation is active, a macro-expansion error citing the
+   missing step) — caused by the missing *steps*, not a missing module. Record
+   the message.
 2. **Green proof.** After adding the steps,
-   `cargo test -p rstest-bdd --test bulk_migration_cookbook_a
-   --test bulk_migration_cookbook_b` passes, and both scenarios exercise the same
-   step functions defined once in `tests/common/bulk_migration_steps.rs`. The two
-   named tests appear in the output.
+   `cargo test -p rstest-bdd --test bulk_migration_cookbook_a --test bulk_migration_cookbook_b`
+   passes, and both scenarios exercise the same step functions defined once in
+   `tests/common/bulk_migration_steps.rs`. The two named tests appear in the
+   output.
 3. **Reuse proof.** The two binding files contain no
    `#[given]`/`#[when]`/`#[then]` — a reviewer confirms by grepping and finding
    none (Constraint 3).
@@ -716,15 +729,15 @@ Quality criteria ("done"):
 - Docs: `make markdownlint` and the link check clean.
 
 Quality method: sequential gate run through `scrutineer`; focused `cargo test`
-for Red/Green evidence with `cargo clean -p rstest-bdd` before each; manual grep
-of binding files for the reuse proof and of `make test` output for the named
-tests.
+for Red/Green evidence with `cargo clean -p rstest-bdd` before each; manual
+grep of binding files for the reuse proof and of `make test` output for the
+named tests.
 
 ## Idempotence and recovery
 
 - All new files are additive; re-running any step is safe. Before any focused
-  Red/Green run, `cargo clean -p rstest-bdd` guarantees the `.feature` edits are
-  seen (design §2.7.6.6), so no stale-cache false result.
+  Red/Green run, `cargo clean -p rstest-bdd` guarantees the `.feature` edits
+  are seen (design §2.7.6.6), so no stale-cache false result.
 - Fixture-based `Slot<T>` state is per-scenario, so scenario order does not
   matter and re-runs are deterministic.
 - Documentation edits are text-only and reversible via git; commit atomically so
@@ -732,8 +745,8 @@ tests.
 
 ## Interfaces and dependencies
 
-No production interfaces change. Test-only shapes to create (names illustrative;
-finalize the domain in Stage A):
+No production interfaces change. Test-only shapes to create (names
+illustrative; finalize the domain in Stage A):
 
 Shared module `crates/rstest-bdd/tests/common/bulk_migration_steps.rs`:
 
@@ -777,9 +790,9 @@ fn scenario_first_reuses_shared_steps(
 }
 ```
 
-Binding file `crates/rstest-bdd/tests/bulk_migration_cookbook_b.rs` has the same
-shape, binding a second scenario in `second.feature`, including the *same* shared
-module, with no steps of its own.
+Binding file `crates/rstest-bdd/tests/bulk_migration_cookbook_b.rs` has the
+same shape, binding a second scenario in `second.feature`, including the *same*
+shared module, with no steps of its own.
 
 Feature file `crates/rstest-bdd/tests/features/bulk_migration/first.feature`:
 
@@ -796,8 +809,8 @@ The second feature reuses the same step text with different amounts so both
 binaries exercise every shared step (Constraint 4).
 
 Dependencies: only crates already in `crates/rstest-bdd/Cargo.toml`
-`[dev-dependencies]`. No new dependency, no new feature flag, no
-`googletest`/`pretty_assertions`.
+`[dev-dependencies]`. No new dependency, no new feature flag, no `googletest`/
+`pretty_assertions`.
 
 ## Revision note
 
