@@ -4,8 +4,6 @@
 //! does not depend on the runtime crate at compile-time.
 
 use proc_macro_crate::{FoundCrate, crate_name};
-#[cfg(not(test))]
-use proc_macro_error::emit_warning;
 use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
 use quote::quote;
 use rstest_bdd_policy::TestAttributeHint;
@@ -15,9 +13,12 @@ struct CrateSpec {
     default_crate_name: &'static str,
     adapter_type_names: &'static [&'static str],
 }
-
+mod adapter_fallback;
 pub(crate) mod scenario;
 pub(crate) mod wrapper;
+
+use adapter_fallback::emit_first_party_adapter_fallback_warning;
+pub(crate) use adapter_fallback::first_party_adapter_fallback_warning_tokens;
 
 const RSTEST_BDD: CrateSpec = CrateSpec {
     package_name: "rstest-bdd",
@@ -106,37 +107,6 @@ fn first_party_adapter_spec(adapter_path: &syn::Path) -> Option<&'static CrateSp
         .into_iter()
         .find(|spec| first_party_adapter_path_matches(adapter_path, spec))
 }
-
-#[cfg(not(test))]
-fn emit_first_party_adapter_fallback_warning(adapter_path: &syn::Path) {
-    let Some(spec) = [&TOKIO_HARNESS, &GPUI_HARNESS]
-        .into_iter()
-        .find(|spec| path_last_ident_matches(adapter_path, spec.adapter_type_names))
-    else {
-        return;
-    };
-    let span = adapter_path
-        .segments
-        .last()
-        .map_or_else(Span::call_site, |segment| segment.ident.span());
-    let package_name = spec.package_name;
-    let default_crate_name = spec.default_crate_name;
-    emit_warning!(
-        span,
-        concat!(
-            "rstest-bdd could not identify this harness or attribute-policy path as a first-party adapter; ",
-            "falling back to `rstest-bdd-harness` for base harness API types. ",
-            "Use the canonical crate-root path, ensure `{}` is directly resolvable as `{}`, ",
-            "or add `rstest-bdd-harness` as a direct dev-dependency."
-        ),
-        package_name,
-        default_crate_name
-    );
-}
-
-#[cfg(test)]
-fn emit_first_party_adapter_fallback_warning(_: &syn::Path) {}
-
 fn first_party_adapter_api_root(adapter_path: &syn::Path, spec: &CrateSpec) -> TokenStream2 {
     if path_root_matches_crate(adapter_path, spec) {
         let Some(root) = adapter_path.segments.first().map(|segment| &segment.ident) else {

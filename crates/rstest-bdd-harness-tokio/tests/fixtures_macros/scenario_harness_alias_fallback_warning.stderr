@@ -1,0 +1,11 @@
+error: use of deprecated unit struct `_::RstestBddFirstPartyAdapterFallback`: rstest-bdd could not identify this harness or attribute-policy path as a first-party adapter; falling back to `rstest-bdd-harness` for base harness API types. Use the canonical crate-root path, ensure `rstest-bdd-harness-tokio` is directly resolvable as `rstest_bdd_harness_tokio`, or add `rstest-bdd-harness` as a direct dev-dependency.
+  --> tests/fixtures_macros/scenario_harness_alias_fallback_warning.rs:28:22
+   |
+28 |     harness = alias::TokioHarness,
+   |                      ^^^^^^^^^^^^
+   |
+note: the lint level is defined here
+  --> tests/fixtures_macros/scenario_harness_alias_fallback_warning.rs:9:9
+   |
+ 9 | #![deny(deprecated)]
+   |         ^^^^^^^^^^
