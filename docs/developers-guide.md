@@ -845,6 +845,25 @@ feature-gated regression suite in
 `crates/rstest-bdd-harness-gpui/tests/scenario_name_in_logs.rs` apply the
 attribute to every `GpuiHarness::run`-driving test.
 
+
+## Canonical step-keyword table
+
+`crates/rstest-bdd-patterns/src/keyword.rs` holds the `KEYWORDS` const table,
+the single source of truth for the string ↔ `StepKeyword` correspondence.
+`StepKeyword::as_str` (rendering) and `StepKeyword::from_str`
+(case-insensitive, whitespace-trimming parsing) both derive from this table;
+neither side carries its own literal list.
+
+- **Adding or renaming a keyword:** edit the `KEYWORDS` table (and the enum
+  variant) only. Do not add parallel literals to `as_str`, `from_str`, or
+  call-sites.
+- **Round-trip contract:** for every variant `kw`,
+  `StepKeyword::from_str(kw.as_str()) == Ok(kw)`; parsing accepts any ASCII
+  case permutation and surrounding whitespace. The contract is pinned by the
+  property suite in `crates/rstest-bdd-patterns/tests/keyword_props.rs`.
+- Entries store the canonical title-case rendering used in generated output
+  and diagnostics.
+
 ## Registry lookup usage-marking invariant
 
 Every public step-lookup function in `crates/rstest-bdd/src/registry/`
