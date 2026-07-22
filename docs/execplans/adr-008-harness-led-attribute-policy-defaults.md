@@ -21,15 +21,31 @@ documentation path:
 ```rust,no_run
 # use rstest_bdd_macros::scenario;
 #[scenario(
-    path = "tests/features/my_async.feature",
-    harness = rstest_bdd_harness_tokio::TokioHarness,
+    path = "tests/features/my_ui.feature",
+    harness = rstest_bdd_harness_gpui::GpuiHarness,
 )]
-fn my_tokio_scenario() {}
+fn my_gpui_scenario() {}
 ```
 
-and:
+Explicit `attributes = ...` remains authoritative, `attributes`-only
+configuration remains supported, and unknown third-party harnesses must still
+fall back to explicit policy selection rather than pretending the macro can
+infer arbitrary defaults.
 
-```rust,no_run
+Success is observable in three ways:
+
+1. Unit tests prove the exact precedence order from ADR-008:
+   explicit `attributes` override, known first-party harness defaults come
+   next, the deprecated Tokio runtime alias remains below explicit harness
+   selection, and the final fallback is the existing runtime-mode or
+   synchronous behaviour.
+2. Public-macro coverage proves the harness-only first-party forms compile and
+   run for both `#[scenario]` and `scenarios!`, while explicit override cases
+   still behave correctly.
+3. `docs/users-guide.md` clearly teaches harness-led defaults as the normal
+   first-party configuration and still documents `attributes = ...` as the
+   override and third-party escape hatch.
+
 # use rstest_bdd_macros::scenario;
 #[scenario(
     path = "tests/features/my_ui.feature",
@@ -425,11 +441,12 @@ Implementation details:
 
 Go/no-go validation:
 
-- The `trybuild_macros step_macros_compile -- --exact` suite passes with
+- `cargo test -p rstest-bdd --test trybuild_macros step_macros_compile -- --exact`
+  passes with `RUSTFLAGS="-D warnings"`.
+- `cargo test -p rstest-bdd --test scenario_harness_tokio` passes with
   `RUSTFLAGS="-D warnings"`.
-- The `scenario_harness_tokio` suite passes with `RUSTFLAGS="-D warnings"`.
-- The `scenario_harness_gpui --features gpui-harness-tests` suite passes with
-  `RUSTFLAGS="-D warnings"`.
+- `cargo test -p rstest-bdd --test scenario_harness_gpui --features gpui-harness-tests`
+  passes with `RUSTFLAGS="-D warnings"`.
 
 ### Stage D: update the user guide and design doc
 

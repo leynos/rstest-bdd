@@ -679,9 +679,9 @@ If a future refactor moves any helper into
 The change relies on the following existing public surfaces, which are not
 modified:
 
-- `gpui::run_test` — vendored shim signature unchanged.
-- `rstest_bdd_harness::ScenarioMetadata` getters — `feature_path`,
-  `scenario_name`, and `scenario_line` remain unchanged.
+- `gpui::run_test(...)` — vendored shim signature unchanged.
+- `rstest_bdd_harness::ScenarioMetadata` getter accessors remain unchanged:
+  `feature_path`, `scenario_name`, and `scenario_line`.
 - `rstest_bdd_harness::HarnessAdapter::run` — `GpuiHarness`'s
   implementation continues to return `HarnessResult<T>` for the success path
   and propagate via `panic::resume_unwind` for the failure path.
