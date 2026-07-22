@@ -57,8 +57,10 @@ pub(super) fn generate_step_result_handler(callee: &TokenStream2, is_async: bool
     quote! {
         match #call {
             Ok(Some(__rstest_bdd_val)) => {
-                // Intentionally discarded: insert_value returns None when no fixture
-                // slot matches the value's TypeId or when matches are ambiguous.
+                // Intentionally discarded: `InsertOutcome::NoMatch` and
+                // `InsertOutcome::AmbiguousIgnored` mean no fixture slot
+                // uniquely matches the value's TypeId; the ambiguous case
+                // already logs a warning inside `insert_value`.
                 let _ = ctx.insert_value(__rstest_bdd_val);
             }
             Ok(None) => {}
