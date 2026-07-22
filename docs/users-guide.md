@@ -1373,7 +1373,7 @@ reader the binding name is part of the contract.
   playbook.
 - Design-document §2.7.6.6 documents the feature-file rebuild-invalidation
   foot-gun (`.feature`-only edits do not trigger a rebuild until roadmap item
-  11.3.1 lands).
+  10.3.3 lands).
 - Design-document §2.7.6.7 documents the full cargo test versus nextest matrix
   for `#[serial]` and thread-local state.
 
@@ -1407,7 +1407,7 @@ When migrating a large test suite, factor the whole durable-handle **step
 library** — the `#[given]`/`#[when]`/`#[then]` steps together with the state
 scaffolding — into one shared module per consuming crate, rather than copying it
 into every test file. This is the v0.6.0 shape, and it is deliberately explicit.
-Once roadmap items 11.1.3 and 11.1.4 ship (`ScenarioStore<T>` and the
+Once roadmap items 10.3.1 and 10.3.2 ship (`ScenarioStore<T>` and the
 cleanup-guard fixture macro), the shared block shrinks to a single import and the
 `#[scenario]` cleanup parameter is generated for you. Adopt the pattern now and
 expect to shrink it then.

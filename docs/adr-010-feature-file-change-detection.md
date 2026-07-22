@@ -179,7 +179,7 @@ in `§3.2.2`.
 
 Neither option is unambiguously superior across all axes. This ADR records
 the trade-offs and establishes the binding constraints; the choice of mechanism
-is deferred to the implementing ExecPlan (roadmap item 11.3.1), which has
+is deferred to the implementing ExecPlan (roadmap item 10.3.3), which has
 access to the actual call-site span data and the `scenarios!` implementation.
 
 Binding constraints for the implementing ExecPlan:
@@ -210,7 +210,7 @@ Binding constraints for the implementing ExecPlan:
 
 ## Testing strategy
 
-The implementing ExecPlan (roadmap item 11.3.1) must cover three layers, in
+The implementing ExecPlan (roadmap item 10.3.3) must cover three layers, in
 addition to the binding constraint that invalidation is a tested contract:
 
 1. **Rebuild-invalidation regression test (required).** A portability-aware
@@ -237,7 +237,7 @@ addition to the binding constraint that invalidation is a tested contract:
 
    These join the existing `rstest-bdd::trybuild_macros` / `*::macro_compile`
    suites and inherit their nextest slow-timeout override. Both fixtures are
-   required acceptance criteria for roadmap item 11.3.1.
+   required acceptance criteria for roadmap item 10.3.3.
 3. **Diagnostic snapshots (required for any touched diagnostic).** For any
    user-facing diagnostic the change touches (for example the missing-`.feature`
    error), pin the rendered message with a focused `insta` snapshot using stable
@@ -255,7 +255,7 @@ addition to the binding constraint that invalidation is a tested contract:
 
 ## Consequences
 
-- The rebuild-invalidation foot-gun is closed once 11.3.1 lands.
+- The rebuild-invalidation foot-gun is closed once 10.3.3 lands.
 - Consumers of `#[scenario]` gain invisible rebuild tracking with no
   `build.rs` obligation (Option A path).
 - Consumers of `scenarios!` gain rebuild tracking with an opt-in `build.rs`
@@ -271,7 +271,7 @@ addition to the binding constraint that invalidation is a tested contract:
 
 ## Governs
 
-- Roadmap item: Phase 11.3.1 ("Editing only a `.feature` file triggers a
+- Roadmap item: Phase 10.3.3 ("Editing only a `.feature` file triggers a
   scenario rebuild"), targeted at v0.6.0 final.
 - Design document: new `§2.7.6.6` (feature-file rebuild invalidation) and
   updated `§3.2.2`.

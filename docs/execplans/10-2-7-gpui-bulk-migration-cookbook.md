@@ -101,8 +101,8 @@ primitives without gpui and without thread-locals). This is:
 
 - cheaper and lint-clean (no dead-code from per-feature-unused helpers);
 - not obsolescence-bound (it uses the `Slot<T>`/`ScenarioState` primitives that
-  roadmap 11.1.3's `ScenarioStore<T>` builds on, rather than the thread-local
-  boilerplate 11.1.3/11.1.4 will delete);
+  roadmap 10.3.1's `ScenarioStore<T>` builds on, rather than the thread-local
+  boilerplate 10.3.1/10.3.2 will delete);
 - free of the vendored-vs-published gpui mismatch (see Decision 2); and
 - free of the cross-binary GPUI concerns the review examined and dismissed.
 
@@ -310,7 +310,7 @@ Stop and escalate (document in Decision Log, await direction) when:
 - Observation: `crates/rstest-bdd/tests/scenario_state.rs` demonstrates durable
   scenario state via `#[derive(ScenarioState)]` + `Slot<T>` + `#[fixture]`, with
   no gpui and no thread-local. Impact: the recommended suite builds on shipped
-  primitives and is not obsoleted by 11.1.3.
+  primitives and is not obsoleted by 10.3.1.
 - Observation: `make test` uses `--workspace --all-targets --all-features`
   (Makefile line 13). Impact: the recommended (non-gated) suite runs in the
   standard gate; whether `--all-features` also flips
@@ -347,7 +347,8 @@ Stop and escalate (document in Decision Log, await direction) when:
   proof in `rstest-bdd`, not a new feature-gated GPUI suite. Rationale: the
   reuse property is harness-agnostic and already precedented by `noop_steps.rs`;
   a GPUI suite re-proves it at high cost, hand-builds thread-local boilerplate
-  that 11.1.3/11.1.4 delete in v0.6.1, trips the dead-code lint, targets vendored
+  that 10.3.1/10.3.2 delete for v0.6.0 final, trips the dead-code lint,
+  targets vendored
   gpui for a published-gpui audience, and would be built by copying
   `stateful_window.rs` (which Constraint 2 forbids refactoring), making the
   anti-duplication exemplar out of duplication. The GPUI half is already proven
@@ -406,7 +407,7 @@ Delivered against all four success criteria in "Purpose":
 
 What went well: the six-lens design review caught, before any code was written,
 that the originally planned feature-gated GPUI suite was the wrong vehicle
-(obsolescence against 11.1.3/11.1.4, dead-code lint, vendored-vs-published
+(obsolescence against 10.3.1/10.3.2, dead-code lint, vendored-vs-published
 mismatch, and duplication of `stateful_window.rs`). Switching to a
 harness-agnostic proof built on the shipped `Slot<T>`/`ScenarioState` primitives
 made the suite lint-clean, cheap, and durable.
@@ -462,8 +463,8 @@ Key terms:
 ### Files to read first
 
 1. `docs/roadmap.md` around lines 866-870 — the 10.2.7 item and finish line;
-   lines 907-933 — items 11.1.3/11.1.4 (`ScenarioStore<T>` and the cleanup-guard
-   macro) that shrink this boilerplate in v0.6.1.
+   lines 907-933 — items 10.3.1/10.3.2 (`ScenarioStore<T>` and the cleanup-guard
+   macro) that shrink this boilerplate in v0.6.0 final.
 2. `docs/rstest-bdd-design.md` §2.7.6.2 (lines ~1947-2058) — the interim GPUI
    state pattern and the vendored-vs-published mapping table.
 3. `docs/users-guide.md`: "Stateful GPUI scenarios with durable handles"
@@ -564,7 +565,7 @@ the presence of the shared *steps*.
 ### Stage B-docs — documentation
 
 1. Expand `docs/users-guide.md` "Bulk-migration cookbook":
-   - Open with the frame: this is the v0.6.0 shape; v0.6.1 (roadmap 11.1.3/11.1.4,
+   - Open with the frame: this is the beta shape; v0.6.0 final (roadmap 10.3.1/10.3.2,
      `ScenarioStore<T>` + cleanup-guard macro) collapses the shared block to an
      import and generates the cleanup parameter — adopt now, expect to shrink.
    - State that the shared module holds the **step library** (the given/when/then

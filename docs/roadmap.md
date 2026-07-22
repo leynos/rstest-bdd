@@ -867,8 +867,8 @@ changing the public trait contracts.
   `docs/users-guide.md`. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.2.
   Delivered 2026-07-06: expanded the user-guide "Bulk-migration cookbook" to
   share the whole step library (given/when/then plus the state scaffolding) in
-  one `#[path]`-included module per crate, framed as the v0.6.0 shape that
-  v0.6.1 (11.1.3/11.1.4) shrinks, with inventory-per-binary and `pub`/
+  one `#[path]`-included module per crate, framed as the beta shape that
+  v0.6.0 final (10.3.1/10.3.2) shrinks, with inventory-per-binary and `pub`/
   subdirectory rationale, the module-qualified `#[from(...)]` form, and the GPUI
   specialization bridged to published `gpui 0.2.2` via the mapping table and
   cross-linked to `stateful_window.rs`. Backed by a harness-agnostic runtime
@@ -883,6 +883,16 @@ changing the public trait contracts.
   `make check-fmt`, `make lint`, `make test`, `make markdownlint`, `make nixie`,
   and `cargo test -p rstest-bdd --test trybuild_macros step_macros_compile`
   passed; CodeRabbit `review --agent` completed with zero findings.
+- [ ] 10.2.8. The stateful GPUI playbook includes compile-checked
+  published-`gpui 0.2.2` `given` and `when` variants, so adopters do not have
+  to translate the vendored-only worked example from the mapping table alone.
+  The guide also states that step functions and their helpers are ordinary
+  functions for Clippy's `allow-expect-in-tests` policy, and recommends the
+  lint-clean `let ... else { panic!(...) }` invariant form. Finish line: the
+  published snippets compile against crates.io `gpui 0.2.2`, the vendored and
+  published variants are visibly paired, and a drift gate covers both. Design
+  Doc: `docs/rstest-bdd-design.md` §2.7.6.2. Origin:
+  `leynos/rstest-bdd#575` and the gauss v0.6.0-beta3 adoption report.
 
 > **Note (dual-track maintenance):** items 10.2.4 and 10.2.5 introduce a
 > vendored-to-published mapping table that must be kept in sync with any
@@ -894,6 +904,54 @@ changing the public trait contracts.
 > can eventually be retired — is recorded as an open architectural decision in
 > `docs/execplans/adopt-v0-6-0-beta2-feedback.md` and is out of scope for
 > this phase.
+
+### 10.3. v0.6.0 final requirements
+
+This step collects the remaining non-breaking work approved as release
+requirements after downstream beta adoption. The release is ready when its
+state helpers remove the largest GPUI migration tax and feature-file edits
+cannot leave users running stale scenarios.
+
+- [ ] 10.3.1. A generic `ScenarioStore<T>` core (in `rstest-bdd`) replaces
+  per-scenario thread-local `RefCell` boilerplate; it exposes `set`, `with`,
+  `with_mut`, `take`, and `reset` operations and wraps the two-sided reset
+  protocol. Naming note: the name `ScenarioStore<T>` is chosen to avoid
+  colliding with the already-shipped `pub trait ScenarioState: Default` and
+  `pub struct Slot<T>` in `crates/rstest-bdd/src/state.rs`. A GPUI-specific
+  `GpuiScenarioStore` re-export ships in `rstest-bdd-harness-gpui`. Finish
+  line: unit tests exercise all five operations; a GPUI integration test uses
+  `GpuiScenarioStore` and the cleanup fixture macro without handwritten
+  `thread_local!` boilerplate; docs present it as the supported v0.6.0 final
+  alternative to the beta thread-local interim pattern. ADR:
+  `docs/adr-011-first-party-scenario-state-and-cleanup.md`. Design Doc:
+  `docs/rstest-bdd-design.md` §2.7.6.4. (Dinolump)
+- [ ] 10.3.2. A cleanup-guard fixture-generating macro in
+  `rstest-bdd-harness-gpui` produces the `ScenarioStateCleanup` `Drop` guard
+  and the `#[fixture] fn scenario_state_cleanup()` function, so GPUI scenarios
+  can adopt the two-sided reset protocol with a single macro call. A regression
+  test proves the three-state lifecycle (success, assertion failure, skip) each
+  leave the store in the default state. Requires 10.3.1. ADR:
+  `docs/adr-011-first-party-scenario-state-and-cleanup.md`. Design Doc:
+  `docs/rstest-bdd-design.md` §2.7.6.4. Finish line: an integration test shows
+  cleanup running after success, failure, and skip; the docs state the required
+  registration order. (Doggylump)
+- [ ] 10.3.3. Editing only a `.feature` file triggers a rebuild of the scenario
+  binary. The `#[scenario]`/`scenarios!` expansion registers each bound feature
+  file as a Cargo rebuild dependency without embedding an absolute path into the
+  compiled artefact, and a portability-aware regression test proves a
+  `.feature`-only edit forces recompilation and a fresh test failure. The fix is
+  non-breaking: no existing call site changes. Finish line: the regression test
+  fails against the current `std::fs`-read macro and passes after the fix;
+  required `trybuild` compile-pass and compile-fail fixtures pin the emitted
+  binding and the missing-`.feature` diagnostic; a redacted `insta` snapshot
+  with semantic assertions pins any touched diagnostic wording; no absolute
+  `CARGO_MANIFEST_DIR` path appears in the artefact; `make test` is green. ADR:
+  `docs/adr-010-feature-file-change-detection.md` (see its *Testing strategy*).
+  Design Doc: `docs/rstest-bdd-design.md` §2.7.6.6. Until this requirement
+  lands, a caveat in `docs/v0-6-0-migration-guide.md` alerts adopters that
+  `.feature`-only edits do not trigger a rebuild. The gauss v0.6.0-beta3
+  migration independently reproduced this failure mode and had to falsify a
+  scenario by editing its Rust step file instead.
 
 ## 11. Early life support: v0.6.1 additive hardening
 
@@ -919,33 +977,6 @@ remove the existing `StepContext`, harness, or macro surfaces.
   helper without breaking the existing `borrow_mut` API, or the documented
   deferral includes a failing-shape test. Design Doc:
   `docs/rstest-bdd-design.md` §2.7.6.4. (Pandalump)
-- [ ] 11.1.3. A generic `ScenarioStore<T>` core (in `rstest-bdd`) replaces
-  per-scenario thread-local `RefCell` boilerplate; it exposes `set`, `with`,
-  `with_mut`, `take`, and `reset` operations and wraps the two-sided reset
-  protocol. Naming note: the name `ScenarioStore<T>` is chosen to avoid
-  colliding with the already-shipped `pub trait ScenarioState: Default` and
-  `pub struct Slot<T>` in `crates/rstest-bdd/src/state.rs`. A GPUI-specific
-  `GpuiScenarioStore` re-export ships in `rstest-bdd-harness-gpui`. Finish
-  line: unit tests exercise all five operations; a GPUI integration test uses
-  `GpuiScenarioStore` and the cleanup fixture macro without handwritten
-  `thread_local!` boilerplate; docs present it as the additive v0.6.1
-  alternative to the v0.6.0 thread-local interim pattern. ADR:
-  `docs/adr-011-first-party-scenario-state-and-cleanup.md`. Design Doc:
-  `docs/rstest-bdd-design.md` §2.7.6.4. (Dinolump)
-  **Scheduling note:** the maintainer has approved pulling this item forward
-  to v0.6.0 final, as the thread-local boilerplate is the largest adoption
-  friction in the v0.6.x line (per the first downstream GPUI adopter report).
-- [ ] 11.1.4. A cleanup-guard fixture-generating macro in
-  `rstest-bdd-harness-gpui` produces the `ScenarioStateCleanup` `Drop` guard
-  and the `#[fixture] fn scenario_state_cleanup()` function, so GPUI scenarios
-  can adopt the two-sided reset protocol with a single macro call. A regression
-  test proves the three-state lifecycle (success, assertion failure, skip) each
-  leave the store in the default state. Prerequisite: 11.1.3. ADR:
-  `docs/adr-011-first-party-scenario-state-and-cleanup.md`. Design Doc:
-  `docs/rstest-bdd-design.md` §2.7.6.4. Finish line: an integration test shows
-  cleanup running after success, failure, and skip; the docs state the required
-  registration order. (Doggylump)
-  **Scheduling note:** pull-forward approved alongside 11.1.3.
 
 ### 11.2. Smooth integration ergonomics
 
@@ -998,24 +1029,34 @@ remove the existing `StepContext`, harness, or macro surfaces.
   `whitaker-installer` flow (CI pins `WHITAKER_INSTALLER_VERSION` at `0.2.6`)
   rather than building a pinned Whitaker tag. See leynos/rstest-bdd#597.
 
-### 11.3. Close the feature-file rebuild gap
+### 11.3. Prevent beta3 false greens and generated-result warnings
 
-- [ ] 11.3.1. Editing only a `.feature` file triggers a rebuild of the scenario
-  binary. The `#[scenario]`/`scenarios!` expansion registers each bound feature
-  file as a Cargo rebuild dependency without embedding an absolute path into the
-  compiled artefact, and a portability-aware regression test proves a
-  `.feature`-only edit forces recompilation and a fresh test failure. The fix is
-  non-breaking: no existing call site changes. Finish line: the regression test
-  fails against the current `std::fs`-read macro and passes after the fix;
-  required `trybuild` compile-pass and compile-fail fixtures pin the emitted
-  binding and the missing-`.feature` diagnostic; a redacted `insta` snapshot
-  with semantic assertions pins any touched diagnostic wording; no absolute
-  `CARGO_MANIFEST_DIR` path appears in the artefact; `make test` is green. ADR:
-  `docs/adr-010-feature-file-change-detection.md` (see its *Testing strategy*).
-  Design Doc: `docs/rstest-bdd-design.md` §2.7.6.6.
-  **Scheduling note:** the maintainer has approved pulling this item forward
-  to v0.6.0 final. Until it lands, a caveat in `docs/v0-6-0-migration-guide.md`
-  alerts adopters that `.feature`-only edits do not trigger a rebuild.
+This hardening step closes two failure modes found by the gauss beta trial. It
+asks whether every fallible step and scenario result is observably consumed, so
+an assertion cannot disappear behind macro classification or generated code.
+
+- [ ] 11.3.1. A step returning a local alias of `Result<T, E>` cannot silently
+  pass when it returns `Err`. Adopt an explicit, stable classification contract
+  for syntactically unresolved return types, with a migration diagnostic or
+  required `result`/`value` hint where the macro cannot prove the return kind.
+  Preserve ordinary value-returning steps without guessing that every alias is
+  fallible. Finish line: compile and runtime regressions cover an alias that
+  returns `Err`, spelled `Result`, `StepResult`, an alias explicitly marked
+  `result`, and a genuine value alias; no `Err` case is boxed and discarded as
+  an opaque payload. ADR: `docs/adr-002-stable-step-return-classification.md`.
+  Design Doc: `docs/rstest-bdd-design.md` §2.1. Origin:
+  `leynos/rstest-bdd#573` and the gauss v0.6.0-beta3 validation matrix.
+- [ ] 11.3.2. Harness-generated tests consume the result of fallible scenario
+  functions, including under `GpuiHarness`, without triggering
+  `unused_must_use` under `-D warnings`. Unit-returning scenarios continue to
+  propagate fallible step errors, and the guide makes clear that a fallible
+  scenario signature is only needed when the scenario body itself uses `?`.
+  Finish line: compile-pass tests exercise standard, Tokio, and GPUI harnesses
+  with `Result<(), E>` scenario bodies under denied warnings; runtime tests
+  prove scenario-body and step errors both fail the test. ADR:
+  `docs/adr-006-fallible-scenario-functions.md`. Design Doc:
+  `docs/rstest-bdd-design.md` §§2.7.2-2.7.4. Origin:
+  `leynos/rstest-bdd#574` and the gauss v0.6.0-beta3 validation matrix.
 
 > **Note (ADR-008 follow-up):** roadmap items 9.7.1–9.7.4 shipped the
 > harness-led attribute defaults under maintainer authorization, but
@@ -1079,23 +1120,43 @@ to a committed direction (ADR-012).
   `docs/rstest-bdd-design.md` §§2.7.3, 2.7.6.5. (Pandalump)
 - [ ] 12.2.3. A declarative extension model lets first-party and third-party
   harness crates participate through one explicit metadata mechanism instead of
-  macro-local path tables. Finish line: one first-party and one example
-  third-party harness use the metadata mechanism in tests, and docs describe
-  the extension contract. Design Doc: `docs/rstest-bdd-design.md`
-  §§2.7.3-2.7.6.5. (Telefono)
-- [ ] 12.2.4. The generated-test model gives each `#[scenario]`, `scenarios!`,
+  macro-local path tables. Before implementation, an ADR chooses between this
+  proc-macro-readable model and an explicitly closed first-party inference
+  facility in which custom harnesses supply test attributes directly. The ADR
+  must make the public `AttributePolicy` contract match the selected scope and
+  reject runtime plug-in discovery as unnecessary for compile-time attribute
+  generation. Finish line: the ADR records the decision and migration impact;
+  if the declarative model is selected, one first-party and one example
+  third-party harness use it in compile and runtime tests; if closed inference
+  is selected, unknown policy paths produce an actionable diagnostic rather
+  than silently falling back to plain `#[rstest::rstest]`. Documentation must
+  describe the selected extension contract without presenting marker policies
+  as executable when the macro cannot read them. Design Doc:
+  `docs/rstest-bdd-design.md` §§2.7.3-2.7.6.5. (Telefono)
+- [ ] 12.2.4. Ratify `HarnessAdapter::Context: Any` as an explicit owned
+  `'static` context invariant, or replace it deliberately before v1 if borrowed
+  harness contexts are required. The decision records the supported lifecycle,
+  ownership, and downcasting model; explains that process handles,
+  `Rc<RefCell<App>>`, and owned client contexts fit the boundary; and states
+  whether contexts may borrow from a harness or surrounding fixtures. Finish
+  line: an ADR updates the harness contract and migration guidance; compile
+  tests accept representative owned contexts and either reject a borrowed
+  context with a documented diagnostic or prove the selected borrowing design.
+  ADR: `docs/adr-007-harness-context-injection.md`. Design Doc:
+  `docs/rstest-bdd-design.md` §§2.7.2-2.7.6.5. (Pandalump, Telefono)
+- [ ] 12.2.5. The generated-test model gives each `#[scenario]`, `scenarios!`,
   scenario, and outline row a readable Rust test name, isolated lifecycle, and
   failure reports that no longer depend on hidden loops over unrelated
   scenarios. Finish line: integration tests assert generated names, lifecycle
   isolation, and per-row failure reporting for `#[scenario]` and `scenarios!`.
   Design Doc: `docs/rstest-bdd-design.md` §2.7.6.5. (Doggylump)
-- [ ] 12.2.5. The recorded async harness trait surface gives Tokio and future
+- [ ] 12.2.6. The recorded async harness trait surface gives Tokio and future
   async adapters coherent migration, multi-poll, cancellation, and runtime
   ownership semantics, whether the v1 contract remains synchronous or moves to
   an async harness trait. Finish line: an ADR records the decision, Tokio tests
   cover the selected semantics, and migration docs explain the rejected path.
   Design Doc: `docs/rstest-bdd-design.md` §§2.5, 2.7.6.5. (Buzzy Bee)
-- [ ] 12.2.6. The v1 packaging model records whether first-party integrations
+- [ ] 12.2.7. The v1 packaging model records whether first-party integrations
   are feature-gated on `rstest-bdd` or remain explicit adapter crates, and the
   choice is captured in an ADR and migration guidance. Finish line: the ADR,
   migration guide, and publish/package tests all reflect the same packaging
