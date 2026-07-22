@@ -1,0 +1,5 @@
+---
+source: crates/cargo-bdd/src/output.rs
+expression: output
+---
+skipped features/checkout.feature:42 :: declined card is rejected [tags: payments, slow] - payment gateway sandbox unavailable
