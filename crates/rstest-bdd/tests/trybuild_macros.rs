@@ -40,7 +40,13 @@ fn ui_fixture(case: impl Into<UiFixtureCase>) -> Utf8PathBuf {
 
 #[test]
 fn step_macros_compile() {
-    if env::var_os("NEXTEST_RUN_ID").is_some() {
+    // nextest wraps test binaries in Windows Job Objects, and the child
+    // `cargo` processes spawned by trybuild deadlock its output-capture
+    // pipe; see "nextest on Windows: trybuild deadlock" in
+    // docs/developers-guide.md. The deadlock is Windows-specific, so every
+    // other platform keeps this suite in nextest-managed runs (such as
+    // `make test`).
+    if cfg!(windows) && env::var_os("NEXTEST_RUN_ID").is_some() {
         return;
     }
     let t = trybuild::TestCases::new();

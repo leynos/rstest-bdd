@@ -172,13 +172,20 @@ Mitigation:
 - Continuous Integration (CI) sets `use-nextest: false` for all Windows
   matrix legs (see `.github/workflows/ci.yml`). Windows coverage runs use
   `cargo llvm-cov test` (libtest) instead.
+- `rstest-bdd::trybuild_macros::step_macros_compile` skips itself when both
+  `cfg!(windows)` and `NEXTEST_RUN_ID` are set, guarding local Windows
+  nextest runs. On every other platform it runs under nextest, so
+  `make test` exercises the trybuild fixtures (roughly 15 s warm, about a
+  minute with cold trybuild staging).
 - `.config/nextest.toml` raises the `slow-timeout` for the trybuild
-  compile-test binaries (including both `macro_compile` binaries) to 180 s as
-  a local-development safety net. This does not fix the deadlock; it only
-  delays termination to allow the build to complete on fast machines.
+  compile-test binaries (both `macro_compile` binaries and
+  `rstest-bdd::trybuild_macros`) to 300 s, and the default profile's
+  `global-timeout` to 10 m, so a cold-cache trybuild build cannot trip
+  either limit. This does not fix the Windows deadlock; it only delays
+  termination to allow the build to complete on fast machines.
 - Do not add `macro_compile`-style tests (tests that spawn `cargo` via
   `trybuild` or `cargo_metadata`) to nextest-managed binaries intended to run
-  on Windows.
+  on Windows without the same Windows-only skip.
 
 ## Users-guide link validation (`scripts/check_users_guide_links.py`)
 
