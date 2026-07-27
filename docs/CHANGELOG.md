@@ -19,6 +19,9 @@
   variants are no longer public), and `StepContext::get` serves shared fixtures
   only — read step-returned overrides through `try_borrow`/`borrow_ref`. The
   v0.6 thread-local GPUI workaround is superseded.
+- Fixed fallible `#[scenario]` functions generated with `#[gpui::test]` so the
+  scenario result is consumed instead of triggering `unused_must_use` under
+  `-D warnings`.
 - Mandated `cap-std` and `camino` for cross-platform file system access.
 - Documented `E0499`/`E0502` troubleshooting for two mutable `StepContext`
   fixtures in the v0.6.0 migration guide, with workarounds and a cross-link to

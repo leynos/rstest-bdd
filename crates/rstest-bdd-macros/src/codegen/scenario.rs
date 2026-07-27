@@ -46,7 +46,7 @@ pub(crate) use crate::macros::scenarios::ScenariosRuntimeMode as RuntimeMode;
 use crate::macros::scenarios::ScenariosTestAttributeHint as TestAttributeHint;
 
 use crate::parsing::placeholder::contains_placeholders;
-use test_attrs::{TestAttrPolicy, generate_test_attrs};
+use test_attrs::{TestAttrPolicy, generate_test_attrs, uses_gpui_test};
 
 /// Return kinds supported by scenario bodies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -183,6 +183,42 @@ pub(crate) fn generate_scenario_code(
     }
 }
 
+/// Adapts a fallible scenario to GPUI's unit-returning test boundary.
+///
+/// Published GPUI versions may call an attributed function as a bare
+/// statement, which leaves its `Result` unused. This boundary is intentionally
+/// limited to generated GPUI tests; std and Tokio tests continue to return the
+/// scenario result through their native `Termination` support.
+fn adapt_fallible_gpui_boundary(
+    attrs: &[syn::Attribute],
+    policy: &TestAttrPolicy<'_>,
+    return_kind: ScenarioReturnKind,
+    is_async: bool,
+    signature: &mut syn::Signature,
+    body: TokenStream2,
+) -> TokenStream2 {
+    if !return_kind.is_fallible() || !uses_gpui_test(attrs, policy) {
+        return body;
+    }
+
+    signature.output = syn::ReturnType::Default;
+    if is_async {
+        quote! {
+            match (async move { #body }).await {
+                Ok(()) => {}
+                Err(__rstest_bdd_err) => panic!("scenario returned an error: {__rstest_bdd_err:?}"),
+            }
+        }
+    } else {
+        quote! {
+            match (|| { #body })() {
+                Ok(()) => {}
+                Err(__rstest_bdd_err) => panic!("scenario returned an error: {__rstest_bdd_err:?}"),
+            }
+        }
+    }
+}
+
 /// Generate code for a regular scenario (no placeholder substitution).
 fn generate_regular_scenario_code<P, I, Q>(
     config: &ScenarioConfig<'_>,
@@ -231,27 +267,32 @@ where
         .as_ref()
         .map_or_else(Vec::new, generate_case_attrs);
     let body = generate_test_tokens(&test_config, ctx.prelude, ctx.inserts, ctx.postlude);
-    let test_attrs = generate_test_attrs(
-        config.attrs,
-        &TestAttrPolicy {
-            runtime: config.attribute_runtime,
-            harness: config.harness,
-            attributes: config.attributes,
-        },
-        config.runtime.is_async(),
-    );
+    let policy = TestAttrPolicy {
+        runtime: config.attribute_runtime,
+        harness: config.harness,
+        attributes: config.attributes,
+    };
+    let test_attrs = generate_test_attrs(config.attrs, &policy, config.runtime.is_async());
     let trait_assertions = generate_trait_assertions(config.harness, config.attributes);
     let attrs = config.attrs;
     let vis = config.vis;
-    let sig = config.sig;
-    let underscore_expect = generate_underscore_expect(sig);
+    let mut signature = config.sig.clone();
+    let body = adapt_fallible_gpui_boundary(
+        config.attrs,
+        &policy,
+        config.return_kind,
+        config.runtime.is_async(),
+        &mut signature,
+        body,
+    );
+    let underscore_expect = generate_underscore_expect(&signature);
     TokenStream::from(quote! {
         #trait_assertions
         #test_attrs
         #(#case_attrs)*
         #(#attrs)*
         #underscore_expect
-        #vis #sig { #body }
+        #vis #signature { #body }
     })
 }
 
@@ -326,18 +367,23 @@ where
     };
     modified_sig.inputs.insert(0, case_idx_param);
 
-    let test_attrs = generate_test_attrs(
-        config.attrs,
-        &TestAttrPolicy {
-            runtime: config.attribute_runtime,
-            harness: config.harness,
-            attributes: config.attributes,
-        },
-        config.runtime.is_async(),
-    );
+    let policy = TestAttrPolicy {
+        runtime: config.attribute_runtime,
+        harness: config.harness,
+        attributes: config.attributes,
+    };
+    let test_attrs = generate_test_attrs(config.attrs, &policy, config.runtime.is_async());
     let trait_assertions = generate_trait_assertions(config.harness, config.attributes);
     let attrs = config.attrs;
     let vis = config.vis;
+    let body = adapt_fallible_gpui_boundary(
+        config.attrs,
+        &policy,
+        config.return_kind,
+        config.runtime.is_async(),
+        &mut modified_sig,
+        body,
+    );
     let underscore_expect = generate_underscore_expect(&modified_sig);
     TokenStream::from(quote! {
         #trait_assertions

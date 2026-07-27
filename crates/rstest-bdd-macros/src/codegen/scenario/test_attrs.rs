@@ -135,6 +135,17 @@ fn resolve_attribute_policy(policy: &TestAttrPolicy<'_>) -> ResolvedAttributePol
     }
 }
 
+/// Returns whether the generated test is wrapped by `#[gpui::test]`.
+///
+/// This is shared with scenario return-boundary generation so GPUI-specific
+/// signature handling follows the same ADR-008 precedence as attribute
+/// emission. A direct user-supplied `#[gpui::test]` is included because the
+/// generated attribute is deliberately deduplicated in that case.
+pub(super) fn uses_gpui_test(attrs: &[syn::Attribute], policy: &TestAttrPolicy<'_>) -> bool {
+    attrs.iter().any(is_gpui_test_attr)
+        || resolve_attribute_policy(policy) == ResolvedAttributePolicy::Gpui
+}
+
 fn render_policy_attribute(attribute: PolicyAttribute) -> TokenStream2 {
     match attribute {
         PolicyAttribute::Rstest => quote! { #[rstest::rstest] },
