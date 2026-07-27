@@ -11,9 +11,9 @@ Proposed
 ## Context and problem statement
 
 `#[scenario(path = "...")]` and `scenarios!` read `.feature` files via
-`std::fs` at macro-expansion time. Cargo tracks Rust sources and the outputs
-of build scripts, but it cannot see file reads made by a procedural macro
-through ordinary filesystem I/O. As a result:
+`std::fs` at macro-expansion time. Cargo tracks Rust sources and the outputs of
+build scripts, but it cannot see file reads made by a procedural macro through
+ordinary filesystem I/O. As a result:
 
 - Editing only a `.feature` file does not trigger a rebuild of the scenario
   binary.
@@ -48,8 +48,8 @@ rebuild dependency of the crate that binds it.
 ### Option A: macro-emitted `include_str!`
 
 Have the `#[scenario]` macro emit an `include_str!("…/foo.feature")`
-expression, discarded into a hidden item (for example under `#[doc(hidden)]`
-or as an ignored binding), so rustc registers the path in dep-info.
+expression, discarded into a hidden item (for example under `#[doc(hidden)]` or
+as an ignored binding), so rustc registers the path in dep-info.
 
 Pros:
 
@@ -60,8 +60,8 @@ Pros:
 Cons:
 
 - `include_str!` resolves its path *relative to the invoking source file*,
-  not relative to `CARGO_MANIFEST_DIR`. The macro must therefore emit a
-  path that rustc resolves correctly from the call site. Using an absolute
+  not relative to `CARGO_MANIFEST_DIR`. The macro must therefore emit a path
+  that rustc resolves correctly from the call site. Using an absolute
   `CARGO_MANIFEST_DIR`-rooted path is **rejected** (see below); a
   call-site-relative path requires computing the offset from the call site's
   `Span` to the feature file, which is portable but requires care.
@@ -74,9 +74,9 @@ Cons:
   the directory; emitting one `include_str!` per file handles this but makes
   the total embedded size proportional to suite size.
 
-**Absolute-path `include_str!` variant — rejected.** The macro could
-construct an absolute path from `CARGO_MANIFEST_DIR` and pass it to
-`include_str!`. This is rejected because:
+**Absolute-path `include_str!` variant — rejected.** The macro could construct
+an absolute path from `CARGO_MANIFEST_DIR` and pass it to `include_str!`. This
+is rejected because:
 
 1. Absolute paths baked into artefacts break reproducible builds: two
    identical builds from different directories produce binaries with different
@@ -93,9 +93,9 @@ This option variant is therefore not a valid implementation of Option A.
 
 ### Option B: build-script helper emitting `cargo::rerun-if-changed`
 
-Provide an `rstest-bdd-build` helper crate (or a function in `rstest-bdd`)
-that consuming crates call from their `build.rs`. The helper scans the
-features directory and emits:
+Provide an `rstest-bdd-build` helper crate (or a function in `rstest-bdd`) that
+consuming crates call from their `build.rs`. The helper scans the features
+directory and emits:
 
 ```text
 cargo::rerun-if-changed=tests/features
@@ -103,10 +103,9 @@ cargo::rerun-if-changed=tests/features/foo.feature
 cargo::rerun-if-changed=tests/features/bar.feature
 ```
 
-Modelled on the `theoremc` prior art
-(<https://github.com/leynos/theoremc>), which always emits the directory
-even when absent, adds nested sub-directories, and adds one line per
-discovered file.
+Modelled on the `theoremc` prior art (<https://github.com/leynos/theoremc>),
+which always emits the directory even when absent, adds nested sub-directories,
+and adds one line per discovered file.
 
 Pros:
 
@@ -128,15 +127,15 @@ Cons:
   file that later changes, Cargo will not rebuild. The helper must emit one
   line per file discovered, not just the directory, to avoid this trap.
 - An omission (forgetting to add a new `.feature` sub-directory) silently
-  regresses invalidation. Mitigation: always emit the top-level directory
-  line even when absent (Cargo ignores directives for non-existent paths),
-  and scan recursively.
+  regresses invalidation. Mitigation: always emit the top-level directory line
+  even when absent (Cargo ignores directives for non-existent paths), and scan
+  recursively.
 
 ### Option C: `proc_macro::tracked_path` (unstable)
 
-Use the unstable `proc_macro::tracked_path::path()` API, which is the
-primitive designed for proc-macro file tracking and registers paths in
-dep-info without embedding content.
+Use the unstable `proc_macro::tracked_path::path()` API, which is the primitive
+designed for proc-macro file tracking and registers paths in dep-info without
+embedding content.
 
 Pros:
 
@@ -155,32 +154,32 @@ Cons:
 ### Option D: OUT_DIR AST caching
 
 Cache the parsed Gherkin ASTs in `OUT_DIR` so the macro only re-parses a
-`.feature` file when its modification time has changed (noted in
-`§3.2.2` of the design document).
+`.feature` file when its modification time has changed (noted in `§3.2.2` of
+the design document).
 
 This option is **orthogonal** — it is a *performance* optimization (reducing
-compile-time overhead for large suites) and does not by itself make Cargo
-aware of `.feature` file changes. It does not close the rebuild-invalidation
-foot-gun. Recorded here to keep the analysis complete; addressed separately
-in `§3.2.2`.
+compile-time overhead for large suites) and does not by itself make Cargo aware
+of `.feature` file changes. It does not close the rebuild-invalidation
+foot-gun. Recorded here to keep the analysis complete; addressed separately in
+`§3.2.2`.
 
-| Axis | A (relative `include_str!`) | B (build script) | C (`tracked_path`) | D (OUT_DIR cache) |
-| --- | --- | --- | --- | --- |
-| Consumer-invisible | High | Low | High | Low |
-| Binary-size cost | Medium | None | None | None |
-| Absolute-path risk | None (relative only) | None | None | None |
-| `scenarios!` fit | Medium (one per file) | High (directory scan) | High | None |
-| Reproducible builds | High | High | High | N/A |
-| Stable today | Yes | Yes | No | Yes |
+| Axis                | A (relative `include_str!`) | B (build script)      | C (`tracked_path`) | D (OUT_DIR cache) |
+| ------------------- | --------------------------- | --------------------- | ------------------ | ----------------- |
+| Consumer-invisible  | High                        | Low                   | High               | Low               |
+| Binary-size cost    | Medium                      | None                  | None               | None              |
+| Absolute-path risk  | None (relative only)        | None                  | None               | None              |
+| `scenarios!` fit    | Medium (one per file)       | High (directory scan) | High               | None              |
+| Reproducible builds | High                        | High                  | High               | N/A               |
+| Stable today        | Yes                         | Yes                   | No                 | Yes               |
 
 *Table 1: Trade-offs for feature-file rebuild-invalidation mechanisms.*
 
 ## Decision outcome
 
-Neither option is unambiguously superior across all axes. This ADR records
-the trade-offs and establishes the binding constraints; the choice of mechanism
-is deferred to the implementing ExecPlan (roadmap item 11.3.1), which has
-access to the actual call-site span data and the `scenarios!` implementation.
+Neither option is unambiguously superior across all axes. This ADR records the
+trade-offs and establishes the binding constraints; the choice of mechanism is
+deferred to the implementing ExecPlan (roadmap item 11.3.1), which has access
+to the actual call-site span data and the `scenarios!` implementation.
 
 Binding constraints for the implementing ExecPlan:
 
@@ -219,10 +218,10 @@ addition to the binding constraint that invalidation is a tested contract:
    must tolerate coarse filesystem `mtime` granularity (touch to a
    guaranteed-later timestamp, or tick a second), run serialized in its own
    process with an isolated `target`/temp directory so nextest's
-   process-per-test parallelism cannot race on a shared workspace `target`,
-   and — for the `include_str!` path — assert no absolute `CARGO_MANIFEST_DIR`
-   path is embedded in the artefact (inspect expanded output or the compiled
-   `.d` dep-info).
+   process-per-test parallelism cannot race on a shared workspace `target`, and
+   — for the `include_str!` path — assert no absolute `CARGO_MANIFEST_DIR` path
+   is embedded in the artefact (inspect expanded output or the compiled `.d`
+   dep-info).
 2. **Trybuild compile-time test (required).** Because the mechanism is emitted
    by the `#[scenario]`/`scenarios!` proc-macros, compile-time behaviour is
    part of the contract and must be pinned by `trybuild` fixtures, not left to
@@ -239,19 +238,20 @@ addition to the binding constraint that invalidation is a tested contract:
    suites and inherit their nextest slow-timeout override. Both fixtures are
    required acceptance criteria for roadmap item 11.3.1.
 3. **Diagnostic snapshots (required for any touched diagnostic).** For any
-   user-facing diagnostic the change touches (for example the missing-`.feature`
-   error), pin the rendered message with a focused `insta` snapshot using stable
-   redaction (`insta::with_settings!` filters over absolute paths, line/column
-   numbers, and rustc version strings) so the snapshot is portable across
-   machines and toolchains and does not drift like a raw `.stderr`. Prefer a
-   focused snapshot over a whole-`.stderr` capture, and back it with explicit
-   semantic or substring assertions on the load-bearing fragments — for example
-   that the message names the offending `.feature` path and the `#[scenario]`
-   call-site — so the test fails loudly on a meaning change even if an
-   unrelated reflow would otherwise let a full-text snapshot drift unnoticed.
-   The `trybuild` compile-fail `.stderr` and the `insta` snapshot are
-   complementary: the former gates the diagnostic at the macro boundary, the
-   latter pins its wording with redaction the raw `.stderr` cannot express.
+   user-facing diagnostic the change touches (for example the
+   missing-`.feature` error), pin the rendered message with a focused `insta`
+   snapshot using stable redaction (`insta::with_settings!` filters over
+   absolute paths, line/column numbers, and rustc version strings) so the
+   snapshot is portable across machines and toolchains and does not drift like
+   a raw `.stderr`. Prefer a focused snapshot over a whole-`.stderr` capture,
+   and back it with explicit semantic or substring assertions on the
+   load-bearing fragments — for example that the message names the offending
+   `.feature` path and the `#[scenario]` call-site — so the test fails loudly
+   on a meaning change even if an unrelated reflow would otherwise let a
+   full-text snapshot drift unnoticed. The `trybuild` compile-fail `.stderr`
+   and the `insta` snapshot are complementary: the former gates the diagnostic
+   at the macro boundary, the latter pins its wording with redaction the raw
+   `.stderr` cannot express.
 
 ## Consequences
 

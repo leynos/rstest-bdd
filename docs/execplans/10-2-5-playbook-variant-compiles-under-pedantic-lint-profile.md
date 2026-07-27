@@ -89,9 +89,8 @@ Hard invariants; violation requires escalation, not a workaround.
   `let … else { panic!(m) }` (or `?`) must preserve the same panic/identical
   failure semantics and messages. The GPUI suite must still pass.
 - Adopt **only** `no_unwrap_or_else_panic` from Whitaker in this item. Do
-  **not**
-  enable the rest of the suite (that is the new v0.6.1 roadmap item). The gate
-  must be scoped to that single lint
+  **not** enable the rest of the suite (that is the new v0.6.1 roadmap item).
+  The gate must be scoped to that single lint
   (`pattern = "crates/no_unwrap_or_else_panic"`).
 - The repository stays on the **stable** toolchain for build, test, clippy, and
   docs (`rust-toolchain.toml` `channel = "stable"`). Dylint manages its own
@@ -207,14 +206,13 @@ Hard invariants; violation requires escalation, not a workaround.
   nightly driver, but not as a failing diagnostic.
 - [x] (Stage D — docs) design §2.7.6.2, ADR-013, developers' guide, users-guide
   playbook, CI, roadmap tick 10.2.5 + new v0.6.1 item; full gates green;
-  CodeRabbit clean.
-  Documentation implementation on 2026-06-21 updated the user-guide playbook
-  to make `let … else { panic!(…) }` the primary accessor form, updated
-  design §2.7.6.2, added ADR-013, documented local/CI Whitaker setup in the
-  developer guide, ticked roadmap 10.2.5, and added the v0.6.1 full-Whitaker
-  suite follow-up item. Validation passed with `make markdownlint`,
-  `make check-fmt`, `make lint`, `make test`, and `make nixie`; CodeRabbit
-  review completed with zero findings.
+  CodeRabbit clean. Documentation implementation on 2026-06-21 updated the
+  user-guide playbook to make `let … else { panic!(…) }` the primary accessor
+  form, updated design §2.7.6.2, added ADR-013, documented local/CI Whitaker
+  setup in the developer guide, ticked roadmap 10.2.5, and added the v0.6.1
+  full-Whitaker suite follow-up item. Validation passed with
+  `make markdownlint`, `make check-fmt`, `make lint`, `make test`, and
+  `make nixie`; CodeRabbit review completed with zero findings.
 - [x] (Post-delivery hardening) Follow-up cleanup and CI-collection fix
   completed on 2026-06-24. Extracted private test helpers for repeated fixture
   and harness-run boilerplate in the trybuild normalizer fixture and the std,
@@ -230,25 +228,24 @@ Hard invariants; violation requires escalation, not a workaround.
   coverage for the Whitaker Makefile/Dylint gate and extracted helper panic
   diagnostics. Added focused regression tests for `write_fixture_file`, added
   pytest integration tests that run `make lint-whitaker` against clean and
-  failing fixture crates, and changed `make test` to run all of
-  `scripts/tests` so that coverage is part of the normal gate. Focused
-  validation passed with the filtered `rstest-bdd` trybuild helper test and
+  failing fixture crates, and changed `make test` to run all of `scripts/tests`
+  so that coverage is part of the normal gate. Focused validation passed with
+  the filtered `rstest-bdd` trybuild helper test and
   `uv run pytest -v scripts/tests/test_whitaker_lint_gate.py`. Full validation
-  passed with `make check-fmt`, `mbake validate Makefile`,
-  `make markdownlint`, `make lint`, `make test`, `make nixie`, and root
-  `uv run pytest -v`, which collected 35 `scripts/tests` items and no
-  `target/...` files. CodeRabbit `review --agent` initially hit the service
-  rate limit; after the instructed randomized `vsleep` backoff, the retry
-  completed with zero findings.
+  passed with `make check-fmt`, `mbake validate Makefile`, `make markdownlint`,
+  `make lint`, `make test`, `make nixie`, and root `uv run pytest -v`, which
+  collected 35 `scripts/tests` items and no `target/...` files. CodeRabbit
+  `review --agent` initially hit the service rate limit; after the instructed
+  randomized `vsleep` backoff, the retry completed with zero findings.
 - [x] (CI cache-hit fix) CI review on 2026-06-27 found Linux tool jobs fail
   when the Whitaker cache restores `~/.cargo/bin/cargo-dylint` and
-  `~/.cargo/bin/dylint-link`, because `cargo install --locked ... --version
-  5.0.0` refuses to overwrite existing binaries. Updated the
-  `Cache Whitaker lint library` step with `id: whitaker-cache` and restricted
-  `Install Dylint tools` to non-Linux runners or Linux cache misses. Validation
-  passed with `actionlint .github/workflows/ci.yml`, `make markdownlint`,
-  `make lint`, and `make nixie`; CodeRabbit `review --agent` completed with
-  zero findings.
+  `~/.cargo/bin/dylint-link`, because
+  `cargo install --locked ... --version 5.0.0` refuses to overwrite existing
+  binaries. Updated the `Cache Whitaker lint library` step with
+  `id: whitaker-cache` and restricted `Install Dylint tools` to non-Linux
+  runners or Linux cache misses. Validation passed with
+  `actionlint .github/workflows/ci.yml`, `make markdownlint`, `make lint`, and
+  `make nixie`; CodeRabbit `review --agent` completed with zero findings.
 - [x] (Review finding sweep) On 2026-06-28, verified the workflow cache comment
   and behavioural Tokio helper comment against current code; both were already
   addressed. Fixed the still-valid localization setup simplification, Tokio
@@ -261,18 +258,18 @@ Hard invariants; violation requires escalation, not a workaround.
   still-valid documentation comments: developer-guide punctuation,
   migration-guide panic-pattern guidance, and roadmap spelling. Validation
   passed with `make fmt`, `make markdownlint`, `make nixie`, and
-  `git diff --check`; CodeRabbit `review --agent` completed with zero
-  findings.
-- [x] (Dylint toolchain suffix fix) On 2026-06-28, verified `make
-  lint-whitaker` still copied the Whitaker library into a host-suffixed
-  toolchain directory/name that Dylint parsed as an invalid rustup channel.
-  Updated the Makefile and Python integration test to use
-  `nightly-2025-09-18` without `-$(WHITAKER_HOST)`. Validation passed with
-  `mbake validate Makefile`, `make check-fmt`, `make lint-whitaker`,
-  `uv run pytest -v scripts/tests/test_whitaker_lint_gate.py`, `make lint`,
-  and `make test`; the copied artefact exists at
-  `target/whitaker/no_unwrap_or_else_panic-target/dylint/libraries/nightly-2025-09-18/release/libno_unwrap_or_else_panic@nightly-2025-09-18.so`.
-  CodeRabbit `review --agent` completed with zero findings.
+  `git diff --check`; CodeRabbit `review --agent` completed with zero findings.
+- [x] (Dylint toolchain suffix fix) On 2026-06-28, verified
+      `make lint-whitaker` still copied the Whitaker library into a
+      host-suffixed
+      toolchain directory/name that Dylint parsed as an invalid rustup channel.
+      Updated the Makefile and Python integration test to use
+      `nightly-2025-09-18` without `-$(WHITAKER_HOST)`. Validation passed with
+      `mbake validate Makefile`, `make check-fmt`, `make lint-whitaker`,
+      `uv run pytest -v scripts/tests/test_whitaker_lint_gate.py`, `make lint`,
+      and `make test`; the copied artefact exists at
+      `target/whitaker/no_unwrap_or_else_panic-target/dylint/libraries/nightly-2025-09-18/release/libno_unwrap_or_else_panic@nightly-2025-09-18.so`.
+      CodeRabbit `review --agent` completed with zero findings.
 
 ## Surprises & discoveries
 
@@ -335,8 +332,8 @@ Hard invariants; violation requires escalation, not a workaround.
 - Observation: small CodeScene-style "Bumpy Road" findings remained in test
   setup code after the main lint work. Impact: private, module-local helpers
   were extracted only where duplication was exact: `write_fixture_file` for the
-  trybuild stderr normalizer fixture, `run_std_harness`, `run_expecting_ok`,
-  and `run_gpui_harness` for the first-party harness behaviour suites. These
+  trybuild stderr normalizer fixture, `run_std_harness`, `run_expecting_ok`, and
+  `run_gpui_harness` for the first-party harness behaviour suites. These
   helpers keep panic diagnostics unchanged and use `match` or `let … else`
   forms compatible with Whitaker.
 
@@ -426,10 +423,9 @@ Hard invariants; violation requires escalation, not a workaround.
 
 - Decision: keep post-delivery boilerplate helpers private to their test
   modules rather than adding shared test-support APIs. Rationale: the repeated
-  code was local, structurally identical, and not a public behaviour change.
-  A shared abstraction would cross crate/test-module boundaries without a
-  reuse need. Date/Author: 2026-06-21 through 2026-06-23, implementation
-  agent.
+  code was local, structurally identical, and not a public behaviour change. A
+  shared abstraction would cross crate/test-module boundaries without a reuse
+  need. Date/Author: 2026-06-21 through 2026-06-23, implementation agent.
 
 - Decision: configure pytest default collection with
   `[tool.pytest.ini_options] testpaths = ["scripts/tests"]`. Rationale: the
@@ -456,9 +452,9 @@ choice and any `unreachable!` boundary finding.)
 
 ## Outcomes & retrospective
 
-Roadmap item 10.2.5 is delivered. The workspace no longer contains real
-Whitaker `no_unwrap_or_else_panic` hits, `make lint` now runs the pinned
-Whitaker lint after Clippy, and the GPUI playbook teaches the tested
+Roadmap item 10.2.5 is delivered. The workspace no longer contains real Whitaker
+`no_unwrap_or_else_panic` hits, `make lint` now runs the pinned Whitaker lint
+after Clippy, and the GPUI playbook teaches the tested
 `let … else { panic!(…) }` accessor form as primary rather than as a future
 variant. ADR-013 records the decision and contributor tooling cost; the roadmap
 tracks full Whitaker-suite adoption separately under v0.6.1.
@@ -481,12 +477,11 @@ number 546 was marked ready for review on 2026-06-24.
 Review hardening on 2026-06-27 adds deterministic coverage for the
 `lint-whitaker` Makefile target and for `write_fixture_file` panic labels.
 `make test` now executes all Python tests under `scripts/tests`, so the new
-Whitaker integration tests are part of the standard gate. Validation passed
-with `make check-fmt`, `mbake validate Makefile`, `make markdownlint`,
-`make lint`, `make test`, `make nixie`, and root `uv run pytest -v`; root
-pytest collected 35 `scripts/tests` items and no `target/...` files.
-CodeRabbit `review --agent` completed after the requested rate-limit backoff
-with zero findings.
+Whitaker integration tests are part of the standard gate. Validation passed with
+`make check-fmt`, `mbake validate Makefile`, `make markdownlint`, `make lint`,
+`make test`, `make nixie`, and root `uv run pytest -v`; root pytest collected 35
+`scripts/tests` items and no `target/...` files. CodeRabbit `review --agent`
+completed after the requested rate-limit backoff with zero findings.
 
 Retrospective: the highest-risk part was Dylint integration, not the mechanical
 Rust rewrite. The metadata path was insufficient for Whitaker `v0.2.5`, so the
@@ -508,11 +503,11 @@ Key pieces:
   provide a shadowing lint — `clippy::shadow_reuse` is an upstream Clippy
   restriction lint.
 - Weaver (<https://github.com/leynos/weaver>): the reference integration. It
-  runs
-  the **whole** Whitaker suite via the `whitaker-installer` + `whitaker --all`
-  wrapper inside its `make lint`, pins a nightly repo-wide, and has no
-  `[workspace.metadata.dylint]` block. We deliberately diverge: single lint, via
-  `[workspace.metadata.dylint]` + `cargo dylint`, repo stays on stable.
+  runs the **whole** Whitaker suite via the `whitaker-installer` +
+  `whitaker --all` wrapper inside its `make lint`, pins a nightly repo-wide,
+  and has no `[workspace.metadata.dylint]` block. We deliberately diverge:
+  single lint, via `[workspace.metadata.dylint]` + `cargo dylint`, repo stays
+  on stable.
 - `Cargo.toml` (root): `[workspace.lints.clippy]` denies `unwrap_used`,
   `expect_used`, sets `pedantic = warn`,
   `allow_attributes_without_reason = deny`,
@@ -564,9 +559,8 @@ Terms defined:
 - **Restriction lint** (Clippy): allow-by-default, fires only when enabled (e.g.
   `shadow_reuse`, `expect_used`, `unwrap_used`).
 - **let-else**: `let PATTERN = EXPR else { DIVERGING_BLOCK };` (stable since
-  Rust
-  1.65). With a fresh binding name it introduces no shadow and uses no `unwrap`/
-  `expect`/`unwrap_or_else`.
+  Rust 1.65). With a fresh binding name it introduces no shadow and uses no
+  `unwrap`/ `expect`/`unwrap_or_else`.
 
 ## Plan of work
 
@@ -582,11 +576,10 @@ Stage 0 — prototyping spike (de-risk the integration; no production conversion
    `let … else { panic!() }` sample. Record the exact working command and any
    required toolchain components.
 3. Decide the mechanism: `[workspace.metadata.dylint]` + `cargo dylint`
-   (preferred)
-   versus the `whitaker-installer` path constrained to the single lint. Record
-   in the Decision Log. Determine whether `unreachable!` is flagged (Risk R4).
-   Go/no-go: do not proceed to conversion until the lint runs green/red as
-   expected.
+   (preferred) versus the `whitaker-installer` path constrained to the single
+   lint. Record in the Decision Log. Determine whether `unreachable!` is
+   flagged (Risk R4). Go/no-go: do not proceed to conversion until the lint
+   runs green/red as expected.
 
 Stage A — orientation (this plan; approval gate).
 
@@ -613,8 +606,7 @@ Stage C — green. Convert and make the gate pass:
    `let … else` accessor form. This becomes the lint-clean reference suite the
    playbook mirrors.
 3. Run `make lint` (expect green, lint now satisfied) and `make test` (expect
-   the
-   GPUI suite and all unit/behavioural tests green — behaviour preserved).
+   the GPUI suite and all unit/behavioural tests green — behaviour preserved).
 
 Stage D — docs, ADR, roadmap, CI:
 
@@ -626,9 +618,8 @@ Stage D — docs, ADR, roadmap, CI:
    optional. Keep the "which gpui" banner. Explain why `let … else` (not
    `.expect()`): `.expect()` is denied here too.
 2. `docs/rstest-bdd-design.md` §2.7.6.2: convert the schematic to the
-   `let … else`
-   form and update the lint-clean note to state the gate is delivered; cite
-   ADR-013.
+   `let … else` form and update the lint-clean note to state the gate is
+   delivered; cite ADR-013.
 3. Create `docs/adr-013-adopt-whitaker-no-unwrap-or-else-panic.md` (Y-Statement
    / style-guide format): Status `Accepted` + date; Context (downstream
    pedantic profiles; this repo's own `unwrap_or_else(|| panic!())` escape
@@ -717,14 +708,12 @@ Quality criteria ("done"):
 
 - Lint: `make lint` passes, including
   `cargo clippy --workspace --all-targets --all-features -- -D warnings`
-  **and** the Whitaker `no_unwrap_or_else_panic`
-  pass over the workspace.
+  **and** the Whitaker `no_unwrap_or_else_panic` pass over the workspace.
 - Tests: `make test` passes (including the converted GPUI suite); no behaviour
   change.
 - Docs: `make markdownlint` passes; users-guide playbook teaches the
-  `let … else`
-  accessor; design §2.7.6.2, ADR-013, developers' guide updated; roadmap 10.2.5
-  ticked and the v0.6.1 full-suite item added.
+  `let … else` accessor; design §2.7.6.2, ADR-013, developers' guide updated;
+  roadmap 10.2.5 ticked and the v0.6.1 full-suite item added.
 - No new workspace dependency; no public API change; repo stays on stable.
 
 Test rigour judgement (per the task's testing menu):
@@ -773,9 +762,9 @@ Research citations to fold into ADR-013:
   <https://github.com/leynos/weaver>.
 - Trail of Bits Dylint — <https://github.com/trailofbits/dylint>.
 - Clippy `shadow_reuse`/`expect_used`/`unwrap_used`; `expect_fun_call`
-  recommends
-  `unwrap_or_else(|| panic!())` (which is why no built-in Clippy lint catches
-  it) — <https://rust-lang.github.io/rust-clippy/master/index.html>.
+  recommends `unwrap_or_else(|| panic!())` (which is why no built-in Clippy
+  lint catches it) —
+  <https://rust-lang.github.io/rust-clippy/master/index.html>.
 - let-else stabilized in Rust 1.65 —
   <https://blog.rust-lang.org/2022/11/03/Rust-1.65.0/>.
 

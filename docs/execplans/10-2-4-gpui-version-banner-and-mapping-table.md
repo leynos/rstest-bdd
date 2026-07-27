@@ -236,9 +236,9 @@ marked `[x]`.
   `AnyWindowHandle`, at `src/app/test_context.rs:985-989`, and
   `Window::window_handle()` at `src/window.rs:1362`. So
   `VisualTestContext::window_handle()` *does* exist in published gpui; the only
-  real difference from the vendored inherent method is that the published one is
-  a `VisualContext` trait method and needs `use gpui::VisualContext` in scope.
-  Impact: row 2 must be corrected in both documents.
+  real difference from the vendored inherent method is that the published one
+  is a `VisualContext` trait method and needs `use gpui::VisualContext` in
+  scope. Impact: row 2 must be corrected in both documents.
 - Observation: there are two real differences beyond the four table rows.
   Evidence: (1) published `add_window_view` returns
   `(Entity<V>, &mut VisualTestContext)` (`src/app/test_context.rs:256-263`)
@@ -296,11 +296,11 @@ marked `[x]`.
 - Observation: live releases must publish `rstest-bdd-macros` and `rstest-bdd`
   before the framework harness crates. Evidence: `rstest-bdd-harness-gpui` has
   a normal dependency on `rstest-bdd`, and both `rstest-bdd-harness-gpui` and
-  `rstest-bdd-harness-tokio` dev-depend on `rstest-bdd` and
-  `rstest-bdd-macros`; `lading publish --live` follows `publish.order`, and
-  `cargo package` resolves dev-dependencies. Impact: the publish order now
-  places `rstest-bdd-macros` and `rstest-bdd` before both framework harness
-  crates to avoid failures when releasing a version not yet on crates.io.
+  `rstest-bdd-harness-tokio` dev-depend on `rstest-bdd` and `rstest-bdd-macros`;
+  `lading publish --live` follows `publish.order`, and `cargo package`
+  resolves dev-dependencies. Impact: the publish order now places
+  `rstest-bdd-macros` and `rstest-bdd` before both framework harness crates to
+  avoid failures when releasing a version not yet on crates.io.
 - Observation: dry-run publishing still checks the live crates.io index for
   workspace dependency versions. Evidence: the local lading guide documents
   `--allow-unpublished-workspace-deps` as the dry-run and CI override when the
@@ -313,17 +313,17 @@ marked `[x]`.
   `uv run pytest` can therefore create an environment without pytest on a clean
   checkout. Impact: `make test` now runs `build-python` first.
 - Observation: `scripts/tests/` was outside the Python lint, format, and
-  type-check target set because `PYTHON_TARGETS` used `find scripts
-  -maxdepth 1`. Evidence: running `make lint-python` with recursive Python
-  targets exposed five Ruff `ISC004` findings in
+  type-check target set because `PYTHON_TARGETS` used
+  `find scripts -maxdepth 1`. Evidence: running `make lint-python` with
+  recursive Python targets exposed five Ruff `ISC004` findings in
   `scripts/tests/test_check_gpui_mapping_table.py` and six Pylint
   `use-implicit-booleaness-not-comparison` findings across the Python tests.
   Impact: `PYTHON_TARGETS` is now recursive, and those test issues are fixed.
 - Observation: the branch contains 10.2.4 implementation commits plus
-  follow-up lading, publish-order, CI, and Python-tooling maintenance. Evidence:
-  the review noted the mixed workstreams; the maintainer asked to address all
-  issues on the branch rather than split them. Impact: branch-wide gates are
-  treated as the acceptance condition for this hardening pass.
+  follow-up lading, publish-order, CI, and Python-tooling maintenance.
+  Evidence: the review noted the mixed workstreams; the maintainer asked to
+  address all issues on the branch rather than split them. Impact: branch-wide
+  gates are treated as the acceptance condition for this hardening pass.
 
 ## Decision log
 
@@ -387,8 +387,8 @@ marked `[x]`.
   dependency, so the published API cannot be exercised here. The vendored
   column is already covered by `stateful_window.rs`; the published column is
   verified out-of-band and the release workflow now runs through
-  `lading publish`. Date/Author: 2026-06-13, planning agent (updated
-  2026-06-14 for `lading publish`).
+  `lading publish`. Date/Author: 2026-06-13, planning agent (updated 2026-06-14
+  for `lading publish`).
 - Decision (testing rigour): apply pytest unit tests to the new consistency
   script and rely on the existing GPUI regression suite for the vendored
   column; do not add rstest unit tests, rust-rspec/`rstest-bdd` behavioural
@@ -434,8 +434,8 @@ marked `[x]`.
 - Decision: pass `--allow-unpublished-workspace-deps` from `make publish-check`
   but not from the documented live publish command. Rationale: this target is
   the dry-run/CI gate, and lading scopes the override to planned workspace
-  crates that are not yet available in the live index. Date/Author:
-  2026-06-15, implementing agent.
+  crates that are not yet available in the live index. Date/Author: 2026-06-15,
+  implementing agent.
 - Decision: make `test` depend on `build-python` instead of adding a separate
   group flag to its pytest command. Rationale: this matches the existing
   Makefile pattern for Python-backed targets and keeps the project environment
@@ -540,8 +540,9 @@ Stable anchors for a new reader:
   `make lint` (`Makefile:45`), with its pytest at
   `scripts/tests/test_check_users_guide_links.py` (run by `make test`,
   `Makefile:36`).
-- Release-time workflow: `make publish-check` runs `lading publish
-  --workspace-root .` using `lading.toml` for publish order and patch stripping.
+- Release-time workflow: `make publish-check` runs
+  `lading publish --workspace-root .` using `lading.toml` for publish order and
+  patch stripping.
 
 ### The corrected, shared table
 
@@ -909,9 +910,9 @@ issue and re-run; do not undo earlier edits unless the rule code points at them.
   `python3 scripts/check_gpui_mapping_table.py` exited zero, and
   `make markdownlint` exited zero after removing the duplicate ExecPlan copy.
 - Stage D green output:
-  the mapping-table pytest command reported `9 passed`, and
-  `make lint` later ran `python3 scripts/check_gpui_mapping_table.py` as part
-  of the full lint target.
+  the mapping-table pytest command reported `9 passed`, and `make lint` later
+  ran `python3 scripts/check_gpui_mapping_table.py` as part of the full lint
+  target.
 - Stage E gate summaries so far: `make markdownlint` reported
   `Summary: 0 error(s)`; `make check-fmt` reported `34 files already formatted`;
   `make lint` reported `All checks passed!` from Ruff and completed the
@@ -958,9 +959,9 @@ the Make gate targets `markdownlint`, `lint`, `check-fmt`, `test`, and
 - Code navigation/refactoring: the `leta` skill and workspace (loaded this
   session); `rust-router` for any Rust follow-on.
 - Rust testing strategy/terminology:
-  `docs/rust-testing-with-rstest-fixtures.md`,
-  `docs/testing-strategy.md` (no Rust test work is added by this plan; the
-  vendored column is covered by the existing GPUI regression suite).
+  `docs/rust-testing-with-rstest-fixtures.md`, `docs/testing-strategy.md` (no
+  Rust test work is added by this plan; the vendored column is covered by the
+  existing GPUI regression suite).
 - Doc-test DRY guidance: `docs/rust-doctest-dry-guide.md`.
 - Complexity/refactoring heuristics:
   `docs/complexity-antipatterns-and-refactoring-strategies.md`.

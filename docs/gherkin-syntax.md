@@ -839,8 +839,8 @@ implementation across different programming languages and frameworks reveals
 distinct philosophies and technical quirks. A deep dive into `pytest-bdd` for
 Python and `cucumber-rs` for Rust highlights a fundamental divergence in
 approach: one prioritizes deep integration with an existing, powerful testing
-ecosystem, while the other favours a purpose-built, "pure" implementation of the
-Cucumber paradigm.
+ecosystem, while the other favours a purpose-built, "pure" implementation of
+the Cucumber paradigm.
 
 ### Section 6.1: A comparative analysis: `pytest-bdd` vs. `cucumber-rs`
 

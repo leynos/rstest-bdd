@@ -115,23 +115,21 @@ The file sets the timeout policy for the test suite:
   (`terminate-after = 1`, 5 s grace period) and applies a 5 m `global-timeout`
   to the whole run.
 - A `[[profile.default.overrides]]` entry raises the `slow-timeout` to 180 s
-  for `cargo-bdd::cli`, whose smoke tests spawn `cargo` to build fixture
-  crates and can legitimately exceed 60 s on cold caches.
+  for `cargo-bdd::cli`, whose smoke tests spawn `cargo` to build fixture crates
+  and can legitimately exceed 60 s on cold caches.
 - A second override applies the same 180 s `slow-timeout` to the
   trybuild-based compile-test binaries:
   `rstest-bdd-harness-tokio::macro_compile`,
-  `rstest-bdd-harness-gpui::macro_compile`, and
-  `rstest-bdd::trybuild_macros`. These tests invoke `cargo build` against a
-  large dependency tree, so a cold cache (or CPU contention when several
-  compile tests run concurrently) can push a single test well past the
-  default limit even though nothing is wrong.
+  `rstest-bdd-harness-gpui::macro_compile`, and `rstest-bdd::trybuild_macros`.
+  These tests invoke `cargo build` against a large dependency tree, so a cold
+  cache (or CPU contention when several compile tests run concurrently) can
+  push a single test well past the default limit even though nothing is wrong.
 - A `long` profile (`--profile long`) relaxes the limits further (180 s
   `slow-timeout`, 15 m `global-timeout`) for deliberately slow local runs.
 
 When adding a test binary that shells out to `cargo`, extend the relevant
-override's `filter` expression rather than raising the default
-`slow-timeout`: the tight default is what surfaces genuinely hung tests
-quickly.
+override's `filter` expression rather than raising the default `slow-timeout`:
+the tight default is what surfaces genuinely hung tests quickly.
 
 ## `#[serial]`, `#[file_serial]`, and nextest test-groups
 
@@ -173,9 +171,9 @@ Mitigation:
   matrix legs (see `.github/workflows/ci.yml`). Windows coverage runs use
   `cargo llvm-cov test` (libtest) instead.
 - `.config/nextest.toml` raises the `slow-timeout` for the trybuild
-  compile-test binaries (including both `macro_compile` binaries) to 180 s as
-  a local-development safety net. This does not fix the deadlock; it only
-  delays termination to allow the build to complete on fast machines.
+  compile-test binaries (including both `macro_compile` binaries) to 180 s as a
+  local-development safety net. This does not fix the deadlock; it only delays
+  termination to allow the build to complete on fast machines.
 - Do not add `macro_compile`-style tests (tests that spawn `cargo` via
   `trybuild` or `cargo_metadata`) to nextest-managed binaries intended to run
   on Windows.
@@ -183,17 +181,17 @@ Mitigation:
 ## Users-guide link validation (`scripts/check_users_guide_links.py`)
 
 `docs/users-guide.md` is vendored into consumer projects, so its
-cross-references to other documents in this repository use absolute GitHub
-URLs (collected as reference-style definitions at the bottom of the file)
-rather than relative paths. `scripts/check_users_guide_links.py`, run
-automatically by `make lint`, keeps those URLs honest:
+cross-references to other documents in this repository use absolute GitHub URLs
+(collected as reference-style definitions at the bottom of the file) rather
+than relative paths. `scripts/check_users_guide_links.py`, run automatically by
+`make lint`, keeps those URLs honest:
 
 - Every repository reference must start with the canonical base URL recorded
   in the script's `BASE_URL` constant (currently
   `https://github.com/leynos/rstest-bdd/blob/main/docs/`). If the repository
-  moves, the default branch is renamed, or the documents relocate, update
-  that one constant and the reference block; the check pinpoints every
-  definition that disagrees.
+  moves, the default branch is renamed, or the documents relocate, update that
+  one constant and the reference block; the check pinpoints every definition
+  that disagrees.
 - Each link must resolve to an existing file under `docs/`, and any `#`
   fragment must match a heading anchor in the target document (the script
   derives anchors with GitHub's slug rules). Prefer heading fragments over
@@ -211,8 +209,8 @@ The vendored-to-published GPUI mapping table is duplicated in
 together whenever a GPUI test API shape changes. `make lint` runs
 `scripts/check_gpui_mapping_table.py`, which anchors each table by its
 surrounding heading and compares the four data rows after whitespace
-normalization, so doc-vs-doc drift fails locally and in Continuous
-Integration (CI).
+normalization, so doc-vs-doc drift fails locally and in Continuous Integration
+(CI).
 
 This check does not prove the published column against crates.io. Local
 workspace builds resolve `gpui` to `vendor/gpui`, while release validation now
@@ -232,14 +230,14 @@ sed -n '1,220p' \
 
 If the crate's embedded repository commit is needed for cross-checking, inspect
 the extracted manifest metadata and compare the relevant files against the Zed
-repository with `git show <commit>:crates/gpui/src/app/test_context.rs`.
-Unit tests for the table checker live in
+repository with `git show <commit>:crates/gpui/src/app/test_context.rs`. Unit
+tests for the table checker live in
 `scripts/tests/test_check_gpui_mapping_table.py`.
 
 ## `#[serial]`/nextest matrix validation (`scripts/check_serial_nextest_matrix.py`)
 
-The runner matrix for `#[serial]`, cargo-nextest, `#[file_serial]`, and
-nextest test-groups is duplicated in `docs/users-guide.md` and
+The runner matrix for `#[serial]`, cargo-nextest, `#[file_serial]`, and nextest
+test-groups is duplicated in `docs/users-guide.md` and
 `docs/rstest-bdd-design.md`. Update both copies together whenever the
 repository changes its runner guidance. `make lint` runs
 `scripts/check_serial_nextest_matrix.py`, which anchors both copies by the
@@ -247,13 +245,13 @@ repository changes its runner guidance. `make lint` runs
 rows after whitespace normalization.
 
 The check only enforces doc-vs-doc parity. It does not validate nextest or
-`serial_test` behaviour directly; verify those facts from the upstream
-nextest and docs.rs references before changing the matrix. Unit tests for the
-checker live in `scripts/tests/test_check_serial_nextest_matrix.py`.
+`serial_test` behaviour directly; verify those facts from the upstream nextest
+and docs.rs references before changing the matrix. Unit tests for the checker
+live in `scripts/tests/test_check_serial_nextest_matrix.py`.
 
 Link-checker and table-checker tests run with the Python suite in `make test`.
-Issue #537 tracks generating the users-guide reference block from `BASE_URL`
-so the base lives in exactly one place.
+Issue #537 tracks generating the users-guide reference block from `BASE_URL` so
+the base lives in exactly one place.
 
 ## Spelling policy
 
@@ -323,11 +321,12 @@ trybuild fixtures under nextest.)
 Doc↔suite parity for this cookbook is guarded by prose, not a checker (the
 subsection states "if a snippet drifts, the suite wins"), matching the
 third-party harness cookbook convention rather than the doc↔doc parity scripts.
-The GPUI durable-handle specialization of the pattern is documented in prose and
-remains proven by the `stateful_window` binary above; keep the cookbook's GPUI
-snippets bridged to published `gpui 0.2.2` through the vendored-to-published
-mapping table, and keep edits near that table and the `#[serial]`/nextest matrix
-green under `check_gpui_mapping_table.py` and `check_serial_nextest_matrix.py`.
+The GPUI durable-handle specialization of the pattern is documented in prose
+and remains proven by the `stateful_window` binary above; keep the cookbook's
+GPUI snippets bridged to published `gpui 0.2.2` through the
+vendored-to-published mapping table, and keep edits near that table and the
+`#[serial]`/nextest matrix green under `check_gpui_mapping_table.py` and
+`check_serial_nextest_matrix.py`.
 
 ## First-party adapter dependency boundary
 
@@ -859,23 +858,24 @@ bookkeeping exactly once and applies the caller's projection to the resolved
   step as used (feeding the unused-step diagnostics behind `cargo bdd`); a
   lookup that returns `None` marks nothing.
 - **Permitted call-sites:** the public lookup wrappers in `registry/mod.rs`
-  and `registry/async_lookup.rs`. New lookup variants must resolve a step
-  (via `resolve_exact_step` / `resolve_step`) and pass it through
+  and `registry/async_lookup.rs`. New lookup variants must resolve a step (via
+  `resolve_exact_step` / `resolve_step`) and pass it through
   `mark_and_project`; calling `mark_used` directly from a lookup is a bug.
 - The invariant is pinned across all variants by the property suite in
   `crates/rstest-bdd/tests/registry_mark_used_props.rs`. A `kani` harness was
   considered and omitted: the registry is backed by link-time `inventory`
   registration and a lazily built hash map, which a bounded harness cannot
-  model cheaply, and the property suite already exercises every variant
-  against hit and miss lookups.
+  model cheaply, and the property suite already exercises every variant against
+  hit and miss lookups.
 
 ## Planned internal APIs and tooling (ADR-010 to ADR-013)
 
 Three accepted-as-`Proposed` ADRs schedule internal-API and build-tooling
 changes that contributors will encounter as the v0.6.1 and v0.7.0 work lands.
 ADR-013 is already accepted and governs the current Whitaker lint gate. They
-are summarized here, so the decisions are discoverable from the developer guide;
-the ADRs remain the authoritative source, and the planning rationale lives in
+are summarized here, so the decisions are discoverable from the developer
+guide; the ADRs remain the authoritative source, and the planning rationale
+lives in
 [`docs/execplans/adopt-v0-6-0-beta2-feedback.md`](execplans/adopt-v0-6-0-beta2-feedback.md).
 
 ### Scenario-state helpers and per-scenario cleanup (ADR-011)
@@ -958,8 +958,8 @@ trigger a rebuild.
 ### Whitaker Dylint suite lint gate (ADR-013)
 
 [ADR-013](adr-013-adopt-whitaker-no-unwrap-or-else-panic.md) introduced the
-first Whitaker lint; the repository now runs the full Whitaker Dylint suite
-as part of `make lint`, matching the estate-wide rollout that began with
+first Whitaker lint; the repository now runs the full Whitaker Dylint suite as
+part of `make lint`, matching the estate-wide rollout that began with
 leynos/netsuke#410.
 
 Local setup installs the `whitaker` wrapper and its pinned Dylint driver
@@ -976,16 +976,16 @@ whitaker-installer
 RUSTFLAGS="-D warnings" whitaker --all -- --workspace --all-targets --all-features
 ```
 
-The repository's ordinary build, test, and Clippy commands remain on the
-stable toolchain. The pinned nightly used by the Dylint driver is managed by
+The repository's ordinary build, test, and Clippy commands remain on the stable
+toolchain. The pinned nightly used by the Dylint driver is managed by
 `whitaker-installer` and scoped to lint runs.
 
-Per-lint configuration lives in the root `dylint.toml`. Every
-`excluded_crates` entry carries a rationale comment; keep that discipline
-when adding entries. In-source `allow`/`expect` attributes do not suppress
-`no_std_fs_operations` findings, so exclusions are the only sanctioned
-escape hatch for legitimately-ambient code such as test-support crates and
-integration test crates.
+Per-lint configuration lives in the root `dylint.toml`. Every `excluded_crates`
+entry carries a rationale comment; keep that discipline when adding entries.
+In-source `allow`/`expect` attributes do not suppress `no_std_fs_operations`
+findings, so exclusions are the only sanctioned escape hatch for
+legitimately-ambient code such as test-support crates and integration test
+crates.
 
 When maintaining the pin:
 
@@ -1009,8 +1009,8 @@ calling test.
 `rstest_bdd_server::handlers::util::has_extension(path, ext)` is the single
 canonical predicate for testing a path's file extension in handler code. It
 compares the path's final extension against `ext` (supplied without a leading
-dot) using ASCII case-insensitive equality, and returns `false` for paths
-with no extension.
+dot) using ASCII case-insensitive equality, and returns `false` for paths with
+no extension.
 
 - **Ownership:** the helper lives in `handlers/util.rs` and is owned by the
   language-server handler layer.
@@ -1024,5 +1024,5 @@ with no extension.
   call-site.
 
 Invariants (ASCII-case insensitivity, rejection of differing extensions, and
-behaviour for missing, repeated, and trailing dots) are pinned by the
-property suite in `crates/rstest-bdd-server/tests/has_extension_props.rs`.
+behaviour for missing, repeated, and trailing dots) are pinned by the property
+suite in `crates/rstest-bdd-server/tests/has_extension_props.rs`.

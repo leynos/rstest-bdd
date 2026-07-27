@@ -43,8 +43,8 @@ corrupts subsequent scenarios on the same test thread.
 
 Roadmap items 11.1.3 and 11.1.4 propose a generic state helper and cleanup
 registration. The first downstream adopter specifically requests a
-GPUI-specialized helper and a cleanup-guard fixture macro so the 50-line
-block is replaced with a first-party type.
+GPUI-specialized helper and a cleanup-guard fixture macro so the 50-line block
+is replaced with a first-party type.
 
 ### Naming constraint
 
@@ -54,10 +54,10 @@ that would collide with naive names:
 - `pub trait ScenarioState: Default` — the existing per-scenario state trait.
 - `pub struct Slot<T>` — the typed container in the same module.
 
-Both are re-exported from the crate root. The new generic helper must
-therefore **not** be named `ScenarioState` and must be designed to compose
-with — not shadow — `Slot<T>`. This ADR proposes `ScenarioStore<T>` as the
-generic core and `GpuiScenarioStore` as the GPUI-specific specialization.
+Both are re-exported from the crate root. The new generic helper must therefore
+**not** be named `ScenarioState` and must be designed to compose with — not
+shadow — `Slot<T>`. This ADR proposes `ScenarioStore<T>` as the generic core and
+`GpuiScenarioStore` as the GPUI-specific specialization.
 
 ## Decision drivers
 
@@ -71,8 +71,8 @@ generic core and `GpuiScenarioStore` as the GPUI-specific specialization.
 - Provide a tested three-state lifecycle (success, assertion failure, skip).
 - State clearly which API is current per v0.6.x / v0.7.0 release, so
   adopters know the thread-local interim (`§2.7.6.2`) is still supported in
-  v0.6.x while `ScenarioStore<T>` is the recommended additive alternative
-  from v0.6.1 onward.
+  v0.6.x while `ScenarioStore<T>` is the recommended additive alternative from
+  v0.6.1 onward.
 
 ## Options considered
 
@@ -111,9 +111,9 @@ Cons:
 
 ### Option C: generic core in `rstest-bdd` plus GPUI specialization in `rstest-bdd-harness-gpui` (selected)
 
-Ship a generic `ScenarioStore<T>` in `rstest-bdd` (implementing the
-`set`/`with`/`with_mut`/`take`/`reset` operations plus cleanup registration)
-and re-export a `GpuiScenarioStore` specialization and a cleanup-guard
+Ship a generic `ScenarioStore<T>` in `rstest-bdd` (implementing the `set`/
+`with` /`with_mut`/`take`/`reset` operations plus cleanup registration) and
+re-export a `GpuiScenarioStore` specialization and a cleanup-guard
 fixture-generating macro from `rstest-bdd-harness-gpui`.
 
 Pros:
@@ -150,13 +150,13 @@ Cons:
 - Harder to test the three-state lifecycle as a unit.
 - Recorded as the lighter-weight rejected alternative.
 
-| Axis | A | B | C | D |
-| --- | --- | --- | --- | --- |
-| Boilerplate reduction | Medium | High | High | High |
-| Reusable across harnesses | High | Low | High | Medium |
-| Lifecycle contract tested centrally | Low | Medium | High | Low |
-| Crate coupling risk | None | None | None | None |
-| Consumer-invisible cleanup | No | Yes | Yes | Yes |
+| Axis                                | A      | B      | C    | D      |
+| ----------------------------------- | ------ | ------ | ---- | ------ |
+| Boilerplate reduction               | Medium | High   | High | High   |
+| Reusable across harnesses           | High   | Low    | High | Medium |
+| Lifecycle contract tested centrally | Low    | Medium | High | Low    |
+| Crate coupling risk                 | None   | None   | None | None   |
+| Consumer-invisible cleanup          | No     | Yes    | Yes  | Yes    |
 
 *Table 1: Trade-offs for scenario-state helper placement.*
 
@@ -166,8 +166,7 @@ Adopt Option C.
 
 ### Generic `ScenarioStore<T>` in `rstest-bdd`
 
-`ScenarioStore<T>` wraps a `thread_local! { static …: RefCell<T> }` and
-exposes:
+`ScenarioStore<T>` wraps a `thread_local! { static …: RefCell<T> }` and exposes:
 
 - `set(value: T)` — reset and assign.
 - `with<R>(f: impl FnOnce(&T) -> R) -> R` — borrow shared.
@@ -175,9 +174,9 @@ exposes:
 - `take() -> T` — consume and reset.
 - `reset()` — reset to `T::default()`.
 
-Cleanup is registered through an associated cleanup guard type. The store
-wraps the `thread_local!` so consumers never write the thread-local
-boilerplate directly.
+Cleanup is registered through an associated cleanup guard type. The store wraps
+the `thread_local!` so consumers never write the thread-local boilerplate
+directly.
 
 `ScenarioStore<T>` is designed to sit beside — not replace — the existing
 `ScenarioState` trait and `Slot<T>`. Adopters who already use `Slot<T>` for
@@ -208,16 +207,16 @@ The ADR fixes the cleanup-ordering contract:
 3. Steps that store handles call `reset_before_assignment()` defensively
    before each assignment.
 4. A regression test proves the three-state lifecycle — success, assertion
-   failure, and skip — each leave the store in the default state for the
-   next scenario.
+   failure, and skip — each leave the store in the default state for the next
+   scenario.
 
 ### Cross-version stance
 
-| Version | Recommended pattern | Support status |
-| --- | --- | --- |
-| v0.6.0 (current) | Thread-local interim (`§2.7.6.2`) | Supported |
-| v0.6.1 (additive) | `ScenarioStore<T>` / `GpuiScenarioStore` | Preferred |
-| v0.7.0 (breaking) | Guard-based borrow redesign (ADR-012) | Supersedes both |
+| Version           | Recommended pattern                      | Support status  |
+| ----------------- | ---------------------------------------- | --------------- |
+| v0.6.0 (current)  | Thread-local interim (`§2.7.6.2`)        | Supported       |
+| v0.6.1 (additive) | `ScenarioStore<T>` / `GpuiScenarioStore` | Preferred       |
+| v0.7.0 (breaking) | Guard-based borrow redesign (ADR-012)    | Supersedes both |
 
 The v0.6.0 thread-local interim pattern remains supported throughout v0.6.x.
 `ScenarioStore<T>` is the recommended additive alternative from v0.6.1.
@@ -233,18 +232,18 @@ under-sample the operation orderings that matter. The implementing ExecPlan
 
 1. **Unit tests (required).** Exercise each of the five operations directly,
    and the three-state cleanup lifecycle (success, assertion failure, skip),
-   asserting the store returns to `T::default()` for the next scenario in
-   every case.
+   asserting the store returns to `T::default()` for the next scenario in every
+   case.
 2. **Property-based tests (recommended).** Use `proptest` to generate random
    sequences of store operations (`set`, `with_mut`, `take`, `reset`,
    interleaved with simulated scenario boundaries) and assert the invariants
    that must hold for *any* sequence: a scenario boundary always observes a
    reset store (no handle leaks across the boundary); `take` followed by a read
-   without an intervening `set` yields the default; and `with`/`with_mut`
-   never observe state from a prior scenario. This is the class of
-   state-transition invariant that example tests systematically miss, and it is
-   the cheapest guard against a future refactor reordering the reset protocol.
-   The crate already depends on `proptest` (see
+   without an intervening `set` yields the default; and `with`/`with_mut` never
+   observe state from a prior scenario. This is the class of state-transition
+   invariant that example tests systematically miss, and it is the cheapest
+   guard against a future refactor reordering the reset protocol. The crate
+   already depends on `proptest` (see
    `crates/rstest-bdd-harness-gpui/tests/stateful_window.rs`), so this adds no
    new dependency.
 3. **Thread-isolation coverage (recommended).** Because the store is

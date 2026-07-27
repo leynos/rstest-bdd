@@ -21,9 +21,9 @@ time with `E0499` or `E0502`.
 This is the root cause of the thread-local workaround tax that every stateful
 GPUI adopter pays in v0.6. ADR-007 selected the current `borrow_mut` contract;
 the adopter feedback, the downstream migration report, and the v0.7.0 roadmap
-(items 12.1.1–12.1.3) all converge on the same redesign direction. Roadmap
-item 12.1.1 currently records this as a v0.7.0 *ambition*. This ADR converts
-it to a *committed direction* so adopters can plan their v0.6→v0.7 migration.
+(items 12.1.1–12.1.3) all converge on the same redesign direction. Roadmap item
+12.1.1 currently records this as a v0.7.0 *ambition*. This ADR converts it to a
+*committed direction* so adopters can plan their v0.6→v0.7 migration.
 
 ## Decision drivers
 
@@ -41,17 +41,17 @@ it to a *committed direction* so adopters can plan their v0.6→v0.7 migration.
 ## Decision outcome
 
 Adopt guard-based interior borrowing as the v0.7.0 `StepContext` redesign, as
-described by roadmap items 12.1.1–12.1.3. This is a committed direction, not
-an ambition.
+described by roadmap items 12.1.1–12.1.3. This is a committed direction, not an
+ambition.
 
 ### Core changes (v0.7.0)
 
-**Guard-based interior borrowing (12.1.1).**
-`StepContext` replaces the `&mut self` `borrow_mut` API with interior
-borrowing that returns `FixtureRefMut` guards. The `StepContext` value itself
-is no longer exclusively borrowed by each extraction; only the individual
-fixture slot is locked while its guard is live. Two guards for *distinct* keys
-can coexist; two guards for the *same* key fail with a `FixtureBorrowError`.
+**Guard-based interior borrowing (12.1.1).** `StepContext` replaces the
+`&mut self` `borrow_mut` API with interior borrowing that returns
+`FixtureRefMut` guards. The `StepContext` value itself is no longer exclusively
+borrowed by each extraction; only the individual fixture slot is locked while
+its guard is live. Two guards for *distinct* keys can coexist; two guards for
+the *same* key fail with a `FixtureBorrowError`.
 
 ```rust
 // v0.7.0 shape (illustrative, not final API)
@@ -66,13 +66,13 @@ fn my_step(ctx: &StepContext) {
 }
 ```
 
-**`FixtureRefMut` stable opaque API (12.1.2).**
-`FixtureRefMut<T>` exposes stable value-accessor methods (`as_ref`,
-`as_mut`, `DerefMut`) without exposing internal enum variants or storage
-details, so changes to the representation do not become semver breaks.
+**`FixtureRefMut` stable opaque API (12.1.2).** `FixtureRefMut<T>` exposes
+stable value-accessor methods (`as_ref`, `as_mut`, `DerefMut`) without exposing
+internal enum variants or storage details, so changes to the representation do
+not become semver breaks.
 
-**Stable world lifecycle contract (12.1.3).**
-`StepContext` gains a first-class lifecycle that guarantees:
+**Stable world lifecycle contract (12.1.3).** `StepContext` gains a first-class
+lifecycle that guarantees:
 
 - a *before-scenario* hook runs before the first step (reset);
 - an *after-scenario* hook runs after the last step (cleanup), including on
@@ -84,18 +84,18 @@ automatically.
 
 ### v0.6 → v0.7 migration mapping
 
-| v0.6 pattern | v0.7 equivalent |
-| --- | --- |
-| `thread_local! { static WORLD: RefCell<World> }` | `ctx.borrow_mut::<World>()` (distinct key from harness context) |
-| `reset_state_before_assignment()` | before-scenario lifecycle hook; `StepContext` resets the world slot automatically |
-| `ScenarioStateCleanup` `Drop` guard | after-scenario lifecycle hook; fires on success, failure, and skip |
-| `WORLD.with(\|w\| w.borrow_mut())` in every step | `let mut world = ctx.borrow_mut::<World>()?;` — legal because guard-based borrowing allows concurrent distinct-key borrows |
-| `#[from(scenario_state_cleanup)] _cleanup: …` fixture parameter | Removed; cleanup is registered through the lifecycle API |
+| v0.6 pattern                                                    | v0.7 equivalent                                                                                                            |
+| --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `thread_local! { static WORLD: RefCell<World> }`                | `ctx.borrow_mut::<World>()` (distinct key from harness context)                                                            |
+| `reset_state_before_assignment()`                               | before-scenario lifecycle hook; `StepContext` resets the world slot automatically                                          |
+| `ScenarioStateCleanup` `Drop` guard                             | after-scenario lifecycle hook; fires on success, failure, and skip                                                         |
+| `WORLD.with(\|w\| w.borrow_mut())` in every step                | `let mut world = ctx.borrow_mut::<World>()?;` — legal because guard-based borrowing allows concurrent distinct-key borrows |
+| `#[from(scenario_state_cleanup)] _cleanup: …` fixture parameter | Removed; cleanup is registered through the lifecycle API                                                                   |
 
-`ScenarioStore<T>` (ADR-011, v0.6.1) is also superseded by the lifecycle
-API. Code written against `ScenarioStore<T>` migrates by replacing the
-thread-local store with a direct `ctx.borrow_mut` call and registering the
-reset through the lifecycle hook.
+`ScenarioStore<T>` (ADR-011, v0.6.1) is also superseded by the lifecycle API.
+Code written against `ScenarioStore<T>` migrates by replacing the thread-local
+store with a direct `ctx.borrow_mut` call and registering the reset through the
+lifecycle hook.
 
 ### `FixtureBorrowError` surface
 
@@ -130,10 +130,10 @@ ExecPlan (roadmap items 12.1.1–12.1.3) should layer:
    borrow-checker-like invariants for *any* sequence: at most one live mutable
    guard exists per key at a time; a borrow succeeds iff no live guard holds
    its key; releasing (dropping) a guard makes its key borrowable again; and
-   distinct-key borrows never interfere. A stateful `proptest`
-   model (a reference `HashMap<Key, BorrowState>` shadowing the real
-   `StepContext`) is the natural shape and catches reordering regressions that
-   fixed-sequence tests miss.
+   distinct-key borrows never interfere. A stateful `proptest` model (a
+   reference `HashMap<Key, BorrowState>` shadowing the real `StepContext`) is
+   the natural shape and catches reordering regressions that fixed-sequence
+   tests miss.
 3. **Lifecycle tests (required).** Prove the before-scenario reset and
    after-scenario cleanup hooks fire on success, assertion failure, and skip
    (12.1.3), reusing the three-state pattern from ADR-011.
