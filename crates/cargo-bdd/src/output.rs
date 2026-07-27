@@ -267,8 +267,8 @@ mod tests {
             reason: Some("sandbox unavailable".to_owned()),
         }];
         let mut buffer = Vec::new();
-        #[expect(clippy::expect_used, reason = "Vec<u8> writes cannot fail")]
-        write_bypassed_steps(&mut buffer, &steps).expect("render bypassed steps");
+        let result = write_bypassed_steps(&mut buffer, &steps);
+        assert!(result.is_ok(), "rendering into Vec<u8> should not fail");
         let output = String::from_utf8(buffer).unwrap_or_else(|_| String::from("<invalid utf-8>"));
         insta::assert_snapshot!("bypassed_steps", output);
     }

@@ -886,7 +886,6 @@ feature-gated regression suite in
 `crates/rstest-bdd-harness-gpui/tests/scenario_name_in_logs.rs` apply the
 attribute to every `GpuiHarness::run`-driving test.
 
-
 ## cargo-bdd scenario output formatting
 
 `crates/cargo-bdd/src/output.rs` owns the rendering of skipped-scenario and
