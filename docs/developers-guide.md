@@ -888,8 +888,8 @@ attribute to every `GpuiHarness::run`-driving test.
 
 ## Canonical diagnostic publish path
 
-All LSP diagnostic publishing in `rstest-bdd-server` flows through the
-canonical `publish_with` helper in
+All Language Server Protocol (LSP) diagnostic publishing in `rstest-bdd-server`
+flows through the canonical `publish_with` helper in
 `crates/rstest-bdd-server/src/handlers/diagnostics/publish.rs`. It owns the
 publish boundary exactly once: the client-socket guard, the
 path-to-URI guard, `PublishDiagnosticsParams` construction, the
@@ -911,7 +911,11 @@ path-to-URI guard, `PublishDiagnosticsParams` construction, the
 The published payloads for representative feature and Rust files are pinned
 by `insta` snapshots, and the publish invariants (count preserved, empty
 vector still published) by a property test, both in
-`handlers/diagnostics/publish.rs`.
+`handlers/diagnostics/publish.rs`. The boundary itself — that `publish_with`
+actually emits a `publishDiagnostics` notification through the client socket,
+including an empty array to clear resolved diagnostics — is exercised
+end-to-end against a live server by the `smoke_lsp` integration suite, which
+`prepare_publish`-only tests cannot observe.
 
 ## cargo-bdd scenario output formatting
 

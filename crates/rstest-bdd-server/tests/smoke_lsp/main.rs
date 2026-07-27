@@ -312,3 +312,80 @@ fn smoke_diagnostics_published_for_unimplemented_step(mut server: ServerHandle) 
 
     shutdown_and_exit(&mut server.stdin, &server.receiver, &mut server.child, 99);
 }
+
+/// Exercise the canonical publication boundary end-to-end through the public
+/// publishers. An unimplemented step first emits a non-empty
+/// `publishDiagnostics` notification; once the matching Rust step is added, the
+/// feature re-publishes an *empty* diagnostics array to clear the resolved
+/// diagnostic. This pins that `publish_with` actually notifies the client and
+/// that empty vectors are published (not suppressed) — behaviour the
+/// payload-only `prepare_publish` tests cannot observe.
+#[rstest]
+#[expect(
+    clippy::expect_used,
+    clippy::indexing_slicing,
+    reason = "test assertions use .expect() and indexing for clear failure messages"
+)]
+fn smoke_feature_diagnostics_cleared_once_step_implemented(mut server: ServerHandle) {
+    let dir = server.workspace_root().to_path_buf();
+    let feature_path = dir.join("clearing.feature");
+    std::fs::write(
+        &feature_path,
+        concat!(
+            "Feature: clearing\n",
+            "  Scenario: pending\n",
+            "    Given a pending step\n",
+        ),
+    )
+    .expect("write feature");
+    let feature_uri = lsp_types::Url::from_file_path(&feature_path).expect("feature URI");
+    let feature_uri = feature_uri.as_str().to_owned();
+
+    // Saving the feature publishes a non-empty diagnostic for the
+    // unimplemented step through the canonical boundary.
+    did_save(&mut server.stdin, &feature_path);
+    let non_empty_uri = feature_uri.clone();
+    server
+        .receiver
+        .recv_notification_matching(
+            move |msg| {
+                is_non_empty_diagnostics(msg)
+                    && msg["params"]["uri"].as_str() == Some(non_empty_uri.as_str())
+            },
+            MAX_RECV_MESSAGES,
+        )
+        .expect("expected non-empty diagnostics for the unimplemented step");
+
+    // Implement the step in a Rust file; saving it re-publishes every feature,
+    // and the now-satisfied feature must publish an empty diagnostics array to
+    // clear the stale diagnostic.
+    let rust_path = dir.join("clearing_steps.rs");
+    std::fs::write(
+        &rust_path,
+        concat!(
+            "use rstest_bdd_macros::given;\n",
+            "\n",
+            "#[given(\"a pending step\")]\n",
+            "fn a_pending_step() {}\n",
+        ),
+    )
+    .expect("write rust steps");
+
+    did_save(&mut server.stdin, &rust_path);
+    server
+        .receiver
+        .recv_notification_matching(
+            move |msg| {
+                msg.get("method").and_then(|m| m.as_str())
+                    == Some("textDocument/publishDiagnostics")
+                    && msg["params"]["uri"].as_str() == Some(feature_uri.as_str())
+                    && msg["params"]["diagnostics"]
+                        .as_array()
+                        .is_some_and(Vec::is_empty)
+            },
+            MAX_RECV_MESSAGES,
+        )
+        .expect("expected empty diagnostics clearing the resolved feature");
+
+    shutdown_and_exit(&mut server.stdin, &server.receiver, &mut server.child, 99);
+}
