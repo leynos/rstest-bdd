@@ -37,11 +37,9 @@ pub fn generate_step_parse_with_hint(ty: syn::Type, hint: Option<String>) -> Str
 
     let tokens = gen_step_parses(&args, &captures, &hints, meta);
 
-    #[expect(
-        clippy::expect_used,
-        reason = "test helper asserts single token output"
-    )]
-    let token = tokens.first().expect("expected single token stream");
+    let Some(token) = tokens.first() else {
+        panic!("expected single token stream");
+    };
     token.to_string()
 }
 
