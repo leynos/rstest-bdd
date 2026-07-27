@@ -2,7 +2,7 @@
 
 use super::{
     RuntimeMode, ScenarioReturnKind, TestAttrPolicy, adapt_fallible_gpui_boundary,
-    generate_test_attrs,
+    generate_test_attrs, uses_gpui_test,
 };
 
 #[rstest::rstest]
@@ -110,10 +110,8 @@ fn adapt_boundary(
         signature.asyncness = Some(syn::parse_quote!(async));
     }
     let body = adapt_fallible_gpui_boundary(
-        attrs,
-        policy,
+        uses_gpui_test(attrs, policy),
         return_kind,
-        is_async,
         &mut signature,
         quote::quote! { Ok::<(), String>(()) },
     );

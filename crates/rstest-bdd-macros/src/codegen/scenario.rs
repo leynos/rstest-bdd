@@ -190,17 +190,16 @@ pub(crate) fn generate_scenario_code(
 /// limited to generated GPUI tests; std and Tokio tests continue to return the
 /// scenario result through their native `Termination` support.
 fn adapt_fallible_gpui_boundary(
-    attrs: &[syn::Attribute],
-    policy: &TestAttrPolicy<'_>,
+    uses_gpui_boundary: bool,
     return_kind: ScenarioReturnKind,
-    is_async: bool,
     signature: &mut syn::Signature,
     body: TokenStream2,
 ) -> TokenStream2 {
-    if !return_kind.is_fallible() || !uses_gpui_test(attrs, policy) {
+    if !return_kind.is_fallible() || !uses_gpui_boundary {
         return body;
     }
 
+    let is_async = signature.asyncness.is_some();
     signature.output = syn::ReturnType::Default;
     if is_async {
         quote! {
@@ -278,10 +277,8 @@ where
     let vis = config.vis;
     let mut signature = config.sig.clone();
     let body = adapt_fallible_gpui_boundary(
-        config.attrs,
-        &policy,
+        uses_gpui_test(config.attrs, &policy),
         config.return_kind,
-        config.runtime.is_async(),
         &mut signature,
         body,
     );
@@ -377,10 +374,8 @@ where
     let attrs = config.attrs;
     let vis = config.vis;
     let body = adapt_fallible_gpui_boundary(
-        config.attrs,
-        &policy,
+        uses_gpui_test(config.attrs, &policy),
         config.return_kind,
-        config.runtime.is_async(),
         &mut modified_sig,
         body,
     );
