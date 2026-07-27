@@ -322,7 +322,14 @@ documented in `docs/rstest-bdd-design.md`:
   - `datatable`: detected when the parameter is named `datatable` or has a
     `#[datatable]` parameter attribute.
   - `docstring`: detected when the parameter is named `docstring` and its type
-    resolves to `String` (either `String` or `std::string::String`).
+    resolves to `String` (either `String`, `std::string::String`, or
+    `alloc::string::String`).
+
+**Rust indexing module boundary:** The internal `indexing/rust.rs` module owns
+Rust-file indexing entry points and step-attribute handling. Its internal
+`indexing/rust/params.rs` submodule converts `syn` function parameters into
+`IndexedStepParameter` values and classifies data tables, doc strings, and
+step-struct parameters.
 
 Figure: Class diagram of the Rust step indexing data structures and how they
 are cached in the language server state.

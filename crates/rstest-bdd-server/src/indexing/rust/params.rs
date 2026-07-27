@@ -88,22 +88,28 @@ fn type_is_string(ty: &syn::Type) -> bool {
     let syn::Type::Path(type_path) = ty else {
         return false;
     };
-    let segments: Vec<&syn::Ident> = type_path
-        .path
-        .segments
-        .iter()
-        .map(|segment| &segment.ident)
-        .collect();
-    match segments.as_slice() {
-        [name] => *name == "String",
-        [root, module, name] => {
-            is_string_crate_root(root) && *module == "string" && *name == "String"
+    if type_path.qself.is_some() || type_path.path.leading_colon.is_some() {
+        return false;
+    }
+
+    let mut segments = type_path.path.segments.iter();
+    match (
+        segments.next(),
+        segments.next(),
+        segments.next(),
+        segments.next(),
+    ) {
+        (Some(name), None, None, None) => path_segment_is(name, "String"),
+        (Some(root), Some(module), Some(name), None) => {
+            (path_segment_is(root, "std") || path_segment_is(root, "alloc"))
+                && path_segment_is(module, "string")
+                && path_segment_is(name, "String")
         }
         _ => false,
     }
 }
 
-/// Whether `ident` is a crate root that re-exports `string::String`.
-fn is_string_crate_root(ident: &syn::Ident) -> bool {
-    ident == "std" || ident == "alloc"
+/// Whether a path segment names `expected` without generic arguments.
+fn path_segment_is(segment: &syn::PathSegment, expected: &str) -> bool {
+    segment.ident == expected && matches!(segment.arguments, syn::PathArguments::None)
 }
