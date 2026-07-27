@@ -120,6 +120,18 @@ fn should_classify_as_datatable(pat: &syn::Ident, ty: &syn::Type) -> bool {
 ///
 /// Returns an error when the attribute carries arguments (the marker form
 /// takes none) or appears more than once on the same parameter.
+///
+/// # Examples
+///
+/// Given the parameter as written in a step function, and `attr_name`
+/// `"datatable"`:
+///
+/// ```text
+/// #[datatable] table: CachedTable   => Ok(true);  `arg.attrs` left empty
+/// table: CachedTable                => Ok(false); `arg.attrs` unchanged
+/// #[datatable(1)] table: MyTable    => Err: "`#[datatable]` does not take arguments"
+/// #[datatable] #[datatable] t: T    => Err: "duplicate `#[datatable]` attribute"
+/// ```
 pub(super) fn extract_flag_attribute(arg: &mut syn::PatType, attr_name: &str) -> syn::Result<bool> {
     let mut found = false;
     let mut duplicate = false;
@@ -239,8 +251,23 @@ where
 /// Returns an error when the parameter is named `datatable` with an
 /// unsupported type, when `#[datatable]` is applied to the reserved
 /// `docstring` parameter, when a `DataTable` was already classified, when the
-/// `DataTable` appears after a `DocString` (Gherkin ordering), or when
-/// `#[datatable]` is combined with `#[from]`.
+/// `DataTable` appears after a `DocString` (Gherkin ordering), or when a
+/// matched `DataTable` parameter also carries `#[from]`. The `#[from]`
+/// rejection applies to any matched `DataTable`, whether it matched via the
+/// `#[datatable]` marker or the canonical `datatable` shape, because `#[from]`
+/// has no meaning for a table binding.
+///
+/// # Examples
+///
+/// Given the parameter as written in a step function:
+///
+/// ```text
+/// datatable: Vec<Vec<String>>       => Ok(true);  recorded as DataTable
+/// #[datatable] rows: CachedTable    => Ok(true);  marker stripped, recorded
+/// name: String                      => Ok(false); left for the next classifier
+/// datatable: u32                    => Err: unsupported `datatable` type
+/// #[from(x)] datatable: CachedTable => Err: `#[from]` rejected on a DataTable
+/// ```
 pub(super) fn classify_datatable(
     st: &mut ExtractedArgs,
     arg: &mut syn::PatType,
@@ -303,6 +330,16 @@ fn is_docstring_canonical(pat: &syn::Ident, ty: &syn::Type) -> bool {
 ///
 /// Returns an error when a parameter named `docstring` has a type other than
 /// `String`, or when a `DocString` parameter was already classified.
+///
+/// # Examples
+///
+/// Given the parameter as written in a step function:
+///
+/// ```text
+/// docstring: String   => Ok(true);  recorded as DocString
+/// name: String        => Ok(false); left for the next classifier
+/// docstring: u32      => Err: docstring parameter must have type `String`
+/// ```
 pub(super) fn classify_docstring(
     st: &mut ExtractedArgs,
     arg: &mut syn::PatType,

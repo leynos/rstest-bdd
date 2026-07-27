@@ -19,6 +19,17 @@ use super::{Arg, normalize_param_name};
 ///
 /// Returns an error when the attribute payload is not a single identifier or
 /// uses `#[from = ...]` name-value form.
+///
+/// # Examples
+///
+/// Given the parameter as written in a step function:
+///
+/// ```text
+/// #[from(user)] u: User   => Ok(Some(user)); attribute stripped
+/// #[from] u: User         => Ok(None);       attribute stripped
+/// u: User                 => Ok(None);       nothing to strip
+/// #[from = "user"] u: U   => Err: "#[from] expects an identifier or no arguments"
+/// ```
 fn parse_from_attribute(arg: &mut syn::PatType) -> syn::Result<Option<syn::Ident>> {
     let mut from_name = None;
     let mut from_attr_err = None;
@@ -116,6 +127,19 @@ fn classify_by_placeholder_match(
 /// Returns an error when the `#[from]` attribute is malformed, when the
 /// parameter conflicts with `#[step_args]` placeholder ownership, or when a
 /// normalized fixture name is not a valid identifier.
+///
+/// # Examples
+///
+/// Given the parameter as written in a step function and the current
+/// placeholder set:
+///
+/// ```text
+/// count: u32,  placeholders = {count}  => Step arg; placeholder `count` consumed
+/// pool: DbPool, placeholders = {}      => Fixture named `pool`
+/// #[from(db)] pool: DbPool, {}         => Fixture named `db` (explicit override)
+/// ```
+///
+/// Always returns `Ok(true)`; the parameter is claimed either way.
 pub(in super::super) fn classify_fixture_or_step(
     ctx: &mut ClassificationContext,
     arg: &mut syn::PatType,
