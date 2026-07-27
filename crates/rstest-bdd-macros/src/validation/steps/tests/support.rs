@@ -7,10 +7,11 @@ use rstest::fixture;
 use tempfile::tempdir;
 
 pub(super) fn clear_registry() {
-    match REGISTERED.lock() {
-        Ok(mut registry) => registry.clear(),
-        Err(error) => panic!("step registry poisoned: {error}"),
-    }
+    let mut registry = match REGISTERED.lock() {
+        Ok(registry) => registry,
+        Err(poisoned) => poisoned.into_inner(),
+    };
+    registry.clear();
 }
 
 pub(super) fn create_test_step(keyword: StepKeyword, text: &str) -> ParsedStep {

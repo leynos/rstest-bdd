@@ -8,7 +8,7 @@ fn compute_scenario_outline_diagnostics_for_path(
     feature_path: &Path,
 ) -> Vec<Diagnostic> {
     let Some(feature_index) = state.feature_index(feature_path) else {
-        panic!("feature index should exist for the scenario under test");
+        panic!("feature index missing for {}", feature_path.display());
     };
     scenario_outline::compute_scenario_outline_column_diagnostics(feature_index)
 }
