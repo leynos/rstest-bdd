@@ -30,22 +30,7 @@ impl AttributePolicy for GpuiAttributePolicy {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    //! Unit tests for the GPUI attribute policy.
-    //!
-    //! The emit/render/"rstest is first" invariants are asserted by the
-    //! shared conformance check in `rstest-bdd-harness`; only the expected
-    //! rendered attributes are crate-specific.
-
-    use super::GpuiAttributePolicy;
-    use rstest_bdd_harness::policy_conformance::assert_attribute_policy_conformance;
-
-    #[test]
-    fn gpui_policy_conforms_to_attribute_policy_contract() {
-        assert_attribute_policy_conformance::<GpuiAttributePolicy>(&[
-            "#[rstest::rstest]",
-            "#[gpui::test]",
-        ]);
-    }
-}
+// The attribute-policy conformance check lives in
+// `tests/attribute_policy_behaviour.rs` rather than an in-module
+// `#[cfg(test)]` block: this crate's library target sets `test = false`, so an
+// in-module test would never be compiled or run.

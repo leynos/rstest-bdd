@@ -886,7 +886,6 @@ feature-gated regression suite in
 `crates/rstest-bdd-harness-gpui/tests/scenario_name_in_logs.rs` apply the
 attribute to every `GpuiHarness::run`-driving test.
 
-
 ## Attribute-policy conformance check
 
 `rstest_bdd_harness::policy_conformance::assert_attribute_policy_conformance::<P>(expected_rendered)`
@@ -905,6 +904,12 @@ through this helper, supplying only the crate-specific expected rendered
 attributes; do not re-implement the emit/render/ordering assertions per
 crate. New harness crates get the policy contract for free by calling the
 helper from one `#[test]`.
+
+The GPUI adapter's library target sets `test = false`, so an in-module
+`#[cfg(test)]` block there would never be compiled or run. Its conformance
+test therefore lives in the `tests/attribute_policy_behaviour.rs` integration
+target, exercised under `--all-features` (which enables the crate's
+`native-gpui-tests` feature) — the arrangement `make test` uses.
 
 ## Canonical step-keyword table
 
