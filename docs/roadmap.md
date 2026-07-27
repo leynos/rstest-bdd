@@ -677,7 +677,7 @@ implementation commitments.
   tests prove that harness-only Tokio and GPUI scenarios receive their
   first-party test attributes when the generated signature permits it, explicit
   overrides win, `attributes`-only behaviour remains unchanged, harness
-  initialisation errors propagate before step execution, and harness-dependent
+  initialization errors propagate before step execution, and harness-dependent
   steps fail loudly when only an attribute policy is supplied. Prerequisite:
   9.7.2. Design Doc: `docs/adr-008-harness-led-attribute-policy-defaults.md`.
   Delivered 2026-05-21 with unit coverage for precedence and unknown-path
@@ -1164,3 +1164,6 @@ an assertion cannot disappear behind macro classification or generated code.
   choice is captured in an ADR and migration guidance. Finish line: the ADR,
   migration guide, and publish/package tests all reflect the same packaging
   model. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.5. (Pandalump)
+
+[implicit-fixture-guide]: users-guide.md#implicit-fixture-injection
+[implicit-fixture-trybuild]: ../crates/rstest-bdd/tests/ui_macros/implicit_fixture_missing.rs

@@ -19,7 +19,7 @@ the normal emitted test attributes. These forms should work as the preferred
 documentation path:
 
 ```rust,no_run
-# use rstest_bdd_macros::scenario;
+use rstest_bdd_macros::scenario;
 #[scenario(
     path = "tests/features/my_ui.feature",
     harness = rstest_bdd_harness_gpui::GpuiHarness,
@@ -46,6 +46,7 @@ Success is observable in three ways:
    first-party configuration and still documents `attributes = ...` as the
    override and third-party escape hatch.
 
+```rust,no_run
 # use rstest_bdd_macros::scenario;
 #[scenario(
     path = "tests/features/my_ui.feature",

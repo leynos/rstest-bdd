@@ -328,7 +328,7 @@ fn harness_initialization_panic_includes_error_context() {
         );
 
         FailingHarness.run(request).unwrap_or_else(|err| {
-            panic!("harness failed to initialise scenario: {err}");
+            panic!("harness failed to initialize scenario: {err}");
         });
     }));
 
@@ -342,6 +342,6 @@ fn harness_initialization_panic_includes_error_context() {
     let Some(message) = message else {
         panic!("expected panic payload to be a string");
     };
-    assert!(message.contains("harness failed to initialise scenario"));
-    assert!(message.contains("synthetic harness initialisation failure"));
+    assert!(message.contains("harness failed to initialize scenario"));
+    assert!(message.contains("synthetic harness initialization failure"));
 }

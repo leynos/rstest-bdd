@@ -49,9 +49,9 @@ fn step_macros_compile() {
     // Linux-generated snapshots. Trybuild tests are about structured
     // diagnostics, not runtime backtraces.
     //
-    // `std::env::remove_var` is unsafe from Rust 1.87 onward, and this
-    // workspace forbids unsafe code. `temp_env` provides the same scoped
-    // mutation without weakening that lint.
+    // Rust 2024 makes `std::env::remove_var` unsafe; Rust 1.85.0 is the first
+    // release supporting that edition. This workspace forbids unsafe code, so
+    // `temp_env` provides the same scoped mutation without weakening that lint.
     temp_env::with_var_unset("RUST_BACKTRACE", || {
         let t = trybuild::TestCases::new();
 

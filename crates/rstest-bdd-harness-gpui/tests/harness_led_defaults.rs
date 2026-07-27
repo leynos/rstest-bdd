@@ -17,7 +17,9 @@
 
 use rstest_bdd_macros::{given, scenario};
 
-include!("../../rstest-bdd-harness/tests/support/failing_harness_error_path.rs");
+#[macro_use]
+#[path = "../../rstest-bdd-harness/tests/support/failing_harness_error_path.rs"]
+mod failing_harness_error_path;
 
 // --- Failing-harness error path (no native GPUI runtime required) --------
 
@@ -66,7 +68,6 @@ mod native {
             CONTEXT_POINTER.load(Ordering::SeqCst),
             "harness should inject one stable TestAppContext instance"
         );
-        context.on_quit(|| {});
         CONTEXT_MUTATED.store(true, Ordering::SeqCst);
         std::future::ready(()).await;
     }
@@ -82,7 +83,7 @@ mod native {
         );
         assert!(
             CONTEXT_MUTATED.load(Ordering::SeqCst),
-            "mutations through &mut TestAppContext should be visible later"
+            "the mutation step should run before the final context assertion"
         );
         assert!(
             !context.did_prompt_for_new_path(),

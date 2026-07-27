@@ -58,6 +58,7 @@ jobs:
           # CodeScene's `cs-coverage check` diffs the pull request against
           # its merge base, so the full history must be reachable.
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Free disk space
         if: ${{ runner.os == 'Linux' }}

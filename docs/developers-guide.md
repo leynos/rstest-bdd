@@ -386,12 +386,12 @@ The GPUI `harness_led_defaults` happy-path scenario is gated by
 suite. Its failing-harness error-path scenario does not require the native GPUI
 runtime and runs without the feature gate.
 
-The `Failing harness initialisation propagates` scenario's panic assertion is
+The `Failing harness initialization propagates` scenario's panic assertion is
 de-duplicated for harness integration coverage: the shared scenario assertion
 macro lives under `crates/rstest-bdd-harness/tests/support/` and is included
 from both `harness_led_defaults.rs` test binaries (Tokio and GPUI) to keep
 runtime-error-path assertions aligned. The guard step remains local to each
-test binary so the `#[scenario]` macro can discover it from the test source.
+test binary, so the `#[scenario]` macro can discover it from the test source.
 
 ### Bulk-migration cookbook reference suite
 
@@ -1207,12 +1207,13 @@ When maintaining the pin:
 3. Update ADR-013 only if the mechanism or adopted lint set changes.
 
 Do not replace invariant checks with `.expect(...)`, `.unwrap()`, or
-`unwrap_or_else(|| panic!(…))`. Use `let … else { panic!(…) }` for invariant
-panics, or return `Result` and use `?` where the failure is part of the tested
-domain behaviour. Fixture functions and test helpers are not tests: they must
-return `Result` and propagate errors rather than calling `.expect(...)`, and
-shared assertion shapes belong in macros so panic line numbers point at the
-calling test.
+`unwrap_or_else(|| panic!(...))`. Use a copyable invariant check such as
+`let Some(value) = value else { panic!("expected value to be present"); };`,
+or return `Result` and use `?` where the failure is part of the tested domain
+behaviour. Fixture functions and test helpers are not tests: they must return
+`Result` and propagate errors rather than calling `.expect(...)`, and shared
+assertion shapes belong in macros so panic line numbers point at the calling
+test.
 
 ## Step-return overrides and `InsertOutcome` (ADR-015)
 

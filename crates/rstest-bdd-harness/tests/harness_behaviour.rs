@@ -135,7 +135,7 @@ fn failing_harness_test_helper_returns_runtime_build_failed(default_metadata: Sc
     let Err(HarnessError::RuntimeBuildFailed(err)) = result else {
         panic!("expected RuntimeBuildFailed, got {result:?}");
     };
-    assert_eq!(err.to_string(), "synthetic harness initialisation failure");
+    assert_eq!(err.to_string(), "synthetic harness initialization failure");
 }
 
 #[test]

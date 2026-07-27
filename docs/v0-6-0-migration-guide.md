@@ -427,8 +427,13 @@ of the user guide is the in-depth reference; the steps below mirror its outline:
    `VisualTestContext` field with the durable handles, and in each subsequent
    step reconstruct the visual context with
    `gpui::VisualTestContext::from_window(window, cx)`. The return is
-   `Option<VisualTestContext>`; treat `None` as an invariant violation (for
-   example, with `let Some(visual_cx) = ... else { panic!(...) };`).
+   `Option<VisualTestContext>`; treat `None` as an invariant violation:
+
+   ```rust,ignore
+   let Some(visual_cx) = gpui::VisualTestContext::from_window(window, cx) else {
+       panic!("stored window handle should reconstruct visual context");
+   };
+   ```
 
 For a worked-out example, see the regression suite at
 `crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` and the

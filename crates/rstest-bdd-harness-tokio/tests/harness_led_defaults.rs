@@ -21,7 +21,9 @@ use rstest_bdd_harness_tokio::TokioTestContext;
 use rstest_bdd_macros::{given, scenario, then, when};
 use tokio::sync::Notify;
 
-include!("../../rstest-bdd-harness/tests/support/failing_harness_error_path.rs");
+#[macro_use]
+#[path = "../../rstest-bdd-harness/tests/support/failing_harness_error_path.rs"]
+mod failing_harness_error_path;
 
 // --- Inferred-policy happy path -----------------------------------------
 

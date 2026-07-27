@@ -28,7 +28,7 @@ confidence because the test suite will prove these observable behaviours:
 - explicit `attributes = ...` overrides beat any harness-led default;
 - `attributes`-only scenarios keep their existing behaviour;
 - unknown third-party harness paths do not infer first-party defaults;
-- harness initialisation errors propagate before any step function runs; and
+- harness initialization errors propagate before any step function runs; and
 - harness-dependent steps fail loudly when a scenario supplies only an
   attribute policy.
 

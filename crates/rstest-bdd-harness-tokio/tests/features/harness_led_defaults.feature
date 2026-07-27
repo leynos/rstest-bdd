@@ -5,7 +5,7 @@ Feature: Harness-led attribute-policy defaults at runtime
     When a local task is spawned under the inferred policy
     Then the inferred runtime flavour is current thread
 
-  Scenario: Failing harness initialisation propagates
+  Scenario: Failing harness initialization propagates
     Given a step that must never run
 
   Scenario: Attribute policy alone does not provide a LocalSet

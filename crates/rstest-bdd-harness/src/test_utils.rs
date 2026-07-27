@@ -46,7 +46,7 @@ impl crate::HarnessAdapter for FailingHarness {
         _request: crate::ScenarioRunRequest<'_, Self::Context, T>,
     ) -> crate::HarnessResult<T> {
         Err(crate::HarnessError::RuntimeBuildFailed(
-            std::io::Error::other("synthetic harness initialisation failure"),
+            std::io::Error::other("synthetic harness initialization failure"),
         ))
     }
 }
