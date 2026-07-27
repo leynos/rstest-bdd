@@ -39,6 +39,20 @@ fn keyword() -> impl Strategy<Value = StepKeyword> {
     proptest::sample::select(ALL_KEYWORDS.as_slice())
 }
 
+/// Strategy pairing a keyword with a case-flip mask sized to its rendering.
+///
+/// The mask must cover every character of the keyword: `permute_case` forces
+/// any position beyond the mask to lower case, so a mask shorter than the
+/// longest keyword (`Given`, five characters) would leave the final character
+/// permanently lower-cased and silently exclude an upper-case final character
+/// from the "arbitrary ASCII-case permutation" the property claims to test.
+fn keyword_with_case_mask() -> impl Strategy<Value = (StepKeyword, Vec<bool>)> {
+    keyword().prop_flat_map(|kw| {
+        let len = kw.as_str().chars().count();
+        (Just(kw), proptest::collection::vec(any::<bool>(), len))
+    })
+}
+
 proptest! {
     /// Rendering then parsing returns the original keyword.
     #[test]
@@ -50,8 +64,7 @@ proptest! {
     /// whitespace.
     #[test]
     fn parse_ignores_case_and_whitespace(
-        kw in keyword(),
-        mask in proptest::collection::vec(any::<bool>(), 0..5),
+        (kw, mask) in keyword_with_case_mask(),
         leading in "[ \\t]{0,3}",
         trailing in "[ \\t]{0,3}",
     ) {
