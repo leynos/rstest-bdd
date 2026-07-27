@@ -7,8 +7,10 @@ use rstest::fixture;
 use tempfile::tempdir;
 
 pub(super) fn clear_registry() {
-    #[expect(clippy::expect_used, reason = "registry lock must panic if poisoned")]
-    REGISTERED.lock().expect("step registry poisoned").clear();
+    match REGISTERED.lock() {
+        Ok(mut registry) => registry.clear(),
+        Err(error) => panic!("step registry poisoned: {error}"),
+    }
 }
 
 pub(super) fn create_test_step(keyword: StepKeyword, text: &str) -> ParsedStep {

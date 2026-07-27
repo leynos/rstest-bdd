@@ -29,9 +29,7 @@ use super::{
 mod params;
 mod type_render;
 
-use params::{
-    param_name, parameter_is_datatable, parameter_is_docstring, parameter_is_step_struct,
-};
+use params::parse_function_parameters;
 
 /// Parse and index a Rust source file from disk.
 ///
@@ -163,39 +161,6 @@ fn find_step_attribute(
 
     Ok(step_attribute)
 }
-
-/// Parse function parameters into indexed step parameters.
-fn parse_function_parameters(
-    sig_inputs: &syn::punctuated::Punctuated<syn::FnArg, syn::token::Comma>,
-) -> Vec<IndexedStepParameter> {
-    sig_inputs
-        .iter()
-        .map(|input| match input {
-            syn::FnArg::Receiver(_) => IndexedStepParameter {
-                name: Some("self".to_string()),
-                ty: "Self".to_string(),
-                is_datatable: false,
-                is_docstring: false,
-                is_step_struct: false,
-            },
-            syn::FnArg::Typed(pat_type) => {
-                let name = param_name(&pat_type.pat);
-                let ty = type_render::render_type(&pat_type.ty);
-                let is_datatable = parameter_is_datatable(pat_type, name.as_deref());
-                let is_docstring = parameter_is_docstring(name.as_deref(), &pat_type.ty);
-                let is_step_struct = parameter_is_step_struct(pat_type);
-                IndexedStepParameter {
-                    name,
-                    ty,
-                    is_datatable,
-                    is_docstring,
-                    is_step_struct,
-                }
-            }
-        })
-        .collect()
-}
-
 fn index_step_function(
     item_fn: &syn::ItemFn,
     source: &str,

@@ -92,6 +92,12 @@ fn indexes_parameter_expectations_for_tables_and_docstrings() {
         "fn uses_param_names(datatable: Vec<Vec<String>>) {}\n",
         "\n",
         "#[when]\n",
+        "fn docstring_std(docstring: std::string::String) {}\n",
+        "\n",
+        "#[when]\n",
+        "fn docstring_alloc(docstring: alloc::string::String) {}\n",
+        "\n",
+        "#[when]\n",
         "fn docstring_wrong_type(docstring: &str) {}\n",
     );
 
@@ -125,6 +131,15 @@ fn indexes_parameter_expectations_for_tables_and_docstrings() {
         .expect("expected step");
     assert!(uses_param_names.expects_table);
     assert!(!uses_param_names.expects_docstring);
+
+    for function in ["uses_param_attrs", "docstring_std", "docstring_alloc"] {
+        let step = index
+            .step_definitions
+            .iter()
+            .find(|step| step.function.name == function)
+            .expect("expected step");
+        assert!(step.expects_docstring);
+    }
 
     let docstring_wrong_type = index
         .step_definitions

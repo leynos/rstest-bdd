@@ -3,15 +3,13 @@
 use super::*;
 
 /// Helper to compute scenario outline column diagnostics.
-#[expect(
-    clippy::expect_used,
-    reason = "test helper requires explicit panic for debugging failures"
-)]
 fn compute_scenario_outline_diagnostics_for_path(
     state: &ServerState,
     feature_path: &Path,
 ) -> Vec<Diagnostic> {
-    let feature_index = state.feature_index(feature_path).expect("feature index");
+    let Some(feature_index) = state.feature_index(feature_path) else {
+        panic!("feature index");
+    };
     scenario_outline::compute_scenario_outline_column_diagnostics(feature_index)
 }
 
