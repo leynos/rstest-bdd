@@ -888,9 +888,10 @@ attribute to every `GpuiHarness::run`-driving test.
 
 ## Attribute-policy conformance check
 
-`rstest_bdd_harness::policy_conformance::assert_attribute_policy_conformance::<P>(expected_rendered)`
-is the canonical conformance test for `AttributePolicy` implementations. It
-pins three invariants for any policy `P`:
+The canonical conformance test for `AttributePolicy` implementations —
+`assert_attribute_policy_conformance::<P>(expected_rendered)`, in the
+`rstest_bdd_harness::policy_conformance` module — pins three invariants for any
+policy `P`:
 
 1. **Emit** — the policy emits exactly the expected number of attributes.
 2. **Render** — each attribute renders to the corresponding expected string,

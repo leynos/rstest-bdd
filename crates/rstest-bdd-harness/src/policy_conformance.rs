@@ -59,7 +59,10 @@ pub fn assert_attribute_policy_conformance<P: AttributePolicy>(expected_rendered
     assert_eq!(
         attributes.first().map(|attribute| attribute.path()),
         Some(RSTEST_ATTRIBUTE_PATH),
-        "`{RSTEST_ATTRIBUTE_PATH}` must be the first attribute so fixture \
-         expansion precedes the runtime test macro",
+        concat!(
+            "`{}` must be the first attribute so fixture ",
+            "expansion precedes the runtime test macro",
+        ),
+        RSTEST_ATTRIBUTE_PATH,
     );
 }
