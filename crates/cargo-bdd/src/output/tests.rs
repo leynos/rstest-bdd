@@ -1,11 +1,12 @@
 //! Snapshot and property tests for scenario output formatting.
 
 use proptest::prelude::*;
-use rstest::rstest;
+use rstest::{fixture, rstest};
 
 use super::*;
 use crate::registry::ScenarioOutcome;
 
+#[fixture]
 fn sample_scenario() -> Scenario {
     Scenario {
         feature_path: "features/checkout.feature".to_owned(),
@@ -42,6 +43,7 @@ fn render_scenarios(scenarios: &[Scenario], options: ScenarioDisplayOptions) -> 
 /// exercise `append_scenario_annotations`; this one forces the
 /// `[forced failure]` marker so a regression in that fragment (or its
 /// ordering relative to tags and the reason) is caught.
+#[fixture]
 fn annotated_scenario() -> Scenario {
     Scenario {
         forced_failure: true,
