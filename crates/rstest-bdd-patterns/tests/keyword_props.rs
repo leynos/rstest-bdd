@@ -75,15 +75,28 @@ proptest! {
 
     /// A string that matches no keyword (after trimming and case folding)
     /// fails with a parse error carrying the trimmed input.
+    ///
+    /// Surrounding whitespace is generated independently of the core token so
+    /// the assertion exercises the trimming path: when `leading`/`trailing`
+    /// are non-empty the raw input differs from its trimmed form, verifying
+    /// that `from_str` trims before building the error and that the error
+    /// carries the trimmed value rather than the raw input.
     #[test]
-    fn non_keyword_strings_fail_to_parse(input in "[a-zA-Z0-9_-]{0,12}") {
+    fn non_keyword_strings_fail_to_parse(
+        core in "[a-zA-Z0-9_-]{0,12}",
+        leading in "[ \\t]{0,3}",
+        trailing in "[ \\t]{0,3}",
+    ) {
+        // The core token carries no whitespace, so trimming the padded input
+        // yields exactly `core`.
         let is_keyword = ALL_KEYWORDS
             .iter()
-            .any(|kw| input.trim().eq_ignore_ascii_case(kw.as_str()));
+            .any(|kw| core.eq_ignore_ascii_case(kw.as_str()));
         prop_assume!(!is_keyword);
+        let input = format!("{leading}{core}{trailing}");
         prop_assert_eq!(
             StepKeyword::from_str(&input),
-            Err(StepKeywordParseError(input.trim().to_string()))
+            Err(StepKeywordParseError(core.clone()))
         );
     }
 }
