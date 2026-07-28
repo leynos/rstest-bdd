@@ -904,9 +904,9 @@ path-to-URI guard, `PublishDiagnosticsParams` construction, the
 - **Composition rules:** the compute closure returns
   `Option<Vec<Diagnostic>>` — `None` skips publishing entirely (used when a
   feature file has no index, preserving previously published diagnostics),
-  while `Some(vec![])` still publishes so stale diagnostics are cleared.
+  while `Some(vec![])` still publishes, so stale diagnostics are cleared.
   `prepare_publish` separates parameter construction from the notify side
-  effect so tests can pin payloads without a client socket.
+  effect, so tests can pin payloads without a client socket.
 
 The published payloads for representative feature and Rust files are pinned
 by `insta` snapshots, and the publish invariants (count preserved, empty
