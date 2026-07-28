@@ -48,20 +48,10 @@ fn parse_from_attribute(arg: &mut syn::PatType) -> syn::Result<Option<syn::Ident
         found = true;
         // Keep scanning so every `#[from]` is stripped, but stop parsing
         // payloads once the first error (malformed or duplicate) is seen.
-        if from_attr_err.is_some() || duplicate {
-            return false;
-        }
-        match &a.meta {
-            syn::Meta::Path(_) => {}
-            syn::Meta::List(_) => match a.parse_args::<syn::Ident>() {
-                Ok(parsed) => from_name = Some(parsed),
+        if from_attr_err.is_none() && !duplicate {
+            match from_attribute_ident(a) {
+                Ok(name) => from_name = name,
                 Err(err) => from_attr_err = Some(err),
-            },
-            syn::Meta::NameValue(_) => {
-                from_attr_err = Some(syn::Error::new_spanned(
-                    a,
-                    "#[from] expects an identifier or no arguments",
-                ));
             }
         }
         false
@@ -76,6 +66,27 @@ fn parse_from_attribute(arg: &mut syn::PatType) -> syn::Result<Option<syn::Ident
         ));
     }
     Ok(from_name)
+}
+
+/// Extract the explicit fixture name from a single `#[from]` attribute's
+/// payload.
+///
+/// Returns `Ok(None)` for a bare `#[from]`, `Ok(Some(name))` for
+/// `#[from(name)]`.
+///
+/// # Errors
+///
+/// Returns an error when the payload is not a single identifier or uses the
+/// `#[from = ...]` name-value form.
+fn from_attribute_ident(attr: &syn::Attribute) -> syn::Result<Option<syn::Ident>> {
+    match &attr.meta {
+        syn::Meta::Path(_) => Ok(None),
+        syn::Meta::List(_) => attr.parse_args::<syn::Ident>().map(Some),
+        syn::Meta::NameValue(_) => Err(syn::Error::new_spanned(
+            attr,
+            "#[from] expects an identifier or no arguments",
+        )),
+    }
 }
 
 /// Reject a fixture/step name that a `#[step_args]` struct already owns.
@@ -171,16 +182,17 @@ fn classify_by_placeholder_match(
     let target = from_name.clone().unwrap_or_else(|| pat.clone());
     let target_name = target.to_string();
     let normalized = normalize_param_name(&target_name);
+    // The `#[step_args]` conflict guard reads only `ctx.extracted`, so run it
+    // once before the branch. Keeping it out of both arms stops the two paths
+    // from diverging — the shape that previously let `_foo` skip the guard.
+    validate_no_step_struct_conflict(ctx, normalized, &pat)?;
     if ctx.placeholders.remove(normalized) {
-        validate_no_step_struct_conflict(ctx, normalized, &pat)?;
         ctx.extracted.push(Arg::Step { pat, ty });
-        Ok(())
     } else {
-        validate_no_step_struct_conflict(ctx, normalized, &pat)?;
         let name = resolve_fixture_name(from_name, &pat, normalized)?;
         ctx.extracted.push(Arg::Fixture { pat, name, ty });
-        Ok(())
     }
+    Ok(())
 }
 
 /// Classify `arg` as a step argument (placeholder match) or fixture.

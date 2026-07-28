@@ -135,13 +135,17 @@ fn classify_fixture_or_step_respects_blocked_placeholders() {
     );
 }
 
-#[test]
-fn classify_fixture_or_step_rejects_duplicate_from_attribute() {
+#[rstest]
+#[case::two_named(quote!(#[from(a)] #[from(b)] u: String))]
+#[case::two_bare(quote!(#[from] #[from] u: String))]
+fn classify_fixture_or_step_rejects_duplicate_from_attribute(#[case] arg_tokens: TokenStream2) {
     let mut extracted = ExtractedArgs::default();
     let mut placeholders = HashSet::new();
     // Parse via `FnArg` so the leading `#[from]` attributes are captured on the
-    // `PatType`; a bare `PatType` parse would drop them.
-    let mut arg = pat_type(quote!(#[from(a)] #[from(b)] u: String));
+    // `PatType`; a bare `PatType` parse would drop them. Both the last-wins
+    // (`#[from(a)] #[from(b)]`) and the silently-stripped bare-duplicate forms
+    // must fail.
+    let mut arg = pat_type(arg_tokens);
     let pat = ident("u");
     let ty: syn::Type = parse_quote!(String);
     let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
@@ -150,6 +154,63 @@ fn classify_fixture_or_step_rejects_duplicate_from_attribute() {
     };
 
     assert!(err.to_string().contains("duplicate `#[from]` attribute"));
+}
+
+#[test]
+fn classify_fixture_or_step_strips_from_attribute_on_success() {
+    let mut extracted = ExtractedArgs::default();
+    let mut placeholders = HashSet::new();
+    let mut arg = pat_type(quote!(#[from(db)] pool: DbPool));
+    let pat = ident("pool");
+    let ty: syn::Type = parse_quote!(DbPool);
+    let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
+    if let Err(err) = classify_fixture_or_step(&mut ctx, &mut arg, pat, ty) {
+        panic!("classification should succeed: {err}");
+    }
+
+    // The `#[from]` attribute must be stripped so the generated wrapper does
+    // not re-emit it, and the explicit name overrides the parameter identifier.
+    assert!(arg.attrs.is_empty(), "#[from] should be stripped on success");
+    let name = ident("db");
+    assert!(matches!(
+        extracted.args.as_slice(),
+        [Arg::Fixture { name: fixture_name, .. }] if fixture_name == &name
+    ));
+}
+
+#[test]
+fn classify_fixture_or_step_rejects_name_value_from() {
+    let mut extracted = ExtractedArgs::default();
+    let mut placeholders = HashSet::new();
+    let mut arg = pat_type(quote!(#[from = "db"] pool: String));
+    let pat = ident("pool");
+    let ty: syn::Type = parse_quote!(String);
+    let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
+    let Err(err) = classify_fixture_or_step(&mut ctx, &mut arg, pat, ty) else {
+        panic!("#[from = ...] should fail");
+    };
+
+    assert!(
+        err.to_string()
+            .contains("expects an identifier or no arguments")
+    );
+}
+
+#[test]
+fn classify_fixture_or_step_rejects_invalid_normalized_name() {
+    // `_1` normalizes to `1`, which is not a valid identifier; the classifier
+    // must reject it rather than emit a broken fixture name.
+    let mut extracted = ExtractedArgs::default();
+    let mut placeholders = HashSet::new();
+    let mut arg: syn::PatType = parse_quote!(_1: usize);
+    let pat = ident("_1");
+    let ty: syn::Type = parse_quote!(usize);
+    let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
+    let Err(err) = classify_fixture_or_step(&mut ctx, &mut arg, pat, ty) else {
+        panic!("invalid normalized fixture name should fail");
+    };
+
+    assert!(err.to_string().contains("is not a valid identifier"));
 }
 
 #[test]
