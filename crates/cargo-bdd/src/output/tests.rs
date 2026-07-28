@@ -112,17 +112,15 @@ fn scenario_strategy() -> impl Strategy<Value = Scenario> {
         proptest::collection::vec("[a-z]{1,8}", 0..4),
     )
         .prop_map(
-            |(feature_path, name, message, allow_skipped, forced_failure, line, tags)| {
-                Scenario {
-                    feature_path,
-                    name,
-                    status: ScenarioOutcome::Skipped,
-                    message,
-                    allow_skipped,
-                    forced_failure,
-                    line,
-                    tags,
-                }
+            |(feature_path, name, message, allow_skipped, forced_failure, line, tags)| Scenario {
+                feature_path,
+                name,
+                status: ScenarioOutcome::Skipped,
+                message,
+                allow_skipped,
+                forced_failure,
+                line,
+                tags,
             },
         )
 }
