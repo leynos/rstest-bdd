@@ -7,6 +7,8 @@
 //!   compile errors; implies `compile-time-validation`.
 //!
 //! Both features are disabled by default.
+#![cfg_attr(all(rstest_bdd_nightly, not(test)), feature(proc_macro_diagnostic))]
+
 mod codegen;
 mod datatable;
 mod macros;

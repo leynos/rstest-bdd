@@ -1724,6 +1724,21 @@ because procedural macros do not evaluate arbitrary third-party
 `#[tokio::test]` is omitted for synchronous test signatures because Tokio
 requires `async fn`.
 
+When an unresolved path retains the canonical Tokio or GPUI crate identifier
+immediately before the adapter type, the macro emits a fallback warning that
+recommends the canonical crate-root path or a direct `rstest-bdd-harness`
+development dependency. For example,
+`alias::rstest_bdd_harness_tokio::TokioHarness` supplies this evidence.
+`custom::TokioHarness` does not: unrelated third-party adapters remain valid
+fallback paths without the diagnostic even when the first-party adapter crate
+is present.
+
+The `codegen::adapter_fallback` module owns this diagnostic.
+`proc-macro-error2` emits it on nightly toolchains, while stable toolchains use
+a generated deprecated-item reference carrying the same message. The two paths
+are mutually exclusive, so a fallback expansion emits one warning on either
+toolchain.
+
 The user-facing guidance for this feature should lead with harness-only
 first-party configuration, with explicit `attributes = ...` documented as the
 override and third-party escape hatch. The deprecated

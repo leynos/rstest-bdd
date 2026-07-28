@@ -921,6 +921,26 @@ re-exported under different identifiers, use the canonical crate-root path (
 `rstest_bdd_harness_gpui::GpuiAttributePolicy`) or add a direct
 `rstest-bdd-harness` dependency to get the same attribute recognition.
 
+
+#### First-party adapter fallback warnings
+
+The macros warn when an unresolved Tokio or GPUI adapter path preserves the
+canonical first-party crate identifier immediately before the adapter type, as
+in `alias::rstest_bdd_harness_tokio::TokioHarness`. This can happen when a
+first-party adapter is re-exported through another module. Unrelated third-party
+paths such as `custom::TokioHarness` do not trigger the warning, even when the
+Tokio adapter crate is also a dependency.
+
+Prefer the canonical paths:
+
+- `rstest_bdd_harness_tokio::{TokioHarness, TokioAttributePolicy}`
+- `rstest_bdd_harness_gpui::{GpuiHarness, GpuiAttributePolicy}`
+
+If the adapter path must remain re-exported, add `rstest-bdd-harness` as a
+direct development dependency. The generated code can then resolve
+`HarnessAdapter` and `AttributePolicy` through that crate rather than relying
+on the first-party adapter crate.
+
 When `attributes` is omitted, known first-party harnesses infer matching
 default attribute policies:
 
@@ -1406,6 +1426,40 @@ defensively re-runs the reset before storing handles and observes the
 
 ```rust,no_run
 # use rstest_bdd_macros::given;
+
+#[derive(Debug, PartialEq, Eq)]
+struct UserRow {
+    name: String,
+    email: String,
+    active: bool,
+}
+
+impl DataTableRow for UserRow {
+    const REQUIRES_HEADER: bool = true;
+
+    fn parse_row(mut row: RowSpec<'_>) -> Result<Self, DataTableError> {
+        let name = row.take_column("name")?;
+        let email = row.take_column("email")?;
+        let active = row.parse_column_with(
+            "active",
+            datatable::truthy_bool,
+        )?;
+        Ok(Self { name, email, active })
+    }
+}
+
+#[given("the following users exist:")]
+fn users_exist(#[datatable] rows: Rows<UserRow>) {
+    for row in rows {
+        assert!(row.active || row.name == "Bob");
+    }
+}
+```
+
+Projects that prefer to work with raw rows can declare the argument as
+`Vec<Vec<String>>` and handle parsing manually. Both forms can co-exist within
+the same project, allowing incremental adoption of typed tables.
+
 # fn reset_state_before_assignment() {}
 # fn with_state<R>(_: impl FnOnce(&mut ()) -> R) -> R { unimplemented!() }
 #[given("a fresh GPUI window is opened")]
