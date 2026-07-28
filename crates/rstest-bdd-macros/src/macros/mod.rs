@@ -341,6 +341,8 @@ fn inject_skip_scope(func: &mut syn::ItemFn) {
 
 #[cfg(test)]
 mod tests {
+    //! Unit tests for step-attribute diagnostic help text.
+
     use super::signature_error_help;
     use crate::StepKeyword;
     use crate::codegen::wrapper::args::classify::DUPLICATE_DATATABLE_ERROR;
