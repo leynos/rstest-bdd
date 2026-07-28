@@ -328,7 +328,6 @@ pattern) to force treating the return value as a payload even when it is
 Returning `()` or `Ok(())` produces no stored value, so fixtures of `()` are
 not overwritten.
 
-
 #### Recording overrides directly with `insert_value`
 
 The automatic injection above is implemented on top of a lower-level API that
