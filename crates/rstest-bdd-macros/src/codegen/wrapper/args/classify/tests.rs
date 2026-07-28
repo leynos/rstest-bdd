@@ -136,6 +136,50 @@ fn classify_fixture_or_step_respects_blocked_placeholders() {
 }
 
 #[test]
+fn classify_fixture_or_step_rejects_duplicate_from_attribute() {
+    let mut extracted = ExtractedArgs::default();
+    let mut placeholders = HashSet::new();
+    // Parse via `FnArg` so the leading `#[from]` attributes are captured on the
+    // `PatType`; a bare `PatType` parse would drop them.
+    let mut arg = pat_type(quote!(#[from(a)] #[from(b)] u: String));
+    let pat = ident("u");
+    let ty: syn::Type = parse_quote!(String);
+    let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
+    let Err(err) = classify_fixture_or_step(&mut ctx, &mut arg, pat, ty) else {
+        panic!("duplicate #[from] should fail");
+    };
+
+    assert!(err.to_string().contains("duplicate `#[from]` attribute"));
+}
+
+#[test]
+fn classify_fixture_or_step_blocks_underscore_normalized_step_struct_name() {
+    // `_blocked` normalizes to `blocked`, which a `#[step_args]` struct owns.
+    // The guard must compare the normalized name, or the leading underscore
+    // would let the parameter shadow the struct field unnoticed.
+    let mut extracted = ExtractedArgs::default();
+    let idx = extracted.push(Arg::StepStruct {
+        pat: ident("args"),
+        ty: parse_quote!(Args),
+    });
+    extracted.step_struct_idx = Some(idx);
+    extracted.blocked_placeholders.insert("blocked".into());
+    let mut placeholders = HashSet::new();
+    let mut arg: syn::PatType = parse_quote!(_blocked: String);
+    let pat = ident("_blocked");
+    let ty: syn::Type = parse_quote!(String);
+    let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
+    let Err(err) = classify_fixture_or_step(&mut ctx, &mut arg, pat, ty) else {
+        panic!("normalized fixture name should collide with blocked placeholder");
+    };
+
+    assert!(
+        err.to_string()
+            .contains("#[step_args] cannot be combined with named step arguments")
+    );
+}
+
+#[test]
 fn extract_step_struct_attribute_detects_marker() {
     let mut arg = pat_type(quote!(#[step_args] args: Args));
     match extract_step_struct_attribute(&mut arg) {
