@@ -8,6 +8,12 @@ use std::any::{Any, TypeId};
 use std::cell::{Ref, RefCell, RefMut};
 use std::collections::HashMap;
 
+mod fixture_ref;
+mod insert_outcome;
+
+pub use fixture_ref::{FixtureRef, FixtureRefMut};
+pub use insert_outcome::InsertOutcome;
+
 /// Reserved fixture key used for harness-provided context.
 ///
 /// Harness-backed scenarios insert `HarnessAdapter::Context` into
@@ -355,57 +361,5 @@ impl<'a> FixtureEntry<'a> {
         }
     }
 }
-/// Borrowed fixture reference that keeps any underlying `RefCell` borrow alive
-/// for the duration of a step.
-pub enum FixtureRef<'a, T> {
-    /// Reference bound directly to a shared fixture.
-    Shared(&'a T),
-    /// Borrow guard taken from a backing `RefCell`.
-    Borrowed(Ref<'a, T>),
-}
-
-impl<T> FixtureRef<'_, T> {
-    /// Access the borrowed value as an immutable reference.
-    #[must_use]
-    pub fn value(&self) -> &T {
-        match self {
-            Self::Shared(value) => value,
-            Self::Borrowed(guard) => guard,
-        }
-    }
-}
-
-impl<T> AsRef<T> for FixtureRef<'_, T> {
-    fn as_ref(&self) -> &T {
-        self.value()
-    }
-}
-
-/// Borrowed mutable fixture reference tied to the lifetime of the step borrow.
-pub enum FixtureRefMut<'a, T> {
-    /// Mutable reference produced by a prior step override.
-    Override(&'a mut T),
-    /// Borrow guard obtained from the underlying `RefCell`.
-    Borrowed(RefMut<'a, T>),
-}
-
-impl<T> FixtureRefMut<'_, T> {
-    /// Access the borrowed value mutably.
-    #[must_use]
-    pub fn value_mut(&mut self) -> &mut T {
-        match self {
-            Self::Override(value) => value,
-            Self::Borrowed(guard) => guard,
-        }
-    }
-}
-
-impl<T> AsMut<T> for FixtureRefMut<'_, T> {
-    fn as_mut(&mut self) -> &mut T {
-        self.value_mut()
-    }
-}
-
-mod insert_outcome;
 #[cfg(test)]
 mod tests;
