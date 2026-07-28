@@ -66,3 +66,84 @@ pub fn assert_attribute_policy_conformance<P: AttributePolicy>(expected_rendered
         RSTEST_ATTRIBUTE_PATH,
     );
 }
+
+#[cfg(test)]
+mod tests {
+    //! The conformance helper is itself conformance-checked here: a
+    //! deliberately broken policy must make it panic, so a no-op or weakened
+    //! helper cannot pass on the happy path alone.
+
+    use super::assert_attribute_policy_conformance;
+    use crate::policy::{AttributePolicy, TestAttribute};
+
+    const EXPECTED: &[&str] = &["#[rstest::rstest]", "#[gpui::test]"];
+    const GOOD: [TestAttribute; 2] = [
+        TestAttribute::new("rstest::rstest"),
+        TestAttribute::new("gpui::test"),
+    ];
+    const WRONG_COUNT: [TestAttribute; 1] = [TestAttribute::new("rstest::rstest")];
+    const WRONG_RENDER: [TestAttribute; 2] = [
+        TestAttribute::new("rstest::rstest"),
+        TestAttribute::new("tokio::test"),
+    ];
+    const RSTEST_NOT_FIRST: [TestAttribute; 2] = [
+        TestAttribute::new("gpui::test"),
+        TestAttribute::new("rstest::rstest"),
+    ];
+
+    struct GoodPolicy;
+    impl AttributePolicy for GoodPolicy {
+        fn test_attributes() -> &'static [TestAttribute] {
+            &GOOD
+        }
+    }
+
+    struct WrongCountPolicy;
+    impl AttributePolicy for WrongCountPolicy {
+        fn test_attributes() -> &'static [TestAttribute] {
+            &WRONG_COUNT
+        }
+    }
+
+    struct WrongRenderPolicy;
+    impl AttributePolicy for WrongRenderPolicy {
+        fn test_attributes() -> &'static [TestAttribute] {
+            &WRONG_RENDER
+        }
+    }
+
+    struct RstestNotFirstPolicy;
+    impl AttributePolicy for RstestNotFirstPolicy {
+        fn test_attributes() -> &'static [TestAttribute] {
+            &RSTEST_NOT_FIRST
+        }
+    }
+
+    #[test]
+    fn accepts_a_conforming_policy() {
+        // Guards against an over-strict helper that rejects valid policies.
+        assert_attribute_policy_conformance::<GoodPolicy>(EXPECTED);
+    }
+
+    #[test]
+    #[should_panic(expected = "must emit exactly")]
+    fn rejects_wrong_attribute_count() {
+        assert_attribute_policy_conformance::<WrongCountPolicy>(EXPECTED);
+    }
+
+    #[test]
+    #[should_panic(expected = "render to the expected list")]
+    fn rejects_wrong_rendered_attribute() {
+        assert_attribute_policy_conformance::<WrongRenderPolicy>(EXPECTED);
+    }
+
+    #[test]
+    #[should_panic(expected = "must be the first attribute")]
+    fn rejects_rstest_not_first() {
+        // Count and render match; only the ordering (rstest first) is wrong.
+        assert_attribute_policy_conformance::<RstestNotFirstPolicy>(&[
+            "#[gpui::test]",
+            "#[rstest::rstest]",
+        ]);
+    }
+}
