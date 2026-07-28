@@ -170,7 +170,10 @@ fn classify_fixture_or_step_strips_from_attribute_on_success() {
 
     // The `#[from]` attribute must be stripped so the generated wrapper does
     // not re-emit it, and the explicit name overrides the parameter identifier.
-    assert!(arg.attrs.is_empty(), "#[from] should be stripped on success");
+    assert!(
+        arg.attrs.is_empty(),
+        "#[from] should be stripped on success"
+    );
     let name = ident("db");
     assert!(matches!(
         extracted.args.as_slice(),
