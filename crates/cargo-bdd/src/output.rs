@@ -208,6 +208,7 @@ mod tests {
     //! Snapshot and property tests for scenario output formatting.
 
     use proptest::prelude::*;
+    use rstest::rstest;
 
     use super::*;
     use crate::registry::ScenarioOutcome;
@@ -225,32 +226,65 @@ mod tests {
         }
     }
 
+    /// Decode rendered bytes, failing loudly on the (unreachable) invalid-UTF-8
+    /// case rather than snapshotting a silent `<invalid utf-8>` placeholder.
+    /// `let ... else { panic! }` keeps the loud failure without tripping the
+    /// workspace `expect`/`unwrap` restrictions in this non-`#[test]` helper.
+    fn render_to_string(buffer: Vec<u8>) -> String {
+        let Ok(output) = String::from_utf8(buffer) else {
+            panic!("rendered output must be valid UTF-8");
+        };
+        output
+    }
+
     fn render_scenarios(scenarios: &[Scenario], options: ScenarioDisplayOptions) -> String {
         let mut buffer = Vec::new();
         let result = write_scenarios(&mut buffer, scenarios, options);
         assert!(result.is_ok(), "rendering into Vec<u8> should not fail");
-        String::from_utf8(buffer).unwrap_or_else(|_| String::from("<invalid utf-8>"))
+        render_to_string(buffer)
     }
 
-    #[test]
-    fn snapshot_with_reasons_mode() {
-        let output = render_scenarios(&[sample_scenario()], ScenarioDisplayOptions::with_reasons());
-        insta::assert_snapshot!("scenarios_with_reasons", output);
+    /// A skipped scenario whose annotations render. `sample_scenario` keeps
+    /// `allow_skipped: true, forced_failure: false`, so its snapshots never
+    /// exercise `append_scenario_annotations`; this one forces the
+    /// `[forced failure]` marker so a regression in that fragment (or its
+    /// ordering relative to tags and the reason) is caught.
+    fn annotated_scenario() -> Scenario {
+        Scenario {
+            forced_failure: true,
+            allow_skipped: false,
+            ..sample_scenario()
+        }
     }
 
-    #[test]
-    fn snapshot_compact_mode() {
-        let output = render_scenarios(&[sample_scenario()], ScenarioDisplayOptions::compact());
-        insta::assert_snapshot!("scenarios_compact", output);
-    }
-
-    #[test]
-    fn snapshot_step_listing_appendix_mode() {
-        let output = render_scenarios(
-            &[sample_scenario()],
-            ScenarioDisplayOptions::step_listing_appendix(),
-        );
-        insta::assert_snapshot!("scenarios_step_listing_appendix", output);
+    #[rstest]
+    #[case::with_reasons(
+        sample_scenario(),
+        ScenarioDisplayOptions::with_reasons(),
+        "scenarios_with_reasons"
+    )]
+    #[case::compact(
+        sample_scenario(),
+        ScenarioDisplayOptions::compact(),
+        "scenarios_compact"
+    )]
+    #[case::step_listing_appendix(
+        sample_scenario(),
+        ScenarioDisplayOptions::step_listing_appendix(),
+        "scenarios_step_listing_appendix"
+    )]
+    #[case::forced_failure(
+        annotated_scenario(),
+        ScenarioDisplayOptions::with_reasons(),
+        "scenarios_forced_failure"
+    )]
+    fn snapshot_scenario_modes(
+        #[case] scenario: Scenario,
+        #[case] options: ScenarioDisplayOptions,
+        #[case] snapshot: &str,
+    ) {
+        let output = render_scenarios(&[scenario], options);
+        insta::assert_snapshot!(snapshot, output);
     }
 
     #[test]
@@ -269,7 +303,7 @@ mod tests {
         let mut buffer = Vec::new();
         let result = write_bypassed_steps(&mut buffer, &steps);
         assert!(result.is_ok(), "rendering into Vec<u8> should not fail");
-        let output = String::from_utf8(buffer).unwrap_or_else(|_| String::from("<invalid utf-8>"));
+        let output = render_to_string(buffer);
         insta::assert_snapshot!("bypassed_steps", output);
     }
 
@@ -328,11 +362,14 @@ mod tests {
                 expect_line_suffix
             );
 
-            if include_reason {
-                if let Some(message) = &scenario.message {
-                    let fragment = format!(" - {message}");
-                    prop_assert!(line.contains(&fragment));
-                }
+            // The ` - {message}` reason fragment must appear iff reasons are
+            // included and a message exists. The generated alphabets contain
+            // no `-`, so this fragment cannot collide with any other part of
+            // the line; asserting both directions closes the vacuous gap where
+            // `include_reason == false` previously asserted nothing.
+            if let Some(message) = &scenario.message {
+                let fragment = format!(" - {message}");
+                prop_assert_eq!(line.contains(&fragment), include_reason);
             }
         }
 
