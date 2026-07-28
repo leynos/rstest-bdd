@@ -11,7 +11,7 @@
 use rstest_bdd_macros::{given, scenario, then, when};
 
 mod alias {
-    pub use rstest_bdd_harness_tokio::TokioHarness;
+    pub use rstest_bdd_harness_tokio;
 }
 
 #[given("a precondition")]
@@ -25,7 +25,7 @@ fn result() {}
 
 #[scenario(
     path = "basic.feature",
-    harness = alias::TokioHarness,
+    harness = alias::rstest_bdd_harness_tokio::TokioHarness,
 )]
 fn with_aliased_tokio_harness() {}
 

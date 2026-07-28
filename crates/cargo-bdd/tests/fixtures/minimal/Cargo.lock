@@ -834,6 +834,7 @@ dependencies = [
  "rstest-bdd-harness",
  "rstest-bdd-patterns",
  "rstest-bdd-policy",
+ "rustc_version",
  "syn 2.0.119",
  "thiserror 2.0.19",
  "walkdir",
