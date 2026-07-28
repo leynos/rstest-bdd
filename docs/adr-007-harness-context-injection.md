@@ -182,7 +182,7 @@ roles:
 
 | Wrapper | Role |
 | --- | --- |
-| `insert_owned_harness_context` | **Required by codegen.** Emitted by macro-generated harness scenarios (`codegen/scenario/runtime/harness.rs`), which wrap `HarnessAdapter::Context` in an owned cell so steps can borrow it mutably. |
+| `insert_owned_harness_context` | **Required by codegen.** Emitted by macro-generated harness scenarios (`codegen/scenario/runtime/harness.rs`), which wrap `HarnessAdapter::Context` in an owned cell, so steps can borrow it mutably. |
 | `insert_harness_context` | Insert-side counterpart for adapters that keep ownership of their context and share it by reference. |
 | `borrow_harness_context` / `borrow_harness_context_mut` | The supported typed read/write accessors for context stored by the owned insert path. |
 | `harness_context` | Typed accessor for the shared-reference insert path (returns `None` for owned entries). |
