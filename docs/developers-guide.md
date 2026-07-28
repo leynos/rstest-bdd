@@ -199,8 +199,50 @@ than relative paths. `scripts/check_users_guide_links.py`, run automatically by
 - The check also fails if the guide contains no repository references at
   all, so a reformat cannot silently defang it.
 
-Non-repository URLs (for example docs.rs links) are ignored. Unit tests live
-under `scripts/tests/test_check_users_guide_links.py`.
+Non-repository URLs (for example docs.rs links) are ignored.
+
+### Running the checker
+
+Run it directly during development:
+
+```bash
+python3 scripts/check_users_guide_links.py [--root PATH]
+```
+
+Without `--root`, the checker derives the repository root relative to the
+script itself, so it validates this checkout wherever it is invoked from.
+`--root` exists to support the temporary-tree CLI integration tests and to
+validate another checkout locally. `make lint` runs the checker using its
+normal default root, so the gate always covers the working repository.
+
+### Test split
+
+- Unit and Hypothesis property tests live in
+  `scripts/tests/test_check_users_guide_links.py`. Hypothesis exercises the
+  slug-generation invariants (anchors stay lowercase, contain no spaces, use
+  only word characters and hyphens, and are idempotent) and fenced-code
+  heading handling, where generated headings expose parser edge cases that
+  example-based cases miss.
+- Cuprum subprocess/CLI integration tests live in
+  `scripts/tests/test_check_users_guide_links_cli.py`. They verify
+  process-level behaviour: exit status, stderr content, `--help` output,
+  explicit `--root` against a temporary tree, and default-root execution.
+
+The test-tooling rule for this script, and for scripts like it: use Hypothesis
+for property and invariant coverage wherever generated inputs expose parser or
+normalization edge cases, and use Cuprum for subprocess CLI behaviour rather
+than Python's `subprocess` module.
+
+### Intentional scope
+
+The validator is deliberately retained and deliberately narrow. It is retained
+because `docs/users-guide.md` is vendored into consumer projects, so a broken
+absolute link can ship downstream undetected; manual review does not give
+deterministic drift detection. Its scope is limited to repository-reference
+link definitions in `docs/users-guide.md`, rather than expanding to every
+documentation cross-reference in the repository. See
+[ADR-014](adr-014-retain-users-guide-link-validator.md) for the decision
+record.
 
 ## GPUI mapping-table validation (`scripts/check_gpui_mapping_table.py`)
 
