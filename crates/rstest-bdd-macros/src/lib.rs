@@ -1,6 +1,17 @@
 //! Attribute macros enabling Behaviour-Driven testing with `rstest`.
 //!
 //! # Feature flags
+//! - `compile-time-validation`: registers steps at compile time and attaches
+//!   spans for diagnostics.
+//! - `strict-compile-time-validation`: escalates missing or ambiguous steps to
+//!   compile errors; implies `compile-time-validation`.
+//!
+//! Both features are disabled by default.
+#![cfg_attr(all(rstest_bdd_nightly, not(test)), feature(proc_macro_diagnostic))]
+
+//! Attribute macros enabling Behaviour-Driven testing with `rstest`.
+//!
+//! # Feature flags
 //! - `compile-time-validation`: registers steps at compile time and attaches spans for diagnostics.
 //! - `strict-compile-time-validation`: escalates missing or ambiguous steps to compile errors;
 //!   implies `compile-time-validation`.

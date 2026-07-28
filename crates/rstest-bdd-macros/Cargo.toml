@@ -43,6 +43,8 @@ convert_case.workspace = true
 newt-hype.workspace = true
 thiserror.workspace = true
 
+[build-dependencies]
+rustc_version = "0.4"
 [dev-dependencies]
 proptest.workspace = true
 rstest.workspace = true

@@ -1089,6 +1089,24 @@ wrong prefixes, extra segments, or partial matches all return `None`. Use
 type path; use `resolve_test_attribute_hint_for_policy_path` when it has an
 attribute-policy type path.
 
+
+#### Adapter fallback diagnostics
+
+The macro code-generation layer owns first-party adapter fallback diagnostics
+in `codegen::adapter_fallback`. An unresolved path qualifies only when the
+segment immediately before the adapter type is the canonical Tokio or GPUI
+crate identifier. A path such as
+`alias::rstest_bdd_harness_tokio::TokioHarness` qualifies, while
+`custom::TokioHarness` must remain warning-free even when the Tokio adapter
+crate is present.
+
+`proc-macro-error2` emits the warning directly on nightly toolchains. Stable
+toolchains receive the same message through a generated deprecated item because
+procedural-macro warnings are not available there. These mechanisms are
+mutually exclusive so each fallback reports exactly one warning. Keep the
+diagnostic text and the stable and nightly user-interface tests synchronized
+when changing this path.
+
 ### Third-party adapter crates
 
 Third-party harness crates outside this workspace implement the same
