@@ -230,6 +230,66 @@ mod tests {
         );
     }
 
+    /// Client-backed proof that `publish_feature_diagnostics` skips the whole
+    /// boundary — reaching `ClientSocket::notify` for nothing — when the
+    /// feature has no index, without a mock that bypasses `notify`.
+    ///
+    /// A real `async_lsp` main loop supplies the `ClientSocket`; its outgoing
+    /// traffic is captured off an in-memory transport. A `window/logMessage`
+    /// sentinel proves the transport records real notifications and bounds the
+    /// receive window: had the skip wrongly published, its
+    /// `textDocument/publishDiagnostics` would precede the sentinel in the
+    /// capture.
+    #[tokio::test]
+    async fn missing_feature_index_emits_no_notification_through_client() {
+        use async_lsp::MainLoop;
+        use async_lsp::lsp_types::notification::LogMessage;
+        use async_lsp::router::Router;
+        use lsp_types::{LogMessageParams, MessageType};
+        use tokio::io::AsyncReadExt;
+        use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
+
+        let (mainloop, client) = MainLoop::new_server(|_client| Router::new(()));
+
+        let mut state = crate::server::ServerState::new(ServerConfig::default());
+        state.set_client(client.clone());
+
+        // No feature index for this path, so `publish_with` must return before
+        // ever calling `client.notify`.
+        publish_feature_diagnostics(&state, Path::new("/no/such/absolute/file.feature"));
+
+        if let Err(err) = client.notify::<LogMessage>(LogMessageParams {
+            typ: MessageType::LOG,
+            message: "sentinel".to_owned(),
+        }) {
+            panic!("sentinel notify failed: {err}");
+        }
+
+        // Drive the loop with EOF input and capture serialized output. The loop
+        // terminates with an error on input EOF; that is the expected exit, and
+        // it flushes any queued outgoing message first. `state`/`client` stay
+        // alive across the await so the loop's outgoing channel stays open.
+        let (writer, mut reader) = tokio::io::duplex(64 * 1024);
+        let input = tokio::io::empty().compat();
+        let _ = mainloop.run_buffered(input, writer.compat_write()).await;
+
+        let mut captured = Vec::new();
+        assert!(
+            reader.read_to_end(&mut captured).await.is_ok(),
+            "failed to read captured transport output"
+        );
+        let text = String::from_utf8(captured).unwrap_or_else(|_| String::from("<invalid utf-8>"));
+
+        assert!(
+            text.contains("window/logMessage"),
+            "the transport must capture the sentinel notification: {text}"
+        );
+        assert!(
+            !text.contains("textDocument/publishDiagnostics"),
+            "no publishDiagnostics may be emitted for an absent feature index: {text}"
+        );
+    }
+
     /// Strategy producing an arbitrary diagnostic vector (including empty).
     fn diagnostics_strategy() -> impl Strategy<Value = Vec<Diagnostic>> {
         proptest::collection::vec(

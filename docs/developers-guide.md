@@ -912,10 +912,21 @@ The published payloads for representative feature and Rust files are pinned
 by `insta` snapshots, and the publish invariants (count preserved, empty
 vector still published) by a property test, both in
 `handlers/diagnostics/publish.rs`. The boundary itself — that `publish_with`
-actually emits a `publishDiagnostics` notification through the client socket,
-including an empty array to clear resolved diagnostics — is exercised
-end-to-end against a live server by the `smoke_lsp` integration suite, which
-`prepare_publish`-only tests cannot observe.
+actually reaches (or, for a skip, never reaches) `ClientSocket::notify` — is
+proven through a real client socket, which `prepare_publish`-only tests cannot
+observe:
+
+- **Missing-index skip** is a transport-backed unit test in
+  `handlers/diagnostics/publish.rs`: a real `async_lsp` main loop supplies the
+  `ClientSocket`, `publish_feature_diagnostics` is called for a path with no
+  feature index, and the captured outgoing traffic contains a sentinel
+  notification but no `publishDiagnostics` — so the absent index skips the
+  whole boundary rather than clearing prior client diagnostics.
+- **Emission and empty-vector clearing** for both feature and Rust files are
+  exercised end-to-end against a live server by the `smoke_lsp` integration
+  suite: an unimplemented/unused step yields a non-empty
+  `publishDiagnostics`, and resolving it re-publishes an empty array for the
+  same URI.
 
 ## cargo-bdd scenario output formatting
 
