@@ -198,31 +198,61 @@ mod tests {
         ScenarioBuilder::new().with_single_file_pair(FEATURE_SOURCE, RUST_SOURCE)
     }
 
-    #[rstest]
-    fn feature_publish_payload_is_pinned(publish_scenario: SingleFilePairScenario) {
-        let params = prepare_publish(
-            &publish_scenario.state,
-            &publish_scenario.feature_path,
-            compute_feature_file_diagnostics,
-        );
-        #[expect(clippy::expect_used, reason = "feature index exists for staged file")]
-        let params = params.expect("feature file publishes diagnostics");
-        snapshot_settings(publish_scenario.dir.path()).bind(|| {
-            insta::assert_debug_snapshot!("feature_publish_params", params);
-        });
+    /// Selects which staged file a payload case publishes.
+    type SelectPath = fn(&SingleFilePairScenario) -> &Path;
+    /// Diagnostic computation under test, in `prepare_publish`'s shape.
+    type ComputeDiagnostics = fn(&ServerState, &Path) -> Option<Vec<Diagnostic>>;
+
+    fn feature_file(scenario: &SingleFilePairScenario) -> &Path {
+        &scenario.feature_path
     }
 
+    fn rust_file(scenario: &SingleFilePairScenario) -> &Path {
+        &scenario.rust_path
+    }
+
+    /// Rust files always publish, so lift the computation into `Option`.
+    #[expect(
+        clippy::unnecessary_wraps,
+        reason = "matches the ComputeDiagnostics contract, where None skips publishing"
+    )]
+    fn compute_rust_file_diagnostics_opt(
+        state: &ServerState,
+        path: &Path,
+    ) -> Option<Vec<Diagnostic>> {
+        Some(compute_rust_file_diagnostics(state, path))
+    }
+
+    /// Pin the published payload for each file kind.
+    ///
+    /// The cases share the staged workspace and the snapshot plumbing; they
+    /// differ only in the file they target and the diagnostics they compute.
     #[rstest]
-    fn rust_publish_payload_is_pinned(publish_scenario: SingleFilePairScenario) {
+    #[case::feature(
+        feature_file as SelectPath,
+        compute_feature_file_diagnostics as ComputeDiagnostics,
+        "feature_publish_params"
+    )]
+    #[case::rust(
+        rust_file as SelectPath,
+        compute_rust_file_diagnostics_opt as ComputeDiagnostics,
+        "rust_publish_params"
+    )]
+    fn publish_payload_is_pinned(
+        publish_scenario: SingleFilePairScenario,
+        #[case] select_path: SelectPath,
+        #[case] compute: ComputeDiagnostics,
+        #[case] snapshot: &str,
+    ) {
         let params = prepare_publish(
             &publish_scenario.state,
-            &publish_scenario.rust_path,
-            |state, path| Some(compute_rust_file_diagnostics(state, path)),
+            select_path(&publish_scenario),
+            compute,
         );
-        #[expect(clippy::expect_used, reason = "rust files always publish")]
-        let params = params.expect("rust file publishes diagnostics");
+        #[expect(clippy::expect_used, reason = "staged files publish diagnostics")]
+        let params = params.expect("staged file publishes diagnostics");
         snapshot_settings(publish_scenario.dir.path()).bind(|| {
-            insta::assert_debug_snapshot!("rust_publish_params", params);
+            insta::assert_debug_snapshot!(snapshot, params);
         });
     }
 
