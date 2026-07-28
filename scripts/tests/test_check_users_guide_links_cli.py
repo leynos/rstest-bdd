@@ -16,19 +16,19 @@ from check_users_guide_links import BASE_URL, GUIDE
 from cuprum import Program, ProgramCatalogue, ProjectSettings, sh
 
 if typ.TYPE_CHECKING:
-    from cuprum import CommandResult
+    from cuprum import CommandResult, SafeCmdBuilder
 
-SCRIPT = Path(__file__).resolve().parents[1] / "check_users_guide_links.py"
+SCRIPT: Path = Path(__file__).resolve().parents[1] / "check_users_guide_links.py"
 
-PYTHON = Program(str(Path(sys.executable)))
-_PROJECT = ProjectSettings(
+PYTHON: Program = Program(str(Path(sys.executable)))
+_PROJECT: ProjectSettings = ProjectSettings(
     name="check-users-guide-links-tests",
     programs=(PYTHON,),
     documentation_locations=(),
     noise_rules=(),
 )
-_CATALOGUE = ProgramCatalogue(projects=(_PROJECT,))
-_python = sh.make(PYTHON, catalogue=_CATALOGUE)
+_CATALOGUE: ProgramCatalogue = ProgramCatalogue(projects=(_PROJECT,))
+_python: SafeCmdBuilder = sh.make(PYTHON, catalogue=_CATALOGUE)
 
 
 def run_checker(root: Path) -> CommandResult:
@@ -56,8 +56,10 @@ class TestMain:
 
         result = run_checker(tmp_path)
 
-        assert result.exit_code == 0
-        assert not result.stderr
+        assert result.exit_code == 0, (
+            f"expected exit 0, got {result.exit_code}: {result.stderr}"
+        )
+        assert not result.stderr, f"expected no stderr, got: {result.stderr}"
 
     def test_missing_document_exits_one(self, tmp_path: Path) -> None:
         """A link to an absent document should exit 1 and name it."""
@@ -66,10 +68,16 @@ class TestMain:
 
         result = run_checker(tmp_path)
 
-        assert result.exit_code == 1
-        assert result.stderr is not None
-        assert "missing document" in result.stderr
-        assert "docs/gone.md" in result.stderr
+        assert result.exit_code == 1, (
+            f"expected exit 1, got {result.exit_code}: {result.stderr}"
+        )
+        assert result.stderr is not None, "expected stderr output"
+        assert "missing document" in result.stderr, (
+            f"stderr should mention the missing document: {result.stderr}"
+        )
+        assert "docs/gone.md" in result.stderr, (
+            f"stderr should name docs/gone.md: {result.stderr}"
+        )
 
     def test_guide_without_repository_links_exits_one(self, tmp_path: Path) -> None:
         """A guide with no repository links should trip the tripwire."""
@@ -77,15 +85,23 @@ class TestMain:
 
         result = run_checker(tmp_path)
 
-        assert result.exit_code == 1
-        assert result.stderr is not None
-        assert "no repository reference links" in result.stderr
+        assert result.exit_code == 1, (
+            f"expected exit 1, got {result.exit_code}: {result.stderr}"
+        )
+        assert result.stderr is not None, "expected stderr output"
+        assert "no repository reference links" in result.stderr, (
+            f"stderr should report the missing-links tripwire: {result.stderr}"
+        )
 
     @pytest.mark.parametrize("flag", ["--help", "-h"])
     def test_help_exits_zero(self, flag: str) -> None:
         """The argparse help output should be reachable and exit 0."""
         result = _python(str(SCRIPT), flag).run_sync()
 
-        assert result.exit_code == 0
-        assert result.stdout is not None
-        assert "--root" in result.stdout
+        assert result.exit_code == 0, (
+            f"expected exit 0, got {result.exit_code}: {result.stderr}"
+        )
+        assert result.stdout is not None, "expected help output on stdout"
+        assert "--root" in result.stdout, (
+            f"help should document --root: {result.stdout}"
+        )

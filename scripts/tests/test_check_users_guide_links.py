@@ -23,9 +23,9 @@ if typ.TYPE_CHECKING:
 
 # Characters at which str.splitlines() breaks a line. Heading strategies
 # exclude them so a generated heading stays on a single Markdown line.
-LINE_BREAKS = "\n\r\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029"
+LINE_BREAKS: str = "\n\r\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029"
 
-single_line_text = st.text(
+single_line_text: st.SearchStrategy[str] = st.text(
     alphabet=st.characters(exclude_characters=LINE_BREAKS),
     max_size=80,
 )
@@ -51,7 +51,10 @@ class TestGithubHeadingAnchor:
     )
     def test_matches_github_slug(self, heading: str, anchor: str) -> None:
         """Headings should slug exactly as GitHub renders them."""
-        assert github_heading_anchor(heading) == anchor
+        result = github_heading_anchor(heading)
+        assert result == anchor, (
+            f"{heading!r} should slug to {anchor!r}, got {result!r}"
+        )
 
 
 class TestHeadingAnchors:
@@ -60,21 +63,31 @@ class TestHeadingAnchors:
     def test_collects_all_heading_levels(self) -> None:
         """Every heading level from h1 to h6 should contribute an anchor."""
         markdown = "# One\n\n## Two\n\n###### Six\n"
-        assert heading_anchors(markdown) == {"one", "two", "six"}
+        anchors = heading_anchors(markdown)
+        assert anchors == {"one", "two", "six"}, (
+            f"expected all heading levels, got {anchors}"
+        )
 
     def test_ignores_comments_inside_code_fences(self) -> None:
         """``#`` comments in fenced code blocks are not headings."""
         markdown = "# Real\n\n```bash\n# not a heading\n```\n"
-        assert heading_anchors(markdown) == {"real"}
+        anchors = heading_anchors(markdown)
+        assert anchors == {"real"}, f"fenced comment should be ignored, got {anchors}"
 
     def test_resumes_after_code_fence_closes(self) -> None:
         """Headings after a closed fence should be collected again."""
         markdown = "```\n# inside\n```\n# After\n"
-        assert heading_anchors(markdown) == {"after"}
+        anchors = heading_anchors(markdown)
+        assert anchors == {"after"}, (
+            f"headings after a closed fence should resume, got {anchors}"
+        )
 
     def test_empty_document_yields_no_anchors(self) -> None:
         """A document without headings should produce an empty set."""
-        assert heading_anchors("just prose\n") == set()
+        anchors = heading_anchors("just prose\n")
+        assert anchors == set(), (
+            f"prose without headings should yield no anchors, got {anchors}"
+        )
 
 
 class TestReferenceDefinitions:
@@ -83,20 +96,27 @@ class TestReferenceDefinitions:
     def test_extracts_labels_and_urls_in_order(self) -> None:
         """Reference definitions should be returned in document order."""
         markdown = "[b]: https://example.com/b\n[a]: https://example.com/a\n"
-        assert reference_definitions(markdown) == [
+        definitions = reference_definitions(markdown)
+        assert definitions == [
             ("b", "https://example.com/b"),
             ("a", "https://example.com/a"),
-        ]
+        ], f"definitions should be returned in document order, got {definitions}"
 
     def test_ignores_inline_links_and_prose(self) -> None:
         """Only ``[label]: url`` lines should match."""
         markdown = "See [inline](https://example.com) links.\n[not a ref] text\n"
-        assert reference_definitions(markdown) == []
+        definitions = reference_definitions(markdown)
+        assert definitions == [], (
+            f"inline links and prose should not match, got {definitions}"
+        )
 
     def test_ignores_indented_reference_like_lines(self) -> None:
         """Lines that do not start at column zero should not match."""
         markdown = "  [label]: https://example.com\n"
-        assert reference_definitions(markdown) == []
+        definitions = reference_definitions(markdown)
+        assert definitions == [], (
+            f"indented reference-like lines should not match, got {definitions}"
+        )
 
 
 class TestCheckRepoLink:
@@ -114,32 +134,44 @@ class TestCheckRepoLink:
 
     def test_accepts_canonical_link_without_fragment(self, repo: Path) -> None:
         """A canonical link to an existing document is valid."""
-        assert not check_repo_link(repo, "ok", f"{BASE_URL}target.md")
+        violations = check_repo_link(repo, "ok", f"{BASE_URL}target.md")
+        assert not violations, (
+            f"canonical link without fragment should be valid, got {violations}"
+        )
 
     def test_accepts_fragment_matching_heading(self, repo: Path) -> None:
         """A fragment matching a heading anchor is valid."""
         url = f"{BASE_URL}target.md#section-12-details-here"
-        assert not check_repo_link(repo, "ok", url)
+        violations = check_repo_link(repo, "ok", url)
+        assert not violations, (
+            f"fragment matching a heading should be valid, got {violations}"
+        )
 
     def test_rejects_non_canonical_base(self, repo: Path) -> None:
         """A URL outside the canonical base should be reported."""
         url = "https://github.com/leynos/rstest-bdd/blob/master/docs/target.md"
         violations = check_repo_link(repo, "bad-base", url)
-        assert len(violations) == 1
-        assert "canonical base URL" in violations[0]
-        assert "bad-base" in violations[0]
+        assert len(violations) == 1, f"expected exactly one violation, got {violations}"
+        assert "canonical base URL" in violations[0], (
+            f"violation should mention the canonical base URL, got {violations[0]!r}"
+        )
+        assert "bad-base" in violations[0], (
+            f"violation should name the bad-base label, got {violations[0]!r}"
+        )
 
     def test_rejects_missing_document(self, repo: Path) -> None:
         """A link to a document that does not exist should be reported."""
         violations = check_repo_link(repo, "gone", f"{BASE_URL}gone.md")
-        assert violations == ["[gone] points at a missing document: docs/gone.md"]
+        assert violations == ["[gone] points at a missing document: docs/gone.md"], (
+            f"missing document should be reported, got {violations}"
+        )
 
     def test_rejects_unknown_fragment(self, repo: Path) -> None:
         """A fragment matching no heading should be reported."""
         violations = check_repo_link(repo, "frag", f"{BASE_URL}target.md#nope")
         assert violations == [
             "[frag] fragment #nope matches no heading in docs/target.md"
-        ]
+        ], f"unknown fragment should be reported, got {violations}"
 
 
 class TestCheckGuide:
@@ -161,7 +193,8 @@ class TestCheckGuide:
             f"[other]: {BASE_URL}other.md\n"
             "[docs-rs]: https://docs.rs/rstest-bdd/latest/\n",
         )
-        assert not check_guide(tmp_path)
+        violations = check_guide(tmp_path)
+        assert not violations, f"valid repository links should pass, got {violations}"
 
     def test_skips_non_repository_links(self, tmp_path: Path) -> None:
         """External links such as docs.rs are not validated."""
@@ -172,21 +205,30 @@ class TestCheckGuide:
             f"[other]: {BASE_URL}other.md\n"
             "[external]: https://example.com/blob/main/docs/missing.md\n",
         )
-        assert not check_guide(tmp_path)
+        violations = check_guide(tmp_path)
+        assert not violations, (
+            f"non-repository links should be skipped, got {violations}"
+        )
 
     def test_reports_missing_guide(self, tmp_path: Path) -> None:
         """An absent guide file should be reported, not raised."""
         violations = check_guide(tmp_path)
-        assert len(violations) == 1
-        assert str(GUIDE) in violations[0]
-        assert "could not read" in violations[0]
+        assert len(violations) == 1, f"expected exactly one violation, got {violations}"
+        assert str(GUIDE) in violations[0], (
+            f"violation should name the guide path, got {violations[0]!r}"
+        )
+        assert "could not read" in violations[0], (
+            f"violation should report the read failure, got {violations[0]!r}"
+        )
 
     def test_reports_guide_without_repository_links(self, tmp_path: Path) -> None:
         """A guide with no repository links should fail the tripwire."""
         self.write_guide(tmp_path, "no references here\n")
         violations = check_guide(tmp_path)
-        assert len(violations) == 1
-        assert "no repository reference links" in violations[0]
+        assert len(violations) == 1, f"expected exactly one violation, got {violations}"
+        assert "no repository reference links" in violations[0], (
+            f"violation should report the missing-links tripwire, got {violations[0]!r}"
+        )
 
     def test_aggregates_violations_across_links(self, tmp_path: Path) -> None:
         """Each invalid reference should contribute its own violation."""
@@ -196,9 +238,15 @@ class TestCheckGuide:
             f"[one]: {BASE_URL}missing-one.md\n[two]: {BASE_URL}missing-two.md\n",
         )
         violations = check_guide(tmp_path)
-        assert len(violations) == 2
-        assert any("missing-one.md" in violation for violation in violations)
-        assert any("missing-two.md" in violation for violation in violations)
+        assert len(violations) == 2, (
+            f"each invalid reference should contribute a violation, got {violations}"
+        )
+        assert any("missing-one.md" in violation for violation in violations), (
+            f"violations should mention missing-one.md, got {violations}"
+        )
+        assert any("missing-two.md" in violation for violation in violations), (
+            f"violations should mention missing-two.md, got {violations}"
+        )
 
 
 class TestGithubHeadingAnchorProperties:
@@ -208,28 +256,36 @@ class TestGithubHeadingAnchorProperties:
     def test_output_is_lowercase(self, heading: str) -> None:
         """Anchors should never contain uppercase characters."""
         result = github_heading_anchor(heading)
-        assert result == result.lower()
+        assert result == result.lower(), f"anchor should be lowercase, got {result!r}"
 
     @given(heading=st.text())
     def test_output_contains_no_spaces(self, heading: str) -> None:
         """Every space should have been replaced or stripped."""
-        assert " " not in github_heading_anchor(heading)
+        anchor = github_heading_anchor(heading)
+        assert " " not in anchor, f"anchor should contain no spaces, got {anchor!r}"
 
     @given(heading=st.text())
     def test_output_contains_only_word_chars_and_hyphens(self, heading: str) -> None:
         """Anchors should consist solely of word characters and hyphens."""
-        assert re.fullmatch(r"[\w\-]*", github_heading_anchor(heading))
+        anchor = github_heading_anchor(heading)
+        assert re.fullmatch(r"[\w\-]*", anchor), (
+            f"anchor should be word-chars/hyphens only, got {anchor!r}"
+        )
 
     @given(heading=st.text(alphabet=st.characters(max_codepoint=0x7F)))
     def test_ascii_output_matches_github_slug_alphabet(self, heading: str) -> None:
         """ASCII headings should slug to ``[a-z0-9_-]*`` exactly."""
-        assert re.fullmatch(r"[a-z0-9_\-]*", github_heading_anchor(heading))
+        anchor = github_heading_anchor(heading)
+        assert re.fullmatch(r"[a-z0-9_\-]*", anchor), (
+            f"ASCII anchor should match [a-z0-9_-]*, got {anchor!r}"
+        )
 
     @given(heading=st.text())
     def test_idempotent(self, heading: str) -> None:
         """Slugging an existing anchor should not change it."""
         once = github_heading_anchor(heading)
-        assert github_heading_anchor(once) == once
+        twice = github_heading_anchor(once)
+        assert twice == once, f"slugging should be idempotent: {once!r} -> {twice!r}"
 
 
 class TestHeadingAnchorsProperties:
@@ -239,10 +295,13 @@ class TestHeadingAnchorsProperties:
     def test_top_level_heading_is_collected(self, heading: str) -> None:
         """A lone ``# heading`` line should yield exactly its anchor."""
         markdown = f"# {heading}\n"
-        assert heading_anchors(markdown) == {github_heading_anchor(heading)}
+        anchors = heading_anchors(markdown)
+        expected = {github_heading_anchor(heading)}
+        assert anchors == expected, f"expected {expected}, got {anchors}"
 
     @given(heading=single_line_text)
     def test_fenced_heading_is_ignored(self, heading: str) -> None:
         """A heading inside a balanced code fence should be ignored."""
         markdown = f"```\n# {heading}\n```\n"
-        assert heading_anchors(markdown) == set()
+        anchors = heading_anchors(markdown)
+        assert anchors == set(), f"expected no anchors, got {anchors}"
