@@ -344,8 +344,11 @@ three results a bare `Option` previously conflated:
   type, so the value was dropped to avoid an ambiguous override (a warning is
   emitted).
 
-`InsertOutcome` is `#[must_use]`, so a dropped step return cannot be ignored
-silently. Callers that only need the displaced previous override — the value the
+`InsertOutcome` is `#[must_use]`, so the compiler warns when a direct caller
+implicitly discards it and might miss a dropped step return; an explicit
+`let _ = ctx.insert_value(…)` still suppresses that warning, as the generated
+scenario runner does. Callers that only need the displaced previous override —
+the value the
 old `Option<Box<dyn Any>>`-returning API yielded — can call
 `InsertOutcome::into_previous()`, which returns the previous override for the
 `Inserted` case and `None` for `NoMatch` and `AmbiguousIgnored`. Use
