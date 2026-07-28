@@ -89,6 +89,8 @@
   committed v0.7.0 borrowing redesign direction.
 - [ADR 013: adopt Whitaker `no_unwrap_or_else_panic`][adr-013] records the
   single-lint Whitaker gate decision.
+- [ADR 014: parser-neutral scenario execution][adr-014] records the proposed
+  structured scenario plan and runtime runner for non-Gherkin frontends.
 
 ## Execution plans
 
@@ -103,6 +105,7 @@
 [adr-011]: adr-011-first-party-scenario-state-and-cleanup.md
 [adr-012]: adr-012-guard-based-stepcontext-borrowing.md
 [adr-013]: adr-013-adopt-whitaker-no-unwrap-or-else-panic.md
+[adr-014]: adr-014-parser-neutral-scenario-execution.md
 [complexity-guide]: complexity-antipatterns-and-refactoring-strategies.md
 [cucumber-async]: cucumber-rs-migration-and-async-patterns.md
 [dependency-injection]: reliable-testing-in-rust-via-dependency-injection.md
