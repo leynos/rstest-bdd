@@ -153,9 +153,10 @@ mod tests {
 
     use lsp_types::{DiagnosticSeverity, Position, Range};
     use proptest::prelude::*;
+    use rstest::{fixture, rstest};
 
     use crate::config::ServerConfig;
-    use crate::test_support::ScenarioBuilder;
+    use crate::test_support::{ScenarioBuilder, SingleFilePairScenario};
 
     use super::*;
 
@@ -188,30 +189,39 @@ mod tests {
         settings
     }
 
-    #[test]
-    fn feature_publish_payload_is_pinned() {
-        let scenario = ScenarioBuilder::new().with_single_file_pair(FEATURE_SOURCE, RUST_SOURCE);
+    /// A staged feature/Rust file pair whose indices are already populated.
+    ///
+    /// Both payload snapshots publish from the same workspace; only the file
+    /// they target and the diagnostics they compute differ.
+    #[fixture]
+    fn publish_scenario() -> SingleFilePairScenario {
+        ScenarioBuilder::new().with_single_file_pair(FEATURE_SOURCE, RUST_SOURCE)
+    }
+
+    #[rstest]
+    fn feature_publish_payload_is_pinned(publish_scenario: SingleFilePairScenario) {
         let params = prepare_publish(
-            &scenario.state,
-            &scenario.feature_path,
+            &publish_scenario.state,
+            &publish_scenario.feature_path,
             compute_feature_file_diagnostics,
         );
         #[expect(clippy::expect_used, reason = "feature index exists for staged file")]
         let params = params.expect("feature file publishes diagnostics");
-        snapshot_settings(scenario.dir.path()).bind(|| {
+        snapshot_settings(publish_scenario.dir.path()).bind(|| {
             insta::assert_debug_snapshot!("feature_publish_params", params);
         });
     }
 
-    #[test]
-    fn rust_publish_payload_is_pinned() {
-        let scenario = ScenarioBuilder::new().with_single_file_pair(FEATURE_SOURCE, RUST_SOURCE);
-        let params = prepare_publish(&scenario.state, &scenario.rust_path, |state, path| {
-            Some(compute_rust_file_diagnostics(state, path))
-        });
+    #[rstest]
+    fn rust_publish_payload_is_pinned(publish_scenario: SingleFilePairScenario) {
+        let params = prepare_publish(
+            &publish_scenario.state,
+            &publish_scenario.rust_path,
+            |state, path| Some(compute_rust_file_diagnostics(state, path)),
+        );
         #[expect(clippy::expect_used, reason = "rust files always publish")]
         let params = params.expect("rust file publishes diagnostics");
-        snapshot_settings(scenario.dir.path()).bind(|| {
+        snapshot_settings(publish_scenario.dir.path()).bind(|| {
             insta::assert_debug_snapshot!("rust_publish_params", params);
         });
     }
