@@ -406,6 +406,6 @@ impl<T> AsMut<T> for FixtureRefMut<'_, T> {
     }
 }
 
+mod insert_outcome;
 #[cfg(test)]
 mod tests;
-mod insert_outcome;
