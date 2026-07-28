@@ -101,12 +101,36 @@ impl<'a> StepContext<'a> {
         self.fixtures.insert(name, FixtureEntry::owned::<T>(cell));
     }
 
+    // ------------------------------------------------------------------
+    // Harness-context wrappers (ADR-007).
+    //
+    // These thin wrappers hard-code the reserved
+    // `RSTEST_BDD_HARNESS_CONTEXT_FIXTURE` key over the generic fixture API.
+    // They are deliberate API surface, not dead code: the insert side is
+    // emitted by macro-generated harness scenarios, and the borrow side is
+    // the supported typed-extraction surface for adapters and step code.
+    // Do not add further wrappers here for new generic access patterns
+    // unless generated code or the documented step-authoring path needs
+    // them; see ADR-007 ("Phase 2 convention: StepContext mapping").
+    // ------------------------------------------------------------------
+
     /// Insert harness-provided context using the reserved fixture key.
+    ///
+    /// Part of the ADR-007 harness-context contract. This shared-reference
+    /// variant exists for adapters that keep ownership of their context;
+    /// macro-generated code uses
+    /// [`insert_owned_harness_context`](Self::insert_owned_harness_context).
     pub fn insert_harness_context<T: Any>(&mut self, context: &'a T) {
         self.insert(RSTEST_BDD_HARNESS_CONTEXT_FIXTURE, context);
     }
 
     /// Insert owned harness-provided context using the reserved fixture key.
+    ///
+    /// Part of the ADR-007 harness-context contract. This is the variant
+    /// emitted by macro-generated harness scenarios (see
+    /// `codegen/scenario/runtime/harness.rs` in `rstest-bdd-macros`), which
+    /// wrap the adapter's `HarnessAdapter::Context` in an owned cell so
+    /// steps can borrow it mutably.
     pub fn insert_owned_harness_context<T: Any>(&mut self, cell: &'a RefCell<Box<dyn Any>>) {
         self.insert_owned::<T>(RSTEST_BDD_HARNESS_CONTEXT_FIXTURE, cell);
     }
@@ -125,6 +149,10 @@ impl<'a> StepContext<'a> {
     }
 
     /// Borrow harness-provided context by type.
+    ///
+    /// Part of the ADR-007 harness-context contract: the supported typed
+    /// read accessor for context stored by
+    /// [`insert_owned_harness_context`](Self::insert_owned_harness_context).
     #[must_use]
     pub fn borrow_harness_context<'b, T: Any>(&'b self) -> Option<FixtureRef<'b, T>>
     where
@@ -134,6 +162,10 @@ impl<'a> StepContext<'a> {
     }
 
     /// Borrow harness-provided context mutably by type.
+    ///
+    /// Part of the ADR-007 harness-context contract: the supported typed
+    /// mutable accessor for context stored by
+    /// [`insert_owned_harness_context`](Self::insert_owned_harness_context).
     pub fn borrow_harness_context_mut<'b, T: Any>(&'b mut self) -> Option<FixtureRefMut<'b, T>>
     where
         'a: 'b,
