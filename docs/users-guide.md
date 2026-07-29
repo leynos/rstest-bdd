@@ -2053,6 +2053,38 @@ Tokio runtime options, while keeping those dependencies out of the core
 first-party canonical policy paths for Tokio and GPUI; unknown third-party
 policy paths fall back to `#[rstest::rstest]`.
 
+### Verifying an attribute policy
+
+`rstest-bdd-harness` ships the conformance check every adapter policy is
+expected to pass. Supply the attributes the policy should render, in order:
+
+```rust,no_run
+use rstest_bdd_harness::DefaultAttributePolicy;
+use rstest_bdd_harness::policy_conformance::assert_attribute_policy_conformance;
+
+assert_attribute_policy_conformance::<DefaultAttributePolicy>(
+    &["#[rstest::rstest]"],
+);
+```
+
+It pins three invariants, panicking with a descriptive message when any of
+them is violated:
+
+- **Emit** — the policy returns exactly as many attributes as expected.
+- **Render** — each attribute renders to the corresponding expected string, in
+  the same order.
+- **`rstest` is first** — the leading attribute path is `rstest::rstest`, so
+  fixture expansion runs before the runtime-specific test macro.
+
+Call it from a single `#[test]` in your adapter crate rather than
+re-implementing the assertions; only the expected rendered attributes are
+adapter-specific.
+
+One placement caveat: if the adapter's library target sets `test = false` in
+its manifest — as the GPUI adapter does — an in-module `#[cfg(test)]` block is
+never compiled, so the check would silently never run. Put the call in an
+integration test under `tests/` in that case.
+
 ## Running and maintaining tests
 
 Once feature files and step definitions are in place, scenarios run via the
