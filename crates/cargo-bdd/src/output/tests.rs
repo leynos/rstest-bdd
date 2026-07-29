@@ -173,12 +173,12 @@ proptest! {
             expect_line_suffix
         );
 
-        // The ` - {message}` reason suffix appears iff reasons are included AND
-        // a message exists; `append_reason` renders nothing otherwise. The
-        // generated alphabets contain no `-`, so ` - ` cannot appear elsewhere
-        // in the line — letting us assert both the message-present and
-        // message-absent halves of the invariant (the `None` half is the
-        // `append_reason` early return).
+        // The ` - {message}` reason suffix appears if and only if reasons are
+        // included and a message exists; `append_reason` renders nothing
+        // otherwise. The generated alphabets contain no `-`, so ` - ` cannot
+        // appear elsewhere in the line — letting us assert both the
+        // message-present and message-absent halves of the invariant (the
+        // `None` half is the `append_reason` early return).
         let reason_rendered = include_reason && scenario.message.is_some();
         prop_assert_eq!(line.contains(" - "), reason_rendered);
         if let Some(message) = &scenario.message {
@@ -187,8 +187,8 @@ proptest! {
         }
     }
 
-    /// The leading blank separator appears iff requested (and the listing
-    /// is non-empty).
+    /// The leading blank separator appears if and only if requested (and the
+    /// listing is non-empty).
     #[test]
     fn leading_newline_appears_iff_requested(
         scenario in scenario_strategy(),
