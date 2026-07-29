@@ -1,4 +1,29 @@
 //! Attribute macro implementations.
+//!
+//! This module is the entry layer for the crate's attribute macros. It declares
+//! the per-macro modules and re-exports their entry points (`given`, `when`,
+//! `then`, `scenario`, and `scenarios`) for `lib.rs` to hang the
+//! `#[proc_macro_attribute]` shims on.
+//!
+//! It also owns the machinery the three step attributes share, because
+//! `#[given]`, `#[when]`, and `#[then]` differ only by their `StepKeyword`:
+//!
+//! - `StepAttrArgs` parses the attribute arguments — an optional pattern
+//!   literal, the `expr = "..."` cucumber-rs spelling, and the `result` /
+//!   `value` return-kind hint.
+//! - `determine_step_pattern` falls back to inferring a pattern from the
+//!   function name when none is supplied.
+//! - `extract_step_args_or_abort` and `signature_error_help` turn a signature
+//!   rejection into a keyword-specific diagnostic with accurate spans.
+//! - `step_attr` drives that sequence and `inject_skip_scope` wraps the body so
+//!   the runtime can validate `skip!` against the enclosing scope.
+//!
+//! Note the direction of delegation: `given`, `when`, and `then` are one-line
+//! shims that call `step_attr` with their keyword, rather than owning an
+//! expansion of their own. The `scenario` and `scenarios` sub-modules do own
+//! theirs. Token generation itself belongs to the `codegen` module; parsing
+//! helpers live in `utils` and return-type classification in
+//! `return_classifier`.
 
 use proc_macro::TokenStream;
 use quote::quote;
