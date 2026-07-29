@@ -6,6 +6,10 @@ use eyre::{Context, Result};
 
 use crate::registry::{BypassedStep, Scenario, ScenarioOutcome, Step};
 
+/// Write one step-listing line: `Keyword 'pattern' (file:line)`.
+///
+/// Emits a trailing newline. Errors carry the step's identity so a failed
+/// write names the offending entry.
 pub(crate) fn write_step(writer: &mut dyn Write, step: &Step) -> Result<()> {
     writeln!(
         writer,
@@ -20,6 +24,7 @@ pub(crate) fn write_step(writer: &mut dyn Write, step: &Step) -> Result<()> {
     })
 }
 
+/// Write the `---` separator that divides duplicate-step groups.
 pub(crate) fn write_group_separator(writer: &mut dyn Write) -> Result<()> {
     writeln!(writer, "---").wrap_err("failed to write duplicate separator")
 }
@@ -84,6 +89,13 @@ impl ScenarioDisplayOptions {
     }
 }
 
+/// Write the skipped-scenario listing, one line per scenario.
+///
+/// Scenarios that are not `Skipped` are filtered out. When none remain,
+/// nothing at all is written — not even the separator — so an empty listing
+/// leaves the preceding output untouched. Otherwise, when
+/// `options.insert_leading_newline` is set, a single blank line is emitted
+/// first to separate the listing from a preceding step listing.
 pub(crate) fn write_scenarios(
     writer: &mut dyn Write,
     scenarios: &[Scenario],
@@ -105,6 +117,10 @@ pub(crate) fn write_scenarios(
     Ok(())
 }
 
+/// Write one rendered scenario line, with a trailing newline.
+///
+/// The line itself comes from [`format_scenario_line`]; this function owns
+/// only the write and its error context.
 fn write_scenario(
     writer: &mut dyn Write,
     scenario: &Scenario,
@@ -184,6 +200,12 @@ fn append_scenario_annotations(line: &mut String, scenario: &Scenario) {
     }
 }
 
+/// Write one line per bypassed step, each with a trailing newline.
+///
+/// Each line names the step and its source location, then the scenario that
+/// skipped it, before the shared [`append_tags`] and [`append_reason`]
+/// fragments. Both fragments are always included here, unlike the scenario
+/// listing, which gates them on [`ScenarioDisplayOptions`].
 pub(crate) fn write_bypassed_steps(writer: &mut dyn Write, steps: &[BypassedStep]) -> Result<()> {
     for step in steps {
         let location = format_location(&step.feature_path, step.scenario_line);
