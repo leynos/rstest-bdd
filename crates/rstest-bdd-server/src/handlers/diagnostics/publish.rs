@@ -9,8 +9,7 @@
 
 use std::path::Path;
 
-use async_lsp::lsp_types::notification;
-use lsp_types::{Diagnostic, PublishDiagnosticsParams, Url};
+use async_lsp::lsp_types::{Diagnostic, PublishDiagnosticsParams, Url, notification};
 use tracing::{debug, warn};
 
 use crate::server::ServerState;
@@ -47,6 +46,22 @@ fn compute_rust_file_diagnostics(state: &ServerState, rust_path: &Path) -> Vec<D
     let mut diagnostics = compute_unused_step_diagnostics(state, rust_path);
     diagnostics.extend(compute_signature_mismatch_diagnostics(state, rust_path));
     diagnostics
+}
+
+/// Lift [`compute_rust_file_diagnostics`] into the shape `publish_with`
+/// expects.
+///
+/// Rust files always publish — an empty vector clears stale diagnostics — so
+/// this never yields `None`.
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "matches the compute contract, where None skips publishing entirely"
+)]
+fn compute_rust_file_diagnostics_opt(
+    state: &ServerState,
+    rust_path: &Path,
+) -> Option<Vec<Diagnostic>> {
+    Some(compute_rust_file_diagnostics(state, rust_path))
 }
 
 /// Build the publish parameters for `path` from a computation, without
@@ -143,7 +158,7 @@ pub fn publish_rust_diagnostics(state: &ServerState, rust_path: &Path) {
         state,
         rust_path,
         "failed to publish rust diagnostics",
-        |state, path| Some(compute_rust_file_diagnostics(state, path)),
+        compute_rust_file_diagnostics_opt,
     );
 }
 
@@ -209,18 +224,6 @@ mod tests {
 
     fn rust_file(scenario: &SingleFilePairScenario) -> &Path {
         &scenario.rust_path
-    }
-
-    /// Rust files always publish, so lift the computation into `Option`.
-    #[expect(
-        clippy::unnecessary_wraps,
-        reason = "matches the ComputeDiagnostics contract, where None skips publishing"
-    )]
-    fn compute_rust_file_diagnostics_opt(
-        state: &ServerState,
-        path: &Path,
-    ) -> Option<Vec<Diagnostic>> {
-        Some(compute_rust_file_diagnostics(state, path))
     }
 
     /// Pin the published payload for each file kind.

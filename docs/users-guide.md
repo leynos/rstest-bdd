@@ -1266,40 +1266,6 @@ defensively re-runs the reset before storing handles and observes the
 
 ```rust,no_run
 # use rstest_bdd_macros::given;
-
-#[derive(Debug, PartialEq, Eq)]
-struct UserRow {
-    name: String,
-    email: String,
-    active: bool,
-}
-
-impl DataTableRow for UserRow {
-    const REQUIRES_HEADER: bool = true;
-
-    fn parse_row(mut row: RowSpec<'_>) -> Result<Self, DataTableError> {
-        let name = row.take_column("name")?;
-        let email = row.take_column("email")?;
-        let active = row.parse_column_with(
-            "active",
-            datatable::truthy_bool,
-        )?;
-        Ok(Self { name, email, active })
-    }
-}
-
-#[given("the following users exist:")]
-fn users_exist(#[datatable] rows: Rows<UserRow>) {
-    for row in rows {
-        assert!(row.active || row.name == "Bob");
-    }
-}
-```
-
-Projects that prefer to work with raw rows can declare the argument as
-`Vec<Vec<String>>` and handle parsing manually. Both forms can co-exist within
-the same project, allowing incremental adoption of typed tables.
-
 # fn reset_state_before_assignment() {}
 # fn with_state<R>(_: impl FnOnce(&mut ()) -> R) -> R { unimplemented!() }
 #[given("a fresh GPUI window is opened")]
@@ -2816,15 +2782,15 @@ Diagnostics are updated incrementally:
   file.
 
 When a recomputation finds nothing to report, the server publishes an empty
-diagnostic list for that file. Warnings you have just fixed therefore clear
-from the Problems panel on the next save, rather than lingering until the
-editor or the server is restarted.
+diagnostic list for that file. Resolved warnings therefore clear from the
+Problems panel on the next save, rather than lingering until the editor or the
+server is restarted.
 
-A file the server has not indexed is skipped rather than cleared. If a
-`.feature` file has not been saved since the server started, it has no index
-yet, so saving an unrelated file leaves whatever diagnostics the editor
-already shows for it untouched instead of blanking them. Save the file itself
-to index it and refresh its diagnostics.
+A file the server has not indexed is skipped rather than cleared. A `.feature`
+file that has not been saved since the server started has no index yet, so
+saving an unrelated file leaves whatever diagnostics the editor already shows
+for it untouched instead of blanking them. Saving the file itself indexes it
+and refreshes its diagnostics.
 
 Diagnostics appear in the editor's Problems panel and as inline warnings,
 similar to compiler diagnostics. They use the source `rstest-bdd` and the codes
