@@ -190,6 +190,32 @@ exactly as before; mutability is an opt‑in convenience.
 
 #### Simple mutable world
 
+#### Recording overrides directly with `insert_value`
+
+The automatic injection above is implemented on top of a lower-level API that
+advanced tests may call directly. `StepContext::insert_value` records a
+step-return override and returns an `InsertOutcome`, which distinguishes the
+three results a bare `Option` previously conflated:
+
+- `InsertOutcome::Inserted(previous)` — a fixture uniquely matched the value's
+  type and the override was recorded. `previous` is `Some(_)` when it displaced
+  an earlier override for that fixture, or `None` otherwise.
+- `InsertOutcome::NoMatch` — no fixture uses the value's type, so the value was
+  dropped.
+- `InsertOutcome::AmbiguousIgnored` — more than one fixture matches the value's
+  type, so the value was dropped to avoid an ambiguous override (a warning is
+  emitted).
+
+`InsertOutcome` is `#[must_use]`, so the compiler warns when a direct caller
+implicitly discards it and might miss a dropped step return; an explicit
+`let _ = ctx.insert_value(…)` still suppresses that warning, as the generated
+scenario runner does. Callers that need only the displaced previous override —
+the value the old `Option<Box<dyn Any>>`-returning API yielded — can call
+`InsertOutcome::into_previous()`, which returns the previous override for the
+`Inserted` case and `None` for `NoMatch` and `AmbiguousIgnored`.
+`InsertOutcome::is_inserted()` reports whether the override was recorded
+without consuming the outcome.
+
 ```rust,no_run
 use rstest::fixture;
 use rstest_bdd_macros::{given, scenario, then, when};
@@ -327,33 +353,6 @@ pattern) to force treating the return value as a payload even when it is
 
 Returning `()` or `Ok(())` produces no stored value, so fixtures of `()` are
 not overwritten.
-
-#### Recording overrides directly with `insert_value`
-
-The automatic injection above is implemented on top of a lower-level API that
-advanced tests may call directly. `StepContext::insert_value` records a
-step-return override and returns an `InsertOutcome`, which distinguishes the
-three results a bare `Option` previously conflated:
-
-- `InsertOutcome::Inserted(previous)` — a fixture uniquely matched the value's
-  type and the override was recorded. `previous` is `Some(_)` when it displaced
-  an earlier override for that fixture, or `None` otherwise.
-- `InsertOutcome::NoMatch` — no fixture uses the value's type, so the value was
-  dropped.
-- `InsertOutcome::AmbiguousIgnored` — more than one fixture matches the value's
-  type, so the value was dropped to avoid an ambiguous override (a warning is
-  emitted).
-
-`InsertOutcome` is `#[must_use]`, so the compiler warns when a direct caller
-implicitly discards it and might miss a dropped step return; an explicit
-`let _ = ctx.insert_value(…)` still suppresses that warning, as the generated
-scenario runner does. Callers that only need the displaced previous override —
-the value the
-old `Option<Box<dyn Any>>`-returning API yielded — can call
-`InsertOutcome::into_previous()`, which returns the previous override for the
-`Inserted` case and `None` for `NoMatch` and `AmbiguousIgnored`. Use
-`InsertOutcome::is_inserted()` to check whether the override was recorded without
-consuming the outcome.
 
 ```rust,no_run
 use rstest::fixture;
@@ -1293,40 +1292,6 @@ defensively re-runs the reset before storing handles and observes the
 
 ```rust,no_run
 # use rstest_bdd_macros::given;
-
-#[derive(Debug, PartialEq, Eq)]
-struct UserRow {
-    name: String,
-    email: String,
-    active: bool,
-}
-
-impl DataTableRow for UserRow {
-    const REQUIRES_HEADER: bool = true;
-
-    fn parse_row(mut row: RowSpec<'_>) -> Result<Self, DataTableError> {
-        let name = row.take_column("name")?;
-        let email = row.take_column("email")?;
-        let active = row.parse_column_with(
-            "active",
-            datatable::truthy_bool,
-        )?;
-        Ok(Self { name, email, active })
-    }
-}
-
-#[given("the following users exist:")]
-fn users_exist(#[datatable] rows: Rows<UserRow>) {
-    for row in rows {
-        assert!(row.active || row.name == "Bob");
-    }
-}
-```
-
-Projects that prefer to work with raw rows can declare the argument as
-`Vec<Vec<String>>` and handle parsing manually. Both forms can co-exist within
-the same project, allowing incremental adoption of typed tables.
-
 # fn reset_state_before_assignment() {}
 # fn with_state<R>(_: impl FnOnce(&mut ()) -> R) -> R { unimplemented!() }
 #[given("a fresh GPUI window is opened")]

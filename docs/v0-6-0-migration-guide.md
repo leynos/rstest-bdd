@@ -18,6 +18,9 @@ that need a new testing practice to be useful.
 - Custom implementations of the unreleased `HarnessAdapter` development API
   must return `HarnessResult<T>` from `run`. This affects projects that adopted
   the harness API from the `v0.6.0` development branch before the final release.
+- `StepContext::insert_value` now returns `InsertOutcome` instead of
+  `Option<Box<dyn Any>>`. Only code that calls `insert_value` directly is
+  affected; generated scenario code is updated by the macros.
 
 ### Update underscore-prefixed implicit fixtures
 
@@ -101,6 +104,37 @@ Harnesses selected by `#[scenario(..., harness = ...)]` or
 `scenarios!(..., harness = ...)` are instantiated with `Default`, so custom
 harness types used through the macros must implement both `HarnessAdapter` and
 `Default`.
+
+### Update direct `insert_value` callers
+
+`StepContext::insert_value` previously returned `Option<Box<dyn Any>>`, where
+`None` conflated three outcomes: the value was recorded and displaced nothing,
+no fixture matched its type, or several fixtures matched and the value was
+dropped. It now returns `InsertOutcome`, which names all three.
+
+Where the old `Option` was used only to recover the displaced override, call
+`into_previous()`:
+
+```rust,no_run
+// Before:
+let previous = ctx.insert_value(Box::new(7_u32));
+
+// After:
+let previous = ctx.insert_value(Box::new(7_u32)).into_previous();
+```
+
+Where the distinction matters, match the outcome instead:
+
+```rust,no_run
+match ctx.insert_value(Box::new(7_u32)) {
+    InsertOutcome::Inserted(previous) => { /* recorded; `previous` displaced */ }
+    InsertOutcome::NoMatch => { /* no fixture has this type; value dropped */ }
+    InsertOutcome::AmbiguousIgnored => { /* several match; value dropped */ }
+}
+```
+
+`InsertOutcome` is `#[must_use]`, so discarding it implicitly now warns. Use
+`is_inserted()` for a boolean check that does not consume the outcome.
 
 ## New features available by extending existing practice
 
