@@ -1553,8 +1553,8 @@ Projects that depend on `gpui = "0.2.2"` from crates.io can reuse the
 scenario-state container, reset helpers, cleanup fixture, and scenario
 functions above unchanged. Replace the vendored `#[given]`, `#[when]`, and
 `#[then]` call sites with the variants below. The published methods used here
-come from the `AppContext` and `VisualContext` traits, so both traits must be in
-scope. Anonymous imports keep their names from colliding with application
+come from the `AppContext` and `VisualContext` traits, so both traits must be
+in scope. Anonymous imports keep their names from colliding with application
 types.
 
 The published `#[given]` passes the window and view context to the view
