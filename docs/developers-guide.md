@@ -886,6 +886,32 @@ feature-gated regression suite in
 `crates/rstest-bdd-harness-gpui/tests/scenario_name_in_logs.rs` apply the
 attribute to every `GpuiHarness::run`-driving test.
 
+## Attribute-policy conformance check
+
+The canonical conformance test for `AttributePolicy` implementations —
+`assert_attribute_policy_conformance::<P>(expected_rendered)`, in the
+`rstest_bdd_harness::policy_conformance` module — pins three invariants for any
+policy `P`:
+
+1. **Emit** — the policy emits exactly the expected number of attributes.
+2. **Render** — each attribute renders to the corresponding expected string,
+   in order.
+3. **rstest is first** — the first attribute path is `rstest::rstest`, so
+   fixture expansion precedes the runtime-specific test macro.
+
+Harness adapter crates (`rstest-bdd-harness-tokio`,
+`rstest-bdd-harness-gpui`, and any future adapter) must exercise their policy
+through this helper, supplying only the crate-specific expected rendered
+attributes; do not re-implement the emit/render/ordering assertions per
+crate. New harness crates get the policy contract for free by calling the
+helper from one `#[test]`.
+
+The GPUI adapter's library target sets `test = false`, so an in-module
+`#[cfg(test)]` block there would never be compiled or run. Its conformance
+test therefore lives in the `tests/attribute_policy_behaviour.rs` integration
+target, exercised under `--all-features` (which enables the crate's
+`native-gpui-tests` feature) — the arrangement `make test` uses.
+
 ## Canonical step-keyword table
 
 `crates/rstest-bdd-patterns/src/keyword.rs` drives the string ↔ `StepKeyword`

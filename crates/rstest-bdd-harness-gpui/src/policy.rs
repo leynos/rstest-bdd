@@ -30,33 +30,7 @@ impl AttributePolicy for GpuiAttributePolicy {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    //! Unit tests for the GPUI attribute policy.
-
-    use super::{GPUI_TEST_ATTRIBUTES, GpuiAttributePolicy};
-    use rstest_bdd_harness::{AttributePolicy, TestAttribute};
-
-    #[test]
-    fn gpui_policy_emits_rstest_and_gpui_test() {
-        let attributes = GpuiAttributePolicy::test_attributes();
-        assert_eq!(attributes, GPUI_TEST_ATTRIBUTES);
-    }
-
-    #[test]
-    fn gpui_policy_renders_correct_attributes() {
-        let attributes = GpuiAttributePolicy::test_attributes();
-        let rendered: Vec<_> = attributes
-            .iter()
-            .copied()
-            .map(TestAttribute::render)
-            .collect();
-        assert_eq!(rendered, vec!["#[rstest::rstest]", "#[gpui::test]"]);
-    }
-
-    #[test]
-    fn rstest_attribute_is_first() {
-        let attributes = GpuiAttributePolicy::test_attributes();
-        assert_eq!(attributes.first().map(|a| a.path()), Some("rstest::rstest"));
-    }
-}
+// The attribute-policy conformance check lives in
+// `tests/attribute_policy_behaviour.rs` rather than an in-module
+// `#[cfg(test)]` block: this crate's library target sets `test = false`, so an
+// in-module test would never be compiled or run.
