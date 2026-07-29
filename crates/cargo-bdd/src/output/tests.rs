@@ -52,6 +52,19 @@ fn annotated_scenario() -> Scenario {
     }
 }
 
+/// A skipped scenario that was not permitted to skip. `forced_failure` stays
+/// false so `append_scenario_annotations` takes its second branch: the
+/// `[forced failure]` marker suppresses `[skip disallowed]`, so only this
+/// combination renders it.
+#[fixture]
+fn skip_disallowed_scenario() -> Scenario {
+    Scenario {
+        forced_failure: false,
+        allow_skipped: false,
+        ..sample_scenario()
+    }
+}
+
 #[rstest]
 #[case::with_reasons(
     sample_scenario(),
@@ -72,6 +85,11 @@ fn annotated_scenario() -> Scenario {
     annotated_scenario(),
     ScenarioDisplayOptions::with_reasons(),
     "scenarios_forced_failure"
+)]
+#[case::skip_disallowed(
+    skip_disallowed_scenario(),
+    ScenarioDisplayOptions::with_reasons(),
+    "scenarios_skip_disallowed"
 )]
 fn snapshot_scenario_modes(
     #[case] scenario: Scenario,

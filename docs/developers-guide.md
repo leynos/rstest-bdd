@@ -905,7 +905,8 @@ bypassed-step listings.
 - Rendered output per mode is pinned by `insta` snapshots, and the structural
   invariants (empty tag list emits no `[tags: …]` fragment; `:line` suffix
   appears only when requested and known; the leading separator newline
-  appears iff requested) by property tests, both in `output.rs`.
+  appears iff requested) by property tests, both in the `output::tests` module
+  at `crates/cargo-bdd/src/output/tests.rs`.
 
 ## Attribute-policy conformance check
 
