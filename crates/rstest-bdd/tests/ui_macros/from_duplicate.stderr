@@ -1,0 +1,8 @@
+error: invalid step function signature: duplicate `#[from]` attribute
+
+         = help: Remove one of the duplicate `#[from]` attributes.
+
+ --> tests/ui_macros/from_duplicate.rs:6:38
+  |
+6 | fn step(#[from(alpha)] #[from(beta)] value: u32) {}
+  |                                      ^^^^^
