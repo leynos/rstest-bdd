@@ -92,6 +92,9 @@
 - [ADR 014: retain the users-guide link validator][adr-014] records the
   decision to keep `check_users_guide_links.py`, scoped to repository
   references in the vendored users' guide.
+- [ADR 015: name the step-return override outcome][adr-015] records the
+  decision to return `InsertOutcome` from `StepContext::insert_value` instead
+  of `Option<Box<dyn Any>>`.
 
 ## Execution plans
 
@@ -107,6 +110,7 @@
 [adr-012]: adr-012-guard-based-stepcontext-borrowing.md
 [adr-013]: adr-013-adopt-whitaker-no-unwrap-or-else-panic.md
 [adr-014]: adr-014-retain-users-guide-link-validator.md
+[adr-015]: adr-015-insert-outcome-for-step-return-overrides.md
 [complexity-guide]: complexity-antipatterns-and-refactoring-strategies.md
 [cucumber-async]: cucumber-rs-migration-and-async-patterns.md
 [dependency-injection]: reliable-testing-in-rust-via-dependency-injection.md
