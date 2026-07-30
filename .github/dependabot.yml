@@ -2,6 +2,10 @@ version: 2
 updates:
   # Enable version updates for GitHub Actions
   - package-ecosystem: "github-actions"
+    groups:
+      github-actions:
+        patterns:
+          - '*'
     directory: "/"
     open-pull-requests-limit: 5
     labels:
