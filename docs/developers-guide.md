@@ -470,12 +470,16 @@ derives a fixture key from a Rust parameter name without an explicit override.
 Keeping the rule centralized avoids one side of macro expansion stripping a
 leading underscore while another side keeps it.
 
-Step wrapper argument classification is handled by
-`classify_by_placeholder_match()` in the macros crate. The function first
-checks whether the argument maps to a step placeholder. If it does not, the
-argument is classified as a fixture. For implicit fixture arguments, it records
-the normalized fixture name so the generated wrapper asks for the same key that
-scenario fixture registration produced.
+Step wrapper argument classification enters through
+`classify_fixture_or_step()`, the terminal classifier in the pipeline. It
+strips any `#[from(...)]` attribute in place — rejecting a duplicate `#[from]`
+and the `#[from = ...]` name-value form — and threads a
+`ClassificationContext` (the mutable `extracted` results and remaining
+`placeholders` accumulators) into `classify_by_placeholder_match()`. That
+helper first checks whether the argument maps to a step placeholder. If it does
+not, the argument is classified as a fixture. For implicit fixture arguments,
+it records the normalized fixture name, so the generated wrapper asks for
+the same key that scenario fixture registration produced.
 
 Explicit `#[from(...)]` names are authoritative and bypass normalization. Use
 that escape hatch when the intended fixture name starts with an underscore or

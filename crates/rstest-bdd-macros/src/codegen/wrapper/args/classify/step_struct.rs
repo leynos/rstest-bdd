@@ -6,10 +6,30 @@ use quote::ToTokens;
 
 use super::{Arg, ExtractedArgs};
 
+/// Detect and strip the `#[step_args]` marker from `arg`.
+///
+/// Returns whether the marker was present. Mutates [`syn::PatType::attrs`] in
+/// place, removing the marker so the generated wrapper does not re-emit it; see
+/// [`super::extract_flag_attribute`] for the shared stripping contract.
+///
+/// # Errors
+///
+/// Returns an error when `#[step_args]` carries arguments (it is a bare marker)
+/// or appears more than once on the same parameter.
 pub(crate) fn extract_step_struct_attribute(arg: &mut syn::PatType) -> syn::Result<bool> {
     super::extract_flag_attribute(arg, "step_args")
 }
 
+/// Turn a *rejection* predicate into a `Result`, attributing the span to `span`.
+///
+/// Note the polarity: `condition` describes the failure, so `true` yields
+/// `Err(error_msg)` and `false` yields `Ok(())`. Each `validate_*` helper below
+/// reads as "error if …" for this reason.
+///
+/// # Errors
+///
+/// Returns an error carrying `error_msg`, spanned to `span`, when `condition`
+/// holds.
 fn validate_condition<T>(condition: bool, span: &T, error_msg: &str) -> syn::Result<()>
 where
     T: ToTokens,
@@ -21,6 +41,11 @@ where
     }
 }
 
+/// Reject a second `#[step_args]` parameter in one step signature.
+///
+/// # Errors
+///
+/// Returns an error when `st` already recorded a step struct.
 fn validate_single_step_struct(st: &ExtractedArgs, span: &syn::PatType) -> syn::Result<()> {
     validate_condition(
         st.step_struct_idx.is_some(),
@@ -29,6 +54,14 @@ fn validate_single_step_struct(st: &ExtractedArgs, span: &syn::PatType) -> syn::
     )
 }
 
+/// Reject a `#[step_args]` struct alongside individually named step arguments.
+///
+/// The struct claims every placeholder in the pattern, so a separate named
+/// parameter would have nothing left to bind.
+///
+/// # Errors
+///
+/// Returns an error when `st` already recorded at least one named step argument.
 fn validate_no_named_args(st: &ExtractedArgs, span: &syn::PatType) -> syn::Result<()> {
     validate_condition(
         st.step_args().next().is_some(),
@@ -37,6 +70,12 @@ fn validate_no_named_args(st: &ExtractedArgs, span: &syn::PatType) -> syn::Resul
     )
 }
 
+/// Reject a `#[step_args]` struct when the pattern has no placeholders to fill.
+///
+/// # Errors
+///
+/// Returns an error when `placeholders` is empty, since the struct would have
+/// no fields to populate.
 fn validate_has_placeholders(
     placeholders: &HashSet<String>,
     span: &syn::PatType,
@@ -48,6 +87,15 @@ fn validate_has_placeholders(
     )
 }
 
+/// Reject `#[from]` on a `#[step_args]` parameter.
+///
+/// `#[from]` selects a fixture by name, which is meaningless for a struct built
+/// from pattern placeholders. Inspects `arg.attrs` without mutating it, so the
+/// attribute is still present in the diagnostic's span.
+///
+/// # Errors
+///
+/// Returns an error when `arg` carries any `#[from]` attribute.
 fn validate_no_from_attr(arg: &syn::PatType) -> syn::Result<()> {
     validate_condition(
         arg.attrs.iter().any(|a| a.path().is_ident("from")),
@@ -56,6 +104,14 @@ fn validate_no_from_attr(arg: &syn::PatType) -> syn::Result<()> {
     )
 }
 
+/// Require that a `#[step_args]` parameter owns its struct type.
+///
+/// The generated wrapper constructs the struct locally and moves it into the
+/// step call, so a reference parameter would borrow a temporary.
+///
+/// # Errors
+///
+/// Returns an error when `ty` is a reference type.
 fn validate_owned_type(ty: &syn::Type) -> syn::Result<()> {
     validate_condition(
         matches!(ty, &syn::Type::Reference(_)),
@@ -64,6 +120,34 @@ fn validate_owned_type(ty: &syn::Type) -> syn::Result<()> {
     )
 }
 
+/// Classify an already-marked `#[step_args]` parameter as the step struct.
+///
+/// Called only after [`extract_step_struct_attribute`] confirmed and stripped
+/// the marker, so this function validates rather than detects: it runs the
+/// `validate_*` guards above in order and records the struct on success. There
+/// is no "not a match" outcome — the parameter is either accepted or rejected.
+///
+/// # Mutation contract
+///
+/// On success, and only on success:
+///
+/// - [`Arg::StepStruct`] is appended to `st` and `st.step_struct_idx` is set to
+///   its index.
+/// - `st.blocked_placeholders` is overwritten with a clone of `placeholders`,
+///   recording the names the struct now owns so a later parameter cannot rebind
+///   one. [`super::fixture_or_step`] consults this set.
+/// - `placeholders` is then **cleared**, since the struct consumes every
+///   placeholder at once.
+///
+/// `arg` is not mutated; the marker was already removed by the caller.
+///
+/// # Errors
+///
+/// Returns an error when the parameter is not a simple identifier pattern, when
+/// a step struct was already classified, when named step arguments are also
+/// present, when the pattern has no placeholders, when `#[from]` is combined
+/// with `#[step_args]`, or when the parameter type is a reference. On any error
+/// `st` and `placeholders` are left untouched.
 pub(crate) fn classify_step_struct(
     st: &mut ExtractedArgs,
     arg: &syn::PatType,

@@ -157,6 +157,54 @@ to the implicit fixture key `world`, while `__world` resolves to `_world`.
 Explicit `#[from(...)]` names remain exact and bypass this normalization, so
 `#[from(_world)]` still requests the literal `_world` fixture key.
 
+#### Supported `#[from]` forms
+
+`#[from]` selects which fixture key a parameter binds to. It accepts either no
+arguments or exactly one identifier in parentheses:
+
+```rust,no_run
+#[given("the catalogue is loaded")]
+fn catalogue_loaded(
+    // Named: binds the `db_pool` fixture to a differently named parameter.
+    #[from(db_pool)] pool: DbPool,
+    // Bare: binds the fixture named after the parameter itself, `cache`.
+    #[from] cache: Cache,
+) {}
+```
+
+`#[from(name)]` requests the fixture key `name` exactly. Use it when the
+parameter cannot carry the fixture's own name — because that name is already
+taken at the call site, or because a shorter local name reads better.
+
+Bare `#[from]` requests the parameter's own normalized fixture name, which is
+what an unannotated parameter already does. It changes no lookup, so its purpose
+is documentary: it marks a parameter as a deliberate fixture injection at the
+binding site, rather than leaving a reader to infer that from the absence of a
+matching placeholder in the step pattern.
+
+Two spellings are rejected when the macro expands.
+
+The name-value form is invalid, because `from` takes either no arguments or one
+parenthesized identifier and never `= value`:
+
+```text
+error: invalid step function signature: #[from] expects an identifier or no arguments
+```
+
+Rewrite `#[from = "db_pool"]` as `#[from(db_pool)]`.
+
+More than one `#[from]` on the same parameter is also invalid, including a
+mixture of the bare and named forms, because the second would silently displace
+the first:
+
+```text
+error: invalid step function signature: duplicate `#[from]` attribute
+
+         = help: Remove one of the duplicate `#[from]` attributes.
+```
+
+Keep the single attribute naming the intended fixture and delete the others.
+
 Internally, the step macros record the fixture names and generate wrapper code
 that, at runtime, retrieves references from a `StepContext`. This context is a
 key–value map of fixture names to type‑erased references. When a scenario runs,

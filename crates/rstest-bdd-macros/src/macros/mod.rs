@@ -232,6 +232,10 @@ fn signature_error_help(err_message: &str, keyword: crate::StepKeyword) -> Strin
         return "Remove one of the duplicate `#[datatable]` attributes.".to_string();
     }
 
+    if err_message.contains("duplicate `#[from]` attribute") {
+        return "Remove one of the duplicate `#[from]` attributes.".to_string();
+    }
+
     if err_message.contains(crate::codegen::wrapper::args::classify::DUPLICATE_DATATABLE_ERROR) {
         return "Remove one of the DataTable parameters.".to_string();
     }

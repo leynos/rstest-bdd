@@ -3,7 +3,7 @@
 use super::*;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::quote;
-use rstest::rstest;
+use rstest::{fixture, rstest};
 use std::collections::HashSet;
 use syn::{FnArg, parse_quote};
 
@@ -111,8 +111,10 @@ fn classify_fixture_or_step_falls_back_to_fixture() {
     ));
 }
 
-#[test]
-fn classify_fixture_or_step_respects_blocked_placeholders() {
+/// Accumulator holding a `#[step_args]` struct that owns the `blocked`
+/// placeholder, for the conflict-guard cases.
+#[fixture]
+fn step_struct_extracted() -> ExtractedArgs {
     let mut extracted = ExtractedArgs::default();
     let idx = extracted.push(Arg::StepStruct {
         pat: ident("args"),
@@ -120,19 +122,121 @@ fn classify_fixture_or_step_respects_blocked_placeholders() {
     });
     extracted.step_struct_idx = Some(idx);
     extracted.blocked_placeholders.insert("blocked".into());
+    extracted
+}
+
+/// Classify `arg_tokens` against `extracted` and return the rejection message.
+///
+/// Panics when classification unexpectedly succeeds, so each caller asserts
+/// only on the diagnostic it cares about.
+fn classification_error(
+    mut extracted: ExtractedArgs,
+    arg_tokens: TokenStream2,
+    pat_name: &str,
+    ty_tokens: TokenStream2,
+) -> String {
     let mut placeholders = HashSet::new();
-    let mut arg: syn::PatType = parse_quote!(blocked: String);
-    let pat = ident("blocked");
-    let ty: syn::Type = parse_quote!(String);
+    // Parse via `FnArg` so leading attributes are captured on the `PatType`;
+    // a bare `PatType` parse would drop them.
+    let mut arg = pat_type(arg_tokens);
+    let pat = ident(pat_name);
+    let ty: syn::Type = match syn::parse2(ty_tokens) {
+        Ok(parsed) => parsed,
+        Err(err) => panic!("failed to parse type: {err}"),
+    };
     let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
     let Err(err) = classify_fixture_or_step(&mut ctx, &mut arg, pat, ty) else {
-        panic!("classification should fail");
+        panic!("classification should fail for {pat_name}");
     };
+    err.to_string()
+}
 
+#[rstest]
+// Both the last-wins (`#[from(a)] #[from(b)]`) and the silently-stripped
+// bare-duplicate forms must fail.
+#[case::duplicate_from_named(
+    quote!(#[from(a)] #[from(b)] u: String),
+    "u",
+    quote!(String),
+    "duplicate `#[from]` attribute"
+)]
+#[case::duplicate_from_bare(
+    quote!(#[from] #[from] u: String),
+    "u",
+    quote!(String),
+    "duplicate `#[from]` attribute"
+)]
+#[case::name_value_from(
+    quote!(#[from = "db"] pool: String),
+    "pool",
+    quote!(String),
+    "expects an identifier or no arguments"
+)]
+// `_1` normalizes to `1`, which is not a valid identifier; the classifier must
+// reject it rather than emit a broken fixture name.
+#[case::invalid_normalized_name(
+    quote!(_1: usize),
+    "_1",
+    quote!(usize),
+    "is not a valid identifier"
+)]
+fn classify_fixture_or_step_rejects_malformed_parameters(
+    #[case] arg_tokens: TokenStream2,
+    #[case] pat_name: &str,
+    #[case] ty_tokens: TokenStream2,
+    #[case] expected_fragment: &str,
+) {
+    let err = classification_error(ExtractedArgs::default(), arg_tokens, pat_name, ty_tokens);
     assert!(
-        err.to_string()
-            .contains("#[step_args] cannot be combined with named step arguments")
+        err.contains(expected_fragment),
+        "expected {expected_fragment:?} in error, got {err:?}"
     );
+}
+
+#[rstest]
+#[case::exact_name("blocked")]
+// `_blocked` normalizes to `blocked`, which the `#[step_args]` struct owns.
+// The guard must compare the normalized name, or the leading underscore would
+// let the parameter shadow the struct field unnoticed.
+#[case::underscore_normalized("_blocked")]
+fn classify_fixture_or_step_respects_blocked_placeholders(
+    step_struct_extracted: ExtractedArgs,
+    #[case] pat_name: &str,
+) {
+    let arg_tokens: TokenStream2 = match format!("{pat_name}: String").parse() {
+        Ok(tokens) => tokens,
+        Err(err) => panic!("failed to parse argument tokens: {err}"),
+    };
+    let err = classification_error(step_struct_extracted, arg_tokens, pat_name, quote!(String));
+    assert!(
+        err.contains("#[step_args] cannot be combined with named step arguments"),
+        "expected the step_args conflict diagnostic, got {err:?}"
+    );
+}
+
+#[test]
+fn classify_fixture_or_step_strips_from_attribute_on_success() {
+    let mut extracted = ExtractedArgs::default();
+    let mut placeholders = HashSet::new();
+    let mut arg = pat_type(quote!(#[from(db)] pool: DbPool));
+    let pat = ident("pool");
+    let ty: syn::Type = parse_quote!(DbPool);
+    let mut ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
+    if let Err(err) = classify_fixture_or_step(&mut ctx, &mut arg, pat, ty) {
+        panic!("classification should succeed: {err}");
+    }
+
+    // The `#[from]` attribute must be stripped so the generated wrapper does
+    // not re-emit it, and the explicit name overrides the parameter identifier.
+    assert!(
+        arg.attrs.is_empty(),
+        "#[from] should be stripped on success"
+    );
+    let name = ident("db");
+    assert!(matches!(
+        extracted.args.as_slice(),
+        [Arg::Fixture { name: fixture_name, .. }] if fixture_name == &name
+    ));
 }
 
 #[test]
