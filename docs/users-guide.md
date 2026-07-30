@@ -273,6 +273,32 @@ fn mutable_world(world: CounterWorld) {
 }
 ```
 
+#### Recording overrides directly with `insert_value`
+
+The automatic injection above is implemented on top of a lower-level API that
+advanced tests may call directly. `StepContext::insert_value` records a
+step-return override and returns an `InsertOutcome`, which distinguishes the
+three results a bare `Option` previously conflated:
+
+- `InsertOutcome::Inserted(previous)` — a fixture uniquely matched the value's
+  type and the override was recorded. `previous` is `Some(_)` when it displaced
+  an earlier override for that fixture, or `None` otherwise.
+- `InsertOutcome::NoMatch` — no fixture uses the value's type, so the value was
+  dropped.
+- `InsertOutcome::AmbiguousIgnored` — more than one fixture matches the value's
+  type, so the value was dropped to avoid an ambiguous override (a warning is
+  emitted).
+
+`InsertOutcome` is `#[must_use]`, so the compiler warns when a direct caller
+implicitly discards it and might miss a dropped step return; an explicit
+`let _ = ctx.insert_value(…)` still suppresses that warning, as the generated
+scenario runner does. Callers that need only the displaced previous override —
+the value the old `Option<Box<dyn Any>>`-returning API yielded — can call
+`InsertOutcome::into_previous()`, which returns the previous override for the
+`Inserted` case and `None` for `NoMatch` and `AmbiguousIgnored`.
+`InsertOutcome::is_inserted()` reports whether the override was recorded
+without consuming the outcome.
+
 #### Slot‑based state (unchanged and still useful)
 
 ```rust,no_run

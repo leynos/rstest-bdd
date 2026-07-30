@@ -1119,6 +1119,40 @@ return `Result` and propagate errors rather than calling `.expect(...)`, and
 shared assertion shapes belong in macros so panic line numbers point at the
 calling test.
 
+## Step-return overrides and `InsertOutcome` (ADR-015)
+
+[ADR-015](adr-015-insert-outcome-for-step-return-overrides.md) records why
+`StepContext::insert_value` returns `InsertOutcome` rather than
+`Option<Box<dyn Any>>`. When a step function returns a value, the runner offers
+it as an override for the fixture of the same type; `insert_value` reports what
+became of it:
+
+- `Inserted(previous)` — a fixture uniquely matched the value's type and the
+  override was recorded. `previous` carries the displaced override, or `None`
+  when it displaced nothing.
+- `NoMatch` — no fixture has the value's type, so the value was dropped.
+- `AmbiguousIgnored` — several fixtures match, so the value was dropped rather
+  than bound to an arbitrary one.
+
+The old `Option` return collapsed the last two into the same `None` as a
+successful insert that displaced nothing, which is why a silently discarded step
+return was invisible at the call site.
+
+Two points matter when touching this code:
+
+- `InsertOutcome` is `#[must_use]`. The generated scenario runner is the one
+  place where dropping the outcome is correct, and it says so explicitly with
+  `let _ = ctx.insert_value(…)` rather than relying on an implicit discard.
+  Suppressing the warning anywhere else should be justified in review.
+- Prefer the accessors over matching where the distinction does not matter.
+  `into_previous()` consumes the outcome and yields the displaced override —
+  the old `Option` result exactly — and `is_inserted()` answers the boolean
+  question without consuming it.
+
+The dropped cases remain dropped: the ADR changed what a caller can observe, not
+the runtime policy for unmatched or ambiguous types. Caller-facing upgrade steps
+are in the [v0.6.0 migration guide](v0-6-0-migration-guide.md).
+
 ## Language-server handler conventions
 
 ### Canonical extension predicate: `has_extension`

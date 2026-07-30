@@ -1,0 +1,16 @@
+error: unused `InsertOutcome` that must be used
+  --> tests/ui_macros/insert_value_must_use.rs:22:5
+   |
+22 |     ctx.insert_value(Box::new(9_u32));
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: inspect the outcome to detect dropped step return values
+note: the lint level is defined here
+  --> tests/ui_macros/insert_value_must_use.rs:12:9
+   |
+12 | #![deny(unused_must_use)]
+   |         ^^^^^^^^^^^^^^^
+help: use `let _ = ...` to ignore the resulting value
+   |
+22 |     let _ = ctx.insert_value(Box::new(9_u32));
+   |     +++++++

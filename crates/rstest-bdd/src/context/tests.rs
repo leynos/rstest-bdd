@@ -82,14 +82,31 @@ macro_rules! assert_unique_fixture_can_be_overridden_twice {
     ($ctx:expr) => {{
         let first = $ctx.insert_value(Box::new(5u32));
         assert!(
-            first.is_none(),
-            "first override should have no previous value"
+            first.is_inserted(),
+            "a recorded override should report is_inserted"
+        );
+        assert!(
+            matches!(&first, InsertOutcome::Inserted(None)),
+            "first override should insert with no previous value"
+        );
+        assert!(
+            first.into_previous().is_none(),
+            "an insert that displaced nothing should yield no previous override"
         );
 
-        let Some(second) = $ctx.insert_value(Box::new(7u32)) else {
+        let second = $ctx.insert_value(Box::new(7u32));
+        assert!(
+            second.is_inserted(),
+            "an override that displaced an earlier one should report is_inserted"
+        );
+        assert!(
+            matches!(&second, InsertOutcome::Inserted(Some(_))),
+            "second override should insert and carry the displaced value"
+        );
+        let Some(displaced) = second.into_previous() else {
             panic!("expected previous override to be returned");
         };
-        let Ok(previous) = second.downcast::<u32>() else {
+        let Ok(previous) = displaced.downcast::<u32>() else {
             panic!("override should downcast to u32");
         };
         assert_eq!(*previous, 5);
@@ -127,7 +144,18 @@ fn insert_value_behaviour(_logger: (), #[case] scenario: InsertValueScenario) {
             ctx.insert("two", &fixture_two);
 
             let result = ctx.insert_value(Box::new(5u32));
-            assert!(result.is_none(), "ambiguous overrides must be ignored");
+            assert!(
+                matches!(&result, InsertOutcome::AmbiguousIgnored),
+                "ambiguous overrides must be reported as AmbiguousIgnored"
+            );
+            assert!(
+                !result.is_inserted(),
+                "a dropped value must not report is_inserted"
+            );
+            assert!(
+                result.into_previous().is_none(),
+                "a dropped value must not yield a previous override"
+            );
             assert_eq!(ctx.get::<u32>("one"), Some(&1));
             assert_eq!(ctx.get::<u32>("two"), Some(&2));
         }
@@ -135,7 +163,18 @@ fn insert_value_behaviour(_logger: (), #[case] scenario: InsertValueScenario) {
             ctx.insert("text", &fixture_text);
 
             let result = ctx.insert_value(Box::new(5u32));
-            assert!(result.is_none(), "missing fixture should skip override");
+            assert!(
+                matches!(&result, InsertOutcome::NoMatch),
+                "missing fixture type must be reported as NoMatch"
+            );
+            assert!(
+                !result.is_inserted(),
+                "a dropped value must not report is_inserted"
+            );
+            assert!(
+                result.into_previous().is_none(),
+                "a dropped value must not yield a previous override"
+            );
             assert!(ctx.get::<u32>("text").is_none());
         }
     }

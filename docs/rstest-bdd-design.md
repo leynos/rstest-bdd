@@ -2829,6 +2829,7 @@ sequenceDiagram
     alt Ok(Some(payload))
       Wrap-->>Scenario: Ok(Some(Box<dyn Any>))
       Scenario->>Ctx: insert_value(payload)
+      Ctx-->>Scenario: InsertOutcome — Inserted, NoMatch or AmbiguousIgnored
     else Ok(None)
       Wrap-->>Scenario: Ok(None)
       Scenario->>Scenario: no context change
@@ -2840,7 +2841,11 @@ sequenceDiagram
 ```
 
 Figure: The wrapper normalizes each return value (unit/value/result) so
-successful payloads override fixtures and errors abort the scenario.
+successful payloads override fixtures and errors abort the scenario. Offering a
+payload does not guarantee it is recorded: `insert_value` returns an
+`InsertOutcome` naming whether the override took effect, or was dropped because
+no fixture had that type (`NoMatch`) or several did (`AmbiguousIgnored`). See
+[ADR-015](adr-015-insert-outcome-for-step-return-overrides.md).
 
 ```mermaid
 sequenceDiagram
