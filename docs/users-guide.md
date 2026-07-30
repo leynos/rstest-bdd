@@ -2067,8 +2067,8 @@ assert_attribute_policy_conformance::<DefaultAttributePolicy>(
 );
 ```
 
-It pins three invariants, panicking with a descriptive message when any of
-them is violated:
+It pins three invariants, panicking with a descriptive message when any of them
+is violated:
 
 - **Emit** — the policy returns exactly as many attributes as expected.
 - **Render** — each attribute renders to the corresponding expected string, in
