@@ -131,6 +131,13 @@ fn smoke_rust_diagnostics_cleared_once_step_referenced(mut server: ServerHandle)
         .expect("expected non-empty rust diagnostics for the unused step");
 
     // A feature that uses the step removes the "unused" finding.
+    //
+    // This save's own notification is deliberately not awaited before the
+    // re-save below. `didSave` is dispatched to a synchronous handler that
+    // indexes and publishes inline, and both notifications travel the same
+    // stdin stream, so the server cannot begin the re-save before this save is
+    // indexed. Awaiting here would only assert an ordering the transport
+    // already guarantees.
     let feature_path = dir.join("rust_clearing.feature");
     std::fs::write(
         &feature_path,
