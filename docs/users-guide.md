@@ -1547,7 +1547,7 @@ constructor. `add_window_view` binds `visual_context` as
 durable handles:
 
 ```rust,ignore
-use gpui::VisualContext as _;
+use gpui::{AppContext as _, VisualContext as _};
 use rstest_bdd_macros::given;
 
 #[given("a fresh GPUI window is opened")]
