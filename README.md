@@ -1,9 +1,11 @@
 # rstest-bdd
 
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](
-https://deepwiki.com/leynos/rstest-bdd)
-[![Crates.io Version](https://img.shields.io/crates/v/rstest-bdd)](
-https://crates.io/crates/rstest-bdd)
+[![Ask DeepWiki][dw]][deepwiki] [![Crates.io Version][crates]][package]
+
+[dw]: https://deepwiki.com/badge.svg
+[deepwiki]: https://deepwiki.com/leynos/rstest-bdd
+[crates]: https://img.shields.io/crates/v/rstest-bdd "crates.io package"
+[package]: https://crates.io/crates/rstest-bdd
 
 *Where Rustaceans come for their gourd‑related puns.*
 
