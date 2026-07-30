@@ -1594,11 +1594,24 @@ The published reconstruction constructor returns `VisualTestContext` by value.
 Its entity methods take the entity by reference and pass an application context
 as the callback's second argument. Their `AppContext::Result<R>` alias is `R`,
 so assertions compare the returned values directly rather than unwrapping
-`Option` or `Result`:
+`Option` or `Result`. Unlike the vendored helper, the published helper clones
+the stored entity because published `Entity<T>` is `Clone`, not `Copy`:
 
 ```rust,ignore
 use gpui::AppContext as _;
 use rstest_bdd_macros::{then, when};
+
+fn current_handles() -> (gpui::Entity<CounterView>, gpui::AnyWindowHandle) {
+    with_state(|state| {
+        let Some(entity) = state.entity.clone() else {
+            panic!("scenario should have stored an entity handle");
+        };
+        let Some(window) = state.window else {
+            panic!("scenario should have stored a window handle");
+        };
+        (entity, window)
+    })
+}
 
 #[when("the view is updated through a reconstructed visual context")]
 fn view_is_updated_through_reconstructed_visual_context(
