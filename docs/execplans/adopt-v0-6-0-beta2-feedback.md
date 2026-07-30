@@ -51,7 +51,7 @@ the branch returns no unresolved concerns.
 
 This is a planning-and-documentation deliverable. It does **not** implement any
 of the code work items it schedules (the `include_str!` emission, the
-`GpuiScenarioState` helper, the guard-based `StepContext`); those remain
+`ScenarioStore<T>` helper, the guard-based `StepContext`); those remain
 roadmap items delivered under their own ExecPlans. The single exception, if the
 maintainer approves it, is the optional code change in Stage E (the
 rebuild-invalidation fix), which is small, non-breaking, and closes an active
@@ -527,10 +527,11 @@ Apply, in document order, the additions and clarifications specified in
 3. Add new Phase 10.2 documentation items for: the gpui-version banner and
    mapping table; the lint-clean playbook variant; the nextest/`serial_test`
    interaction note; and the bulk-migration cookbook.
-4. Re-scope Phase 11 items 10.3.1 and 10.3.2 to name the GPUI-specialized
-   `GpuiScenarioState` helper and the cleanup-guard fixture macro, referencing
-   `adr-011`; add a priority note recommending they (and the rebuild fix) be
-   pulled forward to v0.6.0 final, flagged as a maintainer scheduling decision.
+4. Re-scope items 10.3.1 and 10.3.2 to name the generic `ScenarioStore<T>` core
+   and its GPUI-specialized `GpuiScenarioStore` re-export (10.3.1), with the
+   cleanup-guard fixture macro owned by 10.3.2, referencing `adr-011`; add a
+   priority note recommending they (and the rebuild fix) be pulled forward to
+   v0.6.0 final, flagged as a maintainer scheduling decision.
 5. Amend the Phase 12 intro and item 12.1.1 to reference `adr-012` and state the
    borrow redesign is a committed direction.
 6. Add a separable follow-up note recommending ADR-008 be moved from `Proposed`

@@ -72,7 +72,7 @@ shadow — `Slot<T>`. This ADR proposes `ScenarioStore<T>` as the generic core a
 - State clearly which API is current per v0.6.x / v0.7.0 release, so
   adopters know the thread-local interim (`§2.7.6.2`) is still supported in
   v0.6.x while `ScenarioStore<T>` is the recommended additive alternative from
-  v0.6.1 onward.
+  v0.6.0 final onward.
 
 ## Options considered
 
@@ -212,14 +212,14 @@ The ADR fixes the cleanup-ordering contract:
 
 ### Cross-version stance
 
-| Version           | Recommended pattern                      | Support status  |
-| ----------------- | ---------------------------------------- | --------------- |
-| v0.6.0 (current)  | Thread-local interim (`§2.7.6.2`)        | Supported       |
-| v0.6.1 (additive) | `ScenarioStore<T>` / `GpuiScenarioStore` | Preferred       |
-| v0.7.0 (breaking) | Guard-based borrow redesign (ADR-012)    | Supersedes both |
+| Version              | Recommended pattern                      | Support status  |
+| -------------------- | ---------------------------------------- | --------------- |
+| v0.6.0 beta          | Thread-local interim (`§2.7.6.2`)        | Supported       |
+| v0.6.0 final (addl.) | `ScenarioStore<T>` / `GpuiScenarioStore` | Preferred       |
+| v0.7.0 (breaking)    | Guard-based borrow redesign (ADR-012)    | Supersedes both |
 
-The v0.6.0 thread-local interim pattern remains supported throughout v0.6.x.
-`ScenarioStore<T>` is the recommended additive alternative from v0.6.1.
+The beta thread-local interim pattern remains supported throughout v0.6.x.
+`ScenarioStore<T>` is the recommended additive alternative from v0.6.0 final.
 ADR-012's guard-based redesign supersedes both at v0.7.0 and provides a
 migration mapping.
 
@@ -257,7 +257,8 @@ harness cost of a model checker.
 
 ## Consequences
 
-- Additive and semver-compatible change for v0.6.1.
+- Additive and semver-compatible change, scheduled as a v0.6.0 final
+  requirement.
 - GPUI adopters can replace ~50 lines of boilerplate with a single import.
 - The cleanup-ordering contract is tested and cannot silently regress.
 - The GPUI re-export depends on the generic core landing first (10.3.1 before
@@ -269,6 +270,7 @@ harness cost of a model checker.
 
 - Roadmap items: re-scoped 10.3.1 (`ScenarioStore<T>` generic core) and 10.3.2
   (`GpuiScenarioStore` + cleanup-guard fixture macro, three-state lifecycle
-  test), both preferred from v0.6.1 while the v0.6.0 thread-local pattern
+  test), both v0.6.0 final requirements under roadmap step 10.3 alongside
+  10.3.3 (the feature-file rebuild fix), while the beta thread-local pattern
   remains supported throughout v0.6.x.
-- Design document: `§2.7.6.4` (v0.6.1 early-life support helpers).
+- Design document: `§2.7.6.4`.

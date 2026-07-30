@@ -49,9 +49,16 @@ explicit escape hatch on the step attribute:
 - `#[given(result)]` / `#[given(value)]` (when using the inferred pattern)
 
 The `result` hint is validated for obvious misconfigurations (for example,
-primitive return types). For type aliases, the macro cannot validate the alias
-and assumes `Result<..>` semantics; if the return type is not actually
-`Result`-like, the compiler will surface a type error.
+primitive return types). Where the hint is present but the return type is a
+type alias the macro cannot resolve, the macro trusts the hint and assumes
+`Result<..>` semantics; if the return type is not actually `Result`-like, the
+compiler will surface a type error.
+
+Without a hint, an unresolved alias is **not** assumed to be `Result`-like: it
+is classified as a value, which is the false green recorded under
+*Consequences*. An unresolved alias therefore requires explicit handling from
+the author — spell out `Result<..>` or `rstest_bdd::StepResult<..>`, or give an
+explicit `result`/`value` hint.
 
 ## Consequences
 

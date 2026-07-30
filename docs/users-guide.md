@@ -318,8 +318,14 @@ Alternatively, add an explicit return-kind hint: `#[when(result)]` /
 `#[when(value)]`.
 
 The `result`/`value` hints are validated for obvious misconfigurations.
-`result` is rejected for primitive return types. For aliases, the macro cannot
-validate the underlying definition and assumes `Result<..>` semantics.
+`result` is rejected for primitive return types. Where `result` is given for an
+alias, the macro cannot validate the underlying definition and trusts the hint,
+assuming `Result<..>` semantics.
+
+Without a hint, an unresolved alias is **not** assumed to be `Result`-like: it
+is classified as a value, so an `Err` is stored as a payload and the step
+passes. Always give an unresolved alias explicit handling — spell out
+`Result<..>` or `rstest_bdd::StepResult<..>`, or add a `result`/`value` hint.
 
 Use `#[when("...", value)]` (or `#[when(value)]` when using the inferred
 pattern) to force treating the return value as a payload even when it is

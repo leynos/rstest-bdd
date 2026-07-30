@@ -979,8 +979,8 @@ Contributors touching the borrow machinery should expect:
   it.
 - `FixtureRefMut` exposes a stable, opaque accessor API (12.1.2), and a
   first-class world lifecycle contract (12.1.3) supersedes the thread-local
-  reset protocol and the v0.6.1 `ScenarioStore<T>` helper. The ADR carries the
-  v0.6→v0.7 migration mapping.
+  reset protocol and the v0.6.0 final `ScenarioStore<T>` helper. The ADR carries
+  the v0.6→v0.7 migration mapping.
 - Borrow-state invariants are the highest-risk part of the surface and must be
   covered by generated-wrapper, property-based (`proptest`), and lifecycle
   tests — see the ADR's _Testing strategy_.
