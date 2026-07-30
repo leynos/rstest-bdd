@@ -86,8 +86,12 @@ macro_rules! assert_unique_fixture_can_be_overridden_twice {
             "a recorded override should report is_inserted"
         );
         assert!(
-            matches!(first, InsertOutcome::Inserted(None)),
+            matches!(&first, InsertOutcome::Inserted(None)),
             "first override should insert with no previous value"
+        );
+        assert!(
+            first.into_previous().is_none(),
+            "an insert that displaced nothing should yield no previous override"
         );
 
         let Some(second) = $ctx.insert_value(Box::new(7u32)).into_previous() else {
