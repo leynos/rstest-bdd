@@ -1089,7 +1089,6 @@ wrong prefixes, extra segments, or partial matches all return `None`. Use
 type path; use `resolve_test_attribute_hint_for_policy_path` when it has an
 attribute-policy type path.
 
-
 #### Adapter fallback diagnostics
 
 The macro code-generation layer owns first-party adapter fallback diagnostics
@@ -1103,7 +1102,7 @@ crate is present.
 `proc-macro-error2` emits the warning directly on nightly toolchains. Stable
 toolchains receive the same message through a generated deprecated item because
 procedural-macro warnings are not available there. These mechanisms are
-mutually exclusive so each fallback reports exactly one warning. Keep the
+mutually exclusive, so each fallback reports exactly one warning. Keep the
 diagnostic text and the stable and nightly user-interface tests synchronized
 when changing this path.
 
