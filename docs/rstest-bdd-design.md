@@ -1727,7 +1727,9 @@ requires `async fn`.
 When an unresolved path retains the canonical Tokio or GPUI crate identifier
 immediately before the adapter type, the macro emits a fallback warning that
 recommends the canonical crate-root path or a direct `rstest-bdd-harness`
-development dependency. For example,
+development dependency under the canonical crate resolution name
+`rstest_bdd_harness`. A renamed dependency key cannot satisfy the generated
+fallback paths. For example,
 `alias::rstest_bdd_harness_tokio::TokioHarness` supplies this evidence.
 `custom::TokioHarness` does not: unrelated third-party adapters remain valid
 fallback paths without the diagnostic even when the first-party adapter crate

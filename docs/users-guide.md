@@ -921,7 +921,6 @@ re-exported under different identifiers, use the canonical crate-root path (
 `rstest_bdd_harness_gpui::GpuiAttributePolicy`) or add a direct
 `rstest-bdd-harness` dependency to get the same attribute recognition.
 
-
 #### First-party adapter fallback warnings
 
 The macros warn when an unresolved Tokio or GPUI adapter path preserves the
@@ -937,9 +936,10 @@ Prefer the canonical paths:
 - `rstest_bdd_harness_gpui::{GpuiHarness, GpuiAttributePolicy}`
 
 If the adapter path must remain re-exported, add `rstest-bdd-harness` as a
-direct development dependency. The generated code can then resolve
-`HarnessAdapter` and `AttributePolicy` through that crate rather than relying
-on the first-party adapter crate.
+direct development dependency under its canonical crate resolution name,
+`rstest_bdd_harness`. Do not rename the dependency key: the generated fallback
+code resolves `HarnessAdapter` and `AttributePolicy` through that exact crate
+name rather than through the first-party adapter crate.
 
 When `attributes` is omitted, known first-party harnesses infer matching
 default attribute policies:
@@ -1460,6 +1460,7 @@ Projects that prefer to work with raw rows can declare the argument as
 `Vec<Vec<String>>` and handle parsing manually. Both forms can co-exist within
 the same project, allowing incremental adoption of typed tables.
 
+```rust,no_run
 # fn reset_state_before_assignment() {}
 # fn with_state<R>(_: impl FnOnce(&mut ()) -> R) -> R { unimplemented!() }
 #[given("a fresh GPUI window is opened")]
@@ -1538,7 +1539,7 @@ panic-on-invariant-violation `let … else { panic!(…) }` branches and
 `StepResult` within the same playbook reads ambiguously, so pick one shape per
 scenario.
 
-#### Fixture key versus parameter name
+### Fixture key versus parameter name
 
 Steps request the GPUI context through the *reserved fixture key*
 `rstest_bdd_harness_context`. The key is part of the public contract: every
@@ -1550,7 +1551,7 @@ author for readability. The `#[from(rstest_bdd_harness_context)]` attribute is
 what binds the key, so do not let parameter naming convince a reader the
 binding name is part of the contract.
 
-#### Where to read more
+### Where to read more
 
 - [rstest-bdd design][rstest-bdd-design] §2.7.6.1 and §2.7.6.2 explain
   why the workaround took this shape under the 0.6.x borrow contract.
