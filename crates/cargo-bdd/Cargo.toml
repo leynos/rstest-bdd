@@ -25,6 +25,8 @@ eyre.workspace = true
 
 [dev-dependencies]
 assert_cmd = "2"
+insta.workspace = true
+proptest.workspace = true
 rstest.workspace = true
 rstest-bdd-harness.workspace = true
 serial_test = "2"

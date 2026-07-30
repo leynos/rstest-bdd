@@ -122,7 +122,10 @@ fn handle_steps(args: &StepsArgs) -> Result<()> {
     if args.json {
         bail!("--json is only supported together with --skipped");
     }
-    write_filtered_steps(|_| true, Some(ScenarioDisplayOptions::default()))
+    write_filtered_steps(
+        |_| true,
+        Some(ScenarioDisplayOptions::step_listing_appendix()),
+    )
 }
 
 fn handle_unused() -> Result<()> {
@@ -183,11 +186,10 @@ fn handle_skipped(args: &SkippedArgs) -> Result<()> {
         return write_skip_reports_json(&reports);
     }
 
-    let options = ScenarioDisplayOptions {
-        include_line: args.reasons,
-        include_tags: args.reasons,
-        include_reason: args.reasons,
-        insert_leading_newline: false,
+    let options = if args.reasons {
+        ScenarioDisplayOptions::with_reasons()
+    } else {
+        ScenarioDisplayOptions::compact()
     };
 
     let mut stdout = io::stdout();
