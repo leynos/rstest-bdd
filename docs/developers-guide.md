@@ -435,6 +435,22 @@ Keep `temp-env` available as a dev-dependency when building this test target;
 direct environment mutation is unsafe under Rust 2024 and would violate the
 workspace's unsafe-code policy.
 
+
+### Fallible GPUI test boundaries
+
+The `rstest-bdd-macros` scenario code generator owns the private
+`adapt_fallible_gpui_boundary` helper. Its scope is limited to fallible
+functions generated with the first-party GPUI test policy, for both regular
+scenarios and outlines. It changes the generated signature to return `()` and
+consumes the scenario result, panicking with a fixed message on `Err`. Unit
+scenarios and std or Tokio boundaries must bypass the helper unchanged.
+
+Compile-pass coverage belongs to the GPUI harness crate because it supplies the
+`#[gpui::test]` boundary. Keep the synchronous and asynchronous non-`Debug`
+error cases in
+`crates/rstest-bdd-harness-gpui/tests/fixtures_macros/scenario_fallible_non_debug.rs`
+registered with that crate's `macro_compile` test.
+
 ### Bulk-migration cookbook reference suite
 
 The user guide's "Bulk-migration cookbook" subsection is backed by a

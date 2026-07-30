@@ -1184,6 +1184,12 @@ types such as `HarnessAdapter` or `ScenarioRunRequest`.
 adapter, the macro infers `GpuiAttributePolicy` from the canonical harness path
 when `attributes = ...` is omitted:
 
+Fallible `#[scenario]` bodies are consumed behind a unit-returning GPUI test
+boundary. An `Err` fails the test by panicking with the fixed message
+`scenario returned an error`; the error value is not formatted and need not
+implement `Debug`. Std and Tokio scenarios retain their fallible signatures and
+propagate results through Rust's native `Termination` support.
+
 ```rust,no_run
 # use rstest_bdd_macros::scenario;
 #[scenario(
@@ -1406,6 +1412,40 @@ defensively re-runs the reset before storing handles and observes the
 
 ```rust,no_run
 # use rstest_bdd_macros::given;
+
+#[derive(Debug, PartialEq, Eq)]
+struct UserRow {
+    name: String,
+    email: String,
+    active: bool,
+}
+
+impl DataTableRow for UserRow {
+    const REQUIRES_HEADER: bool = true;
+
+    fn parse_row(mut row: RowSpec<'_>) -> Result<Self, DataTableError> {
+        let name = row.take_column("name")?;
+        let email = row.take_column("email")?;
+        let active = row.parse_column_with(
+            "active",
+            datatable::truthy_bool,
+        )?;
+        Ok(Self { name, email, active })
+    }
+}
+
+#[given("the following users exist:")]
+fn users_exist(#[datatable] rows: Rows<UserRow>) {
+    for row in rows {
+        assert!(row.active || row.name == "Bob");
+    }
+}
+```
+
+Projects that prefer to work with raw rows can declare the argument as
+`Vec<Vec<String>>` and handle parsing manually. Both forms can co-exist within
+the same project, allowing incremental adoption of typed tables.
+
 # fn reset_state_before_assignment() {}
 # fn with_state<R>(_: impl FnOnce(&mut ()) -> R) -> R { unimplemented!() }
 #[given("a fresh GPUI window is opened")]

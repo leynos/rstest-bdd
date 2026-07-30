@@ -14,11 +14,26 @@ while preserving existing skip behaviour and scenario reporting semantics.
 File paths referenced below are current as of 2026-01-30 and may move. Prefer
 module names and crate boundaries when locating code.
 
+## Progress
+
+- [x] (2026-01-30) Classified scenario return types and rejected non-unit
+  payloads.
+- [x] (2026-01-30) Preserved skip and outcome-recording semantics for fallible
+  bodies.
+- [x] (2026-07-30) Added a unit-returning GPUI boundary that consumes fallible
+  scenario results for regular scenarios and outlines.
+- [x] (2026-07-30) Removed the implicit `Debug` requirement from GPUI error
+  handling and added synchronous and asynchronous compile-pass coverage.
+- [x] (2026-07-30) Run the final repository formatting, test, type-checking,
+  lint, and documentation gates.
+
 ## Constraints
 
 - Only unit `Result` payloads are allowed in scenario bodies.
 - Skip handling must remain type-correct for fallible scenarios.
 - Scenario guards must not record a pass when a fallible body returns `Err`.
+- GPUI result consumption must not require the scenario error type to implement
+  `Debug`.
 
 ## Plan of work
 
@@ -44,10 +59,20 @@ module names and crate boundaries when locating code.
   return kind (or a boolean).
 - Return `Ok(())` for fallible scenarios and `return;` for infallible ones.
 
+### Stage D: harden the GPUI test boundary
+
+- Consume fallible results behind a unit-returning GPUI test signature for
+  synchronous and asynchronous scenarios.
+- Panic with a fixed message on `Err` without inspecting or formatting the
+  error value.
+- Keep std and Tokio fallible signatures on their native `Termination` path.
+
 ## Validation
 
 - Add trybuild fixtures rejecting non-unit `Result` and `StepResult` payloads.
 - Add behavioural tests for successful and error fallible scenarios.
+- Add GPUI compile-pass coverage for synchronous and asynchronous fallible
+  scenarios whose error type does not implement `Debug`.
 - Run `make check-fmt`, `make lint`, and `make test`.
 
 ## Concrete steps
@@ -66,6 +91,9 @@ module names and crate boundaries when locating code.
 4. Add trybuild fixtures and behavioural tests in the `rstest-bdd` test suite
    (currently under `crates/rstest-bdd/tests`) to cover success, error, and
    invalid return signatures.
+5. Adapt fallible scenario bodies generated for GPUI to a unit-returning test
+   boundary, and cover non-`Debug` errors in the GPUI harness crate's
+   `macro_compile` suite.
 
 ## Decision log
 
@@ -75,8 +103,14 @@ module names and crate boundaries when locating code.
   Date/Author: 2026-01-30 / Codex.
 - Decision: emit `Ok(())` from skip handlers for fallible scenarios.
   Date/Author: 2026-01-30 / Codex.
+- Decision: discard GPUI error values and panic with a fixed message rather
+  than imposing a `Debug` bound. Date/Author: 2026-07-30 / Codex.
 
 ## Outcomes & retrospective
 
-Capture final outcomes, follow-up tasks, and any refactors deferred during
-delivery.
+The original delivery enabled unit-valued fallible scenarios while preserving
+skip handling and recorder accuracy. The issue 574 follow-up now consumes those
+results at GPUI's unit-returning test boundary, avoiding `unused_must_use`
+without changing std or Tokio propagation. A GPUI harness compile-pass fixture
+guards both synchronous and asynchronous scenarios with a non-`Debug` error
+type. The final repository validation passed, completing the follow-up.

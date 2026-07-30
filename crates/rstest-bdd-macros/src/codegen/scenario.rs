@@ -205,14 +205,14 @@ fn adapt_fallible_gpui_boundary(
         quote! {
             match (async move { #body }).await {
                 Ok(()) => {}
-                Err(__rstest_bdd_err) => panic!("scenario returned an error: {__rstest_bdd_err:?}"),
+                Err(_) => panic!("scenario returned an error"),
             }
         }
     } else {
         quote! {
             match (|| { #body })() {
                 Ok(()) => {}
-                Err(__rstest_bdd_err) => panic!("scenario returned an error: {__rstest_bdd_err:?}"),
+                Err(_) => panic!("scenario returned an error"),
             }
         }
     }

@@ -104,8 +104,17 @@ fn adapt_boundary(
     return_kind: ScenarioReturnKind,
     is_async: bool,
 ) -> (syn::Signature, String) {
-    let mut signature: syn::Signature =
-        syn::parse_quote!(fn generated_scenario() -> Result<(), String>);
+    let is_fallible = return_kind.is_fallible();
+    let mut signature: syn::Signature = if is_fallible {
+        syn::parse_quote!(fn generated_scenario() -> Result<(), String>)
+    } else {
+        syn::parse_quote!(fn generated_scenario())
+    };
+    let body = if is_fallible {
+        quote::quote! { Ok::<(), String>(()) }
+    } else {
+        quote::quote! { () }
+    };
     if is_async {
         signature.asyncness = Some(syn::parse_quote!(async));
     }
@@ -113,7 +122,7 @@ fn adapt_boundary(
         uses_gpui_test(attrs, policy),
         return_kind,
         &mut signature,
-        quote::quote! { Ok::<(), String>(()) },
+        body,
     );
     (signature, body.to_string())
 }
@@ -147,6 +156,10 @@ fn fallible_gpui_boundaries_consume_the_scenario_result(
         body.contains("scenario returned an error"),
         "expected a diagnostic for a scenario error: {body}"
     );
+    assert!(
+        !body.contains("__rstest_bdd_err"),
+        "the GPUI boundary must not inspect the error value: {body}"
+    );
 }
 
 #[test]
@@ -176,6 +189,10 @@ fn async_gpui_boundary_awaits_and_consumes_the_scenario_result() {
     assert!(
         body.contains("async move") && body.contains(". await"),
         "expected an awaited async result boundary: {body}"
+    );
+    assert!(
+        body.contains("scenario returned an error") && !body.contains("__rstest_bdd_err"),
+        "the async GPUI boundary must use the fixed panic message: {body}"
     );
 }
 
@@ -215,6 +232,6 @@ fn unit_gpui_scenarios_keep_their_body_unchanged() {
     };
     let (signature, body) = adapt_boundary(&[], &policy, ScenarioReturnKind::Unit, false);
 
-    assert!(matches!(signature.output, syn::ReturnType::Type(..)));
-    assert_eq!(body, "Ok :: < () , String > (())");
+    assert!(matches!(signature.output, syn::ReturnType::Default));
+    assert_eq!(body, "()");
 }

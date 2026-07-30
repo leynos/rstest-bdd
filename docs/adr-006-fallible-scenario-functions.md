@@ -91,8 +91,10 @@ Std and Tokio test boundaries preserve the fallible function signature and
 propagate its result through Rust's test `Termination` support. GPUI boundaries
 instead expose a unit-returning function and consume the result in a generated
 closure or async block. An `Err` still marks the scenario as recorded, then
-panics with the error value so the test fails without leaving a `Result`
-unbound in GPUI's generated wrapper.
+panics with the fixed message `scenario returned an error`, so the test fails
+without leaving a `Result` unbound in GPUI's generated wrapper. The error value
+is neither inspected nor formatted, so its type does not need to implement
+`Debug`.
 
 For screen readers: The following snippet shows a fallible scenario body using
 `Result<(), E>`.
