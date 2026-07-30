@@ -11,9 +11,21 @@ use std::collections::HashSet;
 use super::{Arg, ExtractedArgs, normalize_param_name};
 
 mod step_struct;
+mod type_shape;
 
 pub(super) use fixture_or_step::classify_fixture_or_step;
 pub(super) use step_struct::{classify_step_struct, extract_step_struct_attribute};
+use type_shape::{is_docstring_canonical, is_type_seq, should_classify_as_datatable};
+
+/// Test whether `ty` is `CachedTable`, the lazily converted table representation.
+///
+/// Shared with the wider crate because table binding code outside this module
+/// must distinguish a `CachedTable` parameter from a raw `Vec<Vec<String>>` one.
+/// It lives here rather than alongside the other shape predicates in
+/// [`type_shape`] so that `classify::is_cached_table` remains its path.
+pub(crate) fn is_cached_table(ty: &syn::Type) -> bool {
+    is_type_seq(ty, &["CachedTable"])
+}
 
 /// Diagnostic for a `datatable` parameter declared with an unsupported type.
 const DATATABLE_TYPE_ERROR: &str = concat!(
@@ -53,6 +65,12 @@ pub(super) struct ClassificationContext<'a> {
 }
 
 impl<'a> ClassificationContext<'a> {
+    /// Borrow an accumulator and a placeholder set for one classification run.
+    ///
+    /// Holds both mutably for the context's lifetime, so a caller cannot read
+    /// either while classifiers are still claiming parameters. Neither argument
+    /// is copied: mutations made through the context are visible to the caller
+    /// once it is dropped.
     pub(super) fn new(
         extracted: &'a mut ExtractedArgs,
         placeholders: &'a mut HashSet<String>,
@@ -62,52 +80,6 @@ impl<'a> ClassificationContext<'a> {
             placeholders,
         }
     }
-}
-
-fn is_type_seq(ty: &syn::Type, seq: &[&str]) -> bool {
-    use syn::{GenericArgument, PathArguments, Type};
-
-    let mut cur = ty;
-    for (i, &name) in seq.iter().enumerate() {
-        let Type::Path(tp) = cur else { return false };
-        let Some(segment) = tp.path.segments.last() else {
-            return false;
-        };
-        if segment.ident != name {
-            return false;
-        }
-        match &segment.arguments {
-            PathArguments::AngleBracketed(ab) if !ab.args.is_empty() => {
-                if let Some(GenericArgument::Type(inner)) = ab.args.get(0) {
-                    cur = inner;
-                    continue;
-                }
-                return false;
-            }
-            _ => {
-                if i + 1 != seq.len() {
-                    return false;
-                }
-            }
-        }
-    }
-    true
-}
-
-fn is_string(ty: &syn::Type) -> bool {
-    is_type_seq(ty, &["String"])
-}
-
-fn is_datatable(ty: &syn::Type) -> bool {
-    is_type_seq(ty, &["Vec", "Vec", "String"])
-}
-
-pub(crate) fn is_cached_table(ty: &syn::Type) -> bool {
-    is_type_seq(ty, &["CachedTable"])
-}
-
-fn should_classify_as_datatable(pat: &syn::Ident, ty: &syn::Type) -> bool {
-    pat == "datatable" && (is_datatable(ty) || is_cached_table(ty))
 }
 
 /// Detect and strip a marker attribute (e.g. `#[datatable]`) from `arg`.
@@ -165,17 +137,36 @@ pub(super) fn extract_flag_attribute(arg: &mut syn::PatType, attr_name: &str) ->
     Ok(found)
 }
 
+/// Outcome of a successful [`match_named_flag`] call.
 struct FlagMatch {
+    /// Whether the match came from the marker attribute rather than the
+    /// canonical name/type shape. Callers use this to apply rules that only
+    /// bind to the explicit form, such as rejecting `#[datatable]` on the
+    /// reserved `docstring` parameter.
     via_attr: bool,
 }
 
+/// The two ways a reserved parameter may be recognized, plus its diagnostic.
+///
+/// Parameterizes [`match_named_flag`] so `DataTable` and `DocString` share one
+/// matching routine: each supplies its own marker attribute (or none), its
+/// canonical identifier, the type predicate for the canonical form, and the
+/// error text used when the name matches but the type does not.
 struct FlagMatchConfig<F>
 where
     F: Fn(&syn::Ident, &syn::Type) -> bool,
 {
+    /// Marker attribute that opts a parameter in explicitly, or `None` for a
+    /// parameter kind recognized only by its canonical name and type. When
+    /// present it is stripped from the parameter during matching.
     attr_name: Option<&'static str>,
+    /// Reserved identifier for this parameter kind, used to detect a
+    /// right-name/wrong-type parameter and report `wrong_type_msg`.
     canonical_name: &'static str,
+    /// Predicate recognizing the canonical name-and-type shape.
     canonical_check: F,
+    /// Diagnostic emitted when the parameter uses `canonical_name` but
+    /// `canonical_check` rejects its type.
     wrong_type_msg: &'static str,
 }
 
@@ -183,6 +174,7 @@ impl<F> FlagMatchConfig<F>
 where
     F: Fn(&syn::Ident, &syn::Type) -> bool,
 {
+    /// Bundle the matching rules for one reserved parameter kind.
     fn new(
         attr_name: Option<&'static str>,
         canonical_name: &'static str,
@@ -198,6 +190,25 @@ where
     }
 }
 
+/// Recognize a reserved parameter by marker attribute or canonical shape.
+///
+/// Checks the marker attribute first, stripping it from `arg` in place when
+/// `config.attr_name` is set — a mutation that persists even when this function
+/// subsequently returns an error. Then tests the canonical name-and-type shape.
+/// A parameter matching either way yields `Some`, recording in
+/// [`FlagMatch::via_attr`] which route matched.
+///
+/// Returns `Ok(None)` when the parameter is unrelated to this kind, leaving it
+/// for the next classifier.
+///
+/// # Errors
+///
+/// Returns an error when the parameter uses the reserved `canonical_name` but
+/// its type fails `canonical_check` — a right-name/wrong-type parameter is
+/// reported as `config.wrong_type_msg` rather than silently falling through to
+/// be treated as a fixture. Also propagates marker-attribute validation
+/// failures from [`extract_flag_attribute`], such as a marker carrying
+/// arguments or appearing twice.
 fn match_named_flag<F>(
     arg: &mut syn::PatType,
     pat: &syn::Ident,
@@ -312,10 +323,6 @@ pub(super) fn classify_datatable(
     Ok(true)
 }
 
-fn is_docstring_canonical(pat: &syn::Ident, ty: &syn::Type) -> bool {
-    pat == "docstring" && is_string(ty)
-}
-
 /// Classify `arg` as the step’s `DocString` parameter, if it matches.
 ///
 /// A parameter matches when it is the canonical `docstring: String` shape.
@@ -367,6 +374,8 @@ pub(super) fn classify_docstring(
     st.docstring_idx = Some(idx);
     Ok(true)
 }
+#[cfg(test)]
+mod prop_tests;
 #[cfg(test)]
 mod tests;
 

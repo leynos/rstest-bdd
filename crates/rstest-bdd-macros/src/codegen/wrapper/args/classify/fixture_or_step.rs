@@ -10,10 +10,21 @@ use super::{Arg, normalize_param_name};
 
 /// Extract the fixture name from a `#[from(...)]` attribute, if present.
 ///
-/// Mutates `arg.attrs` in place, removing every `#[from]` attribute so the
-/// generated wrapper does not re-emit it. Returns the explicit fixture
-/// identifier from `#[from(name)]`, or `None` for a bare `#[from]` or no
-/// attribute.
+/// Returns the explicit fixture identifier from `#[from(name)]`, or `None` for
+/// a bare `#[from]` or no attribute at all.
+///
+/// # Mutation contract
+///
+/// On successful extraction the consumed `#[from(...)]` attribute is removed
+/// from [`syn::PatType::attrs`] in place, so the generated wrapper does not
+/// re-emit an attribute the compiler would reject in that position.
+///
+/// Stripping is unconditional rather than success-only: every `#[from]`
+/// attribute is removed before any error is returned, because the scan that
+/// removes them is also the scan that detects duplicates. A caller that
+/// recovers from an error therefore sees `arg.attrs` already cleared of
+/// `#[from]`, not restored to its original state. Only `#[from]` attributes are
+/// touched; any other attribute on the parameter is left in place and in order.
 ///
 /// # Errors
 ///
@@ -197,11 +208,23 @@ fn classify_by_placeholder_match(
 
 /// Classify `arg` as a step argument (placeholder match) or fixture.
 ///
-/// Consumes any `#[from(...)]` attribute on `arg` (stripping it in place via
-/// [`parse_from_attribute`]) to determine the lookup name, then claims a
-/// matching placeholder from `ctx.placeholders` or falls back to fixture
-/// injection. Always returns `Ok(true)`: this is the terminal classifier in
-/// the pipeline.
+/// Consumes any `#[from(...)]` attribute on `arg` to determine the lookup name,
+/// then claims a matching placeholder from `ctx.placeholders` or falls back to
+/// fixture injection. Always returns `Ok(true)`: this is the terminal classifier
+/// in the pipeline, so a parameter reaching it is claimed either as a step
+/// argument or as a fixture, and `Ok(false)` is never returned. A caller must
+/// therefore treat an error as the only non-claiming outcome.
+///
+/// # Mutation contract
+///
+/// Mutates both `arg` and `ctx`:
+///
+/// - Any `#[from]` attribute is removed from [`syn::PatType::attrs`] in place
+///   via [`parse_from_attribute`], including on the error paths.
+/// - A matched placeholder is removed from `ctx.placeholders`, so it cannot bind
+///   a second parameter.
+/// - The resulting [`Arg::Step`] or [`Arg::Fixture`] is appended to
+///   `ctx.extracted`.
 ///
 /// # Errors
 ///
