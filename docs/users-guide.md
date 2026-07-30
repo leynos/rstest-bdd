@@ -1410,7 +1410,7 @@ single Whitaker lint now while deferring the full Whitaker suite.
 When migrating a large test suite, factor the whole durable-handle **step
 library** — the `#[given]`/`#[when]`/`#[then]` steps together with the state
 scaffolding — into one shared module per consuming crate, rather than copying
-it into every test file. This is the v0.6.0 shape, and it is deliberately
+it into every test file. This is the beta shape, and it is deliberately
 explicit. Once roadmap items 10.3.1 and 10.3.2 ship (`ScenarioStore<T>` and the
 cleanup-guard fixture macro), the shared block shrinks to a single import and
 the `#[scenario]` cleanup parameter is generated for you. Adopt the pattern now
