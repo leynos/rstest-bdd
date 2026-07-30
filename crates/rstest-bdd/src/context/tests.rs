@@ -94,10 +94,19 @@ macro_rules! assert_unique_fixture_can_be_overridden_twice {
             "an insert that displaced nothing should yield no previous override"
         );
 
-        let Some(second) = $ctx.insert_value(Box::new(7u32)).into_previous() else {
+        let second = $ctx.insert_value(Box::new(7u32));
+        assert!(
+            second.is_inserted(),
+            "an override that displaced an earlier one should report is_inserted"
+        );
+        assert!(
+            matches!(&second, InsertOutcome::Inserted(Some(_))),
+            "second override should insert and carry the displaced value"
+        );
+        let Some(displaced) = second.into_previous() else {
             panic!("expected previous override to be returned");
         };
-        let Ok(previous) = second.downcast::<u32>() else {
+        let Ok(previous) = displaced.downcast::<u32>() else {
             panic!("override should downcast to u32");
         };
         assert_eq!(*previous, 5);

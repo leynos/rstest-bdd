@@ -126,6 +126,7 @@ fn run_failing_ui_tests(t: &trybuild::TestCases) {
         UiFixtureCase::from("implicit_fixture_missing.rs"),
         UiFixtureCase::from("placeholder_missing_params.rs"),
         UiFixtureCase::from("return_override_result_requires_result.rs"),
+        UiFixtureCase::from("insert_value_must_use.rs"),
     ] {
         t.compile_fail(ui_fixture(case).as_std_path());
     }
