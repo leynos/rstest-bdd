@@ -220,8 +220,8 @@ normal default root, so the gate always covers the working repository.
 - Unit and Hypothesis property tests live in
   `scripts/tests/test_check_users_guide_links.py`. Hypothesis exercises the
   slug-generation invariants (anchors stay lowercase, contain no spaces, use
-  only word characters and hyphens, and are idempotent) and fenced-code
-  heading handling, where generated headings expose parser edge cases that
+  only word characters and hyphens, and are idempotent) and fenced-code heading
+  handling, where generated headings expose parser edge cases that
   example-based cases miss.
 - Cuprum subprocess/CLI integration tests live in
   `scripts/tests/test_check_users_guide_links_cli.py`. They verify
@@ -241,8 +241,7 @@ absolute link can ship downstream undetected; manual review does not give
 deterministic drift detection. Its scope is limited to repository-reference
 link definitions in `docs/users-guide.md`, rather than expanding to every
 documentation cross-reference in the repository. See
-[ADR-014](adr-014-retain-users-guide-link-validator.md) for the decision
-record.
+[ADR-014](adr-014-retain-users-guide-link-validator.md) for the decision record.
 
 ## GPUI mapping-table validation (`scripts/check_gpui_mapping_table.py`)
 
@@ -971,16 +970,15 @@ policy `P`:
 3. **rstest is first** — the first attribute path is `rstest::rstest`, so
    fixture expansion precedes the runtime-specific test macro.
 
-Harness adapter crates (`rstest-bdd-harness-tokio`,
-`rstest-bdd-harness-gpui`, and any future adapter) must exercise their policy
-through this helper, supplying only the crate-specific expected rendered
-attributes; do not re-implement the emit/render/ordering assertions per
-crate. New harness crates get the policy contract for free by calling the
-helper from one `#[test]`.
+Harness adapter crates (`rstest-bdd-harness-tokio`, `rstest-bdd-harness-gpui`,
+and any future adapter) must exercise their policy through this helper,
+supplying only the crate-specific expected rendered attributes; do not
+re-implement the emit/render/ordering assertions per crate. New harness crates
+get the policy contract for free by calling the helper from one `#[test]`.
 
 The GPUI adapter's library target sets `test = false`, so an in-module
-`#[cfg(test)]` block there would never be compiled or run. Its conformance
-test therefore lives in the `tests/attribute_policy_behaviour.rs` integration
+`#[cfg(test)]` block there would never be compiled or run. Its conformance test
+therefore lives in the `tests/attribute_policy_behaviour.rs` integration
 target, exercised under `--all-features` (which enables the crate's
 `native-gpui-tests` feature) — the arrangement `make test` uses.
 
@@ -989,9 +987,9 @@ target, exercised under `--all-features` (which enables the crate's
 `crates/rstest-bdd-patterns/src/keyword.rs` drives the string ↔ `StepKeyword`
 correspondence from a single `keyword_table![...]` invocation — the list of
 `(rendering, variant)` pairs and the true source of truth. That macro generates
-the `KEYWORDS` const table consumed by `StepKeyword::from_str` (case-insensitive,
-whitespace-trimming parsing) and the match inside `StepKeyword::as_str`
-(rendering), so neither side carries its own literal list.
+the `KEYWORDS` const table consumed by `StepKeyword::from_str`
+(case-insensitive, whitespace-trimming parsing) and the match inside
+`StepKeyword::as_str` (rendering), so neither side carries its own literal list.
 
 - **Adding or renaming a keyword:** edit the `keyword_table![...]` invocation
   (and the enum variant) only — not the generated `KEYWORDS` const. Do not add

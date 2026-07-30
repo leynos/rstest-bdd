@@ -66,8 +66,8 @@ remain outside its remit.
 
 The vendored guide is the one document in this repository whose links are
 consumed outside it, so it is the one document where link rot escapes the
-normal feedback loop. That asymmetry — not link hygiene in general — justifies a
-dedicated check. Restricting the validator to that document keeps the cost
+normal feedback loop. That asymmetry — not link hygiene in general — justifies
+a dedicated check. Restricting the validator to that document keeps the cost
 proportionate to the risk it addresses, and keeps the failure mode legible:
 when the gate fails, it names the offending definition and why.
 
@@ -95,8 +95,8 @@ Cons:
 - Detection moves downstream, where it is slowest and most expensive.
 - The maintenance saved is small — the script's contract is narrow and stable.
 
-Rejected: the saving is marginal, and it is paid for with the only deterministic
-detection mechanism available.
+Rejected: the saving is marginal, and it is paid for with the only
+deterministic detection mechanism available.
 
 ### Option B: expand the validator to all documentation links
 
