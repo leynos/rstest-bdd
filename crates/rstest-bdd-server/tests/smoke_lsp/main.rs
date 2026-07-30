@@ -6,6 +6,7 @@
 //! JSON-RPC communication, indexing pipeline, handler responses, and
 //! graceful shutdown.
 
+mod clearing;
 mod wire;
 
 use std::io::BufReader;

@@ -890,6 +890,48 @@ feature-gated regression suite in
 `crates/rstest-bdd-harness-gpui/tests/scenario_name_in_logs.rs` apply the
 attribute to every `GpuiHarness::run`-driving test.
 
+## Canonical diagnostic publish path
+
+All Language Server Protocol (LSP) diagnostic publishing in `rstest-bdd-server`
+flows through the canonical `publish_with` helper in
+`crates/rstest-bdd-server/src/handlers/diagnostics/publish.rs`. It owns the
+publish boundary exactly once: the client-socket guard, the
+path-to-URI guard, `PublishDiagnosticsParams` construction, the
+`textDocument/publishDiagnostics` notification, and failure logging.
+
+- **Ownership:** the diagnostics handler layer owns the helper; it is private
+  to the `diagnostics::publish` module.
+- **Permitted call-sites:** the public per-file-kind functions
+  (`publish_feature_diagnostics`, `publish_rust_diagnostics`, and any future
+  variant). New diagnostic publishers must delegate to `publish_with` with a
+  compute closure rather than re-implementing the guards or notify call.
+- **Composition rules:** the compute closure returns
+  `Option<Vec<Diagnostic>>` — `None` skips publishing entirely (used when a
+  feature file has no index, preserving previously published diagnostics),
+  while `Some(vec![])` still publishes, so stale diagnostics are cleared.
+  `prepare_publish` separates parameter construction from the notify side
+  effect, so tests can pin payloads without a client socket.
+
+The published payloads for representative feature and Rust files are pinned
+by `insta` snapshots, and the publish invariants (count preserved, empty
+vector still published) by a property test, both in
+`handlers/diagnostics/publish.rs`. The boundary itself — that `publish_with`
+actually reaches (or, for a skip, never reaches) `ClientSocket::notify` — is
+proven through a real client socket, which `prepare_publish`-only tests cannot
+observe:
+
+- **Missing-index skip** is a transport-backed unit test in
+  `handlers/diagnostics/publish.rs`: a real `async_lsp` main loop supplies the
+  `ClientSocket`, `publish_feature_diagnostics` is called for a path with no
+  feature index, and the captured outgoing traffic contains a sentinel
+  notification but no `publishDiagnostics` — so the absent index skips the
+  whole boundary rather than clearing prior client diagnostics.
+- **Emission and empty-vector clearing** for both feature and Rust files are
+  exercised end-to-end against a live server by the `smoke_lsp` integration
+  suite: an unimplemented/unused step yields a non-empty
+  `publishDiagnostics`, and resolving it re-publishes an empty array for the
+  same URI.
+
 ## cargo-bdd scenario output formatting
 
 `crates/cargo-bdd/src/output.rs` owns the rendering of skipped-scenario and

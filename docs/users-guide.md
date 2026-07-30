@@ -2855,6 +2855,17 @@ Diagnostics are updated incrementally:
   checks for unused definitions and placeholder count mismatches in the saved
   file.
 
+When a recomputation finds nothing to report, the server publishes an empty
+diagnostic list for that file. Resolved warnings therefore clear from the
+Problems panel on the next save, rather than lingering until the editor or the
+server is restarted.
+
+A file the server has not indexed is skipped rather than cleared. A `.feature`
+file that has not been saved since the server started has no index yet, so
+saving an unrelated file leaves whatever diagnostics the editor already shows
+for it untouched instead of blanking them. Saving the file itself indexes it
+and refreshes its diagnostics.
+
 Diagnostics appear in the editor's Problems panel and as inline warnings,
 similar to compiler diagnostics. They use the source `rstest-bdd` and the codes
 listed above for filtering.
