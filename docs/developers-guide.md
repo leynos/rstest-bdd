@@ -478,8 +478,8 @@ and the `#[from = ...]` name-value form — and threads a
 `placeholders` accumulators) into `classify_by_placeholder_match()`. That
 helper first checks whether the argument maps to a step placeholder. If it does
 not, the argument is classified as a fixture. For implicit fixture arguments,
-it records the normalized fixture name so the generated wrapper asks for the
-same key that scenario fixture registration produced.
+it records the normalized fixture name, so the generated wrapper asks for
+the same key that scenario fixture registration produced.
 
 Explicit `#[from(...)]` names are authoritative and bypass normalization. Use
 that escape hatch when the intended fixture name starts with an underscore or

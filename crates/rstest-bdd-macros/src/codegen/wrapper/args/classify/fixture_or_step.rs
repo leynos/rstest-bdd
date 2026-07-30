@@ -104,10 +104,13 @@ fn from_attribute_ident(attr: &syn::Attribute) -> syn::Result<Option<syn::Ident>
 ///
 /// When a `#[step_args]` struct is present it claims a set of placeholder
 /// names (`ctx.extracted.blocked_placeholders`); binding a separate parameter
-/// to one of those names would silently shadow the struct. `target_name` must
-/// be the *normalized* lookup name (leading underscore stripped) so the check
-/// uses the same key space the placeholder set and the struct do — otherwise a
-/// parameter such as `_foo` could slip past a block on `foo`.
+/// to one of those names would silently shadow the struct. `target_name` must be
+/// the key the parameter will actually request — the normalized parameter name
+/// for an implicit fixture, or the explicit `#[from(...)]` identifier verbatim —
+/// so the check uses the same key space as the placeholder set and the struct.
+/// An implicit `_foo` must therefore be tested as `foo`, or it would slip past a
+/// block on `foo`; an explicit `#[from(_foo)]` must be tested as `_foo`, or it
+/// would be rejected by a block it does not collide with.
 ///
 /// Does not mutate `ctx`; it only inspects the accumulated state.
 ///
@@ -169,20 +172,27 @@ fn resolve_fixture_name(
 
 /// Bind `pat`/`ty` to a step-pattern placeholder or, failing that, a fixture.
 ///
-/// The lookup name is `from_name` when `#[from(...)]` was supplied, otherwise
-/// the parameter identifier; either way it is normalized (leading underscore
-/// stripped) before matching. On a placeholder hit the entry is removed from
+/// The lookup name is the explicit `#[from(...)]` identifier **verbatim** when
+/// one was supplied, and otherwise the parameter identifier with one leading
+/// underscore stripped. On a placeholder hit the entry is removed from
 /// `ctx.placeholders` and an [`Arg::Step`] is pushed; otherwise an
 /// [`Arg::Fixture`] is pushed with the name from [`resolve_fixture_name`].
+///
+/// Normalization applies to the implicit name only, because only that path goes
+/// on to *record* a normalized key. An explicit `#[from(name)]` is authoritative
+/// and records `name` exactly, so matching or guarding it against a stripped
+/// form would test a key the parameter never requests: `#[from(_foo)]` would
+/// bind the placeholder `foo`, discarding the explicit name, and would be
+/// rejected by a `#[step_args]` block on `foo` it does not collide with.
 ///
 /// Mutates `ctx` in place: it removes the matched placeholder from
 /// `ctx.placeholders` and appends the classified [`Arg`] to `ctx.extracted`.
 ///
 /// # Errors
 ///
-/// Returns an error when the normalized name collides with a `#[step_args]`
-/// blocked placeholder (via [`validate_no_step_struct_conflict`]) or when a
-/// normalized fixture name is not a valid identifier (via
+/// Returns an error when the lookup name collides with a `#[step_args]` blocked
+/// placeholder (via [`validate_no_step_struct_conflict`]) or when a normalized
+/// implicit fixture name is not a valid identifier (via
 /// [`resolve_fixture_name`]).
 fn classify_by_placeholder_match(
     ctx: &mut ClassificationContext,
@@ -190,17 +200,21 @@ fn classify_by_placeholder_match(
     pat: syn::Ident,
     ty: syn::Type,
 ) -> syn::Result<()> {
-    let target = from_name.clone().unwrap_or_else(|| pat.clone());
-    let target_name = target.to_string();
-    let normalized = normalize_param_name(&target_name);
+    let pat_name = pat.to_string();
+    // Implicit name (the fallback) is normalized; an explicit `#[from(...)]`
+    // identifier is taken verbatim.
+    let lookup = from_name.as_ref().map_or_else(
+        || normalize_param_name(&pat_name).to_owned(),
+        ToString::to_string,
+    );
     // The `#[step_args]` conflict guard reads only `ctx.extracted`, so run it
     // once before the branch. Keeping it out of both arms stops the two paths
     // from diverging — the shape that previously let `_foo` skip the guard.
-    validate_no_step_struct_conflict(ctx, normalized, &pat)?;
-    if ctx.placeholders.remove(normalized) {
+    validate_no_step_struct_conflict(ctx, &lookup, &pat)?;
+    if ctx.placeholders.remove(&lookup) {
         ctx.extracted.push(Arg::Step { pat, ty });
     } else {
-        let name = resolve_fixture_name(from_name, &pat, normalized)?;
+        let name = resolve_fixture_name(from_name, &pat, &lookup)?;
         ctx.extracted.push(Arg::Fixture { pat, name, ty });
     }
     Ok(())
@@ -253,4 +267,88 @@ pub(in super::super) fn classify_fixture_or_step(
     let from_name = parse_from_attribute(arg)?;
     classify_by_placeholder_match(ctx, from_name, pat, ty)?;
     Ok(true)
+}
+
+#[cfg(test)]
+mod tests {
+    //! Regressions for the explicit-`#[from(...)]` exactness contract.
+    //!
+    //! The classifier's broader unit tests live in `classify::tests`; these two
+    //! stay beside the code because they pin the distinction that is easiest to
+    //! collapse by accident — that an explicit name is matched and guarded
+    //! verbatim, while only an implicit one is normalized.
+
+    use super::super::ExtractedArgs;
+    use super::*;
+    use proc_macro2::Span;
+    use std::collections::HashSet;
+    use syn::parse_quote;
+
+    fn ident(name: &str) -> syn::Ident {
+        syn::Ident::new(name, Span::call_site())
+    }
+
+    /// Classify `#[from(<from_name>)] state: usize` against the given state.
+    fn classify_explicit_from(
+        extracted: &mut ExtractedArgs,
+        placeholders: &mut HashSet<String>,
+        from_name: &str,
+    ) -> syn::Result<bool> {
+        let mut arg: syn::PatType = parse_quote!(state: usize);
+        let from_ident = ident(from_name);
+        arg.attrs.push(parse_quote!(#[from(#from_ident)]));
+        let ty: syn::Type = parse_quote!(usize);
+        let mut ctx = ClassificationContext::new(extracted, placeholders);
+        classify_fixture_or_step(&mut ctx, &mut arg, ident("state"), ty)
+    }
+
+    #[test]
+    fn explicit_from_name_does_not_bind_its_normalized_placeholder() {
+        let mut extracted = ExtractedArgs::default();
+        let mut placeholders = HashSet::from(["foo".to_owned()]);
+
+        let Ok(handled) = classify_explicit_from(&mut extracted, &mut placeholders, "_foo") else {
+            panic!("classification should succeed");
+        };
+
+        // `#[from(_foo)]` requests the literal `_foo` key. The placeholder `foo`
+        // is a different name, so it must survive unconsumed and the parameter
+        // must keep the explicit fixture name rather than becoming a step arg.
+        assert!(handled);
+        assert!(
+            placeholders.contains("foo"),
+            "placeholder `foo` should not be consumed by #[from(_foo)]"
+        );
+        assert!(matches!(
+            extracted.args.as_slice(),
+            [Arg::Fixture { name, .. }] if name == &ident("_foo")
+        ));
+    }
+
+    #[test]
+    fn explicit_from_name_is_guarded_verbatim_against_blocked_placeholders() {
+        let mut extracted = ExtractedArgs::default();
+        let idx = extracted.push(Arg::StepStruct {
+            pat: ident("args"),
+            ty: parse_quote!(Args),
+        });
+        extracted.step_struct_idx = Some(idx);
+        extracted.blocked_placeholders.insert("blocked".to_owned());
+        let mut placeholders = HashSet::new();
+
+        let result = classify_explicit_from(&mut extracted, &mut placeholders, "_blocked");
+
+        // The struct owns `blocked`, not `_blocked`, so an explicit request for
+        // the literal `_blocked` key does not collide with it. The implicit
+        // spelling still does, which
+        // `classify_fixture_or_step_respects_blocked_placeholders` pins.
+        assert!(
+            result.is_ok(),
+            "#[from(_blocked)] should not collide with a block on `blocked`"
+        );
+        assert!(matches!(
+            extracted.args.as_slice(),
+            [Arg::StepStruct { .. }, Arg::Fixture { name, .. }] if name == &ident("_blocked")
+        ));
+    }
 }
