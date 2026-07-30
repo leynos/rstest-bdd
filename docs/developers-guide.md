@@ -905,9 +905,12 @@ bypassed-step listings.
 - Rendered output per mode is pinned by `insta` snapshots, and the structural
   invariants (empty tag list emits no `[tags: …]` fragment; `:line` suffix
   appears only when requested and known; the leading separator newline
-  appears if and only if requested) by property tests, both in the
-  `output::tests` module
-  at `crates/cargo-bdd/src/output/tests.rs`.
+  requires both that it was requested and that at least one skipped scenario
+  is rendered) by property tests, both in the `output::tests` module at
+  `crates/cargo-bdd/src/output/tests.rs`. `write_scenarios` filters out
+  scenarios that are not `Skipped` and returns early when none remain, so
+  filtering out every skipped scenario suppresses the separator along with the
+  listing.
 
 ## Attribute-policy conformance check
 
