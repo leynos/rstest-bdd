@@ -53,8 +53,7 @@ macro_rules! keyword_table {
         impl StepKeyword {
             /// Return the keyword as a string slice.
             ///
-            /// The rendering derives from the canonical [`keyword_table!`]
-            /// entries.
+            /// The rendering derives from the canonical keyword table entries.
             ///
             /// # Examples
             ///
@@ -130,8 +129,8 @@ impl std::error::Error for StepKeywordParseError {}
 impl FromStr for StepKeyword {
     type Err = StepKeywordParseError;
 
-    /// Parse a keyword case-insensitively via the canonical [`KEYWORDS`]
-    /// table, trimming surrounding whitespace first.
+    /// Parse a keyword case-insensitively via the canonical keyword table,
+    /// trimming surrounding whitespace first.
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         let trimmed = value.trim();
         KEYWORDS
