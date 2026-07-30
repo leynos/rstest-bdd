@@ -15,33 +15,44 @@ use super::is_cached_table;
 
 /// Test whether `ty` is a chain of single-generic types naming `seq` in order.
 ///
-/// Walks the type's nested first generic argument once per entry in `seq`,
+/// Descends through each type's first generic argument once per entry in `seq`,
 /// comparing each against the *final* path segment, so both `String` and
-/// `std::string::String` match `["String"]`. The last entry is the innermost
-/// type and is the only one permitted to have no generic arguments: `seq`
-/// `["Vec", "Vec", "String"]` matches `Vec<Vec<String>>` but not `Vec<Vec<_>>`
-/// with a different leaf, nor a longer chain that runs out of arguments early.
+/// `std::string::String` match `["String"]`. `["Vec", "Vec", "String"]` matches
+/// `Vec<Vec<String>>`, but not a chain with a different leaf, nor one that runs
+/// out of nesting before the names are exhausted.
+///
+/// The final name is largely a leaf check: once it matches, the generic
+/// arguments that segment carries are not inspected, so `String<u8>` matches
+/// `["String"]` and `Vec<Vec<String>>` matches `["Vec"]`. Callers rely on this
+/// for the `CachedTable` and `String` shapes, which are matched by name alone.
+/// The one exception is a first generic argument that is a lifetime or const:
+/// `Vec<'a, String>` does *not* match `["Vec"]`. That is inherited behaviour,
+/// preserved deliberately rather than by accident — see
+/// [`has_unfollowable_generic`].
 ///
 /// Returns `false` for any non-path type (references, tuples, slices) rather
-/// than looking through it.
+/// than looking through it, and `true` for an empty `seq`, which requires
+/// nothing.
 pub(super) fn is_type_seq(ty: &syn::Type, seq: &[&str]) -> bool {
-    let mut cur = ty;
-    for (i, &name) in seq.iter().enumerate() {
-        let Some(segment) = final_path_segment(cur) else {
-            return false;
-        };
-        if segment.ident != name {
-            return false;
-        }
-        match generic_descent(segment) {
-            Some(Descent::Into(inner)) => cur = inner,
-            // A terminal segment satisfies `seq` only by being its last entry;
-            // names still outstanding mean the chain ran out of nesting early.
-            Some(Descent::Terminal) => return i + 1 == seq.len(),
-            None => return false,
-        }
+    let [name, rest @ ..] = seq else {
+        // Nothing left to require: whatever `ty` is, it satisfies the sequence.
+        return true;
+    };
+    let Some(segment) = final_path_segment(ty) else {
+        return false;
+    };
+    if segment.ident != name {
+        return false;
     }
-    true
+    if rest.is_empty() {
+        // The final name matched, and its own generic arguments are not
+        // inspected — `String<u8>` matches `["String"]`. The one exception is a
+        // first argument the walk could never follow, which the original
+        // matcher rejected even here; see `has_unfollowable_generic`.
+        return !has_unfollowable_generic(segment);
+    }
+    // Names remain, so the chain must nest one level further.
+    first_generic_type(segment).is_some_and(|inner| is_type_seq(inner, rest))
 }
 
 /// Borrow the final segment of `ty`'s path, or `None` if it is not a path type.
@@ -57,33 +68,39 @@ fn final_path_segment(ty: &syn::Type) -> Option<&syn::PathSegment> {
     path.path.segments.last()
 }
 
-/// Where the walk goes after a segment's name has matched.
-enum Descent<'a> {
-    /// The segment carries a first generic type argument to continue into.
-    Into(&'a syn::Type),
-    /// The segment has no generic argument to follow, so it can only be a leaf.
-    Terminal,
-}
-
-/// Decide whether to descend into `segment`'s first generic argument.
+/// Borrow the first generic argument of `segment`, if it is a type.
 ///
-/// Returns `Some(Descent::Into(_))` when the segment has a non-empty
-/// angle-bracketed argument list whose first entry is a type,
-/// `Some(Descent::Terminal)` when there is no argument list to follow (a bare
-/// identifier, or a parenthesized `Fn(..)` form), and `None` when arguments are
-/// present but the first is not a type — a lifetime or const, which the walk
-/// cannot follow and treats as a mismatch rather than a leaf.
-fn generic_descent(segment: &syn::PathSegment) -> Option<Descent<'_>> {
+/// Yields `None` in every case the walk cannot follow: a segment with no
+/// angle-bracketed arguments (a bare identifier, or a parenthesized `Fn(..)`
+/// form), an empty argument list, or a first argument that is a lifetime or
+/// const rather than a type. Only the *first* argument is considered, so
+/// `Result<T, E>` descends into `T`.
+fn first_generic_type(segment: &syn::PathSegment) -> Option<&syn::Type> {
     let syn::PathArguments::AngleBracketed(args) = &segment.arguments else {
-        return Some(Descent::Terminal);
+        return None;
     };
-    if args.args.is_empty() {
-        return Some(Descent::Terminal);
-    }
     match args.args.first() {
-        Some(syn::GenericArgument::Type(inner)) => Some(Descent::Into(inner)),
+        Some(syn::GenericArgument::Type(inner)) => Some(inner),
         _ => None,
     }
+}
+
+/// Whether `segment`'s first generic argument is present but not a type.
+///
+/// True only for an angle-bracketed list whose first entry is a lifetime or
+/// const — something the walk can never follow. A segment with no arguments, or
+/// an empty list, is not "unfollowable"; it is simply a leaf.
+///
+/// This exists to preserve a corner of the original matcher: it decided whether
+/// it could descend *before* asking whether any names remained, so a segment
+/// like `Vec<'a, String>` was rejected against `["Vec"]` even though the name
+/// matched and nothing further was required. Folding that check into the leaf
+/// case keeps `is_type_seq` behaviourally identical while it reads top-down.
+fn has_unfollowable_generic(segment: &syn::PathSegment) -> bool {
+    let syn::PathArguments::AngleBracketed(args) = &segment.arguments else {
+        return false;
+    };
+    matches!(args.args.first(), Some(arg) if !matches!(arg, syn::GenericArgument::Type(_)))
 }
 
 /// Test whether `ty` is `String`, the only type a `DocString` parameter accepts.
@@ -129,71 +146,92 @@ mod tests {
 
     use super::*;
     use rstest::rstest;
-    use syn::parse_quote;
+
+    /// Parse a type from source, failing loudly when a test input is malformed.
+    ///
+    /// Types are parsed directly rather than driven through macro expansion, so
+    /// a failure here is a defective test case, not a predicate bug.
+    fn ty(source: &str) -> syn::Type {
+        match syn::parse_str::<syn::Type>(source) {
+            Ok(parsed) => parsed,
+            Err(err) => panic!("test input `{source}` did not parse as a type: {err}"),
+        }
+    }
 
     #[rstest]
     // Correct chains, bare and module-qualified: only the last segment counts.
-    #[case::string(parse_quote!(String), &["String"][..], true)]
-    #[case::qualified_string(parse_quote!(std::string::String), &["String"][..], true)]
-    #[case::datatable(parse_quote!(Vec<Vec<String>>), &["Vec", "Vec", "String"][..], true)]
+    #[case::string("String", &["String"][..], true)]
+    #[case::qualified_string("std::string::String", &["String"][..], true)]
+    #[case::datatable("Vec<Vec<String>>", &["Vec", "Vec", "String"][..], true)]
     #[case::qualified_datatable(
-        parse_quote!(std::vec::Vec<std::vec::Vec<std::string::String>>),
+        "std::vec::Vec<std::vec::Vec<std::string::String>>",
         &["Vec", "Vec", "String"][..],
         true
     )]
     // Name mismatch at the first segment, and at depth.
-    #[case::wrong_root(parse_quote!(Option<String>), &["Vec", "String"][..], false)]
-    #[case::wrong_leaf_at_depth(parse_quote!(Vec<Vec<u32>>), &["Vec", "Vec", "String"][..], false)]
-    // Terminal segment reached with names still outstanding.
-    #[case::chain_too_short(parse_quote!(Vec<String>), &["Vec", "Vec", "String"][..], false)]
-    #[case::bare_root(parse_quote!(Vec), &["Vec", "String"][..], false)]
-    // A longer type than `seq` asks for still matches: the walk stops early.
-    #[case::seq_shorter_than_type(parse_quote!(Vec<Vec<String>>), &["Vec"][..], true)]
+    #[case::wrong_root("Option<String>", &["Vec", "String"][..], false)]
+    #[case::wrong_leaf_at_depth("Vec<Vec<u32>>", &["Vec", "Vec", "String"][..], false)]
+    // Nesting runs out before the names do.
+    #[case::chain_too_short("Vec<String>", &["Vec", "Vec", "String"][..], false)]
+    #[case::bare_root("Vec", &["Vec", "String"][..], false)]
+    // Leaf contract: once the final name matches, its own generic arguments are
+    // not inspected. Both cases must stay `true`.
+    #[case::seq_shorter_than_type("Vec<Vec<String>>", &["Vec"][..], true)]
+    #[case::leaf_ignores_its_generics("String<u8>", &["String"][..], true)]
     // Non-path types are never looked through, at the root or at depth.
-    #[case::reference(parse_quote!(&str), &["str"][..], false)]
-    #[case::tuple(parse_quote!((String,)), &["String"][..], false)]
-    #[case::reference_at_depth(parse_quote!(Vec<&str>), &["Vec", "str"][..], false)]
-    // Arguments present, but the first is a lifetime rather than a type.
-    #[case::lifetime_first(parse_quote!(Cow<'a, str>), &["Cow", "str"][..], false)]
+    #[case::reference("&String", &["String"][..], false)]
+    #[case::tuple("(String,)", &["String"][..], false)]
+    #[case::reference_at_depth("Vec<&str>", &["Vec", "str"][..], false)]
+    // Arguments present, but the first is a lifetime rather than a type, so the
+    // walk cannot descend when a further name still requires it.
+    #[case::lifetime_first_blocks_descent("Wrapper<'a>", &["Wrapper", "String"][..], false)]
+    #[case::lifetime_first_with_type("Cow<'a, str>", &["Cow", "str"][..], false)]
+    // Inherited corner: an unfollowable first argument is rejected even at the
+    // final name, where the leaf rule would otherwise accept it.
+    #[case::lifetime_first_at_leaf("Vec<'a, String>", &["Vec"][..], false)]
+    #[case::const_first_at_leaf("Wrapper<3>", &["Wrapper"][..], false)]
+    // An empty sequence requires nothing.
+    #[case::empty_seq("String", &[] as &[&str], true)]
+    #[case::empty_seq_non_path("&String", &[] as &[&str], true)]
     fn is_type_seq_matches_expected_shapes(
-        #[case] ty: syn::Type,
+        #[case] source: &str,
         #[case] seq: &[&str],
         #[case] expected: bool,
     ) {
-        assert_eq!(is_type_seq(&ty, seq), expected);
+        assert_eq!(is_type_seq(&ty(source), seq), expected);
     }
 
     #[rstest]
-    #[case::canonical(parse_quote!(String), true)]
-    #[case::qualified(parse_quote!(std::string::String), true)]
-    #[case::wrong(parse_quote!(usize), false)]
-    fn is_string_accepts_only_string(#[case] ty: syn::Type, #[case] expected: bool) {
-        assert_eq!(is_string(&ty), expected);
+    #[case::canonical("String", true)]
+    #[case::qualified("std::string::String", true)]
+    #[case::wrong("usize", false)]
+    fn is_string_accepts_only_string(#[case] source: &str, #[case] expected: bool) {
+        assert_eq!(is_string(&ty(source)), expected);
     }
 
     #[rstest]
-    #[case::canonical(parse_quote!(Vec<Vec<String>>), true)]
-    #[case::wrong_leaf(parse_quote!(Vec<Vec<u32>>), false)]
-    #[case::too_shallow(parse_quote!(Vec<String>), false)]
+    #[case::canonical("Vec<Vec<String>>", true)]
+    #[case::wrong_leaf("Vec<Vec<u32>>", false)]
+    #[case::too_shallow("Vec<String>", false)]
     fn is_datatable_accepts_only_nested_string_vectors(
-        #[case] ty: syn::Type,
+        #[case] source: &str,
         #[case] expected: bool,
     ) {
-        assert_eq!(is_datatable(&ty), expected);
+        assert_eq!(is_datatable(&ty(source)), expected);
     }
 
     #[rstest]
     // A `docstring` parameter matches only at type `String`; any other name is
     // not this classifier's concern regardless of type.
-    #[case::canonical("docstring", parse_quote!(String), true)]
-    #[case::wrong_type("docstring", parse_quote!(usize), false)]
-    #[case::other_name("body", parse_quote!(String), false)]
+    #[case::canonical("docstring", "String", true)]
+    #[case::wrong_type("docstring", "usize", false)]
+    #[case::other_name("body", "String", false)]
     fn is_docstring_canonical_requires_name_and_type(
         #[case] name: &str,
-        #[case] ty: syn::Type,
+        #[case] source: &str,
         #[case] expected: bool,
     ) {
         let pat = syn::Ident::new(name, proc_macro2::Span::call_site());
-        assert_eq!(is_docstring_canonical(&pat, &ty), expected);
+        assert_eq!(is_docstring_canonical(&pat, &ty(source)), expected);
     }
 }
