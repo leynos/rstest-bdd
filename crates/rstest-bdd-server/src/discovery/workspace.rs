@@ -105,19 +105,23 @@ fn find_manifest_path(path: &Path) -> Result<PathBuf, ServerError> {
 ///
 /// * `workspace_root` - The root directory of the workspace
 ///
+/// # Errors
+///
+/// Returns `ServerError::Io` when the workspace or a feature directory cannot
+/// be read, including failures encountered while iterating directory entries.
+///
 /// # Examples
 ///
 /// ```ignore
 /// use std::path::Path;
 /// use rstest_bdd_server::discovery::find_feature_files;
 ///
-/// let features = find_feature_files(Path::new("/path/to/project"));
+/// let features = find_feature_files(Path::new("/path/to/project"))?;
 /// for path in features {
 ///     println!("Found feature: {}", path.display());
 /// }
 /// ```
-#[must_use]
-pub fn find_feature_files(workspace_root: &Path) -> Vec<PathBuf> {
+pub fn find_feature_files(workspace_root: &Path) -> Result<Vec<PathBuf>, ServerError> {
     let mut features = Vec::new();
 
     // Check common feature file locations
@@ -128,26 +132,28 @@ pub fn find_feature_files(workspace_root: &Path) -> Vec<PathBuf> {
 
     for dir in &search_dirs {
         if dir.is_dir() {
-            collect_feature_files_recursive(dir, &mut features);
+            collect_feature_files_recursive(dir, &mut features)?;
         }
     }
 
     // Also search in crate subdirectories
-    search_crate_subdirectories(workspace_root, &mut features);
+    search_crate_subdirectories(workspace_root, &mut features)?;
 
-    features
+    Ok(features)
 }
 
 /// Search for feature files in crate subdirectories.
 ///
 /// Looks for `tests/features/` directories within each subdirectory of the
 /// workspace root (typical layout for multi-crate workspaces).
-fn search_crate_subdirectories(workspace_root: &Path, features: &mut Vec<PathBuf>) {
-    let Ok(entries) = std::fs::read_dir(workspace_root) else {
-        return;
-    };
+fn search_crate_subdirectories(
+    workspace_root: &Path,
+    features: &mut Vec<PathBuf>,
+) -> Result<(), ServerError> {
+    let entries = std::fs::read_dir(workspace_root)?;
 
-    for entry in entries.filter_map(Result::ok) {
+    for entry in entries {
+        let entry = entry?;
         let path = entry.path();
         if !path.is_dir() {
             continue;
@@ -158,23 +164,29 @@ fn search_crate_subdirectories(workspace_root: &Path, features: &mut Vec<PathBuf
 
         let crate_features = path.join("tests").join("features");
         if crate_features.is_dir() {
-            collect_feature_files_recursive(&crate_features, features);
+            collect_feature_files_recursive(&crate_features, features)?;
         }
     }
+
+    Ok(())
 }
 
 /// Recursively collect `.feature` files from a directory.
-fn collect_feature_files_recursive(dir: &Path, features: &mut Vec<PathBuf>) {
-    if let Ok(entries) = std::fs::read_dir(dir) {
-        for entry in entries.filter_map(Result::ok) {
-            let path = entry.path();
-            if path.is_dir() {
-                collect_feature_files_recursive(&path, features);
-            } else if path.extension().is_some_and(|ext| ext == "feature") {
-                features.push(path);
-            }
+fn collect_feature_files_recursive(
+    dir: &Path,
+    features: &mut Vec<PathBuf>,
+) -> Result<(), ServerError> {
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            collect_feature_files_recursive(&path, features)?;
+        } else if path.extension().is_some_and(|ext| ext == "feature") {
+            features.push(path);
         }
     }
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -259,7 +271,7 @@ edition = "2024"
         relative_dir: &[&str],
         filename: &str,
         content: &str,
-    ) -> io::Result<Vec<PathBuf>> {
+    ) -> Result<Vec<PathBuf>, ServerError> {
         let workspace = create_test_workspace()?;
         let mut dir = workspace.path().to_path_buf();
         for segment in relative_dir {
@@ -268,7 +280,7 @@ edition = "2024"
         fs::create_dir_all(&dir)?;
         fs::write(dir.join(filename), content)?;
 
-        Ok(find_feature_files(workspace.path()))
+        find_feature_files(workspace.path())
     }
 
     #[rstest]
@@ -278,8 +290,9 @@ edition = "2024"
         #[case] relative_dir: &[&str],
         #[case] filename: &str,
         #[case] content: &str,
-    ) -> io::Result<()> {
-        let features = create_workspace_with_feature(relative_dir, filename, content)?;
+    ) {
+        let features = create_workspace_with_feature(relative_dir, filename, content)
+            .expect("test setup and feature discovery should succeed");
 
         assert_eq!(features.len(), 1);
         assert!(
@@ -288,16 +301,46 @@ edition = "2024"
                 .expect("should have one feature")
                 .ends_with(filename)
         );
-        Ok(())
     }
 
     #[rstest]
     fn returns_empty_when_no_feature_files(create_test_workspace: io::Result<TempDir>) {
-        let features = find_feature_files(
-            create_test_workspace
-                .expect("test setup should succeed")
-                .path(),
-        );
+        let workspace = create_test_workspace.expect("test setup should succeed");
+        let features =
+            find_feature_files(workspace.path()).expect("feature discovery should succeed");
         assert!(features.is_empty());
+    }
+
+    #[test]
+    fn reports_workspace_read_failure() {
+        let missing_workspace = TempDir::new().expect("failed to create temp dir");
+        let missing_path = missing_workspace.path().to_path_buf();
+        missing_workspace
+            .close()
+            .expect("failed to remove temp dir");
+
+        let error = find_feature_files(&missing_path)
+            .expect_err("missing workspace should return an I/O error");
+
+        assert!(
+            matches!(error, ServerError::Io(ref source) if source.kind() == io::ErrorKind::NotFound)
+        );
+    }
+
+    #[test]
+    fn reports_recursive_directory_read_failure() {
+        let missing_directory = TempDir::new().expect("failed to create temp dir");
+        let missing_path = missing_directory.path().to_path_buf();
+        missing_directory
+            .close()
+            .expect("failed to remove temp dir");
+        let mut features = Vec::new();
+
+        let error = collect_feature_files_recursive(&missing_path, &mut features)
+            .expect_err("missing feature directory should return an I/O error");
+
+        assert!(
+            matches!(error, ServerError::Io(ref source) if source.kind() == io::ErrorKind::NotFound)
+        );
     }
 }
