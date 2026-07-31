@@ -105,6 +105,41 @@ trybuild scratch directory by querying `cargo metadata` for the workspace
 `Result<PathBuf, Box<dyn Error>>` and is consumed by
 `stage_trybuild_support_files` in each harness crate's `macro_compile.rs` test.
 
+## Rust documentation policy and gates
+
+The workspace denies missing documentation on Rust items and crate roots. It
+also denies broken or private intra-doc links, bare URLs, invalid HTML tags,
+invalid code-block attributes, and unescaped backticks through the
+`[workspace.lints.rust]` and `[workspace.lints.rustdoc]` tables in
+`Cargo.toml`. Workspace crates inherit these lints with
+`lints.workspace = true`; keep new modules and public APIs documented instead
+of suppressing a lint.
+
+`make lint` builds the workspace documentation after Clippy with:
+
+```makefile
+RUSTDOCFLAGS="$(RUSTDOC_FLAGS)" $(CARGO) doc --workspace --no-deps
+```
+
+The Makefile exposes the flag value as
+`RUSTDOC_FLAGS ?= --cfg docsrs -D warnings`, so callers may override it for
+diagnostics. The committed default enables `docsrs`-conditional documentation
+and promotes every Rustdoc warning to an error. `--workspace` checks every
+member crate, while `--no-deps` keeps the gate focused on documentation owned
+by this repository.
+
+`make test` separately compiles and runs documentation examples across every
+workspace crate and feature combination with:
+
+```makefile
+RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) test --doc --workspace --all-features $(BUILD_JOBS)
+```
+
+Keep the documentation build and all-feature doctest commands distinct: the
+former validates generated documentation and links under the docs.rs
+configuration, while the latter verifies that executable examples compile and
+behave as documented.
+
 ## nextest configuration (`.config/nextest.toml`)
 
 cargo-nextest reads its configuration from `.config/nextest.toml` at the

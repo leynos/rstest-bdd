@@ -303,6 +303,11 @@ mod tests {
 #[cfg(not(unix))]
 #[cfg(test)]
 mod tests {
+    //! Covers the non-Unix scenario-discovery test configuration.
+    //!
+    //! This portability guard complements the Unix-only symlink-discovery test
+    //! above when Unix symlink APIs and directory-loop semantics are absent.
+
     #[test]
     fn collects_symlinked_feature_files_without_following_directory_loops() {
         assert!(cfg!(not(unix)));
