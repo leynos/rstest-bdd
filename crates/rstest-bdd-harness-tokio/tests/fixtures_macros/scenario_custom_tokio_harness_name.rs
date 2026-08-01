@@ -4,6 +4,9 @@ use rstest_bdd_harness::{HarnessAdapter, HarnessResult, ScenarioRunRequest};
 use rstest_bdd_macros::{given, scenario, then, when};
 
 mod custom {
+    //! Defines an unrelated `TokioHarness` so the fixture proves that a
+    //! matching type name alone does not trigger the first-party fallback.
+
     use super::{HarnessAdapter, HarnessResult, ScenarioRunRequest};
 
     #[derive(Default)]

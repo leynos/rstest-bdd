@@ -119,7 +119,25 @@ pub(crate) fn first_party_adapter_fallback_warning_tokens(_: &syn::Path) -> Toke
 mod tests {
     //! Regression tests for stable fallback-token selection.
 
+    use proptest::prelude::*;
+
     use super::first_party_adapter_fallback_warning_tokens;
+
+    fn recognized_adapter_type() -> impl Strategy<Value = &'static str> {
+        prop_oneof![
+            Just("TokioHarness"),
+            Just("TokioAttributePolicy"),
+            Just("GpuiHarness"),
+            Just("GpuiAttributePolicy"),
+        ]
+    }
+
+    fn canonical_adapter_crate() -> impl Strategy<Value = &'static str> {
+        prop_oneof![
+            Just("rstest_bdd_harness_tokio"),
+            Just("rstest_bdd_harness_gpui"),
+        ]
+    }
 
     #[test]
     fn matching_custom_adapter_name_does_not_emit_warning_tokens() {
@@ -136,5 +154,67 @@ mod tests {
             &adapter_path,
             "rstest_bdd_harness_tokio"
         ));
+    }
+
+    #[test]
+    fn canonical_tokio_and_gpui_paths_are_syntactic_first_party_evidence() {
+        let cases = [
+            (
+                syn::parse_quote!(rstest_bdd_harness_tokio::TokioHarness),
+                "rstest_bdd_harness_tokio",
+            ),
+            (
+                syn::parse_quote!(rstest_bdd_harness_gpui::GpuiAttributePolicy),
+                "rstest_bdd_harness_gpui",
+            ),
+        ];
+
+        for (adapter_path, expected_crate) in cases {
+            assert!(super::path_penultimate_ident_matches(
+                &adapter_path,
+                expected_crate
+            ));
+        }
+    }
+
+    proptest! {
+        #[test]
+        fn penultimate_crate_match_is_exact_for_recognized_adapter_paths(
+            adapter_type in recognized_adapter_type(),
+            expected_crate in canonical_adapter_crate(),
+            path_shape in 0_u8..3,
+            prefix_segments in proptest::collection::vec("[a-z][a-z0-9_]{0,11}", 0..4),
+            noncanonical_suffix in "[a-z][a-z0-9_]{0,11}",
+        ) {
+            let mut segments = if path_shape == 0 {
+                Vec::new()
+            } else {
+                prefix_segments
+                    .into_iter()
+                    .map(|segment| format!("segment_{segment}"))
+                    .collect()
+            };
+            if path_shape == 1 {
+                segments.push(expected_crate.to_owned());
+            } else if path_shape == 2 {
+                segments.push(format!("custom_{noncanonical_suffix}"));
+            }
+            segments.push(adapter_type.to_owned());
+            let path_text = segments.join("::");
+            let adapter_path = syn::parse_str::<syn::Path>(&path_text)
+                .map_err(|error| TestCaseError::fail(error.to_string()))?;
+            let expected_match = adapter_path
+                .segments
+                .iter()
+                .zip(adapter_path.segments.iter().skip(1))
+                .next_back()
+                .is_some_and(|(penultimate, _terminal)| penultimate.ident == expected_crate);
+
+            prop_assert_eq!(
+                super::path_penultimate_ident_matches(&adapter_path, expected_crate),
+                expected_match
+            );
+            prop_assert_eq!(expected_match, path_shape == 1);
+        }
     }
 }
