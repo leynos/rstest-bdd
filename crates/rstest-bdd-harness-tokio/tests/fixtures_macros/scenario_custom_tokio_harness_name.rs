@@ -1,4 +1,5 @@
 //! Compile-pass fixture ensuring a custom adapter may share Tokio's type name.
+#![deny(deprecated)]
 
 use rstest_bdd_harness::{HarnessAdapter, HarnessResult, ScenarioRunRequest};
 use rstest_bdd_macros::{given, scenario, then, when};

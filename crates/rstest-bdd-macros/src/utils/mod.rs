@@ -5,3 +5,4 @@ pub(crate) mod fixtures;
 pub(crate) mod ident;
 pub(crate) mod pattern;
 pub(crate) mod result_type;
+pub(crate) mod warnings;
