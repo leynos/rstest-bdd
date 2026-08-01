@@ -57,8 +57,10 @@ compiler will surface a type error.
 Without a hint, an unresolved alias is **not** assumed to be `Result`-like: it
 is classified as a value, which is the false green recorded under
 *Consequences*. An unresolved alias therefore requires explicit handling from
-the author — spell out `Result<..>` or `rstest_bdd::StepResult<..>`, or give an
-explicit `result`/`value` hint.
+the author: a fallible alias must spell out `Result<..>` or
+`rstest_bdd::StepResult<..>`, or carry the `result` hint; `value` is only for
+an alias that deliberately returns a payload, and applying it to a genuine
+`Result` suppresses its `Err`.
 
 ## Consequences
 

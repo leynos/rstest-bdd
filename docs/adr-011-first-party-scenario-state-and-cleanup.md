@@ -188,7 +188,7 @@ alternative for the thread-local interim pattern.
 `GpuiScenarioStore` is a re-export or thin wrapper of `ScenarioStore<T>` with
 `T = GpuiWorld` (or a user-supplied type parameter), shipping with:
 
-- A `ScenarioCleanupGuard` type (the `Drop` guard).
+- A `ScenarioStateCleanup` type (the `Drop` guard).
 - A `#[fixture]`-generating macro (or a ready-made `#[fixture]` function)
   that implements the two-sided reset protocol: `reset_before_assignment()` in
   the constructor, `reset_after_scenario()` in `Drop`.
