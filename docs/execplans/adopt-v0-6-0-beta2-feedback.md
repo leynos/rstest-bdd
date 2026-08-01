@@ -460,8 +460,8 @@ Key files this plan touches or references:
 - `docs/rstest-bdd-design.md` — `§2.7` harness adapters; `§2.7.6.1` borrow
   constraint (E0499/E0502); `§2.7.6.2` interim GPUI state pattern (lines
   1947–2021, contains the divergent snippet); `§2.7.6.3` v0.6.0-beta2 quick
-  wins; `§2.7.6.4` v0.6.1 helpers; `§2.7.6.5` v0.7.0 redesign (lines 2058–2067);
-  `§3.2.2` OUT_DIR AST-caching aspiration (lines ~1277–1282).
+  wins; `§2.7.6.4` state helpers; `§2.7.6.5` v0.7.0 redesign (lines
+  2058–2067); `§3.2.2` OUT_DIR AST-caching aspiration (lines ~1277–1282).
 - `docs/users-guide.md` — "Stateful GPUI scenarios with durable handles"
   playbook (lines ~1088–1360), including "Reset protocol" (~1131) which mentions
   `#[serial]` (~1159) and the durable-handle snippets (~1264–1316).
@@ -836,13 +836,15 @@ the tolerance bound and must be re-approved.
   failure, skip) rather than leaving the contract as advisory prose.
 - Cross-version stance: the v0.6.x thread-local interim pattern (`§2.7.6.2`)
   remains supported throughout v0.6.x; `ScenarioStore<T>` is the preferred
-  additive alternative from v0.6.1; the v0.7.0 guard-based borrow redesign
-  (ADR-012) supersedes both, with a migration mapping. The ADR states this
-  explicitly so adopters know which pattern is current per release.
-- Consequences: additive and semver-compatible (v0.6.1); the GPUI re-export
-  depends on the generic core landing first.
-- Governs roadmap items: re-scoped 10.3.1/10.3.2 and a new cleanup-guard-macro
-  item. Design Doc: `§2.7.6.4`.
+  additive alternative from v0.6.0 final; the v0.7.0 guard-based borrow
+  redesign (ADR-012) supersedes both, with a migration mapping. The ADR
+  states this explicitly so adopters know which pattern is current per
+  release.
+- Consequences: additive and semver-compatible (v0.6.0 final); the GPUI
+  re-export depends on the generic core landing first.
+- Governs roadmap items: re-scoped 10.3.1 (the generic `ScenarioStore<T>`
+  core) and 10.3.2 (`GpuiScenarioStore`, the cleanup-guard fixture macro, and
+  its three-state lifecycle test). Design Doc: `§2.7.6.4`.
 
 ### ADR-012 — Guard-based `StepContext` borrowing committed for v0.7.0
 
@@ -867,8 +869,8 @@ the tolerance bound and must be re-approved.
   requesting `&mut World` directly alongside `&mut TestAppContext`, now legal
   because guard-based borrowing permits concurrent distinct-key mutable borrows.
 - Consequences: a breaking change reserved for v0.7.0 with a migration guide;
-  it supersedes the interim pattern of `§2.7.6.2`. Pairs with the v0.6.1
-  additive helper (`adr-011`) as the stepping stone.
+  it supersedes the interim pattern of `§2.7.6.2`. Pairs with the v0.6.0
+  final additive helper (`adr-011`) as the stepping stone.
 - Governs roadmap items: amended Phase 12 intro and 12.1.1. Design Doc:
   `§2.7.6.5`.
 
@@ -882,9 +884,7 @@ new item carries a finish line and a `Design Doc:` / ADR reference):
   line: the `#[scenario]`/`scenarios!` expansion registers each bound feature
   file as a Cargo rebuild dependency (per ADR-010, without embedding an absolute
   path into the artefact), and a portability-aware regression test proves a
-  `.feature`-only edit forces recompilation and a fresh failure. The item lives
-  in Phase 11 (the open v0.6.x line) rather than the delivered Phase 10, and
-  carries a recommendation to pull it forward to v0.6.0 final. Non-breaking.
+  `.feature`-only edit forces recompilation and a fresh failure. Non-breaking.
   Design Doc: `§2.7.6.6`; ADR-010.
 - Clarify delivered `10.1.4`: append that the affirmative branch shipped — the
   scenario name is embedded in the augmented panic message and tracing events

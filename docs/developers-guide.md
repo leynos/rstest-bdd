@@ -932,11 +932,11 @@ bookkeeping exactly once and applies the caller's projection to the resolved
 ## Planned internal APIs and tooling (ADR-010 to ADR-013)
 
 Three accepted-as-`Proposed` ADRs schedule internal-API and build-tooling
-changes that contributors will encounter as the v0.6.1 and v0.7.0 work lands.
-ADR-013 is already accepted and governs the current Whitaker lint gate. They
-are summarized here, so the decisions are discoverable from the developer
-guide; the ADRs remain the authoritative source, and the planning rationale
-lives in
+changes that contributors will encounter as the v0.6.0 final and v0.7.0 work
+lands. ADR-013 is already accepted and governs the current Whitaker lint
+gate. They are summarized here, so the decisions are discoverable from the
+developer guide; the ADRs remain the authoritative source, and the planning
+rationale lives in
 [`docs/execplans/adopt-v0-6-0-beta2-feedback.md`](execplans/adopt-v0-6-0-beta2-feedback.md).
 
 ### Scenario-state helpers and per-scenario cleanup (ADR-011)
