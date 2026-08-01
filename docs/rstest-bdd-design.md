@@ -2135,20 +2135,19 @@ The release strategy is therefore split by compatibility risk:
 
 ##### 2.7.6.5 v0.7.0 pre-1.0.0 redesign
 
-- **v0.7.0 / pre-1.0.0:** reserve breaking cleanups for a migration guide. The
-  main target is a `StepContext` redesign where fixture borrowing is
-  guard-based and can borrow distinct mutable fixtures concurrently. This
-  redesign is a *committed direction*, not an ambition, following the first
-  downstream GPUI adopter report confirming the thread-local workaround tax.
-  The guard-based redesign supersedes the v0.6 thread-local interim pattern and
-  the v0.6.1 `ScenarioStore<T>` helper, providing a migration path for both.
-  The decision is governed by
-  [ADR-012](adr-012-guard-based-stepcontext-borrowing.md), which includes the
-  v0.6→v0.7 migration mapping table. Other redesign candidates are typed
-  harness-context extractors that hide the reserved fixture key, configurable
-  harness construction without a `Default` requirement, a declarative
-  attribute-policy extension model, first-class world lifecycle hooks, and a
-  unified generated-test model for scenarios and outline rows.
+- **Historical v0.6 guidance:** sections 2.7.6.1 and 2.7.6.2 record the former
+  borrow constraint and its thread-local interim pattern for readers
+  maintaining 0.6.x suites. They do not describe the current architecture.
+  ADR-012's implemented v0.7 contract uses `&self` borrow methods, `try_borrow`/
+  `try_borrow_mut` with typed `FixtureBorrowError` values, opaque guards that
+  permit concurrent borrows of distinct mutable fixtures, and
+  framework-guaranteed scenario-boundary cleanup. That contract supersedes both
+  the interim pattern and the proposed `ScenarioStore<T>` helper. The remaining
+  candidates are typed harness-context extractors that hide the reserved
+  fixture key, configurable harness construction without a `Default`
+  requirement, a declarative attribute-policy extension model, first-class
+  world lifecycle hooks, and a unified generated-test model for scenarios and
+  outline rows.
 
 ##### 2.7.6.6 Feature-file rebuild invalidation
 
@@ -2874,7 +2873,15 @@ successful payloads override fixtures and errors abort the scenario. Offering a
 payload does not guarantee it is recorded: `insert_value` returns an
 `InsertOutcome` naming whether the override took effect, or was dropped because
 no fixture had that type (`NoMatch`) or several did (`AmbiguousIgnored`). See
-[ADR-015](adr-015-insert-outcome-for-step-return-overrides.md).
+[ADR-015](adr-015-insert-outcome-for-step-return-overrides.md). Once recorded,
+an override is visible through `try_borrow` and `try_borrow_mut` and takes
+precedence over the original fixture. `get::<T>` deliberately ignores override
+storage and serves shared fixtures only.
+
+For screen readers: The following sequence diagram shows the Then step
+requesting a typed fixture from `StepContext`. The context returns a shared
+reference only when a shared fixture with the requested name and type exists;
+otherwise it returns `None`.
 
 ```mermaid
 sequenceDiagram
@@ -2882,21 +2889,18 @@ sequenceDiagram
   participant Then as Then Step
   participant Ctx as StepContext
 
-  Note over Ctx: fixtures: {name->(&Any, TypeId)}<br/>values: {name->Box<Any>}
+  Note over Ctx: fixtures: {name->(&Any, TypeId)}<br/>values: ignored by get
   Then->>Ctx: get::<T>("name")
-  alt values has "name"
-    Ctx-->>Then: &T from values
-  else not in values
-    alt fixtures[name].TypeId == TypeId::of::<T>()
-      Ctx-->>Then: &T from fixture
-    else type mismatch
-      Ctx-->>Then: None
-    end
+  alt shared fixture exists and type matches
+    Ctx-->>Then: &T from fixture
+  else missing, owned, or type mismatch
+    Ctx-->>Then: None
   end
 ```
 
-Figure: When a later step requests a fixture, overrides take precedence over
-the original fixture while mismatched types yield `None`.
+Figure: `get::<T>` reads shared fixture storage only. It ignores step-return
+overrides and returns `None` for missing, owned, or type-mismatched fixtures;
+guard-based borrowing is the override-aware access path.
 
 Every wrapper function is given a unique symbol name derived from the source
 function and an atomic counter. This avoids collisions when similarly named

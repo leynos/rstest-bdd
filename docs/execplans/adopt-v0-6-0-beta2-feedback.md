@@ -31,14 +31,15 @@ After this plan is executed, a reader of the repository can observe:
    lint-clean playbooks, the nextest-and-`serial_test` interaction note, the
    bulk-migration cookbook, the first-party GPUI scenario-state helper and
    cleanup-guard macro, the definitive resolution of the ambiguous roadmap item
-   10.1.4, and the elevation of the v0.7.0 borrow redesign from "ambition" to
-   committed direction.
+   10.1.4, and the implemented v0.7.0 borrow redesign.
 2. The design document `§2.7.6.x` is *corrected* (its GPUI snippets target the
    real published `gpui 0.2.2` API, or clearly flag which gpui they target) and
    *extended* with a feature-file rebuild-invalidation subsection and a nextest
    parallelism subsection.
-3. Three new ADRs (`adr-010`, `adr-011`, `adr-012`) exist in `Proposed` status,
-   plus a tracked note addressing the lingering `Proposed` status of ADR-008.
+3. Three new ADRs (`adr-010`, `adr-011`, `adr-012`) exist. ADR-010 and ADR-011
+   remain `Proposed`; ADR-012 is `Accepted` and its guard-based borrowing
+   contract is implemented in v0.7.0. A tracked note addresses the lingering
+   `Proposed` status of ADR-008.
 4. The adoption guides carry the same corrections, so the next adopter does not
    repeat the four-shape gpui API mismatch, the lint-profile collisions, or the
    stale-feature-file confusion.
@@ -49,9 +50,10 @@ on the modified Markdown; and a CodeRabbit `coderabbit review --agent` pass on
 the branch returns no unresolved concerns.
 
 This was a planning-and-documentation deliverable, so it did not itself
-implement the code work it scheduled. ADR-010's rebuild-invalidation fix
-remains deferred to roadmap item 11.3.1 and a separate follow-up ExecPlan; all
-three ADRs retain the status recorded when this plan was delivered.
+implement the code work it scheduled. Since its completion, ADR-012 has been
+accepted and the guard-based `StepContext` contract has landed in v0.7.0.
+ADR-010's rebuild-invalidation fix remains deferred to roadmap item 11.3.1 and
+a separate follow-up ExecPlan; ADR-011 remains proposed.
 
 ## Constraints
 
@@ -73,7 +75,8 @@ escalation, not a workaround.
   title `# Architectural decision record (ADR) NNN: <title>`, then `## Status`,
   `## Date`, `## Context and problem statement`, the options/decision, and
   consequences. This plan created the ADRs in `Proposed` status and did not
-  self-accept them.
+  self-accept them. ADR-012 was subsequently accepted with its v0.7.0
+  implementation.
 - All prose uses en-GB-oxendict spelling ("-ize"/"-yse"/"-our") and obeys
   `docs/documentation-style-guide.md`, `.vale.ini`, and
   `.markdownlint-cli2.jsonc`. No Markdown file exceeds the repository line
@@ -413,10 +416,12 @@ All four observable outcomes from `Purpose / big picture` are met:
    invalidation), and new `§2.7.6.7` (test-runner parallelism matrix). Tightened
    `§3.2.2` to distinguish invalidation from caching.
 
-3. **Three new ADRs drafted in `Proposed` status.** This plan created ADR-010
-   (feature-file change detection), ADR-011 (first-party scenario-state helpers
-   and cleanup), and ADR-012 (guard-based `StepContext` borrowing), each
+3. **Three new ADRs drafted.** This plan created ADR-010 (feature-file change
+   detection), ADR-011 (first-party scenario-state helpers and cleanup), and
+   ADR-012 (guard-based `StepContext` borrowing) in `Proposed` status, each
    cross-referencing the roadmap items and design subsections they govern.
+   ADR-012 was subsequently accepted and implemented in v0.7.0; ADR-010 and
+   ADR-011 remain proposed.
 
 4. **Adoption guides carry the corrections.** `docs/users-guide.md` carries the
    gpui-version banner + mapping table, nextest/`serial_test` caveat,
@@ -499,7 +504,9 @@ Done. Findings are recorded in `Surprises & discoveries`, with sources in
 
 This stage created each ADR in `Proposed` status, following the house format.
 The prescriptive content (context, options, decision, consequences) is given in
-`Interfaces and dependencies`.
+`Interfaces and dependencies`. This records the pre-implementation snapshot:
+ADR-012 was subsequently accepted and implemented in v0.7.0, while ADR-010 and
+ADR-011 remain proposed.
 
 1. `docs/adr-010-feature-file-change-detection.md` — how compile-time scenario
    binding makes `.feature` edits visible to Cargo.
@@ -508,8 +515,8 @@ The prescriptive content (context, options, decision, consequences) is given in
    `rstest-bdd` vs GPUI-specialized re-export), and the cleanup-ordering
    contract.
 3. `docs/adr-012-guard-based-stepcontext-borrowing.md` — record the guard-based
-   borrow redesign as a committed v0.7.0 direction, with the v0.6→v0.7
-   migration mapping.
+   borrow redesign, with the v0.6→v0.7 migration mapping. That redesign is now
+   accepted and implemented in v0.7.0.
 
 Validation for Stage B: `make markdownlint` passes on the three new files; each
 ADR cross-references the roadmap item(s) and design subsection(s) it governs.
@@ -530,8 +537,9 @@ Apply, in document order, the additions and clarifications specified in
    cleanup-guard fixture macro owned by 10.3.2, referencing `adr-011`; add a
    priority note recommending they (and the rebuild fix) be pulled forward to
    v0.6.0 final, flagged as a maintainer scheduling decision.
-5. Amend the Phase 12 intro and item 12.1.1 to reference `adr-012` and state the
-   borrow redesign is a committed direction.
+5. Amend the Phase 12 intro and item 12.1.1 to reference `adr-012`. This
+   historical step recorded the redesign as a committed direction; ADR-012 is
+   now accepted and implemented in v0.7.0.
 6. Add a separable follow-up note recommending ADR-008 be moved from `Proposed`
    to `Accepted` (clearly marked as orthogonal to the GPUI feedback).
 
@@ -616,11 +624,12 @@ vsleep "$(shuf -i 45-90 -n 1)m"
 
 Acceptance is observable in the repository:
 
-- `docs/adr-010-feature-file-change-detection.md`,
-  `docs/adr-011-first-party-scenario-state-and-cleanup.md`, and
-  `docs/adr-012-guard-based-stepcontext-borrowing.md` exist in `Proposed`
-  status, follow the house format, and each cross-reference their roadmap item
-  and design subsection.
+- `docs/adr-010-feature-file-change-detection.md` and
+  `docs/adr-011-first-party-scenario-state-and-cleanup.md` exist in `Proposed`
+  status. `docs/adr-012-guard-based-stepcontext-borrowing.md` is `Accepted`,
+  and its guard-based `StepContext` contract is implemented in v0.7.0. All
+  three follow the house format and cross-reference their roadmap item and
+  design subsection.
 - `docs/roadmap.md` contains: the new feature-file rebuild item referencing
   `adr-010`; a clarified 10.1.4 naming the `scenario_name_in_logs.rs` evidence;
   the four new documentation items; re-scoped 10.3.1/10.3.2 referencing
@@ -811,33 +820,25 @@ The deferred Stage E follow-up has its own scope and tolerance bound.
   core) and 10.3.2 (`GpuiScenarioStore`, the cleanup-guard fixture macro, and
   its three-state lifecycle test). Design Doc: `§2.7.6.4`.
 
-### ADR-012 — Guard-based `StepContext` borrowing committed for v0.7.0
 
-- Status: `Proposed`.
-- Context: `StepContext::borrow_mut(&mut self, ...)` returns a guard tied to the
-  `&mut self` borrow, so a generated wrapper cannot borrow two distinct mutable
-  fixtures at once — a step requesting both `&mut TestAppContext` and
-  `&mut World` fails with `E0499`/`E0502` (design `§2.7.6.1`). This is the root
-  cause of the thread-local workaround tax every GPUI adopter pays. Roadmap
-  12.1.1 lists the redesign as a v0.7.0 *ambition*; the adopter recommends an
-  explicit ADR confirming it is a *commitment*.
-- Decision: record the guard-based redesign as a committed v0.7.0 direction:
-  `Result`-returning borrow APIs carrying `FixtureBorrowError` (11.1.1),
-  concurrent distinct-key mutable borrows, an opaque `FixtureRefMut` (12.1.2),
-  and a stable world lifecycle (12.1.3). Include the v0.6→v0.7 migration
-  mapping from the thread-local durable-handle pattern to the lifecycle hooks,
-  so adopters can plan. Mapping shape (to be drafted in full in the ADR): the
-  `thread_local! RefCell<World>` plus `reset_state_before_assignment()` maps to
-  a before-scenario lifecycle reset; the `Drop`-based `ScenarioStateCleanup`
-  fixture maps to an after-scenario cleanup hook that also fires on failure and
-  skip; and the per-step `WORLD.with(|w| w.borrow_mut())` dance maps to a step
-  requesting `&mut World` directly alongside `&mut TestAppContext`, now legal
-  because guard-based borrowing permits concurrent distinct-key mutable borrows.
-- Consequences: a breaking change reserved for v0.7.0 with a migration guide;
-  it supersedes the interim pattern of `§2.7.6.2`. Pairs with the v0.6.0 final
-  additive helper (`adr-011`) as the stepping stone.
-- Governs roadmap items: amended Phase 12 intro and 12.1.1. Design Doc:
-  `§2.7.6.5`.
+### ADR-012 — Guard-based `StepContext` borrowing implemented in v0.7.0
+
+- Status: `Accepted`.
+- Historical v0.6 context: `StepContext::borrow_mut(&mut self, ...)` tied each
+  guard to an exclusive context borrow, so wrappers could not borrow distinct
+  mutable fixtures such as `&mut TestAppContext` and `&mut World` concurrently.
+  The thread-local state and caller-managed reset patterns in `§2.7.6.1` and
+  `§2.7.6.2` record that superseded constraint; they are not the current model.
+- Implemented contract: `StepContext` provides guard-based fixture access
+  through `&self`. `try_borrow` and `try_borrow_mut` return `Result` values with
+  `FixtureBorrowError`, and opaque guards enforce borrowing per fixture, so
+  distinct mutable fixtures can be borrowed concurrently. The framework creates
+  fresh scenario context and fixtures and enforces their cleanup at the
+  scenario boundary on success, failure (unwinding), and skip.
+- Migration outcome: v0.7.0 supersedes the historical v0.6 thread-local
+  durable-handle and manual-reset workaround. Steps can request `&mut World`
+  directly alongside `&mut TestAppContext` when the fixture keys are distinct.
+- Governs roadmap items: Phase 12 items 12.1.1–12.1.3. Design Doc: `§2.7.6.5`.
 
 ### Roadmap edits (`docs/roadmap.md`)
 

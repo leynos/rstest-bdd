@@ -772,6 +772,41 @@ let world = StepContext::owned_cell(World::default());
 ctx.insert_owned::<World>("world", &world);
 ```
 
+
+### Borrowing fixtures from `StepContext`
+
+Custom step-execution plumbing can borrow fixtures through `&StepContext`.
+`try_borrow` returns an opaque `FixtureRef<T>` for shared access, while
+`try_borrow_mut` returns an opaque `FixtureRefMut<T>` for mutable access.
+Borrow state is tracked per fixture, so mutable guards for distinct fixtures
+can be held concurrently:
+
+```rust,no_run
+use rstest_bdd::{FixtureBorrowError, StepContext};
+
+
+# fn main() -> Result<(), FixtureBorrowError> {
+let mut ctx = StepContext::default();
+let counter = StepContext::owned_cell(1_u32);
+let label = StepContext::owned_cell(String::from("ready"));
+ctx.insert_owned::<u32>("counter", &counter);
+ctx.insert_owned::<String>("label", &label);
+
+let mut counter_guard = ctx.try_borrow_mut::<u32>("counter")?;
+let mut label_guard = ctx.try_borrow_mut::<String>("label")?;
+*counter_guard += 1;
+label_guard.push('!');
+drop(counter_guard);
+drop(label_guard);
+
+assert_eq!(*ctx.try_borrow::<u32>("counter")?, 2);
+
+let original = 3_u64;
+ctx.insert("number", &original);
+let outcome = ctx.insert_value(Box::new(7_u64));
+assert!(outcome.is_inserted());
+assert_eq!(*ctx.try_borrow::<u64>("number")?, 7);
+assert_eq!(ctx.get::<u64>("number"), Some(&3));
 ### Migration notes for cucumber-rs users
 
 For migrations from a cucumber `World`, map the concepts as follows:
@@ -1104,17 +1139,6 @@ path when `attributes = ...` is omitted:
 
 ```rust,no_run
 # use rstest_bdd_macros::scenario;
-#[scenario(
-    path = "tests/features/reminders.feature",
-    name = "Scheduling a reminder queues it for later delivery",
-    harness = rstest_bdd_harness_tokio::TokioHarness,
-)]
-fn queues_a_scheduled_reminder() {}
-```
-
-Keep explicit `attributes = ...` only for overrides, attributes-only tests, or
-unrecognized paths where the default cannot be inferred.
-
 ### Using the GPUI harness
 
 The `rstest-bdd-harness-gpui` crate provides Graphical Processing User
@@ -1137,14 +1161,6 @@ when `attributes = ...` is omitted:
 
 ```rust,no_run
 # use rstest_bdd_macros::scenario;
-#[scenario(
-    path = "tests/features/counter.feature",
-    name = "Increment a counter and observe GPUI context",
-    harness = rstest_bdd_harness_gpui::GpuiHarness,
-)]
-fn increment_and_observe_gpui_context() {}
-```
-
 #### GPUI panic diagnostics carry scenario context
 
 When a step running under `GpuiHarness` panics, the harness prepends the
@@ -1160,21 +1176,22 @@ against feature files. For a concrete regression example, see
 
 #### Stateful GPUI scenarios with durable handles
 
-> **Note: this is a v0.6 interim workaround.**
+> **Note: this workaround is superseded from v0.7.0.**
 >
-> The thread-local scenario-state pattern below is the recommended way to
-> share mutable GPUI state across BDD steps in `rstest-bdd` 0.6.0, but it
-> exists to work around the current `StepContext::borrow_mut` contract
-> selected by
-> [ADR-007](https://github.com/leynos/rstest-bdd/blob/main/docs/adr-007-harness-context-injection.md).
-> Sections
-> 2.7.6.2 and 2.7.6.5 of the design document
-> ([rstest-bdd design][rstest-bdd-design]) and roadmap items 12.1.x track
-> the v0.7.0 redesign that will retire the thread-local approach in favour
-> of guard-based concurrent fixture borrowing and typed harness-context
-> extractors. New code adopted on 0.6 should expect to migrate when the
-> redesign lands; do not build wider abstractions on top of the thread-local
-> shape.
+> The thread-local scenario-state pattern below worked around the
+> `StepContext::borrow_mut` contract in `rstest-bdd` 0.6.x (selected by
+> [ADR-007][adr-007]), which prevented
+> one step from borrowing two mutable fixtures (such as mutable harness
+> context plus mutable world state) at once. From v0.7.0, fixture borrowing
+> is guard-based ([ADR-012][adr-012]): steps can take `&mut` parameters for
+> distinct fixtures — including
+> `#[from(rstest_bdd_harness_context)] cx: &mut gpui::TestAppContext`
+> alongside `world: &mut UiWorld` — and the framework constructs and drops
+> scenario state at scenario boundaries, so no thread-local reset
+> discipline is required. **New code should declare ordinary `&mut` fixture
+> parameters instead of the pattern below.** The playbook is retained only
+> for projects still on 0.6.x; migrate by moving thread-local state into an
+> `rstest` fixture and deleting the reset calls.
 
 <!-- -->
 
@@ -1353,6 +1370,40 @@ defensively re-runs the reset before storing handles and observes the
 
 ```rust,no_run
 # use rstest_bdd_macros::given;
+
+#[derive(Debug, PartialEq, Eq)]
+struct UserRow {
+    name: String,
+    email: String,
+    active: bool,
+}
+
+impl DataTableRow for UserRow {
+    const REQUIRES_HEADER: bool = true;
+
+    fn parse_row(mut row: RowSpec<'_>) -> Result<Self, DataTableError> {
+        let name = row.take_column("name")?;
+        let email = row.take_column("email")?;
+        let active = row.parse_column_with(
+            "active",
+            datatable::truthy_bool,
+        )?;
+        Ok(Self { name, email, active })
+    }
+}
+
+#[given("the following users exist:")]
+fn users_exist(#[datatable] rows: Rows<UserRow>) {
+    for row in rows {
+        assert!(row.active || row.name == "Bob");
+    }
+}
+```
+
+Projects that prefer to work with raw rows can declare the argument as
+`Vec<Vec<String>>` and handle parsing manually. Both forms can co-exist within
+the same project, allowing incremental adoption of typed tables.
+
 # fn reset_state_before_assignment() {}
 # fn with_state<R>(_: impl FnOnce(&mut ()) -> R) -> R { unimplemented!() }
 #[given("a fresh GPUI window is opened")]
@@ -1446,10 +1497,9 @@ binding name is part of the contract.
 #### Where to read more
 
 - [rstest-bdd design][rstest-bdd-design] §2.7.6.1 and §2.7.6.2 explain
-  why the workaround takes this shape and what the borrow contract currently
-  allows.
-- [rstest-bdd design][rstest-bdd-design] §2.7.6.5 records the v0.7.0
-  redesign target that retires the thread-local approach.
+  why the workaround took this shape under the 0.6.x borrow contract.
+- [ADR-012][adr-012] records the v0.7.0 guard-based borrowing redesign that
+  supersedes the thread-local approach.
 - `crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` is the
   executable reference suite. Read it to confirm that the snippet here still
   matches the regression coverage.
@@ -1493,11 +1543,14 @@ contract.
 When migrating a large test suite, factor the whole durable-handle **step
 library** — the `#[given]`/`#[when]`/`#[then]` steps together with the state
 scaffolding — into one shared module per consuming crate, rather than copying
-it into every test file. This is the beta shape, and it is deliberately
-explicit. Once roadmap items 10.3.1 and 10.3.2 ship (`ScenarioStore<T>` and the
-cleanup-guard fixture macro), the shared block shrinks to a single import and
-the `#[scenario]` cleanup parameter is generated for you. Adopt the pattern now
-and expect to shrink it then.
+it into every test file. Under the v0.7 model, keep that shared module focused
+on step definitions and fixture constructors. The framework builds a fresh
+`StepContext` for each scenario and drops its owned, scenario-scoped cells at
+the scenario boundary, while ADR-012's guard-based borrowing permits concurrent
+guards for distinct mutable fixtures. Framework-owned scenario state therefore
+needs neither `ScenarioStore<T>` nor a cleanup-guard fixture macro. Fixtures
+supplied by `rstest` keep their own scopes, so an `#[once]` fixture is still
+shared as `rstest` defines it.
 
 ##### Why one shared module works
 
@@ -1567,17 +1620,25 @@ If a snippet here drifts from those, the suite wins.
 
 ##### Applying it to stateful GPUI scenarios
 
-For GPUI, the shared module holds the durable-handle library from the "Worked
-example" above: the `ScenarioState`, `thread_local!`, the two reset helpers, the
-`ScenarioStateCleanup` `Drop` guard, the `scenario_state_cleanup` fixture, and
-the `#[given]`/`#[when]`/`#[then]` steps that store `Entity<T>` and
-`AnyWindowHandle` and rebuild `VisualTestContext`. Each binding then adds
-`harness = rstest_bdd_harness_gpui::GpuiHarness` and `#[serial]` and binds the
-cleanup fixture the same module-qualified way, exactly as the single-scenario
-worked example shows. The executable reference for the GPUI half is
-`crates/rstest-bdd-harness-gpui/tests/stateful_window.rs`, so the sharing
-mechanism (this suite) and the GPUI durable-handle specifics
-(`stateful_window.rs`) are each backed by a runnable reference.
+Under v0.7, the shared GPUI module defines a regular scenario fixture whose
+world value stores durable `Entity<T>` and `AnyWindowHandle` handles, together
+with the crate's `#[given]`/`#[when]`/`#[then]` steps. A step that needs both
+sources of mutable state requests distinct fixture parameters, for example
+`#[from(rstest_bdd_harness_context)] cx: &mut gpui::TestAppContext` and
+`world: &mut UiWorld`. Guard-based borrowing permits both parameters to
+coexist, and the framework creates and drops the fixture at the scenario
+boundary on success, failure, and skip. No thread-local state, reset helper, or
+cleanup fixture is required.
+
+The durable-handle details remain the same: store `Entity<T>` and
+`AnyWindowHandle`, then rebuild `VisualTestContext` inside the step that needs
+it. The executable GPUI reference is
+`crates/rstest-bdd-harness-gpui/tests/stateful_window.rs`.
+
+**Historical v0.6.x context:** the earlier worked example used thread-local
+state, explicit reset helpers, and a `Drop` cleanup guard because its
+`StepContext` could not hold both mutable borrows. That compatibility pattern
+is retained above for projects still on v0.6.x, but it is not the v0.7 model.
 
 Those GPUI snippets are written against the *vendored* gpui. Adopters on the
 published `gpui 0.2.2` — the audience migrating real suites — should adapt them
@@ -1590,11 +1651,15 @@ after changing feature text; otherwise a stale build can mask the change.
 
 #### Test-runner parallelism and scenario state
 
-Stateful scenarios that share thread-local or process-wide state need different
-serialization tools depending on the test runner. The `#[serial]` attribute
-from the [`serial_test`](https://docs.rs/serial_test/) crate is still required
-for `cargo test` compatibility, even though cargo-nextest runs each test in a
-separate operating-system process.
+Historical v0.6.x scenarios that use thread-local state and the reset/cleanup
+protocol need different serialization tools depending on the test runner. The
+`#[serial]` attribute from the [`serial_test`](https://docs.rs/serial_test/)
+crate is required for `cargo test` compatibility, even though cargo-nextest
+runs each test in a separate operating-system process. The v0.7
+framework-managed lifecycle for ordinary scenario fixtures does not require
+serialization solely for cleanup. A suite with a separate process-wide GPUI
+constraint still needs runner-appropriate cross-process exclusion independently
+of the fixture lifecycle.
 
 | Runner                     | `#[serial]` effect         | Cross-process exclusivity      |
 | -------------------------- | -------------------------- | ------------------------------ |
@@ -1606,15 +1671,15 @@ separate operating-system process.
 Under `cargo test`, all tests in one integration-test binary run in a single
 process using multiple threads. `#[serial]` serializes tests that carry the
 same key, or all unkeyed `#[serial]` tests together, with an in-process mutex.
-Stateful GPUI scenarios therefore keep `#[serial]` so the reset protocol is
-respected when the suite runs without nextest.
+Historical v0.6.x GPUI scenarios therefore keep `#[serial]` so the reset
+protocol is respected when the suite runs without nextest.
 
 Under cargo-nextest (`cargo nextest run`, which this repository's `make test`
 target uses), each test is run in its own process. The `#[serial]` mutex is not
 contended across process boundaries, so the annotation is
-redundant-but-harmless for nextest runs. Keep it for `cargo test`; do not
-remove it just because nextest already isolates per-process thread-local state.
-The design rationale is recorded in
+redundant-but-harmless for nextest runs. Keep it for the v0.6.x compatibility
+pattern under `cargo test`; do not remove it just because nextest already
+isolates per-process thread-local state. The design rationale is recorded in
 [design-document §2.7.6.7][design-runner-parallelism], and the maintainer
 convention is summarized in [the developer guide][developer-serial-nextest].
 
@@ -2907,6 +2972,8 @@ three amigos in the specification process.
 
 [scenario-status]: https://docs.rs/rstest-bdd/latest/rstest_bdd/reporting/enum.ScenarioStatus.html
 [adr-001]: https://github.com/leynos/rstest-bdd/blob/main/docs/adr-001-async-fixtures-and-test.md
+[adr-007]: https://github.com/leynos/rstest-bdd/blob/main/docs/adr-007-harness-context-injection.md
+[adr-012]: https://github.com/leynos/rstest-bdd/blob/main/docs/adr-012-guard-based-stepcontext-borrowing.md
 [adr-013]: https://github.com/leynos/rstest-bdd/blob/main/docs/adr-013-adopt-whitaker-no-unwrap-or-else-panic.md
 [gherkin-syntax]: https://github.com/leynos/rstest-bdd/blob/main/docs/gherkin-syntax.md#section-12-the-anatomy-of-a-feature-file
 [migration-async-patterns]: https://github.com/leynos/rstest-bdd/blob/main/docs/cucumber-rs-migration-and-async-patterns.md

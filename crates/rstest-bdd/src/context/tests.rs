@@ -3,6 +3,8 @@
 use super::*;
 use std::sync::Once;
 
+mod guard_borrowing;
+
 struct NoopLogger;
 
 impl log::Log for NoopLogger {
@@ -63,18 +65,16 @@ fn borrow_mut_returns_none_for_shared_fixture() {
 /// Describes which `insert_value` scenario to test.
 #[derive(Debug, Clone, Copy)]
 enum InsertValueScenario {
-    /// One u32 fixture; `insert_value` twice expects first None, second returns previous.
+    /// One u32 fixture; two inserts report the initial and displaced outcomes.
     UniqueOverride,
-    /// Two u32 fixtures; `insert_value` returns None because type is ambiguous.
+    /// Two u32 fixtures; `insert_value` reports an ambiguous type.
     AmbiguousType,
-    /// One &str fixture; `insert_value` with u32 returns None because type is missing.
+    /// One &str fixture; `insert_value` reports that the u32 type is missing.
     MissingType,
 }
 
-/// Verifies that a unique fixture can be overridden twice via `insert_value`.
-///
-/// First call returns None, second returns the previous override, final value is correct.
 /// Assert that a unique fixture override can be replaced twice.
+/// The first call returns None; the second returns the previous, correct value.
 ///
 /// A macro rather than a helper function so that panic line numbers point at
 /// the calling test.
@@ -111,13 +111,26 @@ macro_rules! assert_unique_fixture_can_be_overridden_twice {
         };
         assert_eq!(*previous, 5);
 
-        let Some(current) = $ctx.get::<u32>("number") else {
-            panic!("retrieved fixture should exist");
+        let Ok(current) = $ctx.try_borrow::<u32>("number") else {
+            panic!("retrieved override should exist");
         };
         assert_eq!(*current, 7);
     }};
 }
 
+#[test]
+fn get_ignores_step_return_override() {
+    let fixture = 1_u32;
+    let mut ctx = StepContext::default();
+    ctx.insert("number", &fixture);
+    let _ = ctx.insert_value(Box::new(7_u32));
+    let Ok(guard) = ctx.try_borrow::<u32>("number") else {
+        panic!("inserted override should be readable");
+    };
+    assert_eq!(*guard, 7);
+    drop(guard);
+    assert_eq!(ctx.get::<u32>("number"), Some(&1));
+}
 #[rstest::rstest]
 #[case::unique_override(InsertValueScenario::UniqueOverride)]
 #[case::ambiguous_type(InsertValueScenario::AmbiguousType)]
@@ -156,8 +169,14 @@ fn insert_value_behaviour(_logger: (), #[case] scenario: InsertValueScenario) {
                 result.into_previous().is_none(),
                 "a dropped value must not yield a previous override"
             );
-            assert_eq!(ctx.get::<u32>("one"), Some(&1));
-            assert_eq!(ctx.get::<u32>("two"), Some(&2));
+            let Ok(one) = ctx.try_borrow::<u32>("one") else {
+                panic!("first fixture should remain borrowable");
+            };
+            let Ok(two) = ctx.try_borrow::<u32>("two") else {
+                panic!("second fixture should remain borrowable");
+            };
+            assert_eq!(*one, 1);
+            assert_eq!(*two, 2);
         }
         InsertValueScenario::MissingType => {
             ctx.insert("text", &fixture_text);
@@ -175,7 +194,15 @@ fn insert_value_behaviour(_logger: (), #[case] scenario: InsertValueScenario) {
                 result.into_previous().is_none(),
                 "a dropped value must not yield a previous override"
             );
-            assert!(ctx.get::<u32>("text").is_none());
+            let Err(mismatch) = ctx.try_borrow::<u32>("text") else {
+                panic!("borrowing the fixture as u32 should report a type mismatch");
+            };
+            assert_eq!(
+                mismatch,
+                FixtureBorrowError::TypeMismatch {
+                    name: "text".into()
+                }
+            );
         }
     }
 }

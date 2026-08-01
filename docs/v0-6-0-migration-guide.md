@@ -391,10 +391,11 @@ interim thread-local pattern documented under
 
 > **Note: this is a v0.6 interim shape.**
 >
-> The thread-local scenario-state pattern below works around the current
-> `StepContext::borrow_mut` contract ([ADR-007][adr-007]); §2.7.6.5 of the
-> [rstest-bdd design](rstest-bdd-design.md) and roadmap items 12.1.x track
-> the v0.7.0 redesign that will replace it.
+> The thread-local scenario-state pattern below works around the v0.6
+> `StepContext::borrow_mut` contract ([ADR-007][adr-007]). The guard-based
+> redesign recorded in
+> [ADR-012](adr-012-guard-based-stepcontext-borrowing.md) shipped in v0.7.0 and
+> supersedes this workaround.
 
 Apply this migration when an existing scenario stored a `VisualTestContext`
 between steps or relied on a non-thread-local mutable world together with
@@ -506,14 +507,17 @@ users-guide.md#stateful-gpui-scenarios-with-durable-handles
 
 ### Two mutable fixtures trigger `E0499` or `E0502`
 
-> This is a v0.6 interim workaround. The limitation is recorded in
-> [rstest-bdd design §2.7.6.1][design-borrow-constraint]; the replacement
-> borrow model is tracked in [§2.7.6.5][design-redesign] and roadmap items
-> 12.1.x.
+> This is a v0.6 interim workaround, superseded from v0.7.0. The limitation
+> is recorded in [rstest-bdd design §2.7.6.1][design-borrow-constraint]; the
+> replacement guard-based borrow model shipped with
+> [ADR-012](adr-012-guard-based-stepcontext-borrowing.md), which lets one step
+> borrow distinct mutable fixtures concurrently. Apply the workarounds below
+> only while staying on 0.6.x; on upgrade, declare ordinary `&mut` fixture
+> parameters and delete the thread-local reset discipline.
 
 The symptom is a rustc borrow-checker error in generated wrapper code, not in
 the step body itself. Two mutable fixture parameters usually produce
-[`E0499`][ rustc-e0499],
+[`E0499`][rustc-e0499],
 ``cannot borrow `*ctx` as mutable more than once at a time``. One mutable
 fixture plus one immutable fixture can produce [`E0502`][rustc-e0502],
 ``cannot borrow `*ctx` as mutable because it is also borrowed as immutable``.
@@ -600,8 +604,8 @@ the playbook redirect instead.
   constraint.
 - [rstest-bdd design §2.7.6.2][design-interim-gpui] records the interim GPUI
   state pattern.
-- [rstest-bdd design §2.7.6.5][design-redesign] tracks the v0.7.0 redesign
-  target.
+- [rstest-bdd design §2.7.6.5][design-redesign] records the guard-based redesign
+  shipped in v0.7.0.
 - [ADR-007][adr-007] records the harness-context injection contract.
 - [Stateful GPUI scenarios with durable handles][users-guide-playbook] is the
   user-guide playbook.

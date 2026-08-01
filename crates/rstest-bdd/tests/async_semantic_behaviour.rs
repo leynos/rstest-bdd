@@ -165,7 +165,9 @@ fn semantic_cleanup_step_fails(
 )]
 #[ignore = "exercised by skip_propagation_preserves_message_and_bypass_metadata"]
 #[serial]
-async fn semantic_async_skip_scenario() {
+async fn semantic_async_skip_scenario(
+    #[from(semantic_cleanup_probe)] _semantic_cleanup_probe: CleanupProbe,
+) {
     panic!("scenario body should not execute after a skip request");
 }
 
@@ -246,6 +248,7 @@ fn semantic_cleanup_failure_scenario(
 #[test]
 #[serial]
 fn skip_propagation_preserves_message_and_bypass_metadata() {
+    reset_cleanup_drops();
     let _ = drain_reports();
     semantic_async_skip_scenario();
     let skip_scenario_line = scenario_line(SKIP_SCENARIO_NAME);
@@ -270,6 +273,11 @@ fn skip_propagation_preserves_message_and_bypass_metadata() {
         forced_failure = false,
     );
     assert_eq!(details.message(), Some("semantic async skip message"));
+    assert_eq!(
+        cleanup_drops(),
+        1,
+        "fixtures should be dropped exactly once after skip handling completes",
+    );
 
     #[cfg(feature = "diagnostics")]
     assert_bypassed_step_recorded(BypassedStepQuery {
