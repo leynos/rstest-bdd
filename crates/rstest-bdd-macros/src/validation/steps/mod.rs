@@ -20,10 +20,13 @@ use std::{
 
 use crate_id::{current_crate_id, normalize_crate_id};
 use messages::{format_ambiguous_step_error, format_missing_step_error};
-#[cfg(not(test))]
-use proc_macro_error2::emit_warning;
 
-use crate::{StepKeyword, parsing::feature::ParsedStep, pattern::MacroPattern};
+use crate::{
+    StepKeyword,
+    parsing::feature::ParsedStep,
+    pattern::MacroPattern,
+    utils::warnings::emit_warning,
+};
 
 /// Internal alias for shared implementation data.
 type Registry = HashMap<Box<str>, CrateDefs>;
@@ -249,20 +252,17 @@ fn create_strict_mode_error(missing: &[(proc_macro2::Span, String)]) -> Result<(
 }
 
 /// Emits non-strict diagnostics for missing step definitions.
-#[cfg_attr(test, expect(unused_variables, reason = "test warnings"))]
 fn emit_non_strict_warnings(missing: &[(proc_macro2::Span, String)]) {
-    #[cfg(not(test))]
     for (span, msg) in missing {
         let loc = span.start();
         if loc.line == 0 && loc.column == 0 {
-            emit_warning!(
+            emit_warning(
                 proc_macro2::Span::call_site(),
-                "rstest-bdd[non-strict]: {}",
-                msg;
-                note = "location unavailable (synthetic or default span)"
+                format!("rstest-bdd[non-strict]: {msg}"),
+                Some("location unavailable (synthetic or default span)"),
             );
         } else {
-            emit_warning!(*span, "rstest-bdd[non-strict]: {}", msg);
+            emit_warning(*span, format!("rstest-bdd[non-strict]: {msg}"), None);
         }
     }
 }
