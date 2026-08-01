@@ -38,10 +38,9 @@ mod native {
 
     use rstest_bdd_macros::{given, scenario, then, when};
     use serial_test::serial;
-    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     static CONTEXT_POINTER: AtomicUsize = AtomicUsize::new(0);
-    static CONTEXT_MUTATED: AtomicBool = AtomicBool::new(false);
 
     #[given("the inferred GPUI context is observed")]
     async fn inferred_gpui_context_is_observed(
@@ -50,7 +49,6 @@ mod native {
         // Receiving the reserved harness-context fixture proves the
         // inferred policy + harness pairing injected the GPUI context.
         CONTEXT_POINTER.store(std::ptr::from_ref(context) as usize, Ordering::SeqCst);
-        CONTEXT_MUTATED.store(false, Ordering::SeqCst);
         assert!(context.test_function_name().is_none());
         assert!(
             !context.did_prompt_for_new_path(),
@@ -68,7 +66,7 @@ mod native {
             CONTEXT_POINTER.load(Ordering::SeqCst),
             "harness should inject one stable TestAppContext instance"
         );
-        CONTEXT_MUTATED.store(true, Ordering::SeqCst);
+        context.add_window_view(|_| ());
         std::future::ready(()).await;
     }
 
@@ -81,9 +79,10 @@ mod native {
             CONTEXT_POINTER.load(Ordering::SeqCst),
             "later steps should observe the same injected TestAppContext"
         );
-        assert!(
-            CONTEXT_MUTATED.load(Ordering::SeqCst),
-            "the mutation step should run before the final context assertion"
+        assert_eq!(
+            context.windows().len(),
+            1,
+            "later steps should observe the window added through the GPUI context"
         );
         assert!(
             !context.did_prompt_for_new_path(),

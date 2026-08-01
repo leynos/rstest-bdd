@@ -13,7 +13,7 @@ use std::rc::Rc;
 #[path = "../src/test_utils.rs"]
 mod test_utils;
 
-use test_utils::{FailingHarness, STD_HARNESS_PANIC_MESSAGE, panic_payload_matches};
+use test_utils::{STD_HARNESS_PANIC_MESSAGE, panic_payload_matches};
 
 #[fixture]
 fn default_metadata() -> ScenarioMetadata {
@@ -101,6 +101,19 @@ impl HarnessAdapter for StdRuntimeBuildFailureProbeHarness {
     fn run<T>(&self, _request: StdScenarioRunRequest<'_, T>) -> HarnessResult<T> {
         Err(HarnessError::RuntimeBuildFailed(io::Error::other(
             "std probe failure",
+        )))
+    }
+}
+
+#[derive(Debug, Default)]
+struct FailingHarness;
+
+impl HarnessAdapter for FailingHarness {
+    type Context = ();
+
+    fn run<T>(&self, _request: StdScenarioRunRequest<'_, T>) -> HarnessResult<T> {
+        Err(HarnessError::RuntimeBuildFailed(io::Error::other(
+            "synthetic harness initialization failure",
         )))
     }
 }

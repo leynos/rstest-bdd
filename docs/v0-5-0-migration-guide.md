@@ -114,8 +114,8 @@ flowchart TD
     C --> D["Move shared mutable data into<br/>scenario-local fixtures<br/>using &mut FixtureType or Slot"]
     D --> E{"Is any expensive, mostly<br/>read-only infrastructure used?"}
 
-    E -- Yes --> F["Wrap expensive, read-only infra<br/>in #once fixtures<br/>for reuse across scenarios"]
-    E -- No --> G["Keep all fixtures per-scenario<br/>without #once"]
+    E -- Yes --> F["Wrap expensive, read-only infra<br/>in #[once] fixtures<br/>for reuse across scenarios"]
+    E -- No --> G["Keep all fixtures per-scenario<br/>without #[once]"]
 
     F --> H["Ensure scenario data is recreated<br/>per scenario and does not<br/>depend on execution order"]
     G --> H

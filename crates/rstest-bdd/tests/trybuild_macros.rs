@@ -39,9 +39,9 @@ fn ui_fixture(case: impl Into<UiFixtureCase>) -> Utf8PathBuf {
 }
 
 #[test]
-fn step_macros_compile() {
+fn step_macros_compile() -> io::Result<()> {
     if env::var_os("NEXTEST_RUN_ID").is_some() {
-        return;
+        return Ok(());
     }
     // Prevent RUST_BACKTRACE from contaminating compiler diagnostic output.
     // Trybuild snapshots are compared verbatim; CI's `RUST_BACKTRACE=short`
@@ -58,13 +58,14 @@ fn step_macros_compile() {
         run_passing_macro_tests(&t);
         run_failing_macro_tests(&t);
         run_failing_ui_tests(&t);
-        run_lint_ui_tests();
+        run_lint_ui_tests()?;
         t.compile_fail(
             macros_fixture(MacroFixtureCase::from("scenarios_missing_dir.rs")).as_std_path(),
         );
         run_conditional_ordering_tests(&t);
         run_conditional_ambiguous_step_test(&t);
-    });
+        Ok(())
+    })
 }
 
 fn run_passing_macro_tests(t: &trybuild::TestCases) {
@@ -144,7 +145,7 @@ fn run_failing_ui_tests(t: &trybuild::TestCases) {
     }
 }
 
-fn run_lint_ui_tests() {
+fn run_lint_ui_tests() -> io::Result<()> {
     let cases = [
         (
             "scenario_unused_fixture_param",
@@ -157,18 +158,20 @@ fn run_lint_ui_tests() {
     ];
 
     for (bin, lint_args) in cases {
-        run_lint_ui_case(bin, lint_args);
+        run_lint_ui_case(bin, lint_args)?;
     }
+
+    Ok(())
 }
 
-fn run_lint_ui_case(bin: &str, lint_args: &[&str]) {
+fn run_lint_ui_case(bin: &str, lint_args: &[&str]) -> io::Result<()> {
     let manifest_dir = Utf8Path::new(env!("CARGO_MANIFEST_DIR"));
     let manifest_path = manifest_dir.join("tests/ui_lints/Cargo.toml");
     // Keep lint runs isolated from the workspace target directory to avoid
     // artefact/cache conflicts and cross-test contamination; this makes
     // per-bin `cargo clippy` checks deterministic.
     let target_dir = manifest_dir.join("target/tests/ui_lints_clippy");
-    let output = match Command::new("cargo")
+    let output = Command::new("cargo")
         .current_dir(manifest_dir.as_std_path())
         .env("CARGO_TARGET_DIR", target_dir.as_str())
         .arg("clippy")
@@ -179,11 +182,7 @@ fn run_lint_ui_case(bin: &str, lint_args: &[&str]) {
         .arg(bin)
         .arg("--")
         .args(lint_args)
-        .output()
-    {
-        Ok(output) => output,
-        Err(err) => panic!("failed to run cargo clippy for {bin}: {err}"),
-    };
+        .output()?;
 
     if !output.status.success() {
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -193,6 +192,8 @@ fn run_lint_ui_case(bin: &str, lint_args: &[&str]) {
             output.status, stdout, stderr
         );
     }
+
+    Ok(())
 }
 
 #[expect(

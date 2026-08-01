@@ -444,10 +444,22 @@ Go/no-go validation:
 
 - `cargo test -p rstest-bdd --test trybuild_macros step_macros_compile -- --exact`
   passes with `RUSTFLAGS="-D warnings"`.
-- `cargo test -p rstest-bdd --test scenario_harness_tokio` passes with
-  `RUSTFLAGS="-D warnings"`.
-- `cargo test -p rstest-bdd --test scenario_harness_gpui --features gpui-harness-tests`
-  passes with `RUSTFLAGS="-D warnings"`.
+- The Tokio harness-led defaults test passes:
+
+  ```sh
+  RUSTFLAGS="-D warnings" cargo test \
+    -p rstest-bdd-harness-tokio \
+    --test harness_led_defaults
+  ```
+
+- The GPUI harness-led defaults test passes:
+
+  ```sh
+  RUSTFLAGS="-D warnings" cargo test \
+    -p rstest-bdd-harness-gpui \
+    --test harness_led_defaults \
+    --features native-gpui-tests
+  ```
 
 ### Stage D: update the user guide and design doc
 
