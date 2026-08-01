@@ -13,7 +13,6 @@ mod path_resolution;
 mod test_generation;
 
 use proc_macro::TokenStream;
-use proc_macro_error2::emit_warning;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{format_ident, quote};
 use std::collections::HashSet;
@@ -23,6 +22,7 @@ use crate::parsing::feature::{extract_scenario_steps, parse_and_load_feature};
 use crate::parsing::tags::TagExpression;
 use crate::utils::errors::{error_to_tokens, normalized_dir_read_error};
 use crate::utils::ident::sanitize_ident;
+use crate::utils::warnings::emit_warning;
 
 use self::feature_discovery::collect_feature_files;
 use self::macro_args::{FixtureSpec, RuntimeMode, ScenariosArgs};
@@ -180,18 +180,22 @@ fn emit_runtime_deprecation_warning(runtime: RuntimeMode, harness: Option<&syn::
         return;
     }
     if harness.is_some() {
-        emit_warning!(
+        emit_warning(
             Span::call_site(),
             "the `runtime = \"tokio-current-thread\"` argument is \
              deprecated and redundant when an explicit `harness` is set; \
              remove the `runtime` argument"
+                .to_owned(),
+            None,
         );
     } else {
-        emit_warning!(
+        emit_warning(
             Span::call_site(),
             "the `runtime = \"tokio-current-thread\"` syntax is \
              deprecated; use \
              `harness = rstest_bdd_harness_tokio::TokioHarness` instead"
+                .to_owned(),
+            None,
         );
     }
 }

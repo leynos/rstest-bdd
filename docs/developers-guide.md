@@ -916,12 +916,21 @@ crate identifier. A path such as
 `custom::TokioHarness` must remain warning-free even when the Tokio adapter
 crate is present.
 
-`proc-macro-error2` emits the warning directly on nightly toolchains. Stable
-toolchains receive the same message through a generated deprecated item because
-procedural-macro warnings are not available there. These mechanisms are
-mutually exclusive, so each fallback reports exactly one warning. Keep the
-diagnostic text and the stable and nightly user-interface tests synchronized
-when changing this path.
+Nightly toolchains emit the diagnostic as a native procedural-macro warning.
+Stable toolchains receive the same message through a generated deprecated item
+because procedural-macro warnings are not available there. The stable
+diagnostic is a warning by default, while `#![deny(deprecated)]` escalates it
+to an error. These mechanisms are mutually exclusive, so each fallback reports
+exactly one diagnostic. Keep the diagnostic text and the stable warning,
+stable error, and nightly warning user-interface tests synchronized when
+changing this path.
+
+`utils::warnings::emit_warning` is the single internal warning boundary for
+runtime-deprecation and registry diagnostics. It uses native
+`proc_macro::Diagnostic` emission on nightly toolchains and is deliberately a
+no-op on stable toolchains and in tests. Keep those call sites behind this
+wrapper; adapter fallback diagnostics retain their separate generated
+deprecated-item path on stable toolchains.
 
 ### Third-party adapter crates
 

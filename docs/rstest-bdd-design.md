@@ -1735,11 +1735,12 @@ fallback paths. For example,
 fallback paths without the diagnostic even when the first-party adapter crate
 is present.
 
-The `codegen::adapter_fallback` module owns this diagnostic.
-`proc-macro-error2` emits it on nightly toolchains, while stable toolchains use
-a generated deprecated-item reference carrying the same message. The two paths
-are mutually exclusive, so a fallback expansion emits one warning on either
-toolchain.
+The `codegen::adapter_fallback` module owns this diagnostic. Nightly toolchains
+emit it as a native procedural-macro warning, while stable toolchains use a
+generated deprecated-item reference carrying the same message. The stable
+diagnostic is a warning by default, while `#![deny(deprecated)]` escalates it
+to an error. The two paths are mutually exclusive, so a fallback expansion
+emits exactly one diagnostic.
 
 The user-facing guidance for this feature should lead with harness-only
 first-party configuration, with explicit `attributes = ...` documented as the

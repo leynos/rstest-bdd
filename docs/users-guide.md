@@ -921,14 +921,17 @@ re-exported under different identifiers, use the canonical crate-root path (
 `rstest_bdd_harness_gpui::GpuiAttributePolicy`) or add a direct
 `rstest-bdd-harness` dependency to get the same attribute recognition.
 
-#### First-party adapter fallback warnings
+#### First-party adapter fallback diagnostics
 
-The macros warn when an unresolved Tokio or GPUI adapter path preserves the
-canonical first-party crate identifier immediately before the adapter type, as
-in `alias::rstest_bdd_harness_tokio::TokioHarness`. This can happen when a
-first-party adapter is re-exported through another module. Unrelated third-party
-paths such as `custom::TokioHarness` do not trigger the warning, even when the
-Tokio adapter crate is also a dependency.
+The macros emit one diagnostic when an unresolved Tokio or GPUI adapter path
+preserves the canonical first-party crate identifier immediately before the
+adapter type, as in
+`alias::rstest_bdd_harness_tokio::TokioHarness`. This can happen when a
+first-party adapter is re-exported through another module. Nightly emits a
+native warning. Stable emits a deprecated-item warning by default, and
+`#![deny(deprecated)]` escalates that diagnostic to an error. Unrelated
+third-party paths such as `custom::TokioHarness` do not trigger the diagnostic,
+even when the Tokio adapter crate is also a dependency.
 
 Prefer the canonical paths:
 
@@ -1571,7 +1574,7 @@ binding name is part of the contract.
 - Design-document §2.7.6.7 documents the full cargo test versus nextest matrix
   for `#[serial]` and thread-local state.
 
-#### Pedantic lint profile
+### Pedantic lint profile
 
 The snippets above are the lint-clean form used by the regression suite. The
 full Whitaker suite run by `make lint` includes `no_unwrap_or_else_panic`, so
@@ -1595,7 +1598,7 @@ trimmed or borrowed binding. For example, prefer a fresh guard name such as
 current `make lint` gate; [ADR-013][adr-013] records the current compatibility
 contract.
 
-#### Bulk-migration cookbook
+### Bulk-migration cookbook
 
 When migrating a large test suite, factor the whole durable-handle **step
 library** — the `#[given]`/`#[when]`/`#[then]` steps together with the state
@@ -1609,7 +1612,7 @@ needs neither `ScenarioStore<T>` nor a cleanup-guard fixture macro. Fixtures
 supplied by `rstest` keep their own scopes, so an `#[once]` fixture is still
 shared as `rstest` defines it.
 
-##### Why one shared module works
+#### Why one shared module works
 
 Steps register globally at binary link time through the
 [`inventory`](https://docs.rs/inventory/) crate, so every step compiled into a
@@ -1626,7 +1629,7 @@ subdirectory as ordinary modules. Mark every item a binding file references as
 `pub`, because a `#[path]`-included module is a real module boundary — the
 single-file worked example above never needed this.
 
-##### Layout
+#### Layout
 
 ```text
 tests/
@@ -1639,7 +1642,7 @@ tests/
   second_bdd.rs
 ```
 
-##### Binding a scenario
+#### Binding a scenario
 
 Each binding file includes the shared library and binds a `#[scenario]` with no
 steps of its own. Bind the shared fixture with a module-qualified
@@ -1675,7 +1678,7 @@ mirror is the trybuild fixture
 `crates/rstest-bdd/tests/fixtures_macros/scenario_bulk_migration_cookbook.rs`.
 If a snippet here drifts from those, the suite wins.
 
-##### Applying it to stateful GPUI scenarios
+#### Applying it to stateful GPUI scenarios
 
 Under v0.7, the shared GPUI module defines a regular scenario fixture whose
 world value stores durable `Entity<T>` and `AnyWindowHandle` handles, together
@@ -1706,7 +1709,7 @@ Editing only a `.feature` file does not trigger a rebuild (see design-document
 §2.7.6.6), so touch a binding `.rs` file (or run `cargo clean -p <crate>`)
 after changing feature text; otherwise a stale build can mask the change.
 
-#### Test-runner parallelism and scenario state
+### Test-runner parallelism and scenario state
 
 Historical v0.6.x scenarios that use thread-local state and the reset/cleanup
 protocol need different serialization tools depending on the test runner. The

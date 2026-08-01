@@ -39,15 +39,37 @@ fn tokio_macro_fixtures_compile() -> Result<(), Box<dyn std::error::Error>> {
     }
     for case in [
         "tests/fixtures_macros/scenario_default_policy_async_no_harness_rejected.rs",
-        "tests/fixtures_macros/scenario_attributes_alias_fallback_warning.rs",
-        "tests/fixtures_macros/scenario_harness_alias_fallback_warning.rs",
         "tests/fixtures_macros/scenario_harness_tokio_async_rejected.rs",
-        "tests/fixtures_macros/scenarios_attributes_alias_fallback_warning.rs",
-        "tests/fixtures_macros/scenarios_runtime_alias_deprecated.rs",
     ] {
         tests.compile_fail(case);
     }
+    compile_fail_stable_fallback_warnings(&tests);
+    compile_fail_runtime_deprecation_warning(&tests);
     Ok(())
+}
+
+#[rustversion::not(nightly)]
+fn compile_fail_stable_fallback_warnings(tests: &trybuild::TestCases) {
+    for case in [
+        "tests/fixtures_macros/scenario_attributes_alias_fallback_warning.rs",
+        "tests/fixtures_macros/scenario_harness_alias_fallback_warning.rs",
+        "tests/fixtures_macros/scenarios_attributes_alias_fallback_warning.rs",
+    ] {
+        tests.compile_fail(case);
+    }
+}
+
+#[rustversion::nightly]
+fn compile_fail_stable_fallback_warnings(_: &trybuild::TestCases) {}
+
+#[rustversion::nightly]
+fn compile_fail_runtime_deprecation_warning(tests: &trybuild::TestCases) {
+    tests.compile_fail("tests/fixtures_macros/nightly_runtime_deprecation_warning.rs");
+}
+
+#[rustversion::not(nightly)]
+fn compile_fail_runtime_deprecation_warning(tests: &trybuild::TestCases) {
+    tests.compile_fail("tests/fixtures_macros/scenarios_runtime_alias_deprecated.rs");
 }
 
 #[rustversion::nightly]
