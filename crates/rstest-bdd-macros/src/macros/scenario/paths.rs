@@ -53,6 +53,11 @@ fn normalize(path: &Path) -> PathBuf {
 
 #[cfg(all(test, windows))]
 mod windows_paths {
+    //! Exercises Windows-specific normalization of scenario feature paths.
+    //!
+    //! These tests complement the surrounding platform-independent path logic
+    //! with drive-relative and UNC paths that cannot be represented on Unix.
+
     use super::normalize;
     use std::path::Path;
 

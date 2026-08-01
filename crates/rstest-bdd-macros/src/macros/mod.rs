@@ -303,7 +303,6 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) 
     };
     let pattern = determine_step_pattern(attr_args.pattern, &func.sig.ident);
     #[cfg(feature = "compile-time-validation")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "compile-time-validation")))]
     crate::validation::steps::register_step(keyword, &pattern);
     let mut placeholder_summary = match placeholder_names(&pattern.value()) {
         Ok(set) => set,

@@ -12,6 +12,7 @@ APP ?= cargo-bdd
 CARGO ?= $(or $(shell command -v cargo 2>/dev/null),$(HOME)/.cargo/bin/cargo)
 BUILD_JOBS ?=
 RUST_FLAGS ?= -D warnings
+RUSTDOC_FLAGS ?= --cfg docsrs -D warnings
 CARGO_FLAGS ?= --workspace --all-targets --all-features
 CLIPPY_FLAGS ?= $(CARGO_FLAGS) -- $(RUST_FLAGS)
 MDLINT ?= $(or $(shell command -v markdownlint-cli2 2>/dev/null),$(HOME)/.bun/bin/markdownlint-cli2)
@@ -59,6 +60,7 @@ test: build-python ## Run tests with warnings treated as errors
 	else \
 		RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) test $(CARGO_FLAGS) $(BUILD_JOBS); \
 	fi
+	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) test --doc --workspace --all-features $(BUILD_JOBS)
 	# Exercise the Python documentation helpers alongside the Rust suite.
 	$(UV_ENV) $(UV) run pytest scripts/tests
 
@@ -67,6 +69,7 @@ target/%/$(APP): ## Build binary in debug or release mode
 
 lint: ## Run Clippy and the Whitaker Dylint suite with warnings denied
 	$(CARGO) clippy $(CLIPPY_FLAGS)
+	RUSTDOCFLAGS="$(RUSTDOC_FLAGS)" $(CARGO) doc --workspace --no-deps
 	$(MAKE) lint-whitaker
 	$(MAKE) lint-python
 	python3 scripts/check_rs_file_lengths.py

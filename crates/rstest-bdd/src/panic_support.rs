@@ -10,7 +10,7 @@ use crate::localization;
 /// Extracts a panic payload into a human-readable message.
 ///
 /// Attempts to downcast common primitives before falling back to an opaque
-/// description that includes the payload [`TypeId`].
+/// description that includes the payload [`std::any::TypeId`].
 ///
 /// # Examples
 /// ```

@@ -7,8 +7,6 @@
 //!   compile errors; implies `compile-time-validation`.
 //!
 //! Both features are disabled by default.
-#![cfg_attr(docsrs, feature(doc_cfg))]
-
 mod codegen;
 mod datatable;
 mod macros;
@@ -171,8 +169,9 @@ pub fn derive_scenario_state(input: TokenStream) -> TokenStream {
     scenario_state::derive(input)
 }
 
-/// Derive [`StepArgs`](rstest_bdd::step_args::StepArgs) for a struct whose
-/// fields map to pattern placeholders.
+/// Derive
+/// [`rstest_bdd::StepArgs`](https://docs.rs/rstest-bdd/latest/rstest_bdd/trait.StepArgs.html)
+/// for a struct whose fields map to pattern placeholders.
 #[proc_macro_error]
 #[proc_macro_derive(StepArgs)]
 pub fn derive_step_args(input: TokenStream) -> TokenStream {

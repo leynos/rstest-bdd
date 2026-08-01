@@ -160,7 +160,7 @@ impl fmt::Display for PlaceholderSyntaxError {
 
 impl std::error::Error for PlaceholderSyntaxError {}
 
-/// Errors that may occur when compiling a [`StepPattern`].
+/// Errors that may occur when compiling a [`crate::StepPattern`].
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum StepPatternError {

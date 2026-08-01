@@ -6,7 +6,7 @@
 
 use std::any::Any;
 
-/// Outcome of [`StepContext::insert_value`].
+/// Outcome of [`crate::StepContext::insert_value`].
 ///
 /// Distinguishes a recorded override from the two cases where the value is
 /// dropped, which a bare `Option` return previously conflated.

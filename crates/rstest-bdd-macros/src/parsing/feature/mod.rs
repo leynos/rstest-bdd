@@ -24,7 +24,6 @@ pub(crate) struct ParsedStep {
     pub docstring: Option<String>,
     pub table: Option<Vec<Vec<String>>>,
     #[cfg(feature = "compile-time-validation")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "compile-time-validation")))]
     /// Approximate span for diagnostics.
     pub(crate) span: proc_macro2::Span,
 }

@@ -101,8 +101,8 @@ fn handle_step_result(
 ///
 /// # Returns
 ///
-/// An encoded string starting with [`SKIP_NONE_PREFIX`] (no message) or
-/// [`SKIP_SOME_PREFIX`] followed by the message content.
+/// An encoded string starting with `SKIP_NONE_PREFIX` (no message) or
+/// `SKIP_SOME_PREFIX` followed by the message content.
 ///
 /// # Examples
 ///

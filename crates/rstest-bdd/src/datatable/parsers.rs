@@ -74,8 +74,8 @@ impl TruthyBoolError {
 
 /// Trims leading and trailing whitespace before parsing a value.
 ///
-/// `trimmed` delegates to [`FromStr`] implementations after normalizing the
-/// input. Errors from the inner parser are preserved.
+/// `trimmed` delegates to [`std::str::FromStr`] implementations after
+/// normalizing the input. Errors from the inner parser are preserved.
 ///
 /// # Examples
 /// ```

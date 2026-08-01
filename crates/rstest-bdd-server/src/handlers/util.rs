@@ -111,7 +111,7 @@ fn clamp_final_offset(
 
 /// Convert an LSP Position to a byte offset in the source text.
 ///
-/// This is the inverse of [`byte_offset_to_position`]. It scans the source text
+/// This is the inverse of `byte_offset_to_position`. It scans the source text
 /// to find the byte offset corresponding to the given line and character position.
 ///
 /// The LSP specification defines character positions as UTF-16 code unit offsets.
