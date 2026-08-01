@@ -1983,12 +1983,12 @@ interaction.
 > documented in the mapping table below; adapt snippets accordingly when
 > consuming the published crate.
 >
-> | Operation | Vendored gpui (regression suite + these snippets) | Published `gpui 0.2.2` (downstream adopters) |
+> | Operation | Vendored gpui | Published `gpui 0.2.2` |
 > | --- | --- | --- |
-> | `add_window_view` closure | `\|_context\| View::default()` (one argument) | `\|_window, view_cx\| View::new(view_cx)` (two arguments) |
-> | obtain window handle | `visual_cx.window_handle()` (inherent method on `VisualTestContext`) | `vcx.window_handle()` (same call, but `window_handle` is a `VisualContext` trait method, so add `use gpui::VisualContext;`) |
-> | `VisualTestContext::from_window` | returns `Option<VisualTestContext>` (`let … else { panic!(…) }`) | returns `VisualTestContext` by value (no `Option`) |
-> | `read_entity` / `update_entity` | `Option`/`Result` wrappers (`Some(1)`, `Ok(())`) | identity `type Result<T> = T`; returns `R` directly |
+> | closure arity | one argument | two arguments |
+> | window handle | inherent method | `VisualContext` trait method |
+> | `from_window` | `Option<VisualTestContext>` | `VisualTestContext` |
+> | read/update | `Option`/`Result` wrappers | direct `R` |
 >
 > *Table: Vendored-to-published gpui 0.2.2 API shape differences.*
 >

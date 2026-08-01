@@ -37,7 +37,7 @@ can also observe the mechanism working: a small executable reference suite
 binds two scenarios in two feature files to one shared step library and passes
 under `make test`.
 
-You can see success four ways:
+Success is visible in five ways:
 
 1. `docs/users-guide.md` contains an expanded "Bulk-migration cookbook"
    subsection that documents sharing the *step library* (not only the state
@@ -482,10 +482,10 @@ Key terms:
    (`crates/rstest-bdd/tests/diagnostic_unused.rs`) — shared step library
    across binaries; `crates/rstest-bdd/tests/scenario_state.rs` — `Slot<T>` +
    fixture durable state;
-   `crates/rstest-bdd/tests/third_party_harness_cookbook.rs` and
-   `crates/rstest-bdd/tests/fixtures_macros/`
-   `scenario_third_party_harness_cookbook.rs` — the runtime + trybuild mirror
-   pair; and, for the GPUI-specific reference the prose cross-links to,
+   `crates/rstest-bdd/tests/third_party_harness_cookbook.rs` and the
+   corresponding `scenario_third_party_harness_cookbook.rs` fixture — the
+   runtime + trybuild mirror pair; and, for the GPUI-specific reference the
+   prose cross-links to,
    `crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` with
    `tests/features/stateful_window.feature`.
 5. `crates/rstest-bdd/tests/trybuild_macros.rs` (function `step_macros_compile`,
