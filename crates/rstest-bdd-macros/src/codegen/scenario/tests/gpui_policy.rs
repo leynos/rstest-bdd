@@ -2,8 +2,9 @@
 
 use super::{
     RuntimeMode, ScenarioReturnKind, TestAttrPolicy, adapt_fallible_gpui_boundary,
-    generate_test_attrs, uses_gpui_test,
+    generate_test_attrs,
 };
+use crate::codegen::scenario::test_attrs::generate_test_attrs_with_boundary;
 
 #[rstest::rstest]
 #[case::with_gpui_policy_emits_gpui(
@@ -118,8 +119,9 @@ fn adapt_boundary(
     if is_async {
         signature.asyncness = Some(syn::parse_quote!(async));
     }
+    let generated_test_attrs = generate_test_attrs_with_boundary(attrs, policy, is_async);
     let body = adapt_fallible_gpui_boundary(
-        uses_gpui_test(attrs, policy),
+        generated_test_attrs.uses_gpui_boundary,
         return_kind,
         &mut signature,
         body,

@@ -11,6 +11,8 @@ static CONTEXT_MUTATED: AtomicBool = AtomicBool::new(false);
 static GPUI_POLICY_RAN: AtomicBool = AtomicBool::new(false);
 static GPUI_SCENARIOS_MACRO_RUN_COUNT: AtomicUsize = AtomicUsize::new(0);
 
+struct NonDebugScenarioError;
+
 #[gpui::test]
 fn gpui_test_preserves_declared_name(context: &gpui::TestAppContext) {
     assert_eq!(
@@ -83,6 +85,9 @@ fn plain_gpui_policy_scenario_completed() {
     );
     GPUI_POLICY_RAN.store(false, Ordering::SeqCst);
 }
+
+#[given("a fallible GPUI scenario runs")]
+fn fallible_gpui_scenario_runs() {}
 
 #[given("a GPUI scenarios macro policy run starts")]
 fn gpui_scenarios_macro_policy_run_starts() {
@@ -193,6 +198,17 @@ fn scenario_gpui_attribute_policy_without_harness() {}
 #[gpui::test]
 #[serial]
 fn scenario_gpui_attribute_policy_dedup() {}
+
+#[scenario(
+    path = "tests/features/gpui_harness.feature",
+    name = "Fallible GPUI scenario returns an error",
+    harness = rstest_bdd_harness_gpui::GpuiHarness,
+)]
+#[should_panic(expected = "scenario returned an error")]
+#[serial]
+fn fallible_gpui_scenario_error_panics() -> Result<(), NonDebugScenarioError> {
+    Err(NonDebugScenarioError)
+}
 
 scenarios!(
     "tests/features/gpui_policy_scenarios",

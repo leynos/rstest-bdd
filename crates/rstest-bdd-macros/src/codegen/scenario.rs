@@ -23,6 +23,7 @@
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
+use std::borrow::Cow;
 
 mod domain;
 mod helpers;
@@ -46,7 +47,7 @@ pub(crate) use crate::macros::scenarios::ScenariosRuntimeMode as RuntimeMode;
 use crate::macros::scenarios::ScenariosTestAttributeHint as TestAttributeHint;
 
 use crate::parsing::placeholder::contains_placeholders;
-use test_attrs::{TestAttrPolicy, generate_test_attrs, uses_gpui_test};
+use test_attrs::{TestAttrPolicy, generate_test_attrs_with_boundary};
 
 /// Return kinds supported by scenario bodies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -271,17 +272,18 @@ where
         harness: config.harness,
         attributes: config.attributes,
     };
-    let test_attrs = generate_test_attrs(config.attrs, &policy, config.runtime.is_async());
+    let generated_test_attrs =
+        generate_test_attrs_with_boundary(config.attrs, &policy, config.runtime.is_async());
+    let test_attrs = generated_test_attrs.tokens;
     let trait_assertions = generate_trait_assertions(config.harness, config.attributes);
     let attrs = config.attrs;
     let vis = config.vis;
-    let mut signature = config.sig.clone();
-    let body = adapt_fallible_gpui_boundary(
-        uses_gpui_test(config.attrs, &policy),
-        config.return_kind,
-        &mut signature,
-        body,
-    );
+    let mut signature = Cow::Borrowed(config.sig);
+    let body = if generated_test_attrs.uses_gpui_boundary && config.return_kind.is_fallible() {
+        adapt_fallible_gpui_boundary(true, config.return_kind, signature.to_mut(), body)
+    } else {
+        body
+    };
     let underscore_expect = generate_underscore_expect(&signature);
     TokenStream::from(quote! {
         #trait_assertions
@@ -369,12 +371,14 @@ where
         harness: config.harness,
         attributes: config.attributes,
     };
-    let test_attrs = generate_test_attrs(config.attrs, &policy, config.runtime.is_async());
+    let generated_test_attrs =
+        generate_test_attrs_with_boundary(config.attrs, &policy, config.runtime.is_async());
+    let test_attrs = generated_test_attrs.tokens;
     let trait_assertions = generate_trait_assertions(config.harness, config.attributes);
     let attrs = config.attrs;
     let vis = config.vis;
     let body = adapt_fallible_gpui_boundary(
-        uses_gpui_test(config.attrs, &policy),
+        generated_test_attrs.uses_gpui_boundary,
         config.return_kind,
         &mut modified_sig,
         body,

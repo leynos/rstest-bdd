@@ -19,3 +19,6 @@ Feature: GPUI harness integration
   Scenario: GPUI attribute policy runs without harness
     Given a plain GPUI policy scenario runs
     Then the plain GPUI policy scenario completed
+
+  Scenario: Fallible GPUI scenario returns an error
+    Given a fallible GPUI scenario runs

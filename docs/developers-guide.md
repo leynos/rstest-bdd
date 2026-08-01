@@ -445,11 +445,20 @@ scenarios and outlines. It changes the generated signature to return `()` and
 consumes the scenario result, panicking with a fixed message on `Err`. Unit
 scenarios and std or Tokio boundaries must bypass the helper unchanged.
 
+Scenario generators call `generate_test_attrs_with_boundary`, which owns
+attribute-policy resolution and returns both the emitted attributes and whether
+GPUI owns the outer test boundary. Keep policy resolution inside this helper so
+regular and outline generation reuse one result rather than allocating path
+segments twice. Callers outside scenario code generation should use the policy
+interfaces instead of composing this private result.
+
 Compile-pass coverage belongs to the GPUI harness crate because it supplies the
-`#[gpui::test]` boundary. Keep the synchronous and asynchronous non-`Debug`
-error cases in
+`#[gpui::test]` boundary. Keep the synchronous, asynchronous, and outline
+non-`Debug` error cases in
 `crates/rstest-bdd-harness-gpui/tests/fixtures_macros/scenario_fallible_non_debug.rs`
-registered with that crate's `macro_compile` test.
+and `scenario_fallible_outline_non_debug.rs`, registered with that crate's
+`macro_compile` test. Runtime coverage in `tests/scenario_macros.rs` must also
+execute an `Err` result and assert the fixed boundary panic.
 
 ### Bulk-migration cookbook reference suite
 
