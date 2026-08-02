@@ -1,39 +1,24 @@
 """CLI integration tests for the users-guide link checker.
 
-These tests invoke ``scripts/check_users_guide_links.py`` as a subprocess
-via cuprum, exercising the ``--root`` option and the process exit codes
-rather than the helper functions (which have their own unit tests).
+These tests invoke the ``scripts/check_users_guide_links.py`` entry point,
+exercising the ``--root`` option and exit codes rather than the helper
+functions (which have their own unit tests).
 """
 
 from __future__ import annotations
 
-import sys
 import typing as typ
-from pathlib import Path
 
 import pytest
-from check_users_guide_links import BASE_URL, GUIDE
-from cuprum import Program, ProgramCatalogue, ProjectSettings, sh
+from check_users_guide_links import BASE_URL, GUIDE, main
 
 if typ.TYPE_CHECKING:
-    from cuprum import CommandResult, SafeCmdBuilder
-
-SCRIPT: Path = Path(__file__).resolve().parents[1] / "check_users_guide_links.py"
-
-PYTHON: Program = Program(str(Path(sys.executable)))
-_PROJECT: ProjectSettings = ProjectSettings(
-    name="check-users-guide-links-tests",
-    programs=(PYTHON,),
-    documentation_locations=(),
-    noise_rules=(),
-)
-_CATALOGUE: ProgramCatalogue = ProgramCatalogue(projects=(_PROJECT,))
-_python: SafeCmdBuilder = sh.make(PYTHON, catalogue=_CATALOGUE)
+    from pathlib import Path
 
 
-def _run_checker(root: Path) -> CommandResult:
-    """Run the link checker against ``root`` and capture its output."""
-    return _python(str(SCRIPT), "--root", str(root)).run_sync()
+def _run_checker(root: Path) -> int:
+    """Run the link checker entry point against ``root``."""
+    return main(("--root", str(root)))
 
 
 def _write_guide(root: Path, markdown: str) -> None:
@@ -46,7 +31,9 @@ def _write_guide(root: Path, markdown: str) -> None:
 class TestMain:
     """End-to-end tests for the script's command-line entry point."""
 
-    def test_valid_guide_exits_zero(self, tmp_path: Path) -> None:
+    def test_valid_guide_exits_zero(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         """A guide whose repository links all resolve should exit 0."""
         (tmp_path / "docs" / "other.md").parent.mkdir(parents=True, exist_ok=True)
         (tmp_path / "docs" / "other.md").write_text(
@@ -54,59 +41,61 @@ class TestMain:
         )
         _write_guide(tmp_path, f"[other]: {BASE_URL}other.md#a-section\n")
 
-        result = _run_checker(tmp_path)
+        exit_code = _run_checker(tmp_path)
+        captured = capsys.readouterr()
 
-        assert result.exit_code == 0, (
-            f"expected exit 0, got {result.exit_code}: {result.stderr}"
-        )
-        assert not result.stderr, f"expected no stderr, got: {result.stderr}"
+        assert exit_code == 0, f"expected exit 0, got {exit_code}: {captured.err}"
+        assert not captured.err, f"expected no stderr, got: {captured.err}"
 
-    def test_missing_document_exits_one(self, tmp_path: Path) -> None:
+    def test_missing_document_exits_one(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         """A link to an absent document should exit 1 and name it."""
         (tmp_path / "docs").mkdir()
         _write_guide(tmp_path, f"[gone]: {BASE_URL}gone.md\n")
 
-        result = _run_checker(tmp_path)
+        exit_code = _run_checker(tmp_path)
+        captured = capsys.readouterr()
 
-        assert result.exit_code == 1, (
-            f"expected exit 1, got {result.exit_code}: {result.stderr}"
+        assert exit_code == 1, f"expected exit 1, got {exit_code}: {captured.err}"
+        assert "missing document" in captured.err, (
+            f"stderr should mention the missing document: {captured.err}"
         )
-        assert result.stderr is not None, "expected stderr output"
-        assert "missing document" in result.stderr, (
-            f"stderr should mention the missing document: {result.stderr}"
-        )
-        assert "docs/gone.md" in result.stderr, (
-            f"stderr should name docs/gone.md: {result.stderr}"
+        assert "docs/gone.md" in captured.err, (
+            f"stderr should name docs/gone.md: {captured.err}"
         )
 
-    def test_guide_without_repository_links_exits_one(self, tmp_path: Path) -> None:
+    def test_guide_without_repository_links_exits_one(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         """A guide with no repository links should trip the tripwire."""
         _write_guide(tmp_path, "no references here\n")
 
-        result = _run_checker(tmp_path)
+        exit_code = _run_checker(tmp_path)
+        captured = capsys.readouterr()
 
-        assert result.exit_code == 1, (
-            f"expected exit 1, got {result.exit_code}: {result.stderr}"
-        )
-        assert result.stderr is not None, "expected stderr output"
-        assert "no repository reference links" in result.stderr, (
-            f"stderr should report the missing-links tripwire: {result.stderr}"
+        assert exit_code == 1, f"expected exit 1, got {exit_code}: {captured.err}"
+        assert "no repository reference links" in captured.err, (
+            f"stderr should report the missing-links tripwire: {captured.err}"
         )
 
     @pytest.mark.parametrize("flag", ["--help", "-h"])
-    def test_help_exits_zero(self, flag: str) -> None:
+    def test_help_exits_zero(
+        self, flag: str, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         """The argparse help output should be reachable and exit 0."""
-        result = _python(str(SCRIPT), flag).run_sync()
+        with pytest.raises(SystemExit) as exc_info:
+            main((flag,))
+        captured = capsys.readouterr()
 
-        assert result.exit_code == 0, (
-            f"expected exit 0, got {result.exit_code}: {result.stderr}"
+        assert exc_info.value.code == 0, (
+            f"expected exit 0, got {exc_info.value.code}: {captured.err}"
         )
-        assert result.stdout is not None, "expected help output on stdout"
-        assert "--root" in result.stdout, (
-            f"help should document --root: {result.stdout}"
-        )
+        assert "--root" in captured.out, f"help should document --root: {captured.out}"
 
-    def test_default_root_checks_repository_guide(self) -> None:
+    def test_default_root_checks_repository_guide(
+        self, capsys: pytest.CaptureFixture[str]
+    ) -> None:
         """Omitting --root falls back to the script-relative repository root.
 
         The default is ``Path(__file__).resolve().parents[1]`` rather than the
@@ -114,9 +103,10 @@ class TestMain:
         exercises that fallback. The checked-in users' guide is kept
         link-clean, so running with no options must validate it and exit 0.
         """
-        result = _python(str(SCRIPT)).run_sync()
+        exit_code = main(())
+        captured = capsys.readouterr()
 
-        assert result.exit_code == 0, (
+        assert exit_code == 0, (
             f"default-root run should validate the repository guide, got "
-            f"{result.exit_code}: {result.stderr}"
+            f"{exit_code}: {captured.err}"
         )
