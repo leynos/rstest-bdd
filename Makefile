@@ -4,7 +4,8 @@ VALE ?= vale
 .PHONY: lint-whitaker typecheck fmt check-fmt markdownlint spellcheck spelling
 .PHONY: spelling-config spelling-config-write spelling-phrase-check
 .PHONY: spelling-helper-test nixie publish-check
-.PHONY: forbid-async-trait vale update-ui-lints-lock test-workflow-contracts
+.PHONY: check-published-gpui forbid-async-trait vale update-ui-lints-lock
+.PHONY: test-workflow-contracts
 
 SHELL := bash
 export PATH := $(HOME)/.cargo/bin:$(HOME)/.bun/bin:$(HOME)/.local/bin:$(PATH)
@@ -87,6 +88,11 @@ lint-python: build-python ## Run Python linters
 typecheck: build-python ## Run cargo and Python type checks with warnings denied
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) check $(CARGO_FLAGS) $(BUILD_JOBS)
 	$(UV_ENV) $(UV) run ty check $(PYTHON_TARGETS)
+
+check-published-gpui: ## Compile the published gpui 0.2.2 documentation fixture
+	# This nested workspace bypasses the root workspace's vendored gpui path.
+	$(CARGO) check --locked --manifest-path \
+		tests/fixtures/published-gpui-0-2-2/Cargo.toml
 
 forbid-async-trait: ## Ensure the async-trait crate and macro remain absent
 	python3 scripts/check_forbidden_async_trait.py

@@ -1329,8 +1329,8 @@ test-group matrix.
 
 The scenario-state and vendored call-site snippets below mirror the regression
 suite at
-`crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` identifier for
-identifier. Treat that file as the executable reference: if a snippet here
+`crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` exactly. Treat that
+file as the executable reference: if a snippet here
 drifts from the suite, the suite wins and this section should be updated to
 match. Projects consuming published `gpui 0.2.2` should use the parallel
 [published call-site variants](#published-gpui-022-stateful-step-variants)
