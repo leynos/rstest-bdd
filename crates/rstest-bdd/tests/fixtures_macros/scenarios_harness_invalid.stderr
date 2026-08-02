@@ -10,7 +10,7 @@ help: the trait `HarnessAdapter` is not implemented for `NotAHarness`
  5 | struct NotAHarness;
    | ^^^^^^^^^^^^^^^^^^
 help: the following other types implement trait `HarnessAdapter`
-  --> $WORKSPACE/crates/rstest-bdd-harness/src/test_utils.rs
+  --> $WORKSPACE/crates/rstest-bdd-harness/src/testing.rs
    |
    | impl crate::HarnessAdapter for FailingHarness {
    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `FailingHarness`
