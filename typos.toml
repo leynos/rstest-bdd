@@ -1150,6 +1150,7 @@ extend-ignore-re = [
 "internationalizers" = "internationalizers"
 "internationalizes" = "internationalizes"
 "internationalizing" = "internationalizing"
+"inventario" = "inventario"
 "italicisable" = "italicizable"
 "italicisably" = "italicizably"
 "italicisation" = "italicization"
