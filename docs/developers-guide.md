@@ -460,6 +460,15 @@ and `scenario_fallible_outline_non_debug.rs`, registered with that crate's
 `macro_compile` test. Runtime coverage in `tests/scenario_macros.rs` must also
 execute an `Err` result and assert the fixed boundary panic.
 
+The boundary has a closed, branch-oriented state space: GPUI ownership,
+fallible or unit return, synchronous or asynchronous execution, and regular or
+outline generation, with direct, explicit-policy, and inferred-harness GPUI
+selection. Maintain finite parameterized cases for each decision branch, plus
+the compile and runtime fixtures above. Property testing and a full Cartesian
+product are unnecessary because repeated combinations reach the same branches,
+while randomized `syn` syntax adds no semantic states or useful shrinking
+oracle.
+
 ### Bulk-migration cookbook reference suite
 
 The user guide's "Bulk-migration cookbook" subsection is backed by a
