@@ -1,0 +1,14 @@
+[package]
+name = "published-gpui-0-2-2-fixture"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+gpui = { version = "0.2.2", default-features = false, features = ["test-support"] }
+rstest-bdd = { path = "../../../crates/rstest-bdd" }
+rstest-bdd-macros = { path = "../../../crates/rstest-bdd-macros" }
+
+# Keep this fixture outside the root workspace so gpui resolves from crates.io
+# instead of inheriting the workspace's vendor/gpui path dependency.
+[workspace]
