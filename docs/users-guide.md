@@ -392,8 +392,16 @@ Alternatively, add an explicit return-kind hint: `#[when(result)]` /
 `#[when(value)]`.
 
 The `result`/`value` hints are validated for obvious misconfigurations.
-`result` is rejected for primitive return types. For aliases, the macro cannot
-validate the underlying definition and assumes `Result<..>` semantics.
+`result` is rejected for primitive return types. Where `result` is given for an
+alias, the macro cannot validate the underlying definition and trusts the hint,
+assuming `Result<..>` semantics.
+
+Without a hint, an unresolved alias is **not** assumed to be `Result`-like: it
+is classified as a value, so an `Err` is stored as a payload and the step
+passes. Always give an unresolved alias explicit handling: if the alias is
+fallible, spell out `Result<..>` or `rstest_bdd::StepResult<..>`, or add the
+`result` hint. Reserve the `value` hint for an alias that deliberately
+returns a payload — applying it to a real `Result` suppresses its `Err`.
 
 Use `#[when("...", value)]` (or `#[when(value)]` when using the inferred
 pattern) to force treating the return value as a payload even when it is
@@ -1446,7 +1454,7 @@ binding name is part of the contract.
   walks readers through moving an existing scenario to the playbook.
 - Design-document §2.7.6.6 documents the feature-file rebuild-invalidation
   foot-gun (`.feature`-only edits do not trigger a rebuild until roadmap item
-  11.3.1 lands).
+  10.3.3 lands).
 - Design-document §2.7.6.7 documents the full cargo test versus nextest matrix
   for `#[serial]` and thread-local state.
 
@@ -1478,8 +1486,8 @@ single Whitaker lint now while deferring the full Whitaker suite.
 When migrating a large test suite, factor the whole durable-handle **step
 library** — the `#[given]`/`#[when]`/`#[then]` steps together with the state
 scaffolding — into one shared module per consuming crate, rather than copying
-it into every test file. This is the v0.6.0 shape, and it is deliberately
-explicit. Once roadmap items 11.1.3 and 11.1.4 ship (`ScenarioStore<T>` and the
+it into every test file. This is the beta shape, and it is deliberately
+explicit. Once roadmap items 10.3.1 and 10.3.2 ship (`ScenarioStore<T>` and the
 cleanup-guard fixture macro), the shared block shrinks to a single import and
 the `#[scenario]` cleanup parameter is generated for you. Adopt the pattern now
 and expect to shrink it then.

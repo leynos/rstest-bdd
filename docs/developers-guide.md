@@ -1063,11 +1063,11 @@ bookkeeping exactly once and applies the caller's projection to the resolved
 ## Planned internal APIs and tooling (ADR-010 to ADR-013)
 
 Three accepted-as-`Proposed` ADRs schedule internal-API and build-tooling
-changes that contributors will encounter as the v0.6.1 and v0.7.0 work lands.
-ADR-013 is already accepted and governs the current Whitaker lint gate. They
-are summarized here, so the decisions are discoverable from the developer
-guide; the ADRs remain the authoritative source, and the planning rationale
-lives in
+changes that contributors will encounter as the v0.6.0 final and v0.7.0 work
+lands. ADR-013 is already accepted and governs the current Whitaker lint
+gate. They are summarized here, so the decisions are discoverable from the
+developer guide; the ADRs remain the authoritative source, and the planning
+rationale lives in
 [`docs/execplans/adopt-v0-6-0-beta2-feedback.md`](execplans/adopt-v0-6-0-beta2-feedback.md).
 
 ### Scenario-state helpers and per-scenario cleanup (ADR-011)
@@ -1090,7 +1090,7 @@ cleanup guard that stateful GPUI scenarios use today:
   by unit, property-based (`proptest`), and `serial_test`-guarded
   thread-isolation tests — see the ADR's _Testing strategy_.
 
-Tracked by roadmap items 11.1.3 and 11.1.4 (pulled forward to v0.6.0 final);
+Tracked by roadmap items 10.3.1 and 10.3.2 (pulled forward to v0.6.0 final);
 design coverage is in `rstest-bdd-design.md` §2.7.6.4.
 
 ### Guard-based `StepContext` borrowing and `FixtureBorrowError` (ADR-012)
@@ -1110,8 +1110,8 @@ Contributors touching the borrow machinery should expect:
   it.
 - `FixtureRefMut` exposes a stable, opaque accessor API (12.1.2), and a
   first-class world lifecycle contract (12.1.3) supersedes the thread-local
-  reset protocol and the v0.6.1 `ScenarioStore<T>` helper. The ADR carries the
-  v0.6→v0.7 migration mapping.
+  reset protocol and the v0.6.0 final `ScenarioStore<T>` helper. The ADR carries
+  the v0.6→v0.7 migration mapping.
 - Borrow-state invariants are the highest-risk part of the surface and must be
   covered by generated-wrapper, property-based (`proptest`), and lifecycle
   tests — see the ADR's _Testing strategy_.
@@ -1142,7 +1142,7 @@ foot-gun: `#[scenario(path = …)]` and `scenarios!` read `.feature` files with
   _Testing strategy_. This is distinct from the OUT_DIR AST _caching_
   performance idea in `rstest-bdd-design.md` §3.2.2.
 
-Tracked by roadmap item 11.3.1 (pulled forward to v0.6.0 final); design
+Tracked by roadmap item 10.3.3 (pulled forward to v0.6.0 final); design
 coverage is in `rstest-bdd-design.md` §2.7.6.6. Until it lands,
 `v0-6-0-migration-guide.md` carries a caveat that `.feature`-only edits do not
 trigger a rebuild.

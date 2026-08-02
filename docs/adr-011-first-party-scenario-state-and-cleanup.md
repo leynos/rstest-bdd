@@ -41,7 +41,7 @@ mechanical, and a mistake in any of the four parts (missing reset-before,
 missing `Drop`, wrong reset order, or omitting the fixture parameter) silently
 corrupts subsequent scenarios on the same test thread.
 
-Roadmap items 11.1.3 and 11.1.4 propose a generic state helper and cleanup
+Roadmap items 10.3.1 and 10.3.2 propose a generic state helper and cleanup
 registration. The first downstream adopter specifically requests a
 GPUI-specialized helper and a cleanup-guard fixture macro so the 50-line block
 is replaced with a first-party type.
@@ -72,7 +72,7 @@ shadow — `Slot<T>`. This ADR proposes `ScenarioStore<T>` as the generic core a
 - State clearly which API is current per v0.6.x / v0.7.0 release, so
   adopters know the thread-local interim (`§2.7.6.2`) is still supported in
   v0.6.x while `ScenarioStore<T>` is the recommended additive alternative from
-  v0.6.1 onward.
+  v0.6.0 final onward.
 
 ## Options considered
 
@@ -188,9 +188,10 @@ alternative for the thread-local interim pattern.
 `GpuiScenarioStore` is a re-export or thin wrapper of `ScenarioStore<T>` with
 `T = GpuiWorld` (or a user-supplied type parameter), shipping with:
 
-- A `ScenarioCleanupGuard` type (the `Drop` guard).
-- A `#[fixture]`-generating macro (or a ready-made `#[fixture]` function)
-  that implements the two-sided reset protocol: `reset_before_assignment()` in
+- A `ScenarioStateCleanup` type (the `Drop` guard).
+- A cleanup-guard fixture-generating macro that produces
+  `ScenarioStateCleanup` and `#[fixture] fn scenario_state_cleanup()`,
+  implementing the two-sided reset protocol: `reset_before_assignment()` in
   the constructor, `reset_after_scenario()` in `Drop`.
 
 This replaces the handwritten 50-line block with an import and a one-line
@@ -212,14 +213,14 @@ The ADR fixes the cleanup-ordering contract:
 
 ### Cross-version stance
 
-| Version           | Recommended pattern                      | Support status  |
-| ----------------- | ---------------------------------------- | --------------- |
-| v0.6.0 (current)  | Thread-local interim (`§2.7.6.2`)        | Supported       |
-| v0.6.1 (additive) | `ScenarioStore<T>` / `GpuiScenarioStore` | Preferred       |
-| v0.7.0 (breaking) | Guard-based borrow redesign (ADR-012)    | Supersedes both |
+| Version              | Recommended pattern                      | Support status  |
+| -------------------- | ---------------------------------------- | --------------- |
+| v0.6.0 beta          | Thread-local interim (`§2.7.6.2`)        | Supported       |
+| v0.6.0 final (addl.) | `ScenarioStore<T>` / `GpuiScenarioStore` | Preferred       |
+| v0.7.0 (breaking)    | Guard-based borrow redesign (ADR-012)    | Supersedes both |
 
-The v0.6.0 thread-local interim pattern remains supported throughout v0.6.x.
-`ScenarioStore<T>` is the recommended additive alternative from v0.6.1.
+The beta thread-local interim pattern remains supported throughout v0.6.x.
+`ScenarioStore<T>` is the recommended additive alternative from v0.6.0 final.
 ADR-012's guard-based redesign supersedes both at v0.7.0 and provides a
 migration mapping.
 
@@ -228,7 +229,7 @@ migration mapping.
 `ScenarioStore<T>` is a small state machine — `set`/`with`/`with_mut`/`take`/
 `reset` plus the two-sided reset protocol — so example-based unit tests alone
 under-sample the operation orderings that matter. The implementing ExecPlan
-(roadmap items 11.1.3/11.1.4) should layer:
+(roadmap items 10.3.1/10.3.2) should layer:
 
 1. **Unit tests (required).** Exercise each of the five operations directly,
    and the three-state cleanup lifecycle (success, assertion failure, skip),
@@ -257,17 +258,20 @@ harness cost of a model checker.
 
 ## Consequences
 
-- Additive and semver-compatible change for v0.6.1.
+- Additive and semver-compatible change, scheduled as a v0.6.0 final
+  requirement.
 - GPUI adopters can replace ~50 lines of boilerplate with a single import.
 - The cleanup-ordering contract is tested and cannot silently regress.
-- The GPUI re-export depends on the generic core landing first (11.1.3 before
-  11.1.4).
+- The GPUI re-export depends on the generic core landing first (10.3.1 before
+  10.3.2).
 - `rstest-bdd`'s public API gains `ScenarioStore<T>`; naming is verified not
   to collide with existing `ScenarioState` trait and `Slot<T>`.
 
 ## Governs
 
-- Roadmap items: re-scoped 11.1.3 (`ScenarioStore<T>` generic core) and 11.1.4
+- Roadmap items: re-scoped 10.3.1 (`ScenarioStore<T>` generic core) and 10.3.2
   (`GpuiScenarioStore` + cleanup-guard fixture macro, three-state lifecycle
-  test), both targeted at v0.6.0 final per the maintainer pull-forward decision.
-- Design document: `§2.7.6.4` (v0.6.1 early-life support helpers).
+  test), both v0.6.0 final requirements under roadmap step 10.3 alongside
+  10.3.3 (the feature-file rebuild fix), while the beta thread-local pattern
+  remains supported throughout v0.6.x.
+- Design document: `§2.7.6.4`.
