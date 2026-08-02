@@ -219,6 +219,34 @@ fn adapt_fallible_gpui_boundary(
     }
 }
 
+/// Finalize attributes and the executable boundary for a scenario signature.
+fn finalize_scenario_signature(
+    config: &ScenarioConfig<'_>,
+    signature: &mut Cow<'_, syn::Signature>,
+    body: TokenStream2,
+) -> (TokenStream2, TokenStream2, TokenStream2, TokenStream2) {
+    let policy = TestAttrPolicy {
+        runtime: config.attribute_runtime,
+        harness: config.harness,
+        attributes: config.attributes,
+    };
+    let generated_test_attrs =
+        generate_test_attrs_with_boundary(config.attrs, &policy, config.runtime.is_async());
+    let trait_assertions = generate_trait_assertions(config.harness, config.attributes);
+    let body = if generated_test_attrs.uses_gpui_boundary && config.return_kind.is_fallible() {
+        adapt_fallible_gpui_boundary(true, config.return_kind, signature.to_mut(), body)
+    } else {
+        body
+    };
+    let underscore_expect = generate_underscore_expect(signature);
+    (
+        trait_assertions,
+        generated_test_attrs.tokens,
+        underscore_expect,
+        body,
+    )
+}
+
 /// Generate code for a regular scenario (no placeholder substitution).
 fn generate_regular_scenario_code<P, I, Q>(
     config: &ScenarioConfig<'_>,
@@ -267,24 +295,11 @@ where
         .as_ref()
         .map_or_else(Vec::new, generate_case_attrs);
     let body = generate_test_tokens(&test_config, ctx.prelude, ctx.inserts, ctx.postlude);
-    let policy = TestAttrPolicy {
-        runtime: config.attribute_runtime,
-        harness: config.harness,
-        attributes: config.attributes,
-    };
-    let generated_test_attrs =
-        generate_test_attrs_with_boundary(config.attrs, &policy, config.runtime.is_async());
-    let test_attrs = generated_test_attrs.tokens;
-    let trait_assertions = generate_trait_assertions(config.harness, config.attributes);
     let attrs = config.attrs;
     let vis = config.vis;
     let mut signature = Cow::Borrowed(config.sig);
-    let body = if generated_test_attrs.uses_gpui_boundary && config.return_kind.is_fallible() {
-        adapt_fallible_gpui_boundary(true, config.return_kind, signature.to_mut(), body)
-    } else {
-        body
-    };
-    let underscore_expect = generate_underscore_expect(&signature);
+    let (trait_assertions, test_attrs, underscore_expect, body) =
+        finalize_scenario_signature(config, &mut signature, body);
     TokenStream::from(quote! {
         #trait_assertions
         #test_attrs
@@ -360,37 +375,23 @@ where
         generate_test_tokens_outline(&outline_config, ctx.prelude, ctx.inserts, ctx.postlude);
 
     // Add the hidden case index parameter to the signature
-    let mut modified_sig = (*config.sig).clone();
+    let mut signature: Cow<'_, syn::Signature> = Cow::Owned((*config.sig).clone());
     let case_idx_param: syn::FnArg = syn::parse_quote! {
         #[case] __rstest_bdd_case_idx: usize
     };
-    modified_sig.inputs.insert(0, case_idx_param);
+    signature.to_mut().inputs.insert(0, case_idx_param);
 
-    let policy = TestAttrPolicy {
-        runtime: config.attribute_runtime,
-        harness: config.harness,
-        attributes: config.attributes,
-    };
-    let generated_test_attrs =
-        generate_test_attrs_with_boundary(config.attrs, &policy, config.runtime.is_async());
-    let test_attrs = generated_test_attrs.tokens;
-    let trait_assertions = generate_trait_assertions(config.harness, config.attributes);
     let attrs = config.attrs;
     let vis = config.vis;
-    let body = adapt_fallible_gpui_boundary(
-        generated_test_attrs.uses_gpui_boundary,
-        config.return_kind,
-        &mut modified_sig,
-        body,
-    );
-    let underscore_expect = generate_underscore_expect(&modified_sig);
+    let (trait_assertions, test_attrs, underscore_expect, body) =
+        finalize_scenario_signature(config, &mut signature, body);
     TokenStream::from(quote! {
         #trait_assertions
         #test_attrs
         #(#case_attrs)*
         #(#attrs)*
         #underscore_expect
-        #vis #modified_sig { #body }
+        #vis #signature { #body }
     })
 }
 

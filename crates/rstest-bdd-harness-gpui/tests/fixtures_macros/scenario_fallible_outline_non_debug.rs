@@ -6,8 +6,10 @@ use rstest_bdd_macros::{given, scenario, then, when};
 
 struct NonDebugError;
 
-#[given("a precondition")]
-fn precondition() {}
+#[given("a precondition for {case}")]
+fn precondition(case: String) {
+    assert_eq!(case, "one");
+}
 
 #[when("an action occurs")]
 fn action() {}
@@ -19,10 +21,7 @@ fn result() {}
     path = "fallible_outline.feature",
     harness = rstest_bdd_harness_gpui::GpuiHarness,
 )]
-fn fallible_outline_scenario(case: String) -> Result<(), NonDebugError> {
-    assert_eq!(case, "one");
-    Ok(())
-}
+fn fallible_outline_scenario(_case: String) -> Result<(), NonDebugError> { Ok(()) }
 
 const _: &str = include_str!("fallible_outline.feature");
 

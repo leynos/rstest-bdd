@@ -1192,12 +1192,16 @@ propagate results through Rust's native `Termination` support.
 
 ```rust,no_run
 # use rstest_bdd_macros::scenario;
+# fn increment_counter() -> Result<(), std::io::Error> { Ok(()) }
 #[scenario(
     path = "tests/features/counter.feature",
     name = "Increment a counter and observe GPUI context",
     harness = rstest_bdd_harness_gpui::GpuiHarness,
 )]
-fn increment_and_observe_gpui_context() {}
+fn increment_and_observe_gpui_context() -> Result<(), std::io::Error> {
+    increment_counter()?;
+    Ok(())
+}
 ```
 
 #### GPUI panic diagnostics carry scenario context

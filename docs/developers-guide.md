@@ -452,11 +452,18 @@ regular and outline generation reuse one result rather than allocating path
 segments twice. Callers outside scenario code generation should use the policy
 interfaces instead of composing this private result.
 
+The private `finalize_scenario_signature` helper is owned by regular and
+outline scenario generation. It composes trait assertions, resolved test
+attributes, GPUI boundary adaptation, and underscore-expect tokens while
+leaving emission order under caller control. It clones signatures lazily, only
+when adaptation requires mutation. Other code-generation paths must not reuse
+it unless they share this complete boundary contract.
+
 Compile-pass coverage belongs to the GPUI harness crate because it supplies the
 `#[gpui::test]` boundary. Keep the synchronous, asynchronous, and outline
-non-`Debug` error cases in
-`crates/rstest-bdd-harness-gpui/tests/fixtures_macros/scenario_fallible_non_debug.rs`
-and `scenario_fallible_outline_non_debug.rs`, registered with that crate's
+non-`Debug` error cases in the `tests/fixtures_macros` directory of
+`rstest-bdd-harness-gpui`: `scenario_fallible_non_debug.rs` and
+`scenario_fallible_outline_non_debug.rs`. Register them with that crate's
 `macro_compile` test. Runtime coverage in `tests/scenario_macros.rs` must also
 execute an `Err` result and assert the fixed boundary panic.
 
