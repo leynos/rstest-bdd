@@ -189,8 +189,9 @@ alternative for the thread-local interim pattern.
 `T = GpuiWorld` (or a user-supplied type parameter), shipping with:
 
 - A `ScenarioStateCleanup` type (the `Drop` guard).
-- A `#[fixture]`-generating macro (or a ready-made `#[fixture]` function)
-  that implements the two-sided reset protocol: `reset_before_assignment()` in
+- A cleanup-guard fixture-generating macro that produces
+  `ScenarioStateCleanup` and `#[fixture] fn scenario_state_cleanup()`,
+  implementing the two-sided reset protocol: `reset_before_assignment()` in
   the constructor, `reset_after_scenario()` in `Drop`.
 
 This replaces the handwritten 50-line block with an import and a one-line

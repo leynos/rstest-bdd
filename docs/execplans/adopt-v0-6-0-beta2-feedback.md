@@ -99,11 +99,11 @@ Thresholds that trigger escalation when breached.
   in `Interfaces and dependencies` (three new ADRs, `docs/roadmap.md`,
   `docs/rstest-bdd-design.md`, `docs/users-guide.md`,
   `docs/v0-6-0-migration-guide.md`, and this plan), stop and escalate.
-- Roadmap scheduling: this plan *recommends* pulling the scenario-state helper
-  (10.3.1/10.3.2) and the rebuild-invalidation fix forward to v0.6.0 final, but
-  the actual release-train placement is a maintainer decision. If executing the
-  plan would require committing to a release schedule not yet agreed, stop and
-  present the trade-off rather than choosing unilaterally.
+- Roadmap scheduling: the maintainer approved pulling the scenario-state helper
+  (10.3.1/10.3.2) and the rebuild-invalidation fix forward to v0.6.0 final, so
+  that placement is settled. If executing the plan would require committing to
+  any further release schedule not yet agreed, stop and present the trade-off
+  rather than choosing unilaterally.
 - Code change: if the optional Stage E rebuild-invalidation fix cannot be made
   non-breaking and confined to the macro crate plus one regression test, stop
   and escalate; do not expand it into a build-script redesign within this plan.
@@ -838,7 +838,7 @@ the tolerance bound and must be re-approved.
   remains supported throughout v0.6.x; `ScenarioStore<T>` is the preferred
   additive alternative from v0.6.0 final; the v0.7.0 guard-based borrow
   redesign (ADR-012) supersedes both, with a migration mapping. The ADR
-  states this explicitly so adopters know which pattern is current per
+  states this explicitly, so adopters know which pattern is current per
   release.
 - Consequences: additive and semver-compatible (v0.6.0 final); the GPUI
   re-export depends on the generic core landing first.
@@ -921,14 +921,13 @@ new item carries a finish line and a `Design Doc:` / ADR reference):
   `GpuiScenarioStore` re-export in `rstest-bdd-harness-gpui`; re-scope `10.3.2`
   to add a cleanup-guard fixture-generating macro with a tested three-state
   lifecycle (success, failure, skip). Reference ADR-011.
-- **Recommended scheduling decision (maintainer call, surfaced prominently):**
-  the adopter report identifies the thread-local boilerplate as the single
-  largest adoption cost, so the next adopter keeps paying it for the whole
-  v0.6.x line unless 10.3.1/10.3.2 (the `ScenarioStore`/cleanup helper) and
-  10.3.3 (the rebuild fix) ship in v0.6.0 final rather than v0.6.1. This plan
-  recommends pulling all three forward but does not reschedule them
-  unilaterally; the maintainer must confirm the release-train placement. This
-  decision is logged as open in the Decision Log.
+- **Approved scheduling decision:** the adopter report identifies the
+  thread-local boilerplate as the single largest adoption cost, so the next
+  adopter would keep paying it for the whole v0.6.x line unless 10.3.1/10.3.2
+  (the `ScenarioStore`/cleanup helper) and 10.3.3 (the rebuild fix) ship in
+  v0.6.0 final rather than v0.6.1. The maintainer approved pulling all three
+  forward, so they are placed under roadmap step 10.3, "v0.6.0 final
+  requirements". This decision is recorded in the Decision Log.
 - Amend the Phase 12 introduction and item `12.1.1` to reference ADR-012 and
   state the guard-based borrow redesign is a committed v0.7.0 direction.
 - Add a labelled follow-up note (separate from the GPUI feedback) recommending
