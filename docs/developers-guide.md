@@ -1227,9 +1227,11 @@ When maintaining the pin:
 Do not replace invariant checks with `.expect(...)`, `.unwrap()`, or
 `unwrap_or_else(|| panic!(...))`. Use a copyable invariant check such as
 `let Some(value) = value else { panic!("expected value to be present"); };`,
-or return `Result` and use `?` where the failure is part of the tested domain
-behaviour. Fixture functions and test helpers are not tests: they must return
-`Result` and propagate errors rather than calling `.expect(...)`, and shared
+or return `Result` and use `?` when an operation is fallible. Fixture functions
+and test helpers that perform fallible operations must return `Result` and
+propagate errors with `?`; infallible helpers need not introduce an artificial
+`Result` type. Shared helpers should avoid `.expect(...)` for invariant checks
+and instead use explicit, context-appropriate invariant handling. Shared
 assertion shapes belong in macros so panic line numbers point at the calling
 test.
 

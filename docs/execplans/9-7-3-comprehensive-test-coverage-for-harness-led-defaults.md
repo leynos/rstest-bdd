@@ -424,8 +424,10 @@ overrides and Tokio attributes-only expansion in the first-party harness
 crates. Behavioural coverage now proves Tokio attributes-only runtime
 availability plus explicit default-policy overrides for Tokio and GPUI
 harness-led scenarios. Issue #498 follow-up coverage adds unconditional runtime
-integration binaries for Tokio and GPUI harness-led defaults: async happy-path
-steps exercise inferred first-party policy selection, failing harnesses prove
+integration binaries for Tokio and GPUI harness-led defaults: synchronous BDD
+steps exercise inferred first-party policy selection, reflecting the
+single-poll runner constraint. Standalone unit tests cover awaiting task
+completion and cancellation behaviour. Failing harnesses prove
 `HarnessAdapter::run` errors surface before step execution, and a Tokio
 policy-only mismatch proves harness-dependent `spawn_local` steps fail loudly
 instead of passing silently.

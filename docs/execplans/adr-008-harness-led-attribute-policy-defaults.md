@@ -503,10 +503,12 @@ set -o pipefail; cargo test -p rstest-bdd-macros --lib 2>&1 | tee /tmp/adr-008-m
 set -o pipefail; RUSTFLAGS="-D warnings" cargo test -p rstest-bdd \
   --test trybuild_macros step_macros_compile -- --exact 2>&1 | \
   tee /tmp/adr-008-trybuild.log
-set -o pipefail; RUSTFLAGS="-D warnings" cargo test -p rstest-bdd \
-  --test scenario_harness_tokio 2>&1 | tee /tmp/adr-008-tokio.log
-set -o pipefail; RUSTFLAGS="-D warnings" cargo test -p rstest-bdd \
-  --test scenario_harness_gpui --features gpui-harness-tests 2>&1 | \
+set -o pipefail; RUSTFLAGS="-D warnings" cargo test \
+  -p rstest-bdd-harness-tokio --test harness_led_defaults 2>&1 | \
+  tee /tmp/adr-008-tokio.log
+set -o pipefail; RUSTFLAGS="-D warnings" cargo test \
+  -p rstest-bdd-harness-gpui --test harness_led_defaults \
+  --features native-gpui-tests 2>&1 | \
   tee /tmp/adr-008-gpui.log
 set -o pipefail; make fmt 2>&1 | tee /tmp/adr-008-make-fmt.log
 set -o pipefail; make markdownlint 2>&1 | tee /tmp/adr-008-make-markdownlint.log
