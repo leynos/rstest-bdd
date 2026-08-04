@@ -9,6 +9,11 @@ use super::{
     TestAttrPolicy,
     blank,
     generate_test_attrs,
+    blank, generate_scenario_code, generate_test_attrs,
+};
+
+
+//! Tests covering the `ScenarioConfig` execution-runtime split.
 };
 
 #[test]
@@ -60,5 +65,49 @@ fn scenario_config_keeps_attribute_runtime_separate_from_execution_runtime() {
         !output.contains("tokio :: test"),
         "expected generated attributes to follow attribute_runtime instead of execution runtime, \
          got: {output}"
+    );
+}
+
+#[test]
+fn aliased_harness_scenario_emits_one_stable_fallback_diagnostic() {
+    let attrs = Vec::new();
+    let vis: syn::Visibility = syn::parse_quote!();
+    let sig: syn::Signature = syn::parse_quote!(fn aliased_harness());
+    let block: syn::Block = syn::parse_quote!({});
+    let tags = Vec::new();
+    let harness: syn::Path = syn::parse_quote!(alias::rstest_bdd_harness_tokio::TokioHarness);
+    let config = ScenarioConfig {
+        attrs: &attrs,
+        vis: &vis,
+        sig: &sig,
+        block: &block,
+        feature_path: FeaturePath::new("tests/features/aliased.feature".to_owned()),
+        scenario_name: ScenarioName::new("aliased harness".to_owned()),
+        steps: vec![blank()],
+        examples: None,
+        allow_skipped: false,
+        line: 1,
+        tags: &tags,
+        runtime: RuntimeMode::Sync,
+        attribute_runtime: RuntimeMode::Sync,
+        return_kind: ScenarioReturnKind::Unit,
+        harness: Some(&harness),
+        attributes: None,
+    };
+
+    let output = generate_scenario_code(
+        &config,
+        std::iter::empty(),
+        std::iter::empty(),
+        std::iter::empty(),
+    )
+    .to_string();
+
+    assert_eq!(
+        output
+            .matches("struct RstestBddFirstPartyAdapterFallback")
+            .count(),
+        1,
+        "fallback diagnostic marker should be emitted once: {output}"
     );
 }

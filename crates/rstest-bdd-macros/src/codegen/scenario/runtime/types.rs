@@ -2,6 +2,7 @@
 
 use proc_macro2::TokenStream as TokenStream2;
 
+use crate::codegen::scenario::helpers::ProcessedStepTokens;
 use crate::codegen::scenario::{FeaturePath, ScenarioName, ScenarioReturnKind};
 
 /// Grouped tokens for scenario steps.
@@ -18,7 +19,7 @@ pub(crate) struct ProcessedSteps {
 }
 
 /// Shared metadata for scenario test generation.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub(crate) struct ScenarioMetadata<'a> {
     /// Stores the internal `feature_path` value.
     pub(crate) feature_path: &'a FeaturePath,
@@ -38,6 +39,8 @@ pub(crate) struct ScenarioMetadata<'a> {
     pub(crate) return_kind: ScenarioReturnKind,
     /// Optional harness adapter type path for execution delegation.
     pub(crate) harness: Option<&'a syn::Path>,
+    /// Base harness API path selected once at the expansion boundary.
+    pub(crate) harness_api_path: Option<TokenStream2>,
 }
 
 impl<'a> ScenarioMetadata<'a> {
@@ -59,6 +62,14 @@ pub(crate) struct TestTokensConfig<'a> {
     /// Stores the internal `processed_steps` value.
     pub(crate) processed_steps: ProcessedSteps,
     /// Stores the internal `metadata` value.
+    pub(crate) metadata: ScenarioMetadata<'a>,
+}
+
+/// Configuration for generating test tokens for scenario outlines.
+#[derive(Debug)]
+pub(crate) struct OutlineTestTokensConfig<'a> {
+    /// Processed steps for each Examples row (one set per row).
+    pub(crate) all_rows_steps: Vec<ProcessedStepTokens>,
     pub(crate) metadata: ScenarioMetadata<'a>,
 }
 

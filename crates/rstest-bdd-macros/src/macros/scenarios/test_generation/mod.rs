@@ -341,12 +341,12 @@ pub(super) fn generate_scenario_test(
         harness: harness_ref,
         attributes: ctx.attributes,
     };
-    TokenStream2::from(generate_scenario_code(
+    generate_scenario_code(
         &config,
         fixture_setup.prelude.into_iter(),
         fixture_setup.ctx_inserts.into_iter(),
         fixture_setup.postlude.into_iter(),
-    ))
+    )
 }
 
 #[cfg(test)]

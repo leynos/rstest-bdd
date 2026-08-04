@@ -1,0 +1,13 @@
+warning: step registry has no definitions for crate ID '$CRATE'. This may indicate a registry issue.
+ --> tests/fixtures_macros/nightly_registry_empty_warning.rs:5:1
+  |
+5 | #[scenario(path = "basic.feature")]
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: this warning originates in the attribute macro `scenario` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: nightly empty registry warning snapshot sentinel
+ --> tests/fixtures_macros/nightly_registry_empty_warning.rs:8:1
+  |
+8 | compile_error!("nightly empty registry warning snapshot sentinel");
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

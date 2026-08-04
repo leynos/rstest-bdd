@@ -23,19 +23,15 @@ use harness::assemble_test_tokens_with_harness;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use types::{CodeComponents, ScenarioLiterals, ScenarioLiteralsInput, TokenAssemblyContext};
-pub(crate) use types::{ProcessedSteps, ScenarioMetadata, TestTokensConfig};
+pub(crate) use types::{
+    OutlineTestTokensConfig,
+    ProcessedSteps,
+    ScenarioMetadata,
+    TestTokensConfig,
+};
 
 use super::helpers::ProcessedStepTokens;
 use crate::codegen::scenario::ScenarioReturnKind;
-
-/// Configuration for generating test tokens for scenario outlines.
-#[derive(Debug)]
-pub(crate) struct OutlineTestTokensConfig<'a> {
-    /// Processed steps for each Examples row (one set per row).
-    pub(crate) all_rows_steps: Vec<ProcessedStepTokens>,
-    /// Stores the internal `metadata` value.
-    pub(crate) metadata: ScenarioMetadata<'a>,
-}
 
 /// Common interface for scenario test configuration types.
 trait ScenarioTestConfig {
@@ -57,8 +53,12 @@ trait ScenarioTestConfig {
     /// Whether the scenario runs asynchronously.
     fn is_async(&self) -> bool { self.metadata().is_async }
 
-    /// Returns the optional harness adapter type path for execution delegation.
-    fn harness(&self) -> Option<&syn::Path> { self.metadata().harness }
+    /// Returns the harness type and its pre-resolved base API path.
+    fn harness(&self) -> Option<(&syn::Path, &TokenStream2)> {
+        self.metadata()
+            .harness
+            .zip(self.metadata().harness_api_path.as_ref())
+    }
 }
 
 impl ScenarioTestConfig for TestTokensConfig<'_> {
@@ -80,7 +80,6 @@ impl ScenarioTestConfig for TestTokensConfig<'_> {
 
     fn is_async(&self) -> bool { self.metadata.is_async }
 
-    fn harness(&self) -> Option<&syn::Path> { self.metadata.harness }
 }
 
 impl ScenarioTestConfig for OutlineTestTokensConfig<'_> {
@@ -102,7 +101,6 @@ impl ScenarioTestConfig for OutlineTestTokensConfig<'_> {
 
     fn is_async(&self) -> bool { self.metadata.is_async }
 
-    fn harness(&self) -> Option<&syn::Path> { self.metadata.harness }
 }
 
 /// Context token stream iterators for test generation.
@@ -305,7 +303,7 @@ fn assemble_test_tokens_with_context<P, I, Q>(
     is_async: bool,
     components: CodeComponents,
     ctx_iterators: ContextIterators<P, I, Q>,
-    harness: Option<&syn::Path>,
+    harness: Option<(&syn::Path, &TokenStream2)>,
 ) -> TokenStream2
 where
     P: Iterator<Item = TokenStream2>,
@@ -322,8 +320,14 @@ where
     let context =
         TokenAssemblyContext::new(&ctx_prelude, &ctx_inserts, &ctx_postlude, &block_tokens);
 
-    if let Some(harness_path) = harness {
-        assemble_test_tokens_with_harness(&literals, &components, context, harness_path)
+    if let Some((harness_path, harness_api_path)) = harness {
+        assemble_test_tokens_with_harness(
+            &literals,
+            &components,
+            context,
+            harness_path,
+            harness_api_path,
+        )
     } else {
         assemble_test_tokens(literals, components, context)
     }

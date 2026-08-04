@@ -8,26 +8,50 @@
 //! that fallback loud: a native nightly diagnostic plus generated tokens that
 //! produce a stable-toolchain `deprecated` warning carrying the same guidance.
 
-#[cfg(any(not(test), not(rstest_bdd_nightly)))]
 use proc_macro2::Span;
 use proc_macro2::TokenStream as TokenStream2;
 
-#[cfg(any(not(test), not(rstest_bdd_nightly)))]
 use super::path_last_ident_matches;
-#[cfg(any(not(test), not(rstest_bdd_nightly)))]
 use super::{CrateSpec, GPUI_HARNESS, TOKIO_HARNESS};
 
 /// Find the first-party adapter spec whose adapter type name matches the
 /// final segment of `adapter_path` when that adapter crate is resolvable.
 /// Used to detect first-party re-exports without matching unrelated types that
 /// merely share an adapter name.
-#[cfg(any(not(test), not(rstest_bdd_nightly)))]
-fn fallback_candidate_spec(adapter_path: &syn::Path) -> Option<&'static CrateSpec> {
-    [&TOKIO_HARNESS, &GPUI_HARNESS].into_iter().find(|spec| {
-        path_last_ident_matches(adapter_path, spec.adapter_type_names)
-            && path_penultimate_ident_matches(adapter_path, spec.default_crate_name)
-            && super::try_resolve_crate_path(spec).is_some()
-    })
+pub(super) fn fallback_candidate(adapter_path: &syn::Path) -> Option<AdapterFallback> {
+    [&TOKIO_HARNESS, &GPUI_HARNESS]
+        .into_iter()
+        .find_map(|spec| {
+            (path_last_ident_matches(adapter_path, spec.adapter_type_names)
+                && path_penultimate_ident_matches(adapter_path, spec.default_crate_name)
+                && fallback_crate_is_resolvable(spec))
+            .then(|| AdapterFallback {
+                spec,
+                span: adapter_path
+                    .segments
+                    .last()
+                    .map_or_else(Span::call_site, |segment| segment.ident.span()),
+            })
+        })
+}
+
+#[cfg(not(test))]
+fn fallback_crate_is_resolvable(spec: &CrateSpec) -> bool {
+    super::try_resolve_crate_path(spec).is_some()
+}
+
+#[cfg(test)]
+fn fallback_crate_is_resolvable(_: &CrateSpec) -> bool {
+    // Unit tests exercise the syntactic decision independently of Cargo's
+    // package-resolution environment.
+    true
+}
+
+/// Metadata for one qualifying first-party adapter fallback.
+#[derive(Clone, Copy)]
+pub(super) struct AdapterFallback {
+    spec: &'static CrateSpec,
+    span: Span,
 }
 
 fn path_penultimate_ident_matches(path: &syn::Path, expected: &str) -> bool {
@@ -54,24 +78,21 @@ fn first_party_adapter_fallback_message(spec: &CrateSpec) -> String {
 
 #[cfg(not(test))]
 #[cfg(rstest_bdd_nightly)]
-pub(super) fn emit_first_party_adapter_fallback_warning(adapter_path: &syn::Path) {
-    let Some(spec) = fallback_candidate_spec(adapter_path) else {
+pub(super) fn emit_first_party_adapter_fallback_warning(fallback: Option<&AdapterFallback>) {
+    let Some(fallback) = fallback else {
         return;
     };
-    let span = adapter_path
-        .segments
-        .last()
-        .map_or_else(Span::call_site, |segment| segment.ident.span());
-    let message = first_party_adapter_fallback_message(spec);
-    proc_macro::Diagnostic::spanned(span.unwrap(), proc_macro::Level::Warning, message).emit();
+    let message = first_party_adapter_fallback_message(fallback.spec);
+    proc_macro::Diagnostic::spanned(fallback.span.unwrap(), proc_macro::Level::Warning, message)
+        .emit();
 }
 
 #[cfg(not(test))]
 #[cfg(not(rstest_bdd_nightly))]
-pub(super) fn emit_first_party_adapter_fallback_warning(_: &syn::Path) {}
+pub(super) fn emit_first_party_adapter_fallback_warning(_: Option<&AdapterFallback>) {}
 
 #[cfg(test)]
-pub(super) fn emit_first_party_adapter_fallback_warning(_: &syn::Path) {}
+pub(super) fn emit_first_party_adapter_fallback_warning(_: Option<&AdapterFallback>) {}
 
 /// Build tokens that surface the first-party adapter fallback diagnostic on a
 /// stable toolchain.
@@ -87,19 +108,13 @@ pub(super) fn emit_first_party_adapter_fallback_warning(_: &syn::Path) {}
 /// trigger the diagnostic.
 #[cfg(not(rstest_bdd_nightly))]
 pub(crate) fn first_party_adapter_fallback_warning_tokens(
-    adapter_path: &syn::Path,
+    fallback: Option<&AdapterFallback>,
 ) -> TokenStream2 {
-    if super::first_party_adapter_spec(adapter_path).is_some() {
-        return TokenStream2::new();
-    }
-    let Some(spec) = fallback_candidate_spec(adapter_path) else {
+    let Some(fallback) = fallback else {
         return TokenStream2::new();
     };
-    let span = adapter_path
-        .segments
-        .last()
-        .map_or_else(Span::call_site, |segment| segment.ident.span());
-    let message = first_party_adapter_fallback_message(spec);
+    let span = fallback.span;
+    let message = first_party_adapter_fallback_message(fallback.spec);
     quote::quote_spanned! {span=>
         const _: () = {
             #[deprecated(note = #message)]
@@ -111,7 +126,9 @@ pub(crate) fn first_party_adapter_fallback_warning_tokens(
 
 /// Nightly receives the same diagnostic through `proc_macro::Diagnostic`.
 #[cfg(rstest_bdd_nightly)]
-pub(crate) fn first_party_adapter_fallback_warning_tokens(_: &syn::Path) -> TokenStream2 {
+pub(crate) fn first_party_adapter_fallback_warning_tokens(
+    _: Option<&AdapterFallback>,
+) -> TokenStream2 {
     TokenStream2::new()
 }
 
@@ -142,8 +159,9 @@ mod tests {
     #[test]
     fn matching_custom_adapter_name_does_not_emit_warning_tokens() {
         let adapter_path = syn::parse_quote!(custom::TokioHarness);
+        let fallback = super::fallback_candidate(&adapter_path);
 
-        assert!(first_party_adapter_fallback_warning_tokens(&adapter_path).is_empty());
+        assert!(first_party_adapter_fallback_warning_tokens(fallback.as_ref()).is_empty());
     }
 
     #[test]
@@ -175,6 +193,23 @@ mod tests {
                 expected_crate
             ));
         }
+    }
+
+    #[test]
+    fn fallback_metadata_retains_adapter_kind_and_terminal_span() {
+        let adapter_path: syn::Path =
+            syn::parse_quote!(alias::rstest_bdd_harness_tokio::TokioHarness);
+        let Some(fallback) = super::fallback_candidate(&adapter_path) else {
+            panic!("aliased canonical crate segment should qualify");
+        };
+        let Some(terminal) = adapter_path.segments.last() else {
+            panic!("adapter path should have a terminal segment");
+        };
+        let terminal_span = terminal.ident.span();
+
+        assert_eq!(fallback.spec.default_crate_name, "rstest_bdd_harness_tokio");
+        assert_eq!(fallback.span.start(), terminal_span.start());
+        assert_eq!(fallback.span.end(), terminal_span.end());
     }
 
     proptest! {

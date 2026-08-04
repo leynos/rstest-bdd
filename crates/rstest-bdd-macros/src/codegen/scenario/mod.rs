@@ -199,6 +199,8 @@ where
         docstrings,
         tables,
     };
+    let harness_resolution = config.harness.map(crate::codegen::resolve_harness_api);
+    let attributes_resolution = config.attributes.map(crate::codegen::resolve_harness_api);
     let metadata = ScenarioMetadata {
         feature_path: &config.feature_path,
         scenario_name: &config.scenario_name,
@@ -209,6 +211,9 @@ where
         is_async: config.runtime.is_async(),
         return_kind: config.return_kind,
         harness: config.harness,
+        harness_api_path: harness_resolution
+            .as_ref()
+            .map(|resolution| resolution.api_path.clone()),
     };
     let test_config = TestTokensConfig {
         processed_steps,
@@ -223,7 +228,13 @@ where
     let vis = config.vis;
     let mut signature = Cow::Borrowed(config.sig);
     let (trait_assertions, test_attrs, underscore_expect, adapted_body) =
-        finalize_scenario_signature(config, &mut signature, body);
+        finalize_scenario_signature(
+            config,
+            harness_resolution.as_ref(),
+            attributes_resolution.as_ref(),
+            &mut signature,
+            body,
+        );
     TokenStream::from(quote! {
         #trait_assertions
         #test_attrs
@@ -272,6 +283,8 @@ where
         Err(err) => return TokenStream::from(err),
     };
 
+    let harness_resolution = config.harness.map(crate::codegen::resolve_harness_api);
+    let attributes_resolution = config.attributes.map(crate::codegen::resolve_harness_api);
     let metadata = ScenarioMetadata {
         feature_path: &config.feature_path,
         scenario_name: &config.scenario_name,
@@ -282,6 +295,9 @@ where
         is_async: config.runtime.is_async(),
         return_kind: config.return_kind,
         harness: config.harness,
+        harness_api_path: harness_resolution
+            .as_ref()
+            .map(|resolution| resolution.api_path.clone()),
     };
     let outline_config = OutlineTestTokensConfig {
         all_rows_steps,
@@ -302,7 +318,13 @@ where
     let attrs = config.attrs;
     let vis = config.vis;
     let (trait_assertions, test_attrs, underscore_expect, adapted_body) =
-        finalize_scenario_signature(config, &mut signature, body);
+        finalize_scenario_signature(
+            config,
+            harness_resolution.as_ref(),
+            attributes_resolution.as_ref(),
+            &mut signature,
+            body,
+        );
     TokenStream::from(quote! {
         #trait_assertions
         #test_attrs

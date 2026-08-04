@@ -621,7 +621,7 @@ sequenceDiagram
     Macros-->>Dev: &Regex (cached via OnceLock)
   else compile error
     Patterns-->>Macros: PatternError
-    Macros->>Dev: proc_macro_error::abort(span, error)
+    Macros->>Dev: proc_macro_error3::abort(span, error)
   end
 ```
 
@@ -1736,18 +1736,32 @@ immediately before the adapter type, the macro emits a fallback warning that
 recommends the canonical crate-root path or a direct `rstest-bdd-harness`
 development dependency under the canonical crate resolution name
 `rstest_bdd_harness`. A renamed dependency key cannot satisfy the generated
-fallback paths. For example,
-`alias::rstest_bdd_harness_tokio::TokioHarness` supplies this evidence.
-`custom::TokioHarness` does not: unrelated third-party adapters remain valid
-fallback paths without the diagnostic even when the first-party adapter crate
-is present.
+fallback paths. For example, `alias::rstest_bdd_harness_tokio::TokioHarness`
+supplies this evidence. `custom::TokioHarness` does not: unrelated third-party
+adapters remain valid fallback paths without the diagnostic even when the
+first-party adapter crate is present.
 
-The `codegen::adapter_fallback` module owns this diagnostic. Nightly toolchains
-emit it as a native procedural-macro warning, while stable toolchains use a
-generated deprecated-item reference carrying the same message. The stable
-diagnostic is a warning by default, while `#![deny(deprecated)]` escalates it
-to an error. The two paths are mutually exclusive, so a fallback expansion
-emits exactly one diagnostic.
+The `codegen::adapter_fallback` module owns this diagnostic. Resolution is a
+pure decision that returns the selected base API crate path and optional
+qualifying fallback metadata. Scenario code generation resolves each supplied
+`harness` or `attributes` path once and reuses the decision for runtime code,
+trait assertions, and one diagnostic. The two paths remain independent.
+
+On nightly, the macro-expansion boundary passes that metadata to
+`proc_macro::Diagnostic::spanned` with `proc_macro::Level::Warning` and calls
+`.emit()`. Stable toolchains instead use a generated deprecated-item reference
+carrying the same message. The stable diagnostic is a warning by default, while
+`#![deny(deprecated)]` escalates it to an error. The two implementations are
+mutually exclusive, so a qualifying fallback emits exactly one diagnostic.
+
+`crates/rstest-bdd-macros/build.rs` uses `rustc_version::version_meta()` and
+`rustc_version::Channel::Nightly` to set `rstest_bdd_nightly`.
+`crates/rstest-bdd-macros/src/lib.rs` enables `proc_macro_diagnostic` only for
+non-test nightly builds. The `rustversion` attributes in
+`crates/rstest-bdd-harness-tokio/tests/macro_compile.rs` register stable and
+nightly `trybuild` cases separately. This direct adapter-fallback path is
+distinct from `utils::warnings::emit_warning`, which handles runtime and
+registry warnings. `proc-macro-error3` supports other macro errors only.
 
 The user-facing guidance for this feature should lead with harness-only
 first-party configuration, with explicit `attributes = ...` documented as the
