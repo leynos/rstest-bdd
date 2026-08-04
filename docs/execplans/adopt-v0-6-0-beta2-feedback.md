@@ -917,7 +917,7 @@ new item carries a finish line and a `Design Doc:` / ADR reference):
 - New `§2.7.6.6 Feature-file rebuild invalidation`: the foot-gun, ADR-010's
   candidate call-site-relative `include_str!` and build-script
   `cargo::rerun-if-changed` routes, its portability constraints, and the
-  requirement for the roadmap 11.3.1 follow-up to select the mechanism.
+  requirement for the roadmap 10.3.3 follow-up to select the mechanism.
 - New `§2.7.6.7 Test-runner parallelism and scenario state`: the cargo test vs
   nextest matrix; `#[serial]` vs `#[file_serial]` vs nextest test-groups; why
   process-per-test isolates thread-local state.
