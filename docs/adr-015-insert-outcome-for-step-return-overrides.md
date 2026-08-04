@@ -71,9 +71,8 @@ Two accessors keep ordinary callers off the enum:
 ## Rationale
 
 The three outcomes are facts about what happened, so the return type should
-name them. Encoding them as an enum makes the dropped cases impossible to
-overlook by accident while leaving the successful case's payload exactly where
-it was.
+name them. Encoding them as an enum makes the dropped cases harder to overlook
+while leaving the successful case's payload exactly where it was.
 
 `#[must_use]` is the part that changes behaviour for existing code: a caller
 who previously wrote `ctx.insert_value(v);` and ignored the result now gets a
