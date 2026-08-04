@@ -1986,7 +1986,7 @@ interaction.
 > | Operation | Vendored gpui | Published `gpui 0.2.2` |
 > | --- | --- | --- |
 > | closure arity | one argument | two arguments |
-> | window handle | inherent method | `VisualContext` trait method |
+> | obtain window handle | `visual_cx.window_handle()` (inherent method on `VisualTestContext`) | `vcx.window_handle()` (same call, but `window_handle` is a `VisualContext` trait method, so add `use gpui::VisualContext;`) |
 > | `from_window` | `Option<VisualTestContext>` | `VisualTestContext` |
 > | read/update | `Option`/`Result` wrappers | direct `R` |
 >
