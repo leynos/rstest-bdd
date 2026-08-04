@@ -28,7 +28,6 @@ impl gpui::Render for CounterView {
 struct ScenarioState {
     entity: Option<gpui::Entity<CounterView>>,
     window: Option<gpui::AnyWindowHandle>,
-    opened_window_count: usize,
 }
 
 thread_local! {
@@ -70,7 +69,6 @@ fn fresh_gpui_window_is_opened(
     with_state(|state| {
         state.entity = Some(entity);
         state.window = Some(window);
-        state.opened_window_count = context.windows().len();
     });
 
     assert_eq!(
@@ -85,7 +83,11 @@ fn view_is_updated_through_reconstructed_visual_context(
 ) {
     let (entity, window) = current_handles();
     let mut visual_context = gpui::VisualTestContext::from_window(window, context);
-    visual_context.update_entity(&entity, |view, _view_cx| view.value += 1);
+    let value = visual_context.update_entity(&entity, |view, _view_cx| {
+        view.value += 1;
+        view.value
+    });
+    assert_eq!(value, 1);
 }
 
 #[then("the durable handles still identify the updated view")]
