@@ -113,9 +113,9 @@ pub(super) fn assemble_test_tokens_with_harness(
     components: &CodeComponents,
     context: TokenAssemblyContext<'_>,
     harness_path: &syn::Path,
+    harness_crate: &TokenStream2,
 ) -> TokenStream2 {
     let path = crate::codegen::rstest_bdd_path();
-    let harness_crate = crate::codegen::rstest_bdd_harness_api_path_for(harness_path);
     let harness_context_ty = quote! {
         <#harness_path as #harness_crate::HarnessAdapter>::Context
     };

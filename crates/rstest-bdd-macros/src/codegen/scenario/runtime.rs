@@ -7,10 +7,9 @@ mod harness;
 mod tests;
 mod types;
 
+use crate::codegen::scenario::ScenarioReturnKind;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
-
-use crate::codegen::scenario::ScenarioReturnKind;
 
 use super::helpers::ProcessedStepTokens;
 use body::wrap_scenario_block;
@@ -22,15 +21,9 @@ use generators::{
 };
 use harness::assemble_test_tokens_with_harness;
 use types::{CodeComponents, ScenarioLiterals, ScenarioLiteralsInput, TokenAssemblyContext};
-pub(crate) use types::{ProcessedSteps, ScenarioMetadata, TestTokensConfig};
-
-/// Configuration for generating test tokens for scenario outlines.
-#[derive(Debug)]
-pub(crate) struct OutlineTestTokensConfig<'a> {
-    /// Processed steps for each Examples row (one set per row).
-    pub(crate) all_rows_steps: Vec<ProcessedStepTokens>,
-    pub(crate) metadata: ScenarioMetadata<'a>,
-}
+pub(crate) use types::{
+    OutlineTestTokensConfig, ProcessedSteps, ScenarioMetadata, TestTokensConfig,
+};
 
 /// Common interface for scenario test configuration types.
 trait ScenarioTestConfig {
@@ -49,8 +42,8 @@ trait ScenarioTestConfig {
     /// Whether the scenario runs asynchronously.
     fn is_async(&self) -> bool;
 
-    /// Returns the optional harness adapter type path for execution delegation.
-    fn harness(&self) -> Option<&syn::Path>;
+    /// Returns the harness type and its pre-resolved base API path.
+    fn harness(&self) -> Option<(&syn::Path, &TokenStream2)>;
 }
 
 impl ScenarioTestConfig for TestTokensConfig<'_> {
@@ -78,8 +71,10 @@ impl ScenarioTestConfig for TestTokensConfig<'_> {
         self.metadata.is_async
     }
 
-    fn harness(&self) -> Option<&syn::Path> {
-        self.metadata.harness
+    fn harness(&self) -> Option<(&syn::Path, &TokenStream2)> {
+        self.metadata
+            .harness
+            .zip(self.metadata.harness_api_path.as_ref())
     }
 }
 
@@ -108,8 +103,10 @@ impl ScenarioTestConfig for OutlineTestTokensConfig<'_> {
         self.metadata.is_async
     }
 
-    fn harness(&self) -> Option<&syn::Path> {
-        self.metadata.harness
+    fn harness(&self) -> Option<(&syn::Path, &TokenStream2)> {
+        self.metadata
+            .harness
+            .zip(self.metadata.harness_api_path.as_ref())
     }
 }
 
@@ -305,7 +302,7 @@ fn assemble_test_tokens_with_context<P, I, Q>(
     is_async: bool,
     components: CodeComponents,
     ctx_iterators: ContextIterators<P, I, Q>,
-    harness: Option<&syn::Path>,
+    harness: Option<(&syn::Path, &TokenStream2)>,
 ) -> TokenStream2
 where
     P: Iterator<Item = TokenStream2>,
@@ -322,8 +319,14 @@ where
     let context =
         TokenAssemblyContext::new(&ctx_prelude, &ctx_inserts, &ctx_postlude, &block_tokens);
 
-    if let Some(harness_path) = harness {
-        assemble_test_tokens_with_harness(&literals, &components, context, harness_path)
+    if let Some((harness_path, harness_api_path)) = harness {
+        assemble_test_tokens_with_harness(
+            &literals,
+            &components,
+            context,
+            harness_path,
+            harness_api_path,
+        )
     } else {
         assemble_test_tokens(literals, components, context)
     }
@@ -352,7 +355,6 @@ where
 }
 
 /// Generates code components for scenario outlines with per-row step substitution.
-///
 /// Unlike `generate_code_components`, which handles a single step array,
 /// this function accepts a 2D array of processed steps (one set per Examples row)
 /// and produces a loop executor that iterates over rows at runtime.

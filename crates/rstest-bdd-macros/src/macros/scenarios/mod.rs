@@ -182,19 +182,23 @@ fn emit_runtime_deprecation_warning(runtime: RuntimeMode, harness: Option<&syn::
     if harness.is_some() {
         emit_warning(
             Span::call_site(),
-            "the `runtime = \"tokio-current-thread\"` argument is \
-             deprecated and redundant when an explicit `harness` is set; \
-             remove the `runtime` argument"
-                .to_owned(),
+            concat!(
+                "the `runtime = \"tokio-current-thread\"` argument is ",
+                "deprecated and redundant when an explicit `harness` is set; ",
+                "remove the `runtime` argument"
+            )
+            .to_owned(),
             None,
         );
     } else {
         emit_warning(
             Span::call_site(),
-            "the `runtime = \"tokio-current-thread\"` syntax is \
-             deprecated; use \
-             `harness = rstest_bdd_harness_tokio::TokioHarness` instead"
-                .to_owned(),
+            concat!(
+                "the `runtime = \"tokio-current-thread\"` syntax is ",
+                "deprecated; use ",
+                "`harness = rstest_bdd_harness_tokio::TokioHarness` instead"
+            )
+            .to_owned(),
             None,
         );
     }

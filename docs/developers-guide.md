@@ -908,29 +908,44 @@ attribute-policy type path.
 
 #### Adapter fallback diagnostics
 
-The macro code-generation layer owns first-party adapter fallback diagnostics
-in `codegen::adapter_fallback`. An unresolved path qualifies only when the
+The macro code-generation layer owns first-party adapter fallback diagnostics in
+`codegen::adapter_fallback`. An unresolved path qualifies only when the
 segment immediately before the adapter type is the canonical Tokio or GPUI
 crate identifier. A path such as
 `alias::rstest_bdd_harness_tokio::TokioHarness` qualifies, while
 `custom::TokioHarness` must remain warning-free even when the Tokio adapter
 crate is present.
 
-Nightly toolchains emit the diagnostic as a native procedural-macro warning.
-Stable toolchains receive the same message through a generated deprecated item
-because procedural-macro warnings are not available there. The stable
-diagnostic is a warning by default, while `#![deny(deprecated)]` escalates it
-to an error. These mechanisms are mutually exclusive, so each fallback reports
-exactly one diagnostic. Keep the diagnostic text and the stable warning,
-stable error, and nightly warning user-interface tests synchronized when
-changing this path.
+Fallback resolution is pure: one resolution value holds the selected base API
+crate path and optional first-party fallback metadata. Scenario code generation
+resolves each supplied `harness` or `attributes` path once, then reuses that
+decision for runtime generation, trait assertions, and diagnostic emission. The
+two supplied paths remain independent, so each qualifying fallback reports
+exactly one diagnostic.
+
+On nightly, the expansion boundary calls `proc_macro::Diagnostic::spanned` with
+`proc_macro::Level::Warning`, then calls `.emit()`. Stable toolchains receive
+the same message through a generated deprecated item because procedural-macro
+warnings are not available there. The stable diagnostic is a warning by
+default, while `#![deny(deprecated)]` escalates it to an error. Keep the
+diagnostic text and the stable warning, stable error, and nightly warning
+user-interface tests synchronized when changing this path.
+
+`crates/rstest-bdd-macros/build.rs` calls `rustc_version::version_meta()` and
+compares its channel with `rustc_version::Channel::Nightly` before setting
+`rstest_bdd_nightly`. `crates/rstest-bdd-macros/src/lib.rs` enables
+`proc_macro_diagnostic` only for non-test nightly builds. The Tokio fixture
+runner uses `rustversion` attributes in
+`crates/rstest-bdd-harness-tokio/tests/macro_compile.rs` to register stable and
+nightly `trybuild` cases separately.
 
 `utils::warnings::emit_warning` is the single internal warning boundary for
 runtime-deprecation and registry diagnostics. It uses native
 `proc_macro::Diagnostic` emission on nightly toolchains and is deliberately a
 no-op on stable toolchains and in tests. Keep those call sites behind this
 wrapper; adapter fallback diagnostics retain their separate generated
-deprecated-item path on stable toolchains.
+deprecated-item path on stable toolchains. `proc-macro-error3` supports other
+macro errors; it does not emit adapter fallback warnings.
 
 ### Third-party adapter crates
 

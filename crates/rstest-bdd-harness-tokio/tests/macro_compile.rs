@@ -78,6 +78,7 @@ fn compile_fail_runtime_deprecation_warning(tests: &trybuild::TestCases) {
 fn nightly_fallback_emits_one_proc_macro_warning() -> Result<(), Box<dyn std::error::Error>> {
     stage_trybuild_support_files()?;
     let tests = trybuild::TestCases::new();
+    tests.compile_fail("tests/fixtures_macros/nightly_registry_empty_warning.rs");
     tests.compile_fail("tests/fixtures_macros/nightly_adapter_fallback_warning.rs");
     Ok(())
 }
