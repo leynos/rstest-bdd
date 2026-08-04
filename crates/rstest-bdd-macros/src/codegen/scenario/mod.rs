@@ -20,7 +20,6 @@
 //! after resolving compile-time trait assertions via
 //! [`crate::codegen::rstest_bdd_harness_api_path_for`].
 
-use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use std::borrow::Cow;
@@ -114,17 +113,16 @@ pub(crate) fn scenario_allows_skip(tags: &[String]) -> bool {
 /// so they produce clear compiler errors when a type does not implement the
 /// required trait.
 fn generate_trait_assertions(
-    harness: Option<&syn::Path>,
-    attributes: Option<&syn::Path>,
+    harness: Option<(&syn::Path, &crate::codegen::HarnessApiResolution)>,
+    attributes: Option<(&syn::Path, &crate::codegen::HarnessApiResolution)>,
 ) -> TokenStream2 {
     if harness.is_none() && attributes.is_none() {
         return TokenStream2::new();
     }
 
-    let harness_assertion = harness.map(|harness_path| {
-        let harness_crate = crate::codegen::rstest_bdd_harness_api_path_for(harness_path);
-        let fallback_warning =
-            crate::codegen::first_party_adapter_fallback_warning_tokens(harness_path);
+    let harness_assertion = harness.map(|(harness_path, resolution)| {
+        let harness_crate = &resolution.api_path;
+        let fallback_warning = crate::codegen::first_party_adapter_fallback_diagnostic(resolution);
         quote! {
             #fallback_warning
             const _: () = {
@@ -133,10 +131,9 @@ fn generate_trait_assertions(
             };
         }
     });
-    let attributes_assertion = attributes.map(|policy_path| {
-        let harness_crate = crate::codegen::rstest_bdd_harness_api_path_for(policy_path);
-        let fallback_warning =
-            crate::codegen::first_party_adapter_fallback_warning_tokens(policy_path);
+    let attributes_assertion = attributes.map(|(policy_path, resolution)| {
+        let harness_crate = &resolution.api_path;
+        let fallback_warning = crate::codegen::first_party_adapter_fallback_diagnostic(resolution);
         quote! {
             #fallback_warning
             const _: () = {
@@ -173,7 +170,7 @@ pub(crate) fn generate_scenario_code(
     ctx_prelude: impl Iterator<Item = TokenStream2>,
     ctx_inserts: impl Iterator<Item = TokenStream2>,
     ctx_postlude: impl Iterator<Item = TokenStream2>,
-) -> TokenStream {
+) -> TokenStream2 {
     // Check if this is a scenario outline with placeholders in steps
     let is_outline_with_placeholders =
         config.examples.is_some() && steps_contain_placeholders(&config.steps);
@@ -228,6 +225,8 @@ fn adapt_fallible_gpui_boundary(
 /// Finalize attributes and the executable boundary for a scenario signature.
 fn finalize_scenario_signature(
     config: &ScenarioConfig<'_>,
+    harness_resolution: Option<&crate::codegen::HarnessApiResolution>,
+    attributes_resolution: Option<&crate::codegen::HarnessApiResolution>,
     signature: &mut Cow<'_, syn::Signature>,
     body: TokenStream2,
 ) -> (TokenStream2, TokenStream2, TokenStream2, TokenStream2) {
@@ -238,7 +237,10 @@ fn finalize_scenario_signature(
     };
     let generated_test_attrs =
         generate_test_attrs_with_boundary(config.attrs, &policy, config.runtime.is_async());
-    let trait_assertions = generate_trait_assertions(config.harness, config.attributes);
+    let trait_assertions = generate_trait_assertions(
+        config.harness.zip(harness_resolution),
+        config.attributes.zip(attributes_resolution),
+    );
     let body = if generated_test_attrs.uses_gpui_boundary && config.return_kind.is_fallible() {
         adapt_fallible_gpui_boundary(true, config.return_kind, signature.to_mut(), body)
     } else {
@@ -257,7 +259,7 @@ fn finalize_scenario_signature(
 fn generate_regular_scenario_code<P, I, Q>(
     config: &ScenarioConfig<'_>,
     ctx: ContextConfig<P, I, Q>,
-) -> TokenStream
+) -> TokenStream2
 where
     P: Iterator<Item = TokenStream2>,
     I: Iterator<Item = TokenStream2>,
@@ -270,7 +272,7 @@ where
              use a synchronous scenario function with `TokioHarness` instead \
              (the harness provides the Tokio runtime for step functions)",
         );
-        return TokenStream::from(err.into_compile_error());
+        return err.into_compile_error();
     }
 
     let (keyword_tokens, values, docstrings, tables) = process_steps(&config.steps);
@@ -281,6 +283,8 @@ where
         docstrings,
         tables,
     };
+    let harness_resolution = config.harness.map(crate::codegen::resolve_harness_api);
+    let attributes_resolution = config.attributes.map(crate::codegen::resolve_harness_api);
     let metadata = ScenarioMetadata {
         feature_path: &config.feature_path,
         scenario_name: &config.scenario_name,
@@ -291,6 +295,9 @@ where
         is_async: config.runtime.is_async(),
         return_kind: config.return_kind,
         harness: config.harness,
+        harness_api_path: harness_resolution
+            .as_ref()
+            .map(|resolution| resolution.api_path.clone()),
     };
     let test_config = TestTokensConfig {
         processed_steps,
@@ -304,23 +311,28 @@ where
     let attrs = config.attrs;
     let vis = config.vis;
     let mut signature = Cow::Borrowed(config.sig);
-    let (trait_assertions, test_attrs, underscore_expect, body) =
-        finalize_scenario_signature(config, &mut signature, body);
-    TokenStream::from(quote! {
+    let (trait_assertions, test_attrs, underscore_expect, body) = finalize_scenario_signature(
+        config,
+        harness_resolution.as_ref(),
+        attributes_resolution.as_ref(),
+        &mut signature,
+        body,
+    );
+    quote! {
         #trait_assertions
         #test_attrs
         #(#case_attrs)*
         #(#attrs)*
         #underscore_expect
         #vis #signature { #body }
-    })
+    }
 }
 
 /// Generate code for a scenario outline with placeholder substitution.
 fn generate_outline_scenario_code<P, I, Q>(
     config: &ScenarioConfig<'_>,
     ctx: ContextConfig<P, I, Q>,
-) -> TokenStream
+) -> TokenStream2
 where
     P: Iterator<Item = TokenStream2>,
     I: Iterator<Item = TokenStream2>,
@@ -333,7 +345,7 @@ where
              use a synchronous scenario function with `TokioHarness` instead \
              (the harness provides the Tokio runtime for step functions)",
         );
-        return TokenStream::from(err.into_compile_error());
+        return err.into_compile_error();
     }
 
     // Generate substituted steps for each Examples row
@@ -342,7 +354,7 @@ where
             proc_macro2::Span::call_site(),
             "Scenario outline examples missing",
         );
-        return TokenStream::from(err.into_compile_error());
+        return err.into_compile_error();
     };
     let headers = ExampleHeaders::new(examples.headers.clone());
     let all_rows_steps: Result<Vec<_>, _> = examples
@@ -357,9 +369,11 @@ where
 
     let all_rows_steps = match all_rows_steps {
         Ok(steps) => steps,
-        Err(err) => return TokenStream::from(err),
+        Err(err) => return err,
     };
 
+    let harness_resolution = config.harness.map(crate::codegen::resolve_harness_api);
+    let attributes_resolution = config.attributes.map(crate::codegen::resolve_harness_api);
     let metadata = ScenarioMetadata {
         feature_path: &config.feature_path,
         scenario_name: &config.scenario_name,
@@ -370,6 +384,9 @@ where
         is_async: config.runtime.is_async(),
         return_kind: config.return_kind,
         harness: config.harness,
+        harness_api_path: harness_resolution
+            .as_ref()
+            .map(|resolution| resolution.api_path.clone()),
     };
     let outline_config = OutlineTestTokensConfig {
         all_rows_steps,
@@ -389,16 +406,21 @@ where
 
     let attrs = config.attrs;
     let vis = config.vis;
-    let (trait_assertions, test_attrs, underscore_expect, body) =
-        finalize_scenario_signature(config, &mut signature, body);
-    TokenStream::from(quote! {
+    let (trait_assertions, test_attrs, underscore_expect, body) = finalize_scenario_signature(
+        config,
+        harness_resolution.as_ref(),
+        attributes_resolution.as_ref(),
+        &mut signature,
+        body,
+    );
+    quote! {
         #trait_assertions
         #test_attrs
         #(#case_attrs)*
         #(#attrs)*
         #underscore_expect
         #vis #signature { #body }
-    })
+    }
 }
 
 #[cfg(test)]

@@ -925,13 +925,17 @@ re-exported under different identifiers, use the canonical crate-root path (
 
 The macros emit one diagnostic when an unresolved Tokio or GPUI adapter path
 preserves the canonical first-party crate identifier immediately before the
-adapter type, as in
-`alias::rstest_bdd_harness_tokio::TokioHarness`. This can happen when a
-first-party adapter is re-exported through another module. Nightly emits a
-native warning. Stable emits a deprecated-item warning by default, and
-`#![deny(deprecated)]` escalates that diagnostic to an error. Unrelated
-third-party paths such as `custom::TokioHarness` do not trigger the diagnostic,
-even when the Tokio adapter crate is also a dependency.
+adapter type, as in `alias::rstest_bdd_harness_tokio::TokioHarness`. This can
+happen when a first-party adapter is re-exported through another module.
+Nightly emits a native warning. Stable emits a deprecated-item warning by
+default, and `#![deny(deprecated)]` escalates that diagnostic to an error.
+Unrelated third-party paths such as `custom::TokioHarness` do not trigger the
+diagnostic, even when the Tokio adapter crate is also a dependency.
+
+The macro resolves each supplied adapter path once and emits at most one
+diagnostic for that resolution. See the
+[developers' guide](developers-guide.md#adapter-fallback-diagnostics) for the
+nightly and stable implementation details.
 
 Prefer the canonical paths:
 

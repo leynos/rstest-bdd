@@ -17,8 +17,7 @@ mod adapter_fallback;
 pub(crate) mod scenario;
 pub(crate) mod wrapper;
 
-use adapter_fallback::emit_first_party_adapter_fallback_warning;
-pub(crate) use adapter_fallback::first_party_adapter_fallback_warning_tokens;
+use adapter_fallback::{AdapterFallback, fallback_candidate};
 
 const RSTEST_BDD: CrateSpec = CrateSpec {
     package_name: "rstest-bdd",
@@ -78,11 +77,35 @@ pub(crate) fn rstest_bdd_harness_tokio_path() -> TokenStream2 {
 /// dependency. Renamed dependencies that cannot be resolved at
 /// macro-expansion time (including test builds) fall back to the base
 /// `rstest-bdd-harness` path.
-pub(crate) fn rstest_bdd_harness_api_path_for(adapter_path: &syn::Path) -> TokenStream2 {
-    first_party_adapter_api_path(adapter_path).unwrap_or_else(|| {
-        emit_first_party_adapter_fallback_warning(adapter_path);
-        rstest_bdd_harness_path()
-    })
+#[derive(Clone)]
+pub(crate) struct HarnessApiResolution {
+    pub(crate) api_path: TokenStream2,
+    fallback: Option<AdapterFallback>,
+}
+
+/// Resolve the base harness API path and any qualifying fallback metadata.
+///
+/// This operation is pure: callers decide where to emit the optional
+/// diagnostic so one resolution can be reused throughout code generation.
+pub(crate) fn resolve_harness_api(adapter_path: &syn::Path) -> HarnessApiResolution {
+    if let Some(api_path) = first_party_adapter_api_path(adapter_path) {
+        return HarnessApiResolution {
+            api_path,
+            fallback: None,
+        };
+    }
+    HarnessApiResolution {
+        api_path: rstest_bdd_harness_path(),
+        fallback: fallback_candidate(adapter_path),
+    }
+}
+
+/// Emit or generate the diagnostic selected for one fallback resolution.
+pub(crate) fn first_party_adapter_fallback_diagnostic(
+    resolution: &HarnessApiResolution,
+) -> TokenStream2 {
+    adapter_fallback::emit_first_party_adapter_fallback_warning(resolution.fallback.as_ref());
+    adapter_fallback::first_party_adapter_fallback_warning_tokens(resolution.fallback.as_ref())
 }
 
 pub(crate) fn first_party_adapter_attribute_hint(
@@ -256,15 +279,43 @@ mod tests {
     #[case::gpui_policy_imported("GpuiAttributePolicy", ":: rstest_bdd_harness")]
     fn adapter_api_path_uses_expected_crate(#[case] adapter_path: &str, #[case] expected: &str) {
         let adapter_path = parse_path(adapter_path);
-        let tokens = super::rstest_bdd_harness_api_path_for(&adapter_path);
-        assert_eq!(tokens.to_string(), expected);
+        let resolution = super::resolve_harness_api(&adapter_path);
+        assert_eq!(resolution.api_path.to_string(), expected);
+    }
+
+    #[rstest]
+    #[case::aliased_tokio(
+        "alias::rstest_bdd_harness_tokio::TokioHarness",
+        ":: rstest_bdd_harness",
+        true
+    )]
+    #[case::canonical_tokio(
+        "rstest_bdd_harness_tokio::TokioHarness",
+        ":: rstest_bdd_harness_tokio",
+        false
+    )]
+    #[case::canonical_gpui(
+        "rstest_bdd_harness_gpui::GpuiAttributePolicy",
+        ":: rstest_bdd_harness_gpui",
+        false
+    )]
+    #[case::custom_tokio_name("custom::TokioHarness", ":: rstest_bdd_harness", false)]
+    fn pure_resolution_selects_path_and_fallback_metadata(
+        #[case] adapter_path: &str,
+        #[case] expected_path: &str,
+        #[case] has_fallback: bool,
+    ) {
+        let resolution = super::resolve_harness_api(&parse_path(adapter_path));
+
+        assert_eq!(resolution.api_path.to_string(), expected_path);
+        assert_eq!(resolution.fallback.is_some(), has_fallback);
     }
 
     #[test]
     fn matching_type_name_under_unknown_root_uses_base_harness_crate() {
         let harness_path = syn::parse_quote!(my_harness::TokioHarness);
-        let tokens = super::rstest_bdd_harness_api_path_for(&harness_path);
-        assert_eq!(tokens.to_string(), ":: rstest_bdd_harness");
+        let resolution = super::resolve_harness_api(&harness_path);
+        assert_eq!(resolution.api_path.to_string(), ":: rstest_bdd_harness");
     }
 
     #[test]
@@ -272,7 +323,7 @@ mod tests {
         // Simulates: use rstest_bdd_harness_tokio::TokioHarness as TH;
         // #[scenario(harness = my_mod::TH)] - type alias not in known names.
         let harness_path = syn::parse_quote!(rstest_bdd_harness_tokio::SomeAlias);
-        let tokens = super::rstest_bdd_harness_api_path_for(&harness_path);
+        let tokens = super::resolve_harness_api(&harness_path).api_path;
         // The type name is not in TOKIO_HARNESS.adapter_type_names, so fall back.
         assert_eq!(tokens.to_string(), ":: rstest_bdd_harness");
     }
@@ -283,14 +334,14 @@ mod tests {
         // #[scenario(harness = tok::TokioHarness)]
         // In a test build try_resolve_crate_path returns None, so no root match.
         let harness_path = syn::parse_quote!(tok::TokioHarness);
-        let tokens = super::rstest_bdd_harness_api_path_for(&harness_path);
+        let tokens = super::resolve_harness_api(&harness_path).api_path;
         assert_eq!(tokens.to_string(), ":: rstest_bdd_harness");
     }
 
     #[test]
     fn custom_harness_api_path_uses_base_harness_crate() {
         let harness_path = syn::parse_quote!(my_harness::Harness);
-        let tokens = super::rstest_bdd_harness_api_path_for(&harness_path);
+        let tokens = super::resolve_harness_api(&harness_path).api_path;
         assert_eq!(tokens.to_string(), ":: rstest_bdd_harness");
     }
 

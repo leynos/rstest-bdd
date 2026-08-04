@@ -177,7 +177,8 @@ fn try_scenario(
         ctx_prelude.into_iter(),
         ctx_inserts.into_iter(),
         ctx_postlude.into_iter(),
-    ))
+    )
+    .into())
 }
 
 fn parse_tag_filter(
