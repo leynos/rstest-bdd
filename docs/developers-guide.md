@@ -393,6 +393,24 @@ from both `harness_led_defaults.rs` test binaries (Tokio and GPUI) to keep
 runtime-error-path assertions aligned. The guard step remains local to each
 test binary, so the `#[scenario]` macro can discover it from the test source.
 
+`rstest-bdd-harness` exposes `FailingHarness` from its crate root when its
+`testing` feature is enabled. This dependency-facing test API always returns a
+synthetic `HarnessError::RuntimeBuildFailed`, allowing adapter crates to share
+the generated scenario error-path assertions without duplicating a failing
+adapter. Enable it only for tests:
+
+```toml
+[dev-dependencies]
+rstest-bdd-harness = { workspace = true, features = ["testing"] }
+```
+
+The core macro trybuild test scopes `RUST_BACKTRACE` removal with
+`temp_env::with_var_unset`. Trybuild compares compiler diagnostics verbatim,
+and CI's inherited backtrace setting otherwise adds platform-specific output.
+Keep `temp-env` available as a dev-dependency when building this test target;
+direct environment mutation is unsafe under Rust 2024 and would violate the
+workspace's unsafe-code policy.
+
 ### Bulk-migration cookbook reference suite
 
 The user guide's "Bulk-migration cookbook" subsection is backed by a

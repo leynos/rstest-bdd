@@ -17,8 +17,10 @@
 
 use std::sync::Arc;
 
+use rstest::fixture;
+use rstest_bdd::Slot;
 use rstest_bdd_harness_tokio::TokioTestContext;
-use rstest_bdd_macros::{given, scenario, then, when};
+use rstest_bdd_macros::{ScenarioState, given, scenario, then, when};
 use tokio::sync::Notify;
 
 #[macro_use]
@@ -26,6 +28,16 @@ use tokio::sync::Notify;
 mod failing_harness_error_path;
 
 // --- Inferred-policy happy path -----------------------------------------
+
+#[derive(Default, ScenarioState)]
+struct LocalTaskState {
+    handle: Slot<tokio::task::JoinHandle<u32>>,
+}
+
+#[fixture]
+fn local_task_state() -> LocalTaskState {
+    LocalTaskState::default()
+}
 
 #[given("the inferred Tokio runtime is active")]
 fn inferred_runtime_is_active(#[from(rstest_bdd_harness_context)] context: &TokioTestContext) {
@@ -37,23 +49,30 @@ fn inferred_runtime_is_active(#[from(rstest_bdd_harness_context)] context: &Toki
 }
 
 #[when("a local task is spawned under the inferred policy")]
-fn local_task_spawned() {
+fn local_task_spawned(local_task_state: &LocalTaskState) {
     // `spawn_local` panics without the `LocalSet` provided by `TokioHarness`.
     // This step is intentionally synchronous: the harness runner polls each
     // step future exactly once, so `.await` on the `JoinHandle` would yield
     // `Pending` and panic. Completion and value assertions are covered by the
     // standalone unit test `spawned_local_task_join_handle_returns_value`.
-    let _handle = tokio::task::spawn_local(async { 42u32 });
+    local_task_state
+        .handle
+        .set(tokio::task::spawn_local(async { 42u32 }));
 }
 
 #[then("the inferred runtime flavour is current thread")]
 fn runtime_flavour_is_current_thread(
     #[from(rstest_bdd_harness_context)] context: &TokioTestContext,
+    local_task_state: &LocalTaskState,
 ) {
     assert_eq!(
         context.handle().runtime_flavor(),
         tokio::runtime::RuntimeFlavor::CurrentThread
     );
+    let Some(handle) = local_task_state.handle.take() else {
+        panic!("the scenario should retain its spawned local task");
+    };
+    handle.abort();
 }
 
 #[test]
@@ -109,7 +128,10 @@ fn aborted_local_task_join_handle_reports_cancellation() {
     name = "Inferred Tokio policy provides the runtime",
     harness = rstest_bdd_harness_tokio::TokioHarness,
 )]
-fn inferred_policy_runs_scenario_through_tokio_harness() {}
+fn inferred_policy_runs_scenario_through_tokio_harness(
+    #[from(local_task_state)] _local_task_state: LocalTaskState,
+) {
+}
 
 #[given("a step that must never run")]
 fn step_that_must_never_run() {
