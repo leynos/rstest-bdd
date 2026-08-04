@@ -128,8 +128,8 @@ and promotes every Rustdoc warning to an error. `--workspace` checks every
 member crate, while `--no-deps` keeps the gate focused on documentation owned
 by this repository.
 
-`make test` separately compiles and runs documentation examples across every
-workspace crate and feature combination with:
+`make test` separately compiles and runs documentation examples for every
+workspace crate with all features enabled:
 
 ```makefile
 RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) test --doc --workspace --all-features $(BUILD_JOBS)
