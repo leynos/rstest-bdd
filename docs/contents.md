@@ -80,7 +80,7 @@
 - [ADR 008: harness-led attribute policy defaults][adr-008]
   records the harness-led attribute-policy default decision.
 - [ADR 009: consistent implicit fixture name normalization][adr-009]
-  records the fixture-name normalization decision.
+  records the decision for consistent implicit fixture-name normalization.
 - [ADR 010: feature-file change detection][adr-010] records the decision for
   making `.feature` files rebuild inputs.
 - [ADR 011: first-party scenario-state helpers][adr-011] records the planned
@@ -93,8 +93,8 @@
   decision to keep `check_users_guide_links.py`, scoped to repository
   references in the vendored users' guide.
 - [ADR 015: name the step-return override outcome][adr-015] records the
-  decision to return `InsertOutcome` from `StepContext::insert_value` instead
-  of `Option<Box<dyn Any>>`.
+  decision to return `InsertOutcome` from `StepContext::insert_value` instead of
+  `Option<Box<dyn Any>>`.
 
 ## Execution plans
 

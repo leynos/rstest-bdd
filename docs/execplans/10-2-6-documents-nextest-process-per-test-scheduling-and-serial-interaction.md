@@ -214,12 +214,10 @@ escalation, not a workaround.
   runner-agnostic subsection.
 
 - Observation: PR metadata was still plan-shaped at implementation start.
-  Evidence: `gh pr view --json number,title,body,url` showed PR #547 titled
-  `Plan: Document nextest process-per-test scheduling and #[serial]
-  interaction (10.2.6)`.
-  Impact: The PR title was updated to remove `Plan:`, the Lody session title
-  was renamed to the new PR title, and the PR description's Lody session link
-  was updated to
+  Evidence: `gh pr view --json number,title,body,url` showed that PR #547's
+  title started with `Plan:`. Impact: The PR title was updated to remove
+  `Plan:`, the Lody session title was renamed to the new PR title, and the PR
+  description's Lody session link was updated to
   `https://lody.ai/leynos/sessions/77300eb4-3c2c-489d-88f3-f28539dd420b`.
 
 - Observation: The roadmap finish line is already met in prose by PR #519.

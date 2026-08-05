@@ -177,10 +177,10 @@ parameter cannot carry the fixture's own name — because that name is already
 taken at the call site, or because a shorter local name reads better.
 
 Bare `#[from]` requests the parameter's own normalized fixture name, which is
-what an unannotated parameter already does. It changes no lookup, so its purpose
-is documentary: it marks a parameter as a deliberate fixture injection at the
-binding site, rather than leaving a reader to infer that from the absence of a
-matching placeholder in the step pattern.
+what an unannotated parameter already does. It changes no lookup, so its
+purpose is documentary: it marks a parameter as a deliberate fixture injection
+at the binding site, rather than leaving a reader to infer that from the
+absence of a matching placeholder in the step pattern.
 
 Two spellings are rejected when the macro expands.
 
@@ -1104,6 +1104,17 @@ path when `attributes = ...` is omitted:
 
 ```rust,no_run
 # use rstest_bdd_macros::scenario;
+#[scenario(
+    path = "tests/features/reminders.feature",
+    name = "Scheduling a reminder queues it for later delivery",
+    harness = rstest_bdd_harness_tokio::TokioHarness,
+)]
+fn queues_a_scheduled_reminder() {}
+```
+
+Keep explicit `attributes = ...` only for overrides, attributes-only tests, or
+unrecognized paths where the default cannot be inferred.
+
 ### Using the GPUI harness
 
 The `rstest-bdd-harness-gpui` crate provides Graphical Processing User
@@ -1126,17 +1137,25 @@ when `attributes = ...` is omitted:
 
 ```rust,no_run
 # use rstest_bdd_macros::scenario;
+#[scenario(
+    path = "tests/features/counter.feature",
+    name = "Increment a counter and observe GPUI context",
+    harness = rstest_bdd_harness_gpui::GpuiHarness,
+)]
+fn increment_and_observe_gpui_context() {}
+```
+
 #### GPUI panic diagnostics carry scenario context
 
 When a step running under `GpuiHarness` panics, the harness prepends the
-feature path, scenario name, and feature-file line number to the panic
-message before re-raising it through `panic::resume_unwind`. The same fields
-are emitted as a `tracing::error!` record (`harness_type`, `feature_path`,
+feature path, scenario name, and feature-file line number to the panic message
+before re-raising it through `panic::resume_unwind`. The same fields are
+emitted as a `tracing::error!` record (`harness_type`, `feature_path`,
 `scenario_name`, `scenario_line`) and as a matching `stderr` line, so test
-runners that do not collect `tracing` events still surface the scenario name
-on failure. This makes a failing GPUI scenario identifiable from the
-`cargo test` or `cargo nextest` output without cross-referencing libtest
-function names against feature files. For a concrete regression example, see
+runners that do not collect `tracing` events still surface the scenario name on
+failure. This makes a failing GPUI scenario identifiable from the `cargo test`
+or `cargo nextest` output without cross-referencing libtest function names
+against feature files. For a concrete regression example, see
 `crates/rstest-bdd-harness-gpui/tests/scenario_name_in_logs.rs`.
 
 #### Stateful GPUI scenarios with durable handles
@@ -1167,69 +1186,54 @@ function names against feature files. For a concrete regression example, see
 > the *published* `gpui 0.2.2` on crates.io encounter a different test API.
 > The four shapes that differ are:
 >
-<!-- markdownlint-disable MD013 -->
->
-> | Operation | Vendored gpui (regression suite + these snippets) | Published `gpui 0.2.2` (downstream adopters) |
+> | Operation | Vendored gpui | Published `gpui 0.2.2` |
 > | --- | --- | --- |
-> | `add_window_view` closure | `\|_context\| View::default()` (one argument) | `\|_window, view_cx\| View::new(view_cx)` (two arguments) |
+> | `add_window_view` | one-argument closure; returns `(Entity<T>, VisualTestContext)` | two-argument closure; returns `(Entity<V>, &mut VisualTestContext)` |
 > | obtain window handle | `visual_cx.window_handle()` (inherent method on `VisualTestContext`) | `vcx.window_handle()` (same call, but `window_handle` is a `VisualContext` trait method, so add `use gpui::VisualContext;`) |
-> | `VisualTestContext::from_window` | returns `Option<VisualTestContext>` (`let … else { panic!(…) }`) | returns `VisualTestContext` by value (no `Option`) |
-> | `read_entity` / `update_entity` | `Option`/`Result` wrappers (`Some(1)`, `Ok(())`) | identity `type Result<T> = T`; returns `R` directly |
->
-<!-- markdownlint-enable MD013 -->
+> | `from_window` | `Option<VisualTestContext>` | `VisualTestContext` |
+> | read/update | `Option`/`Result` wrappers | direct `R` |
 >
 > *Table: Vendored-to-published gpui 0.2.2 API shape differences.*
->
-> Beyond those four shapes, published `gpui 0.2.2` returns
-> `(Entity<V>, &mut VisualTestContext)` from `add_window_view`, while the
-> vendored fork returns `(Entity<T>, VisualTestContext)` by value. Adopters
-> bind the visual context by mutable reference rather than owning it.
->
-> The vendored fork also gives `update_entity` a typed
-> `Result<(), EntityError>` missing-entity path and wraps `read_entity` in
-> `Option<R>`. Published `gpui` returns `R` directly, so adopters cannot depend
-> on that typed error channel.
 >
 > Adapt call sites when consuming the published crate. The harness itself
 > (which only deals in `TestAppContext`) is not affected by this divergence.
 
-##### When to reach for the stateful playbook
+#### When to reach for the stateful playbook
 
 Stateful GPUI scenarios are those whose steps share durable resources, such as
-a typed view entity and the window that owns it, and need mutable access to
-the harness-provided `gpui::TestAppContext` as well. Scenarios that only read
-the harness context, or that share state through ordinary
+a typed view entity and the window that owns it, and need mutable access to the
+harness-provided `gpui::TestAppContext` as well. Scenarios that only read the
+harness context, or that share state through ordinary
 [`rstest`](https://docs.rs/rstest/) fixtures without also borrowing
 `TestAppContext` mutably, should keep using plain fixtures and skip this
-playbook. The pattern below is needed precisely when a single step must
-borrow both `&mut TestAppContext` and shared mutable scenario state, which
-the v0.6 `StepContext` API cannot express in one borrow.
+playbook. The pattern below is needed precisely when a single step must borrow
+both `&mut TestAppContext` and shared mutable scenario state, which the v0.6
+`StepContext` API cannot express in one borrow.
 
 ##### Durable handles versus visual context
 
 `gpui::TestAppContext::add_window_view` creates a test window and returns
-`(Entity<T>, VisualTestContext)`. `Entity<T>` is the typed, durable handle
-to the stored view; `VisualTestContext::window_handle()` returns the
-`AnyWindowHandle` that identifies the window itself. Both are cheap to copy
-and remain valid across steps. `VisualTestContext`, by contrast, borrows
-from the `TestAppContext` it was created against and must not be stored
-across steps: a later step is handed a fresh `&mut TestAppContext` from the
-harness, so any saved `VisualTestContext` would be tied to a stale borrow.
-Stateful steps therefore store `Entity<T>` and `AnyWindowHandle` only, and
-rebuild a fresh `VisualTestContext` inside each step that needs visual
-interaction using
+`(Entity<T>, VisualTestContext)`. `Entity<T>` is the typed, durable handle to
+the stored view; `VisualTestContext::window_handle()` returns the
+`AnyWindowHandle` that identifies the window itself. Both are cheap to copy and
+remain valid across steps. `VisualTestContext`, by contrast, borrows from the
+`TestAppContext` it was created against and must not be stored across steps: a
+later step is handed a fresh `&mut TestAppContext` from the harness, so any
+saved `VisualTestContext` would be tied to a stale borrow. Stateful steps
+therefore store `Entity<T>` and `AnyWindowHandle` only, and rebuild a fresh
+`VisualTestContext` inside each step that needs visual interaction using
 `gpui::VisualTestContext::from_window(window, &mut cx)`.
 
 ##### Reset protocol
 
-Thread-local scenario state outlives any single scenario, so each scenario
-must observe a two-sided reset protocol to prevent handle leakage across
-serial scenarios on the same test thread:
+Thread-local scenario state outlives any single scenario, so each scenario must
+observe a two-sided reset protocol to prevent handle leakage across serial
+scenarios on the same test thread:
 
 - **Reset before assignment.** The first `#[given]` that opens a window
   resets the thread-local state before storing fresh handles. This makes a
-  reused thread observe a clean slate even if the previous scenario aborted
-  in a way that bypassed unwinding.
+  reused thread observe a clean slate even if the previous scenario aborted in
+  a way that bypassed unwinding.
 - **Reset after teardown.** A `Drop`-based fixture guard runs at scenario
   exit. Threading the guard through a `#[fixture]` ensures the reset runs on
   every unwind path: success, assertion failure, and panic alike.
@@ -1242,22 +1246,23 @@ suppressed `Drop`. The `Drop` reset covers the symmetric case where the
 constructed when teardown happens. Deleting either call is a correctness
 regression: the regression suite at
 `crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` asserts
-`stale_window_count == 0` after the constructor-side reset to make the
-ordering observable, and the second scenario in
-`tests/features/stateful_window.feature` ("Opening a second GPUI window
-starts from reset state") fails if the `Drop` reset is removed.
+`stale_window_count == 0` after the constructor-side reset to make the ordering
+observable, and the second scenario in `tests/features/stateful_window.feature`
+("Opening a second GPUI window starts from reset state") fails if the `Drop`
+reset is removed.
 
-Each `#[scenario]` that participates in this protocol must carry
-`#[serial]` from the [`serial_test`](https://docs.rs/serial_test/) crate.
-GPUI scenarios share a process-wide `TestAppContext` slot, and the
-thread-local reset protocol assumes sequential execution; running stateful
-GPUI scenarios in parallel breaks both invariants.
+Each `#[scenario]` that participates in this protocol must carry `#[serial]`
+from the [`serial_test`](https://docs.rs/serial_test/) crate. GPUI scenarios
+share a process-wide `TestAppContext` slot, and the thread-local reset protocol
+assumes sequential execution; running stateful GPUI scenarios in parallel
+breaks both invariants.
 
-See [test-runner parallelism and scenario state](#test-runner-parallelism-and-scenario-state)
+See
+[test-runner parallelism and scenario state](#test-runner-parallelism-and-scenario-state)
 for the full `#[serial]`, cargo-nextest, `#[file_serial]`, and nextest
 test-group matrix.
 
-##### Worked example
+#### Worked example
 
 The snippets below mirror the regression suite at
 `crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` identifier for
@@ -1265,11 +1270,11 @@ identifier. Treat that file as the executable reference: if a snippet here
 drifts from the suite, the suite wins and this section should be updated to
 match.
 
-The first snippet declares the scenario-state container, the two reset
-helpers, the `Drop`-based cleanup type, and the two `#[scenario]` functions
-that bind to the feature file. Each scenario carries `#[serial]` and pulls
-in the `scenario_state_cleanup` fixture so its constructor-side reset runs
-before any step:
+The first snippet declares the scenario-state container, the two reset helpers,
+the `Drop`-based cleanup type, and the two `#[scenario]` functions that bind to
+the feature file. Each scenario carries `#[serial]` and pulls in the
+`scenario_state_cleanup` fixture so its constructor-side reset runs before any
+step:
 
 ```rust,no_run
 # use rstest::fixture;
@@ -1372,6 +1377,7 @@ fn fresh_gpui_window_is_opened(
         "reset-before-assignment should remove stale scenario state"
     );
 }
+
 ```
 
 The third snippet shows a `#[when]` and a `#[then]` step that rebuild
@@ -1461,9 +1467,9 @@ binding name is part of the contract.
 #### Pedantic lint profile
 
 The snippets above are the lint-clean form used by the regression suite. The
-repository runs Whitaker's `no_unwrap_or_else_panic` Dylint lint from
-`make lint`, so `unwrap_or_else(|| panic!(…))` is rejected even when it encodes
-an infrastructure invariant. The workspace also denies `clippy::expect_used` and
+full Whitaker suite run by `make lint` includes `no_unwrap_or_else_panic`, so
+`unwrap_or_else(|| panic!(…))` is rejected even when it encodes an
+infrastructure invariant. The workspace also denies `clippy::expect_used` and
 `clippy::unwrap_used`, so `.expect(...)` and `.unwrap()` are not acceptable
 replacements.
 
@@ -1476,10 +1482,11 @@ let Some(window) = current_handles() else {
 };
 ```
 
-Under `clippy::shadow_reuse`, avoid re-using the same name for a trimmed or
-borrowed binding. For example, prefer a fresh guard name such as `world_guard`
-over shadowing `world`. [ADR-013][adr-013] records the decision to enforce this
-single Whitaker lint now while deferring the full Whitaker suite.
+Under Whitaker's `shadow_reuse` lint, avoid re-using the same name for a
+trimmed or borrowed binding. For example, prefer a fresh guard name such as
+`world_guard` over shadowing `world`. The full Whitaker suite is adopted as the
+current `make lint` gate; [ADR-013][adr-013] records the current compatibility
+contract.
 
 #### Bulk-migration cookbook
 
@@ -1635,12 +1642,11 @@ using it:
 
 ```toml
 [dev-dependencies]
-serial_test = { version = "...", features = ["file_locks"] }
+serial_test = { version = "2", features = ["file_locks"] }
 ```
 
-The feature flag is the important part; choose the major version already used
-by the consuming workspace. The `file_locks` feature is available in both the
-2.x and 3.x `serial_test` lines.
+The `file_locks` feature is available in the 2.x `serial_test` line used by
+this example.
 
 ```rust,no_run
 
@@ -2590,8 +2596,11 @@ functions that serialize the collector snapshot into a predictable schema with
 lowercase status labels:
 
 ```rust,no_run
-let mut buffer = Vec::new();
-rstest_bdd::reporting::json::write_snapshot(&mut buffer)?;
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut buffer = Vec::new();
+    rstest_bdd::reporting::json::write_snapshot(&mut buffer)?;
+    Ok(())
+}
 ```
 
 The companion `rstest_bdd::reporting::junit` module renders the same snapshot
@@ -2599,8 +2608,11 @@ as JUnit XML. Each skipped scenario emits a `<skipped>` element with an optional
 `message` attribute so continuous integration (CI) servers surface the reason:
 
 ```rust,no_run
-let mut xml = String::new();
-rstest_bdd::reporting::junit::write_snapshot(&mut xml)?;
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut xml = String::new();
+    rstest_bdd::reporting::junit::write_snapshot(&mut xml)?;
+    Ok(())
+}
 ```
 
 Both writers accept explicit `&[ScenarioRecord]` slices when callers want to

@@ -507,13 +507,13 @@ leading underscore while another side keeps it.
 Step wrapper argument classification enters through
 `classify_fixture_or_step()`, the terminal classifier in the pipeline. It
 strips any `#[from(...)]` attribute in place — rejecting a duplicate `#[from]`
-and the `#[from = ...]` name-value form — and threads a
-`ClassificationContext` (the mutable `extracted` results and remaining
-`placeholders` accumulators) into `classify_by_placeholder_match()`. That
-helper first checks whether the argument maps to a step placeholder. If it does
-not, the argument is classified as a fixture. For implicit fixture arguments,
-it records the normalized fixture name, so the generated wrapper asks for
-the same key that scenario fixture registration produced.
+and the `#[from = ...]` name-value form — and threads a `ClassificationContext`
+(the mutable `extracted` results and remaining `placeholders` accumulators) into
+`classify_by_placeholder_match()`. That helper first checks whether the
+argument maps to a step placeholder. If it does not, the argument is classified
+as a fixture. For implicit fixture arguments, it records the normalized fixture
+name, so the generated wrapper asks for the same key that scenario fixture
+registration produced.
 
 Explicit `#[from(...)]` names are authoritative and bypass normalization. Use
 that escape hatch when the intended fixture name starts with an underscore or
@@ -929,9 +929,9 @@ attribute to every `GpuiHarness::run`-driving test.
 All Language Server Protocol (LSP) diagnostic publishing in `rstest-bdd-server`
 flows through the canonical `publish_with` helper in
 `crates/rstest-bdd-server/src/handlers/diagnostics/publish.rs`. It owns the
-publish boundary exactly once: the client-socket guard, the
-path-to-URI guard, `PublishDiagnosticsParams` construction, the
-`textDocument/publishDiagnostics` notification, and failure logging.
+publish boundary exactly once: the client-socket guard, the path-to-URI guard,
+`PublishDiagnosticsParams` construction, the `textDocument/publishDiagnostics`
+notification, and failure logging.
 
 - **Ownership:** the diagnostics handler layer owns the helper; it is private
   to the `diagnostics::publish` module.
@@ -941,18 +941,17 @@ path-to-URI guard, `PublishDiagnosticsParams` construction, the
   compute closure rather than re-implementing the guards or notify call.
 - **Composition rules:** the compute closure returns
   `Option<Vec<Diagnostic>>` — `None` skips publishing entirely (used when a
-  feature file has no index, preserving previously published diagnostics),
-  while `Some(vec![])` still publishes, so stale diagnostics are cleared.
+  feature file has no index, preserving previously published diagnostics), while
+  `Some(vec![])` still publishes, so stale diagnostics are cleared.
   `prepare_publish` separates parameter construction from the notify side
   effect, so tests can pin payloads without a client socket.
 
-The published payloads for representative feature and Rust files are pinned
-by `insta` snapshots, and the publish invariants (count preserved, empty
-vector still published) by a property test, both in
-`handlers/diagnostics/publish.rs`. The boundary itself — that `publish_with`
-actually reaches (or, for a skip, never reaches) `ClientSocket::notify` — is
-proven through a real client socket, which `prepare_publish`-only tests cannot
-observe:
+The published payloads for representative feature and Rust files are pinned by
+`insta` snapshots, and the publish invariants (count preserved, empty vector
+still published) by a property test, both in `handlers/diagnostics/publish.rs`.
+The boundary itself — that `publish_with` actually reaches (or, for a skip,
+never reaches) `ClientSocket::notify` — is proven through a real client socket,
+which `prepare_publish`-only tests cannot observe:
 
 - **Missing-index skip** is a transport-backed unit test in
   `handlers/diagnostics/publish.rs`: a real `async_lsp` main loop supplies the
@@ -962,9 +961,8 @@ observe:
   whole boundary rather than clearing prior client diagnostics.
 - **Emission and empty-vector clearing** for both feature and Rust files are
   exercised end-to-end against a live server by the `smoke_lsp` integration
-  suite: an unimplemented/unused step yields a non-empty
-  `publishDiagnostics`, and resolving it re-publishes an empty array for the
-  same URI.
+  suite: an unimplemented/unused step yields a non-empty `publishDiagnostics`,
+  and resolving it re-publishes an empty array for the same URI.
 
 ## cargo-bdd scenario output formatting
 
@@ -979,14 +977,14 @@ bypassed-step listings.
 - **Canonical formatter:** `format_scenario_line` renders one scenario line.
   The location, tag, and reason fragments come from the shared
   `format_location`, `append_tags`, and `append_reason` helpers — also used by
-  `write_bypassed_steps` — gated by the display options. There are no
-  per-mode `*_scenario_*` duplicates; new fragments belong in the shared
-  helpers, gated in `format_scenario_line`.
+  `write_bypassed_steps` — gated by the display options. There are no per-mode
+  `*_scenario_*` duplicates; new fragments belong in the shared helpers, gated
+  in `format_scenario_line`.
 - Rendered output per mode is pinned by `insta` snapshots, and the structural
   invariants (empty tag list emits no `[tags: …]` fragment; `:line` suffix
-  appears only when requested and known; the leading separator newline
-  requires both that it was requested and that at least one skipped scenario
-  is rendered) by property tests, both in the `output::tests` module at
+  appears only when requested and known; the leading separator newline requires
+  both that it was requested and that at least one skipped scenario is
+  rendered) by property tests, both in the `output::tests` module at
   `crates/cargo-bdd/src/output/tests.rs`. `write_scenarios` filters out
   scenarios that are not `Skipped` and returns early when none remain, so
   filtering out every skipped scenario suppresses the separator along with the
@@ -1210,8 +1208,8 @@ became of it:
   than bound to an arbitrary one.
 
 The old `Option` return collapsed the last two into the same `None` as a
-successful insert that displaced nothing, which is why a silently discarded step
-return was invisible at the call site.
+successful insert that displaced nothing, which is why a silently discarded
+step return was invisible at the call site.
 
 Two points matter when touching this code:
 
@@ -1224,9 +1222,9 @@ Two points matter when touching this code:
   the old `Option` result exactly — and `is_inserted()` answers the boolean
   question without consuming it.
 
-The dropped cases remain dropped: the ADR changed what a caller can observe, not
-the runtime policy for unmatched or ambiguous types. Caller-facing upgrade steps
-are in the [v0.6.0 migration guide](v0-6-0-migration-guide.md).
+The dropped cases remain dropped: the ADR changed what a caller can observe,
+not the runtime policy for unmatched or ambiguous types. Caller-facing upgrade
+steps are in the [v0.6.0 migration guide](v0-6-0-migration-guide.md).
 
 ## Language-server handler conventions
 

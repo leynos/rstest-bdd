@@ -8,7 +8,7 @@ fn compute_table_docstring_diagnostics_for_path(
     feature_path: &Path,
 ) -> Vec<Diagnostic> {
     let Some(feature_index) = state.feature_index(feature_path) else {
-        panic!("feature index");
+        panic!("feature index should exist for the scenario under test");
     };
     table_docstring::compute_table_docstring_mismatch_diagnostics(state, feature_index)
 }

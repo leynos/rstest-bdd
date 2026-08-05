@@ -63,19 +63,19 @@ Two accessors keep ordinary callers off the enum:
 
 - `into_previous()` consumes the outcome and yields the displaced override,
   returning `None` for both dropped cases. This is exactly the old
-  `Option<Box<dyn Any>>` result, so a caller that only wanted the previous value
-  migrates by appending one call.
+  `Option<Box<dyn Any>>` result, so a caller that only wanted the previous
+  value migrates by appending one call.
 - `is_inserted()` reports whether the override was recorded, without consuming
   the outcome.
 
 ## Rationale
 
-The three outcomes are facts about what happened, so the return type should name
-them. Encoding them as an enum makes the dropped cases impossible to overlook by
-accident while leaving the successful case's payload exactly where it was.
+The three outcomes are facts about what happened, so the return type should
+name them. Encoding them as an enum makes the dropped cases harder to overlook
+while leaving the successful case's payload exactly where it was.
 
-`#[must_use]` is the part that changes behaviour for existing code: a caller who
-previously wrote `ctx.insert_value(v);` and ignored the result now gets a
+`#[must_use]` is the part that changes behaviour for existing code: a caller
+who previously wrote `ctx.insert_value(v);` and ignored the result now gets a
 warning. That is the intended pressure — the ignored result is the diagnostic.
 The explicit `let _ =` in generated code is the escape hatch, used once, where
 the runner has already decided that dropping is correct.
@@ -102,8 +102,8 @@ plumbing on a method that cannot fail.
 ### Return a boolean plus an out-parameter for the previous value
 
 Rejected. It splits one outcome across two values, permits the invalid
-combination of `false` with a displaced override, and reads worse than the
-enum at every call site.
+combination of `false` with a displaced override, and reads worse than the enum
+at every call site.
 
 ### Distinguish only "inserted" from "not inserted"
 

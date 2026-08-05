@@ -4,7 +4,7 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Tolerances`, `Risks`, `Progress`, `Surprises & discoveries`, `Decision log`,
 and `Outcomes & retrospective` must be kept up to date as work proceeds.
 
-Status: APPROVED — implementation in progress
+Status: COMPLETE
 
 ## Purpose / big picture
 
@@ -37,9 +37,8 @@ After this plan is executed, a reader of the repository can observe:
    real published `gpui 0.2.2` API, or clearly flag which gpui they target) and
    *extended* with a feature-file rebuild-invalidation subsection and a nextest
    parallelism subsection.
-3. Three new ADRs (`adr-010`, `adr-011`, `adr-012`) are drafted, each in
-   `Proposed` status, plus a tracked note resolving the lingering `Proposed`
-   status of ADR-008.
+3. Three new ADRs (`adr-010`, `adr-011`, `adr-012`) exist in `Proposed` status,
+   plus a tracked note addressing the lingering `Proposed` status of ADR-008.
 4. The adoption guides carry the same corrections, so the next adopter does not
    repeat the four-shape gpui API mismatch, the lint-profile collisions, or the
    stale-feature-file confusion.
@@ -49,22 +48,18 @@ each enumerated change; `make markdownlint`, `make nixie`, and `make vale` pass
 on the modified Markdown; and a CodeRabbit `coderabbit review --agent` pass on
 the branch returns no unresolved concerns.
 
-This is a planning-and-documentation deliverable. It does **not** implement any
-of the code work items it schedules (the `include_str!` emission, the
-`ScenarioStore<T>` helper, the guard-based `StepContext`); those remain
-roadmap items delivered under their own ExecPlans. The single exception, if the
-maintainer approves it, is the optional code change in Stage E (the
-rebuild-invalidation fix), which is small, non-breaking, and closes an active
-correctness foot-gun.
+This was a planning-and-documentation deliverable, so it did not itself
+implement the code work it scheduled. ADR-010's rebuild-invalidation fix
+remains deferred to roadmap item 11.3.1 and a separate follow-up ExecPlan; all
+three ADRs retain the status recorded when this plan was delivered.
 
 ## Constraints
 
 Hard invariants that must hold throughout implementation. Violation requires
 escalation, not a workaround.
 
-- This plan edits documentation and ADRs only, except for the explicitly
-  optional and separately gated Stage E. No public API, trait, or macro surface
-  changes as part of Stages A–D.
+- This plan edits documentation and ADRs only. No public API, trait, or macro
+  surface changes are part of this plan.
 - Do not change the meaning of any roadmap item already marked `[x]`
   (delivered). Delivered items may be *clarified* (for example, resolving the
   10.1.4 ambiguity by recording which branch shipped), but their delivered
@@ -72,12 +67,12 @@ escalation, not a workaround.
 - Preserve the existing design-document section-numbering scheme. New
   subsections slot in as `§2.7.6.6`, `§2.7.6.7`, … after the current
   `§2.7.6.5`, or as a new `§2.7.7`; they do not renumber existing sections.
-- New ADRs follow the established house format observed in
+- At the time of this plan, new ADRs followed the established house format in
   `docs/adr-007-harness-context-injection.md` and
   `docs/adr-009-consistent-implicit-fixture-name-normalization.md`: a level-one
   title `# Architectural decision record (ADR) NNN: <title>`, then `## Status`,
   `## Date`, `## Context and problem statement`, the options/decision, and
-  consequences. New ADRs are created in `Proposed` status; this plan does not
+  consequences. This plan created the ADRs in `Proposed` status and did not
   self-accept them.
 - All prose uses en-GB-oxendict spelling ("-ize"/"-yse"/"-our") and obeys
   `docs/documentation-style-guide.md`, `.vale.ini`, and
@@ -99,14 +94,13 @@ Thresholds that trigger escalation when breached.
   in `Interfaces and dependencies` (three new ADRs, `docs/roadmap.md`,
   `docs/rstest-bdd-design.md`, `docs/users-guide.md`,
   `docs/v0-6-0-migration-guide.md`, and this plan), stop and escalate.
-- Roadmap scheduling: the maintainer approved pulling the scenario-state helper
-  (10.3.1/10.3.2) and the rebuild-invalidation fix forward to v0.6.0 final, so
-  that placement is settled. If executing the plan would require committing to
-  any further release schedule not yet agreed, stop and present the trade-off
-  rather than choosing unilaterally.
-- Code change: if the optional Stage E rebuild-invalidation fix cannot be made
-  non-breaking and confined to the macro crate plus one regression test, stop
-  and escalate; do not expand it into a build-script redesign within this plan.
+- Roadmap scheduling: this plan *recommends* pulling the scenario-state helper
+  (11.1.3/11.1.4) and the rebuild-invalidation fix forward to v0.6.0 final, but
+  the actual release-train placement is a maintainer decision. If executing the
+  plan would require committing to a release schedule not yet agreed, stop and
+  present the trade-off rather than choosing unilaterally.
+- Code change: the deferred rebuild-invalidation fix belongs to roadmap item
+  11.3.1 and a separate follow-up ExecPlan; do not implement it in this plan.
 - Ambiguity: if resolving the gpui API divergence turns out to require changing
   the harness's `vendor/gpui` dependency (rather than documenting the
   divergence), stop and escalate — that is a separate architectural decision
@@ -150,25 +144,26 @@ Thresholds that trigger escalation when breached.
   *invoking* source file, while `#[scenario(path = ...)]` resolves `path`
   relative to `CARGO_MANIFEST_DIR`. A naive emission would change path
   semantics or break call sites. Severity: medium. Likelihood: medium.
-  Mitigation: the ADR must specify emitting an absolute path (built from
-  `CARGO_MANIFEST_DIR` or the call-site span), and the optional Stage E fix
-  must add a regression test proving a `.feature`-only edit forces a rebuild
-  without changing any existing call site. If absolute-path emission proves
-  impracticable, the ADR's documented fallback is the build-script route
-  (directory plus per-file `cargo::rerun-if-changed`), as proven by the
-  `theoremc` prior art.
+  Mitigation: treat a call-site-relative `include_str!` path for single-file
+  bindings and a build script emitting directory and per-file
+  `cargo::rerun-if-changed` directives for glob cases as candidate routes,
+  subject to ADR-010's portability constraints. The roadmap 11.3.1 follow-up
+  must select the mechanism. Either route must retain a regression test proving
+  that a `.feature`-only edit forces a rebuild without changing any existing
+  call site.
 
-- Risk: the optional Stage E fix could embed an absolute `CARGO_MANIFEST_DIR`
-  path into the compiled artefact (via a naive `include_str!`), breaking
-  reproducible/portable builds and distributed caching (Nix sandbox paths,
-  Windows separators, `sccache` cache-key divergence), and the discarded item
-  could trip `dead_code` under the pedantic lint profile. Severity: high.
-  Likelihood: medium (only if Stage E is approved and takes the absolute-path
-  route). Mitigation: ADR-010 rejects the absolute-path variant; Stage E uses
-  either the build-script `cargo::rerun-if-changed` route (no artefact change)
-  or a relative-path `include_str!` resolved from the call-site span, and the
-  regression test is portability-aware and serialized against nextest's
-  process-per-test parallelism.
+- Risk: the deferred rebuild-invalidation fix could embed an absolute
+  `CARGO_MANIFEST_DIR` path into the compiled artefact (via a naive
+  `include_str!`), breaking reproducible/portable builds and distributed
+  caching (Nix sandbox paths, Windows separators, `sccache` cache-key
+  divergence), and the discarded item could trip `dead_code` under the pedantic
+  lint profile. Severity: high. Likelihood: medium. Mitigation: ADR-010 rejects
+  the absolute-path variant. The build-script `cargo::rerun-if-changed` route
+  (no artefact change) and a relative-path `include_str!` resolved from the
+  call-site span remain candidates subject to its portability constraints; the
+  roadmap 11.3.1 follow-up must select one. The regression test remains
+  portability-aware and serialized against nextest's process-per-test
+  parallelism.
 
 - Risk: ADR-008 remains in `Proposed` status while roadmap items 9.7.1–9.7.4
   shipped "under maintainer authorization". Touching the harness-led-defaults
@@ -198,24 +193,25 @@ Thresholds that trigger escalation when breached.
   `make nixie`), and cleared a `coderabbit review --agent` pass (0 findings).
 - [x] (2026-06-09) Community-of-experts (Logisphere) panel reviewed the plan;
   revised in response — renamed the helper to `ScenarioStore<T>` (collision
-  fix), made ADR-010 even-handed and rejected absolute-path embedding, moved the
-  rebuild item to step 10.3, elevated the pull-forward recommendation, added
-  the tested cleanup lifecycle, the v0.6→v0.7 mapping sketch, the gpui
+  fix), made ADR-010 even-handed and rejected absolute-path embedding, moved
+  the rebuild item to step 10.3, elevated the pull-forward recommendation,
+  added the tested cleanup lifecycle, the v0.6→v0.7 mapping sketch, the gpui
   maintenance-tax note, and the open scheduling/divergence decisions.
 - [x] (2026-06-10) Maintainer approval received. Open decisions resolved:
   (a) pull-forward recommendation accepted — 10.3.1/10.3.2 (`ScenarioStore`/
   cleanup helper) and 10.3.3 (rebuild-invalidation fix) will be scheduled in
   v0.6.0 final; (b) Stage E code fix deferred — to be added as a roadmap item
   and implemented under its own ExecPlan rather than in this branch.
-- [x] (2026-06-10) Stage B complete: wrote `adr-010-feature-file-change-detection.md`,
+- [x] (2026-06-10) Stage B complete: wrote
+      `adr-010-feature-file-change-detection.md`,
   `adr-011-first-party-scenario-state-and-cleanup.md`, and
   `adr-012-guard-based-stepcontext-borrowing.md`; `make markdownlint` clean.
 - [x] (2026-06-10) Stage C complete: applied roadmap edits — clarified
   10.1.4 (affirmative outcome + test reference), added 10.2.4–10.2.7
-  (documentation items) with dual-track maintenance note, re-scoped 10.3.1
-  and 10.3.2 (ScenarioStore naming + pull-forward notes), added 10.3.3
-  (rebuild gap + ADR-008 follow-up note), and amended Phase 12 heading and
-  12.1.1 to reference ADR-012; `make markdownlint` clean.
+  (documentation items) with dual-track maintenance note, re-scoped 10.3.1 and
+  10.3.2 (ScenarioStore naming + pull-forward notes), added 10.3.3 (rebuild gap
+  - ADR-008 follow-up note), and amended Phase 12 heading and 12.1.1 to
+  reference ADR-012; `make markdownlint` clean.
 - [x] (2026-06-10) Stage D complete: applied design-document and adoption-guide
   edits — added which-gpui banner + mapping table in §2.7.6.2, added ADR-011
   reference in §2.7.6.4, updated §2.7.6.5 to committed direction + ADR-012
@@ -241,8 +237,8 @@ Thresholds that trigger escalation when breached.
   alongside the portability-aware rebuild regression test.
 - [x] (2026-06-13) Follow-up review warning: elevated ADR-010's `trybuild`
   compile-pass and compile-fail fixtures from *recommended* to *required*
-  acceptance criteria, and strengthened the snapshot guidance to require
-  focused `insta` snapshots backed by semantic/substring assertions on the
+  acceptance criteria, and strengthened the snapshot guidance to require focused
+  `insta` snapshots backed by semantic/substring assertions on the
   load-bearing diagnostic fragments. Mirrored the requirement in roadmap item
   10.3.3's finish line.
 
@@ -296,8 +292,8 @@ Thresholds that trigger escalation when breached.
   a corrupted expectation appearing to pass from stale cache until an unrelated
   `.rs` file was touched. Impact: this is a real correctness foot-gun for a
   *testing* framework and is not recorded anywhere in the repo. It warrants a
-  dedicated ADR and a roadmap item, and optionally an immediate non-breaking
-  fix (Stage E).
+  dedicated ADR and a roadmap item implemented through a separate follow-up
+  ExecPlan.
 
 - Observation: roadmap item 10.1.4 ("Failing GPUI scenarios include the
   scenario name in logs … or the harness docs document the upstream
@@ -329,25 +325,24 @@ Thresholds that trigger escalation when breached.
 ## Decision log
 
 - Decision: assign the three new ADRs the next free numbers — `adr-010`
-  (feature-file change detection), `adr-011` (first-party scenario-state helpers
-  and cleanup), `adr-012` (guard-based `StepContext` borrowing committed for
-  v0.7.0). Rationale: the highest existing ADR is 009; sequential numbering
-  matches the established convention. Date/Author: 2026-06-09 / Claude (plan
-  author).
+  (feature-file change detection), `adr-011` (first-party scenario-state
+  helpers and cleanup), `adr-012` (guard-based `StepContext` borrowing
+  committed for v0.7.0). Rationale: the highest existing ADR is 009; sequential
+  numbering matches the established convention. Date/Author: 2026-06-09 /
+  Claude (plan author).
 
 - Decision: document the gpui API divergence with a banner plus a mapping table
   rather than rewriting the snippets to a single API. Rationale: the regression
-  suite compiles against the vendored gpui; a one-API rewrite would either break
-  the suite's mirroring contract or misrepresent what adopters compile against.
-  Date/Author: 2026-06-09 / Claude.
+  suite compiles against the vendored gpui; a one-API rewrite would either
+  break the suite's mirroring contract or misrepresent what adopters compile
+  against. Date/Author: 2026-06-09 / Claude.
 
-- Decision: recommend macro-emitted `include_str!` as the preferred
-  rebuild-invalidation mechanism, with the build-script (`cargo::rerun-if-changed`)
-  route as a documented fallback for the directory-glob `scenarios!` case.
-  Rationale: `include_str!` closes the loop invisibly to consumers and cannot be
-  forgotten per call site; the build-script route is proven by `theoremc` but
-  reintroduces the "emit one rerun-if line per file or regress" trap. Date/Author:
-  2026-06-09 / Claude.
+- Decision (superseded by the post-panel decision below): initially recommend
+  macro-emitted `include_str!` as the preferred rebuild-invalidation mechanism,
+  with the build-script (`cargo::rerun-if-changed`) route as a fallback for the
+  directory-glob `scenarios!` case. The later decision makes both candidate
+  routes subject to ADR-010's portability constraints and requires the roadmap
+  11.3.1 follow-up to select the mechanism. Date/Author: 2026-06-09 / Claude.
 
 - Decision: keep ADR-008's `Proposed`→`Accepted` resolution as a separable,
   clearly-labelled roadmap follow-up, not a dependency of this feedback work.
@@ -355,10 +350,9 @@ Thresholds that trigger escalation when breached.
   bundling it would expand scope and blast radius. Date/Author: 2026-06-09 /
   Claude.
 
-- Decision: treat this document as a DRAFT requiring explicit maintainer
-  approval before Stages B–E execute, per the execplans approval gate.
-  Rationale: the plan reschedules roadmap items and proposes an optional code
-  change; both are maintainer calls. Date/Author: 2026-06-09 / Claude.
+- Decision: require explicit maintainer approval before executing this plan.
+  Rationale: the plan reschedules roadmap items; that is a maintainer call.
+  Date/Author: 2026-06-09 / Claude. Status: approved 2026-06-10.
 
 The following decisions were added after a community-of-experts (Logisphere)
 panel review of the draft (Pandalump, Wafflecat, Buzzy Bee, Telefono,
@@ -378,19 +372,20 @@ Doggylump, Dinolump):
   build-script route avoids embedding entirely and fits `scenarios!` globs.
   Date/Author: 2026-06-09 / Claude (panel: Doggylump, Wafflecat, Buzzy Bee).
 
-- Decision: place the rebuild-invalidation item in step 10.3 as item 10.3.3.
-  Rationale: the maintainer accepted the pull-forward-to-v0.6.0-final
-  recommendation, and the roadmap now collects all final-release requirements
-  under one step. Date/Author: 2026-06-10 / maintainer.
+- Decision: place the rebuild-invalidation item in Phase 11 (`11.3`), not a new
+  subsection of the delivered Phase 10. Rationale: Phase 10 is delivered;
+  adding work to it muddies phase semantics. The pull-forward-to-v0.6.0-final
+  recommendation is recorded separately. Date/Author: 2026-06-09 / Claude
+  (panel: Pandalump).
 
-- Decision (2026-06-10, maintainer): pull 10.3.1/10.3.2 (the
-  `ScenarioStore`/cleanup helper) and 10.3.3 (the rebuild fix) forward into
+- Decision (2026-06-10, maintainer): pull 11.1.3/11.1.4 (the
+  `ScenarioStore`/cleanup helper) and 11.3.1 (the rebuild fix) forward into
   v0.6.0 final. Rationale: the pull-forward recommendation was accepted; the
   thread-local tax will not persist across the v0.6.x line.
 
 - Decision (2026-06-10, maintainer): Stage E code change is deferred to its own
   ExecPlan and roadmap item rather than being landed in this documentation
-  branch. The rebuild-invalidation fix is added to the roadmap as 10.3.3 with a
+  branch. The rebuild-invalidation fix is added to the roadmap as 11.3.1 with a
   v0.6.0 final target and will be implemented under a separate ExecPlan.
 
 - Open decision (deferred, separate architectural call): whether to retire the
@@ -403,7 +398,8 @@ Doggylump, Dinolump):
 
 All four observable outcomes from `Purpose / big picture` are met:
 
-1. **Roadmap records every new or re-scoped work item.** Added items 10.2.4–10.2.7
+1. **Roadmap records every new or re-scoped work item.** Added items
+   10.2.4–10.2.7
    (gpui-version banner + mapping table, lint-clean playbook variant, nextest
    interaction note, bulk-migration cookbook), re-scoped 10.3.1/10.3.2 (naming
    the correct `ScenarioStore<T>` / `GpuiScenarioStore` types and cleanup-guard
@@ -417,17 +413,17 @@ All four observable outcomes from `Purpose / big picture` are met:
    invalidation), and new `§2.7.6.7` (test-runner parallelism matrix). Tightened
    `§3.2.2` to distinguish invalidation from caching.
 
-3. **Three new ADRs drafted in `Proposed` status.** ADR-010 (feature-file change
-   detection), ADR-011 (first-party scenario-state helpers and cleanup), and
-   ADR-012 (guard-based `StepContext` borrowing committed for v0.7.0), each
+3. **Three new ADRs drafted in `Proposed` status.** This plan created ADR-010
+   (feature-file change detection), ADR-011 (first-party scenario-state helpers
+   and cleanup), and ADR-012 (guard-based `StepContext` borrowing), each
    cross-referencing the roadmap items and design subsections they govern.
 
 4. **Adoption guides carry the corrections.** `docs/users-guide.md` carries the
-   gpui-version banner + mapping table, nextest/`serial_test` caveat, lint-clean
-   variant, bulk-migration cookbook, and design-doc cross-links.
-   `docs/v0-6-0-migration-guide.md` carries a "Feature-file edits do not trigger
-   a rebuild" caveat under "Common errors and fixes", marked removable once
-   10.3.3 lands.
+   gpui-version banner + mapping table, nextest/`serial_test` caveat,
+   lint-clean variant, bulk-migration cookbook, and design-doc cross-links.
+   `docs/v0-6-0-migration-guide.md` carries a "Feature-file edits do not
+   trigger a rebuild" caveat under "Common errors and fixes", marked removable
+   once 10.3.3 lands.
 
 No feedback item was left unscheduled. Stage E (rebuild-invalidation code fix)
 was deferred to a separate ExecPlan and roadmap item (10.3.3) per explicit
@@ -435,8 +431,9 @@ maintainer decision; it is not unscheduled, just not implemented in this
 documentation branch.
 
 Open items remaining after this plan: (a) the ADR-008 Proposed→Accepted
-advancement (separately gated, orthogonal); (b) the retarget-onto-published-gpui
-architectural decision (Wafflecat's alternative, deferred).
+advancement (separately gated, orthogonal); (b) the
+retarget-onto-published-gpui architectural decision (Wafflecat's alternative,
+deferred).
 
 ## Context and orientation
 
@@ -460,8 +457,8 @@ Key files this plan touches or references:
 - `docs/rstest-bdd-design.md` — `§2.7` harness adapters; `§2.7.6.1` borrow
   constraint (E0499/E0502); `§2.7.6.2` interim GPUI state pattern (lines
   1947–2021, contains the divergent snippet); `§2.7.6.3` v0.6.0-beta2 quick
-  wins; `§2.7.6.4` state helpers; `§2.7.6.5` v0.7.0 redesign (lines
-  2058–2067); `§3.2.2` OUT_DIR AST-caching aspiration (lines ~1277–1282).
+  wins; `§2.7.6.4` state helpers; `§2.7.6.5` v0.7.0 redesign (lines 2058–2067);
+  `§3.2.2` OUT_DIR AST-caching aspiration (lines ~1277–1282).
 - `docs/users-guide.md` — "Stateful GPUI scenarios with durable handles"
   playbook (lines ~1088–1360), including "Reset protocol" (~1131) which mentions
   `#[serial]` (~1159) and the durable-handle snippets (~1264–1316).
@@ -488,19 +485,20 @@ Terms used below:
 
 ## Plan of work
 
-The work is organized by deliverable. Stages B–D are documentation/ADR edits;
-Stage E is an optional, separately-gated code fix. Each stage ends with the
-relevant gates green before proceeding.
+The work is organized by deliverable. Stages B–D are documentation and ADR
+edits. The former Stage E code work is deferred to roadmap item 11.3.1 and a
+separate follow-up ExecPlan. Each in-scope stage ends with the relevant gates
+green before proceeding.
 
 ### Stage A — Research and orientation (complete, no edits)
 
 Done. Findings are recorded in `Surprises & discoveries`, with sources in
 `Artifacts and notes`. No further research is required to begin drafting.
 
-### Stage B — Draft three ADRs (new files)
+### Stage B — Draft three ADRs (complete; historical instructions)
 
-Create each ADR in `Proposed` status, following the house format. The
-prescriptive content (context, options, decision, consequences) is given in
+This stage created each ADR in `Proposed` status, following the house format.
+The prescriptive content (context, options, decision, consequences) is given in
 `Interfaces and dependencies`.
 
 1. `docs/adr-010-feature-file-change-detection.md` — how compile-time scenario
@@ -567,7 +565,7 @@ Then, in `docs/users-guide.md` (playbook) and `docs/v0-6-0-migration-guide.md`:
    caveat beside the existing `#[serial]` guidance.
 2. Add a "feature-file edits and rebuilds" caveat to the migration guide's
    "Common errors and fixes", cross-linking `adr-010` and the new design
-   subsection. Mark it as removable once the Stage E fix lands.
+   subsection. Mark it as removable once roadmap item 11.3.1 lands.
 3. Add a short "bulk migration: sharing a step library" cookbook subsection to
    the playbook, factoring the durable-handle helpers into one shared steps
    module per consuming crate.
@@ -576,33 +574,15 @@ Validation for Stage D: `make markdownlint`, `make nixie`, and `make vale`
 pass; the playbook and design snippets agree with each other and with the
 mapping table.
 
-### Stage E — Optional rebuild-invalidation fix (maintainer-gated code change)
+### Stage E — Deferred rebuild-invalidation fix
 
-Only if the maintainer approves landing the fix in this branch rather than as a
-separate roadmap ExecPlan. Following Red-Green-Refactor:
-
-1. Red: add a regression test that proves a `.feature`-only edit forces a
-   rebuild/refailure (modelled on `theoremc`'s `tests/build_discovery_bdd.rs`).
-   Make it robust: tolerate coarse filesystem `mtime` granularity (a tick
-   longer than one second, or touch to a guaranteed-later timestamp), and run
-   the build test serialized in its own process with an isolated `target`/temp
-   directory so nextest's process-per-test parallelism cannot race on a shared
-   workspace `target`. Run it; expect failure against the current
-   `std::fs`-read macro.
-2. Green: implement the ADR-010 mechanism chosen by the maintainer — either the
-   build-script `cargo::rerun-if-changed` route (no artefact change) or a
-   relative-path `include_str!` resolved from the call-site span. Do **not**
-   embed an absolute path (reproducibility/portability), and ensure the
-   generated item does not trip `dead_code` under the pedantic profile. Re-run
-   the regression test; expect pass.
-3. Refactor: ensure no existing call site changes; run `make check-fmt`,
-   `make lint`, and `make test`. If `include_str!` is chosen, additionally
-   confirm the emitted path is portable (no absolute root, correct separator
-   handling) by inspecting expanded output.
-
-Validation for Stage E: the new regression test fails before and passes after;
-`make test` is green; the migration-guide caveat from Stage D step 6 is updated
-to name the release that carries the fix.
+The maintainer deferred this code change to roadmap item 11.3.1 and a separate
+follow-up ExecPlan. This branch contains no Stage E regression-test,
+implementation, refactoring, or validation work. The follow-up must select
+between the candidate call-site-relative `include_str!` and build-script
+`cargo::rerun-if-changed` routes under ADR-010's portability constraints. It
+must retain the regression test proving that a `.feature`-only edit forces a
+rebuild.
 
 ## Concrete steps
 
@@ -632,21 +612,13 @@ If CodeRabbit reports its rate limit is exceeded, wait and retry:
 vsleep "$(shuf -i 45-90 -n 1)m"
 ```
 
-Stage E gates (only if Stage E is approved):
-
-```bash
-make check-fmt 2>&1 | tee "/tmp/check-fmt-rstest-bdd-$(git branch --show-current).out"
-make lint      2>&1 | tee "/tmp/lint-rstest-bdd-$(git branch --show-current).out"
-make test      2>&1 | tee "/tmp/test-rstest-bdd-$(git branch --show-current).out"
-```
-
 ## Validation and acceptance
 
 Acceptance is observable in the repository:
 
 - `docs/adr-010-feature-file-change-detection.md`,
   `docs/adr-011-first-party-scenario-state-and-cleanup.md`, and
-  `docs/adr-012-guard-based-stepcontext-borrowing.md` exist, are in `Proposed`
+  `docs/adr-012-guard-based-stepcontext-borrowing.md` exist in `Proposed`
   status, follow the house format, and each cross-reference their roadmap item
   and design subsection.
 - `docs/roadmap.md` contains: the new feature-file rebuild item referencing
@@ -669,11 +641,10 @@ report is either (a) reflected in a roadmap item, design subsection, or ADR, or
 (b) explicitly recorded in `Outcomes & retrospective` as out-of-scope with a
 reason.
 
-Because Stages A–D are documentation-only, the Red-Green-Refactor substitute is
-the gate suite plus CodeRabbit: the "red" state is the current docs (missing
-the corrections / containing the divergent snippet), and the "green" state is
-the edited docs passing all gates and review. Stage E uses true
-Red-Green-Refactor as described above.
+Because the in-scope stages are documentation-only, the Red-Green-Refactor
+substitute is the gate suite plus CodeRabbit: the "red" state is the current
+docs (missing the corrections / containing the divergent snippet), and the
+"green" state is the edited docs passing all gates and review.
 
 ## Idempotence and recovery
 
@@ -684,8 +655,7 @@ Red-Green-Refactor as described above.
   it is recoverable via `git checkout -- docs/roadmap.md` before commit and via
   history afterwards. The reword only *clarifies* a delivered outcome and must
   not change its delivered scope (see Constraints).
-- Stage E is fully reversible until committed (`git checkout -- crates/...`) and
-  is gated behind explicit maintainer approval.
+- Deferred Stage E work is not present in this branch.
 
 ## Artifacts and notes
 
@@ -742,9 +712,7 @@ must contain at the end of the milestone.
 7. `docs/v0-6-0-migration-guide.md` (edit)
 8. `docs/execplans/adopt-v0-6-0-beta2-feedback.md` (this plan)
 
-Stage E, if approved, additionally touches the macros crate
-(`crates/rstest-bdd-macros/`) and adds one regression test target; that expands
-the tolerance bound and must be re-approved.
+The deferred Stage E follow-up has its own scope and tolerance bound.
 
 ### ADR-010 — Feature-file change detection for compile-time scenario binding
 
@@ -783,15 +751,13 @@ the tolerance bound and must be re-approved.
   4. OUT_DIR AST caching (the existing `§3.2.2` aspiration). Orthogonal — a
      *performance* optimization, not an *invalidation* mechanism — and does not
      by itself solve the foot-gun.
-- Decision: the ADR records the trade-offs and recommends a default but defers
-  the binding mechanism choice to the implementing ExecPlan (Stage E / the
-  roadmap item), because the right pick differs by axis: option 2 (build
-  script) is the stronger default for reproducibility and for `scenarios!`,
-  while a *relative-path* option 1 is attractive for `#[scenario]` if the
-  call-site path resolution is proven portable. The absolute-path variant of
-  option 1 is **rejected** for reproducibility. Whichever lands, add a
-  regression test asserting invalidation, treat it as a tested contract, and
-  distinguish invalidation from caching in `§3.2.2`.
+- Decision: the ADR records the trade-offs and leaves option 2 (build script)
+  and a *relative-path* option 1 (`include_str!`) as candidate routes subject
+  to its portability constraints. The follow-up ExecPlan for roadmap item
+  11.3.1 must select the mechanism. The absolute-path variant of option 1 is
+  **rejected** for reproducibility. Whichever lands, add a regression test
+  asserting invalidation, treat it as a tested contract, and distinguish
+  invalidation from caching in `§3.2.2`.
 - Consequences: closes the foot-gun; the chosen mechanism must be covered by a
   portability-aware regression test; no absolute path is embedded into the
   artefact.
@@ -837,9 +803,8 @@ the tolerance bound and must be re-approved.
 - Cross-version stance: the v0.6.x thread-local interim pattern (`§2.7.6.2`)
   remains supported throughout v0.6.x; `ScenarioStore<T>` is the preferred
   additive alternative from v0.6.0 final; the v0.7.0 guard-based borrow
-  redesign (ADR-012) supersedes both, with a migration mapping. The ADR
-  states this explicitly, so adopters know which pattern is current per
-  release.
+  redesign (ADR-012) supersedes both, with a migration mapping. The ADR states
+  this explicitly, so adopters know which pattern is current per release.
 - Consequences: additive and semver-compatible (v0.6.0 final); the GPUI
   re-export depends on the generic core landing first.
 - Governs roadmap items: re-scoped 10.3.1 (the generic `ScenarioStore<T>`
@@ -869,8 +834,8 @@ the tolerance bound and must be re-approved.
   requesting `&mut World` directly alongside `&mut TestAppContext`, now legal
   because guard-based borrowing permits concurrent distinct-key mutable borrows.
 - Consequences: a breaking change reserved for v0.7.0 with a migration guide;
-  it supersedes the interim pattern of `§2.7.6.2`. Pairs with the v0.6.0
-  final additive helper (`adr-011`) as the stepping stone.
+  it supersedes the interim pattern of `§2.7.6.2`. Pairs with the v0.6.0 final
+  additive helper (`adr-011`) as the stepping stone.
 - Governs roadmap items: amended Phase 12 intro and 12.1.1. Design Doc:
   `§2.7.6.5`.
 
@@ -880,12 +845,12 @@ Prescriptive list (apply in document order, matching existing item style — eac
 new item carries a finish line and a `Design Doc:` / ADR reference):
 
 - Add item `10.3.3` to `### 10.3. v0.6.0 final requirements`: "Editing only a
-  `.feature` file triggers a scenario rebuild." Finish
-  line: the `#[scenario]`/`scenarios!` expansion registers each bound feature
-  file as a Cargo rebuild dependency (per ADR-010, without embedding an absolute
-  path into the artefact), and a portability-aware regression test proves a
-  `.feature`-only edit forces recompilation and a fresh failure. Non-breaking.
-  Design Doc: `§2.7.6.6`; ADR-010.
+  `.feature` file triggers a scenario rebuild." Finish line: the `#[scenario]`/
+  `scenarios!` expansion registers each bound feature file as a Cargo rebuild
+  dependency (per ADR-010, without embedding an absolute path into the
+  artefact), and a portability-aware regression test proves a `.feature`-only
+  edit forces recompilation and a fresh failure. Non-breaking. Design Doc:
+  `§2.7.6.6`; ADR-010.
 - Clarify delivered `10.1.4`: append that the affirmative branch shipped — the
   scenario name is embedded in the augmented panic message and tracing events
   (`crates/rstest-bdd-harness-gpui/src/gpui_harness.rs`), with regression tests
@@ -916,8 +881,8 @@ new item carries a finish line and a `Design Doc:` / ADR reference):
     library across many GPUI scenarios in a single consuming crate. Finish line:
     a cookbook subsection in the user guide. Design Doc: `§2.7.6.2`.
 - Re-scope `10.3.1` to name the generic `ScenarioStore<T>` core in `rstest-bdd`
-  (named to avoid colliding with the shipped `ScenarioState` trait and `Slot<T>`
-  in `crates/rstest-bdd/src/state.rs`) *and* the GPUI-specialized
+  (named to avoid colliding with the shipped `ScenarioState` trait and
+  `Slot<T>` in `crates/rstest-bdd/src/state.rs`) *and* the GPUI-specialized
   `GpuiScenarioStore` re-export in `rstest-bdd-harness-gpui`; re-scope `10.3.2`
   to add a cleanup-guard fixture-generating macro with a tested three-state
   lifecycle (success, failure, skip). Reference ADR-011.
@@ -942,16 +907,17 @@ new item carries a finish line and a `Design Doc:` / ADR reference):
   (a) compile-testing the playbook snippets (a doc-test or a tiny example crate
   that the gate builds) so staleness fails CI, and (b) recording the larger
   alternative of retargeting the regression suite and docs onto the published
-  `gpui` so the mapping table can eventually be retired — deferred as a separate
-  architectural decision outwith this plan (see Decision Log).
+  `gpui` so the mapping table can eventually be retired — deferred as a
+  separate architectural decision outwith this plan (see Decision Log).
 
 ### Design-document edits (`docs/rstest-bdd-design.md`)
 
 - Before the `§2.7.6.2` code block: a which-gpui banner plus the mapping table
   from `Artifacts and notes`; annotate the snippet as vendored-gpui shaped.
-- New `§2.7.6.6 Feature-file rebuild invalidation`: the foot-gun, the ADR-010
-  decision (emitted `include_str!` preferred; build-script complement for
-  `scenarios!`), and the path-resolution caveat.
+- New `§2.7.6.6 Feature-file rebuild invalidation`: the foot-gun, ADR-010's
+  candidate call-site-relative `include_str!` and build-script
+  `cargo::rerun-if-changed` routes, its portability constraints, and the
+  requirement for the roadmap 10.3.3 follow-up to select the mechanism.
 - New `§2.7.6.7 Test-runner parallelism and scenario state`: the cargo test vs
   nextest matrix; `#[serial]` vs `#[file_serial]` vs nextest test-groups; why
   process-per-test isolates thread-local state.
@@ -967,7 +933,7 @@ new item carries a finish line and a `Design Doc:` / ADR reference):
   guidance; and the bulk-migration cookbook subsection.
 - `docs/v0-6-0-migration-guide.md`: add a "feature-file edits and rebuilds"
   entry to "Common errors and fixes", cross-linking ADR-010 and `§2.7.6.6`, and
-  marked removable once the Stage E fix lands.
+  marked removable once roadmap item 11.3.1 lands.
 
 ## Revision note
 
@@ -981,11 +947,17 @@ review: renamed the proposed helper from `ScenarioState<T>` to
 `ScenarioStore<T>`/`GpuiScenarioStore` to avoid a verified collision with the
 shipped `ScenarioState` trait and `Slot<T>`; rewrote ADR-010 to weigh the
 mechanisms even-handedly and reject absolute-path `include_str!` embedding for
-build reproducibility; placed the rebuild item at `10.3.3` under the consolidated
-v0.6.0 final requirements; surfaced the pull-forward scheduling
+build reproducibility; placed the rebuild item at `10.3.3` under the
+consolidated v0.6.0 final requirements; surfaced the pull-forward scheduling
 recommendation as an explicit open maintainer decision; added a tested
 three-state cleanup lifecycle to ADR-011, a concrete v0.6→v0.7
 migration-mapping sketch to ADR-012, a gpui dual-track maintenance-tax note
 with a compile-tested snippet recommendation, and the reproducibility risk and
-Stage E hardening. This plan remains a DRAFT awaiting maintainer approval
-before Stages B–E execute.
+deferred follow-up requirements. The maintainer approved the plan on
+2026-06-10; Stages B–D were delivered, while Stage E remains deferred to
+roadmap item 11.3.1.
+
+Revision 2 (2026-07-30, review follow-up). Clarified throughout that ADR-010
+records candidate rebuild-invalidation routes and portability constraints,
+while the roadmap 11.3.1 follow-up must select the mechanism and retain the
+`.feature`-only rebuild regression test.

@@ -37,8 +37,8 @@ pub fn generate_step_parse_with_hint(ty: syn::Type, hint: Option<String>) -> Str
 
     let tokens = gen_step_parses(&args, &captures, &hints, meta);
 
-    let Some(token) = tokens.first() else {
-        panic!("expected single token stream");
+    let [token] = tokens.as_slice() else {
+        panic!("expected a single token stream, got {}", tokens.len());
     };
     token.to_string()
 }
