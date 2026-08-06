@@ -17,12 +17,17 @@ workspace = true
 
 [features]
 testing = []
+
 [dependencies]
 cargo_metadata.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
+# Self dev-dependency so this crate's own test targets always see the
+# `testing`-gated helpers (notably `FailingHarness`) without relying on the
+# caller passing `--all-features`.
+rstest-bdd-harness = { path = ".", features = ["testing"] }
 insta.workspace = true
 proptest.workspace = true
 rstest.workspace = true

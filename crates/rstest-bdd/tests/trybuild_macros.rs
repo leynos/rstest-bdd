@@ -40,7 +40,15 @@ fn ui_fixture(case: impl Into<UiFixtureCase>) -> Utf8PathBuf {
 
 #[test]
 fn step_macros_compile() -> io::Result<()> {
-    if env::var_os("NEXTEST_RUN_ID").is_some() {
+    // This test spawns `cargo` (through `trybuild` and `cargo clippy`). On
+    // Windows, nextest wraps test binaries in Job Objects and those child
+    // processes inherit the write end of nextest's capture pipe, which never
+    // closes; see "nextest on Windows: trybuild deadlock" in
+    // `docs/developers-guide.md`. Skip only on that platform combination so
+    // the fixtures still run under nextest everywhere else. The
+    // `rstest-bdd::trybuild_macros` test group in `.config/nextest.toml`
+    // keeps this binary from running alongside other cargo-spawning tests.
+    if cfg!(windows) && env::var_os("NEXTEST_RUN_ID").is_some() {
         return Ok(());
     }
     // Prevent RUST_BACKTRACE from contaminating compiler diagnostic output.

@@ -205,10 +205,20 @@ Mitigation:
 - Continuous Integration (CI) sets `use-nextest: false` for all Windows
   matrix legs (see `.github/workflows/ci.yml`). Windows coverage runs use
   `cargo llvm-cov test` (libtest) instead.
+- `step_macros_compile` (`crates/rstest-bdd/tests/trybuild_macros.rs`) guards
+  its early return with `cfg!(windows) && env::var_os("NEXTEST_RUN_ID")`, so
+  it only skips its trybuild and Clippy UI fixtures under nextest on Windows,
+  where this deadlock applies. On Linux and macOS the fixtures run under
+  nextest like any other test.
 - `.config/nextest.toml` raises the `slow-timeout` for the trybuild
-  compile-test binaries (including both `macro_compile` binaries) to 180 s as a
-  local-development safety net. This does not fix the deadlock; it only delays
-  termination to allow the build to complete on fast machines.
+  compile-test binaries (including both `macro_compile` binaries and
+  `rstest-bdd::trybuild_macros`) to 300 s as a local-development safety net.
+  This does not fix the deadlock; it only delays termination to allow the
+  build to complete on fast machines.
+- `.config/nextest.toml` also places the `cargo-bdd::cli` and trybuild
+  binaries in a `cargo-spawning` test group with `max-threads = 1`, so these
+  cargo-spawning tests run one at a time rather than contending for the
+  package-cache lock and build parallelism.
 - Do not add `macro_compile`-style tests (tests that spawn `cargo` via
   `trybuild` or `cargo_metadata`) to nextest-managed binaries intended to run
   on Windows.
@@ -397,7 +407,18 @@ test binary, so the `#[scenario]` macro can discover it from the test source.
 `testing` feature is enabled. This dependency-facing test API always returns a
 synthetic `HarnessError::RuntimeBuildFailed`, allowing adapter crates to share
 the generated scenario error-path assertions without duplicating a failing
-adapter. Enable it only for tests:
+adapter. `rstest-bdd-harness`'s own test targets (for example
+`tests/harness_behaviour.rs`) reach it through a self dev-dependency in its
+`Cargo.toml`:
+
+```toml
+[dev-dependencies]
+rstest-bdd-harness = { path = ".", features = ["testing"] }
+```
+
+This keeps `FailingHarness` defined once, with no local duplicate in the
+test binary, and works without requiring `--all-features`. Downstream crates
+enable it only for tests:
 
 ```toml
 [dev-dependencies]
@@ -423,11 +444,11 @@ that "zero steps in the binding" property is the reuse proof and must be
 preserved. A trybuild compile-pass mirror,
 `tests/fixtures_macros/scenario_bulk_migration_cookbook.rs`, compile-checks the
 same shape and is registered in `run_passing_macro_tests`
-(`tests/trybuild_macros.rs`). Because `step_macros_compile` returns early when
-`NEXTEST_RUN_ID` is set, this fixture is skipped under nextest and must be
-validated with plain `cargo test`. (This is specific to `step_macros_compile`;
-the harness `macro_compile` binaries have no such guard and do run their
-trybuild fixtures under nextest.)
+(`tests/trybuild_macros.rs`). `step_macros_compile` runs this fixture under
+nextest on Linux and macOS; it is skipped only under nextest on Windows,
+where the Job Object capture-pipe deadlock applies (see "nextest on Windows:
+trybuild deadlock" above), and must instead be validated with plain
+`cargo test` (or `cargo llvm-cov test` for coverage).
 
 Doc↔suite parity for this cookbook is guarded by prose, not a checker (the
 subsection states "if a snippet drifts, the suite wins"), matching the

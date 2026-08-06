@@ -5,17 +5,25 @@ slow-timeout = { period = "60s", terminate-after = 1, grace-period = "5s" }
 # Put a hard ceiling on the whole run.
 global-timeout = "5m"
 
+[test-groups.cargo-spawning]
+# Tests that shell out to `cargo` contend for the package-cache lock and for
+# build parallelism. Run them one at a time so they neither starve the rest of
+# the run nor trip their own slow-timeout waiting on a sibling's lock.
+max-threads = 1
+
 [[profile.default.overrides]]
 # `cargo-bdd` CLI smoke tests spawn `cargo` to build fixture crates, which can
 # legitimately exceed the default 60s slow-timeout on cold caches.
 filter = "binary_id(cargo-bdd::cli)"
 slow-timeout = { period = "180s", terminate-after = 1, grace-period = "5s" }
+test-group = "cargo-spawning"
 
 [[profile.default.overrides]]
 # trybuild-based compile tests invoke `cargo build` against a large dependency
 # tree; on cold caches this can legitimately exceed the default 60 s limit.
 filter = "binary_id(rstest-bdd-harness-tokio::macro_compile) | binary_id(rstest-bdd-harness-gpui::macro_compile) | binary_id(rstest-bdd::trybuild_macros)"
-slow-timeout = { period = "180s", terminate-after = 1, grace-period = "5s" }
+slow-timeout = { period = "300s", terminate-after = 1, grace-period = "5s" }
+test-group = "cargo-spawning"
 
 [profile.long]
 slow-timeout = { period = "180s", terminate-after = 1, grace-period = "5s" }

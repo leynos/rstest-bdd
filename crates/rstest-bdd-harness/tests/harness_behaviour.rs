@@ -2,8 +2,8 @@
 
 use rstest::{fixture, rstest};
 use rstest_bdd_harness::{
-    HarnessAdapter, HarnessError, HarnessResult, ScenarioMetadata, ScenarioRunRequest,
-    ScenarioRunner, StdHarness, StdScenarioRunRequest, StdScenarioRunner,
+    FailingHarness, HarnessAdapter, HarnessError, HarnessResult, ScenarioMetadata,
+    ScenarioRunRequest, ScenarioRunner, StdHarness, StdScenarioRunRequest, StdScenarioRunner,
 };
 use std::cell::Cell;
 use std::io;
@@ -101,19 +101,6 @@ impl HarnessAdapter for StdRuntimeBuildFailureProbeHarness {
     fn run<T>(&self, _request: StdScenarioRunRequest<'_, T>) -> HarnessResult<T> {
         Err(HarnessError::RuntimeBuildFailed(io::Error::other(
             "std probe failure",
-        )))
-    }
-}
-
-#[derive(Debug, Default)]
-struct FailingHarness;
-
-impl HarnessAdapter for FailingHarness {
-    type Context = ();
-
-    fn run<T>(&self, _request: StdScenarioRunRequest<'_, T>) -> HarnessResult<T> {
-        Err(HarnessError::RuntimeBuildFailed(io::Error::other(
-            "synthetic harness initialization failure",
         )))
     }
 }

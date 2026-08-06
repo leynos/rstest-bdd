@@ -442,8 +442,14 @@ Implementation details:
 
 Go/no-go validation:
 
-- `cargo test -p rstest-bdd --test trybuild_macros step_macros_compile -- --exact`
-  passes with `RUSTFLAGS="-D warnings"`.
+- The trybuild macro suite passes:
+
+  ```sh
+  RUSTFLAGS="-D warnings" cargo test \
+    -p rstest-bdd \
+    --test trybuild_macros step_macros_compile -- --exact
+  ```
+
 - The Tokio harness-led defaults test passes:
 
   ```sh

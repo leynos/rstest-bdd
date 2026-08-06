@@ -13,7 +13,10 @@
 //!   inferred `GpuiAttributePolicy` path with a live `TestAppContext`. This
 //!   requires the native GPUI test runtime, so it shares the
 //!   `native-gpui-tests` gate (and `#[serial]` discipline) with the rest of
-//!   the GPUI scenario suite.
+//!   the GPUI scenario suite. Cross-step context identity is proved through a
+//!   single recorded address whose lifetime is owned by a fixture guard, so
+//!   success, failure, and skip paths all clear it before the next serial
+//!   scenario runs — the same reset protocol as `tests/stateful_window.rs`.
 
 use rstest_bdd_macros::{given, scenario};
 
@@ -36,11 +39,48 @@ failing_harness_error_path_scenario!();
 mod native {
     //! Inferred-policy coverage that drives the real GPUI test runtime.
 
+    use rstest::fixture;
     use rstest_bdd_macros::{given, scenario, then, when};
     use serial_test::serial;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
+    /// Address of the `TestAppContext` the harness injected into the current
+    /// scenario, recorded solely so later steps can assert pointer identity.
+    ///
+    /// Ownership protocol: the `Given` step is the sole writer and stores the
+    /// address before any reader runs; the `When` and `Then` steps are readers
+    /// only. The value is never dereferenced, so it cannot outlive the context
+    /// it describes in any meaningful sense. [`ContextPointerCleanup`] clears
+    /// it before assignment and again at scenario teardown, so a failed,
+    /// panicking, or skipped scenario cannot leak a stale address into the
+    /// next scenario on the reused `#[serial]` test thread. The sentinel value
+    /// `0` never matches a live reference, so a missing `Given` step fails the
+    /// identity assertions loudly rather than passing on stale data.
     static CONTEXT_POINTER: AtomicUsize = AtomicUsize::new(0);
+
+    const UNSET_CONTEXT_POINTER: usize = 0;
+
+    fn reset_context_pointer() {
+        CONTEXT_POINTER.store(UNSET_CONTEXT_POINTER, Ordering::SeqCst);
+    }
+
+    /// Fixture guard that resets [`CONTEXT_POINTER`] around each scenario.
+    #[derive(Clone, Debug)]
+    struct ContextPointerCleanup;
+
+    impl Drop for ContextPointerCleanup {
+        fn drop(&mut self) {
+            reset_context_pointer();
+        }
+    }
+
+    #[fixture]
+    fn context_pointer_cleanup() -> ContextPointerCleanup {
+        // Reset before the scenario assigns its own address so a reused serial
+        // thread cannot observe an address left by an earlier scenario.
+        reset_context_pointer();
+        ContextPointerCleanup
+    }
 
     #[given("the inferred GPUI context is observed")]
     async fn inferred_gpui_context_is_observed(
@@ -48,7 +88,11 @@ mod native {
     ) {
         // Receiving the reserved harness-context fixture proves the
         // inferred policy + harness pairing injected the GPUI context.
-        CONTEXT_POINTER.store(std::ptr::from_ref(context) as usize, Ordering::SeqCst);
+        assert_eq!(
+            CONTEXT_POINTER.swap(std::ptr::from_ref(context) as usize, Ordering::SeqCst),
+            UNSET_CONTEXT_POINTER,
+            "cleanup fixture should have cleared the recorded context address"
+        );
         assert!(context.test_function_name().is_none());
         assert!(
             !context.did_prompt_for_new_path(),
@@ -98,11 +142,18 @@ mod native {
     /// the scenario body through the async step path, while the reserved
     /// fixture proves the context came from `GpuiHarness` rather than from
     /// `GpuiAttributePolicy` alone.
+    ///
+    /// `#[serial]` keeps the scenario off concurrent GPUI runtimes, and
+    /// `context_pointer_cleanup` owns the lifetime of the recorded context
+    /// address so the shared static cannot leak across scenarios.
     #[scenario(
         path = "tests/features/harness_led_defaults.feature",
         name = "Inferred GPUI policy provides the test context",
         harness = rstest_bdd_harness_gpui::GpuiHarness,
     )]
     #[serial]
-    fn inferred_policy_runs_scenario_through_gpui_harness() {}
+    fn inferred_policy_runs_scenario_through_gpui_harness(
+        #[from(context_pointer_cleanup)] _cleanup: ContextPointerCleanup,
+    ) {
+    }
 }
