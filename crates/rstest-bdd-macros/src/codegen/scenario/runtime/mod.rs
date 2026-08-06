@@ -19,7 +19,6 @@ use generators::{
     generate_step_executor_loop,
     generate_step_executor_loop_outline,
 };
-use harness::assemble_test_tokens_with_harness;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use types::{CodeComponents, ScenarioLiterals, ScenarioLiteralsInput, TokenAssemblyContext};
@@ -32,6 +31,14 @@ pub(crate) use types::{
 
 use super::helpers::ProcessedStepTokens;
 use crate::codegen::scenario::ScenarioReturnKind;
+
+
+};
+pub(crate) use types::{
+};
+};
+pub(crate) use types::{
+};
 
 /// Common interface for scenario test configuration types.
 trait ScenarioTestConfig {
@@ -320,14 +327,12 @@ where
     let context =
         TokenAssemblyContext::new(&ctx_prelude, &ctx_inserts, &ctx_postlude, &block_tokens);
 
-    if let Some((harness_path, harness_api_path)) = harness {
-        assemble_test_tokens_with_harness(
-            &literals,
-            &components,
-            context,
+    if let Some((harness_path, harness_crate)) = harness {
+        let harness = HarnessAssemblyPaths {
             harness_path,
-            harness_api_path,
-        )
+            harness_crate,
+        };
+        assemble_test_tokens_with_harness(&literals, &components, context, harness)
     } else {
         assemble_test_tokens(literals, components, context)
     }
