@@ -165,8 +165,8 @@ Thresholds that trigger escalation when breached.
   (no artefact change) and a relative-path `include_str!` resolved from the
   call-site span remain candidates subject to its portability constraints; the
   roadmap 11.3.1 follow-up must select one. The regression test remains
-  portability-aware and serialized against nextest's process-per-test
-  parallelism.
+  portability-aware and runs in its own process against an isolated target
+  or temporary directory, so concurrent tests cannot share build state.
 
 - Risk: ADR-008 remains in `Proposed` status while roadmap items 9.7.1–9.7.4
   shipped "under maintainer authorization". Touching the harness-led-defaults
@@ -819,7 +819,6 @@ The deferred Stage E follow-up has its own scope and tolerance bound.
 - Governs roadmap items: re-scoped 10.3.1 (the generic `ScenarioStore<T>`
   core) and 10.3.2 (`GpuiScenarioStore`, the cleanup-guard fixture macro, and
   its three-state lifecycle test). Design Doc: `§2.7.6.4`.
-
 
 ### ADR-012 — Guard-based `StepContext` borrowing implemented in v0.7.0
 

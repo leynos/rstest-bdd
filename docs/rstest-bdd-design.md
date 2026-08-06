@@ -2090,9 +2090,10 @@ compile-pass mirror,
 the GPUI durable-handle specialization remains proven by `stateful_window.rs`.
 The user guide's "Bulk-migration cookbook" subsection documents the shape and
 bridges its GPUI snippets to published `gpui 0.2.2` through the vendored-to-
-published mapping table. This handwritten shared block is superseded in v0.6.0 final
-by `ScenarioStore<T>` and the cleanup-guard fixture macro (roadmap 10.3.1 and
-10.3.2).
+published mapping table. This handwritten shared block is superseded by the
+v0.7.0 guard-based model (ADR-012); `ScenarioStore<T>` and the cleanup-guard
+fixture macro were proposed under ADR-011 (roadmap 10.3.1 and 10.3.2) but
+never shipped.
 
 ##### 2.7.6.3 v0.6.0-beta2 quick wins
 
@@ -2124,14 +2125,14 @@ The release strategy is therefore split by compatibility risk:
 ##### 2.7.6.4 v0.6.1 early-life support helpers
 
 - **v0.6.1 early-life support:** add semver-compatible helper APIs. Candidate
-  additions include an explicit harness-context parameter marker, a prelude for
-  common integration imports, a typed borrow-error enum, a scenario-local state
-  helper with reset semantics, and generated-wrapper coverage for mutable
-  harness context plus scenario state. The placement of the first-party
-  scenario-state helper (`ScenarioStore<T>` in `rstest-bdd`,
-  `GpuiScenarioStore` in `rstest-bdd-harness-gpui`) and the cleanup-guard
-  fixture macro is governed by
-  [ADR-011](adr-011-first-party-scenario-state-and-cleanup.md).
+  additions include an explicit harness-context parameter marker, a prelude
+  for common integration imports, a typed borrow-error enum, and
+  generated-wrapper coverage for mutable harness context plus scenario
+  state. A first-party scenario-state helper (`ScenarioStore<T>` in
+  `rstest-bdd`, `GpuiScenarioStore` in `rstest-bdd-harness-gpui`) and a
+  cleanup-guard fixture macro were proposed under
+  [ADR-011](adr-011-first-party-scenario-state-and-cleanup.md) but were
+  superseded by ADR-012 before implementation and never shipped.
 
 ##### 2.7.6.5 v0.7.0 pre-1.0.0 redesign
 

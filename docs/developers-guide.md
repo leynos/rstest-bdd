@@ -1058,7 +1058,6 @@ bookkeeping exactly once and applies the caller's projection to the resolved
   model cheaply, and the property suite already exercises every variant against
   hit and miss lookups.
 
-
 ## Internal APIs and tooling (ADR-010 to ADR-013)
 
 ADR-010 remains proposed build-tooling work. ADR-011 records historical

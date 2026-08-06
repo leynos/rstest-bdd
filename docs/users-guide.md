@@ -772,7 +772,6 @@ let world = StepContext::owned_cell(World::default());
 ctx.insert_owned::<World>("world", &world);
 ```
 
-
 ### Borrowing fixtures from `StepContext`
 
 Custom step-execution plumbing can borrow fixtures through `&StepContext`.
@@ -783,7 +782,6 @@ can be held concurrently:
 
 ```rust,no_run
 use rstest_bdd::{FixtureBorrowError, StepContext};
-
 
 # fn main() -> Result<(), FixtureBorrowError> {
 let mut ctx = StepContext::default();
@@ -807,6 +805,22 @@ let outcome = ctx.insert_value(Box::new(7_u64));
 assert!(outcome.is_inserted());
 assert_eq!(*ctx.try_borrow::<u64>("number")?, 7);
 assert_eq!(ctx.get::<u64>("number"), Some(&3));
+# Ok(())
+# }
+```
+
+Step-returned overrides take precedence in `try_borrow` and `try_borrow_mut`.
+The older `get` lookup deliberately ignores override storage and reads shared
+fixtures only, as the final two assertions show. The `borrow_ref` and
+`borrow_mut` conveniences expose the same guards as `Option`; use the `try_*`
+forms when the failure reason matters.
+
+`FixtureBorrowError` distinguishes `NotFound`, `TypeMismatch`,
+`AlreadyBorrowed`, and `NotMutable`. `NotMutable` applies when mutable access
+is requested for a fixture inserted by shared reference and no step-returned
+override is available; conflicting guards for the same fixture produce
+`AlreadyBorrowed` instead.
+
 ### Migration notes for cucumber-rs users
 
 For migrations from a cucumber `World`, map the concepts as follows:
@@ -1139,6 +1153,17 @@ path when `attributes = ...` is omitted:
 
 ```rust,no_run
 # use rstest_bdd_macros::scenario;
+#[scenario(
+    path = "tests/features/reminders.feature",
+    name = "Scheduling a reminder queues it for later delivery",
+    harness = rstest_bdd_harness_tokio::TokioHarness,
+)]
+fn queues_a_scheduled_reminder() {}
+```
+
+Keep explicit `attributes = ...` only for overrides, attributes-only tests, or
+unrecognized paths where the default cannot be inferred.
+
 ### Using the GPUI harness
 
 The `rstest-bdd-harness-gpui` crate provides Graphical Processing User
@@ -1161,6 +1186,14 @@ when `attributes = ...` is omitted:
 
 ```rust,no_run
 # use rstest_bdd_macros::scenario;
+#[scenario(
+    path = "tests/features/counter.feature",
+    name = "Increment a counter and observe GPUI context",
+    harness = rstest_bdd_harness_gpui::GpuiHarness,
+)]
+fn increment_and_observe_gpui_context() {}
+```
+
 #### GPUI panic diagnostics carry scenario context
 
 When a step running under `GpuiHarness` panics, the harness prepends the
@@ -1186,12 +1219,15 @@ against feature files. For a concrete regression example, see
 > is guard-based ([ADR-012][adr-012]): steps can take `&mut` parameters for
 > distinct fixtures — including
 > `#[from(rstest_bdd_harness_context)] cx: &mut gpui::TestAppContext`
-> alongside `world: &mut UiWorld` — and the framework constructs and drops
-> scenario state at scenario boundaries, so no thread-local reset
-> discipline is required. **New code should declare ordinary `&mut` fixture
-> parameters instead of the pattern below.** The playbook is retained only
-> for projects still on 0.6.x; migrate by moving thread-local state into an
-> `rstest` fixture and deleting the reset calls.
+> alongside `world: &mut UiWorld` — and the framework builds a fresh
+> `StepContext` for each scenario and drops its owned, scenario-scoped
+> cells at the scenario boundary, so no thread-local reset discipline is
+> required. Fixtures supplied by `rstest` keep their own scopes, so an
+> `#[once]` fixture is still shared as `rstest` defines it. **New code
+> should declare ordinary `&mut` fixture parameters instead of the
+> pattern below.** The playbook is retained only for projects still on
+> 0.6.x; migrate by moving thread-local state into an `rstest` fixture
+> and deleting the reset calls.
 
 <!-- -->
 
@@ -1370,40 +1406,6 @@ defensively re-runs the reset before storing handles and observes the
 
 ```rust,no_run
 # use rstest_bdd_macros::given;
-
-#[derive(Debug, PartialEq, Eq)]
-struct UserRow {
-    name: String,
-    email: String,
-    active: bool,
-}
-
-impl DataTableRow for UserRow {
-    const REQUIRES_HEADER: bool = true;
-
-    fn parse_row(mut row: RowSpec<'_>) -> Result<Self, DataTableError> {
-        let name = row.take_column("name")?;
-        let email = row.take_column("email")?;
-        let active = row.parse_column_with(
-            "active",
-            datatable::truthy_bool,
-        )?;
-        Ok(Self { name, email, active })
-    }
-}
-
-#[given("the following users exist:")]
-fn users_exist(#[datatable] rows: Rows<UserRow>) {
-    for row in rows {
-        assert!(row.active || row.name == "Bob");
-    }
-}
-```
-
-Projects that prefer to work with raw rows can declare the argument as
-`Vec<Vec<String>>` and handle parsing manually. Both forms can co-exist within
-the same project, allowing incremental adoption of typed tables.
-
 # fn reset_state_before_assignment() {}
 # fn with_state<R>(_: impl FnOnce(&mut ()) -> R) -> R { unimplemented!() }
 #[given("a fresh GPUI window is opened")]

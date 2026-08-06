@@ -1026,7 +1026,6 @@ remove the existing `StepContext`, harness, or macro surfaces.
   `whitaker-installer` flow (CI pins `WHITAKER_INSTALLER_VERSION` at `0.2.6`)
   rather than building a pinned Whitaker tag. See leynos/rstest-bdd#597.
 
-
 ## 12. Pre-1.0.0 API consolidation: landed v0.7.0 implementation
 
 The v0.7.0 line landed the final migration-guide-worthy API cleanup planned
@@ -1080,10 +1079,11 @@ an assertion cannot disappear behind macro classification or generated code.
   `Option`-based borrow methods remain as conveniences delegating to them
   (recorded in ADR-012), with generated-wrapper regression coverage. The v0.6.0
   migration guide includes the v0.6-to-v0.7 mapping from thread-local
-  durable-handle patterns to lifecycle hooks. Finish line: runtime unit tests
-  prove concurrent distinct mutable borrows succeed, same-fixture conflicts
-  fail, generated-wrapper tests cover harness context plus world state, and the
-  migration guide carries the mapping table. ADR:
+  durable-handle patterns to framework-managed scenario-boundary cleanup.
+  Finish line: runtime unit tests prove concurrent distinct mutable borrows
+  succeed, same-fixture conflicts fail, generated-wrapper tests cover harness
+  context plus world state, and the migration guide carries the mapping
+  table. ADR:
   `docs/adr-012-guard-based-stepcontext-borrowing.md`. Design Doc:
   `docs/rstest-bdd-design.md` §2.7.6.5. (Pandalump, Telefono)
 - [x] 12.1.2. `FixtureRefMut` exposes a stable, opaque public API that preserves
@@ -1093,11 +1093,15 @@ an assertion cannot disappear behind macro classification or generated code.
   `docs/rstest-bdd-design.md` §2.7.6.5. Finish line: public API tests compile
   against accessor methods, and no downstream test can match internal variants.
   (Telefono)
-- [x] 12.1.3. A stable world lifecycle contract guarantees before-scenario
-  reset, after-scenario cleanup, and cleanup on failure or skip, so users can
-  model scenario state without thread-local reset conventions. The migration
-  guide explains how v0.6 workarounds map to the v0.7 lifecycle. Prerequisite:
-  12.1.1. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.5. Finish line:
+- [x] 12.1.3. A stable world lifecycle contract guarantees fresh
+  framework-owned scenario storage, after-scenario cleanup, and cleanup on
+  failure or skip, so users can model scenario state without thread-local
+  reset conventions: the framework automatically constructs the
+  `StepContext` and drops framework-owned fixture cells at the scenario
+  boundary (success, failure, and skip), with no caller-managed reset. The
+  migration guide explains how v0.6 workarounds map to the v0.7 lifecycle.
+  Prerequisite: 12.1.1. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.5.
+  Finish line:
   lifecycle tests pass for success, assertion failure, and skip, and the
   migration guide includes the v0.6-to-v0.7 mapping. (Doggylump)
 
