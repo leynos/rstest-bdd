@@ -19,7 +19,7 @@ use generators::{
     generate_skip_handler, generate_step_executor, generate_step_executor_loop,
     generate_step_executor_loop_outline,
 };
-use harness::assemble_test_tokens_with_harness;
+use harness::{HarnessAssemblyPaths, assemble_test_tokens_with_harness};
 use types::{CodeComponents, ScenarioLiterals, ScenarioLiteralsInput, TokenAssemblyContext};
 pub(crate) use types::{
     OutlineTestTokensConfig, ProcessedSteps, ScenarioMetadata, TestTokensConfig,
@@ -319,14 +319,12 @@ where
     let context =
         TokenAssemblyContext::new(&ctx_prelude, &ctx_inserts, &ctx_postlude, &block_tokens);
 
-    if let Some((harness_path, harness_api_path)) = harness {
-        assemble_test_tokens_with_harness(
-            &literals,
-            &components,
-            context,
+    if let Some((harness_path, harness_crate)) = harness {
+        let harness = HarnessAssemblyPaths {
             harness_path,
-            harness_api_path,
-        )
+            harness_crate,
+        };
+        assemble_test_tokens_with_harness(&literals, &components, context, harness)
     } else {
         assemble_test_tokens(literals, components, context)
     }
