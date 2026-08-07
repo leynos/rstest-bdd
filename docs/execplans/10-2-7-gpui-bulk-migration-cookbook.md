@@ -483,9 +483,10 @@ Key terms:
    across binaries; `crates/rstest-bdd/tests/scenario_state.rs` — `Slot<T>` +
    fixture durable state;
    `crates/rstest-bdd/tests/third_party_harness_cookbook.rs` and the
-   corresponding `scenario_third_party_harness_cookbook.rs` fixture — the
-   runtime + trybuild mirror pair; and, for the GPUI-specific reference the
-   prose cross-links to,
+   corresponding
+   `crates/rstest-bdd/tests/fixtures_macros/scenario_third_party_harness_cookbook.rs`
+   fixture — the runtime + trybuild mirror pair; and, for the GPUI-specific
+   reference the prose cross-links to,
    `crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` with
    `tests/features/stateful_window.feature`.
 5. `crates/rstest-bdd/tests/trybuild_macros.rs` (function `step_macros_compile`,

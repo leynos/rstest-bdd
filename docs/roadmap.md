@@ -906,33 +906,31 @@ changing the public trait contracts.
 ### 10.3. v0.6.0 final requirements
 
 This step collects the remaining non-breaking work approved as release
-requirements after downstream beta adoption. The release is ready when its
-state helpers remove the largest GPUI migration tax and feature-file edits
-cannot leave users running stale scenarios.
+requirements after downstream beta adoption. The proposed state helpers were
+superseded by ADR-012 before implementation, so the release is ready when
+feature-file edits cannot leave users running stale scenarios.
 
-- [ ] 10.3.1. A generic `ScenarioStore<T>` core (in `rstest-bdd`) replaces
-  per-scenario thread-local `RefCell` boilerplate; it exposes `set`, `with`,
-  `with_mut`, `take`, and `reset` operations and wraps the two-sided reset
-  protocol. Naming note: the name `ScenarioStore<T>` is chosen to avoid
-  colliding with the already-shipped `pub trait ScenarioState: Default` and
-  `pub struct Slot<T>` in `crates/rstest-bdd/src/state.rs`. A GPUI-specific
-  `GpuiScenarioStore` re-export ships in `rstest-bdd-harness-gpui`. Finish
-  line: unit tests exercise all five operations; a GPUI integration test uses
-  `GpuiScenarioStore` and the cleanup fixture macro without handwritten
-  `thread_local!` boilerplate; docs present it as the supported v0.6.0 final
-  alternative to the beta thread-local interim pattern. ADR:
+- [x] 10.3.1. **Superseded by 12.1.3 before implementation.** ADR-011 proposed
+  a generic `ScenarioStore<T>` core (in `rstest-bdd`) to replace
+  per-scenario thread-local `RefCell` boilerplate; it would expose `set`, `with`,
+  `with_mut`, `take`, and `reset` operations and wrap the two-sided reset
+  protocol, alongside a GPUI-specific `GpuiScenarioStore` re-export in
+  `rstest-bdd-harness-gpui`. These helpers did not ship; ADR-012 instead landed
+  framework-managed scenario storage and cleanup, so the v0.6.x thread-local
+  interim pattern is retired by the v0.7.0 lifecycle contract rather than by a
+  first-party store. ADR:
   `docs/adr-011-first-party-scenario-state-and-cleanup.md`. Design Doc:
   `docs/rstest-bdd-design.md` §2.7.6.4. (Dinolump)
-- [ ] 10.3.2. A cleanup-guard fixture-generating macro in
-  `rstest-bdd-harness-gpui` produces the `ScenarioStateCleanup` `Drop` guard
-  and the `#[fixture] fn scenario_state_cleanup()` function, so GPUI scenarios
-  can adopt the two-sided reset protocol with a single macro call. A regression
-  test proves the three-state lifecycle (success, assertion failure, skip) each
-  leave the store in the default state. Requires 10.3.1. ADR:
+- [x] 10.3.2. **Superseded by 12.1.3 before implementation.** ADR-011 proposed
+  a cleanup-guard fixture-generating macro in `rstest-bdd-harness-gpui` to
+  produce the `ScenarioStateCleanup` `Drop` guard and the
+  `#[fixture] fn scenario_state_cleanup()` function, so GPUI scenarios could
+  adopt the two-sided reset protocol with a single macro call. The macro did not
+  ship; ADR-012 instead made cleanup of framework-owned scenario storage part of
+  the v0.7.0 lifecycle contract, which the existing cleanup-probe suite pins
+  across success, assertion failure, and skip. ADR:
   `docs/adr-011-first-party-scenario-state-and-cleanup.md`. Design Doc:
-  `docs/rstest-bdd-design.md` §2.7.6.4. Finish line: an integration test shows
-  cleanup running after success, failure, and skip; the docs state the required
-  registration order. (Doggylump)
+  `docs/rstest-bdd-design.md` §2.7.6.4. (Doggylump)
 - [ ] 10.3.3. Editing only a `.feature` file triggers a rebuild of the scenario
   binary. The `#[scenario]`/`scenarios!` expansion registers each bound feature
   file as a Cargo rebuild dependency without embedding an absolute path into the
@@ -959,22 +957,23 @@ remove the existing `StepContext`, harness, or macro surfaces.
 
 ### 11.1. Add borrow and state helpers without breaking callers
 
-- [ ] 11.1.1. `FixtureBorrowError` provides a structured error surface for
-  generated and manual fixture extraction, with variants for missing fixture,
-  type mismatch, immutable fixture requested mutably, and already-borrowed
-  fixture cases, so generated wrappers produce targeted diagnostics instead of
-  collapsing every extraction failure into `MissingFixture`. Finish line: unit
-  tests cover every variant, and generated-wrapper tests assert each variant
-  maps to the expected diagnostic. Design Doc: `docs/rstest-bdd-design.md`
-  §2.7.6.4. (Telefono)
-- [ ] 11.1.2. Generated code has an additive mutable-borrow helper that reduces
-  unnecessary `&mut StepContext` contention where possible while preserving the
-  existing `borrow_mut(&mut self, ...)` API. Regression tests cover mutable
-  harness context plus scenario state, or docs explain precisely why the full
-  fix must wait for v0.7.0. Finish line: generated-code tests pass for the
-  helper without breaking the existing `borrow_mut` API, or the documented
-  deferral includes a failing-shape test. Design Doc:
-  `docs/rstest-bdd-design.md` §2.7.6.4. (Pandalump)
+- [x] 11.1.1. **Superseded by 12.1.1.** `FixtureBorrowError` provides a
+  structured error surface for generated and manual fixture extraction, with
+  variants for missing fixture, type mismatch, immutable fixture requested
+  mutably, and already-borrowed fixture cases, so generated wrappers produce
+  targeted diagnostics instead of collapsing every extraction failure into
+  `MissingFixture`. Finish line: unit tests cover every variant, and
+  generated-wrapper tests assert each variant maps to the expected diagnostic.
+  Design Doc: `docs/rstest-bdd-design.md` §2.7.6.4. (Telefono)
+- [x] 11.1.2. **Superseded by 12.1.1 and 12.1.2.** Generated code has an
+  additive mutable-borrow helper that reduces unnecessary `&mut StepContext`
+  contention where possible while preserving the existing
+  `borrow_mut(&mut self, ...)` API. Regression tests cover mutable harness
+  context plus scenario state, or docs explain precisely why the full fix must
+  wait for v0.7.0. Finish line: generated-code tests pass for the helper
+  without breaking the existing `borrow_mut` API, or the documented deferral
+  includes a failing-shape test. Design Doc: `docs/rstest-bdd-design.md`
+  §2.7.6.4. (Pandalump)
 
 ### 11.2. Smooth integration ergonomics
 
@@ -1027,6 +1026,14 @@ remove the existing `StepContext`, harness, or macro surfaces.
   `whitaker-installer` flow (CI pins `WHITAKER_INSTALLER_VERSION` at `0.2.6`)
   rather than building a pinned Whitaker tag. See leynos/rstest-bdd#597.
 
+## 12. Pre-1.0.0 API consolidation: landed v0.7.0 implementation
+
+The v0.7.0 line landed the final migration-guide-worthy API cleanup planned
+before v1.0.0. This phase collects changes that were too disruptive for v0.6.x
+but make the v1 surface smaller and more predictable. Following the first
+downstream adopter migration report, the guard-based `StepContext` borrow
+redesign was accepted and implemented through ADR-012.
+
 ### 11.3. Prevent beta3 false greens and generated-result warnings
 
 This hardening step closes two failure modes found by the gauss beta trial. It
@@ -1063,41 +1070,38 @@ an assertion cannot disappear behind macro classification or generated code.
 > adopter feedback and requires separate maintainer approval; it is recorded
 > here only so the inconsistency is tracked.
 
-## 12. Pre-1.0.0 API consolidation: v0.7.0 committed direction
-
-The v0.7.0 line is the last planned place for migration-guide-worthy API
-cleanup before v1.0.0. This phase intentionally collects changes that would be
-too disruptive for v0.6.x but would make the v1 surface smaller and more
-predictable. Following the first downstream adopter migration report, the
-guard-based `StepContext` borrow redesign is elevated from a v0.7.0 ambition to
-a committed direction (ADR-012).
-
 ### 12.1. Redesign state and context borrowing
 
-- [ ] 12.1.1. `StepContext` supports guard-based interior borrowing, so callers
+- [x] 12.1.1. `StepContext` supports guard-based interior borrowing, so callers
   can concurrently borrow distinct mutable fixtures, including mutable harness
-  context and mutable world state when fixture keys differ. Previous `Option`
-  -based borrow APIs are replaced with `Result`-returning APIs carrying
-  `FixtureBorrowError`, with generated-wrapper regression coverage. The v0.6.0
+  context and mutable world state when fixture keys differ. `Result`-returning
+  `try_borrow`/`try_borrow_mut` APIs carry `FixtureBorrowError`; the
+  `Option`-based borrow methods remain as conveniences delegating to them
+  (recorded in ADR-012), with generated-wrapper regression coverage. The v0.6.0
   migration guide includes the v0.6-to-v0.7 mapping from thread-local
-  durable-handle patterns to lifecycle hooks. Finish line: runtime unit tests
-  prove concurrent distinct mutable borrows succeed, same-fixture conflicts
-  fail, generated-wrapper tests cover harness context plus world state, and the
-  migration guide carries the mapping table. ADR:
+  durable-handle patterns to framework-managed scenario-boundary cleanup.
+  Finish line: runtime unit tests prove concurrent distinct mutable borrows
+  succeed, same-fixture conflicts fail, generated-wrapper tests cover harness
+  context plus world state, and the migration guide carries the mapping
+  table. ADR:
   `docs/adr-012-guard-based-stepcontext-borrowing.md`. Design Doc:
   `docs/rstest-bdd-design.md` §2.7.6.5. (Pandalump, Telefono)
-- [ ] 12.1.2. `FixtureRefMut` exposes a stable, opaque public API that preserves
+- [x] 12.1.2. `FixtureRefMut` exposes a stable, opaque public API that preserves
   value-accessor methods while hiding internal enum and representation details.
   Public callers retain value access methods, and internal variants are no
   longer part of the public surface. Prerequisite: 12.1.1. Design Doc:
   `docs/rstest-bdd-design.md` §2.7.6.5. Finish line: public API tests compile
   against accessor methods, and no downstream test can match internal variants.
   (Telefono)
-- [ ] 12.1.3. A stable world lifecycle contract guarantees before-scenario
-  reset, after-scenario cleanup, and cleanup on failure or skip, so users can
-  model scenario state without thread-local reset conventions. The migration
-  guide explains how v0.6 workarounds map to the v0.7 lifecycle. Prerequisite:
-  12.1.1. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.5. Finish line:
+- [x] 12.1.3. A stable world lifecycle contract guarantees fresh
+  framework-owned scenario storage, after-scenario cleanup, and cleanup on
+  failure or skip, so users can model scenario state without thread-local
+  reset conventions: the framework automatically constructs the
+  `StepContext` and drops framework-owned fixture cells at the scenario
+  boundary (success, failure, and skip), with no caller-managed reset. The
+  migration guide explains how v0.6 workarounds map to the v0.7 lifecycle.
+  Prerequisite: 12.1.1. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.5.
+  Finish line:
   lifecycle tests pass for success, assertion failure, and skip, and the
   migration guide includes the v0.6-to-v0.7 mapping. (Doggylump)
 

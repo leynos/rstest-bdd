@@ -391,10 +391,12 @@ interim thread-local pattern documented under
 
 > **Note: this is a v0.6 interim shape.**
 >
-> The thread-local scenario-state pattern below works around the current
-> `StepContext::borrow_mut` contract ([ADR-007][adr-007]); §2.7.6.5 of the
-> [rstest-bdd design](rstest-bdd-design.md) and roadmap items 12.1.x track
-> the v0.7.0 redesign that will replace it.
+> The thread-local scenario-state pattern below works around the v0.6
+> `StepContext::borrow_mut` contract ([ADR-007][adr-007]). The guard-based
+> redesign recorded in [ADR-012][adr-012] shipped in v0.7.0 and supersedes
+> this workaround; see [Adopt guard-based `StepContext` borrowing
+> (v0.7.0)](#adopt-guard-based-stepcontext-borrowing-v070) for the migration
+> mapping.
 
 Apply this migration when an existing scenario stored a `VisualTestContext`
 between steps or relied on a non-thread-local mutable world together with
@@ -435,6 +437,8 @@ lives in §§2.7.6.1–2.7.6.2 of the [rstest-bdd design](rstest-bdd-design.md).
 
 [adr-007]: adr-007-harness-context-injection.md
 
+[adr-012]: adr-012-guard-based-stepcontext-borrowing.md
+
 [design-beta2-quick-wins]: rstest-bdd-design.md#2763-v060-beta2-quick-wins
 
 [design-borrow-constraint]:
@@ -453,6 +457,94 @@ https://doc.rust-lang.org/nomicon/borrow-splitting.html
 
 [users-guide-playbook]:
 users-guide.md#stateful-gpui-scenarios-with-durable-handles
+
+### Adopt guard-based `StepContext` borrowing (v0.7.0)
+
+> This subsection describes v0.7.0 behaviour, not a v0.6.0 change. It is
+> included here so readers upgrading off 0.6.x can plan the move in one
+> place. [ADR-012][adr-012] is the authoritative record.
+
+`StepContext` borrow methods now take `&self` instead of `&mut self`. Guards
+for distinct fixtures — including multiple mutable guards — can be held
+concurrently, so a step may declare
+`#[from(rstest_bdd_harness_context)] cx: &mut gpui::TestAppContext` alongside
+`world: &mut UiWorld` without the v0.6 `E0499`/`E0502` failure described in
+[Two mutable fixtures trigger `E0499` or
+`E0502`](#two-mutable-fixtures-trigger-e0499-or-e0502). A conflicting borrow
+of the *same* fixture still fails, but as a typed error rather than a
+compile-time rejection.
+
+New `try_borrow` and `try_borrow_mut` methods return
+`Result<_, FixtureBorrowError>`, with variants `NotFound`, `TypeMismatch`,
+`AlreadyBorrowed`, and `NotMutable`. A conflicting borrow of the same fixture
+now reports `AlreadyBorrowed` instead of panicking. The existing
+`Option`-returning `borrow_ref` and `borrow_mut` methods remain as
+conveniences that delegate to the `try_*` APIs.
+
+`FixtureRef` and `FixtureRefMut` are now opaque structs. They implement
+`Deref`/`DerefMut`, `AsRef`/`AsMut`, and `Debug`, and keep the existing
+accessor methods. Code that relied on their previous transparent shape
+should go through `Deref`/`DerefMut` (or the accessors) instead.
+
+`StepContext::get::<T>` now serves shared fixture storage only and
+deliberately ignores step-returned override values, because overrides moved
+behind `RefCell` when they became interiorly mutable. Read overrides through
+the guard API (`try_borrow`/`try_borrow_mut`, or the `Option`-returning
+conveniences) instead.
+
+#### Retire the thread-local workaround
+
+The framework — not caller discipline — now guarantees scenario-boundary
+reset: it builds a fresh `StepContext` for each scenario and drops its
+owned, scenario-scoped cells on success, on failure (including unwinding),
+and on skip. There are no public lifecycle hooks and no caller-managed reset
+API. `rstest` fixture scopes are unchanged by this guarantee: an `#[once]`
+fixture is still shared exactly as `rstest` defines it, because per-scenario
+freshness applies to framework-owned storage, not to every fixture.
+
+To migrate off the v0.6
+[thread-local workaround](#migrate-a-stateful-gpui-test):
+
+- Move the `thread_local! { RefCell<World> }` state into an ordinary
+  `rstest` `#[fixture]`.
+- Declare `world: &mut UiWorld` directly on the steps that need it, instead
+  of `WORLD.with(|w| w.borrow_mut())`.
+- Delete both the `reset_state_before_assignment()` calls and the
+  `Drop`-based `ScenarioStateCleanup` fixture.
+
+Before (v0.6 interim shape):
+
+```rust,ignore
+thread_local! {
+    static WORLD: RefCell<Option<World>> = RefCell::new(None);
+}
+
+#[given("the shell is open")]
+fn given_shell_open(
+    #[from(rstest_bdd_harness_context)] cx: &mut gpui::TestAppContext,
+) -> StepResult<()> {
+    WORLD.with(|w| {
+        let mut world = w.borrow_mut();
+        // ...update world using `cx`...
+    });
+    Ok(())
+}
+```
+
+After (v0.7.0 guard-based borrowing):
+
+```rust,ignore
+#[given("the shell is open")]
+fn given_shell_open(
+    #[from(rstest_bdd_harness_context)] cx: &mut gpui::TestAppContext,
+    world: &mut UiWorld,
+) -> StepResult<()> {
+    let (shell, visual_cx) = cx.add_window_view(|_context| Shell::default());
+    world.shell = Some(shell);
+    world.visual_cx = Some(visual_cx);
+    Ok(())
+}
+```
 
 ## Migration checklist
 
@@ -506,14 +598,19 @@ users-guide.md#stateful-gpui-scenarios-with-durable-handles
 
 ### Two mutable fixtures trigger `E0499` or `E0502`
 
-> This is a v0.6 interim workaround. The limitation is recorded in
-> [rstest-bdd design §2.7.6.1][design-borrow-constraint]; the replacement
-> borrow model is tracked in [§2.7.6.5][design-redesign] and roadmap items
-> 12.1.x.
+> This is a v0.6 interim workaround, superseded from v0.7.0. The limitation
+> is recorded in [rstest-bdd design §2.7.6.1][design-borrow-constraint]; the
+> replacement guard-based borrow model shipped with [ADR-012][adr-012],
+> which lets one step borrow distinct mutable fixtures concurrently. Apply
+> the workarounds below only while staying on 0.6.x; on upgrade, declare
+> ordinary `&mut` fixture parameters and delete the thread-local reset
+> discipline. See [Adopt guard-based `StepContext` borrowing
+> (v0.7.0)](#adopt-guard-based-stepcontext-borrowing-v070) for the migration
+> mapping.
 
 The symptom is a rustc borrow-checker error in generated wrapper code, not in
 the step body itself. Two mutable fixture parameters usually produce
-[`E0499`][ rustc-e0499],
+[`E0499`][rustc-e0499],
 ``cannot borrow `*ctx` as mutable more than once at a time``. One mutable
 fixture plus one immutable fixture can produce [`E0502`][rustc-e0502],
 ``cannot borrow `*ctx` as mutable because it is also borrowed as immutable``.
@@ -600,9 +697,12 @@ the playbook redirect instead.
   constraint.
 - [rstest-bdd design §2.7.6.2][design-interim-gpui] records the interim GPUI
   state pattern.
-- [rstest-bdd design §2.7.6.5][design-redesign] tracks the v0.7.0 redesign
-  target.
+- [rstest-bdd design §2.7.6.5][design-redesign] records the guard-based redesign
+  shipped in v0.7.0.
 - [ADR-007][adr-007] records the harness-context injection contract.
+- [ADR-012][adr-012] records the guard-based `StepContext` borrowing redesign;
+  see also [Adopt guard-based `StepContext` borrowing
+  (v0.7.0)](#adopt-guard-based-stepcontext-borrowing-v070) in this guide.
 - [Stateful GPUI scenarios with durable handles][users-guide-playbook] is the
   user-guide playbook.
 

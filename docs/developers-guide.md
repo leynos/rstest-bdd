@@ -1058,58 +1058,63 @@ bookkeeping exactly once and applies the caller's projection to the resolved
   model cheaply, and the property suite already exercises every variant against
   hit and miss lookups.
 
-## Planned internal APIs and tooling (ADR-010 to ADR-013)
+## Internal APIs and tooling (ADR-010 to ADR-013)
 
-Three accepted-as-`Proposed` ADRs schedule internal-API and build-tooling
-changes that contributors will encounter as the v0.6.0 final and v0.7.0 work
-lands. ADR-013 is already accepted and governs the current Whitaker lint
-gate. They are summarized here, so the decisions are discoverable from the
-developer guide; the ADRs remain the authoritative source, and the planning
-rationale lives in
+ADR-010 remains proposed build-tooling work. ADR-011 records historical
+scenario-state work that did not ship. ADR-012 is accepted and implemented in
+v0.7.0, while ADR-013 is accepted and governs the current Whitaker lint gate.
+They are summarized here so the decisions are discoverable from the developer
+guide; the ADRs remain the authoritative source, and the planning rationale
+lives in
 [`docs/execplans/adopt-v0-6-0-beta2-feedback.md`](execplans/adopt-v0-6-0-beta2-feedback.md).
 
-### Scenario-state helpers and per-scenario cleanup (ADR-011)
+### Historical scenario-state helper proposal (ADR-011)
 
-[ADR-011](adr-011-first-party-scenario-state-and-cleanup.md) introduces a
+[ADR-011](adr-011-first-party-scenario-state-and-cleanup.md) proposed a
 first-party replacement for the hand-rolled thread-local `RefCell` plus `Drop`
-cleanup guard that stateful GPUI scenarios use today:
+cleanup guard used by stateful GPUI scenarios under v0.6.x. The proposal did
+not ship and was superseded by ADR-012 before implementation:
 
-- A generic `ScenarioStore<T>` core lives in `rstest-bdd`, exposing
+- A generic `ScenarioStore<T>` core would have lived in `rstest-bdd`, exposing
   `set`/`with`/`with_mut`/`take`/`reset` and wrapping the two-sided reset
   protocol. It is named to avoid colliding with the already-shipped
   `pub trait ScenarioState` and `pub struct Slot<T>` in
   `crates/rstest-bdd/src/state.rs`; it composes with `Slot<T>` rather than
   shadowing it.
-- A `GpuiScenarioStore` specialization plus a cleanup-guard fixture macro ship
-  from `rstest-bdd-harness-gpui`. The layering is acyclic: the harness crate
-  already depends on `rstest-bdd`, and the core never imports the harness.
-- The cleanup-ordering contract (reset before assignment; `Drop` cleanup on
-  success, assertion failure, and skip) is fixed by the ADR and must be covered
-  by unit, property-based (`proptest`), and `serial_test`-guarded
-  thread-isolation tests — see the ADR's _Testing strategy_.
+- A `GpuiScenarioStore` specialization plus a cleanup-guard fixture macro would
+  have shipped from `rstest-bdd-harness-gpui`. The proposed layering was
+  acyclic: the harness crate already depends on `rstest-bdd`, and the core
+  would not import the harness.
+- The proposal required reset before assignment and `Drop` cleanup on success,
+  assertion failure, and skip, covered by unit, property-based (`proptest`), and
+  `serial_test`-guarded thread-isolation tests — see the ADR's _Testing
+  strategy_.
 
-Tracked by roadmap items 10.3.1 and 10.3.2 (pulled forward to v0.6.0 final);
-design coverage is in `rstest-bdd-design.md` §2.7.6.4.
+Roadmap items 10.3.1 and 10.3.2 retain this proposal as an explicitly
+superseded historical record; design coverage is in `rstest-bdd-design.md`
+§2.7.6.4.
 
 ### Guard-based `StepContext` borrowing and `FixtureBorrowError` (ADR-012)
 
-[ADR-012](adr-012-guard-based-stepcontext-borrowing.md) records the v0.7.0
-redesign of `StepContext` borrowing as a committed direction, not an ambition.
-Contributors touching the borrow machinery should expect:
+[ADR-012](adr-012-guard-based-stepcontext-borrowing.md) records the accepted
+and implemented v0.7.0 redesign. Contributors touching the borrow machinery
+should preserve these contracts:
 
-- `StepContext::borrow_mut(&mut self, …)` is replaced by interior borrowing
-  that returns `FixtureRefMut` guards, so two guards for _distinct_ keys can
-  coexist (for example `&mut TestAppContext` alongside `&mut World`) while two
-  guards for the _same_ key fail. This removes the `E0499`/`E0502` constraint
-  that forces today's thread-local workaround.
-- Borrow APIs return `Result` carrying a structured `FixtureBorrowError`
-  (`MissingFixture`, `TypeMismatch`, `AlreadyBorrowed`). Roadmap item 11.1.1
-  introduces an early version of this error surface in v0.6.1; v0.7.0 completes
-  it.
-- `FixtureRefMut` exposes a stable, opaque accessor API (12.1.2), and a
-  first-class world lifecycle contract (12.1.3) supersedes the thread-local
-  reset protocol and the v0.6.0 final `ScenarioStore<T>` helper. The ADR carries
-  the v0.6→v0.7 migration mapping.
+- `StepContext::try_borrow` and `try_borrow_mut` take `&self` and return opaque
+  `FixtureRef` and `FixtureRefMut` guards. Guards for distinct mutable fixtures
+  can coexist (for example `&mut TestAppContext` alongside `&mut World`), while
+  conflicting guards for the same key fail.
+- The `try_*` APIs return `Result` with `FixtureBorrowError::NotFound`,
+  `TypeMismatch`, `AlreadyBorrowed`, or `NotMutable`. The `borrow_ref` and
+  `borrow_mut` methods remain `Option`-returning conveniences over those APIs.
+- Step-returned overrides take precedence for guard-based access. `get::<T>`
+  serves shared fixture storage only and deliberately ignores overrides.
+- `FixtureRef` and `FixtureRefMut` expose stable opaque accessor and trait
+  surfaces. The framework creates a fresh context and fresh framework-owned
+  fixture cells per scenario, then enforces their cleanup at the scenario
+  boundary on success, failure (unwinding), and skip. The `rstest` fixture
+  scopes, including intentional `#[once]` sharing, remain unchanged; the v0.6
+  thread-local reset protocol is historical.
 - Borrow-state invariants are the highest-risk part of the surface and must be
   covered by generated-wrapper, property-based (`proptest`), and lifecycle
   tests — see the ADR's _Testing strategy_.

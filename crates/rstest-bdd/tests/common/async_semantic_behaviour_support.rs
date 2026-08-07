@@ -40,7 +40,7 @@ pub(crate) struct SemanticValue(pub(crate) i32);
 
 /// Marker struct whose [`Drop`] implementation increments the per-thread
 /// `cleanup_drops` counter, allowing tests to assert that fixtures are
-/// dropped exactly once on both success and failure paths.
+/// dropped exactly once on success, failure, and skip paths.
 pub(crate) struct CleanupProbe;
 
 impl Drop for CleanupProbe {

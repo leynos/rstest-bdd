@@ -46,7 +46,8 @@ mod types;
 pub mod test_support;
 
 pub use context::{
-    FixtureRef, FixtureRefMut, InsertOutcome, RSTEST_BDD_HARNESS_CONTEXT_FIXTURE, StepContext,
+    FixtureBorrowError, FixtureRef, FixtureRefMut, InsertOutcome,
+    RSTEST_BDD_HARNESS_CONTEXT_FIXTURE, StepContext,
 };
 pub use localization::{
     LocalizationError, Localizations, current_languages, install_localization_loader,
