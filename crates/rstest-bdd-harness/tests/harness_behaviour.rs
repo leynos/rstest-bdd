@@ -2,8 +2,8 @@
 
 use rstest::{fixture, rstest};
 use rstest_bdd_harness::{
-    HarnessAdapter, HarnessError, HarnessResult, ScenarioMetadata, ScenarioRunRequest,
-    ScenarioRunner, StdHarness, StdScenarioRunRequest, StdScenarioRunner,
+    FailingHarness, HarnessAdapter, HarnessError, HarnessResult, ScenarioMetadata,
+    ScenarioRunRequest, ScenarioRunner, StdHarness, StdScenarioRunRequest, StdScenarioRunner,
 };
 use std::cell::Cell;
 use std::io;
@@ -122,6 +122,20 @@ fn std_harness_error_path_propagates_runtime_build_failed(default_metadata: Scen
         format!("{err}"),
         "failed to build runtime: std probe failure"
     );
+}
+
+#[rstest]
+fn failing_harness_test_helper_returns_runtime_build_failed(default_metadata: ScenarioMetadata) {
+    let request = ScenarioRunRequest::new(
+        default_metadata,
+        ScenarioRunner::new_without_context(|| "unreachable"),
+    );
+    let result = FailingHarness.run(request);
+
+    let Err(HarnessError::RuntimeBuildFailed(err)) = result else {
+        panic!("expected RuntimeBuildFailed, got {result:?}");
+    };
+    assert_eq!(err.to_string(), "synthetic harness initialization failure");
 }
 
 #[test]

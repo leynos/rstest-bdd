@@ -298,8 +298,9 @@ The harness crate (`crates/rstest-bdd-harness/`) provides:
   `Box<dyn FnOnce() -> T + 'a>`; constructed via `ScenarioRunner::new(closure)`.
 - `ScenarioRunRequest<'a, T>` (`src/runner.rs`): bundles `ScenarioMetadata` +
   `ScenarioRunner`; constructed via `ScenarioRunRequest::new(metadata, runner)`.
-- `ScenarioMetadata` (`src/runner.rs`): `new` stores the feature path,
-  scenario name, scenario line, and tags.
+- `ScenarioMetadata` (`src/runner.rs`):
+  constructed via `ScenarioMetadata::new(...)` with feature path, scenario
+  name, scenario line, and tags.
 - `StdHarness` (`src/std_harness.rs`): `#[derive(Default)]`, implements
   `HarnessAdapter` by calling `request.run()` directly.
 

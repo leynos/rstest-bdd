@@ -14,7 +14,9 @@ pub mod policy_conformance;
 mod runner;
 mod std_harness;
 #[cfg(test)]
-pub(crate) mod test_utils;
+mod test_utils;
+#[cfg(feature = "testing")]
+mod testing;
 #[doc(hidden)]
 pub mod trybuild_staging;
 
@@ -25,4 +27,6 @@ pub use runner::{
     ScenarioMetadata, ScenarioRunRequest, ScenarioRunner, StdScenarioRunRequest, StdScenarioRunner,
 };
 pub use std_harness::StdHarness;
+#[cfg(feature = "testing")]
+pub use testing::FailingHarness;
 pub use tracing;

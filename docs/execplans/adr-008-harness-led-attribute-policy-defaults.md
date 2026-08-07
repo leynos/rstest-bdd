@@ -19,15 +19,32 @@ the normal emitted test attributes. These forms should work as the preferred
 documentation path:
 
 ```rust,no_run
-# use rstest_bdd_macros::scenario;
+use rstest_bdd_macros::scenario;
 #[scenario(
-    path = "tests/features/my_async.feature",
-    harness = rstest_bdd_harness_tokio::TokioHarness,
+    path = "tests/features/my_ui.feature",
+    harness = rstest_bdd_harness_gpui::GpuiHarness,
 )]
-fn my_tokio_scenario() {}
+fn my_gpui_scenario() {}
 ```
 
-and:
+Explicit `attributes = ...` remains authoritative, `attributes`-only
+configuration remains supported, and unknown third-party harnesses must still
+fall back to explicit policy selection rather than pretending the macro can
+infer arbitrary defaults.
+
+Success is observable in three ways:
+
+1. Unit tests prove the exact precedence order from ADR-008:
+   explicit `attributes` override, known first-party harness defaults come
+   next, the deprecated Tokio runtime alias remains below explicit harness
+   selection, and the final fallback is the existing runtime-mode or
+   synchronous behaviour.
+2. Public-macro coverage proves the harness-only first-party forms compile and
+   run for both `#[scenario]` and `scenarios!`, while explicit override cases
+   still behave correctly.
+3. `docs/users-guide.md` clearly teaches harness-led defaults as the normal
+   first-party configuration and still documents `attributes = ...` as the
+   override and third-party escape hatch.
 
 ```rust,no_run
 # use rstest_bdd_macros::scenario;
@@ -425,11 +442,30 @@ Implementation details:
 
 Go/no-go validation:
 
-- The `trybuild_macros step_macros_compile -- --exact` suite passes with
-  `RUSTFLAGS="-D warnings"`.
-- The `scenario_harness_tokio` suite passes with `RUSTFLAGS="-D warnings"`.
-- The `scenario_harness_gpui --features gpui-harness-tests` suite passes with
-  `RUSTFLAGS="-D warnings"`.
+- The trybuild macro suite passes:
+
+  ```sh
+  RUSTFLAGS="-D warnings" cargo test \
+    -p rstest-bdd \
+    --test trybuild_macros step_macros_compile -- --exact
+  ```
+
+- The Tokio harness-led defaults test passes:
+
+  ```sh
+  RUSTFLAGS="-D warnings" cargo test \
+    -p rstest-bdd-harness-tokio \
+    --test harness_led_defaults
+  ```
+
+- The GPUI harness-led defaults test passes:
+
+  ```sh
+  RUSTFLAGS="-D warnings" cargo test \
+    -p rstest-bdd-harness-gpui \
+    --test harness_led_defaults \
+    --features native-gpui-tests
+  ```
 
 ### Stage D: update the user guide and design doc
 
@@ -468,22 +504,25 @@ Goal: prove the repository is in a releasable state after the change.
 Run these commands and inspect the logs before closing the work:
 
 ```bash
-set -o pipefail; cargo test -p rstest-bdd-policy 2>&1 | tee /tmp/adr-008-policy.log
-set -o pipefail; cargo test -p rstest-bdd-macros --lib 2>&1 | tee /tmp/adr-008-macros.log
-set -o pipefail; RUSTFLAGS="-D warnings" cargo test -p rstest-bdd \
+set -euo pipefail
+cargo test -p rstest-bdd-policy 2>&1 | tee /tmp/adr-008-policy.log
+cargo test -p rstest-bdd-macros --lib 2>&1 | tee /tmp/adr-008-macros.log
+RUSTFLAGS="-D warnings" cargo test -p rstest-bdd \
   --test trybuild_macros step_macros_compile -- --exact 2>&1 | \
   tee /tmp/adr-008-trybuild.log
-set -o pipefail; RUSTFLAGS="-D warnings" cargo test -p rstest-bdd \
-  --test scenario_harness_tokio 2>&1 | tee /tmp/adr-008-tokio.log
-set -o pipefail; RUSTFLAGS="-D warnings" cargo test -p rstest-bdd \
-  --test scenario_harness_gpui --features gpui-harness-tests 2>&1 | \
+RUSTFLAGS="-D warnings" cargo test \
+  -p rstest-bdd-harness-tokio --test harness_led_defaults 2>&1 | \
+  tee /tmp/adr-008-tokio.log
+RUSTFLAGS="-D warnings" cargo test \
+  -p rstest-bdd-harness-gpui --test harness_led_defaults \
+  --features native-gpui-tests 2>&1 | \
   tee /tmp/adr-008-gpui.log
-set -o pipefail; make fmt 2>&1 | tee /tmp/adr-008-make-fmt.log
-set -o pipefail; make markdownlint 2>&1 | tee /tmp/adr-008-make-markdownlint.log
-set -o pipefail; make nixie 2>&1 | tee /tmp/adr-008-make-nixie.log
-set -o pipefail; make check-fmt 2>&1 | tee /tmp/adr-008-make-check-fmt.log
-set -o pipefail; make lint 2>&1 | tee /tmp/adr-008-make-lint.log
-set -o pipefail; make test 2>&1 | tee /tmp/adr-008-make-test.log
+make fmt 2>&1 | tee /tmp/adr-008-make-fmt.log
+make markdownlint 2>&1 | tee /tmp/adr-008-make-markdownlint.log
+make nixie 2>&1 | tee /tmp/adr-008-make-nixie.log
+make check-fmt 2>&1 | tee /tmp/adr-008-make-check-fmt.log
+make lint 2>&1 | tee /tmp/adr-008-make-lint.log
+make test 2>&1 | tee /tmp/adr-008-make-test.log
 ```
 
 If `make fmt`, `make check-fmt`, `make lint`, or `make test` fails because

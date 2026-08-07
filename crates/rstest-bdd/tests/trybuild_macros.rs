@@ -39,21 +39,41 @@ fn ui_fixture(case: impl Into<UiFixtureCase>) -> Utf8PathBuf {
 }
 
 #[test]
-fn step_macros_compile() {
-    if env::var_os("NEXTEST_RUN_ID").is_some() {
-        return;
+fn step_macros_compile() -> io::Result<()> {
+    // This test spawns `cargo` (through `trybuild` and `cargo clippy`). On
+    // Windows, nextest wraps test binaries in Job Objects and those child
+    // processes inherit the write end of nextest's capture pipe, which never
+    // closes; see "nextest on Windows: trybuild deadlock" in
+    // `docs/developers-guide.md`. Skip only on that platform combination so
+    // the fixtures still run under nextest everywhere else. The
+    // `rstest-bdd::trybuild_macros` test group in `.config/nextest.toml`
+    // keeps this binary from running alongside other cargo-spawning tests.
+    if cfg!(windows) && env::var_os("NEXTEST_RUN_ID").is_some() {
+        return Ok(());
     }
-    let t = trybuild::TestCases::new();
+    // Prevent RUST_BACKTRACE from contaminating compiler diagnostic output.
+    // Trybuild snapshots are compared verbatim; CI's `RUST_BACKTRACE=short`
+    // injects backtrace fragments on Windows MSVC that diverge from the
+    // Linux-generated snapshots. Trybuild tests are about structured
+    // diagnostics, not runtime backtraces.
+    //
+    // Rust 2024 makes `std::env::remove_var` unsafe; Rust 1.85.0 is the first
+    // release supporting that edition. This workspace forbids unsafe code, so
+    // `temp_env` provides the same scoped mutation without weakening that lint.
+    temp_env::with_var_unset("RUST_BACKTRACE", || {
+        let t = trybuild::TestCases::new();
 
-    run_passing_macro_tests(&t);
-    run_failing_macro_tests(&t);
-    run_failing_ui_tests(&t);
-    run_lint_ui_tests();
-    t.compile_fail(
-        macros_fixture(MacroFixtureCase::from("scenarios_missing_dir.rs")).as_std_path(),
-    );
-    run_conditional_ordering_tests(&t);
-    run_conditional_ambiguous_step_test(&t);
+        run_passing_macro_tests(&t);
+        run_failing_macro_tests(&t);
+        run_failing_ui_tests(&t);
+        run_lint_ui_tests()?;
+        t.compile_fail(
+            macros_fixture(MacroFixtureCase::from("scenarios_missing_dir.rs")).as_std_path(),
+        );
+        run_conditional_ordering_tests(&t);
+        run_conditional_ambiguous_step_test(&t);
+        Ok(())
+    })
 }
 
 fn run_passing_macro_tests(t: &trybuild::TestCases) {
@@ -133,7 +153,7 @@ fn run_failing_ui_tests(t: &trybuild::TestCases) {
     }
 }
 
-fn run_lint_ui_tests() {
+fn run_lint_ui_tests() -> io::Result<()> {
     let cases = [
         (
             "scenario_unused_fixture_param",
@@ -146,18 +166,20 @@ fn run_lint_ui_tests() {
     ];
 
     for (bin, lint_args) in cases {
-        run_lint_ui_case(bin, lint_args);
+        run_lint_ui_case(bin, lint_args)?;
     }
+
+    Ok(())
 }
 
-fn run_lint_ui_case(bin: &str, lint_args: &[&str]) {
+fn run_lint_ui_case(bin: &str, lint_args: &[&str]) -> io::Result<()> {
     let manifest_dir = Utf8Path::new(env!("CARGO_MANIFEST_DIR"));
     let manifest_path = manifest_dir.join("tests/ui_lints/Cargo.toml");
     // Keep lint runs isolated from the workspace target directory to avoid
     // artefact/cache conflicts and cross-test contamination; this makes
     // per-bin `cargo clippy` checks deterministic.
     let target_dir = manifest_dir.join("target/tests/ui_lints_clippy");
-    let output = match Command::new("cargo")
+    let output = Command::new("cargo")
         .current_dir(manifest_dir.as_std_path())
         .env("CARGO_TARGET_DIR", target_dir.as_str())
         .arg("clippy")
@@ -168,11 +190,7 @@ fn run_lint_ui_case(bin: &str, lint_args: &[&str]) {
         .arg(bin)
         .arg("--")
         .args(lint_args)
-        .output()
-    {
-        Ok(output) => output,
-        Err(err) => panic!("failed to run cargo clippy for {bin}: {err}"),
-    };
+        .output()?;
 
     if !output.status.success() {
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -182,6 +200,8 @@ fn run_lint_ui_case(bin: &str, lint_args: &[&str]) {
             output.status, stdout, stderr
         );
     }
+
+    Ok(())
 }
 
 #[expect(

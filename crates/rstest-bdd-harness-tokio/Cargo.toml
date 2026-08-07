@@ -1,6 +1,6 @@
 [package]
 name = "rstest-bdd-harness-tokio"
-version = "0.6.0-beta3"
+version = "0.6.0-beta4"
 edition.workspace = true
 license.workspace = true
 authors.workspace = true
@@ -22,6 +22,7 @@ tokio = { version = "1", features = ["rt"] }
 [dev-dependencies]
 rstest.workspace = true
 rstest-bdd.workspace = true
+rstest-bdd-harness = { workspace = true, features = ["testing"] }
 rstest-bdd-macros.workspace = true
 cargo_metadata.workspace = true
 macrotest.workspace = true

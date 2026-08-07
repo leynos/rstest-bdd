@@ -128,8 +128,8 @@ and promotes every Rustdoc warning to an error. `--workspace` checks every
 member crate, while `--no-deps` keeps the gate focused on documentation owned
 by this repository.
 
-`make test` separately compiles and runs documentation examples across every
-workspace crate and feature combination with:
+`make test` separately compiles and runs documentation examples for every
+workspace crate with all features enabled:
 
 ```makefile
 RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) test --doc --workspace --all-features $(BUILD_JOBS)
@@ -152,13 +152,16 @@ The file sets the timeout policy for the test suite:
 - A `[[profile.default.overrides]]` entry raises the `slow-timeout` to 180 s
   for `cargo-bdd::cli`, whose smoke tests spawn `cargo` to build fixture crates
   and can legitimately exceed 60 s on cold caches.
-- A second override applies the same 180 s `slow-timeout` to the
+- A second override raises the `slow-timeout` further, to 300 s, for the
   trybuild-based compile-test binaries:
   `rstest-bdd-harness-tokio::macro_compile`,
   `rstest-bdd-harness-gpui::macro_compile`, and `rstest-bdd::trybuild_macros`.
   These tests invoke `cargo build` against a large dependency tree, so a cold
   cache (or CPU contention when several compile tests run concurrently) can
   push a single test well past the default limit even though nothing is wrong.
+- Both overrides also place their binaries in a `cargo-spawning` test group
+  (`max-threads = 1`), so `cargo-bdd::cli` and the three trybuild binaries run
+  one at a time instead of contending for CPU with concurrent `cargo` builds.
 - A `long` profile (`--profile long`) relaxes the limits further (180 s
   `slow-timeout`, 15 m `global-timeout`) for deliberately slow local runs.
 
@@ -205,10 +208,20 @@ Mitigation:
 - Continuous Integration (CI) sets `use-nextest: false` for all Windows
   matrix legs (see `.github/workflows/ci.yml`). Windows coverage runs use
   `cargo llvm-cov test` (libtest) instead.
+- `step_macros_compile` (`crates/rstest-bdd/tests/trybuild_macros.rs`) guards
+  its early return with `cfg!(windows) && env::var_os("NEXTEST_RUN_ID")`, so
+  it only skips its trybuild and Clippy UI fixtures under nextest on Windows,
+  where this deadlock applies. On Linux and macOS the fixtures run under
+  nextest like any other test.
 - `.config/nextest.toml` raises the `slow-timeout` for the trybuild
-  compile-test binaries (including both `macro_compile` binaries) to 180 s as a
-  local-development safety net. This does not fix the deadlock; it only delays
-  termination to allow the build to complete on fast machines.
+  compile-test binaries (including both `macro_compile` binaries and
+  `rstest-bdd::trybuild_macros`) to 300 s as a local-development safety net.
+  This does not fix the deadlock; it only delays termination to allow the
+  build to complete on fast machines.
+- `.config/nextest.toml` also places the `cargo-bdd::cli` and trybuild
+  binaries in a `cargo-spawning` test group with `max-threads = 1`, so these
+  cargo-spawning tests run one at a time rather than contending for the
+  package-cache lock and build parallelism.
 - Do not add `macro_compile`-style tests (tests that spawn `cargo` via
   `trybuild` or `cargo_metadata`) to nextest-managed binaries intended to run
   on Windows.
@@ -234,7 +247,10 @@ than relative paths. `scripts/check_users_guide_links.py`, run automatically by
 - The check also fails if the guide contains no repository references at
   all, so a reformat cannot silently defang it.
 
-Non-repository URLs (for example docs.rs links) are ignored.
+Non-repository URLs (for example docs.rs links) are ignored. Unit tests live in
+`scripts/tests/test_check_users_guide_links.py` and run with the Python suite in
+`make test`. Issue #537 tracks generating the reference block from `BASE_URL`
+so the base lives in exactly one place.
 
 ### Running the checker
 
@@ -364,10 +380,12 @@ Table: Test binaries for `rstest-bdd-harness-tokio` and
 | `rstest-bdd-harness-tokio` | `harness_behaviour`          | Tokio harness adapter execution semantics                            |
 | `rstest-bdd-harness-tokio` | `attribute_policy_behaviour` | Tokio attribute policy output                                        |
 | `rstest-bdd-harness-tokio` | `scenario_macros`            | `#[scenario]` + Tokio adapter                                        |
+| `rstest-bdd-harness-tokio` | `harness_led_defaults`       | harness-led default inference and runtime error paths                |
 | `rstest-bdd-harness-tokio` | `macro_compile`              | trybuild compile-pass/fail for Tokio fixtures                        |
 | `rstest-bdd-harness-gpui`  | `harness_behaviour`          | GPUI harness adapter execution semantics (feature-gated)             |
 | `rstest-bdd-harness-gpui`  | `attribute_policy_behaviour` | GPUI attribute policy output (feature-gated)                         |
 | `rstest-bdd-harness-gpui`  | `scenario_macros`            | `#[scenario]` + GPUI adapter (feature-gated)                         |
+| `rstest-bdd-harness-gpui`  | `harness_led_defaults`       | harness-led default inference and runtime error paths                |
 | `rstest-bdd-harness-gpui`  | `stateful_window`            | durable GPUI handles + visual context reconstruction (feature-gated) |
 | `rstest-bdd-harness-gpui`  | `scenario_name_in_logs`      | GPUI step-panic diagnostics include scenario context (feature-gated) |
 | `rstest-bdd-harness-gpui`  | `macro_compile`              | trybuild compile-pass for GPUI fixtures (feature-gated)              |
@@ -375,6 +393,47 @@ Table: Test binaries for `rstest-bdd-harness-tokio` and
 These tests were moved out of `rstest-bdd` in this release to decouple the core
 crate from Tokio and GPUI dev-dependencies, making it publishable to crates.io
 without carrying those dependencies.
+
+The GPUI `harness_led_defaults` happy-path scenario is gated by
+`native-gpui-tests` and uses `#[serial]`, matching the native GPUI runtime
+suite. Its failing-harness error-path scenario does not require the native GPUI
+runtime and runs without the feature gate.
+
+The `Failing harness initialization propagates` scenario's panic assertion is
+de-duplicated for harness integration coverage: the shared scenario assertion
+macro lives under `crates/rstest-bdd-harness/tests/support/` and is included
+from both `harness_led_defaults.rs` test binaries (Tokio and GPUI) to keep
+runtime-error-path assertions aligned. The guard step remains local to each
+test binary, so the `#[scenario]` macro can discover it from the test source.
+
+`rstest-bdd-harness` exposes `FailingHarness` from its crate root when its
+`testing` feature is enabled. This dependency-facing test API always returns a
+synthetic `HarnessError::RuntimeBuildFailed`, allowing adapter crates to share
+the generated scenario error-path assertions without duplicating a failing
+adapter. `rstest-bdd-harness`'s own test targets (for example
+`tests/harness_behaviour.rs`) reach it through a self dev-dependency in its
+`Cargo.toml`:
+
+```toml
+[dev-dependencies]
+rstest-bdd-harness = { path = ".", features = ["testing"] }
+```
+
+This keeps `FailingHarness` defined once, with no local duplicate in the
+test binary, and works without requiring `--all-features`. Downstream crates
+enable it only for tests:
+
+```toml
+[dev-dependencies]
+rstest-bdd-harness = { workspace = true, features = ["testing"] }
+```
+
+The core macro trybuild test scopes `RUST_BACKTRACE` removal with
+`temp_env::with_var_unset`. Trybuild compares compiler diagnostics verbatim,
+and CI's inherited backtrace setting otherwise adds platform-specific output.
+Keep `temp-env` available as a dev-dependency when building this test target;
+direct environment mutation is unsafe under Rust 2024 and would violate the
+workspace's unsafe-code policy.
 
 ### Bulk-migration cookbook reference suite
 
@@ -388,11 +447,11 @@ that "zero steps in the binding" property is the reuse proof and must be
 preserved. A trybuild compile-pass mirror,
 `tests/fixtures_macros/scenario_bulk_migration_cookbook.rs`, compile-checks the
 same shape and is registered in `run_passing_macro_tests`
-(`tests/trybuild_macros.rs`). Because `step_macros_compile` returns early when
-`NEXTEST_RUN_ID` is set, this fixture is skipped under nextest and must be
-validated with plain `cargo test`. (This is specific to `step_macros_compile`;
-the harness `macro_compile` binaries have no such guard and do run their
-trybuild fixtures under nextest.)
+(`tests/trybuild_macros.rs`). `step_macros_compile` runs this fixture under
+nextest on Linux and macOS; it is skipped only under nextest on Windows,
+where the Job Object capture-pipe deadlock applies (see "nextest on Windows:
+trybuild deadlock" above), and must instead be validated with plain
+`cargo test` (or `cargo llvm-cov test` for coverage).
 
 Doc↔suite parity for this cookbook is guarded by prose, not a checker (the
 subsection states "if a snippet drifts, the suite wins"), matching the
@@ -1190,12 +1249,15 @@ When maintaining the pin:
 3. Update ADR-013 only if the mechanism or adopted lint set changes.
 
 Do not replace invariant checks with `.expect(...)`, `.unwrap()`, or
-`unwrap_or_else(|| panic!(…))`. Use `let … else { panic!(…) }` for invariant
-panics, or return `Result` and use `?` where the failure is part of the tested
-domain behaviour. Fixture functions and test helpers are not tests: they must
-return `Result` and propagate errors rather than calling `.expect(...)`, and
-shared assertion shapes belong in macros so panic line numbers point at the
-calling test.
+`unwrap_or_else(|| panic!(...))`. Use a copyable invariant check such as
+`let Some(value) = value else { panic!("expected value to be present"); };`,
+or return `Result` and use `?` when an operation is fallible. Fixture functions
+and test helpers that perform fallible operations must return `Result` and
+propagate errors with `?`; infallible helpers need not introduce an artificial
+`Result` type. Shared helpers should avoid `.expect(...)` for invariant checks
+and instead use explicit, context-appropriate invariant handling. Shared
+assertion shapes belong in macros so panic line numbers point at the calling
+test.
 
 ## Step-return overrides and `InsertOutcome` (ADR-015)
 
