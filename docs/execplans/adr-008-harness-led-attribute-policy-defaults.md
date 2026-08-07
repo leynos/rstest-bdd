@@ -504,24 +504,25 @@ Goal: prove the repository is in a releasable state after the change.
 Run these commands and inspect the logs before closing the work:
 
 ```bash
-set -o pipefail; cargo test -p rstest-bdd-policy 2>&1 | tee /tmp/adr-008-policy.log
-set -o pipefail; cargo test -p rstest-bdd-macros --lib 2>&1 | tee /tmp/adr-008-macros.log
-set -o pipefail; RUSTFLAGS="-D warnings" cargo test -p rstest-bdd \
+set -euo pipefail
+cargo test -p rstest-bdd-policy 2>&1 | tee /tmp/adr-008-policy.log
+cargo test -p rstest-bdd-macros --lib 2>&1 | tee /tmp/adr-008-macros.log
+RUSTFLAGS="-D warnings" cargo test -p rstest-bdd \
   --test trybuild_macros step_macros_compile -- --exact 2>&1 | \
   tee /tmp/adr-008-trybuild.log
-set -o pipefail; RUSTFLAGS="-D warnings" cargo test \
+RUSTFLAGS="-D warnings" cargo test \
   -p rstest-bdd-harness-tokio --test harness_led_defaults 2>&1 | \
   tee /tmp/adr-008-tokio.log
-set -o pipefail; RUSTFLAGS="-D warnings" cargo test \
+RUSTFLAGS="-D warnings" cargo test \
   -p rstest-bdd-harness-gpui --test harness_led_defaults \
   --features native-gpui-tests 2>&1 | \
   tee /tmp/adr-008-gpui.log
-set -o pipefail; make fmt 2>&1 | tee /tmp/adr-008-make-fmt.log
-set -o pipefail; make markdownlint 2>&1 | tee /tmp/adr-008-make-markdownlint.log
-set -o pipefail; make nixie 2>&1 | tee /tmp/adr-008-make-nixie.log
-set -o pipefail; make check-fmt 2>&1 | tee /tmp/adr-008-make-check-fmt.log
-set -o pipefail; make lint 2>&1 | tee /tmp/adr-008-make-lint.log
-set -o pipefail; make test 2>&1 | tee /tmp/adr-008-make-test.log
+make fmt 2>&1 | tee /tmp/adr-008-make-fmt.log
+make markdownlint 2>&1 | tee /tmp/adr-008-make-markdownlint.log
+make nixie 2>&1 | tee /tmp/adr-008-make-nixie.log
+make check-fmt 2>&1 | tee /tmp/adr-008-make-check-fmt.log
+make lint 2>&1 | tee /tmp/adr-008-make-lint.log
+make test 2>&1 | tee /tmp/adr-008-make-test.log
 ```
 
 If `make fmt`, `make check-fmt`, `make lint`, or `make test` fails because

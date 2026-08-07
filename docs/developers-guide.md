@@ -152,13 +152,16 @@ The file sets the timeout policy for the test suite:
 - A `[[profile.default.overrides]]` entry raises the `slow-timeout` to 180 s
   for `cargo-bdd::cli`, whose smoke tests spawn `cargo` to build fixture crates
   and can legitimately exceed 60 s on cold caches.
-- A second override applies the same 180 s `slow-timeout` to the
+- A second override raises the `slow-timeout` further, to 300 s, for the
   trybuild-based compile-test binaries:
   `rstest-bdd-harness-tokio::macro_compile`,
   `rstest-bdd-harness-gpui::macro_compile`, and `rstest-bdd::trybuild_macros`.
   These tests invoke `cargo build` against a large dependency tree, so a cold
   cache (or CPU contention when several compile tests run concurrently) can
   push a single test well past the default limit even though nothing is wrong.
+- Both overrides also place their binaries in a `cargo-spawning` test group
+  (`max-threads = 1`), so `cargo-bdd::cli` and the three trybuild binaries run
+  one at a time instead of contending for CPU with concurrent `cargo` builds.
 - A `long` profile (`--profile long`) relaxes the limits further (180 s
   `slow-timeout`, 15 m `global-timeout`) for deliberately slow local runs.
 
