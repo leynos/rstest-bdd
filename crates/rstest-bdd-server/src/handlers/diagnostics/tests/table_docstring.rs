@@ -1,4 +1,9 @@
 //! Diagnostics tests for table and docstring expectation mismatches.
+//!
+//! This module verifies that `super::table_docstring` reports the correct
+//! diagnostics when feature-step attachments do not match Rust step-function
+//! parameters. It is part of the parent diagnostics test module and uses its
+//! shared scenario-building infrastructure.
 
 use super::*;
 
@@ -6,11 +11,14 @@ use super::*;
 fn compute_table_docstring_diagnostics_for_path(
     state: &ServerState,
     feature_path: &Path,
-) -> Vec<Diagnostic> {
-    let Some(feature_index) = state.feature_index(feature_path) else {
-        panic!("feature index missing for {}", feature_path.display());
-    };
-    table_docstring::compute_table_docstring_mismatch_diagnostics(state, feature_index)
+) -> std::io::Result<Vec<Diagnostic>> {
+    let feature_index = state.feature_index(feature_path).ok_or_else(|| {
+        std::io::Error::other(format!(
+            "feature index missing for {}",
+            feature_path.display()
+        ))
+    })?;
+    Ok(table_docstring::compute_table_docstring_mismatch_diagnostics(state, feature_index))
 }
 
 #[rstest]
@@ -90,10 +98,10 @@ fn table_docstring_validation(
     #[case] feature_content: &str,
     #[case] rust_content: &str,
     #[case] expected_code: Option<&str>,
-) {
+) -> std::io::Result<()> {
     let scenario = scenario_builder.with_single_file_pair(feature_content, rust_content);
     let diagnostics =
-        compute_table_docstring_diagnostics_for_path(&scenario.state, &scenario.feature_path);
+        compute_table_docstring_diagnostics_for_path(&scenario.state, &scenario.feature_path)?;
 
     match expected_code {
         Some(code) => {
@@ -107,6 +115,8 @@ fn table_docstring_validation(
             );
         }
     }
+
+    Ok(())
 }
 
 // ========================================================================

@@ -1,4 +1,9 @@
 //! Diagnostics tests for scenario outline column validation.
+//!
+//! This module verifies that `super::scenario_outline` reports missing and
+//! surplus Examples-table columns for scenario-outline placeholders. It is
+//! part of the parent diagnostics test module and uses its shared
+//! scenario-building infrastructure.
 
 use super::*;
 
@@ -6,11 +11,14 @@ use super::*;
 fn compute_scenario_outline_diagnostics_for_path(
     state: &ServerState,
     feature_path: &Path,
-) -> Vec<Diagnostic> {
-    let Some(feature_index) = state.feature_index(feature_path) else {
-        panic!("feature index missing for {}", feature_path.display());
-    };
-    scenario_outline::compute_scenario_outline_column_diagnostics(feature_index)
+) -> std::io::Result<Vec<Diagnostic>> {
+    let feature_index = state.feature_index(feature_path).ok_or_else(|| {
+        std::io::Error::other(format!(
+            "feature index missing for {}",
+            feature_path.display()
+        ))
+    })?;
+    Ok(scenario_outline::compute_scenario_outline_column_diagnostics(feature_index))
 }
 
 #[rstest]
@@ -91,7 +99,7 @@ fn scenario_outline_column_validation(
     #[case] expected_count: usize,
     #[case] expected_code: Option<&str>,
     #[case] expected_message_fragment: Option<&str>,
-) {
+) -> std::io::Result<()> {
     // Use just the feature file - no Rust code needed for column validation
     let scenario = scenario_builder.with_single_file_pair(
         feature_content,
@@ -99,7 +107,7 @@ fn scenario_outline_column_validation(
         "// no step definitions needed\n",
     );
     let diagnostics =
-        compute_scenario_outline_diagnostics_for_path(&scenario.state, &scenario.feature_path);
+        compute_scenario_outline_diagnostics_for_path(&scenario.state, &scenario.feature_path)?;
 
     assert_eq!(
         diagnostics.len(),
@@ -114,10 +122,14 @@ fn scenario_outline_column_validation(
             assert_diagnostic_message_contains(diag, &[fragment]);
         }
     }
+
+    Ok(())
 }
 
 #[rstest]
-fn regular_scenario_no_column_diagnostics(scenario_builder: ScenarioBuilder) {
+fn regular_scenario_no_column_diagnostics(
+    scenario_builder: ScenarioBuilder,
+) -> std::io::Result<()> {
     // Regular scenarios (not outlines) should not produce column diagnostics
     let scenario = scenario_builder.with_single_file_pair(
         concat!(
@@ -128,11 +140,13 @@ fn regular_scenario_no_column_diagnostics(scenario_builder: ScenarioBuilder) {
         "// no step definitions\n",
     );
     let diagnostics =
-        compute_scenario_outline_diagnostics_for_path(&scenario.state, &scenario.feature_path);
+        compute_scenario_outline_diagnostics_for_path(&scenario.state, &scenario.feature_path)?;
     assert!(
         diagnostics.is_empty(),
         "regular scenarios should produce no column diagnostics"
     );
+
+    Ok(())
 }
 
 #[rstest]
@@ -167,10 +181,12 @@ fn placeholder_detected_in_various_contexts(
     scenario_builder: ScenarioBuilder,
     #[case] feature_content: &str,
     #[case] assertion_message: &str,
-) {
+) -> std::io::Result<()> {
     let scenario =
         scenario_builder.with_single_file_pair(feature_content, "// no step definitions\n");
     let diagnostics =
-        compute_scenario_outline_diagnostics_for_path(&scenario.state, &scenario.feature_path);
+        compute_scenario_outline_diagnostics_for_path(&scenario.state, &scenario.feature_path)?;
     assert!(diagnostics.is_empty(), "{assertion_message}");
+
+    Ok(())
 }

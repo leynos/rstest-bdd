@@ -1,4 +1,9 @@
 //! Diagnostics tests for placeholder count validation.
+//!
+//! This module verifies that `super::placeholder` reports mismatches between
+//! placeholders in step patterns and the corresponding non-fixture step
+//! arguments. It is part of the parent diagnostics test module and uses its
+//! shared scenario-building infrastructure.
 
 use super::*;
 
