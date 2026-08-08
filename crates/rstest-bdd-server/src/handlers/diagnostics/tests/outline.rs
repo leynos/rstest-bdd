@@ -12,11 +12,12 @@ fn compute_scenario_outline_diagnostics_for_path(
     state: &ServerState,
     feature_path: &Path,
 ) -> std::io::Result<Vec<Diagnostic>> {
-    let feature_index = state
-        .feature_index(feature_path)
-        .ok_or_else(|| {
-            std::io::Error::other(format!("feature index missing for {}", feature_path.display()))
-        })?;
+    let feature_index = state.feature_index(feature_path).ok_or_else(|| {
+        std::io::Error::other(format!(
+            "feature index missing for {}",
+            feature_path.display()
+        ))
+    })?;
     Ok(scenario_outline::compute_scenario_outline_column_diagnostics(feature_index))
 }
 

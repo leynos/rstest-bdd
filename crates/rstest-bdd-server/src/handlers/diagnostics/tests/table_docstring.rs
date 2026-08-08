@@ -12,11 +12,12 @@ fn compute_table_docstring_diagnostics_for_path(
     state: &ServerState,
     feature_path: &Path,
 ) -> std::io::Result<Vec<Diagnostic>> {
-    let feature_index = state
-        .feature_index(feature_path)
-        .ok_or_else(|| {
-            std::io::Error::other(format!("feature index missing for {}", feature_path.display()))
-        })?;
+    let feature_index = state.feature_index(feature_path).ok_or_else(|| {
+        std::io::Error::other(format!(
+            "feature index missing for {}",
+            feature_path.display()
+        ))
+    })?;
     Ok(table_docstring::compute_table_docstring_mismatch_diagnostics(state, feature_index))
 }
 
