@@ -1184,14 +1184,24 @@ types such as `HarnessAdapter` or `ScenarioRunRequest`.
 adapter, the macro infers `GpuiAttributePolicy` from the canonical harness path
 when `attributes = ...` is omitted:
 
+Fallible `#[scenario]` bodies are consumed behind a unit-returning GPUI test
+boundary. An `Err` fails the test by panicking with the fixed message
+`scenario returned an error`; the error value is not formatted and need not
+implement `Debug`. Std and Tokio scenarios retain their fallible signatures and
+propagate results through Rust's native `Termination` support.
+
 ```rust,no_run
 # use rstest_bdd_macros::scenario;
+# fn increment_counter() -> Result<(), std::io::Error> { Ok(()) }
 #[scenario(
     path = "tests/features/counter.feature",
     name = "Increment a counter and observe GPUI context",
     harness = rstest_bdd_harness_gpui::GpuiHarness,
 )]
-fn increment_and_observe_gpui_context() {}
+fn increment_and_observe_gpui_context() -> Result<(), std::io::Error> {
+    increment_counter()?;
+    Ok(())
+}
 ```
 
 #### GPUI panic diagnostics carry scenario context

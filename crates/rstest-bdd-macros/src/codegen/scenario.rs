@@ -23,6 +23,7 @@
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
+use std::borrow::Cow;
 
 mod domain;
 mod helpers;
@@ -46,7 +47,7 @@ pub(crate) use crate::macros::scenarios::ScenariosRuntimeMode as RuntimeMode;
 use crate::macros::scenarios::ScenariosTestAttributeHint as TestAttributeHint;
 
 use crate::parsing::placeholder::contains_placeholders;
-use test_attrs::{TestAttrPolicy, generate_test_attrs};
+use test_attrs::{TestAttrPolicy, generate_test_attrs_with_boundary};
 
 /// Return kinds supported by scenario bodies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -183,6 +184,69 @@ pub(crate) fn generate_scenario_code(
     }
 }
 
+/// Adapts a fallible scenario to GPUI's unit-returning test boundary.
+///
+/// Published GPUI versions may call an attributed function as a bare
+/// statement, which leaves its `Result` unused. This boundary is intentionally
+/// limited to generated GPUI tests; std and Tokio tests continue to return the
+/// scenario result through their native `Termination` support.
+fn adapt_fallible_gpui_boundary(
+    uses_gpui_boundary: bool,
+    return_kind: ScenarioReturnKind,
+    signature: &mut syn::Signature,
+    body: TokenStream2,
+) -> TokenStream2 {
+    if !return_kind.is_fallible() || !uses_gpui_boundary {
+        return body;
+    }
+
+    let is_async = signature.asyncness.is_some();
+    signature.output = syn::ReturnType::Default;
+    if is_async {
+        quote! {
+            match (async move { #body }).await {
+                Ok(()) => {}
+                Err(_) => panic!("scenario returned an error"),
+            }
+        }
+    } else {
+        quote! {
+            match (|| { #body })() {
+                Ok(()) => {}
+                Err(_) => panic!("scenario returned an error"),
+            }
+        }
+    }
+}
+
+/// Finalize attributes and the executable boundary for a scenario signature.
+fn finalize_scenario_signature(
+    config: &ScenarioConfig<'_>,
+    signature: &mut Cow<'_, syn::Signature>,
+    body: TokenStream2,
+) -> (TokenStream2, TokenStream2, TokenStream2, TokenStream2) {
+    let policy = TestAttrPolicy {
+        runtime: config.attribute_runtime,
+        harness: config.harness,
+        attributes: config.attributes,
+    };
+    let generated_test_attrs =
+        generate_test_attrs_with_boundary(config.attrs, &policy, config.runtime.is_async());
+    let trait_assertions = generate_trait_assertions(config.harness, config.attributes);
+    let body = if generated_test_attrs.uses_gpui_boundary && config.return_kind.is_fallible() {
+        adapt_fallible_gpui_boundary(true, config.return_kind, signature.to_mut(), body)
+    } else {
+        body
+    };
+    let underscore_expect = generate_underscore_expect(signature);
+    (
+        trait_assertions,
+        generated_test_attrs.tokens,
+        underscore_expect,
+        body,
+    )
+}
+
 /// Generate code for a regular scenario (no placeholder substitution).
 fn generate_regular_scenario_code<P, I, Q>(
     config: &ScenarioConfig<'_>,
@@ -231,27 +295,18 @@ where
         .as_ref()
         .map_or_else(Vec::new, generate_case_attrs);
     let body = generate_test_tokens(&test_config, ctx.prelude, ctx.inserts, ctx.postlude);
-    let test_attrs = generate_test_attrs(
-        config.attrs,
-        &TestAttrPolicy {
-            runtime: config.attribute_runtime,
-            harness: config.harness,
-            attributes: config.attributes,
-        },
-        config.runtime.is_async(),
-    );
-    let trait_assertions = generate_trait_assertions(config.harness, config.attributes);
     let attrs = config.attrs;
     let vis = config.vis;
-    let sig = config.sig;
-    let underscore_expect = generate_underscore_expect(sig);
+    let mut signature = Cow::Borrowed(config.sig);
+    let (trait_assertions, test_attrs, underscore_expect, body) =
+        finalize_scenario_signature(config, &mut signature, body);
     TokenStream::from(quote! {
         #trait_assertions
         #test_attrs
         #(#case_attrs)*
         #(#attrs)*
         #underscore_expect
-        #vis #sig { #body }
+        #vis #signature { #body }
     })
 }
 
@@ -320,32 +375,23 @@ where
         generate_test_tokens_outline(&outline_config, ctx.prelude, ctx.inserts, ctx.postlude);
 
     // Add the hidden case index parameter to the signature
-    let mut modified_sig = (*config.sig).clone();
+    let mut signature: Cow<'_, syn::Signature> = Cow::Owned((*config.sig).clone());
     let case_idx_param: syn::FnArg = syn::parse_quote! {
         #[case] __rstest_bdd_case_idx: usize
     };
-    modified_sig.inputs.insert(0, case_idx_param);
+    signature.to_mut().inputs.insert(0, case_idx_param);
 
-    let test_attrs = generate_test_attrs(
-        config.attrs,
-        &TestAttrPolicy {
-            runtime: config.attribute_runtime,
-            harness: config.harness,
-            attributes: config.attributes,
-        },
-        config.runtime.is_async(),
-    );
-    let trait_assertions = generate_trait_assertions(config.harness, config.attributes);
     let attrs = config.attrs;
     let vis = config.vis;
-    let underscore_expect = generate_underscore_expect(&modified_sig);
+    let (trait_assertions, test_attrs, underscore_expect, body) =
+        finalize_scenario_signature(config, &mut signature, body);
     TokenStream::from(quote! {
         #trait_assertions
         #test_attrs
         #(#case_attrs)*
         #(#attrs)*
         #underscore_expect
-        #vis #modified_sig { #body }
+        #vis #signature { #body }
     })
 }
 

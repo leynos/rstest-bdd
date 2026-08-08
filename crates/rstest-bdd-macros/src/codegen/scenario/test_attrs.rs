@@ -12,7 +12,8 @@
 //! 3. The `RuntimeMode` derived from `runtime = …` or the macro's defaults
 //!    provides the final fallback.
 //!
-//! The public surface is [`generate_test_attrs`] and [`TestAttrPolicy`].
+//! The production surface is [`generate_test_attrs_with_boundary`] and
+//! [`TestAttrPolicy`].
 //! Existing user attributes (`#[tokio::test]`, `#[gpui::test]`) are
 //! detected so that generated output does not duplicate them.
 
@@ -135,6 +136,12 @@ fn resolve_attribute_policy(policy: &TestAttrPolicy<'_>) -> ResolvedAttributePol
     }
 }
 
+/// Generated test attributes and their effect on the function boundary.
+pub(super) struct GeneratedTestAttrs {
+    pub(super) tokens: TokenStream2,
+    pub(super) uses_gpui_boundary: bool,
+}
+
 fn render_policy_attribute(attribute: PolicyAttribute) -> TokenStream2 {
     match attribute {
         PolicyAttribute::Rstest => quote! { #[rstest::rstest] },
@@ -145,7 +152,7 @@ fn render_policy_attribute(attribute: PolicyAttribute) -> TokenStream2 {
     }
 }
 
-/// Generates framework test attributes according to the ADR-008 policy order.
+/// Generates framework test attributes for focused policy unit tests.
 ///
 /// The emitted `TokenStream2` always includes `#[rstest::rstest]`, then layers
 /// any Tokio or GPUI test attribute selected by explicit `attributes`,
@@ -169,11 +176,24 @@ fn render_policy_attribute(attribute: PolicyAttribute) -> TokenStream2 {
 ///
 /// assert!(tokens.to_string().contains("tokio :: test"));
 /// ```
+#[cfg(test)]
 pub(super) fn generate_test_attrs(
     attrs: &[syn::Attribute],
     policy: &TestAttrPolicy<'_>,
     is_async: bool,
 ) -> TokenStream2 {
+    generate_test_attrs_with_boundary(attrs, policy, is_async).tokens
+}
+
+/// Generates test attributes and reports whether GPUI owns the test boundary.
+///
+/// Policy resolution is deliberately shared between both outputs because it
+/// may allocate path-segment strings for external policy resolvers.
+pub(super) fn generate_test_attrs_with_boundary(
+    attrs: &[syn::Attribute],
+    policy: &TestAttrPolicy<'_>,
+    is_async: bool,
+) -> GeneratedTestAttrs {
     // Match only tokio::test to avoid false positives like #[test] or #[test_case].
     let has_tokio_test = attrs.iter().any(is_tokio_test_attr);
     let has_gpui_test = attrs.iter().any(is_gpui_test_attr);
@@ -191,11 +211,15 @@ pub(super) fn generate_test_attrs(
         })
         .collect();
 
-    if generated_attrs.is_empty() {
+    let tokens = if generated_attrs.is_empty() {
         quote! { #[rstest::rstest] }
     } else {
         quote! {
             #(#generated_attrs)*
         }
+    };
+    GeneratedTestAttrs {
+        tokens,
+        uses_gpui_boundary: has_gpui_test || resolved_policy == ResolvedAttributePolicy::Gpui,
     }
 }

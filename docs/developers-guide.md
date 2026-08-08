@@ -435,6 +435,46 @@ Keep `temp-env` available as a dev-dependency when building this test target;
 direct environment mutation is unsafe under Rust 2024 and would violate the
 workspace's unsafe-code policy.
 
+### Fallible GPUI test boundaries
+
+The `rstest-bdd-macros` scenario code generator owns the private
+`adapt_fallible_gpui_boundary` helper. Its scope is limited to fallible
+functions generated with the first-party GPUI test policy, for both regular
+scenarios and outlines. It changes the generated signature to return `()` and
+consumes the scenario result, panicking with a fixed message on `Err`. Unit
+scenarios and std or Tokio boundaries must bypass the helper unchanged.
+
+Scenario generators call `generate_test_attrs_with_boundary`, which owns
+attribute-policy resolution and returns both the emitted attributes and whether
+GPUI owns the outer test boundary. Keep policy resolution inside this helper so
+regular and outline generation reuse one result rather than allocating path
+segments twice. Callers outside scenario code generation should use the policy
+interfaces instead of composing this private result.
+
+The private `finalize_scenario_signature` helper is owned by regular and
+outline scenario generation. It composes trait assertions, resolved test
+attributes, GPUI boundary adaptation, and underscore-expect tokens while
+leaving emission order under caller control. It clones signatures lazily, only
+when adaptation requires mutation. Other code-generation paths must not reuse
+it unless they share this complete boundary contract.
+
+Compile-pass coverage belongs to the GPUI harness crate because it supplies the
+`#[gpui::test]` boundary. Keep the synchronous, asynchronous, and outline
+non-`Debug` error cases in the `tests/fixtures_macros` directory of
+`rstest-bdd-harness-gpui`: `scenario_fallible_non_debug.rs` and
+`scenario_fallible_outline_non_debug.rs`. Register them with that crate's
+`macro_compile` test. Runtime coverage in `tests/scenario_macros.rs` must also
+execute an `Err` result and assert the fixed boundary panic.
+
+The boundary has a closed, branch-oriented state space: GPUI ownership,
+fallible or unit return, synchronous or asynchronous execution, and regular or
+outline generation, with direct, explicit-policy, and inferred-harness GPUI
+selection. Maintain finite parameterized cases for each decision branch, plus
+the compile and runtime fixtures above. Property testing and a full Cartesian
+product are unnecessary because repeated combinations reach the same branches,
+while randomized `syn` syntax adds no semantic states or useful shrinking
+oracle.
+
 ### Bulk-migration cookbook reference suite
 
 The user guide's "Bulk-migration cookbook" subsection is backed by a

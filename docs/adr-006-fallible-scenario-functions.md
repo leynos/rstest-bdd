@@ -39,6 +39,9 @@ diagnostics clear.
   signature.
 - When a scenario returns `Err`, mark the scenario as recorded so it is not
   reported as passed and propagate the error to the test harness.
+- When a GPUI attribute policy supplies the outer test boundary, consume a
+  fallible scenario result inside the generated function. Published GPUI
+  versions may otherwise discard the result and trigger `unused_must_use`.
 
 ### Technical requirements
 
@@ -84,6 +87,15 @@ propagating `Err` to the test harness. Returning `Result<T, E>` where `T != ()`
 produces a compile-time error: "`#[scenario]` bodies must return () or a unit
 Result/StepResult".
 
+Std and Tokio test boundaries preserve the fallible function signature and
+propagate its result through Rust's test `Termination` support. GPUI boundaries
+instead expose a unit-returning function and consume the result in a generated
+closure or async block. An `Err` still marks the scenario as recorded, then
+panics with the fixed message `scenario returned an error`, so the test fails
+without leaving a `Result` unbound in GPUI's generated wrapper. The error value
+is neither inspected nor formatted, so its type does not need to implement
+`Debug`.
+
 For screen readers: The following snippet shows a fallible scenario body using
 `Result<(), E>`.
 
@@ -115,6 +127,8 @@ fn my_scenario() -> Result<(), MyError> {
   consistent across steps and scenarios.
 - Preserves the recorder drop-guard semantics by explicitly marking an `Err`
   scenario as recorded before returning.
+- Keeps GPUI compatibility handling at the generated test boundary, shared by
+  regular scenarios and outlines, without changing std or Tokio semantics.
 - Keeps API surface small while enabling a common fallible use case.
 
 ## Known risks and limitations

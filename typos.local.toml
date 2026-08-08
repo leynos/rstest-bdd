@@ -7,7 +7,7 @@ stems = []
 
 [words]
 # Hyphenated prefixes are tokenized independently by Typos.
-accepted = ["mis"]
+accepted = ["inventario", "mis"]
 
 [words.corrections]
 

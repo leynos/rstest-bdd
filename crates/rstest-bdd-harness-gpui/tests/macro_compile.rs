@@ -30,6 +30,8 @@ fn gpui_macro_fixtures_compile() -> Result<(), Box<dyn std::error::Error>> {
     for case in [
         "tests/fixtures_macros/scenario_attributes_gpui.rs",
         "tests/fixtures_macros/scenario_attributes_gpui_absolute.rs",
+        "tests/fixtures_macros/scenario_fallible_non_debug.rs",
+        "tests/fixtures_macros/scenario_fallible_outline_non_debug.rs",
         "tests/fixtures_macros/scenario_harness_gpui_default.rs",
         "tests/fixtures_macros/scenario_harness_gpui_override_default.rs",
         "tests/fixtures_macros/scenarios_attributes_gpui.rs",
@@ -77,6 +79,10 @@ fn stage_trybuild_support_files() -> Result<(), Box<dyn std::error::Error>> {
     copy_file(
         &crate_root.join("tests/fixtures_macros/basic.feature"),
         &trybuild_root.join("basic.feature"),
+    )?;
+    copy_file(
+        &crate_root.join("tests/fixtures_macros/fallible_outline.feature"),
+        &trybuild_root.join("fallible_outline.feature"),
     )?;
     fs::create_dir_all(trybuild_root.join("tests/features"))?;
     copy_dir_tree(
