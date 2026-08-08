@@ -72,6 +72,22 @@ pub fn build_bindings(count: usize) -> Vec<syn::Ident> {
     (0..count).map(bindings::wrapper_binding_ident).collect()
 }
 
+/// Pair each argument with its wrapper-local binding via `bind`.
+///
+/// The kind-specific wrappers below differ only in how they narrow an [`Arg`],
+/// so the count check and the zip live here.
+fn bind_arguments<'a, T>(
+    args: &[&'a Arg],
+    bindings: &'a [syn::Ident],
+    bind: impl Fn(&'a Arg, &'a syn::Ident) -> T,
+) -> Vec<T> {
+    assert_binding_count(args.len(), bindings.len());
+    args.iter()
+        .zip(bindings.iter())
+        .map(|(arg, binding)| bind(arg, binding))
+        .collect()
+}
+
 /// Pair extracted fixture arguments with wrapper-local bindings for tests.
 ///
 /// # Panics
@@ -80,19 +96,15 @@ pub fn bind_fixture_args<'a>(
     args: &[&'a Arg],
     bindings: &'a [syn::Ident],
 ) -> Vec<BoundFixtureArg<'a>> {
-    assert_binding_count(args.len(), bindings.len());
-    args.iter()
-        .zip(bindings.iter())
-        .map(|(arg, binding)| {
-            let Some(fixture) = arg.as_fixture() else {
-                panic!("bind_fixture_args expects fixture arguments, got {arg:?}");
-            };
-            BoundFixtureArg {
-                arg: fixture,
-                binding,
-            }
-        })
-        .collect()
+    bind_arguments(args, bindings, |arg, binding| {
+        let Some(fixture) = arg.as_fixture() else {
+            panic!("bind_fixture_args expects fixture arguments, got {arg:?}");
+        };
+        BoundFixtureArg {
+            arg: fixture,
+            binding,
+        }
+    })
 }
 
 fn assert_binding_count(args: usize, bindings: usize) {
@@ -107,14 +119,10 @@ fn assert_binding_count(args: usize, bindings: usize) {
 /// # Panics
 /// Panics when the counts differ or an argument is not a step argument.
 pub fn bind_args<'a>(args: &[&'a Arg], bindings: &'a [syn::Ident]) -> Vec<BoundStepArg<'a>> {
-    assert_binding_count(args.len(), bindings.len());
-    args.iter()
-        .zip(bindings.iter())
-        .map(|(arg, binding)| {
-            let Some(step) = arg.as_step() else {
-                panic!("bind_args expects step arguments, got {arg:?}");
-            };
-            BoundStepArg { arg: step, binding }
-        })
-        .collect()
+    bind_arguments(args, bindings, |arg, binding| {
+        let Some(step) = arg.as_step() else {
+            panic!("bind_args expects step arguments, got {arg:?}");
+        };
+        BoundStepArg { arg: step, binding }
+    })
 }

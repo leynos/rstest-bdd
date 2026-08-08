@@ -118,8 +118,17 @@ fn expected_stderr_path_handles_multiple_extensions() {
     );
 }
 
-#[test]
-fn write_fixture_file_preserves_create_directory_panic_label() {
+/// Stage a temporary directory, provoke a `write_fixture_file` failure, and
+/// assert the resulting panic message keeps the caller's label.
+///
+/// `set_up` prepares whatever obstruction the failure path needs; `path` and
+/// `label` are forwarded to `write_fixture_file` unchanged.
+fn assert_write_fixture_file_panic(
+    set_up: impl FnOnce(&Dir),
+    path: &Utf8Path,
+    label: &str,
+    expected_prefix: &str,
+) {
     let temp_dir = match tempfile::tempdir() {
         Ok(temp_dir) => temp_dir,
         Err(error) => panic!("failed to create temporary directory: {error}"),
@@ -128,53 +137,44 @@ fn write_fixture_file_preserves_create_directory_panic_label() {
         Ok(crate_dir) => crate_dir,
         Err(error) => panic!("failed to open temporary directory: {error}"),
     };
-    if let Err(error) = crate_dir.write("blocked", b"not a directory") {
-        panic!("failed to create blocked path: {error}");
-    }
+    set_up(&crate_dir);
 
     let result = panic::catch_unwind(AssertUnwindSafe(|| {
-        write_fixture_file(
-            &crate_dir,
-            Utf8Path::new("blocked/output.stderr"),
-            b"stderr",
-            "expected stderr fixture",
-        );
+        write_fixture_file(&crate_dir, path, b"stderr", label);
     }));
     let message = captured_panic_message(result);
 
     assert!(
-        message.starts_with("failed to create directory for expected stderr fixture:"),
-        "panic message should preserve expected fixture label: {message}",
+        message.starts_with(expected_prefix),
+        "panic message should start with {expected_prefix:?}: {message}",
+    );
+}
+
+#[test]
+fn write_fixture_file_preserves_create_directory_panic_label() {
+    assert_write_fixture_file_panic(
+        |crate_dir| {
+            if let Err(error) = crate_dir.write("blocked", b"not a directory") {
+                panic!("failed to create blocked path: {error}");
+            }
+        },
+        Utf8Path::new("blocked/output.stderr"),
+        "expected stderr fixture",
+        "failed to create directory for expected stderr fixture:",
     );
 }
 
 #[test]
 fn write_fixture_file_preserves_write_panic_label() {
-    let temp_dir = match tempfile::tempdir() {
-        Ok(temp_dir) => temp_dir,
-        Err(error) => panic!("failed to create temporary directory: {error}"),
-    };
-    let crate_dir = match Dir::open_ambient_dir(temp_dir.path(), ambient_authority()) {
-        Ok(crate_dir) => crate_dir,
-        Err(error) => panic!("failed to open temporary directory: {error}"),
-    };
-    if let Err(error) = crate_dir.create_dir("blocked") {
-        panic!("failed to create blocked directory: {error}");
-    }
-
-    let result = panic::catch_unwind(AssertUnwindSafe(|| {
-        write_fixture_file(
-            &crate_dir,
-            Utf8Path::new("blocked"),
-            b"stderr",
-            "wip stderr fixture",
-        );
-    }));
-    let message = captured_panic_message(result);
-
-    assert!(
-        message.starts_with("failed to write wip stderr fixture:"),
-        "panic message should preserve wip fixture label: {message}",
+    assert_write_fixture_file_panic(
+        |crate_dir| {
+            if let Err(error) = crate_dir.create_dir("blocked") {
+                panic!("failed to create blocked directory: {error}");
+            }
+        },
+        Utf8Path::new("blocked"),
+        "wip stderr fixture",
+        "failed to write wip stderr fixture:",
     );
 }
 
