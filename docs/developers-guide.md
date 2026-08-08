@@ -917,11 +917,21 @@ crate identifier. A path such as
 crate is present.
 
 Fallback resolution is pure: one resolution value holds the selected base API
-crate path and optional first-party fallback metadata. Scenario code generation
-resolves each supplied `harness` or `attributes` path once, then reuses that
-decision for runtime generation, trait assertions, and diagnostic emission. The
-two supplied paths remain independent, so each qualifying fallback reports
-exactly one diagnostic.
+crate path and optional first-party fallback metadata. Each macro expansion
+resolves the supplied `harness` and `attributes` paths once at its own
+boundary, then reuses that decision for runtime generation, trait assertions,
+and diagnostic emission. The two supplied paths remain independent, so each
+qualifying fallback reports exactly one diagnostic.
+
+`#[scenario]` and `scenarios!` are separate boundaries.
+`SharedAdapterResolutions` carries the resolved pair, and only the owning
+boundary calls `emit_diagnostics`. `scenarios!` resolves before iterating the
+discovered scenarios and threads the result through `ScenarioConfig`, so a
+feature directory holding many scenarios still reports one diagnostic per
+supplied path rather than one per generated test. Scenario generation beneath a
+boundary must never re-resolve or re-emit: on nightly the emission is a
+side-effecting `.emit()` call, so a second one would duplicate the warning
+rather than be collapsed.
 
 On nightly, the expansion boundary calls `proc_macro::Diagnostic::spanned` with
 `proc_macro::Level::Warning`, then calls `.emit()`. Stable toolchains receive

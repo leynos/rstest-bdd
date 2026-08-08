@@ -22,12 +22,14 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 
+mod adapters;
 mod domain;
 mod helpers;
 mod metadata;
 mod runtime;
 mod test_attrs;
 
+use adapters::{generate_trait_assertions, resolve_scenario_adapters};
 pub(crate) use domain::*;
 pub(crate) use helpers::process_steps;
 use helpers::{
@@ -93,6 +95,13 @@ pub(crate) struct ScenarioConfig<'a> {
     pub(crate) harness: Option<&'a syn::Path>,
     /// Optional attribute policy type path for compile-time trait assertion.
     pub(crate) attributes: Option<&'a syn::Path>,
+    /// Adapter API paths already resolved by an enclosing expansion boundary.
+    ///
+    /// `scenarios!` supplies this so every generated scenario reuses one
+    /// decision and the boundary emits the fallback diagnostic once. Leave it
+    /// `None` for `#[scenario]`, which is its own boundary and therefore
+    /// resolves and emits for itself.
+    pub(crate) resolutions: Option<&'a crate::codegen::SharedAdapterResolutions>,
 }
 
 /// Configuration for context iterators in scenario code generation.
@@ -104,47 +113,6 @@ pub(crate) struct ContextConfig<P, I, Q> {
 
 pub(crate) fn scenario_allows_skip(tags: &[String]) -> bool {
     tags.iter().any(|tag| tag == "@allow_skipped")
-}
-
-/// Generate compile-time trait-bound const assertions for harness and attribute
-/// policy types. These are emitted as sibling items alongside the test function
-/// so they produce clear compiler errors when a type does not implement the
-/// required trait.
-fn generate_trait_assertions(
-    harness: Option<(&syn::Path, &crate::codegen::HarnessApiResolution)>,
-    attributes: Option<(&syn::Path, &crate::codegen::HarnessApiResolution)>,
-) -> TokenStream2 {
-    if harness.is_none() && attributes.is_none() {
-        return TokenStream2::new();
-    }
-
-    let harness_assertion = harness.map(|(harness_path, resolution)| {
-        let harness_crate = &resolution.api_path;
-        let fallback_warning = crate::codegen::first_party_adapter_fallback_diagnostic(resolution);
-        quote! {
-            #fallback_warning
-            const _: () = {
-                fn __assert_harness<T: #harness_crate::HarnessAdapter + Default>() {}
-                fn __call() { __assert_harness::<#harness_path>(); }
-            };
-        }
-    });
-    let attributes_assertion = attributes.map(|(policy_path, resolution)| {
-        let harness_crate = &resolution.api_path;
-        let fallback_warning = crate::codegen::first_party_adapter_fallback_diagnostic(resolution);
-        quote! {
-            #fallback_warning
-            const _: () = {
-                fn __assert_attr_policy<T: #harness_crate::AttributePolicy>() {}
-                fn __call() { __assert_attr_policy::<#policy_path>(); }
-            };
-        }
-    });
-
-    quote! {
-        #harness_assertion
-        #attributes_assertion
-    }
 }
 
 /// Checks if any step in the scenario contains placeholder tokens.
@@ -213,8 +181,9 @@ where
         docstrings,
         tables,
     };
-    let harness_resolution = config.harness.map(crate::codegen::resolve_harness_api);
-    let attributes_resolution = config.attributes.map(crate::codegen::resolve_harness_api);
+    let adapters = resolve_scenario_adapters(config);
+    let harness_resolution = adapters.resolutions.harness.as_ref();
+    let attributes_resolution = adapters.resolutions.attributes.as_ref();
     let metadata = ScenarioMetadata {
         feature_path: &config.feature_path,
         scenario_name: &config.scenario_name,
@@ -225,9 +194,7 @@ where
         is_async: config.runtime.is_async(),
         return_kind: config.return_kind,
         harness: config.harness,
-        harness_api_path: harness_resolution
-            .as_ref()
-            .map(|resolution| resolution.api_path.clone()),
+        harness_api_path: harness_resolution.map(|resolution| resolution.api_path.clone()),
     };
     let test_config = TestTokensConfig {
         processed_steps,
@@ -248,14 +215,16 @@ where
         config.runtime.is_async(),
     );
     let trait_assertions = generate_trait_assertions(
-        config.harness.zip(harness_resolution.as_ref()),
-        config.attributes.zip(attributes_resolution.as_ref()),
+        config.harness.zip(harness_resolution),
+        config.attributes.zip(attributes_resolution),
     );
+    let fallback_diagnostics = &adapters.diagnostics;
     let attrs = config.attrs;
     let vis = config.vis;
     let sig = config.sig;
     let underscore_expect = generate_underscore_expect(sig);
     quote! {
+        #fallback_diagnostics
         #trait_assertions
         #test_attrs
         #(#case_attrs)*
@@ -309,8 +278,9 @@ where
         Err(err) => return err,
     };
 
-    let harness_resolution = config.harness.map(crate::codegen::resolve_harness_api);
-    let attributes_resolution = config.attributes.map(crate::codegen::resolve_harness_api);
+    let adapters = resolve_scenario_adapters(config);
+    let harness_resolution = adapters.resolutions.harness.as_ref();
+    let attributes_resolution = adapters.resolutions.attributes.as_ref();
     let metadata = ScenarioMetadata {
         feature_path: &config.feature_path,
         scenario_name: &config.scenario_name,
@@ -321,9 +291,7 @@ where
         is_async: config.runtime.is_async(),
         return_kind: config.return_kind,
         harness: config.harness,
-        harness_api_path: harness_resolution
-            .as_ref()
-            .map(|resolution| resolution.api_path.clone()),
+        harness_api_path: harness_resolution.map(|resolution| resolution.api_path.clone()),
     };
     let outline_config = OutlineTestTokensConfig {
         all_rows_steps,
@@ -351,13 +319,15 @@ where
         config.runtime.is_async(),
     );
     let trait_assertions = generate_trait_assertions(
-        config.harness.zip(harness_resolution.as_ref()),
-        config.attributes.zip(attributes_resolution.as_ref()),
+        config.harness.zip(harness_resolution),
+        config.attributes.zip(attributes_resolution),
     );
+    let fallback_diagnostics = &adapters.diagnostics;
     let attrs = config.attrs;
     let vis = config.vis;
     let underscore_expect = generate_underscore_expect(&modified_sig);
     quote! {
+        #fallback_diagnostics
         #trait_assertions
         #test_attrs
         #(#case_attrs)*
