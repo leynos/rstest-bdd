@@ -1,0 +1,11 @@
+warning: rstest-bdd could not identify this harness or attribute-policy path as a first-party adapter; falling back to `rstest-bdd-harness` for base harness API types. Use the canonical crate-root path, ensure `rstest-bdd-harness-tokio` is directly resolvable as `rstest_bdd_harness_tokio`, or add `rstest-bdd-harness` as a direct dev-dependency.
+  --> tests/fixtures_macros/nightly_multi_scenario_alias_fallback_warning.rs:29:51
+   |
+29 |     attributes = alias::rstest_bdd_harness_tokio::TokioAttributePolicy,
+   |                                                   ^^^^^^^^^^^^^^^^^^^^
+
+error: nightly multi-scenario warning snapshot sentinel
+  --> tests/fixtures_macros/nightly_multi_scenario_alias_fallback_warning.rs:32:1
+   |
+32 | compile_error!("nightly multi-scenario warning snapshot sentinel");
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
