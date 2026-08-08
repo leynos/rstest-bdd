@@ -7,6 +7,8 @@
 //!   compile errors; implies `compile-time-validation`.
 //!
 //! Both features are disabled by default.
+#![cfg_attr(all(rstest_bdd_nightly, not(test)), feature(proc_macro_diagnostic))]
+
 mod codegen;
 mod datatable;
 mod macros;
@@ -24,8 +26,8 @@ pub(crate) use step_keyword::StepKeyword;
 use proc_macro::TokenStream;
 use std::panic::UnwindSafe;
 
-use proc_macro_error::entry_point;
-use proc_macro_error::proc_macro_error;
+use proc_macro_error3::entry_point;
+use proc_macro_error3::proc_macro_error;
 
 /// Run a procedural macro while mapping panics into `proc_macro_error`
 /// diagnostics.

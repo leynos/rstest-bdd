@@ -13,6 +13,8 @@ accepted = ["mis"]
 
 [patterns]
 ignore = [
+  # Spanish fixture terminology is intentional.
+  '\binventario\b',
   # GitHub Actions and Cargo machine interfaces retain upstream spelling.
   '(?m)^\s*CARGO_TERM_COLOR: always$',
   '(?m)^\s*types: \[opened, reopened, synchronize, labeled, ready_for_review\]$',

@@ -1,0 +1,16 @@
+warning: rstest-bdd[non-strict]: No matching step definition found for 'Given an undefined step'
+         Available step definitions for this keyword:
+           - an unrelated registered step
+
+ --> tests/fixtures_macros/nightly_registry_warning.rs:8:1
+  |
+8 | #[scenario(path = "../features/macros/unmatched.feature")]
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: this warning originates in the attribute macro `scenario` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: nightly registry warning snapshot sentinel
+  --> tests/fixtures_macros/nightly_registry_warning.rs:11:1
+   |
+11 | compile_error!("nightly registry warning snapshot sentinel");
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -240,10 +240,20 @@ fn run_conditional_ambiguous_step_test(t: &trybuild::TestCases) {
 
 type Normalizer = for<'a> fn(NormalizerInput<'a>) -> String;
 
+#[rustversion::not(nightly)]
 fn compile_fail_missing_step_warning(t: &trybuild::TestCases) {
     compile_fail_with_normalized_output(
         t,
         macros_fixture(MacroFixtureCase::from("scenario_missing_step_warning.rs")),
+        &[strip_nightly_macro_backtrace_hint, normalize_fixture_paths],
+    );
+}
+
+#[rustversion::nightly]
+fn compile_fail_missing_step_warning(t: &trybuild::TestCases) {
+    compile_fail_with_normalized_output(
+        t,
+        macros_fixture(MacroFixtureCase::from("nightly_registry_warning.rs")),
         &[strip_nightly_macro_backtrace_hint, normalize_fixture_paths],
     );
 }
