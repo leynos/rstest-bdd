@@ -4,8 +4,9 @@
 //! definitions, and a JSON dump — consumed by `cargo bdd` and test-suite
 //! health checks.
 
-use super::{Step, StepKey, USED_STEPS, all_steps};
 use hashbrown::HashMap;
+
+use super::{Step, StepKey, USED_STEPS, all_steps};
 
 /// Return registered steps that were never executed.
 #[must_use]
@@ -51,17 +52,14 @@ pub fn duplicate_steps() -> Vec<Vec<&'static Step>> {
 /// assert!(json.contains("\"steps\""));
 /// ```
 #[cfg(feature = "diagnostics")]
-pub fn dump_registry() -> serde_json::Result<String> {
-    super::diagnostics::dump_registry()
-}
+pub fn dump_registry() -> serde_json::Result<String> { super::diagnostics::dump_registry() }
 
 #[cfg(test)]
 mod tests {
     //! Unit tests for registry introspection queries.
 
-    use crate::{StepContext, StepError, StepExecution, StepFuture, StepKeyword, step};
-
     use super::{all_steps, duplicate_steps, unused_steps};
+    use crate::{StepContext, StepError, StepExecution, StepFuture, StepKeyword, step};
 
     const USED_PATTERN: &str = "introspection used step";
     const UNUSED_PATTERN: &str = "introspection unused step";
@@ -121,10 +119,6 @@ mod tests {
     );
 
     #[test]
-    #[expect(
-        clippy::expect_used,
-        reason = "test requires the registered introspection fixture"
-    )]
     fn unused_steps_exclude_a_known_used_step() {
         let used_step = all_steps()
             .into_iter()
@@ -161,8 +155,9 @@ mod tests {
     #[cfg(feature = "diagnostics")]
     #[test]
     #[expect(
-        clippy::expect_used,
-        reason = "test validates required registry dump structure"
+        clippy::panic_in_result_fn,
+        reason = "assertions in a Result-returning test pair `?` on fallible fixtures with \
+                  ordinary assertions"
     )]
     fn dump_registry_serializes_step_state() -> serde_json::Result<()> {
         let used_step = all_steps()

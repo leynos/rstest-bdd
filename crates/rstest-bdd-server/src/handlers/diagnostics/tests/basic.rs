@@ -3,10 +3,6 @@
 use super::*;
 
 #[rstest]
-#[expect(
-    clippy::expect_used,
-    reason = "test requires explicit panic for debugging failures"
-)]
 fn unimplemented_step_produces_diagnostic(scenario_builder: ScenarioBuilder) {
     let scenario = scenario_builder.with_single_file_pair(
         "Feature: test\n  Scenario: s\n    Given an unimplemented step\n",
@@ -36,10 +32,6 @@ fn unimplemented_step_produces_diagnostic(scenario_builder: ScenarioBuilder) {
 }
 
 #[rstest]
-#[expect(
-    clippy::expect_used,
-    reason = "test requires explicit panic for debugging failures"
-)]
 fn unused_step_definition_produces_diagnostic(scenario_builder: ScenarioBuilder) {
     let scenario = scenario_builder.with_single_file_pair(
         "Feature: test\n  Scenario: s\n    Given a step\n",

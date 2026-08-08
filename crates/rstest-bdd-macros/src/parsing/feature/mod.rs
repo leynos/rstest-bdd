@@ -1,15 +1,20 @@
 //! Feature file loading and scenario extraction.
 
-use gherkin::{Feature, GherkinEnv, Scenario, Step, StepType};
-use std::collections::HashMap;
 use std::{
+    collections::HashMap,
     path::{Path, PathBuf},
     sync::{LazyLock, RwLock},
 };
 
-use crate::parsing::examples::ExampleTable;
-use crate::parsing::tags::{self, TagExpression};
-use crate::utils::errors::error_to_tokens;
+use gherkin::{Feature, GherkinEnv, Scenario, Step, StepType};
+
+use crate::{
+    parsing::{
+        examples::ExampleTable,
+        tags::{self, TagExpression},
+    },
+    utils::errors::error_to_tokens,
+};
 cfg_if::cfg_if! {
     if #[cfg(feature = "compile-time-validation")] {
         use crate::validation::examples::{validate_examples_in_feature_text, FeatureText};
@@ -140,6 +145,37 @@ fn validate_feature_file_exists(feature_path: &Path) -> Result<(), syn::Error> {
     }
 }
 
+/// Render a feature parse failure, preferring a precise Examples diagnostic.
+///
+/// With `compile-time-validation` enabled the raw text is re-read so that a
+/// malformed `Examples:` block reports its own error rather than the generic
+/// parser message.
+fn parse_failure_tokens(
+    feature_path: &std::path::Path,
+    err: &gherkin::ParseFileError,
+) -> proc_macro2::TokenStream {
+    if let Some(validation_err) = examples_validation_error(feature_path) {
+        return validation_err;
+    }
+    let msg = format!("failed to parse feature file: {err}");
+    error_to_tokens(&syn::Error::new(proc_macro2::Span::call_site(), msg))
+}
+
+/// Re-read the feature text to surface a precise `Examples:` diagnostic.
+#[cfg(feature = "compile-time-validation")]
+fn examples_validation_error(feature_path: &std::path::Path) -> Option<proc_macro2::TokenStream> {
+    let text = std::fs::read_to_string(feature_path).ok()?;
+    validate_examples_in_feature_text(FeatureText::new(&text)).err()
+}
+
+/// Without compile-time validation there is no richer diagnostic to offer.
+#[cfg(not(feature = "compile-time-validation"))]
+const fn examples_validation_error(
+    _feature_path: &std::path::Path,
+) -> Option<proc_macro2::TokenStream> {
+    None
+}
+
 /// Parse and load a feature file from the given path.
 ///
 /// Emits a compile-time error (as tokens) when the feature path does not exist
@@ -172,20 +208,8 @@ pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro2
         return Err(error_to_tokens(&err));
     }
 
-    let feature = Feature::parse_path(&feature_path, GherkinEnv::default()).map_err(|err| {
-        #[cfg(feature = "compile-time-validation")]
-        {
-            if let Ok(text) = std::fs::read_to_string(&feature_path) {
-                if let Err(validation_err) =
-                    validate_examples_in_feature_text(FeatureText::new(&text))
-                {
-                    return validation_err;
-                }
-            }
-        }
-        let msg = format!("failed to parse feature file: {err}");
-        error_to_tokens(&syn::Error::new(proc_macro2::Span::call_site(), msg))
-    })?;
+    let feature = Feature::parse_path(&feature_path, GherkinEnv::default())
+        .map_err(|err| parse_failure_tokens(&feature_path, &err))?;
 
     let key = canonical.unwrap_or_else(|| feature_path.clone());
     // Recover from a poisoned lock: the cache only holds parsed features,
@@ -285,25 +309,23 @@ impl ScenarioData {
             Some(examples) => {
                 let mut retained_rows = Vec::new();
                 let mut retained_tags = Vec::new();
-                for (row, tags) in examples
+                let retained = examples
                     .rows
                     .iter()
                     .cloned()
                     .zip(examples.row_tags.iter().cloned())
-                {
-                    if expr.evaluate(tags.iter().map(String::as_str)) {
-                        retained_rows.push(row);
-                        retained_tags.push(tags);
-                    }
+                    .filter(|(_, tags)| expr.evaluate(tags.iter().map(String::as_str)));
+                for (row, tags) in retained {
+                    retained_rows.push(row);
+                    retained_tags.push(tags);
                 }
 
-                if retained_rows.is_empty() {
-                    false
-                } else {
+                let kept_any = !retained_rows.is_empty();
+                if kept_any {
                     examples.rows = retained_rows;
                     examples.row_tags = retained_tags;
-                    true
                 }
+                kept_any
             }
             None => expr.evaluate(self.tags.iter().map(String::as_str)),
         }

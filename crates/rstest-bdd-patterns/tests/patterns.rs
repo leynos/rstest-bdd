@@ -3,9 +3,11 @@
 
 use regex::Regex;
 use rstest::rstest;
-
 use rstest_bdd_patterns::{
-    build_regex_from_pattern, compile_regex_from_pattern, extract_captured_values, get_type_pattern,
+    build_regex_from_pattern,
+    compile_regex_from_pattern,
+    extract_captured_values,
+    get_type_pattern,
 };
 
 #[test]
@@ -32,49 +34,69 @@ fn compile_regex_from_pattern_smoke_test() {
 }
 
 #[test]
-fn compile_regex_from_pattern_edge_cases() {
+fn compile_regex_from_pattern_handles_multiple_and_empty_patterns() {
     // Multiple placeholders
     let regex = compile_regex_from_pattern("Add {a:u32} and {b:u32}").expect("should compile");
-    assert!(regex.is_match("Add 1 and 2"));
+    assert!(
+        regex.is_match("Add 1 and 2"),
+        "two placeholders should match"
+    );
 
     // Unsupported type falls back to a lazy capture
-    let regex = compile_regex_from_pattern("Value is {x:unknown}")
+    let unknown_hint = compile_regex_from_pattern("Value is {x:unknown}")
         .expect("unknown type should fallback to lazy match");
-    assert!(regex.is_match("Value is apples"));
+    assert!(
+        unknown_hint.is_match("Value is apples"),
+        "unknown hint should match lazily"
+    );
 
     // Empty pattern
-    let regex = compile_regex_from_pattern("").expect("empty pattern should compile");
-    assert!(regex.is_match(""));
+    let empty = compile_regex_from_pattern("").expect("empty pattern should compile");
+    assert!(empty.is_match(""), "empty pattern should match empty text");
+}
 
-    // Special regex characters in pattern
+#[test]
+fn compile_regex_from_pattern_escapes_regex_metacharacters() {
     let price_pattern = format!(
         "Price is {symbol}{pattern}",
         symbol = '$',
         pattern = "{p:u32}"
     );
-    let regex = compile_regex_from_pattern(&price_pattern).expect("should compile");
+    let price = compile_regex_from_pattern(&price_pattern).expect("should compile");
     let price_input = format!("Price is {symbol}{value}", symbol = '$', value = 42);
-    assert!(regex.is_match(&price_input));
+    assert!(price.is_match(&price_input), "`$` should be escaped");
+}
 
+#[test]
+fn compile_regex_from_pattern_handles_placeholder_placement() {
     // Placeholder at start and end
-    let regex = compile_regex_from_pattern("{x:u32} plus {y:u32}").expect("should compile");
-    assert!(regex.is_match("12 plus 34"));
+    let bookends = compile_regex_from_pattern("{x:u32} plus {y:u32}").expect("should compile");
+    assert!(
+        bookends.is_match("12 plus 34"),
+        "bookended placeholders should match"
+    );
 
     // Adjacent placeholders
-    let regex = compile_regex_from_pattern("{x:u32}{y:u32}").expect("should compile");
-    assert!(regex.is_match("1234"), "Should match two adjacent numbers");
+    let adjacent = compile_regex_from_pattern("{x:u32}{y:u32}").expect("should compile");
     assert!(
-        !regex.is_match("12 34"),
+        adjacent.is_match("1234"),
+        "Should match two adjacent numbers"
+    );
+    assert!(
+        !adjacent.is_match("12 34"),
         "Should not match numbers separated by space"
     );
     assert!(
-        !regex.is_match("abcd"),
+        !adjacent.is_match("abcd"),
         "Should not match non-numeric input"
     );
 
     // Pattern with only placeholder
-    let regex = compile_regex_from_pattern("{x:u32}").expect("should compile");
-    assert!(regex.is_match("99"));
+    let only_placeholder = compile_regex_from_pattern("{x:u32}").expect("should compile");
+    assert!(
+        only_placeholder.is_match("99"),
+        "bare placeholder should match"
+    );
 }
 
 #[test]
@@ -84,7 +106,7 @@ fn builds_regex_and_extracts_values() {
     let regex = Regex::new(&regex_src).expect("regex should compile");
     let captures = extract_captured_values(&regex, "I have 12 cukes")
         .expect("expected captures for test step");
-    assert_eq!(captures, vec!["12".to_string()]);
+    assert_eq!(captures, vec!["12".to_owned()]);
 }
 
 #[test]
@@ -178,13 +200,13 @@ fn string_hint_captures_include_quotes() {
         .expect("expected captures for quoted string");
     assert_eq!(
         captures,
-        vec![r#""hello world""#.to_string()],
+        vec![r#""hello world""#.to_owned()],
         "captured value should include quotes (stripping happens in generated code)"
     );
 
-    let captures = extract_captured_values(&regex, "value is 'single quoted'")
+    let single_quoted = extract_captured_values(&regex, "value is 'single quoted'")
         .expect("expected captures for single-quoted string");
-    assert_eq!(captures, vec!["'single quoted'".to_string()]);
+    assert_eq!(single_quoted, vec!["'single quoted'".to_owned()]);
 }
 
 #[test]
@@ -233,16 +255,16 @@ fn string_hint_captures_escaped_quotes() {
         .expect("expected captures for escaped double quotes");
     assert_eq!(
         captures,
-        vec![r#""Hello \"World\"""#.to_string()],
+        vec![r#""Hello \"World\"""#.to_owned()],
         "captured value should include outer quotes and escaped internal quotes"
     );
 
     // Single-quoted with escaped internal quotes
-    let captures = extract_captured_values(&regex, r"message is 'Hello \'World\''")
+    let single_quoted = extract_captured_values(&regex, r"message is 'Hello \'World\''")
         .expect("expected captures for escaped single quotes");
     assert_eq!(
-        captures,
-        vec![r"'Hello \'World\''".to_string()],
+        single_quoted,
+        vec![r"'Hello \'World\''".to_owned()],
         "captured value should include outer quotes and escaped internal quotes"
     );
 }

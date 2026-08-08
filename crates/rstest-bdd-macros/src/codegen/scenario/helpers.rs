@@ -27,7 +27,7 @@ pub(crate) struct SubstitutionContext<'a> {
 
 impl<'a> SubstitutionContext<'a> {
     /// Creates a new substitution context.
-    pub(crate) fn new(headers: &'a ExampleHeaders, row: &'a ExampleRow) -> Self {
+    pub(crate) const fn new(headers: &'a ExampleHeaders, row: &'a ExampleRow) -> Self {
         Self { headers, row }
     }
 }
@@ -38,9 +38,7 @@ fn cell_to_lit(value: &str) -> syn::LitStr {
 }
 
 /// Returns true when an Examples row contains at least one non-empty cell.
-pub(crate) fn row_has_values(row: &[String]) -> bool {
-    row.iter().any(|cell| !cell.is_empty())
-}
+pub(crate) fn row_has_values(row: &[String]) -> bool { row.iter().any(|cell| !cell.is_empty()) }
 
 /// Returns true when any parameter uses an underscore-prefixed identifier.
 ///
@@ -145,25 +143,24 @@ fn generate_case_attrs_internal(
         .collect()
 }
 
+fn generate_row_tokens(row: &[String]) -> TokenStream2 {
+    let cells = row.iter().map(|cell| {
+        let lit = cell_to_lit(cell);
+        quote! { #lit }
+    });
+    quote! { &[#(#cells),*][..] }
+}
+
 fn generate_table_tokens(table: Option<&[Vec<String>]>) -> TokenStream2 {
-    table.map_or_else(
-        || quote! { None },
-        |rows| {
-            if rows.is_empty() {
-                // Explicitly type the empty slice to avoid inference pitfalls when no rows exist.
-                quote! { Some(&[] as &[&[&str]]) }
-            } else {
-                let row_tokens = rows.iter().map(|row| {
-                    let cells = row.iter().map(|cell| {
-                        let lit = cell_to_lit(cell);
-                        quote! { #lit }
-                    });
-                    quote! { &[#(#cells),*][..] }
-                });
-                quote! { Some(&[#(#row_tokens),*][..]) }
-            }
-        },
-    )
+    let Some(rows) = table else {
+        return quote! { None };
+    };
+    if rows.is_empty() {
+        // Explicitly type the empty slice to avoid inference pitfalls when no rows exist.
+        return quote! { Some(&[] as &[&[&str]]) };
+    }
+    let row_tokens = rows.iter().map(|row| generate_row_tokens(row));
+    quote! { Some(&[#(#row_tokens),*][..]) }
 }
 
 /// Process parsed steps into tokens for keywords, values, and tables.
@@ -192,7 +189,11 @@ pub(crate) fn process_steps(
     Vec<TokenStream2>,
 ) {
     let keyword_tokens = resolve_keyword_tokens(steps);
-    debug_assert_eq!(keyword_tokens.len(), steps.len());
+    debug_assert_eq!(
+        keyword_tokens.len(),
+        steps.len(),
+        "one keyword token per step"
+    );
     let values = steps
         .iter()
         .map(|s| {
@@ -358,9 +359,10 @@ pub(crate) fn process_steps_substituted(
 mod tests {
     //! Unit tests for scenario code generation helpers.
 
-    use super::*;
     use rstest::rstest;
     use syn::parse_quote;
+
+    use super::*;
 
     #[rstest]
     #[case(parse_quote! { fn test(_state: State) }, true)]

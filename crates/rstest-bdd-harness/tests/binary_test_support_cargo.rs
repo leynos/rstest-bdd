@@ -8,12 +8,17 @@
 
 #![cfg(unix)]
 
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use rstest_bdd_harness::binary_test_support::{
-    BinaryLocateError, BinaryName, build_binary, locate_or_build_binary,
+    BinaryLocateError,
+    BinaryName,
+    build_binary,
+    locate_or_build_binary,
     target_directory_for_manifest,
 };
 
@@ -30,7 +35,12 @@ fn unique_absent_temp_dir(label: &str) -> std::io::Result<PathBuf> {
     if dir.exists() {
         fs::remove_dir_all(&dir)?;
     }
-    assert!(!dir.exists(), "temp dir should be absent before test");
+    if dir.exists() {
+        return Err(std::io::Error::other(format!(
+            "temp dir {} should be absent before test",
+            dir.display()
+        )));
+    }
     Ok(dir)
 }
 
@@ -41,6 +51,11 @@ fn workspace_root() -> PathBuf {
 }
 
 #[test]
+#[expect(
+    clippy::panic_in_result_fn,
+    reason = "assertions in a Result-returning test pair `?` on fallible fixtures with ordinary \
+              assertions"
+)]
 fn target_directory_for_invalid_manifest_returns_err() -> std::io::Result<()> {
     let manifest = unique_absent_temp_dir("missing_manifest")?.join("Cargo.toml");
     assert!(
@@ -74,20 +89,22 @@ fn target_directory_for_workspace_manifest_returns_ok() {
 }
 
 #[test]
+#[expect(
+    clippy::panic_in_result_fn,
+    reason = "assertions in a Result-returning test pair `?` on fallible fixtures with ordinary \
+              assertions"
+)]
 fn build_binary_returns_err_for_nonexistent_workspace() -> std::io::Result<()> {
     let workspace = unique_absent_temp_dir("no_workspace")?;
     let result = build_binary(&workspace, BinaryName::new("nonexistent-binary"));
     assert!(
         result.is_err(),
-        "expected build_binary to fail when the workspace directory does not exist, got: {result:?}"
+        "expected build_binary to fail when the workspace directory does not exist, got: \
+         {result:?}"
     );
     Ok(())
 }
 
-#[expect(
-    clippy::expect_used,
-    reason = "integration-style tests panic if cargo cannot be spawned for the workspace root"
-)]
 #[test]
 fn build_binary_captures_output_on_failure() {
     let workspace_root = workspace_root();
@@ -108,6 +125,11 @@ fn build_binary_captures_output_on_failure() {
 }
 
 #[test]
+#[expect(
+    clippy::panic_in_result_fn,
+    reason = "assertions in a Result-returning test pair `?` on fallible fixtures with ordinary \
+              assertions"
+)]
 fn locate_or_build_binary_returns_err_for_invalid_manifest() -> std::io::Result<()> {
     let workspace = unique_absent_temp_dir("locate_invalid_workspace")?;
     let manifest = unique_absent_temp_dir("locate_invalid_manifest")?.join("Cargo.toml");
@@ -128,10 +150,6 @@ fn locate_or_build_binary_returns_err_for_invalid_manifest() -> std::io::Result<
     Ok(())
 }
 
-#[expect(
-    clippy::expect_used,
-    reason = "integration-style tests panic on improbable locate or cargo metadata failures"
-)]
 #[test]
 fn locate_or_build_reports_build_failed_for_nonexistent_binary() {
     let root = workspace_root();
@@ -146,10 +164,6 @@ fn locate_or_build_reports_build_failed_for_nonexistent_binary() {
     });
 }
 
-#[expect(
-    clippy::expect_used,
-    reason = "integration-style tests panic on improbable locate or spawn failures"
-)]
 #[test]
 fn locate_or_build_returns_command_for_workspace_binary() {
     let root = workspace_root();

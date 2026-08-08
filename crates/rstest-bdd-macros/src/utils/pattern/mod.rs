@@ -89,17 +89,16 @@ pub(crate) fn placeholder_names(pattern: &str) -> Result<PlaceholderSummary> {
 /// assert_eq!(end, 7);
 /// ```
 fn parse_placeholder(bytes: &[u8], start: usize) -> Result<(PlaceholderInfo, usize)> {
-    let mut j = start + 1;
-    j = parse_placeholder_name(bytes, j)?;
-    let name = extract_placeholder_name(bytes, start + 1, j)?;
-    let (hint, j) = extract_type_hint_if_present(bytes, j)?;
-    validate_closing_brace(bytes, j)?;
+    let name_end = parse_placeholder_name(bytes, start + 1)?;
+    let name = extract_placeholder_name(bytes, start + 1, name_end)?;
+    let (hint, hint_end) = extract_type_hint_if_present(bytes, name_end)?;
+    validate_closing_brace(bytes, hint_end)?;
     Ok((
         PlaceholderInfo {
-            name: name.to_string(),
+            name: name.to_owned(),
             hint,
         },
-        j + 1,
+        hint_end + 1,
     ))
 }
 
@@ -198,11 +197,11 @@ fn extract_type_hint_if_present(bytes: &[u8], mut j: usize) -> Result<(Option<St
                 "type hint must be valid UTF-8",
             )
         })?
-        .to_string();
+        .to_owned();
 
     // Return None for empty hints (just a trailing colon with no content)
-    let hint = if hint.is_empty() { None } else { Some(hint) };
-    Ok((hint, j))
+    let parsed_hint = if hint.is_empty() { None } else { Some(hint) };
+    Ok((parsed_hint, j))
 }
 
 /// Ensure the placeholder ends with a closing brace.
@@ -229,7 +228,7 @@ fn validate_closing_brace(bytes: &[u8], j: usize) -> Result<()> {
 /// assert!(is_valid_name_start(b'f'));
 /// assert!(!is_valid_name_start(b'1'));
 /// ```
-fn is_valid_name_start(b: u8) -> bool {
+const fn is_valid_name_start(b: u8) -> bool {
     // ASCII-only: start must be a letter or underscore.
     b.is_ascii_alphabetic() || b == b'_'
 }
@@ -241,7 +240,7 @@ fn is_valid_name_start(b: u8) -> bool {
 /// assert!(is_valid_name_char(b'1'));
 /// assert!(!is_valid_name_char(b'-'));
 /// ```
-fn is_valid_name_char(b: u8) -> bool {
+const fn is_valid_name_char(b: u8) -> bool {
     // Subsequent identifier characters may also include digits.
     b.is_ascii_alphanumeric() || b == b'_'
 }
@@ -277,9 +276,7 @@ pub(crate) fn infer_pattern(ident: &Ident) -> LitStr {
 /// assert_eq!(normalize_param_name("param"), "param");
 /// assert_eq!(normalize_param_name("__param"), "_param");
 /// ```
-pub(crate) fn normalize_param_name(name: &str) -> &str {
-    name.strip_prefix('_').unwrap_or(name)
-}
+pub(crate) fn normalize_param_name(name: &str) -> &str { name.strip_prefix('_').unwrap_or(name) }
 
 /// Check if an identifier matches a header after normalization.
 ///

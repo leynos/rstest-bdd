@@ -8,24 +8,22 @@ macro_rules! failing_harness_error_path_scenario {
         /// `harness failed to initialize scenario: ...` panic, carrying the
         /// underlying error and scenario context, and must not execute any step.
         #[scenario(
-            path = "tests/features/harness_led_defaults.feature",
-            name = "Failing harness initialization propagates",
-            harness = rstest_bdd_harness::FailingHarness,
-        )]
-        #[should_panic(
-            expected = "harness failed to initialize scenario: failed to build runtime: synthetic harness initialization failure"
-        )]
+                                            path = "tests/features/harness_led_defaults.feature",
+                                            name = "Failing harness initialization propagates",
+                                            harness = rstest_bdd_harness::FailingHarness,
+                                        )]
+        #[should_panic(expected = "harness failed to initialize scenario: failed to build \
+                                   runtime: synthetic harness initialization failure")]
         fn failing_harness_panics_with_meaningful_message() {}
 
         /// The wrapped harness error must retain feature and scenario context.
         #[scenario(
-            path = "tests/features/harness_led_defaults.feature",
-            name = "Failing harness initialization propagates",
-            harness = rstest_bdd_harness::FailingHarness,
-        )]
-        #[should_panic(
-            expected = "harness_led_defaults.feature, scenario: Failing harness initialization propagates)"
-        )]
+                                            path = "tests/features/harness_led_defaults.feature",
+                                            name = "Failing harness initialization propagates",
+                                            harness = rstest_bdd_harness::FailingHarness,
+                                        )]
+        #[should_panic(expected = "harness_led_defaults.feature, scenario: Failing harness \
+                                   initialization propagates)")]
         fn failing_harness_panic_includes_scenario_context() {}
     };
 }

@@ -4,12 +4,20 @@
 //! matching feature steps in `.feature` files.
 
 use lsp_types::{
-    DidSaveTextDocumentParams, GotoDefinitionParams, PartialResultParams, Position,
-    TextDocumentIdentifier, TextDocumentPositionParams, Url, WorkDoneProgressParams,
+    DidSaveTextDocumentParams,
+    GotoDefinitionParams,
+    PartialResultParams,
+    Position,
+    TextDocumentIdentifier,
+    TextDocumentPositionParams,
+    Url,
+    WorkDoneProgressParams,
 };
-use rstest_bdd_server::config::ServerConfig;
-use rstest_bdd_server::handlers::{handle_definition, handle_did_save_text_document};
-use rstest_bdd_server::server::ServerState;
+use rstest_bdd_server::{
+    config::ServerConfig,
+    handlers::{handle_definition, handle_did_save_text_document},
+    server::ServerState,
+};
 use tempfile::TempDir;
 
 /// Helper to create `GotoDefinitionParams` for a given URI and position.
@@ -130,10 +138,6 @@ fn get_definition_locations(
     })
 }
 
-#[expect(
-    clippy::expect_used,
-    reason = "behavioural tests use explicit panics for clarity"
-)]
 #[test]
 fn definition_navigates_from_rust_step_to_matching_feature_step() {
     let (_dir, rust_path, state) = DefinitionTestScenario::new()
@@ -167,10 +171,6 @@ fn definition_navigates_from_rust_step_to_matching_feature_step() {
     assert_eq!(loc.range.start.line, 2, "step is on line 2 (0-indexed)");
 }
 
-#[expect(
-    clippy::expect_used,
-    reason = "behavioural tests use explicit panics for clarity"
-)]
 #[test]
 fn definition_returns_multiple_locations_for_multiple_matches() {
     let (_dir, rust_path, state) = DefinitionTestScenario::new()
@@ -204,10 +204,6 @@ fn definition_returns_multiple_locations_for_multiple_matches() {
     assert_eq!(locations.len(), 2, "expected two matching feature steps");
 }
 
-#[expect(
-    clippy::expect_used,
-    reason = "behavioural tests use explicit panics for clarity"
-)]
 #[test]
 fn definition_respects_keyword_matching() {
     let (_dir, rust_path, state) = DefinitionTestScenario::new()
@@ -242,10 +238,6 @@ fn definition_respects_keyword_matching() {
     assert_eq!(loc.range.start.line, 2, "should match Given on line 2");
 }
 
-#[expect(
-    clippy::expect_used,
-    reason = "behavioural tests use explicit panics for clarity"
-)]
 #[test]
 fn definition_matches_parameterized_patterns() {
     let (_dir, rust_path, state) = DefinitionTestScenario::new()
@@ -273,10 +265,6 @@ fn definition_matches_parameterized_patterns() {
     assert_eq!(locations.len(), 2, "expected two matching feature steps");
 }
 
-#[expect(
-    clippy::expect_used,
-    reason = "behavioural tests use explicit panics for clarity"
-)]
 #[test]
 fn definition_returns_none_for_non_rust_file() {
     let dir = TempDir::new().expect("temp dir");
@@ -294,10 +282,6 @@ fn definition_returns_none_for_non_rust_file() {
     assert!(response.is_none(), "should return None for non-Rust files");
 }
 
-#[expect(
-    clippy::expect_used,
-    reason = "behavioural tests use explicit panics for clarity"
-)]
 #[test]
 fn definition_returns_none_when_no_step_at_position() {
     let dir = TempDir::new().expect("temp dir");

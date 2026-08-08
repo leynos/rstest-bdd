@@ -4,25 +4,35 @@
 //! fixture parameters and scenario outline example parameters, as well as
 //! lint suppression for fixtures consumed via `StepContext`.
 
+use std::{collections::HashSet, path::Path};
+
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
-use std::collections::HashSet;
-use std::path::Path;
-
-use crate::codegen::rstest_bdd_harness_tokio_path;
-use crate::codegen::scenario::{
-    FeaturePath, ScenarioConfig, ScenarioName, ScenarioReturnKind, generate_scenario_code,
-};
-use crate::parsing::examples::ExampleTable;
-use crate::parsing::feature::ScenarioData;
-use crate::parsing::tags::TagExpression;
-use crate::return_classifier::{ReturnKind, classify_return_type};
-use crate::utils::fixtures::extract_function_fixtures;
-use crate::utils::ident::sanitize_ident;
-use crate::utils::result_type::try_extract_result_error_type;
 
 use super::macro_args::{
-    FixtureSpec, RuntimeCompatibilityAlias, RuntimeMode, runtime_compatibility_alias,
+    FixtureSpec,
+    RuntimeCompatibilityAlias,
+    RuntimeMode,
+    runtime_compatibility_alias,
+};
+use crate::{
+    codegen::{
+        rstest_bdd_harness_tokio_path,
+        scenario::{
+            FeaturePath,
+            ScenarioConfig,
+            ScenarioName,
+            ScenarioReturnKind,
+            generate_scenario_code,
+        },
+    },
+    parsing::{examples::ExampleTable, feature::ScenarioData, tags::TagExpression},
+    return_classifier::{ReturnKind, classify_return_type},
+    utils::{
+        fixtures::extract_function_fixtures,
+        ident::sanitize_ident,
+        result_type::try_extract_result_error_type,
+    },
 };
 
 /// Context for generating a scenario test, capturing the feature file stem,
@@ -95,7 +105,7 @@ fn resolve_harness_path(
 /// Checking the alias variant directly (rather than the resolved harness
 /// presence) ensures future harness/alias combinations don't accidentally
 /// get forced to sync.
-fn resolve_effective_runtime(
+const fn resolve_effective_runtime(
     runtime: RuntimeMode,
     alias: Option<RuntimeCompatibilityAlias>,
     explicit_harness: Option<&syn::Path>,
@@ -110,7 +120,7 @@ fn resolve_effective_runtime(
 }
 
 pub(super) fn dedupe_name(base: &str, used: &mut HashSet<String>) -> String {
-    let mut name = base.to_string();
+    let mut name = base.to_owned();
     let mut counter = 1usize;
     while used.contains(&name) {
         name = format!("{base}_{counter}");
@@ -161,16 +171,15 @@ fn build_example_params(examples: Option<&ExampleTable>) -> Vec<TokenStream2> {
 }
 
 /// Combines fixture and example parameters into a single token stream.
+///
+/// Fixtures come first so that generated `#[case]` parameters keep the order
+/// `rstest` expects; empty slices simply contribute nothing.
 fn combine_params(
     fixture_params: &[TokenStream2],
     example_params: &[TokenStream2],
 ) -> TokenStream2 {
-    match (fixture_params.is_empty(), example_params.is_empty()) {
-        (true, true) => quote! {},
-        (true, false) => quote! { #(#example_params),* },
-        (false, true) => quote! { #(#fixture_params),* },
-        (false, false) => quote! { #(#fixture_params,)* #(#example_params),* },
-    }
+    let params = fixture_params.iter().chain(example_params.iter());
+    quote! { #(#params),* }
 }
 
 /// Builds the test function signature from fixture and example parameters.
@@ -204,7 +213,7 @@ fn normalize_type_key(ty: &syn::Type) -> String {
         .collect::<Vec<_>>()
         .join(" ")
         .trim_start_matches("::")
-        .to_string()
+        .to_owned()
 }
 
 /// Resolves a unified error type from `Result`-typed fixture specifications.
@@ -340,7 +349,6 @@ pub(super) fn generate_scenario_test(
 
 #[cfg(test)]
 #[expect(
-    clippy::expect_used,
     clippy::indexing_slicing,
     reason = "test code uses infallible expects and indexed access for clarity"
 )]

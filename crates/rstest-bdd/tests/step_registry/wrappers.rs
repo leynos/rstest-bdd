@@ -7,9 +7,19 @@
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use rstest_bdd::{
-    FixtureRequirement, RSTEST_BDD_HARNESS_CONTEXT_FIXTURE, StepContext, StepError, StepExecution,
-    StepExecutionMode, StepFixtureRequirements, StepFuture, StepKeyword, StepPattern,
-    panic_message, step, submit,
+    FixtureRequirement,
+    RSTEST_BDD_HARNESS_CONTEXT_FIXTURE,
+    StepContext,
+    StepError,
+    StepExecution,
+    StepExecutionMode,
+    StepFixtureRequirements,
+    StepFuture,
+    StepKeyword,
+    StepPattern,
+    panic_message,
+    step,
+    submit,
 };
 
 use super::async_wrapper::{StepInvocationParams, wrap_sync_step_as_async};
@@ -112,6 +122,17 @@ step!(
     &[]
 );
 
+/// Panics unconditionally so the wrapper below can exercise panic capture.
+fn always_panics() { panic!("snap") }
+
+/// Capture the payload from [`always_panics`], which never returns normally.
+fn captured_panic_message() -> String {
+    match catch_unwind(AssertUnwindSafe(always_panics)) {
+        Err(payload) => panic_message(payload.as_ref()),
+        Ok(()) => String::from("always_panics returned without unwinding"),
+    }
+}
+
 /// Step wrapper that triggers a panic and converts it to a `PanicError`.
 ///
 /// Used to verify that panics during step execution are caught, converted
@@ -122,12 +143,10 @@ fn panicking_wrapper(
     _docstring: Option<&str>,
     _table: Option<&[&[&str]]>,
 ) -> Result<StepExecution, StepError> {
-    let panic_payload = catch_unwind(AssertUnwindSafe(|| panic!("snap")))
-        .expect_err("closure unconditionally panics, so catch_unwind must return Err");
     Err(StepError::PanicError {
         pattern: "panics".into(),
         function: "panicking_wrapper".into(),
-        message: panic_message(panic_payload.as_ref()),
+        message: captured_panic_message(),
     })
 }
 

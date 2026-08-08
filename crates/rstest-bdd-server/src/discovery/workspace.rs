@@ -180,17 +180,17 @@ fn collect_feature_files_recursive(dir: &Path, features: &mut Vec<PathBuf>) {
 #[cfg(test)]
 #[expect(
     clippy::unwrap_used,
-    clippy::expect_used,
     reason = "tests require explicit panic messages for debugging failures"
 )]
 mod tests {
     //! Unit tests for workspace discovery.
 
-    use super::*;
+    use std::{fs, io};
+
     use rstest::{fixture, rstest};
-    use std::fs;
-    use std::io;
     use tempfile::TempDir;
+
+    use super::*;
 
     #[fixture]
     fn create_test_workspace() -> io::Result<TempDir> {
@@ -214,17 +214,27 @@ edition = "2024"
     }
 
     #[rstest]
+    #[expect(
+        clippy::panic_in_result_fn,
+        reason = "assertions in a Result-returning test pair `?` on fallible fixtures with \
+                  ordinary assertions"
+    )]
     fn discovers_workspace_from_root(create_test_workspace: io::Result<TempDir>) -> io::Result<()> {
         let workspace = create_test_workspace?;
         let result = discover_workspace(workspace.path());
         assert!(result.is_ok());
         let info = result.expect("should discover workspace");
         assert_eq!(info.root, workspace.path());
-        assert!(info.packages.contains(&"test-project".to_string()));
+        assert!(info.packages.contains(&"test-project".to_owned()));
         Ok(())
     }
 
     #[rstest]
+    #[expect(
+        clippy::panic_in_result_fn,
+        reason = "assertions in a Result-returning test pair `?` on fallible fixtures with \
+                  ordinary assertions"
+    )]
     fn discovers_workspace_from_subdirectory(
         create_test_workspace: io::Result<TempDir>,
     ) -> io::Result<()> {
@@ -250,7 +260,8 @@ edition = "2024"
     ///
     /// # Arguments
     ///
-    /// * `relative_dir` - Path segments relative to the workspace root (e.g., `&["tests", "features"]`)
+    /// * `relative_dir` - Path segments relative to the workspace root (e.g., `&["tests",
+    ///   "features"]`)
     /// * `filename` - Name of the feature file to create
     /// * `content` - Content to write to the feature file
     ///
@@ -280,8 +291,9 @@ edition = "2024"
         #[case] relative_dir: &[&str],
         #[case] filename: &str,
         #[case] content: &str,
-    ) -> io::Result<()> {
-        let features = create_workspace_with_feature(relative_dir, filename, content)?;
+    ) {
+        let features = create_workspace_with_feature(relative_dir, filename, content)
+            .expect("workspace fixture should be created");
 
         assert_eq!(features.len(), 1);
         assert!(
@@ -290,10 +302,14 @@ edition = "2024"
                 .expect("should have one feature")
                 .ends_with(filename)
         );
-        Ok(())
     }
 
     #[rstest]
+    #[expect(
+        clippy::panic_in_result_fn,
+        reason = "assertions in a Result-returning test pair `?` on fallible fixtures with \
+                  ordinary assertions"
+    )]
     fn returns_empty_when_no_feature_files(
         create_test_workspace: io::Result<TempDir>,
     ) -> io::Result<()> {

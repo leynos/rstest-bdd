@@ -1,15 +1,20 @@
 //! Shared helpers for placeholder parsing integration tests.
 
-use rstest_bdd::{PlaceholderSyntaxError, StepPattern, StepPatternError};
+use rstest_bdd::{
+    PlaceholderSyntaxError,
+    StepPattern,
+    StepPatternError,
+    StepText,
+    extract_placeholders,
+};
 
 /// Compile a placeholder pattern for use in assertions.
 ///
 /// # Example
 ///
 /// ```no_run
+/// use rstest_bdd::{StepText, extract_placeholders};
 /// use support::compiled;
-/// use rstest_bdd::StepText;
-/// use rstest_bdd::extract_placeholders;
 ///
 /// let pat = compiled("value {n:u32}");
 /// let caps = extract_placeholders(&pat, StepText::from("value 42"));
@@ -49,4 +54,42 @@ pub fn expect_placeholder_syntax(pat: StepPattern) -> PlaceholderSyntaxError {
         Err(StepPatternError::PlaceholderSyntax(e)) => e,
         other => panic!("expected PlaceholderSyntax error, got {other:?}"),
     }
+}
+
+/// Assert that `pattern` captures exactly `expected` from `text`.
+///
+/// # Example
+///
+/// ```no_run
+/// use support::{assert_captures, compiled};
+///
+/// assert_captures(&compiled("value {n:u32}"), "value 42", &["42"]);
+/// ```
+///
+/// # Panics
+/// Panics if the text does not match or the captures differ.
+pub fn assert_captures(pattern: &StepPattern, text: &'static str, expected: &[&str]) {
+    let Ok(captures) = extract_placeholders(pattern, StepText::from(text)) else {
+        panic!("expected {text:?} to match the pattern");
+    };
+    assert_eq!(captures, expected, "unexpected captures for {text:?}");
+}
+
+/// Assert that `pattern` does not match `text`.
+///
+/// # Example
+///
+/// ```no_run
+/// use support::{assert_no_match, compiled};
+///
+/// assert_no_match(&compiled("value {n:u32}"), "value none");
+/// ```
+///
+/// # Panics
+/// Panics if the text unexpectedly matches.
+pub fn assert_no_match(pattern: &StepPattern, text: &'static str) {
+    assert!(
+        extract_placeholders(pattern, StepText::from(text)).is_err(),
+        "expected {text:?} not to match the pattern",
+    );
 }

@@ -92,9 +92,7 @@ impl ScenarioRecord {
     /// assert_eq!(record.feature_path(), "feature");
     /// ```
     #[must_use]
-    pub fn feature_path(&self) -> &str {
-        &self.feature_path
-    }
+    pub fn feature_path(&self) -> &str { &self.feature_path }
 
     /// Access the recorded scenario name.
     ///
@@ -107,9 +105,7 @@ impl ScenarioRecord {
     /// assert_eq!(record.scenario_name(), "scenario");
     /// ```
     #[must_use]
-    pub fn scenario_name(&self) -> &str {
-        &self.scenario_name
-    }
+    pub fn scenario_name(&self) -> &str { &self.scenario_name }
 
     /// Access the recorded scenario line number.
     ///
@@ -122,9 +118,7 @@ impl ScenarioRecord {
     /// assert_eq!(record.line(), 42);
     /// ```
     #[must_use]
-    pub fn line(&self) -> u32 {
-        self.line
-    }
+    pub const fn line(&self) -> u32 { self.line }
 
     /// Access the recorded scenario tags.
     ///
@@ -137,9 +131,7 @@ impl ScenarioRecord {
     /// assert_eq!(record.tags(), &["@tag".to_string()]);
     /// ```
     #[must_use]
-    pub fn tags(&self) -> &[String] {
-        self.tags.as_ref()
-    }
+    pub fn tags(&self) -> &[String] { self.tags.as_ref() }
 
     /// Access the stored status value.
     ///
@@ -152,9 +144,7 @@ impl ScenarioRecord {
     /// assert!(matches!(record.status(), ScenarioStatus::Passed));
     /// ```
     #[must_use]
-    pub fn status(&self) -> &ScenarioStatus {
-        &self.status
-    }
+    pub const fn status(&self) -> &ScenarioStatus { &self.status }
 }
 
 /// Status of a scenario execution recorded by the collector.
@@ -178,7 +168,7 @@ impl ScenarioStatus {
     /// assert_eq!(passed.status().label(), "passed");
     /// ```
     #[must_use]
-    pub fn label(&self) -> &'static str {
+    pub const fn label(&self) -> &'static str {
         match self {
             Self::Passed => "passed",
             Self::Skipped(_) => "skipped",
@@ -213,7 +203,7 @@ impl SkippedScenario {
     /// ));
     /// ```
     #[must_use]
-    pub fn new(message: Option<String>, allow_skipped: bool, forced_failure: bool) -> Self {
+    pub const fn new(message: Option<String>, allow_skipped: bool, forced_failure: bool) -> Self {
         Self {
             message,
             allow_skipped,
@@ -231,9 +221,7 @@ impl SkippedScenario {
     /// assert_eq!(skipped.message(), Some("not implemented"));
     /// ```
     #[must_use]
-    pub fn message(&self) -> Option<&str> {
-        self.message.as_deref()
-    }
+    pub fn message(&self) -> Option<&str> { self.message.as_deref() }
 
     /// Whether the scenario allowed skipping without failing the run.
     ///
@@ -245,9 +233,7 @@ impl SkippedScenario {
     /// assert!(skipped.allow_skipped());
     /// ```
     #[must_use]
-    pub fn allow_skipped(&self) -> bool {
-        self.allow_skipped
-    }
+    pub const fn allow_skipped(&self) -> bool { self.allow_skipped }
 
     /// Whether a skip forced the suite to fail due to the global configuration.
     ///
@@ -259,7 +245,5 @@ impl SkippedScenario {
     /// assert!(skipped.forced_failure());
     /// ```
     #[must_use]
-    pub fn forced_failure(&self) -> bool {
-        self.forced_failure
-    }
+    pub const fn forced_failure(&self) -> bool { self.forced_failure }
 }

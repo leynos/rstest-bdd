@@ -15,8 +15,8 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::{DeriveInput, spanned::Spanned};
 
-pub(crate) fn derive(input: TokenStream) -> TokenStream {
-    let input = syn::parse_macro_input!(input as DeriveInput);
+pub(crate) fn derive(tokens: TokenStream) -> TokenStream {
+    let input = syn::parse_macro_input!(tokens as DeriveInput);
     match expand(input) {
         Ok(stream) => stream.into(),
         Err(err) => err.into_compile_error().into(),
@@ -137,8 +137,9 @@ impl FieldLabel<'_> {
 mod tests {
     //! Unit tests for the `ScenarioState` derive helpers.
 
-    use super::*;
     use quote::quote;
+
+    use super::*;
 
     fn expand_tokens(input: TokenStream2) -> syn::Result<TokenStream2> {
         let derive_input = syn::parse2::<DeriveInput>(input)?;

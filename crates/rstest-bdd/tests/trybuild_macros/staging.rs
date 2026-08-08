@@ -3,11 +3,10 @@
 //! Handles discovery and copying of feature files to the trybuild test
 //! environment, ensuring fixtures can locate their dependencies at compile time.
 
+use std::{env, io, path::Path as StdPath};
+
 use camino::{Utf8Path, Utf8PathBuf};
 use cap_std::{ambient_authority, fs::Dir};
-use std::env;
-use std::io;
-use std::path::Path as StdPath;
 
 const MACROS_FIXTURES_DIR: &str = "tests/fixtures_macros";
 const FEATURES_DIR: &str = "tests/features";
@@ -134,16 +133,15 @@ fn write_feature_files(
     destination_root: &StdPath,
     features: &[(String, String)],
 ) -> io::Result<()> {
-    let destination_root =
-        Utf8PathBuf::from_path_buf(destination_root.to_path_buf()).map_err(|_| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                "destination_root must be valid UTF-8",
-            )
-        })?;
+    let destination = Utf8PathBuf::from_path_buf(destination_root.to_path_buf()).map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "destination_root must be valid UTF-8",
+        )
+    })?;
 
     for (relative, contents) in features {
-        let path = destination_root.join(relative);
+        let path = destination.join(relative);
         if let Some(parent) = path.parent() {
             root.create_dir_all(parent.as_std_path())?;
         }
@@ -167,8 +165,8 @@ fn collect_feature_files(
     features: &mut Vec<(String, String)>,
 ) -> io::Result<()> {
     let is_root = current == Utf8Path::new(".");
-    for entry in dir.read_dir(current.as_std_path())? {
-        let entry = entry?;
+    for dir_entry in dir.read_dir(current.as_std_path())? {
+        let entry = dir_entry?;
         let file_name = entry
             .file_name()
             .to_str()

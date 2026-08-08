@@ -4,19 +4,15 @@ mod support;
 
 use rstest::rstest;
 use rstest_bdd::{StepPattern, StepPatternError, StepText, extract_placeholders};
-use support::{compiled, expect_placeholder_syntax};
-
-#[must_use]
-#[expect(clippy::expect_used, reason = "test helper should fail loudly")]
-fn compile_and_extract(pattern: &'static str, text: &str) -> Vec<String> {
-    let pat = compiled(pattern);
-    extract_placeholders(&pat, StepText::from(text)).expect("match expected")
-}
+use support::{assert_captures, assert_no_match, compiled, expect_placeholder_syntax};
 
 #[test]
 fn handles_escaped_braces() {
-    let caps = compile_and_extract(r"literal \{ brace {v} \}", "literal { brace data }");
-    assert_eq!(caps, vec!["data"]);
+    assert_captures(
+        &compiled(r"literal \{ brace {v} \}"),
+        "literal { brace data }",
+        &["data"],
+    );
 }
 
 #[rstest]
@@ -31,42 +27,24 @@ fn unknown_escape_is_literal(
     #[case] nonmatching: &'static str,
 ) {
     let pat = compiled(pattern);
-    #[expect(clippy::expect_used, reason = "test asserts literal match")]
-    let caps = extract_placeholders(&pat, StepText::from(matching))
-        .expect("literal character should match");
-    assert!(caps.is_empty(), "no placeholders expected");
-    assert!(
-        extract_placeholders(&pat, StepText::from(nonmatching)).is_err(),
-        "escape should be treated literally",
-    );
+    assert_captures(&pat, matching, &[] as &[&str]);
+    assert_no_match(&pat, nonmatching);
 }
 
 #[test]
 fn trailing_backslash_is_literal() {
     // Use a normal string here; raw strings cannot end with a backslash.
     let pat = compiled("foo\\");
-    #[expect(clippy::expect_used, reason = "test asserts literal match")]
-    let caps = extract_placeholders(&pat, StepText::from("foo\\"))
-        .expect("literal backslash should match");
-    assert!(caps.is_empty(), "no placeholders expected");
-    assert!(
-        extract_placeholders(&pat, StepText::from("foo")).is_err(),
-        "missing trailing backslash should not match",
-    );
+    assert_captures(&pat, "foo\\", &[] as &[&str]);
+    assert_no_match(&pat, "foo");
 }
 
 #[test]
 fn unknown_escape_inside_stray_depth_is_literal() {
     // The opening "{" puts the scanner into stray-depth mode; "\d" must stay literal.
     let pat = compiled(r"start{ \d }end");
-    #[expect(clippy::expect_used, reason = "test asserts literal match")]
-    let caps = extract_placeholders(&pat, StepText::from(r"start{ d }end"))
-        .expect("literal d should match inside stray depth");
-    assert!(caps.is_empty(), "no placeholders expected");
-    assert!(
-        extract_placeholders(&pat, StepText::from(r"start{ 5 }end")).is_err(),
-        "digit class must not be interpreted inside stray depth",
-    );
+    assert_captures(&pat, r"start{ d }end", &[] as &[&str]);
+    assert_no_match(&pat, r"start{ 5 }end");
 }
 
 #[rstest]
@@ -90,8 +68,11 @@ fn test_brace_escaping_scenarios(
 fn handles_nested_braces() {
     // The outer braces form stray text; the inner `{inner}` is a real placeholder.
     // This ensures the scanner handles nested brace pairs without mis-parsing placeholders.
-    let caps = compile_and_extract("before {outer {inner}} after", "before value after");
-    assert_eq!(caps, vec!["value"]);
+    assert_captures(
+        &compiled("before {outer {inner}} after"),
+        "before value after",
+        &["value"],
+    );
 }
 
 #[rstest]

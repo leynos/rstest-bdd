@@ -74,13 +74,12 @@ an alias that deliberately returns a payload, and applying it to a genuine
   best-effort default: a local alias of `Result<T, E>` was classified as a
   value, so an `Err` became an opaque payload and the scenario passed. The
   return-kind hint avoids the defect only when the caller already knows it is
-  required; prose guidance alone is not an adequate guard against a false
-  green.
+  required; prose guidance alone is not an adequate guard against a false green.
 - The implementation must therefore make unresolved classification explicit
-  without treating every named type as fallible. Roadmap item 11.3.1 tracks
-  the diagnostic or required-hint contract and its compile and runtime
-  regression matrix. Until it lands, fallible steps must spell `Result<...>`
-  or `rstest_bdd::StepResult<...>`, or use the `result` hint.
+  without treating every named type as fallible. Roadmap item 11.3.1 tracks the
+  diagnostic or required-hint contract and its compile and runtime regression
+  matrix. Until it lands, fallible steps must spell `Result<...>` or
+  `rstest_bdd::StepResult<...>`, or use the `result` hint.
 
 ## Alternatives considered
 

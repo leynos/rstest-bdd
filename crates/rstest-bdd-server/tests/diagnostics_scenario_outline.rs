@@ -6,20 +6,27 @@
 mod support;
 
 use rstest::{fixture, rstest};
-use rstest_bdd_server::handlers::compute_scenario_outline_column_diagnostics;
-use rstest_bdd_server::server::ServerState;
+use rstest_bdd_server::{
+    handlers::compute_scenario_outline_column_diagnostics,
+    server::ServerState,
+};
 use support::{ScenarioBuilder, TestScenario};
 use tempfile::TempDir;
 
 /// Fixture providing a fresh scenario builder for each test.
 #[fixture]
-fn scenario_builder() -> ScenarioBuilder {
-    ScenarioBuilder::new()
-}
+fn scenario_builder() -> ScenarioBuilder { ScenarioBuilder::new() }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Test-local helpers
 // ─────────────────────────────────────────────────────────────────────────────
+
+/// The diagnostic count and message fragments a case expects.
+struct OutlineExpectation<'a> {
+    count: usize,
+    message_fragment: Option<&'a str>,
+    secondary_fragment: Option<&'a str>,
+}
 
 /// Helper to compute scenario outline column diagnostics for a feature file.
 #[expect(clippy::expect_used, reason = "test helper uses expect for clarity")]
@@ -60,9 +67,11 @@ fn setup_and_compute_diagnostics(
         "      | name |\n",
         "      | foo  |\n",
     ),
-    1,
-    Some("count"),
-    Some("no matching column"),
+    OutlineExpectation {
+        count: 1,
+        message_fragment: Some("count"),
+        secondary_fragment: Some("no matching column"),
+    },
 )]
 #[case::surplus_column(
     // Examples has | unused | but steps don't reference it
@@ -74,9 +83,11 @@ fn setup_and_compute_diagnostics(
         "      | count | unused |\n",
         "      | 5     | x      |\n",
     ),
-    1,
-    Some("unused"),
-    Some("not referenced"),
+    OutlineExpectation {
+        count: 1,
+        message_fragment: Some("unused"),
+        secondary_fragment: Some("not referenced"),
+    },
 )]
 #[case::matched_columns(
     // All placeholders match Examples columns - no diagnostic
@@ -88,9 +99,11 @@ fn setup_and_compute_diagnostics(
         "      | count |\n",
         "      | 5     |\n",
     ),
-    0,
-    None,
-    None,
+    OutlineExpectation {
+        count: 0,
+        message_fragment: None,
+        secondary_fragment: None,
+    },
 )]
 #[case::multiple_matched_columns(
     // Multiple placeholders all match - no diagnostic
@@ -103,9 +116,11 @@ fn setup_and_compute_diagnostics(
         "      | count | type | more |\n",
         "      | 5     | red  | 3    |\n",
     ),
-    0,
-    None,
-    None,
+    OutlineExpectation {
+        count: 0,
+        message_fragment: None,
+        secondary_fragment: None,
+    },
 )]
 #[case::missing_and_surplus(
     // Step uses <count>, Examples has | other | - both issues
@@ -118,17 +133,22 @@ fn setup_and_compute_diagnostics(
         "      | value |\n",
     ),
     // Both missing (count) and surplus (other)
-    2,
-    None,
-    None,
+    OutlineExpectation {
+        count: 2,
+        message_fragment: None,
+        secondary_fragment: None,
+    },
 )]
 fn scenario_outline_column_validation(
     scenario_builder: ScenarioBuilder,
     #[case] feature_content: &str,
-    #[case] expected_count: usize,
-    #[case] expected_message_fragment: Option<&str>,
-    #[case] secondary_fragment: Option<&str>,
+    #[case] expected: OutlineExpectation<'_>,
 ) {
+    let OutlineExpectation {
+        count: expected_count,
+        message_fragment: expected_message_fragment,
+        secondary_fragment,
+    } = expected;
     let diagnostics = setup_and_compute_diagnostics(scenario_builder, feature_content);
 
     assert_eq!(

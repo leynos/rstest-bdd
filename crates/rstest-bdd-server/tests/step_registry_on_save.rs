@@ -2,12 +2,13 @@
 
 use gherkin::StepType;
 use lsp_types::{DidSaveTextDocumentParams, TextDocumentIdentifier, Url};
-use rstest_bdd_server::config::ServerConfig;
-use rstest_bdd_server::handlers::handle_did_save_text_document;
-use rstest_bdd_server::server::ServerState;
+use rstest_bdd_server::{
+    config::ServerConfig,
+    handlers::handle_did_save_text_document,
+    server::ServerState,
+};
 use tempfile::TempDir;
 
-#[expect(clippy::expect_used, reason = "behavioural tests use explicit panics")]
 #[test]
 fn did_save_compiles_step_patterns_and_updates_registry_incrementally() {
     let dir = TempDir::new().expect("temp dir");
@@ -49,11 +50,11 @@ fn did_save_compiles_step_patterns_and_updates_registry_incrementally() {
     );
     std::fs::write(&path, second).expect("write updated rust source file");
 
-    let params = DidSaveTextDocumentParams {
+    let updated_params = DidSaveTextDocumentParams {
         text_document: TextDocumentIdentifier { uri },
         text: None,
     };
-    handle_did_save_text_document(&mut state, params);
+    handle_did_save_text_document(&mut state, updated_params);
 
     assert_eq!(
         state
@@ -72,7 +73,6 @@ fn did_save_compiles_step_patterns_and_updates_registry_incrementally() {
     assert_eq!(state.step_registry().steps_for_file(&path).len(), 1);
 }
 
-#[expect(clippy::expect_used, reason = "behavioural tests use explicit panics")]
 #[test]
 fn did_save_skips_invalid_step_patterns_without_blocking_valid_steps() {
     let dir = TempDir::new().expect("temp dir");

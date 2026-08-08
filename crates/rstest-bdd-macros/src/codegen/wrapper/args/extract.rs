@@ -13,8 +13,12 @@ use quote::ToTokens;
 use super::{
     ExtractedArgs,
     classify::{
-        ClassificationContext, classify_datatable, classify_docstring, classify_fixture_or_step,
-        classify_step_struct, extract_step_struct_attribute,
+        ClassificationContext,
+        classify_datatable,
+        classify_docstring,
+        classify_fixture_or_step,
+        classify_step_struct,
+        extract_step_struct_attribute,
     },
 };
 
@@ -73,7 +77,8 @@ fn next_typed_argument(
             return Err(syn::Error::new(
                 span_for_pattern(other),
                 format!(
-                    "unsupported parameter pattern `{pattern}`; use a simple identifier (e.g., `arg: T`)"
+                    "unsupported parameter pattern `{pattern}`; use a simple identifier (e.g., \
+                     `arg: T`)"
                 ),
             ));
         }
@@ -113,7 +118,8 @@ fn classify_step_or_fixture(
             return Err(syn::Error::new(
                 span_for_pattern(other),
                 format!(
-                    "unsupported parameter pattern `{pattern}`; use a simple identifier (e.g., `arg: T`)"
+                    "unsupported parameter pattern `{pattern}`; use a simple identifier (e.g., \
+                     `arg: T`)"
                 ),
             ));
         }
@@ -148,8 +154,8 @@ fn classify_step_or_fixture(
 /// ```
 ///
 /// Note: special arguments must use the canonical names:
-/// - data table parameter must be annotated with `#[datatable]` or be named
-///   `datatable` and have type `Vec<Vec<String>>`
+/// - data table parameter must be annotated with `#[datatable]` or be named `datatable` and have
+///   type `Vec<Vec<String>>`
 /// - doc string parameter must be named `docstring` and have type `String`
 ///
 /// At most one `datatable` and one `docstring` parameter are permitted.
@@ -178,10 +184,10 @@ pub fn extract_args(
     if !placeholders.is_empty() {
         let mut missing: Vec<_> = placeholders.iter().cloned().collect();
         missing.sort();
-        let missing = missing.join(", ");
+        let missing_list = missing.join(", ");
         return Err(syn::Error::new(
             func.sig.ident.span(),
-            format!("missing step arguments for placeholders: {missing}"),
+            format!("missing step arguments for placeholders: {missing_list}"),
         ));
     }
     Ok(state)
@@ -191,8 +197,9 @@ pub fn extract_args(
 mod tests {
     //! Unit tests for extracting wrapper argument metadata.
 
-    use super::*;
     use syn::parse_quote;
+
+    use super::*;
 
     fn parse_fn(src: &str) -> syn::ItemFn {
         match syn::parse_str(src) {
@@ -225,7 +232,6 @@ mod tests {
     }
 
     #[test]
-    #[expect(clippy::expect_used, reason = "test asserts error contents and span")]
     fn next_typed_argument_reports_pattern_in_error() {
         let src = "fn step((a, b): (i32, i32)) {}";
         let func = parse_fn(src);
@@ -281,10 +287,6 @@ mod tests {
     }
 
     #[test]
-    #[expect(
-        clippy::expect_used,
-        reason = "test asserts the returned span covers the destructuring group"
-    )]
     fn span_for_pattern_points_to_full_destructuring_pattern() {
         let src = "fn step(User { name }: User) {}";
         let func = parse_fn(src);

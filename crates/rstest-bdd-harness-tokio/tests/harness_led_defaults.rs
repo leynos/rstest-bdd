@@ -5,15 +5,13 @@
 //! these run unconditionally under `cargo test` / `nextest` and assert
 //! observable runtime behaviour:
 //!
-//! - `harness = TokioHarness` without `attributes = ...` runs through the
-//!   inferred `TokioAttributePolicy` path with a live current-thread runtime
-//!   and `LocalSet`.
-//! - A harness whose `HarnessAdapter::run` returns `Err` propagates the
-//!   `harness failed to initialize scenario: ...` panic emitted by the
-//!   expanded macro, and the scenario body never runs.
-//! - Pairing steps that rely on the harness contract with an attribute
-//!   policy alone fails loudly (a `LocalSet` panic from `spawn_local`), not
-//!   silently.
+//! - `harness = TokioHarness` without `attributes = ...` runs through the inferred
+//!   `TokioAttributePolicy` path with a live current-thread runtime and `LocalSet`.
+//! - A harness whose `HarnessAdapter::run` returns `Err` propagates the `harness failed to
+//!   initialize scenario: ...` panic emitted by the expanded macro, and the scenario body never
+//!   runs.
+//! - Pairing steps that rely on the harness contract with an attribute policy alone fails loudly (a
+//!   `LocalSet` panic from `spawn_local`), not silently.
 
 use std::sync::Arc;
 
@@ -35,9 +33,7 @@ struct LocalTaskState {
 }
 
 #[fixture]
-fn local_task_state() -> LocalTaskState {
-    LocalTaskState::default()
-}
+fn local_task_state() -> LocalTaskState { LocalTaskState::default() }
 
 #[given("the inferred Tokio runtime is active")]
 fn inferred_runtime_is_active(#[from(rstest_bdd_harness_context)] context: &TokioTestContext) {

@@ -3,34 +3,33 @@
 //! This module validates that scenario outline placeholders (`<column>`)
 //! match the columns defined in the Examples table:
 //!
-//! - **Missing column**: A step uses `<foo>` but the Examples table lacks a
-//!   `foo` column header.
-//! - **Surplus column**: The Examples table has a `bar` column but no step
-//!   references `<bar>`.
+//! - **Missing column**: A step uses `<foo>` but the Examples table lacks a `foo` column header.
+//! - **Surplus column**: The Examples table has a `bar` column but no step references `<bar>`.
 
-use std::collections::{HashMap, HashSet};
-use std::sync::LazyLock;
+use std::{
+    collections::{HashMap, HashSet},
+    sync::LazyLock,
+};
 
 use lsp_types::{Diagnostic, DiagnosticSeverity};
 use regex::Regex;
 
-use crate::handlers::util::gherkin_span_to_lsp_range;
-use crate::indexing::{
-    FeatureFileIndex, IndexedExamplesTable, IndexedScenarioOutline, IndexedStep,
-};
-
 use super::{CODE_EXAMPLE_COLUMN_MISSING, CODE_EXAMPLE_COLUMN_SURPLUS, DIAGNOSTIC_SOURCE};
+use crate::{
+    handlers::util::gherkin_span_to_lsp_range,
+    indexing::{FeatureFileIndex, IndexedExamplesTable, IndexedScenarioOutline, IndexedStep},
+};
 
 /// Regex for extracting `<placeholder>` tokens from scenario outline step text.
 ///
 /// This pattern matches the angle-bracket placeholder syntax used in Gherkin
 /// Scenario Outlines, consistent with the macros crate's `PLACEHOLDER_RE`.
 ///
-/// The `unreachable!()` is safe here because this is a compile-time constant
-/// regex pattern that has been validated and cannot fail to compile.
+/// The pattern is a compile-time constant, so compilation only fails if the
+/// literal below is edited into something invalid.
 static OUTLINE_PLACEHOLDER_RE: LazyLock<Regex> = LazyLock::new(|| {
     let Ok(regex) = Regex::new(r"<([^>\s][^>]*)>") else {
-        unreachable!("scenario outline placeholder regex is valid");
+        panic!("scenario outline placeholder regex literal failed to compile");
     };
     regex
 });
@@ -50,10 +49,8 @@ struct OutlinePlaceholders {
 /// Compute diagnostics for scenario outline example column mismatches.
 ///
 /// For each scenario outline, checks that:
-/// 1. All `<placeholder>` references in steps have matching columns in the
-///    Examples table.
-/// 2. All Examples table columns are referenced by at least one step
-///    placeholder.
+/// 1. All `<placeholder>` references in steps have matching columns in the Examples table.
+/// 2. All Examples table columns are referenced by at least one step placeholder.
 ///
 /// # Example
 ///
@@ -63,9 +60,8 @@ struct OutlinePlaceholders {
 /// // Obtain a FeatureFileIndex from indexing
 /// # let feature_index: FeatureFileIndex = todo!();
 ///
-/// let diagnostics = rstest_bdd_server::handlers::compute_scenario_outline_column_diagnostics(
-///     &feature_index,
-/// );
+/// let diagnostics =
+///     rstest_bdd_server::handlers::compute_scenario_outline_column_diagnostics(&feature_index);
 /// // Returns diagnostics when placeholders don't match column headers
 /// for diag in &diagnostics {
 ///     println!("{}", diag.message);
@@ -274,8 +270,8 @@ fn build_missing_column_diagnostic(
         code_description: None,
         source: Some(DIAGNOSTIC_SOURCE.to_owned()),
         message: format!(
-            "Placeholder '<{placeholder}>' has no matching column in Examples table. \
-             Available columns: [{available_str}]"
+            "Placeholder '<{placeholder}>' has no matching column in Examples table. Available \
+             columns: [{available_str}]"
         ),
         related_information: None,
         tags: None,
@@ -301,7 +297,8 @@ fn build_surplus_column_diagnostic(
         code_description: None,
         source: Some(DIAGNOSTIC_SOURCE.to_owned()),
         message: format!(
-            "Examples column '{}' is not referenced by any step placeholder in the scenario outline",
+            "Examples column '{}' is not referenced by any step placeholder in the scenario \
+             outline",
             column.name
         ),
         related_information: None,

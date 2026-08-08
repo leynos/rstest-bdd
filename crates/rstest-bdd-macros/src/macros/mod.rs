@@ -8,15 +8,14 @@
 //! It also owns the machinery the three step attributes share, because
 //! `#[given]`, `#[when]`, and `#[then]` differ only by their `StepKeyword`:
 //!
-//! - `StepAttrArgs` parses the attribute arguments — an optional pattern
-//!   literal, the `expr = "..."` cucumber-rs spelling, and the `result` /
-//!   `value` return-kind hint.
-//! - `determine_step_pattern` falls back to inferring a pattern from the
-//!   function name when none is supplied.
-//! - `extract_step_args_or_abort` and `signature_error_help` turn a signature
-//!   rejection into a keyword-specific diagnostic with accurate spans.
-//! - `step_attr` drives that sequence and `inject_skip_scope` wraps the body so
-//!   the runtime can validate `skip!` against the enclosing scope.
+//! - `StepAttrArgs` parses the attribute arguments — an optional pattern literal, the `expr =
+//!   "..."` cucumber-rs spelling, and the `result` / `value` return-kind hint.
+//! - `determine_step_pattern` falls back to inferring a pattern from the function name when none is
+//!   supplied.
+//! - `extract_step_args_or_abort` and `signature_error_help` turn a signature rejection into a
+//!   keyword-specific diagnostic with accurate spans.
+//! - `step_attr` drives that sequence and `inject_skip_scope` wraps the body so the runtime can
+//!   validate `skip!` against the enclosing scope.
 //!
 //! Note the direction of delegation: `given`, `when`, and `then` are one-line
 //! shims that call `step_attr` with their keyword, rather than owning an
@@ -27,8 +26,10 @@
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::parse::{Parse, ParseStream};
-use syn::parse_quote;
+use syn::{
+    parse::{Parse, ParseStream},
+    parse_quote,
+};
 
 mod given;
 mod scenario;
@@ -42,12 +43,13 @@ pub(crate) use scenarios::scenarios;
 pub(crate) use then::then;
 pub(crate) use when::when;
 
-use crate::codegen::wrapper::args::ExtractedArgs;
-use crate::codegen::wrapper::{WrapperConfig, extract_args, generate_wrapper_code};
-use crate::return_classifier::{ReturnKind, ReturnOverride, classify_return_type};
-use crate::utils::{
-    errors::error_to_tokens,
-    pattern::{infer_pattern, placeholder_names},
+use crate::{
+    codegen::wrapper::{WrapperConfig, args::ExtractedArgs, extract_args, generate_wrapper_code},
+    return_classifier::{ReturnKind, ReturnOverride, classify_return_type},
+    utils::{
+        errors::error_to_tokens,
+        pattern::{infer_pattern, placeholder_names},
+    },
 };
 
 /// Parsed arguments for step attribute macros.
@@ -216,7 +218,7 @@ fn first_non_identifier_pattern(func: &syn::ItemFn) -> Option<&syn::Pat> {
 }
 
 /// Return the lowercase attribute name for a [`StepKeyword`].
-fn keyword_name(keyword: crate::StepKeyword) -> &'static str {
+const fn keyword_name(keyword: crate::StepKeyword) -> &'static str {
     match keyword {
         crate::StepKeyword::Given => "given",
         crate::StepKeyword::When => "when",
@@ -229,32 +231,35 @@ fn keyword_name(keyword: crate::StepKeyword) -> &'static str {
 /// Produce a keyword-specific help message for a step signature diagnostic.
 fn signature_error_help(err_message: &str, keyword: crate::StepKeyword) -> String {
     if err_message.contains("duplicate `#[datatable]` attribute") {
-        return "Remove one of the duplicate `#[datatable]` attributes.".to_string();
+        return "Remove one of the duplicate `#[datatable]` attributes.".to_owned();
     }
 
     if err_message.contains("duplicate `#[from]` attribute") {
-        return "Remove one of the duplicate `#[from]` attributes.".to_string();
+        return "Remove one of the duplicate `#[from]` attributes.".to_owned();
     }
 
     if err_message.contains(crate::codegen::wrapper::args::classify::DUPLICATE_DATATABLE_ERROR) {
-        return "Remove one of the DataTable parameters.".to_string();
+        return "Remove one of the DataTable parameters.".to_owned();
     }
 
     if err_message.contains("unsupported parameter pattern") {
         return concat!(
-            "Bind the parameter to a simple identifier (e.g., `tuple: (i32, i32)` or `user: User`) ",
+            "Bind the parameter to a simple identifier (e.g., `tuple: (i32, i32)` or `user: \
+             User`) ",
             "and destructure it inside the step body."
         )
-        .to_string();
+        .to_owned();
     }
 
     if err_message.contains("methods are not supported; remove `self`") {
-        return "Remove `self` from step functions.".to_string();
+        return "Remove `self` from step functions.".to_owned();
     }
 
     let kw_name = keyword_name(keyword);
     format!(
-        "Use a step attribute (such as `#[{kw_name}]`) on `fn name(...args...)` with supported step arguments/fixtures (step attributes include `#[given]`, `#[when]`, and `#[then]`); remove `self` if present."
+        "Use a step attribute (such as `#[{kw_name}]`) on `fn name(...args...)` with supported \
+         step arguments/fixtures (step attributes include `#[given]`, `#[when]`, and `#[then]`); \
+         remove `self` if present."
     )
 }
 
@@ -372,8 +377,7 @@ mod tests {
     //! Unit tests for step-attribute diagnostic help text.
 
     use super::signature_error_help;
-    use crate::StepKeyword;
-    use crate::codegen::wrapper::args::classify::DUPLICATE_DATATABLE_ERROR;
+    use crate::{StepKeyword, codegen::wrapper::args::classify::DUPLICATE_DATATABLE_ERROR};
 
     #[test]
     fn duplicate_datatable_help_names_the_remedy() {

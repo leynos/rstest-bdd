@@ -1,8 +1,13 @@
 //! Behavioural test for fixture context injection
 
-use rstest_bdd::localization::{ScopedLocalization, strip_directional_isolates};
 use rstest_bdd::{
-    InsertOutcome, StepContext, StepError, StepKeyword, assert_step_err, assert_step_ok,
+    InsertOutcome,
+    StepContext,
+    StepError,
+    StepKeyword,
+    assert_step_err,
+    assert_step_ok,
+    localization::{ScopedLocalization, strip_directional_isolates},
     lookup_step,
 };
 use rstest_bdd_macros::given;
@@ -21,18 +26,16 @@ fn panicking_value_step(number: &u32) -> Result<(), String> {
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "step lookup must succeed for test")]
 fn context_passes_fixture() {
     let number = 42u32;
     let mut ctx = StepContext::default();
     ctx.insert("number", &number);
     let step_fn = lookup_step(StepKeyword::Given, "a value".into())
         .expect("step 'a value' not found in registry");
-    let _ = assert_step_ok!(step_fn(&mut ctx, "a value", None, None));
+    drop(assert_step_ok!(step_fn(&mut ctx, "a value", None, None)));
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "step lookup must succeed for test")]
 fn context_missing_fixture_returns_error() {
     let mut ctx = StepContext::default();
     let step_fn = lookup_step(StepKeyword::Given, "a value".into())
@@ -54,7 +57,6 @@ fn context_missing_fixture_returns_error() {
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "step lookup must succeed for test")]
 fn context_missing_fixture_localizes_error() {
     let guard = match ScopedLocalization::new(&[langid!("fr")]) {
         Ok(guard) => guard,
@@ -70,7 +72,6 @@ fn context_missing_fixture_localizes_error() {
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "step lookup must succeed for test")]
 fn fixture_step_panic_returns_panic_error() {
     let number = 1u32;
     let mut ctx = StepContext::default();
@@ -111,10 +112,10 @@ fn insert_value_overrides_fixture() {
     let Some(prev) = second.into_previous() else {
         panic!("expected previous override to be returned");
     };
-    let Ok(prev) = prev.downcast::<u32>() else {
+    let Ok(previous_value) = prev.downcast::<u32>() else {
         panic!("override should downcast to u32");
     };
-    assert_eq!(*prev, 5);
+    assert_eq!(*previous_value, 5);
 
     let Ok(retrieved) = ctx.try_borrow::<u32>("number") else {
         panic!("override should be borrowable");

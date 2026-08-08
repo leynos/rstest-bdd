@@ -6,16 +6,22 @@
 //!
 //! Normalizers rewrite fixture paths and strip nightly-only hints so the
 //! assertions remain stable across platforms.
+use std::{
+    borrow::Cow,
+    env,
+    io,
+    panic::{self, AssertUnwindSafe},
+    path::Path as StdPath,
+    process::Command,
+};
+
 use camino::{Utf8Path, Utf8PathBuf};
 use cap_std::{ambient_authority, fs::Dir};
-use std::borrow::Cow;
-use std::env;
-use std::io;
-use std::panic::{self, AssertUnwindSafe};
-use std::path::Path as StdPath;
-use std::process::Command;
 use wrappers::{
-    MacroFixtureCase, NormalizerInput, UiFixtureCase, normalize_fixture_paths,
+    MacroFixtureCase,
+    NormalizerInput,
+    UiFixtureCase,
+    normalize_fixture_paths,
     strip_nightly_macro_backtrace_hint,
 };
 
@@ -27,14 +33,14 @@ mod whitaker;
 mod wrappers;
 
 fn macros_fixture(case: impl Into<MacroFixtureCase>) -> Utf8PathBuf {
-    let case = case.into();
-    let case_str: &str = case.as_ref();
+    let fixture_case = case.into();
+    let case_str: &str = fixture_case.as_ref();
     staging::macros_fixture(case_str)
 }
 
 fn ui_fixture(case: impl Into<UiFixtureCase>) -> Utf8PathBuf {
-    let case = case.into();
-    let case_str: &str = case.as_ref();
+    let fixture_case = case.into();
+    let case_str: &str = fixture_case.as_ref();
     staging::ui_fixture(case_str)
 }
 
@@ -195,10 +201,10 @@ fn run_lint_ui_case(bin: &str, lint_args: &[&str]) -> io::Result<()> {
     if !output.status.success() {
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
-        panic!(
+        return Err(io::Error::other(format!(
             "cargo clippy failed for {bin}\nstatus: {}\nstdout:\n{}\nstderr:\n{}",
             output.status, stdout, stderr
-        );
+        )));
     }
 
     Ok(())
@@ -253,10 +259,10 @@ fn compile_fail_with_normalized_output(
     test_path: impl AsRef<Utf8Path>,
     normalizers: &[Normalizer],
 ) {
-    let test_path = test_path.as_ref();
+    let path = test_path.as_ref();
     run_compile_fail_with_normalized_output(
-        || t.compile_fail(test_path.as_std_path()),
-        test_path,
+        || t.compile_fail(path.as_std_path()),
+        path,
         normalizers,
     );
 }
@@ -293,7 +299,7 @@ fn normalized_outputs_match(test_path: &Utf8Path, normalizers: &[Normalizer]) ->
     if apply_normalizers(NormalizerInput::from(actual.as_str()), normalizers)
         == apply_normalizers(NormalizerInput::from(expected.as_str()), normalizers)
     {
-        let _ = crate_dir.remove_file(actual_path.as_std_path());
+        drop(crate_dir.remove_file(actual_path.as_std_path()));
         return Ok(true);
     }
 
@@ -304,10 +310,10 @@ fn wip_stderr_path(test_path: &StdPath) -> Utf8PathBuf {
     let Some(file_name) = test_path.file_name() else {
         panic!("trybuild test path must include file name");
     };
-    let Some(file_name) = file_name.to_str() else {
+    let Some(file_name_str) = file_name.to_str() else {
         panic!("file name must be valid UTF-8");
     };
-    let mut path = Utf8PathBuf::from(file_name);
+    let mut path = Utf8PathBuf::from(file_name_str);
     path.set_extension("stderr");
     Utf8PathBuf::from("target/tests/wip").join(path)
 }
@@ -328,5 +334,5 @@ fn apply_normalizers<'a>(input: NormalizerInput<'a>, normalizers: &[Normalizer])
     value
 }
 #[cfg(test)]
-#[path = "trybuild_macros/helper_tests.rs"]
+#[path = "trybuild_macros/helper_tests/mod.rs"]
 mod helper_tests;

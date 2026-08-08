@@ -24,35 +24,52 @@ pub(crate) fn parse_struct_attrs(attrs: &[Attribute]) -> syn::Result<TableConfig
         .iter()
         .filter(|attr| attr.path().is_ident("datatable"))
     {
-        attr.parse_nested_meta(|meta| {
-            let Some(ident) = meta.path.get_ident() else {
-                return Err(meta.error("unsupported datatable attribute"));
-            };
-            let key = ident.to_string();
-            match key.as_str() {
-                "row" => {
-                    let ty = parse_row_type(&meta)?;
-                    if config.row_ty.replace(ty).is_some() {
-                        return Err(meta.error("duplicate row attribute"));
-                    }
-                }
-                "map" | "try_map" => {
-                    let path: ExprPath = meta.value()?.parse()?;
-                    let kind = if key == "map" {
-                        MapKind::Direct(path)
-                    } else {
-                        MapKind::Try(path)
-                    };
-                    if config.map.replace(kind).is_some() {
-                        return Err(meta.error("duplicate map/try_map attribute"));
-                    }
-                }
-                _ => return Err(meta.error("unsupported datatable attribute")),
-            }
-            Ok(())
-        })?;
+        attr.parse_nested_meta(|meta| apply_struct_meta(&mut config, &meta))?;
     }
     Ok(config)
+}
+
+/// Fold one `#[datatable(..)]` entry into the accumulated table configuration.
+fn apply_struct_meta(
+    config: &mut TableConfig,
+    meta: &syn::meta::ParseNestedMeta<'_>,
+) -> syn::Result<()> {
+    let Some(ident) = meta.path.get_ident() else {
+        return Err(meta.error("unsupported datatable attribute"));
+    };
+    match ident.to_string().as_str() {
+        "row" => set_row_type(config, meta),
+        key @ ("map" | "try_map") => set_map(config, meta, key == "map"),
+        _ => Err(meta.error("unsupported datatable attribute")),
+    }
+}
+
+fn set_row_type(
+    config: &mut TableConfig,
+    meta: &syn::meta::ParseNestedMeta<'_>,
+) -> syn::Result<()> {
+    let ty = parse_row_type(meta)?;
+    if config.row_ty.replace(ty).is_some() {
+        return Err(meta.error("duplicate row attribute"));
+    }
+    Ok(())
+}
+
+fn set_map(
+    config: &mut TableConfig,
+    meta: &syn::meta::ParseNestedMeta<'_>,
+    is_direct: bool,
+) -> syn::Result<()> {
+    let path: ExprPath = meta.value()?.parse()?;
+    let kind = if is_direct {
+        MapKind::Direct(path)
+    } else {
+        MapKind::Try(path)
+    };
+    if config.map.replace(kind).is_some() {
+        return Err(meta.error("duplicate map/try_map attribute"));
+    }
+    Ok(())
 }
 
 fn parse_row_type(meta: &syn::meta::ParseNestedMeta) -> syn::Result<Type> {
@@ -69,8 +86,9 @@ fn parse_row_type(meta: &syn::meta::ParseNestedMeta) -> syn::Result<Type> {
 mod tests {
     //! Unit tests for `#[datatable]` table attribute parsing.
 
-    use super::*;
     use syn::parse_quote;
+
+    use super::*;
 
     #[test]
     fn parse_struct_attrs_supports_row_and_map() {
@@ -78,7 +96,6 @@ mod tests {
             parse_quote!(#[datatable(row = Example)]),
             parse_quote!(#[datatable(map = transform)]),
         ];
-        #[expect(clippy::expect_used, reason = "test asserts parsed config")]
         let config = parse_struct_attrs(&attrs).expect("failed to parse struct attrs");
         assert!(config.row_ty.is_some());
         assert!(matches!(config.map, Some(MapKind::Direct(_))));
@@ -90,7 +107,6 @@ mod tests {
             parse_quote!(#[datatable(map = transform)]),
             parse_quote!(#[datatable(try_map = fallible_transform)]),
         ];
-        #[expect(clippy::expect_used, reason = "test asserts error handling")]
         let err = parse_struct_attrs(&attrs)
             .err()
             .expect("map and try_map together should trigger an error");

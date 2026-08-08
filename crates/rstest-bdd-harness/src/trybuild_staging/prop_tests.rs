@@ -4,10 +4,12 @@
 //! destination paths are canonicalized and destination overlaps are detected
 //! before a copy can create or remove the wrong tree.
 
-use std::fs;
-use std::os::unix::fs::symlink;
-use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    fs,
+    os::unix::fs::symlink,
+    path::{Path, PathBuf},
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use proptest::prelude::*;
 
@@ -109,16 +111,12 @@ proptest! {
         missing_depth in 1usize..6,
     ) {
         let root = unique_root("missing_parent_chain");
-        let _ = fs::remove_dir_all(&root);
+        drop(fs::remove_dir_all(&root));
         let destination = path_with_missing_parent_dirs(&root, existing_depth, missing_depth);
         let mut existing = root.clone();
         for index in 0..existing_depth {
             existing = existing.join(format!("existing_{index}"));
         }
-        #[expect(
-            clippy::expect_used,
-            reason = "property-test temp-dir setup and canonicalization after explicit setup"
-        )]
         {
             fs::create_dir_all(&existing).expect("create existing ancestor");
             let mut expected = fs::canonicalize(&existing).expect("canonicalize ancestor");
@@ -127,7 +125,7 @@ proptest! {
             }
             expected = expected.join("dst");
             let actual = canonical_missing_destination(&destination);
-            let _ = fs::remove_dir_all(&root);
+            drop(fs::remove_dir_all(&root));
             prop_assert_eq!(actual.expect("canonical missing destination"), expected);
         }
     }
@@ -139,13 +137,9 @@ proptest! {
         missing_depth in 1usize..6,
     ) {
         let root = unique_root("missing_tail_parent_dirs");
-        let _ = fs::remove_dir_all(&root);
+        drop(fs::remove_dir_all(&root));
         let src = root.join("src");
         let destination = path_resolving_back_to_source(&root, "src", missing_depth);
-        #[expect(
-            clippy::expect_used,
-            reason = "property-test temp-dir setup and canonicalization after explicit setup"
-        )]
         {
             fs::create_dir_all(&src).expect("create src");
             let canonical_src = fs::canonicalize(&src).expect("canonicalize src");
@@ -154,7 +148,7 @@ proptest! {
             prop_assert!(paths_overlap(&canonical_src, &canonical_dst));
             prop_assert!(!root.join("missing_0").exists());
         }
-        let _ = fs::remove_dir_all(&root);
+        drop(fs::remove_dir_all(&root));
     }
 
     /// `copy_dir_tree` rejects overlap destinations that only become apparent
@@ -164,13 +158,9 @@ proptest! {
         missing_depth in 1usize..6,
     ) {
         let root = unique_root("copy_dir_missing_tail_overlap");
-        let _ = fs::remove_dir_all(&root);
+        drop(fs::remove_dir_all(&root));
         let src = root.join("src");
         let dst = path_resolving_back_to_source(&root, "src", missing_depth);
-        #[expect(
-            clippy::expect_used,
-            reason = "property-test temp-dir setup and err-kind extraction after explicit guards"
-        )]
         {
             fs::create_dir_all(&src).expect("create src");
             fs::write(src.join("f.txt"), b"x").expect("write f.txt");
@@ -183,7 +173,7 @@ proptest! {
                 std::io::ErrorKind::InvalidInput,
             );
         }
-        let _ = fs::remove_dir_all(&root);
+        drop(fs::remove_dir_all(&root));
     }
 
     /// A symlink at the top level of the source tree is always rejected,
@@ -197,24 +187,16 @@ proptest! {
         symlink_name in "[a-z][a-z0-9]{0,7}\\.lnk",
     ) {
         let root = unique_root("top_level");
-        let _ = fs::remove_dir_all(&root);
-        #[expect(
-            clippy::expect_used,
-            reason = "property-test temp-dir setup failures abort the test"
-        )]
+        drop(fs::remove_dir_all(&root));
         let (src, dst) = build_flat_source_with_symlink(
             &root,
             &file_names,
             &symlink_name,
         ).expect("build flat source tree");
         let result = copy_dir_tree(&src, &dst);
-        let _ = fs::remove_dir_all(&root);
+        drop(fs::remove_dir_all(&root));
         prop_assert_eq!(
             {
-                #[expect(
-                    clippy::expect_used,
-                    reason = "property-test temp-dir setup and err-kind extraction after explicit guards"
-                )]
                 result
                     .expect_err("expected error from copy_dir_tree property test")
                     .kind()
@@ -231,24 +213,16 @@ proptest! {
         symlink_name in "[a-z][a-z0-9]{0,7}\\.lnk",
     ) {
         let root = unique_root("nested");
-        let _ = fs::remove_dir_all(&root);
-        #[expect(
-            clippy::expect_used,
-            reason = "property-test temp-dir setup failures abort the test"
-        )]
+        drop(fs::remove_dir_all(&root));
         let (src, dst) = build_nested_source_with_symlink(
             &root,
             depth,
             &symlink_name,
         ).expect("build nested source tree");
         let result = copy_dir_tree(&src, &dst);
-        let _ = fs::remove_dir_all(&root);
+        drop(fs::remove_dir_all(&root));
         prop_assert_eq!(
             {
-                #[expect(
-                    clippy::expect_used,
-                    reason = "property-test temp-dir setup and err-kind extraction after explicit guards"
-                )]
                 result
                     .expect_err("expected error from copy_dir_tree property test")
                     .kind()

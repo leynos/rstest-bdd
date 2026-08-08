@@ -18,9 +18,7 @@ pub use extract::extract_args;
 pub(super) use crate::utils::pattern::normalize_param_name;
 
 #[cfg(test)]
-pub(super) fn normalize_param_name(name: &str) -> &str {
-    name.strip_prefix('_').unwrap_or(name)
-}
+pub(super) fn normalize_param_name(name: &str) -> &str { name.strip_prefix('_').unwrap_or(name) }
 
 /// Everything required to describe a single step-function argument.
 #[derive(Clone)]
@@ -47,6 +45,20 @@ pub enum Arg {
     },
 }
 
+/// Borrowed view of an [`Arg::Fixture`], so callers never re-match the variant.
+#[derive(Clone, Copy)]
+pub struct FixtureArg<'a> {
+    pub name: &'a syn::Ident,
+    pub ty: &'a syn::Type,
+}
+
+/// Borrowed view of an [`Arg::Step`], so callers never re-match the variant.
+#[derive(Clone, Copy)]
+pub struct StepArg<'a> {
+    pub pat: &'a syn::Ident,
+    pub ty: &'a syn::Type,
+}
+
 #[derive(Clone, Copy)]
 pub struct StepStructArg<'a> {
     pub pat: &'a syn::Ident,
@@ -63,14 +75,28 @@ pub struct DataTableArg<'a> {
     reason = "enum variant paths remain explicit in match arms"
 )]
 impl Arg {
-    pub fn as_step_struct(&self) -> Option<StepStructArg<'_>> {
+    pub const fn as_fixture(&self) -> Option<FixtureArg<'_>> {
+        match self {
+            Arg::Fixture { name, ty, .. } => Some(FixtureArg { name, ty }),
+            _ => None,
+        }
+    }
+
+    pub const fn as_step(&self) -> Option<StepArg<'_>> {
+        match self {
+            Arg::Step { pat, ty } => Some(StepArg { pat, ty }),
+            _ => None,
+        }
+    }
+
+    pub const fn as_step_struct(&self) -> Option<StepStructArg<'_>> {
         match self {
             Arg::StepStruct { pat, ty } => Some(StepStructArg { pat, ty }),
             _ => None,
         }
     }
 
-    pub fn as_datatable(&self) -> Option<DataTableArg<'_>> {
+    pub const fn as_datatable(&self) -> Option<DataTableArg<'_>> {
         match self {
             Arg::DataTable { ty, .. } => Some(DataTableArg { ty }),
             _ => None,
@@ -128,16 +154,12 @@ impl ExtractedArgs {
         idx
     }
 
-    pub fn fixtures(&self) -> impl Iterator<Item = &Arg> {
-        self.args
-            .iter()
-            .filter(|arg| matches!(arg, Arg::Fixture { .. }))
+    pub fn fixtures(&self) -> impl Iterator<Item = FixtureArg<'_>> {
+        self.args.iter().filter_map(Arg::as_fixture)
     }
 
-    pub fn step_args(&self) -> impl Iterator<Item = &Arg> {
-        self.args
-            .iter()
-            .filter(|arg| matches!(arg, Arg::Step { .. }))
+    pub fn step_args(&self) -> impl Iterator<Item = StepArg<'_>> {
+        self.args.iter().filter_map(Arg::as_step)
     }
 
     pub fn step_struct(&self) -> Option<StepStructArg<'_>> {

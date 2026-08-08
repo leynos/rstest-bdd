@@ -1,8 +1,14 @@
 //! Tests covering the `ScenarioConfig` execution-runtime split.
 
 use super::{
-    FeaturePath, RuntimeMode, ScenarioConfig, ScenarioName, ScenarioReturnKind, TestAttrPolicy,
-    blank, generate_test_attrs,
+    FeaturePath,
+    RuntimeMode,
+    ScenarioConfig,
+    ScenarioName,
+    ScenarioReturnKind,
+    TestAttrPolicy,
+    blank,
+    generate_test_attrs,
 };
 
 #[test]
@@ -31,7 +37,7 @@ fn scenario_config_keeps_attribute_runtime_separate_from_execution_runtime() {
         attributes: None,
     };
 
-    let attrs = generate_test_attrs(
+    let generated_attrs = generate_test_attrs(
         config.attrs,
         &TestAttrPolicy {
             runtime: config.attribute_runtime,
@@ -40,7 +46,7 @@ fn scenario_config_keeps_attribute_runtime_separate_from_execution_runtime() {
         },
         config.runtime.is_async(),
     );
-    let output = attrs.to_string();
+    let output = generated_attrs.to_string();
 
     assert!(
         config.runtime.is_async(),
@@ -52,6 +58,7 @@ fn scenario_config_keeps_attribute_runtime_separate_from_execution_runtime() {
     );
     assert!(
         !output.contains("tokio :: test"),
-        "expected generated attributes to follow attribute_runtime instead of execution runtime, got: {output}"
+        "expected generated attributes to follow attribute_runtime instead of execution runtime, \
+         got: {output}"
     );
 }

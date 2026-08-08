@@ -7,8 +7,17 @@
 
 use rstest::fixture;
 use rstest_bdd::{
-    StepContext, StepCtx, StepDoc, StepExecution, StepFuture, StepKeyword, StepTable, StepText,
-    StepTextRef, async_step::sync_to_async, find_step_with_metadata,
+    StepContext,
+    StepCtx,
+    StepDoc,
+    StepExecution,
+    StepFuture,
+    StepKeyword,
+    StepTable,
+    StepText,
+    StepTextRef,
+    async_step::sync_to_async,
+    find_step_with_metadata,
 };
 use rstest_bdd_macros::{given, scenario, then, when};
 
@@ -18,14 +27,10 @@ struct CounterState {
 }
 
 #[fixture]
-fn state() -> CounterState {
-    CounterState::default()
-}
+fn state() -> CounterState { CounterState::default() }
 
 #[given("a counter state starts at 0")]
-fn counter_state_starts_at_zero(#[from(state)] state: &mut CounterState) {
-    state.value = 0;
-}
+fn counter_state_starts_at_zero(#[from(state)] state: &mut CounterState) { state.value = 0; }
 
 #[when("an async step increments the state")]
 async fn async_step_increments_state(#[from(state)] state: &mut CounterState) {
@@ -35,9 +40,7 @@ async fn async_step_increments_state(#[from(state)] state: &mut CounterState) {
 }
 
 #[when("a sync step increments the state")]
-fn sync_step_increments_state(#[from(state)] state: &mut CounterState) {
-    state.value += 1;
-}
+fn sync_step_increments_state(#[from(state)] state: &mut CounterState) { state.value += 1; }
 
 #[then(expr = "the state value is {n}")]
 fn state_value_is(#[from(state)] state: &CounterState, n: usize) {
@@ -63,10 +66,6 @@ fn sync_scenario_can_block_on_async_steps(state: CounterState) {
 }
 
 #[tokio::test(flavor = "current_thread")]
-#[expect(
-    clippy::expect_used,
-    reason = "test asserts that the async step is registered before invoking its sync wrapper"
-)]
 async fn sync_wrapper_refuses_to_create_nested_runtime() {
     let step = find_step_with_metadata(
         StepKeyword::When,
@@ -112,10 +111,6 @@ fn manual_async_wrapper<'ctx>(
 }
 
 #[tokio::test(flavor = "current_thread")]
-#[expect(
-    clippy::expect_used,
-    reason = "test validates payload downcast from wrapper result"
-)]
 async fn public_sync_to_async_helper_supports_alias_based_wrapper_signatures() {
     let _: rstest_bdd::AsyncStepFn = manual_async_wrapper;
 

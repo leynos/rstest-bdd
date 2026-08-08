@@ -7,20 +7,28 @@
 mod support;
 
 use rstest::{fixture, rstest};
-use rstest_bdd_server::handlers::compute_table_docstring_mismatch_diagnostics;
-use rstest_bdd_server::server::ServerState;
+use rstest_bdd_server::{
+    handlers::compute_table_docstring_mismatch_diagnostics,
+    server::ServerState,
+};
 use support::{ScenarioBuilder, TestScenario};
 use tempfile::TempDir;
 
 /// Fixture providing a fresh scenario builder for each test.
 #[fixture]
-fn scenario_builder() -> ScenarioBuilder {
-    ScenarioBuilder::new()
-}
+fn scenario_builder() -> ScenarioBuilder { ScenarioBuilder::new() }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Test-local helpers
 // ─────────────────────────────────────────────────────────────────────────────
+
+/// What a table/docstring case expects to see reported.
+struct TableDocstringExpectation<'a> {
+    /// Number of diagnostics expected for the staged pair.
+    count: usize,
+    /// Substring the diagnostic message must contain, when one is expected.
+    message_substring: Option<&'a str>,
+}
 
 /// Helper to compute table/docstring mismatch diagnostics for a feature file.
 ///
@@ -66,8 +74,10 @@ fn compute_table_docstring_diagnostics(
         "#[given(\"a step\")]\n",
         "fn a_step() {}\n",
     ),
-    1,
-    Some("does not expect"),
+    TableDocstringExpectation {
+        count: 1,
+        message_substring: Some("does not expect"),
+    },
 )]
 #[case::table_expected(
     // Rust expects table, feature doesn't have one
@@ -78,8 +88,10 @@ fn compute_table_docstring_diagnostics(
         "#[given(\"a step\")]\n",
         "fn a_step(datatable: DataTable) {}\n",
     ),
-    1,
-    Some("expects a data table"),
+    TableDocstringExpectation {
+        count: 1,
+        message_substring: Some("expects a data table"),
+    },
 )]
 #[case::docstring_not_expected(
     // Feature has docstring, Rust doesn't expect it
@@ -96,8 +108,10 @@ fn compute_table_docstring_diagnostics(
         "#[given(\"a step\")]\n",
         "fn a_step() {}\n",
     ),
-    1,
-    Some("does not expect"),
+    TableDocstringExpectation {
+        count: 1,
+        message_substring: Some("does not expect"),
+    },
 )]
 #[case::docstring_expected(
     // Rust expects docstring, feature doesn't have one
@@ -107,8 +121,10 @@ fn compute_table_docstring_diagnostics(
         "#[given(\"a step\")]\n",
         "fn a_step(docstring: String) {}\n",
     ),
-    1,
-    Some("expects a doc string"),
+    TableDocstringExpectation {
+        count: 1,
+        message_substring: Some("expects a doc string"),
+    },
 )]
 #[case::matched_table(
     // Both feature and Rust have table - no diagnostic
@@ -125,8 +141,10 @@ fn compute_table_docstring_diagnostics(
         "#[given(\"a step\")]\n",
         "fn a_step(datatable: DataTable) {}\n",
     ),
-    0,
-    None,
+    TableDocstringExpectation {
+        count: 0,
+        message_substring: None,
+    },
 )]
 #[case::matched_docstring(
     // Both feature and Rust have docstring - no diagnostic
@@ -143,16 +161,21 @@ fn compute_table_docstring_diagnostics(
         "#[given(\"a step\")]\n",
         "fn a_step(docstring: String) {}\n",
     ),
-    0,
-    None,
+    TableDocstringExpectation {
+        count: 0,
+        message_substring: None,
+    },
 )]
 fn table_docstring_validation(
     scenario_builder: ScenarioBuilder,
     #[case] feature_content: &str,
     #[case] rust_content: &str,
-    #[case] expected_count: usize,
-    #[case] message_substring: Option<&str>,
+    #[case] expected: TableDocstringExpectation<'_>,
 ) {
+    let TableDocstringExpectation {
+        count: expected_count,
+        message_substring,
+    } = expected;
     let TestScenario { dir, state } = scenario_builder
         .with_feature("test.feature", feature_content)
         .with_rust_steps("steps.rs", rust_content)
@@ -166,7 +189,6 @@ fn table_docstring_validation(
         "expected {expected_count} diagnostic(s)"
     );
     if let Some(substring) = message_substring {
-        #[expect(clippy::expect_used, reason = "checked count > 0 in conditional")]
         let diag = diagnostics.first().expect("checked count > 0");
         assert!(
             diag.message.contains(substring),

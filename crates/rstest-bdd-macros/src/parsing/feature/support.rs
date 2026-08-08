@@ -1,32 +1,24 @@
 //! Test support builders for feature parsing tests.
 
-use super::{ParsedStep, ScenarioData as ExtractedScenarioData, extract_scenario_steps};
 use gherkin::{Background, Examples, LineCol, Scenario, Span, Step, StepType, Table};
+
+use super::{ParsedStep, ScenarioData as ExtractedScenarioData, extract_scenario_steps};
 
 // Intentionally expect `unreachable_patterns` today (we match all current variants).
 // If `gherkin::StepType` adds variants, this expectation stops triggering and
 // the build fails, prompting updates to `kw()` (and any `TryFrom<StepType> for StepKeyword`).
-#[expect(
-    unreachable_patterns,
-    reason = "StepType currently only has three variants"
-)]
 fn kw(ty: StepType) -> String {
     match ty {
         StepType::Given => "Given",
         StepType::When => "When",
         StepType::Then => "Then",
-        _ => unreachable!("kw() only supports Given, When, and Then"),
     }
-    .to_string()
+    .to_owned()
 }
 
-fn zero_span() -> Span {
-    Span { start: 0, end: 0 }
-}
+fn zero_span() -> Span { Span { start: 0, end: 0 } }
 
-fn zero_pos() -> LineCol {
-    LineCol { line: 0, col: 0 }
-}
+fn zero_pos() -> LineCol { LineCol { line: 0, col: 0 } }
 
 /// Construct a `Table` from an iterable of rows (each row being an iterable of cells).
 ///
@@ -41,7 +33,7 @@ where
     Table {
         rows: rows
             .into_iter()
-            .map(|r| r.into_iter().map(|s| s.as_ref().to_string()).collect())
+            .map(|r| r.into_iter().map(|s| s.as_ref().to_owned()).collect())
             .collect(),
         span: zero_span(),
         position: zero_pos(),
@@ -60,7 +52,7 @@ impl StepBuilder {
     pub(super) fn new(ty: StepType, value: &str) -> Self {
         Self {
             ty,
-            value: value.to_string(),
+            value: value.to_owned(),
             docstring: None,
             table: None,
             keyword: None,
@@ -68,12 +60,12 @@ impl StepBuilder {
     }
 
     pub(super) fn with_keyword(mut self, kw: &str) -> Self {
-        self.keyword = Some(kw.to_string());
+        self.keyword = Some(kw.to_owned());
         self
     }
 
     pub(super) fn with_docstring(mut self, doc: &str) -> Self {
-        self.docstring = Some(doc.to_string());
+        self.docstring = Some(doc.to_owned());
         self
     }
 
@@ -111,9 +103,7 @@ pub(super) struct ExamplesBuilder {
 
 impl ExamplesBuilder {
     /// Start building an Examples block.
-    pub(super) fn new() -> Self {
-        Self { table: None }
-    }
+    pub(super) fn new() -> Self { Self { table: None } }
 
     /// Set the Examples table rows (including the header row).
     pub(super) fn with_table<I, R, S>(mut self, rows: I) -> Self
@@ -163,8 +153,8 @@ struct ScenarioData {
 impl ScenarioData {
     fn new_scenario(name: &str, steps: Vec<Step>) -> Self {
         Self {
-            keyword: "Scenario".to_string(),
-            name: name.to_string(),
+            keyword: "Scenario".to_owned(),
+            name: name.to_owned(),
             steps,
             examples: Vec::new(),
         }
@@ -172,8 +162,8 @@ impl ScenarioData {
 
     fn new_scenario_outline(name: &str, steps: Vec<Step>, examples: Examples) -> Self {
         Self {
-            keyword: "Scenario Outline".to_string(),
-            name: name.to_string(),
+            keyword: "Scenario Outline".to_owned(),
+            name: name.to_owned(),
             steps,
             examples: vec![examples],
         }
@@ -183,7 +173,7 @@ impl ScenarioData {
 impl FeatureBuilder {
     pub(super) fn new(name: &str) -> Self {
         Self {
-            name: name.to_string(),
+            name: name.to_owned(),
             background: None,
             scenarios: Vec::new(),
         }
@@ -278,8 +268,9 @@ pub(super) fn assert_feature_extraction(
 mod tests {
     //! Tests for feature parsing test support builders.
 
-    use super::*;
     use gherkin::StepType;
+
+    use super::*;
 
     #[test]
     fn step_builder_overrides_keyword_and_collects_arguments() {
@@ -294,7 +285,7 @@ mod tests {
         let Some(table) = step.table.as_ref() else {
             panic!("expected table on built step");
         };
-        assert_eq!(table.rows, vec![vec!["a".to_string(), "b".to_string()]],);
+        assert_eq!(table.rows, vec![vec!["a".to_owned(), "b".to_owned()]],);
     }
 
     #[test]
@@ -336,7 +327,7 @@ mod tests {
         };
         assert_eq!(
             examples_table.rows,
-            vec![vec!["x".to_string()], vec!["1".to_string()]]
+            vec![vec!["x".to_owned()], vec!["1".to_owned()]]
         );
     }
 
@@ -344,7 +335,7 @@ mod tests {
     fn assert_feature_extraction_validates_expected_steps() {
         let expected = [ParsedStep {
             keyword: crate::StepKeyword::Given,
-            text: "step".to_string(),
+            text: "step".to_owned(),
             docstring: None,
             table: None,
             #[cfg(feature = "compile-time-validation")]
@@ -371,7 +362,7 @@ mod tests {
                 .with_scenario("only", vec![StepBuilder::new(StepType::Given, "x").build()]),
             &[match ParsedStep::try_from(&expected_step) {
                 Ok(step) => step,
-                Err(err) => unreachable!("step should convert: {err}"),
+                Err(err) => panic!("step should convert: {err}"),
             }],
             Some(99),
         );

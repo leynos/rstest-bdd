@@ -1,15 +1,23 @@
 //! Tests for step-definition validation: missing/single/ambiguous outcomes and registry behaviour.
-// Intentionally left without file-wide lint suppressions; add per-function #[expect(...)] where needed.
-use super::crate_id::{canonicalize_out_dir, normalize_crate_id};
-use super::*;
+// Intentionally left without file-wide lint suppressions; add per-function #[expect(...)] where
+// needed.
 use camino::Utf8PathBuf;
 use rstest::rstest;
 use serial_test::serial;
 use tempfile::{tempdir, tempdir_in};
 
+use super::{
+    crate_id::{canonicalize_out_dir, normalize_crate_id},
+    *,
+};
+
 mod support;
 use self::support::{
-    TempWorkingDir, assert_bullet_count, clear_registry, create_dir_all_cap, create_test_step,
+    TempWorkingDir,
+    assert_bullet_count,
+    clear_registry,
+    create_dir_all_cap,
+    create_test_step,
     temp_working_dir,
 };
 
@@ -85,11 +93,11 @@ fn aborts_on_invalid_step_pattern() {
     }) else {
         panic!("expected invalid step pattern to abort");
     };
-    let msg = err
+    let payload = err
         .downcast_ref::<String>()
         .map(String::as_str)
         .or_else(|| err.downcast_ref::<&str>().copied());
-    let Some(msg) = msg else {
+    let Some(msg) = payload else {
         panic!("panic payload must be a string");
     };
     assert!(
@@ -135,6 +143,11 @@ fn normalizes_windows_drive_letter_out_dir() {
 }
 
 #[test]
+#[expect(
+    clippy::panic_in_result_fn,
+    reason = "assertions in a Result-returning test pair `?` on fallible fixtures with ordinary \
+              assertions"
+)]
 #[serial]
 fn normalizes_relative_out_dir_paths() -> Result<(), Box<dyn std::error::Error>> {
     let temp = tempdir_in(".")?;
@@ -144,8 +157,8 @@ fn normalizes_relative_out_dir_paths() -> Result<(), Box<dyn std::error::Error>>
             path.display()
         )
     })?;
-    let cwd = std::env::current_dir()?;
-    let cwd = Utf8PathBuf::from_path_buf(cwd).map_err(|path| {
+    let cwd_path = std::env::current_dir()?;
+    let cwd = Utf8PathBuf::from_path_buf(cwd_path).map_err(|path| {
         format!(
             "current directory should be valid UTF-8: {}",
             path.display()
@@ -164,30 +177,31 @@ fn normalizes_relative_out_dir_paths() -> Result<(), Box<dyn std::error::Error>>
 }
 
 #[test]
-#[expect(
-    clippy::expect_used,
-    reason = "test documents fallback behaviour with explicit expect messaging"
-)]
 fn leaves_unresolvable_out_dir_paths_unchanged() {
     let temp = tempdir().expect("create temp directory");
-    let missing = temp.path().join("missing");
-    let missing = Utf8PathBuf::from_path_buf(missing).expect("path should be valid UTF-8");
+    let missing_path = temp.path().join("missing");
+    let missing = Utf8PathBuf::from_path_buf(missing_path).expect("path should be valid UTF-8");
     let crate_id = format!("demo:{}", missing.as_str());
     let normalized = normalize_crate_id(&crate_id);
     assert_eq!(normalized.as_ref(), crate_id);
 }
 
+#[expect(
+    clippy::panic_in_result_fn,
+    reason = "assertions in a Result-returning test pair `?` on fallible fixtures with ordinary \
+              assertions"
+)]
 #[rstest]
 #[serial]
 fn canonicalize_out_dir_resolves_relative_components(
     temp_working_dir: std::io::Result<TempWorkingDir>,
 ) -> std::io::Result<()> {
-    let temp_working_dir = temp_working_dir?;
-    let nested_dir = temp_working_dir.join("nested");
+    let working_dir = temp_working_dir?;
+    let nested_dir = working_dir.join("nested");
     create_dir_all_cap(nested_dir.as_path())?;
-    let nested = temp_working_dir.join("nested/.");
+    let nested = working_dir.join("nested/.");
     let canonical = canonicalize_out_dir(nested.as_path());
-    let expected_dir = temp_working_dir.path().join("nested");
+    let expected_dir = working_dir.path().join("nested");
     let expected = expected_dir
         .as_path()
         .canonicalize_utf8()
@@ -203,10 +217,6 @@ fn canonicalize_out_dir_resolves_relative_components(
 
 #[cfg(unix)]
 #[test]
-#[expect(
-    clippy::expect_used,
-    reason = "symlink setup uses expect to surface filesystem failures"
-)]
 fn canonicalize_out_dir_resolves_symlinks() {
     let temp = tempdir().expect("create temp directory");
     let base = Utf8PathBuf::from_path_buf(temp.path().to_path_buf())
@@ -228,18 +238,19 @@ fn canonicalize_out_dir_resolves_symlinks() {
 }
 
 #[test]
-#[expect(
-    clippy::expect_used,
-    reason = "test asserts fallback path handling with explicit expect messaging"
-)]
 fn canonicalize_out_dir_returns_original_when_unresolvable() {
     let temp = tempdir().expect("create temp directory");
-    let missing = temp.path().join("missing");
-    let missing = Utf8PathBuf::from_path_buf(missing).expect("path should be valid UTF-8");
+    let missing_path = temp.path().join("missing");
+    let missing = Utf8PathBuf::from_path_buf(missing_path).expect("path should be valid UTF-8");
     assert_eq!(canonicalize_out_dir(missing.as_path()), missing);
 }
 
 #[test]
+#[expect(
+    clippy::panic_in_result_fn,
+    reason = "assertions in a Result-returning test pair `?` on fallible fixtures with ordinary \
+              assertions"
+)]
 #[serial]
 fn canonicalizes_equivalent_crate_paths_in_registry() -> Result<(), Box<dyn std::error::Error>> {
     clear_registry();

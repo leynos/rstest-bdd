@@ -140,10 +140,15 @@ project:
   - `make check-fmt` executes:
 
     ```sh
-    cargo fmt --workspace -- --check
+    cargo +nightly-2026-08-07 fmt --all -- --check
     ```
 
     validating formatting across the entire workspace without modifying files.
+    `.rustfmt.toml` enables unstable options (`imports_granularity`,
+    `wrap_comments`, `format_strings`, `fn_single_line`, and others), so
+    formatting runs on a pinned nightly `rustfmt` while every other Cargo
+    invocation stays on the stable toolchain pinned by `rust-toolchain.toml`.
+    Override the pin with `FMT_TOOLCHAIN=<toolchain>` if needed.
   - `make lint` executes:
 
     ```sh
@@ -158,9 +163,10 @@ project:
     cargo test --workspace
     ```
 
-    running the full workspace test suite. Use `make fmt`
-    (`cargo fmt --workspace`) to apply formatting fixes reported by the
-    formatter check.
+    running the full workspace test suite, then the workspace doctests and the
+    Python helper suite. Use `make fmt`
+    (`cargo +nightly-2026-08-07 fmt --all` plus the Markdown formatters) to
+    apply formatting fixes reported by the formatter check.
 - Clippy warnings MUST be disallowed.
 - Fix any warnings emitted during tests in the code itself rather than
   silencing them.

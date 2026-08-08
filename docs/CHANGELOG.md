@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- **Breaking:** `record_bypassed_steps` now takes a `BypassedScenario`
+  descriptor plus the bypassed steps, replacing the six-parameter form and the
+  separate `record_bypassed_steps_with_tags` entry point. Build the descriptor
+  with `BypassedScenario::new(feature_path, scenario_name, line)` and the
+  `with_tags` / `with_reason` builders. Generated scenario code is updated
+  automatically; handwritten callers must migrate.
+- Hardened the workspace lint configuration: `Cargo.toml` now denies a much
+  wider Clippy, rustc, and rustdoc set, `clippy.toml` tightens the complexity,
+  argument-count, line-count, and nesting thresholds, and `.rustfmt.toml`
+  standardizes import layout, comment wrapping, and single-line functions.
+  Crates under `examples/` are held to the same standard. See the developers'
+  guide for the policy and its two documented exceptions.
 - `StepContext::insert_value` now returns an `InsertOutcome` enum instead of
   `Option<Box<dyn Any>>`, distinguishing a recorded override (carrying any
   displaced previous override) from values dropped because no fixture matches

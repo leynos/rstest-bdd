@@ -45,7 +45,7 @@ pub(super) fn render_type(ty: &Type) -> String {
             rendered
         }
         Type::TraitObject(trait_object) => render_trait_object(trait_object),
-        Type::Never(_) => "!".to_string(),
+        Type::Never(_) => "!".to_owned(),
         other => format!("{other:?}"),
     }
 }
@@ -70,7 +70,7 @@ fn render_reference(type_ref: &syn::TypeReference) -> String {
 /// `(u8,)` is a tuple, while `(u8)` is just parenthesized `u8`.
 fn render_tuple(tuple: &syn::TypeTuple) -> String {
     if tuple.elems.is_empty() {
-        return "()".to_string();
+        return "()".to_owned();
     }
 
     let elems = tuple
@@ -92,10 +92,11 @@ fn render_fn_prefix(unsafety: Option<&syn::token::Unsafe>, abi: Option<&syn::Abi
     if unsafety.is_some() {
         prefix.push_str("unsafe ");
     }
-    if let Some(abi) = abi {
+    if let Some(extern_abi) = abi {
         prefix.push_str("extern ");
-        if let Some(name) = &abi.name {
-            let _ = write!(prefix, "{:?} ", name.value());
+        if let Some(name) = &extern_abi.name {
+            let written = write!(prefix, "{:?} ", name.value());
+            debug_assert!(written.is_ok(), "writing into a String cannot fail");
         }
     }
     prefix
@@ -105,9 +106,9 @@ fn render_fn_prefix(unsafety: Option<&syn::token::Unsafe>, abi: Option<&syn::Abi
 fn render_variadic(variadic: Option<&syn::BareVariadic>, has_inputs: bool) -> String {
     if variadic.is_some() {
         if has_inputs {
-            ", ...".to_string()
+            ", ...".to_owned()
         } else {
-            "...".to_string()
+            "...".to_owned()
         }
     } else {
         String::new()
@@ -165,7 +166,7 @@ fn render_trait_object(trait_object: &syn::TypeTraitObject) -> String {
         // Defensive fallback for malformed inputs: `dyn` without bounds is not valid
         // Rust syntax, but we prefer returning a readable placeholder over a noisy
         // debug dump.
-        "dyn _".to_string()
+        "dyn _".to_owned()
     } else {
         format!("dyn {bounds}")
     }
@@ -227,10 +228,10 @@ fn render_generic_argument(argument: &GenericArgument) -> String {
 
 fn render_lit(lit: &syn::Lit) -> String {
     match lit {
-        syn::Lit::Int(lit) => lit.to_string(),
-        syn::Lit::Bool(lit) => lit.value.to_string(),
-        syn::Lit::Char(lit) => format!("{:?}", lit.value()),
-        syn::Lit::Str(lit) => format!("{:?}", lit.value()),
+        syn::Lit::Int(value) => value.to_string(),
+        syn::Lit::Bool(value) => value.value.to_string(),
+        syn::Lit::Char(value) => format!("{:?}", value.value()),
+        syn::Lit::Str(value) => format!("{:?}", value.value()),
         other => format!("{other:?}"),
     }
 }
@@ -247,8 +248,9 @@ fn render_expr(expr: &Expr) -> String {
 mod tests {
     //! Unit tests for rendering Rust types in the index.
 
-    use super::*;
     use syn::{Type, parse_quote};
+
+    use super::*;
 
     fn assert_renders(ty: &Type, expected: &str) {
         assert_eq!(render_type(ty), expected);

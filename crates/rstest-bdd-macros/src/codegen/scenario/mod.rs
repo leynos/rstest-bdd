@@ -4,16 +4,15 @@
 //! BDD scenario or scenario outline. The pipeline is partitioned across
 //! five focused sub-modules:
 //!
-//! - [`domain`] — domain types shared across the pipeline (`ScenarioConfig`,
-//!   `ScenarioReturnKind`).
+//! - [`domain`] — domain types shared across the pipeline (`ScenarioConfig`, `ScenarioReturnKind`).
 //! - [`helpers`] — step-processing utilities and case-attribute generators.
-//! - [`metadata`] — strongly-typed wrappers for feature-path and
-//!   scenario-name values used in generated code.
-//! - [`runtime`] — token generation for the async runtime wrapper and the
-//!   harness-orchestrated `ScenarioRunRequest`.
-//! - [`test_attrs`] — ADR-008 attribute-policy resolution, translating
-//!   harness and runtime-mode hints into the correct set of test attributes
-//!   (`#[rstest::rstest]`, `#[tokio::test]`, `#[gpui::test]`).
+//! - [`metadata`] — strongly-typed wrappers for feature-path and scenario-name values used in
+//!   generated code.
+//! - [`runtime`] — token generation for the async runtime wrapper and the harness-orchestrated
+//!   `ScenarioRunRequest`.
+//! - [`test_attrs`] — ADR-008 attribute-policy resolution, translating harness and runtime-mode
+//!   hints into the correct set of test attributes (`#[rstest::rstest]`, `#[tokio::test]`,
+//!   `#[gpui::test]`).
 //!
 //! Public entry points are [`generate_scenario`] and
 //! [`generate_scenario_outline`], which delegate to the internal helpers
@@ -33,20 +32,28 @@ mod test_attrs;
 pub(crate) use domain::*;
 pub(crate) use helpers::process_steps;
 use helpers::{
-    generate_case_attrs, generate_indexed_case_attrs, generate_underscore_expect,
-    process_steps_substituted, row_has_values,
+    generate_case_attrs,
+    generate_indexed_case_attrs,
+    generate_underscore_expect,
+    process_steps_substituted,
+    row_has_values,
 };
 pub(crate) use metadata::{FeaturePath, ScenarioName};
 use runtime::{
-    OutlineTestTokensConfig, ProcessedSteps, ScenarioMetadata, TestTokensConfig,
-    generate_test_tokens, generate_test_tokens_outline,
+    OutlineTestTokensConfig,
+    ProcessedSteps,
+    ScenarioMetadata,
+    TestTokensConfig,
+    generate_test_tokens,
+    generate_test_tokens_outline,
 };
+use test_attrs::{TestAttrPolicy, generate_test_attrs};
 
 pub(crate) use crate::macros::scenarios::ScenariosRuntimeMode as RuntimeMode;
-use crate::macros::scenarios::ScenariosTestAttributeHint as TestAttributeHint;
-
-use crate::parsing::placeholder::contains_placeholders;
-use test_attrs::{TestAttrPolicy, generate_test_attrs};
+use crate::{
+    macros::scenarios::ScenariosTestAttributeHint as TestAttributeHint,
+    parsing::placeholder::contains_placeholders,
+};
 
 /// Return kinds supported by scenario bodies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -56,9 +63,7 @@ pub(crate) enum ScenarioReturnKind {
 }
 
 impl ScenarioReturnKind {
-    pub(crate) fn is_fallible(self) -> bool {
-        matches!(self, Self::ResultUnit)
-    }
+    pub(crate) const fn is_fallible(self) -> bool { matches!(self, Self::ResultUnit) }
 }
 
 /// Configuration for generating code for a single scenario test.
@@ -196,15 +201,19 @@ where
     if config.harness.is_some() && config.runtime.is_async() {
         let err = syn::Error::new(
             proc_macro2::Span::call_site(),
-            "combining `harness` with `async fn` scenarios is not supported; \
-             use a synchronous scenario function with `TokioHarness` instead \
-             (the harness provides the Tokio runtime for step functions)",
+            "combining `harness` with `async fn` scenarios is not supported; use a synchronous \
+             scenario function with `TokioHarness` instead (the harness provides the Tokio \
+             runtime for step functions)",
         );
         return TokenStream::from(err.into_compile_error());
     }
 
     let (keyword_tokens, values, docstrings, tables) = process_steps(&config.steps);
-    debug_assert_eq!(keyword_tokens.len(), config.steps.len());
+    debug_assert_eq!(
+        keyword_tokens.len(),
+        config.steps.len(),
+        "one keyword token per step"
+    );
     let processed_steps = ProcessedSteps {
         keyword_tokens,
         values,
@@ -256,6 +265,37 @@ where
 }
 
 /// Generate code for a scenario outline with placeholder substitution.
+/// Reject the unsupported `harness` + `async fn` combination for outlines.
+fn reject_async_harness_outline(config: &ScenarioConfig<'_>) -> Option<TokenStream> {
+    if !(config.harness.is_some() && config.runtime.is_async()) {
+        return None;
+    }
+    let err = syn::Error::new(
+        proc_macro2::Span::call_site(),
+        "combining `harness` with `async fn` scenarios is not supported; use a synchronous \
+         scenario function with `TokioHarness` instead (the harness provides the Tokio runtime \
+         for step functions)",
+    );
+    Some(TokenStream::from(err.into_compile_error()))
+}
+
+/// Substitute the outline placeholders for every populated Examples row.
+fn substitute_example_rows(
+    config: &ScenarioConfig<'_>,
+    examples: &crate::parsing::examples::ExampleTable,
+) -> Result<Vec<helpers::ProcessedStepTokens>, TokenStream2> {
+    let headers = ExampleHeaders::new(examples.headers.clone());
+    examples
+        .rows
+        .iter()
+        .filter(|row| row_has_values(row))
+        .map(|row| {
+            let example_row = ExampleRow::new(row.clone());
+            process_steps_substituted(&config.steps, &headers, &example_row)
+        })
+        .collect()
+}
+
 fn generate_outline_scenario_code<P, I, Q>(
     config: &ScenarioConfig<'_>,
     ctx: ContextConfig<P, I, Q>,
@@ -265,14 +305,8 @@ where
     I: Iterator<Item = TokenStream2>,
     Q: Iterator<Item = TokenStream2>,
 {
-    if config.harness.is_some() && config.runtime.is_async() {
-        let err = syn::Error::new(
-            proc_macro2::Span::call_site(),
-            "combining `harness` with `async fn` scenarios is not supported; \
-             use a synchronous scenario function with `TokioHarness` instead \
-             (the harness provides the Tokio runtime for step functions)",
-        );
-        return TokenStream::from(err.into_compile_error());
+    if let Some(err) = reject_async_harness_outline(config) {
+        return err;
     }
 
     // Generate substituted steps for each Examples row
@@ -283,18 +317,7 @@ where
         );
         return TokenStream::from(err.into_compile_error());
     };
-    let headers = ExampleHeaders::new(examples.headers.clone());
-    let all_rows_steps: Result<Vec<_>, _> = examples
-        .rows
-        .iter()
-        .filter(|row| row_has_values(row))
-        .map(|row| {
-            let row = ExampleRow::new(row.clone());
-            process_steps_substituted(&config.steps, &headers, &row)
-        })
-        .collect();
-
-    let all_rows_steps = match all_rows_steps {
+    let all_rows_steps = match substitute_example_rows(config, examples) {
         Ok(steps) => steps,
         Err(err) => return TokenStream::from(err),
     };

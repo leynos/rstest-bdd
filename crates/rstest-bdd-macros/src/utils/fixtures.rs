@@ -4,7 +4,9 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 
 use crate::utils::result_type::{
-    is_referenced_result_type, try_extract_result_inner_type, ungroup_type,
+    is_referenced_result_type,
+    try_extract_result_inner_type,
+    ungroup_type,
 };
 
 /// Generated code for wiring scenario fixture parameters into `StepContext`.
@@ -208,15 +210,12 @@ fn find_from_attr(attrs: &[syn::Attribute]) -> syn::Result<Option<syn::Path>> {
 mod tests {
     //! Unit tests for fixture extraction from function signatures.
 
-    use super::*;
     use rstest::rstest;
     use syn::parse_quote;
 
+    use super::*;
+
     #[test]
-    #[expect(
-        clippy::expect_used,
-        reason = "test asserts fixture extraction for underscore bindings"
-    )]
     fn non_ref_fixture_cell_ident_uses_index() {
         let mut sig: syn::Signature = parse_quote! {
             fn scenario(_state: MyState)
@@ -245,19 +244,11 @@ mod tests {
     fn resolve_fixture_name_normalizes_param(#[case] input: &str, #[case] expected: &str) {
         let ident = syn::Ident::new(input, proc_macro2::Span::call_site());
         let pat_ty: syn::PatType = parse_quote! { #ident: WorldFixture };
-        #[expect(
-            clippy::expect_used,
-            reason = "test asserts fixture name normalization"
-        )]
         let name = resolve_fixture_name(&pat_ty).expect("fixture name resolution should succeed");
         assert_eq!(name, expected);
     }
 
     #[test]
-    #[expect(
-        clippy::expect_used,
-        reason = "test asserts from attribute takes precedence"
-    )]
     fn resolve_fixture_name_from_attr_unchanged() {
         let sig: syn::Signature = parse_quote! { fn test(#[from(state)] _world: WorldFixture) };
         let syn::FnArg::Typed(pat_ty) = sig.inputs.first().expect("signature has one arg") else {
@@ -275,7 +266,6 @@ mod tests {
         #[case] mut sig: syn::Signature,
         #[case] expected: bool,
     ) {
-        #[expect(clippy::expect_used, reason = "test asserts fixture extraction")]
         let (_idents, code) =
             extract_function_fixtures(&mut sig).expect("fixture extraction should succeed");
         assert_eq!(
@@ -288,7 +278,6 @@ mod tests {
     #[case(parse_quote! { fn scenario(world: (&MyWorld)) })]
     #[case(parse_quote! { fn scenario(world: (&mut MyWorld)) })]
     fn parenthesized_references_are_treated_as_references(#[case] mut sig: syn::Signature) {
-        #[expect(clippy::expect_used, reason = "test asserts fixture extraction")]
         let (_idents, code) =
             extract_function_fixtures(&mut sig).expect("fixture extraction should succeed");
         // Parenthesized references should be treated as references, not owned
@@ -307,10 +296,6 @@ mod tests {
     }
 
     #[test]
-    #[expect(
-        clippy::expect_used,
-        reason = "test asserts Result fixture generates correct bindings"
-    )]
     fn result_fixture_extraction_generates_correct_bindings() {
         let mut sig: syn::Signature = parse_quote! {
             fn scenario(world: Result<MyWorld, String>)
@@ -338,10 +323,6 @@ mod tests {
     }
 
     #[test]
-    #[expect(
-        clippy::expect_used,
-        reason = "test asserts StepResult fixture generates correct bindings"
-    )]
     fn step_result_fixture_extraction_generates_correct_bindings() {
         let mut sig: syn::Signature = parse_quote! {
             fn scenario(world: StepResult<MyWorld, String>)

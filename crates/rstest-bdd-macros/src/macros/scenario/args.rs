@@ -5,7 +5,8 @@
 
 use proc_macro2::Span;
 use syn::{
-    LitInt, LitStr,
+    LitInt,
+    LitStr,
     parse::{Parse, ParseStream},
     punctuated::Punctuated,
     token::Comma,
@@ -85,10 +86,10 @@ impl Parse for ScenarioArgs {
             }
         }
 
-        let path = path.ok_or_else(|| input.error("`path` argument is required"))?;
+        let feature_path = path.ok_or_else(|| input.error("`path` argument is required"))?;
 
         Ok(Self {
-            path,
+            path: feature_path,
             selector,
             tag_filter,
             harness,
@@ -188,15 +189,12 @@ fn selector_conflict_error(
 }
 
 #[cfg(test)]
-#[expect(
-    clippy::expect_used,
-    reason = "test code uses infallible expects for clarity"
-)]
 mod tests {
     //! Unit tests for `#[scenario]` attribute argument parsing.
 
-    use super::ScenarioArgs;
     use quote::quote;
+
+    use super::ScenarioArgs;
 
     fn parse_scenario_args(tokens: proc_macro2::TokenStream) -> syn::Result<ScenarioArgs> {
         syn::parse2(tokens)

@@ -2,6 +2,14 @@
 
 use super::*;
 
+/// What a signature-mismatch case expects to see reported.
+struct SignatureExpectation<'a> {
+    /// Number of diagnostics expected for the staged pair.
+    count: usize,
+    /// Fragments the single diagnostic message must contain, when one is expected.
+    message_fragments: Option<(&'a str, &'a str)>,
+}
+
 /// Helper to compute signature mismatch diagnostics.
 fn compute_signature_diagnostics_for_path(
     state: &ServerState,
@@ -19,8 +27,10 @@ fn compute_signature_diagnostics_for_path(
         "#[given(\"I have {count} apples\")]\n",
         "fn have_apples() {}\n",
     ),
-    1,
-    Some(("1 placeholder", "0 step argument")),
+    SignatureExpectation {
+        count: 1,
+        message_fragments: Some(("1 placeholder", "0 step argument")),
+    },
 )]
 #[case::extra_placeholder(
     // Pattern has 2 placeholders, function has 1 step argument
@@ -30,8 +40,10 @@ fn compute_signature_diagnostics_for_path(
         "#[given(\"I have {count} {color} apples\")]\n",
         "fn have_apples(count: u32) {}\n",
     ),
-    1,
-    Some(("2 placeholder", "1 step argument")),
+    SignatureExpectation {
+        count: 1,
+        message_fragments: Some(("2 placeholder", "1 step argument")),
+    },
 )]
 #[case::counts_match(
     // Pattern has 1 placeholder, function has 1 step argument - no diagnostic
@@ -41,8 +53,10 @@ fn compute_signature_diagnostics_for_path(
         "#[given(\"I have {count} apples\")]\n",
         "fn have_apples(count: u32) {}\n",
     ),
-    0,
-    None,
+    SignatureExpectation {
+        count: 0,
+        message_fragments: None,
+    },
 )]
 #[case::fixture_excluded(
     // Pattern has 1 placeholder, function has 1 step arg + 1 fixture - no diagnostic
@@ -52,8 +66,10 @@ fn compute_signature_diagnostics_for_path(
         "#[given(\"I have {count} apples\")]\n",
         "fn have_apples(count: u32, context: &mut TestContext) {}\n",
     ),
-    0,
-    None,
+    SignatureExpectation {
+        count: 0,
+        message_fragments: None,
+    },
 )]
 #[case::datatable_docstring_excluded(
     // Pattern has 1 placeholder, function has count + datatable + docstring - no diagnostic
@@ -64,16 +80,21 @@ fn compute_signature_diagnostics_for_path(
         "#[given(\"I have {count} apples\")]\n",
         "fn have_apples(count: u32, datatable: DataTable, docstring: String) {}\n",
     ),
-    0,
-    None,
+    SignatureExpectation {
+        count: 0,
+        message_fragments: None,
+    },
 )]
 fn placeholder_count_validation(
     scenario_builder: ScenarioBuilder,
     #[case] feature_content: &str,
     #[case] rust_content: &str,
-    #[case] expected_count: usize,
-    #[case] message_fragments: Option<(&str, &str)>,
+    #[case] expected: SignatureExpectation<'_>,
 ) {
+    let SignatureExpectation {
+        count: expected_count,
+        message_fragments,
+    } = expected;
     let scenario = scenario_builder.with_single_file_pair(feature_content, rust_content);
     let diagnostics = compute_signature_diagnostics_for_path(&scenario.state, &scenario.rust_path);
 

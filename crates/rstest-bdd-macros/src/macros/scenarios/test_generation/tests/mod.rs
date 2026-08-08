@@ -1,18 +1,26 @@
 //! Unit tests for scenario test generation helpers.
 
-use rstest::rstest;
+use std::collections::HashSet;
 
-use super::super::macro_args::FixtureSpec;
-use super::super::macro_args::RuntimeCompatibilityAlias;
-use super::super::macro_args::RuntimeMode;
-use super::super::macro_args::runtime_compatibility_alias;
-use super::{
-    build_fixture_params, build_lint_attributes, build_test_signature, dedupe_name,
-    resolve_effective_runtime, resolve_fixture_error_type, resolve_harness_path,
-};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
-use std::collections::HashSet;
+use rstest::rstest;
+
+use super::{
+    super::macro_args::{
+        FixtureSpec,
+        RuntimeCompatibilityAlias,
+        RuntimeMode,
+        runtime_compatibility_alias,
+    },
+    build_fixture_params,
+    build_lint_attributes,
+    build_test_signature,
+    dedupe_name,
+    resolve_effective_runtime,
+    resolve_fixture_error_type,
+    resolve_harness_path,
+};
 
 #[test]
 fn deduplicates_duplicate_titles() {
@@ -72,9 +80,7 @@ macro_rules! assert_fixtures_before_examples {
     }};
 }
 
-fn sig_to_string(sig: &syn::Signature) -> String {
-    quote!(#sig).to_string()
-}
+fn sig_to_string(sig: &syn::Signature) -> String { quote!(#sig).to_string() }
 
 #[test]
 fn build_lint_attributes_empty_fixtures_produces_no_attributes() {
@@ -228,32 +234,57 @@ fn resolve_harness_path_runtime_alias_resolves_to_tokio_harness() {
 // pipeline inside generate_scenario_test without crossing the
 // proc-macro API boundary.
 
+/// Expectations for the runtime/harness/signature resolution pipeline.
+#[derive(Clone, Copy)]
+struct PipelineExpectation {
+    runtime: RuntimeMode,
+    harness_contains: Option<&'static str>,
+    harness_must_contain: Option<&'static str>,
+    sig_prefix: &'static str,
+}
+
 #[rstest::rstest]
 #[case::alias_without_explicit_harness(
     RuntimeMode::TokioCurrentThread,
     None,
-    RuntimeMode::Sync,
-    Some("rstest_bdd_harness_tokio"),
-    Some("TokioHarness"),
-    "fn "
+    PipelineExpectation {
+        runtime: RuntimeMode::Sync,
+        harness_contains: Some("rstest_bdd_harness_tokio"),
+        harness_must_contain: Some("TokioHarness"),
+        sig_prefix: "fn ",
+    }
 )]
 #[case::alias_with_explicit_harness(
     RuntimeMode::TokioCurrentThread,
     Some("my::ExplicitHarness"),
-    RuntimeMode::TokioCurrentThread,
-    Some("ExplicitHarness"),
-    None,
-    "async fn"
+    PipelineExpectation {
+        runtime: RuntimeMode::TokioCurrentThread,
+        harness_contains: Some("ExplicitHarness"),
+        harness_must_contain: None,
+        sig_prefix: "async fn",
+    }
 )]
-#[case::sync_without_alias(RuntimeMode::Sync, None, RuntimeMode::Sync, None, None, "fn ")]
+#[case::sync_without_alias(
+    RuntimeMode::Sync,
+    None,
+    PipelineExpectation {
+        runtime: RuntimeMode::Sync,
+        harness_contains: None,
+        harness_must_contain: None,
+        sig_prefix: "fn ",
+    }
+)]
 fn runtime_harness_signature_pipeline(
     #[case] runtime: RuntimeMode,
     #[case] explicit_harness_str: Option<&str>,
-    #[case] expected_runtime: RuntimeMode,
-    #[case] expected_harness_contains: Option<&str>,
-    #[case] expected_harness_must_contain: Option<&str>,
-    #[case] expected_sig_prefix: &str,
+    #[case] expected: PipelineExpectation,
 ) {
+    let PipelineExpectation {
+        runtime: expected_runtime,
+        harness_contains: expected_harness_contains,
+        harness_must_contain: expected_harness_must_contain,
+        sig_prefix: expected_sig_prefix,
+    } = expected;
     // Given: runtime and optional explicit harness
     let alias = runtime_compatibility_alias(runtime);
     let explicit_path: Option<syn::Path> =

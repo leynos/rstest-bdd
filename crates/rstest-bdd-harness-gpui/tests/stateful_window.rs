@@ -11,11 +11,12 @@
 //! not leak stale handles into the next serial GPUI scenario.
 #![cfg(feature = "native-gpui-tests")]
 
+use std::cell::RefCell;
+
 use proptest::prelude::*;
 use rstest::fixture;
 use rstest_bdd_macros::{given, scenario, then, when};
 use serial_test::serial;
-use std::cell::RefCell;
 
 #[derive(Clone, Debug, Default)]
 struct CounterView {
@@ -48,9 +49,7 @@ fn reset_state_after_scenario() {
 struct ScenarioStateCleanup;
 
 impl Drop for ScenarioStateCleanup {
-    fn drop(&mut self) {
-        reset_state_after_scenario();
-    }
+    fn drop(&mut self) { reset_state_after_scenario(); }
 }
 
 #[fixture]
@@ -210,7 +209,7 @@ fn visual_test_context_from_window_returns_none_for_foreign_handle() {
     let foreign_window = visual_context.window_handle();
 
     let mut unrelated_context = gpui::TestAppContext::single();
-    let (_entity, unrelated_visual_context) =
+    let (_unrelated_entity, unrelated_visual_context) =
         unrelated_context.add_window_view(|_context| CounterView::default());
     assert_eq!(
         foreign_window.id(),
@@ -237,12 +236,12 @@ fn entity_access_is_rejected_from_the_wrong_window() {
         "the owning visual context should be able to read its own entity"
     );
 
-    let Some(mut second_visual_context) =
+    let Some(mut reconstructed_context) =
         gpui::VisualTestContext::from_window(second_visual_context.window_handle(), &mut context)
     else {
         panic!("second window handle should reconstruct visual context");
     };
-    let update_result = second_visual_context.update_entity(first_entity, |view| {
+    let update_result = reconstructed_context.update_entity(first_entity, |view| {
         view.value += 1;
         panic!("cross-window entity updates should not invoke the update closure");
     });

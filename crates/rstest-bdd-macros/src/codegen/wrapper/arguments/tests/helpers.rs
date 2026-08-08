@@ -1,10 +1,10 @@
 //! Test helper functions for argument preparation tests.
 
-use super::super::bindings;
-use super::super::*;
-use crate::codegen::wrapper::args::Arg;
 use quote::quote;
 use syn::parse_quote;
+
+use super::super::{bindings, *};
+use crate::codegen::wrapper::args::Arg;
 
 /// Create a sample `StepMeta` for testing.
 pub fn sample_meta<'a>(pattern: &'a syn::LitStr, ident: &'a syn::Ident) -> StepMeta<'a> {
@@ -72,19 +72,49 @@ pub fn build_bindings(count: usize) -> Vec<syn::Ident> {
     (0..count).map(bindings::wrapper_binding_ident).collect()
 }
 
-/// Pair extracted arguments with wrapper-local bindings for tests.
+/// Pair extracted fixture arguments with wrapper-local bindings for tests.
 ///
 /// # Panics
-/// Panics when the binding and argument counts do not match.
-pub fn bind_args<'a>(args: &[&'a Arg], bindings: &'a [syn::Ident]) -> Vec<BoundArg<'a>> {
-    assert!(
-        args.len() == bindings.len(),
-        "expected {} bindings, got {} bindings",
-        args.len(),
-        bindings.len()
-    );
+/// Panics when the counts differ or an argument is not a fixture.
+pub fn bind_fixture_args<'a>(
+    args: &[&'a Arg],
+    bindings: &'a [syn::Ident],
+) -> Vec<BoundFixtureArg<'a>> {
+    assert_binding_count(args.len(), bindings.len());
     args.iter()
         .zip(bindings.iter())
-        .map(|(arg, binding)| BoundArg { arg, binding })
+        .map(|(arg, binding)| {
+            let Some(fixture) = arg.as_fixture() else {
+                panic!("bind_fixture_args expects fixture arguments, got {arg:?}");
+            };
+            BoundFixtureArg {
+                arg: fixture,
+                binding,
+            }
+        })
+        .collect()
+}
+
+fn assert_binding_count(args: usize, bindings: usize) {
+    assert!(
+        args == bindings,
+        "expected {args} bindings, got {bindings} bindings"
+    );
+}
+
+/// Pair extracted step arguments with wrapper-local bindings for tests.
+///
+/// # Panics
+/// Panics when the counts differ or an argument is not a step argument.
+pub fn bind_args<'a>(args: &[&'a Arg], bindings: &'a [syn::Ident]) -> Vec<BoundStepArg<'a>> {
+    assert_binding_count(args.len(), bindings.len());
+    args.iter()
+        .zip(bindings.iter())
+        .map(|(arg, binding)| {
+            let Some(step) = arg.as_step() else {
+                panic!("bind_args expects step arguments, got {arg:?}");
+            };
+            BoundStepArg { arg: step, binding }
+        })
         .collect()
 }

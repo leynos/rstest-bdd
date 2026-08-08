@@ -8,8 +8,10 @@
 //! `Deref`/`DerefMut`, [`FixtureRef::value`], or
 //! [`FixtureRefMut::value_mut`].
 
-use std::cell::{Ref, RefMut};
-use std::ops::{Deref, DerefMut};
+use std::{
+    cell::{Ref, RefMut},
+    ops::{Deref, DerefMut},
+};
 
 /// Borrowed fixture reference that keeps any underlying `RefCell` borrow
 /// alive for the duration of a step.
@@ -28,11 +30,9 @@ enum FixtureRefInner<'a, T> {
 }
 
 impl<'a, T> FixtureRef<'a, T> {
-    pub(super) fn shared(value: &'a T) -> Self {
-        Self(FixtureRefInner::Shared(value))
-    }
+    pub(super) const fn shared(value: &'a T) -> Self { Self(FixtureRefInner::Shared(value)) }
 
-    pub(super) fn borrowed(guard: Ref<'a, T>) -> Self {
+    pub(super) const fn borrowed(guard: Ref<'a, T>) -> Self {
         Self(FixtureRefInner::Borrowed(guard))
     }
 
@@ -49,15 +49,11 @@ impl<'a, T> FixtureRef<'a, T> {
 impl<T> Deref for FixtureRef<'_, T> {
     type Target = T;
 
-    fn deref(&self) -> &T {
-        self.value()
-    }
+    fn deref(&self) -> &T { self.value() }
 }
 
 impl<T> AsRef<T> for FixtureRef<'_, T> {
-    fn as_ref(&self) -> &T {
-        self.value()
-    }
+    fn as_ref(&self) -> &T { self.value() }
 }
 
 /// Borrowed mutable fixture reference tied to the lifetime of the step borrow.
@@ -71,41 +67,29 @@ impl<T> AsRef<T> for FixtureRef<'_, T> {
 pub struct FixtureRefMut<'a, T>(RefMut<'a, T>);
 
 impl<'a, T> FixtureRefMut<'a, T> {
-    pub(super) fn borrowed(guard: RefMut<'a, T>) -> Self {
-        Self(guard)
-    }
+    pub(super) const fn borrowed(guard: RefMut<'a, T>) -> Self { Self(guard) }
 
     /// Access the borrowed value mutably.
     #[must_use]
-    pub fn value_mut(&mut self) -> &mut T {
-        &mut self.0
-    }
+    pub fn value_mut(&mut self) -> &mut T { &mut self.0 }
 }
 
 impl<T> Deref for FixtureRefMut<'_, T> {
     type Target = T;
 
-    fn deref(&self) -> &T {
-        &self.0
-    }
+    fn deref(&self) -> &T { &self.0 }
 }
 
 impl<T> DerefMut for FixtureRefMut<'_, T> {
-    fn deref_mut(&mut self) -> &mut T {
-        &mut self.0
-    }
+    fn deref_mut(&mut self) -> &mut T { &mut self.0 }
 }
 
 impl<T> AsRef<T> for FixtureRefMut<'_, T> {
-    fn as_ref(&self) -> &T {
-        &self.0
-    }
+    fn as_ref(&self) -> &T { &self.0 }
 }
 
 impl<T> AsMut<T> for FixtureRefMut<'_, T> {
-    fn as_mut(&mut self) -> &mut T {
-        self.value_mut()
-    }
+    fn as_mut(&mut self) -> &mut T { self.value_mut() }
 }
 
 impl<T: std::fmt::Debug> std::fmt::Debug for FixtureRef<'_, T> {
@@ -130,16 +114,13 @@ impl<T: std::fmt::Debug> std::fmt::Debug for FixtureRefMut<'_, T> {
 mod tests {
     //! Tests for the public guard access surface.
 
-    use super::*;
     use std::cell::RefCell;
 
-    fn read_through_as_ref(guard: &impl AsRef<u32>) -> u32 {
-        *guard.as_ref()
-    }
+    use super::*;
 
-    fn increment_through_as_mut(guard: &mut impl AsMut<u32>) {
-        *guard.as_mut() += 1;
-    }
+    fn read_through_as_ref(guard: &impl AsRef<u32>) -> u32 { *guard.as_ref() }
+
+    fn increment_through_as_mut(guard: &mut impl AsMut<u32>) { *guard.as_mut() += 1; }
 
     #[test]
     fn guards_expose_the_advertised_access_surface() {

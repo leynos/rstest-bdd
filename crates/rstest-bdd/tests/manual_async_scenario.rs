@@ -14,20 +14,16 @@ thread_local! {
 }
 
 #[given("the manual async step runs")]
-fn manual_async_given() {
-    MANUAL_ASYNC_STATE.with(|s| *s.borrow_mut() = "given".to_string());
-}
+fn manual_async_given() { MANUAL_ASYNC_STATE.with(|s| "given".clone_into(&mut s.borrow_mut())); }
 
 #[when("the manual async step continues")]
-fn manual_async_when() {
-    MANUAL_ASYNC_STATE.with(|s| s.borrow_mut().push_str(" -> when"));
-}
+fn manual_async_when() { MANUAL_ASYNC_STATE.with(|s| s.borrow_mut().push_str(" -> when")); }
 
 #[then("the manual async step completes")]
 fn manual_async_then() {
     MANUAL_ASYNC_STATE.with(|s| {
         let state = s.borrow();
-        assert_eq!(*state, "given -> when");
+        assert_eq!(*state, "given -> when", "steps should run in order");
     });
 }
 

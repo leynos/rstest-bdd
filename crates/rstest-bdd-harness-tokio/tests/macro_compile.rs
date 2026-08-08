@@ -5,20 +5,20 @@
 
 use std::path::PathBuf;
 
-use rstest_bdd_harness::macrotest_support::{
-    assert_snapshot_contains, assert_snapshot_omits, snapshot_refresh_is_enabled,
-    trybuild_crate_root,
+use rstest_bdd_harness::{
+    macrotest_support::{
+        assert_snapshot_contains,
+        assert_snapshot_omits,
+        snapshot_refresh_is_enabled,
+        trybuild_crate_root,
+    },
+    trybuild_staging::copy_file,
 };
-use rstest_bdd_harness::trybuild_staging::copy_file;
 use serial_test::serial;
 
-fn crate_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-}
+fn crate_root() -> PathBuf { PathBuf::from(env!("CARGO_MANIFEST_DIR")) }
 
-fn fixture_path(relative: &str) -> PathBuf {
-    crate_root().join(relative)
-}
+fn fixture_path(relative: &str) -> PathBuf { crate_root().join(relative) }
 
 #[test]
 #[serial]

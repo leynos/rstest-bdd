@@ -1,10 +1,16 @@
 //! Regression tests ensuring wrapper inputs use unique identifiers.
 
+use std::sync::Mutex;
+
 use rstest_bdd::{
-    StepContext, StepKeyword, assert_step_err, assert_step_ok, find_step, lookup_step,
+    StepContext,
+    StepKeyword,
+    assert_step_err,
+    assert_step_ok,
+    find_step,
+    lookup_step,
 };
 use rstest_bdd_macros::given;
-use std::sync::Mutex;
 
 static CAPTURED_TEXT: Mutex<Option<String>> = Mutex::new(None);
 
@@ -19,10 +25,6 @@ fn capture_text(ctx: &str, text: String) {
 }
 
 #[test]
-#[expect(
-    clippy::expect_used,
-    reason = "test asserts deterministic macro expansion and registry lookups"
-)]
 fn wrapper_handles_text_capture_without_shadowing() {
     let mut ctx = StepContext::default();
     let fixture = "fixture ctx";
@@ -33,7 +35,7 @@ fn wrapper_handles_text_capture_without_shadowing() {
         .expect("step should be registered for '{text} arrives'");
     *CAPTURED_TEXT.lock().expect("capture mutex poisoned") = None;
 
-    let _ = assert_step_ok!(step_fn(&mut ctx, step_text, None, None));
+    drop(assert_step_ok!(step_fn(&mut ctx, step_text, None, None)));
 
     let captured = CAPTURED_TEXT
         .lock()
@@ -43,10 +45,6 @@ fn wrapper_handles_text_capture_without_shadowing() {
 }
 
 #[test]
-#[expect(
-    clippy::expect_used,
-    reason = "test inspects placeholder mismatch error formatting"
-)]
 fn placeholder_mismatch_reports_original_step_text() {
     let mut ctx = StepContext::default();
     let step_fn = lookup_step(StepKeyword::Given, "{text} arrives".into())

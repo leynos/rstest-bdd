@@ -1,11 +1,13 @@
 //! Unit tests for shared core types and helper enums.
 
-use super::*;
-use crate::localization::{ScopedLocalization, strip_directional_isolates};
+use std::str::FromStr;
+
 use gherkin::StepType;
 use rstest::rstest;
-use std::str::FromStr;
 use unic_langid::langid;
+
+use super::*;
+use crate::localization::{ScopedLocalization, strip_directional_isolates};
 
 fn kw_from_type(ty: StepType) -> StepKeyword {
     match StepKeyword::try_from(ty).map_err(UnsupportedStepType::from) {
@@ -77,10 +79,6 @@ fn step_execution_from_value_with_payload() {
         }
         StepExecution::Skipped { .. } => panic!("skip variant is unexpected"),
     };
-    #[expect(
-        clippy::expect_used,
-        reason = "test ensures payload can be downcast to original type"
-    )]
     let number = payload.downcast::<u8>().expect("payload must be a u8");
     assert_eq!(*number, 99);
 }
@@ -118,7 +116,7 @@ fn payload_from_value_returns_none_for_unit_alias() {
 
 #[test]
 fn placeholder_error_from_placeholder_syntax_returns_invalid_placeholder() {
-    let syntax_err = PlaceholderSyntaxError::new("empty type hint", 6, Some("n".to_string()));
+    let syntax_err = PlaceholderSyntaxError::new("empty type hint", 6, Some("n".to_owned()));
     let err = StepPatternError::PlaceholderSyntax(syntax_err);
     let converted: PlaceholderError = err.into();
     assert!(
@@ -130,7 +128,6 @@ fn placeholder_error_from_placeholder_syntax_returns_invalid_placeholder() {
 #[test]
 #[expect(
     clippy::invalid_regex,
-    clippy::expect_used,
     reason = "deliberate invalid regex to test error conversion"
 )]
 fn placeholder_error_from_invalid_pattern_returns_invalid_pattern() {
@@ -216,7 +213,6 @@ fn sync_to_async_builds_async_wrapper_without_explicit_fixture_lifetime() {
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "test validates downcast succeeds")]
 fn step_future_resolves_to_expected_value() {
     fn make_future<'a>() -> StepFuture<'a> {
         Box::pin(std::future::ready(Ok(StepExecution::from_value(Some(

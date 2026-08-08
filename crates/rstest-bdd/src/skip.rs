@@ -6,12 +6,14 @@
 //! configuration flag is enabled scenarios without an `@allow_skipped` tag
 //! panic after the final step instead of being marked as skipped.
 
-use std::cell::RefCell;
-use std::fmt;
-use std::marker::PhantomData;
-use std::panic;
-use std::rc::Rc;
-use std::thread::{self, ThreadId};
+use std::{
+    cell::RefCell,
+    fmt,
+    marker::PhantomData,
+    panic,
+    rc::Rc,
+    thread::{self, ThreadId},
+};
 
 thread_local! {
     static SCOPE_STACK: RefCell<Vec<ScopeEntry>> = const { RefCell::new(Vec::new()) };
@@ -27,15 +29,11 @@ pub struct SkipRequest {
 impl SkipRequest {
     /// Create a new skip request with an optional message.
     #[must_use]
-    pub fn new(message: Option<String>) -> Self {
-        Self { message }
-    }
+    pub const fn new(message: Option<String>) -> Self { Self { message } }
 
     /// Consume the request, returning the original message.
     #[must_use]
-    pub fn into_message(self) -> Option<String> {
-        self.message
-    }
+    pub fn into_message(self) -> Option<String> { self.message }
 
     /// Panic with this skip request.
     #[track_caller]
@@ -87,7 +85,7 @@ impl ScopeMetadata {
         }
     }
 
-    fn describe(&self) -> (&'static str, &'static str, u32) {
+    const fn describe(&self) -> (&'static str, &'static str, u32) {
         (self.kind.describe(), self.name, self.line)
     }
 }
@@ -124,8 +122,8 @@ impl StepScopeGuard {
 impl Drop for StepScopeGuard {
     fn drop(&mut self) {
         SCOPE_STACK.with(|stack| {
-            let mut stack = stack.borrow_mut();
-            let matches = stack
+            let mut entries = stack.borrow_mut();
+            let matches = entries
                 .pop()
                 .is_some_and(|entry| entry.metadata == self.metadata);
             debug_assert!(matches, "scope stack must contain matching entry");
@@ -173,8 +171,9 @@ impl fmt::Display for ScopeError {
                 let (scope, name, line) = metadata.describe();
                 write!(
                     f,
-                    "rstest_bdd::skip! may only run on the thread executing the {scope} '{}'\
-                     (defined at {}:{}). Expected thread id {:?} but {:?} attempted to invoke it.",
+                    "rstest_bdd::skip! may only run on the thread executing the {scope} \
+                     '{}'(defined at {}:{}). Expected thread id {:?} but {:?} attempted to invoke \
+                     it.",
                     name, metadata.file, line, expected, actual,
                 )
             }
@@ -245,9 +244,11 @@ impl fmt::Display for SkipRequest {
 mod tests {
     //! Unit tests for scenario skip handling.
 
-    use super::*;
-    use rstest::rstest;
     use std::panic::{self, UnwindSafe};
+
+    use rstest::rstest;
+
+    use super::*;
 
     fn with_test_scope<F: FnOnce()>(body: F) {
         let guard = enter_scope(ScopeKind::Step, "test_scope", file!(), line!());
@@ -257,7 +258,7 @@ mod tests {
 
     #[test]
     fn request_skip_raises_panic() {
-        let result = panic::catch_unwind(|| SkipRequest::raise(Some("skip".to_string())));
+        let result = panic::catch_unwind(|| SkipRequest::raise(Some("skip".to_owned())));
         assert!(result.is_err(), "request_skip should panic");
     }
 
@@ -296,16 +297,12 @@ mod tests {
         };
         assert_eq!(
             request.into_message(),
-            expected.map(ToString::to_string),
+            expected.map(str::to_owned),
             "skip! should produce the expected optional message",
         );
     }
 
     #[test]
-    #[expect(
-        clippy::expect_used,
-        reason = "test asserts join success and panic on thread mismatch"
-    )]
     fn request_skip_complains_when_thread_changes() {
         let mut guard = enter_scope(ScopeKind::Step, "thread_check", file!(), line!());
         let other_id = std::thread::spawn(|| thread::current().id())
@@ -314,11 +311,11 @@ mod tests {
         guard.thread = other_id;
         let result = panic::catch_unwind(|| request_skip(&guard, Some("msg".into())));
         let payload = result.expect_err("request_skip should panic on thread mismatch");
-        let rendered = payload
+        let downcast = payload
             .downcast::<String>()
             .map(|msg| *msg)
-            .or_else(|payload| payload.downcast::<&'static str>().map(|s| s.to_string()));
-        let Ok(rendered) = rendered else {
+            .or_else(|other| other.downcast::<&'static str>().map(|s| s.to_string()));
+        let Ok(rendered) = downcast else {
             panic!("panic payload should be a string");
         };
         assert!(
@@ -339,9 +336,7 @@ mod tests {
             crate::skip!("helper triggered skip");
         }
 
-        fn helper() {
-            nested_helper();
-        }
+        fn helper() { nested_helper(); }
 
         let result = panic::catch_unwind(|| with_test_scope(helper));
         assert!(result.is_err(), "helper skip should raise panic payload");

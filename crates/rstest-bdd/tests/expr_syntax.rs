@@ -2,10 +2,11 @@
 //!
 //! This syntax is provided for cucumber-rs migration compatibility.
 
+use std::cell::Cell;
+
 use rstest::rstest;
 use rstest_bdd::{Step, StepKeyword, iter};
 use rstest_bdd_macros::{given, scenario, then, when};
-use std::cell::Cell;
 
 thread_local! {
     static COUNTER: Cell<i32> = const { Cell::new(0) };
@@ -13,15 +14,11 @@ thread_local! {
 
 /// Step using `expr = "..."` syntax (cucumber-rs style).
 #[given(expr = "a counter initialized to zero")]
-fn counter_initialized() {
-    COUNTER.set(0);
-}
+fn counter_initialized() { COUNTER.set(0); }
 
 /// Step using `expr = "..."` syntax with placeholder.
 #[when(expr = "the counter is incremented by {amount}")]
-fn counter_incremented(amount: i32) {
-    COUNTER.set(COUNTER.get() + amount);
-}
+fn counter_incremented(amount: i32) { COUNTER.set(COUNTER.get() + amount); }
 
 /// Step using `expr = "..."` syntax for verification.
 #[then(expr = "the counter equals {expected}")]
@@ -57,6 +54,4 @@ type AliasResult<T> = Result<T, &'static str>;
     clippy::unnecessary_wraps,
     reason = "step intentionally returns a Result alias to exercise return-kind override"
 )]
-fn alias_result_with_expr_syntax() -> AliasResult<()> {
-    Ok(())
-}
+fn alias_result_with_expr_syntax() -> AliasResult<()> { Ok(()) }

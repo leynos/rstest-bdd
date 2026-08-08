@@ -2,8 +2,7 @@
 
 use gherkin::Span;
 
-use super::FeatureSource;
-use super::docstring::LineContent;
+use super::{FeatureSource, docstring::LineContent};
 
 /// Extract byte spans for each header cell in a Gherkin Examples table.
 ///
@@ -89,6 +88,4 @@ fn trim_ascii_whitespace(bytes: &[u8], mut start: usize, mut end: usize) -> (usi
     (start, end)
 }
 
-fn is_ascii_space(b: u8) -> bool {
-    matches!(b, b' ' | b'\t')
-}
+const fn is_ascii_space(b: u8) -> bool { matches!(b, b' ' | b'\t') }

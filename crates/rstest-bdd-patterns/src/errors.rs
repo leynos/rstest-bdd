@@ -1,6 +1,7 @@
 //! Error types shared by the pattern parsing modules.
 
 use std::fmt;
+
 use thiserror::Error;
 
 /// Additional context for placeholder-related parsing errors.
@@ -32,7 +33,7 @@ impl PlaceholderErrorInfo {
     /// assert_eq!(info.message, "invalid");
     /// ```
     #[must_use]
-    pub fn new(message: &'static str, position: usize, placeholder: Option<String>) -> Self {
+    pub const fn new(message: &'static str, position: usize, placeholder: Option<String>) -> Self {
         Self {
             message,
             position,
@@ -73,7 +74,7 @@ pub enum PatternError {
     Regex(#[from] regex::Error),
 }
 
-pub(crate) fn placeholder_error(
+pub(crate) const fn placeholder_error(
     message: &'static str,
     position: usize,
     placeholder: Option<String>,

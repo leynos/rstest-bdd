@@ -1,12 +1,46 @@
 //! Tests for Rust step definition indexing.
 
-use super::*;
 use rstest::rstest;
 
-#[expect(
-    clippy::expect_used,
-    reason = "tests use explicit failures for clarity"
-)]
+use super::*;
+
+/// Assert a step's keyword, pattern, and whether the pattern was inferred.
+fn assert_step(index: &RustStepFileIndex, name: &str, expected: ExpectedStep<'_>) {
+    let step = expect_step(index, name);
+    assert_eq!(
+        step.keyword, expected.keyword,
+        "unexpected keyword for `{name}`"
+    );
+    assert_eq!(
+        step.pattern, expected.pattern,
+        "unexpected pattern for `{name}`"
+    );
+    assert_eq!(
+        step.pattern_inferred, expected.inferred,
+        "unexpected inference for `{name}`"
+    );
+}
+
+/// The keyword and pattern a step definition is expected to carry.
+#[derive(Clone, Copy)]
+struct ExpectedStep<'a> {
+    keyword: StepType,
+    pattern: &'a str,
+    inferred: bool,
+}
+
+/// Locate an indexed step definition by function name.
+fn expect_step<'a>(index: &'a RustStepFileIndex, name: &str) -> &'a IndexedStepDefinition {
+    let Some(step) = index
+        .step_definitions
+        .iter()
+        .find(|step| step.function.name == name)
+    else {
+        panic!("expected an indexed step for `{name}`");
+    };
+    step
+}
+
 #[test]
 fn indexes_step_definitions_and_infers_patterns() {
     let source = concat!(
@@ -31,55 +65,52 @@ fn indexes_step_definitions_and_infers_patterns() {
     let index = index_rust_source(PathBuf::from("steps.rs"), source).expect("index rust source");
     assert_eq!(index.step_definitions.len(), 5);
 
-    let given = index
-        .step_definitions
-        .iter()
-        .find(|step| step.function.name == "has_pattern")
-        .expect("given step");
-    assert_eq!(given.keyword, StepType::Given);
-    assert_eq!(given.pattern, "a message");
-    assert!(!given.pattern_inferred);
-
-    let inferred = index
-        .step_definitions
-        .iter()
-        .find(|step| step.function.name == "inferred_from_name")
-        .expect("when step");
-    assert_eq!(inferred.keyword, StepType::When);
-    assert_eq!(inferred.pattern, "inferred from name");
-    assert!(inferred.pattern_inferred);
-
-    let inferred_whitespace = index
-        .step_definitions
-        .iter()
-        .find(|step| step.function.name == "inferred_from_whitespace")
-        .expect("then step");
-    assert_eq!(inferred_whitespace.keyword, StepType::Then);
-    assert_eq!(inferred_whitespace.pattern, "inferred from whitespace");
-    assert!(inferred_whitespace.pattern_inferred);
-
-    let empty_pattern = index
-        .step_definitions
-        .iter()
-        .find(|step| step.function.name == "empty_pattern")
-        .expect("empty pattern step");
-    assert_eq!(empty_pattern.keyword, StepType::Given);
-    assert_eq!(empty_pattern.pattern, "");
-    assert!(!empty_pattern.pattern_inferred);
-
-    let qualified = index
-        .step_definitions
-        .iter()
-        .find(|step| step.function.name == "qualified_attribute")
-        .expect("qualified attribute step");
-    assert_eq!(qualified.keyword, StepType::When);
-    assert_eq!(qualified.pattern, "qualified");
+    for (name, expected) in [
+        (
+            "has_pattern",
+            ExpectedStep {
+                keyword: StepType::Given,
+                pattern: "a message",
+                inferred: false,
+            },
+        ),
+        (
+            "inferred_from_name",
+            ExpectedStep {
+                keyword: StepType::When,
+                pattern: "inferred from name",
+                inferred: true,
+            },
+        ),
+        (
+            "inferred_from_whitespace",
+            ExpectedStep {
+                keyword: StepType::Then,
+                pattern: "inferred from whitespace",
+                inferred: true,
+            },
+        ),
+        (
+            "empty_pattern",
+            ExpectedStep {
+                keyword: StepType::Given,
+                pattern: "",
+                inferred: false,
+            },
+        ),
+        (
+            "qualified_attribute",
+            ExpectedStep {
+                keyword: StepType::When,
+                pattern: "qualified",
+                inferred: false,
+            },
+        ),
+    ] {
+        assert_step(&index, name, expected);
+    }
 }
 
-#[expect(
-    clippy::expect_used,
-    reason = "tests use explicit failures for clarity"
-)]
 #[test]
 fn indexes_parameter_expectations_for_tables_and_docstrings() {
     let source = concat!(
@@ -103,56 +134,49 @@ fn indexes_parameter_expectations_for_tables_and_docstrings() {
 
     let index = index_rust_source(PathBuf::from("steps.rs"), source).expect("index rust source");
 
-    let uses_param_attrs = index
-        .step_definitions
-        .iter()
-        .find(|step| step.function.name == "uses_param_attrs")
-        .expect("expected step");
-    assert!(uses_param_attrs.expects_table);
-    assert!(uses_param_attrs.expects_docstring);
-    assert_eq!(uses_param_attrs.parameters.len(), 2);
-    assert!(
-        uses_param_attrs
-            .parameters
-            .iter()
-            .any(|param| param.is_datatable)
-    );
-    assert!(
-        uses_param_attrs
-            .parameters
-            .iter()
-            .any(|param| param.is_docstring)
-    );
+    assert_param_attrs_step(&index);
 
-    let uses_param_names = index
-        .step_definitions
-        .iter()
-        .find(|step| step.function.name == "uses_param_names")
-        .expect("expected step");
-    assert!(uses_param_names.expects_table);
-    assert!(!uses_param_names.expects_docstring);
-
+    assert_expectations(&index, "uses_param_names", true, false);
     for function in ["uses_param_attrs", "docstring_std", "docstring_alloc"] {
-        let step = index
-            .step_definitions
-            .iter()
-            .find(|step| step.function.name == function)
-            .expect("expected step");
-        assert!(step.expects_docstring);
+        assert_expectations(&index, function, false, true);
     }
-
-    let docstring_wrong_type = index
-        .step_definitions
-        .iter()
-        .find(|step| step.function.name == "docstring_wrong_type")
-        .expect("expected step");
-    assert!(!docstring_wrong_type.expects_docstring);
+    assert_expectations(&index, "docstring_wrong_type", false, false);
 }
 
-#[expect(
-    clippy::expect_used,
-    reason = "tests use explicit failures for clarity"
-)]
+/// Assert that `#[datatable]` and `docstring` parameter attributes are indexed.
+fn assert_param_attrs_step(index: &RustStepFileIndex) {
+    let step = expect_step(index, "uses_param_attrs");
+    assert_eq!(step.parameters.len(), 2, "expected two indexed parameters");
+    assert!(
+        step.parameters.iter().any(|param| param.is_datatable),
+        "expected a datatable parameter"
+    );
+    assert!(
+        step.parameters.iter().any(|param| param.is_docstring),
+        "expected a docstring parameter"
+    );
+}
+
+/// Assert what a step expects to receive from the feature file.
+///
+/// `expects_table` is only checked when `true`, because several cases only
+/// constrain the docstring expectation.
+fn assert_expectations(
+    index: &RustStepFileIndex,
+    name: &str,
+    expects_table: bool,
+    expects_docstring: bool,
+) {
+    let step = expect_step(index, name);
+    if expects_table {
+        assert!(step.expects_table, "`{name}` should expect a data table");
+    }
+    assert_eq!(
+        step.expects_docstring, expects_docstring,
+        "unexpected docstring expectation for `{name}`"
+    );
+}
+
 #[test]
 fn preserves_module_path_for_nested_definitions() {
     let source = concat!(
@@ -175,15 +199,11 @@ fn preserves_module_path_for_nested_definitions() {
         .expect("expected nested step");
     assert_eq!(
         step.function.module_path,
-        vec!["outer".to_string(), "inner".to_string()]
+        vec!["outer".to_owned(), "inner".to_owned()]
     );
     assert_eq!(step.function.name, "nested_step");
 }
 
-#[expect(
-    clippy::expect_used,
-    reason = "tests use explicit failures for clarity"
-)]
 #[test]
 fn returns_error_when_multiple_step_attributes_present() {
     let source = concat!(

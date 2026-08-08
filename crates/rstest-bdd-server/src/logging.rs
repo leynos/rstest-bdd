@@ -4,8 +4,7 @@
 //! Logs are written to stderr to avoid interfering with JSON-RPC communication
 //! on stdout.
 
-use tracing_subscriber::EnvFilter;
-use tracing_subscriber::fmt::format::FmtSpan;
+use tracing_subscriber::{EnvFilter, fmt::format::FmtSpan};
 
 use crate::config::ServerConfig;
 
@@ -44,9 +43,9 @@ pub fn init_logging(config: &ServerConfig) {
         .with_line_number(false)
         .finish();
 
-    // Ignore error if a subscriber is already set (e.g., in tests).
-    // The first subscriber wins, which is the expected behaviour.
-    let _ = tracing::subscriber::set_global_default(subscriber);
+    // The first subscriber wins; a second installation (for example from a
+    // test that already initialized logging) is expected and harmless.
+    drop(tracing::subscriber::set_global_default(subscriber));
 }
 
 #[cfg(test)]

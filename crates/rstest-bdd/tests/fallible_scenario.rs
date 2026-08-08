@@ -1,8 +1,10 @@
 //! Behavioural coverage for fallible scenario bodies.
 
 use rstest_bdd as bdd;
-use rstest_bdd::StepResult;
-use rstest_bdd::reporting::{ScenarioStatus, drain as drain_reports};
+use rstest_bdd::{
+    StepResult,
+    reporting::{ScenarioStatus, drain as drain_reports},
+};
 use rstest_bdd_macros::{given, scenario};
 use serial_test::serial;
 
@@ -22,9 +24,7 @@ fn fallible_scenario_is_skipped() {
     name = "fallible scenario success"
 )]
 #[serial]
-fn fallible_scenario_success() -> Result<(), &'static str> {
-    Ok(())
-}
+fn fallible_scenario_success() -> Result<(), &'static str> { Ok(()) }
 
 #[scenario(
     path = "tests/features/fallible_scenario.feature",
@@ -47,10 +47,13 @@ async fn fallible_async_helper() -> Result<(), &'static str> {
 )]
 #[serial]
 #[ignore = "exercised by fallible_error_does_not_record_pass"]
-fn fallible_scenario_error() -> Result<(), &'static str> {
-    Err("fallible scenario returned error")
-}
+fn fallible_scenario_error() -> Result<(), &'static str> { Err("fallible scenario returned error") }
 
+#[expect(
+    clippy::panic_in_result_fn,
+    reason = "assertions in a Result-returning test pair `?` on fallible fixtures with ordinary \
+              assertions"
+)]
 #[scenario(
     path = "tests/features/fallible_scenario.feature",
     name = "fallible scenario skip"
@@ -63,7 +66,7 @@ fn fallible_scenario_skip() -> StepResult<(), &'static str> {
 #[test]
 #[serial]
 fn fallible_error_does_not_record_pass() {
-    let _ = drain_reports();
+    drop(drain_reports());
     let result = fallible_scenario_error();
     assert!(result.is_err(), "expected fallible scenario to return Err");
     let records = drain_reports();
@@ -94,24 +97,28 @@ fn assert_fallible_success_records_pass(result: Result<(), &'static str>, contex
 #[test]
 #[serial]
 fn fallible_success_records_pass() {
-    let _ = drain_reports();
+    drop(drain_reports());
     let result = fallible_scenario_success();
     assert_fallible_success_records_pass(result, "fallible");
 }
 
 #[tokio::test]
 async fn fallible_async_success_records_pass() {
-    #[expect(clippy::panic, reason = "test helper panics for clearer failures")]
-    async fn assert_fallible_async_success_records_pass() {
-        let join = tokio::task::spawn_blocking(|| {
-            serial_test::local_serial_core_with_return("", || {
-                let _ = drain_reports();
-                let result = crate::fallible_scenario_async_success();
-                assert_fallible_success_records_pass(result, "async fallible");
-                Ok::<(), &'static str>(())
-            })
+    fn run_async_success_scenario() {
+        drop(drain_reports());
+        let result = crate::fallible_scenario_async_success();
+        assert_fallible_success_records_pass(result, "async fallible");
+    }
+
+    fn run_serially() -> Result<(), &'static str> {
+        serial_test::local_serial_core_with_return("", || {
+            run_async_success_scenario();
+            Ok(())
         })
-        .await;
+    }
+
+    async fn assert_fallible_async_success_records_pass() {
+        let join = tokio::task::spawn_blocking(run_serially).await;
 
         match join {
             Ok(Ok(())) => {}

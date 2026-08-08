@@ -28,7 +28,7 @@ fn assert_message(docstring: String) {
             .borrow_mut()
             .take()
             .expect("message should be captured before assertion");
-        assert_eq!(captured, docstring);
+        assert_eq!(captured, docstring, "captured docstring should round-trip");
     });
 }
 

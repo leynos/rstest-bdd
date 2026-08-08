@@ -7,11 +7,11 @@ mod step_extraction_tests;
 #[path = "support.rs"]
 mod support;
 
-use super::*;
 use gherkin::StepType;
 use rstest::rstest;
-
 use support::{FeatureBuilder, StepBuilder};
+
+use super::*;
 
 #[rstest]
 #[case("And", StepType::Given, crate::StepKeyword::And)]
@@ -58,20 +58,17 @@ fn reports_requested_index_and_available_count_on_oob() {
         panic!("expected scenario extraction to fail for out of range index");
     };
 
-    let err = err.to_string();
+    let message = err.to_string();
     assert!(
-        err.contains("scenario index out of range: 2 (available: 1)"),
-        "error should report index and count, got: {err}",
+        message.contains("scenario index out of range: 2 (available: 1)"),
+        "error should report index and count, got: {message}",
     );
 }
 
-#[expect(
-    clippy::expect_used,
-    reason = "test asserts cache behaviour; panics simplify failures"
-)]
 #[test]
 fn caches_features_by_path() {
     use std::io::Write;
+
     use tempfile::NamedTempFile;
     super::clear_feature_cache();
     let mut tf = NamedTempFile::new().expect("create temp feature");

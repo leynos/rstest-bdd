@@ -1,7 +1,6 @@
 //! Header and row specifications for the datatable runtime.
 
-use std::collections::HashMap;
-use std::error::Error as StdError;
+use std::{collections::HashMap, error::Error as StdError};
 
 use super::DataTableError;
 
@@ -35,15 +34,11 @@ impl HeaderSpec {
 
     /// Returns the number of columns declared in the header.
     #[must_use]
-    pub fn len(&self) -> usize {
-        self.columns.len()
-    }
+    pub fn len(&self) -> usize { self.columns.len() }
 
     /// Returns `true` when the header is empty.
     #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.columns.is_empty()
-    }
+    pub fn is_empty(&self) -> bool { self.columns.is_empty() }
 
     /// Fetches a column name by index.
     #[must_use]
@@ -62,15 +57,13 @@ impl HeaderSpec {
             .copied()
             .ok_or_else(|| DataTableError::MissingColumn {
                 row_number,
-                column: name.to_string(),
+                column: name.to_owned(),
             })
     }
 
     /// Returns the names of all columns.
     #[must_use]
-    pub fn columns(&self) -> &[String] {
-        &self.columns
-    }
+    pub fn columns(&self) -> &[String] { &self.columns }
 }
 
 /// Representation of a single row within a data table.
@@ -102,34 +95,24 @@ impl<'h> RowSpec<'h> {
 
     /// Returns the 1-based row number, including any header.
     #[must_use]
-    pub fn row_number(&self) -> usize {
-        self.row_number
-    }
+    pub const fn row_number(&self) -> usize { self.row_number }
 
     /// Returns the zero-based row index relative to the data rows (excluding
     /// the header).
     #[must_use]
-    pub fn index(&self) -> usize {
-        self.index
-    }
+    pub const fn index(&self) -> usize { self.index }
 
     /// Returns the number of cells in the row.
     #[must_use]
-    pub fn len(&self) -> usize {
-        self.cells.len()
-    }
+    pub fn len(&self) -> usize { self.cells.len() }
 
     /// Returns `true` when the row contains no cells.
     #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.cells.is_empty()
-    }
+    pub fn is_empty(&self) -> bool { self.cells.is_empty() }
 
     /// Provides immutable access to the underlying cells.
     #[must_use]
-    pub fn cells(&self) -> &[String] {
-        &self.cells
-    }
+    pub fn cells(&self) -> &[String] { &self.cells }
 
     /// Retrieves the cell at a given index.
     ///

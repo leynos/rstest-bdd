@@ -8,18 +8,21 @@ mod bindings;
 
 use attributes::{collect_fields, parse_struct_config};
 use bindings::build_field_binding;
-
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 use syn::{Data, DataStruct, DeriveInput, Generics, Type, parse_macro_input, spanned::Spanned};
 
-use crate::codegen::rstest_bdd_path;
-use crate::datatable::config::{Accessor, FieldConfig, FieldSpec};
-use crate::datatable::validation::is_string_type;
+use crate::{
+    codegen::rstest_bdd_path,
+    datatable::{
+        config::{Accessor, FieldConfig, FieldSpec},
+        validation::is_string_type,
+    },
+};
 
-pub(crate) fn expand(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input as DeriveInput);
+pub(crate) fn expand(item: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(item as DeriveInput);
     match expand_inner(&input) {
         Ok(tokens) => tokens.into(),
         Err(err) => err.into_compile_error().into(),
@@ -85,11 +88,11 @@ fn build_constructor(fields: &[FieldSpec]) -> TokenStream2 {
 }
 
 fn augment_generics(generics: &Generics, fields: &[FieldSpec]) -> Generics {
-    let mut generics = generics.clone();
-    if generics.type_params().next().is_none() {
-        return generics;
+    let mut augmented = generics.clone();
+    if augmented.type_params().next().is_none() {
+        return augmented;
     }
-    let where_clause = generics.make_where_clause();
+    let where_clause = augmented.make_where_clause();
     for field in fields {
         if needs_from_str_bound(&field.config, &field.inner_ty) {
             let ty = &field.inner_ty;
@@ -101,7 +104,7 @@ fn augment_generics(generics: &Generics, fields: &[FieldSpec]) -> Generics {
             });
         }
     }
-    generics
+    augmented
 }
 
 fn needs_from_str_bound(config: &FieldConfig, inner_ty: &Type) -> bool {

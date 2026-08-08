@@ -8,14 +8,20 @@
 use std::sync::Arc;
 
 use async_lsp::ResponseError;
-use lsp_types::request::{GotoImplementationParams, GotoImplementationResponse};
-use lsp_types::{Location, Position, Range, Url};
+use lsp_types::{
+    Location,
+    Position,
+    Range,
+    Url,
+    request::{GotoImplementationParams, GotoImplementationResponse},
+};
 use tracing::debug;
 
-use crate::indexing::{CompiledStepDefinition, FeatureFileIndex, IndexedStep};
-use crate::server::ServerState;
-
-use super::util::{has_extension, lsp_position_to_byte_offset};
+use super::util::{lsp_position_to_byte_offset, resolve_request_path};
+use crate::{
+    indexing::{CompiledStepDefinition, FeatureFileIndex, IndexedStep},
+    server::ServerState,
+};
 
 /// Handle `textDocument/implementation` requests.
 ///
@@ -30,50 +36,34 @@ pub fn handle_implementation(
     state: &ServerState,
     params: &GotoImplementationParams,
 ) -> Result<Option<GotoImplementationResponse>, ResponseError> {
-    let uri = &params.text_document_position_params.text_document.uri;
     let position = params.text_document_position_params.position;
+    let uri = &params.text_document_position_params.text_document.uri;
+    let locations = implementations_at(state, uri, position);
+    Ok(locations.map(GotoImplementationResponse::Array))
+}
 
-    // Only handle feature files
-    let Ok(path) = uri.to_file_path() else {
-        debug!(%uri, "ignoring implementation request for non-file URI");
-        return Ok(None);
-    };
+/// Collect the Rust implementations for the feature step under the cursor.
+///
+/// Returns `None` when the cursor is not on a feature step or nothing matches.
+fn implementations_at(state: &ServerState, uri: &Url, position: Position) -> Option<Vec<Location>> {
+    let path = resolve_request_path(uri, "feature", "implementation")?;
 
-    if !has_extension(&path, "feature") {
-        debug!(
-            ?path,
-            "ignoring implementation request for non-feature file"
-        );
-        return Ok(None);
-    }
-
-    // Get the feature index for this file (includes the cached source text)
+    // The feature index carries the cached source text used for span lookup.
     let Some(feature_index) = state.feature_index(&path) else {
         debug!(?path, "no feature index found for file");
-        return Ok(None);
+        return None;
     };
-
-    // Find the step at cursor position using the cached source
     let Some(step) = find_step_at_position(feature_index, &feature_index.source, position) else {
         debug!(?position, "no step at cursor position");
-        return Ok(None);
+        return None;
     };
 
-    // Find all matching Rust implementations
     let locations = find_matching_rust_locations(state, step);
-
     if locations.is_empty() {
         debug!(step_text = %step.text, "no matching Rust implementations found");
-        return Ok(None);
+        return None;
     }
-
-    debug!(
-        step_text = %step.text,
-        count = locations.len(),
-        "found matching Rust implementations"
-    );
-
-    Ok(Some(GotoImplementationResponse::Array(locations)))
+    Some(locations)
 }
 
 /// Find the step at the given cursor position.
@@ -126,20 +116,17 @@ fn build_rust_location(step_def: &Arc<CompiledStepDefinition>) -> Option<Locatio
 }
 
 #[cfg(test)]
-#[expect(
-    clippy::expect_used,
-    reason = "tests require explicit panic messages for debugging failures"
-)]
 mod tests {
     //! Unit tests for go-to-implementation handling.
 
-    use super::*;
-    use crate::config::ServerConfig;
-    use crate::handlers::handle_did_save_text_document;
+    use std::path::PathBuf;
+
     use gherkin::Span;
     use lsp_types::{DidSaveTextDocumentParams, TextDocumentIdentifier};
-    use std::path::PathBuf;
     use tempfile::TempDir;
+
+    use super::*;
+    use crate::{config::ServerConfig, handlers::handle_did_save_text_document};
 
     #[test]
     fn find_step_at_position_returns_none_for_empty_index() {
@@ -157,8 +144,9 @@ mod tests {
 
     #[test]
     fn find_step_at_position_returns_step_on_matching_position() {
-        use crate::indexing::IndexedStep;
         use gherkin::StepType;
+
+        use crate::indexing::IndexedStep;
 
         let source = "Feature: demo\n  Scenario: s\n    Given a step\n";
         let index = FeatureFileIndex {

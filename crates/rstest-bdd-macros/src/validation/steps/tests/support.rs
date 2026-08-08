@@ -1,10 +1,11 @@
 //! Shared helpers for step validation tests.
 
-use super::*;
 use camino::{Utf8Path, Utf8PathBuf};
 use cap_std::{ambient_authority, fs_utf8::Dir};
 use rstest::fixture;
 use tempfile::tempdir;
+
+use super::*;
 
 pub(super) fn clear_registry() {
     match REGISTERED.lock() {
@@ -16,7 +17,7 @@ pub(super) fn clear_registry() {
 pub(super) fn create_test_step(keyword: StepKeyword, text: &str) -> ParsedStep {
     ParsedStep {
         keyword,
-        text: text.to_string(),
+        text: text.to_owned(),
         docstring: None,
         table: None,
         #[cfg(feature = "compile-time-validation")]
@@ -38,17 +39,11 @@ pub(super) struct TempWorkingDir {
 }
 
 impl TempWorkingDir {
-    fn new(temp: tempfile::TempDir, path: Utf8PathBuf) -> Self {
-        Self { _temp: temp, path }
-    }
+    fn new(temp: tempfile::TempDir, path: Utf8PathBuf) -> Self { Self { _temp: temp, path } }
 
-    pub(super) fn path(&self) -> &Utf8Path {
-        self.path.as_path()
-    }
+    pub(super) fn path(&self) -> &Utf8Path { self.path.as_path() }
 
-    pub(super) fn join(&self, relative: &str) -> Utf8PathBuf {
-        self.path.join(relative)
-    }
+    pub(super) fn join(&self, relative: &str) -> Utf8PathBuf { self.path.join(relative) }
 }
 
 fn should_skip_creation(path: &Utf8Path) -> bool {
@@ -128,6 +123,4 @@ fn temp_working_dir_inner() -> std::io::Result<TempWorkingDir> {
 }
 
 #[fixture]
-pub(super) fn temp_working_dir() -> std::io::Result<TempWorkingDir> {
-    temp_working_dir_inner()
-}
+pub(super) fn temp_working_dir() -> std::io::Result<TempWorkingDir> { temp_working_dir_inner() }

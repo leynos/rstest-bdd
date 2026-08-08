@@ -1,12 +1,17 @@
 //! Behavioural tests for cached data table conversion.
 
-use rstest_bdd::datatable::CachedTable;
-use rstest_bdd::{StepContext, StepKeyword, lookup_step};
+use std::{
+    collections::HashMap,
+    sync::{
+        Mutex,
+        OnceLock,
+        atomic::{AtomicUsize, Ordering},
+    },
+    thread,
+};
+
+use rstest_bdd::{StepContext, StepKeyword, datatable::CachedTable, lookup_step};
 use rstest_bdd_macros::given;
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Mutex, OnceLock};
-use std::thread;
 
 fn cached_calls() -> &'static Mutex<HashMap<thread::ThreadId, Vec<usize>>> {
     static CALLS: OnceLock<Mutex<HashMap<thread::ThreadId, Vec<usize>>>> = OnceLock::new();
@@ -53,13 +58,9 @@ fn take_values() -> Vec<String> {
 
 static CONVERSIONS: AtomicUsize = AtomicUsize::new(0);
 
-fn reset_conversions() {
-    CONVERSIONS.store(0, Ordering::Relaxed);
-}
+fn reset_conversions() { CONVERSIONS.store(0, Ordering::Relaxed); }
 
-fn conversion_count() -> usize {
-    CONVERSIONS.load(Ordering::Relaxed)
-}
+fn conversion_count() -> usize { CONVERSIONS.load(Ordering::Relaxed) }
 
 #[given("a cached table:")]
 fn cached_table(datatable: CachedTable) {
@@ -97,10 +98,6 @@ fn counting_table(#[datatable] mut datatable: CountingTable) {
 }
 
 #[test]
-#[expect(
-    clippy::expect_used,
-    reason = "Using expect in tests provides clearer diagnostics for step lookup failures."
-)]
 fn cached_table_reuses_conversion_for_identical_table_pointer() {
     const TABLE: &[&[&str]] = &[&["foo", "bar"], &["baz", "qux"]];
 
@@ -123,10 +120,6 @@ fn cached_table_reuses_conversion_for_identical_table_pointer() {
 }
 
 #[test]
-#[expect(
-    clippy::expect_used,
-    reason = "Using expect in tests provides clearer diagnostics for step lookup failures."
-)]
 fn cached_table_cache_separates_distinct_tables() {
     const TABLE_ONE: &[&[&str]] = &[&["alpha"], &["beta"]];
     const TABLE_TWO: &[&[&str]] = &[&["gamma"], &["delta"]];
@@ -137,9 +130,9 @@ fn cached_table_cache_separates_distinct_tables() {
         .expect("cached table step should be registered");
     let mut ctx = StepContext::default();
 
-    let _ = step_fn(&mut ctx, "a cached table:", None, Some(TABLE_ONE))
+    let _outcome = step_fn(&mut ctx, "a cached table:", None, Some(TABLE_ONE))
         .expect("first cached table should succeed");
-    let _ = step_fn(&mut ctx, "a cached table:", None, Some(TABLE_TWO))
+    let _second_outcome = step_fn(&mut ctx, "a cached table:", None, Some(TABLE_TWO))
         .expect("second cached table should succeed");
 
     let calls = take_calls();
@@ -153,10 +146,6 @@ fn cached_table_cache_separates_distinct_tables() {
 }
 
 #[test]
-#[expect(
-    clippy::expect_used,
-    reason = "Using expect in tests provides clearer diagnostics for step lookup failures."
-)]
 fn cached_table_cache_is_scoped_per_step_wrapper() {
     const TABLE: &[&[&str]] = &[&["foo", "bar"], &["baz", "qux"]];
 
@@ -168,14 +157,14 @@ fn cached_table_cache_is_scoped_per_step_wrapper() {
         .expect("another cached table step should be registered");
     let mut ctx = StepContext::default();
 
-    let _ = first_step_fn(&mut ctx, "a cached table:", None, Some(TABLE))
+    let _outcome = first_step_fn(&mut ctx, "a cached table:", None, Some(TABLE))
         .expect("first cached table should succeed");
     let calls_first = take_calls();
     let [first_ptr] = calls_first.as_slice() else {
         panic!("expected one call from first step, got {calls_first:?}");
     };
 
-    let _ = second_step_fn(&mut ctx, "another cached table:", None, Some(TABLE))
+    let _second_outcome = second_step_fn(&mut ctx, "another cached table:", None, Some(TABLE))
         .expect("second cached table should succeed");
     let calls_second = take_calls();
     let [second_ptr] = calls_second.as_slice() else {
@@ -189,10 +178,6 @@ fn cached_table_cache_is_scoped_per_step_wrapper() {
 }
 
 #[test]
-#[expect(
-    clippy::expect_used,
-    reason = "Using expect in tests provides clearer diagnostics for step lookup failures."
-)]
 fn datatable_vec_path_clones_per_call_and_preserves_isolation() {
     const TABLE: &[&[&str]] = &[&["foo", "bar"], &["baz", "qux"]];
 
@@ -205,7 +190,7 @@ fn datatable_vec_path_clones_per_call_and_preserves_isolation() {
     let mut ctx = StepContext::default();
 
     for _ in 0..2 {
-        let _ = step_fn(&mut ctx, "a counting table:", None, Some(TABLE))
+        let _outcome = step_fn(&mut ctx, "a counting table:", None, Some(TABLE))
             .expect("counting table step should succeed");
     }
 

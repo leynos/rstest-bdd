@@ -1,8 +1,9 @@
 //! Tests for pattern utilities.
 
-use super::*;
 use rstest::rstest;
 use syn::parse_quote;
+
+use super::*;
 
 #[rstest]
 #[case("_param", "param")]
@@ -61,26 +62,18 @@ fn placeholder_hint_extraction(
 }
 
 #[test]
-#[expect(
-    clippy::expect_used,
-    clippy::indexing_slicing,
-    reason = "test asserts valid pattern"
-)]
+#[expect(clippy::indexing_slicing, reason = "test asserts valid pattern")]
 fn multiple_placeholders_with_mixed_hints() {
     let summary = placeholder_names("given {name} has {count:u32} items").expect("valid pattern");
     assert_eq!(summary.ordered.len(), 2);
     assert_eq!(summary.ordered[0].name, "name");
     assert_eq!(summary.ordered[0].hint, None);
     assert_eq!(summary.ordered[1].name, "count");
-    assert_eq!(summary.ordered[1].hint, Some("u32".to_string()));
+    assert_eq!(summary.ordered[1].hint, Some("u32".to_owned()));
 }
 
 #[test]
-#[expect(
-    clippy::expect_used,
-    clippy::indexing_slicing,
-    reason = "test asserts valid pattern"
-)]
+#[expect(clippy::indexing_slicing, reason = "test asserts valid pattern")]
 fn placeholder_hints_align_with_names_for_wrapper_config() {
     // This test verifies that hints extracted from PlaceholderSummary maintain
     // correct alignment with placeholder names when converted to separate vectors.
@@ -98,11 +91,11 @@ fn placeholder_hints_align_with_names_for_wrapper_config() {
 
     // First: {name:string}
     assert_eq!(placeholder_names[0], "name");
-    assert_eq!(placeholder_hints[0], &Some("string".to_string()));
+    assert_eq!(placeholder_hints[0], &Some("string".to_owned()));
 
     // Second: {count:u32}
     assert_eq!(placeholder_names[1], "count");
-    assert_eq!(placeholder_hints[1], &Some("u32".to_string()));
+    assert_eq!(placeholder_hints[1], &Some("u32".to_owned()));
 
     // Third: {note} - no hint
     assert_eq!(placeholder_names[2], "note");

@@ -5,13 +5,12 @@
 //! A newtype wrapper is used to satisfy Rust's orphan rules when implementing
 //! foreign traits like `ToTokens`.
 
+use std::{fmt, str::FromStr};
+
 use gherkin::Step;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, quote};
 use rstest_bdd_patterns::StepKeyword as BaseKeyword;
-use std::fmt;
-use std::str::FromStr;
-
 // Re-export error types from the patterns crate.
 pub(crate) use rstest_bdd_patterns::UnsupportedStepType;
 
@@ -50,9 +49,7 @@ impl StepKeyword {
             reason = "used by validation module behind compile-time-validation feature"
         )
     )]
-    pub(crate) fn as_str(self) -> &'static str {
-        self.0.as_str()
-    }
+    pub(crate) const fn as_str(self) -> &'static str { self.0.as_str() }
 
     /// Resolve conjunctions to the semantic keyword of the previous step.
     ///
@@ -94,9 +91,7 @@ impl FromStr for StepKeyword {
 impl TryFrom<&str> for StepKeyword {
     type Error = StepKeywordParseError;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        value.parse()
-    }
+    fn try_from(value: &str) -> Result<Self, Self::Error> { value.parse() }
 }
 
 impl TryFrom<gherkin::StepType> for StepKeyword {
@@ -157,9 +152,10 @@ impl ToTokens for StepKeyword {
 mod tests {
     //! Unit tests for step keyword parsing and conversion.
 
-    use super::*;
     use gherkin::StepType;
     use rstest::rstest;
+
+    use super::*;
 
     #[rstest]
     #[case("Given", StepKeyword::Given)]

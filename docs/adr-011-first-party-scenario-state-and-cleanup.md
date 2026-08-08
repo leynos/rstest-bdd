@@ -191,8 +191,8 @@ alternative for the thread-local interim pattern.
 - A `ScenarioStateCleanup` type (the `Drop` guard).
 - A cleanup-guard fixture-generating macro that produces
   `ScenarioStateCleanup` and `#[fixture] fn scenario_state_cleanup()`,
-  implementing the two-sided reset protocol: `reset_before_assignment()` in
-  the constructor, `reset_after_scenario()` in `Drop`.
+  implementing the two-sided reset protocol: `reset_before_assignment()` in the
+  constructor, `reset_after_scenario()` in `Drop`.
 
 This replaces the handwritten 50-line block with an import and a one-line
 scenario parameter.

@@ -18,9 +18,7 @@ pub struct TodoList {
 impl TodoList {
     /// Create a new, empty to-do list.
     #[must_use]
-    pub fn new() -> Self {
-        Self::default()
-    }
+    pub fn new() -> Self { Self::default() }
 
     /// Add a task with the given description.
     pub fn add<S: Into<String>>(&mut self, description: S) {
@@ -73,7 +71,5 @@ impl TodoList {
 
     /// Check whether the list is empty.
     #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.tasks.is_empty()
-    }
+    pub fn is_empty(&self) -> bool { self.tasks.is_empty() }
 }

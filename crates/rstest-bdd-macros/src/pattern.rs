@@ -9,7 +9,6 @@ mod validation {
     use proc_macro_error::abort;
     use proc_macro2::Span;
     use regex::Regex;
-
     use rstest_bdd_patterns::{build_regex_from_pattern, extract_captured_values};
 
     pub(crate) struct MacroPattern {
@@ -34,9 +33,7 @@ mod validation {
             }
         }
 
-        pub(crate) const fn as_str(&self) -> &'static str {
-            self.text
-        }
+        pub(crate) const fn as_str(&self) -> &'static str { self.text }
 
         pub(crate) fn regex(&self, span: Span) -> &Regex {
             self.regex.get_or_init(|| {
@@ -54,17 +51,16 @@ mod validation {
     }
 
     impl From<&'static str> for MacroPattern {
-        fn from(value: &'static str) -> Self {
-            Self::new(value)
-        }
+        fn from(value: &'static str) -> Self { Self::new(value) }
     }
 
     #[cfg(test)]
     mod tests {
         //! Unit tests for compile-time pattern helpers.
 
-        use super::MacroPattern;
         use proc_macro2::Span;
+
+        use super::MacroPattern;
 
         #[test]
         fn compiles_pattern_once() {
@@ -82,7 +78,7 @@ mod validation {
             let Some(values) = pattern.captures(span, "I have 3") else {
                 panic!("expected captures");
             };
-            assert_eq!(values, vec!["3".to_string()]);
+            assert_eq!(values, vec!["3".to_owned()]);
         }
     }
 }

@@ -41,15 +41,11 @@ const GPUI_HARNESS: CrateSpec = CrateSpec {
 };
 
 /// Return a token stream pointing to the `rstest_bdd` crate or its renamed form.
-pub(crate) fn rstest_bdd_path() -> TokenStream2 {
-    resolve_crate_path(&RSTEST_BDD)
-}
+pub(crate) fn rstest_bdd_path() -> TokenStream2 { resolve_crate_path(&RSTEST_BDD) }
 
 /// Return a token stream pointing to the `rstest_bdd_harness` crate or its
 /// renamed form.
-pub(crate) fn rstest_bdd_harness_path() -> TokenStream2 {
-    resolve_crate_path(&RSTEST_BDD_HARNESS)
-}
+pub(crate) fn rstest_bdd_harness_path() -> TokenStream2 { resolve_crate_path(&RSTEST_BDD_HARNESS) }
 
 /// Try to return a token stream pointing to the requested crate or renamed
 /// dependency without panicking when the consumer does not depend on it.
@@ -65,9 +61,7 @@ fn try_resolve_crate_path(spec: &CrateSpec) -> Option<TokenStream2> {
 /// Used by the `runtime = "tokio-current-thread"` compatibility alias to
 /// resolve `TokioHarness` via proper crate lookup, supporting downstream
 /// crates that rename the dependency in their `Cargo.toml`.
-pub(crate) fn rstest_bdd_harness_tokio_path() -> TokenStream2 {
-    resolve_crate_path(&TOKIO_HARNESS)
-}
+pub(crate) fn rstest_bdd_harness_tokio_path() -> TokenStream2 { resolve_crate_path(&TOKIO_HARNESS) }
 
 /// Return the crate root that provides base harness API for the given harness
 /// or attribute-policy path.
@@ -124,7 +118,8 @@ fn emit_first_party_adapter_fallback_warning(adapter_path: &syn::Path) {
     emit_warning!(
         span,
         concat!(
-            "rstest-bdd could not identify this harness or attribute-policy path as a first-party adapter; ",
+            "rstest-bdd could not identify this harness or attribute-policy path as a first-party \
+             adapter; ",
             "falling back to `rstest-bdd-harness` for base harness API types. ",
             "Use the canonical crate-root path, ensure `{}` is directly resolvable as `{}`, ",
             "or add `rstest-bdd-harness` as a direct dev-dependency."
@@ -135,7 +130,7 @@ fn emit_first_party_adapter_fallback_warning(adapter_path: &syn::Path) {
 }
 
 #[cfg(test)]
-fn emit_first_party_adapter_fallback_warning(_: &syn::Path) {}
+const fn emit_first_party_adapter_fallback_warning(_: &syn::Path) {}
 
 fn first_party_adapter_api_root(adapter_path: &syn::Path, spec: &CrateSpec) -> TokenStream2 {
     if path_root_matches_crate(adapter_path, spec) {
@@ -171,10 +166,10 @@ fn path_root_matches_crate(path: &syn::Path, spec: &CrateSpec) -> bool {
     if root.ident == spec.default_crate_name {
         return true;
     }
-    let Some(crate_path) = try_resolve_crate_path(spec) else {
+    let Some(crate_tokens) = try_resolve_crate_path(spec) else {
         return false;
     };
-    let Ok(crate_path) = syn::parse2::<syn::Path>(crate_path) else {
+    let Ok(crate_path) = syn::parse2::<syn::Path>(crate_tokens) else {
         return false;
     };
     crate_path
@@ -216,17 +211,23 @@ fn handle_missing_crate(spec: &CrateSpec, err: &proc_macro_crate::Error) -> Toke
 mod tests {
     //! Unit tests for shared code generation utilities.
 
-    use super::{
-        GPUI_HARNESS, RSTEST_BDD, RSTEST_BDD_HARNESS, TOKIO_HARNESS, handle_missing_crate,
-    };
+    use std::path::PathBuf;
+
     use proc_macro_crate::Error;
     use proptest::prelude::*;
     use rstest::rstest;
-    use std::path::PathBuf;
+
+    use super::{
+        GPUI_HARNESS,
+        RSTEST_BDD,
+        RSTEST_BDD_HARNESS,
+        TOKIO_HARNESS,
+        handle_missing_crate,
+    };
 
     fn not_found_error(crate_name: &str) -> Error {
         Error::CrateNotFound {
-            crate_name: crate_name.to_string(),
+            crate_name: crate_name.to_owned(),
             path: PathBuf::new(),
         }
     }
@@ -284,8 +285,8 @@ mod tests {
         ":: rstest_bdd_harness_gpui"
     )]
     #[case::gpui_policy_imported("GpuiAttributePolicy", ":: rstest_bdd_harness")]
-    fn adapter_api_path_uses_expected_crate(#[case] adapter_path: &str, #[case] expected: &str) {
-        let adapter_path = parse_path(adapter_path);
+    fn adapter_api_path_uses_expected_crate(#[case] adapter_spec: &str, #[case] expected: &str) {
+        let adapter_path = parse_path(adapter_spec);
         let tokens = super::rstest_bdd_harness_api_path_for(&adapter_path);
         assert_eq!(tokens.to_string(), expected);
     }

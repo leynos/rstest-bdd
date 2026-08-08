@@ -4,9 +4,7 @@
 //! server. All settings can be overridden via environment variables prefixed
 //! with `RSTEST_BDD_LSP_`.
 
-use std::env;
-use std::path::PathBuf;
-use std::str::FromStr;
+use std::{env, path::PathBuf, str::FromStr};
 
 use crate::error::ServerError;
 
@@ -48,7 +46,7 @@ impl FromStr for LogLevel {
 impl LogLevel {
     /// Convert to a tracing filter directive string.
     #[must_use]
-    pub fn as_filter_str(&self) -> &'static str {
+    pub const fn as_filter_str(&self) -> &'static str {
         match self {
             Self::Trace => "trace",
             Self::Debug => "debug",
@@ -69,11 +67,9 @@ const DEFAULT_DEBOUNCE_MS: u64 = 300;
 ///
 /// # Environment Variables
 ///
-/// - `RSTEST_BDD_LSP_LOG_LEVEL`: Sets the log level (trace, debug, info, warn,
-///   error)
+/// - `RSTEST_BDD_LSP_LOG_LEVEL`: Sets the log level (trace, debug, info, warn, error)
 /// - `RSTEST_BDD_LSP_DEBOUNCE_MS`: Delay before processing file changes
-/// - `RSTEST_BDD_LSP_WORKSPACE_ROOT`: Override workspace root path for
-///   discovery
+/// - `RSTEST_BDD_LSP_WORKSPACE_ROOT`: Override workspace root path for discovery
 #[derive(Debug, Clone)]
 pub struct ServerConfig {
     /// Log level (trace, debug, info, warn, error).
@@ -108,9 +104,7 @@ impl ServerConfig {
     ///
     /// Returns `ServerError::InvalidConfig` if an environment variable contains
     /// an invalid value.
-    pub fn from_env() -> Result<Self, ServerError> {
-        Self::from_env_with(|key| env::var(key))
-    }
+    pub fn from_env() -> Result<Self, ServerError> { Self::from_env_with(|key| env::var(key)) }
 
     fn from_env_with<F>(get_var: F) -> Result<Self, ServerError>
     where
@@ -169,7 +163,7 @@ impl ServerConfig {
 
     /// Create a new configuration with the specified log level.
     #[must_use]
-    pub fn with_log_level(mut self, level: LogLevel) -> Self {
+    pub const fn with_log_level(mut self, level: LogLevel) -> Self {
         self.log_level = level;
         self
     }
@@ -185,7 +179,6 @@ impl ServerConfig {
 #[cfg(test)]
 #[expect(
     clippy::unwrap_used,
-    clippy::expect_used,
     reason = "tests require explicit panic messages for debugging failures"
 )]
 mod tests {
@@ -258,9 +251,9 @@ mod tests {
         assert_eq!(config.debounce_ms, 42);
         assert!(config.workspace_root.is_none());
 
-        let config = ServerConfig::default().apply_overrides(None, None, None);
-        assert_eq!(config.log_level, LogLevel::Info);
-        assert_eq!(config.debounce_ms, 300);
+        let defaults = ServerConfig::default().apply_overrides(None, None, None);
+        assert_eq!(defaults.log_level, LogLevel::Info);
+        assert_eq!(defaults.debounce_ms, 300);
     }
 
     #[test]
@@ -283,8 +276,8 @@ mod tests {
     #[test]
     fn server_config_from_env_with_reads_values() {
         let config = ServerConfig::from_env_with(|key| match key {
-            "RSTEST_BDD_LSP_LOG_LEVEL" => Ok("debug".to_string()),
-            "RSTEST_BDD_LSP_DEBOUNCE_MS" => Ok("123".to_string()),
+            "RSTEST_BDD_LSP_LOG_LEVEL" => Ok("debug".to_owned()),
+            "RSTEST_BDD_LSP_DEBOUNCE_MS" => Ok("123".to_owned()),
             _ => Err(env::VarError::NotPresent),
         })
         .expect("expected parsed config");
@@ -296,7 +289,7 @@ mod tests {
     #[test]
     fn server_config_from_env_with_reads_workspace_root() {
         let config = ServerConfig::from_env_with(|key| match key {
-            "RSTEST_BDD_LSP_WORKSPACE_ROOT" => Ok("/my/workspace".to_string()),
+            "RSTEST_BDD_LSP_WORKSPACE_ROOT" => Ok("/my/workspace".to_owned()),
             _ => Err(env::VarError::NotPresent),
         })
         .expect("expected parsed config");
@@ -307,15 +300,15 @@ mod tests {
     #[test]
     fn server_config_from_env_with_rejects_invalid_values() {
         let result = ServerConfig::from_env_with(|key| match key {
-            "RSTEST_BDD_LSP_LOG_LEVEL" => Ok("invalid".to_string()),
+            "RSTEST_BDD_LSP_LOG_LEVEL" => Ok("invalid".to_owned()),
             _ => Err(env::VarError::NotPresent),
         });
         assert!(result.is_err());
 
-        let result = ServerConfig::from_env_with(|key| match key {
-            "RSTEST_BDD_LSP_DEBOUNCE_MS" => Ok("invalid".to_string()),
+        let debounce_result = ServerConfig::from_env_with(|key| match key {
+            "RSTEST_BDD_LSP_DEBOUNCE_MS" => Ok("invalid".to_owned()),
             _ => Err(env::VarError::NotPresent),
         });
-        assert!(result.is_err());
+        assert!(debounce_result.is_err());
     }
 }

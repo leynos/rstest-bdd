@@ -77,9 +77,7 @@ impl ReminderService {
     /// assert_eq!(service.pending_reminder_count(), 0);
     /// ```
     #[must_use]
-    pub fn new() -> Self {
-        Self::default()
-    }
+    pub fn new() -> Self { Self::default() }
 
     /// Schedules a reminder for later delivery on Tokio's local task queue.
     ///
@@ -105,8 +103,8 @@ impl ReminderService {
     /// ```
     pub fn schedule_reminder(&self, recipient: impl Into<String>) {
         let delivered = Rc::clone(&self.delivered);
-        let recipient = recipient.into();
-        let task_recipient = recipient.clone();
+        let recipient_name: String = recipient.into();
+        let task_recipient = recipient_name.clone();
 
         // Store the future without spawning it yet
         let task: ReminderTask = Box::pin(async move {
@@ -115,9 +113,10 @@ impl ReminderService {
                 .push(format!("Reminder sent to {task_recipient}"));
         });
 
-        self.pending
-            .borrow_mut()
-            .push(PendingReminder { recipient, task });
+        self.pending.borrow_mut().push(PendingReminder {
+            recipient: recipient_name,
+            task,
+        });
     }
 
     /// Waits for all queued reminders to complete.
@@ -151,6 +150,12 @@ impl ReminderService {
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ReminderServiceError::Join`] carrying the first join failure
+    /// observed while awaiting the queued reminder tasks. Every queued task is
+    /// still awaited, so later failures are swallowed in favour of the first.
     pub async fn flush(&self) -> Result<(), ReminderServiceError> {
         let pending = std::mem::take(&mut *self.pending.borrow_mut());
         let mut first_error = None;
@@ -159,17 +164,13 @@ impl ReminderService {
             // Spawn the task and await it
             let handle = tokio::task::spawn_local(task);
             if let Err(source) = handle.await {
-                if first_error.is_none() {
-                    first_error = Some(ReminderServiceError::Join { source });
-                }
+                // Keep the first join failure; the loop still drains every
+                // queued task so callers observe all side effects.
+                first_error.get_or_insert_with(|| ReminderServiceError::Join { source });
             }
         }
 
-        if let Some(error) = first_error {
-            Err(error)
-        } else {
-            Ok(())
-        }
+        first_error.map_or(Ok(()), Err)
     }
 
     /// Returns the delivered reminder messages in delivery order.
@@ -188,16 +189,17 @@ impl ReminderService {
     /// let service = ReminderService::new();
     /// service.schedule_reminder("Ada");
     /// service.flush().await?;
-    /// assert_eq!(service.delivered_reminders(), vec!["Reminder sent to Ada".to_string()]);
+    /// assert_eq!(
+    ///     service.delivered_reminders(),
+    ///     vec!["Reminder sent to Ada".to_string()]
+    /// );
     /// # Ok::<(), tokio_reminders::ReminderServiceError>(())
     /// # })?;
     /// # Ok(())
     /// # }
     /// ```
     #[must_use]
-    pub fn delivered_reminders(&self) -> Vec<String> {
-        self.delivered.borrow().clone()
-    }
+    pub fn delivered_reminders(&self) -> Vec<String> { self.delivered.borrow().clone() }
 
     /// Returns the number of reminders still waiting to be flushed.
     ///
@@ -222,9 +224,7 @@ impl ReminderService {
     /// # }
     /// ```
     #[must_use]
-    pub fn pending_reminder_count(&self) -> usize {
-        self.pending.borrow().len()
-    }
+    pub fn pending_reminder_count(&self) -> usize { self.pending.borrow().len() }
 
     /// Returns the queued reminder recipients in scheduling order.
     ///
@@ -242,7 +242,10 @@ impl ReminderService {
     /// let service = ReminderService::new();
     /// service.schedule_reminder("Ada");
     /// service.schedule_reminder("Grace");
-    /// assert_eq!(service.pending_recipients(), vec!["Ada".to_string(), "Grace".to_string()]);
+    /// assert_eq!(
+    ///     service.pending_recipients(),
+    ///     vec!["Ada".to_string(), "Grace".to_string()]
+    /// );
     /// # Ok::<(), tokio_reminders::ReminderServiceError>(())
     /// # })?;
     /// # Ok(())
@@ -264,18 +267,15 @@ mod tests {
 
     use std::rc::Rc;
 
-    use super::{PendingReminder, ReminderService, ReminderTask};
     use rstest::{fixture, rstest};
 
-    #[fixture]
-    fn local_set() -> tokio::task::LocalSet {
-        tokio::task::LocalSet::new()
-    }
+    use super::{PendingReminder, ReminderService, ReminderTask};
 
     #[fixture]
-    fn service() -> ReminderService {
-        ReminderService::new()
-    }
+    fn local_set() -> tokio::task::LocalSet { tokio::task::LocalSet::new() }
+
+    #[fixture]
+    fn service() -> ReminderService { ReminderService::new() }
 
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
@@ -306,7 +306,7 @@ mod tests {
                 assert_eq!(service.pending_reminder_count(), 2);
                 assert_eq!(
                     service.pending_recipients(),
-                    vec!["Ada".to_string(), "Grace".to_string()]
+                    vec!["Ada".to_owned(), "Grace".to_owned()]
                 );
 
                 let result = service.flush().await;
@@ -317,8 +317,8 @@ mod tests {
                 assert_eq!(
                     service.delivered_reminders(),
                     vec![
-                        "Reminder sent to Ada".to_string(),
-                        "Reminder sent to Grace".to_string(),
+                        "Reminder sent to Ada".to_owned(),
+                        "Reminder sent to Grace".to_owned(),
                     ]
                 );
                 assert_eq!(service.pending_reminder_count(), 0);
@@ -341,20 +341,20 @@ mod tests {
                 assert!(first.is_ok(), "first flush should succeed: {first:?}");
                 assert_eq!(
                     service.delivered_reminders(),
-                    vec!["Reminder sent to Ada".to_string()]
+                    vec!["Reminder sent to Ada".to_owned()]
                 );
                 assert!(service.pending_recipients().is_empty());
 
                 service.schedule_reminder("Linus");
-                assert_eq!(service.pending_recipients(), vec!["Linus".to_string()]);
+                assert_eq!(service.pending_recipients(), vec!["Linus".to_owned()]);
 
                 let second = service.flush().await;
                 assert!(second.is_ok(), "second flush should succeed: {second:?}");
                 assert_eq!(
                     service.delivered_reminders(),
                     vec![
-                        "Reminder sent to Ada".to_string(),
-                        "Reminder sent to Linus".to_string(),
+                        "Reminder sent to Ada".to_owned(),
+                        "Reminder sent to Linus".to_owned(),
                     ]
                 );
             })
@@ -376,16 +376,16 @@ mod tests {
                 let succeeding_task: ReminderTask = Box::pin(async move {
                     delivered
                         .borrow_mut()
-                        .push("Reminder sent to Grace".to_string());
+                        .push("Reminder sent to Grace".to_owned());
                 });
 
                 service.pending.borrow_mut().extend([
                     PendingReminder {
-                        recipient: "Ada".to_string(),
+                        recipient: "Ada".to_owned(),
                         task: failing_task,
                     },
                     PendingReminder {
-                        recipient: "Grace".to_string(),
+                        recipient: "Grace".to_owned(),
                         task: succeeding_task,
                     },
                 ]);
@@ -394,7 +394,7 @@ mod tests {
                 assert!(result.is_err(), "flush should report the first join error");
                 assert_eq!(
                     service.delivered_reminders(),
-                    vec!["Reminder sent to Grace".to_string()]
+                    vec!["Reminder sent to Grace".to_owned()]
                 );
                 assert_eq!(service.pending_reminder_count(), 0);
                 assert!(service.pending_recipients().is_empty());
@@ -430,7 +430,7 @@ mod tests {
                 service.flush().await.expect("flush should succeed");
                 assert_eq!(
                     service.delivered_reminders(),
-                    vec!["Reminder sent to Ada".to_string()],
+                    vec!["Reminder sent to Ada".to_owned()],
                     "delivered_reminders should contain Ada after flush"
                 );
                 assert_eq!(

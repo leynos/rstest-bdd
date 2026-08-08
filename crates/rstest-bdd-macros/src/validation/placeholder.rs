@@ -5,9 +5,9 @@
 //! happens at compile time during macro expansion, providing early feedback for
 //! misconfigured scenario outlines.
 
-use crate::parsing::feature::ParsedStep;
-use crate::parsing::placeholder::PLACEHOLDER_RE;
 use proc_macro2::Span;
+
+use crate::parsing::{feature::ParsedStep, placeholder::PLACEHOLDER_RE};
 
 /// Location where placeholder validation is performed.
 #[derive(Debug, Clone, Copy)]
@@ -21,7 +21,7 @@ pub(crate) enum ValidationContext {
 }
 
 impl ValidationContext {
-    fn as_str(self) -> &'static str {
+    const fn as_str(self) -> &'static str {
         match self {
             Self::Step => "step",
             Self::Docstring => "docstring",
@@ -35,17 +35,11 @@ impl ValidationContext {
 pub(crate) struct ExampleHeaders<'a>(&'a [String]);
 
 impl<'a> ExampleHeaders<'a> {
-    pub fn new(headers: &'a [String]) -> Self {
-        Self(headers)
-    }
+    pub const fn new(headers: &'a [String]) -> Self { Self(headers) }
 
-    pub fn contains(&self, name: &str) -> bool {
-        self.0.iter().any(|h| h == name)
-    }
+    pub fn contains(&self, name: &str) -> bool { self.0.iter().any(|h| h == name) }
 
-    pub fn join(&self, sep: &str) -> String {
-        self.0.join(sep)
-    }
+    pub fn join(&self, sep: &str) -> String { self.0.join(sep) }
 }
 
 /// Validates all placeholders in steps reference columns in the Examples table.
@@ -90,8 +84,8 @@ fn validate_step_docstring(
     headers: ExampleHeaders<'_>,
     span: Span,
 ) -> Result<(), syn::Error> {
-    if let Some(docstring) = docstring {
-        validate_text_placeholders(docstring, headers, ValidationContext::Docstring, span)?;
+    if let Some(text) = docstring {
+        validate_text_placeholders(text, headers, ValidationContext::Docstring, span)?;
     }
     Ok(())
 }
@@ -102,8 +96,8 @@ fn validate_step_table(
     headers: ExampleHeaders<'_>,
     span: Span,
 ) -> Result<(), syn::Error> {
-    if let Some(table) = table {
-        for row in table {
+    if let Some(rows) = table {
+        for row in rows {
             for cell in row {
                 validate_text_placeholders(cell, headers, ValidationContext::TableCell, span)?;
             }
@@ -125,8 +119,8 @@ fn validate_text_placeholders(
             return Err(syn::Error::new(
                 span,
                 format!(
-                    "Placeholder '<{placeholder}>' in {} not found in Examples table. \
-                     Available columns: [{}]",
+                    "Placeholder '<{placeholder}>' in {} not found in Examples table. Available \
+                     columns: [{}]",
                     context.as_str(),
                     headers.join(", ")
                 ),
@@ -137,23 +131,20 @@ fn validate_text_placeholders(
 }
 
 #[cfg(feature = "compile-time-validation")]
-fn step_span(step: &ParsedStep) -> Span {
-    step.span
-}
+const fn step_span(step: &ParsedStep) -> Span { step.span }
 
 #[cfg(not(feature = "compile-time-validation"))]
-fn step_span(_step: &ParsedStep) -> Span {
-    Span::call_site()
-}
+fn step_span(_step: &ParsedStep) -> Span { Span::call_site() }
 
 #[cfg(test)]
 #[expect(clippy::unwrap_used, reason = "tests use unwrap for brevity")]
 mod tests {
     //! Unit tests for placeholder validation against example headers.
 
+    use rstest::rstest;
+
     use super::*;
     use crate::StepKeyword;
-    use rstest::rstest;
 
     /// Builder for creating test `ParsedStep` instances.
     struct ParsedStepBuilder {
@@ -172,12 +163,12 @@ mod tests {
 
     impl ParsedStepBuilder {
         fn with_text(mut self, text: &str) -> Self {
-            self.text = text.to_string();
+            self.text = text.to_owned();
             self
         }
 
         fn with_docstring(mut self, docstring: Option<&str>) -> Self {
-            self.docstring = docstring.map(ToString::to_string);
+            self.docstring = docstring.map(str::to_owned);
             self
         }
 
@@ -235,7 +226,7 @@ mod tests {
     #[case::step_text("I have <count> items", vec!["count"], None, None)]
     #[case::multiple_placeholders("I have <count> <item>", vec!["count", "item"], None, None)]
     #[case::docstring("step text", vec!["value"], Some("docstring with <value>"), None)]
-    #[case::table("step text", vec!["value"], None, Some(vec![vec!["<value>".to_string(), "static".to_string()]]))]
+    #[case::table("step text", vec!["value"], None, Some(vec![vec!["<value>".to_owned(), "static".to_owned()]]))]
     #[case::no_placeholders("I have 5 items", vec!["count"], None, None)]
     fn valid_placeholder_tests(
         #[case] text: &str,
@@ -250,23 +241,50 @@ mod tests {
                 .with_table(table)
                 .build(),
         ];
-        let headers: Vec<String> = header_strs.into_iter().map(ToString::to_string).collect();
+        let headers: Vec<String> = header_strs.into_iter().map(str::to_owned).collect();
 
         assert_valid_placeholders(&steps, &headers);
     }
 
+    /// The optional step attachments a case exercises.
+    struct StepAttachments {
+        docstring: Option<&'static str>,
+        table: Option<Vec<Vec<String>>>,
+    }
+
     #[rstest]
-    #[case::step_text("I have <undefined> items", vec!["count"], None, None, "<undefined>", ValidationContext::Step)]
-    #[case::docstring("step text", vec!["value"], Some("docstring with <undefined>"), None, "<undefined>", ValidationContext::Docstring)]
-    #[case::table("step text", vec!["value"], None, Some(vec![vec!["<undefined>".to_string()]]), "<undefined>", ValidationContext::TableCell)]
+    #[case::step_text(
+        "I have <undefined> items",
+        vec!["count"],
+        StepAttachments { docstring: None, table: None },
+        ValidationContext::Step
+    )]
+    #[case::docstring(
+        "step text",
+        vec!["value"],
+        StepAttachments {
+            docstring: Some("docstring with <undefined>"),
+            table: None,
+        },
+        ValidationContext::Docstring
+    )]
+    #[case::table(
+        "step text",
+        vec!["value"],
+        StepAttachments {
+            docstring: None,
+            table: Some(vec![vec!["<undefined>".to_owned()]]),
+        },
+        ValidationContext::TableCell
+    )]
     fn invalid_placeholder_tests(
         #[case] text: &str,
         #[case] header_strs: Vec<&str>,
-        #[case] docstring: Option<&str>,
-        #[case] table: Option<Vec<Vec<String>>>,
-        #[case] expected_placeholder: &str,
+        #[case] attachments: StepAttachments,
         #[case] expected_context: ValidationContext,
     ) {
+        const EXPECTED_PLACEHOLDER: &str = "<undefined>";
+        let StepAttachments { docstring, table } = attachments;
         let steps = vec![
             make_step_builder()
                 .with_text(text)
@@ -274,12 +292,12 @@ mod tests {
                 .with_table(table)
                 .build(),
         ];
-        let headers: Vec<String> = header_strs.into_iter().map(ToString::to_string).collect();
+        let headers: Vec<String> = header_strs.into_iter().map(str::to_owned).collect();
 
         assert_placeholder_error(
             &steps,
             ExampleHeaders::new(&headers),
-            expected_placeholder,
+            EXPECTED_PLACEHOLDER,
             expected_context,
         );
     }
@@ -287,7 +305,7 @@ mod tests {
     #[test]
     fn empty_steps_is_valid() {
         let steps: Vec<ParsedStep> = vec![];
-        let headers = vec!["count".to_string()];
+        let headers = vec!["count".to_owned()];
 
         assert_valid_placeholders(&steps, &headers);
     }

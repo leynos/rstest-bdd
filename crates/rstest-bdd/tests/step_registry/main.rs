@@ -1,10 +1,17 @@
 //! Behavioural test for step registry.
 
 use rstest::rstest;
-use rstest_bdd::localization::{ScopedLocalization, strip_directional_isolates};
 use rstest_bdd::{
-    Step, StepContext, StepError, StepExecution, StepKeyword, StepText, find_step_with_metadata,
-    iter, unused_steps,
+    Step,
+    StepContext,
+    StepError,
+    StepExecution,
+    StepKeyword,
+    StepText,
+    find_step_with_metadata,
+    iter,
+    localization::{ScopedLocalization, strip_directional_isolates},
+    unused_steps,
 };
 use unic_langid::langid;
 
@@ -17,6 +24,17 @@ use poll_step_future_support::poll_step_future;
 mod execute_step_tests;
 mod wrappers;
 
+/// What a wrapper error case expects to observe.
+#[derive(Clone, Copy)]
+struct WrapperExpectation<'a> {
+    /// Name the error should attribute the failure to.
+    function_name: &'a str,
+    /// Fragment the rendered error must contain.
+    message: &'a str,
+    /// Whether the non-panic error branch is expected to run.
+    non_panic_branch: bool,
+}
+
 #[test]
 fn step_is_registered() {
     let found = iter::<Step>
@@ -26,22 +44,43 @@ fn step_is_registered() {
 }
 
 #[rstest]
-#[case(StepKeyword::Given, "fails", "failing_wrapper", "boom", true)]
-#[case(StepKeyword::When, "panics", "panicking_wrapper", "snap", false)]
+#[case(
+    StepKeyword::Given,
+    "fails",
+    WrapperExpectation {
+        function_name: "failing_wrapper",
+        message: "boom",
+        non_panic_branch: true,
+    }
+)]
+#[case(
+    StepKeyword::When,
+    "panics",
+    WrapperExpectation {
+        function_name: "panicking_wrapper",
+        message: "snap",
+        non_panic_branch: false,
+    }
+)]
 #[case(
     StepKeyword::Then,
     "needs fixture",
-    "needs_fixture",
-    "Missing fixture 'missing' of type 'u32' for step function 'needs_fixture'",
-    true
+    WrapperExpectation {
+        function_name: "needs_fixture",
+        message: "Missing fixture 'missing' of type 'u32' for step function 'needs_fixture'",
+        non_panic_branch: true,
+    }
 )]
 fn wrapper_handles_panic_and_non_panic_errors(
     #[case] keyword: StepKeyword,
     #[case] pattern: &str,
-    #[case] function_name: &str,
-    #[case] expected_message: &str,
-    #[case] expects_non_panic_branch: bool,
+    #[case] expected: WrapperExpectation<'_>,
 ) {
+    let WrapperExpectation {
+        function_name,
+        message: expected_message,
+        non_panic_branch: expects_non_panic_branch,
+    } = expected;
     let step_fn = iter::<Step>
         .into_iter()
         .find(|s| s.pattern.as_str() == pattern && s.keyword == keyword)
@@ -125,7 +164,6 @@ fn wrapper_errors_localize(
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "step lookup must succeed for test")]
 fn find_step_with_metadata_returns_step_with_fixtures() {
     let step = find_step_with_metadata(StepKeyword::Then, StepText::from("needs fixture"))
         .expect("step 'needs fixture' not found in registry");
@@ -146,7 +184,6 @@ fn find_step_with_metadata_returns_none_for_unknown_step() {
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "step lookup must succeed for test")]
 fn find_step_with_metadata_returns_empty_fixtures_for_no_fixture_step() {
     let step = find_step_with_metadata(StepKeyword::When, StepText::from("behavioural"))
         .expect("step 'behavioural' not found in registry");
@@ -171,7 +208,6 @@ fn available_fixtures_lists_scenario_fixtures() {
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "step lookup must succeed for test")]
 fn fixture_validation_detects_missing_fixtures() {
     // This test validates the fixture validation logic that is used in
     // execute_single_step() by replicating the same check here.
@@ -196,7 +232,6 @@ fn fixture_validation_detects_missing_fixtures() {
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "step lookup must succeed for test")]
 fn fixture_validation_passes_when_all_fixtures_present() {
     let step = find_step_with_metadata(StepKeyword::Then, StepText::from("needs fixture"))
         .expect("step 'needs fixture' not found in registry");
@@ -218,7 +253,6 @@ fn fixture_validation_passes_when_all_fixtures_present() {
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "step lookup must succeed for test")]
 fn find_step_with_metadata_marks_step_as_used() {
     // The step "needs fixture" should be marked as used after find_step_with_metadata
     let step = find_step_with_metadata(StepKeyword::Then, StepText::from("needs fixture"))
@@ -247,7 +281,6 @@ fn step_with_auto_async_is_registered() {
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "test validates step lookup succeeds")]
 fn step_with_auto_async_sync_handler_works() {
     let step = iter::<Step>
         .into_iter()
@@ -260,7 +293,6 @@ fn step_with_auto_async_sync_handler_works() {
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "test validates step lookup succeeds")]
 fn step_with_auto_async_handler_works() {
     let step = iter::<Step>
         .into_iter()
