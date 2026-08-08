@@ -93,7 +93,12 @@ PUBLISHED_GPUI_MANIFEST := tests/fixtures/published-gpui-0-2-2/Cargo.toml
 
 check-published-gpui: ## Compile the published gpui 0.2.2 documentation fixture
 	# This nested workspace bypasses the root workspace's vendored gpui path.
-	$(CARGO) check --locked --manifest-path $(PUBLISHED_GPUI_MANIFEST)
+	# CI exports RUSTFLAGS=-D warnings job-wide; set it here too so an unused
+	# import or dead helper fails locally rather than only on CI. Note this
+	# does not catch a write-only struct field: rustc's dead_code pass treats
+	# `state.field = v` as a use, so such a field warns in neither place.
+	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) check --locked \
+		--manifest-path $(PUBLISHED_GPUI_MANIFEST)
 
 forbid-async-trait: ## Ensure the async-trait crate and macro remain absent
 	python3 scripts/check_forbidden_async_trait.py
