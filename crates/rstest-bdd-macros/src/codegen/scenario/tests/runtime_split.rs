@@ -29,6 +29,7 @@ fn scenario_config_keeps_attribute_runtime_separate_from_execution_runtime() {
         return_kind: ScenarioReturnKind::Unit,
         harness: None,
         attributes: None,
+        resolutions: None,
     };
 
     let attrs = generate_test_attrs(
@@ -82,6 +83,7 @@ fn aliased_harness_scenario_output() -> String {
         return_kind: ScenarioReturnKind::Unit,
         harness: Some(&harness),
         attributes: None,
+        resolutions: None,
     };
 
     generate_scenario_code(

@@ -1736,9 +1736,17 @@ first-party adapter crate is present.
 
 The `codegen::adapter_fallback` module owns this diagnostic. Resolution is a
 pure decision that returns the selected base API crate path and optional
-qualifying fallback metadata. Scenario code generation resolves each supplied
-`harness` or `attributes` path once and reuses the decision for runtime code,
-trait assertions, and one diagnostic. The two paths remain independent.
+qualifying fallback metadata. Each macro expansion resolves each supplied
+`harness` or `attributes` path once at its boundary and reuses the decision for
+runtime code, trait assertions, and one diagnostic. The two paths remain
+independent.
+
+`#[scenario]` and `scenarios!` each own a boundary. `scenarios!` resolves both
+supplied paths before it iterates the discovered scenarios and shares the
+result with every generated test, so the contract is one diagnostic per
+distinct qualifying supplied path regardless of how many scenarios the feature
+directory yields. Supplying an aliased `harness` and an aliased `attributes`
+together therefore yields exactly two diagnostics.
 
 On nightly, the macro-expansion boundary passes that metadata to
 `proc_macro::Diagnostic::spanned` with `proc_macro::Level::Warning` and calls
