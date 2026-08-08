@@ -326,6 +326,73 @@ repository with `git show <commit>:crates/gpui/src/app/test_context.rs`. Unit
 tests for the table checker live in
 `scripts/tests/test_check_gpui_mapping_table.py`.
 
+## Published GPUI fixture check (`make check-published-gpui`)
+
+`docs/users-guide.md` carries a "Published gpui 0.2.2 stateful step variants"
+subsection whose snippets target the crates.io `gpui` crate rather than the
+`vendor/gpui` shim. `tests/fixtures/published-gpui-0-2-2/` is a
+compile-checked mirror of those snippets, so the published call shapes cannot
+silently drift from the guide. Compare the vendored snippets, which are
+mirrored by the executable regression suite
+`crates/rstest-bdd-harness-gpui/tests/stateful_window.rs`.
+
+Run the check with:
+
+```bash
+make check-published-gpui
+```
+
+which invokes:
+
+```makefile
+check-published-gpui: ## Compile the published gpui 0.2.2 documentation fixture
+	# This nested workspace bypasses the root workspace's vendored gpui path.
+	$(CARGO) check --locked --manifest-path \
+		tests/fixtures/published-gpui-0-2-2/Cargo.toml
+```
+
+The fixture declares its own empty `[workspace]` table so that `gpui`
+resolves from crates.io rather than inheriting the root workspace's path
+dependency. The root `Cargo.toml` pins the shim:
+
+```toml
+gpui = { version = "0.2.2", path = "vendor/gpui", default-features = false, features = ["test-support"] }
+```
+
+so any crate inside the root workspace would otherwise pull it in.
+One consequence: because `rstest-bdd-harness-gpui` depends on
+`gpui.workspace = true` (the shim), the fixture cannot use `GpuiHarness`; it
+declares bare `#[given]`/`#[when]`/`#[then]` steps that take
+`#[from(rstest_bdd_harness_context)] context: &mut gpui::TestAppContext`
+directly.
+
+The fixture commits its own `tests/fixtures/published-gpui-0-2-2/Cargo.lock`,
+separate from the root workspace lockfile, and the target passes `--locked`,
+so the check is reproducible and a dependency bump has to be an explicit,
+reviewed lockfile change rather than a silent resolution drift.
+
+The check is deliberately `cargo check` only: the fixture is never executed,
+so the `assert_eq!` calls inside its steps document the expected published
+semantics but do not run. The real crates.io `gpui` pulls in the full
+graphics and windowing stack (`blade-graphics`, Wayland and X11 client
+libraries, `cosmic-text`, `bindgen`), none of which CI provisions; the
+`vendor/gpui` shim exists exactly so the executable suite can run without
+them. Anyone changing the fixture should treat compilation, not assertion, as
+the gate.
+
+Unlike the GPUI mapping-table check described above, this is a dedicated CI
+step invoked directly, not part of `make lint` or `make test`. It runs as a
+standalone step in `.github/workflows/ci.yml`:
+
+```yaml
+- name: Check published GPUI documentation fixture
+  if: ${{ matrix.tools && matrix.with-default-features }}
+  run: make check-published-gpui
+```
+
+Consequently it does not run in a plain local `make lint`; developers
+touching the published snippets should run it by hand.
+
 ## `#[serial]`/nextest matrix validation (`scripts/check_serial_nextest_matrix.py`)
 
 The runner matrix for `#[serial]`, cargo-nextest, `#[file_serial]`, and nextest
