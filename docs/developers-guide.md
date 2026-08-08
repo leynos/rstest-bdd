@@ -435,7 +435,6 @@ Keep `temp-env` available as a dev-dependency when building this test target;
 direct environment mutation is unsafe under Rust 2024 and would violate the
 workspace's unsafe-code policy.
 
-
 ### Fallible GPUI test boundaries
 
 The `rstest-bdd-macros` scenario code generator owns the private
