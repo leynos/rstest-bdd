@@ -185,6 +185,8 @@ fn try_scenario(
         return_kind,
         harness: harness.as_ref(),
         attributes: attributes.as_ref(),
+        // `#[scenario]` is its own expansion boundary: resolve and emit here.
+        resolutions: None,
     };
 
     Ok(generate_scenario_code(

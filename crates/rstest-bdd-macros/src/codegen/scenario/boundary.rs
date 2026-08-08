@@ -12,7 +12,7 @@ use quote::quote;
 use super::{
     ScenarioConfig,
     ScenarioReturnKind,
-    generate_trait_assertions,
+    adapters::generate_trait_assertions,
     helpers::generate_underscore_expect,
     test_attrs::{TestAttrPolicy, generate_test_attrs_with_boundary},
 };

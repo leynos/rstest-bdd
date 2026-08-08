@@ -55,6 +55,10 @@ pub(super) struct ScenarioTestContext<'a> {
     pub(super) harness: Option<&'a syn::Path>,
     /// Optional attribute policy type for compile-time trait assertion.
     pub(super) attributes: Option<&'a syn::Path>,
+    /// Harness path generated against, after any runtime compatibility alias.
+    pub(super) effective_harness: Option<&'a syn::Path>,
+    /// Adapter API paths resolved once for the whole `scenarios!` expansion.
+    pub(super) resolutions: &'a crate::codegen::SharedAdapterResolutions,
 }
 
 /// Resolves which harness path should be used for code generation.
@@ -83,7 +87,7 @@ pub(super) struct ScenarioTestContext<'a> {
 /// );
 /// assert!(resolved.is_some());
 /// ```
-fn resolve_harness_path(
+pub(super) fn resolve_harness_path(
     explicit_harness: Option<&syn::Path>,
     runtime_alias: Option<RuntimeCompatibilityAlias>,
 ) -> Option<syn::Path> {
@@ -300,8 +304,9 @@ pub(super) fn generate_scenario_test(
     let example_params = build_example_params(examples.as_ref());
 
     let alias = runtime_compatibility_alias(ctx.runtime);
-    let resolved_harness = resolve_harness_path(ctx.harness, alias);
-    let harness_ref = resolved_harness.as_ref();
+    // The effective harness is constant across the expansion, so it is
+    // resolved once at the `scenarios!` boundary alongside its diagnostic.
+    let harness_ref = ctx.effective_harness;
     let effective_runtime = resolve_effective_runtime(ctx.runtime, alias, ctx.harness);
 
     let is_async = effective_runtime.is_async();
@@ -340,6 +345,7 @@ pub(super) fn generate_scenario_test(
         attribute_runtime: ctx.runtime,
         harness: harness_ref,
         attributes: ctx.attributes,
+        resolutions: Some(ctx.resolutions),
     };
     generate_scenario_code(
         &config,

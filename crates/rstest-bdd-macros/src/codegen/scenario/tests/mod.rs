@@ -31,7 +31,7 @@ macro_rules! parse_attr {
         attr
     }};
 }
-
+mod adapter_sharing;
 mod gpui_policy;
 mod harness_defaults;
 mod runtime_split;

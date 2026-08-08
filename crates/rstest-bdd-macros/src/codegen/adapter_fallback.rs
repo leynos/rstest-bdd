@@ -132,6 +132,50 @@ pub(crate) fn first_party_adapter_fallback_warning_tokens(
     TokenStream2::new()
 }
 
+/// Harness API resolutions shared by every scenario one macro expansion emits.
+///
+/// `scenarios!` generates a test per discovered scenario, so resolving the
+/// supplied paths inside each scenario would repeat the fallback diagnostic
+/// once per generated test. Resolving at the expansion boundary instead keeps
+/// the contract at one diagnostic per distinct qualifying path, however many
+/// scenarios the feature directory yields.
+#[derive(Clone)]
+pub(crate) struct SharedAdapterResolutions {
+    pub(crate) harness: Option<super::HarnessApiResolution>,
+    pub(crate) attributes: Option<super::HarnessApiResolution>,
+}
+
+impl SharedAdapterResolutions {
+    /// Resolve both supplied paths without emitting anything.
+    pub(crate) fn resolve(harness: Option<&syn::Path>, attributes: Option<&syn::Path>) -> Self {
+        Self {
+            harness: harness.map(super::resolve_harness_api),
+            attributes: attributes.map(super::resolve_harness_api),
+        }
+    }
+
+    /// Emit each qualifying fallback exactly once.
+    ///
+    /// Call this only from the expansion boundary that owns the resolutions.
+    /// On nightly it emits through `proc_macro::Diagnostic`, so a second call
+    /// would duplicate the warning. The returned tokens carry the stable
+    /// deprecated-item form and must be spliced into the generated output.
+    pub(crate) fn emit_diagnostics(&self) -> TokenStream2 {
+        let harness = self
+            .harness
+            .as_ref()
+            .map(super::first_party_adapter_fallback_diagnostic);
+        let attributes = self
+            .attributes
+            .as_ref()
+            .map(super::first_party_adapter_fallback_diagnostic);
+        quote::quote! {
+            #harness
+            #attributes
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     //! Regression tests for stable fallback-token selection.

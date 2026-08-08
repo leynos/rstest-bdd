@@ -55,6 +55,7 @@ fn compile_fail_stable_fallback_warnings(tests: &trybuild::TestCases) {
         "tests/fixtures_macros/scenario_harness_alias_fallback_warning.rs",
         "tests/fixtures_macros/scenarios_attributes_alias_fallback_warning.rs",
         "tests/fixtures_macros/scenarios_multi_scenario_alias_fallback_warning.rs",
+        "tests/fixtures_macros/scenarios_combined_alias_fallback_warning.rs",
     ] {
         tests.compile_fail(case);
     }
