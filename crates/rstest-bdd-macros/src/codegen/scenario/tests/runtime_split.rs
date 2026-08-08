@@ -56,8 +56,9 @@ fn scenario_config_keeps_attribute_runtime_separate_from_execution_runtime() {
     );
 }
 
-#[test]
-fn aliased_harness_scenario_emits_one_stable_fallback_diagnostic() {
+/// Generate scenario code for a harness path that reaches the adapter crate
+/// through a local re-export, so first-party detection falls back.
+fn aliased_harness_scenario_output() -> String {
     let attrs = Vec::new();
     let vis: syn::Visibility = syn::parse_quote!();
     let sig: syn::Signature = syn::parse_quote!(fn aliased_harness());
@@ -83,13 +84,21 @@ fn aliased_harness_scenario_emits_one_stable_fallback_diagnostic() {
         attributes: None,
     };
 
-    let output = generate_scenario_code(
+    generate_scenario_code(
         &config,
         std::iter::empty(),
         std::iter::empty(),
         std::iter::empty(),
     )
-    .to_string();
+    .to_string()
+}
+
+/// Stable toolchains cannot emit procedural-macro warnings, so the fallback
+/// guidance rides along as a generated `#[deprecated]` marker item.
+#[cfg(not(rstest_bdd_nightly))]
+#[test]
+fn aliased_harness_scenario_emits_one_stable_fallback_diagnostic() {
+    let output = aliased_harness_scenario_output();
 
     assert_eq!(
         output
@@ -97,5 +106,22 @@ fn aliased_harness_scenario_emits_one_stable_fallback_diagnostic() {
             .count(),
         1,
         "fallback diagnostic marker should be emitted once: {output}"
+    );
+}
+
+/// Nightly routes the same guidance through `proc_macro::Diagnostic`, so the
+/// generated tokens must stay free of the stable marker. Asserting its absence
+/// keeps the two emission paths mutually exclusive rather than additive.
+#[cfg(rstest_bdd_nightly)]
+#[test]
+fn aliased_harness_scenario_omits_stable_fallback_marker_on_nightly() {
+    let output = aliased_harness_scenario_output();
+
+    assert_eq!(
+        output
+            .matches("struct RstestBddFirstPartyAdapterFallback")
+            .count(),
+        0,
+        "nightly emits a native diagnostic instead of the marker: {output}"
     );
 }

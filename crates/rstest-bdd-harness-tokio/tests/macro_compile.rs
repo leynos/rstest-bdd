@@ -54,6 +54,7 @@ fn compile_fail_stable_fallback_warnings(tests: &trybuild::TestCases) {
         "tests/fixtures_macros/scenario_attributes_alias_fallback_warning.rs",
         "tests/fixtures_macros/scenario_harness_alias_fallback_warning.rs",
         "tests/fixtures_macros/scenarios_attributes_alias_fallback_warning.rs",
+        "tests/fixtures_macros/scenarios_multi_scenario_alias_fallback_warning.rs",
     ] {
         tests.compile_fail(case);
     }
@@ -80,6 +81,7 @@ fn nightly_fallback_emits_one_proc_macro_warning() -> Result<(), Box<dyn std::er
     let tests = trybuild::TestCases::new();
     tests.compile_fail("tests/fixtures_macros/nightly_registry_empty_warning.rs");
     tests.compile_fail("tests/fixtures_macros/nightly_adapter_fallback_warning.rs");
+    tests.compile_fail("tests/fixtures_macros/nightly_multi_scenario_alias_fallback_warning.rs");
     Ok(())
 }
 
@@ -125,6 +127,10 @@ fn stage_trybuild_support_files() -> Result<(), Box<dyn std::error::Error>> {
     copy_file(
         &crate_root.join("tests/fixtures_macros/scenarios_harness_tokio_default.feature"),
         &trybuild_root.join("scenarios_harness_tokio_default.feature"),
+    )?;
+    copy_file(
+        &crate_root.join("tests/fixtures_macros/scenarios_multi_fallback.feature"),
+        &trybuild_root.join("scenarios_multi_fallback.feature"),
     )?;
     Ok(())
 }
