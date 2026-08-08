@@ -89,22 +89,26 @@ typecheck: build-python ## Run cargo and Python type checks with warnings denied
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) check $(CARGO_FLAGS) $(BUILD_JOBS)
 	$(UV_ENV) $(UV) run ty check $(PYTHON_TARGETS)
 
+PUBLISHED_GPUI_MANIFEST := tests/fixtures/published-gpui-0-2-2/Cargo.toml
+
 check-published-gpui: ## Compile the published gpui 0.2.2 documentation fixture
 	# This nested workspace bypasses the root workspace's vendored gpui path.
-	$(CARGO) check --locked --manifest-path \
-		tests/fixtures/published-gpui-0-2-2/Cargo.toml
+	$(CARGO) check --locked --manifest-path $(PUBLISHED_GPUI_MANIFEST)
 
 forbid-async-trait: ## Ensure the async-trait crate and macro remain absent
 	python3 scripts/check_forbidden_async_trait.py
 
 fmt: build-python ## Format Rust and Markdown sources
 	$(CARGO) fmt --all
+	# The published gpui fixture is its own workspace, so `--all` misses it.
+	$(CARGO) fmt --manifest-path $(PUBLISHED_GPUI_MANIFEST)
 	$(UV_ENV) $(UV) run ruff format $(PYTHON_TARGETS)
 	$(UV_ENV) $(UV) run ruff check --select I --fix $(PYTHON_TARGETS)
 	mdformat-all
 
 check-fmt: build-python ## Verify formatting
 	$(CARGO) fmt --all -- --check
+	$(CARGO) fmt --manifest-path $(PUBLISHED_GPUI_MANIFEST) -- --check
 	$(UV_ENV) $(UV) run ruff format --check $(PYTHON_TARGETS)
 
 markdownlint: spelling ## Lint Markdown files and enforce en-GB-oxendict spelling
