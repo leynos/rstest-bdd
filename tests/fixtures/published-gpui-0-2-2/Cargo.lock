@@ -4797,7 +4797,7 @@ checksum = "6c20b6793b5c2fa6553b250154b78d6d0db37e72700ae35fad9387a46f487c97"
 
 [[package]]
 name = "rstest-bdd"
-version = "0.6.0-beta3"
+version = "0.6.0-beta4"
 dependencies = [
  "ctor 0.2.9",
  "derive_more",
@@ -4819,7 +4819,7 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd-harness"
-version = "0.6.0-beta3"
+version = "0.6.0-beta4"
 dependencies = [
  "cargo_metadata",
  "thiserror 2.0.19",
@@ -4828,7 +4828,7 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd-macros"
-version = "0.6.0-beta3"
+version = "0.6.0-beta4"
 dependencies = [
  "camino",
  "cap-std",
@@ -4851,7 +4851,7 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd-patterns"
-version = "0.6.0-beta3"
+version = "0.6.0-beta4"
 dependencies = [
  "gherkin",
  "regex",
@@ -4860,7 +4860,7 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd-policy"
-version = "0.6.0-beta3"
+version = "0.6.0-beta4"
 
 [[package]]
 name = "rust-embed"
