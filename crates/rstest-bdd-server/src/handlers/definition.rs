@@ -5,17 +5,14 @@
 //! annotated with `#[given]`, `#[when]`, or `#[then]`, the handler returns
 //! all matching feature step locations.
 
-use std::path::Path;
-use std::sync::Arc;
+use std::{path::Path, sync::Arc};
 
 use async_lsp::ResponseError;
 use lsp_types::{GotoDefinitionParams, GotoDefinitionResponse, Location, Url};
 use tracing::debug;
 
-use crate::indexing::CompiledStepDefinition;
-use crate::server::ServerState;
-
-use super::util::{gherkin_span_to_lsp_range, has_extension};
+use super::util::{gherkin_span_to_lsp_range, resolve_request_path};
+use crate::{indexing::CompiledStepDefinition, server::ServerState};
 
 /// Handle `textDocument/definition` requests.
 ///
@@ -30,41 +27,33 @@ pub fn handle_definition(
     state: &ServerState,
     params: &GotoDefinitionParams,
 ) -> Result<Option<GotoDefinitionResponse>, ResponseError> {
-    let uri = &params.text_document_position_params.text_document.uri;
     let position = params.text_document_position_params.position;
+    let uri = &params.text_document_position_params.text_document.uri;
+    let locations = feature_steps_for_definition(state, uri, position);
+    Ok(locations.map(GotoDefinitionResponse::Array))
+}
 
-    // Only handle Rust files
-    let Ok(path) = uri.to_file_path() else {
-        debug!(%uri, "ignoring definition request for non-file URI");
-        return Ok(None);
-    };
+/// Collect the feature steps implemented by the Rust step under the cursor.
+///
+/// Returns `None` when the cursor is not on a step function or nothing matches.
+fn feature_steps_for_definition(
+    state: &ServerState,
+    uri: &Url,
+    position: lsp_types::Position,
+) -> Option<Vec<Location>> {
+    let path = resolve_request_path(uri, "rs", "definition")?;
 
-    if !has_extension(&path, "rs") {
-        debug!(?path, "ignoring definition request for non-Rust file");
-        return Ok(None);
-    }
-
-    // Find step definition at cursor position
     let Some(step_def) = find_step_at_position(state, &path, position) else {
         debug!(?position, "no step definition at cursor position");
-        return Ok(None);
+        return None;
     };
 
-    // Find all matching feature steps
     let locations = find_matching_feature_locations(state, &step_def);
-
     if locations.is_empty() {
         debug!(pattern = %step_def.pattern, "no matching feature steps found");
-        return Ok(None);
+        return None;
     }
-
-    debug!(
-        pattern = %step_def.pattern,
-        count = locations.len(),
-        "found matching feature steps"
-    );
-
-    Ok(Some(GotoDefinitionResponse::Array(locations)))
+    Some(locations)
 }
 
 /// Check if a position falls within an attribute span.
@@ -75,7 +64,7 @@ pub fn handle_definition(
 /// Both the target position and the span use UTF-16 code unit columns, matching
 /// the LSP `Position::character` specification. This allows direct comparison
 /// without conversion.
-fn position_in_span(
+const fn position_in_span(
     target_line: u32,
     target_col: u32,
     span: &crate::indexing::RustAttributeSpan,
@@ -171,25 +160,20 @@ fn find_matching_feature_locations(
 }
 
 #[cfg(test)]
-#[expect(
-    clippy::expect_used,
-    reason = "tests require explicit panic messages for debugging failures"
-)]
 mod tests {
     //! Unit tests for go-to-definition handling.
 
-    use super::*;
-    use crate::config::ServerConfig;
-    use crate::handlers::handle_did_save_text_document;
+    use std::path::PathBuf;
+
     use lsp_types::{DidSaveTextDocumentParams, Position, TextDocumentIdentifier};
     use rstest::{fixture, rstest};
-    use std::path::PathBuf;
     use tempfile::TempDir;
 
+    use super::*;
+    use crate::{config::ServerConfig, handlers::handle_did_save_text_document};
+
     #[fixture]
-    fn test_state() -> ServerState {
-        ServerState::new(ServerConfig::default())
-    }
+    fn test_state() -> ServerState { ServerState::new(ServerConfig::default()) }
 
     #[rstest]
     fn find_step_at_position_returns_none_for_empty_registry(test_state: ServerState) {

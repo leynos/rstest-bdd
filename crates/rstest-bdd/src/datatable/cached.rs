@@ -6,8 +6,7 @@
 //! borrow the rows for read-only access or clone them when ownership is
 //! required.
 
-use std::ops::Deref;
-use std::sync::Arc;
+use std::{ops::Deref, sync::Arc};
 
 /// Shared, owned representation of a parsed data table.
 pub type OwnedTableArc = Arc<Vec<Vec<String>>>;
@@ -16,9 +15,11 @@ pub type OwnedTableArc = Arc<Vec<Vec<String>>>;
 mod diagnostics {
     //! Per-thread cache-miss counters used by tests and diagnostics builds.
 
-    use std::collections::HashMap;
-    use std::sync::{Mutex, OnceLock};
-    use std::thread;
+    use std::{
+        collections::HashMap,
+        sync::{Mutex, OnceLock},
+        thread,
+    };
 
     fn counters() -> &'static Mutex<HashMap<thread::ThreadId, usize>> {
         static COUNTERS: OnceLock<Mutex<HashMap<thread::ThreadId, usize>>> = OnceLock::new();
@@ -60,16 +61,12 @@ pub fn record_cache_miss() {
 /// in tests and when the `diagnostics` feature is enabled.
 #[cfg(any(test, feature = "diagnostics"))]
 #[must_use]
-pub fn cache_miss_count() -> usize {
-    diagnostics::count()
-}
+pub fn cache_miss_count() -> usize { diagnostics::count() }
 
 /// Reset the cache miss counter for the current thread. Available in tests and
 /// when the `diagnostics` feature is enabled.
 #[cfg(any(test, feature = "diagnostics"))]
-pub fn reset_cache_miss_count() {
-    diagnostics::reset();
-}
+pub fn reset_cache_miss_count() { diagnostics::reset(); }
 
 /// Shareable view of a parsed data table.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -88,53 +85,37 @@ impl CachedTable {
 
     /// Construct a cache from an existing shared table.
     #[must_use]
-    pub fn from_arc(rows: OwnedTableArc) -> Self {
-        Self { rows }
-    }
+    pub const fn from_arc(rows: OwnedTableArc) -> Self { Self { rows } }
 
     /// Borrow the cached rows.
     #[must_use]
-    pub fn as_rows(&self) -> &[Vec<String>] {
-        self.rows.as_slice()
-    }
+    pub fn as_rows(&self) -> &[Vec<String>] { self.rows.as_slice() }
 
     /// Borrow the underlying shared allocation without cloning the `Arc`.
     #[must_use]
-    pub fn as_arc_ref(&self) -> &OwnedTableArc {
-        &self.rows
-    }
+    pub const fn as_arc_ref(&self) -> &OwnedTableArc { &self.rows }
 
     /// Obtain a stable pointer to the shared allocation.
     #[must_use]
-    pub fn as_ptr(&self) -> *const Vec<Vec<String>> {
-        Arc::as_ptr(&self.rows)
-    }
+    pub fn as_ptr(&self) -> *const Vec<Vec<String>> { Arc::as_ptr(&self.rows) }
 
     /// Access the underlying shared allocation.
     #[must_use]
-    pub fn as_arc(&self) -> OwnedTableArc {
-        Arc::clone(&self.rows)
-    }
+    pub fn as_arc(&self) -> OwnedTableArc { Arc::clone(&self.rows) }
 }
 
 impl Deref for CachedTable {
     type Target = [Vec<String>];
 
-    fn deref(&self) -> &Self::Target {
-        self.as_rows()
-    }
+    fn deref(&self) -> &Self::Target { self.as_rows() }
 }
 
 impl AsRef<[Vec<String>]> for CachedTable {
-    fn as_ref(&self) -> &[Vec<String>] {
-        self.as_rows()
-    }
+    fn as_ref(&self) -> &[Vec<String>] { self.as_rows() }
 }
 
 impl From<Vec<Vec<String>>> for CachedTable {
-    fn from(rows: Vec<Vec<String>>) -> Self {
-        Self::new(rows)
-    }
+    fn from(rows: Vec<Vec<String>>) -> Self { Self::new(rows) }
 }
 
 impl From<CachedTable> for Vec<Vec<String>> {

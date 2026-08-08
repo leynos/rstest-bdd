@@ -1,0 +1,4 @@
+# Vendored third-party crates are held to upstream's own standards rather than
+# this repository's tightened Clippy thresholds. Clippy resolves configuration
+# from each crate's manifest directory upwards, so this file shadows the
+# workspace-root `clippy.toml` for everything under `vendor/`.

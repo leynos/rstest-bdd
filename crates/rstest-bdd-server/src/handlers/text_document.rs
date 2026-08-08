@@ -8,15 +8,18 @@
 use lsp_types::DidSaveTextDocumentParams;
 use tracing::{debug, warn};
 
-use crate::indexing::{
-    index_feature_file, index_feature_source, index_rust_file, index_rust_source,
+use super::{
+    diagnostics::{
+        publish_all_feature_diagnostics,
+        publish_feature_diagnostics,
+        publish_rust_diagnostics,
+    },
+    util::has_extension,
 };
-use crate::server::ServerState;
-
-use super::diagnostics::{
-    publish_all_feature_diagnostics, publish_feature_diagnostics, publish_rust_diagnostics,
+use crate::{
+    indexing::{index_feature_file, index_feature_source, index_rust_file, index_rust_source},
+    server::ServerState,
 };
-use super::util::has_extension;
 
 /// Handle `textDocument/didSave` notifications.
 ///

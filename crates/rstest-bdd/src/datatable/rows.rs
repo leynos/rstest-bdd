@@ -1,7 +1,6 @@
 //! Typed row abstractions used when parsing datatable content.
 
-use std::convert::TryFrom;
-use std::ops::Deref;
+use std::{convert::TryFrom, ops::Deref};
 
 use derive_more::From;
 
@@ -29,17 +28,13 @@ pub struct Rows<T>(Vec<T>);
 impl<T> Deref for Rows<T> {
     type Target = [T];
 
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
+    fn deref(&self) -> &Self::Target { &self.0 }
 }
 
 impl<T> Rows<T> {
     /// Consumes the wrapper, returning the inner [`Vec`].
     #[must_use]
-    pub fn into_vec(self) -> Vec<T> {
-        self.0
-    }
+    pub fn into_vec(self) -> Vec<T> { self.0 }
 }
 
 impl<T> IntoIterator for Rows<T> {
@@ -68,9 +63,26 @@ impl<'a, T> IntoIterator for &'a mut Rows<T> {
     type Item = &'a mut T;
     type IntoIter = std::slice::IterMut<'a, T>;
 
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.iter_mut()
+    fn into_iter(self) -> Self::IntoIter { self.0.iter_mut() }
+}
+
+/// Reject a row whose width disagrees with the parsed header.
+fn check_row_width(
+    header: Option<&HeaderSpec>,
+    row: &[String],
+    row_number: usize,
+) -> Result<(), DataTableError> {
+    let Some(columns) = header else {
+        return Ok(());
+    };
+    if row.len() == columns.len() {
+        return Ok(());
     }
+    Err(DataTableError::UnevenRow {
+        row_number,
+        expected: columns.len(),
+        actual: row.len(),
+    })
 }
 
 impl<T> TryFrom<Vec<Vec<String>>> for Rows<T>
@@ -93,15 +105,7 @@ where
         let (lower, _) = rows_iter.size_hint();
         let mut parsed_rows = Vec::with_capacity(lower);
         for (index, row) in rows_iter.enumerate() {
-            if let Some(ref header) = header {
-                if row.len() != header.len() {
-                    return Err(DataTableError::UnevenRow {
-                        row_number: row_number + index,
-                        expected: header.len(),
-                        actual: row.len(),
-                    });
-                }
-            }
+            check_row_width(header.as_ref(), &row, row_number + index)?;
             let spec = RowSpec::new(header.as_ref(), row_number + index, index, row);
             let parsed = T::parse_row(spec)?;
             parsed_rows.push(parsed);

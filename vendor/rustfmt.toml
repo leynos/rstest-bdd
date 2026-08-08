@@ -1,0 +1,4 @@
+# Vendored third-party crates keep upstream's default formatting so that
+# re-vendoring produces a readable diff. rustfmt resolves configuration from
+# the nearest ancestor directory, so this file shadows the workspace-root
+# `.rustfmt.toml` for everything under `vendor/`.

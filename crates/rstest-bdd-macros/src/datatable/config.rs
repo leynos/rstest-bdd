@@ -33,7 +33,7 @@ pub(crate) struct FieldConfig {
 }
 
 impl FieldConfig {
-    pub(crate) fn new(accessor: Accessor) -> Self {
+    pub(crate) const fn new(accessor: Accessor) -> Self {
         Self {
             accessor,
             optional: false,

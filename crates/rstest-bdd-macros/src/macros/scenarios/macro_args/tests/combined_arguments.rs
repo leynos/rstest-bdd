@@ -1,10 +1,14 @@
 //! Parameterized tests for combined `scenarios!` argument parsing cases.
 
+use syn::parse_quote;
+
 use super::{
-    RuntimeCompatibilityAlias, RuntimeMode, ScenariosArgs, runtime_compatibility_alias,
+    RuntimeCompatibilityAlias,
+    RuntimeMode,
+    ScenariosArgs,
+    runtime_compatibility_alias,
     try_parse_scenarios_args,
 };
-use syn::parse_quote;
 
 #[rstest::rstest]
 #[case::scenarios_args_parses_all_arguments(
@@ -98,8 +102,8 @@ fn scenarios_args_parses_combined_arguments(
 ) {
     let args: ScenariosArgs = parse_scenarios_args!(input);
     assert_eq!(args.dir.value(), expected_dir);
-    if let Some(expected_tag) = expected_tag {
-        assert_tag_filter_eq!(&args, expected_tag);
+    if let Some(tag) = expected_tag {
+        assert_tag_filter_eq!(&args, tag);
     } else {
         assert!(args.tag_filter.is_none());
     }

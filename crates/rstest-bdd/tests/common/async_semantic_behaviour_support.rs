@@ -1,7 +1,6 @@
 //! Shared support for async semantic behaviour tests.
 
-use std::cell::RefCell;
-use std::path::Path;
+use std::{cell::RefCell, path::Path};
 
 use regex::Regex;
 #[cfg(feature = "diagnostics")]
@@ -120,9 +119,7 @@ pub(crate) fn reset_cleanup_drops() {
 }
 
 /// Returns the number of times [`CleanupProbe`] has been dropped in this thread.
-pub(crate) fn cleanup_drops() -> usize {
-    TEST_STATE.with(|state| state.borrow().cleanup_drops)
-}
+pub(crate) fn cleanup_drops() -> usize { TEST_STATE.with(|state| state.borrow().cleanup_drops) }
 
 /// Asserts that `actual` ends with `expected_suffix` using [`Path::ends_with`].
 ///
@@ -204,10 +201,10 @@ pub(crate) fn scenario_line(scenario_name: &str) -> u32 {
                 .map(|_| index + 1)
         })
         .and_then(|line| u32::try_from(line).ok());
-    let Some(scenario_line) = scenario_line else {
+    let Some(line_number) = scenario_line else {
         panic!("scenario '{scenario_name}' should exist in {FEATURE_PATH}");
     };
-    scenario_line
+    line_number
 }
 
 fn parse_scenario_heading(line: &str) -> Option<&str> {
@@ -263,6 +260,7 @@ pub(crate) fn assert_bypassed_step_recorded(query: BypassedStepQuery<'_>) {
                     .and_then(Value::as_str)
                     .is_some_and(|message| message.contains(reason))
         }),
-        "expected a bypassed-step record for scenario '{scenario_name}' and pattern '{step_pattern}'",
+        "expected a bypassed-step record for scenario '{scenario_name}' and pattern \
+         '{step_pattern}'",
     );
 }

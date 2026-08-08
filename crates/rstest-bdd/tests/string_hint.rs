@@ -3,20 +3,19 @@
 //! These tests verify that the complete code-generation pipeline correctly
 //! handles the :string type hint, including quote stripping at runtime.
 
-use rstest::fixture;
-use rstest_bdd_macros::{given, scenario, then};
 use std::cell::RefCell;
 
+use rstest::fixture;
+use rstest_bdd_macros::{given, scenario, then};
+
 #[fixture]
-fn message() -> RefCell<String> {
-    RefCell::new(String::new())
-}
+fn message() -> RefCell<String> { RefCell::new(String::new()) }
 
 /// Step that captures a quoted string and strips the quotes.
 #[given("the message is {text:string}")]
 fn set_message(message: &RefCell<String>, text: &str) {
     // The :string hint should have stripped the surrounding quotes
-    *message.borrow_mut() = text.to_string();
+    text.clone_into(&mut message.borrow_mut());
 }
 
 /// Verify the message was captured without surrounding quotes.

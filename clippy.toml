@@ -1,2 +1,11 @@
 # Align with CodeScene’s ceiling
-cognitive-complexity-threshold = 12     # default is 25
+cognitive-complexity-threshold = 9     # default is 25
+too-many-arguments-threshold = 4       # default is 7
+too-many-lines-threshold = 70          # default is 100
+excessive-nesting-threshold = 4        # default is off
+
+allow-expect-in-tests = true
+# `assert!` inside a `#[test]`/`#[rstest]` function that returns `Result` is the
+# idiomatic way to combine `?` with assertions. Neither knob covers helpers
+# outside a test function, so those must still avoid panicking.
+allow-panic-in-tests = true

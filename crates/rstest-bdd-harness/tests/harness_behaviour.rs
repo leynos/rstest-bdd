@@ -1,14 +1,25 @@
 //! Behavioural tests for harness adapter execution semantics.
 
+use std::{
+    cell::Cell,
+    io,
+    panic::{AssertUnwindSafe, catch_unwind},
+    rc::Rc,
+};
+
 use rstest::{fixture, rstest};
 use rstest_bdd_harness::{
-    FailingHarness, HarnessAdapter, HarnessError, HarnessResult, ScenarioMetadata,
-    ScenarioRunRequest, ScenarioRunner, StdHarness, StdScenarioRunRequest, StdScenarioRunner,
+    FailingHarness,
+    HarnessAdapter,
+    HarnessError,
+    HarnessResult,
+    ScenarioMetadata,
+    ScenarioRunRequest,
+    ScenarioRunner,
+    StdHarness,
+    StdScenarioRunRequest,
+    StdScenarioRunner,
 };
-use std::cell::Cell;
-use std::io;
-use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::rc::Rc;
 
 #[path = "../src/test_utils.rs"]
 mod test_utils;
@@ -16,14 +27,13 @@ mod test_utils;
 use test_utils::{STD_HARNESS_PANIC_MESSAGE, panic_payload_matches};
 
 #[fixture]
-fn default_metadata() -> ScenarioMetadata {
-    ScenarioMetadata::default()
-}
+fn default_metadata() -> ScenarioMetadata { ScenarioMetadata::default() }
 
 #[derive(Debug)]
 struct MetadataProbeHarness {
     inner: StdHarness,
     expected_metadata: ScenarioMetadata,
+    saw_expected_metadata: Rc<Cell<bool>>,
 }
 
 impl MetadataProbeHarness {
@@ -31,8 +41,12 @@ impl MetadataProbeHarness {
         Self {
             inner: StdHarness::new(),
             expected_metadata,
+            saw_expected_metadata: Rc::new(Cell::new(false)),
         }
     }
+
+    /// Whether `run` observed metadata matching the expectation.
+    fn saw_expected_metadata(&self) -> bool { self.saw_expected_metadata.get() }
 }
 
 impl HarnessAdapter for MetadataProbeHarness {
@@ -40,12 +54,15 @@ impl HarnessAdapter for MetadataProbeHarness {
 
     fn run<T>(&self, request: StdScenarioRunRequest<'_, T>) -> Result<T, HarnessError> {
         let (metadata, runner) = request.into_parts();
-        let metadata_for_assertions = metadata.clone();
+        let observed_metadata = metadata.clone();
         let expected_metadata = self.expected_metadata.clone();
+        // Record rather than assert: `run` returns `Result`, so the test body
+        // is where a mismatch is reported.
+        let saw_expected = Rc::clone(&self.saw_expected_metadata);
         let wrapped_request = StdScenarioRunRequest::new(
             metadata,
             StdScenarioRunner::new_without_context(move || {
-                assert_eq!(metadata_for_assertions, expected_metadata);
+                saw_expected.set(observed_metadata == expected_metadata);
                 runner.run_without_context()
             }),
         );
@@ -117,9 +134,9 @@ fn std_harness_error_path_propagates_runtime_build_failed(default_metadata: Scen
     let Err(HarnessError::RuntimeBuildFailed(err)) = result else {
         panic!("expected RuntimeBuildFailed, got {result:?}");
     };
-    let err = HarnessError::RuntimeBuildFailed(err);
+    let rebuilt = HarnessError::RuntimeBuildFailed(err);
     assert_eq!(
-        format!("{err}"),
+        format!("{rebuilt}"),
         "failed to build runtime: std probe failure"
     );
 }
@@ -144,7 +161,7 @@ fn std_harness_passes_metadata_through() {
         "tests/features/payment.feature",
         "Payment succeeds",
         27,
-        vec!["@smoke".to_string(), "@payments".to_string()],
+        vec!["@smoke".to_owned(), "@payments".to_owned()],
     );
     let request = StdScenarioRunRequest::new(
         expected_metadata.clone(),
@@ -156,6 +173,10 @@ fn std_harness_passes_metadata_through() {
         Err(err) => panic!("probe harness should not fail: {err}"),
     };
     assert_eq!(result, 200);
+    assert!(
+        harness.saw_expected_metadata(),
+        "probe harness should observe the metadata it was constructed with"
+    );
 }
 
 #[rstest]

@@ -10,8 +10,8 @@ use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::quote;
 use syn::{DeriveInput, parse_quote, spanned::Spanned};
 
-pub(crate) fn derive(input: TokenStream) -> TokenStream {
-    let input = syn::parse_macro_input!(input as DeriveInput);
+pub(crate) fn derive(item: TokenStream) -> TokenStream {
+    let input = syn::parse_macro_input!(item as DeriveInput);
     match expand(input) {
         Ok(tokens) => tokens.into(),
         Err(err) => err.into_compile_error().into(),
@@ -202,10 +202,11 @@ fn expand_named_struct(
 mod tests {
     //! Unit tests for step argument parsing.
 
-    use super::expand;
     use proc_macro2::TokenStream as TokenStream2;
     use quote::quote;
     use syn::DeriveInput;
+
+    use super::expand;
 
     fn expand_tokens(tokens: TokenStream2) -> syn::Result<TokenStream2> {
         let input = syn::parse2::<DeriveInput>(tokens)?;
@@ -213,7 +214,6 @@ mod tests {
     }
 
     #[test]
-    #[expect(clippy::expect_used, reason = "test asserts derive success path")]
     fn derives_step_args_for_named_struct() {
         let tokens = expand_tokens(quote! {
             struct AccountArgs {
@@ -232,7 +232,6 @@ mod tests {
     }
 
     #[test]
-    #[expect(clippy::expect_used, reason = "test asserts derive failure path")]
     fn rejects_tuple_structs() {
         let err = expand_tokens(quote! {
             struct TupleArgs(u32, String);

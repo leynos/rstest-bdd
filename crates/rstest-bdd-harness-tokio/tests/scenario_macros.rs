@@ -2,11 +2,9 @@
 //! Tokio harness adapter and attribute policy.
 //!
 //! These tests prove end-to-end that:
-//! - `TokioHarness` provides an active Tokio current-thread runtime during
-//!   step execution.
+//! - `TokioHarness` provides an active Tokio current-thread runtime during step execution.
 //! - `TokioAttributePolicy` can be combined with `TokioHarness`.
-//! - `spawn_local` succeeds in step functions, confirming the `LocalSet` +
-//!   `current_thread` wiring.
+//! - `spawn_local` succeeds in step functions, confirming the `LocalSet` + `current_thread` wiring.
 
 use rstest_bdd_harness_tokio::TokioTestContext;
 use rstest_bdd_macros::{given, scenario, scenarios, then, when};
@@ -18,9 +16,7 @@ fn tokio_runtime_is_active() {
 }
 
 #[when("a Tokio handle is obtained")]
-fn tokio_handle_is_obtained() {
-    let _handle = tokio::runtime::Handle::current();
-}
+fn tokio_handle_is_obtained() { let _handle = tokio::runtime::Handle::current(); }
 
 #[then("the handle confirms current-thread execution")]
 fn handle_confirms_current_thread() {
@@ -64,9 +60,7 @@ fn injected_tokio_context_proves_harness_ownership(
 }
 
 #[then("the Tokio runtime remains available")]
-fn tokio_runtime_remains_available() {
-    let _handle = tokio::runtime::Handle::current();
-}
+fn tokio_runtime_remains_available() { let _handle = tokio::runtime::Handle::current(); }
 
 /// Tests `#[scenario]` with `harness = TokioHarness` only.
 ///

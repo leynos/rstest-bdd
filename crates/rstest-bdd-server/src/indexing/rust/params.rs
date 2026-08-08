@@ -6,8 +6,7 @@
 //! rendering is delegated to the sibling [`type_render`](super::type_render)
 //! module.
 
-use super::IndexedStepParameter;
-use super::type_render;
+use super::{IndexedStepParameter, type_render};
 
 /// Parse function parameters into indexed step parameters.
 pub(super) fn parse_function_parameters(
@@ -17,8 +16,8 @@ pub(super) fn parse_function_parameters(
         .iter()
         .map(|input| match input {
             syn::FnArg::Receiver(_) => IndexedStepParameter {
-                name: Some("self".to_string()),
-                ty: "Self".to_string(),
+                name: Some("self".to_owned()),
+                ty: "Self".to_owned(),
                 is_datatable: false,
                 is_docstring: false,
                 is_step_struct: false,

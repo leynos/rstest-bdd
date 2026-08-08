@@ -3,15 +3,21 @@
 mod bindings;
 mod helpers;
 
-use super::*;
-use crate::codegen::wrapper::args::Arg;
 use helpers::{
-    bind_args, build_arguments, build_bindings, generate_step_parse_for_single_arg,
-    generate_step_parse_with_hint, sample_meta,
+    bind_args,
+    bind_fixture_args,
+    build_arguments,
+    build_bindings,
+    generate_step_parse_for_single_arg,
+    generate_step_parse_with_hint,
+    sample_meta,
 };
 use quote::{format_ident, quote};
 use rstest::rstest;
 use syn::parse_quote;
+
+use super::*;
+use crate::codegen::wrapper::args::Arg;
 
 #[test]
 fn prepare_argument_processing_handles_all_argument_types() {
@@ -28,38 +34,58 @@ fn prepare_argument_processing_handles_all_argument_types() {
     let prepared = prepare_argument_processing(
         &args,
         meta,
-        &ctx_ident,
-        &placeholder_names,
-        &placeholder_hints,
-        Some((&key_ident, &cache_ident)),
+        ArgumentProcessingInputs {
+            ctx_ident: &ctx_ident,
+            placeholder_names: &placeholder_names,
+            placeholder_hints: &placeholder_hints,
+            datatable_idents: Some((&key_ident, &cache_ident)),
+        },
     );
 
-    assert_eq!(prepared.declares.len(), 1);
-    let [fixture_stmt] = prepared.declares.as_slice() else {
-        panic!("expected single fixture declaration");
-    };
-    let fixture_code = fixture_stmt.to_string();
-    assert!(fixture_code.contains("__rstest_bdd_ctx"));
-    assert!(fixture_code.contains("clone"));
-    assert!(fixture_code.contains("MissingFixture"));
-
-    assert_eq!(prepared.step_arg_parses.len(), 1);
-    let [parse_stmt] = prepared.step_arg_parses.as_slice() else {
-        panic!("expected single step argument parser");
-    };
-    let parse_code = parse_stmt.to_string();
-    assert!(parse_code.contains("captures"));
-    assert!(parse_code.contains("parse"));
+    assert_only_statement_contains(
+        &prepared.declares,
+        "fixture declaration",
+        &["__rstest_bdd_ctx", "clone", "MissingFixture"],
+    );
+    assert_only_statement_contains(
+        &prepared.step_arg_parses,
+        "step argument parser",
+        &["captures", "parse"],
+    );
 
     let Some(datatable_code) = prepared.datatable_decl else {
         panic!("expected datatable declaration");
     };
-    assert!(datatable_code.to_string().contains("iter"));
+    assert!(
+        datatable_code.to_string().contains("iter"),
+        "datatable declaration should iterate the rows"
+    );
 
     let Some(docstring_code) = prepared.docstring_decl else {
         panic!("expected docstring declaration");
     };
-    assert!(docstring_code.to_string().contains("to_owned"));
+    assert!(
+        docstring_code.to_string().contains("to_owned"),
+        "docstring declaration should own the captured text"
+    );
+}
+
+/// Assert `statements` holds exactly one entry containing every fragment.
+fn assert_only_statement_contains(
+    statements: &[proc_macro2::TokenStream],
+    description: &str,
+    fragments: &[&str],
+) {
+    let [statement] = statements else {
+        panic!("expected a single {description}, got {}", statements.len());
+    };
+    let code = statement.to_string();
+    for fragment in fragments {
+        assert!(
+            code.contains(fragment),
+            "{description} should contain {fragment:?}: {code}"
+        );
+    }
 }
 
 #[test]
@@ -95,30 +121,39 @@ fn gen_fixture_decls_handles_reference_types() {
     let ctx_ident = format_ident!("__rstest_bdd_ctx");
     let fixture_refs: Vec<_> = fixtures.iter().collect();
     let bindings = build_bindings(fixture_refs.len());
-    let fixture_refs = bind_args(&fixture_refs, &bindings);
-    let tokens = gen_fixture_decls(&fixture_refs, &ident, &ctx_ident);
+    let bound_fixtures = bind_fixture_args(&fixture_refs, &bindings);
+    let tokens = gen_fixture_decls(&bound_fixtures, &ident, &ctx_ident);
     let [owned, str_ref, bytes_ref, mut_ref, cell_ref] = tokens.as_slice() else {
         panic!("expected five fixture declarations");
     };
 
-    let owned_code = owned.to_string();
-    assert!(owned_code.contains("clone"));
+    assert_decl(owned, "owned fixture", &["clone"], &[]);
+    assert_decl(str_ref, "&str fixture", &["value"], &["clone"]);
+    assert_decl(bytes_ref, "&[u8] fixture", &["value"], &["clone"]);
+    assert_decl(mut_ref, "&mut fixture", &["borrow_mut", "value_mut"], &[]);
+    assert_decl(cell_ref, "RefCell fixture", &[], &["cloned", "copied"]);
+}
 
-    let str_code = str_ref.to_string();
-    assert!(str_code.contains("value"));
-    assert!(!str_code.contains("clone"));
-
-    let bytes_code = bytes_ref.to_string();
-    assert!(bytes_code.contains("value"));
-    assert!(!bytes_code.contains("clone"));
-
-    let mut_code = mut_ref.to_string();
-    assert!(mut_code.contains("borrow_mut"));
-    assert!(mut_code.contains("value_mut"));
-
-    let cell_code = cell_ref.to_string();
-    assert!(!cell_code.contains("cloned"));
-    assert!(!cell_code.contains("copied"));
+/// Assert a generated fixture declaration contains and omits the given fragments.
+fn assert_decl(
+    declaration: &proc_macro2::TokenStream,
+    description: &str,
+    expected: &[&str],
+    forbidden: &[&str],
+) {
+    let code = declaration.to_string();
+    for fragment in expected {
+        assert!(
+            code.contains(fragment),
+            "{description} should contain {fragment:?}: {code}"
+        );
+    }
+    for fragment in forbidden {
+        assert!(
+            !code.contains(fragment),
+            "{description} should not contain {fragment:?}: {code}"
+        );
+    }
 }
 
 #[test]
@@ -226,7 +261,7 @@ fn gen_step_parses_strips_quotes_for_string_hint(
     #[case] should_parse: bool,
     #[case] parse_description: &str,
 ) {
-    let code = generate_step_parse_with_hint(ty, Some("string".to_string()));
+    let code = generate_step_parse_with_hint(ty, Some("string".to_owned()));
 
     // Should contain quote stripping code
     assert!(
@@ -275,7 +310,7 @@ fn gen_step_parses_applies_hints_only_to_matching_arguments() {
     ];
 
     // Only first argument has :string hint
-    let hints: Vec<Option<String>> = vec![Some("string".to_string()), None];
+    let hints: Vec<Option<String>> = vec![Some("string".to_owned()), None];
     let tokens = gen_step_parses(&args, &captures, &hints, meta);
 
     assert_eq!(tokens.len(), 2, "expected two token streams");
@@ -309,7 +344,7 @@ fn gen_step_parses_applies_hints_only_to_matching_arguments() {
 fn gen_step_parses_string_hint_includes_parse_error_message() {
     // When :string hint is used with an owned type, the error message should still
     // reference the original type and pattern for debugging purposes
-    let code = generate_step_parse_with_hint(parse_quote!(String), Some("string".to_string()));
+    let code = generate_step_parse_with_hint(parse_quote!(String), Some("string".to_owned()));
 
     // Should contain error message with type information
     assert!(
@@ -335,7 +370,7 @@ fn gen_step_parses_non_string_hints_use_standard_parse_path(
     #[case] hint: &str,
     #[case] description: &str,
 ) {
-    let code = generate_step_parse_with_hint(parse_quote!(i32), Some(hint.to_string()));
+    let code = generate_step_parse_with_hint(parse_quote!(i32), Some(hint.to_owned()));
 
     // Non-:string hints should NOT strip quotes
     assert!(

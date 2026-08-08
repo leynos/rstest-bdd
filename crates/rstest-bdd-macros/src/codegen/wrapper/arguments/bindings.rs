@@ -5,13 +5,20 @@
 //! This module centralizes the `rstest_bdd_arg_{n}` naming scheme and keeps the
 //! binding metadata next to each extracted argument.
 
-use super::super::args::{Arg, DataTableArg, StepStructArg};
 use quote::format_ident;
+
+use super::super::args::{Arg, DataTableArg, FixtureArg, StepArg, StepStructArg};
 
 /// Wrapper-local argument bindings avoid leading underscores to keep Clippy happy.
 #[derive(Copy, Clone)]
-pub(in crate::codegen::wrapper) struct BoundArg<'a> {
-    pub(super) arg: &'a Arg,
+pub(in crate::codegen::wrapper) struct BoundFixtureArg<'a> {
+    pub(super) arg: FixtureArg<'a>,
+    pub(super) binding: &'a syn::Ident,
+}
+
+#[derive(Copy, Clone)]
+pub(in crate::codegen::wrapper) struct BoundStepArg<'a> {
+    pub(super) arg: StepArg<'a>,
     pub(super) binding: &'a syn::Ident,
 }
 

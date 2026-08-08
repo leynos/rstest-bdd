@@ -12,18 +12,14 @@ use syn::LitStr;
 /// - `lowercase`: all letters are lowercase.
 /// - `UPPERCASE`: all letters are uppercase.
 /// - `snake_case`: words are separated by underscores.
-/// - `SCREAMING_SNAKE_CASE`: words are separated by underscores and all letters
-///   are uppercase.
+/// - `SCREAMING_SNAKE_CASE`: words are separated by underscores and all letters are uppercase.
 /// - `kebab-case`: words are separated by hyphens.
-/// - `SCREAMING-KEBAB-CASE`: words are separated by hyphens and all letters are
-///   uppercase.
-/// - `camelCase`: the first word is lowercase and subsequent words are
-///   capitalized.
+/// - `SCREAMING-KEBAB-CASE`: words are separated by hyphens and all letters are uppercase.
+/// - `camelCase`: the first word is lowercase and subsequent words are capitalized.
 /// - `PascalCase`: each word is capitalized with no separators.
-/// - `Title Case`: each word is capitalized and separated by spaces. This is
-///   distinct from `PascalCase`, which concatenates words, and mirrors the
-///   human-readable headers often used in Gherkin scenarios (for example
-///   `Given Name`).
+/// - `Title Case`: each word is capitalized and separated by spaces. This is distinct from
+///   `PascalCase`, which concatenates words, and mirrors the human-readable headers often used in
+///   Gherkin scenarios (for example `Given Name`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum RenameRule {
     Lower,

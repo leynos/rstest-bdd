@@ -4,10 +4,13 @@
 //! symlinks through `cap-std` ambient directories. Missing files fall back
 //! to the original input so compile errors reference the user-specified path.
 
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::{LazyLock, RwLock},
+};
+
 use cap_std::{ambient_authority, fs::Dir};
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-use std::sync::{LazyLock, RwLock};
 
 /// Cache of canonicalized feature paths to avoid repeated filesystem lookups.
 static FEATURE_PATH_CACHE: LazyLock<RwLock<HashMap<PathBuf, String>>> =
@@ -16,14 +19,12 @@ static FEATURE_PATH_CACHE: LazyLock<RwLock<HashMap<PathBuf, String>>> =
 /// Normalize path components so equivalent inputs share cache entries.
 ///
 /// Policy:
-/// - Do not alter absolute or prefixed paths; leave absolute resolution to the
-///   filesystem canonicalization.
+/// - Do not alter absolute or prefixed paths; leave absolute resolution to the filesystem
+///   canonicalization.
 /// - Collapse internal `.` segments.
-/// - Collapse `..` only when a prior non-`..` segment exists; otherwise
-///   preserve leading `..`.
+/// - Collapse `..` only when a prior non-`..` segment exists; otherwise preserve leading `..`.
 fn normalize(path: &Path) -> PathBuf {
-    use std::ffi::OsString;
-    use std::path::Component;
+    use std::{ffi::OsString, path::Component};
 
     if path.is_absolute() {
         return path.to_path_buf();
@@ -58,8 +59,9 @@ mod windows_paths {
     //! These tests complement the surrounding platform-independent path logic
     //! with drive-relative and UNC paths that cannot be represented on Unix.
 
-    use super::normalize;
     use std::path::Path;
+
+    use super::normalize;
 
     #[test]
     fn preserves_drive_relative_parent_segments() {
@@ -83,9 +85,9 @@ fn canonicalize_with_cap_std(path: &Path) -> Option<PathBuf> {
         let Some(name) = path.file_name() else {
             return Some(path.to_path_buf());
         };
-        let name = PathBuf::from(name);
+        let file_name = PathBuf::from(name);
         let dir = Dir::open_ambient_dir(parent, authority).ok()?;
-        let resolved = dir.canonicalize(&name).ok()?;
+        let resolved = dir.canonicalize(&file_name).ok()?;
         Some(parent.to_path_buf().join(resolved))
     } else {
         let cwd = std::env::current_dir().ok()?;
@@ -157,16 +159,18 @@ fn clear_feature_path_cache() {
 mod tests {
     //! Unit tests for canonical feature path handling.
 
-    use super::{canonical_feature_path, canonicalize_with_cap_std, clear_feature_path_cache};
+    use std::{
+        env,
+        path::{Path, PathBuf},
+    };
+
     use rstest::{fixture, rstest};
     use serial_test::serial;
-    use std::env;
-    use std::path::{Path, PathBuf};
+
+    use super::{canonical_feature_path, canonicalize_with_cap_std, clear_feature_path_cache};
 
     #[fixture]
-    fn cache_cleared() {
-        clear_feature_path_cache();
-    }
+    fn cache_cleared() { clear_feature_path_cache(); }
 
     fn dir_and_target(path: &Path) -> std::io::Result<(super::Dir, PathBuf)> {
         let authority = super::ambient_authority();
@@ -230,10 +234,6 @@ mod tests {
 
     #[serial]
     #[rstest]
-    #[expect(
-        clippy::expect_used,
-        reason = "tests require explicit failure messages"
-    )]
     fn canonicalizes_with_manifest_dir(_cache_cleared: ()) {
         let manifest = PathBuf::from(
             env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is required for tests"),
@@ -263,10 +263,6 @@ mod tests {
 
     #[serial]
     #[rstest]
-    #[expect(
-        clippy::expect_used,
-        reason = "tests require explicit failure messages"
-    )]
     fn caches_paths_between_calls(_cache_cleared: ()) {
         use std::time::{SystemTime, UNIX_EPOCH};
 

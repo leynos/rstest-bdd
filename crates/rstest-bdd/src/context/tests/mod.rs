@@ -1,16 +1,15 @@
 //! Tests for step context and fixture management.
 
-use super::*;
 use std::sync::Once;
+
+use super::*;
 
 mod guard_borrowing;
 
 struct NoopLogger;
 
 impl log::Log for NoopLogger {
-    fn enabled(&self, _: &log::Metadata<'_>) -> bool {
-        true
-    }
+    fn enabled(&self, _: &log::Metadata<'_>) -> bool { true }
     fn log(&self, _: &log::Record<'_>) {}
     fn flush(&self) {}
 }
@@ -25,16 +24,12 @@ static INIT_LOGGER: Once = Once::new();
 #[rstest::fixture]
 fn logger() {
     INIT_LOGGER.call_once(|| {
-        let _ = log::set_logger(&LOGGER);
+        drop(log::set_logger(&LOGGER));
         log::set_max_level(log::LevelFilter::Warn);
     });
 }
 
 #[test]
-#[expect(
-    clippy::expect_used,
-    reason = "downcast must succeed for the typed fixture under test"
-)]
 fn borrow_mut_returns_mutable_fixture() {
     let cell: RefCell<Box<dyn Any>> = RefCell::new(Box::new(String::from("seed")));
     let mut ctx = StepContext::default();
@@ -123,7 +118,7 @@ fn get_ignores_step_return_override() {
     let fixture = 1_u32;
     let mut ctx = StepContext::default();
     ctx.insert("number", &fixture);
-    let _ = ctx.insert_value(Box::new(7_u32));
+    drop(ctx.insert_value(Box::new(7_u32)));
     let Ok(guard) = ctx.try_borrow::<u32>("number") else {
         panic!("inserted override should be readable");
     };
@@ -269,10 +264,6 @@ fn insert_harness_context_exposes_shared_reference() {
 }
 
 #[test]
-#[expect(
-    clippy::expect_used,
-    reason = "downcast must succeed for the typed fixture under test"
-)]
 fn insert_owned_harness_context_supports_mutation() {
     let harness_cell: RefCell<Box<dyn Any>> = RefCell::new(Box::new(String::from("harness")));
     let mut ctx = StepContext::default();

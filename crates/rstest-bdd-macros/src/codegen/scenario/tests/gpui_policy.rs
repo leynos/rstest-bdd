@@ -91,6 +91,7 @@ fn generate_test_attrs_dedupes_gpui_policy_and_user_attribute() {
     let gpui_count = output.match_indices("gpui :: test").count();
     assert_eq!(
         gpui_count, 1,
-        "expected exactly one gpui::test when both user attribute and policy are present, got {gpui_count}: {output}"
+        "expected exactly one gpui::test when both user attribute and policy are present, got \
+         {gpui_count}: {output}"
     );
 }

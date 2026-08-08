@@ -38,8 +38,8 @@ pub(crate) fn ungroup_type(ty: &Type) -> &Type {
 /// // Result<MyWorld, String>       → false
 /// ```
 pub(crate) fn is_referenced_result_type(ty: &Type) -> bool {
-    let ty = ungroup_type(ty);
-    let inner = match ty {
+    let outer = ungroup_type(ty);
+    let inner = match outer {
         Type::Reference(ref_ty) => ungroup_type(&ref_ty.elem),
         _ => return false,
     };
@@ -54,8 +54,8 @@ pub(crate) fn is_referenced_result_type(ty: &Type) -> bool {
 /// recognized `Result` / `StepResult` type, or return `None` for any other
 /// input.
 fn extract_result_type_arg(ty: &Type, getter: fn(&syn::Path) -> Option<&Type>) -> Option<Type> {
-    let ty = ungroup_type(ty);
-    let path = match ty {
+    let ungrouped = ungroup_type(ty);
+    let path = match ungrouped {
         Type::Path(type_path) => &type_path.path,
         _ => return None,
     };
@@ -104,13 +104,13 @@ pub(crate) fn try_extract_result_error_type(ty: &Type) -> Option<Type> {
 }
 
 #[cfg(test)]
-#[expect(clippy::expect_used, reason = "test code uses infallible type parsing")]
 mod tests {
     //! Unit tests for detecting `Result`-like return types.
 
-    use super::*;
     use rstest::rstest;
     use syn::parse_quote;
+
+    use super::*;
 
     #[rstest]
     #[case("Result<MyWorld, String>", "MyWorld")]

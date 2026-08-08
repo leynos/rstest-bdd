@@ -1,8 +1,12 @@
 //! Behavioural tests for `execute_step` function.
 
 use rstest::{fixture, rstest};
-use rstest_bdd::execution::{ExecutionError, StepExecutionRequest, execute_step};
-use rstest_bdd::{RSTEST_BDD_HARNESS_CONTEXT_FIXTURE, StepContext, StepKeyword};
+use rstest_bdd::{
+    RSTEST_BDD_HARNESS_CONTEXT_FIXTURE,
+    StepContext,
+    StepKeyword,
+    execution::{ExecutionError, StepExecutionRequest, execute_step},
+};
 
 /// Helper enum to represent expected error types for parameterized testing.
 enum ExpectedExecutionError {
@@ -14,7 +18,7 @@ enum ExpectedExecutionError {
 
 // Creates a `StepExecutionRequest` with standard test defaults.
 // Uses index=0, feature_path="test.feature", scenario_name="Test Scenario".
-fn make_request(index: usize, keyword: StepKeyword, text: &str) -> StepExecutionRequest<'_> {
+const fn make_request(index: usize, keyword: StepKeyword, text: &str) -> StepExecutionRequest<'_> {
     StepExecutionRequest {
         index,
         keyword,
@@ -28,9 +32,7 @@ fn make_request(index: usize, keyword: StepKeyword, text: &str) -> StepExecution
 
 /// Shared fixture providing a default `StepContext` for test injection.
 #[fixture]
-fn ctx() -> StepContext<'static> {
-    StepContext::default()
-}
+fn ctx() -> StepContext<'static> { StepContext::default() }
 
 #[rstest]
 fn execute_step_succeeds_without_value(mut ctx: StepContext<'static>) {
@@ -277,7 +279,7 @@ fn execute_step_reports_detailed_missing_harness_fixture() {
     );
     assert_eq!(
         details.available,
-        vec!["world".to_string()],
+        vec!["world".to_owned()],
         "expected inserted fixtures from StepContext::available_fixtures"
     );
     assert!(

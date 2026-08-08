@@ -3,14 +3,21 @@
 //! These tests verify end-to-end navigation from feature steps in `.feature`
 //! files to matching Rust step implementations.
 
-use lsp_types::request::{GotoImplementationParams, GotoImplementationResponse};
 use lsp_types::{
-    DidSaveTextDocumentParams, PartialResultParams, Position, TextDocumentIdentifier,
-    TextDocumentPositionParams, Url, WorkDoneProgressParams,
+    DidSaveTextDocumentParams,
+    PartialResultParams,
+    Position,
+    TextDocumentIdentifier,
+    TextDocumentPositionParams,
+    Url,
+    WorkDoneProgressParams,
+    request::{GotoImplementationParams, GotoImplementationResponse},
 };
-use rstest_bdd_server::config::ServerConfig;
-use rstest_bdd_server::handlers::{handle_did_save_text_document, handle_implementation};
-use rstest_bdd_server::server::ServerState;
+use rstest_bdd_server::{
+    config::ServerConfig,
+    handlers::{handle_did_save_text_document, handle_implementation},
+    server::ServerState,
+};
 use tempfile::TempDir;
 
 fn make_params(uri: Url, line: u32, character: u32) -> GotoImplementationParams {
@@ -94,7 +101,6 @@ fn get_implementation_locations(
     })
 }
 
-#[expect(clippy::expect_used, reason = "test uses expect for clarity")]
 #[test]
 fn implementation_navigates_from_feature_step_to_rust_function() {
     let (_dir, feature_path, state) = ImplementationTestScenario::new()
@@ -122,7 +128,6 @@ fn implementation_navigates_from_feature_step_to_rust_function() {
     assert_eq!(loc.range.end.character, 0);
 }
 
-#[expect(clippy::expect_used, reason = "test uses expect for clarity")]
 #[test]
 fn implementation_returns_multiple_locations_for_duplicate_implementations() {
     let (_dir, feature_path, state) = ImplementationTestScenario::new()
@@ -145,13 +150,13 @@ fn implementation_returns_multiple_locations_for_duplicate_implementations() {
     assert_eq!(locations.len(), 2, "expected two matching implementations");
 }
 
-#[expect(clippy::expect_used, reason = "test uses expect for clarity")]
 #[test]
 fn implementation_respects_keyword_matching() {
     let (_dir, feature_path, state) = ImplementationTestScenario::new()
         .with_feature(
             "test.feature",
-            "Feature: test\n  Scenario: example\n    Given a step\n    When a step\n    Then a step\n",
+            "Feature: test\n  Scenario: example\n    Given a step\n    When a step\n    Then a \
+             step\n",
         )
         .with_rust_steps(
             "steps.rs",
@@ -169,17 +174,18 @@ fn implementation_respects_keyword_matching() {
     assert!(get_implementation_locations(&state, &feature_path, 4, 4).is_none());
 }
 
-#[expect(clippy::expect_used, reason = "test uses expect for clarity")]
 #[test]
 fn implementation_matches_parameterized_patterns() {
     let (_dir, feature_path, state) = ImplementationTestScenario::new()
         .with_feature(
             "test.feature",
-            "Feature: test\n  Scenario: example\n    Given I have 5 items\n    Given I have 10 items\n",
+            "Feature: test\n  Scenario: example\n    Given I have 5 items\n    Given I have 10 \
+             items\n",
         )
         .with_rust_steps(
             "steps.rs",
-            "use rstest_bdd_macros::given;\n\n#[given(\"I have {count:u32} items\")]\nfn have_items(count: u32) {}\n",
+            "use rstest_bdd_macros::given;\n\n#[given(\"I have {count:u32} items\")]\nfn \
+             have_items(count: u32) {}\n",
         )
         .build();
 
@@ -195,7 +201,6 @@ fn implementation_matches_parameterized_patterns() {
     );
 }
 
-#[expect(clippy::expect_used, reason = "test uses expect for clarity")]
 #[test]
 fn implementation_returns_none_for_non_feature_file() {
     let dir = TempDir::new().expect("temp dir");
@@ -247,7 +252,6 @@ fn implementation_returns_none_when_not_on_step_line() {
     assert!(get_implementation_locations(&state, &feature_path, 1, 0).is_none());
 }
 
-#[expect(clippy::expect_used, reason = "test uses expect for clarity")]
 #[test]
 fn implementation_resolves_and_but_keywords_to_preceding_step_type() {
     // And/But keywords inherit their step type from the preceding Given/When/Then step.
@@ -315,7 +319,6 @@ fn implementation_resolves_and_but_keywords_to_preceding_step_type() {
     );
 }
 
-#[expect(clippy::expect_used, reason = "test uses expect for clarity")]
 #[test]
 fn implementation_returns_none_for_unindexed_feature_file() {
     // Create a feature file on disk but do NOT index it in the server state.

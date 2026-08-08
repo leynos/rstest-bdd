@@ -11,8 +11,10 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 use syn::Type;
 
-use crate::datatable::config::{DefaultValue, FieldSpec};
-use crate::datatable::parser::accessor_expr;
+use crate::datatable::{
+    config::{DefaultValue, FieldSpec},
+    parser::accessor_expr,
+};
 
 pub(crate) fn build_field_binding(
     index: usize,
@@ -40,7 +42,7 @@ pub(crate) fn build_field_binding(
                 let #binding_ident = #accessor?;
             }
         },
-        |on_missing| {
+        |missing_arm| {
             let on_success = if field.config.optional {
                 quote! { Some(value) }
             } else {
@@ -50,7 +52,7 @@ pub(crate) fn build_field_binding(
                 let #binding_ident = match #accessor {
                     Ok(value) => #on_success,
                     Err(err) => match err {
-                        #missing_pattern => #on_missing,
+                        #missing_pattern => #missing_arm,
                         _ => return Err(err),
                     },
                 };

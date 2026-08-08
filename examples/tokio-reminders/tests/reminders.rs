@@ -8,9 +8,7 @@ use rstest_bdd_macros::{given, scenario, then, when};
 use tokio_reminders::ReminderService;
 
 #[fixture]
-fn service() -> ReminderService {
-    ReminderService::new()
-}
+fn service() -> ReminderService { ReminderService::new() }
 
 #[given("a reminder service")]
 fn a_reminder_service(service: &ReminderService) {

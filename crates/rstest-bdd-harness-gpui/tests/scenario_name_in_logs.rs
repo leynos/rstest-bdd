@@ -5,22 +5,30 @@
 //! feature-file line number so developers can orientate failures quickly.
 #![cfg(feature = "native-gpui-tests")]
 
+use std::{
+    fmt,
+    panic::{AssertUnwindSafe, catch_unwind, panic_any},
+    process::Command,
+    sync::{Arc, Mutex},
+};
+
 use rstest::rstest;
 use rstest_bdd::panic_message;
 use rstest_bdd_harness::{
-    HarnessAdapter, HarnessResult, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner,
+    HarnessAdapter,
+    HarnessResult,
+    ScenarioMetadata,
+    ScenarioRunRequest,
+    ScenarioRunner,
 };
 use rstest_bdd_harness_gpui::GpuiHarness;
 use serial_test::serial;
-use std::fmt;
-use std::panic::{AssertUnwindSafe, catch_unwind, panic_any};
-use std::process::Command;
-use std::sync::{Arc, Mutex};
-use tracing::field::{Field, Visit};
-use tracing::{Event, Subscriber};
-use tracing_subscriber::layer::Context;
-use tracing_subscriber::prelude::*;
-use tracing_subscriber::{Layer, Registry};
+use tracing::{
+    Event,
+    Subscriber,
+    field::{Field, Visit},
+};
+use tracing_subscriber::{Layer, Registry, layer::Context, prelude::*};
 
 const FEATURE_PATH: &str = "tests/features/scenario_name_in_logs.feature";
 const FAILING_SCENARIO: &str = "Step panics with augmented diagnostic";
@@ -87,14 +95,12 @@ fn failing_scenario_diagnostic_is_emitted_to_tracing_error() {
     }
     let _message = catch_scenario_panic(request);
 
-    let Ok(events) = events.lock() else {
+    let Ok(captured) = events.lock() else {
         panic!("captured tracing events should not be poisoned");
     };
-    let Some(event) = events
-        .iter()
-        .find(|event| event.contains("GPUI scenario panicked"))
-    else {
-        panic!("expected GPUI panic tracing event, got: {events:?}");
+    let marker = "GPUI scenario panicked";
+    let Some(event) = captured.iter().find(|e| e.contains(marker)) else {
+        panic!("expected GPUI panic tracing event, got: {captured:?}");
     };
     configured_snapshot_settings().bind(|| insta::assert_snapshot!(event));
 }
@@ -180,7 +186,7 @@ fn scenario_metadata(name: &str) -> ScenarioMetadata {
         FEATURE_PATH,
         name,
         SCENARIO_LINE,
-        vec!["@regression".to_string()],
+        vec!["@regression".to_owned()],
     )
 }
 
@@ -264,7 +270,7 @@ fn special_characters_in_scenario_name_are_preserved_in_diagnostic() {
 #[rstest]
 #[case::string_payload(
     "String payload scenario",
-    Box::new(|| -> () { panic_any("a string panic".to_string()); }) as Box<dyn Fn() + Send + 'static>,
+    Box::new(|| -> () { panic_any("a string panic".to_owned()); }) as Box<dyn Fn() + Send + 'static>,
 )]
 #[case::str_payload(
     "&str payload scenario",
@@ -298,8 +304,7 @@ fn augmented_message_includes_scenario_name_for_opaque_any_payload() {
     #[derive(Debug)]
     #[expect(
         dead_code,
-        reason = "field only exists to produce an opaque Any payload; \
-                  see ExecPlan 10.1.4"
+        reason = "field only exists to produce an opaque Any payload; see ExecPlan 10.1.4"
     )]
     struct CustomPayload(u32);
 

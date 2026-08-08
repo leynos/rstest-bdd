@@ -6,19 +6,27 @@
 mod attributes;
 
 use attributes::{MapKind, TableConfig, parse_struct_attrs};
-
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::{
-    Data, DataStruct, DeriveInput, Field, Fields, GenericArgument, PathArguments, Type, TypePath,
-    parse_macro_input, spanned::Spanned,
+    Data,
+    DataStruct,
+    DeriveInput,
+    Field,
+    Fields,
+    GenericArgument,
+    PathArguments,
+    Type,
+    TypePath,
+    parse_macro_input,
+    spanned::Spanned,
 };
 
 use crate::codegen::rstest_bdd_path;
 
-pub(crate) fn expand(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input as DeriveInput);
+pub(crate) fn expand(item: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(item as DeriveInput);
     match expand_inner(&input) {
         Ok(tokens) => tokens.into(),
         Err(err) => err.into_compile_error().into(),

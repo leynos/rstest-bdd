@@ -13,8 +13,7 @@ use regex::Regex;
 /// ```
 /// # use regex::Regex;
 /// # use rstest_bdd_patterns::extract_captured_values;
-/// let regex = Regex::new(r"^(\d+)-(\w+)$")
-///     .expect("example ensures fallible call succeeds");
+/// let regex = Regex::new(r"^(\d+)-(\w+)$").expect("example ensures fallible call succeeds");
 /// let values = extract_captured_values(&regex, "42-answer")
 ///     .expect("example ensures fallible call succeeds");
 /// assert_eq!(values, vec!["42".to_string(), "answer".to_string()]);
@@ -23,8 +22,7 @@ use regex::Regex;
 /// ```
 /// # use regex::Regex;
 /// # use rstest_bdd_patterns::extract_captured_values;
-/// let regex = Regex::new(r"^(\d+)$")
-///     .expect("example ensures fallible call succeeds");
+/// let regex = Regex::new(r"^(\d+)$").expect("example ensures fallible call succeeds");
 /// assert!(extract_captured_values(&regex, "nope").is_none());
 /// ```
 #[must_use]
@@ -32,7 +30,7 @@ pub fn extract_captured_values(re: &Regex, text: &str) -> Option<Vec<String>> {
     let caps = re.captures(text)?;
     let mut values = Vec::with_capacity(caps.len().saturating_sub(1));
     for capture in caps.iter().skip(1) {
-        let value = capture.map_or_else(String::new, |m| m.as_str().to_string());
+        let value = capture.map_or_else(String::new, |m| m.as_str().to_owned());
         values.push(value);
     }
 

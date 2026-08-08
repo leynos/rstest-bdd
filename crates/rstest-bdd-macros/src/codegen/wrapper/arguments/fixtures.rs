@@ -2,8 +2,7 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::format_ident;
 
-use super::super::args::Arg;
-use super::BoundArg;
+use super::{super::args::FixtureArg, BoundFixtureArg};
 use crate::codegen::rstest_bdd_path;
 
 /// Context for generating fixture declarations in step wrappers.
@@ -171,17 +170,17 @@ fn gen_owned_fixture_decl(ctx: FixtureDeclContext<'_>) -> TokenStream2 {
 /// (for example `&T` or `&mut T`) are borrowed from the context and are not
 /// cloned.
 pub(super) fn gen_fixture_decls(
-    fixtures: &[BoundArg<'_>],
+    fixtures: &[BoundFixtureArg<'_>],
     ident: &syn::Ident,
     ctx_ident: &proc_macro2::Ident,
 ) -> Vec<TokenStream2> {
     fixtures
         .iter()
         .map(|fixture| {
-            let BoundArg { arg, binding } = *fixture;
-            let Arg::Fixture { name, ty, .. } = arg else {
-                unreachable!("fixture vector must contain fixtures");
-            };
+            let BoundFixtureArg {
+                arg: FixtureArg { name, ty },
+                binding,
+            } = *fixture;
             let ctx = FixtureDeclContext {
                 binding,
                 name,

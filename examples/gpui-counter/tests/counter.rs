@@ -9,24 +9,16 @@ use rstest::fixture;
 use rstest_bdd_macros::{given, scenario, then, when};
 
 #[fixture]
-fn app() -> CounterApp {
-    CounterApp::new(0)
-}
+fn app() -> CounterApp { CounterApp::new(0) }
 
 #[given("a counter starting at {start:i32}")]
-fn a_counter_starting_at(app: &CounterApp, start: i32) {
-    app.set_value(start);
-}
+fn a_counter_starting_at(app: &CounterApp, start: i32) { app.set_value(start); }
 
 #[when("I increment the counter by {amount:u32}")]
-fn increment_counter(app: &CounterApp, amount: u32) {
-    app.increment(amount);
-}
+fn increment_counter(app: &CounterApp, amount: u32) { app.increment(amount); }
 
 #[when("I decrement the counter by {amount:u32}")]
-fn decrement_counter(app: &CounterApp, amount: u32) {
-    app.decrement(amount);
-}
+fn decrement_counter(app: &CounterApp, amount: u32) { app.decrement(amount); }
 
 #[when("I record the GPUI test context")]
 fn record_gpui_test_context(
@@ -38,7 +30,7 @@ fn record_gpui_test_context(
     // API is wired correctly without depending on that specific value. If
     // upstream starts populating this field, consider whether the test should
     // start validating or recording the function name instead of ignoring it.
-    let _ = context.test_function_name();
+    let _function_name = context.test_function_name();
 
     app.record_gpui_context();
 }

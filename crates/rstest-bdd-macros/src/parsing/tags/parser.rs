@@ -8,8 +8,10 @@
 
 use std::marker::PhantomData;
 
-use super::ast::{Expr, TagExprError};
-use super::lexer::{Lexer, Token, TokenKind};
+use super::{
+    ast::{Expr, TagExprError},
+    lexer::{Lexer, Token, TokenKind},
+};
 
 /// Strategy for parsing left-associative binary operator chains.
 struct ChainParseStrategy<'a, F, P, B> {
@@ -26,7 +28,7 @@ where
     P: FnMut(&TokenKind) -> bool,
     B: FnMut(Expr, Expr) -> Expr,
 {
-    fn new(parse_operand: F, is_operator: P, operator_name: &'static str, build: B) -> Self {
+    const fn new(parse_operand: F, is_operator: P, operator_name: &'static str, build: B) -> Self {
         Self {
             parse_operand,
             is_operator,
@@ -49,9 +51,7 @@ impl<'a> Parser<'a> {
         Ok(Self { lexer, current })
     }
 
-    pub(super) fn parse_expression(&mut self) -> Result<Expr, TagExprError> {
-        self.parse_or()
-    }
+    pub(super) fn parse_expression(&mut self) -> Result<Expr, TagExprError> { self.parse_or() }
 
     pub(super) fn expect_end(&self) -> Result<(), TagExprError> {
         if matches!(self.current.kind, TokenKind::End) {

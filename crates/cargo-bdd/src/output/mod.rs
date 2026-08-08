@@ -54,7 +54,7 @@ impl ScenarioDisplayOptions {
     /// Minimal listing: feature path and scenario name only.
     ///
     /// Used by `cargo bdd skipped` without `--reasons`.
-    pub(crate) fn compact() -> Self {
+    pub(crate) const fn compact() -> Self {
         Self {
             include_line: false,
             include_tags: false,
@@ -66,7 +66,7 @@ impl ScenarioDisplayOptions {
     /// Detailed listing with location line, tags, and skip reasons.
     ///
     /// Used by `cargo bdd skipped --reasons`.
-    pub(crate) fn with_reasons() -> Self {
+    pub(crate) const fn with_reasons() -> Self {
         Self {
             include_line: true,
             include_tags: true,
@@ -79,7 +79,7 @@ impl ScenarioDisplayOptions {
     /// from the preceding output by a blank line.
     ///
     /// Used by `cargo bdd steps`.
-    pub(crate) fn step_listing_appendix() -> Self {
+    pub(crate) const fn step_listing_appendix() -> Self {
         Self {
             include_line: false,
             include_tags: false,

@@ -83,13 +83,13 @@ impl DataTableError {
     where
         E: StdError + Send + Sync + 'static,
     {
-        let column_label = column_label
+        let rendered_label = column_label
             .map(|label| format!(" ({label})"))
             .unwrap_or_default();
         Self::CellParse {
             row_number,
             column_index: column_index + 1,
-            column_label,
+            column_label: rendered_label,
             source: Box::new(err),
         }
     }

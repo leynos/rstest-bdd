@@ -1,8 +1,9 @@
 //! Command-line interface for the `todo-cli` example.
 //! Tasks live only in memory; each invocation starts with an empty to-do list.
 
-use clap::builder::ValueParser;
-use clap::{Parser, Subcommand};
+use std::io::{self, Write as _};
+
+use clap::{Parser, Subcommand, builder::ValueParser};
 use eyre::Result;
 use todo_cli::TodoList;
 
@@ -42,7 +43,9 @@ fn main() -> Result<()> {
     let mut list = TodoList::new();
     match cli.command {
         Command::Add { description } => list.add(description),
-        Command::List => println!("{}", list.display()),
+        // `print_stdout` is denied workspace-wide, so render through an
+        // explicit stdout handle instead of the `println!` macro.
+        Command::List => writeln!(io::stdout().lock(), "{}", list.display())?,
     }
     Ok(())
 }

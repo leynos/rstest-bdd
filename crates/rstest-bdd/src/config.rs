@@ -66,12 +66,11 @@ pub fn clear_fail_on_skipped_override() {
 mod tests {
     //! Unit tests for runtime configuration handling.
 
-    use super::*;
     use serial_test::serial;
 
-    fn reset_override() {
-        clear_fail_on_skipped_override();
-    }
+    use super::*;
+
+    fn reset_override() { clear_fail_on_skipped_override(); }
 
     #[test]
     #[serial]

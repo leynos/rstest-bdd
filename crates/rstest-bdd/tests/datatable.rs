@@ -8,8 +8,8 @@ fn check_table(datatable: Vec<Vec<String>>) {
     assert_eq!(
         datatable,
         vec![
-            vec!["alpha".to_string(), "beta".to_string()],
-            vec!["gamma".to_string(), "delta".to_string()],
+            vec!["alpha".to_owned(), "beta".to_owned()],
+            vec!["gamma".to_owned(), "delta".to_owned()],
         ],
     );
 }
@@ -19,10 +19,7 @@ fn datatable_scenario() {}
 
 #[given("a table then value {value}:")]
 fn table_then_value(datatable: Vec<Vec<String>>, value: String) {
-    assert_eq!(
-        datatable,
-        vec![vec!["a".to_string()], vec!["b".to_string()]],
-    );
+    assert_eq!(datatable, vec![vec!["a".to_owned()], vec!["b".to_owned()]],);
     assert_eq!(value, "beta");
 }
 
@@ -58,13 +55,13 @@ fn typed_users(#[datatable] rows: Rows<UserRow>) {
         parsed,
         vec![
             UserRow {
-                name: "Alice".to_string(),
-                email: "alice@example.com".to_string(),
+                name: "Alice".to_owned(),
+                email: "alice@example.com".to_owned(),
                 active: true,
             },
             UserRow {
-                name: "Bob".to_string(),
-                email: "bob@example.com".to_string(),
+                name: "Bob".to_owned(),
+                email: "bob@example.com".to_owned(),
                 active: false,
             },
         ]
@@ -81,7 +78,8 @@ fn typed_users_invalid(datatable: Vec<Vec<String>>) {
     };
     assert_eq!(
         err.to_string(),
-        "row 2, column 3 (active): unrecognised boolean value 'maybe' (expected yes/y/true/1 or no/n/false/0)"
+        "row 2, column 3 (active): unrecognised boolean value 'maybe' (expected yes/y/true/1 or \
+         no/n/false/0)"
     );
 }
 
@@ -109,13 +107,9 @@ struct DerivedRow {
 #[derive(Debug, Clone, PartialEq, Eq, DataTableRow)]
 struct TupleRow(String, u8, bool);
 
-fn default_region() -> String {
-    String::from("EMEA")
-}
+fn default_region() -> String { String::from("EMEA") }
 
-fn parse_age(value: &str) -> Result<u8, std::num::ParseIntError> {
-    value.trim().parse()
-}
+fn parse_age(value: &str) -> Result<u8, std::num::ParseIntError> { value.trim().parse() }
 
 #[derive(Debug, PartialEq, Eq, DataTable)]
 struct DerivedRowCollection(Rows<DerivedRow>);
@@ -194,7 +188,6 @@ fn derive_data_table_row_parses_and_maps_columns() {
             String::from(" 42 "),
         ],
     ];
-    #[expect(clippy::expect_used, reason = "test asserts successful parse")]
     let rows = Rows::<DerivedRow>::try_from(table).expect("rows should parse");
     assert_eq!(
         rows.into_vec(),
@@ -275,7 +268,6 @@ fn datatable_tuple_struct_support() {
             String::from("false"),
         ],
     ];
-    #[expect(clippy::expect_used, reason = "test asserts successful parse")]
     let rows = Rows::<TupleRow>::try_from(table).expect("tuple rows should parse");
     assert_eq!(
         rows.into_vec(),
@@ -311,15 +303,12 @@ fn derive_data_table_supports_collection_wrappers_and_hooks() {
             String::from("43"),
         ],
     ];
-    #[expect(clippy::expect_used, reason = "test asserts successful parse")]
     let collection =
         DerivedRowCollection::try_from(table.clone()).expect("collection should parse");
     assert_eq!(collection.0.len(), 2);
-    #[expect(clippy::expect_used, reason = "test asserts successful parse")]
     let DerivedRowVecCollection(vec_rows) =
         DerivedRowVecCollection::try_from(table.clone()).expect("vec should parse");
     assert_eq!(vec_rows.len(), 2);
-    #[expect(clippy::expect_used, reason = "test asserts successful parse")]
     let ActiveNames(active) = ActiveNames::try_from(table).expect("hook should parse");
     assert_eq!(active, vec![String::from("Alice")]);
 }

@@ -1,9 +1,11 @@
 //! Registry collection helpers shared by the CLI subcommands.
 
-use std::collections::HashSet;
-use std::io::{self, BufReader, Read, Write};
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::{
+    collections::HashSet,
+    io::{self, BufReader, Read, Write},
+    path::{Path, PathBuf},
+    process::{Child, Command, Stdio},
+};
 
 use cargo_metadata::{Message, Package, PackageId, Target};
 use eyre::{Context, Result, bail, eyre};
@@ -150,15 +152,19 @@ fn parse_cargo_messages(
     target_name: &str,
 ) -> Result<Vec<PathBuf>> {
     let mut bins = Vec::new();
-    for message in Message::parse_stream(reader) {
-        let message = match message {
+    for parsed in Message::parse_stream(reader) {
+        let message = match parsed {
             Ok(message) => message,
             Err(err) => {
-                let _ = child.kill();
-                let _ = child.wait();
+                // Teardown is best effort: the parse failure returned below
+                // is the error worth surfacing, so reaping problems are
+                // deliberately discarded rather than masking it.
+                drop(child.kill());
+                drop(child.wait());
                 return Err(eyre!(err)).wrap_err_with(|| {
                     format!(
-                        "failed to parse cargo metadata message for target {target_name} in package {package_name}",
+                        "failed to parse cargo metadata message for target {target_name} in \
+                         package {package_name}",
                     )
                 });
             }

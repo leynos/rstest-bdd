@@ -1,18 +1,16 @@
 //! Tests the datatable runtime parsing, error reporting, and helper parsers.
 
-use std::error::Error as StdError;
-use std::fmt;
+use std::{error::Error as StdError, fmt};
+
+use rstest::rstest;
 
 use super::{DataTableError, DataTableRow, RowSpec, Rows, trimmed, truthy_bool};
-use rstest::rstest;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct FakeError;
 
 impl fmt::Display for FakeError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("boom")
-    }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { f.write_str("boom") }
 }
 
 impl StdError for FakeError {}
@@ -31,43 +29,37 @@ impl DataTableRow for Pair {
     }
 }
 
-fn assert_parses_rows<T>(
-    rows: Vec<Vec<String>>,
-    expected_len: usize,
-    expected_data: &[T],
-) -> Result<(), DataTableError>
+fn assert_parses_rows<T>(rows: Vec<Vec<String>>, expected_len: usize, expected_data: &[T])
 where
     T: DataTableRow + fmt::Debug + PartialEq,
 {
-    let parsed: Rows<T> = rows.try_into()?;
-    assert_eq!(parsed.len(), expected_len);
+    let Ok(parsed) = Rows::<T>::try_from(rows) else {
+        panic!("table should parse");
+    };
+    assert_eq!(parsed.len(), expected_len, "unexpected parsed row count");
     let data = parsed.into_iter().collect::<Vec<_>>();
-    assert_eq!(data.as_slice(), expected_data);
-    Ok(())
+    assert_eq!(data.as_slice(), expected_data, "unexpected parsed rows");
 }
 
 #[test]
 fn parses_rows_without_header() {
-    let result = assert_parses_rows(
+    assert_parses_rows(
         vec![
-            vec!["alice".to_string(), "1".to_string()],
-            vec!["bob".to_string(), "2".to_string()],
+            vec!["alice".to_owned(), "1".to_owned()],
+            vec!["bob".to_owned(), "2".to_owned()],
         ],
         2,
         &[
             Pair {
-                first: "alice".to_string(),
+                first: "alice".to_owned(),
                 second: 1,
             },
             Pair {
-                first: "bob".to_string(),
+                first: "bob".to_owned(),
                 second: 2,
             },
         ],
     );
-    if let Err(err) = result {
-        panic!("table should parse: {err}");
-    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -90,34 +82,31 @@ impl DataTableRow for Named {
 // Intentional: shared helper keeps duplication low while scenarios diverge on
 // header handling semantics.
 fn parses_rows_with_header() {
-    let result = assert_parses_rows(
+    assert_parses_rows(
         vec![
-            vec!["name".to_string(), "active".to_string()],
-            vec!["Alice".to_string(), "yes".to_string()],
-            vec!["Bob".to_string(), "no".to_string()],
+            vec!["name".to_owned(), "active".to_owned()],
+            vec!["Alice".to_owned(), "yes".to_owned()],
+            vec!["Bob".to_owned(), "no".to_owned()],
         ],
         2,
         &[
             Named {
-                name: "Alice".to_string(),
+                name: "Alice".to_owned(),
                 active: true,
             },
             Named {
-                name: "Bob".to_string(),
+                name: "Bob".to_owned(),
                 active: false,
             },
         ],
     );
-    if let Err(err) = result {
-        panic!("table should parse: {err}");
-    }
 }
 
 #[test]
 fn header_is_required_when_flagged() {
     let rows = vec![
-        vec!["Alice".to_string(), "yes".to_string()],
-        vec!["Bob".to_string(), "no".to_string()],
+        vec!["Alice".to_owned(), "yes".to_owned()],
+        vec!["Bob".to_owned(), "no".to_owned()],
     ];
     let Err(err) = Rows::<Named>::try_from(rows) else {
         panic!("missing header");
@@ -145,14 +134,12 @@ fn uneven_rows_are_rejected() {
     impl DataTableRow for HeaderOnly {
         const REQUIRES_HEADER: bool = true;
 
-        fn parse_row(_row: RowSpec<'_>) -> Result<Self, DataTableError> {
-            Ok(Self)
-        }
+        fn parse_row(_row: RowSpec<'_>) -> Result<Self, DataTableError> { Ok(Self) }
     }
 
     let rows = vec![
-        vec!["name".to_string()],
-        vec!["alice".to_string(), "extra".to_string()],
+        vec!["name".to_owned()],
+        vec!["alice".to_owned(), "extra".to_owned()],
     ];
     let Err(err) = Rows::<HeaderOnly>::try_from(rows) else {
         panic!("uneven rows");
@@ -219,9 +206,7 @@ fn trimmed_preserves_inner_error() {
     impl std::str::FromStr for Dummy {
         type Err = FakeError;
 
-        fn from_str(_s: &str) -> Result<Self, Self::Err> {
-            Err(FakeError)
-        }
+        fn from_str(_s: &str) -> Result<Self, Self::Err> { Err(FakeError) }
     }
 
     let Err(err) = trimmed::<Dummy>("1") else {
@@ -270,7 +255,7 @@ fn rows_into_vec_returns_owned_elements() {
 #[test]
 fn data_table_error_messages_cover_all_variants() {
     let duplicate = DataTableError::DuplicateHeader {
-        column: "name".to_string(),
+        column: "name".to_owned(),
     };
     assert_eq!(
         duplicate.to_string(),
@@ -289,7 +274,7 @@ fn data_table_error_messages_cover_all_variants() {
 
     let missing_column = DataTableError::MissingColumn {
         row_number: 5,
-        column: "age".to_string(),
+        column: "age".to_owned(),
     };
     assert_eq!(
         missing_column.to_string(),
@@ -311,6 +296,6 @@ fn data_table_error_messages_cover_all_variants() {
     };
     assert_eq!(row_parse.to_string(), "row 4: boom");
 
-    let cell_parse = DataTableError::cell_parse(3, 1, Some("age".to_string()), FakeError);
+    let cell_parse = DataTableError::cell_parse(3, 1, Some("age".to_owned()), FakeError);
     assert_eq!(cell_parse.to_string(), "row 3, column 2 (age): boom");
 }

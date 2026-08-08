@@ -76,8 +76,8 @@ pub(super) fn collect_feature_files(base: &Path) -> std::io::Result<Vec<PathBuf>
                     files.push(result?);
                 }
             }
-            Err(err) => {
-                if let Some(err) = convert_walkdir_error(err) {
+            Err(walk_err) => {
+                if let Some(err) = convert_walkdir_error(walk_err) {
                     return Err(err);
                 }
             }

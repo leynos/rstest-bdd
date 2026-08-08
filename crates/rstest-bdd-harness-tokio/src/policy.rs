@@ -30,9 +30,7 @@ const TOKIO_TEST_ATTRIBUTES: [TestAttribute; 2] = [
 ];
 
 impl AttributePolicy for TokioAttributePolicy {
-    fn test_attributes() -> &'static [TestAttribute] {
-        &TOKIO_TEST_ATTRIBUTES
-    }
+    fn test_attributes() -> &'static [TestAttribute] { &TOKIO_TEST_ATTRIBUTES }
 }
 
 #[cfg(test)]
@@ -43,8 +41,9 @@ mod tests {
     //! shared conformance check in `rstest-bdd-harness`; only the expected
     //! rendered attributes are crate-specific.
 
-    use super::TokioAttributePolicy;
     use rstest_bdd_harness::policy_conformance::assert_attribute_policy_conformance;
+
+    use super::TokioAttributePolicy;
 
     #[test]
     fn tokio_policy_conforms_to_attribute_policy_contract() {

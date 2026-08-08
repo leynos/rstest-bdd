@@ -1,5 +1,6 @@
 //! Helpers that generate the runtime scaffolding for scenario tests.
 
+mod assembly;
 mod body;
 mod generators;
 mod harness;
@@ -7,22 +8,26 @@ mod harness;
 mod tests;
 mod types;
 
-use proc_macro2::TokenStream as TokenStream2;
-use quote::quote;
-
-use crate::codegen::scenario::ScenarioReturnKind;
-
-use super::helpers::ProcessedStepTokens;
+use assembly::assemble_test_tokens;
 use body::wrap_scenario_block;
 use generators::{
-    generate_async_step_executor, generate_async_step_executor_loop,
-    generate_async_step_executor_loop_outline, generate_scenario_guard, generate_skip_extractor,
-    generate_skip_handler, generate_step_executor, generate_step_executor_loop,
+    generate_async_step_executor,
+    generate_async_step_executor_loop,
+    generate_async_step_executor_loop_outline,
+    generate_scenario_guard,
+    generate_skip_extractor,
+    generate_skip_handler,
+    generate_step_executor,
+    generate_step_executor_loop,
     generate_step_executor_loop_outline,
 };
 use harness::assemble_test_tokens_with_harness;
+use proc_macro2::TokenStream as TokenStream2;
 use types::{CodeComponents, ScenarioLiterals, ScenarioLiteralsInput, TokenAssemblyContext};
 pub(crate) use types::{ProcessedSteps, ScenarioMetadata, TestTokensConfig};
+
+use super::helpers::ProcessedStepTokens;
+use crate::codegen::scenario::ScenarioReturnKind;
 
 /// Configuration for generating test tokens for scenario outlines.
 #[derive(Debug)]
@@ -62,25 +67,15 @@ impl ScenarioTestConfig for TestTokensConfig<'_> {
         )
     }
 
-    fn literals_input(&self) -> ScenarioLiteralsInput<'_> {
-        self.metadata.literals_input()
-    }
+    fn literals_input(&self) -> ScenarioLiteralsInput<'_> { self.metadata.literals_input() }
 
-    fn block(&self) -> &syn::Block {
-        self.metadata.block
-    }
+    fn block(&self) -> &syn::Block { self.metadata.block }
 
-    fn return_kind(&self) -> ScenarioReturnKind {
-        self.metadata.return_kind
-    }
+    fn return_kind(&self) -> ScenarioReturnKind { self.metadata.return_kind }
 
-    fn is_async(&self) -> bool {
-        self.metadata.is_async
-    }
+    fn is_async(&self) -> bool { self.metadata.is_async }
 
-    fn harness(&self) -> Option<&syn::Path> {
-        self.metadata.harness
-    }
+    fn harness(&self) -> Option<&syn::Path> { self.metadata.harness }
 }
 
 impl ScenarioTestConfig for OutlineTestTokensConfig<'_> {
@@ -92,25 +87,15 @@ impl ScenarioTestConfig for OutlineTestTokensConfig<'_> {
         )
     }
 
-    fn literals_input(&self) -> ScenarioLiteralsInput<'_> {
-        self.metadata.literals_input()
-    }
+    fn literals_input(&self) -> ScenarioLiteralsInput<'_> { self.metadata.literals_input() }
 
-    fn block(&self) -> &syn::Block {
-        self.metadata.block
-    }
+    fn block(&self) -> &syn::Block { self.metadata.block }
 
-    fn return_kind(&self) -> ScenarioReturnKind {
-        self.metadata.return_kind
-    }
+    fn return_kind(&self) -> ScenarioReturnKind { self.metadata.return_kind }
 
-    fn is_async(&self) -> bool {
-        self.metadata.is_async
-    }
+    fn is_async(&self) -> bool { self.metadata.is_async }
 
-    fn harness(&self) -> Option<&syn::Path> {
-        self.metadata.harness
-    }
+    fn harness(&self) -> Option<&syn::Path> { self.metadata.harness }
 }
 
 /// Context token stream iterators for test generation.
@@ -131,7 +116,7 @@ where
     I: Iterator<Item = TokenStream2>,
     Q: Iterator<Item = TokenStream2>,
 {
-    pub fn new(prelude: P, inserts: I, postlude: Q) -> Self {
+    pub const fn new(prelude: P, inserts: I, postlude: Q) -> Self {
         Self {
             prelude,
             inserts,
@@ -229,89 +214,39 @@ pub(crate) fn generate_test_tokens(
     )
 }
 
-fn assemble_test_tokens(
-    literals: ScenarioLiterals,
-    components: CodeComponents,
-    context: TokenAssemblyContext<'_>,
-) -> TokenStream2 {
-    let TokenAssemblyContext {
-        ctx_prelude,
-        ctx_inserts,
-        ctx_postlude,
-        block,
-    } = context;
-    let ScenarioLiterals {
-        allow_literal,
-        feature_literal,
-        scenario_literal,
-        scenario_line_literal,
-        tag_literals,
-    } = literals;
-
-    let CodeComponents {
-        step_executor,
-        skip_extractor,
-        scenario_guard,
-        step_executor_loop,
-        skip_handler,
-    } = components;
-
-    let path = crate::codegen::rstest_bdd_path();
-    quote! {
-        const __RSTEST_BDD_FEATURE_PATH: &str = #feature_literal;
-        const __RSTEST_BDD_SCENARIO_NAME: &str = #scenario_literal;
-        const __RSTEST_BDD_SCENARIO_LINE: u32 = #scenario_line_literal;
-        static __RSTEST_BDD_SCENARIO_TAGS: std::sync::LazyLock<#path::reporting::ScenarioTags> =
-            std::sync::LazyLock::new(|| {
-                std::sync::Arc::<[String]>::from(vec![#(#tag_literals.to_string()),*])
-            });
-        #step_executor
-        #skip_extractor
-        #scenario_guard
-
-        let __rstest_bdd_allow_skipped: bool = #allow_literal;
-        #(#ctx_prelude)*
-        let mut ctx = {
-            let mut ctx = #path::StepContext::default();
-            #(#ctx_inserts)*
-            ctx
-        };
-
-        let mut __rstest_bdd_scenario_guard = __RstestBddScenarioReportGuard::new(
-            __RSTEST_BDD_FEATURE_PATH,
-            __RSTEST_BDD_SCENARIO_NAME,
-            __RSTEST_BDD_SCENARIO_LINE,
-            __RSTEST_BDD_SCENARIO_TAGS.clone(),
-        );
-        let mut __rstest_bdd_skipped: Option<Option<String>> = None;
-        let mut __rstest_bdd_skipped_at: Option<usize> = None;
-        #step_executor_loop
-        #skip_handler
-        #(#ctx_postlude)*
-        #block
-    }
-}
-
 /// Assembles test tokens using the provided components and configuration.
 ///
 /// This helper consolidates the common pipeline shared by regular and outline
 /// test token generation: collecting context iterators, creating literals,
 /// and assembling the final token stream. When a harness adapter is specified,
 /// delegates to `assemble_test_tokens_with_harness` instead.
-fn assemble_test_tokens_with_context<P, I, Q>(
-    literals_input: ScenarioLiteralsInput<'_>,
-    block: &syn::Block,
+/// The scenario body and the shape it is wrapped in.
+#[derive(Clone, Copy)]
+struct ScenarioBody<'a> {
+    literals_input: ScenarioLiteralsInput<'a>,
+    block: &'a syn::Block,
     return_kind: ScenarioReturnKind,
     is_async: bool,
+    harness: Option<&'a syn::Path>,
+}
+
+fn assemble_test_tokens_with_context<P, I, Q>(
+    body: ScenarioBody<'_>,
     components: CodeComponents,
     ctx_iterators: ContextIterators<P, I, Q>,
-    harness: Option<&syn::Path>,
 ) -> TokenStream2
 where
     P: Iterator<Item = TokenStream2>,
     I: Iterator<Item = TokenStream2>,
     Q: Iterator<Item = TokenStream2>,
 {
+    let ScenarioBody {
+        literals_input,
+        block,
+        return_kind,
+        is_async,
+        harness,
+    } = body;
     let ctx_prelude: Vec<_> = ctx_iterators.prelude.collect();
     let ctx_inserts: Vec<_> = ctx_iterators.inserts.collect();
     let ctx_postlude: Vec<_> = ctx_iterators.postlude.collect();
@@ -325,7 +260,7 @@ where
     if let Some(harness_path) = harness {
         assemble_test_tokens_with_harness(&literals, &components, context, harness_path)
     } else {
-        assemble_test_tokens(literals, components, context)
+        assemble_test_tokens(&literals, components, context)
     }
 }
 
@@ -341,13 +276,15 @@ where
 {
     let components = config.generate_components();
     assemble_test_tokens_with_context(
-        config.literals_input(),
-        config.block(),
-        config.return_kind(),
-        config.is_async(),
+        ScenarioBody {
+            literals_input: config.literals_input(),
+            block: config.block(),
+            return_kind: config.return_kind(),
+            is_async: config.is_async(),
+            harness: config.harness(),
+        },
         components,
         ctx_iterators,
-        config.harness(),
     )
 }
 

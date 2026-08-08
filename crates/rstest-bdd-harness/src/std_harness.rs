@@ -1,7 +1,6 @@
 //! Default synchronous harness implementation.
 
-use crate::runner::StdScenarioRunRequest;
-use crate::{HarnessAdapter, HarnessResult};
+use crate::{HarnessAdapter, HarnessResult, runner::StdScenarioRunRequest};
 
 /// Framework-agnostic synchronous harness.
 ///
@@ -13,9 +12,7 @@ pub struct StdHarness;
 impl StdHarness {
     /// Creates a new synchronous harness instance.
     #[must_use]
-    pub const fn new() -> Self {
-        Self
-    }
+    pub const fn new() -> Self { Self }
 }
 
 impl HarnessAdapter for StdHarness {
@@ -35,15 +32,17 @@ mod tests {
     use rstest::{fixture, rstest};
 
     use super::StdHarness;
-    use crate::test_utils::{STD_HARNESS_PANIC_MESSAGE, panic_payload_matches};
     use crate::{
-        HarnessAdapter, ScenarioMetadata, ScenarioRunner, StdScenarioRunRequest, StdScenarioRunner,
+        HarnessAdapter,
+        ScenarioMetadata,
+        ScenarioRunner,
+        StdScenarioRunRequest,
+        StdScenarioRunner,
+        test_utils::{STD_HARNESS_PANIC_MESSAGE, panic_payload_matches},
     };
 
     #[fixture]
-    fn harness() -> StdHarness {
-        StdHarness::new()
-    }
+    fn harness() -> StdHarness { StdHarness::new() }
 
     #[fixture]
     fn metadata() -> ScenarioMetadata {
@@ -51,7 +50,7 @@ mod tests {
             "tests/features/simple.feature",
             "Runs synchronously",
             4,
-            vec!["@sync".to_string()],
+            vec!["@sync".to_owned()],
         )
     }
 

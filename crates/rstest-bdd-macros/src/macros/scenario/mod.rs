@@ -25,9 +25,10 @@ mod paths;
 mod return_kind;
 mod selection;
 
+use std::path::PathBuf;
+
 use proc_macro::TokenStream;
 use proc_macro2::Span;
-use std::path::PathBuf;
 
 #[rustfmt::skip]
 use crate::codegen::scenario::{
@@ -37,15 +38,20 @@ use crate::codegen::scenario::{
 use crate::parsing::feature::{
     parse_and_load_feature, ScenarioData,
 };
-use crate::parsing::tags::TagExpression;
-use crate::utils::fixtures::extract_function_fixtures;
-use crate::validation::parameters::process_scenario_outline_examples;
-use crate::validation::placeholder::{ExampleHeaders, validate_step_placeholders};
-
-use self::args::ScenarioArgs;
-use self::paths::canonical_feature_path;
-use self::return_kind::classify_scenario_return;
-use self::selection::{ensure_feature_not_empty, resolve_candidate_indices, select_scenario};
+use self::{
+    args::ScenarioArgs,
+    paths::canonical_feature_path,
+    return_kind::classify_scenario_return,
+    selection::{ensure_feature_not_empty, resolve_candidate_indices, select_scenario},
+};
+use crate::{
+    parsing::tags::TagExpression,
+    utils::fixtures::extract_function_fixtures,
+    validation::{
+        parameters::process_scenario_outline_examples,
+        placeholder::{ExampleHeaders, validate_step_placeholders},
+    },
+};
 
 struct ScenarioTagFilter {
     expr: TagExpression,
@@ -70,6 +76,44 @@ pub(crate) fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
     }
 }
 
+/// Load the feature and pick the scenario named by the macro arguments.
+fn resolve_scenario_data(
+    feature_path: &std::path::Path,
+    path_lit: &syn::LitStr,
+    selector: Option<&args::ScenarioSelector>,
+    tag_filter: Option<syn::LitStr>,
+) -> std::result::Result<ScenarioData, TokenStream> {
+    // Retrieve cached feature to avoid repeated parsing.
+    let feature = parse_and_load_feature(feature_path).map_err(proc_macro::TokenStream::from)?;
+    let parsed_tag_filter = parse_tag_filter(tag_filter)?;
+    ensure_feature_not_empty(path_lit, &feature)?;
+    let candidate_indices = resolve_candidate_indices(selector, &feature, path_lit)?;
+    select_scenario(
+        ScenarioLookup {
+            feature: &feature,
+            candidate_indices: &candidate_indices,
+            tag_filter: parsed_tag_filter.as_ref(),
+        },
+        selector,
+        path_lit,
+    )
+}
+
+/// Validate outline placeholder references and registered step definitions.
+fn validate_scenario_steps(
+    steps: &[crate::parsing::feature::ParsedStep],
+    examples: Option<&crate::parsing::examples::ExampleTable>,
+) -> std::result::Result<(), TokenStream> {
+    if let Some(ex) = examples {
+        validate_step_placeholders(steps, ExampleHeaders::new(&ex.headers))
+            .map_err(|e| proc_macro::TokenStream::from(e.into_compile_error()))?;
+    }
+    if let Some(err) = validate_steps_compile_time(steps) {
+        return Err(err);
+    }
+    Ok(())
+}
+
 fn try_scenario(
     ScenarioArgs {
         path,
@@ -81,7 +125,7 @@ fn try_scenario(
     mut item_fn: syn::ItemFn,
 ) -> std::result::Result<TokenStream, TokenStream> {
     let path_lit = path;
-    let path = PathBuf::from(path_lit.value());
+    let feature_path = PathBuf::from(path_lit.value());
     let attrs = &item_fn.attrs;
     let vis = &item_fn.vis;
     let sig = &mut item_fn.sig;
@@ -96,22 +140,10 @@ fn try_scenario(
         RuntimeMode::Sync
     };
 
-    // Retrieve cached feature to avoid repeated parsing.
-    let feature = parse_and_load_feature(&path).map_err(proc_macro::TokenStream::from)?;
-    let tag_filter = parse_tag_filter(tag_filter)?;
-    ensure_feature_not_empty(&path_lit, &feature)?;
-    let candidate_indices = resolve_candidate_indices(selector.as_ref(), &feature, &path_lit)?;
-    let scenario_data = select_scenario(
-        ScenarioLookup {
-            feature: &feature,
-            candidate_indices: &candidate_indices,
-            tag_filter: tag_filter.as_ref(),
-        },
-        selector.as_ref(),
-        &path_lit,
-    )?;
+    let scenario_data =
+        resolve_scenario_data(&feature_path, &path_lit, selector.as_ref(), tag_filter)?;
 
-    let feature_path_str = canonical_feature_path(&path);
+    let feature_path_str = canonical_feature_path(&feature_path);
     let ScenarioData {
         name: scenario_name,
         steps,
@@ -121,15 +153,7 @@ fn try_scenario(
     } = scenario_data;
     let allow_skipped = crate::codegen::scenario::scenario_allows_skip(&tags);
 
-    // Validate placeholder references in scenario outline steps
-    if let Some(ref ex) = examples {
-        validate_step_placeholders(&steps, ExampleHeaders::new(&ex.headers))
-            .map_err(|e| proc_macro::TokenStream::from(e.into_compile_error()))?;
-    }
-
-    if let Some(err) = validate_steps_compile_time(&steps) {
-        return Err(err);
-    }
+    validate_scenario_steps(&steps, examples.as_ref())?;
 
     process_scenario_outline_examples(sig, examples.as_ref())
         .map_err(proc_macro::TokenStream::from)?;

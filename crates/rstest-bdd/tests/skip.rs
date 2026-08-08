@@ -2,21 +2,23 @@
 
 use std::path::Path;
 
-use rstest::fixture;
-use rstest_bdd as bdd;
-use rstest_bdd::assert_scenario_skipped;
-use rstest_bdd_macros::{given, scenario, then};
-use serial_test::serial;
-
 #[cfg(feature = "diagnostics")]
 use bdd::reporting;
 #[cfg(feature = "diagnostics")]
 use bdd::reporting::{
-    ScenarioMetadata, ScenarioRecord, SkippedScenario, record as record_scenario,
+    ScenarioMetadata,
+    ScenarioRecord,
+    SkippedScenario,
+    record as record_scenario,
 };
 use bdd::reporting::{ScenarioStatus, drain as drain_reports};
+use rstest::fixture;
+use rstest_bdd as bdd;
+use rstest_bdd::assert_scenario_skipped;
+use rstest_bdd_macros::{given, scenario, then};
 #[cfg(feature = "diagnostics")]
 use serde_json::Value;
+use serial_test::serial;
 
 #[must_use]
 struct FailOnSkippedGuard;
@@ -36,20 +38,14 @@ impl FailOnSkippedGuard {
 impl Drop for FailOnSkippedGuard {
     // Clearing the override re-exposes the RSTEST_BDD_FAIL_ON_SKIPPED variable.
     // Tests using this guard must be marked #[serial] to avoid races.
-    fn drop(&mut self) {
-        bdd::config::clear_fail_on_skipped_override();
-    }
+    fn drop(&mut self) { bdd::config::clear_fail_on_skipped_override(); }
 }
 
 #[fixture]
-fn fail_on_enabled() -> FailOnSkippedGuard {
-    FailOnSkippedGuard::enable()
-}
+fn fail_on_enabled() -> FailOnSkippedGuard { FailOnSkippedGuard::enable() }
 
 #[fixture]
-fn fail_on_disabled() -> FailOnSkippedGuard {
-    FailOnSkippedGuard::disable()
-}
+fn fail_on_disabled() -> FailOnSkippedGuard { FailOnSkippedGuard::disable() }
 
 fn assert_feature_path_suffix(actual: &str, expected_suffix: &str) {
     let actual_path = Path::new(actual);
@@ -81,15 +77,13 @@ fn trailing_step_should_not_run() {
 #[scenario(path = "tests/features/skip.feature", name = "disallowed skip")]
 #[serial]
 #[should_panic(expected = "Scenario skipped with fail_on_skipped enabled")]
-fn disallowed_skip(fail_on_enabled: FailOnSkippedGuard) {
-    let _ = &fail_on_enabled;
-    unreachable!("scenario should have failed before executing the body");
+fn disallowed_skip(_fail_on_enabled: FailOnSkippedGuard) {
+    panic!("scenario should have failed before executing the body");
 }
 
 #[scenario(path = "tests/features/skip.feature", name = "allowed skip")]
 #[serial]
-fn allowed_skip(fail_on_enabled: FailOnSkippedGuard) {
-    let _ = &fail_on_enabled;
+fn allowed_skip(_fail_on_enabled: FailOnSkippedGuard) {
     panic!("scenario body should not execute when skip is allowed");
 }
 
@@ -98,15 +92,13 @@ fn allowed_skip(fail_on_enabled: FailOnSkippedGuard) {
     name = "allowed skip without message"
 )]
 #[serial]
-fn allowed_skip_without_message(fail_on_enabled: FailOnSkippedGuard) {
-    let _ = &fail_on_enabled;
+fn allowed_skip_without_message(_fail_on_enabled: FailOnSkippedGuard) {
     panic!("scenario body should not execute when skip is allowed without a message");
 }
 
 #[scenario(path = "tests/features/skip.feature", name = "skip without fail flag")]
 #[serial]
-fn skip_without_flag(fail_on_disabled: FailOnSkippedGuard) {
-    let _ = &fail_on_disabled;
+fn skip_without_flag(_fail_on_disabled: FailOnSkippedGuard) {
     panic!("scenario body should not execute when fail_on_skipped is disabled");
 }
 
@@ -115,8 +107,7 @@ fn skip_without_flag(fail_on_disabled: FailOnSkippedGuard) {
     name = "skip prevents trailing steps"
 )]
 #[serial]
-fn skip_prevents_trailing_steps(fail_on_disabled: FailOnSkippedGuard) {
-    let _ = &fail_on_disabled;
+fn skip_prevents_trailing_steps(_fail_on_disabled: FailOnSkippedGuard) {
     panic!("scenario body should not execute when earlier steps skip");
 }
 
@@ -125,8 +116,7 @@ fn skip_prevents_trailing_steps(fail_on_disabled: FailOnSkippedGuard) {
     name = "inherits feature tag"
 )]
 #[serial]
-fn feature_tag_allows_skip(fail_on_enabled: FailOnSkippedGuard) {
-    let _ = &fail_on_enabled;
+fn feature_tag_allows_skip(_fail_on_enabled: FailOnSkippedGuard) {
     panic!("scenario body should not execute when feature-level tags allow skipping");
 }
 
@@ -137,8 +127,7 @@ fn feature_tag_allows_skip(fail_on_enabled: FailOnSkippedGuard) {
 #[serial]
 #[should_panic(expected = "Scenario skipped with fail_on_skipped enabled")]
 fn example_tag_does_not_allow_skip(fail_on_enabled: FailOnSkippedGuard, case: String) {
-    let _ = case;
-    let _ = &fail_on_enabled;
+    drop((fail_on_enabled, case));
 }
 
 #[scenario(path = "tests/features/reporting.feature", name = "scenario passes")]
@@ -148,7 +137,7 @@ fn scenario_passes_without_skip() {}
 #[test]
 #[serial]
 fn collector_records_allowed_skip_metadata() {
-    let _ = drain_reports();
+    drop(drain_reports());
     let guard = FailOnSkippedGuard::enable();
     allowed_skip();
     drop(guard);
@@ -170,7 +159,7 @@ fn collector_records_allowed_skip_metadata() {
 #[test]
 #[serial]
 fn collector_marks_forced_failure_skips() {
-    let _ = drain_reports();
+    drop(drain_reports());
     let guard = FailOnSkippedGuard::enable();
     let result = std::panic::catch_unwind(disallowed_skip);
     drop(guard);
@@ -191,7 +180,7 @@ fn collector_marks_forced_failure_skips() {
 #[test]
 #[serial]
 fn collector_records_passed_scenarios() {
-    let _ = drain_reports();
+    drop(drain_reports());
     scenario_passes_without_skip();
     let records = drain_reports();
     let [record] = records.as_slice() else {
@@ -205,7 +194,7 @@ fn collector_records_passed_scenarios() {
 #[test]
 #[serial]
 fn collector_records_skips_without_message() {
-    let _ = drain_reports();
+    drop(drain_reports());
     let guard = FailOnSkippedGuard::enable();
     allowed_skip_without_message();
     drop(guard);
@@ -226,7 +215,7 @@ fn collector_records_skips_without_message() {
 #[test]
 #[serial]
 fn json_writer_emits_lowercase_skipped_status() {
-    let _ = drain_reports();
+    drop(drain_reports());
     let guard = FailOnSkippedGuard::enable();
     allowed_skip();
     drop(guard);
@@ -273,14 +262,14 @@ fn json_writer_emits_lowercase_skipped_status() {
         Some(true),
         "expected skip to honour allowance flag",
     );
-    let _ = drain_reports();
+    drop(drain_reports());
 }
 
 #[cfg(feature = "diagnostics")]
 #[test]
 #[serial]
 fn json_writer_omits_absent_skip_messages() {
-    let _ = drain_reports();
+    drop(drain_reports());
     let guard = FailOnSkippedGuard::enable();
     allowed_skip_without_message();
     drop(guard);
@@ -303,14 +292,14 @@ fn json_writer_omits_absent_skip_messages() {
         panic!("skip details present");
     };
     assert!(skip.get("message").is_none() || skip.get("message") == Some(&Value::Null));
-    let _ = drain_reports();
+    drop(drain_reports());
 }
 
 #[cfg(feature = "diagnostics")]
 #[test]
 #[serial]
 fn junit_writer_emits_skipped_child_element() {
-    let _ = drain_reports();
+    drop(drain_reports());
     let guard = FailOnSkippedGuard::enable();
     allowed_skip();
     drop(guard);
@@ -327,16 +316,16 @@ fn junit_writer_emits_skipped_child_element() {
         output.contains("tests=\"1\" failures=\"0\" skipped=\"1\""),
         "JUnit suite summary should record skip counts",
     );
-    let _ = drain_reports();
+    drop(drain_reports());
 }
 
 #[cfg(feature = "diagnostics")]
 #[test]
 #[serial]
 fn junit_writer_marks_forced_failure_skips() {
-    let _ = drain_reports();
+    drop(drain_reports());
     let guard = FailOnSkippedGuard::enable();
-    let _ = std::panic::catch_unwind(disallowed_skip);
+    drop(std::panic::catch_unwind(disallowed_skip));
     drop(guard);
     let records = reporting::snapshot();
     let mut output = String::new();
@@ -352,14 +341,14 @@ fn junit_writer_marks_forced_failure_skips() {
         output.contains("failures=\"1\" skipped=\"1\""),
         "JUnit summary should reflect failure counts",
     );
-    let _ = drain_reports();
+    drop(drain_reports());
 }
 
 #[cfg(feature = "diagnostics")]
 #[test]
 #[serial]
 fn junit_writer_escapes_special_characters() {
-    let _ = drain_reports();
+    drop(drain_reports());
     let metadata = ScenarioMetadata::new(
         "tests/features/<feature>&special",
         "Scenario with <&>\"'",
@@ -383,5 +372,5 @@ fn junit_writer_escapes_special_characters() {
     assert!(output.contains("tests/features/&lt;feature&gt;&amp;special"));
     assert!(output.contains("message with &lt;bad&gt;&amp;chars"));
     assert!(output.contains("&#xFFFD;"));
-    let _ = drain_reports();
+    drop(drain_reports());
 }

@@ -1,11 +1,8 @@
 //! Unit tests for [`super::copy_file`] and [`super::copy_dir_tree`] staging helpers.
 
-use std::fs;
-use std::io;
-use std::path::PathBuf;
+use std::{fs, io, path::PathBuf};
 
-use rstest::fixture;
-use rstest::rstest;
+use rstest::{fixture, rstest};
 use tempfile::TempDir;
 
 use super::{copy_dir_tree, copy_file};
@@ -31,6 +28,11 @@ fn copy_file_staging() -> io::Result<CopyFileStaging> {
 }
 
 #[rstest]
+#[expect(
+    clippy::panic_in_result_fn,
+    reason = "assertions in a Result-returning test pair `?` on fallible fixtures with ordinary \
+              assertions"
+)]
 fn copy_file_overwrites_existing_destination(
     copy_file_staging: io::Result<CopyFileStaging>,
 ) -> io::Result<()> {
@@ -83,6 +85,11 @@ fn replace_dir_staging() -> io::Result<ReplaceDstStaging> {
 }
 
 #[rstest]
+#[expect(
+    clippy::panic_in_result_fn,
+    reason = "assertions in a Result-returning test pair `?` on fallible fixtures with ordinary \
+              assertions"
+)]
 fn copy_dir_tree_replaces_existing_directory(
     replace_dir_staging: io::Result<ReplaceDstStaging>,
 ) -> io::Result<()> {
@@ -96,6 +103,11 @@ fn copy_dir_tree_replaces_existing_directory(
 }
 
 #[rstest]
+#[expect(
+    clippy::panic_in_result_fn,
+    reason = "assertions in a Result-returning test pair `?` on fallible fixtures with ordinary \
+              assertions"
+)]
 fn copy_dir_tree_creates_missing_destination_parents(
     replace_dir_staging: io::Result<ReplaceDstStaging>,
 ) -> io::Result<()> {
@@ -122,6 +134,11 @@ fn replace_file_dest_staging() -> io::Result<ReplaceDstStaging> {
 }
 
 #[rstest]
+#[expect(
+    clippy::panic_in_result_fn,
+    reason = "assertions in a Result-returning test pair `?` on fallible fixtures with ordinary \
+              assertions"
+)]
 fn copy_dir_tree_replaces_existing_file_destination(
     replace_file_dest_staging: io::Result<ReplaceDstStaging>,
 ) -> io::Result<()> {
@@ -133,15 +150,20 @@ fn copy_dir_tree_replaces_existing_file_destination(
 }
 
 #[test]
+#[expect(
+    clippy::panic_in_result_fn,
+    reason = "assertions in a Result-returning test pair `?` on fallible fixtures with ordinary \
+              assertions"
+)]
 fn copy_dir_tree_creates_missing_destination_parent_chain() -> io::Result<()> {
     let (root, src, dst) = make_src_dst_scaffold()?;
-    let dst = dst.join("missing").join("parents");
+    let nested_dst = dst.join("missing").join("parents");
     fs::create_dir_all(&src)?;
     fs::write(src.join("f.txt"), b"hello")?;
 
-    copy_dir_tree(&src, &dst)?;
+    copy_dir_tree(&src, &nested_dst)?;
 
-    assert_eq!(fs::read(dst.join("f.txt"))?, b"hello");
+    assert_eq!(fs::read(nested_dst.join("f.txt"))?, b"hello");
     drop(root);
     Ok(())
 }
@@ -158,8 +180,8 @@ enum MissingTailDestination {
 fn copy_dir_tree_rejects_missing_tail_overlap_destinations(
     overlap_check_staging: io::Result<OverlapCheckStaging>,
     #[case] variant: MissingTailDestination,
-) -> io::Result<()> {
-    let staging = overlap_check_staging?;
+) {
+    let staging = overlap_check_staging.expect("overlap staging should be prepared");
     let OverlapCheckStaging { root, src } = &staging;
     let missing = root.path().join("missing");
     let (dst, not_created) = match variant {
@@ -179,7 +201,6 @@ fn copy_dir_tree_rejects_missing_tail_overlap_destinations(
         err.to_string().contains("refusing overlapping"),
         "unexpected error message: {err}"
     );
-    Ok(())
 }
 
 #[cfg(unix)]
@@ -210,12 +231,16 @@ fn symlink_in_source_staging() -> io::Result<SymlinkInSourceStaging> {
 
 #[rstest]
 #[cfg(unix)]
+#[expect(
+    clippy::panic_in_result_fn,
+    reason = "assertions in a Result-returning test pair `?` on fallible fixtures with ordinary \
+              assertions"
+)]
 fn copy_dir_tree_rejects_symlink_in_source(
     symlink_in_source_staging: io::Result<SymlinkInSourceStaging>,
 ) -> io::Result<()> {
     let staging = symlink_in_source_staging?;
     let SymlinkInSourceStaging { src, dst, .. } = &staging;
-    #[expect(clippy::expect_used, reason = "the test asserts the copy is rejected")]
     let err = { copy_dir_tree(src, dst).expect_err("failed to copy dir tree") };
     assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
     assert!(
@@ -227,6 +252,11 @@ fn copy_dir_tree_rejects_symlink_in_source(
 
 #[test]
 #[cfg(unix)]
+#[expect(
+    clippy::panic_in_result_fn,
+    reason = "assertions in a Result-returning test pair `?` on fallible fixtures with ordinary \
+              assertions"
+)]
 fn copy_dir_tree_rejects_symlink_as_source_root() -> io::Result<()> {
     use std::os::unix::fs::symlink;
 
@@ -237,7 +267,6 @@ fn copy_dir_tree_rejects_symlink_as_source_root() -> io::Result<()> {
     fs::create_dir_all(&tree)?;
     fs::write(tree.join("f.txt"), b"x")?;
     symlink(&tree, &src)?;
-    #[expect(clippy::expect_used, reason = "the test asserts the copy is rejected")]
     let err = copy_dir_tree(&src, &dst).expect_err("expected symlink source root rejection");
     assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
     assert!(
@@ -253,6 +282,11 @@ fn copy_dir_tree_rejects_symlink_as_source_root() -> io::Result<()> {
 
 #[test]
 #[cfg(unix)]
+#[expect(
+    clippy::panic_in_result_fn,
+    reason = "assertions in a Result-returning test pair `?` on fallible fixtures with ordinary \
+              assertions"
+)]
 fn copy_dir_tree_symlink_source_does_not_remove_destination() -> io::Result<()> {
     use std::os::unix::fs::symlink;
 
@@ -265,7 +299,6 @@ fn copy_dir_tree_symlink_source_does_not_remove_destination() -> io::Result<()> 
     fs::create_dir_all(&dst)?;
     fs::write(dst.join("marker.txt"), b"untouched")?;
     symlink(&tree, &src)?;
-    #[expect(clippy::expect_used, reason = "the test asserts the copy is rejected")]
     let err = copy_dir_tree(&src, &dst).expect_err("symlink source must be rejected");
     assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
     assert!(
@@ -282,11 +315,15 @@ fn copy_dir_tree_symlink_source_does_not_remove_destination() -> io::Result<()> 
 }
 
 #[test]
+#[expect(
+    clippy::panic_in_result_fn,
+    reason = "assertions in a Result-returning test pair `?` on fallible fixtures with ordinary \
+              assertions"
+)]
 fn copy_dir_tree_rejects_identical_source_and_destination() -> io::Result<()> {
     let root = TempDir::new()?;
     let dir = root.path().join("tree");
     fs::create_dir_all(&dir)?;
-    #[expect(clippy::expect_used, reason = "the test asserts the copy is rejected")]
     let err = copy_dir_tree(&dir, &dir).expect_err("identical source and destination");
     assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
     assert!(
@@ -297,13 +334,17 @@ fn copy_dir_tree_rejects_identical_source_and_destination() -> io::Result<()> {
 }
 
 #[test]
+#[expect(
+    clippy::panic_in_result_fn,
+    reason = "assertions in a Result-returning test pair `?` on fallible fixtures with ordinary \
+              assertions"
+)]
 fn copy_dir_tree_rejects_destination_inside_source() -> io::Result<()> {
     let root = TempDir::new()?;
     let src = root.path().join("src");
     fs::create_dir_all(&src)?;
     fs::write(src.join("f.txt"), b"x")?;
     let dst = src.join("nested_dst");
-    #[expect(clippy::expect_used, reason = "the test asserts the copy is rejected")]
     let err = copy_dir_tree(&src, &dst).expect_err("destination inside source");
     assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
     assert!(
@@ -314,6 +355,11 @@ fn copy_dir_tree_rejects_destination_inside_source() -> io::Result<()> {
 }
 
 #[test]
+#[expect(
+    clippy::panic_in_result_fn,
+    reason = "assertions in a Result-returning test pair `?` on fallible fixtures with ordinary \
+              assertions"
+)]
 fn copy_dir_tree_rejects_source_inside_destination() -> io::Result<()> {
     let root = TempDir::new()?;
     let dst = root.path().join("dst");
@@ -321,7 +367,6 @@ fn copy_dir_tree_rejects_source_inside_destination() -> io::Result<()> {
     let src = dst.join("inner_src");
     fs::create_dir_all(&src)?;
     fs::write(src.join("g.txt"), b"y")?;
-    #[expect(clippy::expect_used, reason = "the test asserts the copy is rejected")]
     let err = copy_dir_tree(&src, &dst).expect_err("source inside destination");
     assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
     assert!(

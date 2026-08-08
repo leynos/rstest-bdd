@@ -1,181 +1,22 @@
-//! Unit tests for normalizer and path helpers used by trybuild macro tests.
-use super::wrappers::{FixtureStderr, FixtureTestPath};
-use super::*;
-use super::{Normalizer, NormalizerInput};
-use camino::{Utf8Path, Utf8PathBuf};
-use cap_std::{ambient_authority, fs::Dir};
+//! Unit tests for the stderr normalizer pipeline.
+
+use std::{borrow::Cow, panic};
+
+use camino::Utf8Path;
 use rstest::rstest;
-use std::any::Any;
-use std::borrow::Cow;
-use std::panic::{self, AssertUnwindSafe};
 
-fn write_fixture_file(crate_dir: &Dir, path: &Utf8Path, bytes: &[u8], label: &str) {
-    if let Some(parent) = path.parent() {
-        if let Err(error) = crate_dir.create_dir_all(parent.as_std_path()) {
-            panic!("failed to create directory for {label}: {error}");
-        }
-    }
-    if let Err(error) = crate_dir.write(path.as_std_path(), bytes) {
-        panic!("failed to write {label}: {error}");
-    }
-}
-
-fn captured_panic_message(result: Result<(), Box<dyn Any + Send>>) -> String {
-    let Err(payload) = result else {
-        panic!("expected helper to panic");
-    };
-    if let Some(message) = payload.downcast_ref::<&str>() {
-        return (*message).to_owned();
-    }
-    let Some(message) = payload.downcast_ref::<String>() else {
-        panic!("expected helper panic payload to be a string");
-    };
-    message.clone()
-}
-
-struct NormalizerFixture {
-    expected_path: Utf8PathBuf,
-    actual_path: Utf8PathBuf,
-}
-
-impl NormalizerFixture {
-    fn new(
-        test_path: FixtureTestPath<'_>,
-        expected: FixtureStderr<'_>,
-        actual: FixtureStderr<'_>,
-    ) -> Self {
-        let test_path = Utf8Path::new(test_path.as_ref());
-        let crate_dir = match Dir::open_ambient_dir(
-            Utf8Path::new(env!("CARGO_MANIFEST_DIR")),
-            ambient_authority(),
-        ) {
-            Ok(crate_dir) => crate_dir,
-            Err(error) => panic!("failed to open crate directory: {error}"),
-        };
-
-        let expected_path = expected_stderr_path(test_path.as_std_path());
-        write_fixture_file(
-            &crate_dir,
-            &expected_path,
-            expected.as_ref().as_bytes(),
-            "expected stderr fixture",
-        );
-
-        let actual_path = wip_stderr_path(test_path.as_std_path());
-        write_fixture_file(
-            &crate_dir,
-            &actual_path,
-            actual.as_ref().as_bytes(),
-            "wip stderr fixture",
-        );
-
-        Self {
-            expected_path,
-            actual_path,
-        }
-    }
-}
-
-impl Drop for NormalizerFixture {
-    fn drop(&mut self) {
-        if let Ok(crate_dir) = Dir::open_ambient_dir(
-            Utf8Path::new(env!("CARGO_MANIFEST_DIR")),
-            ambient_authority(),
-        ) {
-            let _ = crate_dir.remove_file(self.expected_path.as_std_path());
-            let _ = crate_dir.remove_file(self.actual_path.as_std_path());
-        }
-    }
-}
-
-#[test]
-fn wip_stderr_path_builds_target_location() {
-    let path =
-        wip_stderr_path(Utf8Path::new("tests/fixtures_macros/__helper_case.rs").as_std_path());
-    assert_eq!(path, Utf8Path::new("target/tests/wip/__helper_case.stderr"));
-}
-
-#[test]
-#[should_panic(expected = "trybuild test path must include file name")]
-fn wip_stderr_path_panics_without_file_name() {
-    wip_stderr_path(Utf8Path::new("").as_std_path());
-}
-
-#[test]
-fn expected_stderr_path_replaces_extension() {
-    let path = expected_stderr_path(Utf8Path::new("tests/ui_macros/example.output").as_std_path());
-    assert_eq!(path, Utf8Path::new("tests/ui_macros/example.stderr"));
-}
-
-#[test]
-fn expected_stderr_path_handles_multiple_extensions() {
-    let path =
-        expected_stderr_path(Utf8Path::new("tests/ui_macros/example.feature.rs").as_std_path());
-    assert_eq!(
-        path,
-        Utf8Path::new("tests/ui_macros/example.feature.stderr")
-    );
-}
-
-#[test]
-fn write_fixture_file_preserves_create_directory_panic_label() {
-    let temp_dir = match tempfile::tempdir() {
-        Ok(temp_dir) => temp_dir,
-        Err(error) => panic!("failed to create temporary directory: {error}"),
-    };
-    let crate_dir = match Dir::open_ambient_dir(temp_dir.path(), ambient_authority()) {
-        Ok(crate_dir) => crate_dir,
-        Err(error) => panic!("failed to open temporary directory: {error}"),
-    };
-    if let Err(error) = crate_dir.write("blocked", b"not a directory") {
-        panic!("failed to create blocked path: {error}");
-    }
-
-    let result = panic::catch_unwind(AssertUnwindSafe(|| {
-        write_fixture_file(
-            &crate_dir,
-            Utf8Path::new("blocked/output.stderr"),
-            b"stderr",
-            "expected stderr fixture",
-        );
-    }));
-    let message = captured_panic_message(result);
-
-    assert!(
-        message.starts_with("failed to create directory for expected stderr fixture:"),
-        "panic message should preserve expected fixture label: {message}",
-    );
-}
-
-#[test]
-fn write_fixture_file_preserves_write_panic_label() {
-    let temp_dir = match tempfile::tempdir() {
-        Ok(temp_dir) => temp_dir,
-        Err(error) => panic!("failed to create temporary directory: {error}"),
-    };
-    let crate_dir = match Dir::open_ambient_dir(temp_dir.path(), ambient_authority()) {
-        Ok(crate_dir) => crate_dir,
-        Err(error) => panic!("failed to open temporary directory: {error}"),
-    };
-    if let Err(error) = crate_dir.create_dir("blocked") {
-        panic!("failed to create blocked directory: {error}");
-    }
-
-    let result = panic::catch_unwind(AssertUnwindSafe(|| {
-        write_fixture_file(
-            &crate_dir,
-            Utf8Path::new("blocked"),
-            b"stderr",
-            "wip stderr fixture",
-        );
-    }));
-    let message = captured_panic_message(result);
-
-    assert!(
-        message.starts_with("failed to write wip stderr fixture:"),
-        "panic message should preserve wip fixture label: {message}",
-    );
-}
+use super::{
+    super::{
+        Normalizer,
+        NormalizerInput,
+        apply_normalizers,
+        normalize_fixture_paths,
+        run_compile_fail_with_normalized_output,
+        strip_nightly_macro_backtrace_hint,
+        wrappers::{FixtureStderr, FixtureTestPath},
+    },
+    NormalizerFixture,
+};
 
 #[test]
 fn apply_normalizers_returns_borrowed_when_empty() {
@@ -297,6 +138,21 @@ fn run_compile_fail_with_normalized_output_handles_multiple_normalizers() {
     );
 }
 
+/// A staged expected/actual stderr pair plus the outcome it should produce.
+#[derive(Clone, Copy)]
+struct NormalizerCase<'a> {
+    /// Contents written to the expected stderr file.
+    expected_content: &'a str,
+    /// Contents written to the wip stderr file.
+    actual_content: &'a str,
+    /// Whether normalization is expected to accept the pair.
+    should_succeed: bool,
+    /// Message reported when the outcome does not match.
+    result_message: &'a str,
+    /// Message reported when the wip file is not in the expected state.
+    file_message: &'a str,
+}
+
 #[test]
 fn run_compile_fail_with_normalized_output_accepts_empty_output() {
     const TEST_PATH: &str = "tests/fixtures_macros/__normaliser_empty.rs";
@@ -348,28 +204,35 @@ fn run_compile_fail_with_normalized_output_detects_mismatch() {
 #[rstest]
 #[case(
     "tests/fixtures_macros/__normaliser_whitespace.rs",
-    "warning: trailing space",
-    "warning: trailing space   ",
-    true,
-    "whitespace differences should be normalized",
-    "matching outputs should delete the wip stderr file"
+    NormalizerCase {
+        expected_content: "warning: trailing space",
+        actual_content: "warning: trailing space   ",
+        should_succeed: true,
+        result_message: "whitespace differences should be normalized",
+        file_message: "matching outputs should delete the wip stderr file",
+    }
 )]
 #[case(
     "tests/fixtures_macros/__normaliser_unexpected_case.rs",
-    "error: expected formatting",
-    "error: unexpected formatting",
-    false,
-    "mismatched outputs must propagate the panic",
-    "mismatched outputs should retain the wip stderr file for inspection"
+    NormalizerCase {
+        expected_content: "error: expected formatting",
+        actual_content: "error: unexpected formatting",
+        should_succeed: false,
+        result_message: "mismatched outputs must propagate the panic",
+        file_message: "mismatched outputs should retain the wip stderr file for inspection",
+    }
 )]
 fn run_compile_fail_with_normalized_output_test_cases(
     #[case] test_path: &str,
-    #[case] expected_content: &str,
-    #[case] actual_content: &str,
-    #[case] should_succeed: bool,
-    #[case] result_message: &str,
-    #[case] file_message: &str,
+    #[case] case: NormalizerCase<'_>,
 ) {
+    let NormalizerCase {
+        expected_content,
+        actual_content,
+        should_succeed,
+        result_message,
+        file_message,
+    } = case;
     let mut expected = String::from(expected_content);
     expected.push('\n');
     let mut actual = String::from(actual_content);

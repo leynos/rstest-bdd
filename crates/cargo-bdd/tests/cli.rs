@@ -1,15 +1,12 @@
 //! Basic smoke tests for the cargo-bdd subcommand.
 
+use std::{env, fs, path::PathBuf, process::ExitStatus, str};
+
 use assert_cmd::Command;
 use eyre::{Context, Result};
 use rstest_bdd_harness::binary_test_support::{BinaryName, locate_or_build_binary};
 use serde::Deserialize;
 use serial_test::serial;
-use std::env;
-use std::fs;
-use std::path::PathBuf;
-use std::process::ExitStatus;
-use std::str;
 
 #[derive(Debug, Deserialize)]
 struct SkippedDefinition {
@@ -62,9 +59,7 @@ fn locate_or_build_cargo_bdd_command() -> Result<Command> {
     .map_err(|e| eyre::eyre!(e))
 }
 
-fn workspace_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
-}
+fn workspace_root() -> PathBuf { PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..") }
 
 fn run_cargo_bdd_captured(args: &[&str]) -> Result<(ExitStatus, String, String)> {
     let output = run_cargo_bdd_raw(args)?;
@@ -80,13 +75,13 @@ fn run_cargo_bdd_captured(args: &[&str]) -> Result<(ExitStatus, String, String)>
             "`cargo bdd` emitted invalid UTF-8 to stderr (args: [{args_debug}], status: {status})"
         )
     })?;
-    Ok((status, stdout.to_string(), stderr.to_string()))
+    Ok((status, stdout.to_owned(), stderr.to_owned()))
 }
 
 fn run_cargo_bdd(args: &[&str]) -> Result<String> {
     let args_debug = args.join(" ");
     let (status, stdout, _stderr) = run_cargo_bdd_captured(args)?;
-    assert!(
+    eyre::ensure!(
         status.success(),
         "`cargo bdd` should succeed (args: [{args_debug}], status: {status})"
     );
@@ -96,18 +91,21 @@ fn run_cargo_bdd(args: &[&str]) -> Result<String> {
 fn run_cargo_bdd_failure(args: &[&str]) -> Result<String> {
     let args_debug = args.join(" ");
     let (status, _stdout, stderr) = run_cargo_bdd_captured(args)?;
-    assert!(
+    eyre::ensure!(
         !status.success(),
         "`cargo bdd` should fail for invalid arguments (args: [{args_debug}], status: {status})"
     );
     Ok(stderr)
 }
 
-fn run_cargo_bdd_steps() -> Result<String> {
-    run_cargo_bdd(&["steps"])
-}
+fn run_cargo_bdd_steps() -> Result<String> { run_cargo_bdd(&["steps"]) }
 
 #[test]
+#[expect(
+    clippy::panic_in_result_fn,
+    reason = "assertions in a Result-returning test pair `?` on fallible fixtures with ordinary \
+              assertions"
+)]
 #[serial]
 fn list_steps_runs() -> Result<()> {
     let stdout = run_cargo_bdd_steps()?;
@@ -119,6 +117,11 @@ fn list_steps_runs() -> Result<()> {
 }
 
 #[test]
+#[expect(
+    clippy::panic_in_result_fn,
+    reason = "assertions in a Result-returning test pair `?` on fallible fixtures with ordinary \
+              assertions"
+)]
 #[serial]
 fn steps_output_includes_skipped_statuses() -> Result<()> {
     let stdout = run_cargo_bdd_steps()?;
@@ -134,6 +137,11 @@ fn steps_output_includes_skipped_statuses() -> Result<()> {
 }
 
 #[test]
+#[expect(
+    clippy::panic_in_result_fn,
+    reason = "assertions in a Result-returning test pair `?` on fallible fixtures with ordinary \
+              assertions"
+)]
 #[serial]
 fn steps_output_marks_forced_failure_skips() -> Result<()> {
     let stdout = run_cargo_bdd_steps()?;
@@ -153,6 +161,11 @@ fn steps_output_marks_forced_failure_skips() -> Result<()> {
 }
 
 #[test]
+#[expect(
+    clippy::panic_in_result_fn,
+    reason = "assertions in a Result-returning test pair `?` on fallible fixtures with ordinary \
+              assertions"
+)]
 #[serial]
 fn skipped_subcommand_includes_reasons_and_lines() -> Result<()> {
     let stdout = run_cargo_bdd(&["skipped", "--reasons"])?;
@@ -169,6 +182,11 @@ fn skipped_subcommand_includes_reasons_and_lines() -> Result<()> {
 }
 
 #[test]
+#[expect(
+    clippy::panic_in_result_fn,
+    reason = "assertions in a Result-returning test pair `?` on fallible fixtures with ordinary \
+              assertions"
+)]
 #[serial]
 fn skipped_subcommand_emits_json() -> Result<()> {
     let stdout = run_cargo_bdd(&["skipped", "--json"])?;
@@ -185,13 +203,18 @@ fn skipped_subcommand_emits_json() -> Result<()> {
     assert!(fixture_entry.line > 0, "expected a 1-based line number");
     assert_eq!(
         fixture_entry.tags,
-        vec!["@allow_skipped".to_string()],
+        vec!["@allow_skipped".to_owned()],
         "expected fixture skipped scenario tags to be preserved"
     );
     Ok(())
 }
 
 #[test]
+#[expect(
+    clippy::panic_in_result_fn,
+    reason = "assertions in a Result-returning test pair `?` on fallible fixtures with ordinary \
+              assertions"
+)]
 #[serial]
 fn steps_skipped_outputs_bypassed_definitions() -> Result<()> {
     let stdout = run_cargo_bdd(&["steps", "--skipped"])?;
@@ -201,6 +224,11 @@ fn steps_skipped_outputs_bypassed_definitions() -> Result<()> {
 }
 
 #[test]
+#[expect(
+    clippy::panic_in_result_fn,
+    reason = "assertions in a Result-returning test pair `?` on fallible fixtures with ordinary \
+              assertions"
+)]
 #[serial]
 fn steps_skipped_emits_json() -> Result<()> {
     let stdout = run_cargo_bdd(&["steps", "--skipped", "--json"])?;
@@ -210,13 +238,10 @@ fn steps_skipped_emits_json() -> Result<()> {
         .find(|entry| entry.scenario == "fixture forced failure skip")
         .ok_or_else(|| eyre::eyre!("expected forced failure skip entry"))?;
     assert_eq!(forced_entry.reason.as_deref(), Some("fixture forced skip"),);
-    assert!(
-        forced_entry.step.is_some(),
-        "bypassed steps should include step info"
-    );
-    let Some(step) = forced_entry.step.as_ref() else {
-        unreachable!("assertion above ensures step is present");
-    };
+    let step = forced_entry
+        .step
+        .as_ref()
+        .ok_or_else(|| eyre::eyre!("bypassed steps should include step info"))?;
     assert_eq!(step.keyword, "Then");
     assert_eq!(step.pattern, "fixture forced bypass");
     assert!(
@@ -232,6 +257,11 @@ fn steps_skipped_emits_json() -> Result<()> {
 }
 
 #[test]
+#[expect(
+    clippy::panic_in_result_fn,
+    reason = "assertions in a Result-returning test pair `?` on fallible fixtures with ordinary \
+              assertions"
+)]
 #[serial]
 fn steps_json_requires_skipped_flag() -> Result<()> {
     let stderr = run_cargo_bdd_failure(&["steps", "--json"])?;

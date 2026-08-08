@@ -1,14 +1,20 @@
 //! Step registration, lookup, and placeholder matching.
 //! Defines `Step`, the `step!` registration macro, and the global registry.
 
-use crate::pattern::StepPattern;
-use crate::placeholder::extract_placeholders;
-use crate::types::{AsyncStepFn, PatternStr, StepExecutionMode, StepFn, StepKeyword, StepText};
+use std::{
+    hash::{BuildHasher, Hash, Hasher},
+    sync::{LazyLock, Mutex},
+};
+
 use hashbrown::{HashMap, HashSet};
 use inventory::iter;
 use rstest_bdd_patterns::SpecificityScore;
-use std::hash::{BuildHasher, Hash, Hasher};
-use std::sync::{LazyLock, Mutex};
+
+use crate::{
+    pattern::StepPattern,
+    placeholder::extract_placeholders,
+    types::{AsyncStepFn, PatternStr, StepExecutionMode, StepFn, StepKeyword, StepText},
+};
 
 mod async_lookup;
 mod bypassed;
@@ -19,9 +25,11 @@ mod fixtures;
 mod introspection;
 
 pub use async_lookup::{
-    find_step_async_with_mode, find_step_with_mode, lookup_step_async_with_mode,
+    find_step_async_with_mode,
+    find_step_with_mode,
+    lookup_step_async_with_mode,
 };
-pub use bypassed::{record_bypassed_steps, record_bypassed_steps_with_tags};
+pub use bypassed::{BypassedScenario, record_bypassed_steps};
 pub use fixtures::{FixtureRequirement, StepFixtureRequirements, fixture_requirements_for_step};
 #[cfg(feature = "diagnostics")]
 pub use introspection::dump_registry;
@@ -92,7 +100,15 @@ pub struct Step {
 #[macro_export]
 macro_rules! step {
     // Internal arm: 5 arguments with pre-compiled pattern reference
-    (@pattern $keyword:expr, $pattern:expr, $handler:path, $async_handler:path, $fixtures:expr, $mode:expr) => {
+    (
+        @pattern
+        $keyword:expr,
+        $pattern:expr,
+        $handler:path,
+        $async_handler:path,
+        $fixtures:expr,
+        $mode:expr
+    ) => {
         const _: () = {
             $crate::submit! {
                 $crate::Step {
@@ -137,7 +153,7 @@ macro_rules! step {
     // Public arm: 4 arguments (auto-generate async handler for backward compatibility)
     // This arm MUST come before the 5-argument arm because Rust macro matching
     // is greedy and would otherwise try to parse fixtures as an async_handler path.
-    ($keyword:expr, $pattern:expr, $handler:path, & $fixtures:expr, mode = $mode:expr $(,)?) => {
+    ($keyword:expr, $pattern:expr, $handler:path, & $fixtures:expr,mode = $mode:expr $(,)?) => {
         const _: () = {
             static PATTERN: $crate::StepPattern = $crate::StepPattern::new($pattern);
             $crate::step!(
@@ -163,7 +179,14 @@ macro_rules! step {
         };
     };
     // Public arm: 5 arguments (explicit async handler)
-    ($keyword:expr, $pattern:expr, $handler:path, $async_handler:path, $fixtures:expr, mode = $mode:expr $(,)?) => {
+    (
+        $keyword:expr,
+        $pattern:expr,
+        $handler:path,
+        $async_handler:path,
+        $fixtures:expr,mode =
+        $mode:expr $(,)?
+    ) => {
         const _: () = {
             static PATTERN: $crate::StepPattern = $crate::StepPattern::new($pattern);
             $crate::step!(
@@ -235,13 +258,9 @@ fn mark_used(key: StepKey) {
         .insert(key);
 }
 
-fn all_steps() -> Vec<&'static Step> {
-    iter::<Step>.into_iter().collect()
-}
+fn all_steps() -> Vec<&'static Step> { iter::<Step>.into_iter().collect() }
 
-fn step_by_key(key: StepKey) -> Option<&'static Step> {
-    STEP_MAP.get(&key).copied()
-}
+fn step_by_key(key: StepKey) -> Option<&'static Step> { STEP_MAP.get(&key).copied() }
 
 fn resolve_exact_step(keyword: StepKeyword, pattern: PatternStr<'_>) -> Option<&'static Step> {
     // Compute the hash as if the key were (keyword, pattern.as_str()) because
@@ -300,9 +319,9 @@ fn mark_and_project<T>(
     step: Option<&'static Step>,
     project: impl FnOnce(&'static Step) -> T,
 ) -> Option<T> {
-    step.map(|step| {
-        mark_used((step.keyword, step.pattern));
-        project(step)
+    step.map(|found| {
+        mark_used((found.keyword, found.pattern));
+        project(found)
     })
 }
 

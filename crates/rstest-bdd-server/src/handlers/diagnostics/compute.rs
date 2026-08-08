@@ -11,11 +11,12 @@ use std::{path::Path, sync::Arc};
 
 use lsp_types::{Diagnostic, DiagnosticSeverity, Range};
 
-use crate::indexing::{CompiledStepDefinition, FeatureFileIndex, IndexedStep};
-use crate::server::ServerState;
-
 use super::{CODE_UNIMPLEMENTED_STEP, CODE_UNUSED_STEP_DEFINITION, DIAGNOSTIC_SOURCE};
-use crate::handlers::util::gherkin_span_to_lsp_range;
+use crate::{
+    handlers::util::gherkin_span_to_lsp_range,
+    indexing::{CompiledStepDefinition, FeatureFileIndex, IndexedStep},
+    server::ServerState,
+};
 
 /// Compute diagnostics for unimplemented feature steps.
 ///
@@ -75,51 +76,20 @@ pub(super) fn build_step_diagnostic(
     }
 }
 
-/// Kinds of diagnostics that can be reported for feature steps.
-pub(super) enum FeatureStepDiagnosticKind {
-    /// No Rust implementation found for the step.
-    UnimplementedStep { keyword: String, text: String },
-    /// Feature step has a data table but implementation doesn't expect one.
-    TableNotExpected,
-    /// Implementation expects a data table but feature step doesn't have one.
-    TableExpected,
-    /// Feature step has a docstring but implementation doesn't expect one.
-    DocstringNotExpected,
-    /// Implementation expects a docstring but feature step doesn't have one.
-    DocstringExpected,
-}
-
-impl FeatureStepDiagnosticKind {
-    /// Build a diagnostic for an unimplemented step.
-    fn build_unimplemented(
-        self,
-        feature_index: &FeatureFileIndex,
-        step: &IndexedStep,
-    ) -> Diagnostic {
-        match self {
-            Self::UnimplementedStep { keyword, text } => {
-                let spec = DiagnosticSpec {
-                    code: CODE_UNIMPLEMENTED_STEP,
-                    message: format!("No Rust implementation found for {keyword} step: \"{text}\""),
-                    custom_range: None,
-                };
-                build_step_diagnostic(feature_index, step, spec)
-            }
-            _ => unreachable!("build_unimplemented called with non-UnimplementedStep variant"),
-        }
-    }
-}
-
 /// Build a diagnostic for an unimplemented feature step.
 fn build_unimplemented_step_diagnostic(
     feature_index: &FeatureFileIndex,
     step: &IndexedStep,
 ) -> Diagnostic {
-    FeatureStepDiagnosticKind::UnimplementedStep {
-        keyword: step.keyword.clone(),
-        text: step.text.clone(),
-    }
-    .build_unimplemented(feature_index, step)
+    let spec = DiagnosticSpec {
+        code: CODE_UNIMPLEMENTED_STEP,
+        message: format!(
+            "No Rust implementation found for {} step: \"{}\"",
+            step.keyword, step.text
+        ),
+        custom_range: None,
+    };
+    build_step_diagnostic(feature_index, step, spec)
 }
 
 /// Compute diagnostics for unused step definitions in a Rust file.
@@ -172,7 +142,7 @@ fn build_unused_step_diagnostic(step_def: &Arc<CompiledStepDefinition>) -> Diagn
 }
 
 /// Convert a `StepType` to the corresponding attribute name.
-pub(super) fn step_type_to_attribute(step_type: gherkin::StepType) -> &'static str {
+pub(super) const fn step_type_to_attribute(step_type: gherkin::StepType) -> &'static str {
     match step_type {
         gherkin::StepType::Given => "given",
         gherkin::StepType::When => "when",

@@ -7,10 +7,8 @@
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 
+use super::{ScenarioLookup, args::ScenarioSelector};
 use crate::parsing::feature::{ScenarioData, extract_scenario_steps};
-
-use super::ScenarioLookup;
-use super::args::ScenarioSelector;
 
 pub(super) fn ensure_feature_not_empty(
     path_lit: &syn::LitStr,
@@ -127,14 +125,14 @@ fn format_available_tags(tag_sets: &[Vec<String>]) -> String {
     // serialize each tag set separately so callers can still spot gaps without
     // losing the original grouping.
     if tag_sets.is_empty() {
-        return "available tags: <none>".to_string();
+        return "available tags: <none>".to_owned();
     }
 
     let formatted_sets: Vec<String> = tag_sets
         .iter()
         .map(|tags| {
             if tags.is_empty() {
-                "<none>".to_string()
+                "<none>".to_owned()
             } else {
                 tags.join(", ")
             }
@@ -204,7 +202,8 @@ fn ambiguous_scenario_error(
         .collect::<Vec<_>>()
         .join(", ");
     let message = format!(
-        "found multiple scenarios named \"{name}\"; use the `index` selector to disambiguate (matching indexes: {indexes}; lines: {lines})",
+        "found multiple scenarios named \"{name}\"; use the `index` selector to disambiguate \
+         (matching indexes: {indexes}; lines: {lines})",
     );
     syn::Error::new(span, message)
 }
@@ -241,8 +240,9 @@ mod tests {
 
     #[test]
     #[expect(
-        clippy::expect_used,
-        reason = "this test asserts successful scenario selection"
+        clippy::panic_in_result_fn,
+        reason = "assertions in a Result-returning test pair `?` on fallible fixtures with \
+                  ordinary assertions"
     )]
     fn finds_a_uniquely_named_scenario() -> Result<(), gherkin::ParseError> {
         let feature = parse_feature(TWO_SCENARIOS)?;
@@ -273,8 +273,8 @@ mod tests {
         #[case] source: &str,
         #[case] scenario_name: &str,
         #[case] expected_fragments: [&str; 2],
-    ) -> Result<(), gherkin::ParseError> {
-        let feature = parse_feature(source)?;
+    ) {
+        let feature = parse_feature(source).expect("case source should parse");
         let Err(err) = find_scenario_by_name(&feature, scenario_name, Span::call_site()) else {
             panic!("scenario name should be rejected");
         };
@@ -285,10 +285,14 @@ mod tests {
                 "diagnostic should contain {expected_fragment:?}: {message}"
             );
         }
-        Ok(())
     }
 
     #[test]
+    #[expect(
+        clippy::panic_in_result_fn,
+        reason = "assertions in a Result-returning test pair `?` on fallible fixtures with \
+                  ordinary assertions"
+    )]
     fn missing_name_diagnostic_notes_empty_features() -> Result<(), gherkin::ParseError> {
         let feature = parse_feature("Feature: demo\n")?;
         let message = scenario_not_found_error(&feature, "any", Span::call_site()).to_string();
@@ -306,7 +310,7 @@ mod tests {
 
     #[test]
     fn available_tags_serialize_each_examined_set() {
-        let tag_sets = vec![vec!["@fast".to_string(), "@ui".to_string()], Vec::new()];
+        let tag_sets = vec![vec!["@fast".to_owned(), "@ui".to_owned()], Vec::new()];
         assert_eq!(
             format_available_tags(&tag_sets),
             "available tags: @fast, @ui; <none>"

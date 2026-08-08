@@ -10,23 +10,30 @@
 mod support;
 
 use rstest::{fixture, rstest};
-use rstest_bdd_server::handlers::{
-    compute_unimplemented_step_diagnostics, compute_unused_step_diagnostics,
+use rstest_bdd_server::{
+    handlers::{compute_unimplemented_step_diagnostics, compute_unused_step_diagnostics},
+    server::ServerState,
+    test_support::DiagnosticCheckType,
 };
-use rstest_bdd_server::server::ServerState;
-use rstest_bdd_server::test_support::DiagnosticCheckType;
 use support::{ScenarioBuilder, TestScenario};
 use tempfile::TempDir;
 
 /// Fixture providing a fresh scenario builder for each test.
 #[fixture]
-fn scenario_builder() -> ScenarioBuilder {
-    ScenarioBuilder::new()
-}
+fn scenario_builder() -> ScenarioBuilder { ScenarioBuilder::new() }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Test-local helpers
 // ─────────────────────────────────────────────────────────────────────────────
+
+/// A source file staged into the scenario's temporary directory.
+#[derive(Clone, Copy)]
+struct StagedFile<'a> {
+    /// File name relative to the scenario directory.
+    filename: &'a str,
+    /// File contents.
+    content: &'a str,
+}
 
 /// Helper to compute unimplemented step diagnostics for a feature file.
 #[expect(clippy::expect_used, reason = "test helper uses expect for clarity")]
@@ -191,39 +198,53 @@ fn unused_rust_step_reports_diagnostic(scenario_builder: ScenarioBuilder) {
 
 #[rstest]
 #[case::rust_all_used(
-    "test.feature",
-    concat!("Feature: test\n", "  Scenario: s\n", "    Given a step\n",),
-    "steps.rs",
-    concat!(
+    StagedFile {
+        filename: "test.feature",
+        content: concat!("Feature: test\n", "  Scenario: s\n", "    Given a step\n",),
+    },
+    StagedFile {
+        filename: "steps.rs",
+        content: concat!(
         "use rstest_bdd_macros::given;\n\n",
         "#[given(\"a step\")]\n",
         "fn step() {}\n",
     ),
+    },
     DiagnosticCheckType::Rust
 )]
 #[case::parameterized_match(
-    "test.feature",
-    concat!(
+    StagedFile {
+        filename: "test.feature",
+        content: concat!(
         "Feature: test\n",
         "  Scenario: s\n",
         "    Given I have 42 items\n",
     ),
-    "steps.rs",
-    concat!(
+    },
+    StagedFile {
+        filename: "steps.rs",
+        content: concat!(
         "use rstest_bdd_macros::given;\n\n",
         "#[given(\"I have {n:u32} items\")]\n",
         "fn items() {}\n",
     ),
+    },
     DiagnosticCheckType::Both
 )]
 fn no_diagnostics_reported(
     scenario_builder: ScenarioBuilder,
-    #[case] feature_filename: &str,
-    #[case] feature_content: &str,
-    #[case] rust_filename: &str,
-    #[case] rust_content: &str,
+    #[case] feature: StagedFile<'_>,
+    #[case] rust: StagedFile<'_>,
     #[case] check_type: DiagnosticCheckType,
 ) {
+    let StagedFile {
+        filename: feature_filename,
+        content: feature_content,
+    } = feature;
+    let StagedFile {
+        filename: rust_filename,
+        content: rust_content,
+    } = rust;
     let TestScenario { dir, state } = scenario_builder
         .with_feature(feature_filename, feature_content)
         .with_rust_steps(rust_filename, rust_content)

@@ -1,11 +1,35 @@
 //! Helpers for rendering panic payloads.
 
-use std::any::Any;
-use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::{
+    any::Any,
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 use crate::localization;
+
+/// Render a panic payload carrying a primitive scalar.
+///
+/// Split out of [`panic_message`] so neither function carries the whole
+/// downcast ladder.
+fn scalar_panic_message(e: &(dyn std::any::Any + Send)) -> Option<String> {
+    macro_rules! try_downcast {
+        ($($ty:ty),* $(,)?) => {
+            $(
+                if let Some(val) = e.downcast_ref::<$ty>() {
+                    return Some(val.to_string());
+                }
+            )*
+        };
+    }
+
+    try_downcast!(
+        bool, char, i8, u8, i16, u16, i32, u32, i64, u64, i128, u128, isize, usize, f32, f64,
+    );
+    // `()` has no `Display` implementation, so it cannot go through the macro.
+    e.downcast_ref::<()>().map(|()| "()".to_owned())
+}
 
 /// Extracts a panic payload into a human-readable message.
 ///
@@ -16,8 +40,7 @@ use crate::localization;
 /// ```
 /// use rstest_bdd::panic_message;
 ///
-/// let err = std::panic::catch_unwind(|| panic!("boom"))
-///     .expect_err("expected panic");
+/// let err = std::panic::catch_unwind(|| panic!("boom")).expect_err("expected panic");
 /// assert_eq!(panic_message(err.as_ref()), "boom");
 /// ```
 #[must_use]
@@ -32,32 +55,9 @@ pub fn panic_message(e: &(dyn std::any::Any + Send)) -> String {
         };
     }
 
-    try_downcast!(
-        &str,
-        String,
-        std::fmt::Arguments,
-        Box<str>,
-        bool,
-        char,
-        i8,
-        u8,
-        i16,
-        u16,
-        i32,
-        u32,
-        i64,
-        u64,
-        i128,
-        u128,
-        isize,
-        usize,
-        f32,
-        f64,
-    );
-    // ``()`` lacks a ``Display`` implementation, so ``try_downcast!`` cannot
-    // render it using ``to_string``.
-    if e.downcast_ref::<()>().is_some() {
-        return "()".to_owned();
+    try_downcast!(&str, String, std::fmt::Arguments, Box<str>);
+    if let Some(rendered) = scalar_panic_message(e) {
+        return rendered;
     }
 
     let ty = format!(
@@ -99,9 +99,7 @@ impl<F> CatchUnwindFuture<F> {
     ///     other => panic!("expected ready Ok(42), got {other:?}"),
     /// }
     /// ```
-    pub fn new(inner: F) -> Self {
-        Self(Box::pin(inner))
-    }
+    pub fn new(inner: F) -> Self { Self(Box::pin(inner)) }
 }
 
 impl<F> Future for CatchUnwindFuture<F>

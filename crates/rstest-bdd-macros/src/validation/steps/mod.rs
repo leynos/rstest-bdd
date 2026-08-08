@@ -13,17 +13,17 @@
 mod crate_id;
 mod messages;
 
-use std::collections::HashMap;
-use std::sync::{LazyLock, Mutex};
-
-use crate::StepKeyword;
-use crate::parsing::feature::ParsedStep;
-use crate::pattern::MacroPattern;
-#[cfg(not(test))]
-use proc_macro_error::emit_warning;
+use std::{
+    collections::HashMap,
+    sync::{LazyLock, Mutex},
+};
 
 use crate_id::{current_crate_id, normalize_crate_id};
 use messages::{format_ambiguous_step_error, format_missing_step_error};
+#[cfg(not(test))]
+use proc_macro_error::emit_warning;
+
+use crate::{StepKeyword, parsing::feature::ParsedStep, pattern::MacroPattern};
 
 type Registry = HashMap<Box<str>, CrateDefs>;
 
@@ -36,9 +36,7 @@ impl CrateDefs {
     fn patterns(&self, kw: StepKeyword) -> &[&'static MacroPattern] {
         self.by_kw.get(&kw).map_or(&[], Vec::as_slice)
     }
-    fn is_empty(&self) -> bool {
-        self.by_kw.values().all(Vec::is_empty)
-    }
+    fn is_empty(&self) -> bool { self.by_kw.values().all(Vec::is_empty) }
 }
 
 /// Global registry of step definitions.
@@ -69,8 +67,8 @@ fn register_step_inner(keyword: StepKeyword, pattern: &syn::LitStr, crate_id: im
     let mut reg = REGISTERED
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let crate_id = normalize_crate_id(crate_id.as_ref());
-    let defs = reg.entry(crate_id).or_default();
+    let normalized_crate_id = normalize_crate_id(crate_id.as_ref());
+    let defs = reg.entry(normalized_crate_id).or_default();
     defs.by_kw.entry(keyword).or_default().push(stored);
 }
 
@@ -88,7 +86,7 @@ pub(crate) fn register_step_for_crate(keyword: StepKeyword, literal: &str, crate
 }
 
 /// Return the diagnostic span for a step.
-pub(super) fn get_step_span(step: &ParsedStep) -> proc_macro2::Span {
+pub(super) const fn get_step_span(step: &ParsedStep) -> proc_macro2::Span {
     #[cfg(feature = "compile-time-validation")]
     {
         step.span
@@ -166,7 +164,8 @@ fn validate_registry_state(
                 #[cfg(not(test))]
                 emit_warning!(
                     proc_macro2::Span::call_site(),
-                    "step registry has no definitions for crate ID '{}'. This may indicate a registry issue.",
+                    "step registry has no definitions for crate ID '{}'. This may indicate a \
+                     registry issue.",
                     crate_id_str
                 );
                 RegistryDecision::WarnAndSkip
@@ -239,7 +238,14 @@ fn create_strict_mode_error(missing: &[(proc_macro2::Span, String)]) -> Result<(
     Err(syn::Error::new(span, msg))
 }
 
-#[cfg_attr(test, expect(unused_variables, reason = "test warnings"))]
+#[cfg_attr(
+    test,
+    expect(
+        unused_variables,
+        clippy::missing_const_for_fn,
+        reason = "the warning loop is compiled out under cfg(test)"
+    )
+)]
 fn emit_non_strict_warnings(missing: &[(proc_macro2::Span, String)]) {
     #[cfg(not(test))]
     for (span, msg) in missing {
@@ -276,7 +282,7 @@ pub(crate) fn resolve_keywords(
             .unwrap_or(crate::StepKeyword::Given),
     );
     let resolved = steps.iter().map(move |s| s.keyword.resolve(&mut prev));
-    debug_assert_eq!(resolved.len(), steps.len());
+    debug_assert_eq!(resolved.len(), steps.len(), "one resolved keyword per step");
     resolved
 }
 

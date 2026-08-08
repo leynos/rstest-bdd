@@ -4,12 +4,17 @@
 //! integration test executes the same contract through `#[scenario]`, proving
 //! the harness and steps run end-to-end.
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use rstest_bdd_harness::{
-    AttributePolicy, HarnessAdapter, HarnessResult, ScenarioRunRequest, TestAttribute,
+    AttributePolicy,
+    HarnessAdapter,
+    HarnessResult,
+    ScenarioRunRequest,
+    TestAttribute,
 };
 use rstest_bdd_macros::{given, scenario, then, when};
 use serial_test::serial;
-use std::sync::atomic::{AtomicBool, Ordering};
 
 static HARNESS_RAN: AtomicBool = AtomicBool::new(false);
 static GIVEN_SAW_EMPTY_WORLD: AtomicBool = AtomicBool::new(false);
@@ -23,9 +28,7 @@ pub struct World {
 }
 
 impl World {
-    fn spawn_empty(&mut self) {
-        self.entities += 1;
-    }
+    const fn spawn_empty(&mut self) { self.entities += 1; }
 }
 
 /// Harness adapter shaped like a public third-party Bevy integration export.
@@ -48,9 +51,7 @@ pub struct BevyAttributePolicy;
 const BEVY_TEST_ATTRIBUTES: [TestAttribute; 1] = [TestAttribute::new("rstest::rstest")];
 
 impl AttributePolicy for BevyAttributePolicy {
-    fn test_attributes() -> &'static [TestAttribute] {
-        &BEVY_TEST_ATTRIBUTES
-    }
+    fn test_attributes() -> &'static [TestAttribute] { &BEVY_TEST_ATTRIBUTES }
 }
 
 fn reset_observations() {

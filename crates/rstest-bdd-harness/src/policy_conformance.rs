@@ -16,12 +16,11 @@ const RSTEST_ATTRIBUTE_PATH: &str = "rstest::rstest";
 ///
 /// The check pins three invariants shared by every first-party policy:
 ///
-/// 1. **Emit** — the policy emits exactly `expected_rendered.len()`
-///    attributes.
-/// 2. **Render** — each attribute renders to the corresponding entry of
-///    `expected_rendered`, in order.
-/// 3. **rstest is first** — the first attribute path is `rstest::rstest`, so
-///    fixture expansion precedes the runtime-specific test macro.
+/// 1. **Emit** — the policy emits exactly `expected_rendered.len()` attributes.
+/// 2. **Render** — each attribute renders to the corresponding entry of `expected_rendered`, in
+///    order.
+/// 3. **rstest is first** — the first attribute path is `rstest::rstest`, so fixture expansion
+///    precedes the runtime-specific test macro.
 ///
 /// # Panics
 ///
@@ -31,8 +30,10 @@ const RSTEST_ATTRIBUTE_PATH: &str = "rstest::rstest";
 /// # Examples
 ///
 /// ```
-/// use rstest_bdd_harness::DefaultAttributePolicy;
-/// use rstest_bdd_harness::policy_conformance::assert_attribute_policy_conformance;
+/// use rstest_bdd_harness::{
+///     DefaultAttributePolicy,
+///     policy_conformance::assert_attribute_policy_conformance,
+/// };
 ///
 /// assert_attribute_policy_conformance::<DefaultAttributePolicy>(&["#[rstest::rstest]"]);
 /// ```
@@ -93,30 +94,22 @@ mod tests {
 
     struct GoodPolicy;
     impl AttributePolicy for GoodPolicy {
-        fn test_attributes() -> &'static [TestAttribute] {
-            &GOOD
-        }
+        fn test_attributes() -> &'static [TestAttribute] { &GOOD }
     }
 
     struct WrongCountPolicy;
     impl AttributePolicy for WrongCountPolicy {
-        fn test_attributes() -> &'static [TestAttribute] {
-            &WRONG_COUNT
-        }
+        fn test_attributes() -> &'static [TestAttribute] { &WRONG_COUNT }
     }
 
     struct WrongRenderPolicy;
     impl AttributePolicy for WrongRenderPolicy {
-        fn test_attributes() -> &'static [TestAttribute] {
-            &WRONG_RENDER
-        }
+        fn test_attributes() -> &'static [TestAttribute] { &WRONG_RENDER }
     }
 
     struct RstestNotFirstPolicy;
     impl AttributePolicy for RstestNotFirstPolicy {
-        fn test_attributes() -> &'static [TestAttribute] {
-            &RSTEST_NOT_FIRST
-        }
+        fn test_attributes() -> &'static [TestAttribute] { &RSTEST_NOT_FIRST }
     }
 
     #[test]

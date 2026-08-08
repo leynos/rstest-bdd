@@ -75,41 +75,95 @@ gpui-macros = { version = "0.6.0-beta3", path = "vendor/gpui-macros" }
 tracing = { version = "0.1", optional = false }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 clap = { version = "4.5", features = ["derive"] }
-tower = "0.4"
+# `default-features = false` keeps `tower`'s `log` feature off. That feature
+# turns on `tracing/log`, which makes every `tracing` event expand into an
+# extra branch and pushes ordinary handlers past the cognitive-complexity
+# ceiling in `clippy.toml`.
+tower = { version = "0.4", default-features = false, features = ["util"] }
 tokio-util = { version = "0.7", features = ["compat"] }
 
 [workspace.lints.clippy]
 pedantic = { level = "warn", priority = -1 }
-allow_attributes = "deny"
-allow_attributes_without_reason = "deny"
-blanket_clippy_restriction_lints = "deny"
-dbg_macro = "deny"
-print_stdout = "deny"
-print_stderr = "deny"
-unwrap_used = "deny"
-expect_used = "deny"
-indexing_slicing = "deny"
-string_slice = "deny"
-integer_division = "deny"
-integer_division_remainder_used = "deny"
-host_endian_bytes = "deny"
-little_endian_bytes = "deny"
-big_endian_bytes = "deny"
-or_fun_call = "deny"
-option_if_let_else = "deny"
-use_self = "deny"
-string_lit_as_bytes = "deny"
-float_arithmetic = "deny"
+
+# 1. hygiene
+allow_attributes                    = "deny"
+allow_attributes_without_reason     = "deny"
+blanket_clippy_restriction_lints    = "deny"
+cognitive_complexity                = "deny"
+disallowed_methods                  = "deny"
+needless_pass_by_value              = "deny"
+implicit_hasher                     = "deny"
+missing_assert_message              = "deny"
+
+# 2. debugging leftovers
+dbg_macro                           = "deny"
+print_stdout                        = "deny"
+print_stderr                        = "deny"
+
+# 3. panic-prone operations
+unwrap_used                         = "deny"
+expect_used                         = "deny"
+indexing_slicing                    = "deny"
+string_slice                        = "deny"
+integer_division                    = "deny"
+integer_division_remainder_used     = "deny"
+panic_in_result_fn                  = "deny"
+unreachable                         = "deny"
+
+# 4. portability
+host_endian_bytes                   = "deny"
+little_endian_bytes                 = "deny"
+big_endian_bytes                    = "deny"
+
+# 5. nursery idiom polish
+let_underscore_must_use             = "deny"
+or_fun_call                         = "deny"
+option_if_let_else                  = "deny"
+self_named_module_files             = "deny"
+shadow_reuse                        = "deny"
+shadow_same                         = "deny"
+shadow_unrelated                    = "deny"
+str_to_string                       = "deny"
+string_lit_as_bytes                 = "deny"
+try_err                             = "deny"
+unneeded_field_pattern              = "deny"
+use_self                            = "deny"
+
+# 6. numerical foot-guns
+float_arithmetic                    = "deny"
+cast_possible_truncation            = "deny"
+cast_possible_wrap                  = "deny"
+cast_precision_loss                 = "deny"
+lossy_float_literal                 = "deny"
+
+# 7. API ergonomics
+missing_const_for_fn                = "deny"
+must_use_candidate                  = "deny"
+unused_async                        = "deny"
+
+# 8. Error handling
+missing_panics_doc                  = "deny"
+error_impl_error                    = "deny"
+result_large_err                    = "deny"
 
 [workspace.lints.rust]
-unsafe_code = "forbid"
-missing_docs = "deny"
+# `rstest`'s `#[fixture]` re-emits the annotated body as a nested block
+# (`fn f() -> T { { .. } }`). Combined with `fn_single_line` in `.rustfmt.toml`
+# that trips `unused_braces` on every single-expression fixture, and `#[expect]`
+# cannot silence it because rustc never marks the expectation fulfilled for a
+# diagnostic raised inside a macro expansion. Re-enable once `rstest` stops
+# double-wrapping fixture bodies.
+unused_braces                       = "allow"
+unknown_lints                       = "deny"
+renamed_and_removed_lints           = "deny"
+unsafe_code                         = "forbid"
+missing_docs                        = "deny"
 
 [workspace.lints.rustdoc]
-missing_crate_level_docs = "deny"
-broken_intra_doc_links = "deny"
-private_intra_doc_links = "deny"
-bare_urls = "deny"
-invalid_html_tags = "deny"
-invalid_codeblock_attributes = "deny"
-unescaped_backticks = "deny"
+missing_crate_level_docs            = "deny"
+broken_intra_doc_links              = "deny"
+private_intra_doc_links             = "deny"
+bare_urls                           = "deny"
+invalid_html_tags                   = "deny"
+invalid_codeblock_attributes        = "deny"
+unescaped_backticks                 = "deny"

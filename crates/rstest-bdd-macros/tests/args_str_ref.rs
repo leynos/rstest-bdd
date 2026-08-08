@@ -1,7 +1,8 @@
 //! Tests for `&str` reference handling in argument extraction.
 
-use rstest::rstest;
 use std::collections::HashSet;
+
+use rstest::rstest;
 use syn::parse_quote;
 
 #[path = "../src/codegen/wrapper/args/mod.rs"]
@@ -56,7 +57,6 @@ fn str_reference_variants_are_classified_as_step_arguments(
 #[rstest]
 fn mixed_str_reference_and_parsed_types() {
     let func = parse_quote! { fn step(tag: &str, count: u32, name: String) {} };
-    #[expect(clippy::expect_used, reason = "test asserts valid extraction")]
     let args =
         test_extract_args_scenario(func, vec!["tag", "count", "name"]).expect("extraction failed");
     assert_eq!(step_arg_count(&args), 3);

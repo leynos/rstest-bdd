@@ -6,15 +6,14 @@
 //!
 //! The indexer intentionally mirrors the macro behaviour:
 //!
-//! - Missing attribute arguments infer the pattern from the function name by
-//!   replacing underscores with spaces.
+//! - Missing attribute arguments infer the pattern from the function name by replacing underscores
+//!   with spaces.
 //! - A string literal containing only whitespace also triggers inference.
-//! - The literal empty string (`""`) registers an empty pattern and does not
-//!   infer.
-//! - A data table is expected when a parameter is named `datatable` or has a
-//!   `#[datatable]` parameter attribute.
-//! - A doc string is expected when a parameter is named `docstring` and its
-//!   type resolves to `String` (either `String` or `std::string::String`).
+//! - The literal empty string (`""`) registers an empty pattern and does not infer.
+//! - A data table is expected when a parameter is named `datatable` or has a `#[datatable]`
+//!   parameter attribute.
+//! - A doc string is expected when a parameter is named `docstring` and its type resolves to
+//!   `String` (either `String` or `std::string::String`).
 
 use std::path::{Path, PathBuf};
 
@@ -22,8 +21,12 @@ use gherkin::StepType;
 use syn::spanned::Spanned;
 
 use super::{
-    IndexedStepDefinition, IndexedStepParameter, RustAttributeSpan, RustFunctionId,
-    RustStepFileIndex, RustStepIndexError,
+    IndexedStepDefinition,
+    IndexedStepParameter,
+    RustAttributeSpan,
+    RustFunctionId,
+    RustStepFileIndex,
+    RustStepIndexError,
 };
 
 mod params;
@@ -119,11 +122,11 @@ fn collect_step_definitions(
                 }
             }
             syn::Item::Mod(item_mod) => {
-                let Some((_, items)) = item_mod.content.as_ref() else {
+                let Some((_, nested_items)) = item_mod.content.as_ref() else {
                     continue;
                 };
                 module_path.push(item_mod.ident.to_string());
-                collect_step_definitions(items, source, module_path, out)?;
+                collect_step_definitions(nested_items, source, module_path, out)?;
                 module_path.pop();
             }
             _ => {}
@@ -289,14 +292,14 @@ fn parse_step_pattern(
                 return Err(RustStepIndexError::InvalidStepAttributeArguments {
                     function: function_ident.to_string(),
                     attribute,
-                    message: "expected string literal value".to_string(),
+                    message: "expected string literal value".to_owned(),
                 });
             };
             let syn::Lit::Str(lit) = &expr_lit.lit else {
                 return Err(RustStepIndexError::InvalidStepAttributeArguments {
                     function: function_ident.to_string(),
                     attribute,
-                    message: "expected string literal value".to_string(),
+                    message: "expected string literal value".to_owned(),
                 });
             };
             Ok(interpret_pattern_literal(function_ident, lit.value()))

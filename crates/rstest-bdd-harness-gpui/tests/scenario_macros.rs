@@ -2,9 +2,10 @@
 //! harness adapter and attribute policy.
 #![cfg(feature = "native-gpui-tests")]
 
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
 use rstest_bdd_macros::{given, scenario, scenarios, then, when};
 use serial_test::serial;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 static CONTEXT_POINTER: AtomicUsize = AtomicUsize::new(0);
 static CONTEXT_MUTATED: AtomicBool = AtomicBool::new(false);
@@ -23,7 +24,10 @@ fn gpui_test_preserves_declared_name(context: &gpui::TestAppContext) {
 fn gpui_context_is_injected(#[from(rstest_bdd_harness_context)] context: &gpui::TestAppContext) {
     CONTEXT_POINTER.store(std::ptr::from_ref(context) as usize, Ordering::SeqCst);
     CONTEXT_MUTATED.store(false, Ordering::SeqCst);
-    assert!(context.test_function_name().is_none());
+    assert!(
+        context.test_function_name().is_none(),
+        "GPUI does not populate the test function name in this scenario"
+    );
 }
 
 #[when("the GPUI test context is accessed mutably")]
@@ -71,9 +75,7 @@ fn gpui_context_was_harness_provided_not_attribute_provided(
 }
 
 #[given("a plain GPUI policy scenario runs")]
-fn plain_gpui_policy_scenario_runs() {
-    GPUI_POLICY_RAN.store(true, Ordering::SeqCst);
-}
+fn plain_gpui_policy_scenario_runs() { GPUI_POLICY_RAN.store(true, Ordering::SeqCst); }
 
 #[then("the plain GPUI policy scenario completed")]
 fn plain_gpui_policy_scenario_completed() {
@@ -107,7 +109,10 @@ fn gpui_scenarios_macro_policy_run_completes() {
 
 /// Asserts that a GPUI `TestAppContext` exposes upstream GPUI test APIs.
 fn assert_gpui_context_uses_upstream_test_api(context: &gpui::TestAppContext) {
-    assert!(context.test_function_name().is_none());
+    assert!(
+        context.test_function_name().is_none(),
+        "GPUI does not populate the test function name in this scenario"
+    );
     assert!(
         !context.did_prompt_for_new_path(),
         "GPUI-specific did_prompt_for_new_path() method should be accessible"

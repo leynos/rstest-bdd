@@ -46,15 +46,11 @@ impl StepArgsError {
 
     /// Access the underlying error message.
     #[must_use]
-    pub fn message(&self) -> &str {
-        &self.message
-    }
+    pub fn message(&self) -> &str { &self.message }
 }
 
 impl fmt::Display for StepArgsError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.message)
-    }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { f.write_str(&self.message) }
 }
 
 impl std::error::Error for StepArgsError {}

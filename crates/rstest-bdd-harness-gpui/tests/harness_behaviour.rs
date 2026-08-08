@@ -1,15 +1,20 @@
 //! Behavioural tests for GPUI harness adapter execution semantics.
 #![cfg(feature = "native-gpui-tests")]
 
+use std::{cell::Cell, io, rc::Rc};
+
 use rstest::{fixture, rstest};
 use rstest_bdd_harness::{
-    HarnessAdapter, HarnessError, HarnessResult, ScenarioMetadata, ScenarioRunRequest,
-    ScenarioRunner, StdScenarioRunRequest, StdScenarioRunner,
+    HarnessAdapter,
+    HarnessError,
+    HarnessResult,
+    ScenarioMetadata,
+    ScenarioRunRequest,
+    ScenarioRunner,
+    StdScenarioRunRequest,
+    StdScenarioRunner,
 };
 use rstest_bdd_harness_gpui::GpuiHarness;
-use std::cell::Cell;
-use std::io;
-use std::rc::Rc;
 
 /// Runs a [`GpuiHarness`] with `request`, returning the runner's output.
 ///
@@ -24,9 +29,7 @@ fn run_gpui_harness<T>(request: ScenarioRunRequest<'_, gpui::TestAppContext, T>)
 }
 
 #[fixture]
-fn default_metadata() -> ScenarioMetadata {
-    ScenarioMetadata::default()
-}
+fn default_metadata() -> ScenarioMetadata { ScenarioMetadata::default() }
 
 #[rstest]
 fn gpui_harness_executes_runner_once(default_metadata: ScenarioMetadata) {
@@ -84,9 +87,9 @@ fn gpui_harness_error_path_propagates_runtime_build_failed(default_metadata: Sce
     let Err(HarnessError::RuntimeBuildFailed(err)) = result else {
         panic!("expected RuntimeBuildFailed, got {result:?}");
     };
-    let err = HarnessError::RuntimeBuildFailed(err);
+    let rebuilt = HarnessError::RuntimeBuildFailed(err);
     assert_eq!(
-        format!("{err}"),
+        format!("{rebuilt}"),
         "failed to build runtime: gpui probe failure"
     );
 }
@@ -126,7 +129,7 @@ fn gpui_harness_passes_metadata_through() {
             "tests/features/payment.feature",
             "Payment succeeds",
             27,
-            vec!["@smoke".to_string(), "@payments".to_string()],
+            vec!["@smoke".to_owned(), "@payments".to_owned()],
         ),
         ScenarioRunner::new(|_context: gpui::TestAppContext| 200),
     );

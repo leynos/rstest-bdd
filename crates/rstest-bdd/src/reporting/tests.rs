@@ -1,12 +1,13 @@
 //! Unit tests for the reporting module.
 
-use super::*;
 use serial_test::serial;
+
+use super::*;
 
 #[test]
 #[serial]
 fn drain_clears_records() {
-    let _ = drain();
+    drop(drain());
     let metadata = ScenarioMetadata::new("feature", "scenario", 1, Vec::new());
     record(ScenarioRecord::from_metadata(
         metadata,
@@ -21,7 +22,7 @@ fn drain_clears_records() {
 #[test]
 #[serial]
 fn skipped_records_store_metadata() {
-    let _ = drain();
+    drop(drain());
     let details = SkippedScenario::new(Some("pending".into()), true, false);
     let metadata = ScenarioMetadata::new("feature", "scenario", 2, vec!["@allow_skipped".into()]);
     record(ScenarioRecord::from_metadata(

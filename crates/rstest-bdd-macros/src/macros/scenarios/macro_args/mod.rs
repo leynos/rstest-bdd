@@ -14,10 +14,12 @@
 //! shared source of truth so macro/runtime policy semantics do not drift.
 
 pub(crate) use rstest_bdd_policy::{RuntimeMode, TestAttributeHint};
-use syn::LitStr;
-use syn::parse::{Parse, ParseStream};
-use syn::punctuated::Punctuated;
-use syn::token::Comma;
+use syn::{
+    LitStr,
+    parse::{Parse, ParseStream},
+    punctuated::Punctuated,
+    token::Comma,
+};
 
 /// Compatibility aliases that map legacy runtime syntax to harness selection.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -182,14 +184,14 @@ impl Parse for ScenariosArgs {
         let args = Punctuated::<ScenariosArg, Comma>::parse_terminated(input)?;
         let (dir, tag_filter, fixtures, runtime, harness, attributes) = process_args(args, input)?;
 
-        let dir = dir.ok_or_else(|| input.error("`dir` (or `path`) argument is required"))?;
-        let runtime = runtime.unwrap_or_default();
+        let feature_dir =
+            dir.ok_or_else(|| input.error("`dir` (or `path`) argument is required"))?;
 
         Ok(Self {
-            dir,
+            dir: feature_dir,
             tag_filter,
             fixtures: fixtures.unwrap_or_default(),
-            runtime,
+            runtime: runtime.unwrap_or_default(),
             harness,
             attributes,
         })

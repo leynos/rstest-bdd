@@ -1,8 +1,9 @@
 //! Unit tests for registry collection and parsing.
 
-use super::*;
 use cargo_metadata::Message as MetadataMessage;
 use rstest::rstest;
+
+use super::*;
 
 #[test]
 fn detects_unrecognized_flag_from_libtest_getopts() {
@@ -26,10 +27,6 @@ fn ignores_unrelated_failures_containing_dump_steps() {
 }
 
 #[test]
-#[expect(
-    clippy::expect_used,
-    reason = "Test should fail fast when the registry dump JSON is invalid."
-)]
 fn parses_registry_dump_with_bypassed_steps() {
     let json = r#"
     {
@@ -62,18 +59,16 @@ fn parses_registry_dump_with_bypassed_steps() {
         panic!("scenario entry");
     };
     assert_eq!(scenario.line, 42);
-    assert_eq!(scenario.tags, vec!["@t".to_string()]);
+    assert_eq!(scenario.tags, vec!["@t".to_owned()]);
     let Some(bypassed) = parsed.bypassed_steps.first() else {
         panic!("bypassed entry");
     };
     assert_eq!(bypassed.scenario_line, 42);
-    assert_eq!(bypassed.tags, vec!["@t".to_string()]);
+    assert_eq!(bypassed.tags, vec!["@t".to_owned()]);
     assert_eq!(bypassed.reason.as_deref(), Some("reason"));
 }
 
-fn parse_message(json: &str) -> serde_json::Result<MetadataMessage> {
-    serde_json::from_str(json)
-}
+fn parse_message(json: &str) -> serde_json::Result<MetadataMessage> { serde_json::from_str(json) }
 
 /// Assert that `extract_test_executable` maps a cargo JSON message to the
 /// expected executable path.

@@ -31,7 +31,7 @@ pub(crate) struct ScenarioMetadata<'a> {
 }
 
 impl<'a> ScenarioMetadata<'a> {
-    pub(crate) fn literals_input(&self) -> ScenarioLiteralsInput<'a> {
+    pub(crate) const fn literals_input(&self) -> ScenarioLiteralsInput<'a> {
         ScenarioLiteralsInput {
             feature_path: self.feature_path,
             scenario_name: self.scenario_name,
@@ -85,7 +85,7 @@ pub(super) struct TokenAssemblyContext<'a> {
 }
 
 impl<'a> TokenAssemblyContext<'a> {
-    pub(super) fn new(
+    pub(super) const fn new(
         ctx_prelude: &'a [TokenStream2],
         ctx_inserts: &'a [TokenStream2],
         ctx_postlude: &'a [TokenStream2],

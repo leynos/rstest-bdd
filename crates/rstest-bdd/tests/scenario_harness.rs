@@ -1,15 +1,27 @@
 //! Behavioural tests verifying that `#[scenario]` accepts the `harness` and
 //! `attributes` parameters and delegates execution through the harness adapter.
 
+use std::{
+    panic::{AssertUnwindSafe, catch_unwind},
+    sync::{
+        LazyLock,
+        Mutex,
+        MutexGuard,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+    },
+};
+
 use rstest_bdd_harness::{
-    FailingHarness, HarnessAdapter, HarnessError, ScenarioMetadata, ScenarioRunRequest,
-    StdScenarioRunRequest, StdScenarioRunner,
+    FailingHarness,
+    HarnessAdapter,
+    HarnessError,
+    ScenarioMetadata,
+    ScenarioRunRequest,
+    StdScenarioRunRequest,
+    StdScenarioRunner,
 };
 use rstest_bdd_macros::{given, scenario, then, when};
 use serial_test::serial;
-use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{LazyLock, Mutex, MutexGuard};
 
 static EVENTS: LazyLock<Mutex<Vec<&'static str>>> = LazyLock::new(|| Mutex::new(Vec::new()));
 
@@ -36,7 +48,11 @@ where
 /// Assert that the expected steps ran in order, then clear for the next test.
 fn assert_and_clear_events() {
     with_locked_events(|events| {
-        assert_eq!(events.as_slice(), ["precondition", "action", "result"]);
+        assert_eq!(
+            events.as_slice(),
+            ["precondition", "action", "result"],
+            "scenario steps should run in Gherkin order"
+        );
     });
     clear_events();
 }
@@ -48,32 +64,24 @@ fn precondition() {
 }
 
 #[when("an action occurs")]
-fn action() {
-    with_locked_events(|events| events.push("action"));
-}
+fn action() { with_locked_events(|events| events.push("action")); }
 
 #[then("a result is produced")]
-fn result() {
-    with_locked_events(|events| events.push("result"));
-}
+fn result() { with_locked_events(|events| events.push("result")); }
 
 #[scenario(
     path = "tests/features/web_search.feature",
     harness = rstest_bdd_harness::StdHarness,
 )]
 #[serial]
-fn scenario_with_harness() {
-    assert_and_clear_events();
-}
+fn scenario_with_harness() { assert_and_clear_events(); }
 
 #[scenario(
     path = "tests/features/web_search.feature",
     attributes = rstest_bdd_harness::DefaultAttributePolicy,
 )]
 #[serial]
-fn scenario_with_attributes() {
-    assert_and_clear_events();
-}
+fn scenario_with_attributes() { assert_and_clear_events(); }
 
 #[scenario(
     path = "tests/features/web_search.feature",
@@ -81,15 +89,15 @@ fn scenario_with_attributes() {
     attributes = rstest_bdd_harness::DefaultAttributePolicy,
 )]
 #[serial]
-fn scenario_with_harness_and_attributes() {
-    assert_and_clear_events();
-}
+fn scenario_with_harness_and_attributes() { assert_and_clear_events(); }
 
 // ---------------------------------------------------------------------------
 // Custom harness tests verifying that execution is actually delegated
 // ---------------------------------------------------------------------------
 
 static HARNESS_INVOKED: AtomicBool = AtomicBool::new(false);
+/// Set by `RecordingHarness::run` when the metadata it received was populated.
+static HARNESS_SAW_POPULATED_METADATA: AtomicBool = AtomicBool::new(false);
 
 /// A harness that records whether `run()` was called and validates metadata.
 #[derive(Default)]
@@ -101,13 +109,11 @@ impl HarnessAdapter for RecordingHarness {
     fn run<T>(&self, request: StdScenarioRunRequest<'_, T>) -> Result<T, HarnessError> {
         HARNESS_INVOKED.store(true, Ordering::SeqCst);
         let meta = request.metadata();
-        assert!(
-            !meta.feature_path().is_empty(),
-            "harness should receive non-empty feature path"
-        );
-        assert!(
-            !meta.scenario_name().is_empty(),
-            "harness should receive non-empty scenario name"
+        // Record rather than assert: `run` returns `Result`, so the test body
+        // is where an empty metadata field is reported.
+        HARNESS_SAW_POPULATED_METADATA.store(
+            !meta.feature_path().is_empty() && !meta.scenario_name().is_empty(),
+            Ordering::SeqCst,
         );
         Ok(request.run_without_context())
     }
@@ -123,7 +129,12 @@ fn scenario_delegates_to_custom_harness() {
         HARNESS_INVOKED.load(Ordering::SeqCst),
         "RecordingHarness.run() should have been called"
     );
+    assert!(
+        HARNESS_SAW_POPULATED_METADATA.load(Ordering::SeqCst),
+        "harness should receive non-empty feature path and scenario name"
+    );
     HARNESS_INVOKED.store(false, Ordering::SeqCst);
+    HARNESS_SAW_POPULATED_METADATA.store(false, Ordering::SeqCst);
     assert_and_clear_events();
 }
 
@@ -139,12 +150,16 @@ impl HarnessAdapter for MetadataCapturingHarness {
 
     fn run<T>(&self, request: StdScenarioRunRequest<'_, T>) -> Result<T, HarnessError> {
         let meta = request.metadata();
-        *CAPTURED_FEATURE
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner) = meta.feature_path().to_string();
-        *CAPTURED_SCENARIO
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner) = meta.scenario_name().to_string();
+        meta.feature_path().clone_into(
+            &mut CAPTURED_FEATURE
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+        );
+        meta.scenario_name().clone_into(
+            &mut CAPTURED_SCENARIO
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+        );
         Ok(request.run_without_context())
     }
 }
@@ -335,11 +350,11 @@ fn harness_initialization_panic_includes_error_context() {
     let Err(payload) = panic_result else {
         panic!("expected FailingHarness to panic after unwrap_or_else");
     };
-    let message = payload
+    let rendered = payload
         .downcast_ref::<&str>()
         .copied()
         .or_else(|| payload.downcast_ref::<String>().map(String::as_str));
-    let Some(message) = message else {
+    let Some(message) = rendered else {
         panic!("expected panic payload to be a string");
     };
     assert!(message.contains("harness failed to initialize scenario"));

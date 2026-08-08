@@ -7,13 +7,23 @@
 //! `find_step_with_metadata`) against a pool of registered steps and asserts
 //! the invariant via `unused_steps`.
 
-use proptest::prelude::*;
 use std::collections::BTreeSet;
 
+use proptest::prelude::*;
 use rstest_bdd::{
-    StepContext, StepError, StepExecution, StepKeyword, find_step, find_step_async,
-    find_step_async_with_mode, find_step_with_metadata, lookup_step, lookup_step_async,
-    lookup_step_async_with_mode, step, unused_steps,
+    StepContext,
+    StepError,
+    StepExecution,
+    StepKeyword,
+    find_step,
+    find_step_async,
+    find_step_async_with_mode,
+    find_step_with_metadata,
+    lookup_step,
+    lookup_step_async,
+    lookup_step_async_with_mode,
+    step,
+    unused_steps,
 };
 
 #[expect(
@@ -81,7 +91,7 @@ step!(
 );
 
 /// Keyword each target pattern was registered under.
-fn keyword_for(index: usize) -> StepKeyword {
+const fn keyword_for(index: usize) -> StepKeyword {
     match index {
         0 => StepKeyword::Given,
         1 => StepKeyword::When,
@@ -90,7 +100,7 @@ fn keyword_for(index: usize) -> StepKeyword {
 }
 
 /// Keyword each sentinel pattern was registered under.
-fn sentinel_keyword_for(index: usize) -> StepKeyword {
+const fn sentinel_keyword_for(index: usize) -> StepKeyword {
     match index {
         0 => StepKeyword::Given,
         _ => StepKeyword::When,
@@ -98,7 +108,7 @@ fn sentinel_keyword_for(index: usize) -> StepKeyword {
 }
 
 /// Return a keyword that is guaranteed to differ from the given keyword.
-fn mismatched_keyword(keyword: StepKeyword) -> StepKeyword {
+const fn mismatched_keyword(keyword: StepKeyword) -> StepKeyword {
     match keyword {
         StepKeyword::Given => StepKeyword::When,
         StepKeyword::When => StepKeyword::Then,

@@ -400,8 +400,8 @@ Without a hint, an unresolved alias is **not** assumed to be `Result`-like: it
 is classified as a value, so an `Err` is stored as a payload and the step
 passes. Always give an unresolved alias explicit handling: if the alias is
 fallible, spell out `Result<..>` or `rstest_bdd::StepResult<..>`, or add the
-`result` hint. Reserve the `value` hint for an alias that deliberately
-returns a payload — applying it to a real `Result` suppresses its `Err`.
+`result` hint. Reserve the `value` hint for an alias that deliberately returns
+a payload — applying it to a real `Result` suppresses its `Err`.
 
 Use `#[when("...", value)]` (or `#[when(value)]` when using the inferred
 pattern) to force treating the return value as a payload even when it is

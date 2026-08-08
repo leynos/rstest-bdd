@@ -5,8 +5,9 @@
 //! cucumber-rs-style parameterization where `Given I have <count> items` with
 //! an Examples row `| count | = | 5 |` becomes `Given I have 5 items`.
 
-use regex::Regex;
 use std::sync::LazyLock;
+
+use regex::Regex;
 use thiserror::Error;
 
 /// Regex pattern matching `<placeholder>` tokens in step text.
@@ -14,9 +15,10 @@ use thiserror::Error;
 /// Captures the placeholder name without the angle brackets, including spaces
 /// and punctuation commonly used in Gherkin Examples headers.
 pub(crate) static PLACEHOLDER_RE: LazyLock<Regex> = LazyLock::new(|| {
-    // Safe: The regex pattern is a compile-time constant and is valid.
+    // The pattern is a compile-time constant, so compilation only fails if the
+    // literal above is edited into something invalid.
     let Ok(regex) = Regex::new(r"<([^>\s][^>]*)>") else {
-        unreachable!("placeholder regex is valid");
+        panic!("placeholder regex literal failed to compile");
     };
     regex
 });
@@ -65,7 +67,7 @@ pub fn substitute_placeholders(
     headers: &[String],
     row: &[String],
 ) -> Result<String, PlaceholderError> {
-    let mut result = text.to_string();
+    let mut result = text.to_owned();
 
     for cap in PLACEHOLDER_RE.captures_iter(text) {
         // Safe: capture group 0 always exists for a successful match.
@@ -78,14 +80,19 @@ pub fn substitute_placeholders(
             .iter()
             .position(|h| h == placeholder)
             .ok_or_else(|| PlaceholderError {
-                placeholder: placeholder.to_string(),
+                placeholder: placeholder.to_owned(),
                 available_columns: headers.to_vec(),
                 available_columns_display: headers.join(", "),
             })?;
 
-        // Invariant: headers and row must have equal length; panic if violated.
+        // Headers and row are expected to be the same length; a shorter row is
+        // reported as a missing column rather than aborting the macro.
         let Some(value) = row.get(idx) else {
-            panic!("row length must match headers length; this indicates a parsing bug");
+            return Err(PlaceholderError {
+                placeholder: placeholder.to_owned(),
+                available_columns: headers.to_vec(),
+                available_columns_display: headers.join(", "),
+            });
         };
         result = result.replace(full_match.as_str(), value);
     }
@@ -96,9 +103,7 @@ pub fn substitute_placeholders(
 /// Checks if a text contains any placeholder tokens.
 ///
 /// Returns `true` if the text contains at least one `<placeholder>` pattern.
-pub fn contains_placeholders(text: &str) -> bool {
-    PLACEHOLDER_RE.is_match(text)
-}
+pub fn contains_placeholders(text: &str) -> bool { PLACEHOLDER_RE.is_match(text) }
 
 /// Extracts all placeholder names from a text.
 ///
@@ -117,37 +122,38 @@ fn extract_placeholder_names(text: &str) -> Vec<String> {
 mod tests {
     //! Unit tests for parsing placeholder syntax.
 
-    use super::*;
     use rstest::rstest;
+
+    use super::*;
 
     #[rstest]
     #[case(
         "I have <count> items",
-        vec!["count".to_string()],
-        vec!["5".to_string()],
+        vec!["count".to_owned()],
+        vec!["5".to_owned()],
         "I have 5 items"
     )]
     #[case(
         "I have <count> <item>",
-        vec!["count".to_string(), "item".to_string()],
-        vec!["5".to_string(), "apples".to_string()],
+        vec!["count".to_owned(), "item".to_owned()],
+        vec!["5".to_owned(), "apples".to_owned()],
         "I have 5 apples"
     )]
     #[case(
         "<val> plus <val> equals double <val>",
-        vec!["val".to_string()],
-        vec!["3".to_string()],
+        vec!["val".to_owned()],
+        vec!["3".to_owned()],
         "3 plus 3 equals double 3"
     )]
     #[case(
         "I have 5 items",
-        vec!["count".to_string()],
-        vec!["10".to_string()],
+        vec!["count".to_owned()],
+        vec!["10".to_owned()],
         "I have 5 items"
     )]
     #[case(
         "I have <count> items",
-        vec!["count".to_string()],
+        vec!["count".to_owned()],
         vec![String::new()],
         "I have  items"
     )]
@@ -164,22 +170,22 @@ mod tests {
     #[test]
     fn error_on_undefined_placeholder() {
         let text = "I have <undefined> items";
-        let headers = vec!["count".to_string()];
-        let row = vec!["5".to_string()];
+        let headers = vec!["count".to_owned()];
+        let row = vec!["5".to_owned()];
 
         let result = substitute_placeholders(text, &headers, &row);
         assert!(result.is_err());
 
         let err = result.unwrap_err();
         assert_eq!(err.placeholder, "undefined");
-        assert_eq!(err.available_columns, vec!["count".to_string()]);
+        assert_eq!(err.available_columns, vec!["count".to_owned()]);
     }
 
     #[test]
     fn placeholder_with_underscores() {
         let text = "The <user_name> has <item_count> items";
-        let headers = vec!["user_name".to_string(), "item_count".to_string()];
-        let row = vec!["Alice".to_string(), "42".to_string()];
+        let headers = vec!["user_name".to_owned(), "item_count".to_owned()];
+        let row = vec!["Alice".to_owned(), "42".to_owned()];
 
         let result = substitute_placeholders(text, &headers, &row).unwrap();
         assert_eq!(result, "The Alice has 42 items");
@@ -188,8 +194,8 @@ mod tests {
     #[test]
     fn placeholder_with_spaces_and_hyphens() {
         let text = "The <start count> includes <item-id>";
-        let headers = vec!["start count".to_string(), "item-id".to_string()];
-        let row = vec!["3".to_string(), "apples".to_string()];
+        let headers = vec!["start count".to_owned(), "item-id".to_owned()];
+        let row = vec!["3".to_owned(), "apples".to_owned()];
 
         let result = substitute_placeholders(text, &headers, &row).unwrap();
         assert_eq!(result, "The 3 includes apples");

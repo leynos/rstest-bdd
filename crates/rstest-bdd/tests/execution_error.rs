@@ -4,15 +4,17 @@ use std::sync::Arc;
 
 use i18n_embed::fluent::fluent_language_loader;
 use rstest::rstest;
-use rstest_bdd::execution::{ExecutionError, MissingFixtureDiagnostic, MissingFixturesDetails};
-use rstest_bdd::localization::{ScopedLocalization, strip_directional_isolates};
-use rstest_bdd::{Localizations, StepError, StepKeyword};
+use rstest_bdd::{
+    Localizations,
+    StepError,
+    StepKeyword,
+    execution::{ExecutionError, MissingFixtureDiagnostic, MissingFixturesDetails},
+    localization::{ScopedLocalization, strip_directional_isolates},
+};
 use unic_langid::{LanguageIdentifier, langid};
 
 /// Helper to create a Skip error without message.
-fn skip_without_message() -> ExecutionError {
-    ExecutionError::Skip { message: None }
-}
+const fn skip_without_message() -> ExecutionError { ExecutionError::Skip { message: None } }
 
 /// Helper to create a Skip error with message.
 fn skip_with_message(msg: &str) -> ExecutionError {
@@ -124,15 +126,20 @@ fn handler_failed() -> ExecutionError {
 )]
 #[case::step_not_found(
     step_not_found(),
-    "Step not found at index 3: Given a user named Alice (feature: features/auth.feature, scenario: User login)"
+    "Step not found at index 3: Given a user named Alice (feature: features/auth.feature, \
+     scenario: User login)"
 )]
 #[case::missing_fixtures(
     missing_fixtures(),
-    "Step 'a database connection' (defined at tests/steps.rs:42) requires fixtures db, cache, but the following are missing: db. Requested fixture information: db: DbPool. Available fixtures from scenario: cache, config  (feature: features/db.feature, scenario: Database query)"
+    "Step 'a database connection' (defined at tests/steps.rs:42) requires fixtures db, cache, but \
+     the following are missing: db. Requested fixture information: db: DbPool. Available fixtures \
+     from scenario: cache, config  (feature: features/db.feature, scenario: Database query)"
 )]
 #[case::handler_failed(
     handler_failed(),
-    "Step failed at index 1: When the user clicks submit - Error executing step 'the user clicks submit' via function 'click_submit': button not found (feature: features/form.feature, scenario: Form submission)"
+    "Step failed at index 1: When the user clicks submit - Error executing step 'the user clicks \
+     submit' via function 'click_submit': button not found (feature: features/form.feature, \
+     scenario: Form submission)"
 )]
 fn execution_error_display_uses_localized_messages_and_context(
     #[case] error: ExecutionError,
@@ -281,10 +288,9 @@ const NON_ENGLISH_LOCALES: &[&str] = &[
 
 #[test]
 fn non_english_missing_fixture_diagnostics_include_runtime_arguments() {
-    for locale in NON_ENGLISH_LOCALES {
-        let locale = match locale.parse::<LanguageIdentifier>() {
-            Ok(locale) => locale,
-            Err(e) => panic!("invalid locale {locale}: {e}"),
+    for tag in NON_ENGLISH_LOCALES {
+        let Ok(locale) = tag.parse::<LanguageIdentifier>() else {
+            panic!("invalid locale {tag}");
         };
         assert_non_english_missing_fixture_diagnostics_include_runtime_arguments(&locale);
     }
@@ -345,18 +351,18 @@ fn missing_fixtures_snapshot() {
         Err(e) => panic!("en-US locale should always be available: {e}"),
     };
     let details = MissingFixturesDetails {
-        step_pattern: "needs fixture".to_string(),
-        step_location: "src/steps.rs:42".to_string(),
+        step_pattern: "needs fixture".to_owned(),
+        step_location: "src/steps.rs:42".to_owned(),
         required: vec!["db"],
         missing: vec!["db"],
         missing_requirements: vec![MissingFixtureDiagnostic {
             name: "db",
             ty: "DbPool",
         }],
-        available: vec!["world".to_string()],
+        available: vec!["world".to_owned()],
         has_suggestion: true,
-        feature_path: "features/example.feature".to_string(),
-        scenario_name: "Example scenario".to_string(),
+        feature_path: "features/example.feature".to_owned(),
+        scenario_name: "Example scenario".to_owned(),
     };
     let error = rstest_bdd::execution::ExecutionError::MissingFixtures(Arc::new(details));
     insta::assert_snapshot!(format!("{error}"));
@@ -383,7 +389,6 @@ fn execution_error_handler_failed_formats_nested_error_with_loader() {
         stripped.contains("Błąd wykonywania kroku"),
         "expected Polish inner error message, got: {stripped}"
     );
-    // Verify context fields
     assert!(
         stripped.contains("the user clicks submit"),
         "expected step text in message, got: {stripped}"

@@ -3,15 +3,18 @@
 //! This module keeps missing-fixture diagnostic assembly separate from the
 //! high-level step execution flow.
 
-use std::collections::HashSet;
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
-use crate::context::{RSTEST_BDD_HARNESS_CONTEXT_FIXTURE, StepContext};
-use crate::registry::fixture_requirements_for_step;
-use crate::{FixtureRequirement, Step};
-
-use super::StepExecutionRequest;
-use super::error::{ExecutionError, MissingFixtureDiagnostic, MissingFixturesDetails};
+use super::{
+    StepExecutionRequest,
+    error::{ExecutionError, MissingFixtureDiagnostic, MissingFixturesDetails},
+};
+use crate::{
+    FixtureRequirement,
+    Step,
+    context::{RSTEST_BDD_HARNESS_CONTEXT_FIXTURE, StepContext},
+    registry::fixture_requirements_for_step,
+};
 
 /// Validate that all required fixtures are present in the context.
 ///
@@ -43,15 +46,15 @@ pub(super) fn validate_required_fixtures(
 
             Err(ExecutionError::MissingFixtures(Arc::new(
                 MissingFixturesDetails {
-                    step_pattern: step.pattern.as_str().to_string(),
+                    step_pattern: step.pattern.as_str().to_owned(),
                     step_location: format!("{}:{}", step.file, step.line),
                     required: step.fixtures.to_vec(),
                     missing,
                     missing_requirements,
                     available: available_list,
                     has_suggestion,
-                    feature_path: request.feature_path.to_string(),
-                    scenario_name: request.scenario_name.to_string(),
+                    feature_path: request.feature_path.to_owned(),
+                    scenario_name: request.scenario_name.to_owned(),
                 },
             )))
         }
@@ -83,12 +86,7 @@ fn missing_fixture_diagnostics(
         .copied()
         .map(|name| {
             requirements
-                .and_then(|requirements| {
-                    requirements
-                        .iter()
-                        .copied()
-                        .find(|requirement| requirement.name == name)
-                })
+                .and_then(|known| known.iter().copied().find(|entry| entry.name == name))
                 .unwrap_or(FixtureRequirement {
                     name,
                     ty: "<unknown>",
@@ -125,7 +123,7 @@ mod tests {
         ctx.insert("zebra", &v1);
         ctx.insert("alpha", &v2);
         let list = sorted_available(&ctx);
-        assert_eq!(list, vec!["alpha".to_string(), "zebra".to_string()]);
+        assert_eq!(list, vec!["alpha".to_owned(), "zebra".to_owned()]);
     }
 
     /// Diagnostics fall back to `<unknown>` when no typed requirements are registered.

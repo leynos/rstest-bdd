@@ -8,8 +8,17 @@
 
 use rstest::rstest;
 use rstest_bdd::{
-    AsyncStepFn, Step, StepContext, StepExecution, StepFuture, StepKeyword, find_step_async, iter,
-    lookup_step_async, step, unused_steps,
+    AsyncStepFn,
+    Step,
+    StepContext,
+    StepExecution,
+    StepFuture,
+    StepKeyword,
+    find_step_async,
+    iter,
+    lookup_step_async,
+    step,
+    unused_steps,
 };
 
 #[path = "common/noop_steps.rs"]
@@ -92,10 +101,6 @@ fn async_step_fn_can_be_stored_and_invoked() {
 }
 
 #[test]
-#[expect(
-    clippy::expect_used,
-    reason = "test asserts Option is Some before expect"
-)]
 fn step_struct_has_run_async_field() {
     let found = iter::<Step>
         .into_iter()

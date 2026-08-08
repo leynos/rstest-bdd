@@ -28,16 +28,23 @@
 //! `GpuiHarness::run`-driving test with `#[serial_test::serial]` so
 //! libtest cannot interleave them on the same process.
 
+use std::{
+    any::Any,
+    cell::RefCell,
+    io::{self, Write},
+    panic::{self, AssertUnwindSafe},
+    sync::{Mutex, PoisonError},
+};
+
 use gpui::TestAppContext;
 use rstest_bdd::panic_message;
 use rstest_bdd_harness::{
-    HarnessAdapter, HarnessResult, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner,
+    HarnessAdapter,
+    HarnessResult,
+    ScenarioMetadata,
+    ScenarioRunRequest,
+    ScenarioRunner,
 };
-use std::any::Any;
-use std::cell::RefCell;
-use std::io::{self, Write};
-use std::panic::{self, AssertUnwindSafe};
-use std::sync::{Mutex, PoisonError};
 
 /// Executes scenario runners inside the GPUI test harness.
 ///
@@ -49,16 +56,16 @@ use std::sync::{Mutex, PoisonError};
 /// # Examples
 ///
 /// ```
-/// use rstest_bdd_harness::{HarnessAdapter, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner};
+/// use rstest_bdd_harness::{
+///     HarnessAdapter,
+///     ScenarioMetadata,
+///     ScenarioRunRequest,
+///     ScenarioRunner,
+/// };
 /// use rstest_bdd_harness_gpui::GpuiHarness;
 ///
 /// let request = ScenarioRunRequest::new(
-///     ScenarioMetadata::new(
-///         "tests/features/demo.feature",
-///         "GPUI scenario",
-///         5,
-///         vec![],
-///     ),
+///     ScenarioMetadata::new("tests/features/demo.feature", "GPUI scenario", 5, vec![]),
 ///     ScenarioRunner::new(|cx: gpui::TestAppContext| cx.test_function_name().is_none()),
 /// );
 ///
@@ -83,17 +90,13 @@ struct ContextCleanup<'a> {
 }
 
 impl Drop for ContextCleanup<'_> {
-    fn drop(&mut self) {
-        GpuiHarness::finish_context(self.dispatcher, self.context);
-    }
+    fn drop(&mut self) { GpuiHarness::finish_context(self.dispatcher, self.context); }
 }
 
 impl GpuiHarness {
     /// Creates a new GPUI harness instance.
     #[must_use]
-    pub const fn new() -> Self {
-        Self
-    }
+    pub const fn new() -> Self { Self }
 
     /// Runs a single GPUI scenario request, dispatching through `gpui::run_test`.
     ///
@@ -179,14 +182,13 @@ impl GpuiHarness {
         context: TestAppContext,
         scenario_name: &str,
     ) -> T {
-        let runner = runner_slot
+        let taken = runner_slot
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .take();
-        let Some(runner) = runner else {
+        let Some(runner) = taken else {
             panic!(
-                "rstest-bdd-harness-gpui: scenario runner invoked more than once: \
-                 {scenario_name}"
+                "rstest-bdd-harness-gpui: scenario runner invoked more than once: {scenario_name}"
             );
         };
         runner.run(context)
@@ -218,12 +220,12 @@ impl GpuiHarness {
     ///
     /// Panics if the output slot is still `None`, which indicates the GPUI
     /// test runner never produced a result.
-    fn extract_output<T>(output: Mutex<Option<T>>, scenario_name: &str) -> T {
-        let output = output.into_inner().unwrap_or_else(PoisonError::into_inner);
-        let Some(output) = output else {
+    fn extract_output<T>(slot: Mutex<Option<T>>, scenario_name: &str) -> T {
+        let taken = slot.into_inner().unwrap_or_else(PoisonError::into_inner);
+        let Some(output) = taken else {
             panic!(
                 "rstest-bdd-harness-gpui: test harness produced no scenario result: \
-                {scenario_name}"
+                 {scenario_name}"
             );
         };
         output
@@ -306,12 +308,12 @@ impl HarnessAdapter for GpuiHarness {
     fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>) -> HarnessResult<T> {
         let (metadata, runner) = request.into_parts();
         let scenario_name = metadata.scenario_name().to_owned();
-        let runner = Mutex::new(Some(runner));
+        let runner_slot = Mutex::new(Some(runner));
         let output = Mutex::new(None);
 
         let stderr = io::stderr().lock();
         let stderr_writer = AssertUnwindSafe(RefCell::new(stderr));
-        Self::run_request_once(&runner, &output, &metadata, &stderr_writer);
+        Self::run_request_once(&runner_slot, &output, &metadata, &stderr_writer);
         Ok(Self::extract_output(output, &scenario_name))
     }
 }

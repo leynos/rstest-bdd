@@ -4,11 +4,13 @@
 //! server lifecycle helpers for driving the `rstest-bdd-lsp` binary in
 //! end-to-end tests.
 
-use std::io::{BufRead, BufReader, Read, Write};
-use std::path::Path;
-use std::process::{Child, Command, Stdio};
-use std::sync::mpsc;
-use std::time::Duration;
+use std::{
+    io::{BufRead, BufReader, Read, Write},
+    path::Path,
+    process::{Child, Command, Stdio},
+    sync::mpsc,
+    time::Duration,
+};
 
 use serde_json::{Value, json};
 
@@ -87,23 +89,26 @@ impl MessageReceiver {
     ///
     /// Messages are decoded in the background and sent through an unbounded
     /// channel. The thread terminates when the reader reaches EOF.
-    #[expect(
-        clippy::expect_used,
-        reason = "body parse failures are test-fatal programming errors"
-    )]
     pub fn spawn(mut reader: BufReader<impl Read + Send + 'static>) -> Self {
         let (tx, rx) = mpsc::channel();
-        std::thread::spawn(move || {
-            while let Some(content_length) = read_headers(&mut reader) {
-                let mut buf = vec![0u8; content_length];
-                reader.read_exact(&mut buf).expect("read body");
-                let msg: Value = serde_json::from_slice(&buf).expect("parse JSON body");
-                if tx.send(msg).is_err() {
-                    break;
-                }
-            }
-        });
+        std::thread::spawn(move || Self::pump_messages(&mut reader, &tx));
         Self { rx }
+    }
+
+    /// Read framed messages until the reader ends or the receiver hangs up.
+    #[expect(
+        clippy::expect_used,
+        reason = "a malformed frame is a test-fatal protocol violation"
+    )]
+    fn pump_messages(reader: &mut BufReader<impl Read>, tx: &mpsc::Sender<Value>) {
+        while let Some(content_length) = read_headers(reader) {
+            let mut buf = vec![0u8; content_length];
+            reader.read_exact(&mut buf).expect("read body");
+            let msg: Value = serde_json::from_slice(&buf).expect("parse JSON body");
+            if tx.send(msg).is_err() {
+                break;
+            }
+        }
     }
 
     /// Receive the next message, blocking up to [`READ_TIMEOUT`].
@@ -254,8 +259,8 @@ pub fn shutdown_and_exit(
                 return;
             }
             None if std::time::Instant::now() >= deadline => {
-                let _ = child.kill();
-                let _ = child.wait();
+                drop(child.kill());
+                drop(child.wait());
                 panic!(
                     "server did not exit within {} s; killed",
                     EXIT_TIMEOUT.as_secs()

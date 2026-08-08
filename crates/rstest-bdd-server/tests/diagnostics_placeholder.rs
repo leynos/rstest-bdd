@@ -6,20 +6,25 @@
 mod support;
 
 use rstest::{fixture, rstest};
-use rstest_bdd_server::handlers::compute_signature_mismatch_diagnostics;
-use rstest_bdd_server::server::ServerState;
+use rstest_bdd_server::{handlers::compute_signature_mismatch_diagnostics, server::ServerState};
 use support::{ScenarioBuilder, TestScenario};
 use tempfile::TempDir;
 
 /// Fixture providing a fresh scenario builder for each test.
 #[fixture]
-fn scenario_builder() -> ScenarioBuilder {
-    ScenarioBuilder::new()
-}
+fn scenario_builder() -> ScenarioBuilder { ScenarioBuilder::new() }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Test-local helpers
 // ─────────────────────────────────────────────────────────────────────────────
+
+/// What a placeholder-count case expects to see reported.
+struct PlaceholderExpectation<'a> {
+    /// Number of diagnostics expected for the staged pair.
+    count: usize,
+    /// Substring the diagnostic message must contain, when one is expected.
+    message_substring: Option<&'a str>,
+}
 
 /// Helper to compute placeholder mismatch diagnostics for a Rust file.
 fn compute_placeholder_diagnostics(
@@ -47,8 +52,10 @@ fn compute_placeholder_diagnostics(
         "#[given(\"I have {count} apples\")]\n",
         "fn have_apples() {}\n",
     ),
-    1,
-    Some("1 placeholder"),
+    PlaceholderExpectation {
+        count: 1,
+        message_substring: Some("1 placeholder"),
+    },
 )]
 #[case::extra_placeholder(
     concat!(
@@ -61,8 +68,10 @@ fn compute_placeholder_diagnostics(
         "#[given(\"I have {count} {color} apples\")]\n",
         "fn have_apples(count: u32) {}\n",
     ),
-    1,
-    Some("2 placeholder"),
+    PlaceholderExpectation {
+        count: 1,
+        message_substring: Some("2 placeholder"),
+    },
 )]
 #[case::correct_signature(
     concat!(
@@ -75,8 +84,10 @@ fn compute_placeholder_diagnostics(
         "#[given(\"I have {count} apples\")]\n",
         "fn have_apples(count: u32) {}\n",
     ),
-    0,
-    None,
+    PlaceholderExpectation {
+        count: 0,
+        message_substring: None,
+    },
 )]
 #[case::repeated_placeholder_name(
     // Pattern has {x} twice (2 occurrences), but only 1 distinct name.
@@ -93,16 +104,21 @@ fn compute_placeholder_diagnostics(
         "#[given(\"I compare {x} with {x}\")]\n",
         "fn compare(x: u32) {}\n",
     ),
-    1,
-    Some("2 placeholder"),
+    PlaceholderExpectation {
+        count: 1,
+        message_substring: Some("2 placeholder"),
+    },
 )]
 fn placeholder_count_validation(
     scenario_builder: ScenarioBuilder,
     #[case] feature_content: &str,
     #[case] rust_content: &str,
-    #[case] expected_count: usize,
-    #[case] message_substring: Option<&str>,
+    #[case] expected: PlaceholderExpectation<'_>,
 ) {
+    let PlaceholderExpectation {
+        count: expected_count,
+        message_substring,
+    } = expected;
     let TestScenario { dir, state } = scenario_builder
         .with_feature("test.feature", feature_content)
         .with_rust_steps("steps.rs", rust_content)

@@ -67,9 +67,7 @@ pub struct TruthyBoolError {
 impl TruthyBoolError {
     /// Returns the original, unclassified input.
     #[must_use]
-    pub fn value(&self) -> &str {
-        &self.value
-    }
+    pub fn value(&self) -> &str { &self.value }
 }
 
 /// Trims leading and trailing whitespace before parsing a value.
@@ -95,7 +93,7 @@ where
     let trimmed = value.trim();
     trimmed
         .parse()
-        .map_err(|source| TrimmedParseError::new(value.to_string(), source))
+        .map_err(|source| TrimmedParseError::new(value.to_owned(), source))
 }
 
 /// Error returned when [`trimmed`] fails to parse the value.
@@ -115,7 +113,7 @@ impl<E> TrimmedParseError<E>
 where
     E: StdError + Send + Sync + 'static,
 {
-    pub(crate) fn new(original_input: String, source: E) -> Self {
+    pub(crate) const fn new(original_input: String, source: E) -> Self {
         Self {
             original_input,
             source,
@@ -131,7 +129,5 @@ where
     /// assert_eq!(err.original_input(), " not a number ");
     /// ```
     #[must_use]
-    pub fn original_input(&self) -> &str {
-        &self.original_input
-    }
+    pub fn original_input(&self) -> &str { &self.original_input }
 }

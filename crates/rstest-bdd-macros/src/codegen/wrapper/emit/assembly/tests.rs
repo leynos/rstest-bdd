@@ -1,18 +1,28 @@
 //! Tests for wrapper lint suppression emission.
 
-use super::{
-    LINT_NEEDLESS_PASS_BY_VALUE, LINT_REDUNDANT_CLOSURE, LINT_REDUNDANT_CLOSURE_FOR_METHOD_CALLS,
-    LINT_SHADOW_REUSE, LINT_STR_TO_STRING, LINT_UNNECESSARY_WRAPS, PreparedArgs, StepMeta,
-    WRAPPER_EXPECT_REASON, WrapperAssembly, WrapperIdentifiers, WrapperKind,
-    assemble_wrapper_function,
-};
-use crate::return_classifier::ReturnKind;
+use std::collections::HashSet;
+
 use proc_macro2::Span;
 use quote::{format_ident, quote};
 use rstest::rstest;
-use std::collections::HashSet;
-use syn::Token;
-use syn::punctuated::Punctuated;
+use syn::{Token, punctuated::Punctuated};
+
+use super::{
+    LINT_NEEDLESS_PASS_BY_VALUE,
+    LINT_REDUNDANT_CLOSURE,
+    LINT_REDUNDANT_CLOSURE_FOR_METHOD_CALLS,
+    LINT_SHADOW_REUSE,
+    LINT_STR_TO_STRING,
+    LINT_UNNECESSARY_WRAPS,
+    PreparedArgs,
+    StepMeta,
+    WRAPPER_EXPECT_REASON,
+    WrapperAssembly,
+    WrapperIdentifiers,
+    WrapperKind,
+    assemble_wrapper_function,
+};
+use crate::return_classifier::ReturnKind;
 
 fn path_to_string(path: &syn::Path) -> String {
     path.segments
@@ -35,7 +45,7 @@ fn extract_reason_from_meta(name_value: &syn::MetaNameValue) -> Option<String> {
 }
 
 fn expected_lints(lints: &[&str]) -> HashSet<String> {
-    lints.iter().map(|lint| (*lint).to_string()).collect()
+    lints.iter().map(|lint| (*lint).to_owned()).collect()
 }
 
 /// Parse and validate the expect attribute from a wrapper function.

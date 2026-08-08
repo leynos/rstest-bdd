@@ -40,7 +40,7 @@ pub struct CounterApp {
 impl CounterApp {
     /// Creates a counter initialized to the given starting value.
     #[must_use]
-    pub fn new(start: i32) -> Self {
+    pub const fn new(start: i32) -> Self {
         Self {
             value: Cell::new(start),
             has_observed_gpui_context: Cell::new(false),
@@ -49,14 +49,10 @@ impl CounterApp {
 
     /// Returns the current counter value.
     #[must_use]
-    pub fn value(&self) -> i32 {
-        self.value.get()
-    }
+    pub fn value(&self) -> i32 { self.value.get() }
 
     /// Replaces the stored counter value with the provided amount.
-    pub fn set_value(&self, amount: i32) {
-        self.value.set(amount);
-    }
+    pub fn set_value(&self, amount: i32) { self.value.set(amount); }
 
     /// Increases the counter by `amount`, saturating at `i32::MAX`.
     ///
@@ -86,9 +82,7 @@ impl CounterApp {
     /// app.record_gpui_context();
     /// assert!(app.has_observed_gpui_context());
     /// ```
-    pub fn record_gpui_context(&self) {
-        self.has_observed_gpui_context.set(true);
-    }
+    pub fn record_gpui_context(&self) { self.has_observed_gpui_context.set(true); }
 
     /// Returns whether a GPUI test context has been observed.
     ///
@@ -101,9 +95,7 @@ impl CounterApp {
     /// assert!(!app.has_observed_gpui_context());
     /// ```
     #[must_use]
-    pub fn has_observed_gpui_context(&self) -> bool {
-        self.has_observed_gpui_context.get()
-    }
+    pub fn has_observed_gpui_context(&self) -> bool { self.has_observed_gpui_context.get() }
 }
 
 /// Clamps an `i64` value to the `i32` range.
@@ -121,13 +113,12 @@ fn saturate_to_i32(value: i64) -> i32 {
 mod tests {
     //! Tests for `CounterApp` behaviour.
 
-    use super::CounterApp;
     use rstest::{fixture, rstest};
 
+    use super::CounterApp;
+
     #[fixture]
-    fn counter() -> CounterApp {
-        CounterApp::new(0)
-    }
+    fn counter() -> CounterApp { CounterApp::new(0) }
 
     #[rstest]
     fn starts_at_zero(counter: CounterApp) {

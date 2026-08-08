@@ -1,17 +1,24 @@
 //! Command dispatch and formatting for the `cargo bdd` entrypoint.
 
-use std::collections::HashMap;
-use std::io::{self, Write};
+use std::{
+    collections::HashMap,
+    io::{self, Write},
+};
 
 use clap::{Args, Parser, Subcommand};
 use eyre::{Context, Result, bail};
 use serde::Serialize;
 
-use crate::output::{
-    ScenarioDisplayOptions, write_bypassed_steps, write_group_separator, write_scenarios,
-    write_step,
+use crate::{
+    output::{
+        ScenarioDisplayOptions,
+        write_bypassed_steps,
+        write_group_separator,
+        write_scenarios,
+        write_step,
+    },
+    registry::{BypassedStep, Scenario, ScenarioOutcome, Step, collect_registry},
 };
-use crate::registry::{BypassedStep, Scenario, ScenarioOutcome, Step, collect_registry};
 
 /// Cargo subcommand providing diagnostics for rstest-bdd.
 #[derive(Parser)]
@@ -128,9 +135,7 @@ fn handle_steps(args: &StepsArgs) -> Result<()> {
     )
 }
 
-fn handle_unused() -> Result<()> {
-    write_filtered_steps(|step| !step.used, None)
-}
+fn handle_unused() -> Result<()> { write_filtered_steps(|step| !step.used, None) }
 
 fn handle_duplicates() -> Result<()> {
     let mut groups: HashMap<(String, String), Vec<Step>> = HashMap::new();
@@ -235,6 +240,11 @@ mod tests {
     use super::*;
 
     #[test]
+    #[expect(
+        clippy::panic_in_result_fn,
+        reason = "assertions in a Result-returning test pair `?` on fallible fixtures with \
+                  ordinary assertions"
+    )]
     fn write_skip_reports_json_emits_fields() -> eyre::Result<()> {
         let report = SkipReport {
             feature: "feature",

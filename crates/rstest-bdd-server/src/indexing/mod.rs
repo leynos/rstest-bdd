@@ -5,8 +5,8 @@
 //!
 //! - Feature steps (keyword, text, step span)
 //! - Feature doc strings, data tables, and Examples header columns
-//! - Rust step definitions annotated with `#[given]`, `#[when]`, and `#[then]`
-//!   (keyword, pattern string, parameters, table/doc string expectations)
+//! - Rust step definitions annotated with `#[given]`, `#[when]`, and `#[then]` (keyword, pattern
+//!   string, parameters, table/doc string expectations)
 //!
 //! The implementation relies on the `gherkin` crate for syntactic parsing.
 //! Where `gherkin` does not expose spans (for example doc string blocks and
@@ -192,7 +192,7 @@ impl RustAttributeSpan {
     /// start position is inclusive and the end position is exclusive, following
     /// LSP semantics.
     #[must_use]
-    pub fn to_lsp_range(&self) -> lsp_types::Range {
+    pub const fn to_lsp_range(&self) -> lsp_types::Range {
         lsp_types::Range {
             start: lsp_types::Position {
                 line: self.start_line,

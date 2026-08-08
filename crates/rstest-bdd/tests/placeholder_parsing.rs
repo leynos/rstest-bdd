@@ -1,12 +1,26 @@
 //! Tests for placeholder extraction logic.
 
 use rstest::rstest;
-use rstest_bdd::localization::{ScopedLocalization, strip_directional_isolates};
-use rstest_bdd::{PlaceholderError, StepPattern, StepPatternError, StepText, extract_placeholders};
+use rstest_bdd::{
+    PlaceholderError,
+    StepPattern,
+    StepPatternError,
+    StepText,
+    extract_placeholders,
+    localization::{ScopedLocalization, strip_directional_isolates},
+};
 use unic_langid::langid;
 
 mod support;
-use support::{compiled, expect_placeholder_syntax};
+use support::{assert_captures, assert_no_match, compiled, expect_placeholder_syntax};
+
+/// Assert that `pattern` matches `text` without inspecting the captures.
+fn assert_matches_text(pattern: &StepPattern, text: &str) {
+    assert!(
+        extract_placeholders(pattern, StepText::from(text)).is_ok(),
+        "expected {text:?} to match the pattern",
+    );
+}
 
 #[rstest]
 #[case("literal text", true)]
@@ -84,57 +98,26 @@ fn extract_placeholders_returns_error_for_invalid_pattern() {
 #[test]
 fn type_hint_uses_specialized_fragment() {
     // u32: positive integer
-    let pat = compiled("value {n:u32}");
-    let text = StepText::from("value 42");
-    let Ok(caps) = extract_placeholders(&pat, text) else {
-        panic!("match expected for u32");
-    };
-    assert_eq!(caps, vec!["42"]);
-    assert!(
-        extract_placeholders(&pat, StepText::from("value none")).is_err(),
-        "non-numeric text should not match u32",
-    );
+    let u32_pattern = compiled("value {n:u32}");
+    assert_captures(&u32_pattern, "value 42", &["42"]);
+    assert_no_match(&u32_pattern, "value none");
 
     // i32: negative integer
-    let pat = compiled("value {n:i32}");
-    let text = StepText::from("value -42");
-    let Ok(caps) = extract_placeholders(&pat, text) else {
-        panic!("match expected for negative i32");
-    };
-    assert_eq!(caps, vec!["-42"]);
-    assert!(
-        extract_placeholders(&pat, StepText::from("value 42.5")).is_err(),
-        "float should not match i32",
-    );
+    let i32_pattern = compiled("value {n:i32}");
+    assert_captures(&i32_pattern, "value -42", &["-42"]);
+    assert_no_match(&i32_pattern, "value 42.5");
 
     // isize: negative integer
-    let pat = compiled("value {n:isize}");
-    let text = StepText::from("value -7");
-    let Ok(caps) = extract_placeholders(&pat, text) else {
-        panic!("match expected for negative isize");
-    };
-    assert_eq!(caps, vec!["-7"]);
+    let isize_pattern = compiled("value {n:isize}");
+    assert_captures(&isize_pattern, "value -7", &["-7"]);
 
-    // f64: floating point
-    let pat = compiled("value {n:f64}");
-    let text = StepText::from("value 2.71828");
-    let Ok(caps) = extract_placeholders(&pat, text) else {
-        panic!("match expected for f64");
-    };
-    assert_eq!(caps, vec!["2.71828"]);
-    assert!(
-        extract_placeholders(&pat, StepText::from("value none")).is_err(),
-        "non-numeric text should not match f64",
-    );
-    assert!(
-        extract_placeholders(&pat, StepText::from("value 1e-3")).is_ok(),
-        "scientific notation should match f64",
-    );
-    assert!(
-        extract_placeholders(&pat, StepText::from("value -0.001")).is_ok(),
-        "negative float should match f64",
-    );
+    // f64: floating point, including scientific notation and specials
+    let f64_pattern = compiled("value {n:f64}");
+    assert_captures(&f64_pattern, "value 2.71828", &["2.71828"]);
+    assert_no_match(&f64_pattern, "value none");
     for sample in [
+        "value 1e-3",
+        "value -0.001",
         "value .5",
         "value 42.",
         "value 1e3",
@@ -145,19 +128,13 @@ fn type_hint_uses_specialized_fragment() {
         "value inf",
         "value Infinity",
     ] {
-        assert!(
-            extract_placeholders(&pat, StepText::from(sample)).is_ok(),
-            "{sample} should match f64",
-        );
+        assert_matches_text(&f64_pattern, sample);
     }
 
     // f32: special float values
-    let pat = compiled("value {n:f32}");
+    let f32_pattern = compiled("value {n:f32}");
     for sample in ["value NaN", "value inf", "value Infinity"] {
-        assert!(
-            extract_placeholders(&pat, StepText::from(sample)).is_ok(),
-            "{sample} should match f32",
-        );
+        assert_matches_text(&f32_pattern, sample);
     }
 }
 
@@ -170,7 +147,6 @@ fn invalid_type_hint_is_generic(
 ) {
     // Unknown type hints fall back to a non-greedy match.
     let pat = compiled(pattern);
-    #[expect(clippy::expect_used, reason = "test asserts placeholder match")]
     let caps = extract_placeholders(&pat, StepText::from(input))
         .expect("invalid type hint should still capture");
     assert_eq!(caps, vec![expected]);
@@ -208,13 +184,13 @@ fn whitespace_before_closing_brace_is_error() {
 #[test]
 fn extraction_reports_invalid_placeholder_error() {
     let pat = StepPattern::from("value {n:}");
-    #[expect(clippy::expect_used, reason = "test asserts error variant")]
     let err = extract_placeholders(&pat, StepText::from("value 1"))
         .expect_err("placeholder error expected");
     assert!(matches!(err, PlaceholderError::InvalidPlaceholder(_)));
     assert_eq!(
         strip_directional_isolates(&err.to_string()),
-        "invalid placeholder syntax: invalid placeholder in step pattern at byte 6 (zero-based) for placeholder 'n'",
+        "invalid placeholder syntax: invalid placeholder in step pattern at byte 6 (zero-based) \
+         for placeholder 'n'",
     );
 }
 
@@ -222,7 +198,6 @@ fn extraction_reports_invalid_placeholder_error() {
 fn invalid_pattern_error_display() {
     #[expect(
         clippy::invalid_regex,
-        clippy::expect_used,
         reason = "deliberate invalid regex to test error display"
     )]
     let regex_err = regex::Regex::new("(").expect_err("invalid regex should error");
@@ -239,7 +214,6 @@ fn placeholder_error_display_in_french() {
         Err(error) => panic!("failed to scope French locale: {error}"),
     };
     let pat = StepPattern::from("value {n:}");
-    #[expect(clippy::expect_used, reason = "test asserts error variant")]
     let err = extract_placeholders(&pat, StepText::from("value 1"))
         .expect_err("placeholder error expected");
     let display = strip_directional_isolates(&err.to_string());
@@ -249,34 +223,18 @@ fn placeholder_error_display_in_french() {
 
 #[test]
 fn string_hint_captures_quoted_values() {
-    // :string hint matches double-quoted strings
-    let pat = compiled("message is {text:string}");
-    let text = StepText::from(r#"message is "hello world""#);
-    let Ok(caps) = extract_placeholders(&pat, text) else {
-        panic!("match expected for :string with double quotes");
-    };
-    // Captured value includes quotes (stripping happens in generated code)
-    assert_eq!(caps, vec![r#""hello world""#]);
+    let pattern = compiled("message is {text:string}");
 
-    // :string hint matches single-quoted strings
-    let text = StepText::from("message is 'hello world'");
-    let Ok(caps) = extract_placeholders(&pat, text) else {
-        panic!("match expected for :string with single quotes");
-    };
-    assert_eq!(caps, vec!["'hello world'"]);
-
-    // :string hint does not match unquoted text
-    assert!(
-        extract_placeholders(&pat, StepText::from("message is hello world")).is_err(),
-        "unquoted text should not match :string",
+    // Captured values include the quotes; stripping happens in generated code.
+    assert_captures(
+        &pattern,
+        r#"message is "hello world""#,
+        &[r#""hello world""#],
     );
+    assert_captures(&pattern, "message is 'hello world'", &["'hello world'"]);
+    assert_captures(&pattern, r#"message is """#, &[r#""""#]);
 
-    // :string hint matches empty quoted strings
-    let text = StepText::from(r#"message is """#);
-    let Ok(caps) = extract_placeholders(&pat, text) else {
-        panic!("match expected for :string with empty double quotes");
-    };
-    assert_eq!(caps, vec![r#""""#]);
+    assert_no_match(&pattern, "message is hello world");
 }
 
 #[test]

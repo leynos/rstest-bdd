@@ -1,7 +1,13 @@
 //! Unit tests for registry dumping.
 
 use rstest_bdd::{
-    StepContext, StepExecution, StepKeyword, dump_registry, find_step, record_bypassed_steps,
+    BypassedScenario,
+    StepContext,
+    StepExecution,
+    StepKeyword,
+    dump_registry,
+    find_step,
+    record_bypassed_steps,
     reporting::{self, ScenarioMetadata, ScenarioRecord, ScenarioStatus, SkippedScenario},
     step,
 };
@@ -120,13 +126,18 @@ fn validate_scenario_metadata(scenarios: &[Value]) {
     else {
         panic!("skipped scenario present");
     };
-    assert_eq!(skipped["line"].as_u64(), Some(3));
+    assert_eq!(
+        skipped["line"].as_u64(),
+        Some(3),
+        "skip report should record the scenario line"
+    );
     assert_eq!(
         skipped["tags"]
             .as_array()
             .and_then(|tags| tags.first())
             .and_then(Value::as_str),
-        Some("@allow_skipped")
+        Some("@allow_skipped"),
+        "report should carry the scenario tag"
     );
 }
 
@@ -150,19 +161,24 @@ fn validate_bypassed_steps_metadata(bypassed_steps: &[Value]) {
     }) else {
         panic!("bypassed entry present");
     };
-    assert_eq!(entry["scenario_line"].as_u64(), Some(3));
+    assert_eq!(
+        entry["scenario_line"].as_u64(),
+        Some(3),
+        "registry entry should record the scenario line"
+    );
     assert_eq!(
         entry["tags"]
             .as_array()
             .and_then(|tags| tags.first())
             .and_then(Value::as_str),
-        Some("@allow_skipped")
+        Some("@allow_skipped"),
+        "report should carry the scenario tag"
     );
 }
 
 #[test]
 fn reports_usage_flags() {
-    let _ = reporting::drain();
+    drop(reporting::drain());
     let skipped_metadata = ScenarioMetadata::new(
         "tests/features/dump.feature",
         "skipped entry",
@@ -185,12 +201,11 @@ fn reports_usage_flags() {
         ScenarioStatus::Passed,
     ));
 
+    let dump_tags = vec![String::from("@allow_skipped")];
     record_bypassed_steps(
-        "tests/features/dump.feature",
-        "skipped entry",
-        3,
-        vec!["@allow_skipped".into()],
-        Some("reason"),
+        BypassedScenario::new("tests/features/dump.feature", "skipped entry", 3)
+            .with_tags(&dump_tags)
+            .with_reason(Some("reason")),
         [(StepKeyword::Given, "dump unused")],
     );
 
@@ -218,5 +233,5 @@ fn reports_usage_flags() {
         panic!("bypassed_steps array");
     };
     validate_bypassed_steps_metadata(bypassed_steps);
-    let _ = reporting::drain();
+    drop(reporting::drain());
 }

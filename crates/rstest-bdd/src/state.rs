@@ -34,25 +34,17 @@ pub struct Slot<T> {
 impl<T> Slot<T> {
     /// Construct an empty slot.
     #[must_use]
-    pub fn new() -> Self {
-        Self::default()
-    }
+    pub fn new() -> Self { Self::default() }
 
     /// Replace the slot contents, returning the previous value when present.
-    pub fn replace(&self, value: T) -> Option<T> {
-        self.inner.replace(Some(value))
-    }
+    pub fn replace(&self, value: T) -> Option<T> { self.inner.replace(Some(value)) }
 
     /// Store `value`, discarding any previous contents.
-    pub fn set(&self, value: T) {
-        let _ = self.replace(value);
-    }
+    pub fn set(&self, value: T) { let _ = self.replace(value); }
 
     /// Remove the current value from the slot.
     #[must_use]
-    pub fn take(&self) -> Option<T> {
-        self.inner.borrow_mut().take()
-    }
+    pub fn take(&self) -> Option<T> { self.inner.borrow_mut().take() }
 
     /// Borrow the value mutably, inserting one produced by `init` when empty.
     ///
@@ -68,7 +60,7 @@ impl<T> Slot<T> {
         }
         RefMut::map(borrow, |opt| {
             let Some(value) = opt.as_mut() else {
-                unreachable!("slot initialized immediately before mapping");
+                panic!("slot was cleared between initialization and mapping");
             };
             value
         })
@@ -96,20 +88,14 @@ impl<T> Slot<T> {
 
     /// Return `true` when the slot holds a value.
     #[must_use]
-    pub fn is_filled(&self) -> bool {
-        self.inner.borrow().is_some()
-    }
+    pub fn is_filled(&self) -> bool { self.inner.borrow().is_some() }
 
     /// Return `true` when the slot is empty.
     #[must_use]
-    pub fn is_empty(&self) -> bool {
-        !self.is_filled()
-    }
+    pub fn is_empty(&self) -> bool { !self.is_filled() }
 
     /// Remove the current value, leaving the slot empty.
-    pub fn clear(&self) {
-        let _ = self.take();
-    }
+    pub fn clear(&self) { drop(self.take()); }
 }
 
 impl<T: std::fmt::Debug> std::fmt::Debug for Slot<T> {
@@ -144,8 +130,9 @@ pub trait ScenarioState: Default {
 mod tests {
     //! Unit tests for scenario state management.
 
-    use super::*;
     use rstest_bdd_macros::ScenarioState as ScenarioStateDerive;
+
+    use super::*;
 
     #[test]
     fn slot_replaces_values() {

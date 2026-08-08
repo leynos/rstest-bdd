@@ -4,16 +4,16 @@
 //! keyword enum with parsing helpers, error types, and common type aliases used
 //! by the registry and runner.
 
-use crate::localization;
-use std::any::Any;
-use std::fmt;
-use std::future::Future;
-use std::pin::Pin;
+use std::{any::Any, fmt, future::Future, pin::Pin};
 
 // Re-export shared keyword types from rstest-bdd-patterns.
 pub use rstest_bdd_patterns::{
-    StepKeyword, StepKeywordParseError, UnsupportedStepType as UnsupportedStepTypeBase,
+    StepKeyword,
+    StepKeywordParseError,
+    UnsupportedStepType as UnsupportedStepTypeBase,
 };
+
+use crate::localization;
 
 /// Error raised when converting a parsed Gherkin [`gherkin::StepType`] into a
 /// [`StepKeyword`] fails.
@@ -53,9 +53,7 @@ impl fmt::Display for UnsupportedStepType {
 impl std::error::Error for UnsupportedStepType {}
 
 impl From<UnsupportedStepTypeBase> for UnsupportedStepType {
-    fn from(base: UnsupportedStepTypeBase) -> Self {
-        Self(base.0)
-    }
+    fn from(base: UnsupportedStepTypeBase) -> Self { Self(base.0) }
 }
 
 /// Wrapper for step pattern strings used in matching logic.
@@ -65,21 +63,15 @@ pub struct PatternStr<'a>(pub(crate) &'a str);
 impl<'a> PatternStr<'a> {
     /// Construct a new `PatternStr` from a string slice.
     #[must_use]
-    pub const fn new(s: &'a str) -> Self {
-        Self(s)
-    }
+    pub const fn new(s: &'a str) -> Self { Self(s) }
 
     /// Access the underlying string slice.
     #[must_use]
-    pub const fn as_str(self) -> &'a str {
-        self.0
-    }
+    pub const fn as_str(self) -> &'a str { self.0 }
 }
 
 impl<'a> From<&'a str> for PatternStr<'a> {
-    fn from(s: &'a str) -> Self {
-        Self::new(s)
-    }
+    fn from(s: &'a str) -> Self { Self::new(s) }
 }
 
 /// Wrapper for step text content from scenarios.
@@ -89,21 +81,15 @@ pub struct StepText<'a>(pub(crate) &'a str);
 impl<'a> StepText<'a> {
     /// Construct a new `StepText` from a string slice.
     #[must_use]
-    pub const fn new(s: &'a str) -> Self {
-        Self(s)
-    }
+    pub const fn new(s: &'a str) -> Self { Self(s) }
 
     /// Access the underlying string slice.
     #[must_use]
-    pub const fn as_str(self) -> &'a str {
-        self.0
-    }
+    pub const fn as_str(self) -> &'a str { self.0 }
 }
 
 impl<'a> From<&'a str> for StepText<'a> {
-    fn from(s: &'a str) -> Self {
-        Self::new(s)
-    }
+    fn from(s: &'a str) -> Self { Self::new(s) }
 }
 
 /// Detailed information about placeholder parsing failures.
@@ -171,15 +157,11 @@ pub enum StepPatternError {
 }
 
 impl From<PlaceholderSyntaxError> for StepPatternError {
-    fn from(err: PlaceholderSyntaxError) -> Self {
-        Self::PlaceholderSyntax(err)
-    }
+    fn from(err: PlaceholderSyntaxError) -> Self { Self::PlaceholderSyntax(err) }
 }
 
 impl From<regex::Error> for StepPatternError {
-    fn from(err: regex::Error) -> Self {
-        Self::InvalidPattern(err)
-    }
+    fn from(err: regex::Error) -> Self { Self::InvalidPattern(err) }
 }
 
 impl fmt::Display for StepPatternError {
@@ -262,9 +244,7 @@ pub enum StepExecution {
 
 impl StepExecution {
     /// Construct a successful outcome with an optional value.
-    pub fn from_value(value: Option<Box<dyn Any>>) -> Self {
-        Self::Continue { value }
-    }
+    pub fn from_value(value: Option<Box<dyn Any>>) -> Self { Self::Continue { value } }
 
     /// Construct a skipped outcome with an optional reason.
     pub fn skipped(message: impl Into<Option<String>>) -> Self {
@@ -324,14 +304,18 @@ pub type StepFuture<'a> =
 ///
 /// - `StepContext<'_>` in parameter positions so `'fixtures` is inferred.
 /// - [`crate::async_step::sync_to_async`] for explicit sync-to-async wrappers.
-/// - [`StepCtx`], [`StepTextRef`], [`StepDoc`], and [`StepTable`] for concise
-///   explicit signatures.
+/// - [`StepCtx`], [`StepTextRef`], [`StepDoc`], and [`StepTable`] for concise explicit signatures.
 ///
 /// # Examples
 ///
 /// ```rust
-/// use rstest_bdd::async_step::sync_to_async;
-/// use rstest_bdd::{StepContext, StepError, StepExecution, StepFuture};
+/// use rstest_bdd::{
+///     StepContext,
+///     StepError,
+///     StepExecution,
+///     StepFuture,
+///     async_step::sync_to_async,
+/// };
 ///
 /// fn my_sync_step(
 ///     _ctx: &mut StepContext<'_>,

@@ -5,10 +5,12 @@
 //! generating invalid symbols when step function names contain Unicode.
 //! A global counter ensures uniqueness across all generated wrappers.
 
-use crate::utils::ident::sanitize_ident;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 use proc_macro2::TokenStream as TokenStream2;
 use quote::format_ident;
-use std::sync::atomic::{AtomicUsize, Ordering};
+
+use crate::utils::ident::sanitize_ident;
 
 static COUNTER: AtomicUsize = AtomicUsize::new(0);
 
@@ -142,6 +144,4 @@ pub(in crate::codegen::wrapper::emit) fn generate_wrapper_signature(
 /// let second = next_wrapper_id();  // e.g. 1
 /// assert_eq!(second, first + 1);
 /// ```
-pub(super) fn next_wrapper_id() -> usize {
-    COUNTER.fetch_add(1, Ordering::Relaxed)
-}
+pub(super) fn next_wrapper_id() -> usize { COUNTER.fetch_add(1, Ordering::Relaxed) }

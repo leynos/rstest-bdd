@@ -105,6 +105,44 @@ trybuild scratch directory by querying `cargo metadata` for the workspace
 `Result<PathBuf, Box<dyn Error>>` and is consumed by
 `stage_trybuild_support_files` in each harness crate's `macro_compile.rs` test.
 
+## Lint policy
+
+`Cargo.toml` carries the workspace lint tables; every member crate — including
+the demonstration crates under `examples/` — opts in with
+`lints.workspace = true`. Thresholds for the configurable Clippy lints live in
+`clippy.toml`:
+
+| Setting                          | Value | Default |
+| -------------------------------- | ----- | ------- |
+| `cognitive-complexity-threshold` | 9     | 25      |
+| `too-many-arguments-threshold`   | 4     | 7       |
+| `too-many-lines-threshold`       | 70    | 100     |
+| `excessive-nesting-threshold`    | 4     | off     |
+
+`allow-expect-in-tests` and `allow-panic-in-tests` relax the panic-related
+restrictions inside `#[test]`/`#[rstest]` functions and `#[cfg(test)]` modules.
+Neither knob reaches helpers that merely live beside tests, and the Whitaker
+`no_expect_outside_tests` lint is stricter still: it only recognizes functions
+that are themselves tests. Test helpers must therefore use `let … else` with an
+explicit `panic!` rather than `expect`.
+
+Two workspace-wide decisions are worth recording because they are not obvious:
+
+- `unused_braces` is allowed. `rstest`'s `#[fixture]` re-emits the annotated
+  body as a nested block (`fn f() -> T { { .. } }`), and `fn_single_line` in
+  `.rustfmt.toml` collapses single-expression fixtures onto one line, which
+  makes rustc flag the inner braces. `#[expect]` cannot silence it, because
+  rustc never marks the expectation fulfilled for a diagnostic raised inside a
+  macro expansion.
+- `tower` is declared with `default-features = false`. Its default `log`
+  feature enables `tracing/log`, which makes every `tracing` event expand into
+  an additional branch. With `cognitive-complexity-threshold = 9` that alone
+  pushed ordinary request handlers over the ceiling.
+
+Suppressions must be `#[expect(..., reason = "...")]` rather than `#[allow]`
+(`clippy::allow_attributes` is denied), and must be scoped to the smallest item
+that needs them.
+
 ## Rust documentation policy and gates
 
 The workspace denies missing documentation on Rust items and crate roots. It
@@ -209,15 +247,15 @@ Mitigation:
   matrix legs (see `.github/workflows/ci.yml`). Windows coverage runs use
   `cargo llvm-cov test` (libtest) instead.
 - `step_macros_compile` (`crates/rstest-bdd/tests/trybuild_macros.rs`) guards
-  its early return with `cfg!(windows) && env::var_os("NEXTEST_RUN_ID")`, so
-  it only skips its trybuild and Clippy UI fixtures under nextest on Windows,
+  its early return with `cfg!(windows) && env::var_os("NEXTEST_RUN_ID")`, so it
+  only skips its trybuild and Clippy UI fixtures under nextest on Windows,
   where this deadlock applies. On Linux and macOS the fixtures run under
   nextest like any other test.
 - `.config/nextest.toml` raises the `slow-timeout` for the trybuild
   compile-test binaries (including both `macro_compile` binaries and
   `rstest-bdd::trybuild_macros`) to 300 s as a local-development safety net.
-  This does not fix the deadlock; it only delays termination to allow the
-  build to complete on fast machines.
+  This does not fix the deadlock; it only delays termination to allow the build
+  to complete on fast machines.
 - `.config/nextest.toml` also places the `cargo-bdd::cli` and trybuild
   binaries in a `cargo-spawning` test group with `max-threads = 1`, so these
   cargo-spawning tests run one at a time rather than contending for the
@@ -419,9 +457,9 @@ adapter. `rstest-bdd-harness`'s own test targets (for example
 rstest-bdd-harness = { path = ".", features = ["testing"] }
 ```
 
-This keeps `FailingHarness` defined once, with no local duplicate in the
-test binary, and works without requiring `--all-features`. Downstream crates
-enable it only for tests:
+This keeps `FailingHarness` defined once, with no local duplicate in the test
+binary, and works without requiring `--all-features`. Downstream crates enable
+it only for tests:
 
 ```toml
 [dev-dependencies]
@@ -448,10 +486,10 @@ preserved. A trybuild compile-pass mirror,
 `tests/fixtures_macros/scenario_bulk_migration_cookbook.rs`, compile-checks the
 same shape and is registered in `run_passing_macro_tests`
 (`tests/trybuild_macros.rs`). `step_macros_compile` runs this fixture under
-nextest on Linux and macOS; it is skipped only under nextest on Windows,
-where the Job Object capture-pipe deadlock applies (see "nextest on Windows:
-trybuild deadlock" above), and must instead be validated with plain
-`cargo test` (or `cargo llvm-cov test` for coverage).
+nextest on Linux and macOS; it is skipped only under nextest on Windows, where
+the Job Object capture-pipe deadlock applies (see "nextest on Windows: trybuild
+deadlock" above), and must instead be validated with plain `cargo test` (or
+`cargo llvm-cov test` for coverage).
 
 Doc↔suite parity for this cookbook is guarded by prose, not a checker (the
 subsection states "if a snippet drifts, the suite wins"), matching the
@@ -1250,8 +1288,8 @@ When maintaining the pin:
 
 Do not replace invariant checks with `.expect(...)`, `.unwrap()`, or
 `unwrap_or_else(|| panic!(...))`. Use a copyable invariant check such as
-`let Some(value) = value else { panic!("expected value to be present"); };`,
-or return `Result` and use `?` when an operation is fallible. Fixture functions
+`let Some(value) = value else { panic!("expected value to be present"); };`, or
+return `Result` and use `?` when an operation is fallible. Fixture functions
 and test helpers that perform fallible operations must return `Result` and
 propagate errors with `?`; infallible helpers need not introduce an artificial
 `Result` type. Shared helpers should avoid `.expect(...)` for invariant checks

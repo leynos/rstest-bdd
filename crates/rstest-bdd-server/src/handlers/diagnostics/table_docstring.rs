@@ -8,15 +8,18 @@ use std::sync::Arc;
 use lsp_types::Diagnostic;
 use rstest_bdd_patterns::SpecificityScore;
 
-use crate::indexing::{CompiledStepDefinition, FeatureFileIndex, IndexedStep};
-use crate::server::ServerState;
-
-use super::compute::{DiagnosticSpec, FeatureStepDiagnosticKind, build_step_diagnostic};
 use super::{
-    CODE_DOCSTRING_EXPECTED, CODE_DOCSTRING_NOT_EXPECTED, CODE_TABLE_EXPECTED,
+    CODE_DOCSTRING_EXPECTED,
+    CODE_DOCSTRING_NOT_EXPECTED,
+    CODE_TABLE_EXPECTED,
     CODE_TABLE_NOT_EXPECTED,
+    compute::{DiagnosticSpec, build_step_diagnostic},
 };
-use crate::handlers::util::gherkin_span_to_lsp_range;
+use crate::{
+    handlers::util::gherkin_span_to_lsp_range,
+    indexing::{CompiledStepDefinition, FeatureFileIndex, IndexedStep},
+    server::ServerState,
+};
 
 /// Compute diagnostics for table/docstring expectation mismatches.
 ///
@@ -26,9 +29,11 @@ use crate::handlers::util::gherkin_span_to_lsp_range;
 /// # Example
 ///
 /// ```no_run
-/// use rstest_bdd_server::config::ServerConfig;
-/// use rstest_bdd_server::server::ServerState;
-/// use rstest_bdd_server::indexing::FeatureFileIndex;
+/// use rstest_bdd_server::{
+///     config::ServerConfig,
+///     indexing::FeatureFileIndex,
+///     server::ServerState,
+/// };
 ///
 /// let state = ServerState::new(ServerConfig::default());
 /// // Obtain a FeatureFileIndex from state.feature_index(path)
@@ -108,14 +113,14 @@ impl StepArgumentKind {
             Self::Table => (
                 step.table.is_some(),
                 impl_def.expects_table,
-                FeatureStepDiagnosticKind::TableNotExpected,
-                FeatureStepDiagnosticKind::TableExpected,
+                ArgumentMismatchKind::UnexpectedTable,
+                ArgumentMismatchKind::MissingTable,
             ),
             Self::Docstring => (
                 step.docstring.is_some(),
                 impl_def.expects_docstring,
-                FeatureStepDiagnosticKind::DocstringNotExpected,
-                FeatureStepDiagnosticKind::DocstringExpected,
+                ArgumentMismatchKind::UnexpectedDocstring,
+                ArgumentMismatchKind::MissingDocstring,
             ),
         };
 
@@ -129,11 +134,24 @@ impl StepArgumentKind {
     }
 }
 
-impl FeatureStepDiagnosticKind {
+/// Ways a feature step's table/docstring arguments can disagree with the
+/// matched step implementation.
+enum ArgumentMismatchKind {
+    /// Feature step has a data table but the implementation does not expect one.
+    UnexpectedTable,
+    /// The implementation expects a data table but the feature step has none.
+    MissingTable,
+    /// Feature step has a docstring but the implementation does not expect one.
+    UnexpectedDocstring,
+    /// The implementation expects a docstring but the feature step has none.
+    MissingDocstring,
+}
+
+impl ArgumentMismatchKind {
     /// Build a diagnostic from this kind for the given step.
     fn build(self, feature_index: &FeatureFileIndex, step: &IndexedStep) -> Diagnostic {
         let spec = match self {
-            Self::TableNotExpected => DiagnosticSpec {
+            Self::UnexpectedTable => DiagnosticSpec {
                 code: CODE_TABLE_NOT_EXPECTED,
                 message: "Data table provided but step implementation does not expect one"
                     .to_owned(),
@@ -142,12 +160,12 @@ impl FeatureStepDiagnosticKind {
                     .as_ref()
                     .map(|t| gherkin_span_to_lsp_range(&feature_index.source, t.span)),
             },
-            Self::TableExpected => DiagnosticSpec {
+            Self::MissingTable => DiagnosticSpec {
                 code: CODE_TABLE_EXPECTED,
                 message: "Step implementation expects a data table but none is provided".to_owned(),
                 custom_range: None,
             },
-            Self::DocstringNotExpected => DiagnosticSpec {
+            Self::UnexpectedDocstring => DiagnosticSpec {
                 code: CODE_DOCSTRING_NOT_EXPECTED,
                 message: "Doc string provided but step implementation does not expect one"
                     .to_owned(),
@@ -156,15 +174,11 @@ impl FeatureStepDiagnosticKind {
                     .as_ref()
                     .map(|d| gherkin_span_to_lsp_range(&feature_index.source, d.span)),
             },
-            Self::DocstringExpected => DiagnosticSpec {
+            Self::MissingDocstring => DiagnosticSpec {
                 code: CODE_DOCSTRING_EXPECTED,
                 message: "Step implementation expects a doc string but none is provided".to_owned(),
                 custom_range: None,
             },
-            // UnimplementedStep is handled in compute.rs
-            Self::UnimplementedStep { .. } => {
-                unreachable!("UnimplementedStep should not be built via table_docstring module")
-            }
         };
 
         build_step_diagnostic(feature_index, step, spec)

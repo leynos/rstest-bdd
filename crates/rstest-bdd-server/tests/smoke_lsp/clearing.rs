@@ -6,8 +6,12 @@
 
 use rstest::rstest;
 
-use super::wire::{did_save, is_non_empty_diagnostics, shutdown_and_exit};
-use super::{MAX_RECV_MESSAGES, ServerHandle, server};
+use super::{
+    MAX_RECV_MESSAGES,
+    ServerHandle,
+    server,
+    wire::{did_save, is_non_empty_diagnostics, shutdown_and_exit},
+};
 
 /// Exercise the canonical publication boundary end-to-end through the public
 /// publishers. An unimplemented step first emits a non-empty
@@ -18,7 +22,6 @@ use super::{MAX_RECV_MESSAGES, ServerHandle, server};
 /// payload-only `prepare_publish` tests cannot observe.
 #[rstest]
 #[expect(
-    clippy::expect_used,
     clippy::indexing_slicing,
     reason = "test assertions use .expect() and indexing for clear failure messages"
 )]
@@ -34,8 +37,8 @@ fn smoke_feature_diagnostics_cleared_once_step_implemented(mut server: ServerHan
         ),
     )
     .expect("write feature");
-    let feature_uri = lsp_types::Url::from_file_path(&feature_path).expect("feature URI");
-    let feature_uri = feature_uri.as_str().to_owned();
+    let feature_url = lsp_types::Url::from_file_path(&feature_path).expect("feature URI");
+    let feature_uri = feature_url.as_str().to_owned();
 
     // Saving the feature publishes a non-empty diagnostic for the
     // unimplemented step through the canonical boundary.
@@ -94,7 +97,6 @@ fn smoke_feature_diagnostics_cleared_once_step_implemented(mut server: ServerHan
 /// which the payload-only `prepare_publish` tests cannot observe.
 #[rstest]
 #[expect(
-    clippy::expect_used,
     clippy::indexing_slicing,
     reason = "test assertions use .expect() and indexing for clear failure messages"
 )]
@@ -112,8 +114,8 @@ fn smoke_rust_diagnostics_cleared_once_step_referenced(mut server: ServerHandle)
         ),
     )
     .expect("write rust steps");
-    let rust_uri = lsp_types::Url::from_file_path(&rust_path).expect("rust URI");
-    let rust_uri = rust_uri.as_str().to_owned();
+    let rust_url = lsp_types::Url::from_file_path(&rust_path).expect("rust URI");
+    let rust_uri = rust_url.as_str().to_owned();
 
     // Saving the Rust file with no feature referencing the step publishes a
     // non-empty "unused step" diagnostic for the Rust URI.

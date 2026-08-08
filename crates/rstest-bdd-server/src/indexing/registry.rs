@@ -11,16 +11,21 @@
 //! indexed steps. This avoids rebuilding state for the entire workspace on
 //! every save while ensuring stale entries are not retained.
 
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use gherkin::StepType;
 use regex::Regex;
 use rstest_bdd_patterns::{PatternError, compile_regex_from_pattern};
 
 use super::{
-    IndexedStepDefinition, IndexedStepParameter, RustAttributeSpan, RustFunctionId,
+    IndexedStepDefinition,
+    IndexedStepParameter,
+    RustAttributeSpan,
+    RustFunctionId,
     RustStepFileIndex,
 };
 
@@ -52,7 +57,8 @@ pub struct CompiledStepDefinition {
 /// Error raised when a step pattern cannot be compiled.
 #[derive(Debug, thiserror::Error)]
 #[error(
-    "failed to compile step pattern '{pattern}' for {keyword:?} step '{function}' in {path}: {source}"
+    "failed to compile step pattern '{pattern}' for {keyword:?} step '{function}' in {path}: \
+     {source}"
 )]
 pub struct StepPatternCompileError {
     /// Absolute path to the Rust source file containing the step.
@@ -118,7 +124,8 @@ impl StepDefinitionRegistry {
 
     #[expect(
         clippy::unused_self,
-        reason = "method kept on the registry type to allow future use of configuration/state while matching the refactor contract"
+        reason = "method kept on the registry type to allow future use of configuration/state \
+                  while matching the refactor contract"
     )]
     fn compile_steps(
         &self,
@@ -129,7 +136,7 @@ impl StepDefinitionRegistry {
 
         for step in &index.step_definitions {
             match compile_step_definition(&index.path, step) {
-                Ok(step) => compiled.push(step),
+                Ok(definition) => compiled.push(definition),
                 Err(err) => errors.push(err),
             }
         }
@@ -139,7 +146,8 @@ impl StepDefinitionRegistry {
 
     #[expect(
         clippy::ptr_arg,
-        reason = "signature uses &PathBuf to match the refactor contract; PathBuf cloning is required for HashMap keys"
+        reason = "signature uses &PathBuf to match the refactor contract; PathBuf cloning is \
+                  required for HashMap keys"
     )]
     fn insert_compiled_steps(&mut self, path: &PathBuf, compiled: Vec<CompiledStepDefinition>) {
         if compiled.is_empty() {
@@ -192,11 +200,10 @@ impl StepDefinitionRegistry {
             let _removed = steps.swap_remove(index);
             positions.remove(&key);
 
-            if index < steps.len() {
-                if let Some(moved) = steps.get(index) {
-                    let moved_key = Arc::as_ptr(moved) as usize;
-                    positions.insert(moved_key, index);
-                }
+            // `swap_remove` moves the last element into `index`, so its
+            // recorded position needs updating.
+            if let Some(moved) = steps.get(index) {
+                positions.insert(Arc::as_ptr(moved) as usize, index);
             }
 
             if steps.is_empty() {
@@ -243,10 +250,6 @@ fn compile_step_definition(
 }
 
 #[cfg(test)]
-#[expect(
-    clippy::expect_used,
-    reason = "tests use explicit failures for clarity"
-)]
 mod tests {
     //! Unit tests for the step registry index.
 
@@ -282,8 +285,8 @@ mod tests {
 
         let when = registry.steps_for_keyword(StepType::When);
         assert_eq!(when.len(), 1);
-        let matcher = when.first().expect("compiled when matcher");
-        assert!(matcher.regex.is_match("I add 1"));
+        let when_matcher = when.first().expect("compiled when matcher");
+        assert!(when_matcher.regex.is_match("I add 1"));
     }
 
     #[test]

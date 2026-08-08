@@ -44,15 +44,13 @@ enum HeldGuard<'a> {
 }
 
 impl HeldGuard<'_> {
-    fn fixture_index(&self) -> usize {
+    const fn fixture_index(&self) -> usize {
         match self {
             Self::Shared { index, .. } | Self::Mutable { index, .. } => *index,
         }
     }
 
-    fn is_mutable(&self) -> bool {
-        matches!(self, Self::Mutable { .. })
-    }
+    const fn is_mutable(&self) -> bool { matches!(self, Self::Mutable { .. }) }
 }
 
 fn assert_mutable_acquire<'borrow, 'fixture: 'borrow>(

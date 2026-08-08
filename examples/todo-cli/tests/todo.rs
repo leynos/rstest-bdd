@@ -4,10 +4,8 @@ use rstest::fixture;
 use rstest_bdd_macros::{given, scenario, then, when};
 use todo_cli::TodoList;
 
-// Keep this fixture as a one-liner so the reviewer-requested style persists.
-#[rustfmt::skip]
 #[fixture]
-fn todo_list() -> TodoList { return TodoList::new(); }
+fn todo_list() -> TodoList { TodoList::new() }
 
 #[derive(Debug)]
 struct TaskEntries(Vec<String>);
@@ -38,7 +36,9 @@ impl TryFrom<Vec<Vec<String>>> for TaskEntries {
         for (index, row) in rows.into_iter().enumerate() {
             expect_column_count(&row, 1, index, "exactly one column (task description)")?;
             let mut cells = row.into_iter();
-            let task = cells.next().expect("row.len() == 1 just asserted");
+            let Some(task) = cells.next() else {
+                return Err(format!("datatable row {} is unexpectedly empty", index + 1));
+            };
             tasks.push(task);
         }
         Ok(Self(tasks))
@@ -49,9 +49,7 @@ impl IntoIterator for TaskEntries {
     type Item = String;
     type IntoIter = std::vec::IntoIter<String>;
 
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
-    }
+    fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
 }
 
 #[derive(Debug)]
@@ -65,15 +63,20 @@ impl TryFrom<Vec<Vec<String>>> for StatusEntries {
         for (index, row) in rows.into_iter().enumerate() {
             expect_column_count(&row, 2, index, "exactly two columns: <task> | <yes/no>")?;
             let mut cells = row.into_iter();
-            let task = cells.next().expect("row.len() == 2 just asserted");
-            let done_cell = cells.next().expect("row.len() == 2 just asserted");
+            let (Some(task), Some(done_cell)) = (cells.next(), cells.next()) else {
+                return Err(format!(
+                    "datatable row {} is missing one of its two columns",
+                    index + 1
+                ));
+            };
             let normalized = done_cell.trim().to_ascii_lowercase();
             let done = match normalized.as_str() {
                 "yes" | "y" | "true" => true,
                 "no" | "n" | "false" => false,
                 _ => {
                     return Err(format!(
-                        "datatable row {}: second column must be one of yes/y/true or no/n/false; got: {:?}",
+                        "datatable row {}: second column must be one of yes/y/true or no/n/false; \
+                         got: {:?}",
                         index + 1,
                         done_cell
                     ));
@@ -86,9 +89,7 @@ impl TryFrom<Vec<Vec<String>>> for StatusEntries {
 }
 
 impl From<StatusEntries> for Vec<(String, bool)> {
-    fn from(entries: StatusEntries) -> Self {
-        entries.0
-    }
+    fn from(entries: StatusEntries) -> Self { entries.0 }
 }
 
 #[given("an empty to-do list")]
@@ -133,10 +134,10 @@ fn dedent(input: &str) -> String {
     let cut = min_indent.unwrap_or(0);
     let out = s
         .lines()
-        .map(|l| if l.len() >= cut { &l[cut..] } else { "" })
+        .map(|l| l.get(cut..).unwrap_or(""))
         .collect::<Vec<_>>()
         .join("\n");
-    out.trim_matches('\n').to_string()
+    out.trim_matches('\n').to_owned()
 }
 
 #[given("a to-do list with {first} and {second}")]
@@ -185,7 +186,7 @@ fn completing_nonexistent_task_does_not_mutate_statuses() {
         "expected completing a missing task to fail"
     );
 
-    let expected = vec![("task 1".to_string(), false), ("task 2".to_string(), false)];
+    let expected = vec![("task 1".to_owned(), false), ("task 2".to_owned(), false)];
     assert_eq!(expected, todo_list.statuses());
 }
 
