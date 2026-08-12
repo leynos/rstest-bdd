@@ -1632,6 +1632,13 @@ infrastructure invariant. The workspace also denies `clippy::expect_used` and
 `clippy::unwrap_used`, so `.expect(...)` and `.unwrap()` are not acceptable
 replacements.
 
+Clippy's `allow-expect-in-tests` escape hatch does not rescue these snippets.
+It is not enabled in this workspace, and step functions and their helpers are
+ordinary functions rather than `#[test]` functions, so Clippy does not treat
+them as test code even when they live in a `tests/` binary. Downstream projects
+that do enable the option inherit the same constraint for their step
+definitions.
+
 Use `let … else { panic!(…) }` with a fresh binding name:
 
 ```rust,no_run
