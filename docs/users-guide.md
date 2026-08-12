@@ -934,7 +934,7 @@ diagnostic, even when the Tokio adapter crate is also a dependency.
 
 The macro resolves each supplied adapter path once and emits at most one
 diagnostic for that resolution. See the
-[developers' guide](developers-guide.md#adapter-fallback-diagnostics) for the
+[developers' guide][developers-guide-adapter-fallback] for the
 nightly and stable implementation details.
 
 Prefer the canonical paths:
@@ -3017,5 +3017,6 @@ three amigos in the specification process.
 [migration-async-patterns]: https://github.com/leynos/rstest-bdd/blob/main/docs/cucumber-rs-migration-and-async-patterns.md
 [rstest-bdd-design]: https://github.com/leynos/rstest-bdd/blob/main/docs/rstest-bdd-design.md
 [design-runner-parallelism]: https://github.com/leynos/rstest-bdd/blob/main/docs/rstest-bdd-design.md#2767-test-runner-parallelism-and-scenario-state
+[developers-guide-adapter-fallback]: https://github.com/leynos/rstest-bdd/blob/main/docs/developers-guide.md#adapter-fallback-diagnostics
 [developer-serial-nextest]: https://github.com/leynos/rstest-bdd/blob/main/docs/developers-guide.md#serial-file_serial-and-nextest-test-groups
 [nextest-test-groups]: https://nexte.st/docs/configuration/test-groups/

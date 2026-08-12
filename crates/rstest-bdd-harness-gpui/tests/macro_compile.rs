@@ -41,6 +41,25 @@ fn gpui_macro_fixtures_compile() -> Result<(), Box<dyn std::error::Error>> {
         tests.pass(case);
     }
     tests.compile_fail("tests/fixtures_macros/scenario_harness_gpui_sync_rejected.rs");
+    compile_fail_stable_fallback_warning(&tests);
+    Ok(())
+}
+
+#[rustversion::not(nightly)]
+fn compile_fail_stable_fallback_warning(tests: &trybuild::TestCases) {
+    tests.compile_fail("tests/fixtures_macros/scenario_harness_gpui_alias_fallback_warning.rs");
+}
+
+#[rustversion::nightly]
+fn compile_fail_stable_fallback_warning(_: &trybuild::TestCases) {}
+
+#[rustversion::nightly]
+#[test]
+#[serial]
+fn nightly_gpui_fallback_emits_one_proc_macro_warning() -> Result<(), Box<dyn std::error::Error>> {
+    stage_trybuild_support_files()?;
+    let tests = trybuild::TestCases::new();
+    tests.compile_fail("tests/fixtures_macros/nightly_gpui_adapter_fallback_warning.rs");
     Ok(())
 }
 

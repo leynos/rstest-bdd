@@ -33,6 +33,7 @@ rstest.workspace = true
 rstest-bdd.workspace = true
 rstest-bdd-harness = { workspace = true, features = ["testing"] }
 rstest-bdd-macros.workspace = true
+rustversion.workspace = true
 cargo_metadata.workspace = true
 insta = { workspace = true, features = ["filters"] }
 macrotest.workspace = true

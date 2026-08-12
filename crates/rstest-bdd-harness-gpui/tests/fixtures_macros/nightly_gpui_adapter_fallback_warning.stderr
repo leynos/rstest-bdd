@@ -1,0 +1,11 @@
+warning: rstest-bdd could not identify this harness or attribute-policy path as a first-party adapter; falling back to `rstest-bdd-harness` for base harness API types. Use the canonical crate-root path, ensure `rstest-bdd-harness-gpui` is directly resolvable as `rstest_bdd_harness_gpui`, or add `rstest-bdd-harness` as a direct dev-dependency.
+  --> tests/fixtures_macros/nightly_gpui_adapter_fallback_warning.rs:22:47
+   |
+22 |     harness = alias::rstest_bdd_harness_gpui::GpuiHarness,
+   |                                               ^^^^^^^^^^^
+
+error: nightly GPUI fallback warning snapshot sentinel
+  --> tests/fixtures_macros/nightly_gpui_adapter_fallback_warning.rs:26:1
+   |
+26 | compile_error!("nightly GPUI fallback warning snapshot sentinel");
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
