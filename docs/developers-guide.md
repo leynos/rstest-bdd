@@ -180,6 +180,10 @@ former validates generated documentation and links under the docs.rs
 configuration, while the latter verifies that executable examples compile and
 behave as documented.
 
+For documentation changes, run `make fmt`, `make markdownlint`, and `make
+nixie`. Do not run `make spellcheck` separately: `make markdownlint` already
+runs the spelling gate.
+
 ## nextest configuration (`.config/nextest.toml`)
 
 cargo-nextest reads its configuration from `.config/nextest.toml` at the
