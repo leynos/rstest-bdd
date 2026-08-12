@@ -882,7 +882,7 @@ changing the public trait contracts.
   `make nixie`, and
   `cargo test -p rstest-bdd --test trybuild_macros step_macros_compile` passed;
   CodeRabbit `review --agent` completed with zero findings.
-- [ ] 10.2.8. The stateful GPUI playbook includes compile-checked
+- [x] 10.2.8. The stateful GPUI playbook includes compile-checked
   published-`gpui 0.2.2` `given` and `when` variants, so adopters do not have
   to translate the vendored-only worked example from the mapping table alone.
   The guide also states that step functions and their helpers are ordinary
@@ -892,6 +892,25 @@ changing the public trait contracts.
   published variants are visibly paired, and a drift gate covers both. Design
   Doc: `docs/rstest-bdd-design.md` §2.7.6.2. Origin:
   `leynos/rstest-bdd#575` and the gauss v0.6.0-beta3 adoption report.
+  Delivered 2026-08-12: the user guide pairs a `Published gpui 0.2.2 stateful
+  step variants` subsection with the vendored playbook, cross-linked in both
+  directions, covering `given`, `when`, and `then`; the v0.6.0 migration guide
+  carries the compact downstream translation. The snippets are proved by a
+  nested-workspace fixture (`tests/fixtures/published-gpui-0-2-2/`) that
+  resolves `gpui 0.2.2` from crates.io rather than the workspace's vendored
+  path dependency, and whose bindings force the published return shapes
+  (`update_entity`/`read_entity` yield `R` directly, not `Result<R, _>`).
+  Drift is gated on two sides: `scripts/check_gpui_mapping_table.py` under
+  `make lint` covers the vendored-to-published mapping table, and
+  `make check-published-gpui` compiles the fixture with `--locked` under
+  `-D warnings`, wired into CI. The fixture is also under `make fmt` and
+  `make check-fmt`, which do not otherwise reach a nested workspace.
+  Caveat: the fixture is compile-only. An executable published-GPUI scenario
+  is blocked because `rstest-bdd-harness-gpui` binds the vendored shim via
+  `gpui.workspace = true`, so `GpuiHarness` is unavailable to a published-gpui
+  workspace; that remains open. Validation: `make check-fmt`, `make lint`,
+  `make typecheck`, `make test`, `make markdownlint`, and
+  `make check-published-gpui` passed.
 
 > **Note (dual-track maintenance):** items 10.2.4 and 10.2.5 introduce a
 > vendored-to-published mapping table that must be kept in sync with any
