@@ -3,11 +3,9 @@
 use super::*;
 
 #[rstest]
-#[expect(
-    clippy::expect_used,
-    reason = "test requires explicit panic for debugging failures"
-)]
-fn unimplemented_step_produces_diagnostic(scenario_builder: ScenarioBuilder) {
+fn unimplemented_step_produces_diagnostic(
+    scenario_builder: ScenarioBuilder,
+) -> std::io::Result<()> {
     let scenario = scenario_builder.with_single_file_pair(
         "Feature: test\n  Scenario: s\n    Given an unimplemented step\n",
         concat!(
@@ -20,11 +18,15 @@ fn unimplemented_step_produces_diagnostic(scenario_builder: ScenarioBuilder) {
     let feature_index = scenario
         .state
         .feature_index(&scenario.feature_path)
-        .expect("index");
+        .ok_or_else(|| std::io::Error::other("feature index missing"))?;
     let diagnostics = compute_unimplemented_step_diagnostics(&scenario.state, feature_index);
 
-    assert_eq!(diagnostics.len(), 1);
-    let diag = diagnostics.first().expect("diagnostic");
+    let [diag] = diagnostics.as_slice() else {
+        return Err(std::io::Error::other(format!(
+            "expected exactly one diagnostic, found {}",
+            diagnostics.len()
+        )));
+    };
     assert_eq!(diag.severity, Some(DiagnosticSeverity::WARNING));
     assert!(diag.message.contains("an unimplemented step"));
     assert_eq!(
@@ -33,14 +35,14 @@ fn unimplemented_step_produces_diagnostic(scenario_builder: ScenarioBuilder) {
             CODE_UNIMPLEMENTED_STEP.to_owned()
         ))
     );
+
+    Ok(())
 }
 
 #[rstest]
-#[expect(
-    clippy::expect_used,
-    reason = "test requires explicit panic for debugging failures"
-)]
-fn unused_step_definition_produces_diagnostic(scenario_builder: ScenarioBuilder) {
+fn unused_step_definition_produces_diagnostic(
+    scenario_builder: ScenarioBuilder,
+) -> std::io::Result<()> {
     let scenario = scenario_builder.with_single_file_pair(
         "Feature: test\n  Scenario: s\n    Given a step\n",
         concat!(
@@ -54,8 +56,12 @@ fn unused_step_definition_produces_diagnostic(scenario_builder: ScenarioBuilder)
 
     let diagnostics = compute_unused_step_diagnostics(&scenario.state, &scenario.rust_path);
 
-    assert_eq!(diagnostics.len(), 1);
-    let diag = diagnostics.first().expect("diagnostic");
+    let [diag] = diagnostics.as_slice() else {
+        return Err(std::io::Error::other(format!(
+            "expected exactly one diagnostic, found {}",
+            diagnostics.len()
+        )));
+    };
     assert!(diag.message.contains("unused step"));
     assert_eq!(
         diag.code,
@@ -63,6 +69,8 @@ fn unused_step_definition_produces_diagnostic(scenario_builder: ScenarioBuilder)
             CODE_UNUSED_STEP_DEFINITION.to_owned()
         ))
     );
+
+    Ok(())
 }
 
 #[rstest]

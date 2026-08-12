@@ -822,14 +822,15 @@ validation vehicle from a feature-gated GPUI executable suite to a harness-
 agnostic runtime shared-step-library proof in `rstest-bdd` (built on shipped
 `Slot<T>`/`ScenarioState` primitives), because the reuse property is harness-
 agnostic, the GPUI half is already proven by `stateful_window.rs`, and a GPUI
-suite would hand-build v0.6.1-doomed boilerplate, trip the dead-code lint,
-target vendored gpui for a published-gpui audience, and duplicate
+suite would hand-build boilerplate that roadmap 10.3.1/10.3.2 shrink in v0.6.0
+final, trip the dead-code lint, target vendored gpui for a published-gpui
+audience, and duplicate
 `stateful_window.rs`. Corrected the Red stage to a stepless-module runtime
 `StepNotFound` (was an incoherent missing-module compile error). Added a
 `cargo clean -p rstest-bdd` cache guard for the feature-file rebuild foot-gun,
 a "named tests must appear" acceptance guard, the qualified `#[from]` form and
-`pub` requirement, the published-gpui bridge, the "v0.6.0 shape, shrinks in
-v0.6.1" framing, and dead-code/doc-parity-script constraints.
+`pub` requirement, the published-gpui bridge, the "beta shape, shrinks in
+v0.6.0 final" framing, and dead-code/doc-parity-script constraints.
 
 Revision 3 (2026-07-06). Added Constraint 9 — every cookbook example must be
 test-backed (a runtime test, the now-required trybuild compile-pass fixture, or
