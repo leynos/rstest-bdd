@@ -645,10 +645,33 @@ fn given_shell_open(
 ) -> StepResult<()> {
     let (shell, visual_cx) = cx.add_window_view(|_context| Shell::default());
     world.shell = Some(shell);
-    world.visual_cx = Some(visual_cx);
+    world.window = Some(visual_cx.window_handle());
+    Ok(())
+}
+
+#[when("the shell receives input")]
+fn when_shell_receives_input(
+    #[from(rstest_bdd_harness_context)] cx: &mut gpui::TestAppContext,
+    world: &mut UiWorld,
+) -> StepResult<()> {
+    let Some(window) = world.window else {
+        panic!("the given step should have stored a window handle");
+    };
+    let Some(mut visual_cx) = gpui::VisualTestContext::from_window(window, cx)
+    else {
+        panic!("stored window handle should reconstruct visual context");
+    };
+    // ...drive the shell through `visual_cx`...
     Ok(())
 }
 ```
+
+Guard-based borrowing removes the `E0499`/`E0502` obstacle to holding `cx` and
+`world` at once, but it does not make a stored `VisualTestContext` valid. That
+value is tied to the `TestAppContext` it was built against, and each step
+receives a fresh one, so `UiWorld` still keeps only the durable
+`Entity<T>` and `AnyWindowHandle` and rebuilds the visual context per step, as
+[Rebuild `VisualTestContext` per step](#migrate-a-stateful-gpui-test) requires.
 
 ## Migration checklist
 
