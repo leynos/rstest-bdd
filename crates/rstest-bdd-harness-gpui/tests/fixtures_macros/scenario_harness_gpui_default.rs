@@ -1,5 +1,7 @@
 //! Compile-pass fixture validating that `#[scenario]` accepts a first-party
 //! GPUI harness without an explicit attribute policy.
+#![deny(deprecated)]
+
 use rstest_bdd_macros::{given, scenario, then, when};
 
 #[given("a precondition")]

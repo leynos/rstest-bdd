@@ -1656,6 +1656,7 @@ dependencies = [
  "rstest-bdd-harness",
  "rstest-bdd-macros",
  "rstest-bdd-test-macros",
+ "rustversion",
  "serial_test 2.0.0",
  "tokio",
  "tracing",
