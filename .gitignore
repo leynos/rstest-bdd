@@ -19,3 +19,7 @@ proptest-regressions/
 .typos-oxendict-base.toml
 .uv-cache/
 .uv-tools/
+.vtcode/
+.claude/
+*.swp
+*.swo
