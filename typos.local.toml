@@ -10,6 +10,9 @@ stems = []
 accepted = ["inventario", "mis"]
 
 [words.corrections]
+# "mold" names the linker (https://github.com/rui314/mold); it is not a
+# misspelling of "mould" in that context.
+mold = "mold"
 
 [patterns]
 ignore = [
