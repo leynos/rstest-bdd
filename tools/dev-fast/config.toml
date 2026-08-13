@@ -1,0 +1,30 @@
+# Canonical opt-in Cargo configuration fragment for accelerated local debug
+# builds.
+#
+# This file is deliberately kept out of `.cargo/config.toml`. Cargo
+# auto-discovers that path, so anything placed there applies to release
+# packaging, coverage, and verification builds, which must keep the
+# supported LLVM backend and platform linker. Copy this fragment to
+# `tools/dev-fast/config.toml` and pass it explicitly with
+# `cargo --config tools/dev-fast/config.toml ...` from `make dev-build` and
+# `make dev-test`.
+#
+# Repositories that set repository-wide `rustflags` in `.cargo/config.toml`
+# must restate them in the target table below: Cargo picks a single
+# rustflags source rather than merging them, and a `[target.*]` table
+# outranks the `[build]` table.
+
+[unstable]
+codegen-backend = true
+
+# Cranelift trades runtime performance for compile speed, so it applies to
+# the dev profile only. The `make dev-*` targets never build release
+# artefacts.
+[profile.dev]
+codegen-backend = "cranelift"
+
+# mold ships for Linux only, so the flag is gated behind a target `cfg`. On
+# macOS and Windows the table simply does not apply and the platform default
+# linker is used.
+[target.'cfg(target_os = "linux")']
+rustflags = ["-Clink-arg=-fuse-ld=mold"]
