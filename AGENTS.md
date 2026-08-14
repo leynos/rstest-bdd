@@ -273,14 +273,16 @@ project:
   diagnostics.
 - In production code and shared fixtures, avoid `.expect()` entirely: return
   `Result` and use `?` to propagate errors instead of panicking.
-- Keep `expect_used` **strict**; do not suppress the lint.
+- Keep `expect_used` strict outside recognized test cases; do not suppress the
+  lint.
 - Recognize that `allow-expect-in-tests = true` **doesn’t cover** helpers
   outside `#[cfg(test)]` or `#[test]`; avoid `expect` in such fixtures.
 - Use `anyhow`/`eyre` with `.context(...)` to **preserve backtraces** and
   provide clear, typed failure paths.
 - Update helpers (e.g., `set_dir`) to **return errors** rather than panicking.
-- Consume fallible fixtures in `rstest` by **making the test return `Result`**
-  and applying `?` to the fixture.
+- Tests may consume fallible `rstest` fixtures with `.expect(...)` when setup
+  failure should fail the test; their signatures need not return `Result` only
+  to propagate fixture errors.
 
 ### Observability
 
