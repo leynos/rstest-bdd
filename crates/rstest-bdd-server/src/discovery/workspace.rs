@@ -183,14 +183,6 @@ fn collect_feature_files_recursive(dir: &Path, features: &mut Vec<PathBuf>) {
     reason = "tests require explicit panic messages for debugging failures"
 )]
 mod tests {
-    //! Unit tests for workspace discovery.
-
-    use super::*;
-    use rstest::{fixture, rstest};
-    use std::fs;
-    use std::io;
-    use tempfile::TempDir;
-
     #[fixture]
     fn create_test_workspace() -> io::Result<TempDir> {
         let dir = TempDir::new()?;
