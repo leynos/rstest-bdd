@@ -29,7 +29,7 @@ pub use async_lookup::{
     find_step_with_mode,
     lookup_step_async_with_mode,
 };
-pub use bypassed::{record_bypassed_steps, record_bypassed_steps_with_tags};
+pub use bypassed::{BypassedScenario, record_bypassed_steps};
 pub use fixtures::{FixtureRequirement, StepFixtureRequirements, fixture_requirements_for_step};
 #[cfg(feature = "diagnostics")]
 pub use introspection::dump_registry;
@@ -319,9 +319,9 @@ fn mark_and_project<T>(
     step: Option<&'static Step>,
     project: impl FnOnce(&'static Step) -> T,
 ) -> Option<T> {
-    step.map(|step| {
-        mark_used((step.keyword, step.pattern));
-        project(step)
+    step.map(|found| {
+        mark_used((found.keyword, found.pattern));
+        project(found)
     })
 }
 

@@ -130,12 +130,14 @@ pub(in crate::codegen::scenario::runtime) fn generate_skip_handler(
                         .enumerate()
                         .skip(__rstest_bdd_start + 1)
                         .map(|(_, (__rstest_bdd_kw, __rstest_bdd_txt, _, _))| (*__rstest_bdd_kw, *__rstest_bdd_txt));
-                    #path::record_bypassed_steps_with_tags(
-                        __RSTEST_BDD_FEATURE_PATH,
-                        __RSTEST_BDD_SCENARIO_NAME,
-                        __RSTEST_BDD_SCENARIO_LINE,
-                        __rstest_bdd_scenario_guard.tags(),
-                        __rstest_bdd_message.as_deref(),
+                    #path::record_bypassed_steps(
+                        #path::BypassedScenario::new(
+                            __RSTEST_BDD_FEATURE_PATH,
+                            __RSTEST_BDD_SCENARIO_NAME,
+                            __RSTEST_BDD_SCENARIO_LINE,
+                        )
+                        .with_tags(__rstest_bdd_scenario_guard.tags())
+                        .with_reason(__rstest_bdd_message.as_deref()),
                         __rstest_bdd_bypassed,
                     );
                 }

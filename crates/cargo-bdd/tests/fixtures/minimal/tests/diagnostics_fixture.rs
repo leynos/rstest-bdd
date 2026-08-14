@@ -93,11 +93,9 @@ fn record_skipped_with_bypass(
     ));
 
     bdd::record_bypassed_steps(
-        feature_path,
-        scenario_name,
-        line,
-        tags,
-        Some(message),
+        bdd::BypassedScenario::new(feature_path, scenario_name, line)
+            .with_tags(&tags)
+            .with_reason(Some(message)),
         [bypassed_step],
     );
 }
