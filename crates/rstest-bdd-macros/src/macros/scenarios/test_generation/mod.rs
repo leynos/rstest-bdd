@@ -335,6 +335,7 @@ pub(super) fn generate_scenario_test(
         harness: harness_ref,
         attributes: ctx.attributes,
         resolutions: Some(ctx.resolutions),
+        fallback_diagnostics: None,
     };
     generate_scenario_code(
         &config,

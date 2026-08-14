@@ -64,6 +64,7 @@ fn scenario_output_with_shared_resolutions(
         harness,
         attributes: None,
         resolutions: Some(resolutions),
+        fallback_diagnostics: None,
     };
 
     generate_scenario_code(
