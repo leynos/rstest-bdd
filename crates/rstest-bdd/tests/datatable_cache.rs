@@ -97,10 +97,6 @@ fn counting_table(#[datatable] mut datatable: CountingTable) {
 }
 
 #[test]
-#[expect(
-    clippy::expect_used,
-    reason = "Using expect in tests provides clearer diagnostics for step lookup failures."
-)]
 fn cached_table_reuses_conversion_for_identical_table_pointer() {
     const TABLE: &[&[&str]] = &[&["foo", "bar"], &["baz", "qux"]];
 
@@ -123,10 +119,6 @@ fn cached_table_reuses_conversion_for_identical_table_pointer() {
 }
 
 #[test]
-#[expect(
-    clippy::expect_used,
-    reason = "Using expect in tests provides clearer diagnostics for step lookup failures."
-)]
 fn cached_table_cache_separates_distinct_tables() {
     const TABLE_ONE: &[&[&str]] = &[&["alpha"], &["beta"]];
     const TABLE_TWO: &[&[&str]] = &[&["gamma"], &["delta"]];
@@ -153,10 +145,6 @@ fn cached_table_cache_separates_distinct_tables() {
 }
 
 #[test]
-#[expect(
-    clippy::expect_used,
-    reason = "Using expect in tests provides clearer diagnostics for step lookup failures."
-)]
 fn cached_table_cache_is_scoped_per_step_wrapper() {
     const TABLE: &[&[&str]] = &[&["foo", "bar"], &["baz", "qux"]];
 
@@ -189,10 +177,6 @@ fn cached_table_cache_is_scoped_per_step_wrapper() {
 }
 
 #[test]
-#[expect(
-    clippy::expect_used,
-    reason = "Using expect in tests provides clearer diagnostics for step lookup failures."
-)]
 fn datatable_vec_path_clones_per_call_and_preserves_isolation() {
     const TABLE: &[&[&str]] = &[&["foo", "bar"], &["baz", "qux"]];
 

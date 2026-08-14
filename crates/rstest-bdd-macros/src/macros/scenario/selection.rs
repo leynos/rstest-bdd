@@ -240,16 +240,11 @@ mod tests {
     }
 
     #[test]
-    #[expect(
-        clippy::expect_used,
-        reason = "this test asserts successful scenario selection"
-    )]
-    fn finds_a_uniquely_named_scenario() -> Result<(), gherkin::ParseError> {
-        let feature = parse_feature(TWO_SCENARIOS)?;
+    fn finds_a_uniquely_named_scenario() {
+        let feature = parse_feature(TWO_SCENARIOS).expect("test setup should succeed");
         let index = find_scenario_by_name(&feature, "second", Span::call_site())
             .expect("uniquely named scenario should resolve");
         assert_eq!(index, 1);
-        Ok(())
     }
 
     #[rstest]
@@ -289,14 +284,13 @@ mod tests {
     }
 
     #[test]
-    fn missing_name_diagnostic_notes_empty_features() -> Result<(), gherkin::ParseError> {
-        let feature = parse_feature("Feature: demo\n")?;
+    fn missing_name_diagnostic_notes_empty_features() {
+        let feature = parse_feature("Feature: demo\n").expect("test setup should succeed");
         let message = scenario_not_found_error(&feature, "any", Span::call_site()).to_string();
         assert!(
             message.contains("feature contains no scenarios"),
             "diagnostic should note the empty feature: {message}"
         );
-        Ok(())
     }
 
     #[test]

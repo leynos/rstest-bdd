@@ -217,10 +217,6 @@ mod tests {
     }
 
     #[test]
-    #[expect(
-        clippy::expect_used,
-        reason = "test verifies error case with descriptive failure"
-    )]
     fn rejects_invalid_keyword() {
         let result = "invalid".parse::<StepKeyword>();
         assert!(result.is_err());

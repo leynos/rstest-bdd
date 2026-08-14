@@ -31,7 +31,6 @@ fn unknown_escape_is_literal(
     #[case] nonmatching: &'static str,
 ) {
     let pat = compiled(pattern);
-    #[expect(clippy::expect_used, reason = "test asserts literal match")]
     let caps = extract_placeholders(&pat, StepText::from(matching))
         .expect("literal character should match");
     assert!(caps.is_empty(), "no placeholders expected");
@@ -45,7 +44,6 @@ fn unknown_escape_is_literal(
 fn trailing_backslash_is_literal() {
     // Use a normal string here; raw strings cannot end with a backslash.
     let pat = compiled("foo\\");
-    #[expect(clippy::expect_used, reason = "test asserts literal match")]
     let caps = extract_placeholders(&pat, StepText::from("foo\\"))
         .expect("literal backslash should match");
     assert!(caps.is_empty(), "no placeholders expected");
@@ -59,7 +57,6 @@ fn trailing_backslash_is_literal() {
 fn unknown_escape_inside_stray_depth_is_literal() {
     // The opening "{" puts the scanner into stray-depth mode; "\d" must stay literal.
     let pat = compiled(r"start{ \d }end");
-    #[expect(clippy::expect_used, reason = "test asserts literal match")]
     let caps = extract_placeholders(&pat, StepText::from(r"start{ d }end"))
         .expect("literal d should match inside stray depth");
     assert!(caps.is_empty(), "no placeholders expected");

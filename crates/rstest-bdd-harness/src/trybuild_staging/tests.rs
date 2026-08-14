@@ -31,14 +31,11 @@ fn copy_file_staging() -> io::Result<CopyFileStaging> {
 }
 
 #[rstest]
-fn copy_file_overwrites_existing_destination(
-    copy_file_staging: io::Result<CopyFileStaging>,
-) -> io::Result<()> {
-    let staging = copy_file_staging?;
+fn copy_file_overwrites_existing_destination(copy_file_staging: io::Result<CopyFileStaging>) {
+    let staging = copy_file_staging.expect("test setup should succeed");
     let CopyFileStaging { src, dst, .. } = &staging;
-    copy_file(src, dst)?;
-    assert_eq!(fs::read(dst)?, b"new");
-    Ok(())
+    copy_file(src, dst).expect("test setup should succeed");
+    assert_eq!(fs::read(dst).expect("test setup should succeed"), b"new");
 }
 
 struct ReplaceDstStaging {
@@ -83,28 +80,24 @@ fn replace_dir_staging() -> io::Result<ReplaceDstStaging> {
 }
 
 #[rstest]
-fn copy_dir_tree_replaces_existing_directory(
-    replace_dir_staging: io::Result<ReplaceDstStaging>,
-) -> io::Result<()> {
-    let staging = replace_dir_staging?;
+fn copy_dir_tree_replaces_existing_directory(replace_dir_staging: io::Result<ReplaceDstStaging>) {
+    let staging = replace_dir_staging.expect("test setup should succeed");
     let ReplaceDstStaging { src, dst, .. } = &staging;
-    copy_dir_tree(src, dst)?;
+    copy_dir_tree(src, dst).expect("test setup should succeed");
     assert!(dst.join("sub").join("a.txt").exists());
     // Stale directory must be gone.
     assert!(!dst.join("stale").exists());
-    Ok(())
 }
 
 #[rstest]
 fn copy_dir_tree_creates_missing_destination_parents(
     replace_dir_staging: io::Result<ReplaceDstStaging>,
-) -> io::Result<()> {
-    let staging = replace_dir_staging?;
+) {
+    let staging = replace_dir_staging.expect("test setup should succeed");
     let ReplaceDstStaging { src, dst, .. } = &staging;
     let nested_dst = dst.join("nested").join("tree");
-    copy_dir_tree(src, &nested_dst)?;
+    copy_dir_tree(src, &nested_dst).expect("test setup should succeed");
     assert!(nested_dst.join("sub").join("a.txt").exists());
-    Ok(())
 }
 
 #[fixture]
@@ -124,26 +117,27 @@ fn replace_file_dest_staging() -> io::Result<ReplaceDstStaging> {
 #[rstest]
 fn copy_dir_tree_replaces_existing_file_destination(
     replace_file_dest_staging: io::Result<ReplaceDstStaging>,
-) -> io::Result<()> {
-    let staging = replace_file_dest_staging?;
+) {
+    let staging = replace_file_dest_staging.expect("test setup should succeed");
     let ReplaceDstStaging { src, dst, .. } = &staging;
-    copy_dir_tree(src, dst)?;
+    copy_dir_tree(src, dst).expect("test setup should succeed");
     assert!(dst.join("f.txt").exists());
-    Ok(())
 }
 
 #[test]
-fn copy_dir_tree_creates_missing_destination_parent_chain() -> io::Result<()> {
-    let (root, src, dst) = make_src_dst_scaffold()?;
+fn copy_dir_tree_creates_missing_destination_parent_chain() {
+    let (root, src, dst) = make_src_dst_scaffold().expect("test setup should succeed");
     let dst = dst.join("missing").join("parents");
-    fs::create_dir_all(&src)?;
-    fs::write(src.join("f.txt"), b"hello")?;
+    fs::create_dir_all(&src).expect("test setup should succeed");
+    fs::write(src.join("f.txt"), b"hello").expect("test setup should succeed");
 
-    copy_dir_tree(&src, &dst)?;
+    copy_dir_tree(&src, &dst).expect("test setup should succeed");
 
-    assert_eq!(fs::read(dst.join("f.txt"))?, b"hello");
+    assert_eq!(
+        fs::read(dst.join("f.txt")).expect("test setup should succeed"),
+        b"hello"
+    );
     drop(root);
-    Ok(())
 }
 
 #[derive(Clone)]
@@ -212,32 +206,29 @@ fn symlink_in_source_staging() -> io::Result<SymlinkInSourceStaging> {
 #[cfg(unix)]
 fn copy_dir_tree_rejects_symlink_in_source(
     symlink_in_source_staging: io::Result<SymlinkInSourceStaging>,
-) -> io::Result<()> {
-    let staging = symlink_in_source_staging?;
+) {
+    let staging = symlink_in_source_staging.expect("test setup should succeed");
     let SymlinkInSourceStaging { src, dst, .. } = &staging;
-    #[expect(clippy::expect_used, reason = "the test asserts the copy is rejected")]
     let err = { copy_dir_tree(src, dst).expect_err("failed to copy dir tree") };
     assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
     assert!(
         err.to_string().contains("refusing to follow symlink"),
         "unexpected error message: {err}"
     );
-    Ok(())
 }
 
 #[test]
 #[cfg(unix)]
-fn copy_dir_tree_rejects_symlink_as_source_root() -> io::Result<()> {
+fn copy_dir_tree_rejects_symlink_as_source_root() {
     use std::os::unix::fs::symlink;
 
-    let root = TempDir::new()?;
+    let root = TempDir::new().expect("test setup should succeed");
     let tree = root.path().join("tree");
     let src = root.path().join("src");
     let dst = root.path().join("dst");
-    fs::create_dir_all(&tree)?;
-    fs::write(tree.join("f.txt"), b"x")?;
-    symlink(&tree, &src)?;
-    #[expect(clippy::expect_used, reason = "the test asserts the copy is rejected")]
+    fs::create_dir_all(&tree).expect("test setup should succeed");
+    fs::write(tree.join("f.txt"), b"x").expect("test setup should succeed");
+    symlink(&tree, &src).expect("test setup should succeed");
     let err = copy_dir_tree(&src, &dst).expect_err("expected symlink source root rejection");
     assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
     assert!(
@@ -248,24 +239,22 @@ fn copy_dir_tree_rejects_symlink_as_source_root() -> io::Result<()> {
         !dst.exists(),
         "destination should not be created when source root is a symlink"
     );
-    Ok(())
 }
 
 #[test]
 #[cfg(unix)]
-fn copy_dir_tree_symlink_source_does_not_remove_destination() -> io::Result<()> {
+fn copy_dir_tree_symlink_source_does_not_remove_destination() {
     use std::os::unix::fs::symlink;
 
-    let root = TempDir::new()?;
+    let root = TempDir::new().expect("test setup should succeed");
     let tree = root.path().join("tree");
     let src = root.path().join("src");
     let dst = root.path().join("dst");
-    fs::create_dir_all(&tree)?;
-    fs::write(tree.join("in-tree.txt"), b"inside-tree")?;
-    fs::create_dir_all(&dst)?;
-    fs::write(dst.join("marker.txt"), b"untouched")?;
-    symlink(&tree, &src)?;
-    #[expect(clippy::expect_used, reason = "the test asserts the copy is rejected")]
+    fs::create_dir_all(&tree).expect("test setup should succeed");
+    fs::write(tree.join("in-tree.txt"), b"inside-tree").expect("test setup should succeed");
+    fs::create_dir_all(&dst).expect("test setup should succeed");
+    fs::write(dst.join("marker.txt"), b"untouched").expect("test setup should succeed");
+    symlink(&tree, &src).expect("test setup should succeed");
     let err = copy_dir_tree(&src, &dst).expect_err("symlink source must be rejected");
     assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
     assert!(
@@ -274,59 +263,52 @@ fn copy_dir_tree_symlink_source_does_not_remove_destination() -> io::Result<()> 
     );
     assert!(dst.is_dir(), "destination directory must still exist");
     assert_eq!(
-        fs::read_to_string(dst.join("marker.txt"))?,
+        fs::read_to_string(dst.join("marker.txt")).expect("test setup should succeed"),
         "untouched",
         "destination contents must be unchanged (remove_destination must not run)"
     );
-    Ok(())
 }
 
 #[test]
-fn copy_dir_tree_rejects_identical_source_and_destination() -> io::Result<()> {
-    let root = TempDir::new()?;
+fn copy_dir_tree_rejects_identical_source_and_destination() {
+    let root = TempDir::new().expect("test setup should succeed");
     let dir = root.path().join("tree");
-    fs::create_dir_all(&dir)?;
-    #[expect(clippy::expect_used, reason = "the test asserts the copy is rejected")]
+    fs::create_dir_all(&dir).expect("test setup should succeed");
     let err = copy_dir_tree(&dir, &dir).expect_err("identical source and destination");
     assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
     assert!(
         err.to_string().contains("refusing overlapping"),
         "unexpected error message: {err}"
     );
-    Ok(())
 }
 
 #[test]
-fn copy_dir_tree_rejects_destination_inside_source() -> io::Result<()> {
-    let root = TempDir::new()?;
+fn copy_dir_tree_rejects_destination_inside_source() {
+    let root = TempDir::new().expect("test setup should succeed");
     let src = root.path().join("src");
-    fs::create_dir_all(&src)?;
-    fs::write(src.join("f.txt"), b"x")?;
+    fs::create_dir_all(&src).expect("test setup should succeed");
+    fs::write(src.join("f.txt"), b"x").expect("test setup should succeed");
     let dst = src.join("nested_dst");
-    #[expect(clippy::expect_used, reason = "the test asserts the copy is rejected")]
     let err = copy_dir_tree(&src, &dst).expect_err("destination inside source");
     assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
     assert!(
         err.to_string().contains("refusing overlapping"),
         "unexpected error message: {err}"
     );
-    Ok(())
 }
 
 #[test]
-fn copy_dir_tree_rejects_source_inside_destination() -> io::Result<()> {
-    let root = TempDir::new()?;
+fn copy_dir_tree_rejects_source_inside_destination() {
+    let root = TempDir::new().expect("test setup should succeed");
     let dst = root.path().join("dst");
-    fs::create_dir_all(&dst)?;
+    fs::create_dir_all(&dst).expect("test setup should succeed");
     let src = dst.join("inner_src");
-    fs::create_dir_all(&src)?;
-    fs::write(src.join("g.txt"), b"y")?;
-    #[expect(clippy::expect_used, reason = "the test asserts the copy is rejected")]
+    fs::create_dir_all(&src).expect("test setup should succeed");
+    fs::write(src.join("g.txt"), b"y").expect("test setup should succeed");
     let err = copy_dir_tree(&src, &dst).expect_err("source inside destination");
     assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
     assert!(
         err.to_string().contains("refusing overlapping"),
         "unexpected error message: {err}"
     );
-    Ok(())
 }

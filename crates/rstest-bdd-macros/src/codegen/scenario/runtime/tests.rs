@@ -67,10 +67,6 @@ impl<'a> StepExecutorExpectation<'a> {
 /// * `tokens` - The generated token stream to parse
 /// * `function_name` - The name of the function to find in the generated code
 /// * `description` - A human-readable description for error messages
-#[expect(
-    clippy::panic,
-    reason = "test helper panics for clearer failure messages"
-)]
 fn assert_step_executor_delegates_to_runtime(
     tokens: proc_macro2::TokenStream,
     expectation: StepExecutorExpectation<'_>,
@@ -175,10 +171,6 @@ fn step_executor_delegates_to_runtime(#[case] executor_type: ExecutorType) {
 /// `ExecutionError` reference and calls its `is_skip()` and `skip_message()`
 /// methods to extract skip information.
 #[test]
-#[expect(
-    clippy::expect_used,
-    reason = "test parses generated tokens and uses expect for clearer failures"
-)]
 fn skip_extractor_references_execution_error() {
     let file: syn::File =
         syn::parse2(generate_skip_extractor()).expect("generate_skip_extractor parses as a file");
@@ -220,7 +212,6 @@ fn skip_extractor_references_execution_error() {
     );
 }
 
-#[expect(clippy::panic, reason = "test helper panics for clearer failures")]
 fn assert_skip_handler_returns(
     return_kind: ScenarioReturnKind,
     empty_message: &str,

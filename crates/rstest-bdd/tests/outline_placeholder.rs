@@ -3,11 +3,6 @@
 //! These tests verify that `<placeholder>` tokens in step text are substituted
 //! with values from the Examples table before step matching occurs.
 
-#![expect(
-    clippy::expect_used,
-    reason = "integration tests use expect for clarity"
-)]
-
 use rstest_bdd_macros::{given, scenario, then, when};
 use serial_test::serial;
 use std::sync::{LazyLock, Mutex, MutexGuard};

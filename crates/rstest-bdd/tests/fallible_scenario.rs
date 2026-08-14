@@ -101,7 +101,6 @@ fn fallible_success_records_pass() {
 
 #[tokio::test]
 async fn fallible_async_success_records_pass() {
-    #[expect(clippy::panic, reason = "test helper panics for clearer failures")]
     async fn assert_fallible_async_success_records_pass() {
         let join = tokio::task::spawn_blocking(|| {
             serial_test::local_serial_core_with_return("", || {

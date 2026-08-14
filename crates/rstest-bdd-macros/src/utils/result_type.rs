@@ -104,7 +104,6 @@ pub(crate) fn try_extract_result_error_type(ty: &Type) -> Option<Type> {
 }
 
 #[cfg(test)]
-#[expect(clippy::expect_used, reason = "test code uses infallible type parsing")]
 mod tests {
     //! Unit tests for detecting `Result`-like return types.
 

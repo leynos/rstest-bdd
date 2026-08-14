@@ -171,10 +171,6 @@ fn find_matching_feature_locations(
 }
 
 #[cfg(test)]
-#[expect(
-    clippy::expect_used,
-    reason = "tests require explicit panic messages for debugging failures"
-)]
 mod tests {
     //! Unit tests for go-to-definition handling.
 

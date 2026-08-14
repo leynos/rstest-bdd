@@ -38,7 +38,6 @@ fn generates_ascii_only_idents(
     #[case] expected_const: &str,
     #[case] expected_pattern: &str,
 ) {
-    #[expect(clippy::expect_used, reason = "raw identifiers are test inputs")]
     let ident = parse_str::<syn::Ident>(raw).expect("parse identifier");
     let WrapperIdents {
         sync_wrapper,

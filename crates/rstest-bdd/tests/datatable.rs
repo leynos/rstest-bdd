@@ -194,7 +194,6 @@ fn derive_data_table_row_parses_and_maps_columns() {
             String::from(" 42 "),
         ],
     ];
-    #[expect(clippy::expect_used, reason = "test asserts successful parse")]
     let rows = Rows::<DerivedRow>::try_from(table).expect("rows should parse");
     assert_eq!(
         rows.into_vec(),
@@ -275,7 +274,6 @@ fn datatable_tuple_struct_support() {
             String::from("false"),
         ],
     ];
-    #[expect(clippy::expect_used, reason = "test asserts successful parse")]
     let rows = Rows::<TupleRow>::try_from(table).expect("tuple rows should parse");
     assert_eq!(
         rows.into_vec(),
@@ -311,15 +309,12 @@ fn derive_data_table_supports_collection_wrappers_and_hooks() {
             String::from("43"),
         ],
     ];
-    #[expect(clippy::expect_used, reason = "test asserts successful parse")]
     let collection =
         DerivedRowCollection::try_from(table.clone()).expect("collection should parse");
     assert_eq!(collection.0.len(), 2);
-    #[expect(clippy::expect_used, reason = "test asserts successful parse")]
     let DerivedRowVecCollection(vec_rows) =
         DerivedRowVecCollection::try_from(table.clone()).expect("vec should parse");
     assert_eq!(vec_rows.len(), 2);
-    #[expect(clippy::expect_used, reason = "test asserts successful parse")]
     let ActiveNames(active) = ActiveNames::try_from(table).expect("hook should parse");
     assert_eq!(active, vec![String::from("Alice")]);
 }

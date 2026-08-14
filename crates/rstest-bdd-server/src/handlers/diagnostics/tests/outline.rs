@@ -127,9 +127,7 @@ fn scenario_outline_column_validation(
 }
 
 #[rstest]
-fn regular_scenario_no_column_diagnostics(
-    scenario_builder: ScenarioBuilder,
-) -> std::io::Result<()> {
+fn regular_scenario_no_column_diagnostics(scenario_builder: ScenarioBuilder) {
     // Regular scenarios (not outlines) should not produce column diagnostics
     let scenario = scenario_builder.with_single_file_pair(
         concat!(
@@ -140,13 +138,12 @@ fn regular_scenario_no_column_diagnostics(
         "// no step definitions\n",
     );
     let diagnostics =
-        compute_scenario_outline_diagnostics_for_path(&scenario.state, &scenario.feature_path)?;
+        compute_scenario_outline_diagnostics_for_path(&scenario.state, &scenario.feature_path)
+            .expect("test setup should succeed");
     assert!(
         diagnostics.is_empty(),
         "regular scenarios should produce no column diagnostics"
     );
-
-    Ok(())
 }
 
 #[rstest]

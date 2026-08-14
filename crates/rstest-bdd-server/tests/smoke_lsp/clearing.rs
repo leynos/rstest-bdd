@@ -18,7 +18,6 @@ use super::{MAX_RECV_MESSAGES, ServerHandle, server};
 /// payload-only `prepare_publish` tests cannot observe.
 #[rstest]
 #[expect(
-    clippy::expect_used,
     clippy::indexing_slicing,
     reason = "test assertions use .expect() and indexing for clear failure messages"
 )]
@@ -94,7 +93,6 @@ fn smoke_feature_diagnostics_cleared_once_step_implemented(mut server: ServerHan
 /// which the payload-only `prepare_publish` tests cannot observe.
 #[rstest]
 #[expect(
-    clippy::expect_used,
     clippy::indexing_slicing,
     reason = "test assertions use .expect() and indexing for clear failure messages"
 )]
