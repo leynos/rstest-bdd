@@ -721,7 +721,7 @@ The architectural rationale explains this decision and its consequences.[^6]
 [^2]: ../crates/rstest-bdd/src/execution/mod.rs
 [^3]: ../crates/rstest-bdd-macros/src/macros/scenarios/macro_args/mod.rs
 [^4]: ../crates/rstest-bdd/src/execution/tests.rs
-[^5]: ../crates/rstest-bdd-macros/src/macros/scenarios/macro_args/tests.rs
+[^5]: ../crates/rstest-bdd-macros/src/macros/scenarios/macro_args/tests/mod.rs
 [^6]: adr-004-policy-crate.md
 
 ## Internal test infrastructure
