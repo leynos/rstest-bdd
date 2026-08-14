@@ -100,6 +100,7 @@ option_if_let_else = "deny"
 use_self = "deny"
 string_lit_as_bytes = "deny"
 float_arithmetic = "deny"
+missing_panics_doc = "deny"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
