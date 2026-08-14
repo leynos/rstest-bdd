@@ -106,6 +106,10 @@ float_arithmetic = "deny"
 missing_panics_doc = "deny"
 
 [workspace.lints.rust]
+# `rstest` fixtures are re-emitted as nested blocks. Combined with
+# `fn_single_line` in `.rustfmt.toml`, rustc sees an inner block whose braces
+# cannot be scoped away from macro expansion diagnostics.
+unused_braces = "allow"
 unsafe_code = "forbid"
 missing_docs = "deny"
 

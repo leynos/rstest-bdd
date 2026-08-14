@@ -10,25 +10,40 @@ use metrics::{counter, describe_counter};
 use tracing::{debug, warn};
 
 use super::{
-    diagnostics::{
-        FeatureDiagnosticPublication,
-        clear_rust_index_diagnostics,
-        publish_all_feature_diagnostics,
-        publish_feature_diagnostics,
-        publish_rust_index_result_diagnostics,
+    diagnostics::{,
+    FeatureDiagnosticPublication,
+    clear_rust_index_diagnostics,
+    publish_all_feature_diagnostics,
+    publish_feature_diagnostics,
+    publish_rust_index_result_diagnostics,
+    publish_rust_diagnostics,
     },
     util::has_extension,
     workspace_metrics::{record_deferred_save_depth, record_workspace_outcome},
 };
 use crate::{
-    indexing::{
-        FeatureIndexError,
-        RustStepIndexError,
-        index_feature_source,
-        index_rust_file,
-        index_rust_source,
+    indexing::{,
+    FeatureIndexError,
+    RustStepIndexError,
+    index_feature_source,
+    index_rust_file,
+    index_rust_source,
+    server::ServerState,
+    indexing::{index_feature_file, index_feature_source, index_rust_file, index_rust_source},
     },
     server::ServerState,
+};
+
+
+//! Text document notification handlers.
+//!
+//! Phase 7 focuses on building language-server foundations. This module
+//! provides the on-save indexing pipeline for `.feature` files and Rust step
+//! definition sources. Indexing results are stored in the shared server state.
+//! After indexing, diagnostics are computed and published via the LSP protocol.
+    diagnostics::{
+};
+    indexing::{
 };
 
 const INDEXING_COUNTER: &str = "rstest_bdd_server_indexing_total";

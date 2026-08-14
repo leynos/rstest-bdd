@@ -22,6 +22,14 @@ use rstest_bdd_server::{
 };
 use tempfile::TempDir;
 
+
+//! Behavioural tests for `textDocument/implementation` navigation.
+//!
+//! These tests verify end-to-end navigation from feature steps in `.feature`
+//! files to matching Rust step implementations.
+};
+};
+
 fn make_params(uri: Url, line: u32, character: u32) -> GotoImplementationParams {
     GotoImplementationParams {
         text_document_position_params: TextDocumentPositionParams {

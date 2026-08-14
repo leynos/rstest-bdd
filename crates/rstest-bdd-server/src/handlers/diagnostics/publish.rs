@@ -23,6 +23,17 @@ use super::{
 };
 use crate::{indexing::RustStepIndexDiagnostic, server::ServerState};
 
+
+//! Diagnostic publishing via LSP.
+//!
+//! This module handles publishing diagnostics to the LSP client via
+//! `textDocument/publishDiagnostics` notifications. All publishing flows
+//! through the canonical [`publish_with`] boundary: one place owns the
+//! client/URI guards, parameter construction, notification, and error
+//! logging. The per-file-kind functions only differ in the diagnostics they
+//! compute.
+};
+
 /// Compute all diagnostics for a feature file, or `None` when the file has
 /// no feature index (in which case nothing is published, preserving any
 /// previously published diagnostics).

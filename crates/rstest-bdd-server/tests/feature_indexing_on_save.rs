@@ -12,6 +12,10 @@ use rstest_bdd_server::{
 };
 use tempfile::TempDir;
 
+
+//! Behavioural test for `.feature` file indexing on save.
+};
+
 #[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn workspace_root() -> TempDir {
