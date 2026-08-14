@@ -4,10 +4,10 @@
 //! step arguments from regex captures, including support for the `:string` type
 //! hint which strips surrounding quotes.
 
-use super::super::args::Arg;
-use super::{StepMeta, is_str_reference, step_error_tokens};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
+
+use super::{super::args::Arg, StepMeta, is_str_reference, step_error_tokens};
 
 /// Context for generating argument binding code.
 struct BindingContext<'a> {

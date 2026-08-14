@@ -7,9 +7,19 @@
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use rstest_bdd::{
-    FixtureRequirement, RSTEST_BDD_HARNESS_CONTEXT_FIXTURE, StepContext, StepError, StepExecution,
-    StepExecutionMode, StepFixtureRequirements, StepFuture, StepKeyword, StepPattern,
-    panic_message, step, submit,
+    FixtureRequirement,
+    RSTEST_BDD_HARNESS_CONTEXT_FIXTURE,
+    StepContext,
+    StepError,
+    StepExecution,
+    StepExecutionMode,
+    StepFixtureRequirements,
+    StepFuture,
+    StepKeyword,
+    StepPattern,
+    panic_message,
+    step,
+    submit,
 };
 
 use super::async_wrapper::{StepInvocationParams, wrap_sync_step_as_async};

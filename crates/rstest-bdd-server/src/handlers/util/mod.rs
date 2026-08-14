@@ -13,10 +13,9 @@ use std::path::Path;
 use gherkin::Span;
 use lsp_types::{Position, Range};
 
-use crate::util::utf16_code_units;
-
 // Re-export for backwards compatibility
 pub use crate::util::byte_col_to_utf16_col;
+use crate::util::utf16_code_units;
 
 /// Check whether `path` has the file extension `ext`, ignoring ASCII case.
 ///
@@ -34,6 +33,7 @@ pub use crate::util::byte_col_to_utf16_col;
 ///
 /// ```
 /// use std::path::Path;
+///
 /// use rstest_bdd_server::handlers::util::has_extension;
 ///
 /// assert!(has_extension(Path::new("steps.rs"), "rs"));

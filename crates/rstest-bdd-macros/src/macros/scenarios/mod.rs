@@ -12,24 +12,35 @@ mod macro_args;
 mod path_resolution;
 mod test_generation;
 
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+};
+
 use proc_macro::TokenStream;
 use proc_macro_error::emit_warning;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{format_ident, quote};
-use std::collections::HashSet;
-use std::path::{Path, PathBuf};
 
-use crate::parsing::feature::{extract_scenario_steps, parse_and_load_feature};
-use crate::parsing::tags::TagExpression;
-use crate::utils::errors::{error_to_tokens, normalized_dir_read_error};
-use crate::utils::ident::sanitize_ident;
-
-use self::feature_discovery::collect_feature_files;
-use self::macro_args::{FixtureSpec, RuntimeMode, ScenariosArgs};
-use self::test_generation::{ScenarioTestContext, generate_scenario_test};
-
-pub(crate) use self::macro_args::RuntimeMode as ScenariosRuntimeMode;
-pub(crate) use self::macro_args::TestAttributeHint as ScenariosTestAttributeHint;
+pub(crate) use self::macro_args::{
+    RuntimeMode as ScenariosRuntimeMode,
+    TestAttributeHint as ScenariosTestAttributeHint,
+};
+use self::{
+    feature_discovery::collect_feature_files,
+    macro_args::{FixtureSpec, RuntimeMode, ScenariosArgs},
+    test_generation::{ScenarioTestContext, generate_scenario_test},
+};
+use crate::{
+    parsing::{
+        feature::{extract_scenario_steps, parse_and_load_feature},
+        tags::TagExpression,
+    },
+    utils::{
+        errors::{error_to_tokens, normalized_dir_read_error},
+        ident::sanitize_ident,
+    },
+};
 
 struct TagFilter {
     expr: TagExpression,
@@ -182,16 +193,14 @@ fn emit_runtime_deprecation_warning(runtime: RuntimeMode, harness: Option<&syn::
     if harness.is_some() {
         emit_warning!(
             Span::call_site(),
-            "the `runtime = \"tokio-current-thread\"` argument is \
-             deprecated and redundant when an explicit `harness` is set; \
-             remove the `runtime` argument"
+            "the `runtime = \"tokio-current-thread\"` argument is deprecated and redundant when \
+             an explicit `harness` is set; remove the `runtime` argument"
         );
     } else {
         emit_warning!(
             Span::call_site(),
-            "the `runtime = \"tokio-current-thread\"` syntax is \
-             deprecated; use \
-             `harness = rstest_bdd_harness_tokio::TokioHarness` instead"
+            "the `runtime = \"tokio-current-thread\"` syntax is deprecated; use `harness = \
+             rstest_bdd_harness_tokio::TokioHarness` instead"
         );
     }
 }
@@ -265,11 +274,11 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
 mod tests {
     //! Unit tests for the `scenarios!` macro entry point.
 
-    use super::feature_discovery::collect_feature_files;
-    use std::fs;
-    use std::os::unix::fs::symlink;
-    use std::path::Path;
+    use std::{fs, os::unix::fs::symlink, path::Path};
+
     use tempfile::tempdir;
+
+    use super::feature_discovery::collect_feature_files;
 
     #[test]
     fn collects_symlinked_feature_files_without_following_directory_loops() {

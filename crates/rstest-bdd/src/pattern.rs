@@ -2,11 +2,15 @@
 //! This module defines `StepPattern`, a lightweight wrapper around a pattern
 //! literal that compiles lazily to a regular expression.
 
-use crate::types::{PlaceholderSyntaxError, StepPatternError};
+use std::{
+    hash::{Hash, Hasher},
+    sync::OnceLock,
+};
+
 use regex::Regex;
 use rstest_bdd_patterns::{PatternError, SpecificityScore, compile_regex_from_pattern};
-use std::hash::{Hash, Hasher};
-use std::sync::OnceLock;
+
+use crate::types::{PlaceholderSyntaxError, StepPatternError};
 
 /// Pattern text used to match a step at runtime.
 #[derive(Debug)]
@@ -20,17 +24,13 @@ pub struct StepPattern {
 // `&'static StepPattern` to be used as a stable map key while keeping
 // semantics intuitive and independent of allocation identity.
 impl PartialEq for StepPattern {
-    fn eq(&self, other: &Self) -> bool {
-        self.text == other.text
-    }
+    fn eq(&self, other: &Self) -> bool { self.text == other.text }
 }
 
 impl Eq for StepPattern {}
 
 impl Hash for StepPattern {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.text.hash(state);
-    }
+    fn hash<H: Hasher>(&self, state: &mut H) { self.text.hash(state); }
 }
 
 impl From<PatternError> for StepPatternError {
@@ -57,9 +57,7 @@ impl StepPattern {
 
     /// Access the underlying pattern string.
     #[must_use]
-    pub const fn as_str(&self) -> &'static str {
-        self.text
-    }
+    pub const fn as_str(&self) -> &'static str { self.text }
 
     /// Compile the pattern into a regular expression, caching the result.
     ///
@@ -68,13 +66,10 @@ impl StepPattern {
     /// generated regex fails to compile.
     ///
     /// # Notes
-    /// - This operation is idempotent. Subsequent calls after a successful
-    ///   compilation are no-ops.
-    /// - This method is thread-safe; concurrent calls may race to build a
-    ///   `Regex`, but only the first successful value is cached.
-    pub fn compile(&self) -> Result<(), StepPatternError> {
-        self.compiled_regex().map(|_| ())
-    }
+    /// - This operation is idempotent. Subsequent calls after a successful compilation are no-ops.
+    /// - This method is thread-safe; concurrent calls may race to build a `Regex`, but only the
+    ///   first successful value is cached.
+    pub fn compile(&self) -> Result<(), StepPatternError> { self.compiled_regex().map(|_| ()) }
 
     /// Return the compiled regular expression, compiling it on first use.
     ///
@@ -102,10 +97,9 @@ impl StepPattern {
     ///
     /// # Notes
     ///
-    /// - This operation is idempotent. Subsequent calls after a successful
-    ///   calculation are no-ops.
-    /// - This method is thread-safe; concurrent calls may race to compute
-    ///   the score, but only the first successful value is cached.
+    /// - This operation is idempotent. Subsequent calls after a successful calculation are no-ops.
+    /// - This method is thread-safe; concurrent calls may race to compute the score, but only the
+    ///   first successful value is cached.
     ///
     /// # Examples
     ///
@@ -130,17 +124,16 @@ impl StepPattern {
 }
 
 impl From<&'static str> for StepPattern {
-    fn from(value: &'static str) -> Self {
-        Self::new(value)
-    }
+    fn from(value: &'static str) -> Self { Self::new(value) }
 }
 
 #[cfg(test)]
 mod tests {
     //! Unit tests for step pattern compilation and caching.
 
-    use super::*;
     use std::ptr;
+
+    use super::*;
 
     #[test]
     fn compiled_regex_returns_cached_regex_after_compilation() {

@@ -131,13 +131,11 @@ fn validate_owned_type(ty: &syn::Type) -> syn::Result<()> {
 ///
 /// On success, and only on success:
 ///
-/// - [`Arg::StepStruct`] is appended to `st` and `st.step_struct_idx` is set to
-///   its index.
-/// - `st.blocked_placeholders` is overwritten with a clone of `placeholders`,
-///   recording the names the struct now owns so a later parameter cannot rebind
-///   one. [`super::fixture_or_step`] consults this set.
-/// - `placeholders` is then **cleared**, since the struct consumes every
-///   placeholder at once.
+/// - [`Arg::StepStruct`] is appended to `st` and `st.step_struct_idx` is set to its index.
+/// - `st.blocked_placeholders` is overwritten with a clone of `placeholders`, recording the names
+///   the struct now owns so a later parameter cannot rebind one. [`super::fixture_or_step`]
+///   consults this set.
+/// - `placeholders` is then **cleared**, since the struct consumes every placeholder at once.
 ///
 /// `arg` is not mutated; the marker was already removed by the caller.
 ///
@@ -180,10 +178,11 @@ pub(crate) fn classify_step_struct(
 mod tests {
     //! Unit tests for classifying step struct parameters.
 
-    use super::*;
     use proc_macro2::{Span, TokenStream as TokenStream2};
     use quote::quote;
     use syn::{FnArg, Ident, parse_quote};
+
+    use super::*;
 
     fn placeholder_set(names: &[&str]) -> HashSet<String> {
         names.iter().map(|name| (*name).to_owned()).collect()

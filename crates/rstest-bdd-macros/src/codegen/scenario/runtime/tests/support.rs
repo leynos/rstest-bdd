@@ -1,10 +1,9 @@
 //! Test support helpers for scenario runtime code generation.
 
-use crate::codegen::scenario::ScenarioReturnKind;
 use syn::visit::Visit;
 
-use super::super::generators::generate_skip_handler;
-use super::RuntimeFunction;
+use super::{super::generators::generate_skip_handler, RuntimeFunction};
+use crate::codegen::scenario::ScenarioReturnKind;
 
 /// Return the identifier of the final segment in a `syn::Path`.
 ///
@@ -177,9 +176,7 @@ struct ReturnFinder<'ast> {
 }
 
 impl<'ast> Visit<'ast> for ReturnFinder<'ast> {
-    fn visit_expr_return(&mut self, node: &'ast syn::ExprReturn) {
-        self.returns.push(node);
-    }
+    fn visit_expr_return(&mut self, node: &'ast syn::ExprReturn) { self.returns.push(node); }
 }
 
 /// Collect return expressions within a block.

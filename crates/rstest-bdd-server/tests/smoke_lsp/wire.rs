@@ -4,11 +4,13 @@
 //! server lifecycle helpers for driving the `rstest-bdd-lsp` binary in
 //! end-to-end tests.
 
-use std::io::{BufRead, BufReader, Read, Write};
-use std::path::Path;
-use std::process::{Child, Command, Stdio};
-use std::sync::mpsc;
-use std::time::Duration;
+use std::{
+    io::{BufRead, BufReader, Read, Write},
+    path::Path,
+    process::{Child, Command, Stdio},
+    sync::mpsc,
+    time::Duration,
+};
 
 use serde_json::{Value, json};
 

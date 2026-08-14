@@ -4,9 +4,9 @@
 //! runtime and proc-macro crates, ensuring consistent keyword handling across
 //! compile-time validation and runtime execution.
 
+use std::{fmt, str::FromStr};
+
 use gherkin::StepType;
-use std::fmt;
-use std::str::FromStr;
 
 /// Keyword used to categorize a step definition.
 ///
@@ -33,8 +33,7 @@ pub enum StepKeyword {
 /// One invocation lists each `(canonical rendering, variant)` pair exactly
 /// once and expands to both directions of the mapping:
 ///
-/// - the `KEYWORDS` table driving the case-insensitive
-///   [`StepKeyword::from_str`] lookup, and
+/// - the `KEYWORDS` table driving the case-insensitive [`StepKeyword::from_str`] lookup, and
 /// - the exhaustive match inside [`StepKeyword::as_str`].
 ///
 /// Adding or renaming a keyword therefore means editing exactly one list
@@ -144,9 +143,7 @@ impl FromStr for StepKeyword {
 impl TryFrom<&str> for StepKeyword {
     type Error = StepKeywordParseError;
 
-    fn try_from(value: &str) -> Result<Self, Self::Error> {
-        value.parse()
-    }
+    fn try_from(value: &str) -> Result<Self, Self::Error> { value.parse() }
 }
 
 /// Error raised when converting a parsed Gherkin [`StepType`] into a
@@ -199,8 +196,9 @@ impl TryFrom<StepType> for StepKeyword {
 mod tests {
     //! Unit tests for step keyword parsing and conversion.
 
-    use super::*;
     use rstest::rstest;
+
+    use super::*;
 
     #[rstest]
     #[case("Given", StepKeyword::Given)]

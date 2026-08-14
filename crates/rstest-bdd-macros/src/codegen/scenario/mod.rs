@@ -4,50 +4,60 @@
 //! BDD scenario or scenario outline. The pipeline is partitioned across
 //! five focused sub-modules:
 //!
-//! - [`domain`] — domain types shared across the pipeline (`ScenarioConfig`,
-//!   `ScenarioReturnKind`).
+//! - [`domain`] — domain types shared across the pipeline (`ScenarioConfig`, `ScenarioReturnKind`).
 //! - [`helpers`] — step-processing utilities and case-attribute generators.
-//! - [`metadata`] — strongly-typed wrappers for feature-path and
-//!   scenario-name values used in generated code.
-//! - [`runtime`] — token generation for the async runtime wrapper and the
-//!   harness-orchestrated `ScenarioRunRequest`.
-//! - [`test_attrs`] — ADR-008 attribute-policy resolution, translating
-//!   harness and runtime-mode hints into the correct set of test attributes
-//!   (`#[rstest::rstest]`, `#[tokio::test]`, `#[gpui::test]`).
+//! - [`metadata`] — strongly-typed wrappers for feature-path and scenario-name values used in
+//!   generated code.
+//! - [`runtime`] — token generation for the async runtime wrapper and the harness-orchestrated
+//!   `ScenarioRunRequest`.
+//! - [`test_attrs`] — ADR-008 attribute-policy resolution, translating harness and runtime-mode
+//!   hints into the correct set of test attributes (`#[rstest::rstest]`, `#[tokio::test]`,
+//!   `#[gpui::test]`).
 //!
 //! Public entry points are [`generate_scenario`] and
 //! [`generate_scenario_outline`], which delegate to the internal helpers
 //! after resolving compile-time trait assertions via
 //! [`crate::codegen::rstest_bdd_harness_api_path_for`].
 
+use std::borrow::Cow;
+
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
-use std::borrow::Cow;
 
+mod assertions;
 mod domain;
 mod helpers;
 mod metadata;
 mod runtime;
 mod test_attrs;
 
+use assertions::generate_trait_assertions;
 pub(crate) use domain::*;
 pub(crate) use helpers::process_steps;
 use helpers::{
-    generate_case_attrs, generate_indexed_case_attrs, generate_underscore_expect,
-    process_steps_substituted, row_has_values,
+    generate_case_attrs,
+    generate_indexed_case_attrs,
+    generate_underscore_expect,
+    process_steps_substituted,
+    row_has_values,
 };
 pub(crate) use metadata::{FeaturePath, ScenarioName};
 use runtime::{
-    OutlineTestTokensConfig, ProcessedSteps, ScenarioMetadata, TestTokensConfig,
-    generate_test_tokens, generate_test_tokens_outline,
+    OutlineTestTokensConfig,
+    ProcessedSteps,
+    ScenarioMetadata,
+    TestTokensConfig,
+    generate_test_tokens,
+    generate_test_tokens_outline,
 };
+use test_attrs::{TestAttrPolicy, generate_test_attrs_with_boundary};
 
 pub(crate) use crate::macros::scenarios::ScenariosRuntimeMode as RuntimeMode;
-use crate::macros::scenarios::ScenariosTestAttributeHint as TestAttributeHint;
-
-use crate::parsing::placeholder::contains_placeholders;
-use test_attrs::{TestAttrPolicy, generate_test_attrs_with_boundary};
+use crate::{
+    macros::scenarios::ScenariosTestAttributeHint as TestAttributeHint,
+    parsing::placeholder::contains_placeholders,
+};
 
 /// Return kinds supported by scenario bodies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -57,9 +67,7 @@ pub(crate) enum ScenarioReturnKind {
 }
 
 impl ScenarioReturnKind {
-    pub(crate) fn is_fallible(self) -> bool {
-        matches!(self, Self::ResultUnit)
-    }
+    pub(crate) fn is_fallible(self) -> bool { matches!(self, Self::ResultUnit) }
 }
 
 /// Configuration for generating code for a single scenario test.
@@ -107,43 +115,6 @@ pub(crate) struct ContextConfig<P, I, Q> {
 
 pub(crate) fn scenario_allows_skip(tags: &[String]) -> bool {
     tags.iter().any(|tag| tag == "@allow_skipped")
-}
-
-/// Generate compile-time trait-bound const assertions for harness and attribute
-/// policy types. These are emitted as sibling items alongside the test function
-/// so they produce clear compiler errors when a type does not implement the
-/// required trait.
-fn generate_trait_assertions(
-    harness: Option<&syn::Path>,
-    attributes: Option<&syn::Path>,
-) -> TokenStream2 {
-    if harness.is_none() && attributes.is_none() {
-        return TokenStream2::new();
-    }
-
-    let harness_assertion = harness.map(|harness_path| {
-        let harness_crate = crate::codegen::rstest_bdd_harness_api_path_for(harness_path);
-        quote! {
-            const _: () = {
-                fn __assert_harness<T: #harness_crate::HarnessAdapter + Default>() {}
-                fn __call() { __assert_harness::<#harness_path>(); }
-            };
-        }
-    });
-    let attributes_assertion = attributes.map(|policy_path| {
-        let harness_crate = crate::codegen::rstest_bdd_harness_api_path_for(policy_path);
-        quote! {
-            const _: () = {
-                fn __assert_attr_policy<T: #harness_crate::AttributePolicy>() {}
-                fn __call() { __assert_attr_policy::<#policy_path>(); }
-            };
-        }
-    });
-
-    quote! {
-        #harness_assertion
-        #attributes_assertion
-    }
 }
 
 /// Checks if any step in the scenario contains placeholder tokens.
@@ -260,9 +231,9 @@ where
     if config.harness.is_some() && config.runtime.is_async() {
         let err = syn::Error::new(
             proc_macro2::Span::call_site(),
-            "combining `harness` with `async fn` scenarios is not supported; \
-             use a synchronous scenario function with `TokioHarness` instead \
-             (the harness provides the Tokio runtime for step functions)",
+            "combining `harness` with `async fn` scenarios is not supported; use a synchronous \
+             scenario function with `TokioHarness` instead (the harness provides the Tokio \
+             runtime for step functions)",
         );
         return TokenStream::from(err.into_compile_error());
     }
@@ -323,9 +294,9 @@ where
     if config.harness.is_some() && config.runtime.is_async() {
         let err = syn::Error::new(
             proc_macro2::Span::call_site(),
-            "combining `harness` with `async fn` scenarios is not supported; \
-             use a synchronous scenario function with `TokioHarness` instead \
-             (the harness provides the Tokio runtime for step functions)",
+            "combining `harness` with `async fn` scenarios is not supported; use a synchronous \
+             scenario function with `TokioHarness` instead (the harness provides the Tokio \
+             runtime for step functions)",
         );
         return TokenStream::from(err.into_compile_error());
     }

@@ -6,9 +6,8 @@
 
 use inventory::iter;
 
-use crate::{StepKeyword, StepPattern};
-
 use super::Step;
+use crate::{StepKeyword, StepPattern};
 
 /// Name and Rust type requested for a fixture by a step definition.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -53,8 +52,7 @@ mod tests {
     //! Unit tests for step fixture requirement metadata.
 
     use super::*;
-    use crate::StepKeyword;
-    use crate::registry::Step;
+    use crate::{StepKeyword, registry::Step};
 
     /// A sentinel pattern used only by the unit tests below.
     static UNIT_TEST_PATTERN: crate::StepPattern =

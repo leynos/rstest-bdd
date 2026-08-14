@@ -3,8 +3,10 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 use syn::Type;
 
-use crate::datatable::config::{Accessor, FieldConfig, FieldSpec};
-use crate::datatable::validation::is_string_type;
+use crate::datatable::{
+    config::{Accessor, FieldConfig, FieldSpec},
+    validation::is_string_type,
+};
 
 pub(crate) fn accessor_expr(
     field: &FieldSpec,

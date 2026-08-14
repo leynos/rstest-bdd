@@ -1,11 +1,16 @@
 //! Unit tests for `scenarios!` macro argument parsing.
 
-use super::{
-    FixtureSpec, RuntimeCompatibilityAlias, RuntimeMode, ScenariosArgs, TestAttributeHint,
-    runtime_compatibility_alias,
-};
 use quote::quote;
 use syn::parse_quote;
+
+use super::{
+    FixtureSpec,
+    RuntimeCompatibilityAlias,
+    RuntimeMode,
+    ScenariosArgs,
+    TestAttributeHint,
+    runtime_compatibility_alias,
+};
 
 fn try_parse_scenarios_args(tokens: proc_macro2::TokenStream) -> syn::Result<ScenariosArgs> {
     syn::parse2(tokens)
@@ -27,9 +32,7 @@ macro_rules! parse_scenarios_args {
 fn parse_fixture_spec(tokens: proc_macro2::TokenStream) -> syn::Result<FixtureSpec> {
     syn::parse2(tokens)
 }
-fn type_to_string(ty: &syn::Type) -> String {
-    quote!(#ty).to_string()
-}
+fn type_to_string(ty: &syn::Type) -> String { quote!(#ty).to_string() }
 
 // Centralizes error-message checking so individual rejection tests stay one-liners.
 fn assert_parse_error_contains(result: syn::Result<ScenariosArgs>, expected_keyword: &str) {
@@ -94,9 +97,7 @@ fn fixture_spec_rejects_missing_colon() {
 }
 
 #[test]
-fn fixture_spec_rejects_missing_type() {
-    assert_fixture_parse_fails(parse_quote!(world:));
-}
+fn fixture_spec_rejects_missing_type() { assert_fixture_parse_fails(parse_quote!(world:)); }
 #[test]
 fn scenarios_args_parses_positional_dir() {
     let args: ScenariosArgs = parse_scenarios_args!(parse_quote!("tests/features"));

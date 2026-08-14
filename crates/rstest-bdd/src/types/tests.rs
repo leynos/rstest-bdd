@@ -1,11 +1,13 @@
 //! Unit tests for shared core types and helper enums.
 
-use super::*;
-use crate::localization::{ScopedLocalization, strip_directional_isolates};
+use std::str::FromStr;
+
 use gherkin::StepType;
 use rstest::rstest;
-use std::str::FromStr;
 use unic_langid::langid;
+
+use super::*;
+use crate::localization::{ScopedLocalization, strip_directional_isolates};
 
 fn kw_from_type(ty: StepType) -> StepKeyword {
     match StepKeyword::try_from(ty).map_err(UnsupportedStepType::from) {

@@ -10,13 +10,11 @@ use tokio::runtime::Handle;
 /// # Examples
 ///
 /// ```
-/// use rstest_bdd_macros::given;
 /// use rstest_bdd_harness_tokio::TokioTestContext;
+/// use rstest_bdd_macros::given;
 ///
 /// #[given("a background task is spawned")]
-/// async fn spawn_background_task(
-///     #[from(rstest_bdd_harness_context)] context: &TokioTestContext,
-/// ) {
+/// async fn spawn_background_task(#[from(rstest_bdd_harness_context)] context: &TokioTestContext) {
 ///     let task = context.handle().spawn(async { 2 + 2 });
 ///     assert_eq!(task.await.expect("background task should complete"), 4);
 /// }
@@ -41,9 +39,7 @@ impl TokioTestContext {
 
     /// Returns a reference to the Tokio runtime handle.
     #[must_use]
-    pub const fn handle(&self) -> &Handle {
-        &self.handle
-    }
+    pub const fn handle(&self) -> &Handle { &self.handle }
 }
 
 #[cfg(test)]

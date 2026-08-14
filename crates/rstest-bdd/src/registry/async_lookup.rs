@@ -36,7 +36,8 @@ pub fn lookup_step_async_with_mode(
     })
 }
 
-/// Find a registered async step whose pattern matches the provided text, including its execution mode.
+/// Find a registered async step whose pattern matches the provided text, including its execution
+/// mode.
 ///
 /// # Examples
 ///

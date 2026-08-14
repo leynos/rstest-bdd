@@ -1,7 +1,8 @@
 //! Validation routines for example tables in features.
 
-use crate::utils::errors::error_to_tokens;
 use proc_macro2::TokenStream;
+
+use crate::utils::errors::error_to_tokens;
 
 /// Wraps the full feature file text content.
 #[cfg(feature = "compile-time-validation")]
@@ -10,23 +11,17 @@ pub(crate) struct FeatureText<'a>(&'a str);
 
 #[cfg(feature = "compile-time-validation")]
 impl<'a> FeatureText<'a> {
-    pub(crate) fn new(text: &'a str) -> Self {
-        Self(text)
-    }
+    pub(crate) fn new(text: &'a str) -> Self { Self(text) }
 }
 
 #[cfg(feature = "compile-time-validation")]
 impl AsRef<str> for FeatureText<'_> {
-    fn as_ref(&self) -> &str {
-        self.0
-    }
+    fn as_ref(&self) -> &str { self.0 }
 }
 
 #[cfg(feature = "compile-time-validation")]
 impl<'a> From<&'a str> for FeatureText<'a> {
-    fn from(text: &'a str) -> Self {
-        Self(text)
-    }
+    fn from(text: &'a str) -> Self { Self(text) }
 }
 
 /// Wraps a single row from an Examples table.
@@ -124,8 +119,9 @@ fn format_malformed_examples_error(row: usize, actual: usize, expected: usize) -
 #[cfg(all(test, feature = "compile-time-validation"))]
 mod column_tests {
     //! Tests for column counting in Examples tables.
-    use super::{TableRow, count_columns};
     use rstest::rstest;
+
+    use super::{TableRow, count_columns};
 
     #[rstest]
     #[case("| a | b |", 3)]
@@ -205,8 +201,9 @@ pub(crate) fn flatten_and_validate_rows(
 #[cfg(all(test, feature = "compile-time-validation"))]
 mod tests {
     //! Tests for validating Examples tables and error reporting.
-    use super::*;
     use rstest::rstest;
+
+    use super::*;
 
     fn error_message(text: &str) -> String {
         match validate_examples_in_feature_text(FeatureText::new(text)) {

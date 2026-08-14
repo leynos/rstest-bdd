@@ -3,11 +3,10 @@
 //! Handles discovery and copying of feature files to the trybuild test
 //! environment, ensuring fixtures can locate their dependencies at compile time.
 
+use std::{env, io, path::Path as StdPath};
+
 use camino::{Utf8Path, Utf8PathBuf};
 use cap_std::{ambient_authority, fs::Dir};
-use std::env;
-use std::io;
-use std::path::Path as StdPath;
 
 const MACROS_FIXTURES_DIR: &str = "tests/fixtures_macros";
 const FEATURES_DIR: &str = "tests/features";

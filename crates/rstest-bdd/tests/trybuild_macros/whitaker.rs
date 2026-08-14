@@ -1,9 +1,12 @@
 //! Whitaker lint-gate regression tests for the trybuild macro suite.
 
+use std::{
+    env,
+    fs,
+    process::{Command, Output},
+};
+
 use camino::{Utf8Path, Utf8PathBuf};
-use std::env;
-use std::fs;
-use std::process::{Command, Output};
 
 #[test]
 fn whitaker_lint_gate_accepts_clean_and_rejects_panicking_fixtures() {
@@ -19,13 +22,8 @@ fn whitaker_lint_gate_accepts_clean_and_rejects_panicking_fixtures() {
     };
     let clean_manifest = write_whitaker_fixture(
         &temp_dir.join("clean"),
-        "//! Clean Whitaker fixture crate.\n\
-         pub fn clean_value(value: Option<u32>) -> u32 {\n\
-             let Some(number) = value else {\n\
-                 panic!(\"missing value\");\n\
-             };\n\
-             number\n\
-         }\n",
+        "//! Clean Whitaker fixture crate.\npub fn clean_value(value: Option<u32>) -> u32 {\nlet \
+         Some(number) = value else {\npanic!(\"missing value\");\n};\nnumber\n}\n",
     );
     let rejected_manifest = write_whitaker_fixture(
         &temp_dir.join("rejected"),
@@ -69,9 +67,7 @@ fn cargo_dylint_available() -> bool {
     command_succeeds(Command::new("cargo").arg("dylint").arg("--version"))
 }
 
-fn whitaker_available() -> bool {
-    command_succeeds(Command::new("whitaker").arg("--version"))
-}
+fn whitaker_available() -> bool { command_succeeds(Command::new("whitaker").arg("--version")) }
 
 fn command_succeeds(command: &mut Command) -> bool {
     match command.output() {
@@ -92,13 +88,8 @@ fn write_whitaker_fixture(crate_dir: &Utf8Path, lib_rs: &str) -> Utf8PathBuf {
     if let Err(err) = fs::write(
         manifest_path.as_std_path(),
         format!(
-            "[package]\n\
-             name = \"whitaker-rust-fixture-{fixture_name}\"\n\
-             version = \"0.0.0\"\n\
-             edition = \"2024\"\n\
-             \n\
-             [lib]\n\
-             path = \"src/lib.rs\"\n"
+            "[package]\nname = \"whitaker-rust-fixture-{fixture_name}\"\nversion = \
+             \"0.0.0\"\nedition = \"2024\"\n\n[lib]\npath = \"src/lib.rs\"\n"
         ),
     ) {
         panic!("failed to write Whitaker fixture manifest: {err}");

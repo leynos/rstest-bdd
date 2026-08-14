@@ -1,16 +1,15 @@
 //! Tests for step context and fixture management.
 
-use super::*;
 use std::sync::Once;
+
+use super::*;
 
 mod guard_borrowing;
 
 struct NoopLogger;
 
 impl log::Log for NoopLogger {
-    fn enabled(&self, _: &log::Metadata<'_>) -> bool {
-        true
-    }
+    fn enabled(&self, _: &log::Metadata<'_>) -> bool { true }
     fn log(&self, _: &log::Record<'_>) {}
     fn flush(&self) {}
 }

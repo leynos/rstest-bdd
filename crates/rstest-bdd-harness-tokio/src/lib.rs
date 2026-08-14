@@ -10,8 +10,16 @@ mod tokio_harness;
 
 pub use policy::TokioAttributePolicy;
 pub use rstest_bdd_harness::{
-    AttributePolicy, HarnessAdapter, HarnessError, HarnessResult, ScenarioMetadata,
-    ScenarioRunRequest, ScenarioRunner, StdScenarioRunRequest, StdScenarioRunner, TestAttribute,
+    AttributePolicy,
+    HarnessAdapter,
+    HarnessError,
+    HarnessResult,
+    ScenarioMetadata,
+    ScenarioRunRequest,
+    ScenarioRunner,
+    StdScenarioRunRequest,
+    StdScenarioRunner,
+    TestAttribute,
     tracing,
 };
 pub use tokio_context::TokioTestContext;

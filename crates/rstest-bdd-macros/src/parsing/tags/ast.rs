@@ -15,8 +15,7 @@
 //! the filtering logic aligned with compile-time diagnostics while avoiding
 //! needless work once the outcome is known.
 
-use std::borrow::Cow;
-use std::collections::HashSet;
+use std::{borrow::Cow, collections::HashSet};
 
 use super::parser::Parser;
 

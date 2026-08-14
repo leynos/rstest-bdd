@@ -8,12 +8,17 @@
 
 #![cfg(unix)]
 
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use rstest_bdd_harness::binary_test_support::{
-    BinaryLocateError, BinaryName, build_binary, locate_or_build_binary,
+    BinaryLocateError,
+    BinaryName,
+    build_binary,
+    locate_or_build_binary,
     target_directory_for_manifest,
 };
 
@@ -80,7 +85,8 @@ fn build_binary_returns_err_for_nonexistent_workspace() {
     let result = build_binary(&workspace, BinaryName::new("nonexistent-binary"));
     assert!(
         result.is_err(),
-        "expected build_binary to fail when the workspace directory does not exist, got: {result:?}"
+        "expected build_binary to fail when the workspace directory does not exist, got: \
+         {result:?}"
     );
 }
 

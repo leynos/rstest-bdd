@@ -1,13 +1,19 @@
 //! Gherkin `.feature` file indexing support.
 
-use std::borrow::Cow;
-use std::ops::Range;
-use std::path::{Path, PathBuf};
+use std::{
+    borrow::Cow,
+    ops::Range,
+    path::{Path, PathBuf},
+};
 
 use gherkin::GherkinEnv;
 
 use super::{
-    FeatureFileIndex, FeatureIndexError, IndexedDocstring, IndexedScenarioOutline, IndexedStep,
+    FeatureFileIndex,
+    FeatureIndexError,
+    IndexedDocstring,
+    IndexedScenarioOutline,
+    IndexedStep,
     IndexedTable,
 };
 
@@ -17,7 +23,10 @@ mod table;
 
 use docstring::find_docstring_span;
 use outline::{
-    ScenarioStepIndices, build_scenario_outline, extract_example_columns, is_scenario_outline,
+    ScenarioStepIndices,
+    build_scenario_outline,
+    extract_example_columns,
+    is_scenario_outline,
 };
 
 /// Accumulates indexed steps and scenario outlines during feature indexing.
@@ -33,33 +42,21 @@ struct IndexingAccumulators<'a> {
 struct FeatureSource<'a>(&'a str);
 
 impl<'a> FeatureSource<'a> {
-    fn new(source: &'a str) -> Self {
-        Self(source)
-    }
+    fn new(source: &'a str) -> Self { Self(source) }
 
-    fn as_str(&self) -> &'a str {
-        self.0
-    }
+    fn as_str(&self) -> &'a str { self.0 }
 
-    fn get(&self, range: Range<usize>) -> Option<&'a str> {
-        self.0.get(range)
-    }
+    fn get(&self, range: Range<usize>) -> Option<&'a str> { self.0.get(range) }
 
-    fn len(&self) -> usize {
-        self.0.len()
-    }
+    fn len(&self) -> usize { self.0.len() }
 }
 
 impl AsRef<str> for FeatureSource<'_> {
-    fn as_ref(&self) -> &str {
-        self.0
-    }
+    fn as_ref(&self) -> &str { self.0 }
 }
 
 impl<'a> From<&'a str> for FeatureSource<'a> {
-    fn from(source: &'a str) -> Self {
-        Self::new(source)
-    }
+    fn from(source: &'a str) -> Self { Self::new(source) }
 }
 
 /// Parse and index a `.feature` file from disk.
@@ -76,15 +73,12 @@ impl<'a> From<&'a str> for FeatureSource<'a> {
 /// # Examples
 ///
 /// ```rust,no_run
-/// use rstest_bdd_server::indexing::{index_feature_file, FeatureIndexError};
+/// use rstest_bdd_server::indexing::{FeatureIndexError, index_feature_file};
 ///
 /// # fn main() -> Result<(), FeatureIndexError> {
 /// let path = std::env::temp_dir().join("rstest-bdd-index-demo.feature");
-/// std::fs::write(
-///     &path,
-///     "Feature: demo\n  Scenario: s\n    Given a message\n",
-/// )
-/// .expect("feature file write should succeed");
+/// std::fs::write(&path, "Feature: demo\n  Scenario: s\n    Given a message\n")
+///     .expect("feature file write should succeed");
 ///
 /// let index = index_feature_file(&path)?;
 /// assert_eq!(index.steps.len(), 1);
@@ -113,7 +107,7 @@ pub fn index_feature_file(path: &Path) -> Result<FeatureFileIndex, FeatureIndexE
 /// ```rust,no_run
 /// use std::path::PathBuf;
 ///
-/// use rstest_bdd_server::indexing::{index_feature_source, FeatureIndexError};
+/// use rstest_bdd_server::indexing::{FeatureIndexError, index_feature_source};
 ///
 /// # fn main() -> Result<(), FeatureIndexError> {
 /// let feature = "Feature: demo\n  Scenario: s\n    Given a message\n";

@@ -5,12 +5,16 @@
 //! Keeping the implementation here keeps the core registry surface small and
 //! helps keep `registry.rs` under the project file size limit.
 
-use super::{StepKey, USED_STEPS, all_steps, resolve_step, step_by_key};
-use crate::reporting::{self, ScenarioStatus};
-use crate::types::StepKeyword;
+use std::sync::{LazyLock, Mutex};
+
 use hashbrown::HashSet;
 use serde::Serialize;
-use std::sync::{LazyLock, Mutex};
+
+use super::{StepKey, USED_STEPS, all_steps, resolve_step, step_by_key};
+use crate::{
+    reporting::{self, ScenarioStatus},
+    types::StepKeyword,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(super) struct BypassedStepRecord {

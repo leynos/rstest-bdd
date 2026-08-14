@@ -15,14 +15,10 @@ struct TestState {
 }
 
 #[fixture]
-fn state() -> TestState {
-    TestState::default()
-}
+fn state() -> TestState { TestState::default() }
 
 #[given("a value of {value:i32}")]
-fn given_value(state: &mut TestState, value: i32) {
-    state.value.set(value);
-}
+fn given_value(state: &mut TestState, value: i32) { state.value.set(value); }
 
 #[when("the value is doubled")]
 fn when_doubled(state: &mut TestState) {

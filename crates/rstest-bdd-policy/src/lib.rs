@@ -38,9 +38,7 @@ impl RuntimeMode {
     /// assert!(RuntimeMode::TokioCurrentThread.is_async());
     /// ```
     #[must_use]
-    pub const fn is_async(self) -> bool {
-        matches!(self, Self::TokioCurrentThread)
-    }
+    pub const fn is_async(self) -> bool { matches!(self, Self::TokioCurrentThread) }
 
     /// Returns a hint for which test attributes to generate.
     ///
@@ -126,9 +124,7 @@ const KNOWN_HARNESS_HINTS: [(&[&str], TestAttributeHint); 3] = [
 /// # Examples
 ///
 /// ```
-/// use rstest_bdd_policy::{
-///     resolve_test_attribute_hint_for_policy_path, TestAttributeHint,
-/// };
+/// use rstest_bdd_policy::{TestAttributeHint, resolve_test_attribute_hint_for_policy_path};
 ///
 /// assert_eq!(
 ///     resolve_test_attribute_hint_for_policy_path(&[
@@ -158,15 +154,12 @@ pub fn resolve_test_attribute_hint_for_policy_path(
 /// # Examples
 ///
 /// ```
-/// use rstest_bdd_policy::{
-///     resolve_test_attribute_hint_for_harness_path, TestAttributeHint,
-/// };
+/// use rstest_bdd_policy::{TestAttributeHint, resolve_test_attribute_hint_for_harness_path};
 ///
 /// assert_eq!(
-///     resolve_test_attribute_hint_for_harness_path(&[
-///         "rstest_bdd_harness_tokio",
-///         "TokioHarness",
-///     ]),
+///     resolve_test_attribute_hint_for_harness_path(
+///         &["rstest_bdd_harness_tokio", "TokioHarness",]
+///     ),
 ///     Some(TestAttributeHint::RstestWithTokioCurrentThread)
 /// );
 /// assert_eq!(
@@ -187,12 +180,20 @@ pub fn resolve_test_attribute_hint_for_harness_path(
 mod tests {
     //! Unit tests for policy configuration parsing and defaults.
 
-    use super::{
-        DEFAULT_ATTRIBUTE_POLICY_PATH, GPUI_ATTRIBUTE_POLICY_PATH, GPUI_HARNESS_PATH, RuntimeMode,
-        STD_HARNESS_PATH, TOKIO_ATTRIBUTE_POLICY_PATH, TOKIO_HARNESS_PATH, TestAttributeHint,
-        resolve_test_attribute_hint_for_harness_path, resolve_test_attribute_hint_for_policy_path,
-    };
     use rstest::rstest;
+
+    use super::{
+        DEFAULT_ATTRIBUTE_POLICY_PATH,
+        GPUI_ATTRIBUTE_POLICY_PATH,
+        GPUI_HARNESS_PATH,
+        RuntimeMode,
+        STD_HARNESS_PATH,
+        TOKIO_ATTRIBUTE_POLICY_PATH,
+        TOKIO_HARNESS_PATH,
+        TestAttributeHint,
+        resolve_test_attribute_hint_for_harness_path,
+        resolve_test_attribute_hint_for_policy_path,
+    };
 
     #[test]
     fn runtime_mode_sync_is_default() {

@@ -1,19 +1,20 @@
 //! Behavioural tests for Tokio harness adapter execution semantics.
 
+use std::{cell::Cell, io, rc::Rc};
+
 use rstest::{fixture, rstest};
 use rstest_bdd_harness::{
-    HarnessAdapter, HarnessError, HarnessResult, ScenarioMetadata, ScenarioRunRequest,
+    HarnessAdapter,
+    HarnessError,
+    HarnessResult,
+    ScenarioMetadata,
+    ScenarioRunRequest,
     ScenarioRunner,
 };
 use rstest_bdd_harness_tokio::{TokioHarness, TokioTestContext};
-use std::cell::Cell;
-use std::io;
-use std::rc::Rc;
 
 #[fixture]
-fn default_metadata() -> ScenarioMetadata {
-    ScenarioMetadata::default()
-}
+fn default_metadata() -> ScenarioMetadata { ScenarioMetadata::default() }
 
 /// Runs `request` through a freshly-constructed [`TokioHarness`] and returns
 /// the value on success, or panics with a diagnostic message on failure.
@@ -45,9 +46,7 @@ fn tokio_harness_executes_runner_once(default_metadata: ScenarioMetadata) {
 struct RuntimeBuildFailureProbeHarness;
 
 impl RuntimeBuildFailureProbeHarness {
-    fn new(_inner: TokioHarness) -> Self {
-        Self
-    }
+    fn new(_inner: TokioHarness) -> Self { Self }
 }
 
 impl HarnessAdapter for RuntimeBuildFailureProbeHarness {

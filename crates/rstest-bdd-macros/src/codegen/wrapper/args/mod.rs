@@ -18,9 +18,7 @@ pub use extract::extract_args;
 pub(super) use crate::utils::pattern::normalize_param_name;
 
 #[cfg(test)]
-pub(super) fn normalize_param_name(name: &str) -> &str {
-    name.strip_prefix('_').unwrap_or(name)
-}
+pub(super) fn normalize_param_name(name: &str) -> &str { name.strip_prefix('_').unwrap_or(name) }
 
 /// Everything required to describe a single step-function argument.
 #[derive(Clone)]

@@ -5,8 +5,7 @@
 
 use gherkin::Span;
 
-use super::FeatureSource;
-use super::table::extract_header_cell_spans;
+use super::{FeatureSource, table::extract_header_cell_spans};
 use crate::indexing::{IndexedExampleColumn, IndexedExamplesTable, IndexedScenarioOutline};
 
 /// Step index ranges for building a scenario outline.

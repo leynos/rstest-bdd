@@ -5,9 +5,9 @@
 //! happens at compile time during macro expansion, providing early feedback for
 //! misconfigured scenario outlines.
 
-use crate::parsing::feature::ParsedStep;
-use crate::parsing::placeholder::PLACEHOLDER_RE;
 use proc_macro2::Span;
+
+use crate::parsing::{feature::ParsedStep, placeholder::PLACEHOLDER_RE};
 
 /// Location where placeholder validation is performed.
 #[derive(Debug, Clone, Copy)]
@@ -35,17 +35,11 @@ impl ValidationContext {
 pub(crate) struct ExampleHeaders<'a>(&'a [String]);
 
 impl<'a> ExampleHeaders<'a> {
-    pub fn new(headers: &'a [String]) -> Self {
-        Self(headers)
-    }
+    pub fn new(headers: &'a [String]) -> Self { Self(headers) }
 
-    pub fn contains(&self, name: &str) -> bool {
-        self.0.iter().any(|h| h == name)
-    }
+    pub fn contains(&self, name: &str) -> bool { self.0.iter().any(|h| h == name) }
 
-    pub fn join(&self, sep: &str) -> String {
-        self.0.join(sep)
-    }
+    pub fn join(&self, sep: &str) -> String { self.0.join(sep) }
 }
 
 /// Validates all placeholders in steps reference columns in the Examples table.
@@ -125,8 +119,8 @@ fn validate_text_placeholders(
             return Err(syn::Error::new(
                 span,
                 format!(
-                    "Placeholder '<{placeholder}>' in {} not found in Examples table. \
-                     Available columns: [{}]",
+                    "Placeholder '<{placeholder}>' in {} not found in Examples table. Available \
+                     columns: [{}]",
                     context.as_str(),
                     headers.join(", ")
                 ),
@@ -137,23 +131,20 @@ fn validate_text_placeholders(
 }
 
 #[cfg(feature = "compile-time-validation")]
-fn step_span(step: &ParsedStep) -> Span {
-    step.span
-}
+fn step_span(step: &ParsedStep) -> Span { step.span }
 
 #[cfg(not(feature = "compile-time-validation"))]
-fn step_span(_step: &ParsedStep) -> Span {
-    Span::call_site()
-}
+fn step_span(_step: &ParsedStep) -> Span { Span::call_site() }
 
 #[cfg(test)]
 #[expect(clippy::unwrap_used, reason = "tests use unwrap for brevity")]
 mod tests {
     //! Unit tests for placeholder validation against example headers.
 
+    use rstest::rstest;
+
     use super::*;
     use crate::StepKeyword;
-    use rstest::rstest;
 
     /// Builder for creating test `ParsedStep` instances.
     struct ParsedStepBuilder {
