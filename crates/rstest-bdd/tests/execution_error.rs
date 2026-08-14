@@ -345,18 +345,18 @@ fn missing_fixtures_snapshot() {
         Err(e) => panic!("en-US locale should always be available: {e}"),
     };
     let details = MissingFixturesDetails {
-        step_pattern: "needs fixture".to_string(),
-        step_location: "src/steps.rs:42".to_string(),
+        step_pattern: "needs fixture".to_owned(),
+        step_location: "src/steps.rs:42".to_owned(),
         required: vec!["db"],
         missing: vec!["db"],
         missing_requirements: vec![MissingFixtureDiagnostic {
             name: "db",
             ty: "DbPool",
         }],
-        available: vec!["world".to_string()],
+        available: vec!["world".to_owned()],
         has_suggestion: true,
-        feature_path: "features/example.feature".to_string(),
-        scenario_name: "Example scenario".to_string(),
+        feature_path: "features/example.feature".to_owned(),
+        scenario_name: "Example scenario".to_owned(),
     };
     let error = rstest_bdd::execution::ExecutionError::MissingFixtures(Arc::new(details));
     insta::assert_snapshot!(format!("{error}"));

@@ -45,7 +45,7 @@ pub(super) fn render_type(ty: &Type) -> String {
             rendered
         }
         Type::TraitObject(trait_object) => render_trait_object(trait_object),
-        Type::Never(_) => "!".to_string(),
+        Type::Never(_) => "!".to_owned(),
         other => format!("{other:?}"),
     }
 }
@@ -70,7 +70,7 @@ fn render_reference(type_ref: &syn::TypeReference) -> String {
 /// `(u8,)` is a tuple, while `(u8)` is just parenthesized `u8`.
 fn render_tuple(tuple: &syn::TypeTuple) -> String {
     if tuple.elems.is_empty() {
-        return "()".to_string();
+        return "()".to_owned();
     }
 
     let elems = tuple
@@ -105,9 +105,9 @@ fn render_fn_prefix(unsafety: Option<&syn::token::Unsafe>, abi: Option<&syn::Abi
 fn render_variadic(variadic: Option<&syn::BareVariadic>, has_inputs: bool) -> String {
     if variadic.is_some() {
         if has_inputs {
-            ", ...".to_string()
+            ", ...".to_owned()
         } else {
-            "...".to_string()
+            "...".to_owned()
         }
     } else {
         String::new()
@@ -165,7 +165,7 @@ fn render_trait_object(trait_object: &syn::TypeTraitObject) -> String {
         // Defensive fallback for malformed inputs: `dyn` without bounds is not valid
         // Rust syntax, but we prefer returning a readable placeholder over a noisy
         // debug dump.
-        "dyn _".to_string()
+        "dyn _".to_owned()
     } else {
         format!("dyn {bounds}")
     }

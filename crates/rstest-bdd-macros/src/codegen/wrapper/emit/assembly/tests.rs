@@ -35,7 +35,7 @@ fn extract_reason_from_meta(name_value: &syn::MetaNameValue) -> Option<String> {
 }
 
 fn expected_lints(lints: &[&str]) -> HashSet<String> {
-    lints.iter().map(|lint| (*lint).to_string()).collect()
+    lints.iter().map(|lint| (*lint).to_owned()).collect()
 }
 
 /// Parse and validate the expect attribute from a wrapper function.

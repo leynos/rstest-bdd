@@ -180,8 +180,8 @@ fn semantic_step_ordering_outline(
     item: String,
 ) {
     let expected = vec![
-        "fixture-created".to_string(),
-        "given".to_string(),
+        "fixture-created".to_owned(),
+        "given".to_owned(),
         format!("when:{item}"),
         format!("then:{item}"),
     ];
@@ -255,7 +255,7 @@ fn skip_propagation_preserves_message_and_bypass_metadata() {
 
     assert_eq!(
         snapshot_events(),
-        vec!["skip:given".to_string(), "skip:when".to_string()],
+        vec!["skip:given".to_owned(), "skip:when".to_owned()],
         "skip propagation should stop later steps from running",
     );
 
@@ -312,7 +312,7 @@ fn error_propagation_includes_step_and_scenario_context() {
     );
     assert_eq!(
         snapshot_events(),
-        vec!["failure:given".to_string(), "failure:when".to_string()],
+        vec!["failure:given".to_owned(), "failure:when".to_owned()],
         "failure propagation should stop later steps from running",
     );
 }

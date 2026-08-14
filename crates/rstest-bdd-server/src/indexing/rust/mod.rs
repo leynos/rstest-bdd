@@ -307,14 +307,14 @@ fn parse_step_pattern(
                 return Err(RustStepIndexDiagnostic::InvalidStepAttributeArguments {
                     function: function_ident.to_string(),
                     attribute,
-                    message: "expected string literal value".to_string(),
+                    message: "expected string literal value".to_owned(),
                 });
             };
             let syn::Lit::Str(lit) = &expr_lit.lit else {
                 return Err(RustStepIndexDiagnostic::InvalidStepAttributeArguments {
                     function: function_ident.to_string(),
                     attribute,
-                    message: "expected string literal value".to_string(),
+                    message: "expected string literal value".to_owned(),
                 });
             };
             Ok(interpret_pattern_literal(function_ident, lit.value()))

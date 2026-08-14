@@ -71,7 +71,7 @@ fn assert_classifies_as_step(
 #[test]
 fn context_new_links_borrows() {
     let mut extracted = ExtractedArgs::default();
-    let mut placeholders = HashSet::from(["alpha".to_string()]);
+    let mut placeholders = HashSet::from(["alpha".to_owned()]);
     {
         let ctx = ClassificationContext::new(&mut extracted, &mut placeholders);
         ctx.placeholders.clear();
@@ -89,7 +89,7 @@ fn context_new_links_borrows() {
 #[test]
 fn classify_fixture_or_step_claims_placeholder_as_step() {
     assert_classifies_as_step(
-        HashSet::from(["value".to_string()]),
+        HashSet::from(["value".to_owned()]),
         quote!(value: String),
         "value",
         quote!(String),
@@ -253,7 +253,7 @@ fn extract_step_struct_attribute_detects_marker() {
 #[test]
 fn classify_step_struct_blocks_placeholders() {
     let mut extracted = ExtractedArgs::default();
-    let mut placeholders = HashSet::from(["alpha".to_string(), "beta".to_string()]);
+    let mut placeholders = HashSet::from(["alpha".to_owned(), "beta".to_owned()]);
     let arg = pat_type(quote!(#[step_args] args: Args));
 
     match classify_step_struct(&mut extracted, &arg, &mut placeholders) {
@@ -264,7 +264,7 @@ fn classify_step_struct_blocks_placeholders() {
     assert!(placeholders.is_empty());
     assert_eq!(
         extracted.blocked_placeholders,
-        HashSet::from(["alpha".to_string(), "beta".to_string()])
+        HashSet::from(["alpha".to_owned(), "beta".to_owned()])
     );
     assert!(
         extracted
@@ -276,7 +276,7 @@ fn classify_step_struct_blocks_placeholders() {
 #[test]
 fn classify_fixture_or_step_matches_underscore_prefixed_param_to_placeholder() {
     assert_classifies_as_step(
-        HashSet::from(["value".to_string()]),
+        HashSet::from(["value".to_owned()]),
         quote!(_value: String),
         "_value",
         quote!(String),
@@ -286,7 +286,7 @@ fn classify_fixture_or_step_matches_underscore_prefixed_param_to_placeholder() {
 #[test]
 fn classify_fixture_or_step_double_underscore_matches_single_underscore_placeholder() {
     assert_classifies_as_step(
-        HashSet::from(["_value".to_string()]),
+        HashSet::from(["_value".to_owned()]),
         quote!(__value: String),
         "__value",
         quote!(String),
@@ -298,7 +298,7 @@ fn classify_fixture_or_step_double_underscore_does_not_match_plain_placeholder()
     // Placeholder set only contains "value"; "__value" should NOT be classified as a step
     // and "value" should remain in the placeholder set (it is unmatched).
     let (extracted, handled, placeholders) = execute_classify_fixture_or_step(
-        HashSet::from(["value".to_string()]),
+        HashSet::from(["value".to_owned()]),
         quote!(__value: String),
         "__value",
         quote!(String),

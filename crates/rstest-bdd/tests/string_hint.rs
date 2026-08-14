@@ -16,7 +16,7 @@ fn message() -> RefCell<String> {
 #[given("the message is {text:string}")]
 fn set_message(message: &RefCell<String>, text: &str) {
     // The :string hint should have stripped the surrounding quotes
-    *message.borrow_mut() = text.to_string();
+    text.clone_into(&mut message.borrow_mut());
 }
 
 /// Verify the message was captured without surrounding quotes.

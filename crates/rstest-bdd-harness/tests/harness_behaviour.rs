@@ -144,7 +144,7 @@ fn std_harness_passes_metadata_through() {
         "tests/features/payment.feature",
         "Payment succeeds",
         27,
-        vec!["@smoke".to_string(), "@payments".to_string()],
+        vec!["@smoke".to_owned(), "@payments".to_owned()],
     );
     let request = StdScenarioRunRequest::new(
         expected_metadata.clone(),

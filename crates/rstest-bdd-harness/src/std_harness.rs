@@ -51,7 +51,7 @@ mod tests {
             "tests/features/simple.feature",
             "Runs synchronously",
             4,
-            vec!["@sync".to_string()],
+            vec!["@sync".to_owned()],
         )
     }
 

@@ -90,14 +90,14 @@ mod tests {
     use proc_macro2::Span;
 
     fn leak_pattern(text: &str) -> &'static MacroPattern {
-        let leaked: &'static str = Box::leak(text.to_string().into_boxed_str());
+        let leaked: &'static str = Box::leak(text.to_owned().into_boxed_str());
         Box::leak(Box::new(MacroPattern::new(leaked)))
     }
 
     fn parsed_step(text: &str) -> ParsedStep {
         ParsedStep {
             keyword: StepKeyword::Given,
-            text: text.to_string(),
+            text: text.to_owned(),
             docstring: None,
             table: None,
             #[cfg(feature = "compile-time-validation")]
