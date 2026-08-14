@@ -9,9 +9,7 @@ fn precondition() {}
 fn action() {}
 
 #[when("an action occurs with {n}")]
-fn action_with_num(n: i32) {
-    let _ = n;
-}
+fn action_with_num(n: i32) { let _ = n; }
 
 #[then("events are recorded")]
 fn events_recorded() {}

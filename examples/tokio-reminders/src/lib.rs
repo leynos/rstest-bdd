@@ -77,9 +77,7 @@ impl ReminderService {
     /// assert_eq!(service.pending_reminder_count(), 0);
     /// ```
     #[must_use]
-    pub fn new() -> Self {
-        Self::default()
-    }
+    pub fn new() -> Self { Self::default() }
 
     /// Schedules a reminder for later delivery on Tokio's local task queue.
     ///
@@ -189,16 +187,17 @@ impl ReminderService {
     /// let service = ReminderService::new();
     /// service.schedule_reminder("Ada");
     /// service.flush().await?;
-    /// assert_eq!(service.delivered_reminders(), vec!["Reminder sent to Ada".to_string()]);
+    /// assert_eq!(
+    ///     service.delivered_reminders(),
+    ///     vec!["Reminder sent to Ada".to_string()]
+    /// );
     /// # Ok::<(), tokio_reminders::ReminderServiceError>(())
     /// # })?;
     /// # Ok(())
     /// # }
     /// ```
     #[must_use]
-    pub fn delivered_reminders(&self) -> Vec<String> {
-        self.delivered.borrow().clone()
-    }
+    pub fn delivered_reminders(&self) -> Vec<String> { self.delivered.borrow().clone() }
 
     /// Returns the number of reminders still waiting to be flushed.
     ///
@@ -223,9 +222,7 @@ impl ReminderService {
     /// # }
     /// ```
     #[must_use]
-    pub fn pending_reminder_count(&self) -> usize {
-        self.pending.borrow().len()
-    }
+    pub fn pending_reminder_count(&self) -> usize { self.pending.borrow().len() }
 
     /// Returns the queued reminder recipients in scheduling order.
     ///
@@ -243,7 +240,10 @@ impl ReminderService {
     /// let service = ReminderService::new();
     /// service.schedule_reminder("Ada");
     /// service.schedule_reminder("Grace");
-    /// assert_eq!(service.pending_recipients(), vec!["Ada".to_string(), "Grace".to_string()]);
+    /// assert_eq!(
+    ///     service.pending_recipients(),
+    ///     vec!["Ada".to_string(), "Grace".to_string()]
+    /// );
     /// # Ok::<(), tokio_reminders::ReminderServiceError>(())
     /// # })?;
     /// # Ok(())
@@ -265,17 +265,22 @@ mod tests {
 
     use std::rc::Rc;
 
-    use super::{PendingReminder, ReminderService, ReminderTask};
     use rstest::{fixture, rstest};
+
+    use super::{PendingReminder, ReminderService, ReminderTask};
 
     #[fixture]
     fn local_set() -> tokio::task::LocalSet {
-        tokio::task::LocalSet::new()
+        let local_set = tokio::task::LocalSet::new();
+        std::hint::black_box(&local_set);
+        local_set
     }
 
     #[fixture]
     fn service() -> ReminderService {
-        ReminderService::new()
+        let service = ReminderService::new();
+        std::hint::black_box(&service);
+        service
     }
 
     #[rstest]

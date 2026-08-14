@@ -6,10 +6,11 @@ use lsp_types::{
     DidSaveTextDocumentParams, NumberOrString, PublishDiagnosticsParams, TextDocumentIdentifier,
     Url,
 };
-use rstest_bdd_server::config::ServerConfig;
-use rstest_bdd_server::handlers::handle_did_save_text_document;
-use rstest_bdd_server::server::ServerState;
 use tempfile::TempDir;
+
+
+//! Behavioural test for Rust step indexing on save.
+};
 
 fn did_save_params(uri: Url, text: Option<&str>) -> DidSaveTextDocumentParams {
     DidSaveTextDocumentParams {

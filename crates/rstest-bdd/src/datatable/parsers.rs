@@ -67,9 +67,7 @@ pub struct TruthyBoolError {
 impl TruthyBoolError {
     /// Returns the original, unclassified input.
     #[must_use]
-    pub fn value(&self) -> &str {
-        &self.value
-    }
+    pub fn value(&self) -> &str { &self.value }
 }
 
 /// Trims leading and trailing whitespace before parsing a value.
@@ -131,7 +129,5 @@ where
     /// assert_eq!(err.original_input(), " not a number ");
     /// ```
     #[must_use]
-    pub fn original_input(&self) -> &str {
-        &self.original_input
-    }
+    pub fn original_input(&self) -> &str { &self.original_input }
 }

@@ -85,10 +85,10 @@
 //!
 //! 1. Check [`is_skip()`][ExecutionError::is_skip] to separate skips from failures
 //! 2. Use [`skip_message()`][ExecutionError::skip_message] to extract optional skip reasons
-//! 3. Use [`Display`] or [`format_with_loader()`][ExecutionError::format_with_loader]
-//!    for user-facing messages
-//! 4. Access [`std::error::Error::source()`] on `HandlerFailed` to inspect the
-//!    underlying [`StepError`]
+//! 3. Use [`Display`] or [`format_with_loader()`][ExecutionError::format_with_loader] for
+//!    user-facing messages
+//! 4. Access [`std::error::Error::source()`] on `HandlerFailed` to inspect the underlying
+//!    [`StepError`]
 //!
 //! [`execute_step`]: crate::execution::execute_step
 //! [`Display`]: std::fmt::Display
@@ -125,12 +125,11 @@ impl From<FixtureRequirement> for MissingFixtureDiagnostic {
 ///
 /// # Variants
 ///
-/// - [`Skip`][Self::Skip]: Control flow signal indicating the step requested
-///   skipping. This is not an error condition but a deliberate execution path.
-/// - [`StepNotFound`][Self::StepNotFound]: The step pattern was not found in
-///   the registry.
-/// - [`MissingFixtures`][Self::MissingFixtures]: Required fixtures were not
-///   available in the context.
+/// - [`Skip`][Self::Skip]: Control flow signal indicating the step requested skipping. This is not
+///   an error condition but a deliberate execution path.
+/// - [`StepNotFound`][Self::StepNotFound]: The step pattern was not found in the registry.
+/// - [`MissingFixtures`][Self::MissingFixtures]: Required fixtures were not available in the
+///   context.
 /// - [`HandlerFailed`][Self::HandlerFailed]: The step handler returned an error.
 ///
 /// # Examples
@@ -138,7 +137,9 @@ impl From<FixtureRequirement> for MissingFixtureDiagnostic {
 /// ```
 /// use rstest_bdd::execution::ExecutionError;
 ///
-/// let error = ExecutionError::Skip { message: Some("not implemented yet".into()) };
+/// let error = ExecutionError::Skip {
+///     message: Some("not implemented yet".into()),
+/// };
 /// assert!(error.is_skip());
 /// assert_eq!(error.skip_message(), Some("not implemented yet"));
 /// ```
@@ -235,9 +236,7 @@ impl ExecutionError {
     /// assert!(!not_found.is_skip());
     /// ```
     #[must_use]
-    pub fn is_skip(&self) -> bool {
-        matches!(self, Self::Skip { .. })
-    }
+    pub fn is_skip(&self) -> bool { matches!(self, Self::Skip { .. }) }
 
     /// Returns the skip message if this is a skip error.
     ///
@@ -249,7 +248,9 @@ impl ExecutionError {
     /// ```
     /// use rstest_bdd::execution::ExecutionError;
     ///
-    /// let skip_with_msg = ExecutionError::Skip { message: Some("reason".into()) };
+    /// let skip_with_msg = ExecutionError::Skip {
+    ///     message: Some("reason".into()),
+    /// };
     /// assert_eq!(skip_with_msg.skip_message(), Some("reason"));
     ///
     /// let skip_no_msg = ExecutionError::Skip { message: None };

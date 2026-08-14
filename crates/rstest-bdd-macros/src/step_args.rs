@@ -202,10 +202,11 @@ fn expand_named_struct(
 mod tests {
     //! Unit tests for step argument parsing.
 
-    use super::expand;
     use proc_macro2::TokenStream as TokenStream2;
     use quote::quote;
     use syn::DeriveInput;
+
+    use super::expand;
 
     fn expand_tokens(tokens: TokenStream2) -> syn::Result<TokenStream2> {
         let input = syn::parse2::<DeriveInput>(tokens)?;

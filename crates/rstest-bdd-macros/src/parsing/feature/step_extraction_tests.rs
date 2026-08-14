@@ -7,11 +7,13 @@
 //! These tests live separately from `tests.rs` to keep the entry-point test
 //! module small, whilst still covering the richer step-extraction surface area.
 
-use super::*;
 use gherkin::StepType;
 use rstest::rstest;
 
-use super::support::{ExamplesBuilder, FeatureBuilder, StepBuilder, assert_feature_extraction};
+use super::{
+    support::{ExamplesBuilder, FeatureBuilder, StepBuilder, assert_feature_extraction},
+    *,
+};
 
 #[rstest]
 #[case::prepends_background_steps(

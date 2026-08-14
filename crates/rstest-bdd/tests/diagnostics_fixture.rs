@@ -5,14 +5,14 @@
 //! couple of scenario outcomes in that mode so the CLI can exercise the
 //! reporting pipeline without running a full behaviour suite.
 
-use rstest_bdd as bdd;
-#[cfg(feature = "diagnostics")]
-use serial_test::serial;
 #[cfg(feature = "diagnostics")]
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use rstest_bdd as bdd;
 #[cfg(feature = "diagnostics")]
 use rstest_bdd::{StepContext, StepExecution, StepFuture, StepKeyword, step};
+#[cfg(feature = "diagnostics")]
+use serial_test::serial;
 
 #[cfg(feature = "diagnostics")]
 #[path = "common/async_wrapper.rs"]
@@ -184,9 +184,7 @@ impl DumpStepsGuard {
 
 #[cfg(feature = "diagnostics")]
 impl Drop for DumpStepsGuard {
-    fn drop(&mut self) {
-        SHOULD_SEED.store(false, Ordering::SeqCst);
-    }
+    fn drop(&mut self) { SHOULD_SEED.store(false, Ordering::SeqCst); }
 }
 
 #[cfg(feature = "diagnostics")]

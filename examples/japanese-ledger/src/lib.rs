@@ -33,32 +33,22 @@ pub struct HouseholdLedger {
 impl HouseholdLedger {
     /// Creates a ledger whose balance starts at zero yen.
     #[must_use]
-    pub fn new() -> Self {
-        Self::default()
-    }
+    pub fn new() -> Self { Self::default() }
 
     /// Returns the current balance in yen.
     #[must_use]
-    pub fn balance(&self) -> i32 {
-        self.balance.get()
-    }
+    pub fn balance(&self) -> i32 { self.balance.get() }
 
     /// Replaces the stored balance with the provided amount.
-    pub fn set_balance(&self, amount: i32) {
-        self.balance.set(amount);
-    }
+    pub fn set_balance(&self, amount: i32) { self.balance.set(amount); }
 
     /// Records an incoming amount by increasing the balance.
     /// Saturates at `i32::MAX` when the addition would overflow.
-    pub fn apply_income(&self, amount: i32) {
-        self.adjust(amount);
-    }
+    pub fn apply_income(&self, amount: i32) { self.adjust(amount); }
 
     /// Records an expense by decreasing the balance.
     /// Saturates at `i32::MIN` when the subtraction would underflow.
-    pub fn apply_expense(&self, amount: i32) {
-        self.adjust(-amount);
-    }
+    pub fn apply_expense(&self, amount: i32) { self.adjust(-amount); }
 
     fn adjust(&self, delta: i32) {
         let current = self.balance.get();
@@ -75,8 +65,9 @@ impl HouseholdLedger {
 mod tests {
     //! Behavioural tests for the household ledger example.
 
-    use super::HouseholdLedger;
     use rstest::{fixture, rstest};
+
+    use super::HouseholdLedger;
 
     /// Represents a high-level ledger interaction used by the feature
     /// scenarios. Using a dedicated type keeps the scenario test inputs terse
@@ -100,7 +91,9 @@ mod tests {
 
     #[fixture]
     fn ledger() -> HouseholdLedger {
-        HouseholdLedger::new()
+        let ledger = HouseholdLedger::new();
+        std::hint::black_box(&ledger);
+        ledger
     }
 
     /// Replays the declarative ledger steps so each case mirrors a Gherkin

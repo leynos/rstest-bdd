@@ -7,9 +7,8 @@ use rstest_bdd::{PlaceholderSyntaxError, StepPattern, StepPatternError};
 /// # Example
 ///
 /// ```no_run
+/// use rstest_bdd::{StepText, extract_placeholders};
 /// use support::compiled;
-/// use rstest_bdd::StepText;
-/// use rstest_bdd::extract_placeholders;
 ///
 /// let pat = compiled("value {n:u32}");
 /// let caps = extract_placeholders(&pat, StepText::from("value 42"));

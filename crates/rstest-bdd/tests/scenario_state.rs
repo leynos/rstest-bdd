@@ -1,8 +1,7 @@
 //! Behaviour tests for scenario state slots and reset semantics.
 
 use rstest::fixture;
-use rstest_bdd::ScenarioState as _;
-use rstest_bdd::Slot;
+use rstest_bdd::{ScenarioState as _, Slot};
 use rstest_bdd_macros::{ScenarioState, given, scenario, then, when};
 
 #[derive(Default, ScenarioState)]
@@ -11,9 +10,7 @@ struct CartState {
 }
 
 #[fixture]
-fn cart_state() -> CartState {
-    CartState::default()
-}
+fn cart_state() -> CartState { CartState::default() }
 
 #[given("an empty cart state")]
 fn empty_state(cart_state: &CartState) {
@@ -27,9 +24,7 @@ fn record_value(cart_state: &CartState, value: i32) {
 }
 
 #[when("I clear the cart state")]
-fn clear_state(cart_state: &CartState) {
-    cart_state.reset();
-}
+fn clear_state(cart_state: &CartState) { cart_state.reset(); }
 
 #[then("the recorded value is {expected:i32}")]
 fn check_value(cart_state: &CartState, expected: i32) {

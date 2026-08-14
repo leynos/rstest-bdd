@@ -11,15 +11,30 @@ use tracing::{debug, warn};
 
 use crate::indexing::{
     FeatureIndexError, RustStepIndexError, index_feature_source, index_rust_file, index_rust_source,
+    server::ServerState,
+    indexing::{index_feature_file, index_feature_source, index_rust_file, index_rust_source},
 };
-use crate::server::ServerState;
 
 use super::diagnostics::{
     FeatureDiagnosticPublication, clear_rust_index_diagnostics, publish_all_feature_diagnostics,
     publish_feature_diagnostics, publish_rust_index_result_diagnostics,
+    diagnostics::{,
+    publish_rust_diagnostics,
+    publish_feature_diagnostics,
+    publish_all_feature_diagnostics,
 };
-use super::util::has_extension;
 use super::workspace_metrics::{record_deferred_save_depth, record_workspace_outcome};
+
+
+//! Text document notification handlers.
+//!
+//! Phase 7 focuses on building language-server foundations. This module
+//! provides the on-save indexing pipeline for `.feature` files and Rust step
+//! definition sources. Indexing results are stored in the shared server state.
+//! After indexing, diagnostics are computed and published via the LSP protocol.
+    diagnostics::{
+};
+};
 
 const INDEXING_COUNTER: &str = "rstest_bdd_server_indexing_total";
 

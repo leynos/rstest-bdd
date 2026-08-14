@@ -18,14 +18,10 @@ struct LeftCounter(u32);
 struct RightCounter(u32);
 
 #[fixture]
-fn left() -> LeftCounter {
-    LeftCounter(10)
-}
+fn left() -> LeftCounter { LeftCounter(10) }
 
 #[fixture]
-fn right() -> RightCounter {
-    RightCounter(20)
-}
+fn right() -> RightCounter { RightCounter(20) }
 
 #[given("two counters are available")]
 fn counters_available(left: &LeftCounter, right: &RightCounter) {
@@ -81,9 +77,7 @@ impl HarnessAdapter for CountingHarness {
 }
 
 #[fixture]
-fn harness_world() -> HarnessWorld {
-    HarnessWorld::default()
-}
+fn harness_world() -> HarnessWorld { HarnessWorld::default() }
 
 #[given("the harness world starts empty")]
 fn harness_world_starts_empty(harness_world: &HarnessWorld) {

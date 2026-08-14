@@ -1,7 +1,8 @@
 //! Tests for feature file indexing.
 
-use super::*;
 use tempfile::TempDir;
+
+use super::*;
 
 fn index_feature(path: &std::path::Path, source: &str) -> FeatureFileIndex {
     match index_feature_source(path.to_path_buf(), source) {

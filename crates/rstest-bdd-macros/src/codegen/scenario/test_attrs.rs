@@ -4,13 +4,12 @@
 //! framework test attributes are emitted alongside `#[rstest::rstest]` for
 //! each generated test function:
 //!
-//! 1. An explicit `attributes = …` path supplied to the `#[scenario]` or
-//!    `#[scenarios]` macro takes highest precedence.
-//! 2. A `harness = …` path is consulted next; first-party adapter types
-//!    (`TokioHarness`, `GpuiHarness`) are recognized via
-//!    [`crate::codegen::first_party_adapter_attribute_hint`].
-//! 3. The `RuntimeMode` derived from `runtime = …` or the macro's defaults
-//!    provides the final fallback.
+//! 1. An explicit `attributes = …` path supplied to the `#[scenario]` or `#[scenarios]` macro takes
+//!    highest precedence.
+//! 2. A `harness = …` path is consulted next; first-party adapter types (`TokioHarness`,
+//!    `GpuiHarness`) are recognized via [`crate::codegen::first_party_adapter_attribute_hint`].
+//! 3. The `RuntimeMode` derived from `runtime = …` or the macro's defaults provides the final
+//!    fallback.
 //!
 //! The production surface is [`generate_test_attrs_with_boundary`] and
 //! [`TestAttrPolicy`].
@@ -20,12 +19,12 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use rstest_bdd_policy::{
-    resolve_test_attribute_hint_for_harness_path, resolve_test_attribute_hint_for_policy_path,
+    resolve_test_attribute_hint_for_harness_path,
+    resolve_test_attribute_hint_for_policy_path,
 };
 
-use crate::codegen::first_party_adapter_attribute_hint;
-
 use super::{RuntimeMode, TestAttributeHint};
+use crate::codegen::first_party_adapter_attribute_hint;
 
 /// Returns `true` when `attr` is exactly `<crate_name>::<fn_name>`.
 fn is_two_segment_attr(attr: &syn::Attribute, crate_name: &str, fn_name: &str) -> bool {
@@ -39,13 +38,9 @@ fn is_two_segment_attr(attr: &syn::Attribute, crate_name: &str, fn_name: &str) -
     segments.next().is_none() && first.ident == crate_name && second.ident == fn_name
 }
 
-fn is_tokio_test_attr(attr: &syn::Attribute) -> bool {
-    is_two_segment_attr(attr, "tokio", "test")
-}
+fn is_tokio_test_attr(attr: &syn::Attribute) -> bool { is_two_segment_attr(attr, "tokio", "test") }
 
-fn is_gpui_test_attr(attr: &syn::Attribute) -> bool {
-    is_two_segment_attr(attr, "gpui", "test")
-}
+fn is_gpui_test_attr(attr: &syn::Attribute) -> bool { is_two_segment_attr(attr, "gpui", "test") }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum PolicyAttribute {

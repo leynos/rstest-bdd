@@ -2,12 +2,13 @@
 
 use lsp_types::{DidSaveTextDocumentParams, TextDocumentIdentifier, Url};
 use rstest::{fixture, rstest};
-use rstest_bdd_server::config::ServerConfig;
 use rstest_bdd_server::discovery::WorkspaceInfo;
-use rstest_bdd_server::handlers::handle_did_save_text_document;
-use rstest_bdd_server::server::ServerState;
 use std::path::Path;
 use tempfile::TempDir;
+
+
+//! Behavioural test for `.feature` file indexing on save.
+};
 
 #[fixture]
 fn workspace_root() -> TempDir {

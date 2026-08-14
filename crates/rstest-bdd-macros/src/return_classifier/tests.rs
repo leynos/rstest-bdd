@@ -157,9 +157,7 @@ fn second_type_argument_returns_none_for_single_generic() {
 #[test]
 fn override_result_requires_result_like_return_type() {
     let func: syn::ItemFn = syn::parse_quote!(
-        fn step() -> u8 {
-            1
-        }
+        fn step() -> u8 { 1 }
     );
     let err = match classify_return_type(&func.sig.output, Some(ReturnOverride::Result)) {
         Ok(kind) => panic!("expected result override to fail, got {kind:?}"),

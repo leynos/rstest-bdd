@@ -6,7 +6,6 @@
 //! - File indexing via simulated LSP save events
 //! - Scenario building for diagnostic and navigation tests
 //! - Newtype wrappers for improved type safety
-
 use lsp_types::{DidSaveTextDocumentParams, TextDocumentIdentifier, Url};
 use std::path::Path;
 use tempfile::TempDir;
@@ -15,31 +14,23 @@ use camino::Utf8Path;
 use cap_std::ambient_authority;
 use cap_std::fs_utf8::Dir;
 
-use crate::config::ServerConfig;
 use crate::discovery::WorkspaceInfo;
-use crate::handlers::handle_did_save_text_document;
-use crate::server::ServerState;
+use crate::{config::ServerConfig, handlers::handle_did_save_text_document, server::ServerState};
 
 /// Newtype wrapper for test file names to improve type safety.
 #[derive(Debug, Clone)]
 pub struct Filename(pub(crate) String);
 
 impl From<&str> for Filename {
-    fn from(s: &str) -> Self {
-        Self(s.into())
-    }
+    fn from(s: &str) -> Self { Self(s.into()) }
 }
 
 impl From<String> for Filename {
-    fn from(s: String) -> Self {
-        Self(s)
-    }
+    fn from(s: String) -> Self { Self(s) }
 }
 
 impl AsRef<str> for Filename {
-    fn as_ref(&self) -> &str {
-        &self.0
-    }
+    fn as_ref(&self) -> &str { &self.0 }
 }
 
 /// Newtype wrapper for file contents to improve type safety.
@@ -47,21 +38,15 @@ impl AsRef<str> for Filename {
 pub struct FileContent(pub(crate) String);
 
 impl From<&str> for FileContent {
-    fn from(s: &str) -> Self {
-        Self(s.into())
-    }
+    fn from(s: &str) -> Self { Self(s.into()) }
 }
 
 impl From<String> for FileContent {
-    fn from(s: String) -> Self {
-        Self(s)
-    }
+    fn from(s: String) -> Self { Self(s) }
 }
 
 impl AsRef<str> for FileContent {
-    fn as_ref(&self) -> &str {
-        &self.0
-    }
+    fn as_ref(&self) -> &str { &self.0 }
 }
 
 /// Specifies which diagnostic checks to run in parameterized tests.
@@ -281,9 +266,7 @@ impl ScenarioBuilder {
 }
 
 impl Default for ScenarioBuilder {
-    fn default() -> Self {
-        Self::new()
-    }
+    fn default() -> Self { Self::new() }
 }
 
 /// Test scenario with a single feature and Rust file pair.

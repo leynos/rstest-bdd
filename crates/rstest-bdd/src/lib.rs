@@ -19,9 +19,7 @@ mod skip;
 /// assert_eq!(greet(), "Hello from rstest-bdd!");
 /// ```
 #[must_use]
-pub fn greet() -> &'static str {
-    "Hello from rstest-bdd!"
-}
+pub fn greet() -> &'static str { "Hello from rstest-bdd!" }
 
 #[cfg(feature = "diagnostics")]
 use ctor::ctor;
@@ -46,45 +44,66 @@ mod types;
 pub mod test_support;
 
 pub use context::{
-    FixtureBorrowError, FixtureRef, FixtureRefMut, InsertOutcome,
-    RSTEST_BDD_HARNESS_CONTEXT_FIXTURE, StepContext,
+    FixtureBorrowError,
+    FixtureRef,
+    FixtureRefMut,
+    InsertOutcome,
+    RSTEST_BDD_HARNESS_CONTEXT_FIXTURE,
+    StepContext,
 };
 pub use localization::{
-    LocalizationError, Localizations, current_languages, install_localization_loader,
+    LocalizationError,
+    Localizations,
+    current_languages,
+    install_localization_loader,
     select_localizations,
 };
 pub use pattern::StepPattern;
 pub use placeholder::extract_placeholders;
 #[cfg(feature = "diagnostics")]
 pub use registry::dump_registry;
-pub use registry::record_bypassed_steps;
-pub use registry::record_bypassed_steps_with_tags;
 pub use registry::{
-    FixtureRequirement, Step, StepFixtureRequirements, duplicate_steps, find_step, find_step_async,
-    find_step_async_with_mode, find_step_with_metadata, find_step_with_mode, lookup_step,
-    lookup_step_async, lookup_step_async_with_mode, unused_steps,
+    FixtureRequirement,
+    Step,
+    StepFixtureRequirements,
+    duplicate_steps,
+    find_step,
+    find_step_async,
+    find_step_async_with_mode,
+    find_step_with_metadata,
+    find_step_with_mode,
+    lookup_step,
+    lookup_step_async,
+    lookup_step_async_with_mode,
+    record_bypassed_steps,
+    record_bypassed_steps_with_tags,
+    unused_steps,
 };
 
 /// Whether the crate was built with the `diagnostics` feature enabled.
 #[must_use]
-pub const fn diagnostics_enabled() -> bool {
-    cfg!(feature = "diagnostics")
-}
+pub const fn diagnostics_enabled() -> bool { cfg!(feature = "diagnostics") }
+pub use execution::{ExecutionError, MissingFixtureDiagnostic, MissingFixturesDetails};
 #[doc(hidden)]
 pub use panic_support::catch_unwind_future as __rstest_bdd_catch_unwind_future;
 #[doc(hidden)]
 pub use skip::{
-    ScopeKind as __rstest_bdd_scope_kind, SkipRequest, StepScopeGuard as __rstest_bdd_scope_guard,
+    ScopeKind as __rstest_bdd_scope_kind,
+    SkipRequest,
+    StepScopeGuard as __rstest_bdd_scope_guard,
     enter_scope as __rstest_bdd_enter_scope,
     request_current_skip as __rstest_bdd_request_current_skip,
 };
 #[doc(hidden)]
 pub use skip_helpers::{
-    __rstest_bdd_assert_scenario_detail_flag, __rstest_bdd_assert_scenario_detail_message_absent,
+    __rstest_bdd_assert_scenario_detail_flag,
+    __rstest_bdd_assert_scenario_detail_message_absent,
     __rstest_bdd_assert_scenario_detail_message_contains,
     __rstest_bdd_assert_step_skipped_message_absent,
-    __rstest_bdd_assert_step_skipped_message_contains, __rstest_bdd_expect_skip_flag,
-    __rstest_bdd_expect_skip_message_absent, __rstest_bdd_expect_skip_message_contains,
+    __rstest_bdd_assert_step_skipped_message_contains,
+    __rstest_bdd_expect_skip_flag,
+    __rstest_bdd_expect_skip_message_absent,
+    __rstest_bdd_expect_skip_message_contains,
     __rstest_bdd_unwrap_step_skipped,
 };
 pub use state::{ScenarioState, Slot};
@@ -94,12 +113,24 @@ pub use step_args::{StepArgs, StepArgsError};
 #[doc(hidden)]
 pub use tokio as __rstest_bdd_tokio;
 pub use types::{
-    AsyncStepFn, PatternStr, PlaceholderError, PlaceholderSyntaxError, StepCtx, StepDoc,
-    StepExecution, StepExecutionMode, StepFn, StepFuture, StepKeyword, StepKeywordParseError,
-    StepPatternError, StepTable, StepText, StepTextRef, UnsupportedStepType,
+    AsyncStepFn,
+    PatternStr,
+    PlaceholderError,
+    PlaceholderSyntaxError,
+    StepCtx,
+    StepDoc,
+    StepExecution,
+    StepExecutionMode,
+    StepFn,
+    StepFuture,
+    StepKeyword,
+    StepKeywordParseError,
+    StepPatternError,
+    StepTable,
+    StepText,
+    StepTextRef,
+    UnsupportedStepType,
 };
-
-pub use execution::{ExecutionError, MissingFixtureDiagnostic, MissingFixturesDetails};
 
 #[cfg(feature = "diagnostics")]
 #[ctor]

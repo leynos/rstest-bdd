@@ -11,11 +11,12 @@
 //! not leak stale handles into the next serial GPUI scenario.
 #![cfg(feature = "native-gpui-tests")]
 
+use std::cell::RefCell;
+
 use proptest::prelude::*;
 use rstest::fixture;
 use rstest_bdd_macros::{given, scenario, then, when};
 use serial_test::serial;
-use std::cell::RefCell;
 
 #[derive(Clone, Debug, Default)]
 struct CounterView {
@@ -48,9 +49,7 @@ fn reset_state_after_scenario() {
 struct ScenarioStateCleanup;
 
 impl Drop for ScenarioStateCleanup {
-    fn drop(&mut self) {
-        reset_state_after_scenario();
-    }
+    fn drop(&mut self) { reset_state_after_scenario(); }
 }
 
 #[fixture]

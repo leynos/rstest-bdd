@@ -50,9 +50,7 @@ impl HeldGuard<'_> {
         }
     }
 
-    fn is_mutable(&self) -> bool {
-        matches!(self, Self::Mutable { .. })
-    }
+    fn is_mutable(&self) -> bool { matches!(self, Self::Mutable { .. }) }
 }
 
 fn assert_mutable_acquire<'borrow, 'fixture: 'borrow>(

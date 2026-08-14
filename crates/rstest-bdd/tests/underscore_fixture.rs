@@ -9,24 +9,16 @@ struct StreamingState {
 }
 
 #[fixture]
-fn world() -> StreamingState {
-    StreamingState::default()
-}
+fn world() -> StreamingState { StreamingState::default() }
 
 #[fixture]
-fn _world() -> &'static str {
-    "explicit _world fixture"
-}
+fn _world() -> &'static str { "explicit _world fixture" }
 
 #[given("the streaming world is available")]
-fn world_is_available(_world: &mut StreamingState) {
-    _world.parsed_events = 1;
-}
+fn world_is_available(_world: &mut StreamingState) { _world.parsed_events = 1; }
 
 #[when("the parser runs once more")]
-fn parser_runs_again(_world: &mut StreamingState) {
-    _world.parsed_events += 1;
-}
+fn parser_runs_again(_world: &mut StreamingState) { _world.parsed_events += 1; }
 
 #[then("implicit underscore fixture lookup uses the world fixture")]
 #[expect(

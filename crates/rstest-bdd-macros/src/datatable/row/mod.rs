@@ -8,15 +8,18 @@ mod bindings;
 
 use attributes::{collect_fields, parse_struct_config};
 use bindings::build_field_binding;
-
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 use syn::{Data, DataStruct, DeriveInput, Generics, Type, parse_macro_input, spanned::Spanned};
 
-use crate::codegen::rstest_bdd_path;
-use crate::datatable::config::{Accessor, FieldConfig, FieldSpec};
-use crate::datatable::validation::is_string_type;
+use crate::{
+    codegen::rstest_bdd_path,
+    datatable::{
+        config::{Accessor, FieldConfig, FieldSpec},
+        validation::is_string_type,
+    },
+};
 
 pub(crate) fn expand(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);

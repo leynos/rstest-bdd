@@ -5,11 +5,11 @@
 //! the capture collection and conversion code, including `:string` hint
 //! handling for quoted captures.
 
-use super::step_parse::gen_quote_strip_to_stripped;
-use super::{StepMeta, step_error_tokens};
-use crate::codegen::wrapper::args::StepStructArg;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
+
+use super::{StepMeta, step_error_tokens, step_parse::gen_quote_strip_to_stripped};
+use crate::codegen::wrapper::args::StepStructArg;
 
 /// Placeholder information needed for step struct code generation.
 pub(super) struct PlaceholderInfo<'a> {

@@ -26,9 +26,7 @@ pub enum InsertOutcome {
 impl InsertOutcome {
     /// Whether the value was recorded as an override.
     #[must_use]
-    pub const fn is_inserted(&self) -> bool {
-        matches!(self, Self::Inserted(_))
-    }
+    pub const fn is_inserted(&self) -> bool { matches!(self, Self::Inserted(_)) }
 
     /// Consume the outcome and return the displaced previous override, when
     /// the insert succeeded and one existed.

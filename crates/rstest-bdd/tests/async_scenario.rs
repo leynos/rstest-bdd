@@ -20,9 +20,7 @@ thread_local! {
 }
 
 #[given("an async counter is initialized to 0")]
-fn async_counter_init() {
-    ASYNC_COUNTER.with(|c| *c.borrow_mut() = 0);
-}
+fn async_counter_init() { ASYNC_COUNTER.with(|c| *c.borrow_mut() = 0); }
 
 #[when("the async counter is incremented")]
 async fn async_counter_increment() {

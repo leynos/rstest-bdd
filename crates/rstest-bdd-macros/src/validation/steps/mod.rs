@@ -13,17 +13,17 @@
 mod crate_id;
 mod messages;
 
-use std::collections::HashMap;
-use std::sync::{LazyLock, Mutex};
-
-use crate::StepKeyword;
-use crate::parsing::feature::ParsedStep;
-use crate::pattern::MacroPattern;
-#[cfg(not(test))]
-use proc_macro_error::emit_warning;
+use std::{
+    collections::HashMap,
+    sync::{LazyLock, Mutex},
+};
 
 use crate_id::{current_crate_id, normalize_crate_id};
 use messages::{format_ambiguous_step_error, format_missing_step_error};
+#[cfg(not(test))]
+use proc_macro_error::emit_warning;
+
+use crate::{StepKeyword, parsing::feature::ParsedStep, pattern::MacroPattern};
 
 type Registry = HashMap<Box<str>, CrateDefs>;
 
@@ -36,9 +36,7 @@ impl CrateDefs {
     fn patterns(&self, kw: StepKeyword) -> &[&'static MacroPattern] {
         self.by_kw.get(&kw).map_or(&[], Vec::as_slice)
     }
-    fn is_empty(&self) -> bool {
-        self.by_kw.values().all(Vec::is_empty)
-    }
+    fn is_empty(&self) -> bool { self.by_kw.values().all(Vec::is_empty) }
 }
 
 /// Global registry of step definitions.
@@ -166,7 +164,8 @@ fn validate_registry_state(
                 #[cfg(not(test))]
                 emit_warning!(
                     proc_macro2::Span::call_site(),
-                    "step registry has no definitions for crate ID '{}'. This may indicate a registry issue.",
+                    "step registry has no definitions for crate ID '{}'. This may indicate a \
+                     registry issue.",
                     crate_id_str
                 );
                 RegistryDecision::WarnAndSkip

@@ -2,10 +2,9 @@
 //! resolution through `cap-std` before falling back to `std::fs` for escape
 //! hatches.
 
-use cap_std::AmbientAuthority;
-use cap_std::ambient_authority;
-use cap_std::fs::Dir;
 use std::path::{Path, PathBuf};
+
+use cap_std::{AmbientAuthority, ambient_authority, fs::Dir};
 
 fn canonicalize_absolute_path(
     path: &Path,

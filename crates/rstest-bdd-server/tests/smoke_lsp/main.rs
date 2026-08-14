@@ -9,16 +9,21 @@
 mod clearing;
 mod wire;
 
-use std::io::BufReader;
-use std::path::{Path, PathBuf};
-use std::process::{Child, ChildStdin};
+use std::{
+    io::BufReader,
+    path::{Path, PathBuf},
+    process::{Child, ChildStdin},
+};
 
 use rstest::{fixture, rstest};
 use serde_json::{Value, json};
 use tempfile::TempDir;
-
 use wire::{
-    MessageReceiver, did_save, initialize, is_non_empty_diagnostics, shutdown_and_exit,
+    MessageReceiver,
+    did_save,
+    initialize,
+    is_non_empty_diagnostics,
+    shutdown_and_exit,
     spawn_server,
 };
 
@@ -33,18 +38,14 @@ const MAX_RECV_MESSAGES: usize = 20;
 
 /// Fixture providing a temporary directory for each test.
 #[fixture]
-fn temp_dir() -> TempDir {
-    new_temp_dir()
-}
+fn temp_dir() -> TempDir { new_temp_dir() }
 
 /// Fixture providing an initialized LSP server backed by a temporary
 /// directory.  The server is spawned, the initialize handshake is
 /// performed, and the caller receives handles needed for interaction
 /// and teardown.
 #[fixture]
-fn server(temp_dir: TempDir) -> ServerHandle {
-    init_server_handle(temp_dir)
-}
+fn server(temp_dir: TempDir) -> ServerHandle { init_server_handle(temp_dir) }
 
 /// Create a new temporary directory, panicking with a descriptive
 /// message on failure.
@@ -52,9 +53,7 @@ fn server(temp_dir: TempDir) -> ServerHandle {
     clippy::expect_used,
     reason = "temp dir creation failure is a test-fatal I/O error"
 )]
-fn new_temp_dir() -> TempDir {
-    TempDir::new().expect("temp dir")
-}
+fn new_temp_dir() -> TempDir { TempDir::new().expect("temp dir") }
 
 /// Perform the full server setup: spawn, initialize handshake, and
 /// return a [`ServerHandle`].
@@ -94,9 +93,7 @@ struct ServerHandle {
 
 impl ServerHandle {
     /// Convenience accessor for the workspace root path.
-    fn workspace_root(&self) -> &Path {
-        self.dir.path()
-    }
+    fn workspace_root(&self) -> &Path { self.dir.path() }
 }
 
 // ---------------------------------------------------------------------------
@@ -288,10 +285,7 @@ fn smoke_diagnostics_published_for_unimplemented_step(mut server: ServerHandle) 
     let diag_msg = server
         .receiver
         .recv_notification_matching(is_non_empty_diagnostics, MAX_RECV_MESSAGES)
-        .expect(
-            "expected a publishDiagnostics notification \
-             for the unimplemented step",
-        );
+        .expect("expected a publishDiagnostics notification for the unimplemented step");
 
     let diags = diag_msg["params"]["diagnostics"]
         .as_array()
@@ -306,8 +300,7 @@ fn smoke_diagnostics_published_for_unimplemented_step(mut server: ServerHandle) 
     assert!(
         first_msg.contains("a step with no implementation")
             || first_msg.contains("No Rust implementation"),
-        "diagnostic message should mention the unimplemented step, \
-         got: {first_msg}"
+        "diagnostic message should mention the unimplemented step, got: {first_msg}"
     );
 
     shutdown_and_exit(&mut server.stdin, &server.receiver, &mut server.child, 99);

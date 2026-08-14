@@ -4,18 +4,16 @@
 //! step argument counts. A placeholder count mismatch indicates that the
 //! function signature doesn't match the pattern's expectations.
 
-use std::collections::HashSet;
-use std::path::Path;
-use std::sync::Arc;
+use std::{collections::HashSet, path::Path, sync::Arc};
 
 use lsp_types::{Diagnostic, DiagnosticSeverity};
 use rstest_bdd_patterns::pattern::lexer::{Token, lex_pattern};
 
-use crate::indexing::{CompiledStepDefinition, IndexedStepParameter};
-use crate::server::ServerState;
-
-use super::compute::step_type_to_attribute;
-use super::{CODE_PLACEHOLDER_COUNT_MISMATCH, DIAGNOSTIC_SOURCE};
+use super::{CODE_PLACEHOLDER_COUNT_MISMATCH, DIAGNOSTIC_SOURCE, compute::step_type_to_attribute};
+use crate::{
+    indexing::{CompiledStepDefinition, IndexedStepParameter},
+    server::ServerState,
+};
 
 /// Compute diagnostics for signature mismatches in step definitions.
 ///
@@ -26,17 +24,15 @@ use super::{CODE_PLACEHOLDER_COUNT_MISMATCH, DIAGNOSTIC_SOURCE};
 /// # Example
 ///
 /// ```no_run
-/// use rstest_bdd_server::config::ServerConfig;
-/// use rstest_bdd_server::server::ServerState;
 /// use std::path::Path;
+///
+/// use rstest_bdd_server::{config::ServerConfig, server::ServerState};
 ///
 /// let state = ServerState::new(ServerConfig::default());
 /// let rust_path = Path::new("steps.rs");
 ///
-/// let diagnostics = rstest_bdd_server::handlers::compute_signature_mismatch_diagnostics(
-///     &state,
-///     rust_path,
-/// );
+/// let diagnostics =
+///     rstest_bdd_server::handlers::compute_signature_mismatch_diagnostics(&state, rust_path);
 /// // Returns diagnostics for any step where placeholder count != step argument count
 /// for diag in &diagnostics {
 ///     println!("{}", diag.message);
@@ -110,8 +106,8 @@ fn extract_placeholder_names(tokens: &[Token]) -> HashSet<String> {
 ///
 /// A step argument is a parameter that either:
 /// - Is a step struct (`#[step_args]`) which bundles all placeholders, OR
-/// - Is not a datatable/docstring parameter AND has a normalized name that
-///   appears in the placeholder set
+/// - Is not a datatable/docstring parameter AND has a normalized name that appears in the
+///   placeholder set
 ///
 /// Step structs bypass the datatable/docstring exclusion because they are
 /// explicitly marked as step arguments regardless of other attributes.
@@ -152,9 +148,7 @@ fn count_step_arguments(
 ///
 /// Strips a single leading underscore to match the macro behaviour, where
 /// users prefix parameters with `_` to suppress unused warnings.
-fn normalize_param_name(name: &str) -> String {
-    name.strip_prefix('_').unwrap_or(name).to_owned()
-}
+fn normalize_param_name(name: &str) -> String { name.strip_prefix('_').unwrap_or(name).to_owned() }
 
 /// Build a diagnostic for a placeholder count mismatch.
 fn build_placeholder_mismatch_diagnostic(
@@ -173,8 +167,8 @@ fn build_placeholder_mismatch_diagnostic(
         code_description: None,
         source: Some(DIAGNOSTIC_SOURCE.to_owned()),
         message: format!(
-            "Placeholder count mismatch: pattern has {} placeholder occurrence(s) but \
-             function has {} step argument(s) - #[{}(\"{}\")]",
+            "Placeholder count mismatch: pattern has {} placeholder occurrence(s) but function \
+             has {} step argument(s) - #[{}(\"{}\")]",
             placeholder_count,
             step_arg_count,
             step_type_to_attribute(step_def.keyword),

@@ -3,14 +3,10 @@
 use std::cell::RefCell;
 
 // Reset the accumulator so each scenario starts from a predictable baseline.
-pub fn set_total(total: &RefCell<i32>, value: i32) {
-    *total.borrow_mut() = value;
-}
+pub fn set_total(total: &RefCell<i32>, value: i32) { *total.borrow_mut() = value; }
 
 // Apply an additional value contributed by a translated step.
-pub fn add_to_total(total: &RefCell<i32>, value: i32) {
-    *total.borrow_mut() += value;
-}
+pub fn add_to_total(total: &RefCell<i32>, value: i32) { *total.borrow_mut() += value; }
 
 // Assert that the accumulator equals the expected sum once a scenario completes.
 pub fn assert_total(total: &RefCell<i32>, expected: i32) {

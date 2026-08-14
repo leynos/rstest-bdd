@@ -7,30 +7,33 @@
 //!
 //! # Key Components
 //!
-//! - [`RuntimeMode`]: Canonical definition of execution modes (sync, async
-//!   variants), re-exported from `rstest_bdd_policy`.
-//! - [`TestAttributeHint`]: Canonical definition for test attribute generation
-//!   hints, re-exported from `rstest_bdd_policy`.
+//! - [`RuntimeMode`]: Canonical definition of execution modes (sync, async variants), re-exported
+//!   from `rstest_bdd_policy`.
+//! - [`TestAttributeHint`]: Canonical definition for test attribute generation hints, re-exported
+//!   from `rstest_bdd_policy`.
 //! - [`StepExecutionRequest`]: Groups step data and diagnostic context for execution.
-//! - Helper functions for step execution, fixture validation, and skip encoding.
-//!   `RuntimeMode` and `TestAttributeHint` are re-exported from
-//!   `rstest_bdd_policy`, the shared source of truth used by the macro crate.
-//!   Runtime and macro tests guard that single-source policy boundary.
+//! - Helper functions for step execution, fixture validation, and skip encoding. `RuntimeMode` and
+//!   `TestAttributeHint` are re-exported from `rstest_bdd_policy`, the shared source of truth used
+//!   by the macro crate. Runtime and macro tests guard that single-source policy boundary.
 
 mod error;
 /// Fixture validation helpers for step execution.
 mod fixtures;
 
-use std::any::Any;
-use std::sync::Arc;
-
-use crate::context::StepContext;
-use crate::{
-    Step, StepExecution, StepExecutionMode, StepKeyword, StepText, find_step_with_metadata,
-};
-use fixtures::validate_required_fixtures;
+use std::{any::Any, sync::Arc};
 
 pub use error::{ExecutionError, MissingFixtureDiagnostic, MissingFixturesDetails};
+use fixtures::validate_required_fixtures;
+
+use crate::{
+    Step,
+    StepExecution,
+    StepExecutionMode,
+    StepKeyword,
+    StepText,
+    context::StepContext,
+    find_step_with_metadata,
+};
 
 /// Prefix character for encoded skip messages with no message content.
 pub(crate) const SKIP_NONE_PREFIX: char = '\u{0}';
@@ -43,7 +46,6 @@ pub(crate) const SKIP_SOME_PREFIX: char = '\u{1}';
 /// This type is re-exported from `rstest_bdd_policy` to keep the public API in
 /// `rstest_bdd::execution` stable for downstream users.
 pub use rstest_bdd_policy::RuntimeMode;
-
 /// Hint for which test attributes the macro layer should generate
 /// (canonical definition).
 ///
@@ -107,7 +109,7 @@ fn handle_step_result(
 /// # Examples
 ///
 /// ```
-/// use rstest_bdd::execution::{encode_skip_message, decode_skip_message};
+/// use rstest_bdd::execution::{decode_skip_message, encode_skip_message};
 ///
 /// // Round-trip with no message
 /// let encoded = encode_skip_message(None);
@@ -158,7 +160,7 @@ pub fn encode_skip_message(message: Option<String>) -> String {
 /// # Examples
 ///
 /// ```
-/// use rstest_bdd::execution::{encode_skip_message, decode_skip_message};
+/// use rstest_bdd::execution::{decode_skip_message, encode_skip_message};
 ///
 /// let encoded = encode_skip_message(Some("test".to_string()));
 /// assert_eq!(decode_skip_message(encoded), Some("test".to_string()));
@@ -245,20 +247,23 @@ pub struct StepExecutionRequest<'a> {
 ///
 /// Returns [`ExecutionError`] for all failure cases:
 ///
-/// - [`ExecutionError::Skip`]: The step requested skipping (control flow signal,
-///   not an error). Use [`ExecutionError::is_skip`] to detect this case.
-/// - [`ExecutionError::StepNotFound`]: No step matching the keyword and text
-///   was found in the registry.
-/// - [`ExecutionError::MissingFixtures`]: The step requires fixtures that are
-///   not available in the context.
-/// - [`ExecutionError::HandlerFailed`]: The step handler function returned an
-///   error during execution.
+/// - [`ExecutionError::Skip`]: The step requested skipping (control flow signal, not an error). Use
+///   [`ExecutionError::is_skip`] to detect this case.
+/// - [`ExecutionError::StepNotFound`]: No step matching the keyword and text was found in the
+///   registry.
+/// - [`ExecutionError::MissingFixtures`]: The step requires fixtures that are not available in the
+///   context.
+/// - [`ExecutionError::HandlerFailed`]: The step handler function returned an error during
+///   execution.
 ///
 /// # Examples
 ///
 /// ```
-/// use rstest_bdd::execution::{execute_step, ExecutionError, StepExecutionRequest};
-/// use rstest_bdd::{StepContext, StepKeyword};
+/// use rstest_bdd::{
+///     StepContext,
+///     StepKeyword,
+///     execution::{ExecutionError, StepExecutionRequest, execute_step},
+/// };
 ///
 /// let request = StepExecutionRequest {
 ///     index: 0,
@@ -305,8 +310,11 @@ pub fn execute_step(
 /// # Examples
 ///
 /// ```rust,no_run
-/// use rstest_bdd::execution::{execute_step_async, ExecutionError, StepExecutionRequest};
-/// use rstest_bdd::{StepContext, StepKeyword};
+/// use rstest_bdd::{
+///     StepContext,
+///     StepKeyword,
+///     execution::{ExecutionError, StepExecutionRequest, execute_step_async},
+/// };
 ///
 /// let request = StepExecutionRequest {
 ///     index: 0,

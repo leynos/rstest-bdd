@@ -19,9 +19,7 @@ fn manual_async_given() {
 }
 
 #[when("the manual async step continues")]
-fn manual_async_when() {
-    MANUAL_ASYNC_STATE.with(|s| s.borrow_mut().push_str(" -> when"));
-}
+fn manual_async_when() { MANUAL_ASYNC_STATE.with(|s| s.borrow_mut().push_str(" -> when")); }
 
 #[then("the manual async step completes")]
 fn manual_async_then() {

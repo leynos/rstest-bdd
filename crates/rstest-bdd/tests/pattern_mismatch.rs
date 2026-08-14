@@ -8,9 +8,7 @@ use rstest_bdd_macros::given;
 static CAPTURED: AtomicU32 = AtomicU32::new(0);
 
 #[given("number {value:u32}")]
-fn number(value: u32) {
-    CAPTURED.store(value, Ordering::Relaxed);
-}
+fn number(value: u32) { CAPTURED.store(value, Ordering::Relaxed); }
 
 #[test]
 fn passes_captured_value() {

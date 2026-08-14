@@ -1,15 +1,27 @@
 //! Behavioural tests verifying that `#[scenario]` accepts the `harness` and
 //! `attributes` parameters and delegates execution through the harness adapter.
 
+use std::{
+    panic::{AssertUnwindSafe, catch_unwind},
+    sync::{
+        LazyLock,
+        Mutex,
+        MutexGuard,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+    },
+};
+
 use rstest_bdd_harness::{
-    FailingHarness, HarnessAdapter, HarnessError, ScenarioMetadata, ScenarioRunRequest,
-    StdScenarioRunRequest, StdScenarioRunner,
+    FailingHarness,
+    HarnessAdapter,
+    HarnessError,
+    ScenarioMetadata,
+    ScenarioRunRequest,
+    StdScenarioRunRequest,
+    StdScenarioRunner,
 };
 use rstest_bdd_macros::{given, scenario, then, when};
 use serial_test::serial;
-use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{LazyLock, Mutex, MutexGuard};
 
 static EVENTS: LazyLock<Mutex<Vec<&'static str>>> = LazyLock::new(|| Mutex::new(Vec::new()));
 
@@ -48,32 +60,24 @@ fn precondition() {
 }
 
 #[when("an action occurs")]
-fn action() {
-    with_locked_events(|events| events.push("action"));
-}
+fn action() { with_locked_events(|events| events.push("action")); }
 
 #[then("a result is produced")]
-fn result() {
-    with_locked_events(|events| events.push("result"));
-}
+fn result() { with_locked_events(|events| events.push("result")); }
 
 #[scenario(
     path = "tests/features/web_search.feature",
     harness = rstest_bdd_harness::StdHarness,
 )]
 #[serial]
-fn scenario_with_harness() {
-    assert_and_clear_events();
-}
+fn scenario_with_harness() { assert_and_clear_events(); }
 
 #[scenario(
     path = "tests/features/web_search.feature",
     attributes = rstest_bdd_harness::DefaultAttributePolicy,
 )]
 #[serial]
-fn scenario_with_attributes() {
-    assert_and_clear_events();
-}
+fn scenario_with_attributes() { assert_and_clear_events(); }
 
 #[scenario(
     path = "tests/features/web_search.feature",
@@ -81,9 +85,7 @@ fn scenario_with_attributes() {
     attributes = rstest_bdd_harness::DefaultAttributePolicy,
 )]
 #[serial]
-fn scenario_with_harness_and_attributes() {
-    assert_and_clear_events();
-}
+fn scenario_with_harness_and_attributes() { assert_and_clear_events(); }
 
 // ---------------------------------------------------------------------------
 // Custom harness tests verifying that execution is actually delegated

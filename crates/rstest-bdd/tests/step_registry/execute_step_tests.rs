@@ -1,8 +1,12 @@
 //! Behavioural tests for `execute_step` function.
 
 use rstest::{fixture, rstest};
-use rstest_bdd::execution::{ExecutionError, StepExecutionRequest, execute_step};
-use rstest_bdd::{RSTEST_BDD_HARNESS_CONTEXT_FIXTURE, StepContext, StepKeyword};
+use rstest_bdd::{
+    RSTEST_BDD_HARNESS_CONTEXT_FIXTURE,
+    StepContext,
+    StepKeyword,
+    execution::{ExecutionError, StepExecutionRequest, execute_step},
+};
 
 /// Helper enum to represent expected error types for parameterized testing.
 enum ExpectedExecutionError {
@@ -28,9 +32,7 @@ fn make_request(index: usize, keyword: StepKeyword, text: &str) -> StepExecution
 
 /// Shared fixture providing a default `StepContext` for test injection.
 #[fixture]
-fn ctx() -> StepContext<'static> {
-    StepContext::default()
-}
+fn ctx() -> StepContext<'static> { StepContext::default() }
 
 #[rstest]
 fn execute_step_succeeds_without_value(mut ctx: StepContext<'static>) {

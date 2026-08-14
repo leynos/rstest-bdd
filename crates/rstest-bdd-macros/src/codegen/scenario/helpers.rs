@@ -38,9 +38,7 @@ fn cell_to_lit(value: &str) -> syn::LitStr {
 }
 
 /// Returns true when an Examples row contains at least one non-empty cell.
-pub(crate) fn row_has_values(row: &[String]) -> bool {
-    row.iter().any(|cell| !cell.is_empty())
-}
+pub(crate) fn row_has_values(row: &[String]) -> bool { row.iter().any(|cell| !cell.is_empty()) }
 
 /// Returns true when any parameter uses an underscore-prefixed identifier.
 ///
@@ -358,9 +356,10 @@ pub(crate) fn process_steps_substituted(
 mod tests {
     //! Unit tests for scenario code generation helpers.
 
-    use super::*;
     use rstest::rstest;
     use syn::parse_quote;
+
+    use super::*;
 
     #[rstest]
     #[case(parse_quote! { fn test(_state: State) }, true)]

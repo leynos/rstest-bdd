@@ -1,11 +1,8 @@
 //! Unit tests for [`super::copy_file`] and [`super::copy_dir_tree`] staging helpers.
 
-use std::fs;
-use std::io;
-use std::path::PathBuf;
+use std::{fs, io, path::PathBuf};
 
-use rstest::fixture;
-use rstest::rstest;
+use rstest::{fixture, rstest};
 use tempfile::TempDir;
 
 use super::{copy_dir_tree, copy_file};

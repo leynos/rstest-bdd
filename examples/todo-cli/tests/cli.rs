@@ -1,10 +1,10 @@
 //! Integration tests exercising the `todo-cli` binary.
 
+use std::{env, path::PathBuf};
+
 use assert_cmd::Command;
 use predicates::prelude::*;
 use rstest_bdd_harness::binary_test_support::{BinaryName, locate_or_build_binary};
-use std::env;
-use std::path::PathBuf;
 
 fn locate_or_build_todo_cli_cmd() -> Result<Command, Box<dyn std::error::Error>> {
     let root = workspace_root();
@@ -13,9 +13,7 @@ fn locate_or_build_todo_cli_cmd() -> Result<Command, Box<dyn std::error::Error>>
         .map_err(|e| -> Box<dyn std::error::Error> { Box::new(e) })
 }
 
-fn workspace_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
-}
+fn workspace_root() -> PathBuf { PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..") }
 
 #[test]
 fn add_succeeds() -> Result<(), Box<dyn std::error::Error>> {

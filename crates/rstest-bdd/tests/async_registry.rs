@@ -8,8 +8,17 @@
 
 use rstest::rstest;
 use rstest_bdd::{
-    AsyncStepFn, Step, StepContext, StepExecution, StepFuture, StepKeyword, find_step_async, iter,
-    lookup_step_async, step, unused_steps,
+    AsyncStepFn,
+    Step,
+    StepContext,
+    StepExecution,
+    StepFuture,
+    StepKeyword,
+    find_step_async,
+    iter,
+    lookup_step_async,
+    step,
+    unused_steps,
 };
 
 #[path = "common/noop_steps.rs"]

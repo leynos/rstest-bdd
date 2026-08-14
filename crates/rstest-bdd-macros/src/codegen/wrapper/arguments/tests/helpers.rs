@@ -1,10 +1,10 @@
 //! Test helper functions for argument preparation tests.
 
-use super::super::bindings;
-use super::super::*;
-use crate::codegen::wrapper::args::Arg;
 use quote::quote;
 use syn::parse_quote;
+
+use super::super::{bindings, *};
+use crate::codegen::wrapper::args::Arg;
 
 /// Create a sample `StepMeta` for testing.
 pub fn sample_meta<'a>(pattern: &'a syn::LitStr, ident: &'a syn::Ident) -> StepMeta<'a> {

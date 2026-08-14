@@ -1,15 +1,12 @@
 //! Basic smoke tests for the cargo-bdd subcommand.
 
+use std::{env, fs, path::PathBuf, process::ExitStatus, str};
+
 use assert_cmd::Command;
 use eyre::{Context, Result};
 use rstest_bdd_harness::binary_test_support::{BinaryName, locate_or_build_binary};
 use serde::Deserialize;
 use serial_test::serial;
-use std::env;
-use std::fs;
-use std::path::PathBuf;
-use std::process::ExitStatus;
-use std::str;
 
 #[derive(Debug, Deserialize)]
 struct SkippedDefinition {
@@ -62,9 +59,7 @@ fn locate_or_build_cargo_bdd_command() -> Result<Command> {
     .map_err(|e| eyre::eyre!(e))
 }
 
-fn workspace_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
-}
+fn workspace_root() -> PathBuf { PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..") }
 
 fn run_cargo_bdd_captured(args: &[&str]) -> Result<(ExitStatus, String, String)> {
     let output = run_cargo_bdd_raw(args)?;
@@ -103,9 +98,7 @@ fn run_cargo_bdd_failure(args: &[&str]) -> Result<String> {
     Ok(stderr)
 }
 
-fn run_cargo_bdd_steps() -> Result<String> {
-    run_cargo_bdd(&["steps"])
-}
+fn run_cargo_bdd_steps() -> Result<String> { run_cargo_bdd(&["steps"]) }
 
 #[test]
 #[serial]

@@ -29,14 +29,10 @@ struct ProductState {
 }
 
 #[fixture]
-fn cart_state() -> CartState {
-    CartState::default()
-}
+fn cart_state() -> CartState { CartState::default() }
 
 #[fixture]
-fn product_state() -> ProductState {
-    ProductState::default()
-}
+fn product_state() -> ProductState { ProductState::default() }
 
 #[given("a cart containing {quantity:u32} {item} at ${price:f32}")]
 fn a_cart_with_items(#[step_args] details: CartInput, cart_state: &CartState) {
