@@ -229,27 +229,26 @@ fn keyword_name(keyword: crate::StepKeyword) -> &'static str {
 /// Produce a keyword-specific help message for a step signature diagnostic.
 fn signature_error_help(err_message: &str, keyword: crate::StepKeyword) -> String {
     if err_message.contains("duplicate `#[datatable]` attribute") {
-        return "Remove one of the duplicate `#[datatable]` attributes.".to_string();
+        return "Remove one of the duplicate `#[datatable]` attributes.".to_owned();
     }
 
     if err_message.contains("duplicate `#[from]` attribute") {
-        return "Remove one of the duplicate `#[from]` attributes.".to_string();
+        return "Remove one of the duplicate `#[from]` attributes.".to_owned();
     }
 
     if err_message.contains(crate::codegen::wrapper::args::classify::DUPLICATE_DATATABLE_ERROR) {
-        return "Remove one of the DataTable parameters.".to_string();
+        return "Remove one of the DataTable parameters.".to_owned();
     }
 
     if err_message.contains("unsupported parameter pattern") {
         return concat!(
             "Bind the parameter to a simple identifier (e.g., `tuple: (i32, i32)` or `user: User`) ",
             "and destructure it inside the step body."
-        )
-        .to_string();
+        ).to_owned();
     }
 
     if err_message.contains("methods are not supported; remove `self`") {
-        return "Remove `self` from step functions.".to_string();
+        return "Remove `self` from step functions.".to_owned();
     }
 
     let kw_name = keyword_name(keyword);

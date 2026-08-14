@@ -95,7 +95,7 @@ where
     let trimmed = value.trim();
     trimmed
         .parse()
-        .map_err(|source| TrimmedParseError::new(value.to_string(), source))
+        .map_err(|source| TrimmedParseError::new(value.to_owned(), source))
 }
 
 /// Error returned when [`trimmed`] fails to parse the value.

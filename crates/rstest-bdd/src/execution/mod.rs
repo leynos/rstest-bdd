@@ -58,9 +58,9 @@ fn resolve_step_for_request(
         ExecutionError::StepNotFound {
             index: request.index,
             keyword: request.keyword,
-            text: request.text.to_string(),
-            feature_path: request.feature_path.to_string(),
-            scenario_name: request.scenario_name.to_string(),
+            text: request.text.to_owned(),
+            feature_path: request.feature_path.to_owned(),
+            scenario_name: request.scenario_name.to_owned(),
         }
     })
 }
@@ -75,10 +75,10 @@ fn handle_step_result(
         Err(err) => Err(ExecutionError::HandlerFailed {
             index: request.index,
             keyword: request.keyword,
-            text: request.text.to_string(),
+            text: request.text.to_owned(),
             error: Arc::new(err),
-            feature_path: request.feature_path.to_string(),
-            scenario_name: request.scenario_name.to_string(),
+            feature_path: request.feature_path.to_owned(),
+            scenario_name: request.scenario_name.to_owned(),
         }),
     }
 }
@@ -174,7 +174,7 @@ pub fn decode_skip_message(encoded: String) -> Option<String> {
         Some(c) if c == SKIP_SOME_PREFIX => {
             // Safe: prefix_len is the byte length of the first char we just matched
             let prefix_len = c.len_utf8();
-            Some(encoded.get(prefix_len..)?.to_string())
+            Some(encoded.get(prefix_len..)?.to_owned())
         }
         // Defensive fallback: preserve unexpected or malformed input rather than
         // panicking. This handles edge cases such as:

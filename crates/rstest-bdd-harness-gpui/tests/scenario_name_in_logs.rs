@@ -180,7 +180,7 @@ fn scenario_metadata(name: &str) -> ScenarioMetadata {
         FEATURE_PATH,
         name,
         SCENARIO_LINE,
-        vec!["@regression".to_string()],
+        vec!["@regression".to_owned()],
     )
 }
 
@@ -264,7 +264,7 @@ fn special_characters_in_scenario_name_are_preserved_in_diagnostic() {
 #[rstest]
 #[case::string_payload(
     "String payload scenario",
-    Box::new(|| -> () { panic_any("a string panic".to_string()); }) as Box<dyn Fn() + Send + 'static>,
+    Box::new(|| -> () { panic_any("a string panic".to_owned()); }) as Box<dyn Fn() + Send + 'static>,
 )]
 #[case::str_payload(
     "&str payload scenario",

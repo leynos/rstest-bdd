@@ -103,7 +103,7 @@ mod tests {
     fn scenario_outline_without_examples(name: &str) -> Scenario {
         Scenario {
             keyword: "Scenario Outline".into(),
-            name: name.to_string(),
+            name: name.to_owned(),
             ..empty_scenario()
         }
     }
