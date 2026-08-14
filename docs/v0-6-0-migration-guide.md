@@ -154,7 +154,6 @@ match ctx.insert_value(Box::new(7_u32)) {
 `InsertOutcome` is `#[must_use]`, so discarding it implicitly now warns. Use
 `is_inserted()` for a boolean check that does not consume the outcome.
 
-
 ### Update direct `record_bypassed_steps` callers
 
 `record_bypassed_steps` previously took the feature path, scenario name,
