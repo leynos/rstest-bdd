@@ -10,7 +10,12 @@ use quote::{format_ident, quote};
 use super::super::{
     super::{
         args::ExtractedArgs,
-        arguments::{StepMeta, collect_ordered_arguments, prepare_argument_processing},
+        arguments::{
+            ArgumentProcessingInputs,
+            StepMeta,
+            collect_ordered_arguments,
+            prepare_argument_processing,
+        },
     },
     datatable_cache::{DatatableCacheComponents, generate_datatable_cache_definitions},
     identifiers::generate_wrapper_signature,
@@ -77,10 +82,12 @@ fn generate_wrapper_body_impl(
     let prepared = prepare_argument_processing(
         args_slice,
         step_meta,
-        &ctx_ident,
-        placeholder_names,
-        placeholder_hints,
-        datatable_idents_refs,
+        ArgumentProcessingInputs {
+            ctx_ident: &ctx_ident,
+            placeholder_names,
+            placeholder_hints,
+            datatable_idents: datatable_idents_refs,
+        },
     );
     let arg_idents = collect_ordered_arguments(args_slice);
     let wrapper_fn = super::assemble_wrapper_function(

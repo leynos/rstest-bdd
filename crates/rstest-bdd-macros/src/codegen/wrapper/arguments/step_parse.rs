@@ -7,7 +7,7 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 
-use super::{super::args::Arg, StepMeta, is_str_reference, step_error_tokens};
+use super::{super::args::StepArg, StepMeta, is_str_reference, step_error_tokens};
 
 /// Context for generating argument binding code.
 struct BindingContext<'a> {
@@ -100,7 +100,7 @@ fn gen_parse_err(meta: StepMeta<'_>, binding: &BindingContext<'_>) -> TokenStrea
 ///
 /// Optionally strips surrounding quotes if the hint requires it.
 fn gen_str_reference_binding(
-    binding: &BindingContext<'_>,
+    context: &BindingContext<'_>,
     tokens: &CodeTokens<'_>,
 ) -> TokenStream2 {
     let BindingContext {
@@ -109,7 +109,7 @@ fn gen_str_reference_binding(
         binding,
         ty,
         ..
-    } = binding;
+    } = context;
     let CodeTokens {
         quote_strip,
         missing_cap_err,
@@ -125,7 +125,7 @@ fn gen_str_reference_binding(
 ///
 /// Optionally strips surrounding quotes if the hint requires it.
 fn gen_parsed_type_binding(
-    binding: &BindingContext<'_>,
+    context: &BindingContext<'_>,
     tokens: &CodeTokens<'_>,
     parse_err: &TokenStream2,
 ) -> TokenStream2 {
@@ -135,7 +135,7 @@ fn gen_parsed_type_binding(
         binding,
         ty,
         ..
-    } = binding;
+    } = context;
     let CodeTokens {
         quote_strip,
         missing_cap_err,
@@ -151,7 +151,7 @@ fn gen_parsed_type_binding(
 #[derive(Copy, Clone)]
 pub(super) struct ArgParseContext<'a> {
     /// The argument being parsed.
-    pub(super) arg: &'a Arg,
+    pub(super) arg: StepArg<'a>,
     /// Wrapper-local binding name for the argument.
     pub(super) binding: &'a syn::Ident,
     /// Index of this argument in the capture list.
@@ -180,9 +180,7 @@ pub(super) fn gen_single_step_parse(ctx: ArgParseContext<'_>, meta: StepMeta<'_>
         hint,
     } = ctx;
     let StepMeta { pattern, ident } = meta;
-    let Arg::Step { pat, ty } = arg else {
-        unreachable!("step argument vector must contain step args");
-    };
+    let StepArg { pat, ty } = arg;
     let raw_ident = format_ident!("__raw{}", idx);
     let missing_cap_err = step_error_tokens(
         &format_ident!("ExecutionError"),
@@ -221,7 +219,7 @@ pub(super) fn gen_single_step_parse(ctx: ArgParseContext<'_>, meta: StepMeta<'_>
         quote! {}
     };
 
-    let binding = BindingContext {
+    let binding_context = BindingContext {
         raw_ident: &raw_ident,
         capture,
         binding,
@@ -234,9 +232,9 @@ pub(super) fn gen_single_step_parse(ctx: ArgParseContext<'_>, meta: StepMeta<'_>
     };
 
     if is_str_reference(ty) {
-        gen_str_reference_binding(&binding, &tokens)
+        gen_str_reference_binding(&binding_context, &tokens)
     } else {
-        let parse_err = gen_parse_err(meta, &binding);
-        gen_parsed_type_binding(&binding, &tokens, &parse_err)
+        let parse_err = gen_parse_err(meta, &binding_context);
+        gen_parsed_type_binding(&binding_context, &tokens, &parse_err)
     }
 }

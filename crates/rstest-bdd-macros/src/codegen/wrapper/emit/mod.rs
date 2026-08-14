@@ -3,7 +3,7 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 
-use super::args::{Arg, ExtractedArgs};
+use super::args::ExtractedArgs;
 use crate::return_classifier::ReturnKind;
 
 mod assembly;
@@ -153,23 +153,17 @@ fn generate_registration_code(
     let fixture_names: Vec<_> = config
         .args
         .fixtures()
-        .map(|arg| {
-            let Arg::Fixture { name, .. } = arg else {
-                unreachable!("fixture iterator must only yield fixtures");
-            };
-            let rendered = name.to_string();
+        .map(|fixture| {
+            let rendered = fixture.name.to_string();
             quote! { #rendered }
         })
         .collect();
     let fixture_metadata: Vec<_> = config
         .args
         .fixtures()
-        .map(|arg| {
-            let Arg::Fixture { name, ty, .. } = arg else {
-                unreachable!("fixture iterator must only yield fixtures");
-            };
-            let fixture_name = name.to_string();
-            let fixture_ty = effective_fixture_type(ty);
+        .map(|fixture| {
+            let fixture_name = fixture.name.to_string();
+            let fixture_ty = effective_fixture_type(fixture.ty);
             quote! {
                 #path::FixtureRequirement {
                     name: #fixture_name,
