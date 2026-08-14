@@ -1,7 +1,7 @@
 # Align with CodeScene’s ceiling
 cognitive-complexity-threshold = 12     # default is 25
 
-# Tests may unwrap fallible setup at their own boundary. Both built-in `#[test]`
-# and `rstest` cases use this policy.
+# Tests may use `.expect(...)` or `panic!(...)` for fallible setup at their
+# own boundary. This applies to built-in `#[test]` and `rstest` cases.
 allow-expect-in-tests = true
 allow-panic-in-tests = true
