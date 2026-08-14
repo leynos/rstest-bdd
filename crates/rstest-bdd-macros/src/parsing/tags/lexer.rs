@@ -44,9 +44,7 @@ pub(super) struct Lexer<'a> {
 }
 
 impl<'a> Lexer<'a> {
-    pub(super) fn new(input: &'a str) -> Self {
-        Self { input, pos: 0 }
-    }
+    pub(super) fn new(input: &'a str) -> Self { Self { input, pos: 0 } }
 
     pub(super) fn next_token(&mut self) -> Result<Token, TagExprError> {
         self.skip_whitespace();
@@ -160,6 +158,4 @@ impl<'a> Lexer<'a> {
     }
 }
 
-fn is_tag_char(ch: char) -> bool {
-    ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-')
-}
+fn is_tag_char(ch: char) -> bool { ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-') }

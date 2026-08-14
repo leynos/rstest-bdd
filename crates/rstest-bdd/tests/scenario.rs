@@ -1,9 +1,10 @@
 //! Behavioural tests covering the `#[scenario]` macro
 
+use std::sync::{LazyLock, Mutex, MutexGuard};
+
 use rstest::rstest;
 use rstest_bdd_macros::{given, scenario, then, when};
 use serial_test::serial;
-use std::sync::{LazyLock, Mutex, MutexGuard};
 
 static EVENTS: LazyLock<Mutex<Vec<&'static str>>> = LazyLock::new(|| Mutex::new(Vec::new()));
 
@@ -38,14 +39,10 @@ where
 }
 
 #[given("a background step")]
-fn background_step() {
-    with_locked_events(|events| events.push("background"));
-}
+fn background_step() { with_locked_events(|events| events.push("background")); }
 
 #[given("another background step")]
-fn another_background_step() {
-    with_locked_events(|events| events.push("another background"));
-}
+fn another_background_step() { with_locked_events(|events| events.push("another background")); }
 
 #[given("a precondition")]
 fn precondition() {
@@ -54,14 +51,10 @@ fn precondition() {
 }
 
 #[when("an action occurs")]
-fn action() {
-    with_locked_events(|events| events.push("action"));
-}
+fn action() { with_locked_events(|events| events.push("action")); }
 
 #[then("a result is produced")]
-fn result() {
-    with_locked_events(|events| events.push("result"));
-}
+fn result() { with_locked_events(|events| events.push("result")); }
 
 #[scenario("tests/features/web_search.feature")]
 #[serial]

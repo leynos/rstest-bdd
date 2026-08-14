@@ -4,9 +4,8 @@
 //! It is gated behind the `test-support` feature to avoid including polling
 //! utilities in production builds.
 
-use crate::{StepExecution, StepFuture};
-
 pub use crate::async_step::sync_to_async;
+use crate::{StepExecution, StepFuture};
 
 /// Poll a step future to completion using a noop waker.
 ///
@@ -20,8 +19,7 @@ pub use crate::async_step::sync_to_async;
 /// # Examples
 ///
 /// ```rust
-/// use rstest_bdd::{StepContext, StepExecution, StepFuture};
-/// use rstest_bdd::test_support::poll_step_future;
+/// use rstest_bdd::{StepContext, StepExecution, StepFuture, test_support::poll_step_future};
 ///
 /// fn example_async<'a>(
 ///     _ctx: &'a mut StepContext<'_>,

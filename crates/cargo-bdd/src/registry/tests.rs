@@ -1,8 +1,9 @@
 //! Unit tests for registry collection and parsing.
 
-use super::*;
 use cargo_metadata::Message as MetadataMessage;
 use rstest::rstest;
+
+use super::*;
 
 #[test]
 fn detects_unrecognized_flag_from_libtest_getopts() {
@@ -67,9 +68,7 @@ fn parses_registry_dump_with_bypassed_steps() {
     assert_eq!(bypassed.reason.as_deref(), Some("reason"));
 }
 
-fn parse_message(json: &str) -> serde_json::Result<MetadataMessage> {
-    serde_json::from_str(json)
-}
+fn parse_message(json: &str) -> serde_json::Result<MetadataMessage> { serde_json::from_str(json) }
 
 /// Assert that `extract_test_executable` maps a cargo JSON message to the
 /// expected executable path.

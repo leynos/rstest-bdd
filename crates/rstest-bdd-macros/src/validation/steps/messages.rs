@@ -1,9 +1,7 @@
 //! Error message construction for step validation.
 
 use super::{CrateDefs, get_step_span};
-use crate::StepKeyword;
-use crate::parsing::feature::ParsedStep;
-use crate::pattern::MacroPattern;
+use crate::{StepKeyword, parsing::feature::ParsedStep, pattern::MacroPattern};
 
 pub(super) fn format_missing_step_error(
     resolved: StepKeyword,
@@ -86,8 +84,9 @@ where
 mod tests {
     //! Tests for step validation message formatting.
 
-    use super::*;
     use proc_macro2::Span;
+
+    use super::*;
 
     fn leak_pattern(text: &str) -> &'static MacroPattern {
         let leaked: &'static str = Box::leak(text.to_owned().into_boxed_str());

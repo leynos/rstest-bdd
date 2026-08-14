@@ -1,7 +1,6 @@
 //! Typed row abstractions used when parsing datatable content.
 
-use std::convert::TryFrom;
-use std::ops::Deref;
+use std::{convert::TryFrom, ops::Deref};
 
 use derive_more::From;
 
@@ -29,17 +28,13 @@ pub struct Rows<T>(Vec<T>);
 impl<T> Deref for Rows<T> {
     type Target = [T];
 
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
+    fn deref(&self) -> &Self::Target { &self.0 }
 }
 
 impl<T> Rows<T> {
     /// Consumes the wrapper, returning the inner [`Vec`].
     #[must_use]
-    pub fn into_vec(self) -> Vec<T> {
-        self.0
-    }
+    pub fn into_vec(self) -> Vec<T> { self.0 }
 }
 
 impl<T> IntoIterator for Rows<T> {
@@ -68,9 +63,7 @@ impl<'a, T> IntoIterator for &'a mut Rows<T> {
     type Item = &'a mut T;
     type IntoIter = std::slice::IterMut<'a, T>;
 
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.iter_mut()
-    }
+    fn into_iter(self) -> Self::IntoIter { self.0.iter_mut() }
 }
 
 impl<T> TryFrom<Vec<Vec<String>>> for Rows<T>

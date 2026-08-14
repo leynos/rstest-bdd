@@ -6,16 +6,16 @@
 mod support;
 
 use rstest::{fixture, rstest};
-use rstest_bdd_server::handlers::compute_scenario_outline_column_diagnostics;
-use rstest_bdd_server::server::ServerState;
+use rstest_bdd_server::{
+    handlers::compute_scenario_outline_column_diagnostics,
+    server::ServerState,
+};
 use support::{ScenarioBuilder, TestScenario};
 use tempfile::TempDir;
 
 /// Fixture providing a fresh scenario builder for each test.
 #[fixture]
-fn scenario_builder() -> ScenarioBuilder {
-    ScenarioBuilder::new()
-}
+fn scenario_builder() -> ScenarioBuilder { ScenarioBuilder::new() }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Test-local helpers

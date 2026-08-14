@@ -14,10 +14,12 @@
 //! shared source of truth so macro/runtime policy semantics do not drift.
 
 pub(crate) use rstest_bdd_policy::{RuntimeMode, TestAttributeHint};
-use syn::LitStr;
-use syn::parse::{Parse, ParseStream};
-use syn::punctuated::Punctuated;
-use syn::token::Comma;
+use syn::{
+    LitStr,
+    parse::{Parse, ParseStream},
+    punctuated::Punctuated,
+    token::Comma,
+};
 
 /// Compatibility aliases that map legacy runtime syntax to harness selection.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

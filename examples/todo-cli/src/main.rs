@@ -1,8 +1,7 @@
 //! Command-line interface for the `todo-cli` example.
 //! Tasks live only in memory; each invocation starts with an empty to-do list.
 
-use clap::builder::ValueParser;
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, builder::ValueParser};
 use eyre::Result;
 use todo_cli::TodoList;
 

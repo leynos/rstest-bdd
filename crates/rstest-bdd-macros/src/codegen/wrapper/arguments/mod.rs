@@ -1,9 +1,10 @@
 //! Argument code generation utilities shared by wrapper emission logic.
 
-use super::args::{Arg, DataTableArg, StepStructArg};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 use rstest_bdd_patterns::requires_quote_stripping;
+
+use super::args::{Arg, DataTableArg, StepStructArg};
 
 mod bindings;
 
@@ -13,7 +14,11 @@ mod step_parse;
 mod step_struct;
 
 use bindings::{
-    BoundArg, BoundDataTableArg, BoundDocStringArg, BoundStepStructArg, wrapper_binding_idents,
+    BoundArg,
+    BoundDataTableArg,
+    BoundDocStringArg,
+    BoundStepStructArg,
+    wrapper_binding_idents,
 };
 use datatable::{CacheIdents, gen_datatable_decl};
 use fixtures::gen_fixture_decls;

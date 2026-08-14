@@ -13,10 +13,9 @@
 //! (for example via `#[serial_test::serial]`) to avoid cross-test contamination.
 //! The API does not reset records automatically; callers remain responsible for
 //! draining the collector between assertions.
-use std::sync::{Mutex, MutexGuard, OnceLock};
-
 #[cfg(feature = "diagnostics")]
 use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::{Mutex, MutexGuard, OnceLock};
 
 mod record;
 pub use record::{ScenarioMetadata, ScenarioRecord, ScenarioStatus, ScenarioTags, SkippedScenario};
@@ -32,9 +31,7 @@ pub mod junit;
 static RUN_DUMP_SEEDS: OnceLock<AtomicU8> = OnceLock::new();
 
 #[cfg(feature = "diagnostics")]
-fn dump_seeds_state() -> &'static AtomicU8 {
-    RUN_DUMP_SEEDS.get_or_init(|| AtomicU8::new(0))
-}
+fn dump_seeds_state() -> &'static AtomicU8 { RUN_DUMP_SEEDS.get_or_init(|| AtomicU8::new(0)) }
 
 #[cfg(feature = "diagnostics")]
 fn reset_dump_seeds_state() {
@@ -90,13 +87,9 @@ impl DumpSeed {
     /// }
     /// ```
     #[must_use]
-    pub const fn new(callback: fn()) -> Self {
-        Self { callback }
-    }
+    pub const fn new(callback: fn()) -> Self { Self { callback } }
 
-    fn run(self) {
-        (self.callback)();
-    }
+    fn run(self) { (self.callback)(); }
 }
 
 #[cfg(feature = "diagnostics")]
@@ -119,9 +112,7 @@ pub fn run_dump_seeds() {
     struct SetDone(&'static AtomicU8);
 
     impl Drop for SetDone {
-        fn drop(&mut self) {
-            self.0.store(2, Ordering::SeqCst);
-        }
+        fn drop(&mut self) { self.0.store(2, Ordering::SeqCst); }
     }
 
     // States:
@@ -144,42 +135,65 @@ pub fn run_dump_seeds() {
 /// # Examples
 /// ```no_run
 /// use rstest_bdd::reporting::{
-///     drain, record, snapshot, ScenarioMetadata, ScenarioRecord, ScenarioStatus,
+///     ScenarioMetadata,
+///     ScenarioRecord,
+///     ScenarioStatus,
+///     drain,
+///     record,
+///     snapshot,
 /// };
 ///
 /// let metadata = ScenarioMetadata::new("feature", "scenario", 1, Vec::new());
-/// record(ScenarioRecord::from_metadata(metadata, ScenarioStatus::Passed));
+/// record(ScenarioRecord::from_metadata(
+///     metadata,
+///     ScenarioStatus::Passed,
+/// ));
 /// let records = drain();
 /// assert_eq!(records.len(), 1);
 /// ```
-pub fn record(record: ScenarioRecord) {
-    lock_reports().push(record);
-}
+pub fn record(record: ScenarioRecord) { lock_reports().push(record); }
 
 /// Retrieve a snapshot of the recorded scenarios without clearing them.
 ///
 /// # Examples
 /// ```no_run
-/// use rstest_bdd::reporting::{record, snapshot, ScenarioMetadata, ScenarioRecord, ScenarioStatus};
+/// use rstest_bdd::reporting::{
+///     ScenarioMetadata,
+///     ScenarioRecord,
+///     ScenarioStatus,
+///     record,
+///     snapshot,
+/// };
 ///
 /// let metadata = ScenarioMetadata::new("feature", "scenario", 1, Vec::new());
-/// record(ScenarioRecord::from_metadata(metadata, ScenarioStatus::Passed));
+/// record(ScenarioRecord::from_metadata(
+///     metadata,
+///     ScenarioStatus::Passed,
+/// ));
 /// let records = snapshot();
 /// assert_eq!(records[0].scenario_name(), "scenario");
 /// ```
 #[must_use]
-pub fn snapshot() -> Vec<ScenarioRecord> {
-    lock_reports().clone()
-}
+pub fn snapshot() -> Vec<ScenarioRecord> { lock_reports().clone() }
 
 /// Remove and return all recorded scenario outcomes.
 ///
 /// # Examples
 /// ```no_run
-/// use rstest_bdd::reporting::{drain, record, snapshot, ScenarioMetadata, ScenarioRecord, ScenarioStatus};
+/// use rstest_bdd::reporting::{
+///     ScenarioMetadata,
+///     ScenarioRecord,
+///     ScenarioStatus,
+///     drain,
+///     record,
+///     snapshot,
+/// };
 ///
 /// let metadata = ScenarioMetadata::new("feature", "scenario", 1, Vec::new());
-/// record(ScenarioRecord::from_metadata(metadata, ScenarioStatus::Passed));
+/// record(ScenarioRecord::from_metadata(
+///     metadata,
+///     ScenarioStatus::Passed,
+/// ));
 /// let drained = drain();
 /// assert!(snapshot().is_empty());
 /// assert_eq!(drained.len(), 1);

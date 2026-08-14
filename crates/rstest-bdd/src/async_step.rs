@@ -15,8 +15,13 @@ use crate::{StepContext, StepFn, StepFuture};
 /// # Examples
 ///
 /// ```rust
-/// use rstest_bdd::async_step::sync_to_async;
-/// use rstest_bdd::{StepContext, StepError, StepExecution, StepFuture};
+/// use rstest_bdd::{
+///     StepContext,
+///     StepError,
+///     StepExecution,
+///     StepFuture,
+///     async_step::sync_to_async,
+/// };
 ///
 /// fn my_sync_step(
 ///     _ctx: &mut StepContext<'_>,
@@ -38,7 +43,8 @@ use crate::{StepContext, StepFn, StepFuture};
 /// ```
 #[expect(
     clippy::type_complexity,
-    reason = "currying captures StepFn, so this helper cannot return the AsyncStepFn fn-pointer alias"
+    reason = "currying captures StepFn, so this helper cannot return the AsyncStepFn fn-pointer \
+              alias"
 )]
 pub fn sync_to_async(
     sync_fn: StepFn,

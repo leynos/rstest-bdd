@@ -5,8 +5,9 @@
 //! cucumber-rs-style parameterization where `Given I have <count> items` with
 //! an Examples row `| count | = | 5 |` becomes `Given I have 5 items`.
 
-use regex::Regex;
 use std::sync::LazyLock;
+
+use regex::Regex;
 use thiserror::Error;
 
 /// Regex pattern matching `<placeholder>` tokens in step text.
@@ -96,9 +97,7 @@ pub fn substitute_placeholders(
 /// Checks if a text contains any placeholder tokens.
 ///
 /// Returns `true` if the text contains at least one `<placeholder>` pattern.
-pub fn contains_placeholders(text: &str) -> bool {
-    PLACEHOLDER_RE.is_match(text)
-}
+pub fn contains_placeholders(text: &str) -> bool { PLACEHOLDER_RE.is_match(text) }
 
 /// Extracts all placeholder names from a text.
 ///
@@ -117,8 +116,9 @@ fn extract_placeholder_names(text: &str) -> Vec<String> {
 mod tests {
     //! Unit tests for parsing placeholder syntax.
 
-    use super::*;
     use rstest::rstest;
+
+    use super::*;
 
     #[rstest]
     #[case(

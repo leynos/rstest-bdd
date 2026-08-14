@@ -1,7 +1,8 @@
 //! Tests for argument extraction helpers.
+use std::collections::HashSet;
+
 use quote::quote;
 use rstest::rstest;
-use std::collections::HashSet;
 use syn::parse_quote;
 #[path = "../src/codegen/wrapper/args/mod.rs"]
 #[expect(dead_code, reason = "test reuses only selected helpers")]
@@ -11,7 +12,11 @@ mod args_impl;
 use args_impl::{Arg, ExtractedArgs, extract_args};
 mod support;
 use support::{
-    find_datatable, fixture_count, has_docstring, ordered_parameter_names, step_arg_count,
+    find_datatable,
+    fixture_count,
+    has_docstring,
+    ordered_parameter_names,
+    step_arg_count,
 };
 /// Helper for invoking `extract_args` with placeholder names.
 /// Consolidates repeated placeholder setup across tests.

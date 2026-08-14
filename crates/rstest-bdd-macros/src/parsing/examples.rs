@@ -1,10 +1,15 @@
 //! Extraction of example tables from scenarios.
 
-use crate::utils::errors::error_to_tokens;
-use crate::validation::examples::{
-    extract_and_validate_headers, flatten_and_validate_rows, validate_header_consistency,
-};
 use proc_macro2::TokenStream;
+
+use crate::{
+    utils::errors::error_to_tokens,
+    validation::examples::{
+        extract_and_validate_headers,
+        flatten_and_validate_rows,
+        validate_header_consistency,
+    },
+};
 
 /// Rows parsed from a `Scenario Outline` examples table.
 ///
@@ -84,8 +89,9 @@ pub(crate) fn extract_examples(
 mod tests {
     //! Tests for example table extraction.
 
-    use super::get_first_examples_table;
     use gherkin::{LineCol, Scenario, Span};
+
+    use super::get_first_examples_table;
 
     fn empty_scenario() -> Scenario {
         Scenario {

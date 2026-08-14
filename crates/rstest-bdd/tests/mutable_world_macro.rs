@@ -32,19 +32,13 @@ mod macro_world {
     }
 
     #[fixture]
-    fn world() -> CounterWorld {
-        CounterWorld::default()
-    }
+    fn world() -> CounterWorld { CounterWorld::default() }
 
     #[given("the world starts at {value}")]
-    fn starts_at(world: &mut CounterWorld, value: usize) {
-        world.count = value;
-    }
+    fn starts_at(world: &mut CounterWorld, value: usize) { world.count = value; }
 
     #[when("the world increments")]
-    fn increments(world: &mut CounterWorld) {
-        world.count += 1;
-    }
+    fn increments(world: &mut CounterWorld) { world.count += 1; }
 
     #[then("the world equals {expected}")]
     fn equals(world: &CounterWorld, expected: usize) {

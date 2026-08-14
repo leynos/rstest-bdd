@@ -5,8 +5,7 @@
 //! name, claims a matching step-pattern placeholder where possible, and
 //! otherwise records the parameter as a fixture injection.
 
-use super::ClassificationContext;
-use super::{Arg, normalize_param_name};
+use super::{Arg, ClassificationContext, normalize_param_name};
 
 /// Extract the fixture name from a `#[from(...)]` attribute, if present.
 ///
@@ -162,7 +161,8 @@ fn resolve_fixture_name(
         syn::Error::new(
             pat.span(),
             format!(
-                "normalized fixture name `{normalized}` is not a valid identifier; use #[from(...)] to specify the fixture name explicitly"
+                "normalized fixture name `{normalized}` is not a valid identifier; use \
+                 #[from(...)] to specify the fixture name explicitly"
             ),
         )
     })?;
@@ -233,12 +233,11 @@ fn classify_by_placeholder_match(
 ///
 /// Mutates both `arg` and `ctx`:
 ///
-/// - Any `#[from]` attribute is removed from [`syn::PatType::attrs`] in place
-///   via [`parse_from_attribute`], including on the error paths.
-/// - A matched placeholder is removed from `ctx.placeholders`, so it cannot bind
-///   a second parameter.
-/// - The resulting [`Arg::Step`] or [`Arg::Fixture`] is appended to
-///   `ctx.extracted`.
+/// - Any `#[from]` attribute is removed from [`syn::PatType::attrs`] in place via
+///   [`parse_from_attribute`], including on the error paths.
+/// - A matched placeholder is removed from `ctx.placeholders`, so it cannot bind a second
+///   parameter.
+/// - The resulting [`Arg::Step`] or [`Arg::Fixture`] is appended to `ctx.extracted`.
 ///
 /// # Errors
 ///
@@ -278,15 +277,14 @@ mod tests {
     //! collapse by accident — that an explicit name is matched and guarded
     //! verbatim, while only an implicit one is normalized.
 
-    use super::super::ExtractedArgs;
-    use super::*;
-    use proc_macro2::Span;
     use std::collections::HashSet;
+
+    use proc_macro2::Span;
     use syn::parse_quote;
 
-    fn ident(name: &str) -> syn::Ident {
-        syn::Ident::new(name, Span::call_site())
-    }
+    use super::{super::ExtractedArgs, *};
+
+    fn ident(name: &str) -> syn::Ident { syn::Ident::new(name, Span::call_site()) }
 
     /// Classify `#[from(<from_name>)] state: usize` against the given state.
     fn classify_explicit_from(

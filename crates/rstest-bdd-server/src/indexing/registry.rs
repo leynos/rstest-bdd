@@ -11,16 +11,21 @@
 //! indexed steps. This avoids rebuilding state for the entire workspace on
 //! every save while ensuring stale entries are not retained.
 
-use std::collections::HashMap;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use gherkin::StepType;
 use regex::Regex;
 use rstest_bdd_patterns::{PatternError, compile_regex_from_pattern};
 
 use super::{
-    IndexedStepDefinition, IndexedStepParameter, RustAttributeSpan, RustFunctionId,
+    IndexedStepDefinition,
+    IndexedStepParameter,
+    RustAttributeSpan,
+    RustFunctionId,
     RustStepFileIndex,
 };
 
@@ -52,7 +57,8 @@ pub struct CompiledStepDefinition {
 /// Error raised when a step pattern cannot be compiled.
 #[derive(Debug, thiserror::Error)]
 #[error(
-    "failed to compile step pattern '{pattern}' for {keyword:?} step '{function}' in {path}: {source}"
+    "failed to compile step pattern '{pattern}' for {keyword:?} step '{function}' in {path}: \
+     {source}"
 )]
 pub struct StepPatternCompileError {
     /// Absolute path to the Rust source file containing the step.
@@ -118,7 +124,8 @@ impl StepDefinitionRegistry {
 
     #[expect(
         clippy::unused_self,
-        reason = "method kept on the registry type to allow future use of configuration/state while matching the refactor contract"
+        reason = "method kept on the registry type to allow future use of configuration/state \
+                  while matching the refactor contract"
     )]
     fn compile_steps(
         &self,
@@ -139,7 +146,8 @@ impl StepDefinitionRegistry {
 
     #[expect(
         clippy::ptr_arg,
-        reason = "signature uses &PathBuf to match the refactor contract; PathBuf cloning is required for HashMap keys"
+        reason = "signature uses &PathBuf to match the refactor contract; PathBuf cloning is \
+                  required for HashMap keys"
     )]
     fn insert_compiled_steps(&mut self, path: &PathBuf, compiled: Vec<CompiledStepDefinition>) {
         if compiled.is_empty() {

@@ -25,9 +25,7 @@ const GPUI_TEST_ATTRIBUTES: [TestAttribute; 2] = [
 ];
 
 impl AttributePolicy for GpuiAttributePolicy {
-    fn test_attributes() -> &'static [TestAttribute] {
-        &GPUI_TEST_ATTRIBUTES
-    }
+    fn test_attributes() -> &'static [TestAttribute] { &GPUI_TEST_ATTRIBUTES }
 }
 
 // The attribute-policy conformance check lives in

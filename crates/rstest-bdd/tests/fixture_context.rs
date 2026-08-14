@@ -1,8 +1,13 @@
 //! Behavioural test for fixture context injection
 
-use rstest_bdd::localization::{ScopedLocalization, strip_directional_isolates};
 use rstest_bdd::{
-    InsertOutcome, StepContext, StepError, StepKeyword, assert_step_err, assert_step_ok,
+    InsertOutcome,
+    StepContext,
+    StepError,
+    StepKeyword,
+    assert_step_err,
+    assert_step_ok,
+    localization::{ScopedLocalization, strip_directional_isolates},
     lookup_step,
 };
 use rstest_bdd_macros::given;

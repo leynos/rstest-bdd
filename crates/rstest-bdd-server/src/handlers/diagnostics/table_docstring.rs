@@ -8,15 +8,18 @@ use std::sync::Arc;
 use lsp_types::Diagnostic;
 use rstest_bdd_patterns::SpecificityScore;
 
-use crate::indexing::{CompiledStepDefinition, FeatureFileIndex, IndexedStep};
-use crate::server::ServerState;
-
-use super::compute::{DiagnosticSpec, FeatureStepDiagnosticKind, build_step_diagnostic};
 use super::{
-    CODE_DOCSTRING_EXPECTED, CODE_DOCSTRING_NOT_EXPECTED, CODE_TABLE_EXPECTED,
+    CODE_DOCSTRING_EXPECTED,
+    CODE_DOCSTRING_NOT_EXPECTED,
+    CODE_TABLE_EXPECTED,
     CODE_TABLE_NOT_EXPECTED,
+    compute::{DiagnosticSpec, FeatureStepDiagnosticKind, build_step_diagnostic},
 };
-use crate::handlers::util::gherkin_span_to_lsp_range;
+use crate::{
+    handlers::util::gherkin_span_to_lsp_range,
+    indexing::{CompiledStepDefinition, FeatureFileIndex, IndexedStep},
+    server::ServerState,
+};
 
 /// Compute diagnostics for table/docstring expectation mismatches.
 ///
@@ -26,9 +29,11 @@ use crate::handlers::util::gherkin_span_to_lsp_range;
 /// # Example
 ///
 /// ```no_run
-/// use rstest_bdd_server::config::ServerConfig;
-/// use rstest_bdd_server::server::ServerState;
-/// use rstest_bdd_server::indexing::FeatureFileIndex;
+/// use rstest_bdd_server::{
+///     config::ServerConfig,
+///     indexing::FeatureFileIndex,
+///     server::ServerState,
+/// };
 ///
 /// let state = ServerState::new(ServerConfig::default());
 /// // Obtain a FeatureFileIndex from state.feature_index(path)

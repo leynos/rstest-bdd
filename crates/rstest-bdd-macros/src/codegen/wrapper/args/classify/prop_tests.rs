@@ -123,9 +123,7 @@ impl Outcome {
     }
 
     /// Whether exactly one step argument was recorded.
-    fn is_sole_step(&self) -> bool {
-        matches!(self.extracted.args.as_slice(), [Arg::Step { .. }])
-    }
+    fn is_sole_step(&self) -> bool { matches!(self.extracted.args.as_slice(), [Arg::Step { .. }]) }
 
     /// Whether any `#[from]` attribute survived the run.
     ///

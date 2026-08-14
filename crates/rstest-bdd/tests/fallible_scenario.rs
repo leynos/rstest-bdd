@@ -1,8 +1,10 @@
 //! Behavioural coverage for fallible scenario bodies.
 
 use rstest_bdd as bdd;
-use rstest_bdd::StepResult;
-use rstest_bdd::reporting::{ScenarioStatus, drain as drain_reports};
+use rstest_bdd::{
+    StepResult,
+    reporting::{ScenarioStatus, drain as drain_reports},
+};
 use rstest_bdd_macros::{given, scenario};
 use serial_test::serial;
 
@@ -22,9 +24,7 @@ fn fallible_scenario_is_skipped() {
     name = "fallible scenario success"
 )]
 #[serial]
-fn fallible_scenario_success() -> Result<(), &'static str> {
-    Ok(())
-}
+fn fallible_scenario_success() -> Result<(), &'static str> { Ok(()) }
 
 #[scenario(
     path = "tests/features/fallible_scenario.feature",
@@ -47,9 +47,7 @@ async fn fallible_async_helper() -> Result<(), &'static str> {
 )]
 #[serial]
 #[ignore = "exercised by fallible_error_does_not_record_pass"]
-fn fallible_scenario_error() -> Result<(), &'static str> {
-    Err("fallible scenario returned error")
-}
+fn fallible_scenario_error() -> Result<(), &'static str> { Err("fallible scenario returned error") }
 
 #[scenario(
     path = "tests/features/fallible_scenario.feature",

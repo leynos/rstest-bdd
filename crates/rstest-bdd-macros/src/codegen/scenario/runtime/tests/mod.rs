@@ -1,10 +1,13 @@
 //! Tests for runtime scaffolding code generation.
 
+use rstest::rstest;
+
 use super::generators::{
-    generate_async_step_executor, generate_skip_extractor, generate_step_executor,
+    generate_async_step_executor,
+    generate_skip_extractor,
+    generate_step_executor,
 };
 use crate::codegen::scenario::ScenarioReturnKind;
-use rstest::rstest;
 
 mod support;
 

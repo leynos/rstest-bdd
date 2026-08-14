@@ -9,11 +9,15 @@
 //! pair is irreducible: `std::cell` exposes shared and mutable borrowing
 //! through the distinct `Ref`/`RefMut` types.
 
-use std::any::{Any, TypeId};
-use std::cell::{Ref, RefCell, RefMut};
+use std::{
+    any::{Any, TypeId},
+    cell::{Ref, RefCell, RefMut},
+};
 
-use super::error::FixtureBorrowError;
-use super::guards::{FixtureRef, FixtureRefMut};
+use super::{
+    error::FixtureBorrowError,
+    guards::{FixtureRef, FixtureRefMut},
+};
 
 pub(super) struct FixtureEntry<'a> {
     kind: FixtureKind<'a>,

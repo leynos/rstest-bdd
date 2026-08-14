@@ -13,8 +13,7 @@ use regex::Regex;
 /// ```
 /// # use regex::Regex;
 /// # use rstest_bdd_patterns::extract_captured_values;
-/// let regex = Regex::new(r"^(\d+)-(\w+)$")
-///     .expect("example ensures fallible call succeeds");
+/// let regex = Regex::new(r"^(\d+)-(\w+)$").expect("example ensures fallible call succeeds");
 /// let values = extract_captured_values(&regex, "42-answer")
 ///     .expect("example ensures fallible call succeeds");
 /// assert_eq!(values, vec!["42".to_string(), "answer".to_string()]);
@@ -23,8 +22,7 @@ use regex::Regex;
 /// ```
 /// # use regex::Regex;
 /// # use rstest_bdd_patterns::extract_captured_values;
-/// let regex = Regex::new(r"^(\d+)$")
-///     .expect("example ensures fallible call succeeds");
+/// let regex = Regex::new(r"^(\d+)$").expect("example ensures fallible call succeeds");
 /// assert!(extract_captured_values(&regex, "nope").is_none());
 /// ```
 #[must_use]

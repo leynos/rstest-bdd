@@ -5,23 +5,30 @@
 //! feature-file line number so developers can orientate failures quickly.
 #![cfg(feature = "native-gpui-tests")]
 
+use std::{
+    fmt,
+    panic::{AssertUnwindSafe, catch_unwind, panic_any},
+    process::Command,
+    sync::{Arc, Mutex},
+};
+
 use rstest::rstest;
 use rstest_bdd::panic_message;
 use rstest_bdd_harness::{
-    HarnessAdapter, HarnessResult, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner,
+    HarnessAdapter,
+    HarnessResult,
+    ScenarioMetadata,
+    ScenarioRunRequest,
+    ScenarioRunner,
 };
 use rstest_bdd_harness_gpui::GpuiHarness;
 use serial_test::serial;
-use std::fmt;
-use std::panic::{AssertUnwindSafe, catch_unwind, panic_any};
-use std::process::Command;
-use std::sync::{Arc, Mutex};
-use tracing::field::{Field, Visit};
-use tracing::{Event, Subscriber};
-use tracing_subscriber::layer::Context;
-use tracing_subscriber::prelude::*;
-use tracing_subscriber::{Layer, Registry};
-
+use tracing::{
+    Event,
+    Subscriber,
+    field::{Field, Visit},
+};
+use tracing_subscriber::{Layer, Registry, layer::Context, prelude::*};
 const FEATURE_PATH: &str = "tests/features/scenario_name_in_logs.feature";
 const FAILING_SCENARIO: &str = "Step panics with augmented diagnostic";
 const SCENARIO_LINE: u32 = 7;
@@ -298,8 +305,7 @@ fn augmented_message_includes_scenario_name_for_opaque_any_payload() {
     #[derive(Debug)]
     #[expect(
         dead_code,
-        reason = "field only exists to produce an opaque Any payload; \
-                  see ExecPlan 10.1.4"
+        reason = "field only exists to produce an opaque Any payload; see ExecPlan 10.1.4"
     )]
     struct CustomPayload(u32);
 

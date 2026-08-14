@@ -9,9 +9,11 @@ use async_lsp::ResponseError;
 use lsp_types::{InitializeParams, InitializeResult, InitializedParams, ServerInfo, Url};
 use tracing::{info, warn};
 
-use crate::discovery::discover_workspace;
-use crate::error::ServerError;
-use crate::server::{ServerState, build_server_capabilities};
+use crate::{
+    discovery::discover_workspace,
+    error::ServerError,
+    server::{ServerState, build_server_capabilities},
+};
 
 /// Handle the `initialize` request from the client.
 ///
@@ -141,9 +143,7 @@ fn extract_workspace_path(
 /// Convert a URL to a file system path.
 ///
 /// Only handles `file://` URLs; returns `None` for other schemes.
-fn url_to_path(url: &Url) -> Option<PathBuf> {
-    url.to_file_path().ok()
-}
+fn url_to_path(url: &Url) -> Option<PathBuf> { url.to_file_path().ok() }
 
 /// Convert a server error to an LSP response error.
 fn response_error(err: &ServerError, code: async_lsp::ErrorCode) -> ResponseError {
@@ -154,16 +154,16 @@ fn response_error(err: &ServerError, code: async_lsp::ErrorCode) -> ResponseErro
 mod tests {
     //! Unit tests for server lifecycle handling.
 
-    use super::*;
-    use crate::config::ServerConfig;
-    use lsp_types::{ClientCapabilities, WorkspaceFolder};
-    use rstest::{fixture, rstest};
     use std::str::FromStr;
 
+    use lsp_types::{ClientCapabilities, WorkspaceFolder};
+    use rstest::{fixture, rstest};
+
+    use super::*;
+    use crate::config::ServerConfig;
+
     #[fixture]
-    fn create_test_state() -> ServerState {
-        ServerState::new(ServerConfig::default())
-    }
+    fn create_test_state() -> ServerState { ServerState::new(ServerConfig::default()) }
 
     #[fixture]
     fn create_init_params() -> InitializeParams {

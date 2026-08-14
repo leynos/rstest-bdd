@@ -1,17 +1,18 @@
 //! Tests for harness-led default attribute-policy precedence.
 
-use super::{RuntimeMode, TestAttrPolicy, generate_test_attrs};
 use quote::quote;
+
+use super::{RuntimeMode, TestAttrPolicy, generate_test_attrs};
 
 #[rstest::rstest]
 // This table protects the ADR-008 precedence order:
 //
-// 1. explicit `attributes = ...` wins, even when it names another first-party
-//    policy or an unknown policy;
+// 1. explicit `attributes = ...` wins, even when it names another first-party policy or an unknown
+//    policy;
 // 2. fully qualified first-party harness paths imply their matching defaults;
 // 3. unresolved or third-party-like harness paths fall back to the runtime; and
-// 4. `attributes = ...` without `harness = ...` keeps the attributes-only
-//    behaviour that existed before harness-led defaults.
+// 4. `attributes = ...` without `harness = ...` keeps the attributes-only behaviour that existed
+//    before harness-led defaults.
 #[case::tokio_harness_beats_sync_runtime(
     RuntimeMode::Sync,
     Some(parse_path!("rstest_bdd_harness_tokio::TokioHarness")),
@@ -137,12 +138,14 @@ fn generate_test_attrs_honours_harness_precedence(
     assert_eq!(
         output.contains("tokio :: test"),
         expect_tokio_test,
-        "tokio::test presence mismatch for runtime={runtime:?}, harness={harness_path:?}, policy={policy_path:?}: {output}"
+        "tokio::test presence mismatch for runtime={runtime:?}, harness={harness_path:?}, \
+         policy={policy_path:?}: {output}"
     );
     assert_eq!(
         output.contains("gpui :: test"),
         expect_gpui_test,
-        "gpui::test presence mismatch for runtime={runtime:?}, harness={harness_path:?}, policy={policy_path:?}: {output}"
+        "gpui::test presence mismatch for runtime={runtime:?}, harness={harness_path:?}, \
+         policy={policy_path:?}: {output}"
     );
 }
 

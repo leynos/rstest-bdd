@@ -6,8 +6,7 @@
 //! rendering is delegated to the sibling [`type_render`](super::type_render)
 //! module.
 
-use super::IndexedStepParameter;
-use super::type_render;
+use super::{IndexedStepParameter, type_render};
 
 /// Parse function parameters into indexed step parameters.
 pub(super) fn parse_function_parameters(

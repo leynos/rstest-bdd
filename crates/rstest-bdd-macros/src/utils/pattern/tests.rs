@@ -1,8 +1,9 @@
 //! Tests for pattern utilities.
 
-use super::*;
 use rstest::rstest;
 use syn::parse_quote;
+
+use super::*;
 
 #[rstest]
 #[case("_param", "param")]

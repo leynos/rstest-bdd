@@ -1,11 +1,15 @@
 //! Localization utilities used by the public macros and runtime diagnostics.
 
-use std::cell::RefCell;
-use std::sync::{LazyLock, RwLock};
+use std::{
+    cell::RefCell,
+    sync::{LazyLock, RwLock},
+};
 
 use fluent::FluentArgs;
-use i18n_embed::I18nEmbedError;
-use i18n_embed::fluent::{FluentLanguageLoader, fluent_language_loader};
+use i18n_embed::{
+    I18nEmbedError,
+    fluent::{FluentLanguageLoader, fluent_language_loader},
+};
 use rust_embed::RustEmbed;
 use thiserror::Error;
 use unic_langid::LanguageIdentifier;
@@ -148,9 +152,7 @@ pub fn current_languages() -> Result<Vec<LanguageIdentifier>, LocalizationError>
 /// );
 /// ```
 #[must_use]
-pub fn message(id: &str) -> String {
-    with_loader(|loader| loader.get(id))
-}
+pub fn message(id: &str) -> String { with_loader(|loader| loader.get(id)) }
 
 /// Retrieve a localized string with Fluent arguments supplied via a closure.
 ///

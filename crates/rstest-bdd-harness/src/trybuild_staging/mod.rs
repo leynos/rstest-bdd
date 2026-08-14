@@ -5,9 +5,11 @@
 //! behaviour. They are exposed as a hidden module for those tests only and are
 //! not part of the supported public API.
 
-use std::fs;
-use std::io;
-use std::path::{Path, PathBuf};
+use std::{
+    fs,
+    io,
+    path::{Path, PathBuf},
+};
 
 #[cfg(test)]
 mod tests;
@@ -18,14 +20,19 @@ mod prop_tests;
 /// Copies a single file, creating parent directories as needed.
 ///
 /// ```
-/// use std::fs;
-/// use std::time::{SystemTime, UNIX_EPOCH};
+/// use std::{
+///     fs,
+///     time::{SystemTime, UNIX_EPOCH},
+/// };
 ///
 /// use rstest_bdd_harness::trybuild_staging::copy_file;
 ///
 /// let root = std::env::temp_dir().join(format!(
 ///     "{}_{}_{}",
-///     concat!("rstest_bdd_trybuild_staging_copy_file_doc_", env!("CARGO_PKG_NAME")),
+///     concat!(
+///         "rstest_bdd_trybuild_staging_copy_file_doc_",
+///         env!("CARGO_PKG_NAME")
+///     ),
 ///     std::process::id(),
 ///     SystemTime::now()
 ///         .duration_since(UNIX_EPOCH)
@@ -125,9 +132,7 @@ fn canonical_missing_destination(destination: &Path) -> io::Result<PathBuf> {
     Ok(apply_missing_tail(base, destination))
 }
 
-fn paths_overlap(a: &Path, b: &Path) -> bool {
-    a == b || a.starts_with(b) || b.starts_with(a)
-}
+fn paths_overlap(a: &Path, b: &Path) -> bool { a == b || a.starts_with(b) || b.starts_with(a) }
 
 /// Rejects paths where `copy_dir_tree` would call `remove_destination` on a tree
 /// that still contains (or equals) the source directory.
@@ -154,14 +159,19 @@ fn reject_overlapping_copy_dir_tree_paths(source: &Path, destination: &Path) -> 
 /// malicious or accidental link cannot escape the tree or create copy loops.
 ///
 /// ```
-/// use std::fs;
-/// use std::time::{SystemTime, UNIX_EPOCH};
+/// use std::{
+///     fs,
+///     time::{SystemTime, UNIX_EPOCH},
+/// };
 ///
 /// use rstest_bdd_harness::trybuild_staging::copy_dir_tree;
 ///
 /// let root = std::env::temp_dir().join(format!(
 ///     "{}_{}_{}",
-///     concat!("rstest_bdd_trybuild_staging_copy_dir_doc_", env!("CARGO_PKG_NAME")),
+///     concat!(
+///         "rstest_bdd_trybuild_staging_copy_dir_doc_",
+///         env!("CARGO_PKG_NAME")
+///     ),
 ///     std::process::id(),
 ///     SystemTime::now()
 ///         .duration_since(UNIX_EPOCH)
@@ -176,10 +186,7 @@ fn reject_overlapping_copy_dir_tree_paths(source: &Path, destination: &Path) -> 
 /// copy_dir_tree(&src, &dst).expect("failed to copy dir tree");
 /// let out = dst.join("inner").join("note.txt");
 /// assert!(out.exists());
-/// assert_eq!(
-///     fs::read(&out).expect("failed to read destination"),
-///     b"tree"
-/// );
+/// assert_eq!(fs::read(&out).expect("failed to read destination"), b"tree");
 /// let _ = fs::remove_dir_all(&root);
 /// ```
 ///
@@ -188,8 +195,10 @@ fn reject_overlapping_copy_dir_tree_paths(source: &Path, destination: &Path) -> 
 /// ```
 /// # #[cfg(unix)]
 /// # {
-/// use std::fs;
-/// use std::time::{SystemTime, UNIX_EPOCH};
+/// use std::{
+///     fs,
+///     time::{SystemTime, UNIX_EPOCH},
+/// };
 ///
 /// use rstest_bdd_harness::trybuild_staging::copy_dir_tree;
 ///
@@ -211,8 +220,7 @@ fn reject_overlapping_copy_dir_tree_paths(source: &Path, destination: &Path) -> 
 /// let target = root.join("escape.txt");
 /// fs::create_dir_all(&src).expect("failed to create src");
 /// fs::write(&target, b"secret").expect("failed to write target");
-/// std::os::unix::fs::symlink(&target, src.join("link.txt"))
-///     .expect("failed to create symlink");
+/// std::os::unix::fs::symlink(&target, src.join("link.txt")).expect("failed to create symlink");
 /// let err = copy_dir_tree(&src, &dst).expect_err("copy_dir_tree should reject symlink");
 /// assert_eq!(err.kind(), std::io::ErrorKind::InvalidInput);
 /// let _ = fs::remove_dir_all(&root);

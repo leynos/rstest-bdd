@@ -1,6 +1,7 @@
 //! Error types shared by the pattern parsing modules.
 
 use std::fmt;
+
 use thiserror::Error;
 
 /// Additional context for placeholder-related parsing errors.

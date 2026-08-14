@@ -1,14 +1,13 @@
 //! Crate ID normalization utilities for step validation.
 
-use camino::{Utf8Path, Utf8PathBuf};
 use std::sync::LazyLock;
+
+use camino::{Utf8Path, Utf8PathBuf};
 
 pub(super) static CURRENT_CRATE_ID: LazyLock<Box<str>> =
     LazyLock::new(|| normalize_crate_id(&current_crate_id_raw()));
 
-pub(super) fn current_crate_id() -> &'static str {
-    CURRENT_CRATE_ID.as_ref()
-}
+pub(super) fn current_crate_id() -> &'static str { CURRENT_CRATE_ID.as_ref() }
 
 pub(super) fn normalize_crate_id(id: &str) -> Box<str> {
     let (name, path) = id.split_once(':').unwrap_or((id, ""));

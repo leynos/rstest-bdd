@@ -1,10 +1,17 @@
 //! Behavioural test for step registry.
 
 use rstest::rstest;
-use rstest_bdd::localization::{ScopedLocalization, strip_directional_isolates};
 use rstest_bdd::{
-    Step, StepContext, StepError, StepExecution, StepKeyword, StepText, find_step_with_metadata,
-    iter, unused_steps,
+    Step,
+    StepContext,
+    StepError,
+    StepExecution,
+    StepKeyword,
+    StepText,
+    find_step_with_metadata,
+    iter,
+    localization::{ScopedLocalization, strip_directional_isolates},
+    unused_steps,
 };
 use unic_langid::langid;
 

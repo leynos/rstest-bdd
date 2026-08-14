@@ -14,9 +14,7 @@ struct PrimaryValue(i32);
 struct SecondaryValue(i32);
 
 #[fixture]
-fn number() -> Number {
-    Number(1)
-}
+fn number() -> Number { Number(1) }
 
 #[given("base number is 1")]
 fn base(number: Number) {
@@ -24,9 +22,7 @@ fn base(number: Number) {
 }
 
 #[when("it is incremented")]
-fn increment(number: Number) -> Number {
-    Number(number.0 + 1)
-}
+fn increment(number: Number) -> Number { Number(number.0 + 1) }
 
 #[when("a fallible unit step succeeds")]
 #[expect(
@@ -138,24 +134,16 @@ fn fallible_result_fails() -> Result<(), &'static str> {
 }
 
 #[scenario(path = "tests/features/step_return.feature")]
-fn scenario_step_return(number: Number) {
-    let _ = number;
-}
+fn scenario_step_return(number: Number) { let _ = number; }
 
 #[fixture]
-fn primary_value() -> PrimaryValue {
-    PrimaryValue(10)
-}
+fn primary_value() -> PrimaryValue { PrimaryValue(10) }
 
 #[fixture]
-fn competing_primary_value() -> PrimaryValue {
-    PrimaryValue(15)
-}
+fn competing_primary_value() -> PrimaryValue { PrimaryValue(15) }
 
 #[fixture]
-fn secondary_value() -> SecondaryValue {
-    SecondaryValue(20)
-}
+fn secondary_value() -> SecondaryValue { SecondaryValue(20) }
 
 #[given("two competing fixtures")]
 fn two_competing(
@@ -200,60 +188,38 @@ fn scenario_step_return_ambiguous(
 }
 
 #[scenario(path = "tests/features/step_return_fallible_unit.feature")]
-fn scenario_fallible_unit(number: Number) {
-    let _ = number;
-}
+fn scenario_fallible_unit(number: Number) { let _ = number; }
 
 #[scenario(path = "tests/features/step_return_fallible_result_success.feature")]
-fn scenario_fallible_result_success(number: Number) {
-    let _ = number;
-}
+fn scenario_fallible_result_success(number: Number) { let _ = number; }
 
 #[scenario(path = "tests/features/step_return_fallible_result_failure.feature")]
 #[should_panic(expected = "value failure")]
-fn scenario_fallible_result_failure(number: Number) {
-    let _ = number;
-}
+fn scenario_fallible_result_failure(number: Number) { let _ = number; }
 
 #[scenario(path = "tests/features/step_return_std_result.feature")]
-fn scenario_std_result(number: Number) {
-    let _ = number;
-}
+fn scenario_std_result(number: Number) { let _ = number; }
 
 #[scenario(path = "tests/features/step_return_core_result.feature")]
-fn scenario_core_result(number: Number) {
-    let _ = number;
-}
+fn scenario_core_result(number: Number) { let _ = number; }
 
 #[scenario(path = "tests/features/step_return_core_result_failure.feature")]
 #[should_panic(expected = "core failure")]
-fn scenario_core_result_failure(number: Number) {
-    let _ = number;
-}
+fn scenario_core_result_failure(number: Number) { let _ = number; }
 
 #[scenario(path = "tests/features/step_return_stepresult.feature")]
-fn scenario_stepresult(number: Number) {
-    let _ = number;
-}
+fn scenario_stepresult(number: Number) { let _ = number; }
 
 #[scenario(path = "tests/features/step_return_stepresult_failure.feature")]
 #[should_panic(expected = "stepresult failure")]
-fn scenario_stepresult_failure(number: Number) {
-    let _ = number;
-}
+fn scenario_stepresult_failure(number: Number) { let _ = number; }
 
 #[scenario(path = "tests/features/step_return_value_override.feature")]
-fn scenario_value_override(number: Number) {
-    let _ = number;
-}
+fn scenario_value_override(number: Number) { let _ = number; }
 
 #[scenario(path = "tests/features/step_return_alias_override_success.feature")]
-fn scenario_alias_override_success(number: Number) {
-    let _ = number;
-}
+fn scenario_alias_override_success(number: Number) { let _ = number; }
 
 #[scenario(path = "tests/features/step_return_alias_override.feature")]
 #[should_panic(expected = "alias failure")]
-fn scenario_alias_override_failure(number: Number) {
-    let _ = number;
-}
+fn scenario_alias_override_failure(number: Number) { let _ = number; }

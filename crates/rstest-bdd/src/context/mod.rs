@@ -21,9 +21,11 @@
 //! passes, fails (unwinds), or is skipped — so no fixture state leaks across
 //! scenario boundaries and no caller-side reset discipline is required.
 
-use std::any::{Any, TypeId};
-use std::cell::RefCell;
-use std::collections::HashMap;
+use std::{
+    any::{Any, TypeId},
+    cell::RefCell,
+    collections::HashMap,
+};
 
 mod entry;
 mod error;
@@ -64,7 +66,9 @@ pub const RSTEST_BDD_HARNESS_CONTEXT_FIXTURE: &str = "rstest_bdd_harness_context
 /// ctx.insert_owned::<String>("second", &second);
 ///
 /// let mut a = ctx.try_borrow_mut::<u32>("first").expect("first fixture");
-/// let mut b = ctx.try_borrow_mut::<String>("second").expect("second fixture");
+/// let mut b = ctx
+///     .try_borrow_mut::<String>("second")
+///     .expect("second fixture");
 /// *a += 1;
 /// b.push('!');
 /// assert_eq!(*a, 2);
@@ -107,9 +111,7 @@ impl<'a> StepContext<'a> {
     /// can back a mutable fixture. Callers must retain the returned cell for as
     /// long as the context references it.
     #[must_use]
-    pub fn owned_cell<T: Any>(value: T) -> RefCell<Box<dyn Any>> {
-        RefCell::new(Box::new(value))
-    }
+    pub fn owned_cell<T: Any>(value: T) -> RefCell<Box<dyn Any>> { RefCell::new(Box::new(value)) }
 
     /// Insert a fixture reference by name.
     pub fn insert<T: Any>(&mut self, name: &'static str, value: &'a T) {
@@ -132,7 +134,8 @@ impl<'a> StepContext<'a> {
         let actual = guard.as_ref().type_id();
         assert!(
             actual == TypeId::of::<T>(),
-            "insert_owned: stored value type ({actual:?}) does not match requested {:?} for fixture '{name}'",
+            "insert_owned: stored value type ({actual:?}) does not match requested {:?} for \
+             fixture '{name}'",
             TypeId::of::<T>()
         );
         self.fixtures.insert(name, FixtureEntry::owned::<T>(cell));
@@ -337,12 +340,10 @@ impl<'a> StepContext<'a> {
     ///
     /// # Errors
     ///
-    /// - [`FixtureBorrowError::NotFound`] when no fixture or override is
-    ///   registered under `name`.
-    /// - [`FixtureBorrowError::TypeMismatch`] when the entry stores a
-    ///   different type than `T`.
-    /// - [`FixtureBorrowError::AlreadyBorrowed`] when a mutable guard for
-    ///   the same fixture is alive.
+    /// - [`FixtureBorrowError::NotFound`] when no fixture or override is registered under `name`.
+    /// - [`FixtureBorrowError::TypeMismatch`] when the entry stores a different type than `T`.
+    /// - [`FixtureBorrowError::AlreadyBorrowed`] when a mutable guard for the same fixture is
+    ///   alive.
     pub fn try_borrow<'b, T: Any>(
         &'b self,
         name: &str,
@@ -367,8 +368,8 @@ impl<'a> StepContext<'a> {
     /// - [`FixtureBorrowError::NotFound`] when neither fixture nor override exists under `name`.
     /// - [`FixtureBorrowError::TypeMismatch`] when the entry stores a different type than `T`.
     /// - [`FixtureBorrowError::AlreadyBorrowed`] when any same-fixture guard is alive.
-    /// - [`FixtureBorrowError::NotMutable`] when a shared fixture has no applicable
-    ///   step-returned override.
+    /// - [`FixtureBorrowError::NotMutable`] when a shared fixture has no applicable step-returned
+    ///   override.
     pub fn try_borrow_mut<'b, T: Any>(
         &'b self,
         name: &str,
@@ -395,6 +396,4 @@ impl<'a> StepContext<'a> {
 ///
 /// Kept as a named predicate so the mirrored `eprintln!` call site stays a
 /// simple two-branch condition.
-fn warn_logging_is_disabled() -> bool {
-    !log::log_enabled!(log::Level::Warn)
-}
+fn warn_logging_is_disabled() -> bool { !log::log_enabled!(log::Level::Warn) }

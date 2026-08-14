@@ -26,8 +26,8 @@ impl ExecutionError {
     ///
     /// ```
     /// use i18n_embed::fluent::fluent_language_loader;
-    /// use unic_langid::langid;
     /// use rstest_bdd::execution::ExecutionError;
+    /// use unic_langid::langid;
     ///
     /// let loader = {
     ///     use i18n_embed::LanguageLoader;
@@ -37,7 +37,9 @@ impl ExecutionError {
     ///         .expect("en-US locale should always be available");
     ///     loader
     /// };
-    /// let error = ExecutionError::Skip { message: Some("not implemented".into()) };
+    /// let error = ExecutionError::Skip {
+    ///     message: Some("not implemented".into()),
+    /// };
     /// let message = error.format_with_loader(&loader);
     /// assert!(message.contains("skipped"));
     /// assert!(message.contains("not implemented"));

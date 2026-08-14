@@ -1,7 +1,8 @@
 //! Tests for feature file indexing.
 
-use super::*;
 use tempfile::TempDir;
+
+use super::*;
 
 #[test]
 fn indexes_steps_tables_docstrings_and_example_columns() {

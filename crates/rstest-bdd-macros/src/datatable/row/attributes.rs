@@ -7,9 +7,11 @@
 use proc_macro2::{Ident, Span};
 use syn::{Attribute, ExprPath, Field, Fields, LitStr, Token, Type, spanned::Spanned};
 
-use crate::datatable::config::{Accessor, DefaultValue, FieldConfig, FieldSpec, StructConfig};
-use crate::datatable::rename::RenameRule;
-use crate::datatable::validation::{is_bool_type, option_inner_type};
+use crate::datatable::{
+    config::{Accessor, DefaultValue, FieldConfig, FieldSpec, StructConfig},
+    rename::RenameRule,
+    validation::{is_bool_type, option_inner_type},
+};
 
 pub(crate) fn parse_struct_config(attrs: &[Attribute]) -> syn::Result<StructConfig> {
     let mut rename_rule = None;
@@ -242,8 +244,9 @@ fn ensure_when(violation: bool, span: Span, message: &str) -> syn::Result<()> {
 mod tests {
     //! Unit tests for `#[datatable]` row attribute parsing.
 
-    use super::*;
     use syn::{Data, parse_quote};
+
+    use super::*;
 
     #[test]
     fn parse_struct_config_reads_rename_rule() {
