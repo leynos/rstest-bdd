@@ -127,14 +127,14 @@ fn format_available_tags(tag_sets: &[Vec<String>]) -> String {
     // serialize each tag set separately so callers can still spot gaps without
     // losing the original grouping.
     if tag_sets.is_empty() {
-        return "available tags: <none>".to_string();
+        return "available tags: <none>".to_owned();
     }
 
     let formatted_sets: Vec<String> = tag_sets
         .iter()
         .map(|tags| {
             if tags.is_empty() {
-                "<none>".to_string()
+                "<none>".to_owned()
             } else {
                 tags.join(", ")
             }
@@ -300,7 +300,7 @@ mod tests {
 
     #[test]
     fn available_tags_serialize_each_examined_set() {
-        let tag_sets = vec![vec!["@fast".to_string(), "@ui".to_string()], Vec::new()];
+        let tag_sets = vec![vec!["@fast".to_owned(), "@ui".to_owned()], Vec::new()];
         assert_eq!(
             format_available_tags(&tag_sets),
             "available tags: @fast, @ui; <none>"

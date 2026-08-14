@@ -82,7 +82,7 @@ mod validation {
             let Some(values) = pattern.captures(span, "I have 3") else {
                 panic!("expected captures");
             };
-            assert_eq!(values, vec!["3".to_string()]);
+            assert_eq!(values, vec!["3".to_owned()]);
         }
     }
 }

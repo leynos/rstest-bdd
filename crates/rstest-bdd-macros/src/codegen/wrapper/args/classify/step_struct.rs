@@ -186,7 +186,7 @@ mod tests {
     use syn::{FnArg, Ident, parse_quote};
 
     fn placeholder_set(names: &[&str]) -> HashSet<String> {
-        names.iter().map(|name| (*name).to_string()).collect()
+        names.iter().map(|name| (*name).to_owned()).collect()
     }
 
     fn pat(tokens: TokenStream2) -> syn::PatType {

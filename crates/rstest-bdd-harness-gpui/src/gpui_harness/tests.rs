@@ -45,7 +45,7 @@ fn gpui_harness_runs_request(harness: GpuiHarness) {
             "tests/features/simple.feature",
             "Runs in GPUI",
             4,
-            vec!["@ui".to_string()],
+            vec!["@ui".to_owned()],
         ),
         ScenarioRunner::new(|_context: gpui::TestAppContext| 21 * 2),
     );
@@ -80,7 +80,7 @@ fn gpui_test_context_is_available_during_run(harness: GpuiHarness) {
 #[case::string_payload(
     "A string payload scenario",
     7,
-    Box::new("step panicked".to_string()) as Box<dyn std::any::Any + Send>,
+    Box::new("step panicked".to_owned()) as Box<dyn std::any::Any + Send>,
 )]
 #[case::str_payload(
     "A str payload scenario",

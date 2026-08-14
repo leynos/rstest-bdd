@@ -277,7 +277,7 @@ fn execute_step_reports_detailed_missing_harness_fixture() {
     );
     assert_eq!(
         details.available,
-        vec!["world".to_string()],
+        vec!["world".to_owned()],
         "expected inserted fixtures from StepContext::available_fixtures"
     );
     assert!(

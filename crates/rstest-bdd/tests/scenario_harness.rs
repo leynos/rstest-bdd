@@ -139,12 +139,16 @@ impl HarnessAdapter for MetadataCapturingHarness {
 
     fn run<T>(&self, request: StdScenarioRunRequest<'_, T>) -> Result<T, HarnessError> {
         let meta = request.metadata();
-        *CAPTURED_FEATURE
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner) = meta.feature_path().to_string();
-        *CAPTURED_SCENARIO
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner) = meta.scenario_name().to_string();
+        meta.feature_path().clone_into(
+            &mut CAPTURED_FEATURE
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+        );
+        meta.scenario_name().clone_into(
+            &mut CAPTURED_SCENARIO
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner),
+        );
         Ok(request.run_without_context())
     }
 }

@@ -32,7 +32,7 @@ pub fn extract_captured_values(re: &Regex, text: &str) -> Option<Vec<String>> {
     let caps = re.captures(text)?;
     let mut values = Vec::with_capacity(caps.len().saturating_sub(1));
     for capture in caps.iter().skip(1) {
-        let value = capture.map_or_else(String::new, |m| m.as_str().to_string());
+        let value = capture.map_or_else(String::new, |m| m.as_str().to_owned());
         values.push(value);
     }
 
