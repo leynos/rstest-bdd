@@ -780,7 +780,7 @@ pub struct Step {
 inventory::collect!(Step);
 ```
 
-The [`StepKeyword`](../crates/rstest-bdd/src/types.rs) enum implements
+The [`StepKeyword`](../crates/rstest-bdd/src/types/mod.rs) enum implements
 `FromStr`. Parsing failures return a `StepKeywordParseError` to ensure invalid
 step keywords are surfaced early. Matching ignores case and surrounding
 whitespace. All five Gherkin keywords are recognized and `And`/`But` are
