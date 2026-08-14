@@ -5,6 +5,9 @@ edition.workspace = true
 publish = false
 rust-version.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
 eyre = "0.6"

@@ -3,7 +3,8 @@
 
 use clap::builder::ValueParser;
 use clap::{Parser, Subcommand};
-use eyre::Result;
+use eyre::{Result, WrapErr};
+use std::io::Write;
 use todo_cli::TodoList;
 
 /// Trim and reject blank-only task descriptions.
@@ -42,7 +43,8 @@ fn main() -> Result<()> {
     let mut list = TodoList::new();
     match cli.command {
         Command::Add { description } => list.add(description),
-        Command::List => println!("{}", list.display()),
+        Command::List => writeln!(std::io::stdout().lock(), "{}", list.display())
+            .wrap_err("write task list to stdout")?,
     }
     Ok(())
 }
