@@ -232,7 +232,7 @@ mod tests {
                 "tests/features/auth.feature",
                 "Login succeeds",
                 17,
-                vec!["@smoke".to_string(), "@fast".to_string()],
+                vec!["@smoke".to_owned(), "@fast".to_owned()],
             ),
             || 11,
         );

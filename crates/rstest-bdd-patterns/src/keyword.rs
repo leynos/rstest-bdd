@@ -137,7 +137,7 @@ impl FromStr for StepKeyword {
             .iter()
             .find(|(name, _)| trimmed.eq_ignore_ascii_case(name))
             .map(|&(_, keyword)| keyword)
-            .ok_or_else(|| StepKeywordParseError(trimmed.to_string()))
+            .ok_or_else(|| StepKeywordParseError(trimmed.to_owned()))
     }
 }
 

@@ -26,7 +26,7 @@ impl ResultWorld {
     }
 
     fn try_new_failing() -> Result<Self, String> {
-        Err("fixture initialization failed".to_string())
+        Err("fixture initialization failed".to_owned())
     }
 }
 
@@ -146,7 +146,7 @@ fn step_result_world() -> StepResult<ResultWorld, String> {
 /// Fixture that always fails, for testing `StepResult` error propagation.
 #[fixture]
 fn failing_step_result_world() -> StepResult<ResultWorld, String> {
-    Err("step-result fixture initialization failed".to_string())
+    Err("step-result fixture initialization failed".to_owned())
 }
 
 #[given("a world initialized from a StepResult fixture")]

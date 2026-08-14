@@ -17,12 +17,12 @@ impl Token {
     pub(super) fn describe(&self) -> String {
         match &self.kind {
             TokenKind::Tag(tag) => tag.clone(),
-            TokenKind::And => "'and'".to_string(),
-            TokenKind::Or => "'or'".to_string(),
-            TokenKind::Not => "'not'".to_string(),
-            TokenKind::LParen => "'('".to_string(),
-            TokenKind::RParen => "')'".to_string(),
-            TokenKind::End => "<end>".to_string(),
+            TokenKind::And => "'and'".to_owned(),
+            TokenKind::Or => "'or'".to_owned(),
+            TokenKind::Not => "'not'".to_owned(),
+            TokenKind::LParen => "'('".to_owned(),
+            TokenKind::RParen => "')'".to_owned(),
+            TokenKind::End => "<end>".to_owned(),
         }
     }
 }
@@ -124,7 +124,7 @@ impl<'a> Lexer<'a> {
             .input
             .get(start..self.pos)
             .ok_or_else(|| TagExprError::new(start, "invalid tag boundaries"))?
-            .to_string();
+            .to_owned();
         Ok(Token {
             kind: TokenKind::Tag(tag),
             start,

@@ -226,7 +226,7 @@ fn gen_step_parses_strips_quotes_for_string_hint(
     #[case] should_parse: bool,
     #[case] parse_description: &str,
 ) {
-    let code = generate_step_parse_with_hint(ty, Some("string".to_string()));
+    let code = generate_step_parse_with_hint(ty, Some("string".to_owned()));
 
     // Should contain quote stripping code
     assert!(
@@ -275,7 +275,7 @@ fn gen_step_parses_applies_hints_only_to_matching_arguments() {
     ];
 
     // Only first argument has :string hint
-    let hints: Vec<Option<String>> = vec![Some("string".to_string()), None];
+    let hints: Vec<Option<String>> = vec![Some("string".to_owned()), None];
     let tokens = gen_step_parses(&args, &captures, &hints, meta);
 
     assert_eq!(tokens.len(), 2, "expected two token streams");
@@ -309,7 +309,7 @@ fn gen_step_parses_applies_hints_only_to_matching_arguments() {
 fn gen_step_parses_string_hint_includes_parse_error_message() {
     // When :string hint is used with an owned type, the error message should still
     // reference the original type and pattern for debugging purposes
-    let code = generate_step_parse_with_hint(parse_quote!(String), Some("string".to_string()));
+    let code = generate_step_parse_with_hint(parse_quote!(String), Some("string".to_owned()));
 
     // Should contain error message with type information
     assert!(
@@ -335,7 +335,7 @@ fn gen_step_parses_non_string_hints_use_standard_parse_path(
     #[case] hint: &str,
     #[case] description: &str,
 ) {
-    let code = generate_step_parse_with_hint(parse_quote!(i32), Some(hint.to_string()));
+    let code = generate_step_parse_with_hint(parse_quote!(i32), Some(hint.to_owned()));
 
     // Non-:string hints should NOT strip quotes
     assert!(

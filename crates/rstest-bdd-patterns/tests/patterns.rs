@@ -84,7 +84,7 @@ fn builds_regex_and_extracts_values() {
     let regex = Regex::new(&regex_src).expect("regex should compile");
     let captures = extract_captured_values(&regex, "I have 12 cukes")
         .expect("expected captures for test step");
-    assert_eq!(captures, vec!["12".to_string()]);
+    assert_eq!(captures, vec!["12".to_owned()]);
 }
 
 #[test]
@@ -178,13 +178,13 @@ fn string_hint_captures_include_quotes() {
         .expect("expected captures for quoted string");
     assert_eq!(
         captures,
-        vec![r#""hello world""#.to_string()],
+        vec![r#""hello world""#.to_owned()],
         "captured value should include quotes (stripping happens in generated code)"
     );
 
     let captures = extract_captured_values(&regex, "value is 'single quoted'")
         .expect("expected captures for single-quoted string");
-    assert_eq!(captures, vec!["'single quoted'".to_string()]);
+    assert_eq!(captures, vec!["'single quoted'".to_owned()]);
 }
 
 #[test]
@@ -233,7 +233,7 @@ fn string_hint_captures_escaped_quotes() {
         .expect("expected captures for escaped double quotes");
     assert_eq!(
         captures,
-        vec![r#""Hello \"World\"""#.to_string()],
+        vec![r#""Hello \"World\"""#.to_owned()],
         "captured value should include outer quotes and escaped internal quotes"
     );
 
@@ -242,7 +242,7 @@ fn string_hint_captures_escaped_quotes() {
         .expect("expected captures for escaped single quotes");
     assert_eq!(
         captures,
-        vec![r"'Hello \'World\''".to_string()],
+        vec![r"'Hello \'World\''".to_owned()],
         "captured value should include outer quotes and escaped internal quotes"
     );
 }

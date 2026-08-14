@@ -62,7 +62,7 @@ impl HeaderSpec {
             .copied()
             .ok_or_else(|| DataTableError::MissingColumn {
                 row_number,
-                column: name.to_string(),
+                column: name.to_owned(),
             })
     }
 

@@ -112,16 +112,16 @@ mod deprecated_skip_encoding {
 
     #[test]
     fn encode_skip_message_some_includes_message() {
-        let encoded = encode_skip_message(Some("test message".to_string()));
+        let encoded = encode_skip_message(Some("test message".to_owned()));
         assert!(encoded.starts_with(SKIP_SOME_PREFIX));
         assert!(encoded.contains("test message"));
     }
 
     #[rstest]
     #[case::none(None)]
-    #[case::some(Some("skip reason".to_string()))]
+    #[case::some(Some("skip reason".to_owned()))]
     #[case::empty_string(Some(String::new()))]
-    #[case::unicode(Some("Unicode: 😀 🎉".to_string()))]
+    #[case::unicode(Some("Unicode: 😀 🎉".to_owned()))]
     fn decode_skip_message_round_trip(#[case] input: Option<String>) {
         let encoded = encode_skip_message(input.clone());
         let decoded = decode_skip_message(encoded);
@@ -131,7 +131,7 @@ mod deprecated_skip_encoding {
     #[test]
     fn decode_skip_message_malformed_input_preserved() {
         // Malformed input (no valid prefix) should be returned as-is
-        let malformed = "unexpected input".to_string();
+        let malformed = "unexpected input".to_owned();
         let decoded = decode_skip_message(malformed.clone());
         assert_eq!(decoded, Some(malformed));
     }
@@ -302,7 +302,7 @@ impl ExecutionErrorTestCase {
     fn expected_extract_skip_message(&self) -> Option<Option<String>> {
         match self {
             Self::SkipWithoutMessage => Some(None),
-            Self::SkipWithMessage(msg) => Some(Some((*msg).to_string())),
+            Self::SkipWithMessage(msg) => Some(Some((*msg).to_owned())),
             Self::StepNotFound | Self::HandlerFailed | Self::MissingFixtures => None,
         }
     }
