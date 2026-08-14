@@ -115,10 +115,6 @@ proptest! {
         for index in 0..existing_depth {
             existing = existing.join(format!("existing_{index}"));
         }
-        #[expect(
-            clippy::expect_used,
-            reason = "property-test temp-dir setup and canonicalization after explicit setup"
-        )]
         {
             fs::create_dir_all(&existing).expect("create existing ancestor");
             let mut expected = fs::canonicalize(&existing).expect("canonicalize ancestor");
@@ -142,10 +138,6 @@ proptest! {
         let _ = fs::remove_dir_all(&root);
         let src = root.join("src");
         let destination = path_resolving_back_to_source(&root, "src", missing_depth);
-        #[expect(
-            clippy::expect_used,
-            reason = "property-test temp-dir setup and canonicalization after explicit setup"
-        )]
         {
             fs::create_dir_all(&src).expect("create src");
             let canonical_src = fs::canonicalize(&src).expect("canonicalize src");
@@ -167,10 +159,6 @@ proptest! {
         let _ = fs::remove_dir_all(&root);
         let src = root.join("src");
         let dst = path_resolving_back_to_source(&root, "src", missing_depth);
-        #[expect(
-            clippy::expect_used,
-            reason = "property-test temp-dir setup and err-kind extraction after explicit guards"
-        )]
         {
             fs::create_dir_all(&src).expect("create src");
             fs::write(src.join("f.txt"), b"x").expect("write f.txt");
@@ -198,10 +186,6 @@ proptest! {
     ) {
         let root = unique_root("top_level");
         let _ = fs::remove_dir_all(&root);
-        #[expect(
-            clippy::expect_used,
-            reason = "property-test temp-dir setup failures abort the test"
-        )]
         let (src, dst) = build_flat_source_with_symlink(
             &root,
             &file_names,
@@ -211,10 +195,6 @@ proptest! {
         let _ = fs::remove_dir_all(&root);
         prop_assert_eq!(
             {
-                #[expect(
-                    clippy::expect_used,
-                    reason = "property-test temp-dir setup and err-kind extraction after explicit guards"
-                )]
                 result
                     .expect_err("expected error from copy_dir_tree property test")
                     .kind()
@@ -232,10 +212,6 @@ proptest! {
     ) {
         let root = unique_root("nested");
         let _ = fs::remove_dir_all(&root);
-        #[expect(
-            clippy::expect_used,
-            reason = "property-test temp-dir setup failures abort the test"
-        )]
         let (src, dst) = build_nested_source_with_symlink(
             &root,
             depth,
@@ -245,10 +221,6 @@ proptest! {
         let _ = fs::remove_dir_all(&root);
         prop_assert_eq!(
             {
-                #[expect(
-                    clippy::expect_used,
-                    reason = "property-test temp-dir setup and err-kind extraction after explicit guards"
-                )]
                 result
                     .expect_err("expected error from copy_dir_tree property test")
                     .kind()

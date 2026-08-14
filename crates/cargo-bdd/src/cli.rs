@@ -235,7 +235,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn write_skip_reports_json_emits_fields() -> eyre::Result<()> {
+    fn write_skip_reports_json_emits_fields() {
         let report = SkipReport {
             feature: "feature",
             scenario: "scenario",
@@ -250,12 +250,14 @@ mod tests {
             }),
         };
         let mut buffer = Vec::new();
-        serde_json::to_writer(&mut buffer, &[report])?;
-        let parsed: serde_json::Value = serde_json::from_slice(&buffer)?;
+        serde_json::to_writer(&mut buffer, &[report]).expect("test setup should succeed");
+        let parsed: serde_json::Value =
+            serde_json::from_slice(&buffer).expect("test setup should succeed");
         let entry = parsed
             .as_array()
             .and_then(|array| array.first())
-            .ok_or_else(|| eyre::eyre!("missing entry"))?;
+            .ok_or_else(|| eyre::eyre!("missing entry"))
+            .expect("test setup should succeed");
         assert_eq!(
             entry.get("feature"),
             Some(&serde_json::Value::String("feature".into()))
@@ -272,7 +274,8 @@ mod tests {
         let step = entry
             .get("step")
             .and_then(serde_json::Value::as_object)
-            .ok_or_else(|| eyre::eyre!("missing step object"))?;
+            .ok_or_else(|| eyre::eyre!("missing step object"))
+            .expect("test setup should succeed");
         assert_eq!(
             step.get("keyword"),
             Some(&serde_json::Value::String("Given".into()))
@@ -281,6 +284,5 @@ mod tests {
             step.get("pattern"),
             Some(&serde_json::Value::String("x".into()))
         );
-        Ok(())
     }
 }

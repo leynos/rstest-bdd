@@ -92,10 +92,6 @@ fn async_step_fn_can_be_stored_and_invoked() {
 }
 
 #[test]
-#[expect(
-    clippy::expect_used,
-    reason = "test asserts Option is Some before expect"
-)]
 fn step_struct_has_run_async_field() {
     let found = iter::<Step>
         .into_iter()

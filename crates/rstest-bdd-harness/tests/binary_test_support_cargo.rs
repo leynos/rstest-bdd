@@ -41,8 +41,10 @@ fn workspace_root() -> PathBuf {
 }
 
 #[test]
-fn target_directory_for_invalid_manifest_returns_err() -> std::io::Result<()> {
-    let manifest = unique_absent_temp_dir("missing_manifest")?.join("Cargo.toml");
+fn target_directory_for_invalid_manifest_returns_err() {
+    let manifest = unique_absent_temp_dir("missing_manifest")
+        .expect("test setup should succeed")
+        .join("Cargo.toml");
     assert!(
         !manifest.exists(),
         "test setup: manifest path must not exist: {}",
@@ -53,7 +55,6 @@ fn target_directory_for_invalid_manifest_returns_err() -> std::io::Result<()> {
         result.is_err(),
         "expected error for non-existent manifest, got: {result:?}"
     );
-    Ok(())
 }
 
 #[test]
@@ -74,20 +75,15 @@ fn target_directory_for_workspace_manifest_returns_ok() {
 }
 
 #[test]
-fn build_binary_returns_err_for_nonexistent_workspace() -> std::io::Result<()> {
-    let workspace = unique_absent_temp_dir("no_workspace")?;
+fn build_binary_returns_err_for_nonexistent_workspace() {
+    let workspace = unique_absent_temp_dir("no_workspace").expect("test setup should succeed");
     let result = build_binary(&workspace, BinaryName::new("nonexistent-binary"));
     assert!(
         result.is_err(),
         "expected build_binary to fail when the workspace directory does not exist, got: {result:?}"
     );
-    Ok(())
 }
 
-#[expect(
-    clippy::expect_used,
-    reason = "integration-style tests panic if cargo cannot be spawned for the workspace root"
-)]
 #[test]
 fn build_binary_captures_output_on_failure() {
     let workspace_root = workspace_root();
@@ -108,9 +104,12 @@ fn build_binary_captures_output_on_failure() {
 }
 
 #[test]
-fn locate_or_build_binary_returns_err_for_invalid_manifest() -> std::io::Result<()> {
-    let workspace = unique_absent_temp_dir("locate_invalid_workspace")?;
-    let manifest = unique_absent_temp_dir("locate_invalid_manifest")?.join("Cargo.toml");
+fn locate_or_build_binary_returns_err_for_invalid_manifest() {
+    let workspace =
+        unique_absent_temp_dir("locate_invalid_workspace").expect("test setup should succeed");
+    let manifest = unique_absent_temp_dir("locate_invalid_manifest")
+        .expect("test setup should succeed")
+        .join("Cargo.toml");
     assert!(
         !manifest.exists(),
         "test setup: manifest path must not exist: {}",
@@ -125,13 +124,8 @@ fn locate_or_build_binary_returns_err_for_invalid_manifest() -> std::io::Result<
         result.is_err(),
         "expected error for invalid manifest, got: {result:?}"
     );
-    Ok(())
 }
 
-#[expect(
-    clippy::expect_used,
-    reason = "integration-style tests panic on improbable locate or cargo metadata failures"
-)]
 #[test]
 fn locate_or_build_reports_build_failed_for_nonexistent_binary() {
     let root = workspace_root();
@@ -146,10 +140,6 @@ fn locate_or_build_reports_build_failed_for_nonexistent_binary() {
     });
 }
 
-#[expect(
-    clippy::expect_used,
-    reason = "integration-style tests panic on improbable locate or spawn failures"
-)]
 #[test]
 fn locate_or_build_returns_command_for_workspace_binary() {
     let root = workspace_root();

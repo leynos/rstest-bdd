@@ -78,7 +78,6 @@ mod tests {
             parse_quote!(#[datatable(row = Example)]),
             parse_quote!(#[datatable(map = transform)]),
         ];
-        #[expect(clippy::expect_used, reason = "test asserts parsed config")]
         let config = parse_struct_attrs(&attrs).expect("failed to parse struct attrs");
         assert!(config.row_ty.is_some());
         assert!(matches!(config.map, Some(MapKind::Direct(_))));
@@ -90,7 +89,6 @@ mod tests {
             parse_quote!(#[datatable(map = transform)]),
             parse_quote!(#[datatable(try_map = fallible_transform)]),
         ];
-        #[expect(clippy::expect_used, reason = "test asserts error handling")]
         let err = parse_struct_attrs(&attrs)
             .err()
             .expect("map and try_map together should trigger an error");

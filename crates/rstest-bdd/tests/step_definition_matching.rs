@@ -29,7 +29,6 @@ fn find_step_returns_none_for_missing() {
 
 #[test]
 fn find_step_executes_single_match() {
-    #[expect(clippy::expect_used, reason = "test ensures step exists")]
     let step_fn = find_step(StepKeyword::Given, "a unique step".into()).expect("step not found");
     let mut ctx = StepContext::default();
     match step_fn(&mut ctx, "a unique step", None, None) {
@@ -43,7 +42,6 @@ fn find_step_executes_single_match() {
 fn find_step_runs_one_of_multiple_matches() {
     GENERIC_CALLED.store(0, Ordering::Relaxed);
     SPECIFIC_CALLED.store(0, Ordering::Relaxed);
-    #[expect(clippy::expect_used, reason = "test ensures step exists")]
     let step_fn = find_step(StepKeyword::Given, "overlap apples".into()).expect("step not found");
     let mut ctx = StepContext::default();
     match step_fn(&mut ctx, "overlap apples", None, None) {

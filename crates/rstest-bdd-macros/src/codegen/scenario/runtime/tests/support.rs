@@ -19,7 +19,6 @@ pub(super) fn path_last_ident(path: &syn::Path) -> Option<&syn::Ident> {
 /// # Panics
 ///
 /// Panics if the expression is not a path expression.
-#[expect(clippy::panic, reason = "test helper panics for clearer failures")]
 pub(super) fn extract_path(expr: &syn::Expr) -> &syn::Path {
     match expr {
         syn::Expr::Path(expr_path) => &expr_path.path,
@@ -82,7 +81,6 @@ pub(super) fn assert_path_is_execution_execute_step_async(path: &syn::Path) {
 /// # Panics
 ///
 /// Panics if the file does not contain a function with the requested name.
-#[expect(clippy::panic, reason = "test helper panics for clearer failures")]
 pub(super) fn find_function_by_name<'a>(file: &'a syn::File, name: &str) -> &'a syn::ItemFn {
     let Some(function) = file.items.iter().find_map(|item| match item {
         syn::Item::Fn(f) if f.sig.ident == name => Some(f),
@@ -162,7 +160,6 @@ pub(super) fn find_call_in_block(
 ///
 /// Panics if the generated tokens fail to parse or do not produce an if
 /// expression.
-#[expect(clippy::panic, reason = "test helper panics for clearer failures")]
 pub(super) fn parse_skip_handler(return_kind: ScenarioReturnKind) -> syn::ExprIf {
     let stmt: syn::Stmt = match syn::parse2(generate_skip_handler(return_kind)) {
         Ok(stmt) => stmt,

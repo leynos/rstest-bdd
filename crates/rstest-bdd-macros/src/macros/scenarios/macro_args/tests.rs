@@ -64,7 +64,6 @@ macro_rules! assert_tag_filter_eq {
 mod combined_arguments;
 
 #[test]
-#[expect(clippy::expect_used, reason = "test with descriptive failures")]
 fn fixture_spec_parses_simple_type() {
     let spec: FixtureSpec =
         parse_fixture_spec(parse_quote!(world: TestWorld)).expect("fixture spec should parse");
@@ -73,7 +72,6 @@ fn fixture_spec_parses_simple_type() {
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "test with descriptive failures")]
 fn fixture_spec_parses_generic_type() {
     let spec: FixtureSpec = parse_fixture_spec(parse_quote!(counter: RefCell<CounterWorld>))
         .expect("fixture spec should parse");
@@ -84,7 +82,6 @@ fn fixture_spec_parses_generic_type() {
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "test with descriptive failures")]
 fn fixture_spec_parses_path_type() {
     let spec: FixtureSpec = parse_fixture_spec(parse_quote!(db: std::sync::Arc<Database>))
         .expect("fixture spec should parse");
@@ -128,7 +125,6 @@ fn scenarios_args_parses_with_tags() {
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "test with descriptive failures")]
 fn scenarios_args_parses_single_fixture() {
     let args: ScenariosArgs =
         parse_scenarios_args!(parse_quote!("tests/features", fixtures = [world: TestWorld]));
@@ -144,7 +140,6 @@ fn scenarios_args_parses_single_fixture() {
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "test with descriptive failures")]
 fn scenarios_args_parses_multiple_fixtures() {
     let args: ScenariosArgs = parse_scenarios_args!(parse_quote!(
         "tests/features",

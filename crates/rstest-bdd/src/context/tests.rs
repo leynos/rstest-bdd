@@ -31,10 +31,6 @@ fn logger() {
 }
 
 #[test]
-#[expect(
-    clippy::expect_used,
-    reason = "downcast must succeed for the typed fixture under test"
-)]
 fn borrow_mut_returns_mutable_fixture() {
     let cell: RefCell<Box<dyn Any>> = RefCell::new(Box::new(String::from("seed")));
     let mut ctx = StepContext::default();
@@ -269,10 +265,6 @@ fn insert_harness_context_exposes_shared_reference() {
 }
 
 #[test]
-#[expect(
-    clippy::expect_used,
-    reason = "downcast must succeed for the typed fixture under test"
-)]
 fn insert_owned_harness_context_supports_mutation() {
     let harness_cell: RefCell<Box<dyn Any>> = RefCell::new(Box::new(String::from("harness")));
     let mut ctx = StepContext::default();

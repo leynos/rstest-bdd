@@ -108,10 +108,6 @@ mod tests {
         }
     }
 
-    #[expect(
-        clippy::expect_used,
-        reason = "tests assert specific error paths; panics aid debugging"
-    )]
     #[test]
     fn missing_examples_error_includes_scenario_name() {
         let scenario = scenario_outline_without_examples("outline without examples");

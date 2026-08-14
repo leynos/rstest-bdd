@@ -243,10 +243,6 @@ fn compile_step_definition(
 }
 
 #[cfg(test)]
-#[expect(
-    clippy::expect_used,
-    reason = "tests use explicit failures for clarity"
-)]
 mod tests {
     //! Unit tests for the step registry index.
 

@@ -264,7 +264,6 @@ fn smoke_definition_request_returns_locations(mut server: ServerHandle) {
 
 #[rstest]
 #[expect(
-    clippy::expect_used,
     clippy::indexing_slicing,
     reason = "test assertions use .expect() and indexing for clear failure messages"
 )]

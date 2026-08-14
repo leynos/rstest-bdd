@@ -77,10 +77,6 @@ fn step_execution_from_value_with_payload() {
         }
         StepExecution::Skipped { .. } => panic!("skip variant is unexpected"),
     };
-    #[expect(
-        clippy::expect_used,
-        reason = "test ensures payload can be downcast to original type"
-    )]
     let number = payload.downcast::<u8>().expect("payload must be a u8");
     assert_eq!(*number, 99);
 }
@@ -130,7 +126,6 @@ fn placeholder_error_from_placeholder_syntax_returns_invalid_placeholder() {
 #[test]
 #[expect(
     clippy::invalid_regex,
-    clippy::expect_used,
     reason = "deliberate invalid regex to test error conversion"
 )]
 fn placeholder_error_from_invalid_pattern_returns_invalid_pattern() {
@@ -216,7 +211,6 @@ fn sync_to_async_builds_async_wrapper_without_explicit_fixture_lifetime() {
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "test validates downcast succeeds")]
 fn step_future_resolves_to_expected_value() {
     fn make_future<'a>() -> StepFuture<'a> {
         Box::pin(std::future::ready(Ok(StepExecution::from_value(Some(

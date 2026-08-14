@@ -252,7 +252,6 @@ mod tests {
             select_path(&publish_scenario),
             compute,
         );
-        #[expect(clippy::expect_used, reason = "staged files publish diagnostics")]
         let params = params.expect("staged file publishes diagnostics");
         snapshot_settings(publish_scenario.dir.path()).bind(|| {
             insta::assert_debug_snapshot!(snapshot, params);
@@ -363,7 +362,6 @@ mod tests {
                 TestCaseError::fail("valid path must produce publish params")
             })?;
             prop_assert_eq!(&params.diagnostics, &expected);
-            #[expect(clippy::expect_used, reason = "fixed absolute path converts")]
             let expected_uri = Url::from_file_path(&path).expect("uri");
             prop_assert_eq!(params.uri, expected_uri);
         }

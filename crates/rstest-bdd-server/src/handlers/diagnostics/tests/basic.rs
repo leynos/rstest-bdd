@@ -3,9 +3,7 @@
 use super::*;
 
 #[rstest]
-fn unimplemented_step_produces_diagnostic(
-    scenario_builder: ScenarioBuilder,
-) -> std::io::Result<()> {
+fn unimplemented_step_produces_diagnostic(scenario_builder: ScenarioBuilder) {
     let scenario = scenario_builder.with_single_file_pair(
         "Feature: test\n  Scenario: s\n    Given an unimplemented step\n",
         concat!(
@@ -18,14 +16,15 @@ fn unimplemented_step_produces_diagnostic(
     let feature_index = scenario
         .state
         .feature_index(&scenario.feature_path)
-        .ok_or_else(|| std::io::Error::other("feature index missing"))?;
+        .ok_or_else(|| std::io::Error::other("feature index missing"))
+        .expect("test setup should succeed");
     let diagnostics = compute_unimplemented_step_diagnostics(&scenario.state, feature_index);
 
     let [diag] = diagnostics.as_slice() else {
-        return Err(std::io::Error::other(format!(
+        panic!(
             "expected exactly one diagnostic, found {}",
             diagnostics.len()
-        )));
+        );
     };
     assert_eq!(diag.severity, Some(DiagnosticSeverity::WARNING));
     assert!(diag.message.contains("an unimplemented step"));
@@ -35,14 +34,10 @@ fn unimplemented_step_produces_diagnostic(
             CODE_UNIMPLEMENTED_STEP.to_owned()
         ))
     );
-
-    Ok(())
 }
 
 #[rstest]
-fn unused_step_definition_produces_diagnostic(
-    scenario_builder: ScenarioBuilder,
-) -> std::io::Result<()> {
+fn unused_step_definition_produces_diagnostic(scenario_builder: ScenarioBuilder) {
     let scenario = scenario_builder.with_single_file_pair(
         "Feature: test\n  Scenario: s\n    Given a step\n",
         concat!(
@@ -57,10 +52,10 @@ fn unused_step_definition_produces_diagnostic(
     let diagnostics = compute_unused_step_diagnostics(&scenario.state, &scenario.rust_path);
 
     let [diag] = diagnostics.as_slice() else {
-        return Err(std::io::Error::other(format!(
+        panic!(
             "expected exactly one diagnostic, found {}",
             diagnostics.len()
-        )));
+        );
     };
     assert!(diag.message.contains("unused step"));
     assert_eq!(
@@ -69,8 +64,6 @@ fn unused_step_definition_produces_diagnostic(
             CODE_UNUSED_STEP_DEFINITION.to_owned()
         ))
     );
-
-    Ok(())
 }
 
 #[rstest]

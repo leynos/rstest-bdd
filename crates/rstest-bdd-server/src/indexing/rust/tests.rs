@@ -3,10 +3,6 @@
 use super::*;
 use rstest::rstest;
 
-#[expect(
-    clippy::expect_used,
-    reason = "tests use explicit failures for clarity"
-)]
 #[test]
 fn indexes_step_definitions_and_infers_patterns() {
     let source = concat!(
@@ -76,10 +72,6 @@ fn indexes_step_definitions_and_infers_patterns() {
     assert_eq!(qualified.pattern, "qualified");
 }
 
-#[expect(
-    clippy::expect_used,
-    reason = "tests use explicit failures for clarity"
-)]
 #[test]
 fn indexes_parameter_expectations_for_tables_and_docstrings() {
     let source = concat!(
@@ -149,10 +141,6 @@ fn indexes_parameter_expectations_for_tables_and_docstrings() {
     assert!(!docstring_wrong_type.expects_docstring);
 }
 
-#[expect(
-    clippy::expect_used,
-    reason = "tests use explicit failures for clarity"
-)]
 #[test]
 fn preserves_module_path_for_nested_definitions() {
     let source = concat!(
@@ -180,10 +168,6 @@ fn preserves_module_path_for_nested_definitions() {
     assert_eq!(step.function.name, "nested_step");
 }
 
-#[expect(
-    clippy::expect_used,
-    reason = "tests use explicit failures for clarity"
-)]
 #[test]
 fn returns_error_when_multiple_step_attributes_present() {
     let source = concat!(

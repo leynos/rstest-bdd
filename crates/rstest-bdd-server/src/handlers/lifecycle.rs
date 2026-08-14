@@ -151,10 +151,6 @@ fn response_error(err: &ServerError, code: async_lsp::ErrorCode) -> ResponseErro
 }
 
 #[cfg(test)]
-#[expect(
-    clippy::expect_used,
-    reason = "tests require explicit panic messages for debugging failures"
-)]
 mod tests {
     //! Unit tests for server lifecycle handling.
 

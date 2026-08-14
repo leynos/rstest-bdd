@@ -26,10 +26,6 @@ fn ignores_unrelated_failures_containing_dump_steps() {
 }
 
 #[test]
-#[expect(
-    clippy::expect_used,
-    reason = "Test should fail fast when the registry dump JSON is invalid."
-)]
 fn parses_registry_dump_with_bypassed_steps() {
     let json = r#"
     {
