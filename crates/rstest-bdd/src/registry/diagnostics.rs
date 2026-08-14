@@ -10,7 +10,14 @@ use std::sync::{LazyLock, Mutex};
 use hashbrown::HashSet;
 use serde::Serialize;
 
-use super::{StepKey, USED_STEPS, all_steps, resolve_step, step_by_key};
+use super::{
+    StepKey,
+    USED_STEPS,
+    all_steps,
+    bypassed::BypassedScenario,
+    resolve_step,
+    step_by_key,
+};
 use crate::{
     reporting::{self, ScenarioStatus},
     types::StepKeyword,
@@ -45,25 +52,19 @@ fn bypassed_records() -> Vec<BypassedStepRecord> {
         .collect()
 }
 
-pub(super) fn record_bypassed_steps_impl<'a, I>(
-    feature_path: &str,
-    scenario_name: &str,
-    scenario_line: u32,
-    tags: &[String],
-    reason: Option<&str>,
-    steps: I,
-) where
+pub(super) fn record_bypassed_steps_impl<'a, I>(scenario: BypassedScenario<'_>, steps: I)
+where
     I: IntoIterator<Item = (StepKeyword, &'a str)>,
 {
     for (keyword, text) in steps {
         if let Some(step) = resolve_step(keyword, text.into()) {
             let record = BypassedStepRecord {
                 key: (step.keyword, step.pattern),
-                feature_path: feature_path.to_owned(),
-                scenario_name: scenario_name.to_owned(),
-                scenario_line,
-                tags: tags.to_owned(),
-                reason: reason.map(str::to_owned),
+                feature_path: scenario.feature_path.to_owned(),
+                scenario_name: scenario.scenario_name.to_owned(),
+                scenario_line: scenario.scenario_line,
+                tags: scenario.tags.to_owned(),
+                reason: scenario.reason.map(str::to_owned),
             };
             mark_bypassed(record);
         }

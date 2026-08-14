@@ -26,6 +26,7 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 
 mod assertions;
+mod boundary;
 mod domain;
 mod helpers;
 mod metadata;
@@ -33,12 +34,12 @@ mod runtime;
 mod test_attrs;
 
 use assertions::generate_trait_assertions;
+use boundary::finalize_scenario_signature;
 pub(crate) use domain::*;
 pub(crate) use helpers::process_steps;
 use helpers::{
     generate_case_attrs,
     generate_indexed_case_attrs,
-    generate_underscore_expect,
     process_steps_substituted,
     row_has_values,
 };
@@ -51,7 +52,6 @@ use runtime::{
     generate_test_tokens,
     generate_test_tokens_outline,
 };
-use test_attrs::{TestAttrPolicy, generate_test_attrs_with_boundary};
 
 pub(crate) use crate::macros::scenarios::ScenariosRuntimeMode as RuntimeMode;
 use crate::{
@@ -155,69 +155,6 @@ pub(crate) fn generate_scenario_code(
     }
 }
 
-/// Adapts a fallible scenario to GPUI's unit-returning test boundary.
-///
-/// Published GPUI versions may call an attributed function as a bare
-/// statement, which leaves its `Result` unused. This boundary is intentionally
-/// limited to generated GPUI tests; std and Tokio tests continue to return the
-/// scenario result through their native `Termination` support.
-fn adapt_fallible_gpui_boundary(
-    uses_gpui_boundary: bool,
-    return_kind: ScenarioReturnKind,
-    signature: &mut syn::Signature,
-    body: TokenStream2,
-) -> TokenStream2 {
-    if !return_kind.is_fallible() || !uses_gpui_boundary {
-        return body;
-    }
-
-    let is_async = signature.asyncness.is_some();
-    signature.output = syn::ReturnType::Default;
-    if is_async {
-        quote! {
-            match (async move { #body }).await {
-                Ok(()) => {}
-                Err(_) => panic!("scenario returned an error"),
-            }
-        }
-    } else {
-        quote! {
-            match (|| { #body })() {
-                Ok(()) => {}
-                Err(_) => panic!("scenario returned an error"),
-            }
-        }
-    }
-}
-
-/// Finalize attributes and the executable boundary for a scenario signature.
-fn finalize_scenario_signature(
-    config: &ScenarioConfig<'_>,
-    signature: &mut Cow<'_, syn::Signature>,
-    body: TokenStream2,
-) -> (TokenStream2, TokenStream2, TokenStream2, TokenStream2) {
-    let policy = TestAttrPolicy {
-        runtime: config.attribute_runtime,
-        harness: config.harness,
-        attributes: config.attributes,
-    };
-    let generated_test_attrs =
-        generate_test_attrs_with_boundary(config.attrs, &policy, config.runtime.is_async());
-    let trait_assertions = generate_trait_assertions(config.harness, config.attributes);
-    let body = if generated_test_attrs.uses_gpui_boundary && config.return_kind.is_fallible() {
-        adapt_fallible_gpui_boundary(true, config.return_kind, signature.to_mut(), body)
-    } else {
-        body
-    };
-    let underscore_expect = generate_underscore_expect(signature);
-    (
-        trait_assertions,
-        generated_test_attrs.tokens,
-        underscore_expect,
-        body,
-    )
-}
-
 /// Generate code for a regular scenario (no placeholder substitution).
 fn generate_regular_scenario_code<P, I, Q>(
     config: &ScenarioConfig<'_>,
@@ -269,7 +206,7 @@ where
     let attrs = config.attrs;
     let vis = config.vis;
     let mut signature = Cow::Borrowed(config.sig);
-    let (trait_assertions, test_attrs, underscore_expect, body) =
+    let (trait_assertions, test_attrs, underscore_expect, adapted_body) =
         finalize_scenario_signature(config, &mut signature, body);
     TokenStream::from(quote! {
         #trait_assertions
@@ -277,7 +214,7 @@ where
         #(#case_attrs)*
         #(#attrs)*
         #underscore_expect
-        #vis #signature { #body }
+        #vis #signature { #adapted_body }
     })
 }
 
@@ -354,7 +291,7 @@ where
 
     let attrs = config.attrs;
     let vis = config.vis;
-    let (trait_assertions, test_attrs, underscore_expect, body) =
+    let (trait_assertions, test_attrs, underscore_expect, adapted_body) =
         finalize_scenario_signature(config, &mut signature, body);
     TokenStream::from(quote! {
         #trait_assertions
@@ -362,7 +299,7 @@ where
         #(#case_attrs)*
         #(#attrs)*
         #underscore_expect
-        #vis #signature { #body }
+        #vis #signature { #adapted_body }
     })
 }
 

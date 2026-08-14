@@ -16,7 +16,6 @@ use super::{
 use crate::return_classifier::ReturnKind;
 
 mod async_wrapper;
-
 mod body;
 
 const WRAPPER_EXPECT_REASON: &str = "rstest-bdd step wrapper pattern requires these patterns for \

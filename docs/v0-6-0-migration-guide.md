@@ -21,6 +21,10 @@ that need a new testing practice to be useful.
 - `StepContext::insert_value` now returns `InsertOutcome` instead of
   `Option<Box<dyn Any>>`. Only code that calls `insert_value` directly is
   affected; generated scenario code is updated by the macros.
+- `record_bypassed_steps` now takes a `BypassedScenario` descriptor and the
+  bypassed steps, replacing the six-parameter form and the separate
+  `record_bypassed_steps_with_tags` entry point. Only code that calls it
+  directly is affected; generated scenario code is updated by the macros.
 
 ### Update underscore-prefixed implicit fixtures
 
@@ -135,6 +139,52 @@ match ctx.insert_value(Box::new(7_u32)) {
 
 `InsertOutcome` is `#[must_use]`, so discarding it implicitly now warns. Use
 `is_inserted()` for a boolean check that does not consume the outcome.
+
+### Update direct `record_bypassed_steps` callers
+
+`record_bypassed_steps` previously took the feature path, scenario name,
+scenario line, tags, skip reason, and the bypassed steps as six positional
+parameters. A second entry point, `record_bypassed_steps_with_tags`, existed
+only so callers that already owned a `Vec<String>` could pass the tags by
+reference instead of cloning.
+
+Both are replaced by a single function taking a `BypassedScenario` descriptor
+plus the steps. The descriptor borrows its tags, so the reason the second entry
+point existed no longer applies:
+
+```rust,no_run
+// Before:
+record_bypassed_steps(
+    "tests/features/skip.feature",
+    "skips",
+    7,
+    tags.clone(),
+    Some("fixture forced skip"),
+    [(StepKeyword::Given, "a bypassed step")],
+);
+
+// After:
+record_bypassed_steps(
+    BypassedScenario::new("tests/features/skip.feature", "skips", 7)
+        .with_tags(&tags)
+        .with_reason(Some("fixture forced skip")),
+    [(StepKeyword::Given, "a bypassed step")],
+);
+```
+
+`with_tags` and `with_reason` are optional. A scenario with neither needs only
+the constructor:
+
+```rust,no_run
+record_bypassed_steps(
+    BypassedScenario::new("tests/features/skip.feature", "skips", 7),
+    [(StepKeyword::Given, "a bypassed step")],
+);
+```
+
+Callers of `record_bypassed_steps_with_tags` migrate to the same form; the
+descriptor already borrows the tag slice, so drop the `_with_tags` suffix and
+pass `&tags` to `with_tags`.
 
 ## New features available by extending existing practice
 
@@ -574,6 +624,9 @@ fn given_shell_open(
   [Migrate a stateful GPUI test](#migrate-a-stateful-gpui-test): wire
   `scenario_state_cleanup` into every stateful `#[scenario]`, mark the scenario
   `#[serial]`, and reset the thread-local state before assigning fresh handles.
+- [ ] Replace direct `record_bypassed_steps` and
+  `record_bypassed_steps_with_tags` calls with the `BypassedScenario`
+  descriptor form.
 - [ ] Run feature-gated downstream tests before assuming v0.6.0 broke the API:
   use `cargo test --workspace --all-features`, or the project's Continuous
   Integration (CI)-equivalent gate such as `make test` when a Make-based gate
