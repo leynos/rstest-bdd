@@ -12,38 +12,29 @@ use std::borrow::Cow;
 use super::ScenarioConfig;
 use crate::codegen::{HarnessApiResolution, SharedAdapterResolutions};
 
-/// The adapter decision for one scenario plus the diagnostics it owns.
+/// The adapter decision for one scenario.
 pub(super) struct ScenarioAdapters<'a> {
     pub(super) resolutions: Cow<'a, SharedAdapterResolutions>,
-    /// Fallback diagnostic tokens this expansion must splice into its output.
-    ///
-    /// Empty when an enclosing boundary already emitted them, which is what
-    /// holds `scenarios!` to one diagnostic per supplied path rather than one
-    /// per generated scenario.
-    pub(super) diagnostics: TokenStream2,
 }
 
 /// Select the adapter API paths this expansion should generate against.
 ///
 /// Reuses the enclosing boundary's decision when one was supplied, otherwise
-/// resolves the supplied paths here and takes ownership of their diagnostics.
+/// resolves the supplied paths locally. This query remains side-effect free:
+/// macro-expansion boundaries emit diagnostics before passing their tokens to
+/// scenario code generation.
 pub(super) fn resolve_scenario_adapters<'a>(
     config: &'a ScenarioConfig<'_>,
 ) -> ScenarioAdapters<'a> {
     config.resolutions.map_or_else(
-        || {
-            let resolutions = SharedAdapterResolutions::resolve(config.harness, config.attributes);
-            // Owning the resolution means owning its emission: this is the
-            // only place the diagnostic fires for a `#[scenario]` expansion.
-            let diagnostics = resolutions.emit_diagnostics();
-            ScenarioAdapters {
-                resolutions: Cow::Owned(resolutions),
-                diagnostics,
-            }
+        || ScenarioAdapters {
+            resolutions: Cow::Owned(SharedAdapterResolutions::resolve(
+                config.harness,
+                config.attributes,
+            )),
         },
         |shared| ScenarioAdapters {
             resolutions: Cow::Borrowed(shared),
-            diagnostics: TokenStream2::new(),
         },
     )
 }

@@ -101,13 +101,10 @@ pub(crate) struct ScenarioConfig<'a> {
     pub(crate) harness: Option<&'a syn::Path>,
     /// Optional attribute policy type path for compile-time trait assertion.
     pub(crate) attributes: Option<&'a syn::Path>,
-    /// Adapter API paths already resolved by an enclosing expansion boundary.
-    ///
-    /// `scenarios!` supplies this so every generated scenario reuses one
-    /// decision and the boundary emits the fallback diagnostic once. Leave it
-    /// `None` for `#[scenario]`, which is its own boundary and therefore
-    /// resolves and emits for itself.
+    /// Boundary resolution; direct code-generation tests may use the pure local resolver.
     pub(crate) resolutions: Option<&'a crate::codegen::SharedAdapterResolutions>,
+    /// Boundary tokens for `#[scenario]`; `scenarios!` emits around its module.
+    pub(crate) fallback_diagnostics: Option<&'a TokenStream2>,
 }
 
 /// Configuration for context iterators in scenario code generation.
@@ -230,7 +227,7 @@ where
         &mut signature,
         body,
     );
-    let fallback_diagnostics = &adapters.diagnostics;
+    let fallback_diagnostics = config.fallback_diagnostics;
     TokenStream::from(quote! {
         #fallback_diagnostics
         #trait_assertions
@@ -320,7 +317,7 @@ where
         &mut signature,
         body,
     );
-    let fallback_diagnostics = &adapters.diagnostics;
+    let fallback_diagnostics = config.fallback_diagnostics;
     TokenStream::from(quote! {
         #fallback_diagnostics
         #trait_assertions

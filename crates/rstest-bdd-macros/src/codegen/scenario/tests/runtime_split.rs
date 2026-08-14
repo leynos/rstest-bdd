@@ -41,6 +41,7 @@ fn scenario_config_keeps_attribute_runtime_separate_from_execution_runtime() {
         harness: None,
         attributes: None,
         resolutions: None,
+        fallback_diagnostics: None,
     };
 
     let attrs = generate_test_attrs(
@@ -69,8 +70,8 @@ fn scenario_config_keeps_attribute_runtime_separate_from_execution_runtime() {
     );
 }
 
-/// Generate scenario code for a harness path that reaches the adapter crate
-/// through a local re-export, so first-party detection falls back.
+/// Generate code from the diagnostics and resolution an expansion boundary
+/// owns for an aliased first-party adapter path.
 fn aliased_harness_scenario_output() -> String {
     let attrs = Vec::new();
     let vis: syn::Visibility = syn::parse_quote!();
@@ -78,6 +79,8 @@ fn aliased_harness_scenario_output() -> String {
     let block: syn::Block = syn::parse_quote!({});
     let tags = Vec::new();
     let harness: syn::Path = syn::parse_quote!(alias::rstest_bdd_harness_tokio::TokioHarness);
+    let resolutions = crate::codegen::SharedAdapterResolutions::resolve(Some(&harness), None);
+    let fallback_diagnostics = resolutions.emit_diagnostics();
     let config = ScenarioConfig {
         attrs: &attrs,
         vis: &vis,
@@ -95,7 +98,8 @@ fn aliased_harness_scenario_output() -> String {
         return_kind: ScenarioReturnKind::Unit,
         harness: Some(&harness),
         attributes: None,
-        resolutions: None,
+        resolutions: Some(&resolutions),
+        fallback_diagnostics: Some(&fallback_diagnostics),
     };
 
     generate_scenario_code(
@@ -105,6 +109,52 @@ fn aliased_harness_scenario_output() -> String {
         std::iter::empty(),
     )
     .to_string()
+}
+
+/// Code generation may resolve adapter paths as a pure query for direct tests;
+/// only macro boundaries are permitted to add fallback diagnostics.
+#[cfg(not(rstest_bdd_nightly))]
+#[test]
+fn local_adapter_resolution_does_not_emit_stable_fallback_diagnostics() {
+    let attrs = Vec::new();
+    let vis: syn::Visibility = syn::parse_quote!();
+    let sig: syn::Signature = syn::parse_quote!(fn pure_adapter_resolution());
+    let block: syn::Block = syn::parse_quote!({});
+    let tags = Vec::new();
+    let harness: syn::Path = syn::parse_quote!(alias::rstest_bdd_harness_tokio::TokioHarness);
+    let config = ScenarioConfig {
+        attrs: &attrs,
+        vis: &vis,
+        sig: &sig,
+        block: &block,
+        feature_path: FeaturePath::new("tests/features/aliased.feature".to_owned()),
+        scenario_name: ScenarioName::new("pure adapter resolution".to_owned()),
+        steps: vec![blank()],
+        examples: None,
+        allow_skipped: false,
+        line: 1,
+        tags: &tags,
+        runtime: RuntimeMode::Sync,
+        attribute_runtime: RuntimeMode::Sync,
+        return_kind: ScenarioReturnKind::Unit,
+        harness: Some(&harness),
+        attributes: None,
+        resolutions: None,
+        fallback_diagnostics: None,
+    };
+
+    let output = generate_scenario_code(
+        &config,
+        std::iter::empty(),
+        std::iter::empty(),
+        std::iter::empty(),
+    )
+    .to_string();
+
+    assert!(
+        !output.contains("struct RstestBddFirstPartyAdapterFallback"),
+        "pure local resolution must not emit a fallback diagnostic: {output}"
+    );
 }
 /// Stable toolchains cannot emit procedural-macro warnings, so the fallback
 /// guidance rides along as a generated `#[deprecated]` marker item.
