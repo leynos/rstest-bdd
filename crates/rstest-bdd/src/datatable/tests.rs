@@ -1,18 +1,16 @@
 //! Tests the datatable runtime parsing, error reporting, and helper parsers.
 
-use std::error::Error as StdError;
-use std::fmt;
+use std::{error::Error as StdError, fmt};
+
+use rstest::rstest;
 
 use super::{DataTableError, DataTableRow, RowSpec, Rows, trimmed, truthy_bool};
-use rstest::rstest;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct FakeError;
 
 impl fmt::Display for FakeError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("boom")
-    }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { f.write_str("boom") }
 }
 
 impl StdError for FakeError {}
@@ -145,9 +143,7 @@ fn uneven_rows_are_rejected() {
     impl DataTableRow for HeaderOnly {
         const REQUIRES_HEADER: bool = true;
 
-        fn parse_row(_row: RowSpec<'_>) -> Result<Self, DataTableError> {
-            Ok(Self)
-        }
+        fn parse_row(_row: RowSpec<'_>) -> Result<Self, DataTableError> { Ok(Self) }
     }
 
     let rows = vec![
@@ -219,9 +215,7 @@ fn trimmed_preserves_inner_error() {
     impl std::str::FromStr for Dummy {
         type Err = FakeError;
 
-        fn from_str(_s: &str) -> Result<Self, Self::Err> {
-            Err(FakeError)
-        }
+        fn from_str(_s: &str) -> Result<Self, Self::Err> { Err(FakeError) }
     }
 
     let Err(err) = trimmed::<Dummy>("1") else {

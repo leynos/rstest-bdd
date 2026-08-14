@@ -11,11 +11,12 @@ use std::{path::Path, sync::Arc};
 
 use lsp_types::{Diagnostic, DiagnosticSeverity, Range};
 
-use crate::indexing::{CompiledStepDefinition, FeatureFileIndex, IndexedStep};
-use crate::server::ServerState;
-
 use super::{CODE_UNIMPLEMENTED_STEP, CODE_UNUSED_STEP_DEFINITION, DIAGNOSTIC_SOURCE};
-use crate::handlers::util::gherkin_span_to_lsp_range;
+use crate::{
+    handlers::util::gherkin_span_to_lsp_range,
+    indexing::{CompiledStepDefinition, FeatureFileIndex, IndexedStep},
+    server::ServerState,
+};
 
 /// Compute diagnostics for unimplemented feature steps.
 ///

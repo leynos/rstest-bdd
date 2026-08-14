@@ -5,7 +5,8 @@
 
 use proc_macro2::Span;
 use syn::{
-    LitInt, LitStr,
+    LitInt,
+    LitStr,
     parse::{Parse, ParseStream},
     punctuated::Punctuated,
     token::Comma,
@@ -191,8 +192,9 @@ fn selector_conflict_error(
 mod tests {
     //! Unit tests for `#[scenario]` attribute argument parsing.
 
-    use super::ScenarioArgs;
     use quote::quote;
+
+    use super::ScenarioArgs;
 
     fn parse_scenario_args(tokens: proc_macro2::TokenStream) -> syn::Result<ScenarioArgs> {
         syn::parse2(tokens)

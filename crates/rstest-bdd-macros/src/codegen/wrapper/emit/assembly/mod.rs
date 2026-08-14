@@ -5,20 +5,23 @@
 //! emission entry point focused on orchestration while centralizing the logic
 //! that shapes the wrapper's structure.
 
-use super::super::arguments::PreparedArgs;
-use super::super::arguments::StepMeta;
-use super::call_expr::generate_call_expression;
-use super::errors::{WrapperErrors, prepare_wrapper_errors};
-use crate::return_classifier::ReturnKind;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
+
+use super::{
+    super::arguments::{PreparedArgs, StepMeta},
+    call_expr::generate_call_expression,
+    errors::{WrapperErrors, prepare_wrapper_errors},
+};
+use crate::return_classifier::ReturnKind;
 
 mod async_wrapper;
 
 mod body;
 
-const WRAPPER_EXPECT_REASON: &str = "rstest-bdd step wrapper pattern requires these patterns \
-for parameter extraction, Result normalization, and closure-based error handling";
+const WRAPPER_EXPECT_REASON: &str = "rstest-bdd step wrapper pattern requires these patterns for \
+                                     parameter extraction, Result normalization, and \
+                                     closure-based error handling";
 const LINT_SHADOW_REUSE: &str = "clippy::shadow_reuse";
 const LINT_UNNECESSARY_WRAPS: &str = "clippy::unnecessary_wraps";
 const LINT_STR_TO_STRING: &str = "clippy::str_to_string";

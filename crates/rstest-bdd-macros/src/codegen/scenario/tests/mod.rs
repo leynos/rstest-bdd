@@ -1,6 +1,8 @@
 //! Tests exercising scenario code-generation utilities.
-use super::test_attrs::{TestAttrPolicy, generate_test_attrs};
-use super::*;
+use super::{
+    test_attrs::{TestAttrPolicy, generate_test_attrs},
+    *,
+};
 use crate::parsing::feature::ParsedStep;
 
 /// Parse a `syn::Path` from a string literal.
@@ -86,7 +88,7 @@ fn normalizes_sequences(
             ..blank()
         })
         .collect();
-    let (keyword_tokens, _, _, _) = process_steps(&steps);
+    let (keyword_tokens, ..) = process_steps(&steps);
     let collected: syn::Result<Vec<_>> = keyword_tokens.iter().map(kw).collect();
     let parsed = match collected {
         Ok(parsed) => parsed,
@@ -95,9 +97,7 @@ fn normalizes_sequences(
     assert_eq!(parsed, expect);
 }
 
-fn tags(list: &[&str]) -> Vec<String> {
-    list.iter().map(|tag| (*tag).to_owned()).collect()
-}
+fn tags(list: &[&str]) -> Vec<String> { list.iter().map(|tag| (*tag).to_owned()).collect() }
 
 #[rstest::rstest]
 #[case::present(tags(&["@allow_skipped", "@other"]), true)]
@@ -295,6 +295,7 @@ fn generate_test_attrs_dedupes_tokio_policy_and_user_attribute() {
     let tokio_count = output.match_indices("tokio :: test").count();
     assert_eq!(
         tokio_count, 1,
-        "expected exactly one tokio::test when both user attribute and policy are present, got {tokio_count}: {output}"
+        "expected exactly one tokio::test when both user attribute and policy are present, got \
+         {tokio_count}: {output}"
     );
 }

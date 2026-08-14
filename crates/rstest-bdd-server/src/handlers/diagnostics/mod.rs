@@ -4,16 +4,15 @@
 //! files and Rust step definitions, publishing them via the LSP protocol.
 //! Diagnostics are triggered on file save and report:
 //!
-//! - **Unimplemented feature steps**: Steps in `.feature` files with no
-//!   matching Rust implementation.
-//! - **Unused step definitions**: Rust step definitions not matched by any
-//!   feature step.
-//! - **Placeholder count mismatches**: Step patterns with a different number
-//!   of placeholders than the function has step arguments.
-//! - **Table/docstring expectation mismatches**: Feature steps with tables or
-//!   docstrings that don't match what the Rust implementation expects.
-//! - **Scenario outline column mismatches**: Scenario outlines with
-//!   placeholders that don't match the Examples table columns.
+//! - **Unimplemented feature steps**: Steps in `.feature` files with no matching Rust
+//!   implementation.
+//! - **Unused step definitions**: Rust step definitions not matched by any feature step.
+//! - **Placeholder count mismatches**: Step patterns with a different number of placeholders than
+//!   the function has step arguments.
+//! - **Table/docstring expectation mismatches**: Feature steps with tables or docstrings that don't
+//!   match what the Rust implementation expects.
+//! - **Scenario outline column mismatches**: Scenario outlines with placeholders that don't match
+//!   the Examples table columns.
 
 mod compute;
 mod placeholder;
@@ -55,7 +54,9 @@ const CODE_EXAMPLE_COLUMN_SURPLUS: &str = "example-column-surplus";
 pub use compute::{compute_unimplemented_step_diagnostics, compute_unused_step_diagnostics};
 pub use placeholder::compute_signature_mismatch_diagnostics;
 pub use publish::{
-    publish_all_feature_diagnostics, publish_feature_diagnostics, publish_rust_diagnostics,
+    publish_all_feature_diagnostics,
+    publish_feature_diagnostics,
+    publish_rust_diagnostics,
 };
 pub use scenario_outline::compute_scenario_outline_column_diagnostics;
 pub use table_docstring::compute_table_docstring_mismatch_diagnostics;

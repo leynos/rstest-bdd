@@ -3,25 +3,28 @@
 //! This module emits the per-wrapper snippets that pull the incoming
 //! `Option<&[&[&str]]>` docstring/table arguments into concrete, typed values
 //! expected by the step function. When a step declares a data table, we emit:
-//! - Access to a wrapper-scoped table cache (see `emit::datatable_cache`) keyed
-//!   by pointer identity plus an FNV-1a hash of contents. The cache is emitted
-//!   as a `OnceLock<Mutex<HashMap<key, Arc<Vec<Vec<String>>>>>>` referenced via
-//!   the supplied `cache_idents.cache` identifier.
-//! - Conversion of the cached rows into the concrete type requested by the
-//!   step signature.
-//! - Diagnostics for cache misses to aid tests and telemetry.
-//!   The `CacheIdents` passed in are the identifiers produced by the emitter
-//!   for the key type and the cache `OnceLock<HashMap<...>>`, so we can
-//!   reference them while generating argument initialization code.
+//! - Access to a wrapper-scoped table cache (see `emit::datatable_cache`) keyed by pointer identity
+//!   plus an FNV-1a hash of contents. The cache is emitted as a `OnceLock<Mutex<HashMap<key,
+//!   Arc<Vec<Vec<String>>>>>>` referenced via the supplied `cache_idents.cache` identifier.
+//! - Conversion of the cached rows into the concrete type requested by the step signature.
+//! - Diagnostics for cache misses to aid tests and telemetry. The `CacheIdents` passed in are the
+//!   identifiers produced by the emitter for the key type and the cache `OnceLock<HashMap<...>>`,
+//!   so we can reference them while generating argument initialization code.
 
-use super::super::args::{DataTableArg, classify::is_cached_table};
-use super::BoundDataTableArg;
-use super::{StepMeta, step_error_tokens};
-use crate::codegen::wrapper::datatable_shared::{
-    record_cache_miss_tokens, table_arc_tokens, table_content_match_tokens,
-};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::format_ident;
+
+use super::{
+    super::args::{DataTableArg, classify::is_cached_table},
+    BoundDataTableArg,
+    StepMeta,
+    step_error_tokens,
+};
+use crate::codegen::wrapper::datatable_shared::{
+    record_cache_miss_tokens,
+    table_arc_tokens,
+    table_content_match_tokens,
+};
 
 /// Identifiers for datatable caching infrastructure emitted alongside the wrapper.
 pub(super) struct CacheIdents<'a> {
@@ -121,13 +124,12 @@ fn gen_cache_entry_match_tokens(
 
 /// Emit the datatable extraction, caching, and conversion block.
 ///
-/// 1. Ensures the optional table input is present, otherwise raises a missing
-///    datatable error.
+/// 1. Ensures the optional table input is present, otherwise raises a missing datatable error.
 /// 2. Builds a cache key from pointer plus FNV-1a hash.
-/// 3. Checks the cache: reuses an existing `Arc` when contents match; records
-///    a miss and inserts a new `Arc` otherwise.
-/// 4. Wraps the `Arc` in `CachedTable` and converts to the requested type when
-///    the step does not expect a cached wrapper directly.
+/// 3. Checks the cache: reuses an existing `Arc` when contents match; records a miss and inserts a
+///    new `Arc` otherwise.
+/// 4. Wraps the `Arc` in `CachedTable` and converts to the requested type when the step does not
+///    expect a cached wrapper directly.
 fn gen_datatable_body(
     is_cached_table: bool,
     step_meta: StepMeta<'_>,
@@ -196,10 +198,9 @@ fn gen_datatable_body(
 ///
 /// # Parameters
 /// - `datatable`: The datatable argument metadata (pattern, type), if present.
-/// - `step_meta`: Step metadata (pattern and function identifier) for error
-///   reporting.
-/// - `cache_idents`: Identifiers for the cache key type and cache storage
-///   variable generated alongside the wrapper.
+/// - `step_meta`: Step metadata (pattern and function identifier) for error reporting.
+/// - `cache_idents`: Identifiers for the cache key type and cache storage variable generated
+///   alongside the wrapper.
 ///
 /// # Returns
 /// `Some(TokenStream2)` containing the datatable binding, or `None` if no

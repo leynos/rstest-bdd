@@ -24,9 +24,7 @@
 /// ```
 #[inline]
 #[must_use]
-pub fn utf16_code_units(ch: char) -> u32 {
-    if u32::from(ch) <= 0xFFFF { 1 } else { 2 }
-}
+pub fn utf16_code_units(ch: char) -> u32 { if u32::from(ch) <= 0xffff { 1 } else { 2 } }
 
 /// Convert a byte column offset to UTF-16 code units for a single line.
 ///

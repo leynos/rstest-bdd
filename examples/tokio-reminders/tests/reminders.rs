@@ -9,7 +9,9 @@ use tokio_reminders::ReminderService;
 
 #[fixture]
 fn service() -> ReminderService {
-    ReminderService::new()
+    let service = ReminderService::new();
+    std::hint::black_box(&service);
+    service
 }
 
 #[given("a reminder service")]

@@ -46,8 +46,8 @@ pub enum FixtureBorrowError {
     /// The fixture was inserted by shared reference and cannot be borrowed
     /// mutably; insert it with `insert_owned` to enable mutation.
     #[error(
-        "fixture '{name}' was inserted by shared reference and cannot be borrowed mutably; \
-         insert it with `insert_owned` to enable mutation"
+        "fixture '{name}' was inserted by shared reference and cannot be borrowed mutably; insert \
+         it with `insert_owned` to enable mutation"
     )]
     NotMutable {
         /// The requested fixture name.
@@ -56,19 +56,13 @@ pub enum FixtureBorrowError {
 }
 
 impl FixtureBorrowError {
-    pub(super) fn not_found(name: &str) -> Self {
-        Self::NotFound { name: name.into() }
-    }
+    pub(super) fn not_found(name: &str) -> Self { Self::NotFound { name: name.into() } }
 
-    pub(super) fn type_mismatch(name: &str) -> Self {
-        Self::TypeMismatch { name: name.into() }
-    }
+    pub(super) fn type_mismatch(name: &str) -> Self { Self::TypeMismatch { name: name.into() } }
 
     pub(super) fn already_borrowed(name: &str) -> Self {
         Self::AlreadyBorrowed { name: name.into() }
     }
 
-    pub(super) fn not_mutable(name: &str) -> Self {
-        Self::NotMutable { name: name.into() }
-    }
+    pub(super) fn not_mutable(name: &str) -> Self { Self::NotMutable { name: name.into() } }
 }

@@ -1,9 +1,11 @@
 //! Helpers for rendering panic payloads.
 
-use std::any::Any;
-use std::future::Future;
-use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::{
+    any::Any,
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 use crate::localization;
 
@@ -16,8 +18,7 @@ use crate::localization;
 /// ```
 /// use rstest_bdd::panic_message;
 ///
-/// let err = std::panic::catch_unwind(|| panic!("boom"))
-///     .expect_err("expected panic");
+/// let err = std::panic::catch_unwind(|| panic!("boom")).expect_err("expected panic");
 /// assert_eq!(panic_message(err.as_ref()), "boom");
 /// ```
 #[must_use]
@@ -99,9 +100,7 @@ impl<F> CatchUnwindFuture<F> {
     ///     other => panic!("expected ready Ok(42), got {other:?}"),
     /// }
     /// ```
-    pub fn new(inner: F) -> Self {
-        Self(Box::pin(inner))
-    }
+    pub fn new(inner: F) -> Self { Self(Box::pin(inner)) }
 }
 
 impl<F> Future for CatchUnwindFuture<F>

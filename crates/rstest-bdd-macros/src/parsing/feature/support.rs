@@ -1,7 +1,8 @@
 //! Test support builders for feature parsing tests.
 
-use super::{ParsedStep, ScenarioData as ExtractedScenarioData, extract_scenario_steps};
 use gherkin::{Background, Examples, LineCol, Scenario, Span, Step, StepType, Table};
+
+use super::{ParsedStep, ScenarioData as ExtractedScenarioData, extract_scenario_steps};
 
 // Intentionally expect `unreachable_patterns` today (we match all current variants).
 // If `gherkin::StepType` adds variants, this expectation stops triggering and
@@ -20,13 +21,9 @@ fn kw(ty: StepType) -> String {
     .to_owned()
 }
 
-fn zero_span() -> Span {
-    Span { start: 0, end: 0 }
-}
+fn zero_span() -> Span { Span { start: 0, end: 0 } }
 
-fn zero_pos() -> LineCol {
-    LineCol { line: 0, col: 0 }
-}
+fn zero_pos() -> LineCol { LineCol { line: 0, col: 0 } }
 
 /// Construct a `Table` from an iterable of rows (each row being an iterable of cells).
 ///
@@ -111,9 +108,7 @@ pub(super) struct ExamplesBuilder {
 
 impl ExamplesBuilder {
     /// Start building an Examples block.
-    pub(super) fn new() -> Self {
-        Self { table: None }
-    }
+    pub(super) fn new() -> Self { Self { table: None } }
 
     /// Set the Examples table rows (including the header row).
     pub(super) fn with_table<I, R, S>(mut self, rows: I) -> Self
@@ -278,8 +273,9 @@ pub(super) fn assert_feature_extraction(
 mod tests {
     //! Tests for feature parsing test support builders.
 
-    use super::*;
     use gherkin::StepType;
+
+    use super::*;
 
     #[test]
     fn step_builder_overrides_keyword_and_collects_arguments() {

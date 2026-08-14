@@ -25,9 +25,10 @@ mod paths;
 mod return_kind;
 mod selection;
 
+use std::path::PathBuf;
+
 use proc_macro::TokenStream;
 use proc_macro2::Span;
-use std::path::PathBuf;
 
 #[rustfmt::skip]
 use crate::codegen::scenario::{
@@ -37,15 +38,20 @@ use crate::codegen::scenario::{
 use crate::parsing::feature::{
     parse_and_load_feature, ScenarioData,
 };
-use crate::parsing::tags::TagExpression;
-use crate::utils::fixtures::extract_function_fixtures;
-use crate::validation::parameters::process_scenario_outline_examples;
-use crate::validation::placeholder::{ExampleHeaders, validate_step_placeholders};
-
-use self::args::ScenarioArgs;
-use self::paths::canonical_feature_path;
-use self::return_kind::classify_scenario_return;
-use self::selection::{ensure_feature_not_empty, resolve_candidate_indices, select_scenario};
+use self::{
+    args::ScenarioArgs,
+    paths::canonical_feature_path,
+    return_kind::classify_scenario_return,
+    selection::{ensure_feature_not_empty, resolve_candidate_indices, select_scenario},
+};
+use crate::{
+    parsing::tags::TagExpression,
+    utils::fixtures::extract_function_fixtures,
+    validation::{
+        parameters::process_scenario_outline_examples,
+        placeholder::{ExampleHeaders, validate_step_placeholders},
+    },
+};
 
 struct ScenarioTagFilter {
     expr: TagExpression,

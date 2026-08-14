@@ -1,17 +1,16 @@
 //! Shared helpers for step error behavioural tests.
 
+use std::fmt;
+
 use rstest_bdd::{StepContext, StepError, StepExecution, StepKeyword};
 use rstest_bdd_macros::{given, then, when};
-use std::fmt;
 
 /// Simulate a step function that returns an execution failure.
 ///
 /// # Errors
 /// Always returns an error describing the failure.
 #[given("a failing step")]
-pub fn failing_step() -> Result<(), String> {
-    Err("boom".into())
-}
+pub fn failing_step() -> Result<(), String> { Err("boom".into()) }
 
 /// Simulate a step function that panics instead of returning an error.
 ///
@@ -21,9 +20,7 @@ pub fn failing_step() -> Result<(), String> {
 /// # Errors
 /// This function never returns an error because it panics.
 #[given("a panicking step")]
-pub fn panicking_step() -> Result<(), String> {
-    panic!("kaboom")
-}
+pub fn panicking_step() -> Result<(), String> { panic!("kaboom") }
 
 /// Simulate a panic that carries a non-string payload.
 ///
@@ -33,9 +30,7 @@ pub fn panicking_step() -> Result<(), String> {
 /// # Errors
 /// This function never returns an error because it panics.
 #[given("a non-string panicking step")]
-pub fn non_string_panicking_step() -> Result<(), String> {
-    std::panic::panic_any(123_i32)
-}
+pub fn non_string_panicking_step() -> Result<(), String> { std::panic::panic_any(123_i32) }
 
 /// Trivial step that succeeds without returning data.
 #[given("a successful step")]
@@ -46,18 +41,14 @@ pub fn successful_step() {}
 /// # Errors
 /// Always returns an error describing the failure.
 #[when("a failing when step")]
-pub fn failing_when_step() -> Result<(), String> {
-    Err("when boom".into())
-}
+pub fn failing_when_step() -> Result<(), String> { Err("when boom".into()) }
 
 /// Simulate a failing `then` step.
 ///
 /// # Errors
 /// Always returns an error describing the failure.
 #[then("a failing then step")]
-pub fn failing_then_step() -> Result<(), String> {
-    Err("then boom".into())
-}
+pub fn failing_then_step() -> Result<(), String> { Err("then boom".into()) }
 
 /// Convenience alias for steps that intentionally use a `Result`.
 pub type StepResult<T> = Result<T, &'static str>;
@@ -87,9 +78,7 @@ pub struct FancyValue(pub u16);
 pub struct FancyError(pub &'static str);
 
 impl fmt::Display for FancyError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.0)
-    }
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { f.write_str(self.0) }
 }
 
 /// Step that surfaces an alias error to exercise step wrapper normalization.
@@ -97,9 +86,7 @@ impl fmt::Display for FancyError {
 /// # Errors
 /// Always returns an error describing the failure.
 #[given("an alias error step", result)]
-pub fn alias_error_step() -> StepResult<()> {
-    Err("alias boom")
-}
+pub fn alias_error_step() -> StepResult<()> { Err("alias boom") }
 
 /// Step that succeeds while returning a `Result` payload.
 ///
@@ -151,15 +138,11 @@ pub fn fallible_value_step_fails() -> Result<FancyValue, FancyError> {
 
 /// Step that consumes an incoming data table.
 #[given("a step requiring a table")]
-pub fn step_needing_table(datatable: Vec<Vec<String>>) {
-    let _ = datatable;
-}
+pub fn step_needing_table(datatable: Vec<Vec<String>>) { let _ = datatable; }
 
 /// Step that consumes an incoming docstring.
 #[given("a step requiring a docstring")]
-pub fn step_needing_docstring(docstring: String) {
-    let _ = docstring;
-}
+pub fn step_needing_docstring(docstring: String) { let _ = docstring; }
 
 /// Step implementation that raises a skip request during execution.
 ///
@@ -189,9 +172,7 @@ pub fn skip_request_step() {
 /// }
 /// ```
 #[given("number {value}")]
-pub fn parse_number(value: u32) {
-    let _ = value;
-}
+pub fn parse_number(value: u32) { let _ = value; }
 
 /// Step definition deliberately ignoring its captured argument to test errors.
 ///
@@ -205,9 +186,7 @@ pub fn parse_number(value: u32) {
 /// }
 /// ```
 #[given("no placeholders")]
-pub fn missing_capture(value: u32) {
-    let _ = value;
-}
+pub fn missing_capture(value: u32) { let _ = value; }
 
 /// In-memory description of a step invocation used by the behavioural tests.
 ///

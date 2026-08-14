@@ -107,9 +107,10 @@ pub(crate) fn try_extract_result_error_type(ty: &Type) -> Option<Type> {
 mod tests {
     //! Unit tests for detecting `Result`-like return types.
 
-    use super::*;
     use rstest::rstest;
     use syn::parse_quote;
+
+    use super::*;
 
     #[rstest]
     #[case("Result<MyWorld, String>", "MyWorld")]

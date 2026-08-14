@@ -54,9 +54,7 @@ impl IntoIterator for TaskEntries {
     type Item = String;
     type IntoIter = std::vec::IntoIter<String>;
 
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
-    }
+    fn into_iter(self) -> Self::IntoIter { self.0.into_iter() }
 }
 
 #[derive(Debug)]
@@ -88,7 +86,8 @@ impl TryFrom<Vec<Vec<String>>> for StatusEntries {
                 "no" | "n" | "false" => false,
                 _ => {
                     return Err(format!(
-                        "datatable row {}: second column must be one of yes/y/true or no/n/false; got: {:?}",
+                        "datatable row {}: second column must be one of yes/y/true or no/n/false; \
+                         got: {:?}",
                         index + 1,
                         done_cell
                     ));
@@ -101,9 +100,7 @@ impl TryFrom<Vec<Vec<String>>> for StatusEntries {
 }
 
 impl From<StatusEntries> for Vec<(String, bool)> {
-    fn from(entries: StatusEntries) -> Self {
-        entries.0
-    }
+    fn from(entries: StatusEntries) -> Self { entries.0 }
 }
 
 #[given("an empty to-do list")]

@@ -5,8 +5,8 @@
 //!
 //! - Feature steps (keyword, text, step span)
 //! - Feature doc strings, data tables, and Examples header columns
-//! - Rust step definitions annotated with `#[given]`, `#[when]`, and `#[then]`
-//!   (keyword, pattern string, parameters, table/doc string expectations)
+//! - Rust step definitions annotated with `#[given]`, `#[when]`, and `#[then]` (keyword, pattern
+//!   string, parameters, table/doc string expectations)
 //!
 //! The implementation relies on the `gherkin` crate for syntactic parsing.
 //! Where `gherkin` does not expose spans (for example doc string blocks and

@@ -4,6 +4,4 @@ mod cli;
 mod output;
 mod registry;
 
-fn main() -> eyre::Result<()> {
-    cli::run()
-}
+fn main() -> eyre::Result<()> { cli::run() }

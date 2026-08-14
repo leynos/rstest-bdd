@@ -9,7 +9,6 @@
 use std::str::FromStr;
 
 use proptest::prelude::*;
-
 use rstest_bdd_patterns::{StepKeyword, StepKeywordParseError};
 
 const ALL_KEYWORDS: [StepKeyword; 5] = [

@@ -4,25 +4,35 @@
 //! fixture parameters and scenario outline example parameters, as well as
 //! lint suppression for fixtures consumed via `StepContext`.
 
+use std::{collections::HashSet, path::Path};
+
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
-use std::collections::HashSet;
-use std::path::Path;
-
-use crate::codegen::rstest_bdd_harness_tokio_path;
-use crate::codegen::scenario::{
-    FeaturePath, ScenarioConfig, ScenarioName, ScenarioReturnKind, generate_scenario_code,
-};
-use crate::parsing::examples::ExampleTable;
-use crate::parsing::feature::ScenarioData;
-use crate::parsing::tags::TagExpression;
-use crate::return_classifier::{ReturnKind, classify_return_type};
-use crate::utils::fixtures::extract_function_fixtures;
-use crate::utils::ident::sanitize_ident;
-use crate::utils::result_type::try_extract_result_error_type;
 
 use super::macro_args::{
-    FixtureSpec, RuntimeCompatibilityAlias, RuntimeMode, runtime_compatibility_alias,
+    FixtureSpec,
+    RuntimeCompatibilityAlias,
+    RuntimeMode,
+    runtime_compatibility_alias,
+};
+use crate::{
+    codegen::{
+        rstest_bdd_harness_tokio_path,
+        scenario::{
+            FeaturePath,
+            ScenarioConfig,
+            ScenarioName,
+            ScenarioReturnKind,
+            generate_scenario_code,
+        },
+    },
+    parsing::{examples::ExampleTable, feature::ScenarioData, tags::TagExpression},
+    return_classifier::{ReturnKind, classify_return_type},
+    utils::{
+        fixtures::extract_function_fixtures,
+        ident::sanitize_ident,
+        result_type::try_extract_result_error_type,
+    },
 };
 
 /// Context for generating a scenario test, capturing the feature file stem,

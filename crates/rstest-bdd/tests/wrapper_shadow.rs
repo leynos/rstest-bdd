@@ -1,10 +1,16 @@
 //! Regression tests ensuring wrapper inputs use unique identifiers.
 
+use std::sync::Mutex;
+
 use rstest_bdd::{
-    StepContext, StepKeyword, assert_step_err, assert_step_ok, find_step, lookup_step,
+    StepContext,
+    StepKeyword,
+    assert_step_err,
+    assert_step_ok,
+    find_step,
+    lookup_step,
 };
 use rstest_bdd_macros::given;
-use std::sync::Mutex;
 
 static CAPTURED_TEXT: Mutex<Option<String>> = Mutex::new(None);
 

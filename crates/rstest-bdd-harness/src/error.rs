@@ -47,27 +47,19 @@ impl HarnessErrorContext {
 
     /// Returns the original typed harness error.
     #[must_use]
-    pub const fn error(&self) -> &HarnessError {
-        &self.error
-    }
+    pub const fn error(&self) -> &HarnessError { &self.error }
 
     /// Returns the feature path for the scenario that failed to initialize.
     #[must_use]
-    pub fn feature_path(&self) -> &str {
-        &self.feature_path
-    }
+    pub fn feature_path(&self) -> &str { &self.feature_path }
 
     /// Returns the scenario name that failed to initialize.
     #[must_use]
-    pub fn scenario_name(&self) -> &str {
-        &self.scenario_name
-    }
+    pub fn scenario_name(&self) -> &str { &self.scenario_name }
 
     /// Consumes this wrapper and returns the original typed error.
     #[must_use]
-    pub fn into_error(self) -> HarnessError {
-        self.error
-    }
+    pub fn into_error(self) -> HarnessError { self.error }
 }
 
 impl fmt::Display for HarnessErrorContext {
@@ -81,9 +73,7 @@ impl fmt::Display for HarnessErrorContext {
 }
 
 impl std::error::Error for HarnessErrorContext {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        Some(&self.error)
-    }
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> { Some(&self.error) }
 }
 
 impl HarnessError {
@@ -102,9 +92,9 @@ impl HarnessError {
 mod tests {
     //! Unit tests for harness error formatting and source chaining.
 
+    use std::{error::Error, io};
+
     use super::HarnessError;
-    use std::error::Error;
-    use std::io;
 
     #[test]
     fn runtime_build_failed_display_includes_io_error_message() {

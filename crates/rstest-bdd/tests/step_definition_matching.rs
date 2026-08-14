@@ -18,9 +18,7 @@ fn generic_step(item: String) {
 }
 
 #[given("overlap apples")]
-fn specific_step() {
-    SPECIFIC_CALLED.fetch_add(1, Ordering::Relaxed);
-}
+fn specific_step() { SPECIFIC_CALLED.fetch_add(1, Ordering::Relaxed); }
 
 #[test]
 fn find_step_returns_none_for_missing() {

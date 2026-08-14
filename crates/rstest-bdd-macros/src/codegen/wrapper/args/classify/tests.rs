@@ -1,15 +1,15 @@
 //! Unit tests for the argument classifier helpers.
 
-use super::*;
+use std::collections::HashSet;
+
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::quote;
 use rstest::{fixture, rstest};
-use std::collections::HashSet;
 use syn::{FnArg, parse_quote};
 
-fn ident(name: &str) -> syn::Ident {
-    syn::Ident::new(name, Span::call_site())
-}
+use super::*;
+
+fn ident(name: &str) -> syn::Ident { syn::Ident::new(name, Span::call_site()) }
 
 fn pat_type(tokens: TokenStream2) -> syn::PatType {
     match syn::parse2::<FnArg>(tokens) {

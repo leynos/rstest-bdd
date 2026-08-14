@@ -7,10 +7,8 @@
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 
+use super::{ScenarioLookup, args::ScenarioSelector};
 use crate::parsing::feature::{ScenarioData, extract_scenario_steps};
-
-use super::ScenarioLookup;
-use super::args::ScenarioSelector;
 
 pub(super) fn ensure_feature_not_empty(
     path_lit: &syn::LitStr,
@@ -204,7 +202,8 @@ fn ambiguous_scenario_error(
         .collect::<Vec<_>>()
         .join(", ");
     let message = format!(
-        "found multiple scenarios named \"{name}\"; use the `index` selector to disambiguate (matching indexes: {indexes}; lines: {lines})",
+        "found multiple scenarios named \"{name}\"; use the `index` selector to disambiguate \
+         (matching indexes: {indexes}; lines: {lines})",
     );
     syn::Error::new(span, message)
 }

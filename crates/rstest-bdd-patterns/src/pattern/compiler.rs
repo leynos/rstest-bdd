@@ -1,9 +1,10 @@
 //! Convert lexed tokens into anchored regular-expression sources.
 
-use crate::errors::{PatternError, placeholder_error};
-use crate::hint::get_type_pattern;
-
 use super::lexer::{Token, lex_pattern};
+use crate::{
+    errors::{PatternError, placeholder_error},
+    hint::get_type_pattern,
+};
 
 /// Process a single token, appending its regex representation to the output.
 ///

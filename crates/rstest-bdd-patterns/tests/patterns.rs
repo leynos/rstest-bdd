@@ -3,9 +3,11 @@
 
 use regex::Regex;
 use rstest::rstest;
-
 use rstest_bdd_patterns::{
-    build_regex_from_pattern, compile_regex_from_pattern, extract_captured_values, get_type_pattern,
+    build_regex_from_pattern,
+    compile_regex_from_pattern,
+    extract_captured_values,
+    get_type_pattern,
 };
 
 #[test]

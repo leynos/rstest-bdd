@@ -12,12 +12,13 @@ use std::path::Path;
 use async_lsp::lsp_types::{Diagnostic, PublishDiagnosticsParams, Url, notification};
 use tracing::{debug, warn};
 
+use super::{
+    compute::{compute_unimplemented_step_diagnostics, compute_unused_step_diagnostics},
+    placeholder::compute_signature_mismatch_diagnostics,
+    scenario_outline::compute_scenario_outline_column_diagnostics,
+    table_docstring::compute_table_docstring_mismatch_diagnostics,
+};
 use crate::server::ServerState;
-
-use super::compute::{compute_unimplemented_step_diagnostics, compute_unused_step_diagnostics};
-use super::placeholder::compute_signature_mismatch_diagnostics;
-use super::scenario_outline::compute_scenario_outline_column_diagnostics;
-use super::table_docstring::compute_table_docstring_mismatch_diagnostics;
 
 /// Compute all diagnostics for a feature file, or `None` when the file has
 /// no feature index (in which case nothing is published, preserving any
@@ -170,10 +171,11 @@ mod tests {
     use proptest::prelude::*;
     use rstest::{fixture, rstest};
 
-    use crate::config::ServerConfig;
-    use crate::test_support::{ScenarioBuilder, SingleFilePairScenario};
-
     use super::*;
+    use crate::{
+        config::ServerConfig,
+        test_support::{ScenarioBuilder, SingleFilePairScenario},
+    };
 
     const FEATURE_SOURCE: &str = concat!(
         "Feature: demo\n",
@@ -218,13 +220,9 @@ mod tests {
     /// Diagnostic computation under test, in `prepare_publish`'s shape.
     type ComputeDiagnostics = fn(&ServerState, &Path) -> Option<Vec<Diagnostic>>;
 
-    fn feature_file(scenario: &SingleFilePairScenario) -> &Path {
-        &scenario.feature_path
-    }
+    fn feature_file(scenario: &SingleFilePairScenario) -> &Path { &scenario.feature_path }
 
-    fn rust_file(scenario: &SingleFilePairScenario) -> &Path {
-        &scenario.rust_path
-    }
+    fn rust_file(scenario: &SingleFilePairScenario) -> &Path { &scenario.rust_path }
 
     /// Pin the published payload for each file kind.
     ///
@@ -284,9 +282,7 @@ mod tests {
     /// capture.
     #[tokio::test]
     async fn missing_feature_index_emits_no_notification_through_client() {
-        use async_lsp::MainLoop;
-        use async_lsp::lsp_types::notification::LogMessage;
-        use async_lsp::router::Router;
+        use async_lsp::{MainLoop, lsp_types::notification::LogMessage, router::Router};
         use lsp_types::{LogMessageParams, MessageType};
         use tokio::io::AsyncReadExt;
         use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
