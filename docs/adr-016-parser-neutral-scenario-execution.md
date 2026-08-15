@@ -1,12 +1,12 @@
-# Architectural decision record (ADR) 014: expose parser-neutral scenario execution
+# Architectural decision record (ADR) 016: expose parser-neutral scenario execution
 
 ## Status
 
-Proposed.
+Accepted.
 
 ## Date
 
-2026-07-13.
+2026-07-13
 
 ## Context and problem statement
 
@@ -159,7 +159,7 @@ makes review harder. The first implementation should add the boundary inside
 `rstest-bdd`; later evidence can justify extraction.
 
 | Topic | Independent engine | Temporary Gherkin or Rust | Parser-neutral runner | Immediate core crate |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | One execution policy | No | Partly | Yes | Yes |
 | Source fidelity | Yes | No | Yes | Yes |
 | No Rust setup for stock Trymark | Yes | No | Yes | Yes |
