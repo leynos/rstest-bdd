@@ -89,6 +89,8 @@ pub use skip_helpers::{
 };
 pub use state::{ScenarioState, Slot};
 pub use step_args::{StepArgs, StepArgsError};
+#[doc(hidden)]
+pub use tokio as __rstest_bdd_tokio;
 pub use types::{
     AsyncStepFn, PatternStr, PlaceholderError, PlaceholderSyntaxError, StepCtx, StepDoc,
     StepExecution, StepExecutionMode, StepFn, StepFuture, StepKeyword, StepKeywordParseError,

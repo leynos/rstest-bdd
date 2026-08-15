@@ -37,20 +37,33 @@ trait ScenarioTestConfig {
     /// Generates the code components for this scenario type.
     fn generate_components(&self) -> CodeComponents;
 
+    /// Returns the metadata shared by every scenario test configuration.
+    fn metadata(&self) -> ScenarioMetadata<'_>;
+
     /// Extracts the common scenario metadata fields.
-    fn literals_input(&self) -> ScenarioLiteralsInput<'_>;
+    fn literals_input(&self) -> ScenarioLiteralsInput<'_> {
+        self.metadata().literals_input()
+    }
 
     /// Returns the test function block.
-    fn block(&self) -> &syn::Block;
+    fn block(&self) -> &syn::Block {
+        self.metadata().block
+    }
 
     /// Returns the return kind for the scenario body.
-    fn return_kind(&self) -> ScenarioReturnKind;
+    fn return_kind(&self) -> ScenarioReturnKind {
+        self.metadata().return_kind
+    }
 
     /// Whether the scenario runs asynchronously.
-    fn is_async(&self) -> bool;
+    fn is_async(&self) -> bool {
+        self.metadata().is_async
+    }
 
     /// Returns the optional harness adapter type path for execution delegation.
-    fn harness(&self) -> Option<&syn::Path>;
+    fn harness(&self) -> Option<&syn::Path> {
+        self.metadata().harness
+    }
 }
 
 impl ScenarioTestConfig for TestTokensConfig<'_> {
@@ -62,24 +75,8 @@ impl ScenarioTestConfig for TestTokensConfig<'_> {
         )
     }
 
-    fn literals_input(&self) -> ScenarioLiteralsInput<'_> {
-        self.metadata.literals_input()
-    }
-
-    fn block(&self) -> &syn::Block {
-        self.metadata.block
-    }
-
-    fn return_kind(&self) -> ScenarioReturnKind {
-        self.metadata.return_kind
-    }
-
-    fn is_async(&self) -> bool {
-        self.metadata.is_async
-    }
-
-    fn harness(&self) -> Option<&syn::Path> {
-        self.metadata.harness
+    fn metadata(&self) -> ScenarioMetadata<'_> {
+        self.metadata
     }
 }
 
@@ -92,24 +89,8 @@ impl ScenarioTestConfig for OutlineTestTokensConfig<'_> {
         )
     }
 
-    fn literals_input(&self) -> ScenarioLiteralsInput<'_> {
-        self.metadata.literals_input()
-    }
-
-    fn block(&self) -> &syn::Block {
-        self.metadata.block
-    }
-
-    fn return_kind(&self) -> ScenarioReturnKind {
-        self.metadata.return_kind
-    }
-
-    fn is_async(&self) -> bool {
-        self.metadata.is_async
-    }
-
-    fn harness(&self) -> Option<&syn::Path> {
-        self.metadata.harness
+    fn metadata(&self) -> ScenarioMetadata<'_> {
+        self.metadata
     }
 }
 

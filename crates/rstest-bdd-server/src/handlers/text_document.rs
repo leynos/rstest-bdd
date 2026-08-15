@@ -69,13 +69,17 @@ fn handle_rust_file_save(state: &mut ServerState, path: &std::path::Path, text: 
     );
 
     match index_result {
-        Ok(index) => {
+        Ok(result) => {
+            let index = result.index;
             debug!(
                 path = %path.display(),
                 steps = index.step_definitions.len(),
                 "indexed rust step file"
             );
             state.upsert_rust_step_index(index);
+            for diagnostic in result.diagnostics {
+                warn!(path = %path.display(), error = %diagnostic, "indexed Rust file with a step diagnostic");
+            }
             // Rust file changes may affect all feature file diagnostics
             publish_all_feature_diagnostics(state);
             // Also check for unused step definitions in this file

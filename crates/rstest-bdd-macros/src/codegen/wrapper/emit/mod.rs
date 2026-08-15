@@ -89,7 +89,7 @@ fn generate_sync_wrapper_from_async(
             __rstest_bdd_docstring: Option<&str>,
             __rstest_bdd_table: Option<&[&[&str]]>,
         ) -> Result<#path::StepExecution, #path::StepError> {
-            if ::tokio::runtime::Handle::try_current().is_ok() {
+            if #path::__rstest_bdd_tokio::runtime::Handle::try_current().is_ok() {
                 // A Tokio runtime is already active (e.g. a harness provides
                 // one). Poll the future once — most async steps complete
                 // immediately without yielding Pending.
@@ -102,7 +102,7 @@ fn generate_sync_wrapper_from_async(
                 let mut future = ::std::pin::pin!(future);
                 let waker = ::std::task::Waker::noop();
                 let mut cx = ::std::task::Context::from_waker(&waker);
-                return match future.as_mut().poll(&mut cx) {
+                return match ::core::future::Future::poll(future.as_mut(), &mut cx) {
                     ::std::task::Poll::Ready(result) => result,
                     ::std::task::Poll::Pending => {
                         Err(#path::StepError::ExecutionError {
@@ -120,7 +120,7 @@ fn generate_sync_wrapper_from_async(
                 };
             }
 
-            let runtime = ::tokio::runtime::Builder::new_current_thread()
+            let runtime = #path::__rstest_bdd_tokio::runtime::Builder::new_current_thread()
                 .enable_all()
                 .build()
                 .map_err(|e| #path::StepError::ExecutionError {
@@ -129,7 +129,7 @@ fn generate_sync_wrapper_from_async(
                     message: format!("failed to construct Tokio current-thread runtime: {e}"),
                 })?;
 
-            let local_set = ::tokio::task::LocalSet::new();
+            let local_set = #path::__rstest_bdd_tokio::task::LocalSet::new();
             local_set.block_on(
                 &runtime,
                 #async_wrapper_ident(

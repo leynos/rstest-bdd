@@ -94,10 +94,10 @@ fn augment_generics(generics: &Generics, fields: &[FieldSpec]) -> Generics {
         if needs_from_str_bound(&field.config, &field.inner_ty) {
             let ty = &field.inner_ty;
             where_clause.predicates.push(syn::parse_quote! {
-                #ty: ::core::str::FromStr,
+                #ty: ::core::str::FromStr
             });
             where_clause.predicates.push(syn::parse_quote! {
-                <#ty as ::core::str::FromStr>::Err: ::std::error::Error + Send + Sync + 'static,
+                <#ty as ::core::str::FromStr>::Err: ::std::error::Error + Send + Sync + 'static
             });
         }
     }
