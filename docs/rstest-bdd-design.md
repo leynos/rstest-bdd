@@ -1734,6 +1734,9 @@ supplies this evidence. `custom::TokioHarness` does not: unrelated third-party
 adapters remain valid fallback paths without the diagnostic even when the
 first-party adapter crate is present.
 
+The accepted warning-channel and emission-ownership decision is recorded in
+[ADR-016](adr-016-toolchain-aware-adapter-fallback-diagnostics.md).
+
 The `codegen::adapter_fallback` module owns this diagnostic. Resolution is a
 pure decision that returns the selected base API crate path and optional
 qualifying fallback metadata. Each macro expansion resolves each supplied
