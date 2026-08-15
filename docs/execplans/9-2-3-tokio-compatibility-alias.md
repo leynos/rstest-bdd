@@ -215,7 +215,7 @@ Implementation details:
 
 - Run targeted tests proving current async runtime behaviour remains green.
 - Add or adjust unit tests in
-  `crates/rstest-bdd-macros/src/macros/scenarios/macro_args/tests.rs` to define
+  `crates/rstest-bdd-macros/src/macros/scenarios/macro_args/tests/mod.rs` to define
   expected alias-resolution semantics.
 - Where useful, add codegen-level unit checks in
   `crates/rstest-bdd-macros/src/codegen/scenario/tests.rs` to ensure attribute
@@ -257,7 +257,7 @@ Expand unit coverage around alias resolution and parameter interplay.
 Implementation details:
 
 - Add table-driven `rstest` cases in
-  `crates/rstest-bdd-macros/src/macros/scenarios/macro_args/tests.rs` for:
+  `crates/rstest-bdd-macros/src/macros/scenarios/macro_args/tests/mod.rs` for:
   - runtime-only alias use,
   - runtime plus other non-extension args,
   - extension-parameter interplay (`harness`, `attributes`),

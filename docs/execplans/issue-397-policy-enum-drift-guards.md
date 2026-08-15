@@ -122,7 +122,7 @@ reintroduced locally in either crate.
       them and the proc-macro crate importing them directly.
 - [x] (2026-04-12 00:00Z) Stage B: added focused regression tests in
       `crates/rstest-bdd/src/execution/tests.rs` and
-      `crates/rstest-bdd-macros/src/macros/scenarios/macro_args/tests.rs`
+      `crates/rstest-bdd-macros/src/macros/scenarios/macro_args/tests/mod.rs`
       proving those surfaces still use the shared `rstest-bdd-policy` types.
 - [x] (2026-04-12 00:00Z) Stage C: updated `docs/rstest-bdd-design.md` and
       `docs/adr-004-policy-crate.md` to describe the implemented shared policy
@@ -239,7 +239,7 @@ Existing behaviour coverage already exists:
 - `crates/rstest-bdd-policy/src/lib.rs` tests the canonical enum behaviour.
 - `crates/rstest-bdd/src/execution/tests.rs` tests the runtime-facing re-export
   behaviour and mapping.
-- `crates/rstest-bdd-macros/src/macros/scenarios/macro_args/tests.rs` tests
+- `crates/rstest-bdd-macros/src/macros/scenarios/macro_args/tests/mod.rs` tests
   macro parsing and `RuntimeMode::test_attribute_hint()`.
 
 What is missing is a direct statement, in code and in docs, that the shared
@@ -290,7 +290,7 @@ Implementation details:
   `rstest_bdd::execution::TestAttributeHint` to type-check as
   `rstest_bdd_policy::RuntimeMode` and `rstest_bdd_policy::TestAttributeHint`.
 - Extend
-  `crates/rstest-bdd-macros/src/macros/scenarios/macro_args/tests.rs` with
+  `crates/rstest-bdd-macros/src/macros/scenarios/macro_args/tests/mod.rs` with
   equivalent tests for the macro-facing imports.
 - Keep these as compile-time identity checks with a small behavioural assertion
   only where needed to keep the test readable.
@@ -418,7 +418,7 @@ Acceptance means all of the following are true:
   only in `crates/rstest-bdd-policy/src/lib.rs`.
 - `crates/rstest-bdd/src/execution/tests.rs` contains regression coverage that
   proves the runtime-facing types are re-exports of the policy-crate types.
-- `crates/rstest-bdd-macros/src/macros/scenarios/macro_args/tests.rs`
+- `crates/rstest-bdd-macros/src/macros/scenarios/macro_args/tests/mod.rs`
   contains regression coverage that proves the macro-facing types come from the
   same policy crate.
 - `docs/rstest-bdd-design.md` no longer claims the macro crate maintains local
@@ -465,7 +465,7 @@ Useful source anchors while implementing:
 - `crates/rstest-bdd/src/execution/mod.rs`
 - `crates/rstest-bdd/src/execution/tests.rs`
 - `crates/rstest-bdd-macros/src/macros/scenarios/macro_args/mod.rs`
-- `crates/rstest-bdd-macros/src/macros/scenarios/macro_args/tests.rs`
+- `crates/rstest-bdd-macros/src/macros/scenarios/macro_args/tests/mod.rs`
 - `docs/rstest-bdd-design.md`
 - `docs/adr-004-policy-crate.md`
 
