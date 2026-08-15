@@ -5,8 +5,9 @@ This ExecPlan (execution plan) is a living document. The sections
 `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
 proceeds.
 
-Status: DRAFT — revised after a six-lens design review. One decision (D3)
-remains open and needs a human ruling before Milestone 2.
+Status: DRAFT — revised after a six-lens design review and a maintainer ruling
+on the three open decisions. All decisions are now settled; the plan is ready
+for approval.
 
 Roadmap item: 10.3.3 (`docs/roadmap.md`, phase 10.3 "v0.6.0 final
 requirements").
@@ -119,9 +120,10 @@ Stop and escalate — do not improvise — when any of these is reached.
 - **Scope.** More than 25 files changed, or more than 900 net added lines
   across the whole change (documentation excluded).
 - **New dependency.** Any addition to `[workspace.dependencies]`, or any
-  dependency on a crate not already in the workspace. (Per Constraint 7, adding
-  `insta` — already at `Cargo.toml:44` — to the macro crate's dev-dependencies
-  does **not** trip this.)
+  dependency on a crate not already in the workspace — **except** `googletest`
+  and `pretty_assertions`, which the maintainer has explicitly authorized (see
+  Decision D1). Adding `insta` — already at `Cargo.toml:44` — to the macro
+  crate's dev-dependencies does not trip this either, per Constraint 7.
 - **New published crate.** Creating `rstest-bdd-build` or any other new
   workspace member that would be published changes the release surface.
 - **Public API.** Any change to a `pub` item's signature in `crates/rstest-bdd`,
@@ -290,12 +292,33 @@ Stop and escalate — do not improvise — when any of these is reached.
   separate relative-path accessor rather than mutating the existing function.
 
 - **Risk: `scenarios!` cannot detect a newly *added* `.feature` file.**
-  Severity: low. Likelihood: certain.
+  Severity: low. Likelihood: certain without the build script.
   Per-file registration tracks edits to files present when the macro last ran.
   It cannot see a file that did not exist then, because nothing references it.
-  Mitigation: documented explicitly rather than hidden, in the users' guide and
-  in `docs/known-issues.md`, with a follow-up roadmap item proposed. See
-  Decision D2.
+  Mitigation: closed, not documented away — Milestone 7 ships a `build.rs`
+  recipe emitting a recursive `cargo::rerun-if-changed` directory line, kept
+  honest by an extracted-and-executed documentation example. See Decision D2.
+
+- **Risk: `googletest` and `rstest` do not compose cleanly.**
+  Severity: medium. Likelihood: medium.
+  `googletest` supplies its own `#[gtest]` attribute and a `Result`-returning
+  test shape. How that interacts with `#[rstest]`'s parameterization — whether
+  `#[gtest]` is needed, and in which attribute order — is unverified on the
+  pinned versions, and this repository has no prior art to copy.
+  Mitigation: settle it in Milestone 0 with a throwaway test *before* any real
+  test depends on it, and record the answer in the developers' guide. If the
+  attributes prove genuinely incompatible, escalate — do not quietly fall back
+  to plain assertions, because that would silently undo the maintainer's D1
+  ruling.
+
+- **Risk: the tested-documentation extractor makes the users' guide brittle.**
+  Severity: low. Likelihood: medium.
+  Netsuke's loader treats an unmarked fence as a hard error. `docs/users-guide.md`
+  has 69 fenced blocks; if enforcement is accidentally applied document-wide,
+  `make test` fails until all 69 are marked, which is a separate sweep.
+  Mitigation: the extractor takes (document, section) pairs and enforces only
+  the new rebuild-invalidation section. Add a test asserting the enforced-region
+  list is what you think it is, and say so in the module `//!`.
 
 - **Risk: the nested fixture's `Cargo.lock` goes stale after a dependency
   bump.**
@@ -311,7 +334,8 @@ Stop and escalate — do not improvise — when any of these is reached.
 Format: `- [x] (YYYY-MM-DDTHH:MMZ) description`. Timestamp every entry when it
 is ticked so rates of progress and tolerance breaches are visible.
 
-- [ ] Milestone 0: orientation and the D3 ruling (no code changes).
+- [ ] Milestone 0: orientation, dependency adoption, and the `#[rstest]` +
+      `#[gtest]` composition question (no behaviour changes).
 - [ ] Milestone 1: red — the two failing regression tests, the failing
       token-shape assertion, and the BDD feature specification.
 - [ ] Milestone 2: green — emit the tracking item from `#[scenario]`.
@@ -319,10 +343,11 @@ is ticked so rates of progress and tolerance breaches are visible.
 - [ ] Milestone 4: trybuild fixtures, including the dep-info assertion and the
       D4 diagnostic fixture.
 - [ ] Milestone 5: the redacted `insta` snapshot with semantic assertions.
-- [ ] Milestone 6: remove the absolute path from the embedded feature-path
-      constant (conditional on D3).
-- [ ] Milestone 7: documentation, ADR amendment, migration-guide caveat
-      removal, roadmap tick.
+- [ ] Milestone 6: make the embedded feature-path constant manifest-relative.
+- [ ] Milestone 7: the tested `build.rs` recipe — documentation-example
+      extractor, second fixture crate, and the file-addition behavioural test.
+- [ ] Milestone 8: documentation, ADR amendment, migration-guide breaking
+      change and caveat removal, roadmap tick.
 
 ## Surprises & discoveries
 
@@ -474,37 +499,85 @@ implementation.
   rlib qualifier from Constraint 2.
   Date/Author: 2026-08-15, planning agent.
 
-- **Decision D1 (settled): use the house testing stack; do not introduce
-  `googletest` or `pretty_assertions`.**
-  Neither appears anywhere in the workspace, roadmap 10.3.3's finish line says
-  nothing about assertion libraries, and adding them for one feature would
-  leave the suite inconsistent. Adopting them is a reasonable repository-wide
-  decision, but it is a repository-wide decision, not a 10.3.3 decision. If the
-  intent is a suite-wide migration, that is a separate roadmap item and should
-  be raised as one.
-  Date/Author: 2026-08-15, planning agent (ruled after design review).
+- **Decision D1 (settled by the maintainer): adopt `googletest` and
+  `pretty_assertions`, starting with the tests this item adds.**
+  The planning agent initially recommended deferring on the grounds that
+  neither crate is used anywhere in the workspace. The maintainer overruled
+  that, and the reasoning is the deciding one: the libraries are wanted for
+  richer, more expressive assertions that say in high-level terms *what* is
+  being asserted, and deferring adoption because a library is not yet adopted
+  is circular — it guarantees it never is. Something has to be first, and this
+  item's tests are a reasonable first.
+  Concretely: add `googletest = "0.14"` and `pretty_assertions = "1.4"` to
+  `[workspace.dependencies]`, and to the `[dev-dependencies]` of every crate
+  whose tests this plan touches (`rstest-bdd`, `rstest-bdd-macros`). Use
+  `googletest` matchers (`assert_that!`, `expect_that!`, and matchers such as
+  `contains_substring`, `eq`, `len`, `each`) wherever an assertion is
+  expressing a *property* rather than raw equality — which is most of this
+  item's assertions, since they are about dep-info containing a path, output
+  naming an expectation, and a token stream having a shape. Use
+  `pretty_assertions` for the remaining structural equality comparisons, where
+  its coloured diff is the value.
+  **Unresolved mechanical detail for Milestone 1, not a decision:** `googletest`
+  supplies its own `#[gtest]` test attribute, and the correct composition with
+  `#[rstest]` (attribute order, and whether `#[gtest]` is needed at all when a
+  test returns `googletest::Result<()>`) must be established empirically on the
+  pinned versions. Because this is the repository's first adoption, whatever
+  you establish becomes precedent: record it in `docs/developers-guide.md` with
+  a worked example, so the next person does not rediscover it. If the two
+  attributes prove genuinely incompatible on these versions, that is a finding
+  to escalate, not to work around silently.
+  Date/Author: 2026-08-15, maintainer ruling; planning agent's contrary
+  recommendation withdrawn.
 
-- **Decision D2 (settled): ship per-file tracking now; document the residual
-  addition/deletion gap; do not ship an untested `build.rs` recipe.**
+- **Decision D2 (settled by the maintainer): ship per-file tracking *and* a
+  `build.rs` recipe that closes the file-addition gap — as tested living
+  documentation.**
   Per-file registration makes both macros notice *edits* to every `.feature`
-  file they bound, which is the reported foot-gun and is exactly what the
-  roadmap sentence asks for. It cannot notice a newly *added* file.
-  A copy-paste `build.rs` recipe in the users' guide that nothing executes
-  would rot within two releases, and its failure mode is silent stale tests —
-  the same bug class this item exists to kill. Shipping uncompiled instructions
-  for a *correctness* mechanism is worse than shipping none. The users' guide
-  and `docs/known-issues.md` therefore state the gap plainly and point at a
-  proposed follow-up roadmap item for a tested `rstest-bdd-build` helper.
-  Note for that follow-up: ADR-010's claim that a build script "must emit one
-  line per file discovered, not just the directory" is over-cautious — Cargo
-  scans a `rerun-if-changed` directory recursively (rust-lang/cargo#8973).
-  Correct this while amending the ADR so the follow-up is not built on a false
-  premise.
-  Date/Author: 2026-08-15, planning agent (ruled after design review).
+  file they bound, which is the reported foot-gun. It cannot notice a newly
+  *added* file, because nothing references a file that did not exist at
+  expansion time; closing that needs a `cargo::rerun-if-changed` directive on
+  the directory.
+  The planning agent initially proposed documenting the gap and deferring the
+  recipe, on the grounds that a copy-paste recipe nothing executes rots into
+  the same silent-staleness bug class. The maintainer's answer is the better
+  one and removes the objection rather than accepting it: that is precisely
+  what contract and behavioural tests are for, and
+  [`netsuke`](https://github.com/leynos/netsuke) is the worked example.
+  Netsuke's `tests/documentation_examples/mod.rs` extracts fenced examples from
+  user-facing Markdown, keyed by an HTML-comment marker
+  (`<!-- tested-example: <id> -->`) that must immediately precede the fence,
+  and materializes each one into a temporary workspace where a behavioural test
+  actually runs it. Unmarked fences, duplicate identifiers, empty identifiers
+  and language-less fences are all hard errors, so the documentation cannot
+  quietly acquire an untested example.
+  Adopt that pattern here. The `build.rs` recipe in the users' guide carries a
+  marker; a test extracts it, writes it into a second fixture crate, adds a new
+  `.feature` file to the bound directory, and asserts the next `cargo test`
+  rebuilds and picks the new scenario up. The recipe is then executable
+  documentation, and the addition gap is genuinely closed rather than
+  documented as a limitation.
+  **Scope boundary, stated so it is a decision rather than a surprise:**
+  netsuke enforces "every fence in these documents must be marked". Applied
+  wholesale to `docs/users-guide.md` that is a 69-block sweep, well beyond this
+  item. Enforce it over a *bounded region* — the new feature-file
+  rebuild-invalidation section — and raise a follow-up roadmap item to extend
+  enforcement document-wide. The extractor should therefore take
+  (document, section) pairs rather than whole documents; that is a small,
+  clean generalization of netsuke's design, not a weakening of it.
+  Note while amending the ADR: ADR-010's claim that a build script "must emit
+  one line per file discovered, not just the directory" is over-cautious —
+  Cargo scans a `rerun-if-changed` directory recursively (rust-lang/cargo#8973)
+  — so the recipe can be a single directory line, which is far more robust
+  than a list that can silently omit a new subdirectory.
+  Date/Author: 2026-08-15, maintainer ruling; planning agent's contrary
+  recommendation withdrawn.
 
-- **Decision D3 (OPEN — needs a human ruling before Milestone 2): what
-  `__RSTEST_BDD_FEATURE_PATH` should hold.**
-  Three options, all now costed:
+- **Decision D3 (settled by the maintainer): `__RSTEST_BDD_FEATURE_PATH`
+  becomes manifest-relative — option 1 below. Milestone 6 is unconditional,
+  and the change must be clearly documented in
+  `docs/v0-6-0-migration-guide.md`.**
+  The options as costed for the ruling:
   1. **Manifest-relative** (the plan's default). Satisfies the roadmap finish
      line literally, and conforms to the already-documented JSON contract at
      `docs/roadmap.md:316`. Costs: a one-time discontinuity in JUnit
@@ -524,15 +597,30 @@ implementation.
      reporter churn. Fails the roadmap's *literal* finish line, because the
      absolute path still lands in the release binary.
   3. **Status quo.** Fails both the finish line and the ADR driver.
-  Recommendation: option 1, on the strength of the documented-contract
-  argument. **If option 1 is chosen it must ship in the same release as
-  Milestones 2–4** — last in commit order, not in release order — so adopters
-  absorb the churn once. It also requires a `docs/CHANGELOG.md` **Changed**
-  entry naming JSON `feature_path`, JUnit `classname` and failure-message text,
-  and a migration-guide note telling CI operators their JUnit history will
-  discontinue once. Do not gate it behind a feature flag: two path formats
-  means two permanent contracts for a `Display` string.
-  Date/Author: 2026-08-15, planning agent. **Awaiting ruling.**
+  **Ruling: option 1.** It must ship in the same release as Milestones 2–4 —
+  last in commit order, not in release order — so adopters absorb the churn
+  once. Do not gate it behind a feature flag: two path formats means two
+  permanent contracts for a `Display` string.
+  Required documentation, which the maintainer called out specifically. A new
+  **breaking-change** subsection in `docs/v0-6-0-migration-guide.md`, listed in
+  that document's `## Breaking changes` bullet list and given its own
+  `### Feature paths in diagnostics and reports are now manifest-relative`
+  section alongside the existing `### Update …` subsections, and an entry in
+  the `## Migration checklist`. It must state: what changed and what the value
+  looks like before and after; that this brings the implementation into line
+  with the JSON contract already documented at `docs/roadmap.md:316`; the four
+  surfaces affected (`ScenarioMetadata::feature_path`, the JSON reporter, the
+  JUnit `classname` attribute, and `cargo bdd --dump-steps` output); that
+  JUnit-consuming CI systems key test history, ownership rules and quarantine
+  lists on `classname` + `name`, so that history discontinues **once** on
+  upgrade and no action can prevent it; that the previous value was an absolute
+  build-machine path and therefore already differed between a developer's
+  machine and CI, so the discontinuity trades a one-time break for a value that
+  is stable thereafter; the exact fallback when a feature file lies outside the
+  manifest directory (the value stays absolute); and the workspace-uniqueness
+  consequence for merged `cargo bdd` output. Also add a `docs/CHANGELOG.md`
+  **Changed** entry naming the same four surfaces.
+  Date/Author: 2026-08-15, maintainer ruling.
 
 - **Decision D4 (settled): make the untrackable case nearly unreachable, and
   hard-error on the residue.**
@@ -769,14 +857,30 @@ conflated with invalidation); `docs/v0-6-0-migration-guide.md` line 714;
 
 ## Plan of work
 
-### Milestone 0 — orientation and the D3 ruling (no code changes)
+### Milestone 0 — orientation and dependency adoption (no behaviour changes)
 
-Read the documents above. Reproduce transcripts A–D on your own machine so you
-trust them. Obtain the ruling on Decision D3 and record it in the *Decision
-Log* with its date. D1, D2, D4 and D5 are settled; do not reopen them without
-new evidence.
+Read the documents above. Reproduce transcripts A–E on your own machine so you
+trust them. Every decision is settled; do not reopen one without new evidence.
 
-Go/no-go: do not start Milestone 1 until D3 is recorded.
+Add `googletest = "0.14"` and `pretty_assertions = "1.4"` to
+`[workspace.dependencies]` and to the `[dev-dependencies]` of `rstest-bdd` and
+`rstest-bdd-macros` (Decision D1). Then settle the one mechanical unknown
+before writing any test that depends on it: **how `#[rstest]` and `googletest`
+compose**. Write a throwaway parameterized test using both, establish whether
+`#[gtest]` is required, in which attribute order, and whether a test returning
+`googletest::Result<()>` works under `rstest`'s parameterization. Record the
+answer in the *Decision Log* and, in Milestone 8, in
+`docs/developers-guide.md` with a worked example — this is the repository's
+first adoption, so whatever you establish is precedent.
+
+Confirm the two crates do not disturb the existing gates: `pretty_assertions`
+shadows `assert_eq!`/`assert_ne!` by import, and `make lint` runs Clippy with
+`-D warnings` plus the Whitaker Dylint suite over `--all-targets
+--all-features`. Run `make lint` before proceeding.
+
+Go/no-go: do not start Milestone 1 until `make lint` and `make test` are green
+with the new dependencies present and the `#[rstest]`/`#[gtest]` composition
+recorded.
 
 ### Milestone 1 — red
 
@@ -1075,7 +1179,7 @@ snapshotting it would satisfy the letter and miss the point. Target the
 diagnostics this change actually creates or moves:
 
 1. The **D4 `compile_error!`** for an unrelatable feature path — new wording.
-2. If D3 rules Milestone 6 in scope, the **runtime failure text and reporter
+2. Per D3, the **runtime failure text and reporter
    output** that flip from absolute to relative.
 
 Host the snapshot in `crates/rstest-bdd-macros`, which is where the diagnostic
@@ -1094,9 +1198,9 @@ line and column numbers and any rustc version string, then
 substring assertions on the load-bearing fragments so a meaning change fails
 loudly even where a reflow would let a whole-text snapshot drift.
 
-### Milestone 6 — remove the absolute path from the artefact (conditional on D3)
+### Milestone 6 — make the embedded feature path manifest-relative
 
-Only if D3 ruled option 1. Two sites must change together:
+D3 ruled this in scope. Two sites must change together:
 
 1. `crates/rstest-bdd-macros/src/macros/scenario/paths.rs` — add a
    manifest-relative accessor and feed *that* to `create_scenario_literals`. Do
@@ -1154,7 +1258,77 @@ Finally, `ScenarioTestContext.manifest_dir` (`test_generation.rs:34`) may become
 dead once its only consumer at line 307 goes, and would then trip `dead_code`
 under `-D warnings`. Remove it or state why it is retained.
 
-### Milestone 7 — documentation and roadmap
+### Milestone 7 — the tested `build.rs` recipe
+
+Decision D2 requires the file-addition gap to be closed by a recipe that is
+executable documentation, not prose. Three pieces.
+
+**7a. The documentation-example extractor.** Create
+`crates/rstest-bdd/tests/documentation_examples/mod.rs`, modelled on
+[`netsuke`](https://github.com/leynos/netsuke)'s module of the same name. It
+loads fenced examples from user-facing Markdown, each preceded by an
+HTML-comment marker:
+
+```text
+<!-- tested-example: scenarios-build-script -->
+```
+
+Port netsuke's invariants, because they are what stop the documentation
+drifting: a marker must be immediately followed (ignoring blank lines) by a
+fence; the fence must declare a language; identifiers must be non-empty and
+unique; and an **unmarked fence inside an enforced region is a hard error**.
+The public surface is `load_documented_examples()` and
+`documented_example(id)`, returning an id, language and exact body.
+
+Generalize one thing relative to netsuke: take **(document, section)** pairs
+rather than whole documents. `docs/users-guide.md` has 69 fenced blocks and
+marking them all is a separate sweep. Enforce over the new rebuild-invalidation
+section only, and raise the document-wide extension as a follow-up roadmap
+item in Milestone 8. Say plainly in the module `//!` that enforcement is
+currently regional and why, so nobody assumes whole-document coverage.
+
+**7b. The second fixture crate.** Create
+`crates/rstest-bdd/tests/fixtures/feature_addition/`, sharing the byte-identical
+dependency set required of the first fixture, binding a directory with
+`scenarios!`, and — critically — with **no committed `build.rs`**. The test
+writes the `build.rs` from the extracted documentation example, so a recipe
+that stops working fails the suite.
+
+**7c. The behavioural test.** Extend
+`crates/rstest-bdd/tests/features/rebuild_invalidation.feature`:
+
+```gherkin
+  Scenario: Adding a feature file to a bound directory triggers a rebuild
+    Given a scenario crate whose build script tracks its feature directory
+    When a new feature file is added to that directory
+    Then the next test run recompiles and runs the new scenario
+```
+
+The steps extract the recipe by id, write it as the fixture's `build.rs`, add a
+`build = "build.rs"` key to its manifest, run `cargo test` and assert the
+baseline scenario count; add a new `.feature` file to the bound directory with
+a future mtime; run `cargo test` again and assert the new scenario now runs.
+Assert on the *scenario having run*, not on a `Compiling` line — the build
+script re-running is the mechanism, but the new test appearing is the contract.
+
+Reuse the Milestone 1 harness wholesale: same manifest rewriting, same
+`CARGO_TARGET_DIR` inheritance, same environment hygiene, same stamp-file
+protocol, same `cargo-spawning` nextest group. This is a third nested `cargo`
+invocation in that group, so revisit the timeout arithmetic recorded in
+Milestone 1 and update it.
+
+The recipe itself should emit a single directory line, which Cargo scans
+recursively (rust-lang/cargo#8973), rather than one line per file — a list can
+silently omit a new subdirectory, which is the failure mode this whole item
+exists to eliminate:
+
+```rust
+fn main() {
+    println!("cargo::rerun-if-changed=tests/features");
+}
+```
+
+### Milestone 8 — documentation and roadmap
 
 - `docs/adr-010-feature-file-change-detection.md`: Status `Proposed` →
   `Accepted`, with the date and a brief summary of what was decided, per
@@ -1170,18 +1344,41 @@ under `-D warnings`. Remove it or state why it is retained.
   `scenarios!` addition/deletion gap. Leave §3.2.2's OUT_DIR-caching discussion
   alone except to keep its cross-reference accurate; invalidation and caching
   must stay distinct.
-- `docs/v0-6-0-migration-guide.md`: delete the "Feature-file edits do not
-  trigger a rebuild" section at line 714 — its own note says it can go once the
-  fix ships. Add, in the same edit: the D4 `compile_error!` announcement; if D3
-  ruled option 1, the JUnit `classname` discontinuity note for CI operators;
-  and a paragraph for consumers on hermetic build systems (Bazel, Buck2, Nix
-  sandboxes) that parse dep-info and require every listed input to be declared
-   — they will need to add `.feature` files to their input sets. That is
-  correct behaviour and the point of the change, but it is a migration action.
+- `docs/v0-6-0-migration-guide.md` — the most substantial documentation change,
+  and the one the maintainer called out specifically. Four edits:
+  1. **Delete** the "Feature-file edits do not trigger a rebuild" section at
+     line 714. Its own note says it can go once the fix ships.
+  2. **Add a breaking-change entry** for the manifest-relative feature path
+     (D3): a bullet in the `## Breaking changes` list at the top, and a
+     `### Feature paths in diagnostics and reports are now manifest-relative`
+     subsection alongside the existing `### Update …` subsections. Content is
+     specified in full in Decision D3 — before/after values, the four affected
+     surfaces, the one-time JUnit `classname` history discontinuity and why no
+     action prevents it, the fact that the old absolute value already differed
+     between a laptop and CI, the outside-the-manifest fallback, and the
+     workspace-uniqueness consequence. Show a before/after fenced example of
+     the JSON and of a failure message.
+  3. **Announce the D4 `compile_error!`** for a feature path that shares no
+     filesystem root with `CARGO_MANIFEST_DIR`, with the remedy (use a
+     manifest-relative path, or a path on the same root).
+  4. **Add a paragraph for hermetic build systems** — Bazel, Buck2, Nix
+     sandboxes — which parse dep-info and require every listed input to be
+     declared. They will need `.feature` files added to their input sets. That
+     is correct behaviour and the point of the change, but it is a migration
+     action and will surface as an "undeclared dependency" failure otherwise.
+  Add matching entries to the `## Migration checklist` at line 554 for items 2
+  and 3. Note that this document has 40 fenced blocks and is **not** in the
+  Milestone 7 enforced region, so its examples need no markers yet; the
+  follow-up roadmap item covers extending enforcement.
 - `docs/users-guide.md`: two passages assert the old behaviour and must both
   change — line 1523 ("…foot-gun … until roadmap item 10.3.3 lands") and line
   1660 ("Editing only a `.feature` file does not trigger a rebuild … touch a
-  binding `.rs` file"). Add the residual `scenarios!` gap. **Add a short *Cost*
+  binding `.rs` file"). **Add the `build.rs` recipe section** carrying the
+  `<!-- tested-example: scenarios-build-script -->` marker, explaining that
+  per-file tracking covers edits while the build script covers additions and
+  deletions, and stating that the recipe is executed by the test suite so it
+  cannot rot. This is the section the Milestone 7 extractor enforces, so every
+  fence inside it needs a marker. **Add a short *Cost*
   subsection**, because this change makes a previously free operation cost
   something and users will feel it as "my edit loop got slower": editing one
   `.feature` file now rebuilds the whole test binary containing that
@@ -1196,35 +1393,47 @@ under `-D warnings`. Remove it or state why it is retained.
   build unless the guide's link changes in the same commit; and if you touch
   the `#[serial]` runner-behaviour table, keep it byte-identical with the design
   document's copy or `scripts/check_serial_nextest_matrix.py` fails.
-- `docs/developers-guide.md`: the cargo-spawning fixture-crate *convention*
-  (non-workspace fixture, inherited `CARGO_TARGET_DIR`, child-environment
-  hygiene, `cargo-spawning` nextest group) and the invariant that
-  macro-emitted token streams carry no absolute path literal, with a pointer to
-  the assertion that enforces it and to `codegen/tracking.rs`. Per the style
-  guide this document must **not** embed repository-layout guidance.
+- `docs/developers-guide.md`: four internal conventions. The cargo-spawning
+  fixture-crate pattern (non-workspace fixture, inherited `CARGO_TARGET_DIR`,
+  child-environment hygiene, `cargo-spawning` nextest group). The invariant
+  that macro-emitted token streams carry no absolute path literal, with a
+  pointer to the assertion that enforces it and to `codegen/tracking.rs`. The
+  **`googletest` and `pretty_assertions` house style** established by Decision
+  D1 — when to reach for a matcher versus a diffed equality assertion, and the
+  `#[rstest]`/`#[gtest]` composition settled in Milestone 0, with a worked
+  example; this is the repository's first adoption and sets precedent. And the
+  **tested-living-documentation convention** from Milestone 7: the
+  `<!-- tested-example: id -->` marker, which regions are enforced, and how to
+  add a new executable example. Per the style guide this document must **not**
+  embed repository-layout guidance.
 - `docs/repository-layout.md`: the new paths —
   `crates/rstest-bdd/tests/fixtures/rebuild_invalidation/` and the
   `target/tests/rebuild-invalidation/` scratch area. This is the canonical
   document for path responsibility.
-- `docs/testing-strategy.md`: this change introduces a new *class* of test — a
-  cargo-spawning fixture crate with its own nextest group and its own
-  environment-hygiene rules. That is a testing-strategy change, not just an
-  implementation detail.
-- `docs/known-issues.md`: the residual `scenarios!` addition/deletion gap
-  (unconditionally, per D2), and the Windows `#[ignore]` fallback if it was
-  taken.
+- `docs/testing-strategy.md`: this change introduces **two** new classes of
+  test — a cargo-spawning fixture crate with its own nextest group and
+  environment-hygiene rules, and tested living documentation (executable
+  examples extracted from user-facing Markdown). Both are strategy changes, not
+  implementation details. Record the adoption of `googletest` and
+  `pretty_assertions` here too, with the rationale from D1, since this document
+  is where the suite's assertion posture belongs.
+- `docs/known-issues.md`: the Windows `#[ignore]` fallback if it was taken.
+  The `scenarios!` addition/deletion gap is **no longer** a known issue — D2
+  closes it with the tested `build.rs` recipe — so do not record it as one.
 - `docs/CHANGELOG.md`: **required**, not optional. This retires a published
-  migration caveat and, under D3 option 1, changes serialized reporter output.
+  migration caveat and changes serialized reporter output (D3).
   Use the `changelog` skill.
 - `docs/contents.md`: no change needed — it lists `execplans/` generically.
   Stated so the implementer does not wonder.
-- `docs/roadmap.md`: tick 10.3.3 to `[x]` **only if** the finish line is
-  actually met. If D3 ruled Milestone 6 out of scope, the artefact still
-  carries an absolute path and the clause is unmet: either leave the item `[ ]`
-  or amend the clause in the same edit with recorded rationale. Add the D2
-  follow-up item for the `rstest-bdd-build` helper, and the
-  `emit_runtime_deprecation_warning` follow-up, using `mapsplice` so numbering
-  and `Requires` references stay consistent.
+- `docs/roadmap.md`: tick 10.3.3 to `[x]`. With D3 ruled in scope every
+  finish-line clause is met; verify that against the clause list rather than
+  assuming it. Add three follow-up items using `mapsplice` so numbering and
+  `Requires` references stay consistent: extend tested-example enforcement from
+  the bounded region to whole documents (D2's scope boundary); replace the
+  latent no-op `emit_runtime_deprecation_warning`
+  (`macros/scenarios/mod.rs:178`), which has the same nightly-only problem D4
+  uncovered; and migrate the existing suite to `googletest`/`pretty_assertions`
+  now that D1 has established the precedent.
 
 ## Concrete steps
 
@@ -1300,10 +1509,18 @@ its redaction filters and its semantic assertions. `cargo insta
 pending-snapshots` reports nothing outstanding.
 
 **No absolute path.** The Milestone 1d assertion proves the *tracking item*
-carries no absolute path literal. If Milestone 6 lands, the whole-expansion
+carries no absolute path literal. After Milestone 6, the whole-expansion
 assertion extends that to the constant, subject to the rlib qualifier in
 Constraint 2. There is deliberately no artefact-grep assertion; see Milestone 6
 for why.
+
+**The documented recipe actually works.** The `build.rs` recipe in
+`docs/users-guide.md` is extracted by identifier, written into the
+`feature_addition` fixture, and executed: adding a new `.feature` file to the
+bound directory makes the next `cargo test` run a scenario that did not exist
+before. Corrupting the recipe in the users' guide must fail the suite — verify
+that by temporarily breaking it, which is the whole point of tested living
+documentation.
 
 **Quality criteria — what "done" means.**
 
@@ -1454,9 +1671,56 @@ recursively (rust-lang/cargo#8973), contrary to ADR-010's Option B con.
 
 ## Interfaces and dependencies
 
-No new external dependency (D1, Constraint 7). `insta` moves from
+Two new dev-dependencies, explicitly authorized by Decision D1. Add to
+`[workspace.dependencies]`:
+
+```toml
+googletest = "0.14"
+pretty_assertions = "1.4"
+```
+
+and reference them with `.workspace = true` from the `[dev-dependencies]` of
+`crates/rstest-bdd` and `crates/rstest-bdd-macros`. `insta` also moves from
 `[workspace.dependencies]` into `crates/rstest-bdd-macros`'s
 `[dev-dependencies]` in Milestone 5, which is not a new dependency.
+
+In `crates/rstest-bdd/tests/documentation_examples/mod.rs` (Milestone 7):
+
+```rust
+/// One marked fenced example loaded from a user-facing document.
+pub struct DocumentedExample {
+    /// Stable identifier declared by the `tested-example` marker.
+    pub id: String,
+    /// Markdown fence language.
+    pub language: String,
+    /// Exact text inside the fence, including a trailing newline.
+    pub body: String,
+}
+
+/// A bounded region of a document in which every fence must be marked.
+pub struct EnforcedRegion {
+    /// Repository-relative document path.
+    pub document: &'static str,
+    /// Heading text that opens the enforced region.
+    pub section: &'static str,
+}
+
+/// Load every marked example from the enforced regions.
+///
+/// # Errors
+///
+/// Returns an error when a document cannot be read, a marker is malformed, a
+/// fence inside an enforced region is unmarked or unterminated, or an
+/// identifier is duplicated or empty.
+pub fn load_documented_examples() -> anyhow::Result<Vec<DocumentedExample>>;
+
+/// Load the documented example identified by `id`.
+///
+/// # Errors
+///
+/// Returns an error when the documents are invalid or `id` is absent.
+pub fn documented_example(id: &str) -> anyhow::Result<DocumentedExample>;
+```
 
 In `crates/rstest-bdd-macros/src/codegen/tracking.rs`:
 
@@ -1563,3 +1827,20 @@ whether the residual `scenarios!` addition gap caused confusion in review.
   the real cost risk, which inverts where the plan was spending its caution.
   Effect on remaining work: no milestone gains scope; Milestone 6 loses one
   deliverable.
+- **2026-08-15, revision 4.** Applied the maintainer's rulings on all three
+  open decisions, two of which reverse the planning agent's recommendation.
+  D1: adopt `googletest` and `pretty_assertions` rather than deferring —
+  deferring adoption because a library is not yet adopted is circular, and this
+  item's tests are a reasonable first. D2: ship the `build.rs` recipe as
+  *tested* living documentation on the `netsuke` model (marked fences extracted
+  and executed by a behavioural test), which removes the "untested prose rots"
+  objection instead of accepting it, and genuinely closes the file-addition
+  gap. D3: the embedded feature path becomes manifest-relative, with a
+  specified breaking-change section in `docs/v0-6-0-migration-guide.md`.
+  Effect on remaining work: Milestone 0 gains dependency adoption and the
+  `#[rstest]`/`#[gtest]` composition question; a new Milestone 7 ships the
+  documentation-example extractor, a second fixture crate and the
+  file-addition behavioural test; Milestone 6 is now unconditional; the
+  `scenarios!` addition gap moves from *known issue* to *closed*; and three
+  follow-up roadmap items are queued rather than one. Nothing now blocks
+  approval.
