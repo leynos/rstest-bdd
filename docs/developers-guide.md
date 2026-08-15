@@ -345,7 +345,6 @@ Link-checker and table-checker tests run with the Python suite in `make test`.
 Issue #537 tracks generating the users-guide reference block from `BASE_URL` so
 the base lives in exactly one place.
 
-
 ## Workflow pins and Dependabot
 
 Dependabot owns the upgrade of GitHub Actions and reusable workflows,
