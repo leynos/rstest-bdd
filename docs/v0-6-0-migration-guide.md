@@ -685,10 +685,14 @@ fn given_shell_open(
 ) -> StepResult<()> {
     let (shell, visual_cx) = cx.add_window_view(|_context| Shell::default());
     world.shell = Some(shell);
-    world.visual_cx = Some(visual_cx);
+    world.window = Some(visual_cx.window_handle());
     Ok(())
 }
 ```
+
+The rejection here comes from the two `&mut` fixture parameters, not from the
+body: the snippet already stores only durable handles, as the playbook
+requires.
 
 The same constraint is not GPUI-specific. This non-GPUI shape is also rejected
 when both parameters come from the same `StepContext`.
