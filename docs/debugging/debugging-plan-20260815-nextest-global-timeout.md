@@ -1,12 +1,9 @@
 # Debugging plan: Nextest global timeout
 
-**Generated**: 2026-08-15
-**Issue ID**: Commit gate failure
-**Severity**: High
-**Falsification sub-agent**: alchemist
-**Planning agent boundary**: This document was prepared by the planning agent.
-Falsification must be executed by the named sub-agent, not by the planning
-agent.
+**Generated**: 2026-08-15 **Issue ID**: Commit gate failure **Severity**: High
+**Falsification sub-agent**: alchemist **Planning agent boundary**: This
+document was prepared by the planning agent. Falsification must be executed by
+the named sub-agent, not by the planning agent.
 
 ## Problem Statement
 
@@ -100,10 +97,10 @@ GPUI fixture passed in 21.972 seconds. Evidence:
 `/tmp/alchemist-h2-gpui-timeout-20260815.log`.
 
 **Representative-cache validation (2026-08-16):** `make test` completed in
-136.79 s, and `cargo nextest run --profile long --workspace --all-targets
---all-features` completed in 23.54 s. Neither run emitted timeout warnings;
-the configured `20m` default and `30m` long-profile global budgets retain
-cold-cache headroom.
+136.79 s, and
+`cargo nextest run --profile long --workspace --all-targets --all-features`
+completed in 23.54 s. Neither run emitted timeout warnings; the configured
+`20m` default and `30m` long-profile global budgets retain cold-cache headroom.
 
 ______________________________________________________________________
 
