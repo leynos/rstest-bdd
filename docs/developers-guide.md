@@ -663,6 +663,23 @@ through the hidden `StepFixtureRequirements` inventory sidecar whenever macro
 code knows the requested Rust type. Manual `step!` registrations without that
 sidecar remain valid and report `<unknown>` as the requested fixture type.
 
+### Generated-wrapper Tokio bridge
+
+`rstest-bdd` owns the hidden `__rstest_bdd_tokio` re-export of its Tokio
+runtime dependency. Generated async step wrappers in `rstest-bdd-macros` are
+its only permitted call-sites: they use the bridge to detect an active runtime,
+build a current-thread fallback runtime, and create a `LocalSet`. Downstream
+step code must not reference the bridge directly or depend on a particular
+Tokio crate name.
+
+The bridge composes only from macro-generated wrappers through the resolved
+`rstest_bdd` crate path; it is not a general runtime facade and must not be
+re-exported by harnesses or custom adapters. Keeping Tokio as an `rstest-bdd`
+runtime dependency gives generated code one stable, hygienic source-level path
+regardless of how a downstream crate names, re-exports, or otherwise obtains
+Tokio. Although marked `#[doc(hidden)]`, changing or removing this bridge is a
+breaking change for existing async-step macro expansions.
+
 ## Shared policy crate (`rstest-bdd-policy`)
 
 The workspace owns policy type definitions in `rstest-bdd-policy`.[^1] That

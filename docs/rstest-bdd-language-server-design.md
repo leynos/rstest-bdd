@@ -367,10 +367,19 @@ classDiagram
         <<enum>>
         +Read(std_io_Error)
         +Parse(syn_Error)
+    }
+
+    class RustStepIndexDiagnostic {
+        <<enum>>
         +MultipleStepAttributes_function_String
         +InvalidStepAttributeArguments_function_String
         +InvalidStepAttributeArguments_attribute_static_str
         +InvalidStepAttributeArguments_message_String
+    }
+
+    class RustStepIndexResult {
+        +RustStepFileIndex index
+        +Vec~RustStepIndexDiagnostic~ diagnostics
     }
 
     class ServerState {
@@ -382,20 +391,34 @@ classDiagram
     }
 
     class RustIndexingModule {
-        +index_rust_file(path Path) Result~RustStepFileIndex,RustStepIndexError~
-        +index_rust_source(path PathBuf, source &str) Result~RustStepFileIndex,RustStepIndexError~
+        +index_rust_file(path Path) Result~RustStepIndexResult,RustStepIndexError~
+        +index_rust_source(path PathBuf, source &str) Result~RustStepIndexResult,RustStepIndexError~
     }
 
     RustStepFileIndex "1" o-- "*" IndexedStepDefinition : contains
     IndexedStepDefinition "1" o-- "1" RustFunctionId : function
     IndexedStepDefinition "1" o-- "*" IndexedStepParameter : parameters
+    RustStepIndexResult "1" *-- "1" RustStepFileIndex : owns
+    RustStepIndexResult "1" *-- "*" RustStepIndexDiagnostic : owns
     ServerState "1" o-- "*" RustStepFileIndex : rust_step_indices
     ServerState "1" o-- "*" FeatureFileIndex : feature_indices
-    RustIndexingModule ..> RustStepFileIndex : creates
+    RustIndexingModule ..> RustStepIndexResult : creates
     RustIndexingModule ..> RustStepIndexError : returns
+    RustIndexingModule ..> RustStepIndexDiagnostic : reports
     RustIndexingModule ..> IndexedStepDefinition : builds
     RustIndexingModule ..> IndexedStepParameter : builds
 ```
+
+**Rust indexing result contract:** `RustStepIndexResult` owns the complete
+`RustStepFileIndex` and every recoverable per-function
+`RustStepIndexDiagnostic` from one indexing pass. Both public indexing entry
+points return it on successful file read and parse; only file-read and
+whole-source parse failures remain `RustStepIndexError` values. Callers must
+persist or replace the owned `index` independently of diagnostics so one
+invalid function never removes valid neighbouring definitions. Reuse this
+wrapper only at Rust-file indexing boundaries; handlers and cache APIs consume
+the contained `RustStepFileIndex` rather than retaining diagnostics as index
+state.
 
 **Project Structure:** The `rstest-bdd-server` crate will live in the same
 workspace as `rstest-bdd`. It can depend on `rstest-bdd` or its sub-crates

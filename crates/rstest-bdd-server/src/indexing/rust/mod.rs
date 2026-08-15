@@ -53,9 +53,9 @@ use params::parse_function_parameters;
 /// std::fs::write(&path, "#[given(\"a message\")]\nfn a_message() {}\n")?;
 ///
 /// let index = index_rust_file(&path)?;
-/// assert_eq!(index.path, path);
+/// assert_eq!(index.index.path, path);
 ///
-/// # std::fs::remove_file(&index.path).ok();
+/// # std::fs::remove_file(&index.index.path).ok();
 /// # Ok(())
 /// # }
 /// ```
@@ -83,9 +83,9 @@ pub fn index_rust_file(path: &Path) -> Result<RustStepIndexResult, RustStepIndex
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let source = "#[when]\nfn do_the_thing() {}\n";
 /// let index = index_rust_source(PathBuf::from("steps.rs"), source)?;
-/// assert_eq!(index.step_definitions.len(), 1);
+/// assert_eq!(index.index.step_definitions.len(), 1);
 ///
-/// let step = index.step_definitions.first().expect("indexed step");
+/// let step = index.index.step_definitions.first().expect("indexed step");
 /// assert_eq!(step.pattern, "do the thing");
 /// # Ok(())
 /// # }
@@ -95,46 +95,38 @@ pub fn index_rust_source(
     source: &str,
 ) -> Result<RustStepIndexResult, RustStepIndexError> {
     let file = syn::parse_file(source)?;
-    let mut step_definitions = Vec::new();
     let mut module_path = Vec::new();
-    let mut diagnostics = Vec::new();
-    collect_step_definitions(
-        &file.items,
-        source,
-        &mut module_path,
-        &mut step_definitions,
-        &mut diagnostics,
-    );
-
-    Ok(RustStepIndexResult {
+    let mut result = RustStepIndexResult {
         index: RustStepFileIndex {
             path,
-            step_definitions,
+            step_definitions: Vec::new(),
         },
-        diagnostics,
-    })
+        diagnostics: Vec::new(),
+    };
+    collect_step_definitions(&file.items, source, &mut module_path, &mut result);
+
+    Ok(result)
 }
 
 fn collect_step_definitions(
     items: &[syn::Item],
     source: &str,
     module_path: &mut Vec<String>,
-    out: &mut Vec<IndexedStepDefinition>,
-    diagnostics: &mut Vec<RustStepIndexDiagnostic>,
+    result: &mut RustStepIndexResult,
 ) {
     for item in items {
         match item {
             syn::Item::Fn(item_fn) => match index_step_function(item_fn, source, module_path) {
-                Ok(Some(step)) => out.push(step),
+                Ok(Some(step)) => result.index.step_definitions.push(step),
                 Ok(None) => {}
-                Err(diagnostic) => diagnostics.push(diagnostic),
+                Err(diagnostic) => result.diagnostics.push(diagnostic),
             },
             syn::Item::Mod(item_mod) => {
                 let Some((_, items)) = item_mod.content.as_ref() else {
                     continue;
                 };
                 module_path.push(item_mod.ident.to_string());
-                collect_step_definitions(items, source, module_path, out, diagnostics);
+                collect_step_definitions(items, source, module_path, result);
                 module_path.pop();
             }
             _ => {}
