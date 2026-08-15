@@ -169,7 +169,7 @@ Stop and escalate — do not improvize — when any of these is reached.
   text. A blast-radius survey during planning found that **no checked-in
   `.stderr` or `.snap` expectation contains a real macro-emitted absolute
   path** — every snapshot and CLI assertion that mentions a feature path uses a
-  hand-written synthetic string fed directly to `ScenarioMetadata::new`,
+  handwritten synthetic string fed directly to `ScenarioMetadata::new`,
   bypassing the macros. The risk is therefore much smaller than it first
   appears, but it is not zero: macro-crate unit tests and doctests were not
   exhaustively surveyed.
@@ -348,7 +348,7 @@ Recorded during planning; keep appending during implementation.
   because no emitted binding references a file that did not exist at expansion
   time. Closing that needs a `cargo::rerun-if-changed=<dir>` directive, which
   needs a build script, which needs either a new published helper crate
-  (`rstest-bdd-build`, ADR-010's Option B) or a documented hand-written
+  (`rstest-bdd-build`, ADR-010's Option B) or a documented handwritten
   `build.rs` recipe.
   Options: (a) ship per-file tracking now, document the residual
   addition/deletion gap in the users' guide and design document, and propose a
@@ -455,7 +455,7 @@ For `scenarios!`, a companion directory diagnostic lives in
 There is **no `build.rs` anywhere in the workspace**, no
 `cargo::rerun-if-changed` directive in any source file, and no use of
 `proc_macro::tracked_path`. The only `include_str!` calls that name a
-`.feature` file are hand-written lines in trybuild fixtures under
+`.feature` file are handwritten lines in trybuild fixtures under
 `crates/rstest-bdd/tests/fixtures_macros/`.
 
 ### How the generated code carries the feature path
@@ -772,7 +772,7 @@ Add the two required `trybuild` fixtures under
   diagnostic and you should stop and investigate rather than re-blessing the
   file.
 
-Also remove the now-redundant hand-written `const _: &str =
+Also remove the now-redundant handwritten `const _: &str =
 include_str!("basic.feature");` from at least one existing fixture (for
 example `scenario_missing_name.rs`) and confirm the suite still behaves. That
 is the cheapest honest evidence that the macro-emitted binding does the job the
@@ -861,11 +861,20 @@ path and pointing at a proposed follow-up roadmap item.
   trigger a rebuild" section at line 714 — its own note says it can be removed
   once the fix ships — and, if that section is linked from elsewhere, fix the
   links. Run `scripts/check_users_guide_links.py` afterwards.
-- `docs/users-guide.md`: state that editing a `.feature` file now rebuilds, and
-  document the residual `scenarios!` gap plus (if D2 chose option (c)) the
-  `build.rs` recipe. If you touch the `#[serial]` runner-behaviour table, keep
-  it byte-identical with the copy in the design document or
-  `scripts/check_serial_nextest_matrix.py` will fail.
+- `docs/users-guide.md`: two existing passages assert the old behaviour and
+  must both change — line 1523 ("Design-document §2.7.6.6 documents the
+  feature-file rebuild-invalidation foot-gun … until roadmap item 10.3.3
+  lands") and line 1660 ("Editing only a `.feature` file does not trigger a
+  rebuild … touch a binding `.rs` file"). Replace them with the shipped
+  behaviour, and document the residual `scenarios!` addition/deletion gap plus
+  (if D2 chose option (c)) the `build.rs` recipe.
+  Two gates guard this file. `scripts/check_users_guide_links.py` validates
+  that the guide's absolute GitHub reference links resolve to an existing
+  document *and* that each URL fragment still matches a heading in the target —
+  so renaming the design document's §2.7.6.6 heading breaks the build unless
+  the guide's link is updated in the same commit. And if you touch the
+  `#[serial]` runner-behaviour table, keep it byte-identical with the copy in
+  the design document or `scripts/check_serial_nextest_matrix.py` will fail.
 - `docs/developers-guide.md`: document two internal conventions — the
   cargo-spawning fixture-crate test pattern (non-workspace fixture, shared
   `CARGO_TARGET_DIR`, `#[serial]`, `cargo-spawning` nextest group), and the
