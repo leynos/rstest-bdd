@@ -1,4 +1,4 @@
-# Debugging Plan: Nextest global timeout
+# Debugging plan: Nextest global timeout
 
 **Generated**: 2026-08-15
 **Issue ID**: Commit gate failure
@@ -11,9 +11,9 @@ agent.
 ## Problem Statement
 
 `make test` must complete successfully, but the default Nextest profile
-terminated `gpui_macro_fixtures_compile` when the whole run reached its five
-minute global timeout. The test had been running for 37 seconds and was still
-compiling its trybuild fixture; 1,680 preceding tests had passed.
+terminated `gpui_macro_fixtures_compile` when the whole run reached its
+five-minute global timeout. The test had been running for 37 seconds and was
+still compiling its trybuild fixture; 1,680 preceding tests had passed.
 
 ## Context Summary
 
@@ -23,6 +23,8 @@ compiling its trybuild fixture; 1,680 preceding tests had passed.
 | Reproduction rate   | One full cold-cache-adjacent run                     |
 | Affected components | `.config/nextest.toml` and cargo-spawning tests      |
 | Recent changes      | Registry refactor and lint-policy documentation only |
+
+_Table 1: Debugging context summary._
 
 ### Error Artefacts
 
@@ -60,6 +62,8 @@ the other compile binary but without the full-suite scheduling load.
 | ---- | ------------------------------------------------------------ | ----------------------------------------------- |
 | 1    | Run the two compile-test binaries under the default profile. | Either binary times out or fails independently. |
 
+_Table 2: H1 falsification step and expected negative result._
+
 **Tooling**: `cargo nextest run` with an expression that selects only
 `rstest-bdd::trybuild_macros` and `rstest-bdd-harness-gpui::macro_compile`.
 
@@ -85,6 +89,8 @@ exceeds its per-test 300-second allowance.
 | ---- | --------------------------------------- | ----------------------------------------------------- |
 | 1    | Run the selected compile-test binaries. | The GPUI binary passes within its per-test allowance. |
 
+_Table 3: H2 falsification step and expected negative result._
+
 **Tooling**: The same targeted `cargo nextest run` command as H1.
 
 **Confidence on falsification**: Decisive for a fixture-level regression.
@@ -92,6 +98,12 @@ exceeds its per-test 300-second allowance.
 **Result**: Falsified. The selected test binaries passed in 49.786 seconds; the
 GPUI fixture passed in 21.972 seconds. Evidence:
 `/tmp/alchemist-h2-gpui-timeout-20260815.log`.
+
+**Representative-cache validation (2026-08-16):** `make test` completed in
+136.79 s, and `cargo nextest run --profile long --workspace --all-targets
+--all-features` completed in 23.54 s. Neither run emitted timeout warnings;
+the configured `20m` default and `30m` long-profile global budgets retain
+cold-cache headroom.
 
 ______________________________________________________________________
 

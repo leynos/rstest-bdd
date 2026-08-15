@@ -1293,9 +1293,11 @@ Outside recognized test cases, do not replace invariant checks with
 `.expect(...)`, `.unwrap()`, or `unwrap_or_else(|| panic!(...))`. Use a
 copyable invariant check such as
 `let Some(value) = value else { panic!("expected value to be present"); };`, or
-return `Result` and use `?` when an operation is fallible. Tests, including
-`rstest` cases, may use `.expect(...)` for unexpected setup failures; their
-signatures need not return `Result` simply to propagate fixture errors.
+return `Result` and use `?` when an operation is fallible. Recognized built-in
+`#[test]` and `rstest` cases may use `.expect(...)` or `panic!(...)` for
+unexpected setup failures, aligned with ADR-013; `.unwrap()` and
+`unwrap_or_else(|| panic!(...))` remain disallowed. Their signatures need not
+return `Result` simply to propagate fixture errors.
 Reusable fixture functions and shared helpers should still return `Result`
 rather than panic. Shared assertion shapes belong in macros so panic line
 numbers point at the calling test.
