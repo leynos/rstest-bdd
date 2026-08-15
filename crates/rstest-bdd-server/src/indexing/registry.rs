@@ -178,31 +178,33 @@ impl StepDefinitionRegistry {
             return;
         };
 
-        for ReverseIndexEntry { keyword, key } in entries {
-            let Some(steps) = self.steps_by_keyword.get_mut(&keyword) else {
-                continue;
-            };
-            let Some(positions) = self.keyword_positions.get_mut(&keyword) else {
-                continue;
-            };
-            let Some(&index) = positions.get(&key) else {
-                continue;
-            };
+        for entry in entries {
+            self.remove_keyword_entry(entry);
+        }
+    }
 
-            let _removed = steps.swap_remove(index);
-            positions.remove(&key);
+    fn remove_keyword_entry(&mut self, ReverseIndexEntry { keyword, key }: ReverseIndexEntry) {
+        let Some(steps) = self.steps_by_keyword.get_mut(&keyword) else {
+            return;
+        };
+        let Some(positions) = self.keyword_positions.get_mut(&keyword) else {
+            return;
+        };
+        let Some(&index) = positions.get(&key) else {
+            return;
+        };
 
-            if index < steps.len() {
-                if let Some(moved) = steps.get(index) {
-                    let moved_key = Arc::as_ptr(moved) as usize;
-                    positions.insert(moved_key, index);
-                }
-            }
+        let _removed = steps.swap_remove(index);
+        positions.remove(&key);
 
-            if steps.is_empty() {
-                self.steps_by_keyword.remove(&keyword);
-                self.keyword_positions.remove(&keyword);
-            }
+        if let Some(moved) = steps.get(index) {
+            let moved_key = Arc::as_ptr(moved) as usize;
+            positions.insert(moved_key, index);
+        }
+
+        if steps.is_empty() {
+            self.steps_by_keyword.remove(&keyword);
+            self.keyword_positions.remove(&keyword);
         }
     }
 
@@ -243,10 +245,6 @@ fn compile_step_definition(
 }
 
 #[cfg(test)]
-#[expect(
-    clippy::expect_used,
-    reason = "tests use explicit failures for clarity"
-)]
 mod tests {
     //! Unit tests for the step registry index.
 
@@ -317,5 +315,36 @@ mod tests {
         assert_eq!(registry.steps_for_keyword(StepType::Given).len(), 1);
         assert_eq!(registry.steps_for_keyword(StepType::When).len(), 0);
         assert_eq!(registry.steps_for_file(&path).len(), 1);
+    }
+
+    #[test]
+    fn invalidates_swapped_keyword_entries_by_their_updated_position() {
+        let first_path = PathBuf::from("/tmp/first_steps.rs");
+        let middle_path = PathBuf::from("/tmp/middle_steps.rs");
+        let final_path = PathBuf::from("/tmp/final_steps.rs");
+        let source = concat!(
+            "use rstest_bdd_macros::given;\n",
+            "\n",
+            "#[given(\"a step\")]\n",
+            "fn a_step() {}\n",
+        );
+
+        let first = index_rust_source(first_path.clone(), source).expect("index first source");
+        let middle = index_rust_source(middle_path.clone(), source).expect("index middle source");
+        let final_index =
+            index_rust_source(final_path.clone(), source).expect("index final source");
+
+        let mut registry = StepDefinitionRegistry::default();
+        registry.replace_rust_file(&first);
+        registry.replace_rust_file(&middle);
+        registry.replace_rust_file(&final_index);
+
+        registry.invalidate_file(&middle_path);
+        registry.invalidate_file(&final_path);
+
+        assert_eq!(registry.steps_for_file(&first_path).len(), 1);
+        assert_eq!(registry.steps_for_keyword(StepType::Given).len(), 1);
+        assert!(registry.steps_for_file(&middle_path).is_empty());
+        assert!(registry.steps_for_file(&final_path).is_empty());
     }
 }

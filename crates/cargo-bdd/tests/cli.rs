@@ -109,19 +109,18 @@ fn run_cargo_bdd_steps() -> Result<String> {
 
 #[test]
 #[serial]
-fn list_steps_runs() -> Result<()> {
-    let stdout = run_cargo_bdd_steps()?;
+fn list_steps_runs() {
+    let stdout = run_cargo_bdd_steps().expect("test setup should succeed");
     assert!(
         !stdout.is_empty(),
         "Expected non-empty output from steps command",
     );
-    Ok(())
 }
 
 #[test]
 #[serial]
-fn steps_output_includes_skipped_statuses() -> Result<()> {
-    let stdout = run_cargo_bdd_steps()?;
+fn steps_output_includes_skipped_statuses() {
+    let stdout = run_cargo_bdd_steps().expect("test setup should succeed");
     assert!(
         stdout.contains("skipped tests/features/diagnostics.fixture :: fixture skipped scenario"),
         "expected skipped scenario heading in cargo bdd output: {stdout}"
@@ -130,13 +129,12 @@ fn steps_output_includes_skipped_statuses() -> Result<()> {
         stdout.contains("fixture skip message"),
         "expected skip message to appear in cargo bdd output: {stdout}"
     );
-    Ok(())
 }
 
 #[test]
 #[serial]
-fn steps_output_marks_forced_failure_skips() -> Result<()> {
-    let stdout = run_cargo_bdd_steps()?;
+fn steps_output_marks_forced_failure_skips() {
+    let stdout = run_cargo_bdd_steps().expect("test setup should succeed");
     assert!(
         stdout.contains("[forced failure]"),
         "expected forced failure annotation in cargo bdd output: {stdout}",
@@ -149,13 +147,12 @@ fn steps_output_marks_forced_failure_skips() -> Result<()> {
         stdout.contains("fixture forced skip"),
         "expected forced skip message in cargo bdd output: {stdout}",
     );
-    Ok(())
 }
 
 #[test]
 #[serial]
-fn skipped_subcommand_includes_reasons_and_lines() -> Result<()> {
-    let stdout = run_cargo_bdd(&["skipped", "--reasons"])?;
+fn skipped_subcommand_includes_reasons_and_lines() {
+    let stdout = run_cargo_bdd(&["skipped", "--reasons"]).expect("test setup should succeed");
     assert!(
         stdout.contains("tests/features/diagnostics.fixture:7"),
         "skipped output should include feature location",
@@ -165,18 +162,19 @@ fn skipped_subcommand_includes_reasons_and_lines() -> Result<()> {
         "skip reason should appear in skipped output",
     );
     assert!(stdout.contains("[forced failure]"));
-    Ok(())
 }
 
 #[test]
 #[serial]
-fn skipped_subcommand_emits_json() -> Result<()> {
-    let stdout = run_cargo_bdd(&["skipped", "--json"])?;
-    let entries: Vec<SkipReport> = serde_json::from_str(&stdout)?;
+fn skipped_subcommand_emits_json() {
+    let stdout = run_cargo_bdd(&["skipped", "--json"]).expect("test setup should succeed");
+    let entries: Vec<SkipReport> =
+        serde_json::from_str(&stdout).expect("test setup should succeed");
     let fixture_entry = entries
         .iter()
         .find(|entry| entry.scenario == "fixture skipped scenario")
-        .ok_or_else(|| eyre::eyre!("expected fixture skipped scenario entry"))?;
+        .ok_or_else(|| eyre::eyre!("expected fixture skipped scenario entry"))
+        .expect("test setup should succeed");
     assert_eq!(fixture_entry.feature, "tests/features/diagnostics.fixture",);
     assert_eq!(
         fixture_entry.reason.as_deref(),
@@ -188,27 +186,28 @@ fn skipped_subcommand_emits_json() -> Result<()> {
         vec!["@allow_skipped".to_string()],
         "expected fixture skipped scenario tags to be preserved"
     );
-    Ok(())
 }
 
 #[test]
 #[serial]
-fn steps_skipped_outputs_bypassed_definitions() -> Result<()> {
-    let stdout = run_cargo_bdd(&["steps", "--skipped"])?;
+fn steps_skipped_outputs_bypassed_definitions() {
+    let stdout = run_cargo_bdd(&["steps", "--skipped"]).expect("test setup should succeed");
     assert!(stdout.contains("fixture bypassed step"));
     assert!(stdout.contains("fixture skip message"));
-    Ok(())
 }
 
 #[test]
 #[serial]
-fn steps_skipped_emits_json() -> Result<()> {
-    let stdout = run_cargo_bdd(&["steps", "--skipped", "--json"])?;
-    let entries: Vec<SkipReport> = serde_json::from_str(&stdout)?;
+fn steps_skipped_emits_json() {
+    let stdout =
+        run_cargo_bdd(&["steps", "--skipped", "--json"]).expect("test setup should succeed");
+    let entries: Vec<SkipReport> =
+        serde_json::from_str(&stdout).expect("test setup should succeed");
     let forced_entry = entries
         .iter()
         .find(|entry| entry.scenario == "fixture forced failure skip")
-        .ok_or_else(|| eyre::eyre!("expected forced failure skip entry"))?;
+        .ok_or_else(|| eyre::eyre!("expected forced failure skip entry"))
+        .expect("test setup should succeed");
     assert_eq!(forced_entry.reason.as_deref(), Some("fixture forced skip"),);
     assert!(
         forced_entry.step.is_some(),
@@ -228,16 +227,14 @@ fn steps_skipped_emits_json() -> Result<()> {
         step.line > 0,
         "expected bypassed step to include a line number"
     );
-    Ok(())
 }
 
 #[test]
 #[serial]
-fn steps_json_requires_skipped_flag() -> Result<()> {
-    let stderr = run_cargo_bdd_failure(&["steps", "--json"])?;
+fn steps_json_requires_skipped_flag() {
+    let stderr = run_cargo_bdd_failure(&["steps", "--json"]).expect("test setup should succeed");
     assert!(
         stderr.contains("--json") && stderr.contains("--skipped"),
         "error should mention --json requires --skipped: {stderr}"
     );
-    Ok(())
 }

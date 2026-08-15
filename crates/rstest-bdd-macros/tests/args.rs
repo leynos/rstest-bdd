@@ -57,7 +57,6 @@ fn test_extract_args_errors(
     #[case] expected_error_fragment: &str,
     #[case] test_description: &str,
 ) {
-    #[expect(clippy::expect_used, reason = "test asserts error message")]
     let err = extract_args(&mut func, &mut HashSet::new()).expect_err(test_description);
     let msg = err.to_string();
     assert!(
@@ -101,7 +100,6 @@ fn test_datatable_attribute_errors(
     #[case] expected_error_fragment: &str,
     #[case] description: &str,
 ) {
-    #[expect(clippy::expect_used, reason = "test asserts error message")]
     let err = extract_args(&mut func, &mut HashSet::new()).expect_err(description);
     let msg = err.to_string();
     assert!(
@@ -115,7 +113,6 @@ fn from_without_ident_defaults_to_param_name() {
     let mut func: syn::ItemFn = parse_quote! {
         fn step(#[from] fixture: usize) {}
     };
-    #[expect(clippy::expect_used, reason = "test asserts valid extraction")]
     let args = extract_args(&mut func, &mut HashSet::new()).expect("failed to extract args");
     assert_eq!(fixture_count(&args), 1);
     let Some(fixture_name) = args.args.iter().find_map(|arg| match arg {
@@ -132,7 +129,6 @@ fn malformed_from_attribute_reports_error() {
     let mut func: syn::ItemFn = parse_quote! {
         fn step(#[from(123)] fixture: usize) {}
     };
-    #[expect(clippy::expect_used, reason = "test specifically checks error path")]
     let err =
         extract_args(&mut func, &mut HashSet::new()).expect_err("malformed #[from] should fail");
     assert!(
@@ -147,7 +143,6 @@ fn call_order_preserves_parameter_sequence() {
         fn step(#[from] f: usize, a: i32, datatable: Vec<Vec<String>>, docstring: String, b: bool) {}
     };
     let mut placeholders: HashSet<String> = ["a".into(), "b".into()].into_iter().collect();
-    #[expect(clippy::expect_used, reason = "test asserts valid extraction")]
     let args = extract_args(&mut func, &mut placeholders).expect("failed to extract args");
     let ordered = ordered_parameter_names(&args);
     assert_eq!(ordered, ["f", "a", "datatable", "docstring", "b"]);
@@ -158,14 +153,11 @@ fn datatable_attribute_recognized_and_preserves_type() {
     let mut func: syn::ItemFn = parse_quote! {
         fn step(#[datatable] table: my_mod::MyTable) {}
     };
-    #[expect(clippy::expect_used, reason = "test asserts valid extraction")]
     let args = extract_args(&mut func, &mut HashSet::new()).expect("failed to extract args");
-    #[expect(clippy::expect_used, reason = "datatable presence required")]
     let dt = find_datatable(&args).expect("missing datatable");
     if let Arg::DataTable { pat, ty } = dt {
         assert_eq!(pat.to_string(), "table");
         if let syn::Type::Path(tp) = ty {
-            #[expect(clippy::expect_used, reason = "path has at least one segment")]
             let seg = tp.path.segments.last().expect("missing segment");
             assert_eq!(seg.ident, "MyTable");
             let rendered = tp
@@ -189,15 +181,12 @@ fn datatable_attribute_removed_from_signature() {
     let mut func: syn::ItemFn = parse_quote! {
         fn step(#[datatable] data: Vec<Vec<String>>) {}
     };
-    #[expect(clippy::expect_used, reason = "test asserts valid extraction")]
     let args = extract_args(&mut func, &mut HashSet::new()).expect("failed to extract args");
-    #[expect(clippy::expect_used, reason = "datatable presence required")]
     let dt = find_datatable(&args).expect("missing datatable after strip");
     match dt {
         Arg::DataTable { pat, .. } => assert_eq!(pat.to_string(), "data"),
         _ => panic!("expected datatable argument"),
     }
-    #[expect(clippy::expect_used, reason = "test inspects parameter attributes")]
     let syn::FnArg::Typed(arg) = func.sig.inputs.first().expect("missing arg") else {
         panic!("expected typed argument");
     };
@@ -221,10 +210,8 @@ fn step_with_cached_table_is_classified_as_datatable() {
         fn step(datatable: rstest_bdd::datatable::CachedTable) {}
     };
 
-    #[expect(clippy::expect_used, reason = "test asserts valid extraction")]
     let args = extract_args(&mut func, &mut HashSet::new()).expect("failed to extract args");
 
-    #[expect(clippy::expect_used, reason = "test requires datatable")]
     let dt = find_datatable(&args).expect("cached table should be classified as datatable");
 
     if let Arg::DataTable { ty, .. } = dt {
@@ -241,7 +228,6 @@ fn step_with_cached_table_is_classified_as_datatable() {
 #[rstest]
 fn implicit_fixture_injected_without_from() {
     let func = parse_quote! { fn step(fixture: usize, count: u32) {} };
-    #[expect(clippy::expect_used, reason = "test asserts valid extraction")]
     let args = test_extract_args_scenario(func, vec!["count"]).expect("failed to extract args");
     assert_eq!(fixture_count(&args), 1);
     assert_eq!(step_arg_count(&args), 1);
@@ -254,7 +240,6 @@ fn error_when_placeholder_missing_parameter() {
         fn step(fixture: usize) {}
     };
     let mut placeholders: HashSet<String> = ["count".into()].into_iter().collect();
-    #[expect(clippy::expect_used, reason = "test asserts error message")]
     let err = extract_args(&mut func, &mut placeholders).expect_err("missing placeholder");
     let msg = err.to_string();
     assert!(msg.contains("count"), "unexpected error: {msg}");
@@ -268,7 +253,6 @@ fn placeholders_named_like_reserved_args_are_step_args() {
     let mut placeholders: HashSet<String> = ["datatable".into(), "docstring".into()]
         .into_iter()
         .collect();
-    #[expect(clippy::expect_used, reason = "test asserts classification")]
     let args = extract_args(&mut func, &mut placeholders).expect("failed to extract args");
     assert_eq!(step_arg_count(&args), 2);
     assert!(find_datatable(&args).is_none());
@@ -278,7 +262,6 @@ fn placeholders_named_like_reserved_args_are_step_args() {
 #[rstest]
 fn from_attribute_targets_placeholder() {
     let func = parse_quote! { fn step(#[from(count)] renamed: u32) {} };
-    #[expect(clippy::expect_used, reason = "test asserts classification")]
     let args = test_extract_args_scenario(func, vec!["count"]).expect("failed to extract args");
     assert_eq!(fixture_count(&args), 0);
     assert_eq!(step_arg_count(&args), 1);
@@ -288,7 +271,6 @@ fn from_attribute_targets_placeholder() {
 #[rstest]
 fn underscore_prefixed_param_matches_placeholder() {
     let func = parse_quote! { fn step(_count: u32) {} };
-    #[expect(clippy::expect_used, reason = "test asserts classification")]
     let args = test_extract_args_scenario(func, vec!["count"]).expect("extraction");
     assert_eq!(step_arg_count(&args), 1);
     assert_eq!(fixture_count(&args), 0);
@@ -298,7 +280,6 @@ fn underscore_prefixed_param_matches_placeholder() {
 #[rstest]
 fn underscore_prefixed_param_preserves_original_name() {
     let func = parse_quote! { fn step(_value: String, other: i32) {} };
-    #[expect(clippy::expect_used, reason = "test asserts classification")]
     let args = test_extract_args_scenario(func, vec!["value", "other"]).expect("extraction");
     assert_eq!(step_arg_count(&args), 2);
     assert_eq!(ordered_parameter_names(&args), ["_value", "other"]);
@@ -310,7 +291,6 @@ fn step_struct_argument_is_classified() {
         fn step(#[step_args] params: OrderArgs, account: usize) {}
     };
     let mut placeholders: HashSet<String> = ["count".into(), "name".into()].into_iter().collect();
-    #[expect(clippy::expect_used, reason = "test asserts classification")]
     let args = extract_args(&mut func, &mut placeholders).expect("failed to extract args");
     assert!(args.step_struct().is_some());
     assert_eq!(step_arg_count(&args), 0);
@@ -355,7 +335,6 @@ fn test_step_struct_errors(
     #[case] description: &str,
 ) {
     let mut placeholder_set: HashSet<String> = placeholders.into_iter().map(String::from).collect();
-    #[expect(clippy::expect_used, reason = "test asserts error path")]
     let err = extract_args(&mut func, &mut placeholder_set).expect_err(description);
     let msg = err.to_string();
     assert!(

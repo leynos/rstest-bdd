@@ -213,7 +213,6 @@ mod tests {
     }
 
     #[test]
-    #[expect(clippy::expect_used, reason = "test asserts derive success path")]
     fn derives_step_args_for_named_struct() {
         let tokens = expand_tokens(quote! {
             struct AccountArgs {
@@ -232,7 +231,6 @@ mod tests {
     }
 
     #[test]
-    #[expect(clippy::expect_used, reason = "test asserts derive failure path")]
     fn rejects_tuple_structs() {
         let err = expand_tokens(quote! {
             struct TupleArgs(u32, String);

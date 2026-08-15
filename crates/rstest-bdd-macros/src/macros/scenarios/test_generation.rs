@@ -340,7 +340,6 @@ pub(super) fn generate_scenario_test(
 
 #[cfg(test)]
 #[expect(
-    clippy::expect_used,
     clippy::indexing_slicing,
     reason = "test code uses infallible expects and indexed access for clarity"
 )]

@@ -267,36 +267,35 @@ mod tests {
 
     use super::feature_discovery::collect_feature_files;
     use std::fs;
-    use std::io;
     use std::os::unix::fs::symlink;
     use std::path::Path;
     use tempfile::tempdir;
 
     #[test]
-    fn collects_symlinked_feature_files_without_following_directory_loops() -> io::Result<()> {
-        let temp = tempdir()?;
+    fn collects_symlinked_feature_files_without_following_directory_loops() {
+        let temp = tempdir().expect("test setup should succeed");
         let features_root = temp.path().join("features");
-        fs::create_dir_all(features_root.join("nested"))?;
+        fs::create_dir_all(features_root.join("nested")).expect("test setup should succeed");
 
         let feature_path = features_root.join("nested/example.feature");
-        fs::write(&feature_path, "Feature: Example\n")?;
+        fs::write(&feature_path, "Feature: Example\n").expect("test setup should succeed");
 
         let symlink_path = features_root.join("symlink.feature");
-        symlink(&feature_path, &symlink_path)?;
+        symlink(&feature_path, &symlink_path).expect("test setup should succeed");
 
         let relative_symlink_path = features_root.join("relative_link.feature");
-        symlink(Path::new("nested/example.feature"), &relative_symlink_path)?;
+        symlink(Path::new("nested/example.feature"), &relative_symlink_path)
+            .expect("test setup should succeed");
 
         let loop_dir = features_root.join("loop");
-        symlink(&features_root, &loop_dir)?;
+        symlink(&features_root, &loop_dir).expect("test setup should succeed");
 
-        let files = collect_feature_files(features_root.as_path())?;
+        let files =
+            collect_feature_files(features_root.as_path()).expect("test setup should succeed");
 
         let mut expected = vec![feature_path, symlink_path, relative_symlink_path];
         expected.sort();
         assert_eq!(files, expected);
-
-        Ok(())
     }
 }
 

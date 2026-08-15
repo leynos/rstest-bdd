@@ -121,10 +121,6 @@ mod tests {
     );
 
     #[test]
-    #[expect(
-        clippy::expect_used,
-        reason = "test requires the registered introspection fixture"
-    )]
     fn unused_steps_exclude_a_known_used_step() {
         let used_step = all_steps()
             .into_iter()
@@ -160,19 +156,16 @@ mod tests {
 
     #[cfg(feature = "diagnostics")]
     #[test]
-    #[expect(
-        clippy::expect_used,
-        reason = "test validates required registry dump structure"
-    )]
-    fn dump_registry_serializes_step_state() -> serde_json::Result<()> {
+    fn dump_registry_serializes_step_state() {
         let used_step = all_steps()
             .into_iter()
             .find(|step| step.pattern.as_str() == USED_PATTERN)
             .expect("registered introspection used step should be present");
         super::super::mark_used((used_step.keyword, used_step.pattern));
 
-        let json = super::dump_registry()?;
-        let dump: serde_json::Value = serde_json::from_str(&json)?;
+        let json = super::dump_registry().expect("test setup should succeed");
+        let dump: serde_json::Value =
+            serde_json::from_str(&json).expect("test setup should succeed");
         let steps = dump
             .get("steps")
             .expect("registry dump should contain a steps field")
@@ -184,6 +177,5 @@ mod tests {
             .expect("registry dump should contain the registered used step");
         assert_eq!(dumped_used_step["used"].as_bool(), Some(true));
         assert_eq!(dumped_used_step["bypassed"].as_bool(), Some(false));
-        Ok(())
     }
 }

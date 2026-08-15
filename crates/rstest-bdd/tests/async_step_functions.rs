@@ -63,10 +63,6 @@ fn sync_scenario_can_block_on_async_steps(state: CounterState) {
 }
 
 #[tokio::test(flavor = "current_thread")]
-#[expect(
-    clippy::expect_used,
-    reason = "test asserts that the async step is registered before invoking its sync wrapper"
-)]
 async fn sync_wrapper_refuses_to_create_nested_runtime() {
     let step = find_step_with_metadata(
         StepKeyword::When,
@@ -112,10 +108,6 @@ fn manual_async_wrapper<'ctx>(
 }
 
 #[tokio::test(flavor = "current_thread")]
-#[expect(
-    clippy::expect_used,
-    reason = "test validates payload downcast from wrapper result"
-)]
 async fn public_sync_to_async_helper_supports_alias_based_wrapper_signatures() {
     let _: rstest_bdd::AsyncStepFn = manual_async_wrapper;
 

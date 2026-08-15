@@ -225,7 +225,6 @@ mod tests {
     }
 
     #[test]
-    #[expect(clippy::expect_used, reason = "test asserts error contents and span")]
     fn next_typed_argument_reports_pattern_in_error() {
         let src = "fn step((a, b): (i32, i32)) {}";
         let func = parse_fn(src);
@@ -281,10 +280,6 @@ mod tests {
     }
 
     #[test]
-    #[expect(
-        clippy::expect_used,
-        reason = "test asserts the returned span covers the destructuring group"
-    )]
     fn span_for_pattern_points_to_full_destructuring_pattern() {
         let src = "fn step(User { name }: User) {}";
         let func = parse_fn(src);

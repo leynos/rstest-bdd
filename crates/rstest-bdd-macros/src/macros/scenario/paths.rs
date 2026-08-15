@@ -230,10 +230,6 @@ mod tests {
 
     #[serial]
     #[rstest]
-    #[expect(
-        clippy::expect_used,
-        reason = "tests require explicit failure messages"
-    )]
     fn canonicalizes_with_manifest_dir(_cache_cleared: ()) {
         let manifest = PathBuf::from(
             env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is required for tests"),
@@ -263,10 +259,6 @@ mod tests {
 
     #[serial]
     #[rstest]
-    #[expect(
-        clippy::expect_used,
-        reason = "tests require explicit failure messages"
-    )]
     fn caches_paths_between_calls(_cache_cleared: ()) {
         use std::time::{SystemTime, UNIX_EPOCH};
 

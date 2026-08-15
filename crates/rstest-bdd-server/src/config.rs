@@ -185,7 +185,6 @@ impl ServerConfig {
 #[cfg(test)]
 #[expect(
     clippy::unwrap_used,
-    clippy::expect_used,
     reason = "tests require explicit panic messages for debugging failures"
 )]
 mod tests {

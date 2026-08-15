@@ -180,7 +180,6 @@ fn collect_feature_files_recursive(dir: &Path, features: &mut Vec<PathBuf>) {
 #[cfg(test)]
 #[expect(
     clippy::unwrap_used,
-    clippy::expect_used,
     reason = "tests require explicit panic messages for debugging failures"
 )]
 mod tests {
@@ -214,27 +213,23 @@ edition = "2024"
     }
 
     #[rstest]
-    fn discovers_workspace_from_root(create_test_workspace: io::Result<TempDir>) -> io::Result<()> {
-        let workspace = create_test_workspace?;
+    fn discovers_workspace_from_root(create_test_workspace: io::Result<TempDir>) {
+        let workspace = create_test_workspace.expect("test setup should succeed");
         let result = discover_workspace(workspace.path());
         assert!(result.is_ok());
         let info = result.expect("should discover workspace");
         assert_eq!(info.root, workspace.path());
         assert!(info.packages.contains(&"test-project".to_string()));
-        Ok(())
     }
 
     #[rstest]
-    fn discovers_workspace_from_subdirectory(
-        create_test_workspace: io::Result<TempDir>,
-    ) -> io::Result<()> {
-        let workspace = create_test_workspace?;
+    fn discovers_workspace_from_subdirectory(create_test_workspace: io::Result<TempDir>) {
+        let workspace = create_test_workspace.expect("test setup should succeed");
         let subdir = workspace.path().join("src");
         let result = discover_workspace(&subdir);
         assert!(result.is_ok());
         let info = result.expect("should discover workspace");
         assert_eq!(info.root, workspace.path());
-        Ok(())
     }
 
     #[rstest]
@@ -294,11 +289,12 @@ edition = "2024"
     }
 
     #[rstest]
-    fn returns_empty_when_no_feature_files(
-        create_test_workspace: io::Result<TempDir>,
-    ) -> io::Result<()> {
-        let features = find_feature_files(create_test_workspace?.path());
+    fn returns_empty_when_no_feature_files(create_test_workspace: io::Result<TempDir>) {
+        let features = find_feature_files(
+            create_test_workspace
+                .expect("test setup should succeed")
+                .path(),
+        );
         assert!(features.is_empty());
-        Ok(())
     }
 }

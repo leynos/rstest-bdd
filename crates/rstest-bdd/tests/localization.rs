@@ -1,10 +1,5 @@
 //! Behavioural coverage for localization helpers and diagnostics.
 
-#![expect(
-    clippy::expect_used,
-    reason = "localization tests use expect for concise setup failures"
-)]
-
 use i18n_embed::fluent::fluent_language_loader;
 use rstest_bdd::localization::{
     ScopedLocalization, current_languages, install_localization_loader, message, message_with_args,

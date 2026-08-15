@@ -65,10 +65,6 @@ fn reports_requested_index_and_available_count_on_oob() {
     );
 }
 
-#[expect(
-    clippy::expect_used,
-    reason = "test asserts cache behaviour; panics simplify failures"
-)]
 #[test]
 fn caches_features_by_path() {
     use std::io::Write;

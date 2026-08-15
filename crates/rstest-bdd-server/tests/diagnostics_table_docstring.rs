@@ -166,7 +166,6 @@ fn table_docstring_validation(
         "expected {expected_count} diagnostic(s)"
     );
     if let Some(substring) = message_substring {
-        #[expect(clippy::expect_used, reason = "checked count > 0 in conditional")]
         let diag = diagnostics.first().expect("checked count > 0");
         assert!(
             diag.message.contains(substring),

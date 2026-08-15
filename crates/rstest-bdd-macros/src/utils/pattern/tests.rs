@@ -61,11 +61,7 @@ fn placeholder_hint_extraction(
 }
 
 #[test]
-#[expect(
-    clippy::expect_used,
-    clippy::indexing_slicing,
-    reason = "test asserts valid pattern"
-)]
+#[expect(clippy::indexing_slicing, reason = "test asserts valid pattern")]
 fn multiple_placeholders_with_mixed_hints() {
     let summary = placeholder_names("given {name} has {count:u32} items").expect("valid pattern");
     assert_eq!(summary.ordered.len(), 2);
@@ -76,11 +72,7 @@ fn multiple_placeholders_with_mixed_hints() {
 }
 
 #[test]
-#[expect(
-    clippy::expect_used,
-    clippy::indexing_slicing,
-    reason = "test asserts valid pattern"
-)]
+#[expect(clippy::indexing_slicing, reason = "test asserts valid pattern")]
 fn placeholder_hints_align_with_names_for_wrapper_config() {
     // This test verifies that hints extracted from PlaceholderSummary maintain
     // correct alignment with placeholder names when converted to separate vectors.

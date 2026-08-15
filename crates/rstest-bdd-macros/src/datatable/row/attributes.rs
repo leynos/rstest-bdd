@@ -254,7 +254,6 @@ mod tests {
                 value: String,
             }
         };
-        #[expect(clippy::expect_used, reason = "test asserts parsed config")]
         let config = parse_struct_config(&input.attrs).expect("failed to parse struct config");
         assert!(matches!(config.rename_rule, Some(RenameRule::Title)));
     }
@@ -268,7 +267,6 @@ mod tests {
         let base = Accessor::Column {
             name: String::from("flag"),
         };
-        #[expect(clippy::expect_used, reason = "test asserts parsed config")]
         let config =
             parse_field_attributes(&field.attrs, base).expect("failed to parse field attributes");
         assert!(config.optional);
@@ -285,7 +283,6 @@ mod tests {
         let base = Accessor::Column {
             name: String::from("value"),
         };
-        #[expect(clippy::expect_used, reason = "test asserts error handling")]
         let err = parse_field_attributes(&field.attrs, base)
             .err()
             .expect("duplicate default must error");
@@ -300,13 +297,11 @@ mod tests {
                 flag: bool,
             }
         };
-        #[expect(clippy::expect_used, reason = "test asserts parsed config")]
         let config = parse_struct_config(&input.attrs).expect("failed to parse struct config");
         let Data::Struct(data) = &input.data else {
             unreachable!("test input must be a struct");
         };
         let fields = &data.fields;
-        #[expect(clippy::expect_used, reason = "test asserts error handling")]
         let err = collect_fields(fields, &config)
             .err()
             .expect("optional on non-Option should error");
@@ -324,13 +319,11 @@ mod tests {
                 value: String,
             }
         };
-        #[expect(clippy::expect_used, reason = "test asserts parsed config")]
         let config = parse_struct_config(&input.attrs).expect("failed to parse struct config");
         let Data::Struct(data) = &input.data else {
             unreachable!("test input must be a struct");
         };
         let fields = &data.fields;
-        #[expect(clippy::expect_used, reason = "test asserts error handling")]
         let err = collect_fields(fields, &config)
             .err()
             .expect("truthy on non-bool should error");

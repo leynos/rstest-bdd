@@ -14,7 +14,6 @@ fn owned_pair_cells() -> (OwnedCell, OwnedCell) {
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "tests require explicit panic messages")]
 fn distinct_fixtures_can_be_borrowed_mutably_at_once() {
     let (first, second) = owned_pair_cells();
     let mut ctx = StepContext::default();
@@ -34,7 +33,6 @@ fn distinct_fixtures_can_be_borrowed_mutably_at_once() {
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "tests require explicit panic messages")]
 fn conflicting_borrows_of_same_fixture_report_already_borrowed() {
     let (first, _second) = owned_pair_cells();
     let mut ctx = StepContext::default();
@@ -72,7 +70,6 @@ fn conflicting_borrows_of_same_fixture_report_already_borrowed() {
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "tests require explicit panic messages")]
 fn try_borrow_reports_not_found_type_mismatch_and_not_mutable() {
     let shared = 9_i32;
     let (first, _second) = owned_pair_cells();
@@ -112,7 +109,6 @@ fn try_borrow_reports_not_found_type_mismatch_and_not_mutable() {
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "tests require explicit panic messages")]
 fn override_values_participate_in_guard_borrowing() {
     let fixture = 1_u32;
     let mut ctx = StepContext::default();
@@ -132,7 +128,6 @@ fn override_values_participate_in_guard_borrowing() {
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "tests require explicit panic messages")]
 fn multiple_shared_borrows_of_same_fixture_coexist() {
     let (first, _second) = owned_pair_cells();
     let mut ctx = StepContext::default();

@@ -21,7 +21,6 @@ fn panicking_value_step(number: &u32) -> Result<(), String> {
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "step lookup must succeed for test")]
 fn context_passes_fixture() {
     let number = 42u32;
     let mut ctx = StepContext::default();
@@ -32,7 +31,6 @@ fn context_passes_fixture() {
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "step lookup must succeed for test")]
 fn context_missing_fixture_returns_error() {
     let mut ctx = StepContext::default();
     let step_fn = lookup_step(StepKeyword::Given, "a value".into())
@@ -54,7 +52,6 @@ fn context_missing_fixture_returns_error() {
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "step lookup must succeed for test")]
 fn context_missing_fixture_localizes_error() {
     let guard = match ScopedLocalization::new(&[langid!("fr")]) {
         Ok(guard) => guard,
@@ -70,7 +67,6 @@ fn context_missing_fixture_localizes_error() {
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "step lookup must succeed for test")]
 fn fixture_step_panic_returns_panic_error() {
     let number = 1u32;
     let mut ctx = StepContext::default();

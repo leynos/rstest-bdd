@@ -126,10 +126,6 @@ fn build_rust_location(step_def: &Arc<CompiledStepDefinition>) -> Option<Locatio
 }
 
 #[cfg(test)]
-#[expect(
-    clippy::expect_used,
-    reason = "tests require explicit panic messages for debugging failures"
-)]
 mod tests {
     //! Unit tests for go-to-implementation handling.
 

@@ -143,7 +143,6 @@ mod tests {
     use std::ptr;
 
     #[test]
-    #[expect(clippy::expect_used, reason = "test helper validates success path")]
     fn compiled_regex_returns_cached_regex_after_compilation() {
         let pattern = StepPattern::from("literal text");
         pattern.compile().expect("literal pattern should compile");
@@ -157,7 +156,6 @@ mod tests {
     }
 
     #[test]
-    #[expect(clippy::expect_used, reason = "test validates compilation")]
     fn compile_is_idempotent() {
         let pattern = StepPattern::from("literal text");
 

@@ -19,10 +19,6 @@ fn capture_text(ctx: &str, text: String) {
 }
 
 #[test]
-#[expect(
-    clippy::expect_used,
-    reason = "test asserts deterministic macro expansion and registry lookups"
-)]
 fn wrapper_handles_text_capture_without_shadowing() {
     let mut ctx = StepContext::default();
     let fixture = "fixture ctx";
@@ -43,10 +39,6 @@ fn wrapper_handles_text_capture_without_shadowing() {
 }
 
 #[test]
-#[expect(
-    clippy::expect_used,
-    reason = "test inspects placeholder mismatch error formatting"
-)]
 fn placeholder_mismatch_reports_original_step_text() {
     let mut ctx = StepContext::default();
     let step_fn = lookup_step(StepKeyword::Given, "{text} arrives".into())

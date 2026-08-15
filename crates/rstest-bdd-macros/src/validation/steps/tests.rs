@@ -134,24 +134,28 @@ fn normalizes_windows_drive_letter_out_dir() {
     assert_eq!(id.as_ref(), "demo:C:/a/b");
 }
 
-#[test]
 #[serial]
-fn normalizes_relative_out_dir_paths() -> Result<(), Box<dyn std::error::Error>> {
-    let temp = tempdir_in(".")?;
-    let abs = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).map_err(|path| {
-        format!(
-            "temporary directory should be valid UTF-8: {}",
-            path.display()
-        )
-    })?;
-    let cwd = std::env::current_dir()?;
-    let cwd = Utf8PathBuf::from_path_buf(cwd).map_err(|path| {
-        format!(
-            "current directory should be valid UTF-8: {}",
-            path.display()
-        )
-    })?;
-    let relative = abs.strip_prefix(&cwd)?;
+#[test]
+fn normalizes_relative_out_dir_paths() {
+    let temp = tempdir_in(".").expect("test setup should succeed");
+    let abs = Utf8PathBuf::from_path_buf(temp.path().to_path_buf())
+        .map_err(|path| {
+            format!(
+                "temporary directory should be valid UTF-8: {}",
+                path.display()
+            )
+        })
+        .expect("test setup should succeed");
+    let cwd = std::env::current_dir().expect("test setup should succeed");
+    let cwd = Utf8PathBuf::from_path_buf(cwd)
+        .map_err(|path| {
+            format!(
+                "current directory should be valid UTF-8: {}",
+                path.display()
+            )
+        })
+        .expect("test setup should succeed");
+    let relative = abs.strip_prefix(&cwd).expect("test setup should succeed");
     let crate_id = format!("demo:./{}", relative.as_str());
     let normalized = normalize_crate_id(&crate_id);
     let canonical_abs = abs
@@ -160,14 +164,9 @@ fn normalizes_relative_out_dir_paths() -> Result<(), Box<dyn std::error::Error>>
         .unwrap_or_else(|_| abs.clone());
     let expected = format!("demo:{}", canonical_abs.as_str());
     assert_eq!(normalized.as_ref(), expected);
-    Ok(())
 }
 
 #[test]
-#[expect(
-    clippy::expect_used,
-    reason = "test documents fallback behaviour with explicit expect messaging"
-)]
 fn leaves_unresolvable_out_dir_paths_unchanged() {
     let temp = tempdir().expect("create temp directory");
     let missing = temp.path().join("missing");
@@ -181,10 +180,10 @@ fn leaves_unresolvable_out_dir_paths_unchanged() {
 #[serial]
 fn canonicalize_out_dir_resolves_relative_components(
     temp_working_dir: std::io::Result<TempWorkingDir>,
-) -> std::io::Result<()> {
-    let temp_working_dir = temp_working_dir?;
+) {
+    let temp_working_dir = temp_working_dir.expect("test setup should succeed");
     let nested_dir = temp_working_dir.join("nested");
-    create_dir_all_cap(nested_dir.as_path())?;
+    create_dir_all_cap(nested_dir.as_path()).expect("test setup should succeed");
     let nested = temp_working_dir.join("nested/.");
     let canonical = canonicalize_out_dir(nested.as_path());
     let expected_dir = temp_working_dir.path().join("nested");
@@ -198,15 +197,10 @@ fn canonicalize_out_dir_resolves_relative_components(
         canonical.is_absolute(),
         "canonical path should be absolute: {canonical}"
     );
-    Ok(())
 }
 
 #[cfg(unix)]
 #[test]
-#[expect(
-    clippy::expect_used,
-    reason = "symlink setup uses expect to surface filesystem failures"
-)]
 fn canonicalize_out_dir_resolves_symlinks() {
     let temp = tempdir().expect("create temp directory");
     let base = Utf8PathBuf::from_path_buf(temp.path().to_path_buf())
@@ -228,10 +222,6 @@ fn canonicalize_out_dir_resolves_symlinks() {
 }
 
 #[test]
-#[expect(
-    clippy::expect_used,
-    reason = "test asserts fallback path handling with explicit expect messaging"
-)]
 fn canonicalize_out_dir_returns_original_when_unresolvable() {
     let temp = tempdir().expect("create temp directory");
     let missing = temp.path().join("missing");
@@ -239,17 +229,19 @@ fn canonicalize_out_dir_returns_original_when_unresolvable() {
     assert_eq!(canonicalize_out_dir(missing.as_path()), missing);
 }
 
-#[test]
 #[serial]
-fn canonicalizes_equivalent_crate_paths_in_registry() -> Result<(), Box<dyn std::error::Error>> {
+#[test]
+fn canonicalizes_equivalent_crate_paths_in_registry() {
     clear_registry();
-    let temp = tempdir()?;
-    let abs = Utf8PathBuf::from_path_buf(temp.path().to_path_buf()).map_err(|path| {
-        format!(
-            "temporary directory should be valid UTF-8: {}",
-            path.display()
-        )
-    })?;
+    let temp = tempdir().expect("test setup should succeed");
+    let abs = Utf8PathBuf::from_path_buf(temp.path().to_path_buf())
+        .map_err(|path| {
+            format!(
+                "temporary directory should be valid UTF-8: {}",
+                path.display()
+            )
+        })
+        .expect("test setup should succeed");
     let crate_id = format!("demo:{}", abs.as_str());
     let alt_id = format!("demo:{}/.", abs.as_str());
 
@@ -267,7 +259,8 @@ fn canonicalizes_equivalent_crate_paths_in_registry() -> Result<(), Box<dyn std:
     let (stored_id, defs) = registry
         .iter()
         .next()
-        .ok_or("expected at least one crate entry")?;
+        .ok_or("expected at least one crate entry")
+        .expect("test setup should succeed");
     let expected_id = normalize_crate_id(&crate_id);
     assert_eq!(stored_id.as_ref(), expected_id.as_ref());
 
@@ -275,5 +268,4 @@ fn canonicalizes_equivalent_crate_paths_in_registry() -> Result<(), Box<dyn std:
     assert_eq!(patterns.len(), 2, "expected both patterns to be stored");
     drop(registry);
     clear_registry();
-    Ok(())
 }

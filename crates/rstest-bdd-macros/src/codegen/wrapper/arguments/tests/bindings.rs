@@ -24,7 +24,6 @@ fn collect_ordered_arguments_preserves_call_order() {
     );
 }
 
-#[expect(clippy::expect_used, reason = "test asserts fixture declaration")]
 #[test]
 fn wrapper_bindings_avoid_leading_underscores() {
     let fixture = Arg::Fixture {

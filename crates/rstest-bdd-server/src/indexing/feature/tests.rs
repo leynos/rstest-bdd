@@ -3,10 +3,6 @@
 use super::*;
 use tempfile::TempDir;
 
-#[expect(
-    clippy::expect_used,
-    reason = "tests use explicit failures for clarity"
-)]
 #[test]
 fn indexes_steps_tables_docstrings_and_example_columns() {
     let dir = TempDir::new().expect("temp dir");
@@ -76,10 +72,6 @@ fn indexes_steps_tables_docstrings_and_example_columns() {
     assert_eq!(second_col.name, "Extra");
 }
 
-#[expect(
-    clippy::expect_used,
-    reason = "tests use explicit failures for clarity"
-)]
 #[test]
 fn indexes_multiple_examples_tables() {
     let dir = TempDir::new().expect("temp dir");
@@ -121,10 +113,6 @@ fn indexes_multiple_examples_tables() {
     assert_eq!(col1.name, "extra");
 }
 
-#[expect(
-    clippy::expect_used,
-    reason = "tests use explicit failures for clarity"
-)]
 #[test]
 fn regular_scenario_not_indexed_as_outline() {
     let dir = TempDir::new().expect("temp dir");
@@ -146,10 +134,6 @@ fn regular_scenario_not_indexed_as_outline() {
     );
 }
 
-#[expect(
-    clippy::expect_used,
-    reason = "tests use explicit failures for clarity"
-)]
 #[test]
 fn docstring_span_includes_backtick_delimiters() {
     let dir = TempDir::new().expect("temp dir");

@@ -125,7 +125,6 @@ fn wrapper_errors_localize(
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "step lookup must succeed for test")]
 fn find_step_with_metadata_returns_step_with_fixtures() {
     let step = find_step_with_metadata(StepKeyword::Then, StepText::from("needs fixture"))
         .expect("step 'needs fixture' not found in registry");
@@ -146,7 +145,6 @@ fn find_step_with_metadata_returns_none_for_unknown_step() {
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "step lookup must succeed for test")]
 fn find_step_with_metadata_returns_empty_fixtures_for_no_fixture_step() {
     let step = find_step_with_metadata(StepKeyword::When, StepText::from("behavioural"))
         .expect("step 'behavioural' not found in registry");
@@ -171,7 +169,6 @@ fn available_fixtures_lists_scenario_fixtures() {
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "step lookup must succeed for test")]
 fn fixture_validation_detects_missing_fixtures() {
     // This test validates the fixture validation logic that is used in
     // execute_single_step() by replicating the same check here.
@@ -196,7 +193,6 @@ fn fixture_validation_detects_missing_fixtures() {
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "step lookup must succeed for test")]
 fn fixture_validation_passes_when_all_fixtures_present() {
     let step = find_step_with_metadata(StepKeyword::Then, StepText::from("needs fixture"))
         .expect("step 'needs fixture' not found in registry");
@@ -218,7 +214,6 @@ fn fixture_validation_passes_when_all_fixtures_present() {
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "step lookup must succeed for test")]
 fn find_step_with_metadata_marks_step_as_used() {
     // The step "needs fixture" should be marked as used after find_step_with_metadata
     let step = find_step_with_metadata(StepKeyword::Then, StepText::from("needs fixture"))
@@ -247,7 +242,6 @@ fn step_with_auto_async_is_registered() {
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "test validates step lookup succeeds")]
 fn step_with_auto_async_sync_handler_works() {
     let step = iter::<Step>
         .into_iter()
@@ -260,7 +254,6 @@ fn step_with_auto_async_sync_handler_works() {
 }
 
 #[test]
-#[expect(clippy::expect_used, reason = "test validates step lookup succeeds")]
 fn step_with_auto_async_handler_works() {
     let step = iter::<Step>
         .into_iter()

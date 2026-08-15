@@ -3,10 +3,6 @@
 use super::*;
 use gherkin::{Feature, LineCol, Scenario, Span};
 
-#[expect(
-    clippy::expect_used,
-    reason = "tests assert error paths; panics surface unexpected success"
-)]
 #[test]
 fn scenario_outline_missing_examples_surfaces_scenario_name() {
     let scenario_name = "outline without examples";

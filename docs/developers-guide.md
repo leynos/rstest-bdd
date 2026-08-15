@@ -147,8 +147,9 @@ workspace root; this is the only nextest configuration file the runner loads.
 The file sets the timeout policy for the test suite:
 
 - The default profile kills any test that runs past a 60 s `slow-timeout`
-  (`terminate-after = 1`, 5 s grace period) and applies a 5 m `global-timeout`
-  to the whole run.
+  (`terminate-after = 1`, 5 s grace period) and applies a 20 m `global-timeout`
+  to the whole run. This allows the cargo-spawning group to run its bounded
+  tests one at a time without exhausting the whole-suite budget.
 - A `[[profile.default.overrides]]` entry raises the `slow-timeout` to 180 s
   for `cargo-bdd::cli`, whose smoke tests spawn `cargo` to build fixture crates
   and can legitimately exceed 60 s on cold caches.
@@ -163,7 +164,7 @@ The file sets the timeout policy for the test suite:
   (`max-threads = 1`), so `cargo-bdd::cli` and the three trybuild binaries run
   one at a time instead of contending for CPU with concurrent `cargo` builds.
 - A `long` profile (`--profile long`) relaxes the limits further (180 s
-  `slow-timeout`, 15 m `global-timeout`) for deliberately slow local runs.
+  `slow-timeout`, 30 m `global-timeout`) for deliberately slow local runs.
 
 When adding a test binary that shells out to `cargo`, extend the relevant
 override's `filter` expression rather than raising the default `slow-timeout`:
@@ -209,15 +210,15 @@ Mitigation:
   matrix legs (see `.github/workflows/ci.yml`). Windows coverage runs use
   `cargo llvm-cov test` (libtest) instead.
 - `step_macros_compile` (`crates/rstest-bdd/tests/trybuild_macros.rs`) guards
-  its early return with `cfg!(windows) && env::var_os("NEXTEST_RUN_ID")`, so
-  it only skips its trybuild and Clippy UI fixtures under nextest on Windows,
+  its early return with `cfg!(windows) && env::var_os("NEXTEST_RUN_ID")`, so it
+  only skips its trybuild and Clippy UI fixtures under nextest on Windows,
   where this deadlock applies. On Linux and macOS the fixtures run under
   nextest like any other test.
 - `.config/nextest.toml` raises the `slow-timeout` for the trybuild
   compile-test binaries (including both `macro_compile` binaries and
   `rstest-bdd::trybuild_macros`) to 300 s as a local-development safety net.
-  This does not fix the deadlock; it only delays termination to allow the
-  build to complete on fast machines.
+  This does not fix the deadlock; it only delays termination to allow the build
+  to complete on fast machines.
 - `.config/nextest.toml` also places the `cargo-bdd::cli` and trybuild
   binaries in a `cargo-spawning` test group with `max-threads = 1`, so these
   cargo-spawning tests run one at a time rather than contending for the
@@ -454,9 +455,9 @@ adapter. `rstest-bdd-harness`'s own test targets (for example
 rstest-bdd-harness = { path = ".", features = ["testing"] }
 ```
 
-This keeps `FailingHarness` defined once, with no local duplicate in the
-test binary, and works without requiring `--all-features`. Downstream crates
-enable it only for tests:
+This keeps `FailingHarness` defined once, with no local duplicate in the test
+binary, and works without requiring `--all-features`. Downstream crates enable
+it only for tests:
 
 ```toml
 [dev-dependencies]
@@ -523,10 +524,10 @@ preserved. A trybuild compile-pass mirror,
 `tests/fixtures_macros/scenario_bulk_migration_cookbook.rs`, compile-checks the
 same shape and is registered in `run_passing_macro_tests`
 (`tests/trybuild_macros.rs`). `step_macros_compile` runs this fixture under
-nextest on Linux and macOS; it is skipped only under nextest on Windows,
-where the Job Object capture-pipe deadlock applies (see "nextest on Windows:
-trybuild deadlock" above), and must instead be validated with plain
-`cargo test` (or `cargo llvm-cov test` for coverage).
+nextest on Linux and macOS; it is skipped only under nextest on Windows, where
+the Job Object capture-pipe deadlock applies (see "nextest on Windows: trybuild
+deadlock" above), and must instead be validated with plain `cargo test` (or
+`cargo llvm-cov test` for coverage).
 
 Doc↔suite parity for this cookbook is guarded by prose, not a checker (the
 subsection states "if a snippet drifts, the suite wins"), matching the
@@ -1323,14 +1324,21 @@ When maintaining the pin:
 2. Re-run `make lint-whitaker`, then the full `make lint` gate.
 3. Update ADR-013 only if the mechanism or adopted lint set changes.
 
-Do not replace invariant checks with `.expect(...)`, `.unwrap()`, or
-`unwrap_or_else(|| panic!(...))`. Use a copyable invariant check such as
-`let Some(value) = value else { panic!("expected value to be present"); };`,
-or return `Result` and use `?` when an operation is fallible. Fixture functions
-and test helpers that perform fallible operations must return `Result` and
-propagate errors with `?`; infallible helpers need not introduce an artificial
-`Result` type. Shared helpers should avoid `.expect(...)` for invariant checks
-and instead use explicit, context-appropriate invariant handling. Shared
+The root `clippy.toml` sets `allow-expect-in-tests = true` and
+`allow-panic-in-tests = true`. These keys are narrowly scoped: recognized
+built-in `#[test]` and `rstest` cases may use `.expect(...)` and `panic!(...)`
+at their test boundary; they do not permit `.unwrap()` or use in shared helpers.
+
+Outside recognized test cases, do not replace invariant checks with
+`.expect(...)`, `.unwrap()`, or `unwrap_or_else(|| panic!(...))`. Use a
+copyable invariant check such as
+`let Some(value) = value else { panic!("expected value to be present"); };`, or
+return `Result` and use `?` when an operation is fallible. Recognized built-in
+`#[test]` and `rstest` cases may use `.expect(...)` or `panic!(...)` for
+unexpected setup failures, aligned with ADR-013; `.unwrap()` and
+`unwrap_or_else(|| panic!(...))` remain disallowed. Their signatures need not
+return `Result` simply to propagate fixture errors. Reusable fixture functions
+and shared helpers should still return `Result` rather than panic. Shared
 assertion shapes belong in macros so panic line numbers point at the calling
 test.
 

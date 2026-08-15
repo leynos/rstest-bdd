@@ -6,7 +6,6 @@ use rstest_bdd_server::handlers::handle_did_save_text_document;
 use rstest_bdd_server::server::ServerState;
 use tempfile::TempDir;
 
-#[expect(clippy::expect_used, reason = "behavioural tests use explicit panics")]
 #[test]
 fn did_save_indexes_rust_step_files_and_caches_result() {
     let dir = TempDir::new().expect("temp dir");
@@ -47,7 +46,6 @@ fn did_save_indexes_rust_step_files_and_caches_result() {
     assert_eq!(inferred.pattern, "I do the thing");
 }
 
-#[expect(clippy::expect_used, reason = "behavioural tests use explicit panics")]
 #[test]
 fn did_save_prefers_provided_text_over_filesystem_contents() {
     let dir = TempDir::new().expect("temp dir");

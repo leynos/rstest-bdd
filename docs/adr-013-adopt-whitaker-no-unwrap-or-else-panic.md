@@ -25,11 +25,12 @@ pedantic lint profile that includes `clippy::shadow_reuse`,
 The in-house lint is implemented by Whitaker, a Dylint lint library, in the
 `crates/no_unwrap_or_else_panic` crate. It rejects
 `unwrap_or_else(|| panic!(…))` and nested `unwrap_or_else(|| value.unwrap())`
-forms on `Option` and `Result`. The repository already denies
-`clippy::expect_used` and `clippy::unwrap_used`, including in tests, so
-contributors had used `unwrap_or_else(|| panic!(…))` as the remaining escape
-hatch for invariant failures. Closing that escape hatch requires a replacement
-shape that still preserves clear panic messages in test-only invariant paths.
+forms on `Option` and `Result`. The repository denies `clippy::expect_used` and
+`clippy::unwrap_used` outside recognized tests. `clippy.toml` permits
+`.expect(...)` and `panic!(...)` in test cases, including `rstest` cases, where
+unexpected setup failures should fail the test. `unwrap_or_else(|| panic!(…))`
+remains rejected, so non-test invariant failures need a replacement shape that
+preserves clear panic messages.
 
 The compatible shape is Rust's `let … else` syntax:
 
@@ -205,5 +206,7 @@ Contributor-facing setup and maintenance steps are documented in
 
 The adopted lint does not replace Clippy. `clippy::shadow_reuse`,
 `clippy::expect_used`, and `clippy::unwrap_used` remain separate policy
-surfaces. The playbook form is chosen because it satisfies all of them
-together, not because Whitaker enforces shadowing or `.expect(...)` directly.
+surfaces. `.expect(...)` and `panic!(...)` are allowed in recognized tests,
+while `.unwrap()` remains denied. The playbook form is chosen because it
+satisfies the non-test policy surfaces together, not because Whitaker enforces
+shadowing or `.expect(...)` directly.

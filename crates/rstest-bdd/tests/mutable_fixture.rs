@@ -21,10 +21,6 @@ struct CounterWorld {
 }
 
 #[test]
-#[expect(
-    clippy::expect_used,
-    reason = "downcast must succeed when reconstructing the owned fixture"
-)]
 fn mutable_owned_fixture_round_trip() {
     let world = StepContext::owned_cell(CounterWorld::default());
     let mut ctx = StepContext::default();

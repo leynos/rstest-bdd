@@ -170,7 +170,6 @@ fn invalid_type_hint_is_generic(
 ) {
     // Unknown type hints fall back to a non-greedy match.
     let pat = compiled(pattern);
-    #[expect(clippy::expect_used, reason = "test asserts placeholder match")]
     let caps = extract_placeholders(&pat, StepText::from(input))
         .expect("invalid type hint should still capture");
     assert_eq!(caps, vec![expected]);
@@ -208,7 +207,6 @@ fn whitespace_before_closing_brace_is_error() {
 #[test]
 fn extraction_reports_invalid_placeholder_error() {
     let pat = StepPattern::from("value {n:}");
-    #[expect(clippy::expect_used, reason = "test asserts error variant")]
     let err = extract_placeholders(&pat, StepText::from("value 1"))
         .expect_err("placeholder error expected");
     assert!(matches!(err, PlaceholderError::InvalidPlaceholder(_)));
@@ -222,7 +220,6 @@ fn extraction_reports_invalid_placeholder_error() {
 fn invalid_pattern_error_display() {
     #[expect(
         clippy::invalid_regex,
-        clippy::expect_used,
         reason = "deliberate invalid regex to test error display"
     )]
     let regex_err = regex::Regex::new("(").expect_err("invalid regex should error");
@@ -239,7 +236,6 @@ fn placeholder_error_display_in_french() {
         Err(error) => panic!("failed to scope French locale: {error}"),
     };
     let pat = StepPattern::from("value {n:}");
-    #[expect(clippy::expect_used, reason = "test asserts error variant")]
     let err = extract_placeholders(&pat, StepText::from("value 1"))
         .expect_err("placeholder error expected");
     let display = strip_directional_isolates(&err.to_string());
