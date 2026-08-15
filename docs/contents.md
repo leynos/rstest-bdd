@@ -120,7 +120,7 @@
 [adr-015]: adr-015-insert-outcome-for-step-return-overrides.md
 [adr-016]: adr-016-pinned-nightly-rustfmt.md
 [adr-017]: adr-017-toolchain-aware-adapter-fallback-diagnostics.md
-[adr-018]: adr-016-parser-neutral-scenario-execution.md
+[adr-018]: adr-018-parser-neutral-scenario-execution.md
 [complexity-guide]: complexity-antipatterns-and-refactoring-strategies.md
 [cucumber-async]: cucumber-rs-migration-and-async-patterns.md
 [dependency-injection]: reliable-testing-in-rust-via-dependency-injection.md
