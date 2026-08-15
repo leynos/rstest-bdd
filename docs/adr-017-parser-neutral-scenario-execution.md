@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 016: expose parser-neutral scenario execution
+# Architectural decision record (ADR) 017: expose parser-neutral scenario execution
 
 ## Status
 

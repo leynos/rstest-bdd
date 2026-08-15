@@ -1187,7 +1187,7 @@ This step answers whether one additive runtime API can represent both static
 Gherkin-generated scenarios and dynamically parsed input without admitting
 frontend concepts. Its result defines the contract that macro migration and
 external-frontends rely on. See
-`docs/adr-016-parser-neutral-scenario-execution.md` (Decision outcome and
+`docs/adr-017-parser-neutral-scenario-execution.md` (Decision outcome and
 proposed direction).
 
 - [ ] 13.1.1. Add parser-neutral `ScenarioPlan`, `StepInvocation`, source, and
@@ -1202,7 +1202,7 @@ proposed direction).
     asynchronous equivalent plans stop after terminal events, expose values
     only to later steps, and run lifecycle cleanup exactly once on every
     terminal path.
-  - See `docs/adr-016-parser-neutral-scenario-execution.md` (Requirements and
+  - See `docs/adr-017-parser-neutral-scenario-execution.md` (Requirements and
     Verification strategy).
 
 - [ ] 13.1.2. Preserve frontend-supplied source identity in every failed or
@@ -1211,7 +1211,7 @@ proposed direction).
   - Success: runtime tests execute plans whose sources are not `.feature`
     files and assert that supplied path, line, and column information remains
     available to the caller.
-  - See `docs/adr-016-parser-neutral-scenario-execution.md` (Source-neutral
+  - See `docs/adr-017-parser-neutral-scenario-execution.md` (Source-neutral
     diagnostics).
 
 ### 13.2. Make the Gherkin macros a thin runner frontend
@@ -1229,7 +1229,7 @@ baseline that a non-Gherkin frontend must match.
   - Success: the existing macro compile-pass and compile-fail fixtures remain
     unchanged, and conformance coverage compares step order, fixture errors,
     return propagation, skips, bypassed steps, and failures from both paths.
-  - See `docs/adr-016-parser-neutral-scenario-execution.md` (Gherkin macro
+  - See `docs/adr-017-parser-neutral-scenario-execution.md` (Gherkin macro
     integration and Compatibility and migration).
 
 ### 13.3. Prove the external-frontend boundary end to end
@@ -1246,5 +1246,5 @@ boundary without importing Trymark's syntax or reporting model into
   - Success: an end-to-end suite executes pass, skip, failure, missing-step,
     and missing-fixture scenarios outside `.feature` files, reports their
     supplied locations, and proves no Rust test crate is generated or compiled.
-  - See `docs/adr-016-parser-neutral-scenario-execution.md` (Extension
+  - See `docs/adr-017-parser-neutral-scenario-execution.md` (Extension
     boundary and Compatibility and migration).
