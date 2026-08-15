@@ -94,10 +94,13 @@ Stop and escalate — do not improvise — when any of these is reached.
 - **Interface:** any change to an existing public function or type signature
   beyond adding new items. Adding `HARNESS_CONTEXT_FIXTURE` to
   `rstest-bdd-policy` is pre-authorized; anything else is not.
-- **Dependencies:** adding a workspace dependency other than the two named in
-  Milestone 2 (`googletest`, `pretty_assertions`). If `googletest` cannot be
-  made to compose with `rstest` under this workspace's lint configuration
-  within two attempts, stop and escalate rather than fighting it.
+- **Dependencies:** adding a workspace dependency other than the three this
+  plan authorizes — `googletest` and `pretty_assertions` (Milestone 2), and
+  `insta` as a dev-dependency of `rstest-bdd-macros` (Milestone 6). If
+  `googletest` cannot be made to compose with `rstest` under this workspace's
+  lint configuration within two attempts, stop and escalate: the adoption is
+  approved, so a blocker there is a finding to report, not a cue to quietly
+  drop back to bare assertions.
 - **Iterations:** a milestone's tests still failing after four attempts.
 - **Gate churn:** if `make lint` reports Whitaker findings that cannot be fixed
   without restructuring code outside this plan's scope, stop and escalate.
@@ -122,12 +125,32 @@ Stop and escalate — do not improvise — when any of these is reached.
   new classifier code and its tests in new modules under
   `classify/harness_context/`.
 
-- **Risk:** adding `googletest` and `pretty_assertions` sets a workspace
-  precedent the maintainer has not previously adopted (neither crate currently
-  appears anywhere in the tree). Severity: low. Likelihood: certain.
-  Mitigation: isolated in Milestone 2 with an explicit go/no-go and a
-  no-dependency fallback; documented in `docs/developers-guide.md`. Flagged for
-  the reviewer at the approval gate.
+- **Risk:** `googletest` is new to this workspace, so its interaction with the
+  local lint configuration is unproven — in particular Clippy under
+  `-D warnings` and the Whitaker suite, both of which see macro-expanded test
+  code. Severity: low. Likelihood: medium. Mitigation: Milestone 2 lands the
+  dependencies and a throwaway `#[rstest] #[googletest::test]` smoke test on
+  their own, gated, before any real test depends on them, so a lint clash
+  surfaces in isolation rather than tangled with the classifier work.
+
+- **Risk:** `googletest`'s `proptest` integration does not behave as documented
+  under this workspace's `default-features = false` pin of `proptest`.
+  Severity: low. Likelihood: low. Mitigation: the property test falls back to
+  `prop_assert!` with an explicit message after one failed attempt, and the
+  deviation is recorded in `Surprises & discoveries`. The unit tests do not
+  depend on this integration.
+
+- **Risk:** `googletest`'s minimum supported Rust version exceeds this
+  workspace's `rust-version = "1.85"`. Severity: medium if it occurs, because
+  it would block adoption outright. Likelihood: low. Mitigation: check before
+  pinning in Milestone 2; if it does exceed, escalate rather than raising the
+  workspace MSRV as a side effect of a test-tooling change.
+
+- **Risk:** `pretty_assertions::assert_eq!` shadows the `std` macro, so a
+  module-wide import silently changes the behaviour of existing assertions in
+  that module. Severity: low. Likelihood: low. Mitigation: the new tests live
+  in new modules, so nothing pre-existing is shadowed; import it per module
+  rather than at crate root.
 
 - **Risk:** `syn::Ident::new` panics on a non-identifier string, and the
   reserved key now arrives from another crate's constant. Severity: low.
@@ -150,7 +173,7 @@ Stop and escalate — do not improvise — when any of these is reached.
 
 - [ ] Milestone 0 — orientation and green baseline.
 - [ ] Milestone 1 — single source of truth for the reserved fixture key.
-- [ ] Milestone 2 — test-support dependencies (go/no-go).
+- [ ] Milestone 2 — adopt `googletest` and `pretty_assertions`.
 - [ ] Milestone 3 — red: unit and property tests for `#[harness_context]`.
 - [ ] Milestone 4 — green: implement the classifier and its guards.
 - [ ] Milestone 5 — compile-fail coverage for the unhappy paths.
@@ -250,18 +273,41 @@ Stop and escalate — do not improvise — when any of these is reached.
   under the "use your best judgement" latitude in the task brief and
   `AGENTS.md`. Date/Author: 2026-08-15, planning agent.
 
-- Decision (**requires reviewer confirmation at the approval gate**): adopt
-  `googletest` and `pretty_assertions` as workspace dev-dependencies.
-  Rationale: the task brief asks for them explicitly, and `googletest`'s
-  `#[gtest]` attribute is documented upstream as composable with `rstest`
-  (`crates.io/crates/googletest`: "You can use the `#[gtest]` macro together
-  with many other libraries such as rstest"). Neither crate currently appears
-  anywhere in the workspace, so this establishes a new convention.
-  Counter-consideration: `AGENTS.md`'s testing section names `rstest`,
-  `mockall`, `insta`, `proptest`, `kani`, and `verus`, but not these two.
-  Fallback if declined: use `assert_eq!` and `assert!` with explicit failure
-  messages; every test in this plan remains expressible without either crate,
-  at some cost in diff legibility. Date/Author: 2026-08-15, planning agent.
+- Decision: adopt `googletest` and `pretty_assertions` as workspace
+  dev-dependencies, and use them for the assertions in this work. Rationale:
+  richer, more expressive assertions that state in high-level code what
+  property is being checked, and that report what was actually wrong on failure.
+  `matches_pattern!` names the enum variant and the offending field where
+  `assert!(matches!(…))` reports only `assertion failed`;
+  `err(displays_as(contains_substring(…)))` states "an `Err` whose message
+  mentions X" in one expression and prints the real diagnostic when it does not;
+  `pretty_assertions::assert_eq!` renders a structural diff where the contract
+  under test *is* the equality of two values. Neither crate has been used in
+  this workspace before, which is a reason to introduce them deliberately
+  rather than a reason to keep deferring: a convention that is always postponed
+  until it is already established never gets adopted at all. Milestone 2
+  therefore introduces them as a named milestone with a documented vocabulary,
+  so subsequent work has a precedent to follow. Rejected: continuing with bare
+  `assert_eq!` and `assert!`. Every test here is expressible that way, but the
+  failure output would name neither the property nor the actual value, which is
+  the whole point. Date/Author: 2026-08-15, planning agent; confirmed by the
+  maintainer 2026-08-15.
+
+- Decision: enable `googletest`'s non-default `proptest` feature. Rationale: it
+  converts a failing `verify_that!` into a
+  `proptest::test_runner::TestCaseError` through `?`, so the property test uses
+  the same matcher vocabulary as the unit tests instead of degrading to
+  `prop_assert_eq!`. `googletest` 0.14.3 declares `proptest ^1.9.0` and this
+  workspace pins `proptest = "1.9.0"`, so the requirement unifies without a
+  second copy in the dependency graph. Date/Author: 2026-08-15, planning agent.
+
+- Decision: compose with `rstest` as `#[rstest]` followed by
+  `#[googletest::test]`, not `#[gtest]`. Rationale: `rstest` recognizes a
+  following test attribute only when it is named `test`. `googletest::test` is
+  an alias of `gtest` published for exactly this purpose, and the ordering is
+  the composition documented upstream. Plain `#[gtest]` remains correct for
+  tests that do not also use `#[rstest]`, and is required for `expect_that!`.
+  Date/Author: 2026-08-15, planning agent.
 
 ## Outcomes & retrospective
 
@@ -446,8 +492,7 @@ Repository documentation to read:
   view on function size and conditional complexity, which the Whitaker
   `bumpy_road_function` and `conditional_max_n_branches` lints enforce.
 - `docs/rust-testing-with-rstest-fixtures.md` and
-  `docs/rust-doctest-dry-guide.md`
-  — test and doctest conventions.
+  `docs/rust-doctest-dry-guide.md` — test and doctest conventions.
 - `docs/gherkin-syntax.md` — if you touch a `.feature` file.
 
 ## Plan of work
@@ -497,31 +542,95 @@ type, and value are all unchanged, so this is not an API break.
 Validation: `make check-fmt && make lint && make test` all green, with no test
 changes. Commit.
 
-### Milestone 2 — test-support dependencies (go/no-go)
+### Milestone 2 — adopt `googletest` and `pretty_assertions`
 
-**Go/no-go point.** Proceed only if the reviewer confirmed the `googletest` /
-`pretty_assertions` decision in the Decision log. If declined, skip this
-milestone entirely and write the Milestone 3 tests with `assert_eq!` and
-`assert!` carrying explicit failure messages; nothing else in the plan changes.
+This workspace has not used either crate before. That is the reason to
+introduce them deliberately, in a milestone of their own, rather than
+incidentally: this milestone establishes the assertion vocabulary that
+Milestone 3 then uses, and that later work is expected to follow.
 
 Add to the root `Cargo.toml` `[workspace.dependencies]`, with caret
 requirements as `AGENTS.md` mandates:
 
 ```toml
-googletest = "0.14"
-pretty_assertions = "1.4"
+googletest = { version = "0.14.3", features = ["proptest"] }
+pretty_assertions = "1.4.1"
 ```
 
-Check the current major versions on crates.io before pinning; the values above
-are indicative. Add both as `dev-dependencies` of `crates/rstest-bdd-macros`
-with `.workspace = true`.
+Both versions were current as of 2026-08-15 (`googletest` 0.14.3 published
+2026-06-04; `pretty_assertions` 1.4.1 published 2026-06-13). Confirm on
+crates.io before pinning, and confirm `googletest`'s minimum supported Rust
+version is at or below this workspace's `rust-version = "1.85"`.
 
-Record the new convention in `docs/developers-guide.md`, in a short subsection
-under the testing material: what each crate is for, that `#[gtest]` composes
-with `#[rstest]` by applying both attributes, and that `insta` remains the tool
-for snapshot assertions.
+The `proptest` feature is not enabled by default. It is required here: it lets
+a failing `verify_that!` convert into a `proptest::test_runner::TestCaseError`
+through the `?` operator, so the property test in Milestone 3 can use the same
+matcher vocabulary as the unit tests instead of falling back to
+`prop_assert_eq!`. `googletest` declares `proptest ^1.9.0` and this workspace
+pins `proptest = "1.9.0"`, so the two unify. Note that the workspace declares
+`proptest` with `default-features = false, features = ["std"]` while
+`googletest` will request it with default features; Cargo takes the union,
+which is harmless but will pull slightly more of `proptest` into test builds.
 
-Validation: `make check-fmt && make lint && make test` green. Commit.
+Add both as `dev-dependencies` of `crates/rstest-bdd-macros` with
+`.workspace = true`.
+
+#### The assertion vocabulary this establishes
+
+Record it in `docs/developers-guide.md` as a new subsection, and follow it in
+Milestone 3. The point of these crates is that an assertion should say what
+property is being checked, and a failure should say what was wrong — not merely
+that two opaque values differed.
+
+- **`googletest` matchers are the default for structural assertions.** Reach
+  for `assert_that!` (fatal), `expect_that!` (non-fatal, requires the test to
+  be marked `#[gtest]`), or `verify_that!` (returns `googletest::Result`,
+  composes with `?`).
+- **`matches_pattern!`** is the right tool for asserting on an enum variant and
+  its fields at once. `assert!(matches!(x, Arg::Fixture { .. }))` reports only
+  `assertion failed`; `matches_pattern!` reports which field mismatched and
+  what it held.
+- **`err(displays_as(contains_substring(…)))`** is the right tool for asserting
+  on a `syn::Error`. It states "this is an `Err` whose rendered message
+  mentions X" in one expression, and prints the actual message on failure.
+- **`elements_are!`** for ordered container assertions,
+  `unordered_elements_are!`
+  where order is not part of the contract, `len`, `is_empty`, `contains`, and
+  `each` for the obvious cases.
+- **`expect_that!` under `#[gtest]`** where a test checks several independent
+  properties of one value. All failures are reported in a single run rather
+  than only the first.
+- **`pretty_assertions::assert_eq!`** for whole-value equality where a coloured
+  structural diff is what the reader needs — comparing two `Vec<Arg>`, or two
+  generated token streams rendered as strings. Import it per module with
+  `use pretty_assertions::assert_eq;`, which shadows the `std` macro for that
+  module only.
+- **`insta`** remains the tool for snapshots. Nothing here displaces it.
+
+Composing with `rstest` requires the alias, not the primary attribute name:
+`rstest` recognizes a following attribute only when it is named `test`, so write
+`#[googletest::test]` rather than `#[gtest]`, and put `#[rstest]` first. This
+is the composition documented upstream:
+
+```rust,ignore
+use googletest::prelude::*;
+use rstest::rstest;
+
+#[rstest]
+#[googletest::test]
+fn classifies_the_marker() -> googletest::Result<()> {
+    verify_that!(1, eq(1))
+}
+```
+
+A test using `expect_that!` must be marked `#[gtest]` (or
+`#[googletest::test]`) and may return either `()` or `googletest::Result<()>`.
+`#[should_panic]` composes with `#[gtest]`, but note it inverts the meaning of
+a failing non-fatal assertion, so do not combine the two casually.
+
+Validation: `make check-fmt && make lint && make test` green, plus one
+throwaway smoke test proving `#[rstest] #[googletest::test]` compiles and runs
+in this workspace. Delete the smoke test before committing. Commit.
 
 ### Milestone 3 — red: unit and property tests
 
@@ -536,53 +645,157 @@ milestone with a `classify_harness_context` that always returns `Ok(false)`;
 Milestone 4 fills in the body. This gives a genuine red run rather than a
 compile error.
 
-Happy-path cases, all asserting on the `ExtractedArgs` returned by
-`extract_args`:
+Write a small helper that parses a step function source string plus a
+placeholder set and returns `syn::Result<ExtractedArgs>`, so each case is one
+line of arrangement. Everything below asserts on its output.
 
-1. `#[harness_context] ctx: &TestCtx` yields exactly one
-   `Arg::Fixture` whose `name` is the identifier `rstest_bdd_harness_context`.
-2. `#[from(rstest_bdd_harness_context)] ctx: &TestCtx` yields the same
-   `Arg::Fixture`. Assert *equality between the two results*, not two separate
-   shape checks — that equality is the contract this roadmap item promises.
-3. A parameter literally named `rstest_bdd_harness_context` yields the same
-   `Arg::Fixture`. This spelling already works; the test pins it.
-4. `#[harness_context] ctx: &mut TestCtx` is classified as a fixture with a
-   mutable borrow type, so mutable harness context still works.
-5. `#[harness_context]` on a parameter alongside ordinary placeholder and
-   fixture parameters leaves those unaffected and consumes no placeholder.
-6. `HARNESS_CONTEXT_FIXTURE` parses as a `syn::Ident` (guards the
-   `Ident::new` invariant introduced in Milestone 4).
+**Happy-path cases.** The structural assertions use `matches_pattern!`, which
+names the variant and the field under test rather than collapsing to a boolean:
 
-Unhappy-path cases, each asserting the specific diagnostic text:
+```rust,ignore
+use googletest::prelude::*;
 
-1. `#[harness_context(gpui)]` — "`#[harness_context]` does not take arguments"
-   (comes free from `extract_flag_attribute`).
-2. `#[harness_context] #[harness_context]` — "duplicate `#[harness_context]`
-   attribute" (also free).
-3. `#[harness_context] #[from(x)]` — a new targeted error.
-4. `#[harness_context] #[datatable]` — a new targeted error.
-5. `#[harness_context] #[step_args]` — a new targeted error.
-6. `#[harness_context] count: &Ctx` where the step pattern contains `{count}`
-    — a new targeted error naming the placeholder.
+#[rstest]
+#[googletest::test]
+fn marker_binds_the_reserved_fixture_key() -> googletest::Result<()> {
+    let extracted = classify_step("fn s(#[harness_context] ctx: &TestCtx) {}", &[])?;
 
-Use `rstest` parameterized cases wherever the cases differ only in input and
-expected message; do not write twelve near-identical functions. Note the
-Whitaker `test_must_not_have_example` lint: test functions must not carry
-`# Examples` sections in their doc comments.
+    verify_that!(
+        extracted.args,
+        elements_are![matches_pattern!(Arg::Fixture {
+            name: displays_as(eq("rstest_bdd_harness_context")),
+            pat: displays_as(eq("ctx")),
+        })]
+    )
+}
+```
 
-Add a property test to a new `.../classify/harness_context/prop_tests.rs` (keep
-it separate from the existing `classify/prop_tests.rs`, which has only 69 lines
-of head-room):
+Match `name` through `displays_as` rather than comparing `syn::Ident` values
+directly: `Ident` implements `Display`, so the failure message prints the
+identifier the classifier actually produced, which is exactly the information
+needed to diagnose a wrong key.
+
+1. `#[harness_context] ctx: &TestCtx` produces one `Arg::Fixture` named
+   `rstest_bdd_harness_context`, as above.
+2. **The equivalence contract.** `#[harness_context] ctx: &TestCtx` and
+   `#[from(rstest_bdd_harness_context)] ctx: &TestCtx` produce *equal*
+   `ExtractedArgs`. Assert the equality directly with
+   `pretty_assertions::assert_eq!` so a mismatch renders as a structural diff
+   of the two argument vectors rather than two unrelated shape failures. This
+   is the contract the roadmap item promises, so it gets its own test with a
+   name that says so. `Arg` derives the traits needed for this; if it does not
+   derive `PartialEq`, add the derive — it is test-only surface on an internal
+   enum.
+3. A parameter literally named `rstest_bdd_harness_context` produces the same
+   `Arg::Fixture`. This spelling already works; the test pins it against
+   regression.
+4. `#[harness_context] ctx: &mut TestCtx` is classified as a fixture whose type
+   is a mutable reference, so mutable harness context still works.
+5. `#[harness_context]` alongside ordinary placeholder and fixture parameters
+   leaves those unaffected and consumes no placeholder. This test checks
+   several independent properties of one classification, so mark it `#[gtest]`
+   and use `expect_that!` for each — a single run then reports every property
+   that broke, not just the first:
+
+   ```rust,ignore
+   #[gtest]
+   fn marker_coexists_with_placeholders_and_fixtures() -> googletest::Result<()> {
+       let extracted = classify_step(
+           "fn s(count: u32, #[harness_context] ctx: &TestCtx, pool: DbPool) {}",
+           &["count"],
+       )?;
+
+       expect_that!(extracted.args, len(eq(3)));
+       expect_that!(extracted.args[0], matches_pattern!(Arg::Step { .. }));
+       expect_that!(
+           extracted.args[1],
+           matches_pattern!(Arg::Fixture {
+               name: displays_as(eq("rstest_bdd_harness_context")),
+           })
+       );
+       expect_that!(
+           extracted.args[2],
+           matches_pattern!(Arg::Fixture { name: displays_as(eq("pool")) })
+       );
+       Ok(())
+   }
+   ```
+
+6. `HARNESS_CONTEXT_FIXTURE` parses as a `syn::Ident`, guarding the
+   `Ident::new` invariant introduced in Milestone 4:
+   `verify_that!(syn::parse_str::<syn::Ident>(HARNESS_CONTEXT_FIXTURE), ok(anything))`.
+
+**Unhappy-path cases.** Each asserts that classification fails *and* that the
+message names the conflict. `err(displays_as(contains_substring(…)))` states
+both in one expression and prints the actual diagnostic when it does not match:
+
+```rust,ignore
+#[rstest]
+#[case::with_from("#[harness_context] #[from(x)] c: &C", "cannot be combined with `#[from]`")]
+#[case::with_datatable("#[harness_context] #[datatable] c: &C", "cannot be combined with `#[datatable]`")]
+#[case::with_step_args("#[harness_context] #[step_args] c: &C", "cannot be combined with `#[step_args]`")]
+#[case::argued("#[harness_context(gpui)] c: &C", "does not take arguments")]
+#[case::duplicated("#[harness_context] #[harness_context] c: &C", "duplicate `#[harness_context]`")]
+#[googletest::test]
+fn rejects_conflicting_annotations(
+    #[case] param: &str,
+    #[case] expected: &str,
+) -> googletest::Result<()> {
+    let result = classify_step(&format!("fn s({param}) {{}}"), &[]);
+
+    verify_that!(result, err(displays_as(contains_substring(expected))))
+}
+```
+
+The argued and duplicated cases come free from `extract_flag_attribute`; the
+other three are new diagnostics added in Milestone 4. Settle the exact wording
+when writing these cases, then reuse those constants in the implementation so
+the test and the diagnostic cannot drift.
+
+A sixth unhappy case needs its own function because it also arranges a
+placeholder set: `#[harness_context] count: &Ctx` against a pattern containing
+`{count}` must fail with a message naming the placeholder.
+
+Note the Whitaker `test_must_not_have_example` lint: test functions must not
+carry `# Examples` sections in their doc comments.
+
+**Property test.** Add `.../classify/harness_context/prop_tests.rs` as a new
+file — the existing `classify/prop_tests.rs` has only 69 lines of head-room.
 
 > For any valid Rust identifier `p` that is not a reserved parameter name, and
 > for each of the three request spellings, `extract_args` classifies the
-> parameter as `Arg::Fixture` with `name == "rstest_bdd_harness_context"`,
-> consuming no placeholder.
+> parameter as `Arg::Fixture` with name `rstest_bdd_harness_context`, consuming
+> no placeholder.
 
-Generate `p` from a strategy over `[A-Za-z_][A-Za-z0-9_]{0,15}`, filtered
-against Rust keywords and the reserved names `datatable` and `docstring`.
-Prefer a constructive strategy over heavy `prop_filter` use so shrinking stays
-useful.
+Generate `p` from a strategy over `[A-Za-z_][A-Za-z0-9_]{0,15}`, excluding Rust
+keywords and the reserved names `datatable` and `docstring`. Prefer a
+constructive strategy over heavy `prop_filter` use so shrinking stays useful.
+
+Because Milestone 2 enables `googletest`'s `proptest` feature, the property
+body uses the same matchers as the unit tests — a failing `verify_that!`
+converts to a `TestCaseError` through `?`, so there is no need to drop to
+`prop_assert_eq!` and lose the failure description:
+
+```rust,ignore
+proptest! {
+    #[test]
+    fn every_spelling_binds_the_reserved_key(param in param_ident(), spelling in spelling()) {
+        let extracted = classify_step(&spelling.render(&param), &[])
+            .map_err(|e| TestCaseError::fail(e.to_string()))?;
+
+        verify_that!(
+            extracted.args,
+            elements_are![matches_pattern!(Arg::Fixture {
+                name: displays_as(eq("rstest_bdd_harness_context")),
+            })]
+        )?;
+    }
+}
+```
+
+If that integration does not behave as documented, fall back to `prop_assert!`
+with an explicit message and record the deviation in
+`Surprises & discoveries` — do not spend more than one attempt on it.
 
 Validation (red): the focused run must fail, and the failure must be the
 assertion, not a compile error.
@@ -720,9 +933,19 @@ add it to `crates/rstest-bdd-macros` dev-dependencies. Snapshot the output of
 `#[cfg(test)]` module). If constructing a `WrapperConfig` in a unit test proves
 disproportionate — more than roughly thirty lines of setup — fall back to
 snapshotting the `Debug` rendering of `ExtractedArgs` instead, and record the
-substitution in `Surprises & discoveries`. Either way, the token-stream
-*equality* assertion from Milestone 3 case 2 remains the primary equivalence
-evidence; the snapshot is a format-drift tripwire, not the contract.
+substitution in `Surprises & discoveries`.
+
+While here, strengthen the equivalence evidence one level below the snapshot:
+render `generate_wrapper_code` for both spellings and compare the two token
+streams as strings with `pretty_assertions::assert_eq!`. Milestone 3 case 2
+already pins equality at the `ExtractedArgs` level, which is where the
+classifier's contract lives; this pins it at the emitted-code level, which is
+what users actually compile. Both are cheap, and the `pretty_assertions` diff
+makes a divergence readable rather than a wall of tokens. If the
+`WrapperConfig` fallback above was taken, skip this comparison too and say so.
+
+The snapshot is a format-drift tripwire, not the contract. The two equality
+assertions are the contract.
 
 **Behavioural scenario.** This is the end-to-end evidence that the marker works
 at runtime, not merely at expansion time. Add to
@@ -827,9 +1050,18 @@ the marker exists. Note that `make lint` runs
 classification and normalization" with: the new `classify_harness_context`
 stage and why it runs before the placeholder short-circuit; the shared
 `rstest_bdd_policy::HARNESS_CONTEXT_FIXTURE` constant and why the macro crate
-cannot import it from `rstest-bdd`; the `#[step_args]` cross-guard. If
-Milestone 2 went ahead, the `googletest` / `pretty_assertions` subsection lands
-here too.
+cannot import it from `rstest-bdd`; the `#[step_args]` cross-guard.
+
+Milestone 2's assertion-vocabulary subsection also lands in this document. It
+was drafted there so the convention was in place before the tests that follow
+it; confirm at this point that it still matches what the tests actually do, and
+reconcile the two if they have diverged. This subsection is the durable
+artefact of the `googletest` adoption — it is what makes the convention
+followable by the next contributor rather than a one-off in a single test
+module. Record: when to reach for a matcher over `assert_eq!`, the `#[rstest]` +
+`#[googletest::test]` ordering rule and why the alias is needed,
+`expect_that!` requiring `#[gtest]`, and the division of labour between
+`googletest`, `pretty_assertions`, and `insta`.
 
 **`docs/rstest-bdd-design.md` §2.7.6.4** (lines 2125-2136). The section
 currently lists "an explicit harness-context parameter marker" among
@@ -991,9 +1223,11 @@ Phrased as behaviour a human can verify.
    `fn s(#[from(rstest_bdd_harness_context)] ctx: &TokioTestContext)` still
    compiles and behaves identically. Verified by the pre-existing tests under
    `crates/rstest-bdd-harness-tokio/tests/`, unmodified and still passing.
-3. Both spellings produce identical generated code. Verified by the token
-   stream equality assertion in
-   `crates/rstest-bdd-macros/src/codegen/wrapper/args/classify/harness_context/tests.rs`.
+3. Both spellings produce identical generated code. Verified at two levels: a
+   `pretty_assertions::assert_eq!` over the `ExtractedArgs` each spelling
+   produces, in
+   `crates/rstest-bdd-macros/src/codegen/wrapper/args/classify/harness_context/tests.rs`,
+   and a second over the rendered wrapper token streams (Milestone 6).
 4. `#[harness_context]` combined with `#[from]`, `#[datatable]`, or
    `#[step_args]`, or applied to a placeholder-bound parameter, or given
    arguments, or duplicated, produces a targeted diagnostic naming the
@@ -1105,11 +1339,15 @@ Crates used, all already in the workspace unless noted:
 - `rstest` — unit test parameterization.
 - `proptest` — the property test. Already a dev-dependency of
   `rstest-bdd-macros`.
+- `googletest` 0.14.3 with the `proptest` feature — matcher-based assertions
+  (`matches_pattern!`, `elements_are!`, `err`, `displays_as`,
+  `contains_substring`, `len`) and the `#[gtest]` / `#[googletest::test]`
+  attributes. **New workspace dependency**, added in Milestone 2.
+- `pretty_assertions` 1.4.1 — structural diffs for whole-value equality
+  assertions. **New workspace dependency**, added in Milestone 2.
 - `trybuild` — compile-fail fixtures. A dev-dependency of `rstest-bdd`.
 - `insta` — the codegen snapshot. A workspace dependency; **to be added** as a
-  dev-dependency of `rstest-bdd-macros`.
-- `googletest`, `pretty_assertions` — **new workspace dependencies**, subject
-  to the Milestone 2 go/no-go.
+  dev-dependency of `rstest-bdd-macros` in Milestone 6.
 
 Explicit non-goals, deferred with rationale:
 
