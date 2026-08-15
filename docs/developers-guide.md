@@ -1289,6 +1289,11 @@ When maintaining the pin:
 2. Re-run `make lint-whitaker`, then the full `make lint` gate.
 3. Update ADR-013 only if the mechanism or adopted lint set changes.
 
+The root `clippy.toml` sets `allow-expect-in-tests = true` and
+`allow-panic-in-tests = true`. These keys are narrowly scoped: recognized
+built-in `#[test]` and `rstest` cases may use `.expect(...)` and `panic!(...)`
+at their test boundary; they do not permit `.unwrap()` or use in shared helpers.
+
 Outside recognized test cases, do not replace invariant checks with
 `.expect(...)`, `.unwrap()`, or `unwrap_or_else(|| panic!(...))`. Use a
 copyable invariant check such as

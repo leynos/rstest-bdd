@@ -101,6 +101,7 @@ GPUI fixture passed in 21.972 seconds. Evidence:
 `cargo nextest run --profile long --workspace --all-targets --all-features`
 completed in 23.54 s. Neither run emitted timeout warnings; the configured
 `20m` default and `30m` long-profile global budgets retain cold-cache headroom.
+This validation completes the timeout-budget remediation.
 
 ______________________________________________________________________
 
