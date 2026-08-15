@@ -97,6 +97,9 @@
   `Option<Box<dyn Any>>`.
 - [ADR 016: pin the nightly rustfmt toolchain][adr-016] records the formatting
   toolchain and workspace lint-inheritance decision.
+- [ADR 017: toolchain-aware adapter fallback diagnostics][adr-017] records the
+  toolchain-specific warning and pure-resolution decision for first-party
+  adapter fallbacks.
 
 ## Execution plans
 
@@ -114,6 +117,7 @@
 [adr-014]: adr-014-retain-users-guide-link-validator.md
 [adr-015]: adr-015-insert-outcome-for-step-return-overrides.md
 [adr-016]: adr-016-pinned-nightly-rustfmt.md
+[adr-017]: adr-017-toolchain-aware-adapter-fallback-diagnostics.md
 [complexity-guide]: complexity-antipatterns-and-refactoring-strategies.md
 [cucumber-async]: cucumber-rs-migration-and-async-patterns.md
 [dependency-injection]: reliable-testing-in-rust-via-dependency-injection.md

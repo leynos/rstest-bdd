@@ -1094,6 +1094,9 @@ attribute-policy type path.
 
 #### Adapter fallback diagnostics
 
+The accepted toolchain and ownership contract for this boundary is recorded in
+[ADR-017](adr-017-toolchain-aware-adapter-fallback-diagnostics.md).
+
 The macro code-generation layer owns first-party adapter fallback diagnostics in
 `codegen::adapter_fallback`. An unresolved path qualifies only when the
 segment immediately before the adapter type is the canonical Tokio or GPUI
@@ -1141,7 +1144,11 @@ runtime-deprecation and registry diagnostics. It uses native
 no-op on stable toolchains and in tests. Keep those call sites behind this
 wrapper; adapter fallback diagnostics retain their separate generated
 deprecated-item path on stable toolchains. `proc-macro-error3` supports other
-macro errors; it does not emit adapter fallback warnings.
+fatal macro errors through `abort!`, `entry_point`, and `proc_macro_error`; it
+does not emit adapter fallback warnings. ADR-017 records why
+`proc-macro-error2` is not reintroduced: review identified it as unmaintained,
+and it cannot provide the stable warning channel that the generated deprecation
+diagnostic supplies.
 
 ### Third-party adapter crates
 
