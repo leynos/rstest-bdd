@@ -14,6 +14,7 @@ use support::{ScenarioBuilder, TestScenario};
 use tempfile::TempDir;
 
 /// Fixture providing a fresh scenario builder for each test.
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn scenario_builder() -> ScenarioBuilder { ScenarioBuilder::new() }
 

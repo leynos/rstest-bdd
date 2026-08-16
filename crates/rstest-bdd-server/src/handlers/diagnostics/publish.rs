@@ -241,6 +241,7 @@ mod tests {
     ///
     /// Both payload snapshots publish from the same workspace; only the file
     /// they target and the diagnostics they compute differ.
+    #[rstest_bdd_test_macros::allow_fixture_expansion_lints]
     #[fixture]
     fn publish_scenario() -> SingleFilePairScenario {
         ScenarioBuilder::new().with_single_file_pair(FEATURE_SOURCE, RUST_SOURCE)

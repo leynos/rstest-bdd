@@ -192,6 +192,7 @@ mod tests {
 
     use super::*;
 
+    #[rstest_bdd_test_macros::allow_fixture_expansion_lints]
     #[fixture]
     fn create_test_workspace() -> io::Result<TempDir> {
         let dir = TempDir::new()?;

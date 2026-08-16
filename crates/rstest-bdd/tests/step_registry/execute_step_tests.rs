@@ -31,6 +31,7 @@ fn make_request(index: usize, keyword: StepKeyword, text: &str) -> StepExecution
 }
 
 /// Shared fixture providing a default `StepContext` for test injection.
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn ctx() -> StepContext<'static> { StepContext::default() }
 

@@ -1363,6 +1363,21 @@ findings, so exclusions are the only sanctioned escape hatch for
 legitimately-ambient code such as test-support crates and integration test
 crates.
 
+
+#### Fixture-expansion lint allowance
+
+`crates/rstest-bdd-test-macros` owns the narrow `unused_braces` allowance
+needed for `rstest` fixture expansion. Apply its
+`#[rstest_bdd_test_macros::allow_fixture_expansion_lints]` attribute
+immediately above `#[fixture]` in workspace test code. It emits the allowance
+only for that fixture and pairs it with Clippy's conditional `allow_attributes`
+expectation.
+
+The crate is a test-only development dependency: production crates and
+non-fixture test helpers must not depend on it. Do not extend the attribute to
+other lints or apply it to arbitrary functions; add a separately justified,
+scoped mechanism if another macro expansion needs one.
+
 When maintaining the pin:
 
 1. Update `WHITAKER_INSTALLER_VERSION` in `.github/workflows/ci.yml`; the

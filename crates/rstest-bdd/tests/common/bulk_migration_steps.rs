@@ -26,6 +26,7 @@ pub struct LedgerState {
 /// Deriving `ScenarioState` gives `LedgerState` a `reset()` that clears every
 /// slot; `rstest` constructs a new instance per scenario, so no `Drop` guard is
 /// needed for the fixture-based shape.
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 pub fn ledger_state() -> LedgerState { LedgerState::default() }
 

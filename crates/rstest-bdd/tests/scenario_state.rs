@@ -9,6 +9,7 @@ struct CartState {
     total: Slot<i32>,
 }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn cart_state() -> CartState { CartState::default() }
 

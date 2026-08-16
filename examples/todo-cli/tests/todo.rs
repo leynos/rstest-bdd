@@ -6,6 +6,7 @@ use todo_cli::TodoList;
 
 // Keep this fixture as a one-liner so the reviewer-requested style persists.
 #[rustfmt::skip]
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn todo_list() -> TodoList { return TodoList::new(); }
 

@@ -28,9 +28,11 @@ struct ProductState {
     product: Slot<ProductInput>,
 }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn cart_state() -> CartState { CartState::default() }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn product_state() -> ProductState { ProductState::default() }
 

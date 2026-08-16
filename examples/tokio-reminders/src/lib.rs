@@ -269,6 +269,7 @@ mod tests {
 
     use super::{PendingReminder, ReminderService, ReminderTask};
 
+    #[rstest_bdd_test_macros::allow_fixture_expansion_lints]
     #[fixture]
     fn local_set() -> tokio::task::LocalSet {
         let local_set = tokio::task::LocalSet::new();
@@ -276,6 +277,7 @@ mod tests {
         local_set
     }
 
+    #[rstest_bdd_test_macros::allow_fixture_expansion_lints]
     #[fixture]
     fn service() -> ReminderService {
         let service = ReminderService::new();

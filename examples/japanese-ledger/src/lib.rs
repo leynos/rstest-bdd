@@ -89,6 +89,7 @@ mod tests {
         }
     }
 
+    #[rstest_bdd_test_macros::allow_fixture_expansion_lints]
     #[fixture]
     fn ledger() -> HouseholdLedger {
         let ledger = HouseholdLedger::new();

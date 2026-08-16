@@ -183,6 +183,7 @@ mod tests {
     use std::path::PathBuf;
     use tempfile::TempDir;
 
+    #[rstest_bdd_test_macros::allow_fixture_expansion_lints]
     #[fixture]
     fn test_state() -> ServerState {
         ServerState::new(ServerConfig::default())

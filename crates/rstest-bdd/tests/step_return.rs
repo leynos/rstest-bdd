@@ -13,6 +13,7 @@ struct PrimaryValue(i32);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct SecondaryValue(i32);
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn number() -> Number { Number(1) }
 
@@ -136,12 +137,15 @@ fn fallible_result_fails() -> Result<(), &'static str> {
 #[scenario(path = "tests/features/step_return.feature")]
 fn scenario_step_return(number: Number) { let _ = number; }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn primary_value() -> PrimaryValue { PrimaryValue(10) }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn competing_primary_value() -> PrimaryValue { PrimaryValue(15) }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn secondary_value() -> SecondaryValue { SecondaryValue(20) }
 

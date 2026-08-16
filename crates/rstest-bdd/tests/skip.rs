@@ -41,9 +41,11 @@ impl Drop for FailOnSkippedGuard {
     fn drop(&mut self) { bdd::config::clear_fail_on_skipped_override(); }
 }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn fail_on_enabled() -> FailOnSkippedGuard { FailOnSkippedGuard::enable() }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn fail_on_disabled() -> FailOnSkippedGuard { FailOnSkippedGuard::disable() }
 

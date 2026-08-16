@@ -113,6 +113,7 @@ fn classify_fixture_or_step_falls_back_to_fixture() {
 
 /// Accumulator holding a `#[step_args]` struct that owns the `blocked`
 /// placeholder, for the conflict-guard cases.
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn step_struct_extracted() -> ExtractedArgs {
     let mut extracted = ExtractedArgs::default();

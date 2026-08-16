@@ -117,6 +117,7 @@ mod tests {
 
     use super::CounterApp;
 
+    #[rstest_bdd_test_macros::allow_fixture_expansion_lints]
     #[fixture]
     fn counter() -> CounterApp {
         let app = CounterApp::new(0);

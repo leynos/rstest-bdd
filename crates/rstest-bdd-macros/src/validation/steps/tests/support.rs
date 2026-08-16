@@ -123,5 +123,6 @@ fn temp_working_dir_inner() -> std::io::Result<TempWorkingDir> {
     Ok(TempWorkingDir::new(temp, temp_path))
 }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 pub(super) fn temp_working_dir() -> std::io::Result<TempWorkingDir> { temp_working_dir_inner() }

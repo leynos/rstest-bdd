@@ -32,6 +32,7 @@ mod shared {
     }
 
     /// Fixture providing a fresh [`LedgerState`] per scenario.
+    #[rstest_bdd_test_macros::allow_fixture_expansion_lints]
     #[fixture]
     pub fn ledger_state() -> LedgerState {
         LedgerState::default()

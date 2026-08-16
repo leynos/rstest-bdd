@@ -52,6 +52,7 @@ impl Drop for ScenarioStateCleanup {
     fn drop(&mut self) { reset_state_after_scenario(); }
 }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn scenario_state_cleanup() -> ScenarioStateCleanup {
     reset_state_before_assignment();

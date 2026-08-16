@@ -41,9 +41,11 @@ mod tests {
         test_utils::{STD_HARNESS_PANIC_MESSAGE, panic_payload_matches},
     };
 
+    #[rstest_bdd_test_macros::allow_fixture_expansion_lints]
     #[fixture]
     fn harness() -> StdHarness { StdHarness::new() }
 
+    #[rstest_bdd_test_macros::allow_fixture_expansion_lints]
     #[fixture]
     fn metadata() -> ScenarioMetadata {
         ScenarioMetadata::new(

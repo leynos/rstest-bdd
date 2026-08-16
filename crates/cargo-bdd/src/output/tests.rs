@@ -6,6 +6,7 @@ use rstest::{fixture, rstest};
 use super::*;
 use crate::registry::ScenarioOutcome;
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn sample_scenario() -> Scenario {
     Scenario {
@@ -43,6 +44,7 @@ fn render_scenarios(scenarios: &[Scenario], options: ScenarioDisplayOptions) -> 
 /// exercise `append_scenario_annotations`; this one forces the
 /// `[forced failure]` marker so a regression in that fragment (or its
 /// ordering relative to tags and the reason) is caught.
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn annotated_scenario() -> Scenario {
     Scenario {
@@ -56,6 +58,7 @@ fn annotated_scenario() -> Scenario {
 /// false so `append_scenario_annotations` takes its second branch: the
 /// `[forced failure]` marker suppresses `[skip disallowed]`, so only this
 /// combination renders it.
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn skip_disallowed_scenario() -> Scenario {
     Scenario {

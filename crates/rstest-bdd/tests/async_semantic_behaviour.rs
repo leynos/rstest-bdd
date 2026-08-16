@@ -30,15 +30,19 @@ use rstest_bdd::{assert_scenario_skipped, panic_message, reporting::drain as dra
 use rstest_bdd_macros::{given, scenario, then, when};
 use serial_test::serial;
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn semantic_order_fixture() -> RefCell<Vec<String>> { RefCell::new(vec!["fixture-created".into()]) }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn semantic_value_fixture() -> SemanticValue { SemanticValue(1) }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn semantic_shared_counter() -> RefCell<usize> { RefCell::new(0) }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn semantic_cleanup_probe() -> CleanupProbe { CleanupProbe }
 

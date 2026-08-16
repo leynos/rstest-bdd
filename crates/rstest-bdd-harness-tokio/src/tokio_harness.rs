@@ -87,6 +87,7 @@ mod tests {
 
     use super::{TokioHarness, TokioTestContext};
 
+    #[rstest_bdd_test_macros::allow_fixture_expansion_lints]
     #[fixture]
     fn harness() -> TokioHarness { TokioHarness::new() }
 

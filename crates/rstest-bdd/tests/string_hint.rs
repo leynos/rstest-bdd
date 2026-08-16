@@ -8,6 +8,7 @@ use std::cell::RefCell;
 use rstest::fixture;
 use rstest_bdd_macros::{given, scenario, then};
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn message() -> RefCell<String> { RefCell::new(String::new()) }
 

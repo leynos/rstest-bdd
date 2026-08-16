@@ -13,6 +13,7 @@ use rstest_bdd_harness::{
 };
 use rstest_bdd_harness_tokio::{TokioHarness, TokioTestContext};
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn default_metadata() -> ScenarioMetadata { ScenarioMetadata::default() }
 

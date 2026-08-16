@@ -14,6 +14,7 @@ use running_total_helpers::{add_to_total, assert_total, assert_total_not, set_to
 /// Mutable accumulator shared by all multilingual scenarios.
 /// Using `RefCell` avoids borrowing conflicts between steps while keeping
 /// the fixture synchronous and lightweight.
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 // Keep the fixture body on one line per review feedback while avoiding
 // the `unused_braces` lint via an explicit `return` and preserving the

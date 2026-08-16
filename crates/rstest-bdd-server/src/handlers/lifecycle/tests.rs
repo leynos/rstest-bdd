@@ -22,11 +22,13 @@ use crate::handlers::{
     handle_did_save_text_document,
 };
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn create_test_state() -> ServerState {
     ServerState::new(ServerConfig::default())
 }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn create_init_params() -> InitializeParams {
     InitializeParams {
@@ -37,6 +39,7 @@ fn create_init_params() -> InitializeParams {
 }
 
 /// Fixture providing a platform-specific test path.
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn platform_test_path() -> PathBuf {
     #[cfg(windows)]

@@ -28,6 +28,7 @@ use rstest_bdd_harness::{HarnessAdapter, ScenarioMetadata, ScenarioRunRequest, S
 
 use super::GpuiHarness;
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn harness() -> GpuiHarness { GpuiHarness::new() }
 

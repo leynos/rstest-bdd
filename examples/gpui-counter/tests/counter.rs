@@ -8,6 +8,7 @@ use gpui_counter::CounterApp;
 use rstest::fixture;
 use rstest_bdd_macros::{given, scenario, then, when};
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn app() -> CounterApp {
     let app = CounterApp::new(0);
