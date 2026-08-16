@@ -13,10 +13,8 @@ use crate::return_classifier::ReturnKind;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 
-#[path = "assembly/async_wrapper.rs"]
 mod async_wrapper;
 
-#[path = "assembly/body.rs"]
 mod body;
 
 const WRAPPER_EXPECT_REASON: &str = "rstest-bdd step wrapper pattern requires these patterns \

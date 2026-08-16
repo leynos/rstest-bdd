@@ -218,7 +218,7 @@ Proposed Design:
 
 This requires changes to both the runtime and macro crates.
 
-1. `StoreInContext` **Trait** (in `crates/rstest-bdd/src/types.rs`): A new
+1. `StoreInContext` **Trait** (in `crates/rstest-bdd/src/types/mod.rs`): A new
    trait will be defined to associate a return type with a unique key for
    storage in the `StepContext`. The key will align with the fixture whose type
    matches the returned value.

@@ -11,6 +11,6 @@ crates/rstest-bdd-server/src/handlers/diagnostics/mod.rs
 # Comprehensive doctests for all public methods plus regression test for deferred execution
 examples/tokio-reminders/src/lib.rs
 # Added during Result fixture refactoring: comprehensive test coverage for error type resolution
-crates/rstest-bdd-macros/src/macros/scenarios/test_generation/tests.rs
+crates/rstest-bdd-macros/src/macros/scenarios/test_generation/tests/mod.rs
 # Added during roadmap 10.1.2 diagnostics documentation: module docs push this just over the limit.
 crates/rstest-bdd/src/registry/mod.rs
