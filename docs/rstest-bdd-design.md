@@ -736,9 +736,16 @@ sequenceDiagram
   end
 ```
 
-Continuous integration verifies Markdown formatting and diagram rendering.
-Every pull request runs `make fmt`, `make markdownlint`, and `make nixie`; the
-job fails if formatting or Mermaid rendering errors are detected.
+Continuous integration verifies Rust and Markdown formatting and diagram
+rendering. The tools lane installs the pinned `nightly-2026-08-07` `rustfmt`
+toolchain and runs `make check-fmt`; contributors use `make fmt` with the same
+`FMT_TOOLCHAIN` rather than stable `cargo fmt`. Every workspace member,
+including examples, declares `[lints] workspace = true` so the root Clippy,
+Rust, and Rustdoc policy applies consistently. The remaining documentation
+checks run `make markdownlint` and `make nixie`; the job fails if any
+formatting or Mermaid rendering check fails. See
+[ADR-016](adr-016-pinned-nightly-rustfmt.md) for the accepted toolchain and
+lint-inheritance decision.
 
 Because registration occurs as the compiler encounters each attribute, step
 definitions must appear earlier in a module than any `#[scenario]` that uses

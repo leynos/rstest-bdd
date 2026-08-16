@@ -95,6 +95,8 @@
 - [ADR 015: name the step-return override outcome][adr-015] records the
   decision to return `InsertOutcome` from `StepContext::insert_value` instead of
   `Option<Box<dyn Any>>`.
+- [ADR 016: pin the nightly rustfmt toolchain][adr-016] records the formatting
+  toolchain and workspace lint-inheritance decision.
 
 ## Execution plans
 
@@ -111,6 +113,7 @@
 [adr-013]: adr-013-adopt-whitaker-no-unwrap-or-else-panic.md
 [adr-014]: adr-014-retain-users-guide-link-validator.md
 [adr-015]: adr-015-insert-outcome-for-step-return-overrides.md
+[adr-016]: adr-016-pinned-nightly-rustfmt.md
 [complexity-guide]: complexity-antipatterns-and-refactoring-strategies.md
 [cucumber-async]: cucumber-rs-migration-and-async-patterns.md
 [dependency-injection]: reliable-testing-in-rust-via-dependency-injection.md
