@@ -1818,6 +1818,19 @@ decoupled from `rstest-bdd` and `rstest-bdd-macros`.
 
 ### Observability guidance
 
+Every crate in this workspace emits diagnostics through `tracing`; see
+[ADR 020](adr-020-consolidate-on-the-tracing-logging-facade.md). Do not
+introduce `log::` emission sites. `rstest-bdd` depends on `log` only to detect
+whether a `log` listener is installed, and enables tracing's `log` feature so a
+consumer running `env_logger` still receives warnings while no `tracing`
+subscriber is set.
+
+Warnings raised from `StepContext` go through the private `context::warnings`
+module, which mirrors the message to stderr when neither delivery route has a
+listener. That mirror is what keeps a diagnostic visible in the common case of
+a test binary with no logging configured at all, so new step-context warnings
+should use it rather than calling `tracing::warn!` directly.
+
 Harness implementations should emit a `tracing::error!` event before returning
 `Err` from `HarnessAdapter::run`. Use structured fields so downstream test
 runners and CI logs can filter by harness and scenario:

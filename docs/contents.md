@@ -105,6 +105,9 @@
   structured scenario plan and runtime runner for non-Gherkin frontends.
 - [ADR 019: type-directed step-return classification][adr-019] records the
   inherent-method dispatch that makes local `Result` aliases fallible.
+- [ADR 020: consolidate on the `tracing` logging facade][adr-020] records the
+  decision to emit every workspace diagnostic through `tracing`, keeping `log`
+  only to detect an installed `log` listener.
 
 ## Execution plans
 
@@ -125,6 +128,7 @@
 [adr-017]: adr-017-toolchain-aware-adapter-fallback-diagnostics.md
 [adr-018]: adr-018-parser-neutral-scenario-execution.md
 [adr-019]: adr-019-type-directed-step-return-classification.md
+[adr-020]: adr-020-consolidate-on-the-tracing-logging-facade.md
 [complexity-guide]: complexity-antipatterns-and-refactoring-strategies.md
 [cucumber-async]: cucumber-rs-migration-and-async-patterns.md
 [dependency-injection]: reliable-testing-in-rust-via-dependency-injection.md
