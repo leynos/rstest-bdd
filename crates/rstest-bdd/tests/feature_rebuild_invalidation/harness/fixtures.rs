@@ -259,8 +259,13 @@ pub(crate) fn restore_feature_file() {
 }
 
 /// Normalize a path for stable dep-info comparison: `/` separators, folded
-/// case (Windows filesystems are case-insensitive; rustc writes paths as
-/// given).
+/// case (Windows filesystems are case-insensitive), and collapsed `..`
+/// segments — rustc records `include_bytes!` paths in their canonicalized
+/// form, so a needle carrying an unresolved `../../target` run would never
+/// match.
 pub(crate) fn normalize_dep_path(path: &Path) -> String {
-    path.to_string_lossy().replace('\\', "/").to_lowercase()
+    normalize_lexically(path)
+        .to_string_lossy()
+        .replace('\\', "/")
+        .to_lowercase()
 }
