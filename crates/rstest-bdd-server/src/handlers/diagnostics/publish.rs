@@ -9,9 +9,7 @@
 
 use std::path::Path;
 
-use async_lsp::lsp_types::{
-    Diagnostic, DiagnosticSeverity, PublishDiagnosticsParams, Range, Url, notification,
-};
+use async_lsp::lsp_types::{Diagnostic, PublishDiagnosticsParams, Url, notification};
 use tracing::{debug, warn};
 
 use crate::indexing::RustStepIndexDiagnostic;
@@ -19,11 +17,9 @@ use crate::server::ServerState;
 
 use super::compute::{compute_unimplemented_step_diagnostics, compute_unused_step_diagnostics};
 use super::placeholder::compute_signature_mismatch_diagnostics;
+use super::rust_index::build_rust_index_diagnostic;
 use super::scenario_outline::compute_scenario_outline_column_diagnostics;
 use super::table_docstring::compute_table_docstring_mismatch_diagnostics;
-use super::{
-    CODE_INVALID_STEP_ATTRIBUTE_ARGUMENTS, CODE_MULTIPLE_STEP_ATTRIBUTES, DIAGNOSTIC_SOURCE,
-};
 
 /// Compute all diagnostics for a feature file, or `None` when the file has
 /// no feature index (in which case nothing is published, preserving any
@@ -48,7 +44,7 @@ fn compute_feature_file_diagnostics(
 /// Compute all diagnostics for a Rust step definition file.
 ///
 /// An empty vector is still published so stale diagnostics are cleared.
-fn compute_rust_file_diagnostics(
+pub(super) fn compute_rust_file_diagnostics(
     state: &ServerState,
     rust_path: &Path,
     indexing_diagnostics: &[RustStepIndexDiagnostic],
@@ -60,32 +56,6 @@ fn compute_rust_file_diagnostics(
     diagnostics.extend(compute_unused_step_diagnostics(state, rust_path));
     diagnostics.extend(compute_signature_mismatch_diagnostics(state, rust_path));
     diagnostics
-}
-
-/// Convert a recoverable Rust indexing failure into an LSP warning.
-///
-/// Indexing diagnostics currently identify the affected function but do not
-/// retain a source span, so the LSP range is the document origin. This keeps
-/// the result wrapper independent from server-owned source caches.
-fn build_rust_index_diagnostic(diagnostic: &RustStepIndexDiagnostic) -> Diagnostic {
-    let code = match diagnostic {
-        RustStepIndexDiagnostic::MultipleStepAttributes { .. } => CODE_MULTIPLE_STEP_ATTRIBUTES,
-        RustStepIndexDiagnostic::InvalidStepAttributeArguments { .. } => {
-            CODE_INVALID_STEP_ATTRIBUTE_ARGUMENTS
-        }
-    };
-
-    Diagnostic {
-        range: Range::default(),
-        severity: Some(DiagnosticSeverity::WARNING),
-        code: Some(lsp_types::NumberOrString::String(code.to_owned())),
-        code_description: None,
-        source: Some(DIAGNOSTIC_SOURCE.to_owned()),
-        message: diagnostic.to_string(),
-        related_information: None,
-        tags: None,
-        data: None,
-    }
 }
 
 /// Lift [`compute_rust_file_diagnostics`] into the shape `publish_with`
@@ -133,7 +103,7 @@ fn prepare_publish(
 /// All diagnostic publishing must flow through this helper so the guards,
 /// parameter construction, and error logging exist exactly once; see the
 /// developers' guide for ownership and permitted call-sites.
-fn publish_with(
+pub(super) fn publish_with(
     state: &ServerState,
     path: &Path,
     failure_message: &'static str,
@@ -199,31 +169,6 @@ pub fn publish_rust_diagnostics(state: &ServerState, rust_path: &Path) {
         rust_path,
         "failed to publish rust diagnostics",
         compute_rust_file_diagnostics_opt,
-    );
-}
-
-/// Publish all Rust-file diagnostics, including recoverable indexing failures.
-///
-/// This is internal to the save pipeline because [`RustStepIndexDiagnostic`]
-/// values belong to one indexing result; [`ServerState`] deliberately retains
-/// only the reusable file index. Publishing the combined vector in one
-/// notification allows a later successful save to clear stale index warnings.
-pub(crate) fn publish_rust_index_result_diagnostics(
-    state: &ServerState,
-    rust_path: &Path,
-    indexing_diagnostics: &[RustStepIndexDiagnostic],
-) {
-    publish_with(
-        state,
-        rust_path,
-        "failed to publish rust diagnostics",
-        |state, rust_path| {
-            Some(compute_rust_file_diagnostics(
-                state,
-                rust_path,
-                indexing_diagnostics,
-            ))
-        },
     );
 }
 

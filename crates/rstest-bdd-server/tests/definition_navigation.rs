@@ -27,9 +27,8 @@ fn make_params(uri: Url, line: u32, character: u32) -> GotoDefinitionParams {
 
 /// Helper function to index a file by simulating a didSave notification.
 fn index_file(state: &mut ServerState, path: &std::path::Path) {
-    let uri = match Url::from_file_path(path) {
-        Ok(uri) => uri,
-        Err(()) => panic!("test file path must convert to URI: {}", path.display()),
+    let Ok(uri) = Url::from_file_path(path) else {
+        panic!("test file path must convert to URI: {}", path.display());
     };
     let params = DidSaveTextDocumentParams {
         text_document: TextDocumentIdentifier { uri },
@@ -123,9 +122,8 @@ fn get_definition_locations(
     line: u32,
     character: u32,
 ) -> Option<Vec<lsp_types::Location>> {
-    let rust_uri = match Url::from_file_path(rust_path) {
-        Ok(uri) => uri,
-        Err(()) => panic!("Rust path must convert to URI: {}", rust_path.display()),
+    let Ok(rust_uri) = Url::from_file_path(rust_path) else {
+        panic!("Rust path must convert to URI: {}", rust_path.display());
     };
     let params = make_params(rust_uri, line, character);
     let response = match handle_definition(state, &params) {

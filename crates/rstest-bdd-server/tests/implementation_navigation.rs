@@ -26,9 +26,8 @@ fn make_params(uri: Url, line: u32, character: u32) -> GotoImplementationParams 
 }
 
 fn index_file(state: &mut ServerState, path: &std::path::Path) {
-    let uri = match Url::from_file_path(path) {
-        Ok(uri) => uri,
-        Err(()) => panic!("test file path must convert to URI: {}", path.display()),
+    let Ok(uri) = Url::from_file_path(path) else {
+        panic!("test file path must convert to URI: {}", path.display());
     };
     let params = DidSaveTextDocumentParams {
         text_document: TextDocumentIdentifier { uri },
@@ -103,12 +102,11 @@ fn get_implementation_locations(
     line: u32,
     character: u32,
 ) -> Option<Vec<lsp_types::Location>> {
-    let feature_uri = match Url::from_file_path(feature_path) {
-        Ok(uri) => uri,
-        Err(()) => panic!(
+    let Ok(feature_uri) = Url::from_file_path(feature_path) else {
+        panic!(
             "feature path must convert to URI: {}",
             feature_path.display()
-        ),
+        );
     };
     let params = make_params(feature_uri, line, character);
     let response = match handle_implementation(state, &params) {

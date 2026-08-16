@@ -18,6 +18,7 @@
 mod compute;
 mod placeholder;
 mod publish;
+mod rust_index;
 mod scenario_outline;
 mod table_docstring;
 
@@ -60,10 +61,10 @@ const CODE_EXAMPLE_COLUMN_SURPLUS: &str = "example-column-surplus";
 // Re-export public items
 pub use compute::{compute_unimplemented_step_diagnostics, compute_unused_step_diagnostics};
 pub use placeholder::compute_signature_mismatch_diagnostics;
-pub(crate) use publish::publish_rust_index_result_diagnostics;
 pub use publish::{
     publish_all_feature_diagnostics, publish_feature_diagnostics, publish_rust_diagnostics,
 };
+pub(crate) use rust_index::publish_rust_index_result_diagnostics;
 pub use scenario_outline::compute_scenario_outline_column_diagnostics;
 pub use table_docstring::compute_table_docstring_mismatch_diagnostics;
 

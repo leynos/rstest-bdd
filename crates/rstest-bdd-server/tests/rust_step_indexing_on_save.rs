@@ -194,8 +194,9 @@ async fn did_save_publishes_and_clears_recoverable_index_diagnostics() {
     let recoverable_position = output
         .find("multiple-step-attributes")
         .expect("recoverable indexing diagnostic should be published");
-    let clearing_position = output[recoverable_position..]
-        .find("\"diagnostics\":[]")
+    let clearing_position = output
+        .get(recoverable_position..)
+        .and_then(|subsequent_output| subsequent_output.find("\"diagnostics\":[]"))
         .expect("corrected source should clear stale indexing diagnostics");
     assert!(
         clearing_position > 0,
