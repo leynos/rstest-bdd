@@ -201,6 +201,12 @@ enum GeneratedStepItem {
     InlineModule(Vec<Self>),
 }
 
+#[derive(Clone, Copy, Debug)]
+enum GeneratedStepKind {
+    Valid,
+    Invalid,
+}
+
 #[derive(Default)]
 struct GeneratedRustSource {
     source: String,
@@ -214,8 +220,10 @@ impl GeneratedRustSource {
     fn append_items(&mut self, items: &[GeneratedStepItem], indentation: usize) {
         for item in items {
             match item {
-                GeneratedStepItem::Valid => self.append_valid_step(indentation),
-                GeneratedStepItem::Invalid => self.append_invalid_step(indentation),
+                GeneratedStepItem::Valid => self.append_step(indentation, GeneratedStepKind::Valid),
+                GeneratedStepItem::Invalid => {
+                    self.append_step(indentation, GeneratedStepKind::Invalid);
+                }
                 GeneratedStepItem::InlineModule(items) => {
                     self.append_inline_module(items, indentation);
                 }
@@ -223,26 +231,27 @@ impl GeneratedRustSource {
         }
     }
 
-    fn append_valid_step(&mut self, indentation: usize) {
-        let name = format!("valid_step_{}", self.next_function);
+    fn append_step(&mut self, indentation: usize, kind: GeneratedStepKind) {
+        let name = match kind {
+            GeneratedStepKind::Valid => format!("valid_step_{}", self.next_function),
+            GeneratedStepKind::Invalid => format!("invalid_step_{}", self.next_function),
+        };
         self.next_function += 1;
-        self.expected_step_names.push(name.clone());
-        self.append_indentation(indentation);
-        self.source.push_str("#[given(\"valid\")]\n");
-        self.append_indentation(indentation);
-        self.source.push_str("fn ");
-        self.source.push_str(&name);
-        self.source.push_str("() {}\n");
-    }
 
-    fn append_invalid_step(&mut self, indentation: usize) {
-        let name = format!("invalid_step_{}", self.next_function);
-        self.next_function += 1;
-        self.expected_diagnostic_names.push(name.clone());
+        match kind {
+            GeneratedStepKind::Valid => self.expected_step_names.push(name.clone()),
+            GeneratedStepKind::Invalid => self.expected_diagnostic_names.push(name.clone()),
+        }
+
         self.append_indentation(indentation);
-        self.source.push_str("#[given(\"first\")]\n");
-        self.append_indentation(indentation);
-        self.source.push_str("#[when(\"second\")]\n");
+        match kind {
+            GeneratedStepKind::Valid => self.source.push_str("#[given(\"valid\")]\n"),
+            GeneratedStepKind::Invalid => {
+                self.source.push_str("#[given(\"first\")]\n");
+                self.append_indentation(indentation);
+                self.source.push_str("#[when(\"second\")]\n");
+            }
+        }
         self.append_indentation(indentation);
         self.source.push_str("fn ");
         self.source.push_str(&name);
@@ -286,10 +295,14 @@ proptest! {
     ) {
         let mut generated = GeneratedRustSource::default();
         generated.append_items(&items, 0);
-        let expected_step_names = generated.expected_step_names.clone();
-        let expected_diagnostic_names = generated.expected_diagnostic_names.clone();
+        let GeneratedRustSource {
+            source,
+            expected_step_names,
+            expected_diagnostic_names,
+            ..
+        } = generated;
 
-        let result = index_rust_source(PathBuf::from("generated.rs"), &generated.source)
+        let result = index_rust_source(PathBuf::from("generated.rs"), &source)
             .expect("generated source is valid Rust");
         let indexed_step_names: Vec<_> = result
             .index
