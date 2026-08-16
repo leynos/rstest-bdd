@@ -215,8 +215,8 @@ Implementation details:
 
 - Run targeted tests proving current async runtime behaviour remains green.
 - Add or adjust unit tests in
-  `crates/rstest-bdd-macros/src/macros/scenarios/macro_args/tests/mod.rs` to define
-  expected alias-resolution semantics.
+  `crates/rstest-bdd-macros/src/macros/scenarios/macro_args/tests/mod.rs` to
+  define expected alias-resolution semantics.
 - Where useful, add codegen-level unit checks in
   `crates/rstest-bdd-macros/src/codegen/scenario/tests.rs` to ensure attribute
   generation remains compatible for runtime-based async scenarios.

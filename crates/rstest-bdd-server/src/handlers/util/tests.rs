@@ -1,18 +1,17 @@
 //! Unit tests for handler utility helpers.
 
-use super::*;
 use proptest::prelude::*;
 use rstest::{fixture, rstest};
 
-#[fixture]
-fn two_line_source() -> &'static str {
-    "Feature: demo\n  Scenario: s\n"
-}
+use super::*;
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
-fn three_line_source() -> &'static str {
-    "Feature: demo\n  Scenario: s\n    Given a step\n"
-}
+fn two_line_source() -> &'static str { "Feature: demo\n  Scenario: s\n" }
+
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
+#[fixture]
+fn three_line_source() -> &'static str { "Feature: demo\n  Scenario: s\n    Given a step\n" }
 
 #[rstest]
 #[case(0, 0, 0)]

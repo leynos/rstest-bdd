@@ -165,8 +165,8 @@ Thresholds that trigger escalation when breached.
   (no artefact change) and a relative-path `include_str!` resolved from the
   call-site span remain candidates subject to its portability constraints; the
   roadmap 11.3.1 follow-up must select one. The regression test remains
-  portability-aware and runs in its own process against an isolated target
-  or temporary directory, so concurrent tests cannot share build state.
+  portability-aware and runs in its own process against an isolated target or
+  temporary directory, so concurrent tests cannot share build state.
 
 - Risk: ADR-008 remains in `Proposed` status while roadmap items 9.7.1–9.7.4
   shipped "under maintainer authorization". Touching the harness-led-defaults
@@ -402,13 +402,12 @@ Doggylump, Dinolump):
 All four observable outcomes from `Purpose / big picture` are met:
 
 1. **Roadmap records every new or re-scoped work item.** Added items
-   10.2.4–10.2.7
-   (gpui-version banner + mapping table, lint-clean playbook variant, nextest
-   interaction note, bulk-migration cookbook), re-scoped 10.3.1/10.3.2 (naming
-   the correct `ScenarioStore<T>` / `GpuiScenarioStore` types and cleanup-guard
-   fixture macro, with pull-forward scheduling notes), added item 10.3.3 to
-   step 10.3 (feature-file rebuild fix), and amended Phase 12 intro and 12.1.1
-   to record the committed direction and reference ADR-012.
+   10.2.4–10.2.7 (gpui-version banner + mapping table, lint-clean playbook
+   variant, nextest interaction note, bulk-migration cookbook), re-scoped
+   10.3.1/10.3.2 (naming the correct `ScenarioStore<T>` / `GpuiScenarioStore`
+   types and cleanup-guard fixture macro, with pull-forward scheduling notes),
+   added item 10.3.3 to step 10.3 (feature-file rebuild fix), and amended Phase
+   12 intro and 12.1.1 to record the committed direction and reference ADR-012.
 
 2. **Design document `§2.7.6.x` corrected and extended.** Added a which-gpui
    banner and vendored-to-published mapping table in `§2.7.6.2`, ADR references
