@@ -6,15 +6,14 @@
 //!
 //! The indexer intentionally mirrors the macro behaviour:
 //!
-//! - Missing attribute arguments infer the pattern from the function name by
-//!   replacing underscores with spaces.
+//! - Missing attribute arguments infer the pattern from the function name by replacing underscores
+//!   with spaces.
 //! - A string literal containing only whitespace also triggers inference.
-//! - The literal empty string (`""`) registers an empty pattern and does not
-//!   infer.
-//! - A data table is expected when a parameter is named `datatable` or has a
-//!   `#[datatable]` parameter attribute.
-//! - A doc string is expected when a parameter is named `docstring` and its
-//!   type resolves to `String` (either `String` or `std::string::String`).
+//! - The literal empty string (`""`) registers an empty pattern and does not infer.
+//! - A data table is expected when a parameter is named `datatable` or has a `#[datatable]`
+//!   parameter attribute.
+//! - A doc string is expected when a parameter is named `docstring` and its type resolves to
+//!   `String` (either `String` or `std::string::String`).
 
 use std::path::{Path, PathBuf};
 
@@ -22,8 +21,14 @@ use gherkin::StepType;
 use syn::spanned::Spanned;
 
 use super::{
-    IndexedStepDefinition, IndexedStepParameter, RustAttributeSpan, RustFunctionId,
-    RustStepFileIndex, RustStepIndexDiagnostic, RustStepIndexError, RustStepIndexResult,
+    IndexedStepDefinition,
+    IndexedStepParameter,
+    RustAttributeSpan,
+    RustFunctionId,
+    RustStepFileIndex,
+    RustStepIndexDiagnostic,
+    RustStepIndexError,
+    RustStepIndexResult,
 };
 
 mod params;

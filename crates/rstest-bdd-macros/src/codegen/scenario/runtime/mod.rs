@@ -45,29 +45,19 @@ trait ScenarioTestConfig {
     fn metadata(&self) -> ScenarioMetadata<'_>;
 
     /// Extracts the common scenario metadata fields.
-    fn literals_input(&self) -> ScenarioLiteralsInput<'_> {
-        self.metadata().literals_input()
-    }
+    fn literals_input(&self) -> ScenarioLiteralsInput<'_> { self.metadata().literals_input() }
 
     /// Returns the test function block.
-    fn block(&self) -> &syn::Block {
-        self.metadata().block
-    }
+    fn block(&self) -> &syn::Block { self.metadata().block }
 
     /// Returns the return kind for the scenario body.
-    fn return_kind(&self) -> ScenarioReturnKind {
-        self.metadata().return_kind
-    }
+    fn return_kind(&self) -> ScenarioReturnKind { self.metadata().return_kind }
 
     /// Whether the scenario runs asynchronously.
-    fn is_async(&self) -> bool {
-        self.metadata().is_async
-    }
+    fn is_async(&self) -> bool { self.metadata().is_async }
 
     /// Returns the optional harness adapter type path for execution delegation.
-    fn harness(&self) -> Option<&syn::Path> {
-        self.metadata().harness
-    }
+    fn harness(&self) -> Option<&syn::Path> { self.metadata().harness }
 }
 
 impl ScenarioTestConfig for TestTokensConfig<'_> {
@@ -79,9 +69,7 @@ impl ScenarioTestConfig for TestTokensConfig<'_> {
         )
     }
 
-    fn metadata(&self) -> ScenarioMetadata<'_> {
-        self.metadata
-    }
+    fn metadata(&self) -> ScenarioMetadata<'_> { self.metadata }
 
     fn literals_input(&self) -> ScenarioLiteralsInput<'_> { self.metadata.literals_input() }
 
@@ -103,9 +91,7 @@ impl ScenarioTestConfig for OutlineTestTokensConfig<'_> {
         )
     }
 
-    fn metadata(&self) -> ScenarioMetadata<'_> {
-        self.metadata
-    }
+    fn metadata(&self) -> ScenarioMetadata<'_> { self.metadata }
 
     fn literals_input(&self) -> ScenarioLiteralsInput<'_> { self.metadata.literals_input() }
 

@@ -68,8 +68,8 @@ impl<'a> StepExecutorExpectation<'a> {
 /// # Arguments
 ///
 /// * `tokens` - The generated token stream to parse.
-/// * `expectation` - The expected runtime delegation; it provides the function
-///   name to find and a human-readable description for error messages.
+/// * `expectation` - The expected runtime delegation; it provides the function name to find and a
+///   human-readable description for error messages.
 fn assert_step_executor_delegates_to_runtime(
     tokens: proc_macro2::TokenStream,
     expectation: StepExecutorExpectation<'_>,

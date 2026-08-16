@@ -17,8 +17,7 @@
 //! the step attribute (e.g., `#[given("...")]`) to enable accurate diagnostic
 //! highlighting in language server clients.
 
-use std::ops::Deref;
-use std::path::PathBuf;
+use std::{ops::Deref, path::PathBuf};
 
 use gherkin::{Span, StepType};
 
@@ -171,9 +170,7 @@ pub struct RustStepIndexResult {
 impl Deref for RustStepIndexResult {
     type Target = RustStepFileIndex;
 
-    fn deref(&self) -> &Self::Target {
-        &self.index
-    }
+    fn deref(&self) -> &Self::Target { &self.index }
 }
 
 /// Span information for a Rust step attribute and its associated function.
