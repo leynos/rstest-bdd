@@ -1653,6 +1653,7 @@ dependencies = [
  "convert_case 0.6.0",
  "gherkin",
  "googletest",
+ "insta",
  "newt-hype",
  "pretty_assertions",
  "proc-macro-crate 3.5.0",

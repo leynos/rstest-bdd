@@ -172,12 +172,25 @@ fn try_scenario(
         attributes: attributes.as_ref(),
     };
 
-    Ok(generate_scenario_code(
+    let generated = proc_macro2::TokenStream::from(generate_scenario_code(
         &config,
         ctx_prelude.into_iter(),
         ctx_inserts.into_iter(),
         ctx_postlude.into_iter(),
-    ))
+    ));
+
+    // Emit the Cargo rebuild-dependency tracking item as a sibling of the
+    // generated test function, at item scope (Decision D0 in the 10.3.3
+    // ExecPlan): once per bound feature file, independent of scenario codegen,
+    // so a `tags =` filter or a harness-replaced body cannot leave the file
+    // untracked. Milestone 1 scaffold: emits nothing yet (see
+    // `codegen::tracking`).
+    let tracking = crate::codegen::tracking::feature_tracking_item(&path, path_lit.span());
+
+    Ok(proc_macro::TokenStream::from(quote::quote! {
+        #tracking
+        #generated
+    }))
 }
 
 fn parse_tag_filter(
