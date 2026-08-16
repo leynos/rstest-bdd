@@ -1222,9 +1222,19 @@ Expected tail of a green `make lint`: `cargo clippy` finishing with no warnings,
 `cargo doc` completing, the Whitaker suite reporting no findings, and the four
 Python structural checks printing nothing.
 
-Known local-environment noise: `make lint` can report `no_expect_outside_tests`
-against two test-helper files that are green in CI. That finding is
-environmental. Do not "fix" it; note it and move on.
+`make lint` was verified clean on this branch's base (`3e6c367`) on 2026-08-16,
+with no Whitaker findings. It emits two warnings from the repository's own
+`runtime_compat_alias` test, which deliberately exercises a deprecated
+`runtime = "tokio-current-thread"` spelling; those are expected and do not fail
+the gate.
+
+If Whitaker's `no_expect_outside_tests` does fire on new code, it is a real
+finding, not environmental noise. The lint permits `.expect()` only directly
+inside a `#[test]` or `#[rstest]` body, not inside the plain helper functions
+that back them, even within a `#[cfg(test)]` module — and `clippy.toml`'s
+`allow-expect-in-tests` does not silence it, because that setting governs
+Clippy rather than the Dylint suite. In a test helper, use
+`let Some(..) = .. else { panic!(..) }` or a `match` instead.
 
 Focused loops during Milestones 3 and 4:
 
