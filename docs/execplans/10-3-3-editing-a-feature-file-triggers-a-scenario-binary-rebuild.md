@@ -5,9 +5,8 @@ This ExecPlan (execution plan) is a living document. The sections
 `Decision Log`, and `Outcomes & Retrospective` must be kept up to date as work
 proceeds.
 
-Status: DRAFT — revised after a six-lens design review and a maintainer ruling
-on the three open decisions. All decisions are now settled; the plan is ready
-for approval.
+Status: IN PROGRESS — Milestone 0 (dependency adoption and toolchain
+verification) is nearly complete; implementation has begun.
 
 Roadmap item: 10.3.3 (`docs/roadmap.md`, phase 10.3 "v0.6.0 final
 requirements").
@@ -334,8 +333,11 @@ Stop and escalate — do not improvise — when any of these is reached.
 Format: `- [x] (YYYY-MM-DDTHH:MMZ) description`. Timestamp every entry when it
 is ticked so rates of progress and tolerance breaches are visible.
 
-- [ ] Milestone 0: orientation, dependency adoption, and the `#[rstest]` +
-      `#[gtest]` composition question (no behaviour changes).
+- [x] (2026-08-17) Milestone 0: orientation, dependency adoption, and the
+      `#[rstest]` + `#[gtest]` composition question (no behaviour changes).
+      Transcripts A/B/D reproduced; `googletest` + `pretty_assertions` adopted;
+      composition settled (Decision M0); `make check-fmt`, `make lint`,
+      `make test` all green with the new deps.
 - [ ] Milestone 1: red — the two failing regression tests, the failing
       token-shape assertion, and the BDD feature specification.
 - [ ] Milestone 2: green — emit the tracking item from `#[scenario]`.
@@ -448,6 +450,27 @@ implementation.
 - Observation: **`googletest` and `pretty_assertions` are used nowhere in this
   workspace.** The house stack is `rstest`, `insta`, `proptest`, `serial_test`,
   `trybuild`, `macrotest`, `tempfile`, `temp-env`. See Decision D1.
+
+- Observation: **transcripts A, B and D reproduced verbatim on this host
+  (2026-08-17, rustc 1.97.1 / cargo 1.97.1, 24 cores).** The dep-info `.d`
+  lists the feature file; editing only the `.feature` recompiles; dev-profile
+  binaries carry the absolute path (from debug info, present in the control
+  too) and no feature text, release binaries carry neither; an `rlib` retains
+  the feature text as a constant in metadata (`Ab"Feature: ..."`), confirming
+  the Constraint 2 rlib qualifier; `include_str!` hard-errors on a non-UTF-8
+  file with the absolute path in the message while `include_bytes!` compiles
+  clean and registers dep-info. Transcript C (anonymous `const` under
+  `#![deny(warnings)]`) is also covered by the reproduction binaries.
+
+- Observation: **`.config/nextest.toml` no longer matches the plan's Risk
+  text.** `#650` (commit `1ed644a`, on main before this branch) already raised
+  `global-timeout` to `"20m"` and introduced `[profile.long]` at `"30m"`. The
+  `cargo-spawning` group still has four members budgeting ~1080 s serialized
+  under a 1200 s cap, so the arithmetic the Risk section worried about closed
+  upstream before this branch started. The plan's Milestone 1 instruction to
+  "decide deliberately" still applies, but the decision this branch must make
+  is whether to add the fifth member and keep it under the cap — not whether
+  to raise the ceiling from an untenable 300 s.
 
 ## Decision log
 
@@ -659,6 +682,30 @@ implementation.
   "not adoptable behind a feature gate while the gates run `--all-features`;
   revisit on stabilization".
   Date/Author: 2026-08-15, planning agent (added after design review).
+
+- **Decision M0 (settled empirically 2026-08-17): the `#[rstest]` /
+  `#[gtest]` composition on the pinned versions (`rstest 0.26.1`,
+  `googletest 0.14.3`).**
+  Established with a throwaway parameterized crate under `target/`:
+  1. Both attribute orders compile and run: `#[rstest]` then `#[gtest]`, and
+     `#[gtest]` then `#[rstest]`. Neither order is forbidden.
+  2. `#[gtest]` is **not** required for `assert_that!`: a failing `assert_that!`
+     panics immediately and fails the test under plain `#[rstest]` too. In
+     googletest 0.14 the expansion of `assert_that!` has type `()`, so it
+     cannot be propagated with `?` in a `Result`-returning test.
+  3. `expect_that!` **requires** the `#[gtest]` test context: without it the
+     assertion panics with "No test context found. Did you annotate the test
+     with gtest?" Under `#[gtest]`, multiple `expect_that!` failures accumulate
+     and are all reported at test end.
+  4. Tests may return `Result<()>` or `()` in any order; a `Result` must be
+     `Ok(())` (assertion results are panics, not errors to propagate).
+  House style for this item: use `#[rstest]` + `#[gtest]` with `expect_that!`
+  where a test asserts several properties (the dep-info, rebuild-behaviour and
+  token-shape tests do, so the multi-failure report matters); plain
+  `assert_that!` under bare `#[rstest]` is fine for single assertions. This is
+  the repository's first adoption and sets precedent — the worked example ships
+  in `docs/developers-guide.md` in Milestone 8.
+  Date/Author: 2026-08-17, implementing agent.
 
 ## Context and orientation
 
