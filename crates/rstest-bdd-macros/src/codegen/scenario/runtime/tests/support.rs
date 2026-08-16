@@ -134,7 +134,7 @@ impl<'ast> Visit<'ast> for MethodCallFinder {
 /// Count method calls matching `method_name` within a block.
 pub(super) fn count_method_calls_in_block(block: &syn::Block, method_name: &str) -> usize {
     let mut finder = MethodCallFinder {
-        name: method_name.to_string(),
+        name: method_name.to_owned(),
         count: 0,
     };
     finder.visit_block(block);
@@ -147,7 +147,7 @@ pub(super) fn find_call_in_block(
     name: RuntimeFunction,
 ) -> Option<&syn::ExprCall> {
     let mut finder = CallFinder {
-        name: name.call_name().to_string(),
+        name: name.call_name().to_owned(),
         found: None,
     };
     finder.visit_block(block);

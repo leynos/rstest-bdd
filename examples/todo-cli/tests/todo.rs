@@ -136,7 +136,7 @@ fn dedent(input: &str) -> String {
         .map(|l| if l.len() >= cut { &l[cut..] } else { "" })
         .collect::<Vec<_>>()
         .join("\n");
-    out.trim_matches('\n').to_string()
+    out.trim_matches('\n').to_owned()
 }
 
 #[given("a to-do list with {first} and {second}")]
@@ -185,7 +185,7 @@ fn completing_nonexistent_task_does_not_mutate_statuses() {
         "expected completing a missing task to fail"
     );
 
-    let expected = vec![("task 1".to_string(), false), ("task 2".to_string(), false)];
+    let expected = vec![("task 1".to_owned(), false), ("task 2".to_owned(), false)];
     assert_eq!(expected, todo_list.statuses());
 }
 

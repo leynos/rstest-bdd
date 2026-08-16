@@ -66,12 +66,12 @@ fn parses_registry_dump_with_bypassed_steps() {
         panic!("scenario entry");
     };
     assert_eq!(scenario.line, 42);
-    assert_eq!(scenario.tags, vec!["@t".to_string()]);
+    assert_eq!(scenario.tags, vec!["@t".to_owned()]);
     let Some(bypassed) = parsed.bypassed_steps.first() else {
         panic!("bypassed entry");
     };
     assert_eq!(bypassed.scenario_line, 42);
-    assert_eq!(bypassed.tags, vec!["@t".to_string()]);
+    assert_eq!(bypassed.tags, vec!["@t".to_owned()]);
     assert_eq!(bypassed.reason.as_deref(), Some("reason"));
 }
 

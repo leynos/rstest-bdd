@@ -105,7 +105,7 @@ mod tests {
                 "tests/features/simple.feature",
                 "Runs in Tokio",
                 4,
-                vec!["@async".to_string()],
+                vec!["@async".to_owned()],
             ),
             ScenarioRunner::new(|_context: TokioTestContext| 21 * 2),
         );

@@ -80,7 +80,7 @@ fn run_cargo_bdd_captured(args: &[&str]) -> Result<(ExitStatus, String, String)>
             "`cargo bdd` emitted invalid UTF-8 to stderr (args: [{args_debug}], status: {status})"
         )
     })?;
-    Ok((status, stdout.to_string(), stderr.to_string()))
+    Ok((status, stdout.to_owned(), stderr.to_owned()))
 }
 
 fn run_cargo_bdd(args: &[&str]) -> Result<String> {
@@ -183,7 +183,7 @@ fn skipped_subcommand_emits_json() {
     assert!(fixture_entry.line > 0, "expected a 1-based line number");
     assert_eq!(
         fixture_entry.tags,
-        vec!["@allow_skipped".to_string()],
+        vec!["@allow_skipped".to_owned()],
         "expected fixture skipped scenario tags to be preserved"
     );
 }

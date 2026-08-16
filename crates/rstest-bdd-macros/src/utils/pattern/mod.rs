@@ -96,7 +96,7 @@ fn parse_placeholder(bytes: &[u8], start: usize) -> Result<(PlaceholderInfo, usi
     validate_closing_brace(bytes, j)?;
     Ok((
         PlaceholderInfo {
-            name: name.to_string(),
+            name: name.to_owned(),
             hint,
         },
         j + 1,
@@ -198,7 +198,7 @@ fn extract_type_hint_if_present(bytes: &[u8], mut j: usize) -> Result<(Option<St
                 "type hint must be valid UTF-8",
             )
         })?
-        .to_string();
+        .to_owned();
 
     // Return None for empty hints (just a trailing colon with no content)
     let hint = if hint.is_empty() { None } else { Some(hint) };

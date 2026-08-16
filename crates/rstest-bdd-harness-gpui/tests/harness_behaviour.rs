@@ -126,7 +126,7 @@ fn gpui_harness_passes_metadata_through() {
             "tests/features/payment.feature",
             "Payment succeeds",
             27,
-            vec!["@smoke".to_string(), "@payments".to_string()],
+            vec!["@smoke".to_owned(), "@payments".to_owned()],
         ),
         ScenarioRunner::new(|_context: gpui::TestAppContext| 200),
     );

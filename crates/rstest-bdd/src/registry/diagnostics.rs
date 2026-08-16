@@ -55,8 +55,8 @@ pub(super) fn record_bypassed_steps_impl<'a, I>(
         if let Some(step) = resolve_step(keyword, text.into()) {
             let record = BypassedStepRecord {
                 key: (step.keyword, step.pattern),
-                feature_path: feature_path.to_string(),
-                scenario_name: scenario_name.to_string(),
+                feature_path: feature_path.to_owned(),
+                scenario_name: scenario_name.to_owned(),
                 scenario_line,
                 tags: tags.to_owned(),
                 reason: reason.map(str::to_owned),

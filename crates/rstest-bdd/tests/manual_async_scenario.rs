@@ -15,7 +15,7 @@ thread_local! {
 
 #[given("the manual async step runs")]
 fn manual_async_given() {
-    MANUAL_ASYNC_STATE.with(|s| *s.borrow_mut() = "given".to_string());
+    MANUAL_ASYNC_STATE.with(|state| "given".clone_into(&mut state.borrow_mut()));
 }
 
 #[when("the manual async step continues")]

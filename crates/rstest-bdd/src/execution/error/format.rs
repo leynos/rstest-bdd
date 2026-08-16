@@ -87,19 +87,19 @@ impl ExecutionError {
         crate::localization::message_with_loader(loader, "execution-error-skip", |args| {
             args.set(
                 "has_message",
-                if message.is_some() { "yes" } else { "no" }.to_string(),
+                if message.is_some() { "yes" } else { "no" }.to_owned(),
             );
-            args.set("message", message.unwrap_or("").to_string());
+            args.set("message", message.unwrap_or("").to_owned());
         })
     }
 
     fn format_step_not_found(loader: &crate::FluentLanguageLoader, step: &StepInfo<'_>) -> String {
         crate::localization::message_with_loader(loader, "execution-error-step-not-found", |args| {
             args.set("index", step.index.to_string());
-            args.set("keyword", step.keyword.as_str().to_string());
-            args.set("text", step.text.to_string());
-            args.set("feature_path", step.feature_path.to_string());
-            args.set("scenario_name", step.scenario_name.to_string());
+            args.set("keyword", step.keyword.as_str().to_owned());
+            args.set("text", step.text.to_owned());
+            args.set("feature_path", step.feature_path.to_owned());
+            args.set("scenario_name", step.scenario_name.to_owned());
         })
     }
 
@@ -122,7 +122,7 @@ impl ExecutionError {
                 args.set("available", details.available.join(", "));
                 args.set(
                     "has_suggestion",
-                    if details.has_suggestion { "yes" } else { "no" }.to_string(),
+                    if details.has_suggestion { "yes" } else { "no" }.to_owned(),
                 );
                 args.set("feature_path", details.feature_path.clone());
                 args.set("scenario_name", details.scenario_name.clone());
@@ -137,11 +137,11 @@ impl ExecutionError {
     ) -> String {
         crate::localization::message_with_loader(loader, "execution-error-handler-failed", |args| {
             args.set("index", step.index.to_string());
-            args.set("keyword", step.keyword.as_str().to_string());
-            args.set("text", step.text.to_string());
+            args.set("keyword", step.keyword.as_str().to_owned());
+            args.set("text", step.text.to_owned());
             args.set("error", error.format_with_loader(loader));
-            args.set("feature_path", step.feature_path.to_string());
-            args.set("scenario_name", step.scenario_name.to_string());
+            args.set("feature_path", step.feature_path.to_owned());
+            args.set("scenario_name", step.scenario_name.to_owned());
         })
     }
 }

@@ -43,15 +43,15 @@ pub(super) fn validate_required_fixtures(
 
             Err(ExecutionError::MissingFixtures(Arc::new(
                 MissingFixturesDetails {
-                    step_pattern: step.pattern.as_str().to_string(),
+                    step_pattern: step.pattern.as_str().to_owned(),
                     step_location: format!("{}:{}", step.file, step.line),
                     required: step.fixtures.to_vec(),
                     missing,
                     missing_requirements,
                     available: available_list,
                     has_suggestion,
-                    feature_path: request.feature_path.to_string(),
-                    scenario_name: request.scenario_name.to_string(),
+                    feature_path: request.feature_path.to_owned(),
+                    scenario_name: request.scenario_name.to_owned(),
                 },
             )))
         }
@@ -125,7 +125,7 @@ mod tests {
         ctx.insert("zebra", &v1);
         ctx.insert("alpha", &v2);
         let list = sorted_available(&ctx);
-        assert_eq!(list, vec!["alpha".to_string(), "zebra".to_string()]);
+        assert_eq!(list, vec!["alpha".to_owned(), "zebra".to_owned()]);
     }
 
     /// Diagnostics fall back to `<unknown>` when no typed requirements are registered.
