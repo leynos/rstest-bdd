@@ -329,7 +329,12 @@ is ticked so rates of progress and tolerance breaches are visible.
       three artefacts fail for their stated reasons; red log at
       `/tmp/red-10-3-3-editing-a-feature-file-triggers-a-scenario-binary-rebuild.out`;
       `make check-fmt` and `make lint` green (gate evidence under `/tmp/m1-*`).
-- [ ] Milestone 2: green — emit the tracking item from `#[scenario]`.
+- [x] (2026-08-17) Milestone 2: green — emit the tracking item from
+      `#[scenario]`. Both regression tests pass (dep-info exact-once; edit →
+      rebuild → fresh failure naming the new expectation), the token-shape
+      tests pass, the macros crate's table/property/ordering coverage is in,
+      and the full `rstest-bdd` + `rstest-bdd-macros` suites plus trybuild
+      stay green under tracking.
 - [ ] Milestone 3: green — emit the tracking items from `scenarios!`.
 - [ ] Milestone 4: trybuild fixtures, including the dep-info assertion and the
       D4 diagnostic fixture.
@@ -468,6 +473,22 @@ implementation.
   main thread polls — the standard pattern, but worth recording because the
   plan's "impose its own wall-clock bound and kill with a clear message"
   instruction had to wait for it to be meaningful at all.
+
+- Observation: **proc-macro2 prints a string literal's raw source text, so
+  backslash-newline continuations leak indentation into
+  `TokenStream::to_string()`.** The token-shape test's exact-equality
+  assertion failed because the module's binding carried 21 spaces of
+  continuation indent while the test's expectation carried 17 — the two
+  doc strings were otherwise identical. The fix builds the doc text with
+  `concat!`-adjacent literals, so the emitted string is one line and the
+  assertion is indentation-independent.
+
+- Observation: **the `#[scenario]` ordering contract cannot be unit-tested in
+  the macros crate.** `try_scenario` constructs `proc_macro::TokenStream`,
+  which panics outside the proc-macro bridge ("procedural macro API is used
+  outside of a procedural macro"). The ordering (missing file → one
+  diagnostic, no tracking item) is therefore pinned by the M4 trybuild
+  byte-identical `.stderr` check instead, per Decision M2.
 
 - Observation: **`str::split_once` drops the delimiter it splits on — twice.**
   The manifest-rewrite helper split each `path = "…"` line with
@@ -735,6 +756,20 @@ implementation.
   in `docs/developers-guide.md` in Milestone 8. Date/Author: 2026-08-17,
   implementing agent.
 
+- **Decision M2b (recorded 2026-08-17): the macrotest `.expanded.rs` gate is
+  dead project-wide — confirmed, not merely suspected.**
+  `snapshot_refresh_is_enabled()` requires both `RSTEST_BDD_RUN_MACROTEST` and
+  `cargo expand`; CI never sets the variable, `cargo expand` is not installed
+  locally, and neither the workflows nor the Makefile install it. The
+  snapshots are curated excerpts (e.g. `scenario_harness_tokio_default` shows
+  a half-expanded body referencing an undefined `__rstest_bdd_request`), so
+  they were out of step with real expansion before this change and can never
+  trip locally. Milestone 3's "refresh any that move" is therefore grounded:
+  nothing can move them locally, and refreshing by hand would bless
+  reconstruction, not measurement. The gate stays as-is; its deadness is
+  recorded here and flagged as a follow-up candidate.
+  Date/Author: 2026-08-17, implementing agent.
+
 - **Decision M1b (settled 2026-08-17, Milestone 1): the nextest timeout
   arithmetic for the `cargo-spawning` group.** `.config/nextest.toml` already
   carries `global-timeout = "20m"` (raised from 5m by `#650` before this
@@ -783,6 +818,30 @@ implementation.
   plan's cold-build goal is met verbatim; `--locked` + `--offline` resolve
   clean and the fixture's bound scenario passes when built against the shared
   `target/`. Date/Author: 2026-08-17, implementing agent.
+
+- **Decision M2 (recorded 2026-08-17): the dep-info "exactly once" contract is
+  asserted against the `.d`'s primary rule line, not the whole file.**
+  rustc's make-style `.d` repeats every dependency in each rule block: once
+  for the `.d` target, once for the binary target, and once in the
+  per-source mapping — so a naive whole-content count of the feature path
+  yields 3 for a single binding (measured). The plan's "exactly once" pins the
+  one-binding-per-file property from D0 and is stable because rustc
+  deduplicates the dependency list per rule line; the assertion therefore
+  counts occurrences within the **first rule line** (the `.d`'s own
+  dependency list, the canonical entry Cargo fingerprints). A comment in the
+  harness explains the format so nobody "fixes" the count back to a
+  whole-file count.
+  Related ruling for the M2 "file deleted between builds" question: for
+  `#[scenario]`, `validate_feature_file_exists` runs *before* codegen, so a
+  file deleted between builds surfaces as exactly one diagnostic (the macro's
+  "feature file not found") and no tracking item — the dep-info triggers the
+  rebuild and the diagnostic names the file. This is pinned end-to-end by the
+  M4 byte-identical `scenario_missing_file.stderr` check rather than a unit
+  test: calling `try_scenario` from a unit test panics with "procedural macro
+  API is used outside of a procedural macro" (`proc_macro::TokenStream`
+  cannot be constructed outside the bridge), so the ordering is asserted
+  where it can actually run.
+  Date/Author: 2026-08-17, implementing agent.
 
 ## Context and orientation
 

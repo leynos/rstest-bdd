@@ -63,7 +63,11 @@ pub(crate) fn dep_info_outcome() -> &'static DepInfoOutcome {
 
 fn build_dep_info_outcome() -> DepInfoOutcome {
     fixtures::ensure_fixture_copied();
+    fixtures::restore_feature_file();
     let env = process::build_child_env();
+    // Drop any fixture units compiled by an earlier (pre-tracking) era so the
+    // dep-info read describes the current build, not a stale binary.
+    clean_fixture_units(&env);
     let output = run_cargo(
         &env,
         &[
@@ -112,7 +116,15 @@ fn build_dep_info_outcome() -> DepInfoOutcome {
         ),
     };
     let expected = fixtures::normalize_dep_path(&fixtures::scratch_feature_file());
-    let entry_count = dep_content.split(&expected).count().saturating_sub(1);
+    // rustc's make-style `.d` repeats every dependency in each rule block —
+    // once for the `.d` target, once for the binary target, once in the
+    // per-source mapping — so "exactly once" is asserted against the
+    // **primary rule** (the `.d`'s own dependency list), which is the
+    // canonical entry Cargo's fingerprinting consults. This pins the
+    // one-binding-per-file property from Decision D0: rustc deduplicates
+    // the list, so a future per-scenario binding must still be listed once.
+    let primary_rule = dep_content.lines().next().unwrap_or_default();
+    let entry_count = primary_rule.split(&expected).count().saturating_sub(1);
     outcome::DepInfoOutcome {
         dep_info_entry_count: entry_count,
         dep_info_sample: dep_content,
