@@ -2828,7 +2828,9 @@ The language server provides the following capabilities:
   records `#[given]`, `#[when]`, and `#[then]` functions, including the step
   keyword, pattern string (including inferred patterns when the attribute has
   no arguments), the parameter list, and whether the step expects a data table
-  or doc string.
+  or doc string. The `RustStepIndexResult` API owns the file index and any
+  recoverable per-function diagnostics. Invalid functions are reported without
+  discarding valid neighbouring step definitions.
 - **Step pattern registry (on save)**: Compiles the indexed step patterns with
   `rstest-bdd-patterns` and caches compiled regex matchers in a keyword-keyed
   in-memory registry. The registry is updated incrementally per file save, so

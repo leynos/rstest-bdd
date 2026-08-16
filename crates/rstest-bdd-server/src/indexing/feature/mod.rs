@@ -2,14 +2,16 @@
 
 use std::borrow::Cow;
 use std::ops::Range;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
+use camino::Utf8Path;
 use gherkin::GherkinEnv;
 
 use super::{
     FeatureFileIndex, FeatureIndexError, IndexedDocstring, IndexedScenarioOutline, IndexedStep,
     IndexedTable,
 };
+use crate::server::WorkspaceRoot;
 
 mod docstring;
 mod outline;
@@ -58,31 +60,33 @@ impl<'a> FeatureSource<'a> {
 ///
 /// # Errors
 ///
-/// Returns an error when the feature file cannot be read or when it cannot be
-/// parsed as valid Gherkin.
-///
-/// # Examples
-///
-/// ```rust,no_run
-/// use rstest_bdd_server::indexing::{index_feature_file, FeatureIndexError};
-///
-/// # fn main() -> Result<(), FeatureIndexError> {
-/// let path = std::env::temp_dir().join("rstest-bdd-index-demo.feature");
-/// std::fs::write(
-///     &path,
-///     "Feature: demo\n  Scenario: s\n    Given a message\n",
-/// )
-/// .expect("feature file write should succeed");
-///
-/// let index = index_feature_file(&path)?;
-/// assert_eq!(index.steps.len(), 1);
-/// # std::fs::remove_file(path).ok();
-/// # Ok(())
-/// # }
-/// ```
-pub fn index_feature_file(path: &Path) -> Result<FeatureFileIndex, FeatureIndexError> {
-    let source = std::fs::read_to_string(path)?;
-    index_feature_source(path.to_path_buf(), &source)
+/// Returns an error when the supplied path is outside the workspace root, when
+/// the feature file cannot be read, or when it cannot be parsed as valid
+/// Gherkin.
+pub(crate) fn index_feature_file(
+    workspace_root: &WorkspaceRoot,
+    path: &Path,
+) -> Result<FeatureFileIndex, FeatureIndexError> {
+    let relative_path = path.strip_prefix(workspace_root.path()).map_err(|_| {
+        FeatureIndexError::OutsideWorkspaceRoot {
+            path: path.to_path_buf(),
+        }
+    })?;
+    if relative_path
+        .components()
+        .any(|component| matches!(component, Component::ParentDir))
+    {
+        return Err(FeatureIndexError::OutsideWorkspaceRoot {
+            path: path.to_path_buf(),
+        });
+    }
+    let relative_path =
+        Utf8Path::from_path(relative_path).ok_or_else(|| FeatureIndexError::NonUtf8Path {
+            path: path.to_path_buf(),
+        })?;
+    let mut source = workspace_root.directory().read_to_string(relative_path)?;
+    normalize_owned_source_text(&mut source);
+    index_feature_text(path.to_path_buf(), FeatureSource::new(&source))
 }
 
 /// Parse and index a `.feature` file from source text.
@@ -222,6 +226,12 @@ fn normalize_source_text(source: &str) -> Cow<'_, str> {
         return Cow::Borrowed(source);
     }
     Cow::Owned(format!("{source}\n"))
+}
+
+fn normalize_owned_source_text(source: &mut String) {
+    if !source.ends_with('\n') {
+        source.push('\n');
+    }
 }
 
 fn index_steps_for_container(

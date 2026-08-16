@@ -92,3 +92,38 @@ fn did_save_prefers_provided_text_over_filesystem_contents() {
         .expect("expected a_message step");
     assert_eq!(a_message.pattern, "provided pattern");
 }
+
+#[test]
+fn did_save_retains_valid_steps_after_recoverable_attribute_diagnostic() {
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join("steps.rs");
+    let source = concat!(
+        "use rstest_bdd_macros::{given, when};\n",
+        "\n",
+        "#[given(\"first\")]\n",
+        "#[when(\"second\")]\n",
+        "fn conflicting_step() {}\n",
+        "\n",
+        "#[given(\"valid\")]\n",
+        "fn valid_step() {}\n",
+    );
+
+    let uri = Url::from_file_path(&path).expect("file URI");
+    let params = DidSaveTextDocumentParams {
+        text_document: TextDocumentIdentifier { uri },
+        text: Some(source.to_owned()),
+    };
+
+    let mut state = ServerState::new(ServerConfig::default());
+    handle_did_save_text_document(&mut state, params);
+
+    let index = state
+        .rust_step_index(&path)
+        .expect("valid definitions should remain cached");
+    assert_eq!(index.step_definitions.len(), 1);
+    let step = index
+        .step_definitions
+        .first()
+        .expect("one valid definition");
+    assert_eq!(step.function.name, "valid_step");
+}

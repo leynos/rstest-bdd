@@ -286,7 +286,7 @@ impl GpuiHarness {
     /// Writes the diagnostic message to an arbitrary [`Write`] sink.
     ///
     /// This is the injectable I/O primitive used by [`run_request_once`].
-    /// Callers select the writer explicitly (typically `io::stderr().lock()`)
+    /// Callers select the writer explicitly (typically `io::stderr()`)
     /// and decide how to handle failures, keeping side-effects visible at
     /// the call site rather than hidden behind a no-argument wrapper.
     ///

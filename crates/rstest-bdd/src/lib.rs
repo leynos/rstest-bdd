@@ -89,6 +89,8 @@ pub use skip_helpers::{
 };
 pub use state::{ScenarioState, Slot};
 pub use step_args::{StepArgs, StepArgsError};
+/// Generated asynchronous step wrappers use this Tokio bridge; downstream
+/// code must not call it directly.
 #[doc(hidden)]
 pub use tokio as __rstest_bdd_tokio;
 pub use types::{

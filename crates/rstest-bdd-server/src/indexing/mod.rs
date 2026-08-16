@@ -26,7 +26,8 @@ mod feature;
 mod registry;
 mod rust;
 
-pub use feature::{index_feature_file, index_feature_source};
+pub(crate) use feature::index_feature_file;
+pub use feature::index_feature_source;
 pub use registry::{CompiledStepDefinition, StepDefinitionRegistry, StepPatternCompileError};
 pub use rust::{index_rust_file, index_rust_source};
 
@@ -138,6 +139,21 @@ pub struct IndexedScenarioOutline {
 /// Errors that can occur during `.feature` indexing.
 #[derive(Debug, thiserror::Error)]
 pub enum FeatureIndexError {
+    /// The server has not retained a workspace-root capability for disk reads.
+    #[error("workspace root is unavailable for feature-file reads")]
+    WorkspaceRootUnavailable,
+    /// The requested feature file is not within the configured workspace root.
+    #[error("feature file is outside the workspace root: {}", .path.display())]
+    OutsideWorkspaceRoot {
+        /// Absolute path supplied by the client.
+        path: PathBuf,
+    },
+    /// The relative feature-file path is not valid UTF-8.
+    #[error("feature file path is not valid UTF-8: {}", .path.display())]
+    NonUtf8Path {
+        /// Path supplied by the client after workspace-root validation.
+        path: PathBuf,
+    },
     /// Failed to read the source `.feature` file.
     #[error("failed to read feature file: {0}")]
     Read(#[from] std::io::Error),

@@ -25,6 +25,8 @@ test-support = ["dep:tempfile"]
 
 [dependencies]
 async-lsp.workspace = true
+camino.workspace = true
+cap-std.workspace = true
 lsp-types.workspace = true
 tokio.workspace = true
 tracing.workspace = true

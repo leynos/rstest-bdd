@@ -340,6 +340,10 @@ and other indexers must not reuse it outside that source-file boundary.
 Figure: Class diagram of the Rust step indexing data structures and how they
 are cached in the language server state.
 
+Screen-reader description: `RustStepIndexResult` owns one `RustStepFileIndex`
+and zero or more `RustStepIndexDiagnostic` values, while `ServerState` retains
+only file indexes.
+
 ```mermaid
 classDiagram
     class RustStepFileIndex {
@@ -420,11 +424,18 @@ classDiagram
 `RustStepIndexDiagnostic` from one indexing pass. Both public indexing entry
 points return it on successful file read and parse; only file-read and
 whole-source parse failures remain `RustStepIndexError` values. Callers must
-persist or replace the owned `index` independently of diagnostics so one
+persist or replace the owned `index` independently of diagnostics, so one
 invalid function never removes valid neighbouring definitions. Reuse this
 wrapper only at Rust-file indexing boundaries; handlers and cache APIs consume
 the contained `RustStepFileIndex` rather than retaining diagnostics as index
 state.
+
+**Workspace filesystem boundary:** After selecting the workspace root,
+including the fallback used when Cargo discovery fails, `ServerState` owns the
+validated `cap_std::fs_utf8::Dir` for that root. Only disk-backed feature saves
+use this capability, resolving paths relative to the root before reading.
+Did-save notifications that supply source text are indexed from that
+in-memory text and do not read from disk.
 
 **Project Structure:** The `rstest-bdd-server` crate will live in the same
 workspace as `rstest-bdd`. It can depend on `rstest-bdd` or its sub-crates

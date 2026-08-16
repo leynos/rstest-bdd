@@ -1658,6 +1658,8 @@ name = "rstest-bdd-server"
 version = "0.6.0-beta4"
 dependencies = [
  "async-lsp",
+ "camino",
+ "cap-std",
  "cargo_metadata",
  "clap",
  "gherkin",

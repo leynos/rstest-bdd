@@ -9,6 +9,7 @@ use lsp_types::{
     TextDocumentPositionParams, Url, WorkDoneProgressParams,
 };
 use rstest_bdd_server::config::ServerConfig;
+use rstest_bdd_server::discovery::WorkspaceInfo;
 use rstest_bdd_server::handlers::{handle_did_save_text_document, handle_implementation};
 use rstest_bdd_server::server::ServerState;
 use tempfile::TempDir;
@@ -45,11 +46,19 @@ struct ImplementationTestScenario {
 #[expect(clippy::expect_used, reason = "test builder uses expect for clarity")]
 impl ImplementationTestScenario {
     fn new() -> Self {
+        let dir = TempDir::new().expect("temp dir");
+        let mut state = ServerState::new(ServerConfig::default());
+        state
+            .set_workspace_info(WorkspaceInfo {
+                root: dir.path().to_path_buf(),
+                packages: Vec::new(),
+            })
+            .expect("configure workspace root");
         Self {
-            dir: TempDir::new().expect("temp dir"),
+            dir,
             feature_file: None,
             rust_files: Vec::new(),
-            state: ServerState::new(ServerConfig::default()),
+            state,
         }
     }
 

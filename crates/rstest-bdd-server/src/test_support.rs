@@ -12,6 +12,7 @@ use std::path::Path;
 use tempfile::TempDir;
 
 use crate::config::ServerConfig;
+use crate::discovery::WorkspaceInfo;
 use crate::handlers::handle_did_save_text_document;
 use crate::server::ServerState;
 
@@ -90,6 +91,7 @@ pub struct TestScenario {
 ///
 /// Panics if the file path cannot be converted to a valid URI.
 pub fn index_file(state: &mut ServerState, path: &Path) {
+    configure_workspace_root_for_path(state, path);
     let Ok(uri) = Url::from_file_path(path) else {
         panic!("file URI: path is not absolute: {}", path.display());
     };
@@ -98,6 +100,25 @@ pub fn index_file(state: &mut ServerState, path: &Path) {
         text: None,
     };
     handle_did_save_text_document(state, params);
+}
+
+/// Configure a root capability for tests that construct their own state.
+///
+/// Scenario builders configure their temporary-directory root eagerly. This
+/// fallback keeps direct helper users within the same capability boundary.
+fn configure_workspace_root_for_path(state: &mut ServerState, path: &Path) {
+    if state.workspace_info().is_some() {
+        return;
+    }
+    let Some(root) = path.parent() else {
+        panic!("workspace root: path has no parent: {}", path.display());
+    };
+    if let Err(err) = state.set_workspace_info(WorkspaceInfo {
+        root: root.to_path_buf(),
+        packages: Vec::new(),
+    }) {
+        panic!("configure test workspace root: {err}");
+    }
 }
 
 /// Builder for constructing test scenarios with multiple feature and Rust files.
@@ -123,11 +144,18 @@ impl ScenarioBuilder {
             Ok(dir) => dir,
             Err(err) => panic!("temp dir: {err}"),
         };
+        let mut state = ServerState::new(ServerConfig::default());
+        if let Err(err) = state.set_workspace_info(WorkspaceInfo {
+            root: dir.path().to_path_buf(),
+            packages: Vec::new(),
+        }) {
+            panic!("configure test workspace root: {err}");
+        }
         Self {
             dir,
             feature_files: Vec::new(),
             rust_files: Vec::new(),
-            state: ServerState::new(ServerConfig::default()),
+            state,
         }
     }
 

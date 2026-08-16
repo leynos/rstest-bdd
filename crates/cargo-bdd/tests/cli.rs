@@ -119,6 +119,16 @@ fn list_steps_runs() {
 
 #[test]
 #[serial]
+fn steps_skips_test_binaries_without_dump_steps_support() {
+    let stdout = run_cargo_bdd_steps().expect("test setup should succeed");
+    assert!(
+        stdout.contains("fixture bypassed step"),
+        "supported test targets should still be reported: {stdout}"
+    );
+}
+
+#[test]
+#[serial]
 fn steps_output_includes_skipped_statuses() {
     let stdout = run_cargo_bdd_steps().expect("test setup should succeed");
     assert!(

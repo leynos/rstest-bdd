@@ -8,9 +8,7 @@
 use lsp_types::DidSaveTextDocumentParams;
 use tracing::{debug, warn};
 
-use crate::indexing::{
-    index_feature_file, index_feature_source, index_rust_file, index_rust_source,
-};
+use crate::indexing::{index_feature_source, index_rust_file, index_rust_source};
 use crate::server::ServerState;
 
 use super::diagnostics::{
@@ -40,7 +38,7 @@ pub fn handle_did_save_text_document(state: &mut ServerState, params: DidSaveTex
 
 fn handle_feature_file_save(state: &mut ServerState, path: &std::path::Path, text: Option<&str>) {
     let index_result = text.map_or_else(
-        || index_feature_file(path),
+        || state.index_feature_file(path),
         |source| index_feature_source(path.to_path_buf(), source),
     );
 

@@ -7,13 +7,49 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use async_lsp::ClientSocket;
+use camino::{Utf8Path, Utf8PathBuf};
+use cap_std::ambient_authority;
+use cap_std::fs_utf8::Dir;
 use lsp_types::{ClientCapabilities, ServerCapabilities, WorkspaceFolder};
 use lsp_types::{TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions};
 use tracing::warn;
 
 use crate::config::ServerConfig;
 use crate::discovery::WorkspaceInfo;
-use crate::indexing::{FeatureFileIndex, RustStepFileIndex, StepDefinitionRegistry};
+use crate::error::ServerError;
+use crate::indexing::{
+    FeatureFileIndex, FeatureIndexError, RustStepFileIndex, StepDefinitionRegistry,
+    index_feature_file,
+};
+
+/// Validated capability for reading files beneath the discovered workspace root.
+///
+/// `ServerState` owns this capability after workspace discovery. Only indexing
+/// handlers may use it for disk-backed document saves; saves that carry source
+/// text bypass it because the client has already supplied the content.
+pub(crate) struct WorkspaceRoot {
+    path: Utf8PathBuf,
+    directory: Dir,
+}
+
+impl WorkspaceRoot {
+    pub(crate) fn open(path: &Path) -> Result<Self, ServerError> {
+        let path = Utf8Path::from_path(path)
+            .ok_or_else(|| ServerError::WorkspaceRootNotUtf8(path.to_path_buf()))?
+            .to_path_buf();
+        let directory = Dir::open_ambient_dir(&path, ambient_authority())?;
+
+        Ok(Self { path, directory })
+    }
+
+    pub(crate) fn path(&self) -> &Utf8Path {
+        &self.path
+    }
+
+    pub(crate) fn directory(&self) -> &Dir {
+        &self.directory
+    }
+}
 
 /// Central state shared across all LSP handlers.
 ///
@@ -28,6 +64,8 @@ pub struct ServerState {
     client_capabilities: Option<ClientCapabilities>,
     /// Discovered workspace information.
     workspace_info: Option<WorkspaceInfo>,
+    /// Capability-scoped workspace root for disk-backed feature-file reads.
+    workspace_root: Option<WorkspaceRoot>,
     /// Workspace folders from the client.
     workspace_folders: Vec<WorkspaceFolder>,
     /// Whether the server has been initialized.
@@ -49,6 +87,10 @@ impl std::fmt::Debug for ServerState {
         f.debug_struct("ServerState")
             .field("client_capabilities", &self.client_capabilities)
             .field("workspace_info", &self.workspace_info)
+            .field(
+                "workspace_root",
+                &self.workspace_root.as_ref().map(WorkspaceRoot::path),
+            )
             .field("workspace_folders", &self.workspace_folders)
             .field("initialised", &self.initialized)
             .field("config", &self.config)
@@ -78,6 +120,7 @@ impl ServerState {
         Self {
             client_capabilities: None,
             workspace_info: None,
+            workspace_root: None,
             workspace_folders: Vec::new(),
             initialized: false,
             config,
@@ -121,15 +164,45 @@ impl ServerState {
         &self.workspace_folders
     }
 
-    /// Store discovered workspace information.
-    pub fn set_workspace_info(&mut self, workspace_info: WorkspaceInfo) {
+    /// Store discovered workspace information and its read capability.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`ServerError`] when the workspace root is not UTF-8 or its
+    /// capability-scoped directory cannot be opened.
+    pub fn set_workspace_info(&mut self, workspace_info: WorkspaceInfo) -> Result<(), ServerError> {
+        self.set_workspace_root(&workspace_info.root)?;
         self.workspace_info = Some(workspace_info);
+        Ok(())
+    }
+
+    /// Store the capability-scoped root selected for workspace file reads.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`ServerError`] when the workspace root is not UTF-8 or its
+    /// capability-scoped directory cannot be opened.
+    pub(crate) fn set_workspace_root(&mut self, path: &Path) -> Result<(), ServerError> {
+        self.workspace_root = Some(WorkspaceRoot::open(path)?);
+        Ok(())
     }
 
     /// Access discovered workspace information, if available.
     #[must_use]
     pub fn workspace_info(&self) -> Option<&WorkspaceInfo> {
         self.workspace_info.as_ref()
+    }
+
+    /// Index a disk-backed feature file through the workspace-root capability.
+    pub(crate) fn index_feature_file(
+        &self,
+        path: &Path,
+    ) -> Result<FeatureFileIndex, FeatureIndexError> {
+        let workspace_root = self
+            .workspace_root
+            .as_ref()
+            .ok_or(FeatureIndexError::WorkspaceRootUnavailable)?;
+        index_feature_file(workspace_root, path)
     }
 
     /// Access the current server configuration.
