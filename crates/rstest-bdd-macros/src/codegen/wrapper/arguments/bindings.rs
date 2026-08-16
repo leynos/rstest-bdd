@@ -16,6 +16,7 @@ pub(in crate::codegen::wrapper) struct BoundFixtureArg<'a> {
     pub(super) binding: &'a syn::Ident,
 }
 
+/// Wrapper-local binding for a typed step argument.
 #[derive(Copy, Clone)]
 pub(in crate::codegen::wrapper) struct BoundStepArg<'a> {
     pub(super) arg: StepArg<'a>,
