@@ -15,6 +15,16 @@ struct OutlineExpectation<'a> {
     code: Option<&'a str>,
     /// Fragment the diagnostic message must contain, when a code is expected.
     message_fragment: Option<&'a str>,
+    /// Diagnostics that must each appear, irrespective of their order.
+    diagnostics: &'a [ExpectedDiagnostic<'a>],
+}
+
+/// A diagnostic code and message fragment expected from a column case.
+struct ExpectedDiagnostic<'a> {
+    /// Diagnostic code that identifies the reported problem.
+    code: &'a str,
+    /// Fragment that identifies the affected column in the diagnostic message.
+    message_fragment: &'a str,
 }
 
 /// Helper to compute scenario outline column diagnostics.
@@ -46,6 +56,7 @@ fn compute_scenario_outline_diagnostics_for_path(
         count: 1,
         code: Some(CODE_EXAMPLE_COLUMN_MISSING),
         message_fragment: Some("type"),
+        diagnostics: &[],
     },
 )]
 #[case::surplus_column_only(
@@ -62,6 +73,7 @@ fn compute_scenario_outline_diagnostics_for_path(
         count: 1,
         code: Some(CODE_EXAMPLE_COLUMN_SURPLUS),
         message_fragment: Some("unused"),
+        diagnostics: &[],
     },
 )]
 #[case::matched_columns(
@@ -78,6 +90,7 @@ fn compute_scenario_outline_diagnostics_for_path(
         count: 0,
         code: None,
         message_fragment: None,
+        diagnostics: &[],
     },
 )]
 #[case::multiple_placeholders_matched(
@@ -94,23 +107,34 @@ fn compute_scenario_outline_diagnostics_for_path(
         count: 0,
         code: None,
         message_fragment: None,
+        diagnostics: &[],
     },
 )]
 #[case::missing_and_surplus(
-    // Step uses <count>, Examples has | other | - both issues
+    // Step uses <type>, Examples has an extra | unused | column.
     concat!(
         "Feature: test\n",
         "  Scenario Outline: outline\n",
-        "    Given I have <count> items\n",
+        "    Given I have <count> <type> items\n",
         "    Examples:\n",
-        "      | other |\n",
-        "      | value |\n",
+        "      | count | unused |\n",
+        "      | 5     | value  |\n",
     ),
-    // Both missing (count) and surplus (other)
+    // Both missing (type) and surplus (unused).
     OutlineExpectation {
         count: 2,
         code: None,
         message_fragment: None,
+        diagnostics: &[
+            ExpectedDiagnostic {
+                code: CODE_EXAMPLE_COLUMN_MISSING,
+                message_fragment: "type",
+            },
+            ExpectedDiagnostic {
+                code: CODE_EXAMPLE_COLUMN_SURPLUS,
+                message_fragment: "unused",
+            },
+        ],
     },
 )]
 fn scenario_outline_column_validation(
@@ -122,6 +146,7 @@ fn scenario_outline_column_validation(
         count: expected_count,
         code: expected_code,
         message_fragment: expected_message_fragment,
+        diagnostics: expected_diagnostics,
     } = expected;
     // Use just the feature file - no Rust code needed for column validation
     let scenario = scenario_builder.with_single_file_pair(
@@ -149,6 +174,20 @@ fn scenario_outline_column_validation(
         if let Some(fragment) = expected_message_fragment {
             assert_diagnostic_message_contains(diag, &[fragment]);
         }
+    }
+
+    for expected_diagnostic in expected_diagnostics {
+        let expected_code = lsp_types::NumberOrString::String(expected_diagnostic.code.to_owned());
+        let Some(diagnostic) = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code.as_ref() == Some(&expected_code))
+        else {
+            panic!(
+                "expected a diagnostic with code '{}' in {diagnostics:#?}",
+                expected_diagnostic.code
+            );
+        };
+        assert_diagnostic_message_contains(diagnostic, &[expected_diagnostic.message_fragment]);
     }
 }
 

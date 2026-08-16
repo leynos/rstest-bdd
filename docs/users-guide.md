@@ -1825,6 +1825,29 @@ Scenario: Behaviour pending external contract
   Given a dependent service is unavailable
 ```
 
+To record the step definitions bypassed by a skip, build a `BypassedScenario`
+descriptor and pass the bypassed steps to `record_bypassed_steps`:
+
+```rust,no_run
+use rstest_bdd::{record_bypassed_steps, BypassedScenario, StepKeyword};
+
+let tags = vec![String::from("@allow_skipped")];
+let scenario = BypassedScenario::new(
+    "features/unhappy_path.feature",
+    "Behaviour pending external contract",
+    12,
+)
+.with_tags(&tags)
+.with_reason(Some("service still provisioning"));
+record_bypassed_steps(
+    scenario,
+    [(StepKeyword::Given, "a dependent service is unavailable")],
+);
+```
+
+`with_tags` and `with_reason` are optional. Recording is a no-op when the
+`diagnostics` feature is disabled.
+
 ### Asserting skipped outcomes
 
 Tests that exercise skip-heavy flows no longer need to match on enums to verify
