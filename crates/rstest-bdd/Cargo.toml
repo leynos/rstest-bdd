@@ -26,7 +26,10 @@ hashbrown = "0.17"
 serde = { version = "1.0", features = ["derive"], optional = true }
 serde_json = { version = "1.0", optional = true }
 ctor.workspace = true
+# Warnings are emitted through `tracing`; `log` is retained only to detect
+# whether a `log` listener is installed. See ADR-020.
 log.workspace = true
+tracing = { workspace = true, features = ["log"] }
 derive_more.workspace = true
 i18n-embed.workspace = true
 rust-embed.workspace = true
