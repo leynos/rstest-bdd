@@ -128,6 +128,47 @@ and promotes every Rustdoc warning to an error. `--workspace` checks every
 member crate, while `--no-deps` keeps the gate focused on documentation owned
 by this repository.
 
+
+## Rust formatting and workspace lints (ADR-016)
+
+The repository's formatter configuration is the root
+[`.rustfmt.toml`](../.rustfmt.toml). It enables unstable options, including
+`unstable_features`, import grouping, comment wrapping, and single-line
+function formatting. Stable `rustfmt` ignores those options and can propose a
+different workspace-wide reformat, so it must not be used for repository
+formatting.
+
+Install the pinned formatter toolchain before running formatting commands:
+
+```bash
+rustup toolchain install nightly-2026-08-07 --profile minimal --component rustfmt
+```
+
+The Makefile sets `FMT_TOOLCHAIN` to `nightly-2026-08-07` and runs
+`$(CARGO) +$(FMT_TOOLCHAIN) fmt`. Use `make fmt` to apply formatting and
+`make check-fmt` to verify it. Editor integrations and format-on-save must
+invoke the same dated nightly `rustfmt`, rather than the stable formatter
+selected by `rust-toolchain.toml`.
+
+CI installs this toolchain explicitly and runs `make check-fmt` in the tools
+lane. Keep the installation command, `FMT_TOOLCHAIN`, and editor configuration
+in sync when changing the pinned date. This policy is recorded in
+[ADR-016](adr-016-pinned-nightly-rustfmt.md).
+
+The root `Cargo.toml` owns the workspace Clippy, Rust, and Rustdoc lint policy.
+Every workspace member, including each example, must inherit it by declaring
+the following in its `Cargo.toml`:
+
+```toml
+[lints]
+workspace = true
+```
+
+Do not replace workspace inheritance with a copied lint table. New lint
+exceptions must be narrow, justified, and kept in the appropriate source or
+workspace configuration so that `make lint` and `make typecheck` exercise the
+same policy across libraries, test-support crates, and examples.
+
 `make test` separately compiles and runs documentation examples for every
 workspace crate with all features enabled:
 
