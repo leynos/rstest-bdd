@@ -1,73 +1,69 @@
 //! Tests for step context and fixture management.
 
-use std::sync::{
-    Once,
-    atomic::{AtomicBool, Ordering},
-};
-
-use serial_test::serial;
-
-use super::*;
+use crate::context::*;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use tracing::span::{Attributes, Id, Record};
+use tracing::subscriber::DefaultGuard;
+use tracing::{Event, Level, Metadata, Subscriber};
 
 mod guard_borrowing;
 
-struct NoopLogger;
-
-impl log::Log for NoopLogger {
-    fn enabled(&self, metadata: &log::Metadata<'_>) -> bool {
-        !ENABLE_CONTEXT_WARNINGS_ONLY.load(Ordering::Relaxed)
-            || metadata.target() == CONTEXT_WARNING_TARGET
-    }
-    fn log(&self, _: &log::Record<'_>) {}
-    fn flush(&self) {}
-}
-
-/// Target used by the warning event and its fallback decision in `StepContext`.
-const CONTEXT_WARNING_TARGET: &str = concat!(env!("CARGO_CRATE_NAME"), "::context");
-
-static LOGGER: NoopLogger = NoopLogger;
-static INIT_LOGGER: Once = Once::new();
-/// Restricts the test logger to `CONTEXT_WARNING_TARGET` while the guard lives.
-static ENABLE_CONTEXT_WARNINGS_ONLY: AtomicBool = AtomicBool::new(false);
-
-/// Restores the test logger's default all-target filter when dropped.
-struct ContextWarningTargetFilter;
-
-impl ContextWarningTargetFilter {
-    /// Enable only warning events emitted from `StepContext`.
-    fn enable() -> Self {
-        ENABLE_CONTEXT_WARNINGS_ONLY.store(true, Ordering::Relaxed);
-        Self
-    }
-}
-
-impl Drop for ContextWarningTargetFilter {
-    fn drop(&mut self) { ENABLE_CONTEXT_WARNINGS_ONLY.store(false, Ordering::Relaxed); }
-}
-
-/// Fixture that initializes the logger for tests requiring log output.
+/// Subscriber that counts recorded events and answers `enabled` from a fixed
+/// maximum level.
 ///
-/// Uses `Once` to ensure the logger is set exactly once across all tests.
-/// Inject this fixture to ensure logging is available during test execution.
-#[rstest::fixture]
-fn logger() {
-    INIT_LOGGER.call_once(|| {
-        let _ = log::set_logger(&LOGGER);
-        log::set_max_level(log::LevelFilter::Warn);
-    });
+/// Modelling both a listening and a filtering consumer in one type lets the
+/// warning tests cover each delivery route without installing a process-global
+/// subscriber, which cannot be undone once set.
+pub(super) struct CountingSubscriber {
+    max_level: Level,
+    events: Arc<AtomicUsize>,
 }
 
-#[test]
-#[serial]
-fn ambiguous_override_fallback_uses_the_warning_event_target() {
-    logger();
-    let _filter = ContextWarningTargetFilter::enable();
+impl Subscriber for CountingSubscriber {
+    fn enabled(&self, metadata: &Metadata<'_>) -> bool {
+        *metadata.level() <= self.max_level
+    }
 
-    assert!(!warn_logging_is_disabled(CONTEXT_WARNING_TARGET));
-    assert!(warn_logging_is_disabled(concat!(
-        env!("CARGO_CRATE_NAME"),
-        "::context::logging"
-    )));
+    fn new_span(&self, _: &Attributes<'_>) -> Id {
+        Id::from_u64(1)
+    }
+
+    fn record(&self, _: &Id, _: &Record<'_>) {}
+
+    fn record_follows_from(&self, _: &Id, _: &Id) {}
+
+    fn event(&self, _: &Event<'_>) {
+        self.events.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn enter(&self, _: &Id) {}
+
+    fn exit(&self, _: &Id) {}
+}
+
+/// Install a [`CountingSubscriber`] for the current thread, returning the
+/// event counter alongside the guard that keeps it active.
+///
+/// The subscriber is scoped rather than global so tests remain independent
+/// under both `cargo test` and cargo-nextest.
+pub(super) fn scoped_subscriber(max_level: Level) -> (Arc<AtomicUsize>, DefaultGuard) {
+    let events = Arc::new(AtomicUsize::new(0));
+    let subscriber = CountingSubscriber {
+        max_level,
+        events: Arc::clone(&events),
+    };
+    (events, tracing::subscriber::set_default(subscriber))
+}
+
+/// Fixture that keeps a warning listener installed for the duration of a test.
+///
+/// Inject it into tests that trigger step-context warnings so the mirrored
+/// `eprintln!` stays quiet and the test output remains readable.
+#[rstest::fixture]
+fn warning_listener() -> DefaultGuard {
+    let (_events, guard) = scoped_subscriber(Level::WARN);
+    guard
 }
 
 #[test]
@@ -96,6 +92,17 @@ fn borrow_mut_returns_none_for_shared_fixture() {
     let mut ctx = StepContext::default();
     ctx.insert("number", &fixture);
     assert!(ctx.borrow_mut::<i32>("number").is_none());
+}
+
+/// Describes which `insert_value` scenario to test.
+#[derive(Debug, Clone, Copy)]
+enum InsertValueScenario {
+    /// One u32 fixture; two inserts report the initial and displaced outcomes.
+    UniqueOverride,
+    /// Two u32 fixtures; `insert_value` reports an ambiguous type.
+    AmbiguousType,
+    /// One &str fixture; `insert_value` reports that the u32 type is missing.
+    MissingType,
 }
 
 /// Assert that a unique fixture override can be replaced twice.
@@ -156,59 +163,80 @@ fn get_ignores_step_return_override() {
     drop(guard);
     assert_eq!(ctx.get::<u32>("number"), Some(&1));
 }
-#[test]
-fn insert_value_overrides_a_unique_fixture() {
-    let fixture_one: u32 = 1;
-    let mut ctx = StepContext::default();
-    ctx.insert("number", &fixture_one);
-    assert_unique_fixture_can_be_overridden_twice!(ctx);
-}
-
 #[rstest::rstest]
+#[case::unique_override(InsertValueScenario::UniqueOverride)]
+#[case::ambiguous_type(InsertValueScenario::AmbiguousType)]
+#[case::missing_type(InsertValueScenario::MissingType)]
 #[expect(
     clippy::used_underscore_binding,
     reason = "rstest fixture injection requires the parameter"
 )]
-fn insert_value_ignores_an_ambiguous_fixture_type(_logger: ()) {
+fn insert_value_behaviour(_warning_listener: DefaultGuard, #[case] scenario: InsertValueScenario) {
+    // Storage for fixtures must outlive the context
     let fixture_one: u32 = 1;
     let fixture_two: u32 = 2;
-    let mut ctx = StepContext::default();
-    ctx.insert("one", &fixture_one);
-    ctx.insert("two", &fixture_two);
-
-    let result = ctx.insert_value(Box::new(5u32));
-    assert!(matches!(&result, InsertOutcome::AmbiguousIgnored));
-    assert!(!result.is_inserted());
-    assert!(result.into_previous().is_none());
-    let Ok(one) = ctx.try_borrow::<u32>("one") else {
-        panic!("first fixture should remain borrowable");
-    };
-    let Ok(two) = ctx.try_borrow::<u32>("two") else {
-        panic!("second fixture should remain borrowable");
-    };
-    assert_eq!(*one, 1);
-    assert_eq!(*two, 2);
-}
-
-#[test]
-fn insert_value_ignores_a_missing_fixture_type() {
     let fixture_text: &str = "fixture";
-    let mut ctx = StepContext::default();
-    ctx.insert("text", &fixture_text);
 
-    let result = ctx.insert_value(Box::new(5u32));
-    assert!(matches!(&result, InsertOutcome::NoMatch));
-    assert!(!result.is_inserted());
-    assert!(result.into_previous().is_none());
-    let Err(mismatch) = ctx.try_borrow::<u32>("text") else {
-        panic!("borrowing the fixture as u32 should report a type mismatch");
-    };
-    assert_eq!(
-        mismatch,
-        FixtureBorrowError::TypeMismatch {
-            name: "text".into()
+    let mut ctx = StepContext::default();
+
+    match scenario {
+        InsertValueScenario::UniqueOverride => {
+            ctx.insert("number", &fixture_one);
+            assert_unique_fixture_can_be_overridden_twice!(ctx);
         }
-    );
+        InsertValueScenario::AmbiguousType => {
+            ctx.insert("one", &fixture_one);
+            ctx.insert("two", &fixture_two);
+
+            let result = ctx.insert_value(Box::new(5u32));
+            assert!(
+                matches!(&result, InsertOutcome::AmbiguousIgnored),
+                "ambiguous overrides must be reported as AmbiguousIgnored"
+            );
+            assert!(
+                !result.is_inserted(),
+                "a dropped value must not report is_inserted"
+            );
+            assert!(
+                result.into_previous().is_none(),
+                "a dropped value must not yield a previous override"
+            );
+            let Ok(one) = ctx.try_borrow::<u32>("one") else {
+                panic!("first fixture should remain borrowable");
+            };
+            let Ok(two) = ctx.try_borrow::<u32>("two") else {
+                panic!("second fixture should remain borrowable");
+            };
+            assert_eq!(*one, 1);
+            assert_eq!(*two, 2);
+        }
+        InsertValueScenario::MissingType => {
+            ctx.insert("text", &fixture_text);
+
+            let result = ctx.insert_value(Box::new(5u32));
+            assert!(
+                matches!(&result, InsertOutcome::NoMatch),
+                "missing fixture type must be reported as NoMatch"
+            );
+            assert!(
+                !result.is_inserted(),
+                "a dropped value must not report is_inserted"
+            );
+            assert!(
+                result.into_previous().is_none(),
+                "a dropped value must not yield a previous override"
+            );
+            let Err(mismatch) = ctx.try_borrow::<u32>("text") else {
+                panic!("borrowing the fixture as u32 should report a type mismatch");
+            };
+            assert_eq!(
+                mismatch,
+                FixtureBorrowError::TypeMismatch {
+                    name: "text".into()
+                }
+            );
+        }
+    }
 }
 
 /// Describes which `available_fixtures` scenario to test.
