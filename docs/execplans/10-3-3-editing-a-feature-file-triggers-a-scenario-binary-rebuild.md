@@ -386,7 +386,7 @@ implementation.
 
 - Observation: **`scenarios!` can parse a `.feature` file and generate zero
   tests from it**, when a `tags =` filter matches nothing
-  (`macros/scenarios/mod.rs:161`, `check_empty_results`). Likewise the
+  (`macros/scenarios/mod.rs:162`, `check_empty_results`). Likewise the
   harness-delegated path replaces the generated function body entirely
   (`codegen/scenario/runtime/harness.rs`).
   Impact: a binding emitted *inside* a generated test body would track nothing
@@ -401,11 +401,11 @@ implementation.
   today**, by two different routes.
   `crates/rstest-bdd-macros/src/macros/scenario/paths.rs:113` returns an
   absolute, cap-std-canonicalized path for `#[scenario]`;
-  `crates/rstest-bdd-macros/src/macros/scenarios/test_generation.rs:307`
+  `crates/rstest-bdd-macros/src/macros/scenarios/test_generation/mod.rs:307`
   computes a manifest-relative `rel_path` and then re-absolutizes it with
   `ctx.manifest_dir.join(ctx.rel_path)`. Both reach
   `const __RSTEST_BDD_FEATURE_PATH: &str`, emitted from **two** sites:
-  `codegen/scenario/runtime.rs:261` and
+  `codegen/scenario/runtime/mod.rs:261` and
   `codegen/scenario/runtime/harness.rs:38`. The latter destructures
   `ScenarioLiterals` with a `..` rest pattern, so adding a field there compiles
   clean and does nothing.
@@ -693,7 +693,7 @@ test) and as a *consumer* of the embedded feature path via `--dump-steps` JSON.
 
 Both macros resolve the user's `path =` argument against `CARGO_MANIFEST_DIR`,
 which Cargo sets to the directory containing the consuming crate's
-`Cargo.toml`. `crates/rstest-bdd-macros/src/parsing/feature/mod.rs:150` does the
+`Cargo.toml`. `crates/rstest-bdd-macros/src/parsing/feature/mod.rs:151` does the
 join:
 
 ```rust
@@ -728,17 +728,17 @@ file are handwritten lines in trybuild fixtures under
 `crates/rstest-bdd-macros/src/macros/scenario/paths.rs:113`
 (`canonical_feature_path`) joins `CARGO_MANIFEST_DIR`, canonicalizes through
 `cap-std`, caches the result, and returns an **absolute** `String`.
-`create_scenario_literals` (`codegen/scenario/runtime.rs:143`) wraps it in a
+`create_scenario_literals` (`codegen/scenario/runtime/mod.rs:143`) wraps it in a
 `syn::LitStr` without touching the path.
 
 The constant is then emitted from **two** places, and this is the trap:
 
-- `codegen/scenario/runtime.rs:261` (`assemble_test_tokens`)
+- `codegen/scenario/runtime/mod.rs:261` (`assemble_test_tokens`)
 - `codegen/scenario/runtime/harness.rs:38`
   (`assemble_test_tokens_with_harness`, selected at `runtime.rs:326` whenever
   `harness = …` is set)
 
-`harness.rs:24-29` destructures `ScenarioLiterals` with a `..` rest pattern, so
+`harness.rs:23` destructures `ScenarioLiterals` with a `..` rest pattern, so
 adding a field there compiles clean and silently does nothing. Item-scope
 emission (Decision D0) sidesteps this entirely — but Milestone 6 still has to
 touch both sites.
@@ -746,8 +746,33 @@ touch both sites.
 `scenarios!` reaches the same constant by its own route:
 `process_feature_file` (`macros/scenarios/mod.rs:94`) computes `rel_path` with
 `strip_prefix`, falling back to the **absolute** path on failure, and
-`generate_scenario_test` (`macros/scenarios/test_generation.rs:307`)
+`generate_scenario_test` (`macros/scenarios/test_generation/mod.rs:307`)
 re-absolutizes it with `ctx.manifest_dir.join(ctx.rel_path)`.
+
+### Module layout convention
+
+The workspace adopted **directory-based Rust modules** in `#651` (commit
+`3e6c367`, merged after this plan's first draft). Every module root under a
+crate's `src/` lives in a `mod.rs` inside a directory named for the module —
+`codegen/scenario/mod.rs`, not `codegen/scenario.rs` — while the module tree
+and public paths are unchanged. That commit also updated documentation links
+across the repository so referenced source paths stay navigable.
+
+Two consequences for this plan. Every source path it cites uses the
+directory-based form, and the new module it introduces
+(`crates/rstest-bdd-macros/src/codegen/tracking/mod.rs`) must follow the same
+convention rather than being created as a bare `tracking.rs`.
+
+The convention applies to `src/` module roots only. Integration-test targets
+keep the flat `tests/<name>.rs` form — `crates/rstest-bdd/tests/trybuild_macros.rs`
+with its `trybuild_macros/staging.rs` submodule is the live example — so the
+new `crates/rstest-bdd/tests/feature_rebuild_invalidation.rs` is correct as a
+plain file. If it needs a supporting module, that submodule goes in
+`feature_rebuild_invalidation/` alongside it.
+
+Note also that `#651` updated `scripts/rs-length-allowlist.txt` for the
+relocated paths. If you add or split a file, check that allowlist stays
+accurate — `scripts/check_rs_file_lengths.py` fails on stale entries.
 
 ### The gates
 
@@ -1037,7 +1062,7 @@ this milestone; `make check-fmt` and `make lint` are.
 
 ### Milestone 2 — green for `#[scenario]`
 
-Create `crates/rstest-bdd-macros/src/codegen/tracking.rs`. Its module-level
+Create `crates/rstest-bdd-macros/src/codegen/tracking/mod.rs`. Its module-level
 `//!` doc comment must state the mechanism, cite ADR-010, and name the
 regression test that guards it — this is the one place the *why* can live
 permanently, and `AGENTS.md` already mandates a `//!` on every module.
@@ -1089,8 +1114,8 @@ differs materially (very large individual `.feature` files are the pathological
 case: cost is linear in Σ(occurrences × file size), and `rustc` does not
 deduplicate the reads even though it deduplicates the dep-info entry).
 
-Watch two file-length hazards: `codegen/scenario/runtime.rs` is 397 lines and
-`codegen/scenario.rs` is 399, against a 400-line cap. Item-scope emission
+Watch two file-length hazards: `codegen/scenario/runtime/mod.rs` is 397 lines and
+`codegen/scenario/mod.rs` is 399, against a 400-line cap. Item-scope emission
 should keep you out of both, but if plumbing is needed, put it in
 `codegen/scenario/runtime/types.rs` (101 lines) rather than escalating on a
 foreseeable, mechanical problem.
@@ -1101,12 +1126,12 @@ Emit one tracking item per **discovered file**, at the top of the `scenarios!`
 expansion, from `crates/rstest-bdd-macros/src/macros/scenarios/mod.rs` — before
 scenario codegen and **independent of whether any test is generated**. A
 `tags =` filter that matches nothing still parses the file
-(`check_empty_results`, `mod.rs:161`), and that file must still be tracked; a
+(`check_empty_results`, `mod.rs:162`), and that file must still be tracked; a
 body-scoped or per-test binding would leave it untracked and reopen the
 foot-gun in exactly the macro this plan calls the harder case.
 
 Route the path through the same D4 helper. `rel_path` is **not** guaranteed
-relative (`mod.rs:94-99` falls back to the absolute path when `strip_prefix`
+relative (`mod.rs:94-100` falls back to the absolute path when `strip_prefix`
 fails, reachable via symlinked feature directories and via the absolute
 directory arguments `path_resolution.rs` supports), so the offset computation
 handles it. When it does, the diagnostic must never blame the user for a path
@@ -1116,7 +1141,7 @@ Add a regression case: a `scenarios!` directory with a `tags =` filter that
 excludes every scenario in one file, asserting that file still appears in
 dep-info.
 
-Do **not** touch the re-absolutization at `test_generation.rs:307` here; that
+Do **not** touch the re-absolutization at `test_generation/mod.rs:307` here; that
 belongs to Milestone 6.
 
 Run the macrotest snapshots deliberately and refresh any that move:
@@ -1206,10 +1231,10 @@ D3 ruled this in scope. Two sites must change together:
    manifest-relative accessor and feed *that* to `create_scenario_literals`. Do
    not repurpose `canonical_feature_path`: it is still needed for compile-time
    diagnostics and its memoization cache is keyed on the absolute form.
-2. `crates/rstest-bdd-macros/src/macros/scenarios/test_generation.rs:307` —
+2. `crates/rstest-bdd-macros/src/macros/scenarios/test_generation/mod.rs:307` —
    drop `ctx.manifest_dir.join(ctx.rel_path)` and pass `ctx.rel_path` through.
 
-Both emission sites are affected: `codegen/scenario/runtime.rs:261` and
+Both emission sites are affected: `codegen/scenario/runtime/mod.rs:261` and
 `codegen/scenario/runtime/harness.rs:38`. **Delete the `..` rest pattern in the
 `harness.rs` destructuring** so a future field addition there is a hard error
 rather than a silent omission.
@@ -1220,7 +1245,7 @@ manifest directory when the feature file lies within it; otherwise absolute.*
 Do not ship an unconditional guarantee. Update the doc comments on
 `ScenarioMetadata::feature_path` (`crates/rstest-bdd/src/reporting/record.rs:11`),
 `ExecutionError::MissingFixturesDetails::feature_path`
-(`crates/rstest-bdd/src/execution/error.rs:208`), and the `ScenarioRecord`
+(`crates/rstest-bdd/src/execution/error/mod.rs:208`), and the `ScenarioRecord`
 accessor — none of them says anything today, which is how the two macros
 drifted apart.
 
@@ -1228,7 +1253,7 @@ drifted apart.
 unique; `tests/features/login.feature` does not. `cargo-bdd` merges dumps
 across workspace members, so two crates with the same conventional layout now
 collide in merged output and in `format_location`
-(`crates/cargo-bdd/src/output.rs:150`). Minimum: document the loss in the
+(`crates/cargo-bdd/src/output/mod.rs:164`). Minimum: document the loss in the
 users' guide and the `feature_path` doc comment. Better: have `cargo-bdd`
 qualify merged entries with the package name it already has from
 `cargo metadata`, pinned by a test. State whichever you choose.
@@ -1254,7 +1279,7 @@ stronger contract; lean on it. (A dev-profile artefact check would be worse
 than useless: dev binaries contain the manifest path in every crate, tracked or
 not, purely from debug info, so the assertion is vacuous — see transcript B.)
 
-Finally, `ScenarioTestContext.manifest_dir` (`test_generation.rs:34`) may become
+Finally, `ScenarioTestContext.manifest_dir` (`test_generation/mod.rs:35`) may become
 dead once its only consumer at line 307 goes, and would then trip `dead_code`
 under `-D warnings`. Remove it or state why it is retained.
 
@@ -1397,7 +1422,7 @@ fn main() {
   fixture-crate pattern (non-workspace fixture, inherited `CARGO_TARGET_DIR`,
   child-environment hygiene, `cargo-spawning` nextest group). The invariant
   that macro-emitted token streams carry no absolute path literal, with a
-  pointer to the assertion that enforces it and to `codegen/tracking.rs`. The
+  pointer to the assertion that enforces it and to `codegen/tracking/mod.rs`. The
   **`googletest` and `pretty_assertions` house style** established by Decision
   D1 — when to reach for a matcher versus a diffed equality assertion, and the
   `#[rstest]`/`#[gtest]` composition settled in Milestone 0, with a worked
@@ -1722,7 +1747,7 @@ pub fn load_documented_examples() -> anyhow::Result<Vec<DocumentedExample>>;
 pub fn documented_example(id: &str) -> anyhow::Result<DocumentedExample>;
 ```
 
-In `crates/rstest-bdd-macros/src/codegen/tracking.rs`:
+In `crates/rstest-bdd-macros/src/codegen/tracking/mod.rs`:
 
 ```rust
 /// Why a feature file cannot be registered as a Cargo rebuild dependency.
@@ -1774,7 +1799,7 @@ file, independent of test generation). The codegen layer is not modified in
 Milestones 2–3.
 
 Keep `tracking.rs` well under the 400-line cap; if the normalization logic and
-its tests grow past it, move the tests into a sibling `tracking/tests.rs`.
+its tests grow past it, move the tests into a sibling `tracking/tests/mod.rs`.
 
 ## Outcomes & retrospective
 
@@ -1844,3 +1869,19 @@ whether the residual `scenarios!` addition gap caused confusion in review.
   `scenarios!` addition gap moves from *known issue* to *closed*; and three
   follow-up roadmap items are queued rather than one. Nothing now blocks
   approval.
+- **2026-08-16, revision 5.** Rebased onto `origin/main`, which had gained
+  `#651` "Adopt directory-based Rust modules" (commit `3e6c367`). The rebase
+  itself was textually clean — this branch only adds one new file — but `#651`
+  relocated five of the source files this plan cites, so every affected
+  citation was re-resolved against the rebased tree rather than assumed:
+  `codegen/scenario.rs`, `codegen/scenario/runtime.rs`,
+  `macros/scenarios/test_generation.rs`, `rstest-bdd/src/execution/error.rs`
+  and `cargo-bdd/src/output.rs` all moved to their `mod.rs` form, and a handful
+  of line numbers drifted by one or two. A new *Module layout convention*
+  subsection records the convention, because it also governs the module this
+  plan creates: `codegen/tracking.rs` becomes `codegen/tracking/mod.rs`.
+  Verified unchanged: the 397- and 399-line file-length hazards still stand at
+  their new paths, and all non-relocated citations still resolve.
+  Effect on remaining work: none — no milestone, decision or measurement
+  changed. This is a citation-accuracy pass, matching what `#651` itself did
+  for the other maintained documents.
