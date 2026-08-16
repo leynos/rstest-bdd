@@ -7,6 +7,7 @@ use rstest::fixture;
 use rstest_bdd_macros::{given, scenario, then, when};
 use tokio_reminders::ReminderService;
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn service() -> ReminderService {
     let service = ReminderService::new();

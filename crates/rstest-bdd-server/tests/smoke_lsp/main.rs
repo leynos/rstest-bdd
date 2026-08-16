@@ -37,6 +37,7 @@ const MAX_RECV_MESSAGES: usize = 20;
 // ---------------------------------------------------------------------------
 
 /// Fixture providing a temporary directory for each test.
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn temp_dir() -> TempDir { new_temp_dir() }
 
@@ -44,6 +45,7 @@ fn temp_dir() -> TempDir { new_temp_dir() }
 /// directory.  The server is spawned, the initialize handshake is
 /// performed, and the caller receives handles needed for interaction
 /// and teardown.
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn server(temp_dir: TempDir) -> ServerHandle { init_server_handle(temp_dir) }
 

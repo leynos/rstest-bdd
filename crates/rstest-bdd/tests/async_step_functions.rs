@@ -26,6 +26,7 @@ struct CounterState {
     value: usize,
 }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn state() -> CounterState { CounterState::default() }
 

@@ -180,6 +180,7 @@ mod tests {
     use super::*;
     use crate::{config::ServerConfig, handlers::handle_did_save_text_document};
 
+    #[rstest_bdd_test_macros::allow_fixture_expansion_lints]
     #[fixture]
     fn test_state() -> ServerState { ServerState::new(ServerConfig::default()) }
 

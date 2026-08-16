@@ -26,6 +26,7 @@ mod test_utils;
 
 use test_utils::{STD_HARNESS_PANIC_MESSAGE, panic_payload_matches};
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn default_metadata() -> ScenarioMetadata { ScenarioMetadata::default() }
 

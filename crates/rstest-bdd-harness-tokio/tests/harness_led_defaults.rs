@@ -32,6 +32,7 @@ struct LocalTaskState {
     handle: Slot<tokio::task::JoinHandle<u32>>,
 }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn local_task_state() -> LocalTaskState { LocalTaskState::default() }
 

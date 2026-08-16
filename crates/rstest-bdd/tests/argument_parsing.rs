@@ -5,6 +5,7 @@ use std::cell::RefCell;
 use rstest::fixture;
 use rstest_bdd_macros::{given, scenario, then, when};
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn account() -> RefCell<u32> { RefCell::new(0) }
 

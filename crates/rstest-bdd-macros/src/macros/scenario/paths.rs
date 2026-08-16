@@ -169,6 +169,7 @@ mod tests {
 
     use super::{canonical_feature_path, canonicalize_with_cap_std, clear_feature_path_cache};
 
+    #[rstest_bdd_test_macros::allow_fixture_expansion_lints]
     #[fixture]
     fn cache_cleared() { clear_feature_path_cache(); }
 

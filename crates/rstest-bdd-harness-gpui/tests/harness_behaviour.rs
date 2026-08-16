@@ -28,6 +28,7 @@ fn run_gpui_harness<T>(request: ScenarioRunRequest<'_, gpui::TestAppContext, T>)
     }
 }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn default_metadata() -> ScenarioMetadata { ScenarioMetadata::default() }
 

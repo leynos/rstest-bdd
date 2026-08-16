@@ -8,9 +8,11 @@ struct StreamingState {
     parsed_events: usize,
 }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn world() -> StreamingState { StreamingState::default() }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn _world() -> &'static str { "explicit _world fixture" }
 

@@ -12,6 +12,7 @@ use crate::{
 };
 
 /// Fixture providing the infrastructure for diagnostic tests.
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn scenario_builder() -> ScenarioBuilder { ScenarioBuilder::new() }
 

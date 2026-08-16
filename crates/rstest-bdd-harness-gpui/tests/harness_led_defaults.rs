@@ -69,6 +69,7 @@ mod native {
         fn drop(&mut self) { reset_context_pointer(); }
     }
 
+    #[rstest_bdd_test_macros::allow_fixture_expansion_lints]
     #[fixture]
     fn context_pointer_cleanup() -> ContextPointerCleanup {
         // Reset before the scenario assigns its own address so a reused serial

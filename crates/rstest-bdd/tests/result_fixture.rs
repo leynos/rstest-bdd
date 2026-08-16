@@ -29,10 +29,12 @@ impl ResultWorld {
 }
 
 /// Fixture that returns `Result<ResultWorld, String>`.
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn world() -> Result<ResultWorld, String> { ResultWorld::try_new() }
 
 /// Fixture that always fails, for testing error propagation.
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn failing_world() -> Result<ResultWorld, String> { ResultWorld::try_new_failing() }
 
@@ -128,10 +130,12 @@ fn result_fixture_error_propagates() {
 // -- StepResult<T, E> fixture tests ---
 
 /// Fixture that returns `StepResult<ResultWorld, String>`.
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn step_result_world() -> StepResult<ResultWorld, String> { ResultWorld::try_new() }
 
 /// Fixture that always fails, for testing `StepResult` error propagation.
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn failing_step_result_world() -> StepResult<ResultWorld, String> {
     Err("step-result fixture initialization failed".to_owned())

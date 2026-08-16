@@ -17,9 +17,11 @@ struct LeftCounter(u32);
 #[derive(Default)]
 struct RightCounter(u32);
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn left() -> LeftCounter { LeftCounter(10) }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn right() -> RightCounter { RightCounter(20) }
 
@@ -76,6 +78,7 @@ impl HarnessAdapter for CountingHarness {
     }
 }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn harness_world() -> HarnessWorld { HarnessWorld::default() }
 

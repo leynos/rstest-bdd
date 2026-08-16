@@ -47,6 +47,7 @@ tempfile = { workspace = true, optional = true }
 insta = { workspace = true, features = ["filters"] }
 proptest.workspace = true
 rstest.workspace = true
+rstest-bdd-test-macros.workspace = true
 rstest-bdd-server = { path = ".", features = ["test-support"] }
 tempfile.workspace = true
 # `io-util` supplies `duplex`/`empty`/`AsyncReadExt` for the in-process

@@ -162,9 +162,11 @@ mod tests {
     use super::*;
     use crate::config::ServerConfig;
 
+    #[rstest_bdd_test_macros::allow_fixture_expansion_lints]
     #[fixture]
     fn create_test_state() -> ServerState { ServerState::new(ServerConfig::default()) }
 
+    #[rstest_bdd_test_macros::allow_fixture_expansion_lints]
     #[fixture]
     fn create_init_params() -> InitializeParams {
         InitializeParams {
@@ -175,6 +177,7 @@ mod tests {
     }
 
     /// Fixture providing a platform-specific test path.
+    #[rstest_bdd_test_macros::allow_fixture_expansion_lints]
     #[fixture]
     fn platform_test_path() -> PathBuf {
         #[cfg(windows)]

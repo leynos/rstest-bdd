@@ -13,6 +13,7 @@ struct CopyFileStaging {
     dst: PathBuf,
 }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn copy_file_staging() -> io::Result<CopyFileStaging> {
     let root = TempDir::new()?;
@@ -53,6 +54,7 @@ struct OverlapCheckStaging {
     src: PathBuf,
 }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn overlap_check_staging() -> io::Result<OverlapCheckStaging> {
     let (root, src, _dst) = make_src_dst_scaffold()?;
@@ -61,6 +63,7 @@ fn overlap_check_staging() -> io::Result<OverlapCheckStaging> {
     Ok(OverlapCheckStaging { root, src })
 }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn replace_dir_staging() -> io::Result<ReplaceDstStaging> {
     let (root, src, dst) = make_src_dst_scaffold()?;
@@ -97,6 +100,7 @@ fn copy_dir_tree_creates_missing_destination_parents(
     assert!(nested_dst.join("sub").join("a.txt").exists());
 }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn replace_file_dest_staging() -> io::Result<ReplaceDstStaging> {
     let (root, src, dst) = make_src_dst_scaffold()?;
@@ -181,6 +185,7 @@ struct SymlinkInSourceStaging {
 }
 
 #[cfg(unix)]
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn symlink_in_source_staging() -> io::Result<SymlinkInSourceStaging> {
     use std::os::unix::fs::symlink;
