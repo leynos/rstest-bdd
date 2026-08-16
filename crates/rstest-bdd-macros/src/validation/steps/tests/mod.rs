@@ -1,15 +1,23 @@
 //! Tests for step-definition validation: missing/single/ambiguous outcomes and registry behaviour.
-// Intentionally left without file-wide lint suppressions; add per-function #[expect(...)] where needed.
-use super::crate_id::{canonicalize_out_dir, normalize_crate_id};
-use super::*;
+// Intentionally left without file-wide lint suppressions; add per-function #[expect(...)] where
+// needed.
 use camino::Utf8PathBuf;
 use rstest::rstest;
 use serial_test::serial;
 use tempfile::{tempdir, tempdir_in};
 
+use super::{
+    crate_id::{canonicalize_out_dir, normalize_crate_id},
+    *,
+};
+
 mod support;
 use self::support::{
-    TempWorkingDir, assert_bullet_count, clear_registry, create_dir_all_cap, create_test_step,
+    TempWorkingDir,
+    assert_bullet_count,
+    clear_registry,
+    create_dir_all_cap,
+    create_test_step,
     temp_working_dir,
 };
 

@@ -3,15 +3,18 @@
 //! This module keeps missing-fixture diagnostic assembly separate from the
 //! high-level step execution flow.
 
-use std::collections::HashSet;
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
-use crate::context::{RSTEST_BDD_HARNESS_CONTEXT_FIXTURE, StepContext};
-use crate::registry::fixture_requirements_for_step;
-use crate::{FixtureRequirement, Step};
-
-use super::StepExecutionRequest;
-use super::error::{ExecutionError, MissingFixtureDiagnostic, MissingFixturesDetails};
+use super::{
+    StepExecutionRequest,
+    error::{ExecutionError, MissingFixtureDiagnostic, MissingFixturesDetails},
+};
+use crate::{
+    FixtureRequirement,
+    Step,
+    context::{RSTEST_BDD_HARNESS_CONTEXT_FIXTURE, StepContext},
+    registry::fixture_requirements_for_step,
+};
 
 /// Validate that all required fixtures are present in the context.
 ///

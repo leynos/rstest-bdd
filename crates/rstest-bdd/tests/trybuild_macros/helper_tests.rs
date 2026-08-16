@@ -1,14 +1,20 @@
 //! Unit tests for normalizer and path helpers used by trybuild macro tests.
-use super::wrappers::{FixtureStderr, FixtureTestPath};
-use super::*;
-use super::{Normalizer, NormalizerInput};
+use std::{
+    any::Any,
+    borrow::Cow,
+    panic::{self, AssertUnwindSafe},
+};
+
 use camino::{Utf8Path, Utf8PathBuf};
 use cap_std::{ambient_authority, fs::Dir};
 use rstest::rstest;
-use std::any::Any;
-use std::borrow::Cow;
-use std::panic::{self, AssertUnwindSafe};
 
+use super::{
+    Normalizer,
+    NormalizerInput,
+    wrappers::{FixtureStderr, FixtureTestPath},
+    *,
+};
 fn write_fixture_file(crate_dir: &Dir, path: &Utf8Path, bytes: &[u8], label: &str) {
     if let Some(parent) = path.parent() {
         if let Err(error) = crate_dir.create_dir_all(parent.as_std_path()) {
@@ -19,7 +25,6 @@ fn write_fixture_file(crate_dir: &Dir, path: &Utf8Path, bytes: &[u8], label: &st
         panic!("failed to write {label}: {error}");
     }
 }
-
 fn captured_panic_message(result: Result<(), Box<dyn Any + Send>>) -> String {
     let Err(payload) = result else {
         panic!("expected helper to panic");
@@ -32,7 +37,6 @@ fn captured_panic_message(result: Result<(), Box<dyn Any + Send>>) -> String {
     };
     message.clone()
 }
-
 struct NormalizerFixture {
     expected_path: Utf8PathBuf,
     actual_path: Utf8PathBuf,
@@ -97,9 +101,7 @@ fn wip_stderr_path_builds_target_location() {
 
 #[test]
 #[should_panic(expected = "trybuild test path must include file name")]
-fn wip_stderr_path_panics_without_file_name() {
-    wip_stderr_path(Utf8Path::new("").as_std_path());
-}
+fn wip_stderr_path_panics_without_file_name() { wip_stderr_path(Utf8Path::new("").as_std_path()); }
 
 #[test]
 fn expected_stderr_path_replaces_extension() {

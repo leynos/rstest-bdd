@@ -1,7 +1,12 @@
 //! Unit tests for registry dumping.
 
 use rstest_bdd::{
-    StepContext, StepExecution, StepKeyword, dump_registry, find_step, record_bypassed_steps,
+    StepContext,
+    StepExecution,
+    StepKeyword,
+    dump_registry,
+    find_step,
+    record_bypassed_steps,
     reporting::{self, ScenarioMetadata, ScenarioRecord, ScenarioStatus, SkippedScenario},
     step,
 };

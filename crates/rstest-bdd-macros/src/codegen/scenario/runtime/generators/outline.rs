@@ -8,9 +8,8 @@
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 
-use crate::codegen::scenario::helpers::ProcessedStepTokens;
-
 use super::step_loop::generate_step_result_handler;
+use crate::codegen::scenario::helpers::ProcessedStepTokens;
 
 /// Generates a step executor loop for scenario outlines with placeholder substitution.
 ///
@@ -58,8 +57,8 @@ fn generate_step_executor_loop_outline_impl(
 ///
 /// # Arguments
 ///
-/// * `all_rows_steps` - A vector where each element contains the processed steps for
-///   one Examples row. Each inner tuple contains (keywords, values, docstrings, tables).
+/// * `all_rows_steps` - A vector where each element contains the processed steps for one Examples
+///   row. Each inner tuple contains (keywords, values, docstrings, tables).
 ///
 /// # Generated code
 ///
@@ -96,8 +95,8 @@ pub(in crate::codegen::scenario::runtime) fn generate_step_executor_loop_outline
 ///
 /// # Arguments
 ///
-/// * `all_rows_steps` - A vector where each element contains the processed steps for
-///   one Examples row. Each inner tuple contains (keywords, values, docstrings, tables).
+/// * `all_rows_steps` - A vector where each element contains the processed steps for one Examples
+///   row. Each inner tuple contains (keywords, values, docstrings, tables).
 ///
 /// # Generated code
 ///

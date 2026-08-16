@@ -1,10 +1,10 @@
-//! Keyword-focused step-error scenarios exercising the `ExecutionError`, `PanicError`, and `MissingFixture` variants.
+//! Keyword-focused step-error scenarios exercising the `ExecutionError`, `PanicError`, and
+//! `MissingFixture` variants.
 
 mod step_error_common;
 
 use rstest::rstest;
 use rstest_bdd::{StepError, StepKeyword};
-
 use step_error_common::{StepInvocation, invoke_step};
 
 fn assert_step_error(
@@ -53,7 +53,8 @@ fn assert_step_error(
             assert_eq!(step, expected_step);
         }
         (other_actual, other_expected) => panic!(
-            "unexpected error for {step_pattern}: got {other_actual:?}, expected {other_expected:?}"
+            "unexpected error for {step_pattern}: got {other_actual:?}, expected \
+             {other_expected:?}"
         ),
     }
 }

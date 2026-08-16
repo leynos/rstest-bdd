@@ -7,19 +7,14 @@
 use std::path::PathBuf;
 
 use proptest::prelude::*;
-
 use rstest_bdd_server::handlers::util::has_extension;
 
 /// Strategy producing a plausible lowercase extension (letters only so case
 /// permutation is meaningful).
-fn extension() -> impl Strategy<Value = String> {
-    "[a-z]{1,8}"
-}
+fn extension() -> impl Strategy<Value = String> { "[a-z]{1,8}" }
 
 /// Strategy producing a file stem free of dots and path separators.
-fn stem() -> impl Strategy<Value = String> {
-    "[a-zA-Z0-9_-]{1,12}"
-}
+fn stem() -> impl Strategy<Value = String> { "[a-zA-Z0-9_-]{1,12}" }
 
 /// Apply a per-character case flip mask to an ASCII string.
 fn permute_case(s: &str, mask: &[bool]) -> String {

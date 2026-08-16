@@ -13,8 +13,12 @@ use quote::ToTokens;
 use super::{
     ExtractedArgs,
     classify::{
-        ClassificationContext, classify_datatable, classify_docstring, classify_fixture_or_step,
-        classify_step_struct, extract_step_struct_attribute,
+        ClassificationContext,
+        classify_datatable,
+        classify_docstring,
+        classify_fixture_or_step,
+        classify_step_struct,
+        extract_step_struct_attribute,
     },
 };
 
@@ -73,7 +77,8 @@ fn next_typed_argument(
             return Err(syn::Error::new(
                 span_for_pattern(other),
                 format!(
-                    "unsupported parameter pattern `{pattern}`; use a simple identifier (e.g., `arg: T`)"
+                    "unsupported parameter pattern `{pattern}`; use a simple identifier (e.g., \
+                     `arg: T`)"
                 ),
             ));
         }
@@ -113,7 +118,8 @@ fn classify_step_or_fixture(
             return Err(syn::Error::new(
                 span_for_pattern(other),
                 format!(
-                    "unsupported parameter pattern `{pattern}`; use a simple identifier (e.g., `arg: T`)"
+                    "unsupported parameter pattern `{pattern}`; use a simple identifier (e.g., \
+                     `arg: T`)"
                 ),
             ));
         }
@@ -148,8 +154,8 @@ fn classify_step_or_fixture(
 /// ```
 ///
 /// Note: special arguments must use the canonical names:
-/// - data table parameter must be annotated with `#[datatable]` or be named
-///   `datatable` and have type `Vec<Vec<String>>`
+/// - data table parameter must be annotated with `#[datatable]` or be named `datatable` and have
+///   type `Vec<Vec<String>>`
 /// - doc string parameter must be named `docstring` and have type `String`
 ///
 /// At most one `datatable` and one `docstring` parameter are permitted.
@@ -191,8 +197,9 @@ pub fn extract_args(
 mod tests {
     //! Unit tests for extracting wrapper argument metadata.
 
-    use super::*;
     use syn::parse_quote;
+
+    use super::*;
 
     fn parse_fn(src: &str) -> syn::ItemFn {
         match syn::parse_str(src) {

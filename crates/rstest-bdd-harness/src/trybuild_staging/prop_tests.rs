@@ -4,10 +4,12 @@
 //! destination paths are canonicalized and destination overlaps are detected
 //! before a copy can create or remove the wrong tree.
 
-use std::fs;
-use std::os::unix::fs::symlink;
-use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    fs,
+    os::unix::fs::symlink,
+    path::{Path, PathBuf},
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use proptest::prelude::*;
 

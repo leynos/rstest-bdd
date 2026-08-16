@@ -4,9 +4,7 @@
 //! server. All settings can be overridden via environment variables prefixed
 //! with `RSTEST_BDD_LSP_`.
 
-use std::env;
-use std::path::PathBuf;
-use std::str::FromStr;
+use std::{env, path::PathBuf, str::FromStr};
 
 use crate::error::ServerError;
 
@@ -69,11 +67,9 @@ const DEFAULT_DEBOUNCE_MS: u64 = 300;
 ///
 /// # Environment Variables
 ///
-/// - `RSTEST_BDD_LSP_LOG_LEVEL`: Sets the log level (trace, debug, info, warn,
-///   error)
+/// - `RSTEST_BDD_LSP_LOG_LEVEL`: Sets the log level (trace, debug, info, warn, error)
 /// - `RSTEST_BDD_LSP_DEBOUNCE_MS`: Delay before processing file changes
-/// - `RSTEST_BDD_LSP_WORKSPACE_ROOT`: Override workspace root path for
-///   discovery
+/// - `RSTEST_BDD_LSP_WORKSPACE_ROOT`: Override workspace root path for discovery
 #[derive(Debug, Clone)]
 pub struct ServerConfig {
     /// Log level (trace, debug, info, warn, error).
@@ -108,9 +104,7 @@ impl ServerConfig {
     ///
     /// Returns `ServerError::InvalidConfig` if an environment variable contains
     /// an invalid value.
-    pub fn from_env() -> Result<Self, ServerError> {
-        Self::from_env_with(|key| env::var(key))
-    }
+    pub fn from_env() -> Result<Self, ServerError> { Self::from_env_with(|key| env::var(key)) }
 
     fn from_env_with<F>(get_var: F) -> Result<Self, ServerError>
     where

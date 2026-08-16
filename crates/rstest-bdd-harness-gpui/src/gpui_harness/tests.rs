@@ -7,35 +7,30 @@
 //! into two strands:
 //!
 //! - **Adapter behaviour:** [`gpui_harness_runs_request`] and
-//!   [`gpui_test_context_is_available_during_run`] drive
-//!   [`super::GpuiHarness::run`] end-to-end against `gpui::run_test`, so
-//!   they take a `#[serial_test::serial]` guard to honour the GPUI
-//!   single-thread requirement (see the parent module docs for the full
-//!   constraint).
-//! - **Panic-path helpers:**
-//!   [`augmented_panic_message_includes_scenario_name_for_payload_type`]
-//!   is an `rstest`-parametrized test that covers all three downcast arms
-//!   of [`super::GpuiHarness::augmented_panic_message`] (owned `String`,
-//!   `&'static str`, and an opaque `Debug`-only payload).
-//!   [`write_stderr_diagnostic_to_returns_err_on_broken_pipe`] asserts
-//!   that [`super::GpuiHarness::write_stderr_diagnostic_to`] surfaces an
-//!   `Err` rather than panicking when the writer reports `BrokenPipe`.
-//!   Neither helper test touches GPUI runtime state, so they run in
-//!   parallel without serialization.
+//!   [`gpui_test_context_is_available_during_run`] drive [`super::GpuiHarness::run`] end-to-end
+//!   against `gpui::run_test`, so they take a `#[serial_test::serial]` guard to honour the GPUI
+//!   single-thread requirement (see the parent module docs for the full constraint).
+//! - **Panic-path helpers:** [`augmented_panic_message_includes_scenario_name_for_payload_type`] is
+//!   an `rstest`-parametrized test that covers all three downcast arms of
+//!   [`super::GpuiHarness::augmented_panic_message`] (owned `String`, `&'static str`, and an opaque
+//!   `Debug`-only payload). [`write_stderr_diagnostic_to_returns_err_on_broken_pipe`] asserts that
+//!   [`super::GpuiHarness::write_stderr_diagnostic_to`] surfaces an `Err` rather than panicking
+//!   when the writer reports `BrokenPipe`. Neither helper test touches GPUI runtime state, so they
+//!   run in parallel without serialization.
 
 /// An opaque panic-payload type that is neither `String` nor `&str`, used to
 /// exercise the fallback downcast arm of `augmented_panic_message`.
 #[derive(Debug)]
 struct OpaquePayload;
 
-use super::GpuiHarness;
 use rstest::{fixture, rstest};
 use rstest_bdd_harness::{HarnessAdapter, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner};
 
+use super::GpuiHarness;
+
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
-fn harness() -> GpuiHarness {
-    GpuiHarness::new()
-}
+fn harness() -> GpuiHarness { GpuiHarness::new() }
 
 #[rstest]
 #[serial_test::serial]
@@ -126,9 +121,7 @@ fn write_stderr_diagnostic_to_returns_err_on_broken_pipe() {
             Err(io::Error::from(io::ErrorKind::BrokenPipe))
         }
         /// Succeeds without flushing because no bytes were written.
-        fn flush(&mut self) -> io::Result<()> {
-            Ok(())
-        }
+        fn flush(&mut self) -> io::Result<()> { Ok(()) }
     }
 
     let result = GpuiHarness::write_stderr_diagnostic_to(&mut BrokenPipeWriter, "test message");

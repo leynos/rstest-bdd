@@ -3,9 +3,10 @@
 //! These tests verify that `<placeholder>` tokens in step text are substituted
 //! with values from the Examples table before step matching occurs.
 
+use std::sync::{LazyLock, Mutex, MutexGuard};
+
 use rstest_bdd_macros::{given, scenario, then, when};
 use serial_test::serial;
-use std::sync::{LazyLock, Mutex, MutexGuard};
 
 /// Tracks the current item count for arithmetic tests.
 static COUNT: LazyLock<Mutex<i32>> = LazyLock::new(|| Mutex::new(0));
@@ -30,21 +31,15 @@ fn add_count(value: i32) {
     *g += value;
 }
 
-fn get_count() -> i32 {
-    *get_count_guard()
-}
+fn get_count() -> i32 { *get_count_guard() }
 
 /// Step definition using `{n}` capture syntax to extract the substituted value.
 #[given("I have {n} items")]
-fn have_items(n: i32) {
-    set_count(n);
-}
+fn have_items(n: i32) { set_count(n); }
 
 /// Step definition using `{n}` capture syntax for the amount to add.
 #[when("I add {n} more items")]
-fn add_items(n: i32) {
-    add_count(n);
-}
+fn add_items(n: i32) { add_count(n); }
 
 /// Step definition that verifies the total matches the expected value.
 #[then("I should have {n} items")]

@@ -247,8 +247,9 @@ fn render_expr(expr: &Expr) -> String {
 mod tests {
     //! Unit tests for rendering Rust types in the index.
 
-    use super::*;
     use syn::{Type, parse_quote};
+
+    use super::*;
 
     fn assert_renders(ty: &Type, expected: &str) {
         assert_eq!(render_type(ty), expected);

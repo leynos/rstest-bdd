@@ -1,9 +1,10 @@
 //! Code emission helpers for wrapper generation.
 
-use super::args::{Arg, ExtractedArgs};
-use crate::return_classifier::ReturnKind;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
+
+use super::args::{Arg, ExtractedArgs};
+use crate::return_classifier::ReturnKind;
 
 mod assembly;
 mod call_expr;

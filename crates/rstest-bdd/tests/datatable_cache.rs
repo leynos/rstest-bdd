@@ -1,12 +1,17 @@
 //! Behavioural tests for cached data table conversion.
 
-use rstest_bdd::datatable::CachedTable;
-use rstest_bdd::{StepContext, StepKeyword, lookup_step};
+use std::{
+    collections::HashMap,
+    sync::{
+        Mutex,
+        OnceLock,
+        atomic::{AtomicUsize, Ordering},
+    },
+    thread,
+};
+
+use rstest_bdd::{StepContext, StepKeyword, datatable::CachedTable, lookup_step};
 use rstest_bdd_macros::given;
-use std::collections::HashMap;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Mutex, OnceLock};
-use std::thread;
 
 fn cached_calls() -> &'static Mutex<HashMap<thread::ThreadId, Vec<usize>>> {
     static CALLS: OnceLock<Mutex<HashMap<thread::ThreadId, Vec<usize>>>> = OnceLock::new();
@@ -53,13 +58,9 @@ fn take_values() -> Vec<String> {
 
 static CONVERSIONS: AtomicUsize = AtomicUsize::new(0);
 
-fn reset_conversions() {
-    CONVERSIONS.store(0, Ordering::Relaxed);
-}
+fn reset_conversions() { CONVERSIONS.store(0, Ordering::Relaxed); }
 
-fn conversion_count() -> usize {
-    CONVERSIONS.load(Ordering::Relaxed)
-}
+fn conversion_count() -> usize { CONVERSIONS.load(Ordering::Relaxed) }
 
 #[given("a cached table:")]
 fn cached_table(datatable: CachedTable) {

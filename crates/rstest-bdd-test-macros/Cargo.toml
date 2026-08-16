@@ -1,0 +1,23 @@
+[package]
+name = "rstest-bdd-test-macros"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Test-only procedural macros for scoped fixture lint allowances."
+repository.workspace = true
+publish = false
+
+[lib]
+proc-macro = true
+
+[lints]
+workspace = true
+
+[dependencies]
+quote.workspace = true
+syn.workspace = true
+
+[dev-dependencies]
+rstest.workspace = true

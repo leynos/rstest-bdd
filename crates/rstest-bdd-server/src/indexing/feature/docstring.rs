@@ -12,23 +12,15 @@ use super::FeatureSource;
 pub(super) struct LineContent<'a>(&'a str);
 
 impl<'a> LineContent<'a> {
-    pub(super) fn new(line: &'a str) -> Self {
-        Self(line)
-    }
+    pub(super) fn new(line: &'a str) -> Self { Self(line) }
 
-    pub(super) fn as_str(&self) -> &'a str {
-        self.0
-    }
+    pub(super) fn as_str(&self) -> &'a str { self.0 }
 
-    pub(super) fn trim_start(&self) -> &'a str {
-        self.0.trim_start()
-    }
+    pub(super) fn trim_start(&self) -> &'a str { self.0.trim_start() }
 }
 
 impl AsRef<str> for LineContent<'_> {
-    fn as_ref(&self) -> &str {
-        self.0
-    }
+    fn as_ref(&self) -> &str { self.0 }
 }
 
 /// Tracks the state whilst scanning for docstring delimiters.

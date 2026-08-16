@@ -92,6 +92,12 @@ jobs:
         with:
           version: '0.11.8'
 
+      # `.rustfmt.toml` uses unstable options, so `make check-fmt` shells out
+      # to the pinned nightly rustfmt named by the Makefile's FMT_TOOLCHAIN.
+      - name: Install nightly rustfmt
+        if: ${{ matrix.tools }}
+        run: rustup toolchain install nightly-2026-08-07 --profile minimal --component rustfmt
+
       - name: Check formatting
         if: ${{ matrix.tools }}
         run: make check-fmt

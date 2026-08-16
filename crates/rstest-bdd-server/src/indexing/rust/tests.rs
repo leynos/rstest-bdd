@@ -1,7 +1,8 @@
 //! Tests for Rust step definition indexing.
 
-use super::*;
 use rstest::rstest;
+
+use super::*;
 
 #[test]
 fn indexes_step_definitions_and_infers_patterns() {

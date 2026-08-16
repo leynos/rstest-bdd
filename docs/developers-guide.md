@@ -348,15 +348,15 @@ the base lives in exactly one place.
 
 ## Workflow pins and Dependabot
 
-Dependabot owns the upgrade of GitHub Actions and reusable workflows,
-including calls into `leynos/shared-actions`. Contract tests that assert a
-caller's exact commit SHA create a lockstep dependency: every time Dependabot
-opens a bump PR, the test fails until a human edits the pinned constant to
-match. That defeats the purpose of automated dependency updates and turns a
-routine bump into a manual chore.
+Dependabot owns the upgrade of GitHub Actions and reusable workflows, including
+calls into `leynos/shared-actions`. Contract tests that assert a caller's exact
+commit SHA create a lockstep dependency: every time Dependabot opens a bump PR,
+the test fails until a human edits the pinned constant to match. That defeats
+the purpose of automated dependency updates and turns a routine bump into a
+manual chore.
 
-Contract tests may still verify the _shape_ of a reusable-workflow caller.
-They must not verify the specific SHA value.
+Contract tests may still verify the _shape_ of a reusable-workflow caller. They
+must not verify the specific SHA value.
 
 - Do assert the workflow references the correct reusable workflow path.
 - Do assert the ref is pinned to a full 40-character commit SHA, not a
@@ -1333,6 +1333,20 @@ In-source `allow`/`expect` attributes do not suppress `no_std_fs_operations`
 findings, so exclusions are the only sanctioned escape hatch for
 legitimately-ambient code such as test-support crates and integration test
 crates.
+
+#### Fixture-expansion lint allowance
+
+`crates/rstest-bdd-test-macros` owns the narrow `unused_braces` allowance
+needed for `rstest` fixture expansion. Apply its
+`#[rstest_bdd_test_macros::allow_fixture_expansion_lints]` attribute
+immediately above `#[fixture]` in workspace test code. It emits the allowance
+only for that fixture and pairs it with Clippy's conditional `allow_attributes`
+expectation.
+
+The crate is a test-only development dependency: production crates and
+non-fixture test helpers must not depend on it. Do not extend the attribute to
+other lints or apply it to arbitrary functions; add a separately justified,
+scoped mechanism if another macro expansion needs one.
 
 When maintaining the pin:
 

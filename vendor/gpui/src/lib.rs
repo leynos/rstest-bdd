@@ -25,13 +25,9 @@ enum AttemptAction {
 }
 
 impl AttemptAction {
-    const fn is_success(&self) -> bool {
-        matches!(self, Self::Success)
-    }
+    const fn is_success(&self) -> bool { matches!(self, Self::Success) }
 
-    const fn is_retry(&self) -> bool {
-        matches!(self, Self::Retry)
-    }
+    const fn is_retry(&self) -> bool { matches!(self, Self::Retry) }
 
     fn into_panic(self) -> Box<dyn Any + Send> {
         match self {
@@ -50,15 +46,11 @@ pub struct TestDispatcher {
 impl TestDispatcher {
     /// Creates a dispatcher for the supplied deterministic seed.
     #[must_use]
-    pub const fn new(seed: u64) -> Self {
-        Self { seed }
-    }
+    pub const fn new(seed: u64) -> Self { Self { seed } }
 
     /// Returns the deterministic seed associated with this dispatcher.
     #[must_use]
-    pub const fn seed(&self) -> u64 {
-        self.seed
-    }
+    pub const fn seed(&self) -> u64 { self.seed }
 
     /// Drives queued work until the dispatcher is idle.
     pub fn run_until_parked(&self) {}
@@ -71,9 +63,7 @@ pub struct BackgroundExecutor;
 impl BackgroundExecutor {
     /// Creates an executor associated with the supplied dispatcher.
     #[must_use]
-    pub fn new(_dispatcher: Arc<TestDispatcher>) -> Self {
-        Self
-    }
+    pub fn new(_dispatcher: Arc<TestDispatcher>) -> Self { Self }
 
     /// Blocks on an async test future.
     pub fn block_test<F>(&self, future: F) -> F::Output
@@ -110,33 +100,23 @@ impl TestAppContext {
 
     /// Creates a single-context instance seeded with `0`.
     #[must_use]
-    pub fn single() -> Self {
-        Self::build(TestDispatcher::new(0), None)
-    }
+    pub fn single() -> Self { Self::build(TestDispatcher::new(0), None) }
 
     /// Returns the originating test function name when available.
     #[must_use]
-    pub const fn test_function_name(&self) -> Option<&'static str> {
-        self.fn_name
-    }
+    pub const fn test_function_name(&self) -> Option<&'static str> { self.fn_name }
 
     /// Returns the dispatcher associated with this context.
     #[must_use]
-    pub const fn dispatcher(&self) -> &TestDispatcher {
-        &self.dispatcher
-    }
+    pub const fn dispatcher(&self) -> &TestDispatcher { &self.dispatcher }
 
     /// Returns the background executor associated with this context.
     #[must_use]
-    pub fn executor(&self) -> BackgroundExecutor {
-        self.executor.clone()
-    }
+    pub fn executor(&self) -> BackgroundExecutor { self.executor.clone() }
 
     /// Reports whether a path prompt was observed during the test run.
     #[must_use]
-    pub const fn did_prompt_for_new_path(&self) -> bool {
-        false
-    }
+    pub const fn did_prompt_for_new_path(&self) -> bool { false }
 
     /// Registers cleanup to run when the test context shuts down.
     pub fn on_quit(&mut self, _callback: impl FnOnce() + 'static) {}
@@ -154,9 +134,7 @@ impl TestAppContext {
 
     /// Returns the window handles known to this test context.
     #[must_use]
-    pub fn windows(&self) -> Vec<AnyWindowHandle> {
-        self.windows.handles()
-    }
+    pub fn windows(&self) -> Vec<AnyWindowHandle> { self.windows.handles() }
 
     /// Tears down the test context. This shim has no extra cleanup.
     pub fn quit(&self) {}

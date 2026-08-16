@@ -5,18 +5,16 @@
 //! these run unconditionally under `cargo test` / `nextest` and assert
 //! observable runtime behaviour:
 //!
-//! - A harness whose `HarnessAdapter::run` returns `Err` propagates the
-//!   `harness failed to initialize scenario: ...` panic emitted by the
-//!   expanded macro, and the scenario body never runs. This path needs no
-//!   native GPUI runtime, so it is not feature-gated.
-//! - `harness = GpuiHarness` without `attributes = ...` runs through the
-//!   inferred `GpuiAttributePolicy` path with a live `TestAppContext`. This
-//!   requires the native GPUI test runtime, so it shares the
-//!   `native-gpui-tests` gate (and `#[serial]` discipline) with the rest of
-//!   the GPUI scenario suite. Cross-step context identity is proved through a
-//!   single recorded address whose lifetime is owned by a fixture guard, so
-//!   success, failure, and skip paths all clear it before the next serial
-//!   scenario runs — the same reset protocol as `tests/stateful_window.rs`.
+//! - A harness whose `HarnessAdapter::run` returns `Err` propagates the `harness failed to
+//!   initialize scenario: ...` panic emitted by the expanded macro, and the scenario body never
+//!   runs. This path needs no native GPUI runtime, so it is not feature-gated.
+//! - `harness = GpuiHarness` without `attributes = ...` runs through the inferred
+//!   `GpuiAttributePolicy` path with a live `TestAppContext`. This requires the native GPUI test
+//!   runtime, so it shares the `native-gpui-tests` gate (and `#[serial]` discipline) with the rest
+//!   of the GPUI scenario suite. Cross-step context identity is proved through a single recorded
+//!   address whose lifetime is owned by a fixture guard, so success, failure, and skip paths all
+//!   clear it before the next serial scenario runs — the same reset protocol as
+//!   `tests/stateful_window.rs`.
 
 use rstest_bdd_macros::{given, scenario};
 
@@ -39,10 +37,11 @@ failing_harness_error_path_scenario!();
 mod native {
     //! Inferred-policy coverage that drives the real GPUI test runtime.
 
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
     use rstest::fixture;
     use rstest_bdd_macros::{given, scenario, then, when};
     use serial_test::serial;
-    use std::sync::atomic::{AtomicUsize, Ordering};
 
     /// Address of the `TestAppContext` the harness injected into the current
     /// scenario, recorded solely so later steps can assert pointer identity.
@@ -60,20 +59,17 @@ mod native {
 
     const UNSET_CONTEXT_POINTER: usize = 0;
 
-    fn reset_context_pointer() {
-        CONTEXT_POINTER.store(UNSET_CONTEXT_POINTER, Ordering::SeqCst);
-    }
+    fn reset_context_pointer() { CONTEXT_POINTER.store(UNSET_CONTEXT_POINTER, Ordering::SeqCst); }
 
     /// Fixture guard that resets [`CONTEXT_POINTER`] around each scenario.
     #[derive(Clone, Debug)]
     struct ContextPointerCleanup;
 
     impl Drop for ContextPointerCleanup {
-        fn drop(&mut self) {
-            reset_context_pointer();
-        }
+        fn drop(&mut self) { reset_context_pointer(); }
     }
 
+    #[rstest_bdd_test_macros::allow_fixture_expansion_lints]
     #[fixture]
     fn context_pointer_cleanup() -> ContextPointerCleanup {
         // Reset before the scenario assigns its own address so a reused serial

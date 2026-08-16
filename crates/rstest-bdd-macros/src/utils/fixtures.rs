@@ -4,7 +4,9 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 
 use crate::utils::result_type::{
-    is_referenced_result_type, try_extract_result_inner_type, ungroup_type,
+    is_referenced_result_type,
+    try_extract_result_inner_type,
+    ungroup_type,
 };
 
 /// Generated code for wiring scenario fixture parameters into `StepContext`.
@@ -208,9 +210,10 @@ fn find_from_attr(attrs: &[syn::Attribute]) -> syn::Result<Option<syn::Path>> {
 mod tests {
     //! Unit tests for fixture extraction from function signatures.
 
-    use super::*;
     use rstest::rstest;
     use syn::parse_quote;
+
+    use super::*;
 
     #[test]
     fn non_ref_fixture_cell_ident_uses_index() {

@@ -4,12 +4,20 @@
 //! matching feature steps in `.feature` files.
 
 use lsp_types::{
-    DidSaveTextDocumentParams, GotoDefinitionParams, PartialResultParams, Position,
-    TextDocumentIdentifier, TextDocumentPositionParams, Url, WorkDoneProgressParams,
+    DidSaveTextDocumentParams,
+    GotoDefinitionParams,
+    PartialResultParams,
+    Position,
+    TextDocumentIdentifier,
+    TextDocumentPositionParams,
+    Url,
+    WorkDoneProgressParams,
 };
-use rstest_bdd_server::config::ServerConfig;
-use rstest_bdd_server::handlers::{handle_definition, handle_did_save_text_document};
-use rstest_bdd_server::server::ServerState;
+use rstest_bdd_server::{
+    config::ServerConfig,
+    handlers::{handle_definition, handle_did_save_text_document},
+    server::ServerState,
+};
 use tempfile::TempDir;
 
 /// Helper to create `GotoDefinitionParams` for a given URI and position.

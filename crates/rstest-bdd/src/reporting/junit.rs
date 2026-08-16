@@ -15,12 +15,13 @@ const FAIL_ON_SKIPPED_MESSAGE: &str = "Scenario skipped with fail_on_skipped ena
 ///
 /// # Examples
 /// ```
-/// use rstest_bdd::reporting::{
-///     junit, ScenarioMetadata, ScenarioRecord, ScenarioStatus,
-/// };
+/// use rstest_bdd::reporting::{ScenarioMetadata, ScenarioRecord, ScenarioStatus, junit};
 ///
 /// let metadata = ScenarioMetadata::new("feature", "scenario", 1, Vec::new());
-/// let records = vec![ScenarioRecord::from_metadata(metadata, ScenarioStatus::Passed)];
+/// let records = vec![ScenarioRecord::from_metadata(
+///     metadata,
+///     ScenarioStatus::Passed,
+/// )];
 /// let mut output = String::new();
 /// junit::write(&mut output, &records).unwrap();
 /// assert!(output.contains("<testsuite"));
@@ -46,7 +47,8 @@ pub fn write<W: Write>(writer: &mut W, records: &[ScenarioRecord]) -> fmt::Resul
     writer.write_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")?;
     writeln!(
         writer,
-        "<testsuite name=\"rstest-bdd\" tests=\"{tests}\" failures=\"{failures}\" skipped=\"{skipped}\">",
+        "<testsuite name=\"rstest-bdd\" tests=\"{tests}\" failures=\"{failures}\" \
+         skipped=\"{skipped}\">",
     )?;
     for record in records {
         writer.write_str("  <testcase name=\"")?;
@@ -83,12 +85,13 @@ pub fn write<W: Write>(writer: &mut W, records: &[ScenarioRecord]) -> fmt::Resul
 ///
 /// # Examples
 /// ```
-/// use rstest_bdd::reporting::{
-///     junit, record, ScenarioMetadata, ScenarioRecord, ScenarioStatus,
-/// };
+/// use rstest_bdd::reporting::{ScenarioMetadata, ScenarioRecord, ScenarioStatus, junit, record};
 ///
 /// let metadata = ScenarioMetadata::new("feature", "scenario", 1, Vec::new());
-/// record(ScenarioRecord::from_metadata(metadata, ScenarioStatus::Passed));
+/// record(ScenarioRecord::from_metadata(
+///     metadata,
+///     ScenarioStatus::Passed,
+/// ));
 /// let mut output = String::new();
 /// junit::write_snapshot(&mut output).unwrap();
 /// assert!(output.contains("</testsuite>"));

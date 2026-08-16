@@ -12,7 +12,6 @@
 //! so stale handles, foreign context handles, and cross-window entity access
 //! fail instead of mutating unrelated test state.
 
-use crate::TestAppContext;
 use std::{
     any::Any,
     cell::{RefCell, RefMut},
@@ -23,6 +22,8 @@ use std::{
     rc::Rc,
     sync::atomic::{AtomicU64, Ordering},
 };
+
+use crate::TestAppContext;
 
 static NEXT_REGISTRY_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -72,9 +73,7 @@ impl WindowRegistry {
         (entity, visual_context)
     }
 
-    pub(crate) fn handles(&self) -> Vec<AnyWindowHandle> {
-        self.inner.borrow().windows.clone()
-    }
+    pub(crate) fn handles(&self) -> Vec<AnyWindowHandle> { self.inner.borrow().windows.clone() }
 
     pub(crate) fn contains(&self, window: AnyWindowHandle) -> bool {
         self.inner.borrow().windows.contains(&window)
@@ -132,15 +131,11 @@ pub struct Entity<T> {
 impl<T> Entity<T> {
     /// Returns the stable identifier backing this test handle.
     #[must_use]
-    pub const fn id(&self) -> u64 {
-        self.id
-    }
+    pub const fn id(&self) -> u64 { self.id }
 }
 
 impl<T> Clone for Entity<T> {
-    fn clone(&self) -> Self {
-        *self
-    }
+    fn clone(&self) -> Self { *self }
 }
 
 impl<T> Copy for Entity<T> {}
@@ -155,9 +150,7 @@ pub struct AnyWindowHandle {
 impl AnyWindowHandle {
     /// Returns the stable identifier backing this test window handle.
     #[must_use]
-    pub const fn id(&self) -> u64 {
-        self.id
-    }
+    pub const fn id(&self) -> u64 { self.id }
 }
 
 /// Error returned when a visual-context entity operation cannot find a handle.
@@ -199,9 +192,7 @@ impl VisualTestContext {
 
     /// Returns the durable handle for this visual context's window.
     #[must_use]
-    pub const fn window_handle(&self) -> AnyWindowHandle {
-        self.window
-    }
+    pub const fn window_handle(&self) -> AnyWindowHandle { self.window }
 
     /// Mutates an entity when the handle identifies a value of the expected type.
     pub fn update_entity<T>(

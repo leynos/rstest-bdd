@@ -1,18 +1,20 @@
 //! Shared fixtures and assertion helpers for diagnostics tests.
 
-use super::compute::step_type_to_attribute;
-use super::*;
-use crate::server::ServerState;
-use crate::test_support::{DiagnosticCheckType, ScenarioBuilder};
-use lsp_types::{Diagnostic, DiagnosticSeverity};
-use rstest::{fixture, rstest};
 use std::path::Path;
 
+use lsp_types::{Diagnostic, DiagnosticSeverity};
+use rstest::{fixture, rstest};
+
+use super::{compute::step_type_to_attribute, *};
+use crate::{
+    server::ServerState,
+    test_support::{DiagnosticCheckType, ScenarioBuilder},
+};
+
 /// Fixture providing the infrastructure for diagnostic tests.
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
-fn scenario_builder() -> ScenarioBuilder {
-    ScenarioBuilder::new()
-}
+fn scenario_builder() -> ScenarioBuilder { ScenarioBuilder::new() }
 
 /// Helper to compute feature diagnostics for a path.
 fn compute_feature_diagnostics_for_path(

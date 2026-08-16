@@ -1,10 +1,9 @@
 //! Attribute macros enabling Behaviour-Driven testing with `rstest`.
 //!
 //! # Feature flags
-//! - `compile-time-validation`: registers steps at compile time and attaches
-//!   spans for diagnostics.
-//! - `strict-compile-time-validation`: escalates missing or ambiguous steps to
-//!   compile errors; implies `compile-time-validation`.
+//! - `compile-time-validation`: registers steps at compile time and attaches spans for diagnostics.
+//! - `strict-compile-time-validation`: escalates missing or ambiguous steps to compile errors;
+//!   implies `compile-time-validation`.
 //!
 //! Both features are disabled by default.
 mod codegen;
@@ -19,13 +18,11 @@ mod step_keyword;
 mod utils;
 mod validation;
 
-pub(crate) use step_keyword::StepKeyword;
-
-use proc_macro::TokenStream;
 use std::panic::UnwindSafe;
 
-use proc_macro_error::entry_point;
-use proc_macro_error::proc_macro_error;
+use proc_macro::TokenStream;
+use proc_macro_error::{entry_point, proc_macro_error};
+pub(crate) use step_keyword::StepKeyword;
 
 /// Run a procedural macro while mapping panics into `proc_macro_error`
 /// diagnostics.
@@ -126,16 +123,15 @@ pub fn then(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// Attribute macro binding a test function to a single Gherkin scenario.
 ///
 /// Selector semantics:
-/// - Supply either `index = N` (zero-based) or `name = "Scenario title"` to
-///   disambiguate when the feature defines multiple scenarios.
+/// - Supply either `index = N` (zero-based) or `name = "Scenario title"` to disambiguate when the
+///   feature defines multiple scenarios.
 /// - When omitted, the macro targets the first scenario in the feature file.
 ///
 /// Tag filtering:
-/// - Provide `tags = "expr"` to keep only scenarios whose tag sets satisfy the
-///   expression before applying selectors.
-/// - Expressions accept case-sensitive tag names combined with `not`, `and`,
-///   and `or`, following the precedence `not` > `and` > `or`. Parentheses may
-///   be used to override the default binding.
+/// - Provide `tags = "expr"` to keep only scenarios whose tag sets satisfy the expression before
+///   applying selectors.
+/// - Expressions accept case-sensitive tag names combined with `not`, `and`, and `or`, following
+///   the precedence `not` > `and` > `or`. Parentheses may be used to override the default binding.
 ///
 /// Example:
 /// ```ignore
@@ -165,18 +161,14 @@ pub fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
 /// ```
 #[proc_macro_error]
 #[proc_macro_derive(ScenarioState)]
-pub fn derive_scenario_state(input: TokenStream) -> TokenStream {
-    scenario_state::derive(input)
-}
+pub fn derive_scenario_state(input: TokenStream) -> TokenStream { scenario_state::derive(input) }
 
 /// Derive
 /// [`rstest_bdd::StepArgs`](https://docs.rs/rstest-bdd/latest/rstest_bdd/trait.StepArgs.html)
 /// for a struct whose fields map to pattern placeholders.
 #[proc_macro_error]
 #[proc_macro_derive(StepArgs)]
-pub fn derive_step_args(input: TokenStream) -> TokenStream {
-    step_args::derive(input)
-}
+pub fn derive_step_args(input: TokenStream) -> TokenStream { step_args::derive(input) }
 
 /// Discover all `.feature` files under the given directory and generate one
 /// test per Gherkin `Scenario`.
@@ -186,10 +178,10 @@ pub fn derive_step_args(input: TokenStream) -> TokenStream {
 /// - It is resolved relative to `CARGO_MANIFEST_DIR` at macro-expansion time.
 ///
 /// Expansion:
-/// - Emits a module named after `dir` (sanitized) containing one test function
-///   per discovered scenario.
-/// - Each generated test executes the matched steps via the registered
-///   `#[given]`, `#[when]`, and `#[then]` functions.
+/// - Emits a module named after `dir` (sanitized) containing one test function per discovered
+///   scenario.
+/// - Each generated test executes the matched steps via the registered `#[given]`, `#[when]`, and
+///   `#[then]` functions.
 ///
 /// Example:
 /// ```rust,ignore
@@ -202,8 +194,8 @@ pub fn derive_step_args(input: TokenStream) -> TokenStream {
 /// ```
 ///
 /// Errors:
-/// - Emits a compile error if the directory does not exist, contains no
-///   `.feature` files, or if parsing fails.
+/// - Emits a compile error if the directory does not exist, contains no `.feature` files, or if
+///   parsing fails.
 #[proc_macro]
 pub fn scenarios(input: TokenStream) -> TokenStream {
     run_with_macro_errors(|| macros::scenarios(input))

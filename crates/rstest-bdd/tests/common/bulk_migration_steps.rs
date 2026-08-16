@@ -11,8 +11,7 @@
 //! shape recommended when steps do not also need mutable harness context.
 
 use rstest::fixture;
-use rstest_bdd::ScenarioState as _;
-use rstest_bdd::Slot;
+use rstest_bdd::{ScenarioState as _, Slot};
 use rstest_bdd_macros::{ScenarioState, given, then, when};
 
 /// Durable scenario state shared across steps within one scenario.
@@ -27,10 +26,9 @@ pub struct LedgerState {
 /// Deriving `ScenarioState` gives `LedgerState` a `reset()` that clears every
 /// slot; `rstest` constructs a new instance per scenario, so no `Drop` guard is
 /// needed for the fixture-based shape.
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
-pub fn ledger_state() -> LedgerState {
-    LedgerState::default()
-}
+pub fn ledger_state() -> LedgerState { LedgerState::default() }
 
 /// Reset a fresh ledger so a scenario starts from a known-empty balance.
 #[given("a fresh ledger")]
@@ -56,9 +54,7 @@ pub fn an_entry_is_posted(ledger_state: &LedgerState, amount: i32) {
 /// total makes a no-op reset observable: without the clear, the earlier posting
 /// would still be counted.
 #[when("the running total is reset")]
-pub fn the_running_total_is_reset(ledger_state: &LedgerState) {
-    ledger_state.reset();
-}
+pub fn the_running_total_is_reset(ledger_state: &LedgerState) { ledger_state.reset(); }
 
 /// Assert the durable balance matches the expected total.
 #[then("the balance is {expected:i32}")]

@@ -8,14 +8,20 @@
 use std::sync::Arc;
 
 use async_lsp::ResponseError;
-use lsp_types::request::{GotoImplementationParams, GotoImplementationResponse};
-use lsp_types::{Location, Position, Range, Url};
+use lsp_types::{
+    Location,
+    Position,
+    Range,
+    Url,
+    request::{GotoImplementationParams, GotoImplementationResponse},
+};
 use tracing::debug;
 
-use crate::indexing::{CompiledStepDefinition, FeatureFileIndex, IndexedStep};
-use crate::server::ServerState;
-
 use super::util::{has_extension, lsp_position_to_byte_offset};
+use crate::{
+    indexing::{CompiledStepDefinition, FeatureFileIndex, IndexedStep},
+    server::ServerState,
+};
 
 /// Handle `textDocument/implementation` requests.
 ///
@@ -129,13 +135,14 @@ fn build_rust_location(step_def: &Arc<CompiledStepDefinition>) -> Option<Locatio
 mod tests {
     //! Unit tests for go-to-implementation handling.
 
-    use super::*;
-    use crate::config::ServerConfig;
-    use crate::handlers::handle_did_save_text_document;
+    use std::path::PathBuf;
+
     use gherkin::Span;
     use lsp_types::{DidSaveTextDocumentParams, TextDocumentIdentifier};
-    use std::path::PathBuf;
     use tempfile::TempDir;
+
+    use super::*;
+    use crate::{config::ServerConfig, handlers::handle_did_save_text_document};
 
     #[test]
     fn find_step_at_position_returns_none_for_empty_index() {
@@ -153,8 +160,9 @@ mod tests {
 
     #[test]
     fn find_step_at_position_returns_step_on_matching_position() {
-        use crate::indexing::IndexedStep;
         use gherkin::StepType;
+
+        use crate::indexing::IndexedStep;
 
         let source = "Feature: demo\n  Scenario: s\n    Given a step\n";
         let index = FeatureFileIndex {

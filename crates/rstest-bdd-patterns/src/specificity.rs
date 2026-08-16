@@ -4,9 +4,12 @@
 //! scoring to select the most specific match. More specific patterns have more
 //! literal text and fewer placeholders.
 
-use crate::PatternError;
-use crate::pattern::lexer::{Token, lex_pattern};
 use std::cmp::Ordering;
+
+use crate::{
+    PatternError,
+    pattern::lexer::{Token, lex_pattern},
+};
 
 /// Specificity score for a step pattern.
 ///
@@ -25,10 +28,10 @@ use std::cmp::Ordering;
 /// ```
 /// use rstest_bdd_patterns::SpecificityScore;
 ///
-/// let specific = SpecificityScore::calculate("the output is foo")
-///     .expect("valid specific pattern");
-/// let generic = SpecificityScore::calculate("the output is {value}")
-///     .expect("valid generic pattern");
+/// let specific =
+///     SpecificityScore::calculate("the output is foo").expect("valid specific pattern");
+/// let generic =
+///     SpecificityScore::calculate("the output is {value}").expect("valid generic pattern");
 /// assert!(specific > generic);
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -53,8 +56,7 @@ impl SpecificityScore {
     /// ```
     /// use rstest_bdd_patterns::SpecificityScore;
     ///
-    /// let score = SpecificityScore::calculate("I have {count:u32} apples")
-    ///     .expect("valid pattern");
+    /// let score = SpecificityScore::calculate("I have {count:u32} apples").expect("valid pattern");
     /// assert_eq!(score.literal_chars, 14); // "I have " + " apples"
     /// assert_eq!(score.placeholder_count, 1);
     /// assert_eq!(score.typed_placeholder_count, 1);
@@ -113,9 +115,7 @@ impl Ord for SpecificityScore {
 }
 
 impl PartialOrd for SpecificityScore {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> { Some(self.cmp(other)) }
 }
 
 #[cfg(test)]

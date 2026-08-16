@@ -9,6 +9,7 @@ members = [
     "crates/rstest-bdd-policy",
     "crates/rstest-bdd-patterns",
     "crates/rstest-bdd-server",
+    "crates/rstest-bdd-test-macros",
     "crates/cargo-bdd",
     "examples/todo-cli",
     "examples/japanese-ledger",
@@ -60,6 +61,7 @@ rstest-bdd-harness-tokio = { version = "0.6.0-beta4", path = "crates/rstest-bdd-
 rstest-bdd-macros = { version = "0.6.0-beta4", path = "crates/rstest-bdd-macros" }
 rstest-bdd-policy = { version = "0.6.0-beta4", path = "crates/rstest-bdd-policy" }
 rstest-bdd-patterns = { version = "0.6.0-beta4", path = "crates/rstest-bdd-patterns" }
+rstest-bdd-test-macros = { version = "0.6.0-beta4", path = "crates/rstest-bdd-test-macros" }
 log = "0.4"
 temp-env = "0.3.6"
 tempfile = "3.23"

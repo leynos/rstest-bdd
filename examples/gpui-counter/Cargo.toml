@@ -4,6 +4,7 @@ version = "0.6.0-beta4"
 edition.workspace = true
 publish = false
 rust-version.workspace = true
+lints.workspace = true
 
 [lints]
 workspace = true
@@ -13,6 +14,7 @@ workspace = true
 [dev-dependencies]
 gpui.workspace = true
 rstest = { workspace = true }
+rstest-bdd-test-macros.workspace = true
 rstest-bdd.workspace = true
 rstest-bdd-harness-gpui.workspace = true
 rstest-bdd-macros.workspace = true

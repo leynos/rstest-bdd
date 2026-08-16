@@ -1,8 +1,14 @@
 //! Tests covering the `ScenarioConfig` execution-runtime split.
 
 use super::{
-    FeaturePath, RuntimeMode, ScenarioConfig, ScenarioName, ScenarioReturnKind, TestAttrPolicy,
-    blank, generate_test_attrs,
+    FeaturePath,
+    RuntimeMode,
+    ScenarioConfig,
+    ScenarioName,
+    ScenarioReturnKind,
+    TestAttrPolicy,
+    blank,
+    generate_test_attrs,
 };
 
 #[test]
@@ -52,6 +58,7 @@ fn scenario_config_keeps_attribute_runtime_separate_from_execution_runtime() {
     );
     assert!(
         !output.contains("tokio :: test"),
-        "expected generated attributes to follow attribute_runtime instead of execution runtime, got: {output}"
+        "expected generated attributes to follow attribute_runtime instead of execution runtime, \
+         got: {output}"
     );
 }

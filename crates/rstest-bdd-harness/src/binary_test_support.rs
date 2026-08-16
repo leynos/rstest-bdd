@@ -4,10 +4,12 @@
 //! These utilities are exposed as a hidden module for test use only and are
 //! not part of the supported public API.
 
-use std::env;
-use std::fmt;
-use std::path::{Path, PathBuf};
-use std::process::{Command, ExitStatus, Output};
+use std::{
+    env,
+    fmt,
+    path::{Path, PathBuf},
+    process::{Command, ExitStatus, Output},
+};
 
 use thiserror::Error;
 
@@ -21,27 +23,19 @@ pub struct BinaryName<'a>(&'a str);
 impl<'a> BinaryName<'a> {
     /// Creates a `BinaryName` from the given string slice.
     #[must_use]
-    pub const fn new(name: &'a str) -> Self {
-        Self(name)
-    }
+    pub const fn new(name: &'a str) -> Self { Self(name) }
 
     /// Returns the binary name as a string slice.
     #[must_use]
-    pub const fn as_str(self) -> &'a str {
-        self.0
-    }
+    pub const fn as_str(self) -> &'a str { self.0 }
 }
 
 impl<'a> From<&'a str> for BinaryName<'a> {
-    fn from(s: &'a str) -> Self {
-        Self(s)
-    }
+    fn from(s: &'a str) -> Self { Self(s) }
 }
 
 impl std::fmt::Display for BinaryName<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(self.0)
-    }
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { f.write_str(self.0) }
 }
 
 /// Captured output from `cargo build --bin` when it exits unsuccessfully.
@@ -123,7 +117,8 @@ fn try_command_from_cargo_test_bin_layout(binary_name: BinaryName<'_>) -> Option
 ///
 /// ```
 /// use std::path::Path;
-/// use rstest_bdd_harness::binary_test_support::{binary_path_in_target_dir, BinaryName};
+///
+/// use rstest_bdd_harness::binary_test_support::{BinaryName, binary_path_in_target_dir};
 ///
 /// let path = binary_path_in_target_dir(Path::new("/tmp/ws/target"), BinaryName::new("my-bin"));
 /// let suffix = std::env::consts::EXE_SUFFIX;
@@ -148,6 +143,7 @@ pub fn binary_path_in_target_dir(target_directory: &Path, binary_name: BinaryNam
 ///
 /// ```no_run
 /// use std::path::Path;
+///
 /// use rstest_bdd_harness::binary_test_support::target_directory_for_manifest;
 ///
 /// let target = target_directory_for_manifest(Path::new("Cargo.toml")).expect("metadata");
@@ -170,20 +166,23 @@ pub fn target_directory_for_manifest(
 ///
 /// ```no_run
 /// use std::path::Path;
-/// use rstest_bdd_harness::binary_test_support::{locate_or_build_binary, BinaryName};
 ///
-/// let cmd = locate_or_build_binary(Path::new("Cargo.toml"), Path::new("."), BinaryName::new("my-bin"))
-///     .expect("locate binary");
+/// use rstest_bdd_harness::binary_test_support::{BinaryName, locate_or_build_binary};
+///
+/// let cmd = locate_or_build_binary(
+///     Path::new("Cargo.toml"),
+///     Path::new("."),
+///     BinaryName::new("my-bin"),
+/// )
+/// .expect("locate binary");
 /// let _ = cmd;
 /// ```
 ///
 /// Strategy:
-/// 1. Try the path implied by `CARGO_BIN_EXE_<binary_name>` (and the same
-///    `current_exe` fallback used by `assert_cmd`'s `cargo_bin` helper).
-/// 2. On failure, resolve the expected debug binary path via
-///    `target_directory_for_manifest`.
-/// 3. If the binary is absent, invoke `build_binary` and surface stdout/stderr
-///    on failure.
+/// 1. Try the path implied by `CARGO_BIN_EXE_<binary_name>` (and the same `current_exe` fallback
+///    used by `assert_cmd`'s `cargo_bin` helper).
+/// 2. On failure, resolve the expected debug binary path via `target_directory_for_manifest`.
+/// 3. If the binary is absent, invoke `build_binary` and surface stdout/stderr on failure.
 /// 4. Return `Command::new(binary)` when the binary is present.
 pub fn locate_or_build_binary(
     manifest_path: &Path,
@@ -222,7 +221,8 @@ pub fn locate_or_build_binary(
 ///
 /// ```no_run
 /// use std::path::Path;
-/// use rstest_bdd_harness::binary_test_support::{build_binary, BinaryName};
+///
+/// use rstest_bdd_harness::binary_test_support::{BinaryName, build_binary};
 ///
 /// let output = build_binary(Path::new("."), BinaryName::new("some-bin")).expect("spawn cargo");
 /// assert!(output.status.success() || !output.stderr.is_empty());

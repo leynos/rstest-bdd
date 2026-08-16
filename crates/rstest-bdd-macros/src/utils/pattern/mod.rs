@@ -277,9 +277,7 @@ pub(crate) fn infer_pattern(ident: &Ident) -> LitStr {
 /// assert_eq!(normalize_param_name("param"), "param");
 /// assert_eq!(normalize_param_name("__param"), "_param");
 /// ```
-pub(crate) fn normalize_param_name(name: &str) -> &str {
-    name.strip_prefix('_').unwrap_or(name)
-}
+pub(crate) fn normalize_param_name(name: &str) -> &str { name.strip_prefix('_').unwrap_or(name) }
 
 /// Check if an identifier matches a header after normalization.
 ///

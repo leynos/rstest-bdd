@@ -1,8 +1,9 @@
 //! Call expression generation based on step return kind.
 
-use crate::return_classifier::ReturnKind;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
+
+use crate::return_classifier::ReturnKind;
 
 /// Generate the call expression for a step function based on its return kind.
 ///
@@ -10,11 +11,11 @@ use quote::quote;
 /// and wraps the result according to the inferred [`ReturnKind`]:
 ///
 /// - [`ReturnKind::Unit`]: Discards the return value and yields `Ok(None)`.
-/// - [`ReturnKind::Value`]: Wraps the value via `__rstest_bdd_payload_from_value`,
-///   which boxes non-unit values or returns `None` for unit.
-/// - [`ReturnKind::ResultUnit`] / [`ReturnKind::ResultValue`]: Unpacks the
-///   `Result`, mapping `Ok(value)` through the payload helper and converting
-///   `Err(e)` to a `String` for the step error.
+/// - [`ReturnKind::Value`]: Wraps the value via `__rstest_bdd_payload_from_value`, which boxes
+///   non-unit values or returns `None` for unit.
+/// - [`ReturnKind::ResultUnit`] / [`ReturnKind::ResultValue`]: Unpacks the `Result`, mapping
+///   `Ok(value)` through the payload helper and converting `Err(e)` to a `String` for the step
+///   error.
 ///
 /// When `is_async` is `true`, the generated call expression includes `.await`.
 pub(super) fn generate_call_expression(

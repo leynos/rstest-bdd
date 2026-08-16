@@ -1,8 +1,9 @@
 //! Error token generation for wrapper functions.
 
-use super::super::arguments::{StepMeta, step_error_tokens};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
+
+use super::super::arguments::{StepMeta, step_error_tokens};
 
 /// Pre-generated error tokens for wrapper function error paths.
 pub(super) struct WrapperErrors {

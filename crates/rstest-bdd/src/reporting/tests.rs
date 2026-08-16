@@ -1,7 +1,8 @@
 //! Unit tests for the reporting module.
 
-use super::*;
 use serial_test::serial;
+
+use super::*;
 
 #[test]
 #[serial]

@@ -137,8 +137,9 @@ impl FieldLabel<'_> {
 mod tests {
     //! Unit tests for the `ScenarioState` derive helpers.
 
-    use super::*;
     use quote::quote;
+
+    use super::*;
 
     fn expand_tokens(input: TokenStream2) -> syn::Result<TokenStream2> {
         let derive_input = syn::parse2::<DeriveInput>(input)?;

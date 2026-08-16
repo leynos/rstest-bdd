@@ -17,6 +17,7 @@ struct CounterWorld {
 }
 
 /// An rstest fixture that provides a counter world.
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn counter_world() -> RefCell<CounterWorld> {
     RefCell::new(CounterWorld::default())

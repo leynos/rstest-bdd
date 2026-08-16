@@ -3,15 +3,20 @@
 mod bindings;
 mod helpers;
 
-use super::*;
-use crate::codegen::wrapper::args::Arg;
 use helpers::{
-    bind_args, build_arguments, build_bindings, generate_step_parse_for_single_arg,
-    generate_step_parse_with_hint, sample_meta,
+    bind_args,
+    build_arguments,
+    build_bindings,
+    generate_step_parse_for_single_arg,
+    generate_step_parse_with_hint,
+    sample_meta,
 };
 use quote::{format_ident, quote};
 use rstest::rstest;
 use syn::parse_quote;
+
+use super::*;
+use crate::codegen::wrapper::args::Arg;
 
 #[test]
 fn prepare_argument_processing_handles_all_argument_types() {

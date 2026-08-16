@@ -185,12 +185,14 @@ fn collect_feature_files_recursive(dir: &Path, features: &mut Vec<PathBuf>) {
 mod tests {
     //! Unit tests for workspace discovery.
 
-    use super::*;
+    use std::{fs, io};
+
     use rstest::{fixture, rstest};
-    use std::fs;
-    use std::io;
     use tempfile::TempDir;
 
+    use super::*;
+
+    #[rstest_bdd_test_macros::allow_fixture_expansion_lints]
     #[fixture]
     fn create_test_workspace() -> io::Result<TempDir> {
         let dir = TempDir::new()?;
@@ -245,7 +247,8 @@ edition = "2024"
     ///
     /// # Arguments
     ///
-    /// * `relative_dir` - Path segments relative to the workspace root (e.g., `&["tests", "features"]`)
+    /// * `relative_dir` - Path segments relative to the workspace root (e.g., `&["tests",
+    ///   "features"]`)
     /// * `filename` - Name of the feature file to create
     /// * `content` - Content to write to the feature file
     ///

@@ -1,7 +1,8 @@
 //! Tokio current-thread harness adapter for scenario execution.
 
-use crate::tokio_context::TokioTestContext;
 use rstest_bdd_harness::{HarnessAdapter, HarnessError, HarnessResult, ScenarioRunRequest};
+
+use crate::tokio_context::TokioTestContext;
 
 /// Executes scenario runners inside a Tokio current-thread runtime with a
 /// [`LocalSet`](tokio::task::LocalSet).
@@ -25,21 +26,22 @@ use rstest_bdd_harness::{HarnessAdapter, HarnessError, HarnessResult, ScenarioRu
 ///
 /// ```
 /// use rstest_bdd_harness::{
-///     HarnessAdapter, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner,
+///     HarnessAdapter,
+///     ScenarioMetadata,
+///     ScenarioRunRequest,
+///     ScenarioRunner,
 /// };
 /// use rstest_bdd_harness_tokio::{TokioHarness, TokioTestContext};
 ///
 /// let request = ScenarioRunRequest::new(
-///     ScenarioMetadata::new(
-///         "tests/features/demo.feature",
-///         "Async scenario",
-///         5,
-///         vec![],
-///     ),
+///     ScenarioMetadata::new("tests/features/demo.feature", "Async scenario", 5, vec![]),
 ///     ScenarioRunner::new(|_context: TokioTestContext| 2 + 2),
 /// );
 /// let harness = TokioHarness::new();
-/// assert_eq!(harness.run(request).expect("tokio harness should not fail"), 4);
+/// assert_eq!(
+///     harness.run(request).expect("tokio harness should not fail"),
+///     4
+/// );
 /// ```
 #[derive(Debug, Clone, Copy, Default)]
 pub struct TokioHarness;
@@ -47,9 +49,7 @@ pub struct TokioHarness;
 impl TokioHarness {
     /// Creates a new Tokio harness instance.
     #[must_use]
-    pub const fn new() -> Self {
-        Self
-    }
+    pub const fn new() -> Self { Self }
 }
 
 impl HarnessAdapter for TokioHarness {
@@ -77,16 +77,19 @@ impl HarnessAdapter for TokioHarness {
 mod tests {
     //! Unit tests for the Tokio current-thread harness.
 
-    use super::{TokioHarness, TokioTestContext};
     use rstest::{fixture, rstest};
     use rstest_bdd_harness::{
-        HarnessAdapter, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner,
+        HarnessAdapter,
+        ScenarioMetadata,
+        ScenarioRunRequest,
+        ScenarioRunner,
     };
 
+    use super::{TokioHarness, TokioTestContext};
+
+    #[rstest_bdd_test_macros::allow_fixture_expansion_lints]
     #[fixture]
-    fn harness() -> TokioHarness {
-        TokioHarness::new()
-    }
+    fn harness() -> TokioHarness { TokioHarness::new() }
 
     fn run_expecting_ok<T>(
         harness: TokioHarness,

@@ -31,8 +31,8 @@
 //!
 //! # Tokens recognized by the lexer
 //!
-//! - Tag names written as `@identifier`, where identifiers may contain ASCII
-//!   letters, digits, underscores, and hyphens.
+//! - Tag names written as `@identifier`, where identifiers may contain ASCII letters, digits,
+//!   underscores, and hyphens.
 //! - Case-insensitive keywords `not`, `and`, and `or`.
 //! - Opening and closing parentheses for grouping.
 //! - End-of-input markers used to report trailing tokens.

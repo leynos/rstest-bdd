@@ -3,11 +3,15 @@
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use rstest::rstest;
-use rstest_bdd::localization::{ScopedLocalization, strip_directional_isolates};
-use rstest_bdd::reporting::{ScenarioStatus, SkippedScenario};
 use rstest_bdd::{
-    StepExecution, assert_scenario_skipped, assert_step_err, assert_step_ok, assert_step_skipped,
+    StepExecution,
+    assert_scenario_skipped,
+    assert_step_err,
+    assert_step_ok,
+    assert_step_skipped,
+    localization::{ScopedLocalization, strip_directional_isolates},
     panic_message,
+    reporting::{ScenarioStatus, SkippedScenario},
 };
 use unic_langid::langid;
 
@@ -18,33 +22,19 @@ fn capture_panic_message(op: impl FnOnce()) -> String {
     }
 }
 
-fn panic_with_owned_string() {
-    std::panic::panic_any(String::from("owned"));
-}
+fn panic_with_owned_string() { std::panic::panic_any(String::from("owned")); }
 
-fn panic_with_static_str() {
-    std::panic::panic_any("static str");
-}
+fn panic_with_static_str() { std::panic::panic_any("static str"); }
 
-fn panic_with_i32() {
-    std::panic::panic_any(42_i32);
-}
+fn panic_with_i32() { std::panic::panic_any(42_i32); }
 
-fn panic_with_f64() {
-    std::panic::panic_any(2.5_f64);
-}
+fn panic_with_f64() { std::panic::panic_any(2.5_f64); }
 
-fn panic_with_bool_true() {
-    std::panic::panic_any(true);
-}
+fn panic_with_bool_true() { std::panic::panic_any(true); }
 
-fn panic_with_empty_string() {
-    std::panic::panic_any(String::new());
-}
+fn panic_with_empty_string() { std::panic::panic_any(String::new()); }
 
-fn panic_with_unicode_str() {
-    std::panic::panic_any("résumé");
-}
+fn panic_with_unicode_str() { std::panic::panic_any("résumé"); }
 
 /// Helper to test panic messages in French locale.
 fn assert_panic_in_french(op: impl FnOnce(), expected_substring: &str) {
@@ -117,9 +107,7 @@ fn assert_step_skipped_panics() {
     let _ = assert_step_skipped!(StepExecution::Continue { value: None });
 }
 
-fn assert_scenario_skipped_panics() {
-    let _ = assert_scenario_skipped!(ScenarioStatus::Passed);
-}
+fn assert_scenario_skipped_panics() { let _ = assert_scenario_skipped!(ScenarioStatus::Passed); }
 
 #[rstest]
 #[case::assert_step_ok(assert_step_ok_panics as fn(), "l'étape a renvoyé une erreur")]
@@ -165,9 +153,7 @@ fn assert_step_err_handles_custom_error_type() {
     struct CustomErr(&'static str);
 
     impl std::fmt::Display for CustomErr {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            f.write_str(self.0)
-        }
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { f.write_str(self.0) }
     }
 
     let res: Result<(), CustomErr> = Err(CustomErr("boom"));
