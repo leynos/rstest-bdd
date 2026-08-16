@@ -331,6 +331,12 @@ Rust-file indexing entry points and step-attribute handling. Its internal
 `IndexedStepParameter` values and classifies data tables, doc strings, and
 step-struct parameters.
 
+`StepDefinitionCollector` is private to one `index_rust_source` traversal. It
+owns the current inline-module path and the accumulated definitions and
+diagnostics while borrowing that source text. The entry point creates it once,
+then consumes its output to construct `RustStepIndexResult`; handlers, caches,
+and other indexers must not reuse it outside that source-file boundary.
+
 Figure: Class diagram of the Rust step indexing data structures and how they
 are cached in the language server state.
 

@@ -95,41 +95,57 @@ pub fn index_rust_source(
     source: &str,
 ) -> Result<RustStepIndexResult, RustStepIndexError> {
     let file = syn::parse_file(source)?;
-    let mut module_path = Vec::new();
-    let mut result = RustStepIndexResult {
-        index: RustStepFileIndex {
-            path,
-            step_definitions: Vec::new(),
-        },
+    let mut collector = StepDefinitionCollector {
+        source,
+        module_path: Vec::new(),
+        step_definitions: Vec::new(),
         diagnostics: Vec::new(),
     };
-    collect_step_definitions(&file.items, source, &mut module_path, &mut result);
+    collector.collect_step_definitions(&file.items);
+    let StepDefinitionCollector {
+        step_definitions,
+        diagnostics,
+        ..
+    } = collector;
 
-    Ok(result)
+    Ok(RustStepIndexResult {
+        index: RustStepFileIndex {
+            path,
+            step_definitions,
+        },
+        diagnostics,
+    })
 }
 
-fn collect_step_definitions(
-    items: &[syn::Item],
-    source: &str,
-    module_path: &mut Vec<String>,
-    result: &mut RustStepIndexResult,
-) {
-    for item in items {
-        match item {
-            syn::Item::Fn(item_fn) => match index_step_function(item_fn, source, module_path) {
-                Ok(Some(step)) => result.index.step_definitions.push(step),
-                Ok(None) => {}
-                Err(diagnostic) => result.diagnostics.push(diagnostic),
-            },
-            syn::Item::Mod(item_mod) => {
-                let Some((_, items)) = item_mod.content.as_ref() else {
-                    continue;
-                };
-                module_path.push(item_mod.ident.to_string());
-                collect_step_definitions(items, source, module_path, result);
-                module_path.pop();
+/// Accumulates indexing output for one Rust source traversal.
+struct StepDefinitionCollector<'a> {
+    source: &'a str,
+    module_path: Vec<String>,
+    step_definitions: Vec<IndexedStepDefinition>,
+    diagnostics: Vec<RustStepIndexDiagnostic>,
+}
+
+impl StepDefinitionCollector<'_> {
+    fn collect_step_definitions(&mut self, items: &[syn::Item]) {
+        for item in items {
+            match item {
+                syn::Item::Fn(item_fn) => {
+                    match index_step_function(item_fn, self.source, &self.module_path) {
+                        Ok(Some(step)) => self.step_definitions.push(step),
+                        Ok(None) => {}
+                        Err(diagnostic) => self.diagnostics.push(diagnostic),
+                    }
+                }
+                syn::Item::Mod(item_mod) => {
+                    let Some((_, items)) = item_mod.content.as_ref() else {
+                        continue;
+                    };
+                    self.module_path.push(item_mod.ident.to_string());
+                    self.collect_step_definitions(items);
+                    self.module_path.pop();
+                }
+                _ => {}
             }
-            _ => {}
         }
     }
 }
