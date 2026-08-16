@@ -364,9 +364,9 @@ pub(super) fn classify_docstring(
             DOCSTRING_TYPE_ERROR,
         ),
     )?;
-    let Some(_) = match_result else {
+    if match_result.is_none() {
         return Ok(false);
-    };
+    }
     if st.docstring_idx.is_some() {
         return Err(syn::Error::new_spanned(arg, DOCSTRING_TYPE_ERROR));
     }

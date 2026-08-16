@@ -245,10 +245,14 @@ fn handle_binary_execution_failure(
     output: &std::process::Output,
 ) -> Result<Option<RegistryDump>> {
     let err = String::from_utf8_lossy(&output.stderr);
-    if is_unrecognized_dump_steps(&err) {
+    handle_binary_execution_stderr(bin, &err)
+}
+
+fn handle_binary_execution_stderr(bin: &Path, stderr: &str) -> Result<Option<RegistryDump>> {
+    if is_unrecognized_dump_steps(stderr) {
         Ok(None)
     } else {
-        bail!("test binary {} failed: {err}", bin.display());
+        bail!("test binary {} failed: {stderr}", bin.display());
     }
 }
 
@@ -264,6 +268,7 @@ pub(crate) fn is_unrecognized_dump_steps(stderr: &str) -> bool {
                 "wasn't expected",
                 "unknown option",
                 "invalid option",
+                "unexpected argument",
             ]
             .iter()
             .any(|pattern| line.contains(pattern))

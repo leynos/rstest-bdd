@@ -169,23 +169,27 @@ fn preserves_module_path_for_nested_definitions() {
 }
 
 #[test]
-fn returns_error_when_multiple_step_attributes_present() {
+fn reports_multiple_step_attributes_without_discarding_valid_steps() {
     let source = concat!(
         "use rstest_bdd_macros::{given, when};\n",
+        "\n",
+        "#[given(\"valid\")]\n",
+        "fn valid_step() {}\n",
         "\n",
         "#[given(\"a\")]\n",
         "#[when(\"b\")]\n",
         "fn conflicting_step() {}\n",
     );
 
-    let err = index_rust_source(PathBuf::from("steps.rs"), source)
-        .expect_err("expected indexing to fail");
+    let result = index_rust_source(PathBuf::from("steps.rs"), source)
+        .expect("source syntax should remain indexable");
+    assert_eq!(result.step_definitions.len(), 1);
 
-    match err {
-        RustStepIndexError::MultipleStepAttributes { function } => {
+    match result.diagnostics.as_slice() {
+        [RustStepIndexDiagnostic::MultipleStepAttributes { function }] => {
             assert_eq!(function, "conflicting_step");
         }
-        other => panic!("unexpected error: {other:?}"),
+        other => panic!("unexpected diagnostics: {other:?}"),
     }
 }
 
@@ -208,26 +212,23 @@ fn returns_error_when_multiple_step_attributes_present() {
     ),
     "invalid_named_args"
 )]
-fn returns_error_when_step_attribute_arguments_are_invalid(
+fn reports_invalid_step_attribute_arguments_without_discarding_valid_steps(
     #[case] source: &'static str,
     #[case] expected_function: &'static str,
 ) {
-    let err = match index_rust_source(PathBuf::from("steps.rs"), source) {
-        Ok(index) => panic!(
-            "expected indexing to fail, but got {} step definitions",
-            index.step_definitions.len()
-        ),
-        Err(err) => err,
-    };
+    let result = index_rust_source(PathBuf::from("steps.rs"), source)
+        .expect("source syntax should remain indexable");
 
-    match err {
-        RustStepIndexError::InvalidStepAttributeArguments {
-            function,
-            attribute,
-            message,
-        } => {
+    match result.diagnostics.as_slice() {
+        [
+            RustStepIndexDiagnostic::InvalidStepAttributeArguments {
+                function,
+                attribute,
+                message,
+            },
+        ] => {
             assert_eq!(function, expected_function);
-            assert_eq!(attribute, "given");
+            assert_eq!(*attribute, "given");
             assert!(
                 !message.trim().is_empty(),
                 "expected an explanatory error message"

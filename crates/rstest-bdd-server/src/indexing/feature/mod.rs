@@ -50,18 +50,6 @@ impl<'a> FeatureSource<'a> {
     }
 }
 
-impl AsRef<str> for FeatureSource<'_> {
-    fn as_ref(&self) -> &str {
-        self.0
-    }
-}
-
-impl<'a> From<&'a str> for FeatureSource<'a> {
-    fn from(source: &'a str) -> Self {
-        Self::new(source)
-    }
-}
-
 /// Parse and index a `.feature` file from disk.
 ///
 /// The returned index uses byte offsets within the (normalized) feature text,
@@ -93,9 +81,8 @@ impl<'a> From<&'a str> for FeatureSource<'a> {
 /// # }
 /// ```
 pub fn index_feature_file(path: &Path) -> Result<FeatureFileIndex, FeatureIndexError> {
-    let mut text = std::fs::read_to_string(path)?;
-    normalize_trailing_newline(&mut text);
-    index_feature_text(path.to_path_buf(), FeatureSource::new(&text))
+    let source = std::fs::read_to_string(path)?;
+    index_feature_source(path.to_path_buf(), &source)
 }
 
 /// Parse and index a `.feature` file from source text.
@@ -228,12 +215,6 @@ fn process_rule(
         accumulators,
         &combined_background_indices,
     )
-}
-
-fn normalize_trailing_newline(text: &mut String) {
-    if !text.ends_with('\n') {
-        text.push('\n');
-    }
 }
 
 fn normalize_source_text(source: &str) -> Cow<'_, str> {

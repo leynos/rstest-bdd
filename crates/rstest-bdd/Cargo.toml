@@ -32,6 +32,7 @@ i18n-embed.workspace = true
 rust-embed.workspace = true
 fluent.workspace = true
 unic-langid.workspace = true
+tokio.workspace = true
 
 [dev-dependencies]
 camino.workspace = true
@@ -45,7 +46,6 @@ proptest.workspace = true
 serial_test.workspace = true
 temp-env.workspace = true
 the-newtype = "0.1.1"
-tokio.workspace = true
 tempfile.workspace = true
 
 [features]
