@@ -280,7 +280,7 @@ fn resolve_step(keyword: StepKeyword, text: StepText<'_>) -> Option<&'static Ste
 /// Compute the specificity score for a step, logging any errors.
 fn step_specificity(step: &Step) -> SpecificityScore {
     step.pattern.specificity().unwrap_or_else(|e| {
-        log::warn!(
+        tracing::warn!(
             "specificity calculation failed for pattern '{}': {e}",
             step.pattern.as_str()
         );
