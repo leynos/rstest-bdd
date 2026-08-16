@@ -320,6 +320,9 @@ proptest! {
         "\n",
         "#[given(123)]\n",
         "fn invalid_args() {}\n",
+        "\n",
+        "#[given(\"valid\")]\n",
+        "fn valid_step() {}\n",
     ),
     "invalid_args"
 )]
@@ -329,6 +332,9 @@ proptest! {
         "\n",
         "#[given(foo = 42)]\n",
         "fn invalid_named_args() {}\n",
+        "\n",
+        "#[given(\"valid\")]\n",
+        "fn valid_step() {}\n",
     ),
     "invalid_named_args"
 )]
@@ -338,6 +344,14 @@ fn reports_invalid_step_attribute_arguments_without_discarding_valid_steps(
 ) {
     let result = index_rust_source(PathBuf::from("steps.rs"), source)
         .expect("source syntax should remain indexable");
+
+    let indexed_names: Vec<_> = result
+        .index
+        .step_definitions
+        .iter()
+        .map(|step| step.function.name.as_str())
+        .collect();
+    assert_eq!(indexed_names, ["valid_step"]);
 
     match result.diagnostics.as_slice() {
         [

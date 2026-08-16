@@ -1147,6 +1147,12 @@ A direct `rstest-bdd-harness` dependency is not required when using
 crate directly only when implementing a custom harness or importing base API
 types such as `HarnessAdapter` or `ScenarioRunRequest`.
 
+Generated asynchronous step wrappers obtain their runtime through the hidden
+`rstest_bdd::__rstest_bdd_tokio` bridge. Consequently, a downstream crate does
+not need a direct `tokio` dependency solely for generated wrappers; add one
+when the crate's own code names Tokio APIs or attributes. The bridge is an
+internal generated-code interface and downstream code must not call it directly.
+
 `TokioHarness` can then be used directly in scenarios. For this first-party
 adapter, the macro infers `TokioAttributePolicy` from the canonical harness
 path when `attributes = ...` is omitted:
@@ -2658,6 +2664,11 @@ Because usage tracking is process local, `unused` only reflects steps invoked
 during that same execution. The merged output powers the commands above and the
 skip status summary, helping to keep the step library tidy and discover dead
 code early in the development cycle.
+
+Ordinary test binaries that reject the private `--dump-steps` flag are treated
+as unsupported targets and skipped. They contribute no registry entries or
+fallback result to the command output. Other execution failures still return an
+error, so a broken test binary is not silently hidden.
 
 `steps --skipped` and `skipped` accept `--json` and emit objects that always
 include `feature`, `scenario`, `line`, `tags`, and `reason` fields. The former

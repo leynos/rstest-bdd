@@ -177,7 +177,7 @@ fn docstring_span_includes_backtick_delimiters() {
 #[test]
 fn rejects_parent_traversal_outside_workspace_root() {
     let workspace = TempDir::new().expect("workspace dir");
-    let path = workspace.path().join("nested/../outside.feature");
+    let path = workspace.path().join("../outside.feature");
     let workspace_root = WorkspaceRoot::open(workspace.path()).expect("open workspace root");
 
     let error = index_feature_file(&workspace_root, &path).expect_err("reject parent traversal");

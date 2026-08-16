@@ -6,15 +6,29 @@
 //! After indexing, diagnostics are computed and published via the LSP protocol.
 
 use lsp_types::DidSaveTextDocumentParams;
+use metrics::{counter, describe_counter};
 use tracing::{debug, warn};
 
-use crate::indexing::{index_feature_source, index_rust_file, index_rust_source};
+use crate::indexing::{
+    FeatureIndexError, index_feature_source, index_rust_file, index_rust_source,
+};
 use crate::server::ServerState;
 
 use super::diagnostics::{
-    publish_all_feature_diagnostics, publish_feature_diagnostics, publish_rust_diagnostics,
+    publish_all_feature_diagnostics, publish_feature_diagnostics,
+    publish_rust_index_result_diagnostics,
 };
 use super::util::has_extension;
+
+const INDEXING_COUNTER: &str = "rstest_bdd_server_indexing_total";
+
+fn record_indexing_outcome(operation: &'static str, outcome: &'static str) {
+    describe_counter!(
+        INDEXING_COUNTER,
+        "Language-server indexing outcomes, labelled by operation and outcome"
+    );
+    counter!(INDEXING_COUNTER, "operation" => operation, "outcome" => outcome).increment(1);
+}
 
 /// Handle `textDocument/didSave` notifications.
 ///
@@ -44,6 +58,7 @@ fn handle_feature_file_save(state: &mut ServerState, path: &std::path::Path, tex
 
     match index_result {
         Ok(index) => {
+            record_indexing_outcome("feature", "success");
             debug!(
                 path = %path.display(),
                 steps = index.steps.len(),
@@ -55,6 +70,9 @@ fn handle_feature_file_save(state: &mut ServerState, path: &std::path::Path, tex
             publish_feature_diagnostics(state, path);
         }
         Err(err) => {
+            if matches!(&err, FeatureIndexError::OutsideWorkspaceRoot { .. }) {
+                record_indexing_outcome("feature", "workspace-boundary-failure");
+            }
             warn!(path = %path.display(), error = %err, "failed to index feature file");
         }
     }
@@ -68,6 +86,10 @@ fn handle_rust_file_save(state: &mut ServerState, path: &std::path::Path, text: 
 
     match index_result {
         Ok(result) => {
+            record_indexing_outcome("rust", "success");
+            for _ in &result.diagnostics {
+                record_indexing_outcome("rust", "recoverable-diagnostic");
+            }
             let index = result.index;
             debug!(
                 path = %path.display(),
@@ -75,13 +97,12 @@ fn handle_rust_file_save(state: &mut ServerState, path: &std::path::Path, text: 
                 "indexed rust step file"
             );
             state.upsert_rust_step_index(index);
+            publish_rust_index_result_diagnostics(state, path, &result.diagnostics);
             for diagnostic in result.diagnostics {
                 warn!(path = %path.display(), error = %diagnostic, "indexed Rust file with a step diagnostic");
             }
             // Rust file changes may affect all feature file diagnostics
             publish_all_feature_diagnostics(state);
-            // Also check for unused step definitions in this file
-            publish_rust_diagnostics(state, path);
         }
         Err(err) => {
             warn!(path = %path.display(), error = %err, "failed to index rust step file");

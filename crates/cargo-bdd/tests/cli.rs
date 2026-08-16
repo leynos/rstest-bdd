@@ -125,6 +125,10 @@ fn steps_skips_test_binaries_without_dump_steps_support() {
         stdout.contains("fixture bypassed step"),
         "supported test targets should still be reported: {stdout}"
     );
+    assert!(
+        !stdout.contains("ordinary test target has no registry dump"),
+        "unsupported test targets must not contribute fallback registry output: {stdout}"
+    );
 }
 
 #[test]

@@ -25,9 +25,11 @@ fn make_params(uri: Url, line: u32, character: u32) -> GotoImplementationParams 
     }
 }
 
-#[expect(clippy::expect_used, reason = "test helper uses expect for clarity")]
 fn index_file(state: &mut ServerState, path: &std::path::Path) {
-    let uri = Url::from_file_path(path).expect("file URI");
+    let uri = match Url::from_file_path(path) {
+        Ok(uri) => uri,
+        Err(()) => panic!("test file path must convert to URI: {}", path.display()),
+    };
     let params = DidSaveTextDocumentParams {
         text_document: TextDocumentIdentifier { uri },
         text: None,
@@ -43,17 +45,19 @@ struct ImplementationTestScenario {
     state: ServerState,
 }
 
-#[expect(clippy::expect_used, reason = "test builder uses expect for clarity")]
 impl ImplementationTestScenario {
     fn new() -> Self {
-        let dir = TempDir::new().expect("temp dir");
+        let dir = match TempDir::new() {
+            Ok(dir) => dir,
+            Err(error) => panic!("create temporary scenario directory: {error}"),
+        };
         let mut state = ServerState::new(ServerConfig::default());
-        state
-            .set_workspace_info(WorkspaceInfo {
-                root: dir.path().to_path_buf(),
-                packages: Vec::new(),
-            })
-            .expect("configure workspace root");
+        if let Err(error) = state.set_workspace_info(WorkspaceInfo {
+            root: dir.path().to_path_buf(),
+            packages: Vec::new(),
+        }) {
+            panic!("configure workspace root: {error}");
+        }
         Self {
             dir,
             feature_file: None,
@@ -76,27 +80,41 @@ impl ImplementationTestScenario {
     fn build(mut self) -> (TempDir, std::path::PathBuf, ServerState) {
         for (filename, content) in &self.rust_files {
             let path = self.dir.path().join(filename);
-            std::fs::write(&path, content).expect("write rust file");
+            if let Err(error) = std::fs::write(&path, content) {
+                panic!("write Rust file {}: {error}", path.display());
+            }
             index_file(&mut self.state, &path);
         }
-        let (filename, content) = self.feature_file.expect("feature file required");
+        let Some((filename, content)) = self.feature_file else {
+            panic!("implementation scenario requires a feature file");
+        };
         let feature_path = self.dir.path().join(filename);
-        std::fs::write(&feature_path, &content).expect("write feature file");
+        if let Err(error) = std::fs::write(&feature_path, &content) {
+            panic!("write feature file {}: {error}", feature_path.display());
+        }
         index_file(&mut self.state, &feature_path);
         (self.dir, feature_path, self.state)
     }
 }
 
-#[expect(clippy::expect_used, reason = "test helper uses expect for clarity")]
 fn get_implementation_locations(
     state: &ServerState,
     feature_path: &std::path::Path,
     line: u32,
     character: u32,
 ) -> Option<Vec<lsp_types::Location>> {
-    let feature_uri = Url::from_file_path(feature_path).expect("feature URI");
+    let feature_uri = match Url::from_file_path(feature_path) {
+        Ok(uri) => uri,
+        Err(()) => panic!(
+            "feature path must convert to URI: {}",
+            feature_path.display()
+        ),
+    };
     let params = make_params(feature_uri, line, character);
-    let response = handle_implementation(state, &params).expect("implementation response");
+    let response = match handle_implementation(state, &params) {
+        Ok(response) => response,
+        Err(error) => panic!("implementation response: {error}"),
+    };
     response.map(|resp| match resp {
         GotoImplementationResponse::Array(locs) => locs,
         other => panic!("expected array response, got {other:?}"),
