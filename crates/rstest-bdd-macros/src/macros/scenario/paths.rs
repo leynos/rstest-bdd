@@ -117,9 +117,11 @@ fn canonicalize_with_cap_std(path: &Path) -> Option<PathBuf> {
     not(test),
     expect(
         dead_code,
-        reason = "retained in its canonical form for compile-time diagnostics; the 10.3.3 \
-                  manifest-relative feature-path work must not repurpose the memoized \
-                  absolute form's cache key"
+        reason = "retained per the 10.3.3 ExecPlan Milestone 6: the manifest-relative \
+                  work must not repurpose this memoized absolute form's cache key, and \
+                  compile-time diagnostics may still need the canonical absolute path \
+                  (the missing-file path currently canonicalizes inside \
+                  `parse_and_load_feature` if `CARGO_MANIFEST_DIR` is joined)"
     )
 )]
 pub(super) fn canonical_feature_path(path: &Path) -> String {
