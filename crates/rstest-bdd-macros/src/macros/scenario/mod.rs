@@ -40,7 +40,7 @@ use crate::parsing::feature::{
 };
 use self::{
     args::ScenarioArgs,
-    paths::canonical_feature_path,
+    paths::manifest_relative_feature_path,
     return_kind::classify_scenario_return,
     selection::{ensure_feature_not_empty, resolve_candidate_indices, select_scenario},
 };
@@ -126,7 +126,9 @@ fn try_scenario(
         &path_lit,
     )?;
 
-    let feature_path_str = canonical_feature_path(&path);
+    // Decision D3: the embedded feature path is manifest-relative within the
+    // crate, absolute otherwise (see `manifest_relative_feature_path`).
+    let feature_path_str = manifest_relative_feature_path(&path);
     let ScenarioData {
         name: scenario_name,
         steps,

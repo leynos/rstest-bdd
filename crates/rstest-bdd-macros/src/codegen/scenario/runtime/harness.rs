@@ -20,12 +20,17 @@ fn generate_metadata_constants(
     components: &CodeComponents,
     path: &TokenStream2,
 ) -> TokenStream2 {
+    // Deliberately exhaustive (no `..` rest): a future field addition to
+    // `ScenarioLiterals` must be a hard error here, not a silent omission
+    // (ExecPlan Milestone 6). `allow_literal` is unused by this assembler —
+    // the harness accepts the scenario's skip policy from its request —
+    // so it is bound as `_allow_literal` to satisfy that contract.
     let ScenarioLiterals {
         feature_literal,
         scenario_literal,
         scenario_line_literal,
         tag_literals,
-        ..
+        allow_literal: _allow_literal,
     } = literals;
     let CodeComponents {
         step_executor,

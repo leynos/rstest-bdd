@@ -1,0 +1,6 @@
+---
+source: crates/rstest-bdd-macros/src/codegen/tracking/tests/mod.rs
+assertion_line: 279
+expression: "super::untrackable_error(Untrackable::UnrelatableRoot(std::path::PathBuf::from(r\"D:\\repo\\x.feature\")),\nproc_macro2::Span::call_site(),).to_string()"
+---
+:: core :: compile_error ! { "feature file <quoted> shares no filesystem root with the crate manifest directory (<quoted>), so it cannot be registered as a Cargo rebuild dependency. Use a manifest-relative path, or a path on the same filesystem root." }

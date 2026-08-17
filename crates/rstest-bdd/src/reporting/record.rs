@@ -9,6 +9,11 @@ pub type ScenarioTags = Arc<[String]>;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ScenarioMetadata {
     /// Path to the feature file containing the scenario.
+    ///
+    /// Manifest-relative to the consuming crate when the file lies within its
+    /// manifest directory (`tests/features/x.feature`), absolute otherwise
+    /// (see the v0.6.0 migration guide's breaking-change note and `ExecPlan`
+    /// 10.3.3 Decision D3).
     pub feature_path: String,
     /// Human-readable scenario name.
     pub scenario_name: String,
@@ -87,6 +92,9 @@ impl ScenarioRecord {
     }
 
     /// Access the recorded feature path.
+    ///
+    /// Manifest-relative within the consuming crate's manifest directory;
+    /// absolute otherwise (see `ScenarioMetadata::feature_path`).
     ///
     /// # Examples
     /// ```

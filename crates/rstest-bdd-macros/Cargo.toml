@@ -46,7 +46,7 @@ thiserror.workspace = true
 [build-dependencies]
 rustc_version = "0.4"
 [dev-dependencies]
-insta.workspace = true
+insta = { workspace = true, features = ["filters"] }
 googletest.workspace = true
 pretty_assertions.workspace = true
 proptest.workspace = true
