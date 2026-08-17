@@ -46,6 +46,8 @@ insta = "1.47.2"
 macrotest = "1"
 metrics = "0.24.2"
 prettyplease = "0.3"
+googletest = { version = "0.14.3", features = ["proptest"] }
+pretty_assertions = "1.4.1"
 trybuild = "1"
 serial_test = "2"
 serde = { version = "1.0", features = ["derive"] }
