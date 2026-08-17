@@ -21,7 +21,7 @@ pub(super) use crate::utils::pattern::normalize_param_name;
 pub(super) fn normalize_param_name(name: &str) -> &str { name.strip_prefix('_').unwrap_or(name) }
 
 /// Everything required to describe a single step-function argument.
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub enum Arg {
     /// Represents the internal validation outcome.
     Fixture {
