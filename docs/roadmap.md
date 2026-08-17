@@ -948,8 +948,7 @@ feature-file edits cannot leave users running stale scenarios.
   lands, a caveat in `docs/v0-6-0-migration-guide.md` alerts adopters that
   `.feature`-only edits do not trigger a rebuild. The gauss v0.6.0-beta3
   migration independently reproduced this failure mode and had to falsify a
-  scenario by editing its Rust step file instead. scenario by editing its Rust
-  step file instead.
+  scenario by editing its Rust step file instead.
 - [ ] 10.3.4. Extend tested-example enforcement from the bounded region to the
   whole users' guide. Roadmap 10.3.3 (ExecPlan Decision D2) introduced the
   `<!-- tested-example: id -->` marker and regional enforcement; the guide's 69
