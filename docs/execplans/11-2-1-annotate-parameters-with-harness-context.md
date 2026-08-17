@@ -236,7 +236,7 @@ Stop and escalate — do not improvise — when any of these is reached.
   and `#[from(rstest_bdd_harness_context)]` coexist in one scenario, registered
   in `run_passing_macro_tests`.
 - [x] Milestone 6 — equivalence snapshot and behavioural scenario. Committed
-  `401f2e6`, 2026-08-17. Added an `insta` snapshot of the generated wrapper for
+  `a19e993`, 2026-08-17. Added an `insta` snapshot of the generated wrapper for
   the marker spelling plus two `pretty_assertions` equality assertions pinning
   byte-identical output against both the `#[from(...)]` and parameter-named
   spellings (`crates/rstest-bdd-macros/src/codegen/wrapper/equivalence_tests.rs`,
