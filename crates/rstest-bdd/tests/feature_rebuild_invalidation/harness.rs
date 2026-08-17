@@ -29,6 +29,8 @@
 //! environment and the bounded nested-cargo invocation; `outcome` owns the
 //! result shapes the scenario steps assert on.
 
+#[path = "harness/addition.rs"]
+mod addition;
 #[path = "harness/fixtures.rs"]
 mod fixtures;
 #[path = "harness/outcome.rs"]
@@ -39,6 +41,7 @@ mod process;
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
+pub(crate) use addition::addition_outcome;
 pub(crate) use outcome::{DepInfoOutcome, RebuildOutcome};
 
 static DEP_INFO: OnceLock<DepInfoOutcome> = OnceLock::new();

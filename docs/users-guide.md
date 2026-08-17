@@ -3231,3 +3231,47 @@ three amigos in the specification process.
 [developers-guide-adapter-fallback]: https://github.com/leynos/rstest-bdd/blob/main/docs/developers-guide.md#adapter-fallback-diagnostics
 [developer-serial-nextest]: https://github.com/leynos/rstest-bdd/blob/main/docs/developers-guide.md#serial-file_serial-and-nextest-test-groups
 [nextest-test-groups]: https://nexte.st/docs/configuration/test-groups/
+
+### Feature file rebuild invalidation
+
+Since v0.6.0, `#[scenario]` and `scenarios!` register every bound `.feature`
+file as a Cargo rebuild dependency: the macro emits an `include_bytes!`
+binding whose path is built from `CARGO_MANIFEST_DIR`, so rustc records the
+file in dep-info and Cargo recompiles the scenario binary whenever the file
+changes. Editing only a `.feature` file therefore recompiles the crate, and
+the tests reflect the new text immediately.
+
+`#[scenario]` tracks its single bound file. `scenarios!` tracks every
+`.feature` file it discovers in the bound directory — including files whose
+scenarios are excluded by a `tags =` filter.
+
+Per-file tracking covers *edits* to files that existed when the macro ran.
+It cannot see a file that is *added* afterwards, because nothing referenced
+a file that did not exist at expansion time. To close that gap, add a
+`build.rs` to your crate that tells Cargo to rerun the build script
+whenever the bound directory changes:
+
+<!-- tested-example: scenarios-build-script -->
+
+```rust
+fn main() {
+    println!("cargo::rerun-if-changed=tests/features");
+}
+```
+
+Cargo scans a `rerun-if-changed` **directory** recursively, so a single
+directory line covers new files and subdirectories; a hand-maintained
+per-file list can silently omit a new subdirectory, which is the failure
+mode this mechanism exists to prevent. The snippet above is executed by
+this repository's test suite (it is extracted from this document and run
+against a scratch crate, see the developers' guide), so it cannot rot.
+
+#### Cost
+
+Per-file tracking makes a previously free operation cost something:
+editing one `.feature` file now rebuilds the whole test binary containing
+the `scenarios!` invocation that binds it, which re-parses every feature
+file in the bound directory. Measured at roughly 5.4 s for 100 files with
+five scenarios each on a development host. For large feature directories,
+split them across several test binaries with disjoint `scenarios!`
+invocations.

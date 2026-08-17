@@ -1681,6 +1681,7 @@ dependencies = [
  "cap-std",
  "ctor",
  "derive_more",
+ "eyre",
  "fluent",
  "gherkin",
  "hashbrown 0.17.1",

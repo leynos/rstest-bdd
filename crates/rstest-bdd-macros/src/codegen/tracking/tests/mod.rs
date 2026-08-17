@@ -292,7 +292,7 @@ fn empty_diagnostic_explains_itself() {
 #[test]
 fn snapshot_of_unrelatable_root_diagnostic() {
     // Redacted snapshot of the rendered D4 diagnostic (ExecPlan Milestone 5):
-    // the absolute path fragments are normalised so the pinned wording drifts
+    // the absolute path fragments are normalized so the pinned wording drifts
     // on a meaning change — never on a build directory. The substring
     // assertions above back the load-bearing fragments so a reflow cannot
     // hide a change from the snapshot alone.

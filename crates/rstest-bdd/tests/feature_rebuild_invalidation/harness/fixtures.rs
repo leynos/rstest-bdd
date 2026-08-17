@@ -61,7 +61,7 @@ fn copy_dir_recursive(from: &Path, to: &Path) -> io::Result<()> {
 /// Collect the source fixture tree as sorted (relative path, contents) pairs,
 /// excluding the lockfile — Cargo regenerates the scratch lockfile, so it must
 /// not invalidate the source stamp.
-fn collect_source_entries() -> Vec<(PathBuf, Vec<u8>)> {
+fn collect_source_entries(source: &Path) -> Vec<(PathBuf, Vec<u8>)> {
     fn walk(dir: &Path, base: &Path, out: &mut Vec<(PathBuf, Vec<u8>)>) -> io::Result<()> {
         for entry in fs::read_dir(dir)? {
             let entry = entry?;
@@ -77,17 +77,20 @@ fn collect_source_entries() -> Vec<(PathBuf, Vec<u8>)> {
     }
 
     let mut entries = Vec::new();
-    if let Err(err) = walk(&source_fixture_dir(), Path::new(""), &mut entries) {
-        panic!("cannot hash the fixture tree: {err}");
+    if let Err(err) = walk(source, Path::new(""), &mut entries) {
+        panic!(
+            "cannot hash the fixture tree at {}: {err}",
+            source.display()
+        );
     }
     entries
 }
 
-/// A stable hash of the checked-in fixture tree, keying the stamp protocol.
-fn source_tree_hash() -> String {
+/// A stable hash of a checked-in fixture tree, keying the stamp protocol.
+fn source_tree_hash(source: &Path) -> String {
     use std::hash::{Hash, Hasher};
 
-    let mut entries = collect_source_entries();
+    let mut entries = collect_source_entries(source);
     entries.sort();
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     for (rel, contents) in &entries {
@@ -114,34 +117,74 @@ const SCRATCH_PROTOCOL_VERSION: &str = "2";
 /// harness's own rewrite rules change (a leave-over from the pre-versioned
 /// protocol was the failure mode that motivated it).
 pub(crate) fn ensure_fixture_copied() {
-    let stamp_path = scratch_root().join(".stamp");
-    let stamp = format!("{SCRATCH_PROTOCOL_VERSION}:{}", source_tree_hash());
-    if !scratch_fixture_dir().is_dir() {
-        recopy_fixture(&stamp_path, &stamp);
+    copy_fixture(
+        &source_fixture_dir(),
+        &scratch_fixture_dir(),
+        &scratch_root(),
+    );
+}
+
+/// The second fixture used by Milestone 7's build-script test: bound via
+/// `scenarios!` with **no** committed `build.rs` (the test writes it from the
+/// extracted documentation example). Own scratch tree of its own.
+pub(crate) fn ensure_addition_fixture_copied() {
+    copy_fixture(
+        &source_addition_dir(),
+        &scratch_addition_dir(),
+        &add_addition_root(),
+    );
+}
+
+/// The checked-in `feature_addition` fixture crate source.
+pub(crate) fn source_addition_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/feature_addition")
+}
+
+/// Root scratch directory owned exclusively by the addition experiment.
+fn add_addition_root() -> PathBuf {
+    shared_target_dir().join("tests/feature-addition")
+}
+
+/// The copied `feature_addition` fixture crate inside its scratch area.
+pub(crate) fn scratch_addition_dir() -> PathBuf {
+    add_addition_root().join("fixture")
+}
+
+/// Core of the stamp-file protocol: re-copy `source` to `scratch` (after
+/// rewriting its manifest's path dependencies to absolute paths) unless the
+/// recorded stamp matches the current source hash.
+fn copy_fixture(source: &Path, scratch: &Path, scratch_root: &Path) {
+    let stamp_path = scratch_root.join(".stamp");
+    let stamp = format!("{SCRATCH_PROTOCOL_VERSION}:{}", source_tree_hash(source));
+    if scratch_is_current(scratch, &stamp_path, &stamp) {
         return;
     }
-    if read_stamp(&stamp_path) != stamp || !manifest_path_deps_are_absolute() {
-        recopy_fixture(&stamp_path, &stamp);
-    }
-}
-
-/// Replace the scratch copy wholesale and record the current stamp.
-fn recopy_fixture(stamp_path: &Path, stamp: &str) {
-    if scratch_fixture_dir().exists() {
-        if let Err(err) = fs::remove_dir_all(scratch_fixture_dir()) {
-            panic!("remove stale scratch fixture: {err}");
+    if scratch.exists() {
+        if let Err(err) = fs::remove_dir_all(scratch) {
+            panic!("remove stale scratch fixture {}: {err}", scratch.display());
         }
     }
-    if let Err(err) = copy_dir_recursive(&source_fixture_dir(), &scratch_fixture_dir()) {
-        panic!("copy fixture to scratch: {err}");
+    if let Err(err) = copy_dir_recursive(source, scratch) {
+        panic!(
+            "copy fixture {} to scratch {}: {err}",
+            source.display(),
+            scratch.display()
+        );
     }
-    rewrite_manifest_path_deps();
-    if let Err(err) = fs::write(stamp_path, stamp) {
-        panic!("write stamp file: {err}");
+    rewrite_manifest_path_deps(source, scratch);
+    if let Err(err) = fs::write(&stamp_path, stamp) {
+        panic!("write stamp file {}: {err}", stamp_path.display());
     }
 }
 
-/// The recorded stamp, or the empty string when the scratch is uninitialised.
+/// Whether the scratch copy at `scratch` is current: it exists, its recorded
+/// stamp matches this fixture's source hash, and its manifest still carries
+/// absolute dependency paths.
+fn scratch_is_current(scratch: &Path, stamp_path: &Path, stamp: &str) -> bool {
+    scratch.is_dir() && read_stamp(stamp_path) == stamp && manifest_path_deps_are_absolute(scratch)
+}
+
+/// The recorded stamp, or the empty string when the scratch is uninitialized.
 fn read_stamp(path: &Path) -> String {
     fs::read_to_string(path).unwrap_or_default()
 }
@@ -151,8 +194,8 @@ fn read_stamp(path: &Path) -> String {
 /// Guards against a stale scratch whose manifest was written by an older
 /// (possibly buggy) rewrite round while the source tree — and therefore the
 /// stamp — is unchanged.
-fn manifest_path_deps_are_absolute() -> bool {
-    let Ok(text) = fs::read_to_string(scratch_fixture_dir().join("Cargo.toml")) else {
+fn manifest_path_deps_are_absolute(scratch_fixture_dir: &Path) -> bool {
+    let Ok(text) = fs::read_to_string(scratch_fixture_dir.join("Cargo.toml")) else {
         return false;
     };
     text.lines().all(|line| {
@@ -178,8 +221,8 @@ fn manifest_path_deps_are_absolute() -> bool {
 /// target is written into the scratch manifest. The scratch manifest is not
 /// checked in, so absolute paths there breach nothing: Constraint 2 of the
 /// execplan governs the macro's emitted tokens, not scratch build inputs.
-fn rewrite_manifest_path_deps() {
-    let manifest_path = scratch_fixture_dir().join("Cargo.toml");
+fn rewrite_manifest_path_deps(source: &Path, scratch: &Path) {
+    let manifest_path = scratch.join("Cargo.toml");
     let text = match fs::read_to_string(&manifest_path) {
         Ok(text) => text,
         Err(err) => panic!(
@@ -207,7 +250,7 @@ fn rewrite_manifest_path_deps() {
         // the `..` counts in the checked-in manifest are relative to the
         // source location. `split_once` drops the delimiters it splits on, so
         // both quotes around the value are written back explicitly.
-        let resolved = normalize_lexically(&source_fixture_dir().join(value));
+        let resolved = normalize_lexically(&source.join(value));
         rewritten_lines.push(format!("{before}path = \"{}\"{tail}", resolved.display()));
     }
     assert!(

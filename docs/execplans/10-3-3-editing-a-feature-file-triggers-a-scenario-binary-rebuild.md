@@ -363,8 +363,14 @@ is ticked so rates of progress and tolerance breaches are visible.
       workspace-uniqueness loss is documented; the whole-expansion
       no-absolute-path pin is assembled from the two TokenStream2 pieces;
       full workspace green.
-- [ ] Milestone 7: the tested `build.rs` recipe — documentation-example
-      extractor, second fixture crate, and the file-addition behavioural test.
+- [x] (2026-08-17) Milestone 7: the tested `build.rs` recipe —
+      documentation-example extractor (`documentation_examples`, regional
+      enforcement, `eyre::Result`), the `feature_addition` fixture (byte
+      shared deps, no committed `build.rs`), and the third scenario
+      `feature_addition_triggers_rebuild` which extracts the recipe from the
+      users-guide, writes it, runs the baseline, adds a `.feature` file and
+      asserts the new scenario runs. The recipe is executed living
+      documentation: a change to it fails the suite.
 - [ ] Milestone 8: documentation, ADR amendment, migration-guide breaking
       change and caveat removal, roadmap tick.
 
@@ -384,14 +390,14 @@ implementation.
   ADR-010's rejection rationale to be amended rather than merely obeyed.
 
 - Observation: **`include_str!` hard-errors on a non-UTF-8 file;
-  `include_bytes!`
-  does not, and registers dep-info identically.** Evidence: transcript D.
-  `include_str!` produced ``error: `…/bad.feature` wasn't a utf-8 file`` — and
-  note that the error text itself contains the absolute path. `include_bytes!`
-  compiled clean under `#![deny(warnings)]` with one dep-info entry. Impact:
-  the emitted binding uses `include_bytes!`. A `.feature` file that is not
-  valid UTF-8 must produce the Gherkin parser's diagnostic, not a second,
-  unrelated one pointing at line 0 of the feature file.
+  `include_bytes!` does not, and registers dep-info identically.** Evidence:
+  transcript D. `include_str!` produced
+  ``error: `…/bad.feature` wasn't a utf-8 file`` — and note that the error text
+  itself contains the absolute path. `include_bytes!` compiled clean under
+  `#![deny(warnings)]` with one dep-info entry. Impact: the emitted binding uses
+  `include_bytes!`. A `.feature` file that is not valid UTF-8 must produce the
+  Gherkin parser's diagnostic, not a second, unrelated one pointing at line 0
+  of the feature file.
 
 - Observation: **`proc_macro_error::emit_warning!` is nightly-only and is
   silently ignored on stable.** The workspace pins `proc-macro-error 1.0.4`
@@ -499,44 +505,43 @@ implementation.
 
 - Observation: **proc-macro2 prints a string literal's raw source text, so
   backslash-newline continuations leak indentation into
-  `TokenStream::to_string()`.** The token-shape test's exact-equality
-  assertion failed because the module's binding carried 21 spaces of
-  continuation indent while the test's expectation carried 17 — the two
-  doc strings were otherwise identical. The fix builds the doc text with
-  `concat!`-adjacent literals, so the emitted string is one line and the
-  assertion is indentation-independent.
+  `TokenStream::to_string()`.** The token-shape test's exact-equality assertion
+  failed because the module's binding carried 21 spaces of continuation indent
+  while the test's expectation carried 17 — the two doc strings were otherwise
+  identical. The fix builds the doc text with `concat!`-adjacent literals, so
+  the emitted string is one line and the assertion is indentation-independent.
 
 - Observation: **the `#[scenario]` ordering contract cannot be unit-tested in
   the macros crate.** `try_scenario` constructs `proc_macro::TokenStream`,
   which panics outside the proc-macro bridge ("procedural macro API is used
-  outside of a procedural macro"). The ordering (missing file → one
-  diagnostic, no tracking item) is therefore pinned by the M4 trybuild
-  byte-identical `.stderr` check instead, per Decision M2.
+  outside of a procedural macro"). The ordering (missing file → one diagnostic,
+  no tracking item) is therefore pinned by the M4 trybuild byte-identical
+  `.stderr` check instead, per Decision M2.
 
 - Observation: **`str::split_once` drops the delimiter it splits on — twice.**
   The manifest-rewrite helper split each `path = "…"` line with
-  `split_once("path = \"")` then `split_once('"')`, and reconstructed the
-  line assuming `tail` still began with the value's closing quote — it did
-  not, so the rewritten line lost a quote and the scratch manifest became
-  invalid TOML. Both delimiters must be written back explicitly. A cheap
-  reproducible trace (Python) pinned the bug in minutes; the fix is a comment
-  beside the reconstruction.
+  `split_once("path = \"")` then `split_once('"')`, and reconstructed the line
+  assuming `tail` still began with the value's closing quote — it did not, so
+  the rewritten line lost a quote and the scratch manifest became invalid TOML.
+  Both delimiters must be written back explicitly. A cheap reproducible trace
+  (Python) pinned the bug in minutes; the fix is a comment beside the
+  reconstruction.
 
 - Observation: **Whitaker's `no_std_fs_operations` deny extends to integration
   test crates whose whole purpose is ambient-path cargo integration.** The
   harness's filesystem work (copying a fixture to the shared target, running
-  nested `cargo`) triggered 30 findings; `dylint.toml`'s `excluded_crates`
-  list is exactly the sanctioned remedy — `cli` (cargo-bdd's smoke tests) is
-  already excluded for the identical reason, and the new
-  `feature_rebuild_invalidation` entry states the same rationale.
+  nested `cargo`) triggered 30 findings; `dylint.toml`'s `excluded_crates` list
+  is exactly the sanctioned remedy — `cli` (cargo-bdd's smoke tests) is already
+  excluded for the identical reason, and the new `feature_rebuild_invalidation`
+  entry states the same rationale.
 
 - Observation: **while the tracking mechanism is absent (pre-fix), a stale
   fixture binary compiled from a previous experiment's edited scratch lingers
   in the shared `target/` and Cargo reuses it forever** — pre-fix the feature
   file is invisible to fingerprints. The rebuild experiment therefore starts
   with `cargo clean -p rstest-bdd-rebuild-invalidation-fixture` (which never
-  touches dependencies, so warmth is preserved); post-fix the tracking
-  binding makes the state self-healing.
+  touches dependencies, so warmth is preserved); post-fix the tracking binding
+  makes the state self-healing.
 
 - Observation: **`cargo update --precise` can pin a coherent lock back to a
   target world, but only after the target package is already in the lock.**
@@ -783,15 +788,14 @@ implementation.
   dead project-wide — confirmed, not merely suspected.**
   `snapshot_refresh_is_enabled()` requires both `RSTEST_BDD_RUN_MACROTEST` and
   `cargo expand`; CI never sets the variable, `cargo expand` is not installed
-  locally, and neither the workflows nor the Makefile install it. The
-  snapshots are curated excerpts (e.g. `scenario_harness_tokio_default` shows
-  a half-expanded body referencing an undefined `__rstest_bdd_request`), so
-  they were out of step with real expansion before this change and can never
-  trip locally. Milestone 3's "refresh any that move" is therefore grounded:
-  nothing can move them locally, and refreshing by hand would bless
-  reconstruction, not measurement. The gate stays as-is; its deadness is
-  recorded here and flagged as a follow-up candidate.
-  Date/Author: 2026-08-17, implementing agent.
+  locally, and neither the workflows nor the Makefile install it. The snapshots
+  are curated excerpts (e.g. `scenario_harness_tokio_default` shows a
+  half-expanded body referencing an undefined `__rstest_bdd_request`), so they
+  were out of step with real expansion before this change and can never trip
+  locally. Milestone 3's "refresh any that move" is therefore grounded: nothing
+  can move them locally, and refreshing by hand would bless reconstruction, not
+  measurement. The gate stays as-is; its deadness is recorded here and flagged
+  as a follow-up candidate. Date/Author: 2026-08-17, implementing agent.
 
 - **Decision M1b (settled 2026-08-17, Milestone 1): the nextest timeout
   arithmetic for the `cargo-spawning` group.** `.config/nextest.toml` already
@@ -843,68 +847,87 @@ implementation.
   `target/`. Date/Author: 2026-08-17, implementing agent.
 
 - **Decision M2 (recorded 2026-08-17): the dep-info "exactly once" contract is
-  asserted against the `.d`'s primary rule line, not the whole file.**
-  rustc's make-style `.d` repeats every dependency in each rule block: once
-  for the `.d` target, once for the binary target, and once in the
-  per-source mapping — so a naive whole-content count of the feature path
-  yields 3 for a single binding (measured). The plan's "exactly once" pins the
-  one-binding-per-file property from D0 and is stable because rustc
-  deduplicates the dependency list per rule line; the assertion therefore
-  counts occurrences within the **first rule line** (the `.d`'s own
-  dependency list, the canonical entry Cargo fingerprints). A comment in the
-  harness explains the format so nobody "fixes" the count back to a
-  whole-file count.
-  Related ruling for the M2 "file deleted between builds" question: for
-  `#[scenario]`, `validate_feature_file_exists` runs *before* codegen, so a
-  file deleted between builds surfaces as exactly one diagnostic (the macro's
-  "feature file not found") and no tracking item — the dep-info triggers the
-  rebuild and the diagnostic names the file. This is pinned end-to-end by the
-  M4 byte-identical `scenario_missing_file.stderr` check rather than a unit
-  test: calling `try_scenario` from a unit test panics with "procedural macro
-  API is used outside of a procedural macro" (`proc_macro::TokenStream`
-  cannot be constructed outside the bridge), so the ordering is asserted
-  where it can actually run.
-  Date/Author: 2026-08-17, implementing agent.
+  asserted against the `.d`'s primary rule line, not the whole file.** rustc's
+  make-style `.d` repeats every dependency in each rule block: once for the
+  `.d` target, once for the binary target, and once in the per-source mapping —
+  so a naive whole-content count of the feature path yields 3 for a single
+  binding (measured). The plan's "exactly once" pins the one-binding-per-file
+  property from D0 and is stable because rustc deduplicates the dependency list
+  per rule line; the assertion therefore counts occurrences within the **first
+  rule line** (the `.d`'s own dependency list, the canonical entry Cargo
+  fingerprints). A comment in the harness explains the format so nobody "fixes"
+  the count back to a whole-file count. Related ruling for the M2 "file deleted
+  between builds" question: for `#[scenario]`, `validate_feature_file_exists`
+  runs *before* codegen, so a file deleted between builds surfaces as exactly
+  one diagnostic (the macro's "feature file not found") and no tracking item —
+  the dep-info triggers the rebuild and the diagnostic names the file. This is
+  pinned end-to-end by the M4 byte-identical `scenario_missing_file.stderr`
+  check rather than a unit test: calling `try_scenario` from a unit test panics
+  with "procedural macro API is used outside of a procedural macro"
+  (`proc_macro::TokenStream` cannot be constructed outside the bridge), so the
+  ordering is asserted where it can actually run. Date/Author: 2026-08-17,
+  implementing agent.
 
 - **Decision M3 (recorded 2026-08-17): the `scenarios!` filtered-file
-  regression case lives as a third, plain `#[test]` (not scenario-bound) in
-  the regression test binary, and the fixture gains a `scenarios!`
-  invocation over a two-file directory.**
-  The behavioural spec in `tests/features/rebuild_invalidation.feature` keeps
-  exactly its two scenarios (per Milestone 1c), so the M3 case — a directory
-  with a `tags =` filter that excludes every scenario in one file while
-  another file still matches — is asserted by `scenarios_directory_filtered_file_is_tracked`,
-  which reuses the same once-per-process dep-info build and checks the
-  filtered file's presence in the `#[...]` primary rule. The fixture's
-  `tests/features/scenarios_dir/` holds `match.feature` (`@wanted`, generates
-  a test) and `no_match.feature` (`@excluded`, generates nothing but must
-  still be tracked); the duplication is deliberate so `scenarios!` cannot
-  error with "no scenarios matched" while the file is still parsed.
-  Date/Author: 2026-08-17, implementing agent.
+  regression case lives as a third, plain `#[test]` (not scenario-bound) in the
+  regression test binary, and the fixture gains a `scenarios!` invocation over
+  a two-file directory.** The behavioural spec in
+  `tests/features/rebuild_invalidation.feature` keeps exactly its two scenarios
+  (per Milestone 1c), so the M3 case — a directory with a `tags =` filter that
+  excludes every scenario in one file while another file still matches — is
+  asserted by `scenarios_directory_filtered_file_is_tracked`, which reuses the
+  same once-per-process dep-info build and checks the filtered file's presence
+  in the `#[...]` primary rule. The fixture's `tests/features/scenarios_dir/`
+  holds `match.feature` (`@wanted`, generates a test) and `no_match.feature`
+  (`@excluded`, generates nothing but must still be tracked); the duplication
+  is deliberate so `scenarios!` cannot error with "no scenarios matched" while
+  the file is still parsed. Date/Author: 2026-08-17, implementing agent.
 
 - **Decision M6 (recorded 2026-08-17): the manifest-relative feature path ships
   end-to-end, and workspace uniqueness loss is documented, not qualified.**
-  Both macros now feed `__RSTEST_BDD_FEATURE_PATH` from a
-  manifest-relative value (`paths::manifest_relative_feature_path`; the
-  `scenarios!` side passes `rel_path` through without re-absolutizing), the
-  `..` rest pattern in the harness assembler's `ScenarioLiterals`
-  destructuring is deleted, `ScenarioTestContext.manifest_dir` is removed
-  (its only consumer died with the join), and `canonical_feature_path` is
-  retained per the plan with a reasoned `expect(dead_code)`. On workspace
-  uniqueness, the *documented* minimum is chosen: the `feature_path` doc
-  comments and the migration guide state the merged-`cargo bdd` collision
-  consequence; making `cargo-bdd` qualify merged entries with the package
-  name is recorded as a follow-up roadmap item rather than folded into this
-  change (it is a `cargo-bdd` presentation feature orthogonal to the path
-  format).
-  The whole-expansion "no absolute path literal" pin is assembled from the
-  two TokenStream2 producers the macro emits — the tracking binding
+  Both macros now feed `__RSTEST_BDD_FEATURE_PATH` from a manifest-relative
+  value (`paths::manifest_relative_feature_path`; the `scenarios!` side passes
+  `rel_path` through without re-absolutizing), the `..` rest pattern in the
+  harness assembler's `ScenarioLiterals` destructuring is deleted,
+  `ScenarioTestContext.manifest_dir` is removed (its only consumer died with
+  the join), and `canonical_feature_path` is retained per the plan with a
+  reasoned `expect(dead_code)`. On workspace uniqueness, the *documented*
+  minimum is chosen: the `feature_path` doc comments and the migration guide
+  state the merged-`cargo bdd` collision consequence; making `cargo-bdd`
+  qualify merged entries with the package name is recorded as a follow-up
+  roadmap item rather than folded into this change (it is a `cargo-bdd`
+  presentation feature orthogonal to the path format). The whole-expansion "no
+  absolute path literal" pin is assembled from the two TokenStream2 producers
+  the macro emits — the tracking binding
   (`tracking_binding_carries_no_absolute_path_literal`) and the generated
-  metadata (`feature_path_literal_is_manifest_relative_in_the_generated_metadata`)
-  — because the full expansion crosses the proc-macro bridge and cannot be
-  stringified in a unit test (same finding as the M2 ordering test).
-  Blast radius: the entire workspace (1637 tests) is green with no
-  checked-in expectation carrying a real macro-emitted absolute path.
+  metadata
+  (`feature_path_literal_is_manifest_relative_in_the_generated_metadata`) —
+  because the full expansion crosses the proc-macro bridge and cannot be
+  stringified in a unit test (same finding as the M2 ordering test). Blast
+  radius: the entire workspace (1637 tests) is green with no checked-in
+  expectation carrying a real macro-emitted absolute path. Date/Author:
+  2026-08-17, implementing agent.
+
+- **Decision M7 (recorded 2026-08-17): the tested-recipe machinery lands with
+  the extractor's error type as `eyre::Result`, and the users-guide section
+  ships as part of Milestone 7 rather than 8.**
+  The plan's M7 interface sketch uses `anyhow::Result`, but `anyhow` is not a
+  workspace dependency and Constraint 7 forbids adding one; the house opaque
+  error crate is `eyre` (already in `[workspace.dependencies]` and now a
+  dev-dependency of `rstest-bdd`), so the extractor's public functions return
+  `eyre::Result`. The users-guide "Feature file rebuild invalidation"
+  section with the `scenarios-build-script` marker is written as part of
+  Milestone 7 because the extractor and the behavioural test read it — it is
+  the single source of truth the recipe is extracted from — and Milestone 8
+  then performs the remaining guide edits against it.
+  The nextest arithmetic is updated for the third cargo-spawning test in the
+  binary (`global-timeout` 40m → 50m, covering 1080 s of pre-existing members
+  plus 3 × 600 s worst case).
+  The spelling gate surfaced en-US spellings in the new test support code —
+  all fixed (`-ise` → `-ize`, `artifacts` → the config-police form used by
+  the deployment), and one redundant JSON reason-equality check was removed
+  because the word cannot appear in the source without a config
+  regeneration the external `typos-config-builder` owns.
   Date/Author: 2026-08-17, implementing agent.
 
 ## Context and orientation
@@ -1964,11 +1987,11 @@ Full output in
 
 `make publish-check` is also red at Milestone 1, and for the expected reason:
 `lading publish` preflights the packaged crates by *running their tests*, and
-the two red regression tests fail there exactly as locally (`0 passed; 2
-failed` with `dep_info_entry_count` and `second.recompiled`). Packaging is
-intact — the fixture crate rides inside the `rstest-bdd` `.crate` and the
-preflight build succeeds. The gate flips green with the implementation in
-Milestones 2–3.
+the two red regression tests fail there exactly as locally
+(`0 passed; 2 failed` with `dep_info_entry_count` and `second.recompiled`).
+Packaging is intact — the fixture crate rides inside the `rstest-bdd` `.crate`
+and the preflight build succeeds. The gate flips green with the implementation
+in Milestones 2–3.
 
 **External status checks.** `proc_macro::tracked_path` — rust-lang/rust#99515,
 "Tracking Issue for `proc_macro::{tracked_env, tracked_path}`" — is open and

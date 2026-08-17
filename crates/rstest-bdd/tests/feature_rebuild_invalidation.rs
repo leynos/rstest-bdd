@@ -26,6 +26,8 @@ use googletest::prelude::*;
 use rstest_bdd_macros::{given, scenario, then, when};
 use serial_test::serial;
 
+#[path = "documentation_examples/mod.rs"]
+mod documentation_examples;
 #[path = "feature_rebuild_invalidation/harness.rs"]
 mod harness;
 
@@ -92,7 +94,7 @@ fn a_passing_bound_crate() {
 fn feature_file_edited() {
     // The edit itself happens inside the harness's rebuild experiment, which
     // has already run by the time this step executes (the Given step above
-    // initialised it). Deliberately a no-op: the harness owns the mutation so
+    // initialized it). Deliberately a no-op: the harness owns the mutation so
     // the two recorded runs share one byte-identical environment.
 }
 
@@ -130,7 +132,65 @@ fn test_fails_against_new_expectation() {
 }
 
 // ---------------------------------------------------------------------------
-// The two regression tests, plus the `scenarios!` directory case.
+// Step functions for scenario 2: "Adding a feature file to a bound directory
+// triggers a rebuild".
+// ---------------------------------------------------------------------------
+
+#[given("a scenario crate whose build script tracks its feature directory")]
+fn build_script_tracks_feature_directory() {
+    // Runs the whole addition experiment: writes the `build.rs` extracted
+    // from the documented `scenarios-build-script` example into the
+    // `feature_addition` fixture, adds the `build` key, and confirms the
+    // baseline scenario runs.
+    let outcome = harness::addition_outcome();
+    if let Some(reason) = &outcome.baseline_error {
+        panic!("build-script fixture setup failed: {reason}");
+    }
+    // The baseline scenario must have run before the addition; the
+    // experiment's second run is only meaningful then.
+    assert_that!(
+        outcome
+            .baseline_output
+            .contains("baseline_the_baseline_scenario"),
+        is_true(),
+        "the pre-addition `cargo test` must run the fixture's baseline \
+         scenario.\noutput:\n{}",
+        outcome.baseline_output
+    );
+}
+
+#[when("a new feature file is added to that directory")]
+fn new_feature_file_added() {
+    // The addition itself happens inside the harness's addition experiment,
+    // which has already run by the time this step executes (the Given step
+    // above initialized it). Deliberately a no-op, mirroring the edit step of
+    // the rebuild scenario.
+}
+
+#[then("the next test run recompiles and runs the new scenario")]
+fn next_run_recompiles_and_runs_new_scenario() {
+    let outcome = harness::addition_outcome();
+    assert_that!(
+        outcome.second_run_recompiled,
+        is_true(),
+        "the second run must recompile the fixture after the directory changes.\noutput:\n{}",
+        outcome.second_run_output
+    );
+    // The contract: the added scenario's generated test runs. `Compiling`
+    // alone is only corroboration; a scenario that actually ran is proof the
+    // new Gherkin text was discovered.
+    assert_that!(
+        outcome.new_scenario_ran,
+        is_true(),
+        "the second run must execute the test generated from the added \
+         `.feature` file (its name contains `zzz_added_the_added_scenario`).\noutput:\n{}",
+        outcome.second_run_output
+    );
+}
+
+// ---------------------------------------------------------------------------
+// The two regression tests, the `scenarios!` directory case, and the
+// file-addition case.
 // ---------------------------------------------------------------------------
 
 #[scenario("tests/features/rebuild_invalidation.feature", index = 0)]
@@ -140,6 +200,10 @@ fn bound_feature_file_is_tracked_dependency() {}
 #[scenario("tests/features/rebuild_invalidation.feature", index = 1)]
 #[serial]
 fn feature_edit_forces_rebuild_and_fresh_failure() {}
+
+#[scenario("tests/features/rebuild_invalidation.feature", index = 2)]
+#[serial]
+fn feature_addition_triggers_rebuild() {}
 
 /// A `scenarios!` directory with a `tags =` filter that excludes every
 /// scenario in one file must still track that file: it was parsed, so an
