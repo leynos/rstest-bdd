@@ -12,8 +12,10 @@ use super::{Arg, ExtractedArgs, normalize_param_name};
 
 mod step_struct;
 mod type_shape;
+mod harness_context;
 
 pub(super) use fixture_or_step::classify_fixture_or_step;
+pub(crate) use harness_context::classify_harness_context;
 pub(super) use step_struct::{classify_step_struct, extract_step_struct_attribute};
 use type_shape::{is_docstring_canonical, is_type_seq, should_classify_as_datatable};
 

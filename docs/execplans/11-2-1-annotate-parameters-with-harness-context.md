@@ -205,7 +205,16 @@ Stop and escalate — do not improvise — when any of these is reached.
   `classify/tests.rs` inclusion sites) and was deleted before commit. All
   gates green. The assertion vocabulary is recorded in
   `docs/developers-guide.md`.
-- [ ] Milestone 3 — red: unit and property tests for `#[harness_context]`.
+- [x] Milestone 3 — red: unit and property tests for `#[harness_context]`.
+  Committed (pending), 2026-08-17. Added `classify/harness_context/tests.rs`
+  (unit cases: marker binding, equivalence with `#[from(...)]` and with the
+  parameter-named spelling, mutable reference, coexistence with placeholders
+  and fixtures, key-parses-as-identifier, five conflict rejections, and the
+  placeholder-bound rejection) and `prop_tests.rs` (all three spellings bind
+  the reserved key). `Arg` widened to derive `PartialEq` alongside its existing
+  manual `Debug`. The red run fails 12 tests and passes 1
+  (`reserved_fixture_key_parses_as_an_identifier`), all from assertion
+  failures, not compile errors.
 - [ ] Milestone 4 — green: implement the classifier and its guards.
 - [ ] Milestone 5 — compile-fail coverage for the unhappy paths.
 - [ ] Milestone 6 — equivalence snapshot and behavioural scenario.
@@ -214,6 +223,14 @@ Stop and escalate — do not improvise — when any of these is reached.
 - [ ] Milestone 9 — roadmap tick, full gates, and pull request.
 
 ## Surprises & discoveries
+
+- Observation: googletest's `matches_pattern!` requires an explicit `..`
+  terminator when the pattern omits fields, even for `pub` enum variant
+  fields. The illustrative examples in this plan's Milestone 3 omit `..`;
+  the committed tests include it. The `..` carries no semantic weight for
+  omitted fields (each is matched as `anything()`), it is purely a rustc
+  pattern-privacy requirement surfaced by the macro expansion. Date:
+  2026-08-17.
 
 - Observation: the runtime crate and the macro crate are coupled to the
   reserved fixture key *only through the literal text a user types*. There is

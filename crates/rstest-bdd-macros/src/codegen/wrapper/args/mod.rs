@@ -23,7 +23,7 @@ pub(super) fn normalize_param_name(name: &str) -> &str {
 }
 
 /// Everything required to describe a single step-function argument.
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub enum Arg {
     Fixture {
         pat: syn::Ident,
