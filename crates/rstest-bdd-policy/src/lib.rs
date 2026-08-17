@@ -98,6 +98,23 @@ pub const GPUI_ATTRIBUTE_POLICY_PATH: &[&str] = &["rstest_bdd_harness_gpui", "Gp
 /// Canonical path segments for `GpuiHarness`.
 pub const GPUI_HARNESS_PATH: &[&str] = &["rstest_bdd_harness_gpui", "GpuiHarness"];
 
+/// Reserved `StepContext` fixture key under which harness adapters publish
+/// `HarnessAdapter::Context`.
+///
+/// Defined here rather than in `rstest-bdd` so the procedural macro crate can
+/// synthesize the key without depending on the runtime crate, which would
+/// create a dependency cycle. The runtime crate re-exports this value as
+/// `rstest_bdd::RSTEST_BDD_HARNESS_CONTEXT_FIXTURE`.
+///
+/// # Examples
+///
+/// ```
+/// use rstest_bdd_policy::HARNESS_CONTEXT_FIXTURE;
+///
+/// assert_eq!(HARNESS_CONTEXT_FIXTURE, "rstest_bdd_harness_context");
+/// ```
+pub const HARNESS_CONTEXT_FIXTURE: &str = "rstest_bdd_harness_context";
+
 const KNOWN_ATTRIBUTE_POLICY_HINTS: [(&[&str], TestAttributeHint); 3] = [
     (DEFAULT_ATTRIBUTE_POLICY_PATH, TestAttributeHint::RstestOnly),
     (

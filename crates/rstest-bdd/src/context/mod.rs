@@ -43,7 +43,7 @@ pub use insert_outcome::InsertOutcome;
 /// [`StepContext`] under this key. Step functions can then request the context
 /// fixture by naming a parameter `rstest_bdd_harness_context` or by using
 /// `#[from(rstest_bdd_harness_context)]`.
-pub const RSTEST_BDD_HARNESS_CONTEXT_FIXTURE: &str = "rstest_bdd_harness_context";
+pub const RSTEST_BDD_HARNESS_CONTEXT_FIXTURE: &str = rstest_bdd_policy::HARNESS_CONTEXT_FIXTURE;
 
 /// Context passed to step functions containing references to requested fixtures.
 ///
