@@ -2260,6 +2260,94 @@ Invariants (ASCII-case insensitivity, rejection of differing extensions, and
 behaviour for missing, repeated, and trailing dots) are pinned by the property
 suite in `crates/rstest-bdd-server/tests/has_extension_props.rs`.
 
+
+## Feature-file rebuild invalidation conventions (roadmap 10.3.3)
+
+Four internal conventions from the 10.3.3 rebuild-invalidation work, so the
+next person does not rediscover them.
+
+
+### The cargo-spawning fixture-crate pattern
+
+Tests that shell out to `cargo` against a copy of a fixture crate follow the
+pattern in `crates/rstest-bdd/tests/feature_rebuild_invalidation/`:
+
+- The checked-in fixture (for example
+  `tests/fixtures/rebuild_invalidation/`) is a non-workspace crate with a
+  trailing `[workspace]` stanza, a committed `Cargo.lock`, and dependencies
+  byte-identical to `tests/fixtures/minimal/`'s, so the two fixtures share
+  compiled units.
+- The test copies the fixture into `target/tests/<name>/` under the shared
+  workspace `target/`, rewrites the copied manifest's relative `path = "…"`
+  values to absolute paths (resolving against the _source_ directory, whose
+  depth the `..` counts match), and mutates only the copy.
+- A versioned stamp file (a hash of the source tree, written last) makes the
+  copy idempotent; stale scratch trees are always re-copied.
+- Every nested `cargo` invocation uses a byte-identical child environment:
+  `.env_clear()` plus a captured snapshot of the parent, with `CARGO_MAKEFLAGS`
+  and `CARGO_PKG_*` stripped, `CARGO_TARGET_DIR` inherited or defaulted to the
+  workspace `target/`, and `LLVM_PROFILE_FILE` redirected under the scratch so
+  nested coverage never merges into the parent's gated profile.
+- The child runs under the harness's own wall-clock bound via
+  `env!("CARGO")`, and its stdout/stderr pipes are drained by reader threads
+  while the run polls for exit — a voluminous `--message-format=json` build
+  would otherwise deadlock on the pipe buffer.
+- The binary is registered in the `cargo-spawning` nextest group
+  (`max-threads = 1`); when adding another such test, update the worst-case
+  arithmetic comment in `.config/nextest.toml`.
+
+
+### Macro-emitted token streams carry no absolute path literal
+
+The `#[scenario]` and `scenarios!` expansions must not embed an absolute
+`CARGO_MANIFEST_DIR` path as a literal. The tracking binding (an anonymous
+`include_bytes!` const, one per bound file, emitted at item scope) constructs
+its path with `concat!(env!("CARGO_MANIFEST_DIR"), "/", <relative literal>)`,
+and the embedded `__RSTEST_BDD_FEATURE_PATH` constant is manifest-relative
+(absolute only when the file lies outside the manifest directory). The property
+is pinned by the token-shape tests in
+`crates/rstest-bdd-macros/src/codegen/tracking/` and the metadata-literal test
+in `codegen/scenario/runtime/tests/` — keep those in mind before touching the
+path plumbing in `macros/scenario/paths.rs` or
+`macros/scenarios/test_generation/`.
+
+
+### `googletest` and `pretty_assertions` house style
+
+The repository's first adoption of `googletest` (ExecPlan Decision D1). Use
+`assert_that!` / `expect_that!` and matchers (`eq`, `is_true`,
+`contains_substring`, …) where an assertion expresses a _property_ rather than
+raw equality, and `pretty_assertions` for the structural-equality diffs. Inside
+`#[scenario]`-generated bodies there is no `#[gtest]` test context, so step
+functions must use the panic-mode `assert_that!`; `expect_that!` and its
+deferred multi-failure reporting require the `#[gtest]` attribute, which plain
+(non-scenario) tests attach as `#[rstest]` then `#[gtest]` — both attribute
+orders work, and a `-> Result<()>` body's assertion results are panics, not
+errors to propagate.
+
+
+### Tested living documentation
+
+`docs/users-guide.md` (and any future user-facing document) can carry fenced
+examples that the test suite executes. Each executed example is introduced by
+an HTML-comment marker that must immediately precede the fence, ignoring blank
+lines:
+
+```text
+<!-- tested-example: scenarios-build-script -->
+```
+
+The extractor lives in `crates/rstest-bdd/tests/documentation_examples/` and
+enforces the rules regionally — the regions under enforcement are a small
+explicit list of `(document, section-heading)` pairs, currently only the
+guide's "Feature file rebuild invalidation" section. Inside an enforced region
+every fence must be marked; duplicate or empty identifiers and language-less or
+unterminated fences are hard errors. The `scenarios-build-script` example is
+the recipe currently executed: the suite writes it into a fixture crate's
+`build.rs`, adds the `build` key, and proves a newly added `.feature` file is
+compiled and run by the next `cargo test`. To add a new executable example, add
+the marker + fence in an enforced region and consume it with
+`documented_example("id")` from a test.
 ### Rust indexing results and recoverable diagnostics
 
 `index_rust_source` and `index_rust_file` return

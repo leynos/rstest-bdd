@@ -955,7 +955,7 @@ feature-file edits cannot leave users running stale scenarios.
   pins across success, assertion failure, and skip. ADR:
   `docs/adr-011-first-party-scenario-state-and-cleanup.md`. Design Doc:
   `docs/rstest-bdd-design.md` §2.7.6.4. (Doggylump)
-- [ ] 10.3.3. Editing only a `.feature` file triggers a rebuild of the scenario
+- [x] 10.3.3. Editing only a `.feature` file triggers a rebuild of the scenario
   binary. The `#[scenario]`/`scenarios!` expansion registers each bound feature
   file as a Cargo rebuild dependency without embedding an absolute path into
   the compiled artefact, and a portability-aware regression test proves a
@@ -971,7 +971,24 @@ feature-file edits cannot leave users running stale scenarios.
   lands, a caveat in `docs/v0-6-0-migration-guide.md` alerts adopters that
   `.feature`-only edits do not trigger a rebuild. The gauss v0.6.0-beta3
   migration independently reproduced this failure mode and had to falsify a
-  scenario by editing its Rust step file instead.
+  scenario by editing its Rust step file instead. scenario by editing its Rust
+  step file instead.
+- [ ] 10.3.4. Extend tested-example enforcement from the bounded region to the
+  whole users' guide. Roadmap 10.3.3 (ExecPlan Decision D2) introduced the
+  `<!-- tested-example: id -->` marker and regional enforcement; the guide's 69
+  fenced blocks have only one enforced section. Sweep the remaining fences and
+  make enforcement document-wide so the documentation cannot quietly acquire
+  untested examples.
+- [ ] 10.3.5. Replace the latent no-op `emit_runtime_deprecation_warning`
+  (in `crates/rstest-bdd-macros/src/macros/scenarios/mod.rs`). The crate's
+  warning macro is nightly-only and silently ignored on stable (the finding
+  behind ExecPlan Decision D4), so the deprecation notice for
+  `runtime = "tokio-current-thread"` never reaches users. Emit the warning
+  through the platform mechanism that actually works on stable.
+- [ ] 10.3.6. Migrate the existing suite's assertions to `googletest` and
+  `pretty_assertions` now that ExecPlan Decision D1 established the precedent.
+  The 10.3.3 tests are the first adopters; the house style is recorded in
+  `docs/developers-guide.md`.
 
 ## 11. Early life support: v0.6.1 additive hardening
 
