@@ -224,7 +224,17 @@ Stop and escalate — do not improvise — when any of these is reached.
   sharing `HARNESS_CONTEXT_WITH_STEP_ARGS_ERROR`. Focused tests green: 13/13
   per target (lib, args, args_str_ref). Full gates green (check-fmt, lint,
   test; 1724 passed, 7 skipped).
-- [ ] Milestone 5 — compile-fail coverage for the unhappy paths.
+- [x] Milestone 5 — compile-fail coverage for the unhappy paths. Committed
+  (pending), 2026-08-17. Six `trybuild` UI fixtures under
+  `crates/rstest-bdd/tests/ui_macros/` (`harness_context_with_from`,
+  `harness_context_with_datatable`, `harness_context_with_step_args`,
+  `harness_context_takes_no_arguments`, `harness_context_duplicate`,
+  `harness_context_on_placeholder`) with `.stderr` snapshots generated via `TRYBUILD=overwrite`.
+  All six snapshots carry targeted diagnostics naming each conflict; none
+  contains `cannot find attribute`. Added a passing fixture
+  `tests/fixtures_macros/harness_context_coexist.rs` proving `#[harness_context]`
+  and `#[from(rstest_bdd_harness_context)]` coexist in one scenario, registered
+  in `run_passing_macro_tests`.
 - [ ] Milestone 6 — equivalence snapshot and behavioural scenario.
 - [ ] Milestone 7 — migrate the examples.
 - [ ] Milestone 8 — documentation.
