@@ -663,6 +663,40 @@ through the hidden `StepFixtureRequirements` inventory sidecar whenever macro
 code knows the requested Rust type. Manual `step!` registrations without that
 sidecar remain valid and report `<unknown>` as the requested fixture type.
 
+## Assertion vocabulary: `googletest`, `pretty_assertions`, and `insta`
+
+This workspace's test suites use three assertion tools, each for a distinct
+job. A failing assertion should say what property was being checked and what
+was actually wrong, not merely that two opaque values differed.
+
+`googletest` matchers are the default for structural assertions. Reach for
+`assert_that!` (fatal), `expect_that!` (non-fatal; requires the test to be
+marked `#[gtest]`), or `verify_that!` (returns `googletest::Result` and
+composes with `?`). `matches_pattern!` asserts on an enum variant and its
+fields at once, naming the variant and the offending field where
+`assert!(matches!(...))` reports only `assertion failed`.
+`err(displays_as(contains_substring(...)))` asserts that a `Result` is an
+`Err` whose rendered message mentions a phrase, and prints the real diagnostic
+on failure. `elements_are!` covers ordered container assertions,
+`unordered_elements_are!` where order is not part of the contract, and `len`,
+`is_empty`, `contains`, and `each` cover the obvious cases.
+
+Composing with `rstest` requires the alias, not the primary attribute name:
+`rstest` recognizes a following test attribute only when it is named `test`, so
+write `#[googletest::test]` rather than `#[gtest]`, and put `#[rstest]` first.
+Plain `#[gtest]` remains correct for tests that do not use `#[rstest]`.
+
+`pretty_assertions::assert_eq!` is the tool for whole-value equality where a
+structural diff is what the reader needs, such as comparing two argument
+vectors or generated token streams. Import it per module with
+`use pretty_assertions::assert_eq;`, which shadows the `std` macro for that
+module only.
+
+`insta` remains the tool for snapshot tests. `googletest` and
+`pretty_assertions` are for in-body assertions; snapshots capture multivariant
+output. These tools came in with the `#[harness_context]` classifier work
+(roadmap 11.2.1); the fixtures there demonstrate the convention.
+
 ## Shared policy crate (`rstest-bdd-policy`)
 
 The workspace owns policy type definitions in `rstest-bdd-policy`.[^1] That

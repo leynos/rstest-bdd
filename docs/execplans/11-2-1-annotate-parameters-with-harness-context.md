@@ -188,8 +188,23 @@ Stop and escalate — do not improvise — when any of these is reached.
   test; Whitaker reports no findings; python tests 69/69 pass. Line counts
   re-measured and match Table 1 (`classify/mod.rs` 382, `classify/tests.rs` 384,
   `context/mod.rs` 400, `extract.rs` 306).
-- [ ] Milestone 1 — single source of truth for the reserved fixture key.
-- [ ] Milestone 2 — adopt `googletest` and `pretty_assertions`.
+- [x] Milestone 1 — single source of truth for the reserved fixture key.
+  Committed `d0bb33e`, 2026-08-17. `rstest_bdd_policy::HARNESS_CONTEXT_FIXTURE`
+  now defines the key; `rstest_bdd::RSTEST_BDD_HARNESS_CONTEXT_FIXTURE` aliases
+  it (one line in, one line out; `context/mod.rs` still 400 lines). All gates
+  green with no test changes; the `rstest-bdd-harness-tokio`
+  `tokio_macro_expansions_match_snapshots` test confirms generated code is
+  byte-identical.
+- [x] Milestone 2 — adopt `googletest` and `pretty_assertions`. Committed
+  (pending), 2026-08-17. Added to `[workspace.dependencies]` as caret
+  requirements, and as `dev-dependencies` of `rstest-bdd-macros` with
+  `.workspace = true`. Confirmed `googletest` 0.14.3 has `rust-version =
+  1.85.0` (matches workspace) and its optional `proptest` feature requires
+  `1.9.0` (matches the workspace pin). A throwaway `#[rstest]`
+  `#[googletest::test]` smoke test compiled and ran (across the three
+  `classify/tests.rs` inclusion sites) and was deleted before commit. All
+  gates green. The assertion vocabulary is recorded in
+  `docs/developers-guide.md`.
 - [ ] Milestone 3 — red: unit and property tests for `#[harness_context]`.
 - [ ] Milestone 4 — green: implement the classifier and its guards.
 - [ ] Milestone 5 — compile-fail coverage for the unhappy paths.
