@@ -1001,12 +1001,21 @@ remove the existing `StepContext`, harness, or macro surfaces.
 
 ### 11.2. Smooth integration ergonomics
 
-- [ ] 11.2.1. Developers can annotate parameters with `#[harness_context]`,
+- [x] 11.2.1. Developers can annotate parameters with `#[harness_context]`,
   with backwards-compatible support for `#[from(rstest_bdd_harness_context)]`.
   Examples use the readable marker, and generated code keeps the reserved
   fixture key internally. Finish line: macro tests cover both marker forms and
   examples compile using `#[harness_context]`. Design Doc:
-  `docs/rstest-bdd-design.md` §2.7.6.4. (Dinolump)
+  `docs/rstest-bdd-design.md` §2.7.6.4. (Dinolump). Completed 2026-08-17:
+  the marker desugars to the shared `rstest_bdd_policy::HARNESS_CONTEXT_FIXTURE`
+  key (runtime re-export unchanged), all three spellings produce
+  byte-identical generated wrapper code (unit, property, and wrapper-equivalence
+  tests), misuse yields targeted diagnostics via six trybuild fixtures, and the
+  `examples/tokio-reminders` and `examples/gpui-counter` crates compile and
+  pass using the marker while crate-level tests keep proving the legacy
+  spelling still works. See ExecPlan
+  `docs/execplans/11-2-1-annotate-parameters-with-harness-context.md` and the
+  ADR-007 addendum.
 - [ ] 11.2.2. The public prelude exposes `StepResult`, `Slot`, `ScenarioState`,
   harness-context helpers, and marker attributes from 11.2.1, so examples can
   import one predictable module without hiding the underlying crates. Finish

@@ -4,7 +4,7 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Tolerances`, `Risks`, `Progress`, `Surprises & discoveries`, `Decision log`,
 and `Outcomes & retrospective` must be kept up to date as work proceeds.
 
-Status: DRAFT
+Status: COMPLETE
 
 ## Purpose / big picture
 
@@ -457,7 +457,38 @@ Stop and escalate — do not improvise — when any of these is reached.
 
 ## Outcomes & retrospective
 
-Not started. Complete this section at Milestone 9.
+Delivered in v0.6.1 as an additive-hardening change. The reserved fixture key
+is now defined once in `rstest_bdd_policy::HARNESS_CONTEXT_FIXTURE`, with the
+runtime crate's `RSTEST_BDD_HARNESS_CONTEXT_FIXTURE` kept as the public alias,
+and step definitions can request the harness context through the readable
+`#[harness_context]` marker. The legacy `#[from(rstest_bdd_harness_context)]`
+spelling and the parameter-named spelling both remain supported and emit
+byte-identical wrapper code, pinned at the `ExtractedArgs` level (classifier
+unit and property tests) and at the emitted-code level (wrapper-equivalence
+`pretty_assertions` comparisons plus an `insta` snapshot).
+
+Backwards compatibility is preserved by design: no public item was removed,
+renamed, or re-typed; the crate-level test suites were left on the legacy
+spelling as the standing compatibility evidence. User-facing examples
+(`tokio-reminders` and `gpui-counter`) compile and run with the marker, the
+users guide and developer guide document all three spellings, design 2.7.6.4
+records the delivered design, and ADR-007 gained a dated addendum recording
+the marker, the unchanged wire format, and the shared-key relocation.
+
+One deliberate deviation from the plan's draft: the Tokio example's delivery
+step uses a new synchronous `ReminderService::deliver_all` instead of
+`.await`-based dispatch, because the harness step wrapper polls each async
+step future at most once and rejects `Pending` when a harness-provided runtime
+is active. That constraint was recorded in `Surprises & discoveries`, and the
+step proves marker reachability synchronously by comparing the marker-provided
+handle's runtime id with `Handle::current()`.
+
+All acceptance criteria are met: marker-based steps receive the harness context
+at runtime, the legacy spelling behaves identically, both spellings produce
+identical generated code, every misuse produces a targeted diagnostic naming
+the conflict, the GPUI example compiles and passes with the marker, and the
+public constant remains available with its original value. Gates were green at
+each milestone commit.
 
 ## Context and orientation
 
