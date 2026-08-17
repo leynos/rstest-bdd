@@ -30,6 +30,43 @@ pub(in crate::codegen::wrapper::emit) struct WrapperIdents {
     pub(in crate::codegen::wrapper::emit) pattern_ident: proc_macro2::Ident,
 }
 
+/// Resets the wrapper identifier counter to zero.
+///
+/// This function is intended **only for test code** to ensure deterministic
+/// identifier generation across test runs. Production code must never call
+/// this function.
+///
+/// # Thread Safety
+///
+/// Rust tests run in parallel by default. Tests that call this function must
+/// be serialized to avoid non-deterministic identifier generation. Use one of:
+///
+/// - The `#[serial]` attribute from the `serial_test` crate
+/// - The `--test-threads=1` flag when running tests
+/// - A shared mutex guard to coordinate access
+///
+/// # Example
+///
+/// ```ignore
+/// use serial_test::serial;
+///
+/// #[test]
+/// #[serial]
+/// fn wrapper_identifiers_are_deterministic() {
+///     reset_wrapper_counter_for_tests();
+///     // First call returns 0, second returns 1, etc.
+///     assert_eq!(next_wrapper_id(), 0);
+///     assert_eq!(next_wrapper_id(), 1);
+/// }
+/// ```
+#[cfg(test)]
+pub(crate) fn reset_wrapper_counter_for_tests() {
+    // Use SeqCst ordering (rather than Relaxed used in production) to ensure
+    // the reset is immediately visible to all threads. This is appropriate for
+    // test setup where correctness matters more than performance.
+    COUNTER.store(0, Ordering::SeqCst);
+}
+
 /// Generate unique identifiers for the wrapper components.
 ///
 /// The provided step function identifier may contain Unicode. It is

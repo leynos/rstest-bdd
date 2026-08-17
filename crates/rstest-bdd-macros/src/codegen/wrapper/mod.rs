@@ -7,3 +7,6 @@ pub(crate) mod emit;
 
 pub use args::extract_args;
 pub(crate) use emit::{WrapperConfig, generate_wrapper_code};
+
+#[cfg(test)]
+mod equivalence_tests;

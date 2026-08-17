@@ -177,6 +177,38 @@ impl ReminderService {
         first_error.map_or_else(|| Ok(()), Err)
     }
 
+    /// Delivers every queued reminder synchronously.
+    ///
+    /// The queued delivery tasks are immediately-ready futures that only push
+    /// the delivered message, so a single poll completes each one. This lets a
+    /// step deliver reminders without an `.await`, which is required inside a
+    /// harness-provided runtime where the generated wrapper polls each step
+    /// future only once.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_reminders::ReminderService;
+    ///
+    /// let service = ReminderService::new();
+    /// service.schedule_reminder("Ada");
+    /// service.deliver_all();
+    /// assert_eq!(
+    ///     service.delivered_reminders(),
+    ///     vec!["Reminder sent to Ada".to_string()]
+    /// );
+    /// assert_eq!(service.pending_reminder_count(), 0);
+    /// ```
+    pub fn deliver_all(&self) {
+        let pending = std::mem::take(&mut *self.pending.borrow_mut());
+        for PendingReminder { task, .. } in pending {
+            let mut task = Box::pin(task);
+            let waker = std::task::Waker::noop();
+            let mut cx = std::task::Context::from_waker(waker);
+            let _ = task.as_mut().poll(&mut cx);
+        }
+    }
+
     /// Returns the delivered reminder messages in delivery order.
     ///
     /// # Examples

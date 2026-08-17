@@ -235,12 +235,35 @@ Stop and escalate — do not improvise — when any of these is reached.
   `tests/fixtures_macros/harness_context_coexist.rs` proving `#[harness_context]`
   and `#[from(rstest_bdd_harness_context)]` coexist in one scenario, registered
   in `run_passing_macro_tests`.
-- [ ] Milestone 6 — equivalence snapshot and behavioural scenario.
+- [x] Milestone 6 — equivalence snapshot and behavioural scenario. Committed
+  `401f2e6`, 2026-08-17. Added an `insta` snapshot of the generated wrapper for
+  the marker spelling plus two `pretty_assertions` equality assertions pinning
+  byte-identical output against both the `#[from(...)]` and parameter-named
+  spellings (`crates/rstest-bdd-macros/src/codegen/wrapper/equivalence_tests.rs`,
+  serialized with `serial_test` because they reset the process-global wrapper
+  counter). Drop the now-satisfied `#[expect(dead_code, ...)]` on
+  `reset_wrapper_counter_for_tests`. Added the behavioural scenario
+  "A step can reach the Tokio harness context through the marker" to
+  `examples/tokio-reminders`, with a new synchronous `ReminderService::deliver_all`
+  (the plan-sanctioned fallback: no `deliver_all` existed, and an `.await`-based
+  dispatch would multi-poll under the harness). `cargo test -p tokio-reminders`
+  green (5 unit + 3 scenario + 8 doctests); equivalence tests green.
 - [ ] Milestone 7 — migrate the examples.
 - [ ] Milestone 8 — documentation.
 - [ ] Milestone 9 — roadmap tick, full gates, and pull request.
 
 ## Surprises & discoveries
+
+- Observation: the Tokio harness's step wrapper polls an async step future at
+  most once when a harness-provided runtime is active (`emit/mod.rs` uses a
+  noop waker and rejects `Pending`), so a step that `.await`s a spawned task or
+  `flush()` fails with "multi-poll async steps are not supported under a
+  harness". The behavioural scenario therefore proves marker reachability
+  synchronously (comparing `context.handle().id()` with
+  `tokio::runtime::Handle::current().id()`, the same identity check the
+  harness's own integration tests use) and dispatches via a new synchronous
+  `ReminderService::deliver_all`, which polls each immediately-ready queued
+  task once. Date: 2026-08-17.
 
 - Observation: the parameter-named spelling
   (`fn s(rstest_bdd_harness_context: &TestCtx)`) cannot be compared for full
