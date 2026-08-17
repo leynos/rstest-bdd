@@ -17,6 +17,7 @@ use super::{
         classify_datatable,
         classify_docstring,
         classify_fixture_or_step,
+        classify_harness_context,
         classify_step_struct,
         extract_step_struct_attribute,
     },
@@ -171,6 +172,17 @@ pub fn extract_args(
         let (arg, pat, ty) = next_typed_argument(input)?;
         if extract_step_struct_attribute(arg)? {
             classify_step_struct(&mut state, arg, placeholders)?;
+            continue 'args;
+        }
+
+        // The `#[harness_context]` classifier runs before the placeholder
+        // short-circuit so the marker is always consumed: it strips the
+        // attribute even when the parameter name matches a step placeholder,
+        // and rejects that combination with a targeted diagnostic. If it were
+        // placed after the `is_placeholder` check, a placeholder-named
+        // parameter would skip it and the marker would leak into generated
+        // code as `cannot find attribute`.
+        if classify_harness_context(&mut state, arg, &pat, &ty, placeholders)? {
             continue 'args;
         }
 

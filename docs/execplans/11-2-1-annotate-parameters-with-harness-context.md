@@ -215,7 +215,15 @@ Stop and escalate — do not improvise — when any of these is reached.
   manual `Debug`. The red run fails 12 tests and passes 1
   (`reserved_fixture_key_parses_as_an_identifier`), all from assertion
   failures, not compile errors.
-- [ ] Milestone 4 — green: implement the classifier and its guards.
+- [x] Milestone 4 — green: implement the classifier and its guards. Committed
+  (pending), 2026-08-17. `classify_harness_context` strips the marker, rejects
+  the conflicting combinations through a table-driven validation helper, and
+  synthesizes the fixture name from `rstest_bdd_policy::HARNESS_CONTEXT_FIXTURE`
+  with the parameter span. Wired into `extract_args` before the placeholder
+  short-circuit. Added the `#[step_args]` cross-guard in `classify/step_struct`
+  sharing `HARNESS_CONTEXT_WITH_STEP_ARGS_ERROR`. Focused tests green: 13/13
+  per target (lib, args, args_str_ref). Full gates green (check-fmt, lint,
+  test; 1724 passed, 7 skipped).
 - [ ] Milestone 5 — compile-fail coverage for the unhappy paths.
 - [ ] Milestone 6 — equivalence snapshot and behavioural scenario.
 - [ ] Milestone 7 — migrate the examples.
@@ -223,6 +231,23 @@ Stop and escalate — do not improvise — when any of these is reached.
 - [ ] Milestone 9 — roadmap tick, full gates, and pull request.
 
 ## Surprises & discoveries
+
+- Observation: the parameter-named spelling
+  (`fn s(rstest_bdd_harness_context: &TestCtx)`) cannot be compared for full
+  structural equality with the marker spelling, because the two `Arg::Fixture`
+  entries differ in the *span* of the synthesized identifier. The reserved-key
+  contract is the fixture *name*, not the span, so the Milestone 3 test for
+  that spelling asserts the resolved names rather than `ExtractedArgs`
+  equality. Date: 2026-08-17.
+
+- Observation: the `#[step_args]` cross-guard in `classify_step_struct` must
+  run before `validate_has_placeholders`, otherwise
+  `#[harness_context] #[step_args] c: &C` with an empty placeholder set reports
+  "requires at least one placeholder" instead of the targeted combination
+  diagnostic. The guard order moved `validate_no_from_attr` and the new
+  `validate_harness_context_attr` ahead of the placeholder-count check; the
+  existing `classify_step_struct` tests still pass because they use either
+  non-empty placeholder sets or bare `#[step_args]`. Date: 2026-08-17.
 
 - Observation: googletest's `matches_pattern!` requires an explicit `..`
   terminator when the pattern omits fields, even for `pub` enum variant

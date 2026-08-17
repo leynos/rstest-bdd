@@ -5,7 +5,7 @@
 //! of a step signature: three request spellings must converge on one fixture
 //! key, and every misuse must produce a targeted diagnostic.
 
-use super::super::super::{extract_args, Arg, ExtractedArgs};
+use super::super::super::{Arg, ExtractedArgs, extract_args};
 use googletest::prelude::*;
 use rstest::rstest;
 use std::collections::HashSet;
@@ -53,17 +53,32 @@ fn marker_and_from_spelling_produce_equal_arguments() {
 
 #[test]
 fn parameter_named_after_the_reserved_key_produces_the_same_fixture() {
-    use pretty_assertions::assert_eq;
-
-    let by_name = classify_step(
-        "fn s(rstest_bdd_harness_context: &TestCtx) {}",
-        &[],
-    )
-    .expect("parameter-named form");
     let via_marker =
         classify_step("fn s(#[harness_context] ctx: &TestCtx) {}", &[]).expect("marker form");
+    let by_name = classify_step("fn s(rstest_bdd_harness_context: &TestCtx) {}", &[])
+        .expect("parameter-named form");
 
-    assert_eq!(by_name.args, via_marker.args);
+    // The parameter-named spelling binds the same fixture key; the parameter
+    // identifier itself differs (`rstest_bdd_harness_context` vs `ctx`), so
+    // assert on the resolved fixture name rather than full equality.
+    assert_eq!(
+        via_marker
+            .args
+            .iter()
+            .map(|arg| match arg {
+                Arg::Fixture { name, .. } => name.to_string(),
+                _ => panic!("expected a fixture argument"),
+            })
+            .collect::<Vec<_>>(),
+        by_name
+            .args
+            .iter()
+            .map(|arg| match arg {
+                Arg::Fixture { name, .. } => name.to_string(),
+                _ => panic!("expected a fixture argument"),
+            })
+            .collect::<Vec<_>>(),
+    );
 }
 
 #[rstest]
@@ -90,30 +105,30 @@ fn marker_coexists_with_placeholders_and_fixtures() -> googletest::Result<()> {
     )?;
 
     expect_that!(extracted.args, len(eq(3)));
-    expect_that!(extracted.args[0], matches_pattern!(Arg::Step { .. }));
     expect_that!(
-        extracted.args[1],
-        matches_pattern!(Arg::Fixture {
-            name: displays_as(eq("rstest_bdd_harness_context")),
-            ..
-        })
-    );
-    expect_that!(
-        extracted.args[2],
-        matches_pattern!(Arg::Fixture {
-            name: displays_as(eq("pool")),
-            ..
-        })
+        extracted.args.as_slice(),
+        elements_are![
+            matches_pattern!(Arg::Step { .. }),
+            matches_pattern!(Arg::Fixture {
+                name: displays_as(eq("rstest_bdd_harness_context")),
+                ..
+            }),
+            matches_pattern!(Arg::Fixture {
+                name: displays_as(eq("pool")),
+                ..
+            }),
+        ]
     );
     Ok(())
 }
 
-#[test]
-fn reserved_fixture_key_parses_as_an_identifier() {
+#[rstest]
+#[googletest::test]
+fn reserved_fixture_key_parses_as_an_identifier() -> googletest::Result<()> {
     verify_that!(
         syn::parse_str::<syn::Ident>(rstest_bdd_policy::HARNESS_CONTEXT_FIXTURE),
         ok(anything())
-    );
+    )
 }
 
 #[rstest]
