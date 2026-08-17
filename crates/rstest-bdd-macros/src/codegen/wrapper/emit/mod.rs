@@ -14,6 +14,9 @@ mod identifiers;
 use assembly::{generate_async_wrapper_body, generate_wrapper_body};
 use identifiers::{WrapperIdents, generate_wrapper_identifiers, next_wrapper_id};
 
+#[cfg(test)]
+pub(crate) use identifiers::reset_wrapper_counter_for_tests;
+
 /// Configuration required to generate a wrapper.
 pub(crate) struct WrapperConfig<'a> {
     pub(crate) ident: &'a syn::Ident,
