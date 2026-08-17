@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- Feature paths in diagnostics and reports are now **manifest-relative**
+  (`ScenarioMetadata::feature_path`, the JSON reporter, the JUnit `classname`
+  attribute and `cargo bdd --dump-steps`): a feature file within the crate's
+  manifest directory is reported as `tests/features/login.feature` instead of
+  an absolute build-machine path. Files outside the manifest stay absolute.
+  JUnit consumers key test history on `classname` + `name`; expect a one-time
+  discontinuity, after which the value is stable everywhere. See the v0.6.0
+  migration guide's breaking-change section.
+- `#[scenario]` and `scenarios!` now register every bound `.feature` file as a
+  Cargo rebuild dependency, so editing only a `.feature` file recompiles the
+  scenario binary and the tests reflect the new text immediately (ADR-010). A
+  feature-file path sharing no filesystem root with the manifest directory (for
+  example a different Windows drive) is a compile error naming the file; use a
+  manifest-relative path or a path on the same root. Adds a tested `build.rs`
+  recipe closing the file-addition gap: a single `cargo::rerun-if-changed`
+  directory line, carried as executed living documentation in the users' guide.
 - `StepContext::insert_value` now returns an `InsertOutcome` enum instead of
   `Option<Box<dyn Any>>`, distinguishing a recorded override (carrying any
   displaced previous override) from values dropped because no fixture matches

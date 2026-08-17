@@ -371,8 +371,15 @@ is ticked so rates of progress and tolerance breaches are visible.
       users-guide, writes it, runs the baseline, adds a `.feature` file and
       asserts the new scenario runs. The recipe is executed living
       documentation: a change to it fails the suite.
-- [ ] Milestone 8: documentation, ADR amendment, migration-guide breaking
-      change and caveat removal, roadmap tick.
+- [x] (2026-08-17) Milestone 8: documentation, ADR amendment, migration-guide
+      breaking change and caveat removal, roadmap tick. ADR-010 Accepted with
+      preserved-rejection amendments (D0a, D2, D5); design §2.7.6.6 rewritten
+      to "what ships and why"; migration guide caveat deleted and the D3
+      breaking change, the D4 `compile_error!` and the hermetic-build
+      paragraph added (with checklist entries); users-guide caveats replaced
+      and the recipe section kept; developers-guide, repository-layout,
+      testing-strategy, and CHANGELOG updated; roadmap ticked with three
+      follow-up items (10.3.4–10.3.6).
 
 ## Surprises & discoveries
 
@@ -542,6 +549,17 @@ implementation.
   with `cargo clean -p rstest-bdd-rebuild-invalidation-fixture` (which never
   touches dependencies, so warmth is preserved); post-fix the tracking binding
   makes the state self-healing.
+
+- Observation: **Cargo treats a `rerun-if-changed` path that does not exist
+  as perpetually dirty, re-running the build script — and rebuilding the
+  crate — on every invocation.** The recipe-corruption probe corrupted the
+  watch line to `tests/features-NOPE` (a non-existent directory) and the
+  addition scenario still ran; corrupting it to a wrong *existing* directory
+  (`src`) left the fixture stale and the test failed as intended. The
+  extractor's unit test therefore pins the **exact** `cargo::rerun-if-changed=tests/features`
+  line, so any drift is caught deterministically; the behavioural test proves
+  a build script present with the correct line closes the gap end-to-end, and
+  fails when the script is absent or watches a wrong existing directory.
 
 - Observation: **`cargo update --precise` can pin a coherent lock back to a
   target world, but only after the target package is already in the lock.**
@@ -910,25 +928,23 @@ implementation.
 
 - **Decision M7 (recorded 2026-08-17): the tested-recipe machinery lands with
   the extractor's error type as `eyre::Result`, and the users-guide section
-  ships as part of Milestone 7 rather than 8.**
-  The plan's M7 interface sketch uses `anyhow::Result`, but `anyhow` is not a
-  workspace dependency and Constraint 7 forbids adding one; the house opaque
-  error crate is `eyre` (already in `[workspace.dependencies]` and now a
-  dev-dependency of `rstest-bdd`), so the extractor's public functions return
-  `eyre::Result`. The users-guide "Feature file rebuild invalidation"
-  section with the `scenarios-build-script` marker is written as part of
-  Milestone 7 because the extractor and the behavioural test read it — it is
-  the single source of truth the recipe is extracted from — and Milestone 8
-  then performs the remaining guide edits against it.
-  The nextest arithmetic is updated for the third cargo-spawning test in the
-  binary (`global-timeout` 40m → 50m, covering 1080 s of pre-existing members
-  plus 3 × 600 s worst case).
-  The spelling gate surfaced en-US spellings in the new test support code —
-  all fixed (`-ise` → `-ize`, `artifacts` → the config-police form used by
-  the deployment), and one redundant JSON reason-equality check was removed
-  because the word cannot appear in the source without a config
-  regeneration the external `typos-config-builder` owns.
-  Date/Author: 2026-08-17, implementing agent.
+  ships as part of Milestone 7 rather than 8.** The plan's M7 interface sketch
+  uses `anyhow::Result`, but `anyhow` is not a workspace dependency and
+  Constraint 7 forbids adding one; the house opaque error crate is `eyre`
+  (already in `[workspace.dependencies]` and now a dev-dependency of
+  `rstest-bdd`), so the extractor's public functions return `eyre::Result`. The
+  users-guide "Feature file rebuild invalidation" section with the
+  `scenarios-build-script` marker is written as part of Milestone 7 because the
+  extractor and the behavioural test read it — it is the single source of truth
+  the recipe is extracted from — and Milestone 8 then performs the remaining
+  guide edits against it. The nextest arithmetic is updated for the third
+  cargo-spawning test in the binary (`global-timeout` 40m → 50m, covering 1080
+  s of pre-existing members plus 3 × 600 s worst case). The spelling gate
+  surfaced en-US spellings in the new test support code — all fixed (`-ise` →
+  `-ize`, `artifacts` → the config-police form used by the deployment), and one
+  redundant JSON reason-equality check was removed because the word cannot
+  appear in the source without a config regeneration the external
+  `typos-config-builder` owns. Date/Author: 2026-08-17, implementing agent.
 
 ## Context and orientation
 

@@ -18,6 +18,11 @@ that need a new testing practice to be useful.
 - Custom implementations of the unreleased `HarnessAdapter` development API
   must return `HarnessResult<T>` from `run`. This affects projects that adopted
   the harness API from the `v0.6.0` development branch before the final release.
+
+- Feature paths in diagnostics and reports are now manifest-relative
+  (`ScenarioMetadata::feature_path`, the JSON reporter, the JUnit `classname`
+  attribute and `cargo bdd --dump-steps`). A feature file outside the crate's
+  manifest directory keeps its absolute path.
 - `StepContext::insert_value` now returns `InsertOutcome` instead of
   `Option<Box<dyn Any>>`. Only code that calls `insert_value` directly is
   affected; generated scenario code is updated by the macros.
@@ -474,38 +479,36 @@ for distinct fixtures — including multiple mutable guards — can be held
 concurrently, so a step may declare
 `#[from(rstest_bdd_harness_context)] cx: &mut gpui::TestAppContext` alongside
 `world: &mut UiWorld` without the v0.6 `E0499`/`E0502` failure described in
-[Two mutable fixtures trigger `E0499` or
-`E0502`](#two-mutable-fixtures-trigger-e0499-or-e0502). A conflicting borrow
-of the *same* fixture still fails, but as a typed error rather than a
-compile-time rejection.
+[Two mutable fixtures trigger `E0499` or `E0502`](#two-mutable-fixtures-trigger-e0499-or-e0502).
+A conflicting borrow of the *same* fixture still fails, but as a typed error
+rather than a compile-time rejection.
 
 New `try_borrow` and `try_borrow_mut` methods return
 `Result<_, FixtureBorrowError>`, with variants `NotFound`, `TypeMismatch`,
 `AlreadyBorrowed`, and `NotMutable`. A conflicting borrow of the same fixture
 now reports `AlreadyBorrowed` instead of panicking. The existing
-`Option`-returning `borrow_ref` and `borrow_mut` methods remain as
-conveniences that delegate to the `try_*` APIs.
+`Option`-returning `borrow_ref` and `borrow_mut` methods remain as conveniences
+that delegate to the `try_*` APIs.
 
-`FixtureRef` and `FixtureRefMut` are now opaque structs. They implement
-`Deref`/`DerefMut`, `AsRef`/`AsMut`, and `Debug`, and keep the existing
-accessor methods. Code that relied on their previous transparent shape
-should go through `Deref`/`DerefMut` (or the accessors) instead.
+`FixtureRef` and `FixtureRefMut` are now opaque structs. They implement `Deref`/
+`DerefMut`, `AsRef`/`AsMut`, and `Debug`, and keep the existing accessor
+methods. Code that relied on their previous transparent shape should go through
+`Deref`/`DerefMut` (or the accessors) instead.
 
-`StepContext::get::<T>` now serves shared fixture storage only and
-deliberately ignores step-returned override values, because overrides moved
-behind `RefCell` when they became interiorly mutable. Read overrides through
-the guard API (`try_borrow`/`try_borrow_mut`, or the `Option`-returning
-conveniences) instead.
+`StepContext::get::<T>` now serves shared fixture storage only and deliberately
+ignores step-returned override values, because overrides moved behind `RefCell`
+when they became interiorly mutable. Read overrides through the guard API
+(`try_borrow`/`try_borrow_mut`, or the `Option`-returning conveniences) instead.
 
 #### Retire the thread-local workaround
 
-The framework — not caller discipline — now guarantees scenario-boundary
-reset: it builds a fresh `StepContext` for each scenario and drops its
-owned, scenario-scoped cells on success, on failure (including unwinding),
-and on skip. There are no public lifecycle hooks and no caller-managed reset
-API. `rstest` fixture scopes are unchanged by this guarantee: an `#[once]`
-fixture is still shared exactly as `rstest` defines it, because per-scenario
-freshness applies to framework-owned storage, not to every fixture.
+The framework — not caller discipline — now guarantees scenario-boundary reset:
+it builds a fresh `StepContext` for each scenario and drops its owned,
+scenario-scoped cells on success, on failure (including unwinding), and on
+skip. There are no public lifecycle hooks and no caller-managed reset API.
+`rstest` fixture scopes are unchanged by this guarantee: an `#[once]` fixture
+is still shared exactly as `rstest` defines it, because per-scenario freshness
+applies to framework-owned storage, not to every fixture.
 
 To migrate off the v0.6
 [thread-local workaround](#migrate-a-stateful-gpui-test):
@@ -551,6 +554,67 @@ fn given_shell_open(
 }
 ```
 
+### Feature paths in diagnostics and reports are now manifest-relative
+
+`ScenarioMetadata::feature_path` and every surface that displays it — the JSON
+reporter's `feature_path` field, the JUnit `classname` attribute, and
+`cargo bdd --dump-steps` output — now carry the path of the feature file
+*relative to the consuming crate's manifest directory* when the file lies
+within it, and the absolute path otherwise. Previously the value was always an
+absolute path.
+
+Before:
+
+```json
+{ "feature_path": "/home/alice/project/tests/features/login.feature" }
+```
+
+After:
+
+```json
+{ "feature_path": "tests/features/login.feature" }
+```
+
+This brings the implementation into line with the JSON contract already
+documented at `docs/roadmap.md:316`. Four surfaces are affected:
+`ScenarioMetadata::feature_path`, the JSON reporter, the JUnit `classname`
+attribute, and `cargo bdd --dump-steps` output.
+
+Two consequences to plan for:
+
+- **JUnit-consumers key test history, ownership rules and quarantine lists
+  on `classname` + `name`.** The `classname` discontinuity above is a
+  *one-time* break on upgrade: no action prevents it, and no action is needed,
+  because the previous value was an absolute build-machine path that already
+  differed between a developer's machine and Continuous Integration (CI). The
+  trade is a single discontinuity for a value that is stable thereafter.
+- **Workspace-wide uniqueness is lost.** When several crates in one workspace
+  use the same conventional feature layout, merged `cargo bdd` output (and
+  `format_location`) now collides on the identical relative path. Qualify
+  entries by package name in your reporting layer if you merge dumps.
+
+### Feature-file rebuild invalidation
+
+Since v0.6.0, `#[scenario]` and `scenarios!` register every bound `.feature`
+file as a Cargo rebuild dependency, so editing only a `.feature` file
+recompiles the scenario binary and the tests reflect the new text immediately.
+The previous caveat that "editing only a `.feature` file does not trigger a
+rebuild" is removed; no `touch` workaround is needed.
+
+One compile-time error may appear after upgrading. A feature-file path that
+shares **no filesystem root** with its crate's manifest directory — a different
+Windows drive, a UNC prefix, a non-UTF-8 path, or an empty path — cannot be
+registered as a rebuild dependency and now fails to compile with a clear
+`compile_error!` naming the file. This is a deliberate, overwhelmingly rare
+exception (such a path is non-portable anyway). Remedy: use a manifest-relative
+path, or a path on the same filesystem root.
+
+**Hermetic build systems** — Bazel, Buck2, Nix sandboxes — parse dep-info and
+require every listed input to be declared. They will need `.feature` files
+added to their declared input sets; that is correct behaviour and the point of
+the change, but it surfaces as an "undeclared dependency" failure until the
+input set is updated.
+
 ## Migration checklist
 
 - [ ] Review scenario and step parameters that start with `_`; add explicit
@@ -574,6 +638,12 @@ fn given_shell_open(
   [Migrate a stateful GPUI test](#migrate-a-stateful-gpui-test): wire
   `scenario_state_cleanup` into every stateful `#[scenario]`, mark the scenario
   `#[serial]`, and reset the thread-local state before assigning fresh handles.
+- [ ] Re-baseline JUnit history, ownership and quarantine rules after the
+  one-time `classname` discontinuity (feature paths are now manifest-relative).
+- [ ] Replace any feature-file path outside the manifest directory with a
+  manifest-relative path (or a path on the same filesystem root); the D4
+  `compile_error!` names the offending file.
+- [ ] Update hermetic build inputs to declare the bound `.feature` files.
 - [ ] Run feature-gated downstream tests before assuming v0.6.0 broke the API:
   use `cargo test --workspace --all-features`, or the project's Continuous
   Integration (CI)-equivalent gate such as `make test` when a Make-based gate
@@ -706,39 +776,11 @@ the playbook redirect instead.
   shipped in v0.7.0.
 - [ADR-007][adr-007] records the harness-context injection contract.
 - [ADR-012][adr-012] records the guard-based `StepContext` borrowing redesign;
-  see also [Adopt guard-based `StepContext` borrowing
-  (v0.7.0)](#adopt-guard-based-stepcontext-borrowing-v070) in this guide.
+  see also
+  [Adopt guard-based `StepContext` borrowing (v0.7.0)](#adopt-guard-based-stepcontext-borrowing-v070)
+  in this guide.
 - [Stateful GPUI scenarios with durable handles][users-guide-playbook] is the
   user-guide playbook.
-
-### Feature-file edits do not trigger a rebuild
-
-> **This caveat applies until roadmap item 10.3.3 lands.** Once the
-> rebuild-invalidation fix ships, this section can be removed.
-
-`#[scenario(path = "...")]` and `scenarios!` read `.feature` files with
-ordinary filesystem I/O at macro-expansion time. Cargo does not track those
-reads, so editing only a `.feature` file does not cause Cargo to recompile the
-scenario binary. The stale binary and all its compiled expectations are reused
-from the build cache until an unrelated `.rs` file in the crate changes.
-
-**Symptom:** a corrupted or changed expectation in a `.feature` file appears to
-pass after the edit, as if the change were not picked up.
-
-**Fix:** force a rebuild by touching a `.rs` file in the same crate, or run:
-
-```bash
-cargo clean -p <your-crate-name>
-```
-
-before re-running tests whenever you edit a `.feature` file without also
-editing any `.rs` file.
-
-**Root cause and roadmap:** see design-document
-[§2.7.6.6](rstest-bdd-design.md#2766-feature-file-rebuild-invalidation) and
-[ADR-010](adr-010-feature-file-change-detection.md) for the analysis and the
-chosen fix mechanism. Roadmap item 10.3.3 tracks the implementation, approved
-for v0.6.0 final.
 
 ## Further reading
 

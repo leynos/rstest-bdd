@@ -106,6 +106,24 @@ tests and publish validation.
 - [vendor/gpui-macros](../vendor/gpui-macros/) provides companion macro
   support for the local GPUI shim.
 
+## Cargo-spawning fixture crates
+
+The integration tests that drive nested `cargo` builds over copied fixture
+crates own a distinct path regime:
+
+- [crates/rstest-bdd/tests/fixtures/rebuild_invalidation/](../crates/rstest-bdd/tests/fixtures/rebuild_invalidation/)
+  is the checked-in fixture crate for the feature-file rebuild-invalidation
+  tests. The tests copy it to `target/tests/rebuild-invalidation/fixture`,
+  mutate only the copy, and `rm -rf target/tests/rebuild-invalidation` is
+  always a safe reset.
+- [crates/rstest-bdd/tests/fixtures/feature_addition/](../crates/rstest-bdd/tests/fixtures/feature_addition/)
+  is the second fixture (for the tested `build.rs` recipe); its scratch copy
+  lives at `target/tests/feature-addition/fixture`.
+- [crates/rstest-bdd/tests/feature_rebuild_invalidation/](../crates/rstest-bdd/tests/feature_rebuild_invalidation/)
+  holds the shared nested-cargo harness submodules.
+- [crates/rstest-bdd/tests/documentation_examples/](../crates/rstest-bdd/tests/documentation_examples/)
+  holds the tested-living-documentation extractor.
+
 ## Generated and ignored paths
 
 - [target](../target/) is Cargo's generated build output and must not be used

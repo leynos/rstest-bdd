@@ -7,9 +7,10 @@ slow-timeout = { period = "60s", terminate-after = 1, grace-period = "5s" }
 # whole run is the sum of the group members' slow-timeouts: 180 s (cargo-bdd
 # cli) + 300 s x 3 (trybuild/macro_compile binaries) + 600 s x 3
 # (rstest-bdd::feature_rebuild_invalidation's dep-info, rebuild and
-# file-addition scenarios) = 2880 s. 50 m gives comfortable headroom over
-# that bound while still letting a genuinely hung run fail loudly at the run
-# level (see the 10.3.3 ExecPlan's timeout-arithmetic decisions).
+# file-addition scenarios) = 2880 s. 50 m covers that bound with 120 s of
+# slack; the per-test enforcement is the harness's own 300 s nested-cargo
+# wall clock, and this ceiling only lets a genuinely hung run fail loudly at
+# the run level (see the 10.3.3 ExecPlan's timeout-arithmetic decisions).
 global-timeout = "50m"
 
 [test-groups.cargo-spawning]

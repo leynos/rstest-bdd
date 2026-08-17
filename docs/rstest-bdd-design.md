@@ -1614,8 +1614,8 @@ underlying `HarnessError` detail.
 
 A gauss migration on v0.6.0-beta3 showed that the outer generated GPUI test
 body did not consume a fallible scenario's `Result`, producing
-`unused_must_use` under `-D warnings`. This is a generated-wrapper defect, not a
-reason to weaken the fallible-scenario contract: every harness path must
+`unused_must_use` under `-D warnings`. This is a generated-wrapper defect, not
+a reason to weaken the fallible-scenario contract: every harness path must
 consume or propagate the scenario result. Unit-returning scenario functions
 already propagate fallible step errors and remain the simpler shape when the
 user body does not itself need `?` (ADR-006; roadmap 11.3.2).
@@ -2007,14 +2007,14 @@ interaction.
 > that enforces `no_unwrap_or_else_panic`, and the user guide carries the
 > executable `let … else { panic!(…) }` shape mirrored by the regression suite.
 
-The mapping table is necessary but not sufficient for downstream adoption.
-The gauss v0.6.0-beta3 trial confirmed that the harness and published
-`gpui 0.2.2` share one compatible `TestAppContext` type, while translating the
-vendored-only `given` and `when` snippets still imposed avoidable work.
-Roadmap 10.2.8 therefore adds compile-checked published variants for those
-steps. It also records that Clippy treats step functions and helpers as
-ordinary functions, so `allow-expect-in-tests` does not exempt them from
-`expect_used`; the lint-clean invariant form remains `let … else { panic!(…) }`.
+The mapping table is necessary but not sufficient for downstream adoption. The
+gauss v0.6.0-beta3 trial confirmed that the harness and published `gpui 0.2.2`
+share one compatible `TestAppContext` type, while translating the vendored-only
+`given` and `when` snippets still imposed avoidable work. Roadmap 10.2.8
+therefore adds compile-checked published variants for those steps. It also
+records that Clippy treats step functions and helpers as ordinary functions, so
+`allow-expect-in-tests` does not exempt them from `expect_used`; the lint-clean
+invariant form remains `let … else { panic!(…) }`.
 
 The recommended v0.6-compatible shape keeps only durable handles in resettable
 scenario state. In schematic form (vendored gpui API):
@@ -2092,8 +2092,8 @@ The user guide's "Bulk-migration cookbook" subsection documents the shape and
 bridges its GPUI snippets to published `gpui 0.2.2` through the vendored-to-
 published mapping table. This handwritten shared block is superseded by the
 v0.7.0 guard-based model (ADR-012); `ScenarioStore<T>` and the cleanup-guard
-fixture macro were proposed under ADR-011 (roadmap 10.3.1 and 10.3.2) but
-never shipped.
+fixture macro were proposed under ADR-011 (roadmap 10.3.1 and 10.3.2) but never
+shipped.
 
 ##### 2.7.6.3 v0.6.0-beta2 quick wins
 
@@ -2125,12 +2125,12 @@ The release strategy is therefore split by compatibility risk:
 ##### 2.7.6.4 v0.6.1 early-life support helpers
 
 - **v0.6.1 early-life support:** add semver-compatible helper APIs. Candidate
-  additions include an explicit harness-context parameter marker, a prelude
-  for common integration imports, a typed borrow-error enum, and
-  generated-wrapper coverage for mutable harness context plus scenario
-  state. A first-party scenario-state helper (`ScenarioStore<T>` in
-  `rstest-bdd`, `GpuiScenarioStore` in `rstest-bdd-harness-gpui`) and a
-  cleanup-guard fixture macro were proposed under
+  additions include an explicit harness-context parameter marker, a prelude for
+  common integration imports, a typed borrow-error enum, and generated-wrapper
+  coverage for mutable harness context plus scenario state. A first-party
+  scenario-state helper (`ScenarioStore<T>` in `rstest-bdd`,
+  `GpuiScenarioStore` in `rstest-bdd-harness-gpui`) and a cleanup-guard fixture
+  macro were proposed under
   [ADR-011](adr-011-first-party-scenario-state-and-cleanup.md) but were
   superseded by ADR-012 before implementation and never shipped.
 
@@ -2152,45 +2152,52 @@ The release strategy is therefore split by compatibility risk:
 
 ##### 2.7.6.6 Feature-file rebuild invalidation
 
-`#[scenario(path = "...")]` and `scenarios!` read `.feature` files via
-`std::fs` at macro-expansion time. Cargo does not track these reads; only files
-referenced through `include_str!`, `include_bytes!`, `include!`, or build-script
-`cargo::rerun-if-changed` directives appear in the dep-info file that Cargo
-consults to decide whether to re-run the compiler.
+Since v0.6.0, `#[scenario]` and `scenarios!` register every bound `.feature`
+file as a Cargo rebuild dependency. Cargo decides whether to recompile from
+dep-info, and rustc only records a file there when it was pulled in through
+`include_str!`, `include_bytes!`, `include!`, or a build-script
+`cargo::rerun-if-changed` directive; a procedural macro that opens a file with
+ordinary filesystem calls is invisible to that machinery.
 
-The consequence is a silent foot-gun: editing only a `.feature` file does not
-trigger a rebuild, so a corrupted expectation can appear to pass from the stale
-build cache until an unrelated `.rs` file changes and forces recompilation.
-This is especially hazardous in a *testing* framework, where the correctness of
-test expectations is the whole point.
+The shipping mechanism (ADR-010, accepted) is the **tracking binding**: each
+macro emits, once per bound feature file and at item scope, an anonymous
+`const` whose value is
+`include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/", <relative literal>))`.
+Item scope matters because `scenarios!` can parse a file and generate zero
+tests from it under a `tags =` filter, and because the harness-led path
+replaces the generated function body entirely — a binding inside the generated
+body would track nothing for a filtered-out file. The deferred path
+construction keeps the emitted token stream free of absolute paths; rustc
+registers the file in dep-info; and the unused `const` is elided, so neither
+the path nor the file contents land in a binary (the `rlib` retains them in
+metadata, which is why the no-absolute-path guarantee is scoped to binary and
+test targets). `include_bytes!` rather than `include_str!` because the former
+does not hard-error on a non-UTF-8 `.feature` file yet registers dep-info
+identically. The relative literal follows the normalization table in the
+ExecPlan: `.` segments are dropped, `..` segments are retained (collapsing them
+could name a different file through a symlink), the backslash rule is
+Windows-only, and an absolute path outside `CARGO_MANIFEST_DIR`'s subtree
+becomes a component-wise `..` offset. Only a genuinely unrelatable root — a
+different Windows drive, a UNC prefix, a non-UTF-8 path, an empty path —
+hard-errors with a `compile_error!` naming the file.
 
-Two mechanisms close the gap (evaluated in detail by
-[ADR-010](adr-010-feature-file-change-detection.md)):
+The embedded `__RSTEST_BDD_FEATURE_PATH` constant is manifest-relative to the
+consuming crate when the file lies within its manifest directory and absolute
+otherwise (ExecPlan Decision D3); the change is a breaking one for JUnit
+`classname` and the JSON/DumpSteps `feature_path` value, documented in the
+v0.6.0 migration guide.
 
-1. **Macro-emitted `include_str!` (preferred for `#[scenario]`).** The
-   macro emits an `include_str!` expression discarded into a hidden item, so
-   rustc registers the feature file in dep-info automatically. The path must be
-   resolved *relative to the invoking source file* from the call-site `Span`;
-   embedding an absolute `CARGO_MANIFEST_DIR`-rooted path is **rejected**
-   because it breaks reproducible builds (Nix sandboxes, `sccache`,
-   Windows/POSIX path divergence).
-2. **Build-script helper (preferred for `scenarios!` directory-glob
-   binding).** A helper emits `cargo::rerun-if-changed` for the features
-   directory and for each discovered `.feature` file (the
-   [`theoremc`](https://github.com/leynos/theoremc) pattern). This avoids
-   embedding any file content or absolute path into the artefact and handles
-   the case where the file set is not known at macro-expansion time.
-
-The unstable `proc_macro::tracked_path` API is the right long-term answer and
-is usable behind a `nightly` feature gate pending stabilization.
+Per-file tracking covers *edits* to files that existed when the macro ran. It
+cannot see a file *added* afterwards, because nothing references a file that
+did not exist at expansion time. That residual gap is closed by a tested
+`build.rs` recipe — a single `cargo::rerun-if-changed` directory line, which
+Cargo scans recursively (rust-lang/cargo#8973) — carried as *executed* living
+documentation in the users' guide (ExecPlan Decision D2): the test suite
+extracts the recipe and proves a newly added `.feature` file is compiled and
+run.
 
 OUT_DIR AST caching (noted in `§3.2.2` below) is a *performance* optimization,
 not an invalidation mechanism; it does not close this gap.
-
-Until roadmap item 10.3.3 lands, a caveat in the adoption guide notes that
-`.feature`-only edits do not trigger a rebuild, and users should `touch` an
-affected `.rs` file or `cargo clean` when an updated expectation is not picked
-up.
 
 ##### 2.7.6.7 Test-runner parallelism and scenario state
 
@@ -2828,13 +2835,13 @@ Syntactic classification must never turn a fallible step into a false green.
 The gauss v0.6.0-beta3 trial demonstrated the unsafe case: a local
 `TestSupportResult<()>` alias returned `Err`, the macro classified it as a
 value, and the scenario passed after boxing the error as an unused payload.
-Spelling `Result<(), E>` or using `StepResult` failed correctly, independent
-of whether the scenario function returned `()` or `Result<(), E>`. Because a
-named return type can also be a legitimate value alias, the macro cannot
-simply classify every unresolved path as a result. The stable contract must
-instead require or diagnose an explicit `result`/`value` choice where
-classification is unresolved, with regression coverage for both fallible and
-genuine-value aliases (ADR-002; roadmap 11.3.1).
+Spelling `Result<(), E>` or using `StepResult` failed correctly, independent of
+whether the scenario function returned `()` or `Result<(), E>`. Because a named
+return type can also be a legitimate value alias, the macro cannot simply
+classify every unresolved path as a result. The stable contract must instead
+require or diagnose an explicit `result`/`value` choice where classification is
+unresolved, with regression coverage for both fallible and genuine-value
+aliases (ADR-002; roadmap 11.3.1).
 
 The following diagrams illustrate how the wrapper captures step outputs and how
 later steps consume overrides from the context.

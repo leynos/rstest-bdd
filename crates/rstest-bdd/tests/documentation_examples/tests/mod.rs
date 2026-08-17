@@ -157,12 +157,24 @@ fn previous_marker_skips_blank_lines() {
 #[test]
 fn users_guide_enforced_region_is_coherent() -> Result<()> {
     // Integration guard: the enforced-regions list must match the guide's
-    // actual section, and the recipe marker must be loadable.
+    // actual section, and the recipe marker must be loadable with the exact
+    // directory line. Cargo re-runs a build script whose `rerun-if-changed`
+    // path does not exist on every invocation (treating it as perpetually
+    // dirty), so a corruption to a *missing* path would still pass the
+    // behavioural test — this exact-line pin is what catches drift with
+    // certainty. A corruption to a wrong *existing* path fails the
+    // behavioural run outright.
     let examples = load_documented_examples()?;
     let recipe = documented_example("scenarios-build-script")?;
     assert!(examples.iter().any(|e| e.id == "scenarios-build-script"));
     assert_eq!(recipe.language, "rust");
-    assert!(recipe.body.contains("rerun-if-changed"), "{}", recipe.body);
+    assert!(
+        recipe
+            .body
+            .contains("cargo::rerun-if-changed=tests/features"),
+        "the recipe must watch the fixture's bound directory:\n{}",
+        recipe.body
+    );
     Ok(())
 }
 
