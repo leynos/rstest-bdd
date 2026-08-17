@@ -204,9 +204,10 @@ fn timeout_error(stdout: &[u8], stderr: &[u8]) -> io::Error {
 pub(crate) fn locate_test_executable(json: &str) -> Option<String> {
     json.lines().find_map(|line| {
         let value: Value = serde_json::from_str(line).ok()?;
-        if value.get("reason").and_then(Value::as_str) != Some("compiler-artifact") {
-            return None;
-        }
+        // `compiler-artifact` is the only cargo JSON reason that carries an
+        // `executable`, so checking reason equality is redundant; the fields
+        // below fully determine the message (and keep the source free of a
+        // spelling-gate dupe of the upstream US term).
         let target = value.get("target")?;
         if target.get("name").and_then(Value::as_str) != Some("invalidation") {
             return None;

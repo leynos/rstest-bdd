@@ -83,7 +83,7 @@ fn step_macros_compile() -> io::Result<()> {
 ///
 /// This is the cheap mid-tier signal that catches a future codegen refactor
 /// silently dropping the binding, without depending on the expensive
-/// nested-cargo regression test. The check scans the trybuild artifacts from
+/// nested-cargo regression test. The check scans the trybuild artefacts from
 /// the run we have already paid for (see the `ExecPlan` Milestone 4 section).
 fn assert_trybuild_tracking_registered_in_dep_info() {
     let crate_dir = StdPath::new(env!("CARGO_MANIFEST_DIR"));
