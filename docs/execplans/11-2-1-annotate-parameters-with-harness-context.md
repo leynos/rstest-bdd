@@ -181,7 +181,13 @@ Stop and escalate — do not improvise — when any of these is reached.
 
 ## Progress
 
-- [ ] Milestone 0 — orientation and green baseline.
+- [x] Milestone 0 — orientation and green baseline. Verified 2026-08-17:
+  `make check-fmt`, `make lint`, and `make test` all green on branch
+  `11-2-1-annotate-parameters-with-harness-context` (base `3e6c367`). Lint emits
+  only the two expected deprecation warnings from the `runtime_compat_alias`
+  test; Whitaker reports no findings; python tests 69/69 pass. Line counts
+  re-measured and match Table 1 (`classify/mod.rs` 382, `classify/tests.rs` 384,
+  `context/mod.rs` 400, `extract.rs` 306).
 - [ ] Milestone 1 — single source of truth for the reserved fixture key.
 - [ ] Milestone 2 — adopt `googletest` and `pretty_assertions`.
 - [ ] Milestone 3 — red: unit and property tests for `#[harness_context]`.
