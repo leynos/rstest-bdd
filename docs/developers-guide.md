@@ -1085,8 +1085,10 @@ publish boundary exactly once: the client-socket guard, the path-to-URI guard,
 `PublishDiagnosticsParams` construction, the `textDocument/publishDiagnostics`
 notification, and failure logging.
 
-- **Ownership:** the diagnostics handler layer owns the helper; it is private
-  to the `diagnostics::publish` module.
+- **Ownership:** the diagnostics handler layer owns the helper; its
+  `pub(super)` visibility from the `diagnostics` parent module lets sibling
+  publishers such as `diagnostics::rust_index` reuse it while keeping it
+  internal to the diagnostics tree.
 - **Permitted call-sites:** `publish_feature_diagnostics` and the save-pipeline
   `publish_rust_index_result_diagnostics` helper. New diagnostic publishers
   must delegate to `publish_with` with a compute closure rather than

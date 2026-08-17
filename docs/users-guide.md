@@ -2913,6 +2913,20 @@ The language server publishes diagnostics when files are saved, helping
 developers identify consistency issues between feature files and Rust step
 definitions:
 
+- **Multiple step attributes** (`multiple-step-attributes`): When one Rust
+  function has more than one of `#[given]`, `#[when]`, or `#[then]`, saving its
+  `.rs` file publishes a recoverable warning naming that function.
+
+- **Invalid step attribute arguments** (`invalid-step-attribute-arguments`):
+  When a step attribute has malformed arguments or an argument that is not a
+  string literal, saving its `.rs` file publishes a recoverable warning that
+  includes the attribute and parser error.
+
+These Rust-index warnings are recoverable per function. When the rest of the
+file parses successfully, valid neighbouring step definitions remain indexed
+and available for navigation and diagnostics; only the function with the
+offending attributes is omitted.
+
 - **Unimplemented feature steps** (`unimplemented-step`): When a step in a
   `.feature` file has no matching Rust implementation, a warning diagnostic is
   published at the step location. The message indicates the step keyword and
