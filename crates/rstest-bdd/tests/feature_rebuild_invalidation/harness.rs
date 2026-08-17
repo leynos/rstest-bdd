@@ -85,6 +85,7 @@ fn build_dep_info_outcome() -> DepInfoOutcome {
     if let Some(baseline_error) = baseline_error {
         return outcome::DepInfoOutcome {
             dep_info_entry_count: 0,
+            scenarios_no_match_tracked: false,
             dep_info_sample: stdout,
             child_env_detail: process::describe_env(&env),
             baseline_error: Some(baseline_error),
@@ -97,6 +98,7 @@ fn build_dep_info_outcome() -> DepInfoOutcome {
     let Some(executable) = process::locate_test_executable(&stdout).map(PathBuf::from) else {
         return outcome::DepInfoOutcome {
             dep_info_entry_count: 0,
+            scenarios_no_match_tracked: false,
             dep_info_sample: stdout,
             child_env_detail: process::describe_env(&env),
             baseline_error: Some(
@@ -115,7 +117,6 @@ fn build_dep_info_outcome() -> DepInfoOutcome {
             executable.display()
         ),
     };
-    let expected = fixtures::normalize_dep_path(&fixtures::scratch_feature_file());
     // rustc's make-style `.d` repeats every dependency in each rule block —
     // once for the `.d` target, once for the binary target, once in the
     // per-source mapping — so "exactly once" is asserted against the
@@ -124,9 +125,19 @@ fn build_dep_info_outcome() -> DepInfoOutcome {
     // one-binding-per-file property from Decision D0: rustc deduplicates
     // the list, so a future per-scenario binding must still be listed once.
     let primary_rule = dep_content.lines().next().unwrap_or_default();
+    let expected = fixtures::normalize_dep_path(&fixtures::scratch_feature_file());
     let entry_count = primary_rule.split(&expected).count().saturating_sub(1);
+    // The `scenarios!` directory's filtered-out file: it is parsed by the
+    // macro (its scenarios are excluded by the `tags =` filter, generating no
+    // tests), so it must still appear in dep-info for an edit to trigger a
+    // rebuild.
+    let no_match = fixtures::normalize_dep_path(
+        &fixtures::scratch_fixture_dir().join("tests/features/scenarios_dir/no_match.feature"),
+    );
+    let scenarios_no_match_tracked = primary_rule.contains(&no_match);
     outcome::DepInfoOutcome {
         dep_info_entry_count: entry_count,
+        scenarios_no_match_tracked,
         dep_info_sample: dep_content,
         child_env_detail: process::describe_env(&env),
         baseline_error: None,

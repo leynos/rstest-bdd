@@ -130,7 +130,7 @@ fn test_fails_against_new_expectation() {
 }
 
 // ---------------------------------------------------------------------------
-// The two regression tests.
+// The two regression tests, plus the `scenarios!` directory case.
 // ---------------------------------------------------------------------------
 
 #[scenario("tests/features/rebuild_invalidation.feature", index = 0)]
@@ -140,3 +140,27 @@ fn bound_feature_file_is_tracked_dependency() {}
 #[scenario("tests/features/rebuild_invalidation.feature", index = 1)]
 #[serial]
 fn feature_edit_forces_rebuild_and_fresh_failure() {}
+
+/// A `scenarios!` directory with a `tags =` filter that excludes every
+/// scenario in one file must still track that file: it was parsed, so an
+/// edit to it must trigger a rebuild even though no test is generated from
+/// it. Plain `#[test]` (not scenario-bound) because the behavioural spec has
+/// exactly two scenarios.
+#[test]
+#[serial]
+fn scenarios_directory_filtered_file_is_tracked() {
+    let outcome = harness::dep_info_outcome();
+    if let Some(reason) = &outcome.baseline_error {
+        panic!(
+            "fixture baseline build failed: {reason}\nresolved child environment:\n{}",
+            outcome.child_env_detail
+        );
+    }
+    assert_that!(
+        outcome.scenarios_no_match_tracked,
+        is_true(),
+        "the filtered .feature file must still appear in the dep-info \
+         primary rule; rustc dep-info follows\n{}",
+        outcome.dep_info_sample
+    );
+}

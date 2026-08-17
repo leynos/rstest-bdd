@@ -153,7 +153,7 @@ fn process_feature_file(
 
 /// Provides the internal `generate_tests_from_features` operation.
 fn generate_tests_from_features(
-    feature_paths: Vec<PathBuf>,
+    feature_paths: &[PathBuf],
     ctx: &FeatureProcessingContext<'_>,
 ) -> (Vec<TokenStream2>, Vec<TokenStream2>) {
     let mut used_names = HashSet::new();
@@ -290,9 +290,21 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
         effective_harness: effective_harness.as_ref(),
         resolutions: &resolutions,
     };
-    let (tests, mut errors) = generate_tests_from_features(feature_paths, &ctx);
+    let (tests, mut errors) = generate_tests_from_features(&feature_paths, &ctx);
 
     check_empty_results(&tests, &mut errors, tag_filter.as_ref());
+
+    // Emit one Cargo rebuild-dependency tracking item per **discovered**
+    // file, as a sibling of the generated scenario module, independent of
+    // whether any test is generated for that file. A `tags =` filter that
+    // matches nothing in a particular file still parses it, and that file
+    // must remain tracked — a body-scoped or per-test binding would leave it
+    // untracked and reopen the foot-gun in exactly the macro that is the
+    // harder case (Decision D0 / ExecPlan Milestone 3).
+    let tracking_items = feature_paths
+        .iter()
+        .map(|path| crate::codegen::tracking::feature_tracking_item(path, dir_lit.span()))
+        .collect::<Vec<_>>();
 
     let module_ident = {
         let base = dir
@@ -304,6 +316,7 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
     let module_doc = format!("Scenarios auto-generated from `{}`.", dir_lit.value());
 
     TokenStream::from(quote! {
+        #(#tracking_items)*
         #[doc = #module_doc]
         mod #module_ident {
             use super::*;

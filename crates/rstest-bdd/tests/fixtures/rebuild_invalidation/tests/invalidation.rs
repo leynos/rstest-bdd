@@ -14,7 +14,7 @@
 //! test output — it is the load-bearing proof that the binary was recompiled
 //! from the new text, because that string exists only in the new `.feature`.
 
-use rstest_bdd_macros::{given, scenario, then};
+use rstest_bdd_macros::{given, scenario, scenarios, then};
 use std::sync::atomic::{AtomicU32, Ordering};
 
 /// The value captured by the `Given` step; the `Then` step compares it
@@ -33,3 +33,16 @@ fn check_expectation(value: u32) {
 
 #[scenario(path = "tests/features/invalidation.feature")]
 fn invalidation_scenario() {}
+
+#[given("a scenario-level tracking step")]
+fn tracking_step() {}
+
+// Directory-bound scenarios with a `tags =` filter that excludes every
+// scenario in `no_match.feature` (`@excluded`) while `match.feature`
+// (`@wanted`) still generates a test. The 10.3.3 dep-info contract asserts
+// that the *filtered-out* file is tracked too — the file was parsed, so an
+// edit to it must rebuild, even though no test is generated from it.
+scenarios!(
+    "tests/features/scenarios_dir",
+    tags = "@wanted",
+);
