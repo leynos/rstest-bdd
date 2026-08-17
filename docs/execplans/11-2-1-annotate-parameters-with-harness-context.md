@@ -225,7 +225,7 @@ Stop and escalate — do not improvise — when any of these is reached.
   per target (lib, args, args_str_ref). Full gates green (check-fmt, lint,
   test; 1724 passed, 7 skipped).
 - [x] Milestone 5 — compile-fail coverage for the unhappy paths. Committed
-  (pending), 2026-08-17. Six `trybuild` UI fixtures under
+  `29e70fe`, 2026-08-17. Six `trybuild` UI fixtures under
   `crates/rstest-bdd/tests/ui_macros/` (`harness_context_with_from`,
   `harness_context_with_datatable`, `harness_context_with_step_args`,
   `harness_context_takes_no_arguments`, `harness_context_duplicate`,
