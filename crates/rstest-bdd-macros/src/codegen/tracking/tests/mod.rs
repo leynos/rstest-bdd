@@ -57,6 +57,30 @@ fn emits_exact_binding_for_representative_relative_path() {
 }
 
 #[test]
+fn tracking_binding_carries_no_absolute_path_literal() {
+    // ExecPlan Milestone 6 whole-expansion corollary: the tracking item — one
+    // half of the `#[scenario]` expansion — must not contain the crate's
+    // manifest directory as a literal (the deferred path construction uses
+    // `env!("CARGO_MANIFEST_DIR")` instead). The other half (the generated
+    // test metadata) is pinned by
+    // `feature_path_literal_is_manifest_relative_in_the_generated_metadata`.
+    let emitted = feature_tracking_item(
+        std::path::Path::new("tests/features/invalidation.feature"),
+        proc_macro2::Span::call_site(),
+    )
+    .to_string();
+    let manifest = std::env::var("CARGO_MANIFEST_DIR").expect("tests run under cargo");
+    assert!(
+        !emitted.contains(&manifest.replace('\\', "/")),
+        "the tracking item must not embed the absolute manifest directory:\n{emitted}"
+    );
+    assert!(
+        emitted.contains("env ! (\"CARGO_MANIFEST_DIR\")"),
+        "the tracking item must construct its path from the `env!` macro:\n{emitted}"
+    );
+}
+
+#[test]
 fn snapshot_of_normalized_token_stream() {
     // `TokenStream::to_string()` prints no span information, so the snapshot
     // is a clean whole-text pin of the emitted form; a meaning change fails
@@ -263,6 +287,29 @@ fn empty_diagnostic_explains_itself() {
         text.contains("feature file path is empty"),
         "empty-path diagnostic must explain the failure:\n{text}"
     );
+}
+
+#[test]
+fn snapshot_of_unrelatable_root_diagnostic() {
+    // Redacted snapshot of the rendered D4 diagnostic (ExecPlan Milestone 5):
+    // the absolute path fragments are normalised so the pinned wording drifts
+    // on a meaning change — never on a build directory. The substring
+    // assertions above back the load-bearing fragments so a reflow cannot
+    // hide a change from the snapshot alone.
+    let mut settings = insta::Settings::clone_current();
+    settings.add_filter("`[^`]*`", "<quoted>");
+    settings.bind(|| {
+        temp_env::with_var("CARGO_MANIFEST_DIR", Some("C:/repo"), || {
+            insta::assert_snapshot!(
+                "unrelatable_root_diagnostic",
+                super::untrackable_error(
+                    Untrackable::UnrelatableRoot(std::path::PathBuf::from(r"D:\repo\x.feature")),
+                    proc_macro2::Span::call_site(),
+                )
+                .to_string()
+            );
+        });
+    });
 }
 
 /// POSIX single-root semantics: any two absolute paths relate, so the

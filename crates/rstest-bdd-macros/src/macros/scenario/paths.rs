@@ -110,6 +110,15 @@ fn canonicalize_with_cap_std(path: &Path) -> Option<PathBuf> {
 /// let path = PathBuf::from("features/example.feature");
 /// let _ = canonical_feature_path(&path);
 /// ```
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "retained in its canonical form for compile-time diagnostics; the 10.3.3 \
+                  manifest-relative feature-path work must not repurpose the memoized \
+                  absolute form's cache key"
+    )
+)]
 pub(super) fn canonical_feature_path(path: &Path) -> String {
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").ok().map(PathBuf::from);
     // Scope cache keys by manifest dir to avoid cross-crate collisions.
@@ -143,6 +152,33 @@ pub(super) fn canonical_feature_path(path: &Path) -> String {
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let entry = cache.entry(key).or_insert_with(|| canonical.clone());
     entry.clone()
+}
+
+/// The feature path embedded in generated code, in the Decision D3 form:
+/// *relative to the consuming crate's manifest directory when the feature
+/// file lies within it; otherwise absolute.*
+///
+/// This is the value that flows into `__RSTEST_BDD_FEATURE_PATH` and from
+/// there into `ScenarioMetadata::feature_path`, the JSON reporter, the
+/// `JUnit` `classname` and `cargo bdd --dump-steps` (see the `ExecPlan`
+/// Milestone 6 and the v0.6.0 migration guide's breaking-change note). It
+/// deliberately does
+/// **not** reuse `canonical_feature_path`: that function keeps resolving
+/// symlinks through `cap-std` for compile-time diagnostics and its
+/// memoization cache is keyed on the absolute form — repurposing it would
+/// silently change what the cache keys describe.
+pub(super) fn manifest_relative_feature_path(path: &Path) -> String {
+    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_default();
+    if path.is_absolute() {
+        path.strip_prefix(&manifest_dir).map_or_else(
+            |_| path.display().to_string(),
+            |rel| rel.display().to_string(),
+        )
+    } else {
+        path.display().to_string()
+    }
 }
 
 #[cfg(test)]
@@ -283,5 +319,45 @@ mod tests {
         let second = canonical_feature_path(path);
 
         assert_eq!(first, second);
+    }
+}
+
+#[cfg(test)]
+mod manifest_relative_tests {
+    //! Tests for the Decision D3 path form embedded in generated code.
+    //!
+    //! These tests mutate `CARGO_MANIFEST_DIR`, so they must not run
+    //! concurrently with the canonical-path tests that read it; `#[serial]`
+    //! provides that in-process exclusion (the same pattern the existing
+    //! `paths::tests` module uses).
+
+    use super::manifest_relative_feature_path;
+    use serial_test::serial;
+    use std::path::Path;
+
+    #[serial]
+    #[test]
+    fn relative_input_passes_through_unchanged() {
+        let value = manifest_relative_feature_path(Path::new("tests/features/x.feature"));
+        assert_eq!(value, "tests/features/x.feature");
+    }
+
+    #[serial]
+    #[test]
+    fn absolute_path_inside_manifest_becomes_relative() {
+        temp_env::with_var("CARGO_MANIFEST_DIR", Some("/repo/crates/my"), || {
+            let value =
+                manifest_relative_feature_path(Path::new("/repo/crates/my/tests/x.feature"));
+            assert_eq!(value, "tests/x.feature");
+        });
+    }
+
+    #[serial]
+    #[test]
+    fn absolute_path_outside_manifest_stays_absolute() {
+        temp_env::with_var("CARGO_MANIFEST_DIR", Some("/repo/crates/my"), || {
+            let value = manifest_relative_feature_path(Path::new("/repo/shared/x.feature"));
+            assert_eq!(value, "/repo/shared/x.feature");
+        });
     }
 }

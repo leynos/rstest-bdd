@@ -43,7 +43,7 @@ use crate::validation::parameters::process_scenario_outline_examples;
 use crate::validation::placeholder::{ExampleHeaders, validate_step_placeholders};
 
 use self::args::ScenarioArgs;
-use self::paths::canonical_feature_path;
+use self::paths::manifest_relative_feature_path;
 use self::return_kind::classify_scenario_return;
 use self::selection::{ensure_feature_not_empty, resolve_candidate_indices, select_scenario};
 
@@ -111,7 +111,9 @@ fn try_scenario(
         &path_lit,
     )?;
 
-    let feature_path_str = canonical_feature_path(&path);
+    // Decision D3: the embedded feature path is manifest-relative within the
+    // crate, absolute otherwise (see `manifest_relative_feature_path`).
+    let feature_path_str = manifest_relative_feature_path(&path);
     let ScenarioData {
         name: scenario_name,
         steps,

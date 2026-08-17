@@ -113,7 +113,6 @@ fn process_feature_file(
     );
     let test_ctx = ScenarioTestContext {
         feature_stem: &feature_stem,
-        manifest_dir: ctx.manifest_dir,
         rel_path: &rel_path,
         tag_filter: ctx.tag_filter,
         fixtures: ctx.fixtures,

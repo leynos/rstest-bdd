@@ -352,8 +352,17 @@ is ticked so rates of progress and tolerance breaches are visible.
       `.d`; `scenario_missing_file.stderr` confirmed byte-identical; the
       redundant handwritten `include_str!("basic.feature")` removed from
       `scenario_harness_params`.
-- [ ] Milestone 5: the redacted `insta` snapshot with semantic assertions.
-- [ ] Milestone 6: make the embedded feature-path constant manifest-relative.
+- [x] (2026-08-17) Milestone 5: the redacted `insta` snapshot with semantic
+      assertions. The D4 `compile_error!` is snapshotted under path-redacting
+      filters with the load-bearing fragments asserted by substrings; the D3
+      runtime-text snapshots land with Milestone 6's actual path change.
+- [x] (2026-08-17) Milestone 6: make the embedded feature-path constant
+      manifest-relative. Both macros emit the D3 form; the harness assembler
+      rest pattern is gone; `ScenarioTestContext.manifest_dir` removed;
+      canonical accessor retained with a reasoned dead-code pin; the
+      workspace-uniqueness loss is documented; the whole-expansion
+      no-absolute-path pin is assembled from the two TokenStream2 pieces;
+      full workspace green.
 - [ ] Milestone 7: the tested `build.rs` recipe — documentation-example
       extractor, second fixture crate, and the file-addition behavioural test.
 - [ ] Milestone 8: documentation, ADR amendment, migration-guide breaking
@@ -871,6 +880,31 @@ implementation.
   a test) and `no_match.feature` (`@excluded`, generates nothing but must
   still be tracked); the duplication is deliberate so `scenarios!` cannot
   error with "no scenarios matched" while the file is still parsed.
+  Date/Author: 2026-08-17, implementing agent.
+
+- **Decision M6 (recorded 2026-08-17): the manifest-relative feature path ships
+  end-to-end, and workspace uniqueness loss is documented, not qualified.**
+  Both macros now feed `__RSTEST_BDD_FEATURE_PATH` from a
+  manifest-relative value (`paths::manifest_relative_feature_path`; the
+  `scenarios!` side passes `rel_path` through without re-absolutizing), the
+  `..` rest pattern in the harness assembler's `ScenarioLiterals`
+  destructuring is deleted, `ScenarioTestContext.manifest_dir` is removed
+  (its only consumer died with the join), and `canonical_feature_path` is
+  retained per the plan with a reasoned `expect(dead_code)`. On workspace
+  uniqueness, the *documented* minimum is chosen: the `feature_path` doc
+  comments and the migration guide state the merged-`cargo bdd` collision
+  consequence; making `cargo-bdd` qualify merged entries with the package
+  name is recorded as a follow-up roadmap item rather than folded into this
+  change (it is a `cargo-bdd` presentation feature orthogonal to the path
+  format).
+  The whole-expansion "no absolute path literal" pin is assembled from the
+  two TokenStream2 producers the macro emits — the tracking binding
+  (`tracking_binding_carries_no_absolute_path_literal`) and the generated
+  metadata (`feature_path_literal_is_manifest_relative_in_the_generated_metadata`)
+  — because the full expansion crosses the proc-macro bridge and cannot be
+  stringified in a unit test (same finding as the M2 ordering test).
+  Blast radius: the entire workspace (1637 tests) is green with no
+  checked-in expectation carrying a real macro-emitted absolute path.
   Date/Author: 2026-08-17, implementing agent.
 
 ## Context and orientation
