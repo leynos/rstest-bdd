@@ -183,11 +183,11 @@ Stop and escalate — do not improvise — when any of these is reached.
 
 - [x] Milestone 0 — orientation and green baseline. Verified 2026-08-17:
   `make check-fmt`, `make lint`, and `make test` all green on branch
-  `11-2-1-annotate-parameters-with-harness-context` (base `3e6c367`). Lint emits
-  only the two expected deprecation warnings from the `runtime_compat_alias`
-  test; Whitaker reports no findings; python tests 69/69 pass. Line counts
-  re-measured and match Table 1 (`classify/mod.rs` 382, `classify/tests.rs` 384,
-  `context/mod.rs` 400, `extract.rs` 306).
+  `11-2-1-annotate-parameters-with-harness-context` (base `3e6c367`). Lint
+  emits only the two expected deprecation warnings from the
+  `runtime_compat_alias` test; Whitaker reports no findings; python tests 69/69
+  pass. Line counts re-measured and match Table 1 (`classify/mod.rs` 382,
+  `classify/tests.rs` 384, `context/mod.rs` 400, `extract.rs` 306).
 - [x] Milestone 1 — single source of truth for the reserved fixture key.
   Committed `d0bb33e`, 2026-08-17. `rstest_bdd_policy::HARNESS_CONTEXT_FIXTURE`
   now defines the key; `rstest_bdd::RSTEST_BDD_HARNESS_CONTEXT_FIXTURE` aliases
@@ -198,13 +198,12 @@ Stop and escalate — do not improvise — when any of these is reached.
 - [x] Milestone 2 — adopt `googletest` and `pretty_assertions`. Committed
   `2643e2a`, 2026-08-17. Added to `[workspace.dependencies]` as caret
   requirements, and as `dev-dependencies` of `rstest-bdd-macros` with
-  `.workspace = true`. Confirmed `googletest` 0.14.3 has `rust-version =
-  1.85.0` (matches workspace) and its optional `proptest` feature requires
-  `1.9.0` (matches the workspace pin). A throwaway `#[rstest]`
+  `.workspace = true`. Confirmed `googletest` 0.14.3 has
+  `rust-version = 1.85.0` (matches workspace) and its optional `proptest`
+  feature requires `1.9.0` (matches the workspace pin). A throwaway `#[rstest]`
   `#[googletest::test]` smoke test compiled and ran (across the three
-  `classify/tests.rs` inclusion sites) and was deleted before commit. All
-  gates green. The assertion vocabulary is recorded in
-  `docs/developers-guide.md`.
+  `classify/tests.rs` inclusion sites) and was deleted before commit. All gates
+  green. The assertion vocabulary is recorded in `docs/developers-guide.md`.
 - [x] Milestone 3 — red: unit and property tests for `#[harness_context]`.
   Committed `2f583ed`, 2026-08-17. Added `classify/harness_context/tests.rs`
   (unit cases: marker binding, equivalence with `#[from(...)]` and with the
@@ -218,38 +217,58 @@ Stop and escalate — do not improvise — when any of these is reached.
 - [x] Milestone 4 — green: implement the classifier and its guards. Committed
   `0d719e9`, 2026-08-17. `classify_harness_context` strips the marker, rejects
   the conflicting combinations through a table-driven validation helper, and
-  synthesizes the fixture name from `rstest_bdd_policy::HARNESS_CONTEXT_FIXTURE`
-  with the parameter span. Wired into `extract_args` before the placeholder
-  short-circuit. Added the `#[step_args]` cross-guard in `classify/step_struct`
-  sharing `HARNESS_CONTEXT_WITH_STEP_ARGS_ERROR`. Focused tests green: 13/13
-  per target (lib, args, args_str_ref). Full gates green (check-fmt, lint,
-  test; 1724 passed, 7 skipped).
+  synthesizes the fixture name from
+  `rstest_bdd_policy::HARNESS_CONTEXT_FIXTURE` with the parameter span. Wired
+  into `extract_args` before the placeholder short-circuit. Added the
+  `#[step_args]` cross-guard in `classify/step_struct` sharing
+  `HARNESS_CONTEXT_WITH_STEP_ARGS_ERROR`. Focused tests green: 13/13 per target
+  (lib, args, args_str_ref). Full gates green (check-fmt, lint, test; 1724
+  passed, 7 skipped).
 - [x] Milestone 5 — compile-fail coverage for the unhappy paths. Committed
   `29e70fe`, 2026-08-17. Six `trybuild` UI fixtures under
   `crates/rstest-bdd/tests/ui_macros/` (`harness_context_with_from`,
   `harness_context_with_datatable`, `harness_context_with_step_args`,
   `harness_context_takes_no_arguments`, `harness_context_duplicate`,
-  `harness_context_on_placeholder`) with `.stderr` snapshots generated via `TRYBUILD=overwrite`.
-  All six snapshots carry targeted diagnostics naming each conflict; none
-  contains `cannot find attribute`. Added a passing fixture
-  `tests/fixtures_macros/harness_context_coexist.rs` proving `#[harness_context]`
-  and `#[from(rstest_bdd_harness_context)]` coexist in one scenario, registered
-  in `run_passing_macro_tests`.
+  `harness_context_on_placeholder`) with `.stderr` snapshots generated via
+  `TRYBUILD=overwrite`. All six snapshots carry targeted diagnostics naming
+  each conflict; none contains `cannot find attribute`. Added a passing fixture
+  `tests/fixtures_macros/harness_context_coexist.rs` proving
+  `#[harness_context]` and `#[from(rstest_bdd_harness_context)]` coexist in one
+  scenario, registered in `run_passing_macro_tests`.
 - [x] Milestone 6 — equivalence snapshot and behavioural scenario. Committed
   `a19e993`, 2026-08-17. Added an `insta` snapshot of the generated wrapper for
   the marker spelling plus two `pretty_assertions` equality assertions pinning
   byte-identical output against both the `#[from(...)]` and parameter-named
-  spellings (`crates/rstest-bdd-macros/src/codegen/wrapper/equivalence_tests.rs`,
+  spellings
+  (`crates/rstest-bdd-macros/src/codegen/wrapper/equivalence_tests.rs`,
   serialized with `serial_test` because they reset the process-global wrapper
   counter). Drop the now-satisfied `#[expect(dead_code, ...)]` on
-  `reset_wrapper_counter_for_tests`. Added the behavioural scenario
-  "A step can reach the Tokio harness context through the marker" to
-  `examples/tokio-reminders`, with a new synchronous `ReminderService::deliver_all`
-  (the plan-sanctioned fallback: no `deliver_all` existed, and an `.await`-based
-  dispatch would multi-poll under the harness). `cargo test -p tokio-reminders`
-  green (5 unit + 3 scenario + 8 doctests); equivalence tests green.
-- [ ] Milestone 7 — migrate the examples.
-- [ ] Milestone 8 — documentation.
+  `reset_wrapper_counter_for_tests`. Added the behavioural scenario "A step can
+  reach the Tokio harness context through the marker" to
+  `examples/tokio-reminders`, with a new synchronous
+  `ReminderService::deliver_all` (the plan-sanctioned fallback: no
+  `deliver_all` existed, and an `.await`-based dispatch would multi-poll under
+  the harness). `cargo test -p tokio-reminders` green (5 unit + 3 scenario + 8
+  doctests); equivalence tests green.
+- [x] Milestone 7 — migrate the examples. Committed `16148ee`, 2026-08-17.
+  `examples/gpui-counter/tests/counter.rs` requests the injected
+  `gpui::TestAppContext` via `#[harness_context]` (module doc + implicit
+  attribute), and its README bullet reflects the marker.
+  `examples/tokio-reminders` already uses the marker from Milestone 6. No
+  `#[from(rstest_bdd_harness_context)]` remains under `examples/`.
+  `cargo test -p gpui-counter` green (6 unit + 2 scenario + 3 doctest). The
+  crate-level tests keep the legacy spelling as back-compatibility evidence.
+- [x] Milestone 8 — documentation. Committed 2026-08-17.
+  `docs/users-guide.md` (harness-context marker as primary form,
+  three-spelling table, marker constraints, cross-reference from
+  "Supported `#[from]` forms"), `docs/developers-guide.md`
+  (`classify_harness_context` stage, shared `HARNESS_CONTEXT_FIXTURE`
+  constant, `#[step_args]` cross-guard), `docs/rstest-bdd-design.md`
+  §2.7.6.4 (marker recorded as delivered), and
+  `docs/adr-007-harness-context-injection.md` (dated addendum). `docs/`
+  tree passes `markdownlint` and `make nixie`; full-tree `make
+  markdownlint` fails only on the gitignored `.vtcode/` runtime
+  artifacts.
 - [ ] Milestone 9 — roadmap tick, full gates, and pull request.
 
 ## Surprises & discoveries
@@ -283,12 +302,11 @@ Stop and escalate — do not improvise — when any of these is reached.
   non-empty placeholder sets or bare `#[step_args]`. Date: 2026-08-17.
 
 - Observation: googletest's `matches_pattern!` requires an explicit `..`
-  terminator when the pattern omits fields, even for `pub` enum variant
-  fields. The illustrative examples in this plan's Milestone 3 omit `..`;
-  the committed tests include it. The `..` carries no semantic weight for
-  omitted fields (each is matched as `anything()`), it is purely a rustc
-  pattern-privacy requirement surfaced by the macro expansion. Date:
-  2026-08-17.
+  terminator when the pattern omits fields, even for `pub` enum variant fields.
+  The illustrative examples in this plan's Milestone 3 omit `..`; the committed
+  tests include it. The `..` carries no semantic weight for omitted fields
+  (each is matched as `anything()`), it is purely a rustc pattern-privacy
+  requirement surfaced by the macro expansion. Date: 2026-08-17.
 
 - Observation: the runtime crate and the macro crate are coupled to the
   reserved fixture key *only through the literal text a user types*. There is

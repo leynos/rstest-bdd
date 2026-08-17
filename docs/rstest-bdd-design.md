@@ -1614,8 +1614,8 @@ underlying `HarnessError` detail.
 
 A gauss migration on v0.6.0-beta3 showed that the outer generated GPUI test
 body did not consume a fallible scenario's `Result`, producing
-`unused_must_use` under `-D warnings`. This is a generated-wrapper defect, not a
-reason to weaken the fallible-scenario contract: every harness path must
+`unused_must_use` under `-D warnings`. This is a generated-wrapper defect, not
+a reason to weaken the fallible-scenario contract: every harness path must
 consume or propagate the scenario result. Unit-returning scenario functions
 already propagate fallible step errors and remain the simpler shape when the
 user body does not itself need `?` (ADR-006; roadmap 11.3.2).
@@ -2007,14 +2007,14 @@ interaction.
 > that enforces `no_unwrap_or_else_panic`, and the user guide carries the
 > executable `let … else { panic!(…) }` shape mirrored by the regression suite.
 
-The mapping table is necessary but not sufficient for downstream adoption.
-The gauss v0.6.0-beta3 trial confirmed that the harness and published
-`gpui 0.2.2` share one compatible `TestAppContext` type, while translating the
-vendored-only `given` and `when` snippets still imposed avoidable work.
-Roadmap 10.2.8 therefore adds compile-checked published variants for those
-steps. It also records that Clippy treats step functions and helpers as
-ordinary functions, so `allow-expect-in-tests` does not exempt them from
-`expect_used`; the lint-clean invariant form remains `let … else { panic!(…) }`.
+The mapping table is necessary but not sufficient for downstream adoption. The
+gauss v0.6.0-beta3 trial confirmed that the harness and published `gpui 0.2.2`
+share one compatible `TestAppContext` type, while translating the vendored-only
+`given` and `when` snippets still imposed avoidable work. Roadmap 10.2.8
+therefore adds compile-checked published variants for those steps. It also
+records that Clippy treats step functions and helpers as ordinary functions, so
+`allow-expect-in-tests` does not exempt them from `expect_used`; the lint-clean
+invariant form remains `let … else { panic!(…) }`.
 
 The recommended v0.6-compatible shape keeps only durable handles in resettable
 scenario state. In schematic form (vendored gpui API):
@@ -2092,8 +2092,8 @@ The user guide's "Bulk-migration cookbook" subsection documents the shape and
 bridges its GPUI snippets to published `gpui 0.2.2` through the vendored-to-
 published mapping table. This handwritten shared block is superseded by the
 v0.7.0 guard-based model (ADR-012); `ScenarioStore<T>` and the cleanup-guard
-fixture macro were proposed under ADR-011 (roadmap 10.3.1 and 10.3.2) but
-never shipped.
+fixture macro were proposed under ADR-011 (roadmap 10.3.1 and 10.3.2) but never
+shipped.
 
 ##### 2.7.6.3 v0.6.0-beta2 quick wins
 
@@ -2124,14 +2124,18 @@ The release strategy is therefore split by compatibility risk:
 
 ##### 2.7.6.4 v0.6.1 early-life support helpers
 
-- **v0.6.1 early-life support:** add semver-compatible helper APIs. Candidate
-  additions include an explicit harness-context parameter marker, a prelude
-  for common integration imports, a typed borrow-error enum, and
-  generated-wrapper coverage for mutable harness context plus scenario
-  state. A first-party scenario-state helper (`ScenarioStore<T>` in
-  `rstest-bdd`, `GpuiScenarioStore` in `rstest-bdd-harness-gpui`) and a
-  cleanup-guard fixture macro were proposed under
-  [ADR-011](adr-011-first-party-scenario-state-and-cleanup.md) but were
+- **v0.6.1 early-life support:** add semver-compatible helper APIs. Delivered:
+  the explicit harness-context parameter marker `#[harness_context]` (roadmap
+  11.2.1). It desugars to the reserved fixture key `rstest_bdd_harness_context`
+  internally, and the legacy `#[from(rstest_bdd_harness_context)]` form is
+  retained without deprecation. See the
+  [ADR-007 addendum](adr-007-harness-context-injection.md). Remaining
+  candidates, not yet shipped: a prelude for common integration imports, a
+  typed borrow-error enum, and generated-wrapper coverage for mutable harness
+  context plus scenario state. A first-party scenario-state helper
+  (`ScenarioStore<T>` in `rstest-bdd`, `GpuiScenarioStore` in
+  `rstest-bdd-harness-gpui`) and a cleanup-guard fixture macro were proposed
+  under [ADR-011](adr-011-first-party-scenario-state-and-cleanup.md) but were
   superseded by ADR-012 before implementation and never shipped.
 
 ##### 2.7.6.5 v0.7.0 pre-1.0.0 redesign
@@ -2828,13 +2832,13 @@ Syntactic classification must never turn a fallible step into a false green.
 The gauss v0.6.0-beta3 trial demonstrated the unsafe case: a local
 `TestSupportResult<()>` alias returned `Err`, the macro classified it as a
 value, and the scenario passed after boxing the error as an unused payload.
-Spelling `Result<(), E>` or using `StepResult` failed correctly, independent
-of whether the scenario function returned `()` or `Result<(), E>`. Because a
-named return type can also be a legitimate value alias, the macro cannot
-simply classify every unresolved path as a result. The stable contract must
-instead require or diagnose an explicit `result`/`value` choice where
-classification is unresolved, with regression coverage for both fallible and
-genuine-value aliases (ADR-002; roadmap 11.3.1).
+Spelling `Result<(), E>` or using `StepResult` failed correctly, independent of
+whether the scenario function returned `()` or `Result<(), E>`. Because a named
+return type can also be a legitimate value alias, the macro cannot simply
+classify every unresolved path as a result. The stable contract must instead
+require or diagnose an explicit `result`/`value` choice where classification is
+unresolved, with regression coverage for both fallible and genuine-value
+aliases (ADR-002; roadmap 11.3.1).
 
 The following diagrams illustrate how the wrapper captures step outputs and how
 later steps consume overrides from the context.
