@@ -196,7 +196,7 @@ Stop and escalate — do not improvise — when any of these is reached.
   `tokio_macro_expansions_match_snapshots` test confirms generated code is
   byte-identical.
 - [x] Milestone 2 — adopt `googletest` and `pretty_assertions`. Committed
-  (pending), 2026-08-17. Added to `[workspace.dependencies]` as caret
+  `2643e2a`, 2026-08-17. Added to `[workspace.dependencies]` as caret
   requirements, and as `dev-dependencies` of `rstest-bdd-macros` with
   `.workspace = true`. Confirmed `googletest` 0.14.3 has `rust-version =
   1.85.0` (matches workspace) and its optional `proptest` feature requires
@@ -206,7 +206,7 @@ Stop and escalate — do not improvise — when any of these is reached.
   gates green. The assertion vocabulary is recorded in
   `docs/developers-guide.md`.
 - [x] Milestone 3 — red: unit and property tests for `#[harness_context]`.
-  Committed (pending), 2026-08-17. Added `classify/harness_context/tests.rs`
+  Committed `2f583ed`, 2026-08-17. Added `classify/harness_context/tests.rs`
   (unit cases: marker binding, equivalence with `#[from(...)]` and with the
   parameter-named spelling, mutable reference, coexistence with placeholders
   and fixtures, key-parses-as-identifier, five conflict rejections, and the
@@ -216,7 +216,7 @@ Stop and escalate — do not improvise — when any of these is reached.
   (`reserved_fixture_key_parses_as_an_identifier`), all from assertion
   failures, not compile errors.
 - [x] Milestone 4 — green: implement the classifier and its guards. Committed
-  (pending), 2026-08-17. `classify_harness_context` strips the marker, rejects
+  `0d719e9`, 2026-08-17. `classify_harness_context` strips the marker, rejects
   the conflicting combinations through a table-driven validation helper, and
   synthesizes the fixture name from `rstest_bdd_policy::HARNESS_CONTEXT_FIXTURE`
   with the parameter span. Wired into `extract_args` before the placeholder
