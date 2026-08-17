@@ -1,7 +1,7 @@
 //! Tests for feature file indexing.
 
 use super::*;
-use crate::server::WorkspaceRoot;
+use crate::indexing::WorkspaceRoot;
 use tempfile::TempDir;
 
 fn index_file_in_workspace(

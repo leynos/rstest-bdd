@@ -6,11 +6,56 @@ use rstest_bdd_server::handlers::handle_did_save_text_document;
 use rstest_bdd_server::server::ServerState;
 use tempfile::TempDir;
 
-fn did_save_params(uri: Url, text: &str) -> DidSaveTextDocumentParams {
+fn did_save_params(uri: Url, text: Option<&str>) -> DidSaveTextDocumentParams {
     DidSaveTextDocumentParams {
         text_document: TextDocumentIdentifier { uri },
-        text: Some(text.to_owned()),
+        text: text.map(str::to_owned),
     }
+}
+
+/// Decode the content-length-framed messages emitted by the in-process LSP
+/// transport.
+fn decode_lsp_messages(mut bytes: &[u8]) -> Vec<serde_json::Value> {
+    const HEADER: &[u8] = b"Content-Length: ";
+    const HEADER_SEPARATOR: &[u8] = b"\r\n\r\n";
+
+    let mut messages = Vec::new();
+    while !bytes.is_empty() {
+        let Some(header) = bytes.strip_prefix(HEADER) else {
+            panic!("expected Content-Length header in LSP transport output");
+        };
+        let Some(header_end) = header
+            .windows(HEADER_SEPARATOR.len())
+            .position(|window| window == HEADER_SEPARATOR)
+        else {
+            panic!("expected complete LSP Content-Length header");
+        };
+        let Some(length_bytes) = header.get(..header_end) else {
+            panic!("header length must fit within transport output");
+        };
+        let Ok(length_text) = std::str::from_utf8(length_bytes) else {
+            panic!("Content-Length header must be valid UTF-8");
+        };
+        let Ok(length) = length_text.parse::<usize>() else {
+            panic!("Content-Length header must be numeric");
+        };
+        let body_start = header_end + HEADER_SEPARATOR.len();
+        let Some(body_and_remaining) = header.get(body_start..) else {
+            panic!("LSP header must be followed by a body");
+        };
+        let Some(body) = body_and_remaining.get(..length) else {
+            panic!("LSP body must match its Content-Length header");
+        };
+        let Some(remaining) = body_and_remaining.get(length..) else {
+            panic!("LSP body boundary must fit within transport output");
+        };
+        let Ok(message) = serde_json::from_slice(body) else {
+            panic!("LSP body must contain valid JSON-RPC");
+        };
+        messages.push(message);
+        bytes = remaining;
+    }
+    messages
 }
 
 #[test]
@@ -136,9 +181,10 @@ fn did_save_retains_valid_steps_after_recoverable_attribute_diagnostic() {
 }
 
 #[tokio::test]
-async fn did_save_publishes_and_clears_recoverable_index_diagnostics() {
+async fn did_save_clears_recoverable_index_diagnostics_after_success_and_parse_failure() {
     use async_lsp::MainLoop;
     use async_lsp::router::Router;
+    use lsp_types::PublishDiagnosticsParams;
     use tokio::io::AsyncReadExt;
     use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
@@ -168,17 +214,24 @@ async fn did_save_publishes_and_clears_recoverable_index_diagnostics() {
         "#[given(\"a valid step\")]\n",
         "fn valid_step() {}\n",
     );
+    let parse_failure_source = "fn incomplete(";
 
     let (mainloop, client) = MainLoop::new_server(|_client| Router::new(()));
     let mut state = ServerState::new(ServerConfig::default());
-    handle_did_save_text_document(&mut state, did_save_params(feature_uri, feature_source));
-    state.set_client(client);
-
     handle_did_save_text_document(
         &mut state,
-        did_save_params(rust_uri.clone(), malformed_source),
+        did_save_params(feature_uri, Some(feature_source)),
     );
-    handle_did_save_text_document(&mut state, did_save_params(rust_uri, corrected_source));
+    state.set_client(client);
+
+    std::fs::write(&rust_path, malformed_source).expect("write recoverable diagnostic source");
+    handle_did_save_text_document(&mut state, did_save_params(rust_uri.clone(), None));
+    std::fs::write(&rust_path, corrected_source).expect("write corrected source");
+    handle_did_save_text_document(&mut state, did_save_params(rust_uri.clone(), None));
+    std::fs::write(&rust_path, malformed_source).expect("rewrite recoverable diagnostic source");
+    handle_did_save_text_document(&mut state, did_save_params(rust_uri.clone(), None));
+    std::fs::write(&rust_path, parse_failure_source).expect("write parse failure source");
+    handle_did_save_text_document(&mut state, did_save_params(rust_uri.clone(), None));
 
     let (writer, mut reader) = tokio::io::duplex(64 * 1024);
     let _ = mainloop
@@ -190,16 +243,42 @@ async fn did_save_publishes_and_clears_recoverable_index_diagnostics() {
         reader.read_to_end(&mut captured).await.is_ok(),
         "read captured LSP notifications"
     );
-    let output = String::from_utf8(captured).expect("valid JSON-RPC output");
-    let recoverable_position = output
-        .find("multiple-step-attributes")
-        .expect("recoverable indexing diagnostic should be published");
-    let clearing_position = output
-        .get(recoverable_position..)
-        .and_then(|subsequent_output| subsequent_output.find("\"diagnostics\":[]"))
-        .expect("corrected source should clear stale indexing diagnostics");
-    assert!(
-        clearing_position > 0,
-        "the clearing publication must follow the recoverable diagnostic"
+    let rust_diagnostics: Vec<PublishDiagnosticsParams> = decode_lsp_messages(&captured)
+        .into_iter()
+        .filter(|message| {
+            message.get("method").and_then(serde_json::Value::as_str)
+                == Some("textDocument/publishDiagnostics")
+        })
+        .filter_map(|message| message.get("params").cloned())
+        .filter_map(|params| serde_json::from_value(params).ok())
+        .filter(|params: &PublishDiagnosticsParams| params.uri == rust_uri)
+        .collect();
+    let recoverable_positions: Vec<_> = rust_diagnostics
+        .iter()
+        .enumerate()
+        .filter_map(|(position, params)| {
+            params
+                .diagnostics
+                .iter()
+                .any(|diagnostic| {
+                    diagnostic.code.as_ref().is_some_and(|code| {
+                        matches!(code, lsp_types::NumberOrString::String(code) if code == "multiple-step-attributes")
+                    })
+                })
+                .then_some(position)
+        })
+        .collect();
+    assert_eq!(
+        recoverable_positions.len(),
+        2,
+        "both recoverable indexing saves should publish diagnostics"
     );
+    for recoverable_position in recoverable_positions {
+        assert!(
+            rust_diagnostics
+                .get(recoverable_position + 1)
+                .is_some_and(|params| params.diagnostics.is_empty()),
+            "the clearing publication must immediately follow the recoverable diagnostic"
+        );
+    }
 }

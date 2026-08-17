@@ -15,7 +15,7 @@ use crate::indexing::{
 use crate::server::ServerState;
 
 use super::diagnostics::{
-    publish_all_feature_diagnostics, publish_feature_diagnostics,
+    clear_rust_index_diagnostics, publish_all_feature_diagnostics, publish_feature_diagnostics,
     publish_rust_index_result_diagnostics,
 };
 use super::util::has_extension;
@@ -122,6 +122,7 @@ fn handle_rust_file_save(state: &mut ServerState, path: &std::path::Path, text: 
         }
         Err(err) => {
             record_indexing_outcome("rust", rust_indexing_outcome(&err));
+            clear_rust_index_diagnostics(state, path);
             warn!(path = %path.display(), error = %err, "failed to index rust step file");
         }
     }
@@ -149,6 +150,13 @@ mod tests {
     #[derive(Default)]
     struct IndexingRecorder {
         outcomes: Arc<Mutex<Vec<(String, String, u64)>>>,
+        counters: Arc<Mutex<Vec<RegisteredCounter>>>,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    struct RegisteredCounter {
+        name: String,
+        labels: Vec<(String, String)>,
     }
 
     struct RecordedCounter {
@@ -201,6 +209,14 @@ mod tests {
                 })
                 .unwrap_or_default()
         }
+
+        fn registered_counters(&self) -> Vec<RegisteredCounter> {
+            let counters = match self.counters.lock() {
+                Ok(counters) => counters,
+                Err(error) => error.into_inner(),
+            };
+            counters.clone()
+        }
     }
 
     impl Recorder for IndexingRecorder {
@@ -222,6 +238,20 @@ mod tests {
                 .labels()
                 .find(|label| label.key() == "outcome")
                 .map(|label| label.value().to_owned());
+            let mut labels: Vec<_> = key
+                .labels()
+                .map(|label| (label.key().to_owned(), label.value().to_owned()))
+                .collect();
+            labels.sort_unstable();
+            let mut counters = match self.counters.lock() {
+                Ok(counters) => counters,
+                Err(error) => error.into_inner(),
+            };
+            counters.push(RegisteredCounter {
+                name: key.name().to_owned(),
+                labels,
+            });
+            drop(counters);
             match (operation, outcome) {
                 (Some(operation), Some(outcome)) => Counter::from_arc(Arc::new(RecordedCounter {
                     outcomes: Arc::clone(&self.outcomes),
@@ -296,5 +326,13 @@ mod tests {
         assert_eq!(recorder.count("feature", "workspace-boundary-failure"), 1);
         assert_eq!(recorder.count("rust", "success"), 1);
         assert_eq!(recorder.count("rust", "recoverable-diagnostic"), 1);
+        let counters = recorder.registered_counters();
+        assert_eq!(counters.len(), 4);
+        for counter in counters {
+            assert_eq!(counter.name, INDEXING_COUNTER);
+            assert_eq!(counter.labels.len(), 2);
+            assert!(counter.labels.iter().any(|(key, _)| key == "operation"));
+            assert!(counter.labels.iter().any(|(key, _)| key == "outcome"));
+        }
     }
 }

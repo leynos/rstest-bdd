@@ -11,7 +11,7 @@ use super::{
     FeatureFileIndex, FeatureIndexError, IndexedDocstring, IndexedScenarioOutline, IndexedStep,
     IndexedTable,
 };
-use crate::server::WorkspaceRoot;
+use crate::indexing::WorkspaceRoot;
 
 mod docstring;
 mod outline;

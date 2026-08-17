@@ -40,6 +40,20 @@ pub(crate) fn publish_rust_index_result_diagnostics(
     );
 }
 
+/// Clear all Rust-file diagnostics after a fatal indexing failure.
+///
+/// The retained index may still yield unused-step or signature diagnostics, so
+/// this deliberately bypasses index-derived computation and publishes an empty
+/// vector for the affected document.
+pub(crate) fn clear_rust_index_diagnostics(state: &ServerState, rust_path: &Path) {
+    publish_with(
+        state,
+        rust_path,
+        "failed to clear rust diagnostics",
+        |_, _| Some(Vec::new()),
+    );
+}
+
 /// Convert a recoverable Rust indexing failure into an LSP warning.
 ///
 /// Indexing diagnostics identify the affected function but do not retain a
@@ -62,5 +76,39 @@ pub(super) fn build_rust_index_diagnostic(diagnostic: &RustStepIndexDiagnostic) 
         related_information: None,
         tags: None,
         data: None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! Tests for recoverable Rust-index diagnostic conversion.
+
+    use lsp_types::{DiagnosticSeverity, NumberOrString, Position, Range};
+
+    use super::*;
+
+    #[test]
+    fn maps_invalid_step_attribute_arguments_to_a_warning() {
+        let diagnostic =
+            build_rust_index_diagnostic(&RustStepIndexDiagnostic::InvalidStepAttributeArguments {
+                function: "invalid_step".to_owned(),
+                attribute: "given",
+                message: "expected string literal".to_owned(),
+            });
+
+        assert_eq!(
+            diagnostic.code,
+            Some(NumberOrString::String(
+                "invalid-step-attribute-arguments".to_owned()
+            ))
+        );
+        assert_eq!(diagnostic.severity, Some(DiagnosticSeverity::WARNING));
+        assert_eq!(diagnostic.source.as_deref(), Some(DIAGNOSTIC_SOURCE));
+        assert_eq!(
+            diagnostic.range,
+            Range::new(Position::default(), Position::default())
+        );
+        assert!(diagnostic.message.contains("invalid_step"));
+        assert!(diagnostic.message.contains("expected string literal"));
     }
 }
