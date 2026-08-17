@@ -10,9 +10,9 @@ use std::collections::HashSet;
 
 use super::{Arg, ExtractedArgs, normalize_param_name};
 
+mod harness_context;
 mod step_struct;
 mod type_shape;
-mod harness_context;
 
 pub(super) use fixture_or_step::classify_fixture_or_step;
 pub(crate) use harness_context::classify_harness_context;

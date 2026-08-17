@@ -6,8 +6,8 @@
 //! every request spelling classifies the parameter as an `Arg::Fixture` named
 //! `rstest_bdd_harness_context`, consuming no placeholder.
 
-use super::super::super::extract_args;
 use super::super::super::Arg;
+use super::super::super::extract_args;
 use googletest::prelude::*;
 use proptest::prelude::*;
 use std::collections::HashSet;
@@ -32,9 +32,14 @@ fn param_ident() -> impl Strategy<Value = String> {
             base.extend(tail);
             base
         })
-        .prop_filter("must parse as a non-keyword, non-reserved identifier", |name| {
-            syn::parse_str::<syn::Ident>(name).is_ok() && name != "datatable" && name != "docstring"
-        })
+        .prop_filter(
+            "must parse as a non-keyword, non-reserved identifier",
+            |name| {
+                syn::parse_str::<syn::Ident>(name).is_ok()
+                    && name != "datatable"
+                    && name != "docstring"
+            },
+        )
 }
 
 /// The three request spellings a step may use for the harness context.
@@ -60,9 +65,7 @@ impl Spelling {
             Self::From => {
                 format!("fn s(#[from(rstest_bdd_harness_context)] {param}: &C) {{}}")
             }
-            Self::ReservedName => {
-                format!("fn s(rstest_bdd_harness_context: &C) {{}}")
-            }
+            Self::ReservedName => "fn s(rstest_bdd_harness_context: &C) {}".to_string(),
         }
     }
 }

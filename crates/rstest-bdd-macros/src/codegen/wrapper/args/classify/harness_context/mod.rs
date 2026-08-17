@@ -8,12 +8,62 @@
 
 use std::collections::HashSet;
 
-use super::{Arg, ExtractedArgs};
+use super::{Arg, ExtractedArgs, extract_flag_attribute};
 
 #[cfg(test)]
 mod prop_tests;
 #[cfg(test)]
 mod tests;
+
+/// Diagnostic for `#[harness_context]` combined with `#[from]`.
+pub(super) const HARNESS_CONTEXT_WITH_FROM_ERROR: &str =
+    "`#[harness_context]` cannot be combined with `#[from]`";
+
+/// Diagnostic for `#[harness_context]` combined with `#[datatable]`.
+pub(super) const HARNESS_CONTEXT_WITH_DATATABLE_ERROR: &str =
+    "`#[harness_context]` cannot be combined with `#[datatable]`";
+
+/// Diagnostic for `#[harness_context]` combined with `#[step_args]`.
+///
+/// Shared with the `#[step_args]` cross-guard in `classify::step_struct`, so
+/// users see one story regardless of attribute order.
+pub(super) const HARNESS_CONTEXT_WITH_STEP_ARGS_ERROR: &str =
+    "`#[harness_context]` cannot be combined with `#[step_args]`";
+
+/// Reject every combination that would otherwise let the marker leak into
+/// generated code.
+///
+/// The three attribute pairs are checked from a table; the placeholder check
+/// is a single predicate, keeping this helper within the branch limits the
+/// Whitaker suite enforces.
+///
+/// # Errors
+///
+/// Returns an error spanned over `arg` when the parameter also carries
+/// `#[from]`, `#[datatable]`, or `#[step_args]`, or when the parameter's name
+/// is bound to a step-pattern placeholder.
+fn validate_harness_context_marker(
+    arg: &syn::PatType,
+    pat: &syn::Ident,
+    placeholders: &HashSet<String>,
+) -> syn::Result<()> {
+    for (attr_name, message) in [
+        ("from", HARNESS_CONTEXT_WITH_FROM_ERROR),
+        ("datatable", HARNESS_CONTEXT_WITH_DATATABLE_ERROR),
+        ("step_args", HARNESS_CONTEXT_WITH_STEP_ARGS_ERROR),
+    ] {
+        if arg.attrs.iter().any(|a| a.path().is_ident(attr_name)) {
+            return Err(syn::Error::new_spanned(arg, message));
+        }
+    }
+    if placeholders.contains(&pat.to_string()) {
+        return Err(syn::Error::new_spanned(
+            arg,
+            format!("`#[harness_context]` cannot bind step-argument placeholder `{pat}`"),
+        ));
+    }
+    Ok(())
+}
 
 /// Classify `arg` as the harness-context fixture, if the marker is present.
 ///
@@ -28,6 +78,21 @@ pub(crate) fn classify_harness_context(
     ty: &syn::Type,
     placeholders: &HashSet<String>,
 ) -> syn::Result<bool> {
-    let _ = (st, arg, pat, ty, placeholders);
-    Ok(false)
+    let via_marker = extract_flag_attribute(arg, "harness_context")?;
+    if !via_marker {
+        return Ok(false);
+    }
+
+    validate_harness_context_marker(arg, pat, placeholders)?;
+
+    // `HARNESS_CONTEXT_FIXTURE` is a compile-time constant that is a valid Rust
+    // identifier; `classify::harness_context::tests` pins that invariant, so
+    // `Ident::new` cannot panic here.
+    let name = syn::Ident::new(rstest_bdd_policy::HARNESS_CONTEXT_FIXTURE, pat.span());
+    st.push(Arg::Fixture {
+        pat: pat.clone(),
+        name,
+        ty: ty.clone(),
+    });
+    Ok(true)
 }
