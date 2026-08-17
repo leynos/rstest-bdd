@@ -1795,6 +1795,7 @@ dependencies = [
  "rustc_version",
  "serial_test 2.0.0",
  "syn 2.0.119",
+ "temp-env",
  "tempfile",
  "thiserror 2.0.20",
  "walkdir",

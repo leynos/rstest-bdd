@@ -124,6 +124,10 @@ fn build_dep_info_outcome() -> DepInfoOutcome {
     // canonical entry Cargo's fingerprinting consults. This pins the
     // one-binding-per-file property from Decision D0: rustc deduplicates
     // the list, so a future per-scenario binding must still be listed once.
+    // (rustc emits the rule as a single line; if a future rustc ever wrapped
+    // long dependency lists, the needle could land on a continuation line and
+    // read 0 — CodeRabbit's one residual hypothetical — worth a comment, not
+    // a workaround.)
     let primary_rule = dep_content.lines().next().unwrap_or_default();
     let expected = fixtures::normalize_dep_path(&fixtures::scratch_feature_file());
     let entry_count = primary_rule.split(&expected).count().saturating_sub(1);

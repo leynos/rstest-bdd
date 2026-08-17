@@ -341,8 +341,17 @@ is ticked so rates of progress and tolerance breaches are visible.
       proves a `tags =`-filtered-out file is still tracked. All three
       regression tests green; the four-crate suite (1190 tests incl. trybuild
       and the harness macro_compile binaries) stays green.
-- [ ] Milestone 4: trybuild fixtures, including the dep-info assertion and the
-      D4 diagnostic fixture.
+- [x] (2026-08-17) Milestone 4: trybuild fixtures, including the dep-info
+      assertion and the D4 diagnostic fixture. Compile-pass
+      `scenario_feature_tracking` (two `#[scenario]` bindings of one file plus
+      a `scenarios!` dir, no `const` collision); D4 compile-fail
+      `scenario_unrelatable_path` registered `#[cfg(windows)]` (the residue is
+      genuinely unreachable on POSIX; the diagnostic wording is pinned
+      platform-independently by unit tests); a recursive dep-info scan over
+      the trybuild tree proves a staged `.feature` lands in a fixture's
+      `.d`; `scenario_missing_file.stderr` confirmed byte-identical; the
+      redundant handwritten `include_str!("basic.feature")` removed from
+      `scenario_harness_params`.
 - [ ] Milestone 5: the redacted `insta` snapshot with semantic assertions.
 - [ ] Milestone 6: make the embedded feature-path constant manifest-relative.
 - [ ] Milestone 7: the tested `build.rs` recipe — documentation-example
