@@ -258,7 +258,7 @@ Stop and escalate — do not improvise — when any of these is reached.
   `#[from(rstest_bdd_harness_context)]` remains under `examples/`.
   `cargo test -p gpui-counter` green (6 unit + 2 scenario + 3 doctest). The
   crate-level tests keep the legacy spelling as back-compatibility evidence.
-- [x] Milestone 8 — documentation. Committed 2026-08-17.
+- [x] Milestone 8 — documentation. Committed `e3798a5`, 2026-08-17.
   `docs/users-guide.md` (harness-context marker as primary form,
   three-spelling table, marker constraints, cross-reference from
   "Supported `#[from]` forms"), `docs/developers-guide.md`
