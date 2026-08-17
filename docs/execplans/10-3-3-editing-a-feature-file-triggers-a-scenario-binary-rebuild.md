@@ -335,7 +335,12 @@ is ticked so rates of progress and tolerance breaches are visible.
       tests pass, the macros crate's table/property/ordering coverage is in,
       and the full `rstest-bdd` + `rstest-bdd-macros` suites plus trybuild
       stay green under tracking.
-- [ ] Milestone 3: green — emit the tracking items from `scenarios!`.
+- [x] (2026-08-17) Milestone 3: green — emit the tracking items from
+      `scenarios!`. One item per discovered file, emitted before the generated
+      module; the new `scenarios_directory_filtered_file_is_tracked` test
+      proves a `tags =`-filtered-out file is still tracked. All three
+      regression tests green; the four-crate suite (1190 tests incl. trybuild
+      and the harness macro_compile binaries) stays green.
 - [ ] Milestone 4: trybuild fixtures, including the dep-info assertion and the
       D4 diagnostic fixture.
 - [ ] Milestone 5: the redacted `insta` snapshot with semantic assertions.
@@ -841,6 +846,22 @@ implementation.
   API is used outside of a procedural macro" (`proc_macro::TokenStream`
   cannot be constructed outside the bridge), so the ordering is asserted
   where it can actually run.
+  Date/Author: 2026-08-17, implementing agent.
+
+- **Decision M3 (recorded 2026-08-17): the `scenarios!` filtered-file
+  regression case lives as a third, plain `#[test]` (not scenario-bound) in
+  the regression test binary, and the fixture gains a `scenarios!`
+  invocation over a two-file directory.**
+  The behavioural spec in `tests/features/rebuild_invalidation.feature` keeps
+  exactly its two scenarios (per Milestone 1c), so the M3 case — a directory
+  with a `tags =` filter that excludes every scenario in one file while
+  another file still matches — is asserted by `scenarios_directory_filtered_file_is_tracked`,
+  which reuses the same once-per-process dep-info build and checks the
+  filtered file's presence in the `#[...]` primary rule. The fixture's
+  `tests/features/scenarios_dir/` holds `match.feature` (`@wanted`, generates
+  a test) and `no_match.feature` (`@excluded`, generates nothing but must
+  still be tracked); the duplication is deliberate so `scenarios!` cannot
+  error with "no scenarios matched" while the file is still parsed.
   Date/Author: 2026-08-17, implementing agent.
 
 ## Context and orientation

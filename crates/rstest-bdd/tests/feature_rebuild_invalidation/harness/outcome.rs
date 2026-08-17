@@ -10,8 +10,13 @@
 /// compiled with `--no-run`, its dependency-test binary is located through
 /// `--message-format=json`, and its rustc dep-info is read.
 pub(crate) struct DepInfoOutcome {
-    /// Number of times the feature file appears in the test binary's `.d`.
+    /// Number of times the `#[scenario]`-bound feature file appears in the
+    /// test binary's `.d` primary rule.
     pub(crate) dep_info_entry_count: usize,
+    /// Whether the `scenarios!` directory's *filtered-out* feature file
+    /// (`no_match.feature`, excluded by a `tags =` filter) is listed in the
+    /// same primary rule — a parsed-but-unmatched file must still be tracked.
+    pub(crate) scenarios_no_match_tracked: bool,
     /// The `.d` content, for failure reporting.
     pub(crate) dep_info_sample: String,
     /// The resolved child environment, for failure reporting.
