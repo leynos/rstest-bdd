@@ -1668,6 +1668,7 @@ dependencies = [
  "rstest-bdd-policy",
  "serial_test 2.0.0",
  "syn 2.0.117",
+ "temp-env",
  "tempfile",
  "thiserror 2.0.18",
  "walkdir",

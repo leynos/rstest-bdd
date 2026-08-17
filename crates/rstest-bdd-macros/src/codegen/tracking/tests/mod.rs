@@ -214,6 +214,57 @@ fn empty_path_is_untrackable() {
     assert!(matches!(result, Err(Untrackable::Empty)));
 }
 
+// ---------------------------------------------------------------------------
+// D4 diagnostic wording (platform-independent pinning; the Windows-only
+// trybuild fixture in `scenario_unrelatable_path.rs` pins it end-to-end).
+// ---------------------------------------------------------------------------
+
+#[test]
+fn untrackable_root_diagnostic_names_path_and_remedy() {
+    temp_env::with_var("CARGO_MANIFEST_DIR", Some("C:/repo"), || {
+        let tokens = super::untrackable_error(
+            Untrackable::UnrelatableRoot(std::path::PathBuf::from(r"D:\repo\x.feature")),
+            proc_macro2::Span::call_site(),
+        );
+        let text = tokens.to_string();
+        assert!(
+            text.contains("shares no filesystem root"),
+            "unrelatable-root diagnostic must explain the failure:\n{text}"
+        );
+        assert!(
+            text.contains(r"D:\\repo\\x.feature"),
+            "unrelatable-root diagnostic must name the path:\n{text}"
+        );
+        assert!(
+            text.contains("manifest-relative path"),
+            "unrelatable-root diagnostic must offer the remedy:\n{text}"
+        );
+    });
+}
+
+#[test]
+fn non_utf8_diagnostic_names_the_path() {
+    let tokens = super::untrackable_error(
+        Untrackable::NonUtf8(std::path::PathBuf::from("bad=\u{FF}")),
+        proc_macro2::Span::call_site(),
+    );
+    let text = tokens.to_string();
+    assert!(
+        text.contains("not valid UTF-8"),
+        "non-UTF-8 diagnostic must explain the failure:\n{text}"
+    );
+}
+
+#[test]
+fn empty_diagnostic_explains_itself() {
+    let tokens = super::untrackable_error(Untrackable::Empty, proc_macro2::Span::call_site());
+    let text = tokens.to_string();
+    assert!(
+        text.contains("feature file path is empty"),
+        "empty-path diagnostic must explain the failure:\n{text}"
+    );
+}
+
 /// POSIX single-root semantics: any two absolute paths relate, so the
 /// `../`-offset computation always succeeds on POSIX; a "different root" is a
 /// Windows drive/UNC concept (pinned by `different_drives_are_unrelatable`).
