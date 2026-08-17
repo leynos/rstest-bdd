@@ -268,8 +268,14 @@ Stop and escalate — do not improvise — when any of these is reached.
   `docs/adr-007-harness-context-injection.md` (dated addendum). `docs/`
   tree passes `markdownlint` and `make nixie`; full-tree `make
   markdownlint` fails only on the gitignored `.vtcode/` runtime
-  artifacts.
-- [ ] Milestone 9 — roadmap tick, full gates, and pull request.
+  artefacts.
+- [x] Milestone 9 — roadmap tick, full gates, and pull request. Committed
+  `ca7b73e`, 2026-08-17. `docs/roadmap.md` 11.2.1 ticked `[x]` with a
+  completion note; this plan set `Status: COMPLETE` and filled in `Outcomes &
+  retrospective`. Full gate set green on the final tree: `make check-fmt`,
+  `make lint` (clippy `-D warnings`, `cargo doc`, Whitaker, ruff, pylint, and
+  all four structural checks), and `make test` (nextest 1728 passed / 7
+  skipped, doc tests clean, python 69 passed).
 
 ## Surprises & discoveries
 
