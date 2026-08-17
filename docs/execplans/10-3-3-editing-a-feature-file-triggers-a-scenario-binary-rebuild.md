@@ -4,8 +4,9 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
 and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: IN PROGRESS — Milestone 0 (dependency adoption and toolchain
-verification) is nearly complete; implementation has begun.
+Status: COMPLETE — all eight milestones implemented, gated and
+CodeRabbit-reviewed; the roadmap item is ticked and the branch is
+pushed for review.
 
 Roadmap item: 10.3.3 (`docs/roadmap.md`, phase 10.3 "v0.6.0 final
 requirements").
@@ -2126,12 +2127,42 @@ its tests grow past it, move the tests into a sibling `tracking/tests/mod.rs`.
 
 ## Outcomes & retrospective
 
-To be completed at milestone boundaries and at completion. Compare against
-*Purpose*: can a user edit only a `.feature` file, run `cargo test`, and see a
-rebuild and a fresh failure? Record the CI-measured nextest wall clock, the
-synthetic-suite compile-time delta, whether both Windows legs passed first
-time, whether the `.expanded.rs` gate turned out to be live or dead, and
-whether the residual `scenarios!` addition gap caused confusion in review.
+**Delivered.** A user can now edit only a `.feature` file, run `cargo test`,
+and watch the scenario binary recompile and fail against the new text — the
+acceptance transcript at the top of this plan reproduces verbatim, and the
+edit-and-rebuild regression scenario enforces it on every run.
+
+**Observations, measured on this host (24-core, 2026-08-17).** The full
+workspace `make test` nextest run is ~52–66 s (1726 tests) with the three
+new nested-cargo tests contributing ~1–5 s each warm; the `cargo-spawning`
+group's worst-case arithmetic is 2880 s under a 50 m ceiling. The
+compile-time cost of the bindings was not re-measured beyond the plan's
+transcript E — the suite shapes match (per-file bindings, modest file
+sizes), and the plan's tolerance is over pathological suites only. The
+`.expanded.rs` macrotest gate is **dead**: only live when
+`RSTEST_BDD_RUN_MACROTEST` *and* `cargo expand` are present, neither of
+which CI installs or sets; the snapshots are curated excerpts already out
+of step with real expansion (see Decision M2b). The residual
+`scenarios!` addition gap caused no review confusion because Decision D2
+closes it with the tested recipe; the only surprise reviewer feedback was
+the Windows-only dep-info normalization gap, fixed in M8.
+
+**Windows legs.** Not verifiable locally; the D4 compile-fail fixture and
+the dep-info assertion are authored with Windows normals and case-folding
+and are exercised by the two Windows CI legs. The only known residual is
+the `#[cfg(windows)]`-gated unrelatable-root fixture's `.stderr`, which
+the Windows legs will pin or correct on first run.
+
+**Lessons.** (1) Cargo's `rerun-if-changed` treats a *missing* watch path
+as perpetually dirty — a recipe corruption to a non-existent path survives
+the behavioural test, so the exact line is pinned at extraction. (2)
+`str::split_once` and proc-macro2 literal printing each drop/echo data in
+subtle ways (delimiters, raw continuation indentation) — both pinned by
+focused tests. (3) The proc-macro bridge forbids unit-testing full macro
+expansions; assertions are assembled from the two TokenStream2 producers.
+(4) `cargo update --precise` after a minimal-lock union converged in two
+rounds, keeping the second fixture byte-identical to the first at the
+compiled-unit level.
 
 ## Revision notes
 
