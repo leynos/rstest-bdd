@@ -11,6 +11,10 @@ use lsp_types::{DidSaveTextDocumentParams, TextDocumentIdentifier, Url};
 use std::path::Path;
 use tempfile::TempDir;
 
+use camino::Utf8Path;
+use cap_std::ambient_authority;
+use cap_std::fs_utf8::Dir;
+
 use crate::config::ServerConfig;
 use crate::discovery::WorkspaceInfo;
 use crate::handlers::handle_did_save_text_document;
@@ -100,6 +104,29 @@ pub fn index_file(state: &mut ServerState, path: &Path) {
         text: None,
     };
     handle_did_save_text_document(state, params);
+}
+
+/// Write a file through a capability rooted at a temporary test workspace.
+///
+/// Returns the absolute path used by LSP test requests after the
+/// capability-scoped write succeeds.
+#[must_use]
+pub fn write_workspace_file(dir: &TempDir, filename: &str, content: &str) -> std::path::PathBuf {
+    let Some(workspace_root) = Utf8Path::from_path(dir.path()) else {
+        panic!(
+            "temporary workspace path is not valid UTF-8: {}",
+            dir.path().display()
+        );
+    };
+    let directory = match Dir::open_ambient_dir(workspace_root, ambient_authority()) {
+        Ok(directory) => directory,
+        Err(error) => panic!("open temporary workspace capability: {error}"),
+    };
+    let relative_path = Utf8Path::new(filename);
+    if let Err(error) = directory.write(relative_path, content) {
+        panic!("write workspace file {filename}: {error}");
+    }
+    dir.path().join(relative_path)
 }
 
 /// Configure a root capability for tests that construct their own state.
@@ -204,8 +231,8 @@ impl ScenarioBuilder {
     #[must_use]
     pub fn build(mut self) -> TestScenario {
         // Write and index feature files first, then Rust files.
-        Self::stage_files(&mut self.state, &self.dir, &self.feature_files, "feature");
-        Self::stage_files(&mut self.state, &self.dir, &self.rust_files, "rust");
+        Self::stage_files(&mut self.state, &self.dir, &self.feature_files);
+        Self::stage_files(&mut self.state, &self.dir, &self.rust_files);
         TestScenario {
             dir: self.dir,
             state: self.state,
@@ -217,12 +244,9 @@ impl ScenarioBuilder {
     /// # Panics
     ///
     /// Panics if any file cannot be written.
-    fn stage_files(state: &mut ServerState, dir: &TempDir, files: &[(String, String)], kind: &str) {
+    fn stage_files(state: &mut ServerState, dir: &TempDir, files: &[(String, String)]) {
         for (filename, content) in files {
-            let path = dir.path().join(filename);
-            if let Err(err) = std::fs::write(&path, content) {
-                panic!("write {kind} file {}: {err}", path.display());
-            }
+            let path = write_workspace_file(dir, filename, content);
             index_file(state, &path);
         }
     }

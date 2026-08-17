@@ -400,8 +400,8 @@ Without a hint, an unresolved alias is **not** assumed to be `Result`-like: it
 is classified as a value, so an `Err` is stored as a payload and the step
 passes. Always give an unresolved alias explicit handling: if the alias is
 fallible, spell out `Result<..>` or `rstest_bdd::StepResult<..>`, or add the
-`result` hint. Reserve the `value` hint for an alias that deliberately
-returns a payload — applying it to a real `Result` suppresses its `Err`.
+`result` hint. Reserve the `value` hint for an alias that deliberately returns
+a payload — applying it to a real `Result` suppresses its `Err`.
 
 Use `#[when("...", value)]` (or `#[when(value)]` when using the inferred
 pattern) to force treating the return value as a payload even when it is
@@ -2841,7 +2841,12 @@ The language server provides the following capabilities:
   no arguments), the parameter list, and whether the step expects a data table
   or doc string. The `RustStepIndexResult` API owns the file index and any
   recoverable per-function diagnostics. Invalid functions are reported without
-  discarding valid neighbouring step definitions.
+  discarding valid neighbouring step definitions. Both Rust indexing entry
+  points return this result after a successful read and whole-source parse;
+  file-read and parse failures remain `RustStepIndexError` values. Disk-backed
+  feature saves read through the validated workspace root using a root-relative
+  path, while saves that supply source text use `index_feature_source` without
+  rereading the file from disk.
 - **Step pattern registry (on save)**: Compiles the indexed step patterns with
   `rstest-bdd-patterns` and caches compiled regex matchers in a keyword-keyed
   in-memory registry. The registry is updated incrementally per file save, so

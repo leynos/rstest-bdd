@@ -58,16 +58,17 @@ pub(super) fn compute_rust_file_diagnostics(
     diagnostics
 }
 
-/// Lift [`compute_rust_file_diagnostics`] into the shape `publish_with`
-/// expects.
+/// Lift [`compute_rust_file_diagnostics`] into the shape `prepare_publish`
+/// expects for payload tests.
 ///
 /// Rust files always publish — an empty vector clears stale diagnostics — so
 /// this never yields `None`.
+#[cfg(test)]
 #[expect(
     clippy::unnecessary_wraps,
     reason = "matches the compute contract, where None skips publishing entirely"
 )]
-fn compute_rust_file_diagnostics_opt(
+fn compute_rust_file_diagnostics_without_indexing_errors(
     state: &ServerState,
     rust_path: &Path,
 ) -> Option<Vec<Diagnostic>> {
@@ -155,23 +156,6 @@ pub fn publish_all_feature_diagnostics(state: &ServerState) {
     }
 }
 
-/// Publish diagnostics for Rust step definition files.
-///
-/// Computes diagnostics for:
-/// - Unused step definitions
-/// - Placeholder count mismatches
-///
-/// Publishes them via the client socket. Publishes an empty array if no issues
-/// are found, clearing any previous diagnostics.
-pub fn publish_rust_diagnostics(state: &ServerState, rust_path: &Path) {
-    publish_with(
-        state,
-        rust_path,
-        "failed to publish rust diagnostics",
-        compute_rust_file_diagnostics_opt,
-    );
-}
-
 #[cfg(test)]
 mod tests {
     //! Snapshot and property tests for diagnostic publication payloads.
@@ -248,7 +232,7 @@ mod tests {
     )]
     #[case::rust(
         rust_file as SelectPath,
-        compute_rust_file_diagnostics_opt as ComputeDiagnostics,
+        compute_rust_file_diagnostics_without_indexing_errors as ComputeDiagnostics,
         "rust_publish_params"
     )]
     fn publish_payload_is_pinned(

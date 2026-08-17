@@ -11,6 +11,7 @@ use rstest_bdd_server::config::ServerConfig;
 use rstest_bdd_server::discovery::WorkspaceInfo;
 use rstest_bdd_server::handlers::{handle_definition, handle_did_save_text_document};
 use rstest_bdd_server::server::ServerState;
+use rstest_bdd_server::test_support::write_workspace_file;
 use tempfile::TempDir;
 
 /// Helper to create `GotoDefinitionParams` for a given URI and position.
@@ -94,18 +95,12 @@ impl DefinitionTestScenario {
     fn build(mut self) -> (TempDir, std::path::PathBuf, ServerState) {
         // Create and index feature files
         for (filename, content) in &self.feature_files {
-            let path = self.dir.path().join(filename);
-            if let Err(error) = std::fs::write(&path, content) {
-                panic!("write feature file {}: {error}", path.display());
-            }
+            let path = write_workspace_file(&self.dir, filename, content);
             index_file(&mut self.state, &path);
         }
 
         // Create and index Rust file
-        let rust_path = self.dir.path().join("steps.rs");
-        if let Err(error) = std::fs::write(&rust_path, &self.rust_file_content) {
-            panic!("write Rust file {}: {error}", rust_path.display());
-        }
+        let rust_path = write_workspace_file(&self.dir, "steps.rs", &self.rust_file_content);
         index_file(&mut self.state, &rust_path);
 
         (self.dir, rust_path, self.state)

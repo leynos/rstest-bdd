@@ -359,8 +359,8 @@ cases in `crates/rstest-bdd-server/tests/diagnostics_basic.rs`,
    - `!param.is_datatable && !param.is_docstring`
    - `param.name` (normalized) appears in `placeholder_names`
 
-5. Wire the new diagnostic computation into `publish_rust_diagnostics()` in
-   `handlers/diagnostics/publish.rs`.
+5. Wire the new diagnostic computation into the Rust save-pipeline publisher
+   in `handlers/diagnostics/rust_index.rs`.
 
 6. Add unit tests in `handlers/diagnostics.rs` (or a new submodule) covering:
    - Correct signature (no diagnostic)

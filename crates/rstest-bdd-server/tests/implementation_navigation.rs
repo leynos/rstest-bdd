@@ -12,6 +12,7 @@ use rstest_bdd_server::config::ServerConfig;
 use rstest_bdd_server::discovery::WorkspaceInfo;
 use rstest_bdd_server::handlers::{handle_did_save_text_document, handle_implementation};
 use rstest_bdd_server::server::ServerState;
+use rstest_bdd_server::test_support::write_workspace_file;
 use tempfile::TempDir;
 
 fn make_params(uri: Url, line: u32, character: u32) -> GotoImplementationParams {
@@ -78,19 +79,13 @@ impl ImplementationTestScenario {
 
     fn build(mut self) -> (TempDir, std::path::PathBuf, ServerState) {
         for (filename, content) in &self.rust_files {
-            let path = self.dir.path().join(filename);
-            if let Err(error) = std::fs::write(&path, content) {
-                panic!("write Rust file {}: {error}", path.display());
-            }
+            let path = write_workspace_file(&self.dir, filename, content);
             index_file(&mut self.state, &path);
         }
         let Some((filename, content)) = self.feature_file else {
             panic!("implementation scenario requires a feature file");
         };
-        let feature_path = self.dir.path().join(filename);
-        if let Err(error) = std::fs::write(&feature_path, &content) {
-            panic!("write feature file {}: {error}", feature_path.display());
-        }
+        let feature_path = write_workspace_file(&self.dir, &filename, &content);
         index_file(&mut self.state, &feature_path);
         (self.dir, feature_path, self.state)
     }
