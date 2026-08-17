@@ -225,3 +225,36 @@ Associated context keeps the contract explicit and local, avoids global state,
 and preserves ADR-005's crate boundary strategy. It provides a minimal core API
 that can host multiple framework integrations without hard-coding framework
 semantics into the runtime or macro crates.
+
+## Addendum (2026-08-17): `#[harness_context]` marker and shared key definition
+
+The reserved fixture key gained a readable marker spelling, delivered under
+roadmap 11.2.1. A step may now request the harness context with
+`#[harness_context] ctx: &T` instead of spelling `rstest_bdd_harness_context`
+by hand:
+
+```rust,no_run
+#[when("the app spawns one entity")]
+fn app_spawns_one_entity(#[harness_context] world: &mut bevy::ecs::world::World) {
+    world.spawn_empty();
+}
+```
+
+The key itself is unchanged and remains the wire format between generated
+scenario code and generated step wrappers. `#[harness_context]` desugars to a
+fixture bound under the same reserved key, so the two spellings produce
+byte-identical generated wrapper code and can coexist. The legacy
+`#[from(rstest_bdd_harness_context)]` form is retained without deprecation; it
+is the standing back-compatibility evidence that the old contract still works.
+
+The canonical definition moved to `rstest-bdd-policy` as
+`HARNESS_CONTEXT_FIXTURE` to break the proc-macro dependency cycle: the macro
+crate must synthesize the key when expanding `#[harness_context]`, and it may
+not depend on the runtime crate. `rstest-bdd` re-exports the constant as the
+pre-existing `RSTEST_BDD_HARNESS_CONTEXT_FIXTURE`, so no public item changed
+name, type, or value.
+
+The marker takes no arguments, may appear once per parameter, and cannot be
+combined with `#[from]`, `#[datatable]`, or `#[step_args]`; those combinations
+produce targeted compile-time diagnostics rather than a bare
+`cannot find attribute` error.

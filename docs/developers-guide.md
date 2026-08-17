@@ -1093,6 +1093,36 @@ module only.
 output. These tools came in with the `#[harness_context]` classifier work
 (roadmap 11.2.1); the fixtures there demonstrate the convention.
 
+
+### The `#[harness_context]` classifier stage
+
+The `#[harness_context]` marker (roadmap 11.2.1) requests the reserved harness
+context fixture inside a step. `classify_harness_context()` runs first in the
+per-parameter pipeline, before the placeholder short-circuit in `extract_args`,
+for a specific reason: a parameter carrying the marker must bind the reserved
+fixture key even if its name happens to match a step-pattern placeholder.
+Running the classifier after the placeholder test would let the marker leak
+into generated code as an unresolved attribute.
+
+The classifier strips the marker, rejects combinations with `#[from]`,
+`#[datatable]`, or `#[step_args]` (the `#[step_args]` guard lives in
+`classify/step_struct.rs`), and synthesizes the fixture name from the shared
+constant `rstest_bdd_policy::HARNESS_CONTEXT_FIXTURE` with the user's parameter
+span preserved. The macro crate cannot import that constant from `rstest-bdd`
+because the macro crate may not depend on the runtime crate (proc-macro
+dependency cycle); `rstest-bdd-policy` exists to hold such cross-cutting
+definitions for both sides. The runtime crate re-exports it as
+`rstest_bdd::RSTEST_BDD_HARNESS_CONTEXT_FIXTURE`.
+
+All three spellings — the `#[harness_context]` marker, the parameter named
+`rstest_bdd_harness_context`, and `#[from(rstest_bdd_harness_context)]` — must
+emerge from classification as the same `Arg::Fixture` under
+`HARNESS_CONTEXT_FIXTURE`, so they generate byte-identical wrapper code. Both
+the classifier unit tests and the wrapper equivalence tests in
+`codegen/wrapper/equivalence_tests.rs` pin that identity, and an `insta`
+snapshot trips if the emitted shape drifts.
+
+
 ## Shared policy crate (`rstest-bdd-policy`)
 
 The workspace owns policy type definitions in `rstest-bdd-policy`.[^1] That

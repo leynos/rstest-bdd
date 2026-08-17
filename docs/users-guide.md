@@ -177,6 +177,11 @@ Explicit `#[from(...)]` names remain exact and bypass this normalization, so
 
 #### Supported `#[from]` forms
 
+For the harness context specifically, prefer the `#[harness_context]` marker
+described under "Harness adapter and attribute policy" — it names intent rather
+than the internal fixture key. `#[from(rstest_bdd_harness_context)]` remains
+supported.
+
 `#[from]` selects which fixture key a parameter binds to. It accepts either no
 arguments or exactly one identifier in parentheses:
 
@@ -1063,33 +1068,43 @@ scenario did not run through a context-providing harness, the missing-fixture
 error reports `rstest_bdd_harness_context`, the requested context type, the
 fixtures that were inserted, and a hint to use a harness-backed scenario.
 
-Step definitions request the harness context with
-`#[from(rstest_bdd_harness_context)]`. The parameter name is adapter-specific;
-the fixture key is fixed:
+Step definitions request the harness context with the `#[harness_context]`
+marker. The parameter name is adapter-specific; the underlying fixture key is
+fixed:
 
 ```rust,no_run
 use bevy::ecs::world::World;
 use rstest_bdd_macros::{given, then, when};
 
 #[given("the world starts empty")]
-fn world_starts_empty(#[from(rstest_bdd_harness_context)] world: &World) {
+fn world_starts_empty(#[harness_context] world: &World) {
     assert_eq!(world.entities().len(), 0);
 }
 
 #[when("the app spawns one entity")]
-fn app_spawns_one_entity(
-    #[from(rstest_bdd_harness_context)] world: &mut World,
-) {
+fn app_spawns_one_entity(#[harness_context] world: &mut World) {
     world.spawn_empty();
 }
 
 #[then("the world contains one entity")]
-fn world_contains_one_entity(
-    #[from(rstest_bdd_harness_context)] world: &World,
-) {
+fn world_contains_one_entity(#[harness_context] world: &World) {
     assert_eq!(world.entities().len(), 1);
 }
 ```
+
+Three spellings are accepted and generate identical code:
+
+| Spelling                                      | When to use                                  |
+| --------------------------------------------- | -------------------------------------------- |
+| `#[harness_context] ctx: &T`                  | The default. Reads as intent, hides the key. |
+| `ctx: &T` named `rstest_bdd_harness_context`  | Rarely; the name is unwieldy.                |
+| `#[from(rstest_bdd_harness_context)] ctx: &T` | Existing v0.6.0 code; still supported.       |
+
+*Table 2: Ways to request the harness context in a step definition.*
+
+The `#[harness_context]` marker takes no arguments, may appear once per
+parameter, and cannot be combined with `#[from]`, `#[datatable]`, or
+`#[step_args]`.
 
 The adapter may also publish an attribute policy. This keeps the framework's
 native test attribute beside the harness crate instead of teaching the macro
