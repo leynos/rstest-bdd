@@ -79,7 +79,7 @@ jobs:
           df -h /
 
       - name: Setup Rust
-        uses: leynos/shared-actions/.github/actions/setup-rust@1014f0ce1621506ca5fa66b596ed88ec30774cce
+        uses: leynos/shared-actions/.github/actions/setup-rust@57a33fa65e329db7edc81ece661f1a2e1d39868f
 
       - name: Install bun
         if: ${{ matrix.tools }}
@@ -88,7 +88,7 @@ jobs:
           bun-version: '1.2.21'
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9  # v9.0.0
+        uses: astral-sh/setup-uv@ae62891fec2bb8e7d6c99fc78c9fec3a63790f8d  # v10.0.0
         with:
           version: '0.11.8'
 
@@ -178,7 +178,7 @@ jobs:
 
       - name: Test and Measure Coverage (with features)
         if: ${{ matrix.coverage && matrix.features != '' }}
-        uses: leynos/shared-actions/.github/actions/generate-coverage@1014f0ce1621506ca5fa66b596ed88ec30774cce
+        uses: leynos/shared-actions/.github/actions/generate-coverage@57a33fa65e329db7edc81ece661f1a2e1d39868f
         continue-on-error: true
         env:
           # Windows coverage runs (build plus doctests) exceed the shared
@@ -197,7 +197,7 @@ jobs:
 
       - name: Test and Measure Coverage (no features)
         if: ${{ matrix.coverage && matrix.features == '' }}
-        uses: leynos/shared-actions/.github/actions/generate-coverage@1014f0ce1621506ca5fa66b596ed88ec30774cce
+        uses: leynos/shared-actions/.github/actions/generate-coverage@57a33fa65e329db7edc81ece661f1a2e1d39868f
         # The CodeScene leg (the default-features Linux leg) gates on the
         # ratchet, so a coverage failure must fail the build there; other
         # legs stay best-effort as before. Selected by matrix values rather
@@ -238,7 +238,7 @@ jobs:
           matrix.features == '' &&
           github.event_name == 'pull_request' &&
           env.CS_ACCESS_TOKEN != ''
-        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@1014f0ce1621506ca5fa66b596ed88ec30774cce
+        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@57a33fa65e329db7edc81ece661f1a2e1d39868f
         with:
           format: cobertura
           mode: check
