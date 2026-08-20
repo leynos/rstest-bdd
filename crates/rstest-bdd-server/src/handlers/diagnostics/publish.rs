@@ -12,10 +12,12 @@ use std::path::Path;
 use async_lsp::lsp_types::{Diagnostic, PublishDiagnosticsParams, Url, notification};
 use tracing::{debug, warn};
 
+use crate::indexing::RustStepIndexDiagnostic;
 use crate::server::ServerState;
 
 use super::compute::{compute_unimplemented_step_diagnostics, compute_unused_step_diagnostics};
 use super::placeholder::compute_signature_mismatch_diagnostics;
+use super::rust_index::build_rust_index_diagnostic;
 use super::scenario_outline::compute_scenario_outline_column_diagnostics;
 use super::table_docstring::compute_table_docstring_mismatch_diagnostics;
 
@@ -42,26 +44,35 @@ fn compute_feature_file_diagnostics(
 /// Compute all diagnostics for a Rust step definition file.
 ///
 /// An empty vector is still published so stale diagnostics are cleared.
-fn compute_rust_file_diagnostics(state: &ServerState, rust_path: &Path) -> Vec<Diagnostic> {
-    let mut diagnostics = compute_unused_step_diagnostics(state, rust_path);
+pub(super) fn compute_rust_file_diagnostics(
+    state: &ServerState,
+    rust_path: &Path,
+    indexing_diagnostics: &[RustStepIndexDiagnostic],
+) -> Vec<Diagnostic> {
+    let mut diagnostics: Vec<_> = indexing_diagnostics
+        .iter()
+        .map(build_rust_index_diagnostic)
+        .collect();
+    diagnostics.extend(compute_unused_step_diagnostics(state, rust_path));
     diagnostics.extend(compute_signature_mismatch_diagnostics(state, rust_path));
     diagnostics
 }
 
-/// Lift [`compute_rust_file_diagnostics`] into the shape `publish_with`
-/// expects.
+/// Lift [`compute_rust_file_diagnostics`] into the shape `prepare_publish`
+/// expects for payload tests.
 ///
 /// Rust files always publish — an empty vector clears stale diagnostics — so
 /// this never yields `None`.
+#[cfg(test)]
 #[expect(
     clippy::unnecessary_wraps,
     reason = "matches the compute contract, where None skips publishing entirely"
 )]
-fn compute_rust_file_diagnostics_opt(
+fn compute_rust_file_diagnostics_without_indexing_errors(
     state: &ServerState,
     rust_path: &Path,
 ) -> Option<Vec<Diagnostic>> {
-    Some(compute_rust_file_diagnostics(state, rust_path))
+    Some(compute_rust_file_diagnostics(state, rust_path, &[]))
 }
 
 /// Build the publish parameters for `path` from a computation, without
@@ -93,7 +104,7 @@ fn prepare_publish(
 /// All diagnostic publishing must flow through this helper so the guards,
 /// parameter construction, and error logging exist exactly once; see the
 /// developers' guide for ownership and permitted call-sites.
-fn publish_with(
+pub(super) fn publish_with(
     state: &ServerState,
     path: &Path,
     failure_message: &'static str,
@@ -143,23 +154,6 @@ pub fn publish_all_feature_diagnostics(state: &ServerState) {
     for path in feature_paths {
         publish_feature_diagnostics(state, &path);
     }
-}
-
-/// Publish diagnostics for Rust step definition files.
-///
-/// Computes diagnostics for:
-/// - Unused step definitions
-/// - Placeholder count mismatches
-///
-/// Publishes them via the client socket. Publishes an empty array if no issues
-/// are found, clearing any previous diagnostics.
-pub fn publish_rust_diagnostics(state: &ServerState, rust_path: &Path) {
-    publish_with(
-        state,
-        rust_path,
-        "failed to publish rust diagnostics",
-        compute_rust_file_diagnostics_opt,
-    );
 }
 
 #[cfg(test)]
@@ -238,7 +232,7 @@ mod tests {
     )]
     #[case::rust(
         rust_file as SelectPath,
-        compute_rust_file_diagnostics_opt as ComputeDiagnostics,
+        compute_rust_file_diagnostics_without_indexing_errors as ComputeDiagnostics,
         "rust_publish_params"
     )]
     fn publish_payload_is_pinned(

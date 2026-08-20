@@ -88,6 +88,7 @@ fn run_passing_macro_tests(t: &trybuild::TestCases) {
         MacroFixtureCase::from("scenario_third_party_harness_cookbook.rs"),
         MacroFixtureCase::from("scenario_bulk_migration_cookbook.rs"),
         MacroFixtureCase::from("scenario_harness_failing.rs"),
+        MacroFixtureCase::from("scenario_async_step_tokio_bridge.rs"),
         MacroFixtureCase::from("execution_policy_reexports.rs"),
         MacroFixtureCase::from("scenarios_harness_params.rs"),
         MacroFixtureCase::from("step_fixture_requirements/all_immutable_fixtures.rs"),

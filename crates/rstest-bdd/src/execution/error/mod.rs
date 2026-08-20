@@ -25,7 +25,7 @@
 //!
 //! # Arc Usage
 //!
-//! The [`MissingFixtures`] variant wraps its details in [`Arc`] to keep the
+//! The [`ExecutionError::MissingFixtures`] variant wraps its details in [`Arc`] to keep the
 //! `Result<T, ExecutionError>` type compact. This avoids inflating the size of
 //! `Ok` variants with rarely-needed diagnostic data. Access the details through
 //! pattern matching or the [`MissingFixturesDetails`] struct.

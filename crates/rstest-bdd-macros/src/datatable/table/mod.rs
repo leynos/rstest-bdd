@@ -39,7 +39,7 @@ fn expand_inner(input: &DeriveInput) -> syn::Result<TokenStream2> {
     // cases (for example nested generics or associated types) are not supported.
     // When inference fails callers must set `#[datatable(row = "Type")]`
     // explicitly.
-    let (field_ty, row_ty_guess) = extract_inner_types(field);
+    let row_ty_guess = extract_inner_types(field);
     if config.row_ty.is_none() {
         config.row_ty = row_ty_guess;
     }
@@ -49,7 +49,7 @@ fn expand_inner(input: &DeriveInput) -> syn::Result<TokenStream2> {
             r#"unable to infer row type; specify #[datatable(row = "Type")]"#,
         )
     })?;
-    let (builder, final_expr) = build_conversion(field, &field_ty, &config)?;
+    let (builder, final_expr) = build_conversion(field, &config)?;
     let ident = &input.ident;
     let generics = input.generics.clone();
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
@@ -70,7 +70,7 @@ fn expand_inner(input: &DeriveInput) -> syn::Result<TokenStream2> {
 fn extract_single_field(fields: &Fields) -> syn::Result<&Field> {
     if let Fields::Unnamed(unnamed) = fields {
         if unnamed.unnamed.len() == 1 {
-            if let Some(field) = unnamed.unnamed.get(0) {
+            if let Some(field) = unnamed.unnamed.first() {
                 return Ok(field);
             }
         }
@@ -81,23 +81,21 @@ fn extract_single_field(fields: &Fields) -> syn::Result<&Field> {
     ))
 }
 
-fn extract_inner_types(field: &Field) -> (Type, Option<Type>) {
+fn extract_inner_types(field: &Field) -> Option<Type> {
     let Type::Path(TypePath { path, .. }) = &field.ty else {
-        return (field.ty.clone(), None);
+        return None;
     };
-    let Some(segment) = path.segments.last() else {
-        return (field.ty.clone(), None);
-    };
+    let segment = path.segments.last()?;
     if !is_supported_container(segment) {
-        return (field.ty.clone(), None);
+        return None;
     }
     let PathArguments::AngleBracketed(args) = &segment.arguments else {
-        return (field.ty.clone(), None);
+        return None;
     };
     let Some(GenericArgument::Type(inner)) = args.args.first() else {
-        return (field.ty.clone(), None);
+        return None;
     };
-    (field.ty.clone(), Some(inner.clone()))
+    Some(inner.clone())
 }
 
 fn is_supported_container(segment: &syn::PathSegment) -> bool {
@@ -107,7 +105,6 @@ fn is_supported_container(segment: &syn::PathSegment) -> bool {
 
 fn build_conversion(
     field: &Field,
-    field_ty: &Type,
     config: &TableConfig,
 ) -> syn::Result<(TokenStream2, TokenStream2)> {
     if let Some(map) = &config.map {
@@ -117,7 +114,7 @@ fn build_conversion(
         };
         return Ok((builder, quote! { value }));
     }
-    let Type::Path(TypePath { path, .. }) = field_ty else {
+    let Type::Path(TypePath { path, .. }) = &field.ty else {
         return Err(syn::Error::new(
             field.span(),
             "#[derive(DataTable)] can only infer defaults for Rows<T> or Vec<T> fields",

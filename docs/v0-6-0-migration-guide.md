@@ -21,6 +21,14 @@ that need a new testing practice to be useful.
 - `StepContext::insert_value` now returns `InsertOutcome` instead of
   `Option<Box<dyn Any>>`. Only code that calls `insert_value` directly is
   affected; generated scenario code is updated by the macros.
+- Rust indexing entry points now return `RustStepIndexResult` on successful
+  reads and parses. Update callers of `index_rust_file` and `index_rust_source`
+  to consume the owned `.index` and inspect its recoverable `.diagnostics`;
+  only file-read and whole-source parse failures remain `RustStepIndexError`
+  values. Language-server state retains the file index, not the per-function
+  diagnostics. Disk-backed feature indexing is likewise bounded by the
+  validated workspace root; the server resolves file reads relative to that
+  root, while source-text saves continue through `index_feature_source`.
 
 ### Update underscore-prefixed implicit fixtures
 

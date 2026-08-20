@@ -348,15 +348,15 @@ the base lives in exactly one place.
 
 ## Workflow pins and Dependabot
 
-Dependabot owns the upgrade of GitHub Actions and reusable workflows,
-including calls into `leynos/shared-actions`. Contract tests that assert a
-caller's exact commit SHA create a lockstep dependency: every time Dependabot
-opens a bump PR, the test fails until a human edits the pinned constant to
-match. That defeats the purpose of automated dependency updates and turns a
-routine bump into a manual chore.
+Dependabot owns the upgrade of GitHub Actions and reusable workflows, including
+calls into `leynos/shared-actions`. Contract tests that assert a caller's exact
+commit SHA create a lockstep dependency: every time Dependabot opens a bump PR,
+the test fails until a human edits the pinned constant to match. That defeats
+the purpose of automated dependency updates and turns a routine bump into a
+manual chore.
 
-Contract tests may still verify the _shape_ of a reusable-workflow caller.
-They must not verify the specific SHA value.
+Contract tests may still verify the _shape_ of a reusable-workflow caller. They
+must not verify the specific SHA value.
 
 - Do assert the workflow references the correct reusable workflow path.
 - Do assert the ref is pinned to a full 40-character commit SHA, not a
@@ -662,6 +662,23 @@ name-only compatibility field, and publish `FixtureRequirement { name, ty }`
 through the hidden `StepFixtureRequirements` inventory sidecar whenever macro
 code knows the requested Rust type. Manual `step!` registrations without that
 sidecar remain valid and report `<unknown>` as the requested fixture type.
+
+### Generated-wrapper Tokio bridge
+
+`rstest-bdd` owns the hidden `__rstest_bdd_tokio` re-export of its Tokio
+runtime dependency. Generated async step wrappers in `rstest-bdd-macros` are
+its only permitted call-sites: they use the bridge to detect an active runtime,
+build a current-thread fallback runtime, and create a `LocalSet`. Downstream
+step code must not reference the bridge directly or depend on a particular
+Tokio crate name.
+
+The bridge composes only from macro-generated wrappers through the resolved
+`rstest_bdd` crate path; it is not a general runtime facade and must not be
+re-exported by harnesses or custom adapters. Keeping Tokio as an `rstest-bdd`
+runtime dependency gives generated code one stable, hygienic source-level path
+regardless of how a downstream crate names, re-exports, or otherwise obtains
+Tokio. Although marked `#[doc(hidden)]`, changing or removing this bridge is a
+breaking change for existing async-step macro expansions.
 
 ## Shared policy crate (`rstest-bdd-policy`)
 
@@ -1068,12 +1085,14 @@ publish boundary exactly once: the client-socket guard, the path-to-URI guard,
 `PublishDiagnosticsParams` construction, the `textDocument/publishDiagnostics`
 notification, and failure logging.
 
-- **Ownership:** the diagnostics handler layer owns the helper; it is private
-  to the `diagnostics::publish` module.
-- **Permitted call-sites:** the public per-file-kind functions
-  (`publish_feature_diagnostics`, `publish_rust_diagnostics`, and any future
-  variant). New diagnostic publishers must delegate to `publish_with` with a
-  compute closure rather than re-implementing the guards or notify call.
+- **Ownership:** the diagnostics handler layer owns the helper; its
+  `pub(super)` visibility from the `diagnostics` parent module lets sibling
+  publishers such as `diagnostics::rust_index` reuse it while keeping it
+  internal to the diagnostics tree.
+- **Permitted call-sites:** `publish_feature_diagnostics` and the save-pipeline
+  `publish_rust_index_result_diagnostics` helper. New diagnostic publishers
+  must delegate to `publish_with` with a compute closure rather than
+  re-implementing the guards or notify call.
 - **Composition rules:** the compute closure returns
   `Option<Vec<Diagnostic>>` — `None` skips publishing entirely (used when a
   feature file has no index, preserving previously published diagnostics), while

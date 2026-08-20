@@ -103,8 +103,8 @@ impl GpuiHarness {
     /// success and the panic paths.
     ///
     /// The caller supplies `stderr_writer`, which receives the scenario
-    /// diagnostic when the step panics.  Selecting stderr (typically
-    /// `io::stderr().lock()`) is the caller's responsibility; the function
+    /// diagnostic when the step panics. Selecting stderr (typically
+    /// `io::stderr()`) is the caller's responsibility; the function
     /// treats the writer opaquely and does not open any I/O sink on its own.
     ///
     /// If the scenario function panics, the panic payload is augmented with
@@ -286,7 +286,7 @@ impl GpuiHarness {
     /// Writes the diagnostic message to an arbitrary [`Write`] sink.
     ///
     /// This is the injectable I/O primitive used by [`run_request_once`].
-    /// Callers select the writer explicitly (typically `io::stderr().lock()`)
+    /// Callers select the writer explicitly (typically `io::stderr()`)
     /// and decide how to handle failures, keeping side-effects visible at
     /// the call site rather than hidden behind a no-argument wrapper.
     ///
@@ -309,7 +309,7 @@ impl HarnessAdapter for GpuiHarness {
         let runner = Mutex::new(Some(runner));
         let output = Mutex::new(None);
 
-        let stderr = io::stderr().lock();
+        let stderr = io::stderr();
         let stderr_writer = AssertUnwindSafe(RefCell::new(stderr));
         Self::run_request_once(&runner, &output, &metadata, &stderr_writer);
         Ok(Self::extract_output(output, &scenario_name))

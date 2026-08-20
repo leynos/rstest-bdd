@@ -400,8 +400,8 @@ Without a hint, an unresolved alias is **not** assumed to be `Result`-like: it
 is classified as a value, so an `Err` is stored as a payload and the step
 passes. Always give an unresolved alias explicit handling: if the alias is
 fallible, spell out `Result<..>` or `rstest_bdd::StepResult<..>`, or add the
-`result` hint. Reserve the `value` hint for an alias that deliberately
-returns a payload — applying it to a real `Result` suppresses its `Err`.
+`result` hint. Reserve the `value` hint for an alias that deliberately returns
+a payload — applying it to a real `Result` suppresses its `Err`.
 
 Use `#[when("...", value)]` (or `#[when(value)]` when using the inferred
 pattern) to force treating the return value as a payload even when it is
@@ -1146,6 +1146,12 @@ A direct `rstest-bdd-harness` dependency is not required when using
 `TokioHarness` through this first-party adapter crate. Add the base harness
 crate directly only when implementing a custom harness or importing base API
 types such as `HarnessAdapter` or `ScenarioRunRequest`.
+
+Generated asynchronous step wrappers obtain their runtime through the hidden
+`rstest_bdd::__rstest_bdd_tokio` bridge. Consequently, a downstream crate does
+not need a direct `tokio` dependency solely for generated wrappers; add one
+when the crate's own code names Tokio APIs or attributes. The bridge is an
+internal generated-code interface and downstream code must not call it directly.
 
 `TokioHarness` can then be used directly in scenarios. For this first-party
 adapter, the macro infers `TokioAttributePolicy` from the canonical harness
@@ -2659,6 +2665,11 @@ during that same execution. The merged output powers the commands above and the
 skip status summary, helping to keep the step library tidy and discover dead
 code early in the development cycle.
 
+Ordinary test binaries that reject the private `--dump-steps` flag are treated
+as unsupported targets and skipped. They contribute no registry entries or
+fallback result to the command output. Other execution failures still return an
+error, so a broken test binary is not silently hidden.
+
 `steps --skipped` and `skipped` accept `--json` and emit objects that always
 include `feature`, `scenario`, `line`, `tags`, and `reason` fields. The former
 adds an embedded `step` object describing each bypassed definition (keyword,
@@ -2828,7 +2839,14 @@ The language server provides the following capabilities:
   records `#[given]`, `#[when]`, and `#[then]` functions, including the step
   keyword, pattern string (including inferred patterns when the attribute has
   no arguments), the parameter list, and whether the step expects a data table
-  or doc string.
+  or doc string. The `RustStepIndexResult` API owns the file index and any
+  recoverable per-function diagnostics. Invalid functions are reported without
+  discarding valid neighbouring step definitions. Both Rust indexing entry
+  points return this result after a successful read and whole-source parse;
+  file-read and parse failures remain `RustStepIndexError` values. Disk-backed
+  feature saves read through the validated workspace root using a root-relative
+  path, while saves that supply source text use `index_feature_source` without
+  rereading the file from disk.
 - **Step pattern registry (on save)**: Compiles the indexed step patterns with
   `rstest-bdd-patterns` and caches compiled regex matchers in a keyword-keyed
   in-memory registry. The registry is updated incrementally per file save, so
@@ -2894,6 +2912,20 @@ presents a list of locations to choose from.
 The language server publishes diagnostics when files are saved, helping
 developers identify consistency issues between feature files and Rust step
 definitions:
+
+- **Multiple step attributes** (`multiple-step-attributes`): When one Rust
+  function has more than one of `#[given]`, `#[when]`, or `#[then]`, saving its
+  `.rs` file publishes a recoverable warning naming that function.
+
+- **Invalid step attribute arguments** (`invalid-step-attribute-arguments`):
+  When a step attribute has malformed arguments or an argument that is not a
+  string literal, saving its `.rs` file publishes a recoverable warning that
+  includes the attribute and parser error.
+
+These Rust-index warnings are recoverable per function. When the rest of the
+file parses successfully, valid neighbouring step definitions remain indexed
+and available for navigation and diagnostics; only the function with the
+offending attributes is omitted.
 
 - **Unimplemented feature steps** (`unimplemented-step`): When a step in a
   `.feature` file has no matching Rust implementation, a warning diagnostic is

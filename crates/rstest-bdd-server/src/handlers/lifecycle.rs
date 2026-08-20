@@ -73,10 +73,15 @@ pub fn handle_initialise(
                     packages = ?info.packages,
                     "discovered workspace"
                 );
-                state.set_workspace_info(info);
+                if let Err(error) = state.set_workspace_info(info) {
+                    warn!(error = %error, "failed to open workspace root capability");
+                }
             }
             Err(e) => {
                 warn!(error = %e, "workspace discovery failed");
+                if let Err(error) = state.set_workspace_root(&path) {
+                    warn!(error = %error, "failed to open workspace root capability");
+                }
             }
         }
     }

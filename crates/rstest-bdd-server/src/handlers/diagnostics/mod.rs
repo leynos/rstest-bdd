@@ -18,6 +18,7 @@
 mod compute;
 mod placeholder;
 mod publish;
+mod rust_index;
 mod scenario_outline;
 mod table_docstring;
 
@@ -29,6 +30,12 @@ const CODE_UNIMPLEMENTED_STEP: &str = "unimplemented-step";
 
 /// Diagnostic code for unused step definitions.
 const CODE_UNUSED_STEP_DEFINITION: &str = "unused-step-definition";
+
+/// Diagnostic code for multiple step attributes on one function.
+const CODE_MULTIPLE_STEP_ATTRIBUTES: &str = "multiple-step-attributes";
+
+/// Diagnostic code for malformed step attribute arguments.
+const CODE_INVALID_STEP_ATTRIBUTE_ARGUMENTS: &str = "invalid-step-attribute-arguments";
 
 /// Diagnostic code for placeholder count mismatch in step definitions.
 const CODE_PLACEHOLDER_COUNT_MISMATCH: &str = "placeholder-count-mismatch";
@@ -54,9 +61,8 @@ const CODE_EXAMPLE_COLUMN_SURPLUS: &str = "example-column-surplus";
 // Re-export public items
 pub use compute::{compute_unimplemented_step_diagnostics, compute_unused_step_diagnostics};
 pub use placeholder::compute_signature_mismatch_diagnostics;
-pub use publish::{
-    publish_all_feature_diagnostics, publish_feature_diagnostics, publish_rust_diagnostics,
-};
+pub use publish::{publish_all_feature_diagnostics, publish_feature_diagnostics};
+pub(crate) use rust_index::{clear_rust_index_diagnostics, publish_rust_index_result_diagnostics};
 pub use scenario_outline::compute_scenario_outline_column_diagnostics;
 pub use table_docstring::compute_table_docstring_mismatch_diagnostics;
 

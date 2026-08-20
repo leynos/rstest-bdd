@@ -331,8 +331,18 @@ Rust-file indexing entry points and step-attribute handling. Its internal
 `IndexedStepParameter` values and classifies data tables, doc strings, and
 step-struct parameters.
 
+`StepDefinitionCollector` is private to one `index_rust_source` traversal. It
+owns the current inline-module path and the accumulated definitions and
+diagnostics while borrowing that source text. The entry point creates it once,
+then consumes its output to construct `RustStepIndexResult`; handlers, caches,
+and other indexers must not reuse it outside that source-file boundary.
+
 Figure: Class diagram of the Rust step indexing data structures and how they
 are cached in the language server state.
+
+Screen-reader description: `RustStepIndexResult` owns one `RustStepFileIndex`
+and zero or more `RustStepIndexDiagnostic` values, while `ServerState` retains
+only file indexes.
 
 ```mermaid
 classDiagram
@@ -367,10 +377,19 @@ classDiagram
         <<enum>>
         +Read(std_io_Error)
         +Parse(syn_Error)
+    }
+
+    class RustStepIndexDiagnostic {
+        <<enum>>
         +MultipleStepAttributes_function_String
         +InvalidStepAttributeArguments_function_String
         +InvalidStepAttributeArguments_attribute_static_str
         +InvalidStepAttributeArguments_message_String
+    }
+
+    class RustStepIndexResult {
+        +RustStepFileIndex index
+        +Vec~RustStepIndexDiagnostic~ diagnostics
     }
 
     class ServerState {
@@ -382,20 +401,41 @@ classDiagram
     }
 
     class RustIndexingModule {
-        +index_rust_file(path Path) Result~RustStepFileIndex,RustStepIndexError~
-        +index_rust_source(path PathBuf, source &str) Result~RustStepFileIndex,RustStepIndexError~
+        +index_rust_file(path Path) Result~RustStepIndexResult,RustStepIndexError~
+        +index_rust_source(path PathBuf, source &str) Result~RustStepIndexResult,RustStepIndexError~
     }
 
     RustStepFileIndex "1" o-- "*" IndexedStepDefinition : contains
     IndexedStepDefinition "1" o-- "1" RustFunctionId : function
     IndexedStepDefinition "1" o-- "*" IndexedStepParameter : parameters
+    RustStepIndexResult "1" *-- "1" RustStepFileIndex : owns
+    RustStepIndexResult "1" *-- "*" RustStepIndexDiagnostic : owns
     ServerState "1" o-- "*" RustStepFileIndex : rust_step_indices
     ServerState "1" o-- "*" FeatureFileIndex : feature_indices
-    RustIndexingModule ..> RustStepFileIndex : creates
+    RustIndexingModule ..> RustStepIndexResult : creates
     RustIndexingModule ..> RustStepIndexError : returns
+    RustIndexingModule ..> RustStepIndexDiagnostic : reports
     RustIndexingModule ..> IndexedStepDefinition : builds
     RustIndexingModule ..> IndexedStepParameter : builds
 ```
+
+**Rust indexing result contract:** `RustStepIndexResult` owns the complete
+`RustStepFileIndex` and every recoverable per-function
+`RustStepIndexDiagnostic` from one indexing pass. Both public indexing entry
+points return it on successful file read and parse; only file-read and
+whole-source parse failures remain `RustStepIndexError` values. Callers must
+persist or replace the owned `index` independently of diagnostics, so one
+invalid function never removes valid neighbouring definitions. Reuse this
+wrapper only at Rust-file indexing boundaries; handlers and cache APIs consume
+the contained `RustStepFileIndex` rather than retaining diagnostics as index
+state.
+
+**Workspace filesystem boundary:** After selecting the workspace root,
+including the fallback used when Cargo discovery fails, `ServerState` owns the
+validated `cap_std::fs_utf8::Dir` for that root. Only disk-backed feature saves
+use this capability, resolving paths relative to the root before reading.
+Did-save notifications that supply source text are indexed from that
+in-memory text and do not read from disk.
 
 **Project Structure:** The `rstest-bdd-server` crate will live in the same
 workspace as `rstest-bdd`. It can depend on `rstest-bdd` or its sub-crates

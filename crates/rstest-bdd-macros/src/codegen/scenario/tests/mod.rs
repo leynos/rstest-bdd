@@ -121,7 +121,7 @@ fn tokens_contain(tokens: &TokenStream2, needle: &str) -> bool {
 #[case::tokio_test_case("#[tokio::test_case]", false)]
 #[case::rstest_test("#[rstest::rstest]", false)]
 #[case::tokio_runtime_not_test("#[tokio::main]", false)]
-fn has_tokio_test_detection(#[case] attr_str: &str, #[case] expected_tokio: bool) {
+fn has_tokio_test_detection(#[case] attr_str: &str, #[case] input_has_tokio_test: bool) {
     let attr = parse_attr!(attr_str);
     let attrs = vec![attr];
 
@@ -136,7 +136,7 @@ fn has_tokio_test_detection(#[case] attr_str: &str, #[case] expected_tokio: bool
     );
     let has_tokio_in_output = tokens_contain(&tokens, "tokio :: test");
 
-    if expected_tokio {
+    if input_has_tokio_test {
         assert!(
             !has_tokio_in_output,
             "expected no tokio::test in output when user already has one: {attr_str}"
