@@ -18,49 +18,75 @@ fn did_save_params(uri: Url, text: Option<&str>) -> DidSaveTextDocumentParams {
     }
 }
 
-/// Decode the content-length-framed messages emitted by the in-process LSP
-/// transport.
+/// Decode every complete Content-Length-framed message in the captured LSP
+/// transport output.
 fn decode_lsp_messages(mut bytes: &[u8]) -> Vec<serde_json::Value> {
-    const HEADER: &[u8] = b"Content-Length: ";
-    const HEADER_SEPARATOR: &[u8] = b"\r\n\r\n";
-
     let mut messages = Vec::new();
     while !bytes.is_empty() {
-        let Some(header) = bytes.strip_prefix(HEADER) else {
-            panic!("expected Content-Length header in LSP transport output");
-        };
-        let Some(header_end) = header
-            .windows(HEADER_SEPARATOR.len())
-            .position(|window| window == HEADER_SEPARATOR)
-        else {
-            panic!("expected complete LSP Content-Length header");
-        };
-        let Some(length_bytes) = header.get(..header_end) else {
-            panic!("header length must fit within transport output");
-        };
-        let Ok(length_text) = std::str::from_utf8(length_bytes) else {
-            panic!("Content-Length header must be valid UTF-8");
-        };
-        let Ok(length) = length_text.parse::<usize>() else {
-            panic!("Content-Length header must be numeric");
-        };
-        let body_start = header_end + HEADER_SEPARATOR.len();
-        let Some(body_and_remaining) = header.get(body_start..) else {
-            panic!("LSP header must be followed by a body");
-        };
-        let Some(body) = body_and_remaining.get(..length) else {
-            panic!("LSP body must match its Content-Length header");
-        };
-        let Some(remaining) = body_and_remaining.get(length..) else {
-            panic!("LSP body boundary must fit within transport output");
-        };
-        let Ok(message) = serde_json::from_slice(body) else {
-            panic!("LSP body must contain valid JSON-RPC");
-        };
+        let (message, remaining) = decode_lsp_message(bytes);
         messages.push(message);
         bytes = remaining;
     }
     messages
+}
+
+/// Decode one Content-Length-framed message from the start of `bytes`.
+///
+/// Returns the decoded JSON-RPC value alongside the unconsumed transport
+/// bytes that follow the decoded frame.
+fn decode_lsp_message(bytes: &[u8]) -> (serde_json::Value, &[u8]) {
+    let (body, remaining) = split_lsp_frame(bytes);
+    let Ok(message) = serde_json::from_slice(body) else {
+        panic!("LSP body must contain valid JSON-RPC");
+    };
+    (message, remaining)
+}
+
+/// Split one Content-Length frame into its JSON body and the bytes following
+/// the frame.
+///
+/// Validates the `Content-Length: ` prefix, locates the complete `\r\n\r\n`
+/// header separator, parses the frame length, and returns the body slice
+/// alongside the unconsumed remainder.
+#[expect(
+    clippy::indexing_slicing,
+    reason = "slices are bounds-safe after the preceding bounds checks"
+)]
+fn split_lsp_frame(bytes: &[u8]) -> (&[u8], &[u8]) {
+    const HEADER: &[u8] = b"Content-Length: ";
+    const HEADER_SEPARATOR: &[u8] = b"\r\n\r\n";
+
+    let Some(header) = bytes.strip_prefix(HEADER) else {
+        panic!("expected Content-Length header in LSP transport output");
+    };
+    let Some(header_end) = header
+        .windows(HEADER_SEPARATOR.len())
+        .position(|window| window == HEADER_SEPARATOR)
+    else {
+        panic!("expected complete LSP Content-Length header");
+    };
+    let length = parse_content_length(&header[..header_end]);
+    // Bounds-safe: `header_end` is the start of a complete separator window,
+    // so it and the separator always fit within `header`.
+    let body_and_remaining = &header[header_end + HEADER_SEPARATOR.len()..];
+    let Some(body) = body_and_remaining.get(..length) else {
+        panic!("LSP body must match its Content-Length header");
+    };
+    // Bounds-safe: `body` succeeding above proves `length` fits in
+    // `body_and_remaining`, so the trailing slice is always valid.
+    let remaining = &body_and_remaining[length..];
+    (body, remaining)
+}
+
+/// Parse the numeric `Content-Length` header value from its octets.
+fn parse_content_length(length_bytes: &[u8]) -> usize {
+    let Some(length_text) = std::str::from_utf8(length_bytes).ok() else {
+        panic!("Content-Length header must be valid UTF-8");
+    };
+    let Some(length) = length_text.parse::<usize>().ok() else {
+        panic!("Content-Length header must be numeric");
+    };
+    length
 }
 
 /// Feature source exercised by the recoverable-diagnostic scenario.
