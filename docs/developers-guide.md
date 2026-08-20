@@ -461,7 +461,7 @@ the base lives in exactly one place.
 ## Mutation-testing workflow contract tests
 
 This repository runs scheduled, informational mutation testing through a thin
-caller workflow, [`.github/workflows/mutation-testing.yml`](../.github/workflows/mutation-testing.yml),
+caller workflow, [`.github/workflows/mutation-testing.yml`][mutation-workflow],
 which delegates to the shared reusable workflow
 `leynos/shared-actions/.github/workflows/mutation-cargo.yml`. The heavy lifting
 — running `cargo-mutants`, sharding, and summarizing survivors — lives in
@@ -469,6 +469,12 @@ which delegates to the shared reusable workflow
 run is **informational only**: it never gates a pull request. Survivors are
 reported through the job summary and downloadable artefacts so they can be
 triaged into tests, not enforced as a blocking check.
+
+This repository contains only the Cargo mutation-testing caller: no `mutmut`
+caller or workflow exists, and neither `docs/roadmap.md` nor `docs/execplans/`
+contains an applicable mutation-testing entry.
+
+[mutation-workflow]: ../.github/workflows/mutation-testing.yml
 
 The workflow runs in two modes. A **daily schedule** fires a change-scoped run
 that mutates only the source files touched within the detection window, so
@@ -481,8 +487,10 @@ The caller passes a small set of configuration inputs, each carrying intent:
 - `paths` — the change-detection globs (`crates/`) that decide whether a
   scheduled run has anything to mutate, bounding the scheduled run to the
   workspace's mutable source. The root `Cargo.toml` is a virtual manifest with
-  no `src/`, and the vendored `gpui` crates under `vendor/` sit outside the
-  workspace and are deliberately excluded.
+  no `src/`. Cargo metadata lists both `vendor/gpui` and `vendor/gpui-macros` as
+  workspace members, but `paths: "crates/"` restricts scheduled change
+  detection; because no `vendor/**` exclusion is configured, a manual
+  whole-workspace run may process vendored code.
 - `exclude-globs` — example applications, test-fixture crates
   (`cargo-bdd`'s minimal fixture workspace, and the trybuild/macrotest fixture
   and UI-expectation crates), and test-support modules compiled into `src/`,
@@ -498,10 +506,9 @@ The caller passes a small set of configuration inputs, each carrying intent:
 
 The `uses:` reference pins the shared workflow to a full 40-character commit
 SHA rather than a branch or tag, so a force-push upstream cannot silently
-change what runs here. The contract test hard-codes the expected SHA in a
-`PINNED_SHA` constant and asserts the `uses:` line matches it, so bumping the
-pin means editing the workflow's `uses:` line and that constant together in
-the same change.
+change what runs here. The contract test checks the reusable-workflow path and
+the full 40-hex SHA shape, without asserting a specific SHA value, so
+Dependabot can update the pin without a lockstep test edit.
 
 Because the caller is configuration rather than code, a contract test pins the
 shape it must uphold, failing the pull request when the caller drifts —
@@ -513,8 +520,8 @@ tests/workflow_contracts -q`, covering both this contract and the CodeScene
 coverage-caller contract in the same directory). The test module
 `tests/workflow_contracts/mutation_testing_test.py` validates:
 
-- the `uses:` reference targets `mutation-cargo.yml` pinned to the documented
-  full commit SHA;
+- the `uses:` reference targets the correct `mutation-cargo.yml` path and has
+  a full 40-character lowercase-hex commit SHA;
 - job permissions are exactly least-privilege (`contents: read`,
   `id-token: write`);
 - the workflow-level default token scope is an empty mapping;
