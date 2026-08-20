@@ -38,7 +38,12 @@ impl TryFrom<Vec<Vec<String>>> for TaskEntries {
         for (index, row) in rows.into_iter().enumerate() {
             expect_column_count(&row, 1, index, "exactly one column (task description)")?;
             let mut cells = row.into_iter();
-            let task = cells.next().expect("row.len() == 1 just asserted");
+            let task = cells.next().ok_or_else(|| {
+                format!(
+                    "datatable row {} must contain a task description",
+                    index + 1
+                )
+            })?;
             tasks.push(task);
         }
         Ok(Self(tasks))
@@ -65,8 +70,18 @@ impl TryFrom<Vec<Vec<String>>> for StatusEntries {
         for (index, row) in rows.into_iter().enumerate() {
             expect_column_count(&row, 2, index, "exactly two columns: <task> | <yes/no>")?;
             let mut cells = row.into_iter();
-            let task = cells.next().expect("row.len() == 2 just asserted");
-            let done_cell = cells.next().expect("row.len() == 2 just asserted");
+            let task = cells.next().ok_or_else(|| {
+                format!(
+                    "datatable row {} must contain a task description",
+                    index + 1
+                )
+            })?;
+            let done_cell = cells.next().ok_or_else(|| {
+                format!(
+                    "datatable row {} must contain a completion value",
+                    index + 1
+                )
+            })?;
             let normalized = done_cell.trim().to_ascii_lowercase();
             let done = match normalized.as_str() {
                 "yes" | "y" | "true" => true,
@@ -133,7 +148,11 @@ fn dedent(input: &str) -> String {
     let cut = min_indent.unwrap_or(0);
     let out = s
         .lines()
-        .map(|l| if l.len() >= cut { &l[cut..] } else { "" })
+        .map(|line| {
+            line.char_indices().nth(cut).map_or("", |(byte_index, _)| {
+                line.get(byte_index..).unwrap_or_default()
+            })
+        })
         .collect::<Vec<_>>()
         .join("\n");
     out.trim_matches('\n').to_owned()
@@ -197,6 +216,10 @@ fn dedent_handles_edge_cases() {
         (
             concat!("    line1", "\n", "  line2", "\n", "        line3"),
             concat!("  line1", "\n", "line2", "\n", "      line3"),
+        ),
+        (
+            concat!("  café", "\n", "  crème"),
+            concat!("café", "\n", "crème"),
         ),
     ];
 
