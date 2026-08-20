@@ -66,7 +66,7 @@ fn indexes_steps_tables_docstrings_and_example_columns() {
     assert!(when.table.is_some());
     let table = when.table.as_ref().expect("table present");
     let first_row = table.rows.first().expect("table should have rows");
-    assert_eq!(first_row, &vec!["a".to_string(), "b".to_string()]);
+    assert_eq!(first_row, &vec!["a".to_owned(), "b".to_owned()]);
     assert!(table.span.start < table.span.end);
 
     // Verify scenario outline indexing

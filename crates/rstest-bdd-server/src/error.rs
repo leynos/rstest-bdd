@@ -51,7 +51,7 @@ mod tests {
 
     #[test]
     fn workspace_discovery_error_displays_message() {
-        let error = ServerError::WorkspaceDiscovery("no Cargo.toml found".to_string());
+        let error = ServerError::WorkspaceDiscovery("no Cargo.toml found".to_owned());
         assert_eq!(
             error.to_string(),
             "workspace discovery failed: no Cargo.toml found"
@@ -72,7 +72,7 @@ mod tests {
 
     #[test]
     fn invalid_config_error_displays_message() {
-        let error = ServerError::InvalidConfig("unknown log level".to_string());
+        let error = ServerError::InvalidConfig("unknown log level".to_owned());
         assert_eq!(
             error.to_string(),
             "invalid configuration: unknown log level"

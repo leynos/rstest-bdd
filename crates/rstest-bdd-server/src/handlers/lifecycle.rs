@@ -89,8 +89,8 @@ pub fn handle_initialise(
     Ok(InitializeResult {
         capabilities: build_server_capabilities(),
         server_info: Some(ServerInfo {
-            name: "rstest-bdd-lsp".to_string(),
-            version: Some(env!("CARGO_PKG_VERSION").to_string()),
+            name: "rstest-bdd-lsp".to_owned(),
+            version: Some(env!("CARGO_PKG_VERSION").to_owned()),
         }),
     })
 }
@@ -277,7 +277,7 @@ mod tests {
             (
                 vec![WorkspaceFolder {
                     uri: url.clone(),
-                    name: "folder".to_string(),
+                    name: "folder".to_owned(),
                 }],
                 None,
             )

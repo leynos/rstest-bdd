@@ -17,7 +17,7 @@ fn kw(ty: StepType) -> String {
         StepType::Then => "Then",
         _ => unreachable!("kw() only supports Given, When, and Then"),
     }
-    .to_string()
+    .to_owned()
 }
 
 fn zero_span() -> Span {
@@ -41,7 +41,7 @@ where
     Table {
         rows: rows
             .into_iter()
-            .map(|r| r.into_iter().map(|s| s.as_ref().to_string()).collect())
+            .map(|r| r.into_iter().map(|s| s.as_ref().to_owned()).collect())
             .collect(),
         span: zero_span(),
         position: zero_pos(),
@@ -60,7 +60,7 @@ impl StepBuilder {
     pub(super) fn new(ty: StepType, value: &str) -> Self {
         Self {
             ty,
-            value: value.to_string(),
+            value: value.to_owned(),
             docstring: None,
             table: None,
             keyword: None,
@@ -68,12 +68,12 @@ impl StepBuilder {
     }
 
     pub(super) fn with_keyword(mut self, kw: &str) -> Self {
-        self.keyword = Some(kw.to_string());
+        self.keyword = Some(kw.to_owned());
         self
     }
 
     pub(super) fn with_docstring(mut self, doc: &str) -> Self {
-        self.docstring = Some(doc.to_string());
+        self.docstring = Some(doc.to_owned());
         self
     }
 
@@ -163,8 +163,8 @@ struct ScenarioData {
 impl ScenarioData {
     fn new_scenario(name: &str, steps: Vec<Step>) -> Self {
         Self {
-            keyword: "Scenario".to_string(),
-            name: name.to_string(),
+            keyword: "Scenario".to_owned(),
+            name: name.to_owned(),
             steps,
             examples: Vec::new(),
         }
@@ -172,8 +172,8 @@ impl ScenarioData {
 
     fn new_scenario_outline(name: &str, steps: Vec<Step>, examples: Examples) -> Self {
         Self {
-            keyword: "Scenario Outline".to_string(),
-            name: name.to_string(),
+            keyword: "Scenario Outline".to_owned(),
+            name: name.to_owned(),
             steps,
             examples: vec![examples],
         }
@@ -183,7 +183,7 @@ impl ScenarioData {
 impl FeatureBuilder {
     pub(super) fn new(name: &str) -> Self {
         Self {
-            name: name.to_string(),
+            name: name.to_owned(),
             background: None,
             scenarios: Vec::new(),
         }
@@ -294,7 +294,7 @@ mod tests {
         let Some(table) = step.table.as_ref() else {
             panic!("expected table on built step");
         };
-        assert_eq!(table.rows, vec![vec!["a".to_string(), "b".to_string()]],);
+        assert_eq!(table.rows, vec![vec!["a".to_owned(), "b".to_owned()]],);
     }
 
     #[test]
@@ -336,7 +336,7 @@ mod tests {
         };
         assert_eq!(
             examples_table.rows,
-            vec![vec!["x".to_string()], vec!["1".to_string()]]
+            vec![vec!["x".to_owned()], vec!["1".to_owned()]]
         );
     }
 
@@ -344,7 +344,7 @@ mod tests {
     fn assert_feature_extraction_validates_expected_steps() {
         let expected = [ParsedStep {
             keyword: crate::StepKeyword::Given,
-            text: "step".to_string(),
+            text: "step".to_owned(),
             docstring: None,
             table: None,
             #[cfg(feature = "compile-time-validation")]

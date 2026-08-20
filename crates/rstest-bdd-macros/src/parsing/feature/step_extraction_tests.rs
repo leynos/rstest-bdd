@@ -27,7 +27,7 @@ use super::support::{ExamplesBuilder, FeatureBuilder, StepBuilder, assert_featur
     vec![
         ParsedStep {
             keyword: crate::StepKeyword::Given,
-            text: "a background step".to_string(),
+            text: "a background step".to_owned(),
             docstring: None,
             table: None,
             #[cfg(feature = "compile-time-validation")]
@@ -35,7 +35,7 @@ use super::support::{ExamplesBuilder, FeatureBuilder, StepBuilder, assert_featur
         },
         ParsedStep {
             keyword: crate::StepKeyword::When,
-            text: "an action".to_string(),
+            text: "an action".to_owned(),
             docstring: None,
             table: None,
             #[cfg(feature = "compile-time-validation")]
@@ -43,7 +43,7 @@ use super::support::{ExamplesBuilder, FeatureBuilder, StepBuilder, assert_featur
         },
         ParsedStep {
             keyword: crate::StepKeyword::Then,
-            text: "a result".to_string(),
+            text: "a result".to_owned(),
             docstring: None,
             table: None,
             #[cfg(feature = "compile-time-validation")]
@@ -63,11 +63,11 @@ use super::support::{ExamplesBuilder, FeatureBuilder, StepBuilder, assert_featur
     ),
     vec![ParsedStep {
         keyword: crate::StepKeyword::Given,
-        text: "numbers".to_string(),
+        text: "numbers".to_owned(),
         docstring: None,
         table: Some(vec![
-            vec!["1".to_string(), "2".to_string()],
-            vec!["3".to_string(), "4".to_string()],
+            vec!["1".to_owned(), "2".to_owned()],
+            vec!["3".to_owned(), "4".to_owned()],
         ]),
         #[cfg(feature = "compile-time-validation")]
         span: proc_macro2::Span::call_site(),
@@ -85,8 +85,8 @@ use super::support::{ExamplesBuilder, FeatureBuilder, StepBuilder, assert_featur
     ),
     vec![ParsedStep {
         keyword: crate::StepKeyword::Given,
-        text: "text".to_string(),
-        docstring: Some("line1\nline2".to_string()),
+        text: "text".to_owned(),
+        docstring: Some("line1\nline2".to_owned()),
         table: None,
         #[cfg(feature = "compile-time-validation")]
         span: proc_macro2::Span::call_site(),
@@ -107,15 +107,15 @@ use super::support::{ExamplesBuilder, FeatureBuilder, StepBuilder, assert_featur
     vec![
         ParsedStep {
             keyword: crate::StepKeyword::Given,
-            text: "setup".to_string(),
-            docstring: Some("bg line1\nbg line2".to_string()),
+            text: "setup".to_owned(),
+            docstring: Some("bg line1\nbg line2".to_owned()),
             table: None,
             #[cfg(feature = "compile-time-validation")]
             span: proc_macro2::Span::call_site(),
         },
         ParsedStep {
             keyword: crate::StepKeyword::When,
-            text: "an action".to_string(),
+            text: "an action".to_owned(),
             docstring: None,
             table: None,
             #[cfg(feature = "compile-time-validation")]
@@ -140,7 +140,7 @@ use super::support::{ExamplesBuilder, FeatureBuilder, StepBuilder, assert_featur
     vec![
         ParsedStep {
             keyword: crate::StepKeyword::Given,
-            text: "setup".to_string(),
+            text: "setup".to_owned(),
             docstring: None,
             table: None,
             #[cfg(feature = "compile-time-validation")]
@@ -148,7 +148,7 @@ use super::support::{ExamplesBuilder, FeatureBuilder, StepBuilder, assert_featur
         },
         ParsedStep {
             keyword: crate::StepKeyword::When,
-            text: "an action".to_string(),
+            text: "an action".to_owned(),
             docstring: None,
             table: None,
             #[cfg(feature = "compile-time-validation")]
@@ -156,7 +156,7 @@ use super::support::{ExamplesBuilder, FeatureBuilder, StepBuilder, assert_featur
         },
         ParsedStep {
             keyword: crate::StepKeyword::Then,
-            text: "a result".to_string(),
+            text: "a result".to_owned(),
             docstring: None,
             table: None,
             #[cfg(feature = "compile-time-validation")]

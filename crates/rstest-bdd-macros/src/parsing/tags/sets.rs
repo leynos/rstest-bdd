@@ -11,7 +11,7 @@ use std::collections::HashSet;
 fn normalize_tag(tag: &str) -> String {
     let trimmed = tag.trim();
     if trimmed.starts_with('@') {
-        trimmed.to_string()
+        trimmed.to_owned()
     } else {
         format!("@{trimmed}")
     }

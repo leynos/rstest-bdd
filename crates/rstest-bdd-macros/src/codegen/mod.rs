@@ -226,7 +226,7 @@ mod tests {
 
     fn not_found_error(crate_name: &str) -> Error {
         Error::CrateNotFound {
-            crate_name: crate_name.to_string(),
+            crate_name: crate_name.to_owned(),
             path: PathBuf::new(),
         }
     }

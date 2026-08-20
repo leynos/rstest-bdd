@@ -185,7 +185,7 @@ fn assert_step_err_unwraps_error_without_substring() {
 #[test]
 fn assert_step_err_accepts_owned_string_pattern() {
     let res: Result<(), &str> = Err("boom");
-    let pat = "boom".to_string();
+    let pat = "boom".to_owned();
     let e = assert_step_err!(res, pat);
     assert_eq!(e, "boom");
 }

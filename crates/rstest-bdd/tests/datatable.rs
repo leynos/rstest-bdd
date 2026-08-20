@@ -8,8 +8,8 @@ fn check_table(datatable: Vec<Vec<String>>) {
     assert_eq!(
         datatable,
         vec![
-            vec!["alpha".to_string(), "beta".to_string()],
-            vec!["gamma".to_string(), "delta".to_string()],
+            vec!["alpha".to_owned(), "beta".to_owned()],
+            vec!["gamma".to_owned(), "delta".to_owned()],
         ],
     );
 }
@@ -19,10 +19,7 @@ fn datatable_scenario() {}
 
 #[given("a table then value {value}:")]
 fn table_then_value(datatable: Vec<Vec<String>>, value: String) {
-    assert_eq!(
-        datatable,
-        vec![vec!["a".to_string()], vec!["b".to_string()]],
-    );
+    assert_eq!(datatable, vec![vec!["a".to_owned()], vec!["b".to_owned()]],);
     assert_eq!(value, "beta");
 }
 
@@ -58,13 +55,13 @@ fn typed_users(#[datatable] rows: Rows<UserRow>) {
         parsed,
         vec![
             UserRow {
-                name: "Alice".to_string(),
-                email: "alice@example.com".to_string(),
+                name: "Alice".to_owned(),
+                email: "alice@example.com".to_owned(),
                 active: true,
             },
             UserRow {
-                name: "Bob".to_string(),
-                email: "bob@example.com".to_string(),
+                name: "Bob".to_owned(),
+                email: "bob@example.com".to_owned(),
                 active: false,
             },
         ]

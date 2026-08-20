@@ -256,7 +256,7 @@ fn did_save_prefers_provided_text_over_filesystem_contents() {
         "#[when]\n",
         "fn I_do_the_thing() {}\n",
     )
-    .to_string();
+    .to_owned();
 
     let uri = Url::from_file_path(&path).expect("file URI");
     let params = DidSaveTextDocumentParams {

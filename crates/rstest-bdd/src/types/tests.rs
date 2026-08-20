@@ -114,7 +114,7 @@ fn payload_from_value_returns_none_for_unit_alias() {
 
 #[test]
 fn placeholder_error_from_placeholder_syntax_returns_invalid_placeholder() {
-    let syntax_err = PlaceholderSyntaxError::new("empty type hint", 6, Some("n".to_string()));
+    let syntax_err = PlaceholderSyntaxError::new("empty type hint", 6, Some("n".to_owned()));
     let err = StepPatternError::PlaceholderSyntax(syntax_err);
     let converted: PlaceholderError = err.into();
     assert!(

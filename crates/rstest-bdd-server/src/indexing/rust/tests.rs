@@ -164,7 +164,7 @@ fn preserves_module_path_for_nested_definitions() {
         .expect("expected nested step");
     assert_eq!(
         step.function.module_path,
-        vec!["outer".to_string(), "inner".to_string()]
+        vec!["outer".to_owned(), "inner".to_owned()]
     );
     assert_eq!(step.function.name, "nested_step");
 }
