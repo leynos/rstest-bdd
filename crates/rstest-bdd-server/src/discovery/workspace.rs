@@ -308,36 +308,45 @@ edition = "2024"
         assert!(features.is_empty());
     }
 
+    fn create_missing_path() -> PathBuf {
+        let temporary_directory = match TempDir::new() {
+            Ok(temporary_directory) => temporary_directory,
+            Err(error) => panic!("failed to create temp dir: {error}"),
+        };
+        let missing_path = temporary_directory.path().to_path_buf();
+        if let Err(error) = temporary_directory.close() {
+            panic!("failed to remove temp dir: {error}");
+        }
+
+        missing_path
+    }
+
+    fn assert_not_found_error(error: ServerError) {
+        let ServerError::Io(source) = error else {
+            panic!("expected an I/O error");
+        };
+
+        assert_eq!(source.kind(), io::ErrorKind::NotFound);
+    }
+
     #[test]
     fn reports_workspace_read_failure() {
-        let missing_workspace = TempDir::new().expect("failed to create temp dir");
-        let missing_path = missing_workspace.path().to_path_buf();
-        missing_workspace
-            .close()
-            .expect("failed to remove temp dir");
+        let missing_path = create_missing_path();
 
         let error = find_feature_files(&missing_path)
             .expect_err("missing workspace should return an I/O error");
 
-        assert!(
-            matches!(error, ServerError::Io(ref source) if source.kind() == io::ErrorKind::NotFound)
-        );
+        assert_not_found_error(error);
     }
 
     #[test]
     fn reports_recursive_directory_read_failure() {
-        let missing_directory = TempDir::new().expect("failed to create temp dir");
-        let missing_path = missing_directory.path().to_path_buf();
-        missing_directory
-            .close()
-            .expect("failed to remove temp dir");
+        let missing_path = create_missing_path();
         let mut features = Vec::new();
 
         let error = collect_feature_files_recursive(&missing_path, &mut features)
             .expect_err("missing feature directory should return an I/O error");
 
-        assert!(
-            matches!(error, ServerError::Io(ref source) if source.kind() == io::ErrorKind::NotFound)
-        );
+        assert_not_found_error(error);
     }
 }
