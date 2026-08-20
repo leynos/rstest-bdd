@@ -1,6 +1,11 @@
 //! Behavioural test for Rust step indexing on save.
 
-use lsp_types::{DidSaveTextDocumentParams, TextDocumentIdentifier, Url};
+use std::path::Path;
+
+use lsp_types::{
+    DidSaveTextDocumentParams, NumberOrString, PublishDiagnosticsParams, TextDocumentIdentifier,
+    Url,
+};
 use rstest_bdd_server::config::ServerConfig;
 use rstest_bdd_server::handlers::handle_did_save_text_document;
 use rstest_bdd_server::server::ServerState;
@@ -56,6 +61,109 @@ fn decode_lsp_messages(mut bytes: &[u8]) -> Vec<serde_json::Value> {
         bytes = remaining;
     }
     messages
+}
+
+/// Feature source exercised by the recoverable-diagnostic scenario.
+const FEATURE_SOURCE: &str = concat!(
+    "Feature: demo\n",
+    "  Scenario: example\n",
+    "    Given a valid step\n",
+);
+
+/// Rust source with duplicate step attributes on one function.
+const MALFORMED_SOURCE: &str = concat!(
+    "use rstest_bdd_macros::{given, when};\n",
+    "\n",
+    "#[given(\"duplicate\")]\n",
+    "#[when(\"conflict\")]\n",
+    "fn conflicting_step() {}\n",
+    "\n",
+    "#[given(\"a valid step\")]\n",
+    "fn valid_step() {}\n",
+);
+
+/// Rust source with a single valid step definition.
+const CORRECTED_SOURCE: &str = concat!(
+    "use rstest_bdd_macros::given;\n",
+    "\n",
+    "#[given(\"a valid step\")]\n",
+    "fn valid_step() {}\n",
+);
+
+/// Rust source that fails to parse as a syntax tree.
+const PARSE_FAILURE_SOURCE: &str = "fn incomplete(";
+
+/// Write a Rust source file to disk and notify the server of the save.
+#[expect(
+    clippy::expect_used,
+    reason = "test helper preserves explicit failure messages for filesystem writes"
+)]
+fn save_rust_source(
+    state: &mut ServerState,
+    path: &Path,
+    uri: &Url,
+    source: &str,
+    failure_context: &'static str,
+) {
+    std::fs::write(path, source).expect(failure_context);
+    handle_did_save_text_document(state, did_save_params(uri.clone(), None));
+}
+
+/// Extract `publishDiagnostics` notifications for one URI from captured LSP
+/// transport output.
+fn rust_diagnostics_for_uri(captured: &[u8], uri: &Url) -> Vec<PublishDiagnosticsParams> {
+    decode_lsp_messages(captured)
+        .into_iter()
+        .filter(|message| {
+            message.get("method").and_then(serde_json::Value::as_str)
+                == Some("textDocument/publishDiagnostics")
+        })
+        .filter_map(|message| message.get("params").cloned())
+        .filter_map(|params| serde_json::from_value(params).ok())
+        .filter(|params: &PublishDiagnosticsParams| &params.uri == uri)
+        .collect()
+}
+
+/// Return positions whose diagnostics carry the `multiple-step-attributes`
+/// code.
+fn recoverable_diagnostic_positions(diagnostics: &[PublishDiagnosticsParams]) -> Vec<usize> {
+    diagnostics
+        .iter()
+        .enumerate()
+        .filter_map(|(position, params)| {
+            params
+                .diagnostics
+                .iter()
+                .any(|diagnostic| {
+                    diagnostic.code.as_ref().is_some_and(|code| {
+                        matches!(
+                            code,
+                            NumberOrString::String(code) if code == "multiple-step-attributes"
+                        )
+                    })
+                })
+                .then_some(position)
+        })
+        .collect()
+}
+
+/// Assert that every recoverable diagnostic publication is immediately
+/// followed by a clearing publication.
+fn assert_recoverable_diagnostics_are_cleared(diagnostics: &[PublishDiagnosticsParams]) {
+    let recoverable_positions = recoverable_diagnostic_positions(diagnostics);
+    assert_eq!(
+        recoverable_positions.len(),
+        2,
+        "both recoverable indexing saves should publish diagnostics"
+    );
+    for recoverable_position in recoverable_positions {
+        assert!(
+            diagnostics
+                .get(recoverable_position + 1)
+                .is_some_and(|params| params.diagnostics.is_empty()),
+            "the clearing publication must immediately follow the recoverable diagnostic"
+        );
+    }
 }
 
 #[test]
@@ -184,7 +292,6 @@ fn did_save_retains_valid_steps_after_recoverable_attribute_diagnostic() {
 async fn did_save_clears_recoverable_index_diagnostics_after_success_and_parse_failure() {
     use async_lsp::MainLoop;
     use async_lsp::router::Router;
-    use lsp_types::PublishDiagnosticsParams;
     use tokio::io::AsyncReadExt;
     use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
@@ -193,45 +300,43 @@ async fn did_save_clears_recoverable_index_diagnostics_after_success_and_parse_f
     let rust_path = dir.path().join("steps.rs");
     let feature_uri = Url::from_file_path(&feature_path).expect("feature URI");
     let rust_uri = Url::from_file_path(&rust_path).expect("Rust URI");
-    let feature_source = concat!(
-        "Feature: demo\n",
-        "  Scenario: example\n",
-        "    Given a valid step\n",
-    );
-    let malformed_source = concat!(
-        "use rstest_bdd_macros::{given, when};\n",
-        "\n",
-        "#[given(\"duplicate\")]\n",
-        "#[when(\"conflict\")]\n",
-        "fn conflicting_step() {}\n",
-        "\n",
-        "#[given(\"a valid step\")]\n",
-        "fn valid_step() {}\n",
-    );
-    let corrected_source = concat!(
-        "use rstest_bdd_macros::given;\n",
-        "\n",
-        "#[given(\"a valid step\")]\n",
-        "fn valid_step() {}\n",
-    );
-    let parse_failure_source = "fn incomplete(";
 
     let (mainloop, client) = MainLoop::new_server(|_client| Router::new(()));
     let mut state = ServerState::new(ServerConfig::default());
     handle_did_save_text_document(
         &mut state,
-        did_save_params(feature_uri, Some(feature_source)),
+        did_save_params(feature_uri, Some(FEATURE_SOURCE)),
     );
     state.set_client(client);
 
-    std::fs::write(&rust_path, malformed_source).expect("write recoverable diagnostic source");
-    handle_did_save_text_document(&mut state, did_save_params(rust_uri.clone(), None));
-    std::fs::write(&rust_path, corrected_source).expect("write corrected source");
-    handle_did_save_text_document(&mut state, did_save_params(rust_uri.clone(), None));
-    std::fs::write(&rust_path, malformed_source).expect("rewrite recoverable diagnostic source");
-    handle_did_save_text_document(&mut state, did_save_params(rust_uri.clone(), None));
-    std::fs::write(&rust_path, parse_failure_source).expect("write parse failure source");
-    handle_did_save_text_document(&mut state, did_save_params(rust_uri.clone(), None));
+    save_rust_source(
+        &mut state,
+        &rust_path,
+        &rust_uri,
+        MALFORMED_SOURCE,
+        "write recoverable diagnostic source",
+    );
+    save_rust_source(
+        &mut state,
+        &rust_path,
+        &rust_uri,
+        CORRECTED_SOURCE,
+        "write corrected source",
+    );
+    save_rust_source(
+        &mut state,
+        &rust_path,
+        &rust_uri,
+        MALFORMED_SOURCE,
+        "rewrite recoverable diagnostic source",
+    );
+    save_rust_source(
+        &mut state,
+        &rust_path,
+        &rust_uri,
+        PARSE_FAILURE_SOURCE,
+        "write parse failure source",
+    );
 
     let (writer, mut reader) = tokio::io::duplex(64 * 1024);
     let _ = mainloop
@@ -243,42 +348,5 @@ async fn did_save_clears_recoverable_index_diagnostics_after_success_and_parse_f
         reader.read_to_end(&mut captured).await.is_ok(),
         "read captured LSP notifications"
     );
-    let rust_diagnostics: Vec<PublishDiagnosticsParams> = decode_lsp_messages(&captured)
-        .into_iter()
-        .filter(|message| {
-            message.get("method").and_then(serde_json::Value::as_str)
-                == Some("textDocument/publishDiagnostics")
-        })
-        .filter_map(|message| message.get("params").cloned())
-        .filter_map(|params| serde_json::from_value(params).ok())
-        .filter(|params: &PublishDiagnosticsParams| params.uri == rust_uri)
-        .collect();
-    let recoverable_positions: Vec<_> = rust_diagnostics
-        .iter()
-        .enumerate()
-        .filter_map(|(position, params)| {
-            params
-                .diagnostics
-                .iter()
-                .any(|diagnostic| {
-                    diagnostic.code.as_ref().is_some_and(|code| {
-                        matches!(code, lsp_types::NumberOrString::String(code) if code == "multiple-step-attributes")
-                    })
-                })
-                .then_some(position)
-        })
-        .collect();
-    assert_eq!(
-        recoverable_positions.len(),
-        2,
-        "both recoverable indexing saves should publish diagnostics"
-    );
-    for recoverable_position in recoverable_positions {
-        assert!(
-            rust_diagnostics
-                .get(recoverable_position + 1)
-                .is_some_and(|params| params.diagnostics.is_empty()),
-            "the clearing publication must immediately follow the recoverable diagnostic"
-        );
-    }
+    assert_recoverable_diagnostics_are_cleared(&rust_diagnostics_for_uri(&captured, &rust_uri));
 }
