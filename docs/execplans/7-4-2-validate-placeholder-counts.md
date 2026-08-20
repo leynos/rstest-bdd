@@ -166,10 +166,9 @@ Known uncertainties that might affect the plan:
 - [x] Final validation passed: `make check-fmt`, `make lint`,
       `make typecheck`, `CARGO_NET_OFFLINE=true make test`, `make spellcheck`,
       and `make nixie`.
-- [ ] `make markdownlint` remains failed solely because the untracked, ignored
-      `.vtcode/tasks/current_task.md` contains three lines over 80 characters
-      (MD013). The project Markdown changes passed spelling and Mermaid
-      validation.
+- [x] `make markdownlint` passed after Markdown discovery excluded ignored
+      `.vtcode` task metadata. The project Markdown changes passed spelling and
+      Mermaid validation.
 
 ## Surprises & Discoveries
 
