@@ -119,20 +119,24 @@ const CORRECTED_SOURCE: &str = concat!(
 /// Rust source that fails to parse as a syntax tree.
 const PARSE_FAILURE_SOURCE: &str = "fn incomplete(";
 
+/// Identifies the Rust document written and saved by a test.
+#[derive(Clone, Copy)]
+struct RustSaveTarget<'a> {
+    path: &'a Path,
+    uri: &'a Url,
+}
+
 /// Write a Rust source file to disk and notify the server of the save.
-#[expect(
-    clippy::expect_used,
-    reason = "test helper preserves explicit failure messages for filesystem writes"
-)]
 fn save_rust_source(
     state: &mut ServerState,
-    path: &Path,
-    uri: &Url,
+    target: RustSaveTarget<'_>,
     source: &str,
     failure_context: &'static str,
 ) {
-    std::fs::write(path, source).expect(failure_context);
-    handle_did_save_text_document(state, did_save_params(uri.clone(), None));
+    if let Err(error) = std::fs::write(target.path, source) {
+        panic!("{failure_context}: {error}");
+    }
+    handle_did_save_text_document(state, did_save_params(target.uri.clone(), None));
 }
 
 /// Extract `publishDiagnostics` notifications for one URI from captured LSP
@@ -326,6 +330,10 @@ async fn did_save_clears_recoverable_index_diagnostics_after_success_and_parse_f
     let rust_path = dir.path().join("steps.rs");
     let feature_uri = Url::from_file_path(&feature_path).expect("feature URI");
     let rust_uri = Url::from_file_path(&rust_path).expect("Rust URI");
+    let rust_save_target = RustSaveTarget {
+        path: &rust_path,
+        uri: &rust_uri,
+    };
 
     let (mainloop, client) = MainLoop::new_server(|_client| Router::new(()));
     let mut state = ServerState::new(ServerConfig::default());
@@ -337,29 +345,25 @@ async fn did_save_clears_recoverable_index_diagnostics_after_success_and_parse_f
 
     save_rust_source(
         &mut state,
-        &rust_path,
-        &rust_uri,
+        rust_save_target,
         MALFORMED_SOURCE,
         "write recoverable diagnostic source",
     );
     save_rust_source(
         &mut state,
-        &rust_path,
-        &rust_uri,
+        rust_save_target,
         CORRECTED_SOURCE,
         "write corrected source",
     );
     save_rust_source(
         &mut state,
-        &rust_path,
-        &rust_uri,
+        rust_save_target,
         MALFORMED_SOURCE,
         "rewrite recoverable diagnostic source",
     );
     save_rust_source(
         &mut state,
-        &rust_path,
-        &rust_uri,
+        rust_save_target,
         PARSE_FAILURE_SOURCE,
         "write parse failure source",
     );
