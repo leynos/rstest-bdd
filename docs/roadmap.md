@@ -1046,14 +1046,6 @@ remove the existing `StepContext`, harness, or macro surfaces.
   `whitaker-installer` flow (CI pins `WHITAKER_INSTALLER_VERSION` at `0.2.6`)
   rather than building a pinned Whitaker tag. See leynos/rstest-bdd#597.
 
-## 12. Pre-1.0.0 API consolidation: landed v0.7.0 implementation
-
-The v0.7.0 line landed the final migration-guide-worthy API cleanup planned
-before v1.0.0. This phase collects changes that were too disruptive for v0.6.x
-but make the v1 surface smaller and more predictable. Following the first
-downstream adopter migration report, the guard-based `StepContext` borrow
-redesign was accepted and implemented through ADR-012.
-
 ### 11.3. Prevent beta3 false greens and generated-result warnings
 
 This hardening step closes two failure modes found by the gauss beta trial. It
@@ -1089,6 +1081,14 @@ an assertion cannot disappear behind macro classification or generated code.
 > `Proposed` status. Advancing it to `Accepted` is orthogonal to the GPUI
 > adopter feedback and requires separate maintainer approval; it is recorded
 > here only so the inconsistency is tracked.
+
+## 12. Pre-1.0.0 API consolidation: landed v0.7.0 implementation
+
+The v0.7.0 line landed the final migration-guide-worthy API cleanup planned
+before v1.0.0. This phase collects changes that were too disruptive for v0.6.x
+but make the v1 surface smaller and more predictable. Following the first
+downstream adopter migration report, the guard-based `StepContext` borrow
+redesign was accepted and implemented through ADR-012.
 
 ### 12.1. Redesign state and context borrowing
 
