@@ -426,14 +426,42 @@ of the user guide is the in-depth reference; the steps below mirror its outline:
 5. **Rebuild `VisualTestContext` per step.** Replace any stored
    `VisualTestContext` field with the durable handles, and in each subsequent
    step reconstruct the visual context with
-   `gpui::VisualTestContext::from_window(window, cx)`. The return is
-   `Option<VisualTestContext>`; treat `None` as an invariant violation:
+   `gpui::VisualTestContext::from_window(window, cx)`. The vendored gpui
+   return is `Option<VisualTestContext>`; treat `None` as an invariant
+   violation:
 
    ```rust,ignore
    let Some(visual_cx) = gpui::VisualTestContext::from_window(window, cx) else {
        panic!("stored window handle should reconstruct visual context");
    };
    ```
+
+   Published `gpui 0.2.2` returns `VisualTestContext` by value instead, so no
+   `Option` unwrapping is needed there.
+
+For a downstream crate using published `gpui 0.2.2`, translate the `#[given]`
+and later step call sites as follows. The view type must implement `Render`,
+and its constructor receives the published view context:
+
+```rust,ignore
+use gpui::{AppContext as _, VisualContext as _};
+
+let (entity, visual_cx) =
+    cx.add_window_view(|_window, view_cx| View::new(view_cx));
+let window = visual_cx.window_handle();
+
+let mut visual_cx = gpui::VisualTestContext::from_window(window, cx);
+visual_cx.update_entity(&entity, |view, _view_cx| view.value += 1);
+let value = visual_cx.read_entity(&entity, |view, _app| view.value);
+assert_eq!(value, 1);
+```
+
+Published `add_window_view` returns the visual context by mutable reference,
+`window_handle` comes from `VisualContext`, and the entity methods come from
+`AppContext`. The entity methods take `&Entity<T>` and two-argument callbacks,
+then return the callback value directly. The user guide provides complete
+[published step variants][published-variants] alongside the vendored
+regression-suite snippets.
 
 For a worked-out example, see the regression suite at
 `crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` and the
@@ -462,6 +490,9 @@ https://doc.rust-lang.org/nomicon/borrow-splitting.html
 
 [users-guide-playbook]:
 users-guide.md#stateful-gpui-scenarios-with-durable-handles
+
+[published-variants]:
+users-guide.md#published-gpui-022-stateful-step-variants
 
 ### Adopt guard-based `StepContext` borrowing (v0.7.0)
 
@@ -546,10 +577,33 @@ fn given_shell_open(
 ) -> StepResult<()> {
     let (shell, visual_cx) = cx.add_window_view(|_context| Shell::default());
     world.shell = Some(shell);
-    world.visual_cx = Some(visual_cx);
+    world.window = Some(visual_cx.window_handle());
+    Ok(())
+}
+
+#[when("the shell receives input")]
+fn when_shell_receives_input(
+    #[from(rstest_bdd_harness_context)] cx: &mut gpui::TestAppContext,
+    world: &mut UiWorld,
+) -> StepResult<()> {
+    let Some(window) = world.window else {
+        panic!("the given step should have stored a window handle");
+    };
+    let Some(mut visual_cx) = gpui::VisualTestContext::from_window(window, cx)
+    else {
+        panic!("stored window handle should reconstruct visual context");
+    };
+    // ...drive the shell through `visual_cx`...
     Ok(())
 }
 ```
+
+Guard-based borrowing removes the `E0499`/`E0502` obstacle to holding `cx` and
+`world` at once, but it does not make a stored `VisualTestContext` valid. That
+value is tied to the `TestAppContext` it was built against, and each step
+receives a fresh one, so `UiWorld` still keeps only the durable
+`Entity<T>` and `AnyWindowHandle` and rebuilds the visual context per step, as
+[Rebuild `VisualTestContext` per step](#migrate-a-stateful-gpui-test) requires.
 
 ## Migration checklist
 
@@ -631,10 +685,14 @@ fn given_shell_open(
 ) -> StepResult<()> {
     let (shell, visual_cx) = cx.add_window_view(|_context| Shell::default());
     world.shell = Some(shell);
-    world.visual_cx = Some(visual_cx);
+    world.window = Some(visual_cx.window_handle());
     Ok(())
 }
 ```
+
+The rejection here comes from the two `&mut` fixture parameters, not from the
+body: the snippet already stores only durable handles, as the playbook
+requires.
 
 The same constraint is not GPUI-specific. This non-GPUI shape is also rejected
 when both parameters come from the same `StepContext`.

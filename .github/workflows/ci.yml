@@ -176,6 +176,10 @@ jobs:
         if: ${{ matrix.tools }}
         run: make typecheck
 
+      - name: Check published GPUI documentation fixture
+        if: ${{ matrix.tools && matrix.with-default-features }}
+        run: make check-published-gpui
+
       - name: Test and Measure Coverage (with features)
         if: ${{ matrix.coverage && matrix.features != '' }}
         uses: leynos/shared-actions/.github/actions/generate-coverage@57a33fa65e329db7edc81ece661f1a2e1d39868f

@@ -4,7 +4,8 @@ VALE ?= vale
 .PHONY: lint-whitaker typecheck fmt check-fmt markdownlint spellcheck spelling
 .PHONY: spelling-config spelling-config-write spelling-phrase-check
 .PHONY: spelling-helper-test nixie publish-check
-.PHONY: forbid-async-trait vale update-ui-lints-lock test-workflow-contracts
+.PHONY: check-published-gpui forbid-async-trait vale update-ui-lints-lock
+.PHONY: test-workflow-contracts
 
 SHELL := bash
 export PATH := $(HOME)/.cargo/bin:$(HOME)/.bun/bin:$(HOME)/.local/bin:$(PATH)
@@ -88,17 +89,31 @@ typecheck: build-python ## Run cargo and Python type checks with warnings denied
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) check $(CARGO_FLAGS) $(BUILD_JOBS)
 	$(UV_ENV) $(UV) run ty check $(PYTHON_TARGETS)
 
+PUBLISHED_GPUI_MANIFEST := tests/fixtures/published-gpui-0-2-2/Cargo.toml
+
+check-published-gpui: ## Compile the published gpui 0.2.2 documentation fixture
+	# This nested workspace bypasses the root workspace's vendored gpui path.
+	# CI exports RUSTFLAGS=-D warnings job-wide; set it here too so an unused
+	# import or dead helper fails locally rather than only on CI. Note this
+	# does not catch a write-only struct field: rustc's dead_code pass treats
+	# `state.field = v` as a use, so such a field warns in neither place.
+	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) check --locked \
+		--manifest-path $(PUBLISHED_GPUI_MANIFEST)
+
 forbid-async-trait: ## Ensure the async-trait crate and macro remain absent
 	python3 scripts/check_forbidden_async_trait.py
 
 fmt: build-python ## Format Rust and Markdown sources
 	$(CARGO) fmt --all
+	# The published gpui fixture is its own workspace, so `--all` misses it.
+	$(CARGO) fmt --manifest-path $(PUBLISHED_GPUI_MANIFEST)
 	$(UV_ENV) $(UV) run ruff format $(PYTHON_TARGETS)
 	$(UV_ENV) $(UV) run ruff check --select I --fix $(PYTHON_TARGETS)
 	mdformat-all
 
 check-fmt: build-python ## Verify formatting
 	$(CARGO) fmt --all -- --check
+	$(CARGO) fmt --manifest-path $(PUBLISHED_GPUI_MANIFEST) -- --check
 	$(UV_ENV) $(UV) run ruff format --check $(PYTHON_TARGETS)
 
 markdownlint: spelling ## Lint Markdown files and enforce en-GB-oxendict spelling

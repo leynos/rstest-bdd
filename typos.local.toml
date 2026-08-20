@@ -41,6 +41,7 @@ ignore = [
   '\bTrUe\b',
   '\{color\}',
   '\bcaf\b',
+  '\binventario\b',
   "n'aurait pas dû signaler une étape ignorée",
   'La fixture « n » de type « u32 » est introuvable pour la fonction « s »',
   'syntaxe de paramètre invalide',
