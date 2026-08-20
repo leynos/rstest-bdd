@@ -40,6 +40,25 @@ fn did_save_indexes_feature_files_and_caches_result() {
 }
 
 #[test]
+fn did_save_normalizes_disk_feature_source() {
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join("missing-newline.feature");
+    std::fs::write(&path, "Feature: demo\n  Scenario: s\n    Given a message")
+        .expect("write feature file");
+    let uri = Url::from_file_path(&path).expect("file URI");
+    let params = DidSaveTextDocumentParams {
+        text_document: TextDocumentIdentifier { uri },
+        text: None,
+    };
+
+    let mut state = state_for_workspace(dir.path());
+    handle_did_save_text_document(&mut state, params);
+
+    let index = state.feature_index(&path).expect("feature index cached");
+    assert!(index.source.ends_with('\n'));
+}
+
+#[test]
 fn did_save_rejects_feature_files_outside_workspace_root() {
     let workspace = TempDir::new().expect("workspace dir");
     let outside_workspace = TempDir::new().expect("outside workspace dir");

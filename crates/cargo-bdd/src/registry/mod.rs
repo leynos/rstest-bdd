@@ -8,6 +8,7 @@ use std::process::{Child, Command, Stdio};
 use cargo_metadata::{Message, Package, PackageId, Target};
 use eyre::{Context, Result, bail, eyre};
 use serde::Deserialize;
+use tracing::warn;
 
 /// Registry step entry including location metadata and execution status.
 #[derive(Debug, Deserialize, Clone)]
@@ -250,6 +251,11 @@ fn handle_binary_execution_failure(
 
 fn handle_binary_execution_stderr(bin: &Path, stderr: &str) -> Result<Option<RegistryDump>> {
     if is_unrecognized_dump_steps(stderr) {
+        warn!(
+            binary = %bin.display(),
+            reason = "unsupported-dump-steps",
+            "registry collection skipped the binary"
+        );
         Ok(None)
     } else {
         bail!("test binary {} failed: {stderr}", bin.display());

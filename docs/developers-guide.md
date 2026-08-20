@@ -680,6 +680,29 @@ regardless of how a downstream crate names, re-exports, or otherwise obtains
 Tokio. Although marked `#[doc(hidden)]`, changing or removing this bridge is a
 breaking change for existing async-step macro expansions.
 
+### Shared scenario-token assembly
+
+The private `ScenarioTestConfig` trait in
+`crates/rstest-bdd-macros/src/codegen/scenario/runtime/mod.rs` is the shared
+pipeline for regular scenarios and scenario outlines. `TestTokensConfig` owns
+one processed step set; `OutlineTestTokensConfig` owns the per-Examples-row
+sets. Both implementations expose the common metadata and select their own
+`CodeComponents` implementation.
+
+`generate_test_tokens_for_config` owns the common assembly sequence: it
+materializes the context iterators, creates scenario literals, wraps the user
+block for its return and async semantics, and selects the harness or
+non-harness assembly path. Keep behaviour shared here when it applies to both
+scenario shapes.
+
+`generate_test_tokens` and `generate_test_tokens_outline` remain intentionally
+typed entry points. Keep outline-specific row substitution and case-index
+handling in the outline path, and keep regular-step processing in the regular
+path; do not widen the private trait into a public configuration API merely to
+make those shapes look identical. The `reject_async_harness` check is applied
+before both paths, so an `async fn` combined with `harness` is rejected for
+regular scenarios and scenario outlines alike.
+
 ## Shared policy crate (`rstest-bdd-policy`)
 
 The workspace owns policy type definitions in `rstest-bdd-policy`.[^1] That
@@ -1419,3 +1442,51 @@ no extension.
 Invariants (ASCII-case insensitivity, rejection of differing extensions, and
 behaviour for missing, repeated, and trailing dots) are pinned by the property
 suite in `crates/rstest-bdd-server/tests/has_extension_props.rs`.
+
+### Rust indexing results and recoverable diagnostics
+
+`index_rust_source` and `index_rust_file` return
+`Result<RustStepIndexResult, RustStepIndexError>`. A successful
+`RustStepIndexResult` owns both the `RustStepFileIndex` and the per-function
+`RustStepIndexDiagnostic` values. A whole-file read failure or `syn` parse
+failure is fatal; the handler logs it and retains the previous file index.
+
+Invalid step attributes on one function are recoverable. The collector keeps
+valid neighbouring definitions and reports `MultipleStepAttributes` or
+`InvalidStepAttributeArguments` for the affected function. The save handler
+stores the valid index, publishes those diagnostics, and republishes feature
+diagnostics so a partially valid Rust file remains useful for navigation.
+
+### Workspace-root capability and feature-source boundary
+
+`WorkspaceRoot` is the server-side capability for disk-backed feature reads.
+It validates that a requested path is beneath the retained root, rejects
+parent-directory traversal and non-UTF-8 relative paths, and reads through
+the capability-scoped directory. Opening the capability is blocking; lifecycle
+initialization performs discovery and root opening in `spawn_blocking` before
+the router installs the ready capability.
+
+`ServerState::index_feature_file` owns the disk boundary: it reads through
+`WorkspaceRoot` and then passes the resulting text to
+`index_feature_source`. The feature indexer therefore parses source text and
+does not perform filesystem access. A save notification that includes source
+text goes directly to `index_feature_source`, avoiding a second read and a
+race with the editor's on-disk write. `index_feature_source` applies the
+canonical trailing-newline normalization before parsing.
+
+### Bounded indexing metrics
+
+The on-save handlers record the counter
+`rstest_bdd_server_indexing_total` with exactly two labels: `operation` and
+`outcome`. Both label values come from fixed `&'static str` match arms; paths,
+error messages, and other unbounded input must not become metric labels.
+
+`operation` is `feature` or `rust`. A successful save records `success`; a
+Rust result also records one `recoverable-diagnostic` outcome per diagnostic.
+Feature failures use `workspace-root-unavailable`,
+`workspace-boundary-failure`, `non-utf8-path`, `read-failure`,
+`parse-failure`, or `docstring-span-failure`. Rust failures use
+`read-failure` or `parse-failure`. Keep new outcomes in the corresponding
+exhaustive mapping and preserve the two-label shape. Recorder-backed tests in
+`handlers/text_document.rs` pin the metric name, labels, and representative
+outcomes.

@@ -2,16 +2,14 @@
 
 use std::borrow::Cow;
 use std::ops::Range;
-use std::path::{Component, Path, PathBuf};
+use std::path::PathBuf;
 
-use camino::Utf8Path;
 use gherkin::GherkinEnv;
 
 use super::{
     FeatureFileIndex, FeatureIndexError, IndexedDocstring, IndexedScenarioOutline, IndexedStep,
     IndexedTable,
 };
-use crate::indexing::WorkspaceRoot;
 
 mod docstring;
 mod outline;
@@ -50,43 +48,6 @@ impl<'a> FeatureSource<'a> {
     fn len(&self) -> usize {
         self.0.len()
     }
-}
-
-/// Parse and index a `.feature` file from disk.
-///
-/// The returned index uses byte offsets within the (normalized) feature text,
-/// matching the behaviour of `gherkin` which appends a trailing newline when
-/// missing.
-///
-/// # Errors
-///
-/// Returns an error when the supplied path is outside the workspace root, when
-/// the feature file cannot be read, or when it cannot be parsed as valid
-/// Gherkin.
-pub(crate) fn index_feature_file(
-    workspace_root: &WorkspaceRoot,
-    path: &Path,
-) -> Result<FeatureFileIndex, FeatureIndexError> {
-    let relative_path = path.strip_prefix(workspace_root.path()).map_err(|_| {
-        FeatureIndexError::OutsideWorkspaceRoot {
-            path: path.to_path_buf(),
-        }
-    })?;
-    if relative_path
-        .components()
-        .any(|component| matches!(component, Component::ParentDir))
-    {
-        return Err(FeatureIndexError::OutsideWorkspaceRoot {
-            path: path.to_path_buf(),
-        });
-    }
-    let relative_path =
-        Utf8Path::from_path(relative_path).ok_or_else(|| FeatureIndexError::NonUtf8Path {
-            path: path.to_path_buf(),
-        })?;
-    let mut source = workspace_root.directory().read_to_string(relative_path)?;
-    normalize_owned_source_text(&mut source);
-    index_feature_text(path.to_path_buf(), FeatureSource::new(&source))
 }
 
 /// Parse and index a `.feature` file from source text.
@@ -226,12 +187,6 @@ fn normalize_source_text(source: &str) -> Cow<'_, str> {
         return Cow::Borrowed(source);
     }
     Cow::Owned(format!("{source}\n"))
-}
-
-fn normalize_owned_source_text(source: &mut String) {
-    if !source.ends_with('\n') {
-        source.push('\n');
-    }
 }
 
 fn index_steps_for_container(

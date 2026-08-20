@@ -1,20 +1,12 @@
 //! Tests for feature file indexing.
 
 use super::*;
-use crate::indexing::WorkspaceRoot;
 use tempfile::TempDir;
 
-fn index_file_in_workspace(
-    path: &std::path::Path,
-    workspace_root: &std::path::Path,
-) -> FeatureFileIndex {
-    let workspace_root = match WorkspaceRoot::open(workspace_root) {
-        Ok(workspace_root) => workspace_root,
-        Err(error) => panic!("open workspace root: {error}"),
-    };
-    match index_feature_file(&workspace_root, path) {
+fn index_feature(path: &std::path::Path, source: &str) -> FeatureFileIndex {
+    match index_feature_source(path.to_path_buf(), source) {
         Ok(index) => index,
-        Err(error) => panic!("index feature file: {error}"),
+        Err(error) => panic!("index feature source: {error}"),
     }
 }
 
@@ -39,9 +31,7 @@ fn indexes_steps_tables_docstrings_and_example_columns() {
         "      | ok     | x     |\n",
     );
 
-    std::fs::write(&path, feature).expect("write feature file");
-
-    let index = index_file_in_workspace(&path, dir.path());
+    let index = index_feature(&path, feature);
     assert_eq!(index.steps.len(), 3);
     assert_eq!(index.example_columns.len(), 2);
     let first_column = index
@@ -104,9 +94,7 @@ fn indexes_multiple_examples_tables() {
         "      | 2     | x     |\n",
     );
 
-    std::fs::write(&path, feature).expect("write feature file");
-
-    let index = index_file_in_workspace(&path, dir.path());
+    let index = index_feature(&path, feature);
     assert_eq!(index.scenario_outlines.len(), 1);
 
     let outline = index
@@ -139,9 +127,7 @@ fn regular_scenario_not_indexed_as_outline() {
         "    Given a step\n",
     );
 
-    std::fs::write(&path, feature).expect("write feature file");
-
-    let index = index_file_in_workspace(&path, dir.path());
+    let index = index_feature(&path, feature);
     assert_eq!(index.steps.len(), 1);
     assert!(
         index.scenario_outlines.is_empty(),
@@ -161,9 +147,7 @@ fn docstring_span_includes_backtick_delimiters() {
         "      hello\n",
         "      ```\n",
     );
-    std::fs::write(&path, feature).expect("write feature file");
-
-    let index = index_file_in_workspace(&path, dir.path());
+    let index = index_feature(&path, feature);
 
     assert!(index.source.ends_with('\n'));
     let step = index.steps.first().expect("expected indexed step");
@@ -172,18 +156,4 @@ fn docstring_span_includes_backtick_delimiters() {
         .get(doc.span.start..doc.span.end)
         .expect("doc span should be valid for source");
     assert!(doc_text.contains("```"));
-}
-
-#[test]
-fn rejects_parent_traversal_outside_workspace_root() {
-    let workspace = TempDir::new().expect("workspace dir");
-    let path = workspace.path().join("../outside.feature");
-    let workspace_root = WorkspaceRoot::open(workspace.path()).expect("open workspace root");
-
-    let error = index_feature_file(&workspace_root, &path).expect_err("reject parent traversal");
-
-    assert!(matches!(
-        error,
-        FeatureIndexError::OutsideWorkspaceRoot { .. }
-    ));
 }

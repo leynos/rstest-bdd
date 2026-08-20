@@ -16,7 +16,7 @@ use crate::discovery::WorkspaceInfo;
 use crate::error::ServerError;
 use crate::indexing::{
     FeatureFileIndex, FeatureIndexError, RustStepFileIndex, StepDefinitionRegistry, WorkspaceRoot,
-    index_feature_file,
+    index_feature_source,
 };
 
 /// Central state shared across all LSP handlers.
@@ -144,6 +144,21 @@ impl ServerState {
         Ok(())
     }
 
+    /// Store discovered workspace information together with a capability that
+    /// was already opened off the LSP executor.
+    ///
+    /// Unlike [`Self::set_workspace_info`], this does not reopen the capability,
+    /// so it is safe to call on the router task after the caller awaited the
+    /// blocking open.
+    pub(crate) fn install_workspace_info_with_root(
+        &mut self,
+        workspace_info: WorkspaceInfo,
+        root: WorkspaceRoot,
+    ) {
+        self.workspace_root = Some(root);
+        self.workspace_info = Some(workspace_info);
+    }
+
     /// Store the capability-scoped root selected for workspace file reads.
     ///
     /// # Errors
@@ -155,6 +170,15 @@ impl ServerState {
         Ok(())
     }
 
+    /// Install a workspace-root capability that was already opened off the LSP
+    /// executor.
+    ///
+    /// This never touches the filesystem on the router task; the caller is
+    /// responsible for having performed the blocking open beforehand.
+    pub(crate) fn install_workspace_root(&mut self, root: WorkspaceRoot) {
+        self.workspace_root = Some(root);
+    }
+
     /// Access discovered workspace information, if available.
     #[must_use]
     pub fn workspace_info(&self) -> Option<&WorkspaceInfo> {
@@ -162,6 +186,10 @@ impl ServerState {
     }
 
     /// Index a disk-backed feature file through the workspace-root capability.
+    ///
+    /// The workspace-relative path validation and capability-rooted read
+    /// happen at this server boundary; the indexing domain only receives the
+    /// normalized source text via [`index_feature_source`].
     pub(crate) fn index_feature_file(
         &self,
         path: &Path,
@@ -170,7 +198,8 @@ impl ServerState {
             .workspace_root
             .as_ref()
             .ok_or(FeatureIndexError::WorkspaceRootUnavailable)?;
-        index_feature_file(workspace_root, path)
+        let source = workspace_root.read_feature_source(path)?;
+        index_feature_source(path.to_path_buf(), &source)
     }
 
     /// Access the current server configuration.

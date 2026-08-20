@@ -133,6 +133,44 @@ Known uncertainties that might affect the plan:
   - [ ] Run full quality gates (`make check-fmt`, `make lint`, `make test`)
   - [ ] Commit changes
 
+### PR #660 review follow-up (2026-08-20)
+
+- [x] Update `docs/developers-guide.md` with the recoverable
+      `RustStepIndexResult` contract, the `WorkspaceRoot` and
+      `index_feature_source` boundary, bounded indexing metrics, and the
+      shared `ScenarioTestConfig` pipeline with its intentional typed entry
+      points.
+- [x] Record the architectural boundary change: server-side capability-rooted
+      reads supply normalized source text to the indexing domain; source-text
+      saves bypass disk reads.
+- [x] Record the scenario-outline async-harness fixture and its trybuild
+      registration. Source inspection confirms that the same rejection check
+      runs for regular scenarios and outlines; no test result is claimed here.
+- [x] Record the indexing observability contract: the fixed counter name,
+      `operation` and `outcome` labels, and the bounded outcome vocabulary.
+- [x] Focused validation passed:
+      `CARGO_NET_OFFLINE=true cargo test -p rstest-bdd --test
+      trybuild_macros step_macros_compile -- --exact` (including the new
+      outline fixture); `CARGO_NET_OFFLINE=true cargo test -p cargo-bdd
+      registry::tests` (8 tests); `CARGO_NET_OFFLINE=true cargo test -p
+      rstest-bdd-server indexing::feature::tests --lib` (4 tests);
+      `CARGO_NET_OFFLINE=true cargo test -p rstest-bdd-server
+      indexing::workspace::tests --lib` (4 tests);
+      `CARGO_NET_OFFLINE=true cargo test -p rstest-bdd-server --test
+      feature_indexing_on_save` (4 tests); `CARGO_NET_OFFLINE=true cargo test
+      -p rstest-bdd-server handlers::text_document::tests --lib` (1 test);
+      `CARGO_NET_OFFLINE=true cargo test -p rstest-bdd-server
+      handlers::lifecycle::tests --lib` (16 tests); and
+      `CARGO_NET_OFFLINE=true cargo check -p rstest-bdd-server --bin
+      rstest-bdd-lsp`.
+- [x] Final validation passed: `make check-fmt`, `make lint`,
+      `make typecheck`, `CARGO_NET_OFFLINE=true make test`, `make spellcheck`,
+      and `make nixie`.
+- [ ] `make markdownlint` remains failed solely because the untracked, ignored
+      `.vtcode/tasks/current_task.md` contains three lines over 80 characters
+      (MD013). The project Markdown changes passed spelling and Mermaid
+      validation.
+
 ## Surprises & Discoveries
 
 (To be updated as work proceeds)

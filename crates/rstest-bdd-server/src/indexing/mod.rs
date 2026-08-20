@@ -27,11 +27,10 @@ mod registry;
 mod rust;
 mod workspace;
 
-pub(crate) use feature::index_feature_file;
 pub use feature::index_feature_source;
 pub use registry::{CompiledStepDefinition, StepDefinitionRegistry, StepPatternCompileError};
 pub use rust::{index_rust_file, index_rust_source};
-pub(crate) use workspace::WorkspaceRoot;
+pub use workspace::WorkspaceRoot;
 
 /// Parsed index for a single `.feature` file.
 #[derive(Debug, Clone, PartialEq, Eq)]

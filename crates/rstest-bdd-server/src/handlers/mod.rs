@@ -18,5 +18,8 @@ pub use diagnostics::{
     compute_unused_step_diagnostics, publish_all_feature_diagnostics, publish_feature_diagnostics,
 };
 pub use implementation::handle_implementation;
-pub use lifecycle::{handle_initialise, handle_initialised, handle_shutdown};
+pub use lifecycle::{
+    WorkspaceReadyEvent, handle_initialise, handle_initialised, handle_shutdown,
+    handle_workspace_ready, initialize_async,
+};
 pub use text_document::handle_did_save_text_document;

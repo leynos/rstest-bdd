@@ -1,0 +1,10 @@
+error: combining `harness` with `async fn` scenarios is not supported; use a synchronous scenario function with `TokioHarness` instead (the harness provides the Tokio runtime for step functions)
+  --> tests/fixtures_macros/scenario_outline_harness_async_rejected.rs:18:1
+   |
+18 | / #[scenario(
+19 | |     path = "../features/macros/outline.feature",
+20 | |     harness = rstest_bdd_harness::StdHarness,
+21 | | )]
+   | |__^
+   |
+   = note: this error originates in the attribute macro `scenario` (in Nightly builds, run with -Z macro-backtrace for more info)
