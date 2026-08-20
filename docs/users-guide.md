@@ -1591,8 +1591,9 @@ fn fresh_gpui_window_is_opened(
 ```
 
 The published reconstruction constructor returns `VisualTestContext` by value.
-Its entity methods take the entity by reference and pass an application context
-as the callback's second argument. Their `AppContext::Result<R>` alias is `R`,
+Its entity methods take the entity by reference: `update_entity`'s callback
+receives `&mut Context<T>` as its second argument, whereas `read_entity`'s
+callback receives `&App`. Their `AppContext::Result<R>` alias is `R`,
 so assertions compare the returned values directly rather than unwrapping
 `Option` or `Result`. Unlike the vendored helper, the published helper clones
 the stored entity because published `Entity<T>` is `Clone`, not `Copy`:
