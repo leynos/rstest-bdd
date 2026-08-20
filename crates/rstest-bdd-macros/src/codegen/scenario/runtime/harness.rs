@@ -107,15 +107,32 @@ fn generate_runner_closure_body(params: RunnerClosureParams<'_>) -> TokenStream2
     }
 }
 
+/// The resolved harness paths threaded through harness token assembly.
+///
+/// Grouping the adapter type path with the harness API crate path keeps them
+/// travelling together: both come from the same harness resolution step, and
+/// mixing a path from one resolution with a crate path from another would
+/// generate tokens that name a type in the wrong crate.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct HarnessAssemblyPaths<'a> {
+    /// Path to the user-supplied `HarnessAdapter` implementor.
+    pub(super) harness_path: &'a syn::Path,
+    /// Tokens naming the harness API crate the adapter's traits resolve in.
+    pub(super) harness_crate: &'a TokenStream2,
+}
+
 /// Assembles test tokens with harness delegation.
 pub(super) fn assemble_test_tokens_with_harness(
     literals: &ScenarioLiterals,
     components: &CodeComponents,
     context: TokenAssemblyContext<'_>,
-    harness_path: &syn::Path,
+    harness: HarnessAssemblyPaths<'_>,
 ) -> TokenStream2 {
+    let HarnessAssemblyPaths {
+        harness_path,
+        harness_crate,
+    } = harness;
     let path = crate::codegen::rstest_bdd_path();
-    let harness_crate = crate::codegen::rstest_bdd_harness_api_path_for(harness_path);
     let harness_context_ty = quote! {
         <#harness_path as #harness_crate::HarnessAdapter>::Context
     };

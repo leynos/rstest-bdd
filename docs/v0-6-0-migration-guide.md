@@ -216,6 +216,12 @@ omit that direct dependency and compile as workspace proof points.
 > first-party adapter and falls back to resolving base API types through
 > `rstest-bdd-harness`. In those cases, add `rstest-bdd-harness` as a
 > direct dev-dependency.
+>
+> **Fallback warning:** a non-canonical first-party adapter path now emits one
+> fallback warning. On stable Rust this is a deprecation warning; adding
+> `#![deny(deprecated)]` escalates it to an error. Use the canonical Tokio or
+> GPUI path above, or add the direct `rstest-bdd-harness` dev-dependency when a
+> re-exported path is required.
 
 Adapter-only manifests work when macro arguments use first-party crate-root
 paths, such as `rstest_bdd_harness::StdHarness`,

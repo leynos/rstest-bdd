@@ -31,6 +31,7 @@ fn tokio_macro_fixtures_compile() -> Result<(), Box<dyn std::error::Error>> {
         "tests/fixtures_macros/scenario_attributes_tokio_dedup.rs",
         "tests/fixtures_macros/scenario_harness_tokio_default.rs",
         "tests/fixtures_macros/scenario_harness_tokio_override_default.rs",
+        "tests/fixtures_macros/scenario_custom_tokio_harness_name.rs",
         "tests/fixtures_macros/scenarios_attributes_tokio.rs",
         "tests/fixtures_macros/scenarios_harness_tokio_default.rs",
     ] {
@@ -39,10 +40,49 @@ fn tokio_macro_fixtures_compile() -> Result<(), Box<dyn std::error::Error>> {
     for case in [
         "tests/fixtures_macros/scenario_default_policy_async_no_harness_rejected.rs",
         "tests/fixtures_macros/scenario_harness_tokio_async_rejected.rs",
-        "tests/fixtures_macros/scenarios_runtime_alias_deprecated.rs",
     ] {
         tests.compile_fail(case);
     }
+    compile_fail_stable_fallback_warnings(&tests);
+    compile_fail_runtime_deprecation_warning(&tests);
+    Ok(())
+}
+
+#[rustversion::not(nightly)]
+fn compile_fail_stable_fallback_warnings(tests: &trybuild::TestCases) {
+    for case in [
+        "tests/fixtures_macros/scenario_attributes_alias_fallback_warning.rs",
+        "tests/fixtures_macros/scenario_harness_alias_fallback_warning.rs",
+        "tests/fixtures_macros/scenarios_attributes_alias_fallback_warning.rs",
+        "tests/fixtures_macros/scenarios_multi_scenario_alias_fallback_warning.rs",
+        "tests/fixtures_macros/scenarios_combined_alias_fallback_warning.rs",
+    ] {
+        tests.compile_fail(case);
+    }
+}
+
+#[rustversion::nightly]
+fn compile_fail_stable_fallback_warnings(_: &trybuild::TestCases) {}
+
+#[rustversion::nightly]
+fn compile_fail_runtime_deprecation_warning(tests: &trybuild::TestCases) {
+    tests.compile_fail("tests/fixtures_macros/nightly_runtime_deprecation_warning.rs");
+}
+
+#[rustversion::not(nightly)]
+fn compile_fail_runtime_deprecation_warning(tests: &trybuild::TestCases) {
+    tests.compile_fail("tests/fixtures_macros/scenarios_runtime_alias_deprecated.rs");
+}
+
+#[rustversion::nightly]
+#[test]
+#[serial]
+fn nightly_fallback_emits_one_proc_macro_warning() -> Result<(), Box<dyn std::error::Error>> {
+    stage_trybuild_support_files()?;
+    let tests = trybuild::TestCases::new();
+    tests.compile_fail("tests/fixtures_macros/nightly_registry_empty_warning.rs");
+    tests.compile_fail("tests/fixtures_macros/nightly_adapter_fallback_warning.rs");
+    tests.compile_fail("tests/fixtures_macros/nightly_multi_scenario_alias_fallback_warning.rs");
     Ok(())
 }
 
@@ -88,6 +128,10 @@ fn stage_trybuild_support_files() -> Result<(), Box<dyn std::error::Error>> {
     copy_file(
         &crate_root.join("tests/fixtures_macros/scenarios_harness_tokio_default.feature"),
         &trybuild_root.join("scenarios_harness_tokio_default.feature"),
+    )?;
+    copy_file(
+        &crate_root.join("tests/fixtures_macros/scenarios_multi_fallback.feature"),
+        &trybuild_root.join("scenarios_multi_fallback.feature"),
     )?;
     Ok(())
 }

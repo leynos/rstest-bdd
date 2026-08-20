@@ -152,6 +152,11 @@ fn try_scenario(
     let ctx_prelude = fixture_setup.prelude;
     let ctx_inserts = fixture_setup.ctx_inserts;
     let ctx_postlude = fixture_setup.postlude;
+    // `#[scenario]` owns this expansion boundary, so it emits each fallback
+    // diagnostic once before its generated code consumes the shared decision.
+    let resolutions =
+        crate::codegen::SharedAdapterResolutions::resolve(harness.as_ref(), attributes.as_ref());
+    let fallback_diagnostics = resolutions.emit_diagnostics();
 
     let config = ScenarioConfig {
         attrs,
@@ -170,6 +175,8 @@ fn try_scenario(
         return_kind,
         harness: harness.as_ref(),
         attributes: attributes.as_ref(),
+        resolutions: Some(&resolutions),
+        fallback_diagnostics: Some(&fallback_diagnostics),
     };
 
     Ok(generate_scenario_code(
@@ -177,7 +184,8 @@ fn try_scenario(
         ctx_prelude.into_iter(),
         ctx_inserts.into_iter(),
         ctx_postlude.into_iter(),
-    ))
+    )
+    .into())
 }
 
 fn parse_tag_filter(
