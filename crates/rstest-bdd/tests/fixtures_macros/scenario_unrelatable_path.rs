@@ -12,7 +12,7 @@
 
 use rstest_bdd_macros::scenario;
 
-#[scenario(path = "Z:\\unrelatable\\x.feature")]
+#[scenario(path = "C:\\Users\\Public\\rstest-bdd-unrelatable\\x.feature")]
 fn unreachable_root() {}
 
 fn main() {}

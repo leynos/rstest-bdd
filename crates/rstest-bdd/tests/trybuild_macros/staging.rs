@@ -8,30 +8,30 @@ use cap_std::{ambient_authority, fs::Dir};
 use std::env;
 use std::io;
 use std::path::Path as StdPath;
-#[cfg(windows)]
-use std::process::Command;
 
 const MACROS_FIXTURES_DIR: &str = "tests/fixtures_macros";
 const FEATURES_DIR: &str = "tests/features";
 const FEATURES_AUTO_DIR: &str = "tests/features/auto";
 
 #[cfg(windows)]
-const UNRELATABLE_FEATURE_DRIVE: &str = "Z:";
+const UNRELATABLE_FEATURE_PATH: &str = r"C:\Users\Public\rstest-bdd-unrelatable\x.feature";
 
-/// A temporary alternate Windows drive mapped to staged trybuild fixtures.
+/// A staged feature file on Windows' `C:` root.
 ///
-/// Keeping the mapping alive through the compile-fail invocation ensures the
-/// macro can load the feature before it checks the intentionally different
-/// filesystem root. Dropping the guard removes the process-visible mapping.
+/// Keeping the file alive through the compile-fail invocation ensures the macro
+/// can load it before it checks the intentionally different filesystem root.
+/// Dropping the guard removes this exact staged file and its empty directory.
 #[cfg(windows)]
 pub(crate) struct AlternateFeatureRoot;
 
 #[cfg(windows)]
 impl Drop for AlternateFeatureRoot {
     fn drop(&mut self) {
-        let _ = Command::new("subst")
-            .args([UNRELATABLE_FEATURE_DRIVE, "/D"])
-            .status();
+        let path = StdPath::new(UNRELATABLE_FEATURE_PATH);
+        let _ = std::fs::remove_file(path);
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::remove_dir(parent);
+        }
     }
 }
 
@@ -69,11 +69,11 @@ pub(crate) fn ui_fixture(case: &str) -> Utf8PathBuf {
     Utf8PathBuf::from("tests/ui_macros").join(case)
 }
 
-/// Map an alternate drive to the staged unrelatable-path feature fixture.
+/// Stage the unrelatable-path feature fixture on Windows' alternate root.
 ///
-/// `#[scenario]` loads its feature before emitting its tracking item. Mapping
-/// `Z:` to the staged fixture directory gives that load a real feature while
-/// preserving a different Windows drive prefix for the D4 diagnostic.
+/// `#[scenario]` loads its feature before emitting its tracking item. Copying
+/// the staged fixture to `C:` gives that load a real feature while the
+/// trybuild crate remains on the hosted runner's `D:` workspace root.
 #[cfg(windows)]
 pub(crate) fn stage_unrelatable_feature_root() -> io::Result<AlternateFeatureRoot> {
     let crate_root = Utf8Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -81,19 +81,18 @@ pub(crate) fn stage_unrelatable_feature_root() -> io::Result<AlternateFeatureRoo
         .parent()
         .and_then(Utf8Path::parent)
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "workspace root must exist"))?;
-    let fixture_root =
-        target_directory(workspace_root).join("tests/trybuild/rstest-bdd/tests/fixtures_macros");
-    let output = Command::new("subst")
-        .args([UNRELATABLE_FEATURE_DRIVE, fixture_root.as_str()])
-        .output()?;
-    if output.status.success() {
-        Ok(AlternateFeatureRoot)
-    } else {
-        Err(io::Error::other(format!(
-            "cannot map {UNRELATABLE_FEATURE_DRIVE} to {fixture_root}: {}",
-            String::from_utf8_lossy(&output.stderr).trim()
-        )))
-    }
+    let source = target_directory(workspace_root)
+        .join("tests/trybuild/rstest-bdd/tests/fixtures_macros/unrelatable/x.feature");
+    let destination = StdPath::new(UNRELATABLE_FEATURE_PATH);
+    let Some(parent) = destination.parent() else {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "alternate feature path must have a parent directory",
+        ));
+    };
+    std::fs::create_dir_all(parent)?;
+    std::fs::copy(&source, destination)?;
+    Ok(AlternateFeatureRoot)
 }
 
 #[expect(clippy::expect_used, reason = "test setup failure should panic")]
