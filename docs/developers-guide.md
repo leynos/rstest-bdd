@@ -147,7 +147,7 @@ workspace root; this is the only nextest configuration file the runner loads.
 The file sets the timeout policy for the test suite:
 
 - The default profile kills any test that runs past a 60 s `slow-timeout`
-  (`terminate-after = 1`, 5 s grace period) and applies a 20 m `global-timeout`
+  (`terminate-after = 1`, 5 s grace period) and applies a 50 m `global-timeout`
   to the whole run. This allows the cargo-spawning group to run its bounded
   tests one at a time without exhausting the whole-suite budget.
 - A `[[profile.default.overrides]]` entry raises the `slow-timeout` to 180 s
@@ -160,9 +160,15 @@ The file sets the timeout policy for the test suite:
   These tests invoke `cargo build` against a large dependency tree, so a cold
   cache (or CPU contention when several compile tests run concurrently) can
   push a single test well past the default limit even though nothing is wrong.
-- Both overrides also place their binaries in a `cargo-spawning` test group
-  (`max-threads = 1`), so `cargo-bdd::cli` and the three trybuild binaries run
-  one at a time instead of contending for CPU with concurrent `cargo` builds.
+- A third override raises the `slow-timeout` to 600 s for
+  `rstest-bdd::feature_rebuild_invalidation`, whose three scenarios run nested
+  `cargo` commands for dependency tracking, rebuilding, and file addition.
+- All three overrides also place their binaries in a `cargo-spawning` test group
+  (`max-threads = 1`), so `cargo-bdd::cli`, the three trybuild binaries, and
+  `rstest-bdd::feature_rebuild_invalidation` run one at a time instead of
+  contending for CPU with concurrent `cargo` builds.
+  Their worst-case serial budget is 180 s + (300 s × 3) + (600 s × 3) =
+  2,880 s (48 m), leaving 120 s of slack under the 50 m global timeout.
 - A `long` profile (`--profile long`) relaxes the limits further (180 s
   `slow-timeout`, 30 m `global-timeout`) for deliberately slow local runs.
 
