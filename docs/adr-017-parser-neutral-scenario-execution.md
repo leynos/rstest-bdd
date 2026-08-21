@@ -182,7 +182,14 @@ shape remains an implementation detail to settle through a focused API spike,
 but it must support borrowed static data from generated tests and owned dynamic
 data from external parsers.
 
-An illustrative interface is:
+The first plan contract includes tags and `allow_skipped`; they are not deferred
+to a later policy object. The representation must support both generated
+borrowed static sources and external owned sources. Its final ownership shape,
+field names, and type names remain free to evolve until the Stage 1
+compatibility review.
+
+The following snippet is illustrative only. It does not establish final public
+field or type names, lifetime syntax, or ownership representation:
 
 ```rust,no_run
 pub struct ScenarioPlan<'a> {
@@ -213,14 +220,17 @@ pub struct SourceLocation<'a> {
 }
 ```
 
-This example records the semantic contract, not final field names or lifetime
-syntax. A frontend may own a richer plan and borrow it into this execution view.
+The semantic contract is binding even while that representation remains open. A
+frontend may own a richer plan and borrow it into this execution view.
 rstest-bdd will not own Markdown byte ranges, inline-edit targets, or snapshot
 metadata.
 
 ### Structured outcome
 
 The runner will return a complete terminal outcome rather than panic:
+
+The following snippet is illustrative only. It does not establish final public
+field or type names, or the final representation of the outcome:
 
 ```rust,no_run
 pub enum ScenarioOutcome {
@@ -229,11 +239,14 @@ pub enum ScenarioOutcome {
     },
     Skipped {
         at: usize,
+        source: Option<SourceLocation>,
         message: Option<String>,
+        forced_failure: bool,
         steps: Vec<StepOutcome>,
     },
     Failed {
         at: usize,
+        source: Option<SourceLocation>,
         error: ExecutionError,
         steps: Vec<StepOutcome>,
     },
@@ -241,20 +254,32 @@ pub enum ScenarioOutcome {
 ```
 
 `StepOutcome` will retain enough information for a caller to report completed,
-skipped, bypassed, and failed steps without re-running registry lookup. It will
-not contain frontend-specific rendered diagnostics.
+skipped, bypassed, and failed steps without re-running registry lookup. Every
+such outcome exposes `source() -> Option<&SourceLocation>`. Terminal `Skipped`
+and `Failed` outcomes carry `source: Option<SourceLocation>` alongside the
+terminal step index. The final names and representation remain subject to the
+Stage 1 compatibility review, but these accessors and source semantics are
+binding.
+
+`SourceLocation` consists of a path, a one-based line, and an optional one-based
+column measured in Unicode scalar values. Locations are never added to
+`ExecutionError` and are never inferred by parsing error strings.
 
 The runner surface will provide synchronous and asynchronous forms:
+
+The first runner accepts a per-run `ScenarioScope` lifecycle token, not a bare
+`&mut StepContext`. The scope is consumed once and cannot be reused. It owns the
+lifecycle and cleanup guard around the otherwise caller-backed context.
 
 ```rust,no_run
 pub fn run_scenario(
     plan: &ScenarioPlan<'_>,
-    context: &mut StepContext<'_>,
+    scope: ScenarioScope<'_>,
 ) -> ScenarioOutcome;
 
 pub async fn run_scenario_async(
     plan: &ScenarioPlan<'_>,
-    context: &mut StepContext<'_>,
+    scope: ScenarioScope<'_>,
 ) -> ScenarioOutcome;
 ```
 
@@ -276,6 +301,52 @@ The runner owns the following sequence:
 
 This sequence becomes normative. Macro code generation may construct static
 arrays and adapters, but it must not carry an independent result-handling loop.
+
+### Skip parity
+
+A successfully skipped step remains `Skipped` in every configuration. Its
+`forced_failure` value is exactly `!allow_skipped && fail_on_skipped`.
+
+| `allow_skipped` | `fail_on_skipped` | Step outcome | `forced_failure` |
+| --- | --- | --- | --- |
+| `false` | `false` | `Skipped` | `false` |
+| `false` | `true` | `Skipped` | `true` |
+| `true` | `false` | `Skipped` | `false` |
+| `true` | `true` | `Skipped` | `false` |
+
+The verification suite must execute and assert all four rows. They are part of
+the parity contract, including when an aggregate caller later treats a forced
+skip as a failure.
+
+### Lifecycle and outcome contract
+
+Once a scenario scope begins, cleanup and the after-scenario hook run exactly
+once on every listed terminal path:
+
+| Path | Step execution | After/cleanup | Primary outcome |
+| --- | --- | --- | --- |
+| Before-hook failure | No steps run | Exactly once | Before failure wins |
+| Step pass | Eligible steps continue | Exactly once | Step results decide |
+| Step skip | Later steps are bypassed | Exactly once | Normal skip remains terminal |
+| Step failure | Later steps are bypassed | Exactly once | Step failure wins |
+| Resolution or fixture failure | Later steps are bypassed | Exactly once | Resolution/fixture failure wins |
+| Panic or unwind | Execution stops as applicable | Exactly once | Panic/step failure wins |
+
+An after/cleanup failure is retained as a secondary cleanup diagnostic when a
+primary before or step failure exists. When there is no primary failure,
+including a normal skipped terminal, an after failure returns `Failed` and is
+attributed to the after lifecycle. The public outcome must expose this primary
+versus cleanup distinction without requiring these illustrative type names.
+
+### Asynchronous cancellation
+
+Dropping a pending `run_scenario_async` future cancels the run. The in-flight
+step or lifecycle-hook future is dropped, no `ScenarioOutcome` or cancellation
+report is returned, and an awaited after hook is not guaranteed to run after
+cancellation. Only synchronous cleanup performed by dropping the
+`ScenarioScope` is guaranteed in that case. Step and hook resources must
+therefore be cancellation-safe in `Drop`. Normal completion still runs the
+after hook exactly once.
 
 ### Gherkin macro integration
 
@@ -348,8 +419,11 @@ The migration proceeds in four stages.
 ### Stage 1: add plan, outcome, and runner APIs
 
 Implement the parser-neutral types and the canonical runner alongside the
-existing generated loop. Add direct runtime tests for synchronous and
-asynchronous plans.
+existing generated loop. Begin with a compatibility review of borrowed and
+owned plans, public outcomes, and source accessors; stabilize the public types
+and accessors before exposing them. The `Passed`, `Skipped`, and `Failed`
+semantics, source accessors, and lifecycle rules above are binding during that
+review. Add direct runtime tests for synchronous and asynchronous plans.
 
 ### Stage 2: prove semantic parity
 
@@ -387,17 +461,26 @@ verification must cover policy, not merely API examples.
 2. **Synchronous and asynchronous equivalence.** For steps that support both
    modes, run the same plans through both functions and compare structured
    outcomes.
-3. **Lifecycle tests.** In coordination with ADR 012, prove before-scenario and
-   after-scenario hooks run exactly once on pass, failure, skip, missing step,
-   missing fixture, and handler panic paths.
-4. **Property-based sequence tests.** Generate bounded step sequences with pass,
+3. **Skip parity tests.** Exercise the four `allow_skipped` and
+   `fail_on_skipped` combinations and assert `Skipped` plus the exact
+   `forced_failure` rule.
+4. **Lifecycle tests.** In coordination with ADR 012, prove before-scenario and
+   after-scenario hooks run exactly once on before failure, step pass, skip,
+   failure, resolution or fixture failure, and panic or unwind. Assert primary
+   failure precedence and secondary cleanup diagnostics.
+5. **Cancellation tests.** Deterministically drop an async run during a step,
+   before hook, and after hook. Assert in-flight futures are dropped, no
+   outcome or cancellation report is returned, synchronous scope-drop cleanup
+   is retained, awaited after hooks are not assumed after cancellation, and
+   normal completion still runs after exactly once.
+6. **Property-based sequence tests.** Generate bounded step sequences with pass,
    return, skip, and failure handlers. Assert that no step after a terminal
    event executes, values become visible only after their producing step, and
    cleanup always occurs.
-5. **Source-location tests.** Execute plans whose source paths are not
+7. **Source-location tests.** Execute plans whose source paths are not
    `.feature` files and prove outcomes preserve the supplied locations without
    Gherkin parsing.
-6. **Compile and migration tests.** Keep the public macros' existing successful
+8. **Compile and migration tests.** Keep the public macros' existing successful
    and compile-fail fixtures unchanged while their generated implementation
    moves to the runner.
 
@@ -447,22 +530,17 @@ lifecycle interactions grow beyond those tests.
 - Parallel scenario execution remains a caller concern. The runner executes one
   scenario; it does not schedule suites.
 
-## Outstanding decisions
+## Implementation follow-ups
 
-- Should the public execution view use borrowed slices, `Cow`, owned values, or
-  separate owned and borrowed plan types?
-- Which `StepOutcome` fields are stable public contract rather than reporter
-  convenience?
-- Should source columns use bytes, Unicode scalar values, or display columns?
-- Does the first runner API include tags and `allow_skipped`, or should a
-  separate policy object carry them?
-- Which release contains the macro migration, given ADR 012's planned v0.7.0
-  breaking work?
-- Should the `gherkin` dependency become optional after the runner lands, or is
-  a later `rstest-bdd-core` extraction cleaner?
+These follow-ups do not reopen the accepted contract. They cover delivery and
+packaging details after the Stage 1 compatibility review:
 
-These questions affect API shape, not the architectural decision to centralize
-scenario execution in the runtime.
+- Choose the release timing for macro migration alongside ADR 012's planned
+  v0.7.0 breaking work.
+- Evaluate whether the `gherkin` dependency should become optional after the
+  runner lands.
+- Reassess a later `rstest-bdd-core` extraction when implementation evidence
+  justifies separating the runtime crate.
 
 ## Governs
 
