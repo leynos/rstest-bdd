@@ -50,7 +50,11 @@ fn workspace_target_directory() -> PathBuf {
 /// separators, folded case — so the Windows CI leg (backslash-separated,
 /// drive-letter-cased paths) matches the staged feature path deterministically.
 fn normalize_dep_info_content(content: &str) -> String {
-    content.replace('\\', "/").replace("//", "/").to_lowercase()
+    content
+        .replace("\\:", ":")
+        .replace('\\', "/")
+        .replace("//", "/")
+        .to_lowercase()
 }
 
 /// Recursively count `*.d` files under `dir` whose content contains `needle`.
