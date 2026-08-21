@@ -38,6 +38,7 @@ extend-ignore-re = [
     "(?m)^\\s*CARGO_TERM_COLOR: always$",
     "(?m)^\\s*types: \\[opened, reopened, synchronize, labeled, ready_for_review\\]$",
     "(?s)```.*?```",
+    "--color",
     "-fuse-ld=mold",
     "Artifacts and [Nn]otes",
     "Center \\| Microsoft Learn",
