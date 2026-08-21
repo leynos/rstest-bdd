@@ -348,15 +348,15 @@ the base lives in exactly one place.
 
 ## Workflow pins and Dependabot
 
-Dependabot owns the upgrade of GitHub Actions and reusable workflows,
-including calls into `leynos/shared-actions`. Contract tests that assert a
-caller's exact commit SHA create a lockstep dependency: every time Dependabot
-opens a bump PR, the test fails until a human edits the pinned constant to
-match. That defeats the purpose of automated dependency updates and turns a
-routine bump into a manual chore.
+Dependabot owns the upgrade of GitHub Actions and reusable workflows, including
+calls into `leynos/shared-actions`. Contract tests that assert a caller's exact
+commit SHA create a lockstep dependency: every time Dependabot opens a bump PR,
+the test fails until a human edits the pinned constant to match. That defeats
+the purpose of automated dependency updates and turns a routine bump into a
+manual chore.
 
-Contract tests may still verify the _shape_ of a reusable-workflow caller.
-They must not verify the specific SHA value.
+Contract tests may still verify the _shape_ of a reusable-workflow caller. They
+must not verify the specific SHA value.
 
 - Do assert the workflow references the correct reusable workflow path.
 - Do assert the ref is pinned to a full 40-character commit SHA, not a
@@ -662,6 +662,68 @@ name-only compatibility field, and publish `FixtureRequirement { name, ty }`
 through the hidden `StepFixtureRequirements` inventory sidecar whenever macro
 code knows the requested Rust type. Manual `step!` registrations without that
 sidecar remain valid and report `<unknown>` as the requested fixture type.
+
+### The `#[harness_context]` classifier stage
+
+The `#[harness_context]` marker (roadmap 11.2.1) requests the reserved harness
+context fixture inside a step. `classify_harness_context()` runs first in the
+per-parameter pipeline, before the placeholder short-circuit in `extract_args`,
+for a specific reason: a parameter carrying the marker must bind the reserved
+fixture key even if its name happens to match a step-pattern placeholder.
+Running the classifier after the placeholder test would let the marker leak
+into generated code as an unresolved attribute.
+
+The classifier strips the marker, rejects combinations with `#[from]`,
+`#[datatable]`, or `#[step_args]` (the `#[step_args]` guard lives in
+`classify/step_struct.rs`), and synthesizes the fixture name from the shared
+constant `rstest_bdd_policy::HARNESS_CONTEXT_FIXTURE` with the user's parameter
+span preserved. The macro crate cannot import that constant from `rstest-bdd`
+because the macro crate may not depend on the runtime crate (proc-macro
+dependency cycle); `rstest-bdd-policy` exists to hold such cross-cutting
+definitions for both sides. The runtime crate re-exports it as
+`rstest_bdd::RSTEST_BDD_HARNESS_CONTEXT_FIXTURE`.
+
+All three spellings — the `#[harness_context]` marker, the parameter named
+`rstest_bdd_harness_context`, and `#[from(rstest_bdd_harness_context)]` — must
+emerge from classification as the same `Arg::Fixture` under
+`HARNESS_CONTEXT_FIXTURE`, so they generate byte-identical wrapper code. Both
+the classifier unit tests and the wrapper equivalence tests in
+`codegen/wrapper/equivalence_tests.rs` pin that identity, and an `insta`
+snapshot trips if the emitted shape drifts.
+
+## Assertion vocabulary: `googletest`, `pretty_assertions`, and `insta`
+
+This workspace's test suites use three assertion tools, each for a distinct
+job. A failing assertion should say what property was being checked and what
+was actually wrong, not merely that two opaque values differed.
+
+`googletest` matchers are the default for structural assertions. Reach for
+`assert_that!` (fatal), `expect_that!` (non-fatal; requires the test to be
+marked `#[gtest]`), or `verify_that!` (returns `googletest::Result` and
+composes with `?`). `matches_pattern!` asserts on an enum variant and its
+fields at once, naming the variant and the offending field where
+`assert!(matches!(...))` reports only `assertion failed`.
+`err(displays_as(contains_substring(...)))` asserts that a `Result` is an `Err`
+whose rendered message mentions a phrase, and prints the real diagnostic on
+failure. `elements_are!` covers ordered container assertions,
+`unordered_elements_are!` where order is not part of the contract, and `len`,
+`is_empty`, `contains`, and `each` cover the obvious cases.
+
+Composing with `rstest` requires the alias, not the primary attribute name:
+`rstest` recognizes a following test attribute only when it is named `test`, so
+write `#[googletest::test]` rather than `#[gtest]`, and put `#[rstest]` first.
+Plain `#[gtest]` remains correct for tests that do not use `#[rstest]`.
+
+`pretty_assertions::assert_eq!` is the tool for whole-value equality where a
+structural diff is what the reader needs, such as comparing two argument
+vectors or generated token streams. Import it per module with
+`use pretty_assertions::assert_eq;`, which shadows the `std` macro for that
+module only.
+
+`insta` remains the tool for snapshot tests. `googletest` and
+`pretty_assertions` are for in-body assertions; snapshots capture multivariant
+output. These tools came in with the `#[harness_context]` classifier work
+(roadmap 11.2.1); the fixtures there demonstrate the convention.
 
 ## Shared policy crate (`rstest-bdd-policy`)
 

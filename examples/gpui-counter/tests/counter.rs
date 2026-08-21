@@ -1,8 +1,8 @@
 //! BDD acceptance tests for the GPUI counter example.
 //!
 //! These tests demonstrate harness-led GPUI defaults in a user-facing example
-//! crate, with step access to injected
-//! `gpui::TestAppContext` via the `rstest_bdd_harness_context` fixture key.
+//! crate, with step access to the injected `gpui::TestAppContext` via the
+//! `#[harness_context]` marker.
 
 use gpui_counter::CounterApp;
 use rstest::fixture;
@@ -29,10 +29,7 @@ fn decrement_counter(app: &CounterApp, amount: u32) {
 }
 
 #[when("I record the GPUI test context")]
-fn record_gpui_test_context(
-    app: &CounterApp,
-    #[from(rstest_bdd_harness_context)] context: &gpui::TestAppContext,
-) {
+fn record_gpui_test_context(app: &CounterApp, #[harness_context] context: &gpui::TestAppContext) {
     // NOTE: The GPUI TestAppContext currently returns `None` for
     // `test_function_name()` in this scenario. We call it here to ensure the
     // API is wired correctly without depending on that specific value. If

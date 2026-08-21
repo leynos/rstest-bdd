@@ -4,6 +4,7 @@
 //! `async fn` step definitions while the example queues local Tokio work.
 
 use rstest::fixture;
+use rstest_bdd_harness_tokio::TokioTestContext;
 use rstest_bdd_macros::{given, scenario, then, when};
 use tokio_reminders::ReminderService;
 
@@ -22,6 +23,28 @@ fn a_reminder_service(service: &ReminderService) {
 #[when("I schedule a reminder for {recipient}")]
 async fn schedule_a_reminder(service: &ReminderService, recipient: String) {
     service.schedule_reminder(recipient);
+}
+
+#[when("I dispatch delivery on the harness runtime")]
+async fn dispatch_delivery(
+    service: &ReminderService,
+    #[harness_context] context: &TokioTestContext,
+) {
+    // Prove that `#[harness_context]` delivered the harness-provided runtime
+    // handle by checking it is the handle of the runtime currently active on
+    // this thread. This mirrors the `runtime_flavor`/`Handle::current` checks
+    // used by the harness's own integration tests and, being synchronous,
+    // keeps the step single-poll under the harness wrapper.
+    assert_eq!(
+        context.handle().id(),
+        tokio::runtime::Handle::current().id(),
+        "marker-reached harness context must expose the active runtime handle"
+    );
+
+    // The step runs on the harness's LocalSet, so the queued delivery tasks can
+    // be driven synchronously from here without an `.await` (which the harness
+    // wrapper may only poll once).
+    service.deliver_all();
 }
 
 #[then("the pending reminder count is {expected:usize}")]
@@ -55,6 +78,27 @@ async fn no_reminders_have_been_delivered_yet(service: &ReminderService) {
     assert!(service.delivered_reminders().is_empty());
 }
 
+#[then("the delivered reminders are")]
+async fn the_delivered_reminders_are(
+    service: &ReminderService,
+    #[datatable] rows: Vec<Vec<String>>,
+) {
+    let actual = service.delivered_reminders();
+    let expected = rows
+        .into_iter()
+        .map(|mut row| {
+            assert_eq!(
+                row.len(),
+                1,
+                "datatable rows should contain exactly one delivered-reminder column: {row:?}"
+            );
+            row.swap_remove(0)
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(actual, expected);
+}
+
 #[scenario(
     path = "tests/features/reminders.feature",
     name = "Scheduling a reminder queues it for later delivery",
@@ -68,3 +112,10 @@ fn queues_a_scheduled_reminder(#[from(service)] _: ReminderService) {}
     harness = rstest_bdd_harness_tokio::TokioHarness,
 )]
 fn preserves_queue_order(#[from(service)] _: ReminderService) {}
+
+#[scenario(
+    path = "tests/features/reminders.feature",
+    name = "A step can reach the Tokio harness context through the marker",
+    harness = rstest_bdd_harness_tokio::TokioHarness,
+)]
+fn step_can_reach_harness_context_through_the_marker(#[from(service)] _: ReminderService) {}

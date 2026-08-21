@@ -56,9 +56,7 @@ pub(in crate::codegen::wrapper::emit) struct WrapperIdents {
 ///     assert_eq!(next_wrapper_id(), 1);
 /// }
 /// ```
-// FIXME: https://github.com/leynos/rstest-bdd/issues/59 – utility for future golden tests
 #[cfg(test)]
-#[expect(dead_code, reason = "reserved for future golden tests (issue #59)")]
 pub(crate) fn reset_wrapper_counter_for_tests() {
     // Use SeqCst ordering (rather than Relaxed used in production) to ensure
     // the reset is immediately visible to all threads. This is appropriate for
