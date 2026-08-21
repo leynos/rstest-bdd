@@ -426,9 +426,9 @@ dependencies = [
 
 [[package]]
 name = "glob"
-version = "0.3.4"
+version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e4eba85ea1d0a966a983acd07deee566e67395d2d96b6fb39e62b5a833f1eb0b"
+checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
 
 [[package]]
 name = "hashbrown"
@@ -820,6 +820,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "rstest-bdd-feature-addition-fixture"
+version = "0.1.0"
+dependencies = [
+ "inventory",
+ "rstest",
+ "rstest-bdd",
+ "rstest-bdd-macros",
+ "serial_test",
+]
+
+[[package]]
 name = "rstest-bdd-harness"
 version = "0.6.0-beta4"
 dependencies = [
@@ -863,17 +874,6 @@ dependencies = [
 [[package]]
 name = "rstest-bdd-policy"
 version = "0.6.0-beta4"
-
-[[package]]
-name = "rstest-bdd-feature-addition-fixture"
-version = "0.1.0"
-dependencies = [
- "inventory",
- "rstest",
- "rstest-bdd",
- "rstest-bdd-macros",
- "serial_test",
-]
 
 [[package]]
 name = "rstest_macros"
