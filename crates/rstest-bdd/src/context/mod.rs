@@ -31,6 +31,7 @@ mod guards;
 mod insert_outcome;
 #[cfg(test)]
 mod tests;
+mod warnings;
 
 use entry::FixtureEntry;
 pub use error::FixtureBorrowError;
@@ -280,7 +281,8 @@ impl<'a> StepContext<'a> {
     /// [`InsertOutcome`] distinguishes the three results a bare `Option`
     /// previously conflated: a recorded override (carrying any displaced
     /// value), no matching fixture type, and an ambiguous match. Ambiguity also
-    /// logs a warning, with an `eprintln!` fallback when logging is disabled.
+    /// emits a `tracing` warning, mirrored to stderr when no logging listener
+    /// would receive it.
     ///
     /// # Examples
     ///
@@ -313,14 +315,7 @@ impl<'a> StepContext<'a> {
                 crate::localization::message_with_args("step-context-ambiguous-override", |args| {
                     args.set("type_id", format!("{ty:?}"));
                 });
-            log::warn!("{message}");
-            #[expect(
-                clippy::print_stderr,
-                reason = "surface ambiguous overrides when logging is disabled"
-            )]
-            if warn_logging_is_disabled() {
-                eprintln!("{message}");
-            }
+            warnings::emit_visible_warning(&message);
             return InsertOutcome::AmbiguousIgnored;
         }
         InsertOutcome::Inserted(
@@ -389,12 +384,4 @@ impl<'a> StepContext<'a> {
             .get(name)
             .ok_or_else(|| FixtureBorrowError::not_found(name))
     }
-}
-
-/// Report whether `log::warn!` output is currently discarded.
-///
-/// Kept as a named predicate so the mirrored `eprintln!` call site stays a
-/// simple two-branch condition.
-fn warn_logging_is_disabled() -> bool {
-    !log::log_enabled!(log::Level::Warn)
 }

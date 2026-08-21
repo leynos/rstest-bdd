@@ -1,33 +1,70 @@
 //! Tests for step context and fixture management.
 
 use super::*;
-use std::sync::Once;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use tracing::span::{Attributes, Id, Record};
+use tracing::subscriber::DefaultGuard;
+use tracing::{Event, Level, Metadata, Subscriber};
 
 mod guard_borrowing;
+mod warnings;
 
-struct NoopLogger;
-
-impl log::Log for NoopLogger {
-    fn enabled(&self, _: &log::Metadata<'_>) -> bool {
-        true
-    }
-    fn log(&self, _: &log::Record<'_>) {}
-    fn flush(&self) {}
+/// Subscriber that counts recorded events and answers `enabled` from a fixed
+/// maximum level.
+///
+/// Modelling both a listening and a filtering consumer in one type lets the
+/// warning tests cover each delivery route without installing a process-global
+/// subscriber, which cannot be undone once set.
+pub(super) struct CountingSubscriber {
+    max_level: Level,
+    events: Arc<AtomicUsize>,
 }
 
-static LOGGER: NoopLogger = NoopLogger;
-static INIT_LOGGER: Once = Once::new();
+impl Subscriber for CountingSubscriber {
+    fn enabled(&self, metadata: &Metadata<'_>) -> bool {
+        *metadata.level() <= self.max_level
+    }
 
-/// Fixture that initializes the logger for tests requiring log output.
+    fn new_span(&self, _: &Attributes<'_>) -> Id {
+        Id::from_u64(1)
+    }
+
+    fn record(&self, _: &Id, _: &Record<'_>) {}
+
+    fn record_follows_from(&self, _: &Id, _: &Id) {}
+
+    fn event(&self, _: &Event<'_>) {
+        self.events.fetch_add(1, Ordering::Relaxed);
+    }
+
+    fn enter(&self, _: &Id) {}
+
+    fn exit(&self, _: &Id) {}
+}
+
+/// Install a [`CountingSubscriber`] for the current thread, returning the
+/// event counter alongside the guard that keeps it active.
 ///
-/// Uses `Once` to ensure the logger is set exactly once across all tests.
-/// Inject this fixture to ensure logging is available during test execution.
+/// The subscriber is scoped rather than global so tests remain independent
+/// under both `cargo test` and cargo-nextest.
+pub(super) fn scoped_subscriber(max_level: Level) -> (Arc<AtomicUsize>, DefaultGuard) {
+    let events = Arc::new(AtomicUsize::new(0));
+    let subscriber = CountingSubscriber {
+        max_level,
+        events: Arc::clone(&events),
+    };
+    (events, tracing::subscriber::set_default(subscriber))
+}
+
+/// Fixture that keeps a warning listener installed for the duration of a test.
+///
+/// Inject it into tests that trigger step-context warnings so the mirrored
+/// `eprintln!` stays quiet and the test output remains readable.
 #[rstest::fixture]
-fn logger() {
-    INIT_LOGGER.call_once(|| {
-        let _ = log::set_logger(&LOGGER);
-        log::set_max_level(log::LevelFilter::Warn);
-    });
+fn warning_listener() -> DefaultGuard {
+    let (_events, guard) = scoped_subscriber(Level::WARN);
+    guard
 }
 
 #[test]
@@ -135,7 +172,7 @@ fn get_ignores_step_return_override() {
     clippy::used_underscore_binding,
     reason = "rstest fixture injection requires the parameter"
 )]
-fn insert_value_behaviour(_logger: (), #[case] scenario: InsertValueScenario) {
+fn insert_value_behaviour(_warning_listener: DefaultGuard, #[case] scenario: InsertValueScenario) {
     // Storage for fixtures must outlive the context
     let fixture_one: u32 = 1;
     let fixture_two: u32 = 2;

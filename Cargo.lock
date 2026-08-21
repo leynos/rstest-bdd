@@ -1552,6 +1552,7 @@ dependencies = [
  "the-newtype",
  "thiserror 2.0.18",
  "tokio",
+ "tracing",
  "trybuild",
  "unic-langid",
 ]
