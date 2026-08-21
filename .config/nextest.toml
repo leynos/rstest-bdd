@@ -21,8 +21,10 @@ test-group = "cargo-spawning"
 [[profile.default.overrides]]
 # trybuild-based compile tests invoke `cargo build` against a large dependency
 # tree; on cold caches this can legitimately exceed the default 60 s limit.
+# Allow the full fixture set to rebuild without treating slow, healthy compiler
+# work as a hung test.
 filter = "binary_id(rstest-bdd-harness-tokio::macro_compile) | binary_id(rstest-bdd-harness-gpui::macro_compile) | binary_id(rstest-bdd::trybuild_macros)"
-slow-timeout = { period = "300s", terminate-after = 1, grace-period = "5s" }
+slow-timeout = { period = "10m", terminate-after = 1, grace-period = "5s" }
 test-group = "cargo-spawning"
 
 [profile.long]
