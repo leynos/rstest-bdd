@@ -197,13 +197,15 @@ The file sets the timeout policy for the test suite:
 - A `[[profile.default.overrides]]` entry raises the `slow-timeout` to 180 s
   for `cargo-bdd::cli`, whose smoke tests spawn `cargo` to build fixture crates
   and can legitimately exceed 60 s on cold caches.
-- A second override raises the `slow-timeout` further, to 300 s, for the
+- A second override raises the `slow-timeout` further, to 10 minutes, for the
   trybuild-based compile-test binaries:
   `rstest-bdd-harness-tokio::macro_compile`,
   `rstest-bdd-harness-gpui::macro_compile`, and `rstest-bdd::trybuild_macros`.
-  These tests invoke `cargo build` against a large dependency tree, so a cold
-  cache (or CPU contention when several compile tests run concurrently) can
-  push a single test well past the default limit even though nothing is wrong.
+  These tests invoke `cargo build` against a large dependency tree. The
+  10-minute allowance permits the full fixture set to rebuild on a cold cache
+  without treating slow, healthy compiler work as a hung test. The strict 60 s
+  default remains in force elsewhere, and these tests stay in the
+  `cargo-spawning` group so they run serially.
 - Both overrides also place their binaries in a `cargo-spawning` test group
   (`max-threads = 1`), so `cargo-bdd::cli` and the three trybuild binaries run
   one at a time instead of contending for CPU with concurrent `cargo` builds.
@@ -457,7 +459,6 @@ Link-checker and table-checker tests run with the Python suite in `make test`.
 Issue #537 tracks generating the users-guide reference block from `BASE_URL` so
 the base lives in exactly one place.
 
-
 ## Mutation-testing workflow contract tests
 
 This repository runs scheduled, informational mutation testing through a thin
@@ -479,16 +480,16 @@ contains an applicable mutation-testing entry.
 The workflow runs in two modes. A **daily schedule** fires a change-scoped run
 that mutates only the source files touched within the detection window, so
 quiet days are cheap no-ops. A **manual dispatch** (the Actions "Run workflow"
-control) mutates the whole workspace, fanned out across shards; select a
-branch in that control to exercise a feature branch.
+control) mutates the whole workspace, fanned out across shards; select a branch
+in that control to exercise a feature branch.
 
 The caller passes a small set of configuration inputs, each carrying intent:
 
 - `paths` — the change-detection globs (`crates/`) that decide whether a
   scheduled run has anything to mutate, bounding the scheduled run to the
   workspace's mutable source. The root `Cargo.toml` is a virtual manifest with
-  no `src/`. Cargo metadata lists both `vendor/gpui` and `vendor/gpui-macros` as
-  workspace members, but `paths: "crates/"` restricts scheduled change
+  no `src/`. Cargo metadata lists both `vendor/gpui` and `vendor/gpui-macros`
+  as workspace members, but `paths: "crates/"` restricts scheduled change
   detection; because no `vendor/**` exclusion is configured, a manual
   whole-workspace run may process vendored code.
 - `exclude-globs` — example applications, test-fixture crates
@@ -514,10 +515,11 @@ Because the caller is configuration rather than code, a contract test pins the
 shape it must uphold, failing the pull request when the caller drifts —
 repointing the pin at a branch, widening the token scope, or dropping a
 configuration input — rather than letting the breakage surface only in a
-scheduled run. Run it locally with `make test-workflow-contracts` (which
-invokes `uv run --with 'pytest>=8' --with 'pyyaml>=6' pytest
-tests/workflow_contracts -q`, covering both this contract and the CodeScene
-coverage-caller contract in the same directory). The test module
+scheduled run. Run it locally with `make test-workflow-contracts` (which invokes
+`uv run --with 'pytest>=8' --with 'pyyaml>=6' pytest
+tests/workflow_contracts -q`,
+covering both this contract and the CodeScene coverage-caller contract in the
+same directory). The test module
 `tests/workflow_contracts/mutation_testing_test.py` validates:
 
 - the `uses:` reference targets the correct `mutation-cargo.yml` path and has
@@ -525,8 +527,8 @@ coverage-caller contract in the same directory). The test module
 - job permissions are exactly least-privilege (`contents: read`,
   `id-token: write`);
 - the workflow-level default token scope is an empty mapping;
-- `concurrency` serializes runs per ref (`mutation-testing-${{ github.ref
-  }}`) without cancelling one in progress;
+- `concurrency` serializes runs per ref (`mutation-testing-${{ github.ref }}`)
+  without cancelling one in progress;
 - the triggers keep the daily 03:35 UTC schedule and a plain
   `workflow_dispatch` with no legacy branch input; and
 - the `with:` block carries exactly the expected `paths`, `exclude-globs`,
