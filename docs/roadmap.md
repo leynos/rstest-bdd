@@ -1218,9 +1218,20 @@ proposed direction).
   - Make the runner own ordered resolution, fixture validation, returned-value
     propagation, terminal skip and failure handling, and after-scenario cleanup.
   - Success: direct unit and bounded property tests prove synchronous and
-    asynchronous equivalent plans stop after terminal events, expose values
-    only to later steps, and run lifecycle cleanup exactly once on every
-    terminal path.
+    asynchronous equivalent plans stop after terminal events and produce a
+    deterministic, complete `ScenarioOutcome.steps` sequence, with every
+    later invocation recorded as `Bypassed`. Returned values are visible only
+    to later steps.
+  - Success: deterministic assertions cover source accessors for passed,
+    failed, skipped, and bypassed steps plus terminal sources; all four
+    `allow_skipped`/`fail_on_skipped` combinations and the exact
+    `forced_failure` rule; and programmatic, environment, and default
+    `fail_on_skipped` resolution parity across synchronous, asynchronous,
+    macro-generated, and external-frontend paths.
+  - Success: lifecycle tests prove failure precedence and exactly-once cleanup;
+    dropping async runs during a step and before/after hooks verifies no
+    outcome, synchronous scope-drop cleanup, and no awaited-after guarantee
+    after cancellation.
   - See `docs/adr-018-parser-neutral-scenario-execution.md` (Requirements and
     Verification strategy).
 
