@@ -78,20 +78,8 @@ impl TrackedFeaturePath {
     /// Compute a component-wise `..` offset from `manifest` to an absolute
     /// `path`, erroring when the two share no filesystem root.
     fn relative_to_manifest(path: &Path, manifest: &Path) -> Result<Self, Untrackable> {
-        // Windows: drive-letter and UNC prefixes must match for the two
-        // paths to share a root; anything else is unrelatable. The presence
-        // check below is enough on POSIX, where every absolute path shares
-        // `/` and `Prefix` components never occur.
-        match (path.components().next(), manifest.components().next()) {
-            (Some(Component::Prefix(a)), Some(Component::Prefix(b))) => {
-                if a.kind() != b.kind() || !components_eq(a.as_os_str(), b.as_os_str()) {
-                    return Err(Untrackable::UnrelatableRoot(path.to_path_buf()));
-                }
-            }
-            (Some(Component::Prefix(_)), None) | (None, Some(Component::Prefix(_))) => {
-                return Err(Untrackable::UnrelatableRoot(path.to_path_buf()));
-            }
-            _ => {}
+        if !paths_share_root(path, manifest) {
+            return Err(Untrackable::UnrelatableRoot(path.to_path_buf()));
         }
 
         let target: Vec<Component<'_>> = path.components().collect();
@@ -108,12 +96,18 @@ impl TrackedFeaturePath {
         for _ in common..base.len() {
             parts.push("..".to_owned());
         }
-        for component in target.iter().skip(common) {
-            let Some(text) = component.as_os_str().to_str() else {
-                return Err(Untrackable::NonUtf8(path.to_path_buf()));
-            };
-            parts.push(text.to_owned());
-        }
+        let unmatched: Result<Vec<String>, Untrackable> = target
+            .iter()
+            .skip(common)
+            .map(|component| {
+                component
+                    .as_os_str()
+                    .to_str()
+                    .map(str::to_owned)
+                    .ok_or_else(|| Untrackable::NonUtf8(path.to_path_buf()))
+            })
+            .collect();
+        parts.extend(unmatched?);
         Ok(Self(parts.join("/")))
     }
 
@@ -170,6 +164,21 @@ fn components_eq(a: &std::ffi::OsStr, b: &std::ffi::OsStr) -> bool {
     #[cfg(not(windows))]
     {
         a == b
+    }
+}
+
+/// Whether two absolute paths can be related without crossing filesystem roots.
+///
+/// Windows drive and UNC prefixes must agree, while POSIX has one root and no
+/// `Prefix` component to compare.
+fn paths_share_root(path: &Path, manifest: &Path) -> bool {
+    match (path.components().next(), manifest.components().next()) {
+        (Some(Component::Prefix(path_prefix)), Some(Component::Prefix(manifest_prefix))) => {
+            path_prefix.kind() == manifest_prefix.kind()
+                && components_eq(path_prefix.as_os_str(), manifest_prefix.as_os_str())
+        }
+        (Some(Component::Prefix(_)), _) | (_, Some(Component::Prefix(_))) => false,
+        _ => true,
     }
 }
 

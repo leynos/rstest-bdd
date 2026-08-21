@@ -85,6 +85,9 @@ pub(crate) fn build_child_env() -> ChildEnv {
 /// environment, so every invocation is byte-identical.
 pub(crate) fn cargo_command(env: &ChildEnv, cwd: &Path) -> Command {
     let mut cmd = Command::new(env!("CARGO"));
+    // CI forces `CARGO_TERM_COLOR=always`, but this harness matches plain-text
+    // Cargo status lines, so each nested command must disable colour itself.
+    cmd.args(["--color", "never"]);
     cmd.current_dir(cwd).env_clear();
     for (key, value) in &env.vars {
         cmd.env(key, value);
