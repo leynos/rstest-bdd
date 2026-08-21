@@ -73,12 +73,7 @@ pub(crate) fn ui_fixture(case: &str) -> Utf8PathBuf {
 #[cfg(windows)]
 pub(crate) fn stage_unrelatable_feature_root() -> io::Result<AlternateFeatureRoot> {
     let crate_root = Utf8Path::new(env!("CARGO_MANIFEST_DIR"));
-    let workspace_root = crate_root
-        .parent()
-        .and_then(Utf8Path::parent)
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "workspace root must exist"))?;
-    let source = target_directory(workspace_root)
-        .join("tests/trybuild/rstest-bdd/tests/fixtures_macros/unrelatable/x.feature");
+    let source = crate_root.join("tests/fixtures_macros/unrelatable/x.feature");
     let destination = StdPath::new(UNRELATABLE_FEATURE_PATH);
     let Some(parent) = destination.parent() else {
         return Err(io::Error::new(
