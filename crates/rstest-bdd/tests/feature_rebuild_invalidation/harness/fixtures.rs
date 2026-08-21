@@ -103,7 +103,7 @@ fn source_tree_hash(source: &Path) -> String {
 /// Protocol version for the scratch stamp. Bump when the scratch layout or
 /// the rewrite rules change, so stale scratch trees from an older protocol
 /// (with their stale manifests) are always re-created instead of reused.
-const SCRATCH_PROTOCOL_VERSION: &str = "2";
+const SCRATCH_PROTOCOL_VERSION: &str = "3";
 
 /// Copy the checked-in fixture into the scratch area unless the stamp says
 /// the copy is already current, then rewrite its path dependencies to
@@ -251,7 +251,8 @@ fn rewrite_manifest_path_deps(source: &Path, scratch: &Path) {
         // source location. `split_once` drops the delimiters it splits on, so
         // both quotes around the value are written back explicitly.
         let resolved = normalize_lexically(&source.join(value));
-        rewritten_lines.push(format!("{before}path = \"{}\"{tail}", resolved.display()));
+        let manifest_path = toml_basic_string(&resolved.to_string_lossy());
+        rewritten_lines.push(format!("{before}path = {manifest_path}{tail}"));
     }
     assert!(
         saw_relative,
@@ -265,6 +266,15 @@ fn rewrite_manifest_path_deps(source: &Path, scratch: &Path) {
     if let Err(err) = fs::write(&manifest_path, rewritten) {
         panic!("cannot write the scratch manifest: {err}");
     }
+}
+
+/// Encode one value for the scratch manifest's TOML basic-string syntax.
+///
+/// This helper belongs solely to the fixture-manifest rewriter: it serializes
+/// absolute dependency paths, including Windows separators, and is not a
+/// general TOML serializer.
+fn toml_basic_string(value: &str) -> String {
+    format!("\"{}\"", value.replace('\\', "\\\\").replace('\"', "\\\""))
 }
 
 /// Lexically normalize `..` segments (no filesystem access).
@@ -311,4 +321,19 @@ pub(crate) fn normalize_dep_path(path: &Path) -> String {
         .to_string_lossy()
         .replace('\\', "/")
         .to_lowercase()
+}
+
+#[cfg(test)]
+mod tests {
+    //! Unit tests for fixture-manifest serialization.
+
+    use super::toml_basic_string;
+
+    #[test]
+    fn toml_basic_string_escapes_windows_paths() {
+        assert_eq!(
+            toml_basic_string(r#"D:\a\fixture\"quoted\""#),
+            r#""D:\\a\\fixture\\\"quoted\\\"""#
+        );
+    }
 }
