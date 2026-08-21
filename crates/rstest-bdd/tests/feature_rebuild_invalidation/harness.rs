@@ -132,6 +132,10 @@ fn build_dep_info_outcome() -> DepInfoOutcome {
     // read 0 — CodeRabbit's one residual hypothetical — worth a comment, not
     // a workaround.)
     let primary_rule = dep_content.lines().next().unwrap_or_default();
+    // `rustc` emits Windows paths with backslashes and preserves the drive
+    // letter's case, while the expected path is normalized for stable
+    // cross-platform comparison.
+    let primary_rule = primary_rule.replace('\\', "/").to_lowercase();
     let expected = fixtures::normalize_dep_path(&fixtures::scratch_feature_file());
     let entry_count = primary_rule.split(&expected).count().saturating_sub(1);
     // The `scenarios!` directory's filtered-out file: it is parsed by the
