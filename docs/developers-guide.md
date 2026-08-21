@@ -166,9 +166,9 @@ The file sets the timeout policy for the test suite:
 - All three overrides also place their binaries in a `cargo-spawning` test group
   (`max-threads = 1`), so `cargo-bdd::cli`, the three trybuild binaries, and
   `rstest-bdd::feature_rebuild_invalidation` run one at a time instead of
-  contending for CPU with concurrent `cargo` builds.
-  Their worst-case serial budget is 180 s + (300 s × 3) + (600 s × 3) =
-  2,880 s (48 m), leaving 120 s of slack under the 50 m global timeout.
+  contending for CPU with concurrent `cargo` builds. Their worst-case serial
+  budget is 180 s + (300 s × 3) + (600 s × 3) = 2,880 s (48 m), leaving 120 s
+  of slack under the 50 m global timeout.
 - A `long` profile (`--profile long`) relaxes the limits further (180 s
   `slow-timeout`, 30 m `global-timeout`) for deliberately slow local runs.
 

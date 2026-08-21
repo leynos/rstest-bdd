@@ -33,9 +33,9 @@ use std::path::Path;
 /// One marked fenced example loaded from a user-facing document.
 pub struct DocumentedExample {
     /// Stable identifier declared by the `tested-example` marker.
-    pub id: String,
+    pub id: ExampleId,
     /// Markdown fence language.
-    pub language: String,
+    pub language: FenceLanguage,
     /// Exact text inside the fence, including a trailing newline.
     pub body: String,
 }
@@ -43,17 +43,72 @@ pub struct DocumentedExample {
 /// A bounded region of a document in which every fence must be marked.
 pub struct EnforcedRegion {
     /// Repository-relative document path.
-    pub document: &'static str,
+    pub document: DocumentPath,
     /// Heading text that opens the enforced region.
-    pub section: &'static str,
+    pub section: SectionHeading,
+}
+
+/// A repository-relative Markdown document path.
+#[derive(Clone, Copy)]
+pub(super) struct DocumentPath(&'static str);
+
+impl DocumentPath {
+    fn as_str(self) -> &'static str {
+        self.0
+    }
+}
+
+/// A Markdown heading that bounds an enforced document region.
+#[derive(Clone, Copy)]
+pub(super) struct SectionHeading(&'static str);
+
+impl SectionHeading {
+    fn as_str(self) -> &'static str {
+        self.0
+    }
+}
+
+/// A `tested-example` marker identifier accepted by the document parser.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct ExampleId(String);
+
+impl ExampleId {
+    fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// The language label attached to a Markdown fenced code block.
+#[derive(Debug, PartialEq, Eq)]
+pub(super) struct FenceLanguage(String);
+
+impl FenceLanguage {
+    pub(super) fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// Immutable boundaries and source for one enforced document region.
+struct ScanRegion<'a> {
+    lines: &'a [&'a str],
+    start: usize,
+    end: usize,
+    document: DocumentPath,
+}
+
+/// State shared by every enforced-region scan in one document load.
+#[derive(Default)]
+struct ScanState {
+    collected: Vec<DocumentedExample>,
+    seen: HashSet<String>,
 }
 
 /// The regions currently under enforcement. Keep this list in sync with the
 /// documents; the loaders below enforce exactly it.
 fn enforced_regions() -> Vec<EnforcedRegion> {
     vec![EnforcedRegion {
-        document: "docs/users-guide.md",
-        section: "Feature file rebuild invalidation",
+        document: DocumentPath("docs/users-guide.md"),
+        section: SectionHeading("Feature file rebuild invalidation"),
     }]
 }
 
@@ -65,26 +120,24 @@ fn enforced_regions() -> Vec<EnforcedRegion> {
 /// fence inside an enforced region is unmarked or unterminated, or an
 /// identifier is duplicated or empty.
 pub fn load_documented_examples() -> Result<Vec<DocumentedExample>> {
-    let mut collected = Vec::new();
-    let mut seen = HashSet::new();
+    let mut state = ScanState::default();
     for region in enforced_regions() {
         let document = document_path(region.document);
         let text = std::fs::read_to_string(&document)
             .wrap_err_with(|| format!("cannot read enforced document {}", document.display()))?;
         let lines: Vec<&str> = text.lines().collect();
         let (region_start, region_end) = find_region_bounds(&lines, region.section)
-            .wrap_err_with(|| format!("in enforced document {}", region.document))?;
-        scan_region(
-            &lines,
-            region_start,
-            region_end,
-            region.document,
-            &mut collected,
-            &mut seen,
-        )
-        .wrap_err_with(|| format!("in enforced document {}", region.document))?;
+            .wrap_err_with(|| format!("in enforced document {}", region.document.as_str()))?;
+        let region = ScanRegion {
+            lines: &lines,
+            start: region_start,
+            end: region_end,
+            document: region.document,
+        };
+        scan_region(&region, &mut state)
+            .wrap_err_with(|| format!("in enforced document {}", region.document.as_str()))?;
     }
-    Ok(collected)
+    Ok(state.collected)
 }
 
 /// Load the documented example identified by `id`.
@@ -96,7 +149,7 @@ pub fn documented_example(id: &str) -> Result<DocumentedExample> {
     let examples = load_documented_examples()?;
     examples
         .into_iter()
-        .find(|example| example.id == id)
+        .find(|example| example.id.as_str() == id)
         .wrap_err_with(|| {
             "no tested-example marker named `{id}` is loaded; the enforced \
          documents may not yet carry it"
@@ -104,18 +157,18 @@ pub fn documented_example(id: &str) -> Result<DocumentedExample> {
 }
 
 /// Resolve a repository-relative document path from the test crate root.
-fn document_path(relative: &str) -> std::path::PathBuf {
+fn document_path(relative: DocumentPath) -> std::path::PathBuf {
     let crate_root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let Some(workspace_root) = crate_root.parent().and_then(Path::parent) else {
         panic!("crate root is two levels under the workspace root");
     };
-    workspace_root.join(relative)
+    workspace_root.join(relative.as_str())
 }
 
 /// Index range of the region opened by `section`: from its heading line
 /// (inclusive) to the next heading of the same or higher level (exclusive),
 /// or the end of the document.
-fn find_region_bounds(lines: &[&str], section: &str) -> Result<(usize, usize)> {
+fn find_region_bounds(lines: &[&str], section: SectionHeading) -> Result<(usize, usize)> {
     // Level of a line, when it is a heading at 1..=6 hash depth.
     fn heading_level(line: &str) -> Option<usize> {
         let trimmed = line.trim();
@@ -137,9 +190,9 @@ fn find_region_bounds(lines: &[&str], section: &str) -> Result<(usize, usize)> {
         .find(|(idx, _)| {
             lines
                 .get(*idx)
-                .is_some_and(|line| heading_text(line) == section)
+                .is_some_and(|line| heading_text(line) == section.as_str())
         })
-        .wrap_err_with(|| format!("document has no `{section}` heading to enforce"))?;
+        .wrap_err_with(|| format!("document has no `{}` heading to enforce", section.as_str()))?;
     // The boundary is the next heading of the same or higher level, whatever
     // its text.
     let end = headings
@@ -150,47 +203,43 @@ fn find_region_bounds(lines: &[&str], section: &str) -> Result<(usize, usize)> {
     Ok((start, end))
 }
 
-/// Scan `lines[region_start..region_end]`, extracting marked fenced examples
+/// Scan `region.lines[region.start..region.end]`, extracting marked fenced examples
 /// and hard-erroring on unmarked ones.
-fn scan_region(
-    lines: &[&str],
-    start: usize,
-    end: usize,
-    document: &str,
-    collected: &mut Vec<DocumentedExample>,
-    seen: &mut HashSet<String>,
-) -> Result<()> {
-    let mut idx = start;
-    while idx < end {
-        let Some(line) = lines.get(idx) else {
+fn scan_region(region: &ScanRegion<'_>, state: &mut ScanState) -> Result<()> {
+    let mut idx = region.start;
+    while idx < region.end {
+        let Some(line) = region.lines.get(idx) else {
             break;
         };
         if !is_fence(line) {
             idx += 1;
             continue;
         }
-        let Some(id) = previous_marker(lines, start, idx) else {
+        let Some(id) = previous_marker(region.lines, region.start, idx) else {
             bail!(
-                "unmarked fenced block at line {} in the enforced `{document}` \
+                "unmarked fenced block at line {} in the enforced `{}` \
                  region: every fence there needs a \
                  `<!-- tested-example: id -->` marker immediately before it",
-                idx + 1
+                idx + 1,
+                region.document.as_str(),
             );
         };
-        let (example, consumed) = parse_fenced_example(lines, idx, id)?;
-        if example.id.is_empty() {
+        let (example, consumed) = parse_fenced_example(region.lines, idx, id)?;
+        if example.id.as_str().is_empty() {
             bail!(
-                "empty tested-example identifier in `{document}` at line {}",
-                idx + 1
+                "empty tested-example identifier in `{}` at line {}",
+                region.document.as_str(),
+                idx + 1,
             );
         }
-        if !seen.insert(example.id.clone()) {
+        if !state.seen.insert(example.id.as_str().to_owned()) {
             bail!(
                 "duplicate tested-example identifier `{}` in `{document}`",
-                example.id
+                example.id.as_str(),
+                document = region.document.as_str(),
             );
         }
-        collected.push(example);
+        state.collected.push(example);
         idx += consumed;
     }
     Ok(())
@@ -206,7 +255,7 @@ fn is_fence(line: &str) -> bool {
 /// The marker immediately above `fence_idx` (skipping blank lines) within the
 /// region that starts at `region_start`, or `None` when no marker precedes
 /// the fence.
-fn previous_marker(lines: &[&str], region_start: usize, fence_idx: usize) -> Option<String> {
+fn previous_marker(lines: &[&str], region_start: usize, fence_idx: usize) -> Option<ExampleId> {
     let mut cursor = fence_idx;
     while cursor > region_start {
         cursor -= 1;
@@ -220,14 +269,14 @@ fn previous_marker(lines: &[&str], region_start: usize, fence_idx: usize) -> Opt
 }
 
 /// Parse the identifier out of a `<!-- tested-example: ID -->` marker line.
-fn extract_marker_id(line: &str) -> Option<String> {
+fn extract_marker_id(line: &str) -> Option<ExampleId> {
     let line = line.trim();
     if !line.starts_with("<!-- tested-example:") {
         return None;
     }
     let (_, rest) = line.split_once("<!-- tested-example:")?;
     let rest = rest.strip_suffix("-->")?.trim();
-    (!rest.is_empty()).then(|| rest.to_owned())
+    (!rest.is_empty()).then(|| ExampleId(rest.to_owned()))
 }
 
 /// Parse one marked fenced block starting at `fence_idx`, returning the
@@ -235,11 +284,11 @@ fn extract_marker_id(line: &str) -> Option<String> {
 fn parse_fenced_example(
     lines: &[&str],
     fence_idx: usize,
-    id: String,
+    id: ExampleId,
 ) -> Result<(DocumentedExample, usize)> {
     let opening = lines
         .get(fence_idx)
-        .ok_or_else(|| eyre::eyre!("tested-example `{id}` fence line is missing"))?
+        .ok_or_else(|| eyre::eyre!("tested-example `{}` fence line is missing", id.as_str()))?
         .trim_start();
     let language = opening
         .trim_start_matches('`')
@@ -247,13 +296,16 @@ fn parse_fenced_example(
         .trim()
         .to_owned();
     if language.is_empty() {
-        bail!("tested-example `{id}` fence declares no language");
+        bail!(
+            "tested-example `{}` fence declares no language",
+            id.as_str()
+        );
     }
     let mut body_lines = Vec::new();
     let mut cursor = fence_idx + 1;
     loop {
         let Some(line) = lines.get(cursor) else {
-            bail!("tested-example `{id}` fence is unterminated");
+            bail!("tested-example `{}` fence is unterminated", id.as_str());
         };
         if is_fence(line) {
             break;
@@ -264,7 +316,11 @@ fn parse_fenced_example(
     let mut body = body_lines.join("\n");
     body.push('\n');
     Ok((
-        DocumentedExample { id, language, body },
+        DocumentedExample {
+            id,
+            language: FenceLanguage(language),
+            body,
+        },
         cursor - fence_idx + 1,
     ))
 }

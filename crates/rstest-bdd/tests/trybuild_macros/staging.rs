@@ -8,10 +8,32 @@ use cap_std::{ambient_authority, fs::Dir};
 use std::env;
 use std::io;
 use std::path::Path as StdPath;
+#[cfg(windows)]
+use std::process::Command;
 
 const MACROS_FIXTURES_DIR: &str = "tests/fixtures_macros";
 const FEATURES_DIR: &str = "tests/features";
 const FEATURES_AUTO_DIR: &str = "tests/features/auto";
+
+#[cfg(windows)]
+const UNRELATABLE_FEATURE_DRIVE: &str = "Z:";
+
+/// A temporary alternate Windows drive mapped to staged trybuild fixtures.
+///
+/// Keeping the mapping alive through the compile-fail invocation ensures the
+/// macro can load the feature before it checks the intentionally different
+/// filesystem root. Dropping the guard removes the process-visible mapping.
+#[cfg(windows)]
+pub(crate) struct AlternateFeatureRoot;
+
+#[cfg(windows)]
+impl Drop for AlternateFeatureRoot {
+    fn drop(&mut self) {
+        let _ = Command::new("subst")
+            .args([UNRELATABLE_FEATURE_DRIVE, "/D"])
+            .status();
+    }
+}
 
 /// Returns the path to a macro fixture file, staging support files first.
 ///
@@ -45,6 +67,33 @@ pub(crate) fn macros_fixture(case: &str) -> Utf8PathBuf {
 /// The full path to the fixture file as a [`Utf8PathBuf`].
 pub(crate) fn ui_fixture(case: &str) -> Utf8PathBuf {
     Utf8PathBuf::from("tests/ui_macros").join(case)
+}
+
+/// Map an alternate drive to the staged unrelatable-path feature fixture.
+///
+/// `#[scenario]` loads its feature before emitting its tracking item. Mapping
+/// `Z:` to the staged fixture directory gives that load a real feature while
+/// preserving a different Windows drive prefix for the D4 diagnostic.
+#[cfg(windows)]
+pub(crate) fn stage_unrelatable_feature_root() -> io::Result<AlternateFeatureRoot> {
+    let crate_root = Utf8Path::new(env!("CARGO_MANIFEST_DIR"));
+    let workspace_root = crate_root
+        .parent()
+        .and_then(Utf8Path::parent)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "workspace root must exist"))?;
+    let fixture_root =
+        target_directory(workspace_root).join("tests/trybuild/rstest-bdd/tests/fixtures_macros");
+    let output = Command::new("subst")
+        .args([UNRELATABLE_FEATURE_DRIVE, fixture_root.as_str()])
+        .output()?;
+    if output.status.success() {
+        Ok(AlternateFeatureRoot)
+    } else {
+        Err(io::Error::other(format!(
+            "cannot map {UNRELATABLE_FEATURE_DRIVE} to {fixture_root}: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        )))
+    }
 }
 
 #[expect(clippy::expect_used, reason = "test setup failure should panic")]

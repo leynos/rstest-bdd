@@ -128,10 +128,10 @@ fn run_cargo(env: &process::ChildEnv, args: &[&str]) -> Result<process::Captured
 fn write_build_script_from_docs() -> Result<(), String> {
     let example = documented_example("scenarios-build-script")
         .map_err(|err| format!("cannot load the documented build-script recipe: {err}"))?;
-    if example.language != "rust" {
+    if example.language.as_str() != "rust" {
         return Err(format!(
             "the `scenarios-build-script` example must be a `rust` fence, got `{}`",
-            example.language
+            example.language.as_str()
         ));
     }
     let build_rs = fixtures::scratch_addition_dir().join("build.rs");

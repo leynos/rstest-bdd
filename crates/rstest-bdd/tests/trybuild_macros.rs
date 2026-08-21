@@ -66,8 +66,9 @@ fn step_macros_compile() -> io::Result<()> {
         let t = trybuild::TestCases::new();
 
         run_passing_macro_tests(&t);
+        #[cfg(windows)]
+        let _alternate_root = staging::stage_unrelatable_feature_root()?;
         run_failing_macro_tests(&t);
-        tracking::assert_trybuild_tracking_registered_in_dep_info();
         run_failing_ui_tests(&t);
         run_lint_ui_tests()?;
         t.compile_fail(
@@ -75,6 +76,10 @@ fn step_macros_compile() -> io::Result<()> {
         );
         run_conditional_ordering_tests(&t);
         run_conditional_ambiguous_step_test(&t);
+        // `TestCases` runs its queued fixtures from `Drop`; inspect dep-info
+        // only after this run has actually compiled the tracking fixture.
+        drop(t);
+        tracking::assert_trybuild_tracking_registered_in_dep_info();
         Ok(())
     })
 }
