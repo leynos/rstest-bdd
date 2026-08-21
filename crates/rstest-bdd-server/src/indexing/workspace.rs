@@ -98,6 +98,7 @@ mod tests {
     //! Unit tests for the workspace-root file-read adapter boundary.
 
     use super::*;
+    #[cfg(not(windows))]
     use std::ffi::OsString;
     #[cfg(not(windows))]
     use std::os::unix::ffi::OsStringExt;

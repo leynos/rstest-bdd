@@ -388,6 +388,10 @@ pinned Typos release. `make spellcheck` remains an alias for existing tooling,
 and `make markdownlint` depends on the same gate, so prose checks cannot bypass
 the repository-wide spelling policy.
 
+The shared Markdown discovery used by `make markdownlint` and the spelling gate
+excludes ignored `.vtcode` task metadata, keeping editor task files out of
+project documentation validation.
+
 The checked-in `typos.toml` is generated from the shared dictionary and the
 repository overlay in `typos.local.toml`. Do not edit generated entries by
 hand. Run `make spelling-config-write` after changing the overlay or after the
@@ -1462,9 +1466,15 @@ diagnostics so a partially valid Rust file remains useful for navigation.
 `WorkspaceRoot` is the server-side capability for disk-backed feature reads.
 It validates that a requested path is beneath the retained root, rejects
 parent-directory traversal and non-UTF-8 relative paths, and reads through
-the capability-scoped directory. Opening the capability is blocking; lifecycle
-initialization performs discovery and root opening in `spawn_blocking` before
-the router installs the ready capability.
+the capability-scoped directory. Opening the capability is blocking. The
+`initialize_async` lifecycle handler backgrounds discovery and root opening in
+`spawn_blocking`, emits `WorkspaceReadyEvent` when preparation completes, and
+lets the router install the prepared capability. Discovery and root-opening
+failures are logged and remain non-fatal, so initialization still returns its
+normal result.
+Did-save notifications received while the workspace capability is being
+prepared are replayed in arrival order on the router task after
+`WorkspaceReadyEvent` installs the capability.
 
 `ServerState::index_feature_file` owns the disk boundary: it reads through
 `WorkspaceRoot` and then passes the resulting text to

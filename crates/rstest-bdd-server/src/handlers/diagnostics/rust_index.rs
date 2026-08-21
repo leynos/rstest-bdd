@@ -7,15 +7,10 @@
 
 use std::path::Path;
 
-use lsp_types::{Diagnostic, DiagnosticSeverity, Range};
-
 use crate::indexing::RustStepIndexDiagnostic;
 use crate::server::ServerState;
 
 use super::publish::{compute_rust_file_diagnostics, publish_with};
-use super::{
-    CODE_INVALID_STEP_ATTRIBUTE_ARGUMENTS, CODE_MULTIPLE_STEP_ATTRIBUTES, DIAGNOSTIC_SOURCE,
-};
 
 /// Publish all Rust-file diagnostics, including recoverable indexing failures.
 ///
@@ -54,37 +49,14 @@ pub(crate) fn clear_rust_index_diagnostics(state: &ServerState, rust_path: &Path
     );
 }
 
-/// Convert a recoverable Rust indexing failure into an LSP warning.
-///
-/// Indexing diagnostics identify the affected function but do not retain a
-/// source span, so the LSP range is the document origin.
-pub(super) fn build_rust_index_diagnostic(diagnostic: &RustStepIndexDiagnostic) -> Diagnostic {
-    let code = match diagnostic {
-        RustStepIndexDiagnostic::MultipleStepAttributes { .. } => CODE_MULTIPLE_STEP_ATTRIBUTES,
-        RustStepIndexDiagnostic::InvalidStepAttributeArguments { .. } => {
-            CODE_INVALID_STEP_ATTRIBUTE_ARGUMENTS
-        }
-    };
-
-    Diagnostic {
-        range: Range::default(),
-        severity: Some(DiagnosticSeverity::WARNING),
-        code: Some(lsp_types::NumberOrString::String(code.to_owned())),
-        code_description: None,
-        source: Some(DIAGNOSTIC_SOURCE.to_owned()),
-        message: diagnostic.to_string(),
-        related_information: None,
-        tags: None,
-        data: None,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     //! Tests for recoverable Rust-index diagnostic conversion.
 
     use lsp_types::{DiagnosticSeverity, NumberOrString, Position, Range};
 
+    use super::super::DIAGNOSTIC_SOURCE;
+    use super::super::publish::build_rust_index_diagnostic;
     use super::*;
 
     #[test]

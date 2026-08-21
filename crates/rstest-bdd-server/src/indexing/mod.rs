@@ -28,6 +28,7 @@ mod rust;
 mod workspace;
 
 pub use feature::index_feature_source;
+pub(crate) use feature::index_feature_source_owned;
 pub use registry::{CompiledStepDefinition, StepDefinitionRegistry, StepPatternCompileError};
 pub use rust::{index_rust_file, index_rust_source};
 pub use workspace::WorkspaceRoot;

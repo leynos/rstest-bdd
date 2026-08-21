@@ -6,18 +6,19 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use async_lsp::ClientSocket;
-use lsp_types::{ClientCapabilities, ServerCapabilities, WorkspaceFolder};
-use lsp_types::{TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions};
-use tracing::warn;
-
 use crate::config::ServerConfig;
 use crate::discovery::WorkspaceInfo;
 use crate::error::ServerError;
 use crate::indexing::{
     FeatureFileIndex, FeatureIndexError, RustStepFileIndex, StepDefinitionRegistry, WorkspaceRoot,
-    index_feature_source,
+    index_feature_source_owned,
 };
+use async_lsp::ClientSocket;
+use lsp_types::{
+    ClientCapabilities, DidSaveTextDocumentParams, ServerCapabilities, WorkspaceFolder,
+};
+use lsp_types::{TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions};
+use tracing::warn;
 
 /// Central state shared across all LSP handlers.
 ///
@@ -36,6 +37,12 @@ pub struct ServerState {
     workspace_root: Option<WorkspaceRoot>,
     /// Workspace folders from the client.
     workspace_folders: Vec<WorkspaceFolder>,
+    /// Monotonic identifier for the workspace initialization in progress.
+    workspace_initialization_id: u64,
+    /// Whether a workspace capability is still being prepared.
+    workspace_preparation_pending: bool,
+    /// Saves received before the workspace capability became available.
+    deferred_document_saves: Vec<DidSaveTextDocumentParams>,
     /// Whether the server has been initialized.
     initialized: bool,
     /// Configuration loaded from environment and client.
@@ -60,6 +67,18 @@ impl std::fmt::Debug for ServerState {
                 &self.workspace_root.as_ref().map(WorkspaceRoot::path),
             )
             .field("workspace_folders", &self.workspace_folders)
+            .field(
+                "workspace_initialization_id",
+                &self.workspace_initialization_id,
+            )
+            .field(
+                "workspace_preparation_pending",
+                &self.workspace_preparation_pending,
+            )
+            .field(
+                "deferred_document_saves",
+                &self.deferred_document_saves.len(),
+            )
             .field("initialised", &self.initialized)
             .field("config", &self.config)
             .field("feature_indices", &self.feature_indices)
@@ -90,6 +109,9 @@ impl ServerState {
             workspace_info: None,
             workspace_root: None,
             workspace_folders: Vec::new(),
+            workspace_initialization_id: 0,
+            workspace_preparation_pending: false,
+            deferred_document_saves: Vec::new(),
             initialized: false,
             config,
             feature_indices: HashMap::new(),
@@ -124,6 +146,48 @@ impl ServerState {
     /// Store workspace folders provided by the client.
     pub fn set_workspace_folders(&mut self, folders: Vec<WorkspaceFolder>) {
         self.workspace_folders = folders;
+    }
+    /// Start a workspace initialization transaction for `folders`.
+    ///
+    /// Clearing retained workspace state prevents a cancelled initialization
+    /// from leaking its folders or capability into a later retry.
+    pub(crate) fn begin_workspace_initialization(
+        &mut self,
+        folders: Vec<WorkspaceFolder>,
+        workspace_preparation_pending: bool,
+    ) -> u64 {
+        self.workspace_initialization_id = self.workspace_initialization_id.wrapping_add(1);
+        self.workspace_folders = folders;
+        self.workspace_info = None;
+        self.workspace_root = None;
+        self.workspace_preparation_pending = workspace_preparation_pending;
+        self.deferred_document_saves.clear();
+        self.workspace_initialization_id
+    }
+    /// Return whether `initialization_id` may install workspace state.
+    #[must_use]
+    pub(crate) fn is_current_workspace_initialization(&self, initialization_id: u64) -> bool {
+        self.workspace_initialization_id == initialization_id
+    }
+    /// Return whether did-save work must wait for the workspace capability.
+    #[must_use]
+    pub(crate) fn workspace_preparation_pending(&self) -> bool {
+        self.workspace_preparation_pending
+    }
+    /// Retain a did-save notification until workspace preparation completes.
+    pub(crate) fn defer_document_save(&mut self, params: DidSaveTextDocumentParams) {
+        self.deferred_document_saves.push(params);
+    }
+    /// Finish the current workspace preparation and return deferred saves.
+    pub(crate) fn finish_workspace_initialization(
+        &mut self,
+        initialization_id: u64,
+    ) -> Option<Vec<DidSaveTextDocumentParams>> {
+        if !self.is_current_workspace_initialization(initialization_id) {
+            return None;
+        }
+        self.workspace_preparation_pending = false;
+        Some(std::mem::take(&mut self.deferred_document_saves))
     }
 
     /// Access the workspace folders provided by the client.
@@ -189,7 +253,7 @@ impl ServerState {
     ///
     /// The workspace-relative path validation and capability-rooted read
     /// happen at this server boundary; the indexing domain only receives the
-    /// normalized source text via [`index_feature_source`].
+    /// owned source text via [`index_feature_source_owned`].
     pub(crate) fn index_feature_file(
         &self,
         path: &Path,
@@ -199,7 +263,7 @@ impl ServerState {
             .as_ref()
             .ok_or(FeatureIndexError::WorkspaceRootUnavailable)?;
         let source = workspace_root.read_feature_source(path)?;
-        index_feature_source(path.to_path_buf(), &source)
+        index_feature_source_owned(path.to_path_buf(), source)
     }
 
     /// Access the current server configuration.
@@ -298,47 +362,4 @@ pub fn build_server_capabilities() -> ServerCapabilities {
 }
 
 #[cfg(test)]
-mod tests {
-    //! Unit tests for server state management.
-
-    use super::*;
-
-    #[test]
-    fn new_state_is_not_initialized() {
-        let config = ServerConfig::default();
-        let state = ServerState::new(config);
-        assert!(!state.is_initialised());
-        assert!(state.client_capabilities().is_none());
-        assert!(state.workspace_info().is_none());
-        assert!(state.workspace_folders().is_empty());
-        assert!(state.feature_indices.is_empty());
-        assert!(state.rust_step_indices.is_empty());
-        assert!(
-            state
-                .step_registry
-                .steps_for_keyword(gherkin::StepType::Given)
-                .is_empty()
-        );
-    }
-
-    #[test]
-    fn mark_initialized_sets_flag() {
-        let config = ServerConfig::default();
-        let mut state = ServerState::new(config);
-        state.mark_initialised();
-        assert!(state.is_initialised());
-    }
-
-    #[test]
-    fn build_server_capabilities_includes_definition_provider() {
-        let capabilities = build_server_capabilities();
-        assert!(capabilities.text_document_sync.is_some());
-        assert!(capabilities.definition_provider.is_some());
-    }
-
-    #[test]
-    fn build_server_capabilities_includes_implementation_provider() {
-        let capabilities = build_server_capabilities();
-        assert!(capabilities.implementation_provider.is_some());
-    }
-}
+mod tests;

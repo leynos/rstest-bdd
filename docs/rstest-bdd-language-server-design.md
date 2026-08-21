@@ -449,6 +449,13 @@ Co-locating the server in the repository ensures it stays in sync with changes
 to the `rstest-bdd` macro semantics. If new features (like localized keywords
 or new step types) are added, the LSP can be updated simultaneously.
 
+### Lifecycle implementation
+
+`initialize_async` backgrounds workspace discovery and root opening in
+`spawn_blocking`, then emits `WorkspaceReadyEvent` for the router to install
+the prepared capability in `ServerState`. Discovery and root-opening failures
+are logged and remain non-fatal, so the initialize result is still returned.
+
 ### Maintaining the index and handling file events
 
 The language server will keep its index of steps up-to-date by responding to

@@ -252,7 +252,7 @@ fn handle_binary_execution_failure(
 fn handle_binary_execution_stderr(bin: &Path, stderr: &str) -> Result<Option<RegistryDump>> {
     if is_unrecognized_dump_steps(stderr) {
         warn!(
-            binary = %bin.display(),
+            binary = %bin.file_name().unwrap_or_default().to_string_lossy(),
             reason = "unsupported-dump-steps",
             "registry collection skipped the binary"
         );

@@ -17,9 +17,11 @@ use crate::server::ServerState;
 
 use super::compute::{compute_unimplemented_step_diagnostics, compute_unused_step_diagnostics};
 use super::placeholder::compute_signature_mismatch_diagnostics;
-use super::rust_index::build_rust_index_diagnostic;
 use super::scenario_outline::compute_scenario_outline_column_diagnostics;
 use super::table_docstring::compute_table_docstring_mismatch_diagnostics;
+use super::{
+    CODE_INVALID_STEP_ATTRIBUTE_ARGUMENTS, CODE_MULTIPLE_STEP_ATTRIBUTES, DIAGNOSTIC_SOURCE,
+};
 
 /// Compute all diagnostics for a feature file, or `None` when the file has
 /// no feature index (in which case nothing is published, preserving any
@@ -56,6 +58,31 @@ pub(super) fn compute_rust_file_diagnostics(
     diagnostics.extend(compute_unused_step_diagnostics(state, rust_path));
     diagnostics.extend(compute_signature_mismatch_diagnostics(state, rust_path));
     diagnostics
+}
+
+/// Convert a recoverable Rust indexing failure into an LSP warning.
+///
+/// Indexing diagnostics identify the affected function but do not retain a
+/// source span, so the LSP range is the document origin.
+pub(super) fn build_rust_index_diagnostic(diagnostic: &RustStepIndexDiagnostic) -> Diagnostic {
+    let code = match diagnostic {
+        RustStepIndexDiagnostic::MultipleStepAttributes { .. } => CODE_MULTIPLE_STEP_ATTRIBUTES,
+        RustStepIndexDiagnostic::InvalidStepAttributeArguments { .. } => {
+            CODE_INVALID_STEP_ATTRIBUTE_ARGUMENTS
+        }
+    };
+
+    Diagnostic {
+        range: lsp_types::Range::default(),
+        severity: Some(lsp_types::DiagnosticSeverity::WARNING),
+        code: Some(lsp_types::NumberOrString::String(code.to_owned())),
+        code_description: None,
+        source: Some(DIAGNOSTIC_SOURCE.to_owned()),
+        message: diagnostic.to_string(),
+        related_information: None,
+        tags: None,
+        data: None,
+    }
 }
 
 /// Lift [`compute_rust_file_diagnostics`] into the shape `prepare_publish`

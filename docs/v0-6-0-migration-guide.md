@@ -29,6 +29,11 @@ that need a new testing practice to be useful.
   diagnostics. Disk-backed feature indexing is likewise bounded by the
   validated workspace root; the server resolves file reads relative to that
   root, while source-text saves continue through `index_feature_source`.
+- The public `publish_rust_diagnostics` entry point has been removed. Save
+  handling now publishes Rust indexing diagnostics as part of the Rust save
+  path. Callers that index directly should use the supported
+  `RustStepIndexResult::diagnostics` contract instead of calling the removed
+  publisher.
 
 ### Update underscore-prefixed implicit fixtures
 

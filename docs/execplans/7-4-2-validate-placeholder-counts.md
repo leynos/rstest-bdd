@@ -4,7 +4,7 @@ This execution plan (ExecPlan) is a living document. The sections `Constraints`,
 `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
 and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: IN PROGRESS
+Status: COMPLETE
 
 This document follows the ExecPlans skill template.
 
@@ -130,8 +130,8 @@ Known uncertainties that might affect the plan:
 - [x] Stage E: Documentation and cleanup
   - [x] Update `docs/users-guide.md` with diagnostics section
   - [x] Update `docs/roadmap.md` to mark the feature as done
-  - [ ] Run full quality gates (`make check-fmt`, `make lint`, `make test`)
-  - [ ] Commit changes
+  - [x] Run full quality gates (`make check-fmt`, `make lint`, `make test`)
+  - [x] Commit changes
 
 ### PR #660 review follow-up (2026-08-20)
 

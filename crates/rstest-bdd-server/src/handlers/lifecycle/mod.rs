@@ -8,13 +8,14 @@ use std::path::{Path, PathBuf};
 use async_lsp::ClientSocket;
 use async_lsp::ResponseError;
 use lsp_types::{InitializeParams, InitializeResult, InitializedParams, ServerInfo, Url};
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 use crate::discovery::{WorkspaceInfo, discover_workspace};
 use crate::error::ServerError;
 use crate::indexing::WorkspaceRoot;
 use crate::server::{ServerState, build_server_capabilities};
 
+use super::text_document::replay_deferred_document_saves;
 /// Outcome of the synchronous part of handling an `initialize` request.
 ///
 /// The initialize path is asynchronous: the non-blocking parameter handling
@@ -27,6 +28,8 @@ pub struct InitializeOutcome {
     /// Workspace path selected from the configuration root, workspace
     /// folders, or root URI, when one exists.
     pub workspace_path: Option<PathBuf>,
+    /// Identifier that authorizes the matching prepared workspace event.
+    pub workspace_initialization_id: u64,
     /// Initialize result returned to the client.
     pub result: InitializeResult,
 }
@@ -66,19 +69,18 @@ pub fn handle_initialise(
     } = params;
     state.set_client_capabilities(capabilities);
 
-    // Store workspace folders if provided
-    if let Some(folders) = workspace_folders {
-        state.set_workspace_folders(folders);
-    }
-
+    let workspace_folders = workspace_folders.unwrap_or_default();
     let workspace_path = state
         .config()
         .workspace_root
         .clone()
-        .or_else(|| extract_workspace_path(state.workspace_folders(), root_uri.as_ref()));
+        .or_else(|| extract_workspace_path(&workspace_folders, root_uri.as_ref()));
+    let workspace_initialization_id =
+        state.begin_workspace_initialization(workspace_folders, workspace_path.is_some());
 
     Ok(InitializeOutcome {
         workspace_path,
+        workspace_initialization_id,
         result: initialize_result(),
     })
 }
@@ -119,6 +121,7 @@ pub enum WorkspacePreparation {
 pub struct WorkspaceReadyEvent {
     /// Blocking discovery and capability-open result for the router to apply.
     pub preparation: WorkspacePreparation,
+    initialization_id: u64,
 }
 
 /// Perform blocking workspace discovery and capability opening off the LSP
@@ -155,6 +158,15 @@ pub fn prepare_workspace(path: &Path) -> WorkspacePreparation {
 /// This runs on the router task and only installs capabilities that were
 /// already opened off the executor, so it never blocks.
 pub fn handle_workspace_ready(state: &mut ServerState, event: WorkspaceReadyEvent) {
+    let Some(deferred_document_saves) =
+        state.finish_workspace_initialization(event.initialization_id)
+    else {
+        debug!(
+            initialization_id = event.initialization_id,
+            "discarding stale workspace preparation"
+        );
+        return;
+    };
     match event.preparation {
         WorkspacePreparation::Discovered(info, root) => {
             info!(
@@ -182,6 +194,7 @@ pub fn handle_workspace_ready(state: &mut ServerState, event: WorkspaceReadyEven
             warn!(error = %root_error, "failed to open workspace root capability");
         }
     }
+    replay_deferred_document_saves(state, deferred_document_saves);
 }
 
 /// Complete an `initialize` request asynchronously.
@@ -201,20 +214,47 @@ pub async fn initialize_async(
     initialize: Result<InitializeOutcome, ResponseError>,
     client: Option<ClientSocket>,
 ) -> Result<InitializeResult, ResponseError> {
-    let outcome = initialize?;
-    if let Some(path) = outcome.workspace_path {
-        match tokio::task::spawn_blocking(move || prepare_workspace(&path)).await {
-            Ok(preparation) => {
-                if let Some(client) = client {
-                    let _ = client.emit(WorkspaceReadyEvent { preparation });
+    initialize_with_preparer(initialize, client, |path| prepare_workspace(&path))
+}
+
+fn initialize_with_preparer<F>(
+    initialize: Result<InitializeOutcome, ResponseError>,
+    client: Option<ClientSocket>,
+    prepare: F,
+) -> Result<InitializeResult, ResponseError>
+where
+    F: FnOnce(PathBuf) -> WorkspacePreparation + Send + 'static,
+{
+    let InitializeOutcome {
+        workspace_path,
+        workspace_initialization_id,
+        result,
+    } = initialize?;
+    if let Some(path) = workspace_path {
+        let background_task = tokio::spawn(async move {
+            match tokio::task::spawn_blocking(move || prepare(path)).await {
+                Ok(preparation) => {
+                    if let Some(client) = client
+                        && let Err(error) = client.emit(WorkspaceReadyEvent {
+                            preparation,
+                            initialization_id: workspace_initialization_id,
+                        })
+                    {
+                        warn!(
+                            error = %error,
+                            event = "workspace-ready",
+                            "failed to publish workspace preparation"
+                        );
+                    }
+                }
+                Err(join_error) => {
+                    warn!(error = %join_error, "workspace initialization task failed");
                 }
             }
-            Err(join_error) => {
-                warn!(error = %join_error, "workspace initialization task failed");
-            }
-        }
+        });
+        drop(background_task);
     }
-    Ok(outcome.result)
+    Ok(result)
 }
 
 /// Handle the `initialized` notification from the client.

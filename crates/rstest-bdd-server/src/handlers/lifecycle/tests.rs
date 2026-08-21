@@ -8,10 +8,6 @@ use lsp_types::{ClientCapabilities, WorkspaceFolder};
 use rstest::{fixture, rstest};
 use std::ops::ControlFlow;
 use std::str::FromStr;
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, Ordering},
-};
 use tempfile::TempDir;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
@@ -219,6 +215,7 @@ fn prepare_workspace_reports_non_fatal_failure_for_missing_path() {
 fn handle_workspace_ready_installs_capability() {
     let workspace = cargo_workspace().expect("create Cargo workspace");
     let mut state = ServerState::new(ServerConfig::default());
+    let workspace_initialization_id = state.begin_workspace_initialization(Vec::new(), true);
     let preparation = prepare_workspace(workspace.path());
     let WorkspacePreparation::Discovered(info, root) = preparation else {
         panic!("expected discovered workspace");
@@ -228,6 +225,7 @@ fn handle_workspace_ready_installs_capability() {
         &mut state,
         WorkspaceReadyEvent {
             preparation: WorkspacePreparation::Discovered(info.clone(), root),
+            initialization_id: workspace_initialization_id,
         },
     );
 
@@ -244,16 +242,18 @@ async fn initialize_async_installs_workspace_capability_through_router_event() {
     let workspace = cargo_workspace().expect("create Cargo workspace");
     let feature_path = workspace.path().join("scenario.feature");
     std::fs::write(&feature_path, "Feature: async initialization\n").expect("write feature file");
-    let installed = Arc::new(AtomicBool::new(false));
-    let installed_for_router = Arc::clone(&installed);
+    let (installed_sender, mut installed) = tokio::sync::mpsc::unbounded_channel();
     let feature_path_for_router = feature_path.clone();
+    let mut state = ServerState::new(ServerConfig::default());
+    let workspace_initialization_id = state.begin_workspace_initialization(Vec::new(), true);
     let (mainloop, client) = MainLoop::new_server(move |_| {
-        let mut router = Router::new(ServerState::new(ServerConfig::default()));
+        let mut router = Router::new(state);
         router.event::<WorkspaceReadyEvent>(move |state, event| {
             handle_workspace_ready(state, event);
-            installed_for_router.store(
-                state.index_feature_file(&feature_path_for_router).is_ok(),
-                Ordering::Relaxed,
+            let is_installed = state.index_feature_file(&feature_path_for_router).is_ok();
+            assert!(
+                installed_sender.send(is_installed).is_ok(),
+                "test must receive workspace installation status"
             );
             ControlFlow::Continue(())
         });
@@ -261,33 +261,106 @@ async fn initialize_async_installs_workspace_capability_through_router_event() {
     });
     let outcome = InitializeOutcome {
         workspace_path: Some(workspace.path().to_path_buf()),
+        workspace_initialization_id,
         result: initialize_result(),
     };
 
+    let (input_writer, input_reader) = tokio::io::duplex(1);
+    let mainloop_task = tokio::spawn(
+        mainloop.run_buffered(input_reader.compat(), tokio::io::sink().compat_write()),
+    );
     let result = initialize_async(Ok(outcome), Some(client.clone())).await;
 
     assert!(result.is_ok());
-    let _ = mainloop
-        .run_buffered(
-            tokio::io::empty().compat(),
-            tokio::io::sink().compat_write(),
-        )
-        .await;
-    drop(client);
+    let Some(is_installed) = installed.recv().await else {
+        panic!("router should receive the workspace preparation event");
+    };
     assert!(
-        installed.load(Ordering::Relaxed),
-        "the router event should install a readable workspace capability"
+        is_installed,
+        "the router should install a readable workspace capability"
     );
+    mainloop_task.abort();
+    let Err(error) = mainloop_task.await else {
+        panic!("server main loop should stop when the test cancels it");
+    };
+    assert!(error.is_cancelled());
+    drop(input_writer);
+    drop(client);
 }
 
 #[tokio::test]
 async fn initialize_async_keeps_unavailable_workspace_non_fatal() {
     let outcome = InitializeOutcome {
         workspace_path: Some(PathBuf::from("/nonexistent/rstest-bdd-test/workspace")),
+        workspace_initialization_id: 0,
         result: initialize_result(),
     };
 
     let result = initialize_async(Ok(outcome), None).await;
 
     assert!(result.is_ok());
+}
+
+#[tokio::test]
+async fn initialization_returns_before_workspace_preparation_finishes() {
+    let (preparation_started_sender, preparation_started_receiver) =
+        tokio::sync::oneshot::channel();
+    let (release_preparation, await_release) = std::sync::mpsc::channel();
+    let outcome = InitializeOutcome {
+        workspace_path: Some(PathBuf::from("/nonexistent/rstest-bdd-test/workspace")),
+        workspace_initialization_id: 0,
+        result: initialize_result(),
+    };
+
+    let result = initialize_with_preparer(Ok(outcome), None, move |path| {
+        assert!(
+            preparation_started_sender.send(()).is_ok(),
+            "test must await the background preparation start"
+        );
+        if let Err(error) = await_release.recv() {
+            panic!("test must release background preparation: {error}");
+        }
+        prepare_workspace(&path)
+    });
+
+    assert!(result.is_ok());
+    assert!(
+        preparation_started_receiver.await.is_ok(),
+        "workspace preparation should continue after initialization returns"
+    );
+    if let Err(error) = release_preparation.send(()) {
+        panic!("release background preparation: {error}");
+    }
+}
+
+#[test]
+fn stale_workspace_preparation_is_discarded_after_initialize_retry() {
+    let workspace = cargo_workspace().expect("create Cargo workspace");
+    let workspace_uri = Url::from_file_path(workspace.path()).expect("workspace URI");
+    let mut state = ServerState::new(ServerConfig::default());
+    let cancelled = handle_initialise(
+        &mut state,
+        InitializeParams {
+            workspace_folders: Some(vec![WorkspaceFolder {
+                uri: workspace_uri,
+                name: "cancelled-workspace".to_owned(),
+            }]),
+            ..Default::default()
+        },
+    )
+    .expect("initialization should succeed");
+    let retry =
+        handle_initialise(&mut state, InitializeParams::default()).expect("retry should succeed");
+    let preparation = prepare_workspace(workspace.path());
+
+    assert_eq!(retry.workspace_path, None);
+    assert!(state.workspace_folders().is_empty());
+    handle_workspace_ready(
+        &mut state,
+        WorkspaceReadyEvent {
+            preparation,
+            initialization_id: cancelled.workspace_initialization_id,
+        },
+    );
+    assert!(state.workspace_info().is_none());
 }

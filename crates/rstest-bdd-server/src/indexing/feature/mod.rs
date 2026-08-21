@@ -82,6 +82,24 @@ pub fn index_feature_source(
     index_feature_text(path, FeatureSource::new(source.as_ref()))
 }
 
+/// Parse and index an owned `.feature` source buffer.
+///
+/// Disk-backed callers use this entry point so a missing trailing newline is
+/// appended in place before the index takes its required owned source copy.
+///
+/// # Errors
+///
+/// Returns an error when the feature text cannot be parsed as valid Gherkin.
+pub(crate) fn index_feature_source_owned(
+    path: PathBuf,
+    mut source: String,
+) -> Result<FeatureFileIndex, FeatureIndexError> {
+    if !source.ends_with('\n') {
+        source.push('\n');
+    }
+    index_feature_text(path, FeatureSource::new(&source))
+}
+
 fn index_feature_text(
     path: PathBuf,
     source: FeatureSource<'_>,

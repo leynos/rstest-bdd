@@ -55,6 +55,24 @@ fn rust_indexing_outcome(error: &RustStepIndexError) -> &'static str {
 /// computed and published. Parse failures are logged but do not produce
 /// diagnostics (the file remains in its previously indexed state).
 pub fn handle_did_save_text_document(state: &mut ServerState, params: DidSaveTextDocumentParams) {
+    if state.workspace_preparation_pending() {
+        state.defer_document_save(params);
+        return;
+    }
+    index_saved_document(state, params);
+}
+
+/// Index did-save notifications deferred until workspace preparation completed.
+pub(crate) fn replay_deferred_document_saves(
+    state: &mut ServerState,
+    deferred_document_saves: Vec<DidSaveTextDocumentParams>,
+) {
+    for params in deferred_document_saves {
+        index_saved_document(state, params);
+    }
+}
+
+fn index_saved_document(state: &mut ServerState, params: DidSaveTextDocumentParams) {
     let uri = params.text_document.uri;
     let Ok(path) = uri.to_file_path() else {
         debug!(%uri, "ignoring didSave for non-file URI");
