@@ -1,7 +1,5 @@
 error: feature file `C:\Users\Public\rstest-bdd-unrelatable\x.feature` shares no filesystem root with the crate manifest directory (`$WORKSPACE/target/tests/trybuild/rstest-bdd`), so it cannot be registered as a Cargo rebuild dependency. Use a manifest-relative path, or a path on the same filesystem root.
-  --> tests/fixtures_macros/scenario_unrelatable_path.rs:14:1
+  --> tests/fixtures_macros/scenario_unrelatable_path.rs:15:19
    |
-14 | #[scenario(path = "C:\\Users\\Public\\rstest-bdd-unrelatable\\x.feature")]
-   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   |
-   = note: this error originates in the attribute macro `scenario` (in Nightly builds, run with -Z macro-backtrace for more info)
+15 | #[scenario(path = "C:\\Users\\Public\\rstest-bdd-unrelatable\\x.feature")]
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
