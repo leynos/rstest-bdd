@@ -1167,3 +1167,88 @@ an assertion cannot disappear behind macro classification or generated code.
 
 [implicit-fixture-guide]: users-guide.md#implicit-fixture-injection
 [implicit-fixture-trybuild]: ../crates/rstest-bdd/tests/ui_macros/implicit_fixture_missing.rs
+
+## 13. Parser-neutral scenario execution
+
+Idea: if the runtime owns a parser-neutral plan and structured terminal
+outcome, Gherkin macros and linked external frontends can share one scenario
+policy without duplicating lifecycle, skip, failure, or returned-value
+semantics.
+
+This phase delivers the accepted runner boundary before it connects an external
+frontend. The first step makes the runtime contract directly testable; the
+second transfers the existing Gherkin frontend to that contract; and the final
+step proves that a non-Gherkin caller can preserve its own source information
+and process policy.
+
+### 13.1. Establish the source-neutral runtime contract
+
+This step answers whether one additive runtime API can represent both static
+Gherkin-generated scenarios and dynamically parsed input without admitting
+frontend concepts. Its result defines the contract that macro migration and
+external-frontends rely on. See
+`docs/adr-017-parser-neutral-scenario-execution.md` (Decision outcome and
+proposed direction).
+
+- [ ] 13.1.1. Add parser-neutral `ScenarioPlan`, `StepInvocation`, source, and
+  structured terminal-outcome types plus synchronous and asynchronous runners
+  in `rstest-bdd`.
+  - Requires 12.1.1 and 12.1.3.
+  - Keep `gherkin`, Markdown, Trymark, process, snapshot, and reporter types
+    out of the public plan and outcome surface.
+  - Make the runner own ordered resolution, fixture validation, returned-value
+    propagation, terminal skip and failure handling, and after-scenario cleanup.
+  - Success: deterministic tests prove terminal stop and later-step value
+    visibility, assert source accessors for passed, failed, skipped, and
+    bypassed steps plus terminal sources, cover the four skip flag combinations
+    and exact `forced_failure` rule, and compare synchronous and asynchronous
+    parity.
+  - Also prove lifecycle precedence and exactly-once cleanup; drop async runs
+    during a step and before/after hooks to verify no outcome, synchronous
+    scope-drop cleanup, and no awaited-after guarantee after cancellation.
+  - See `docs/adr-017-parser-neutral-scenario-execution.md` (Requirements and
+    Verification strategy).
+
+- [ ] 13.1.2. Preserve frontend-supplied source identity in every failed or
+  skipped outcome without extending runtime errors with frontend metadata.
+  - Requires 13.1.1.
+  - Success: runtime tests execute plans whose sources are not `.feature`
+    files and assert that supplied path, line, and column information remains
+    available to the caller.
+  - See `docs/adr-017-parser-neutral-scenario-execution.md` (Source-neutral
+    diagnostics).
+
+### 13.2. Make the Gherkin macros a thin runner frontend
+
+This step answers whether the public Gherkin surface can delegate entirely to
+the new runtime while preserving existing test-harness behaviour. Its outcome
+removes the duplicate execution loop and establishes the macro compatibility
+baseline that a non-Gherkin frontend must match.
+
+- [ ] 13.2.1. Change generated `#[scenario]` and `scenarios!` tests to
+  construct plans and call the synchronous or asynchronous runtime runner.
+  - Requires 13.1.1 and 13.1.2.
+  - Retain generated fixture setup, harness integration, outline values, and
+    translation of failed outcomes to Rust test-harness failures.
+  - Success: the existing macro compile-pass and compile-fail fixtures remain
+    unchanged, and conformance coverage compares step order, fixture errors,
+    return propagation, skips, bypassed steps, and failures from both paths.
+  - See `docs/adr-017-parser-neutral-scenario-execution.md` (Gherkin macro
+    integration and Compatibility and migration).
+
+### 13.3. Prove the external-frontend boundary end to end
+
+This step answers whether a parser that is not Gherkin can execute linked steps
+without reconstructing the scenario loop. Its result validates the accepted
+boundary without importing Trymark's syntax or reporting model into
+`rstest-bdd`.
+
+- [ ] 13.3.1. Execute a small conformance frontend, or Trymark when available,
+  against standard linked steps using the parser-neutral runtime API.
+  - Requires 13.2.1.
+  - Preserve the frontend's own source map and aggregate exit-code policy.
+  - Success: an end-to-end suite executes pass, skip, failure, missing-step,
+    and missing-fixture scenarios outside `.feature` files, reports their
+    supplied locations, and proves no Rust test crate is generated or compiled.
+  - See `docs/adr-017-parser-neutral-scenario-execution.md` (Extension
+    boundary and Compatibility and migration).

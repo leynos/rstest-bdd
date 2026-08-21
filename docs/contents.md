@@ -95,6 +95,8 @@
 - [ADR 015: name the step-return override outcome][adr-015] records the
   decision to return `InsertOutcome` from `StepContext::insert_value` instead of
   `Option<Box<dyn Any>>`.
+- [ADR 017: parser-neutral scenario execution][adr-017] records the accepted
+  structured scenario plan and runtime runner for non-Gherkin frontends.
 
 ## Execution plans
 
@@ -111,6 +113,7 @@
 [adr-013]: adr-013-adopt-whitaker-no-unwrap-or-else-panic.md
 [adr-014]: adr-014-retain-users-guide-link-validator.md
 [adr-015]: adr-015-insert-outcome-for-step-return-overrides.md
+[adr-017]: adr-017-parser-neutral-scenario-execution.md
 [complexity-guide]: complexity-antipatterns-and-refactoring-strategies.md
 [cucumber-async]: cucumber-rs-migration-and-async-patterns.md
 [dependency-injection]: reliable-testing-in-rust-via-dependency-injection.md
