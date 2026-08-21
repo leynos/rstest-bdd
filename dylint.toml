@@ -47,4 +47,11 @@ excluded_crates = [
     # fixture crates into ambient temp directories and drives `make
     # lint-whitaker` against them, so ambient paths are the point.
     "trybuild_macros",
+    # Integration test crate (crates/rstest-bdd/tests): the 10.3.3
+    # rebuild-invalidation harness copies a fixture crate to the ambient
+    # shared workspace target and drives a nested `cargo` against it — the
+    # child resolves those paths ambiently anyway, so threading a
+    # `cap_std::fs::Dir` through the harness would grant no capability and
+    # the ambient filesystem is precisely the behaviour under test.
+    "feature_rebuild_invalidation",
 ]

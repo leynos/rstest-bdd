@@ -13,6 +13,28 @@ const MACROS_FIXTURES_DIR: &str = "tests/fixtures_macros";
 const FEATURES_DIR: &str = "tests/features";
 const FEATURES_AUTO_DIR: &str = "tests/features/auto";
 
+#[cfg(windows)]
+const UNRELATABLE_FEATURE_PATH: &str = r"C:\Users\Public\rstest-bdd-unrelatable\x.feature";
+
+/// A staged feature file on Windows' `C:` root.
+///
+/// Keeping the file alive through the compile-fail invocation ensures the macro
+/// can load it before it checks the intentionally different filesystem root.
+/// Dropping the guard removes this exact staged file and its empty directory.
+#[cfg(windows)]
+pub(crate) struct AlternateFeatureRoot;
+
+#[cfg(windows)]
+impl Drop for AlternateFeatureRoot {
+    fn drop(&mut self) {
+        let path = StdPath::new(UNRELATABLE_FEATURE_PATH);
+        let _ = std::fs::remove_file(path);
+        if let Some(parent) = path.parent() {
+            let _ = std::fs::remove_dir(parent);
+        }
+    }
+}
+
 /// Returns the path to a macro fixture file, staging support files first.
 ///
 /// Ensures that feature files are staged to the trybuild test environment
@@ -45,6 +67,27 @@ pub(crate) fn macros_fixture(case: &str) -> Utf8PathBuf {
 /// The full path to the fixture file as a [`Utf8PathBuf`].
 pub(crate) fn ui_fixture(case: &str) -> Utf8PathBuf {
     Utf8PathBuf::from("tests/ui_macros").join(case)
+}
+
+/// Stage the unrelatable-path feature fixture on Windows' alternate root.
+///
+/// `#[scenario]` loads its feature before emitting its tracking item. Copying
+/// the staged fixture to `C:` gives that load a real feature while the
+/// trybuild crate remains on the hosted runner's `D:` workspace root.
+#[cfg(windows)]
+pub(crate) fn stage_unrelatable_feature_root() -> io::Result<AlternateFeatureRoot> {
+    let crate_root = Utf8Path::new(env!("CARGO_MANIFEST_DIR"));
+    let source = crate_root.join("tests/fixtures_macros/unrelatable/x.feature");
+    let destination = StdPath::new(UNRELATABLE_FEATURE_PATH);
+    let Some(parent) = destination.parent() else {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "alternate feature path must have a parent directory",
+        ));
+    };
+    std::fs::create_dir_all(parent)?;
+    std::fs::copy(&source, destination)?;
+    Ok(AlternateFeatureRoot)
 }
 
 #[expect(clippy::expect_used, reason = "test setup failure should panic")]

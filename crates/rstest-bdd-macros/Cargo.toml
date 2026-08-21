@@ -47,6 +47,10 @@ thiserror.workspace = true
 proptest.workspace = true
 rstest.workspace = true
 serial_test.workspace = true
+googletest.workspace = true
+pretty_assertions.workspace = true
+insta = { workspace = true, features = ["filters"] }
+temp-env.workspace = true
 tempfile.workspace = true
 
 [package.metadata.docs.rs]

@@ -17,6 +17,7 @@ struct CrateSpec {
 }
 
 pub(crate) mod scenario;
+pub(crate) mod tracking;
 pub(crate) mod wrapper;
 
 const RSTEST_BDD: CrateSpec = CrateSpec {

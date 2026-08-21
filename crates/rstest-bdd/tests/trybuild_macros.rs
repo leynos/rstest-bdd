@@ -21,6 +21,8 @@ use wrappers::{
 
 #[path = "trybuild_macros/staging.rs"]
 mod staging;
+#[path = "trybuild_macros/tracking.rs"]
+mod tracking;
 #[path = "trybuild_macros/whitaker.rs"]
 mod whitaker;
 #[path = "trybuild_macros/wrappers.rs"]
@@ -64,6 +66,8 @@ fn step_macros_compile() -> io::Result<()> {
         let t = trybuild::TestCases::new();
 
         run_passing_macro_tests(&t);
+        #[cfg(windows)]
+        let _alternate_root = staging::stage_unrelatable_feature_root()?;
         run_failing_macro_tests(&t);
         run_failing_ui_tests(&t);
         run_lint_ui_tests()?;
@@ -72,6 +76,10 @@ fn step_macros_compile() -> io::Result<()> {
         );
         run_conditional_ordering_tests(&t);
         run_conditional_ambiguous_step_test(&t);
+        // `TestCases` runs its queued fixtures from `Drop`; inspect dep-info
+        // only after this run has actually compiled the tracking fixture.
+        drop(t);
+        tracking::assert_trybuild_tracking_registered_in_dep_info();
         Ok(())
     })
 }
@@ -81,6 +89,7 @@ fn run_passing_macro_tests(t: &trybuild::TestCases) {
         MacroFixtureCase::from("step_macros.rs"),
         MacroFixtureCase::from("step_macros_unicode.rs"),
         MacroFixtureCase::from("scenario_single_match.rs"),
+        MacroFixtureCase::from("scenario_feature_tracking.rs"),
         MacroFixtureCase::from("scenario_state_default.rs"),
         MacroFixtureCase::from("scenarios_fixtures.rs"),
         MacroFixtureCase::from("scenarios_autodiscovery.rs"),
@@ -130,6 +139,15 @@ fn run_failing_macro_tests(t: &trybuild::TestCases) {
     ] {
         t.compile_fail(macros_fixture(case).as_std_path());
     }
+
+    // D4's unrelatable-root diagnostic (different Windows drive or UNC
+    // prefix): on POSIX every absolute path shares `/`, so the fixture can
+    // only fail where the case is real. The Windows CI legs exercise and pin
+    // it via `scenario_unrelatable_path.stderr`.
+    #[cfg(windows)]
+    t.compile_fail(
+        macros_fixture(MacroFixtureCase::from("scenario_unrelatable_path.rs")).as_std_path(),
+    );
 }
 
 fn run_failing_ui_tests(t: &trybuild::TestCases) {
