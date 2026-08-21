@@ -498,7 +498,7 @@ workspace root; this is the only nextest configuration file the runner loads.
 The file sets the timeout policy for the test suite:
 
 - The default profile kills any test that runs past a 60 s `slow-timeout`
-  (`terminate-after = 1`, 5 s grace period) and applies a 40 m `global-timeout`
+  (`terminate-after = 1`, 5 s grace period) and applies a 50 m `global-timeout`
   to the whole run. This allows the cargo-spawning group to run its bounded
   tests one at a time without exhausting the whole-suite budget. The global
   timeout must stay above the largest per-test budget below, or the run is
@@ -520,11 +520,17 @@ The file sets the timeout policy for the test suite:
   about 190 s against a full one. The 20-minute allowance permits the full
   fixture set to rebuild on a cold cache without treating slow, healthy
   compiler work as a hung test. The strict 60 s default remains
-  in force elsewhere, and these tests stay in the `cargo-spawning` group so all
-  four run serially.
-- Both overrides also place their binaries in a `cargo-spawning` test group
-  (`max-threads = 1`), so `cargo-bdd::cli` and the four trybuild binaries run
-  one at a time instead of contending for CPU with concurrent `cargo` builds.
+  in force elsewhere.
+- A third override raises the `slow-timeout` to 600 s for
+  `rstest-bdd::feature_rebuild_invalidation`, whose three scenarios run nested
+  `cargo` commands for dependency tracking, rebuilding, and file addition.
+- All three overrides also place their binaries in a `cargo-spawning` test
+  group (`max-threads = 1`), so `cargo-bdd::cli`, the four trybuild binaries,
+  and `rstest-bdd::feature_rebuild_invalidation` run one at a time instead of
+  contending for CPU with concurrent `cargo` builds. Their worst-case serial
+  budget is 180 s + (20 m × 4) + (600 s × 3) = 6,180 s (103 m), which is why
+  the global timeout above it is set at the run level rather than the group
+  level; the group bound only serializes execution, it does not cap it.
 - A `long` profile (`--profile long`) relaxes the limits further (180 s
   `slow-timeout`, 30 m `global-timeout`) for deliberately slow local runs.
 
