@@ -1,6 +1,7 @@
 //! Unit tests for server lifecycle handling.
 
 mod deferred_save;
+mod retry;
 
 use super::*;
 use crate::config::ServerConfig;
@@ -15,7 +16,10 @@ use std::str::FromStr;
 use tempfile::TempDir;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
-use crate::handlers::handle_did_save_text_document;
+use crate::handlers::{
+    DeferredDocumentSavesIndexed, handle_deferred_document_saves_indexed,
+    handle_did_save_text_document,
+};
 
 #[fixture]
 fn create_test_state() -> ServerState {
@@ -262,10 +266,15 @@ async fn initialize_async_installs_workspace_capability_through_router_event() {
     );
     assert_eq!(state.deferred_document_save_count(), 1);
     assert!(state.feature_index(&feature_path).is_none());
-    let (mainloop, client) = MainLoop::new_server(move |_| {
+    let (mainloop, client) = MainLoop::new_server(move |client| {
+        state.set_client(client);
         let mut router = Router::new(state);
         router.event::<WorkspaceReadyEvent>(move |state, event| {
             handle_workspace_ready(state, event);
+            ControlFlow::Continue(())
+        });
+        router.event::<DeferredDocumentSavesIndexed>(move |state, event| {
+            handle_deferred_document_saves_indexed(state, event);
             let is_indexed = state.feature_index(&feature_path_for_router).is_some();
             assert!(
                 installed_sender.send(is_indexed).is_ok(),
@@ -328,7 +337,7 @@ async fn initialization_returns_before_workspace_preparation_finishes() {
         result: initialize_result(),
     };
 
-    let result = initialize_with_preparer(Ok(outcome), None, move |path| {
+    let result = launch_workspace_preparation_with(Ok(outcome), None, move |path| {
         assert!(
             preparation_started_sender.send(()).is_ok(),
             "test must await the background preparation start"
@@ -339,13 +348,17 @@ async fn initialization_returns_before_workspace_preparation_finishes() {
         prepare_workspace(&path)
     });
 
-    assert!(result.is_ok());
+    let (result, background_task) = result.expect("initialization should succeed");
+    assert!(result.server_info.is_some());
     assert!(
         preparation_started_receiver.await.is_ok(),
         "workspace preparation should continue after initialization returns"
     );
     if let Err(error) = release_preparation.send(()) {
         panic!("release background preparation: {error}");
+    }
+    if let Some(background_task) = background_task {
+        background_task.abort();
     }
 }
 

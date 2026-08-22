@@ -15,14 +15,14 @@ use async_lsp::tracing::TracingLayer;
 use clap::Parser;
 use lsp_types::{notification, request};
 use tower::ServiceBuilder;
-use tracing::info;
+use tracing::{info, warn};
 
 use rstest_bdd_server::config::{LogLevel, ServerConfig};
 use rstest_bdd_server::error::ServerError;
 use rstest_bdd_server::handlers::{
-    WorkspaceReadyEvent, handle_definition, handle_did_save_text_document, handle_implementation,
-    handle_initialise, handle_initialised, handle_shutdown, handle_workspace_ready,
-    initialize_async,
+    DeferredDocumentSavesIndexed, WorkspaceReadyEvent, handle_deferred_document_saves_indexed,
+    handle_definition, handle_did_save_text_document, handle_implementation, handle_initialise,
+    handle_initialised, handle_shutdown, handle_workspace_ready, launch_workspace_preparation,
 };
 use rstest_bdd_server::logging::init_logging;
 use rstest_bdd_server::server::ServerState;
@@ -101,11 +101,31 @@ async fn run_server_async(config: ServerConfig) -> std::io::Result<()> {
             .request::<request::Initialize, _>(|st, params| {
                 let outcome = handle_initialise(st, params);
                 let client = st.client().cloned();
-                initialize_async(outcome, client)
+                let initialization = launch_workspace_preparation(outcome, client);
+                let result = match initialization {
+                    Ok((result, Some(task))) => {
+                        st.replace_workspace_task(task);
+                        Ok(result)
+                    }
+                    Ok((result, None)) => Ok(result),
+                    Err(error) => Err(error),
+                };
+                async move { result }
             })
             .request::<request::Shutdown, _>(|st, _params| {
                 let result = handle_shutdown(st);
-                std::future::ready(result)
+                let task = st.take_workspace_task();
+                async move {
+                    if let Some(task) = task {
+                        task.abort();
+                        if let Err(error) = task.await
+                            && !error.is_cancelled()
+                        {
+                            warn!(error = %error, "workspace task failed during shutdown");
+                        }
+                    }
+                    result
+                }
             })
             .request::<request::GotoDefinition, _>(|st, params| {
                 let result = handle_definition(st, &params);
@@ -119,7 +139,12 @@ async fn run_server_async(config: ServerConfig) -> std::io::Result<()> {
                 handle_initialised(st, params);
                 ControlFlow::Continue(())
             })
-            .notification::<notification::Exit>(|_, ()| ControlFlow::Break(Ok(())))
+            .notification::<notification::Exit>(|st, ()| {
+                if let Some(task) = st.take_workspace_task() {
+                    task.abort();
+                }
+                ControlFlow::Break(Ok(()))
+            })
             .notification::<notification::DidOpenTextDocument>(|_, _| ControlFlow::Continue(()))
             .notification::<notification::DidChangeTextDocument>(|_, _| ControlFlow::Continue(()))
             .notification::<notification::DidSaveTextDocument>(|st, params| {
@@ -130,6 +155,10 @@ async fn run_server_async(config: ServerConfig) -> std::io::Result<()> {
 
         router.event::<WorkspaceReadyEvent>(|state, event| {
             handle_workspace_ready(state, event);
+            ControlFlow::Continue(())
+        });
+        router.event::<DeferredDocumentSavesIndexed>(|state, event| {
+            handle_deferred_document_saves_indexed(state, event);
             ControlFlow::Continue(())
         });
 

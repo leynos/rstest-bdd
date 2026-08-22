@@ -4,6 +4,7 @@
 //! implements lifecycle handlers, on-save indexing, definition navigation,
 //! implementation navigation, and diagnostic publishing.
 
+mod deferred_replay;
 mod definition;
 mod diagnostics;
 mod implementation;
@@ -12,6 +13,7 @@ mod text_document;
 pub mod util;
 mod workspace_metrics;
 
+pub use deferred_replay::{DeferredDocumentSavesIndexed, handle_deferred_document_saves_indexed};
 pub use definition::handle_definition;
 pub use diagnostics::{
     compute_scenario_outline_column_diagnostics, compute_signature_mismatch_diagnostics,
@@ -21,6 +23,6 @@ pub use diagnostics::{
 pub use implementation::handle_implementation;
 pub use lifecycle::{
     WorkspaceReadyEvent, handle_initialise, handle_initialised, handle_shutdown,
-    handle_workspace_ready, initialize_async,
+    handle_workspace_ready, initialize_async, launch_workspace_preparation,
 };
 pub use text_document::handle_did_save_text_document;

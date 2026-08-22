@@ -20,8 +20,10 @@ use crate::indexing::{
 };
 
 mod deferred_saves;
+mod workspace_task;
 
 use deferred_saves::{DeferredDocumentSaves, DeferredSaveDropReason};
+use workspace_task::WorkspaceTask;
 
 /// Central state shared across all LSP handlers.
 ///
@@ -44,6 +46,8 @@ pub struct ServerState {
     workspace_initialization_id: u64,
     /// Whether a workspace capability is still being prepared.
     workspace_preparation_pending: bool,
+    /// Background preparation or replay task owned by this server instance.
+    workspace_task: WorkspaceTask,
     /// Saves received before the workspace capability became available.
     deferred_document_saves: DeferredDocumentSaves,
     /// Whether the server has been initialized.
@@ -78,6 +82,7 @@ impl std::fmt::Debug for ServerState {
                 "workspace_preparation_pending",
                 &self.workspace_preparation_pending,
             )
+            .field("workspace_task", &self.workspace_task.is_running())
             .field(
                 "deferred_document_saves",
                 &self.deferred_document_saves.len(),
@@ -114,6 +119,7 @@ impl ServerState {
             workspace_folders: Vec::new(),
             workspace_initialization_id: 0,
             workspace_preparation_pending: false,
+            workspace_task: WorkspaceTask::default(),
             deferred_document_saves: DeferredDocumentSaves::default(),
             initialized: false,
             config,
@@ -159,6 +165,7 @@ impl ServerState {
         folders: Vec<WorkspaceFolder>,
         workspace_preparation_pending: bool,
     ) -> u64 {
+        self.workspace_task.abort();
         self.workspace_initialization_id = self.workspace_initialization_id.wrapping_add(1);
         self.workspace_folders = folders;
         self.workspace_info = None;
@@ -167,6 +174,7 @@ impl ServerState {
         self.deferred_document_saves.clear();
         self.workspace_initialization_id
     }
+
     /// Return whether `initialization_id` may install workspace state.
     #[must_use]
     pub(crate) fn is_current_workspace_initialization(&self, initialization_id: u64) -> bool {
@@ -200,6 +208,19 @@ impl ServerState {
     #[must_use]
     pub(crate) fn deferred_document_save_count(&self) -> usize {
         self.deferred_document_saves.len()
+    }
+
+    /// Duplicate the workspace capability for a background indexing worker.
+    pub(crate) fn workspace_root_for_replay(&self) -> Option<WorkspaceRoot> {
+        self.workspace_root
+            .as_ref()
+            .and_then(|workspace_root| match workspace_root.try_clone() {
+                Ok(workspace_root) => Some(workspace_root),
+                Err(error) => {
+                    warn!(error = %error, "failed to duplicate workspace-root capability");
+                    None
+                }
+            })
     }
 
     /// Access the workspace folders provided by the client.

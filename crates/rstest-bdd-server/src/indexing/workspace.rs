@@ -54,6 +54,17 @@ impl WorkspaceRoot {
         &self.path
     }
 
+    /// Duplicate the directory capability for background file reads.
+    ///
+    /// The duplicated handle remains rooted at the same validated workspace
+    /// boundary and therefore preserves the capability's path restrictions.
+    pub(crate) fn try_clone(&self) -> std::io::Result<Self> {
+        Ok(Self {
+            path: self.path.clone(),
+            directory: self.directory.try_clone()?,
+        })
+    }
+
     /// Read a feature file beneath this workspace root through the retained
     /// capability.
     ///

@@ -76,19 +76,7 @@ pub fn handle_did_save_text_document(state: &mut ServerState, params: DidSaveTex
     index_saved_document(state, params);
 }
 
-/// Index did-save notifications deferred until workspace preparation completed.
-pub(crate) fn replay_deferred_document_saves(
-    state: &mut ServerState,
-    deferred_document_saves: Vec<DidSaveTextDocumentParams>,
-) {
-    record_deferred_save_depth(0);
-    for params in deferred_document_saves {
-        record_workspace_outcome("deferred-save", "replayed");
-        index_saved_document(state, params);
-    }
-}
-
-fn index_saved_document(state: &mut ServerState, params: DidSaveTextDocumentParams) {
+pub(super) fn index_saved_document(state: &mut ServerState, params: DidSaveTextDocumentParams) {
     let uri = params.text_document.uri;
     let Ok(path) = uri.to_file_path() else {
         debug!(%uri, "ignoring didSave for non-file URI");
@@ -108,6 +96,14 @@ fn handle_feature_file_save(state: &mut ServerState, path: &std::path::Path, tex
         |source| index_feature_source(path.to_path_buf(), source),
     );
 
+    apply_feature_index_result(state, path, index_result);
+}
+
+pub(super) fn apply_feature_index_result(
+    state: &mut ServerState,
+    path: &std::path::Path,
+    index_result: Result<crate::indexing::FeatureFileIndex, FeatureIndexError>,
+) {
     match index_result {
         Ok(index) => {
             record_indexing_outcome("feature", "success");
@@ -134,6 +130,14 @@ fn handle_rust_file_save(state: &mut ServerState, path: &std::path::Path, text: 
         |source| index_rust_source(path.to_path_buf(), source),
     );
 
+    apply_rust_index_result(state, path, index_result);
+}
+
+pub(super) fn apply_rust_index_result(
+    state: &mut ServerState,
+    path: &std::path::Path,
+    index_result: Result<crate::indexing::RustStepIndexResult, RustStepIndexError>,
+) {
     match index_result {
         Ok(result) => {
             record_indexing_outcome("rust", "success");

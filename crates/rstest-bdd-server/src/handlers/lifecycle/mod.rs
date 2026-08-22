@@ -16,8 +16,10 @@ use crate::error::ServerError;
 use crate::indexing::WorkspaceRoot;
 use crate::server::{ServerState, build_server_capabilities};
 
-use super::text_document::replay_deferred_document_saves;
-use super::workspace_metrics::{record_workspace_outcome, record_workspace_preparation_duration};
+use super::deferred_replay::start_deferred_document_save_replay;
+use super::workspace_metrics::{
+    record_deferred_save_depth, record_workspace_outcome, record_workspace_preparation_duration,
+};
 /// Outcome of the synchronous part of handling an `initialize` request.
 ///
 /// The initialize path is asynchronous: the non-blocking parameter handling
@@ -77,8 +79,13 @@ pub fn handle_initialise(
         .workspace_root
         .clone()
         .or_else(|| extract_workspace_path(&workspace_folders, root_uri.as_ref()));
+    let deferred_save_count = state.deferred_document_save_count();
     let workspace_initialization_id =
         state.begin_workspace_initialization(workspace_folders, workspace_path.is_some());
+    record_deferred_save_depth(0);
+    if deferred_save_count > 0 {
+        record_workspace_outcome("deferred-save", "retry-clear");
+    }
 
     Ok(InitializeOutcome {
         workspace_path,
@@ -169,6 +176,7 @@ pub fn handle_workspace_ready(state: &mut ServerState, event: WorkspaceReadyEven
         );
         return;
     };
+    state.clear_workspace_task();
     match event.preparation {
         WorkspacePreparation::Discovered(info, root) => {
             info!(
@@ -196,7 +204,7 @@ pub fn handle_workspace_ready(state: &mut ServerState, event: WorkspaceReadyEven
             warn!(error = %root_error, "failed to open workspace root capability");
         }
     }
-    replay_deferred_document_saves(state, deferred_document_saves);
+    start_deferred_document_save_replay(state, deferred_document_saves);
 }
 
 fn workspace_preparation_outcome(preparation: &WorkspacePreparation) -> &'static str {
@@ -225,14 +233,33 @@ pub async fn initialize_async(
     initialize: Result<InitializeOutcome, ResponseError>,
     client: Option<ClientSocket>,
 ) -> Result<InitializeResult, ResponseError> {
-    initialize_with_preparer(initialize, client, |path| prepare_workspace(&path))
+    let (result, background_task) = launch_workspace_preparation(initialize, client)?;
+    drop(background_task);
+    Ok(result)
 }
 
-fn initialize_with_preparer<F>(
+/// Start blocking workspace preparation and return its owned task handle.
+///
+/// The router stores this handle in [`ServerState`] so retries and shutdown
+/// can cancel it. Test-only callers that do not own server state may use
+/// [`initialize_async`], which deliberately drops its handle.
+///
+/// # Errors
+///
+/// Returns the response error from [`handle_initialise`] without starting a
+/// background task.
+pub fn launch_workspace_preparation(
+    initialize: Result<InitializeOutcome, ResponseError>,
+    client: Option<ClientSocket>,
+) -> Result<(InitializeResult, Option<tokio::task::JoinHandle<()>>), ResponseError> {
+    launch_workspace_preparation_with(initialize, client, |path| prepare_workspace(&path))
+}
+
+fn launch_workspace_preparation_with<F>(
     initialize: Result<InitializeOutcome, ResponseError>,
     client: Option<ClientSocket>,
     prepare: F,
-) -> Result<InitializeResult, ResponseError>
+) -> Result<(InitializeResult, Option<tokio::task::JoinHandle<()>>), ResponseError>
 where
     F: FnOnce(PathBuf) -> WorkspacePreparation + Send + 'static,
 {
@@ -283,9 +310,9 @@ where
             }
             .instrument(span),
         );
-        drop(background_task);
+        return Ok((result, Some(background_task)));
     }
-    Ok(result)
+    Ok((result, None))
 }
 
 /// Handle the `initialized` notification from the client.

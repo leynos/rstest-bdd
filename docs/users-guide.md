@@ -2832,6 +2832,12 @@ The language server provides the following capabilities:
   `shutdown` requests per the LSP specification.
 - **Workspace discovery**: Uses `cargo metadata` to locate the workspace root
   and enumerate packages.
+- **Workspace preparation and save replay**: Workspace capability installation
+  is asynchronous. Disk-backed `didSave` indexing waits until the workspace is
+  ready; queued saves are coalesced to the latest notification per URI and
+  replayed in order. The queue is limited to 128 notifications and 4 MiB of
+  combined URI and source text. Saves that exceed either limit are dropped with
+  a warning, and the server continues without failing.
 - **Feature indexing (on save)**: Parses saved `.feature` files using the
   `gherkin` parser and records steps, doc strings, data tables, and Examples
   header columns with byte offsets. Parse failures are logged.
