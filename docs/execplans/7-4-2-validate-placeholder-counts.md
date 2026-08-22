@@ -169,6 +169,16 @@ Known uncertainties that might affect the plan:
 - [x] `make markdownlint` passed after Markdown discovery excluded ignored
       `.vtcode` task metadata. The project Markdown changes passed spelling and
       Mermaid validation.
+- [x] Add the bounded deferred-save property test covering coalescing, limits,
+      rejection, replay, and queue accounting.
+- [x] Record the background replay and router-result boundary for deferred
+      saves.
+- [x] Cancel workspace-preparation tasks on retry, shutdown, and exit.
+- [x] Update `docs/users-guide.md` with workspace preparation and deferred-save
+      replay, coalescing, queue limits, and warning behaviour.
+- [x] Final PR #660 follow-up validation passed: `make check-fmt`, `make lint`,
+      `make typecheck`, `CARGO_NET_OFFLINE=true make test`,
+      `make markdownlint`, `make spellcheck`, and `make nixie`.
 
 ## Surprises & Discoveries
 
