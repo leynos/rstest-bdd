@@ -283,15 +283,6 @@ fn test_attribute_hint_is_imported_from_policy_crate() {
     assert_eq!(macro_hint, TestAttributeHint::RstestWithTokioCurrentThread);
 }
 
-// Extracts the harness or attributes field, renders it, and checks the other is None.
-// A macro rather than a helper function so that panic line numbers point at
-// the calling test.
-macro_rules! assert_extension_param {
-    ($args:expr, $expected_fragment:expr, $is_harness:expr) => {{
-        assert_extension_param_body($args, $expected_fragment, $is_harness);
-    }};
-}
-
 fn assert_extension_param_body(args: &ScenariosArgs, expected_fragment: &str, is_harness: bool) {
     let (rendered, other_is_none) = if is_harness {
         let (Some(h), other) = (args.harness.as_ref(), args.attributes.is_none()) else {
@@ -329,7 +320,7 @@ fn scenarios_args_parses_single_extension_param(
 ) {
     let args: ScenariosArgs = parse_scenarios_args!(tokens);
     assert_eq!(args.dir.value(), "tests/features");
-    assert_extension_param!(&args, expected_fragment, is_harness);
+    assert_extension_param_body(&args, expected_fragment, is_harness);
 }
 
 #[test]

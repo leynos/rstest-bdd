@@ -4,6 +4,8 @@
 //! failures during language server operations. Errors are designed to be
 //! inspectable by callers for appropriate handling.
 
+use std::path::PathBuf;
+
 use thiserror::Error;
 
 /// Errors that can occur during language server operations.
@@ -31,6 +33,10 @@ pub enum ServerError {
     /// An invalid configuration value was provided.
     #[error("invalid configuration: {0}")]
     InvalidConfig(String),
+
+    /// The workspace root cannot be represented as UTF-8.
+    #[error("workspace root is not valid UTF-8: {}", .0.display())]
+    WorkspaceRootNotUtf8(PathBuf),
 
     /// An I/O error occurred.
     #[error("I/O error: {0}")]

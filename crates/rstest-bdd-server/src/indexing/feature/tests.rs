@@ -3,6 +3,13 @@
 use super::*;
 use tempfile::TempDir;
 
+fn index_feature(path: &std::path::Path, source: &str) -> FeatureFileIndex {
+    match index_feature_source(path.to_path_buf(), source) {
+        Ok(index) => index,
+        Err(error) => panic!("index feature source: {error}"),
+    }
+}
+
 #[test]
 fn indexes_steps_tables_docstrings_and_example_columns() {
     let dir = TempDir::new().expect("temp dir");
@@ -24,9 +31,7 @@ fn indexes_steps_tables_docstrings_and_example_columns() {
         "      | ok     | x     |\n",
     );
 
-    std::fs::write(&path, feature).expect("write feature file");
-
-    let index = index_feature_file(&path).expect("index feature file");
+    let index = index_feature(&path, feature);
     assert_eq!(index.steps.len(), 3);
     assert_eq!(index.example_columns.len(), 2);
     let first_column = index
@@ -89,9 +94,7 @@ fn indexes_multiple_examples_tables() {
         "      | 2     | x     |\n",
     );
 
-    std::fs::write(&path, feature).expect("write feature file");
-
-    let index = index_feature_file(&path).expect("index feature file");
+    let index = index_feature(&path, feature);
     assert_eq!(index.scenario_outlines.len(), 1);
 
     let outline = index
@@ -124,9 +127,7 @@ fn regular_scenario_not_indexed_as_outline() {
         "    Given a step\n",
     );
 
-    std::fs::write(&path, feature).expect("write feature file");
-
-    let index = index_feature_file(&path).expect("index feature file");
+    let index = index_feature(&path, feature);
     assert_eq!(index.steps.len(), 1);
     assert!(
         index.scenario_outlines.is_empty(),
@@ -146,9 +147,9 @@ fn docstring_span_includes_backtick_delimiters() {
         "      hello\n",
         "      ```\n",
     );
-    std::fs::write(&path, feature).expect("write feature file");
+    let index = index_feature(&path, feature);
 
-    let index = index_feature_file(&path).expect("index feature file");
+    assert!(index.source.ends_with('\n'));
     let step = index.steps.first().expect("expected indexed step");
     let doc = step.docstring.as_ref().expect("doc string present");
     let doc_text = feature

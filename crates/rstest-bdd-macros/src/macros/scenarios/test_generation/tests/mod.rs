@@ -233,25 +233,25 @@ fn resolve_harness_path_runtime_alias_resolves_to_tokio_harness() {
     RuntimeMode::TokioCurrentThread,
     None,
     RuntimeMode::Sync,
-    Some("rstest_bdd_harness_tokio"),
-    Some("TokioHarness"),
+    &["rstest_bdd_harness_tokio", "TokioHarness"],
+    &[],
     "fn "
 )]
 #[case::alias_with_explicit_harness(
     RuntimeMode::TokioCurrentThread,
     Some("my::ExplicitHarness"),
     RuntimeMode::TokioCurrentThread,
-    Some("ExplicitHarness"),
-    None,
+    &["ExplicitHarness"],
+    &["rstest_bdd_harness_tokio"],
     "async fn"
 )]
-#[case::sync_without_alias(RuntimeMode::Sync, None, RuntimeMode::Sync, None, None, "fn ")]
+#[case::sync_without_alias(RuntimeMode::Sync, None, RuntimeMode::Sync, &[], &[], "fn ")]
 fn runtime_harness_signature_pipeline(
     #[case] runtime: RuntimeMode,
     #[case] explicit_harness_str: Option<&str>,
     #[case] expected_runtime: RuntimeMode,
-    #[case] expected_harness_contains: Option<&str>,
-    #[case] expected_harness_must_contain: Option<&str>,
+    #[case] required_fragments: &[&str],
+    #[case] forbidden_fragments: &[&str],
     #[case] expected_sig_prefix: &str,
 ) {
     // Given: runtime and optional explicit harness
@@ -268,47 +268,25 @@ fn runtime_harness_signature_pipeline(
     assert_eq!(effective_runtime, expected_runtime);
 
     // And: resolved harness matches expected presence/contents
-    if let Some(must_contain) = expected_harness_must_contain {
+    if required_fragments.is_empty() {
+        assert!(resolved_harness.is_none(), "expected no harness");
+    } else {
         let harness = resolved_harness
             .as_ref()
             .expect("harness should be present");
         let harness_str = quote!(#harness).to_string();
-        assert!(
-            harness_str.contains(must_contain),
-            "harness should contain {must_contain}, got: {harness_str}"
-        );
-    }
-    if let Some(contains) = expected_harness_contains {
-        if contains == "ExplicitHarness" {
-            let harness = resolved_harness
-                .as_ref()
-                .expect("harness should be present");
-            let harness_str = quote!(#harness).to_string();
+        for fragment in required_fragments {
             assert!(
-                harness_str.contains(contains),
-                "harness should contain {contains}, got: {harness_str}"
-            );
-            assert!(
-                !harness_str.contains("rstest_bdd_harness_tokio"),
-                "TokioHarness should not be injected with explicit harness"
-            );
-        } else if resolved_harness.is_none() {
-            assert!(
-                expected_harness_contains.is_none(),
-                "expected no harness but got contains requirement"
-            );
-        } else {
-            let harness = resolved_harness
-                .as_ref()
-                .expect("harness should be present");
-            let harness_str = quote!(#harness).to_string();
-            assert!(
-                harness_str.contains(contains),
-                "harness should contain {contains}, got: {harness_str}"
+                harness_str.contains(fragment),
+                "harness should contain {fragment}, got: {harness_str}"
             );
         }
-    } else {
-        assert!(resolved_harness.is_none(), "expected no harness");
+        for fragment in forbidden_fragments {
+            assert!(
+                !harness_str.contains(fragment),
+                "harness should not contain {fragment}, got: {harness_str}"
+            );
+        }
     }
 
     // And: the generated test signature starts with expected prefix

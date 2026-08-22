@@ -89,8 +89,8 @@ fn smoke_feature_diagnostics_cleared_once_step_implemented(mut server: ServerHan
 /// with no feature referencing it is reported as unused (non-empty
 /// `publishDiagnostics`), and once a feature uses it, re-saving the Rust file
 /// re-publishes an empty diagnostics array for the same Rust URI — proving
-/// `publish_rust_diagnostics` clears stale diagnostics with an empty vector,
-/// which the payload-only `prepare_publish` tests cannot observe.
+/// `publish_rust_index_result_diagnostics` clears stale diagnostics with an
+/// empty vector, which the payload-only `prepare_publish` tests cannot observe.
 #[rstest]
 #[expect(
     clippy::indexing_slicing,

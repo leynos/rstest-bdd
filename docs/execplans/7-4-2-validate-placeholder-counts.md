@@ -4,7 +4,7 @@ This execution plan (ExecPlan) is a living document. The sections `Constraints`,
 `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
 and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: IN PROGRESS
+Status: COMPLETE
 
 This document follows the ExecPlans skill template.
 
@@ -130,8 +130,45 @@ Known uncertainties that might affect the plan:
 - [x] Stage E: Documentation and cleanup
   - [x] Update `docs/users-guide.md` with diagnostics section
   - [x] Update `docs/roadmap.md` to mark the feature as done
-  - [ ] Run full quality gates (`make check-fmt`, `make lint`, `make test`)
-  - [ ] Commit changes
+  - [x] Run full quality gates (`make check-fmt`, `make lint`, `make test`)
+  - [x] Commit changes
+
+### PR #660 review follow-up (2026-08-20)
+
+- [x] Update `docs/developers-guide.md` with the recoverable
+      `RustStepIndexResult` contract, the `WorkspaceRoot` and
+      `index_feature_source` boundary, bounded indexing metrics, and the
+      shared `ScenarioTestConfig` pipeline with its intentional typed entry
+      points.
+- [x] Record the architectural boundary change: server-side capability-rooted
+      reads supply normalized source text to the indexing domain; source-text
+      saves bypass disk reads.
+- [x] Record the scenario-outline async-harness fixture and its trybuild
+      registration. Source inspection confirms that the same rejection check
+      runs for regular scenarios and outlines; no test result is claimed here.
+- [x] Record the indexing observability contract: the fixed counter name,
+      `operation` and `outcome` labels, and the bounded outcome vocabulary.
+- [x] Focused validation passed:
+      `CARGO_NET_OFFLINE=true cargo test -p rstest-bdd --test
+      trybuild_macros step_macros_compile -- --exact` (including the new
+      outline fixture); `CARGO_NET_OFFLINE=true cargo test -p cargo-bdd
+      registry::tests` (8 tests); `CARGO_NET_OFFLINE=true cargo test -p
+      rstest-bdd-server indexing::feature::tests --lib` (4 tests);
+      `CARGO_NET_OFFLINE=true cargo test -p rstest-bdd-server
+      indexing::workspace::tests --lib` (4 tests);
+      `CARGO_NET_OFFLINE=true cargo test -p rstest-bdd-server --test
+      feature_indexing_on_save` (4 tests); `CARGO_NET_OFFLINE=true cargo test
+      -p rstest-bdd-server handlers::text_document::tests --lib` (1 test);
+      `CARGO_NET_OFFLINE=true cargo test -p rstest-bdd-server
+      handlers::lifecycle::tests --lib` (16 tests); and
+      `CARGO_NET_OFFLINE=true cargo check -p rstest-bdd-server --bin
+      rstest-bdd-lsp`.
+- [x] Final validation passed: `make check-fmt`, `make lint`,
+      `make typecheck`, `CARGO_NET_OFFLINE=true make test`, `make spellcheck`,
+      and `make nixie`.
+- [x] `make markdownlint` passed after Markdown discovery excluded ignored
+      `.vtcode` task metadata. The project Markdown changes passed spelling and
+      Mermaid validation.
 
 ## Surprises & Discoveries
 
@@ -359,8 +396,8 @@ cases in `crates/rstest-bdd-server/tests/diagnostics_basic.rs`,
    - `!param.is_datatable && !param.is_docstring`
    - `param.name` (normalized) appears in `placeholder_names`
 
-5. Wire the new diagnostic computation into `publish_rust_diagnostics()` in
-   `handlers/diagnostics/publish.rs`.
+5. Wire the new diagnostic computation into the Rust save-pipeline publisher
+   in `handlers/diagnostics/rust_index.rs`.
 
 6. Add unit tests in `handlers/diagnostics.rs` (or a new submodule) covering:
    - Correct signature (no diagnostic)

@@ -20,8 +20,9 @@ use tracing::info;
 use rstest_bdd_server::config::{LogLevel, ServerConfig};
 use rstest_bdd_server::error::ServerError;
 use rstest_bdd_server::handlers::{
-    handle_definition, handle_did_save_text_document, handle_implementation, handle_initialise,
-    handle_initialised, handle_shutdown,
+    WorkspaceReadyEvent, handle_definition, handle_did_save_text_document, handle_implementation,
+    handle_initialise, handle_initialised, handle_shutdown, handle_workspace_ready,
+    initialize_async,
 };
 use rstest_bdd_server::logging::init_logging;
 use rstest_bdd_server::server::ServerState;
@@ -98,8 +99,9 @@ async fn run_server_async(config: ServerConfig) -> std::io::Result<()> {
         let mut router = Router::new(state);
         router
             .request::<request::Initialize, _>(|st, params| {
-                let result = handle_initialise(st, params);
-                std::future::ready(result)
+                let outcome = handle_initialise(st, params);
+                let client = st.client().cloned();
+                initialize_async(outcome, client)
             })
             .request::<request::Shutdown, _>(|st, _params| {
                 let result = handle_shutdown(st);
@@ -125,6 +127,11 @@ async fn run_server_async(config: ServerConfig) -> std::io::Result<()> {
                 ControlFlow::Continue(())
             })
             .notification::<notification::DidCloseTextDocument>(|_, _| ControlFlow::Continue(()));
+
+        router.event::<WorkspaceReadyEvent>(|state, event| {
+            handle_workspace_ready(state, event);
+            ControlFlow::Continue(())
+        });
 
         ServiceBuilder::new()
             .layer(TracingLayer::default())

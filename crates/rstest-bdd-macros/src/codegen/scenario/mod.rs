@@ -4,8 +4,8 @@
 //! BDD scenario or scenario outline. The pipeline is partitioned across
 //! five focused sub-modules:
 //!
-//! - [`domain`] — domain types shared across the pipeline (`ScenarioConfig`,
-//!   `ScenarioReturnKind`).
+//! - [`domain`] — domain types shared across the pipeline (`StepText`,
+//!   `ExampleHeaders`, `ExampleRow`, and `Docstring`).
 //! - [`helpers`] — step-processing utilities and case-attribute generators.
 //! - [`metadata`] — strongly-typed wrappers for feature-path and
 //!   scenario-name values used in generated code.
@@ -191,15 +191,9 @@ pub(crate) fn generate_scenario_code(
 /// limited to generated GPUI tests; std and Tokio tests continue to return the
 /// scenario result through their native `Termination` support.
 fn adapt_fallible_gpui_boundary(
-    uses_gpui_boundary: bool,
-    return_kind: ScenarioReturnKind,
     signature: &mut syn::Signature,
-    body: TokenStream2,
+    body: &TokenStream2,
 ) -> TokenStream2 {
-    if !return_kind.is_fallible() || !uses_gpui_boundary {
-        return body;
-    }
-
     let is_async = signature.asyncness.is_some();
     signature.output = syn::ReturnType::Default;
     if is_async {
@@ -234,7 +228,7 @@ fn finalize_scenario_signature(
         generate_test_attrs_with_boundary(config.attrs, &policy, config.runtime.is_async());
     let trait_assertions = generate_trait_assertions(config.harness, config.attributes);
     let body = if generated_test_attrs.uses_gpui_boundary && config.return_kind.is_fallible() {
-        adapt_fallible_gpui_boundary(true, config.return_kind, signature.to_mut(), body)
+        adapt_fallible_gpui_boundary(signature.to_mut(), &body)
     } else {
         body
     };
@@ -247,6 +241,21 @@ fn finalize_scenario_signature(
     )
 }
 
+/// Reject unsupported combinations of a harness and an async scenario.
+fn reject_async_harness(config: &ScenarioConfig<'_>) -> Option<TokenStream> {
+    if config.harness.is_none() || !config.runtime.is_async() {
+        return None;
+    }
+
+    let err = syn::Error::new(
+        proc_macro2::Span::call_site(),
+        "combining `harness` with `async fn` scenarios is not supported; \
+         use a synchronous scenario function with `TokioHarness` instead \
+         (the harness provides the Tokio runtime for step functions)",
+    );
+    Some(TokenStream::from(err.into_compile_error()))
+}
+
 /// Generate code for a regular scenario (no placeholder substitution).
 fn generate_regular_scenario_code<P, I, Q>(
     config: &ScenarioConfig<'_>,
@@ -257,14 +266,8 @@ where
     I: Iterator<Item = TokenStream2>,
     Q: Iterator<Item = TokenStream2>,
 {
-    if config.harness.is_some() && config.runtime.is_async() {
-        let err = syn::Error::new(
-            proc_macro2::Span::call_site(),
-            "combining `harness` with `async fn` scenarios is not supported; \
-             use a synchronous scenario function with `TokioHarness` instead \
-             (the harness provides the Tokio runtime for step functions)",
-        );
-        return TokenStream::from(err.into_compile_error());
+    if let Some(rejection) = reject_async_harness(config) {
+        return rejection;
     }
 
     let (keyword_tokens, values, docstrings, tables) = process_steps(&config.steps);
@@ -320,14 +323,8 @@ where
     I: Iterator<Item = TokenStream2>,
     Q: Iterator<Item = TokenStream2>,
 {
-    if config.harness.is_some() && config.runtime.is_async() {
-        let err = syn::Error::new(
-            proc_macro2::Span::call_site(),
-            "combining `harness` with `async fn` scenarios is not supported; \
-             use a synchronous scenario function with `TokioHarness` instead \
-             (the harness provides the Tokio runtime for step functions)",
-        );
-        return TokenStream::from(err.into_compile_error());
+    if let Some(rejection) = reject_async_harness(config) {
+        return rejection;
     }
 
     // Generate substituted steps for each Examples row
