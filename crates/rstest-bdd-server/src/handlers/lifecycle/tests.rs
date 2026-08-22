@@ -6,12 +6,16 @@ use super::*;
 use crate::config::ServerConfig;
 use async_lsp::MainLoop;
 use async_lsp::router::Router;
-use lsp_types::{ClientCapabilities, WorkspaceFolder};
+use lsp_types::{
+    ClientCapabilities, DidSaveTextDocumentParams, TextDocumentIdentifier, WorkspaceFolder,
+};
 use rstest::{fixture, rstest};
 use std::ops::ControlFlow;
 use std::str::FromStr;
 use tempfile::TempDir;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
+
+use crate::handlers::handle_did_save_text_document;
 
 #[fixture]
 fn create_test_state() -> ServerState {
@@ -246,16 +250,26 @@ async fn initialize_async_installs_workspace_capability_through_router_event() {
     std::fs::write(&feature_path, "Feature: async initialization\n").expect("write feature file");
     let (installed_sender, mut installed) = tokio::sync::mpsc::unbounded_channel();
     let feature_path_for_router = feature_path.clone();
+    let feature_uri = Url::from_file_path(&feature_path).expect("feature URI");
     let mut state = ServerState::new(ServerConfig::default());
     let workspace_initialization_id = state.begin_workspace_initialization(Vec::new(), true);
+    handle_did_save_text_document(
+        &mut state,
+        DidSaveTextDocumentParams {
+            text_document: TextDocumentIdentifier { uri: feature_uri },
+            text: None,
+        },
+    );
+    assert_eq!(state.deferred_document_save_count(), 1);
+    assert!(state.feature_index(&feature_path).is_none());
     let (mainloop, client) = MainLoop::new_server(move |_| {
         let mut router = Router::new(state);
         router.event::<WorkspaceReadyEvent>(move |state, event| {
             handle_workspace_ready(state, event);
-            let is_installed = state.index_feature_file(&feature_path_for_router).is_ok();
+            let is_indexed = state.feature_index(&feature_path_for_router).is_some();
             assert!(
-                installed_sender.send(is_installed).is_ok(),
-                "test must receive workspace installation status"
+                installed_sender.send(is_indexed).is_ok(),
+                "test must receive workspace replay status"
             );
             ControlFlow::Continue(())
         });
@@ -274,12 +288,12 @@ async fn initialize_async_installs_workspace_capability_through_router_event() {
     let result = initialize_async(Ok(outcome), Some(client.clone())).await;
 
     assert!(result.is_ok());
-    let Some(is_installed) = installed.recv().await else {
+    let Some(is_indexed) = installed.recv().await else {
         panic!("router should receive the workspace preparation event");
     };
     assert!(
-        is_installed,
-        "the router should install a readable workspace capability"
+        is_indexed,
+        "the deferred did-save should be replayed after workspace readiness"
     );
     mainloop_task.abort();
     let Err(error) = mainloop_task.await else {

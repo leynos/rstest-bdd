@@ -54,6 +54,7 @@ mod tests {
     //! Tests for recoverable Rust-index diagnostic conversion.
 
     use lsp_types::{DiagnosticSeverity, NumberOrString, Position, Range};
+    use rstest::rstest;
 
     use super::super::DIAGNOSTIC_SOURCE;
     use super::super::publish::build_rust_index_diagnostic;
@@ -82,5 +83,28 @@ mod tests {
         );
         assert!(diagnostic.message.contains("invalid_step"));
         assert!(diagnostic.message.contains("expected string literal"));
+    }
+
+    #[rstest]
+    fn maps_multiple_step_attributes_to_a_warning() {
+        let diagnostic =
+            build_rust_index_diagnostic(&RustStepIndexDiagnostic::MultipleStepAttributes {
+                function: "ambiguous_step".to_owned(),
+            });
+
+        assert_eq!(
+            diagnostic.code,
+            Some(NumberOrString::String(
+                "multiple-step-attributes".to_owned()
+            ))
+        );
+        assert_eq!(diagnostic.severity, Some(DiagnosticSeverity::WARNING));
+        assert_eq!(diagnostic.source.as_deref(), Some(DIAGNOSTIC_SOURCE));
+        assert_eq!(
+            diagnostic.range,
+            Range::new(Position::default(), Position::default())
+        );
+        assert!(diagnostic.message.contains("ambiguous_step"));
+        assert!(diagnostic.message.contains("multiple step attributes"));
     }
 }
