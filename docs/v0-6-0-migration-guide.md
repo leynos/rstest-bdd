@@ -26,9 +26,10 @@ that need a new testing practice to be useful.
   to consume the owned `.index` and inspect its recoverable `.diagnostics`;
   only file-read and whole-source parse failures remain `RustStepIndexError`
   values. Language-server state retains the file index, not the per-function
-  diagnostics. Disk-backed feature indexing is likewise bounded by the
-  validated workspace root; the server resolves file reads relative to that
-  root, while source-text saves continue through `index_feature_source`.
+  diagnostics. The former public `index_feature_file` entry point has also been
+  removed: disk-backed feature reads are managed by the server and stay inside
+  the validated workspace root, while direct callers should use
+  `index_feature_source` for source text.
 - The public `publish_rust_diagnostics` entry point has been removed. Save
   handling now publishes Rust indexing diagnostics as part of the Rust save
   path. Callers that index directly should use the supported
@@ -487,38 +488,36 @@ for distinct fixtures — including multiple mutable guards — can be held
 concurrently, so a step may declare
 `#[from(rstest_bdd_harness_context)] cx: &mut gpui::TestAppContext` alongside
 `world: &mut UiWorld` without the v0.6 `E0499`/`E0502` failure described in
-[Two mutable fixtures trigger `E0499` or
-`E0502`](#two-mutable-fixtures-trigger-e0499-or-e0502). A conflicting borrow
-of the *same* fixture still fails, but as a typed error rather than a
-compile-time rejection.
+[Two mutable fixtures trigger `E0499` or `E0502`](#two-mutable-fixtures-trigger-e0499-or-e0502).
+A conflicting borrow of the *same* fixture still fails, but as a typed error
+rather than a compile-time rejection.
 
 New `try_borrow` and `try_borrow_mut` methods return
 `Result<_, FixtureBorrowError>`, with variants `NotFound`, `TypeMismatch`,
 `AlreadyBorrowed`, and `NotMutable`. A conflicting borrow of the same fixture
 now reports `AlreadyBorrowed` instead of panicking. The existing
-`Option`-returning `borrow_ref` and `borrow_mut` methods remain as
-conveniences that delegate to the `try_*` APIs.
+`Option`-returning `borrow_ref` and `borrow_mut` methods remain as conveniences
+that delegate to the `try_*` APIs.
 
-`FixtureRef` and `FixtureRefMut` are now opaque structs. They implement
-`Deref`/`DerefMut`, `AsRef`/`AsMut`, and `Debug`, and keep the existing
-accessor methods. Code that relied on their previous transparent shape
-should go through `Deref`/`DerefMut` (or the accessors) instead.
+`FixtureRef` and `FixtureRefMut` are now opaque structs. They implement `Deref`/
+`DerefMut`, `AsRef`/`AsMut`, and `Debug`, and keep the existing accessor
+methods. Code that relied on their previous transparent shape should go through
+`Deref`/`DerefMut` (or the accessors) instead.
 
-`StepContext::get::<T>` now serves shared fixture storage only and
-deliberately ignores step-returned override values, because overrides moved
-behind `RefCell` when they became interiorly mutable. Read overrides through
-the guard API (`try_borrow`/`try_borrow_mut`, or the `Option`-returning
-conveniences) instead.
+`StepContext::get::<T>` now serves shared fixture storage only and deliberately
+ignores step-returned override values, because overrides moved behind `RefCell`
+when they became interiorly mutable. Read overrides through the guard API
+(`try_borrow`/`try_borrow_mut`, or the `Option`-returning conveniences) instead.
 
 #### Retire the thread-local workaround
 
-The framework — not caller discipline — now guarantees scenario-boundary
-reset: it builds a fresh `StepContext` for each scenario and drops its
-owned, scenario-scoped cells on success, on failure (including unwinding),
-and on skip. There are no public lifecycle hooks and no caller-managed reset
-API. `rstest` fixture scopes are unchanged by this guarantee: an `#[once]`
-fixture is still shared exactly as `rstest` defines it, because per-scenario
-freshness applies to framework-owned storage, not to every fixture.
+The framework — not caller discipline — now guarantees scenario-boundary reset:
+it builds a fresh `StepContext` for each scenario and drops its owned,
+scenario-scoped cells on success, on failure (including unwinding), and on
+skip. There are no public lifecycle hooks and no caller-managed reset API.
+`rstest` fixture scopes are unchanged by this guarantee: an `#[once]` fixture
+is still shared exactly as `rstest` defines it, because per-scenario freshness
+applies to framework-owned storage, not to every fixture.
 
 To migrate off the v0.6
 [thread-local workaround](#migrate-a-stateful-gpui-test):
@@ -719,8 +718,9 @@ the playbook redirect instead.
   shipped in v0.7.0.
 - [ADR-007][adr-007] records the harness-context injection contract.
 - [ADR-012][adr-012] records the guard-based `StepContext` borrowing redesign;
-  see also [Adopt guard-based `StepContext` borrowing
-  (v0.7.0)](#adopt-guard-based-stepcontext-borrowing-v070) in this guide.
+  see also
+  [Adopt guard-based `StepContext` borrowing (v0.7.0)](#adopt-guard-based-stepcontext-borrowing-v070)
+  in this guide.
 - [Stateful GPUI scenarios with durable handles][users-guide-playbook] is the
   user-guide playbook.
 

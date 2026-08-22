@@ -19,6 +19,7 @@ use super::diagnostics::{
     publish_rust_index_result_diagnostics,
 };
 use super::util::has_extension;
+use super::workspace_metrics::{record_deferred_save_depth, record_workspace_outcome};
 
 const INDEXING_COUNTER: &str = "rstest_bdd_server_indexing_total";
 
@@ -56,7 +57,20 @@ fn rust_indexing_outcome(error: &RustStepIndexError) -> &'static str {
 /// diagnostics (the file remains in its previously indexed state).
 pub fn handle_did_save_text_document(state: &mut ServerState, params: DidSaveTextDocumentParams) {
     if state.workspace_preparation_pending() {
-        state.defer_document_save(params);
+        match state.defer_document_save(params) {
+            Ok(depth) => {
+                record_workspace_outcome("deferred-save", "queued");
+                record_deferred_save_depth(depth);
+            }
+            Err(reason) => {
+                record_workspace_outcome("deferred-save", reason.metric_outcome());
+                record_deferred_save_depth(state.deferred_document_save_count());
+                warn!(
+                    ?reason,
+                    "discarding deferred didSave because its bounded queue is full"
+                );
+            }
+        }
         return;
     }
     index_saved_document(state, params);
@@ -67,7 +81,9 @@ pub(crate) fn replay_deferred_document_saves(
     state: &mut ServerState,
     deferred_document_saves: Vec<DidSaveTextDocumentParams>,
 ) {
+    record_deferred_save_depth(0);
     for params in deferred_document_saves {
+        record_workspace_outcome("deferred-save", "replayed");
         index_saved_document(state, params);
     }
 }

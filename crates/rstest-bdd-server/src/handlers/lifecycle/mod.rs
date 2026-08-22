@@ -4,11 +4,12 @@
 //! the LSP specification: `initialize`, `initialized`, and `shutdown`.
 
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 use async_lsp::ClientSocket;
 use async_lsp::ResponseError;
 use lsp_types::{InitializeParams, InitializeResult, InitializedParams, ServerInfo, Url};
-use tracing::{debug, info, warn};
+use tracing::{Instrument, debug, info, warn};
 
 use crate::discovery::{WorkspaceInfo, discover_workspace};
 use crate::error::ServerError;
@@ -16,6 +17,7 @@ use crate::indexing::WorkspaceRoot;
 use crate::server::{ServerState, build_server_capabilities};
 
 use super::text_document::replay_deferred_document_saves;
+use super::workspace_metrics::{record_workspace_outcome, record_workspace_preparation_duration};
 /// Outcome of the synchronous part of handling an `initialize` request.
 ///
 /// The initialize path is asynchronous: the non-blocking parameter handling
@@ -197,6 +199,15 @@ pub fn handle_workspace_ready(state: &mut ServerState, event: WorkspaceReadyEven
     replay_deferred_document_saves(state, deferred_document_saves);
 }
 
+fn workspace_preparation_outcome(preparation: &WorkspacePreparation) -> &'static str {
+    match preparation {
+        WorkspacePreparation::Discovered(..) => "success",
+        WorkspacePreparation::DiscoveryFailed { .. } => "discovery-failure",
+        WorkspacePreparation::RootOpenFailed(..) => "root-open-failure",
+        WorkspacePreparation::DiscoveryAndRootOpenFailed { .. } => "preparation-failure",
+    }
+}
+
 /// Complete an `initialize` request asynchronously.
 ///
 /// Runs workspace discovery and capability opening via
@@ -231,27 +242,47 @@ where
         result,
     } = initialize?;
     if let Some(path) = workspace_path {
-        let background_task = tokio::spawn(async move {
-            match tokio::task::spawn_blocking(move || prepare(path)).await {
-                Ok(preparation) => {
-                    if let Some(client) = client
-                        && let Err(error) = client.emit(WorkspaceReadyEvent {
-                            preparation,
-                            initialization_id: workspace_initialization_id,
-                        })
-                    {
-                        warn!(
-                            error = %error,
-                            event = "workspace-ready",
-                            "failed to publish workspace preparation"
+        record_workspace_outcome("workspace-preparation", "started");
+        let preparation_started_at = Instant::now();
+        let span = tracing::info_span!(
+            "workspace_preparation",
+            initialization_id = workspace_initialization_id
+        );
+        let background_task = tokio::spawn(
+            async move {
+                match tokio::task::spawn_blocking(move || prepare(path)).await {
+                    Ok(preparation) => {
+                        record_workspace_preparation_duration(preparation_started_at.elapsed());
+                        record_workspace_outcome(
+                            "workspace-preparation",
+                            workspace_preparation_outcome(&preparation),
                         );
+                        if let Some(client) = client
+                            && let Err(error) = client.emit(WorkspaceReadyEvent {
+                                preparation,
+                                initialization_id: workspace_initialization_id,
+                            })
+                        {
+                            record_workspace_outcome(
+                                "workspace-preparation",
+                                "event-delivery-failure",
+                            );
+                            warn!(
+                                error = %error,
+                                event = "workspace-ready",
+                                "failed to publish workspace preparation"
+                            );
+                        }
+                    }
+                    Err(join_error) => {
+                        record_workspace_preparation_duration(preparation_started_at.elapsed());
+                        record_workspace_outcome("workspace-preparation", "join-failure");
+                        warn!(error = %join_error, "workspace initialization task failed");
                     }
                 }
-                Err(join_error) => {
-                    warn!(error = %join_error, "workspace initialization task failed");
-                }
             }
-        });
+            .instrument(span),
+        );
         drop(background_task);
     }
     Ok(result)

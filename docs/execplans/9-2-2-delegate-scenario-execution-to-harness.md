@@ -293,11 +293,13 @@ Key files in the code generation pipeline:
 The harness crate (`crates/rstest-bdd-harness/`) provides:
 
 - `HarnessAdapter` trait (`src/adapter.rs`):
-  `fn run<T>(&self, request: ScenarioRunRequest<'_, T>) -> T`
+  `fn run<T>(&self, request: ScenarioRunRequest<'_, Self::Context, T>)
+  -> HarnessResult<T>`
 - `ScenarioRunner<'a, T>` (`src/runner.rs`): wraps
   `Box<dyn FnOnce() -> T + 'a>`; constructed via `ScenarioRunner::new(closure)`.
-- `ScenarioRunRequest<'a, T>` (`src/runner.rs`): bundles `ScenarioMetadata` +
-  `ScenarioRunner`; constructed via `ScenarioRunRequest::new(metadata, runner)`.
+- `ScenarioRunRequest<'a, C, T>` (`src/runner.rs`): bundles
+  `ScenarioMetadata` + `ScenarioRunner`; constructed via
+  `ScenarioRunRequest::new(metadata, runner)`.
 - `ScenarioMetadata` (`src/runner.rs`):
   constructed via `ScenarioMetadata::new(...)` with feature path, scenario
   name, scenario line, and tags.

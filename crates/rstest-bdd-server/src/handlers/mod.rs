@@ -10,6 +10,7 @@ mod implementation;
 mod lifecycle;
 mod text_document;
 pub mod util;
+mod workspace_metrics;
 
 pub use definition::handle_definition;
 pub use diagnostics::{

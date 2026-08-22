@@ -6,6 +6,11 @@
 use std::collections::HashMap;
 use std::path::Path;
 
+use async_lsp::ClientSocket;
+use lsp_types::{ClientCapabilities, ServerCapabilities, WorkspaceFolder};
+use lsp_types::{TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions};
+use tracing::warn;
+
 use crate::config::ServerConfig;
 use crate::discovery::WorkspaceInfo;
 use crate::error::ServerError;
@@ -13,12 +18,10 @@ use crate::indexing::{
     FeatureFileIndex, FeatureIndexError, RustStepFileIndex, StepDefinitionRegistry, WorkspaceRoot,
     index_feature_source_owned,
 };
-use async_lsp::ClientSocket;
-use lsp_types::{
-    ClientCapabilities, DidSaveTextDocumentParams, ServerCapabilities, WorkspaceFolder,
-};
-use lsp_types::{TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions};
-use tracing::warn;
+
+mod deferred_saves;
+
+use deferred_saves::{DeferredDocumentSaves, DeferredSaveDropReason};
 
 /// Central state shared across all LSP handlers.
 ///
@@ -42,7 +45,7 @@ pub struct ServerState {
     /// Whether a workspace capability is still being prepared.
     workspace_preparation_pending: bool,
     /// Saves received before the workspace capability became available.
-    deferred_document_saves: Vec<DidSaveTextDocumentParams>,
+    deferred_document_saves: DeferredDocumentSaves,
     /// Whether the server has been initialized.
     initialized: bool,
     /// Configuration loaded from environment and client.
@@ -111,7 +114,7 @@ impl ServerState {
             workspace_folders: Vec::new(),
             workspace_initialization_id: 0,
             workspace_preparation_pending: false,
-            deferred_document_saves: Vec::new(),
+            deferred_document_saves: DeferredDocumentSaves::default(),
             initialized: false,
             config,
             feature_indices: HashMap::new(),
@@ -175,19 +178,28 @@ impl ServerState {
         self.workspace_preparation_pending
     }
     /// Retain a did-save notification until workspace preparation completes.
-    pub(crate) fn defer_document_save(&mut self, params: DidSaveTextDocumentParams) {
-        self.deferred_document_saves.push(params);
+    pub(crate) fn defer_document_save(
+        &mut self,
+        params: lsp_types::DidSaveTextDocumentParams,
+    ) -> Result<usize, DeferredSaveDropReason> {
+        self.deferred_document_saves.push(params)
     }
     /// Finish the current workspace preparation and return deferred saves.
     pub(crate) fn finish_workspace_initialization(
         &mut self,
         initialization_id: u64,
-    ) -> Option<Vec<DidSaveTextDocumentParams>> {
+    ) -> Option<Vec<lsp_types::DidSaveTextDocumentParams>> {
         if !self.is_current_workspace_initialization(initialization_id) {
             return None;
         }
         self.workspace_preparation_pending = false;
-        Some(std::mem::take(&mut self.deferred_document_saves))
+        Some(self.deferred_document_saves.take())
+    }
+
+    /// Return the number of did-save notifications awaiting workspace readiness.
+    #[must_use]
+    pub(crate) fn deferred_document_save_count(&self) -> usize {
+        self.deferred_document_saves.len()
     }
 
     /// Access the workspace folders provided by the client.

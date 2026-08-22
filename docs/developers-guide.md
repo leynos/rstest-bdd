@@ -1463,40 +1463,51 @@ diagnostics so a partially valid Rust file remains useful for navigation.
 
 ### Workspace-root capability and feature-source boundary
 
-`WorkspaceRoot` is the server-side capability for disk-backed feature reads.
-It validates that a requested path is beneath the retained root, rejects
-parent-directory traversal and non-UTF-8 relative paths, and reads through
-the capability-scoped directory. Opening the capability is blocking. The
+`WorkspaceRoot` is the server-side capability for disk-backed feature reads. It
+validates that a requested path is beneath the retained root, rejects
+parent-directory traversal and non-UTF-8 relative paths, and reads through the
+capability-scoped directory. Opening the capability is blocking. The
 `initialize_async` lifecycle handler backgrounds discovery and root opening in
 `spawn_blocking`, emits `WorkspaceReadyEvent` when preparation completes, and
 lets the router install the prepared capability. Discovery and root-opening
 failures are logged and remain non-fatal, so initialization still returns its
-normal result.
-Did-save notifications received while the workspace capability is being
-prepared are replayed in arrival order on the router task after
+normal result. Did-save notifications received while the workspace capability
+is being prepared are replayed in arrival order on the router task after
 `WorkspaceReadyEvent` installs the capability.
+The pending queue coalesces newer saves for the same URI and is bounded to 128
+distinct notifications and 4 MiB of combined URI and source text. A save that
+would exceed either limit is dropped and recorded as a deferred-save outcome;
+the queue therefore cannot retain unbounded editor input while preparation is
+blocked.
 
 `ServerState::index_feature_file` owns the disk boundary: it reads through
-`WorkspaceRoot` and then passes the resulting text to
-`index_feature_source`. The feature indexer therefore parses source text and
-does not perform filesystem access. A save notification that includes source
-text goes directly to `index_feature_source`, avoiding a second read and a
-race with the editor's on-disk write. `index_feature_source` applies the
-canonical trailing-newline normalization before parsing.
+`WorkspaceRoot` and then passes the resulting text to `index_feature_source`.
+The feature indexer therefore parses source text and does not perform
+filesystem access. A save notification that includes source text goes directly
+to `index_feature_source`, avoiding a second read and a race with the editor's
+on-disk write. `index_feature_source` applies the canonical trailing-newline
+normalization before parsing.
 
 ### Bounded indexing metrics
 
-The on-save handlers record the counter
-`rstest_bdd_server_indexing_total` with exactly two labels: `operation` and
-`outcome`. Both label values come from fixed `&'static str` match arms; paths,
-error messages, and other unbounded input must not become metric labels.
+The on-save handlers record the counter `rstest_bdd_server_indexing_total` with
+exactly two labels: `operation` and `outcome`. Both label values come from fixed
+`&'static str` match arms; paths, error messages, and other unbounded input
+must not become metric labels.
 
-`operation` is `feature` or `rust`. A successful save records `success`; a
-Rust result also records one `recoverable-diagnostic` outcome per diagnostic.
-Feature failures use `workspace-root-unavailable`,
-`workspace-boundary-failure`, `non-utf8-path`, `read-failure`,
-`parse-failure`, or `docstring-span-failure`. Rust failures use
-`read-failure` or `parse-failure`. Keep new outcomes in the corresponding
-exhaustive mapping and preserve the two-label shape. Recorder-backed tests in
-`handlers/text_document.rs` pin the metric name, labels, and representative
-outcomes.
+`operation` is `feature` or `rust`. A successful save records `success`; a Rust
+result also records one `recoverable-diagnostic` outcome per diagnostic.
+Feature failures use `workspace-root-unavailable`, `workspace-boundary-failure`,
+`non-utf8-path`, `read-failure`, `parse-failure`, or `docstring-span-failure`.
+Rust failures use `read-failure` or `parse-failure`. Keep new outcomes in the
+corresponding exhaustive mapping and preserve the two-label shape.
+Recorder-backed tests in `handlers/text_document.rs` pin the metric name,
+labels, and representative outcomes.
+
+Workspace preparation and deferred-save lifecycle events use
+`rstest_bdd_server_workspace_preparation_total`, with fixed `operation` and
+`outcome` labels. `rstest_bdd_server_deferred_document_saves` reports the
+current bounded queue depth, and
+`rstest_bdd_server_workspace_preparation_duration_seconds` records preparation
+time. Do not add paths, package names, source text, diagnostic text, or other
+unbounded values to any metric label.

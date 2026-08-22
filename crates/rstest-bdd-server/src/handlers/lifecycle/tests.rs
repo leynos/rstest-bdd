@@ -1,5 +1,7 @@
 //! Unit tests for server lifecycle handling.
 
+mod deferred_save;
+
 use super::*;
 use crate::config::ServerConfig;
 use async_lsp::MainLoop;
