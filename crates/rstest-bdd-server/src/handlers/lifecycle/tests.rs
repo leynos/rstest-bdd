@@ -51,9 +51,7 @@ fn handle_initialize_stores_client_capabilities(
     mut create_test_state: ServerState,
     create_init_params: InitializeParams,
 ) {
-    let result = handle_initialise(&mut create_test_state, create_init_params);
-
-    assert!(result.is_ok());
+    assert!(handle_initialise(&mut create_test_state, create_init_params).is_ok());
     assert!(create_test_state.client_capabilities().is_some());
 }
 
@@ -82,25 +80,19 @@ fn handle_initialize_fails_when_already_initialized(
 ) {
     create_test_state.mark_initialised();
 
-    let result = handle_initialise(&mut create_test_state, create_init_params);
-
-    assert!(result.is_err());
+    assert!(handle_initialise(&mut create_test_state, create_init_params).is_err());
 }
 
 #[rstest]
 fn handle_initialized_marks_state_as_initialized(mut create_test_state: ServerState) {
     assert!(!create_test_state.is_initialised());
-
     handle_initialised(&mut create_test_state, InitializedParams {});
-
     assert!(create_test_state.is_initialised());
 }
 
 #[rstest]
 fn handle_shutdown_returns_ok(mut create_test_state: ServerState) {
-    let result = handle_shutdown(&mut create_test_state);
-
-    assert!(result.is_ok());
+    assert!(handle_shutdown(&mut create_test_state).is_ok());
 }
 
 #[rstest]
@@ -137,9 +129,7 @@ fn extract_workspace_path_from_various_sources(
 
 #[test]
 fn extract_workspace_path_returns_none_when_empty() {
-    let path = extract_workspace_path(&[], None);
-
-    assert!(path.is_none());
+    assert!(extract_workspace_path(&[], None).is_none());
 }
 
 #[rstest]
@@ -177,6 +167,41 @@ fn cargo_workspace() -> std::io::Result<TempDir> {
     std::fs::create_dir_all(&src)?;
     std::fs::write(src.join("lib.rs"), "")?;
     Ok(dir)
+}
+
+const LATEST_DEFERRED_FEATURE_SOURCE: &str = "Feature: latest deferred save\n";
+fn queue_coalesced_deferred_feature_saves(
+    state: &mut ServerState,
+    feature_path: &std::path::Path,
+) -> u64 {
+    let workspace_initialization_id = state.begin_workspace_initialization(Vec::new(), true);
+    let Ok(feature_uri) = Url::from_file_path(feature_path) else {
+        panic!(
+            "feature path must convert to URI: {}",
+            feature_path.display()
+        );
+    };
+
+    handle_did_save_text_document(
+        state,
+        DidSaveTextDocumentParams {
+            text_document: TextDocumentIdentifier {
+                uri: feature_uri.clone(),
+            },
+            text: None,
+        },
+    );
+    handle_did_save_text_document(
+        state,
+        DidSaveTextDocumentParams {
+            text_document: TextDocumentIdentifier { uri: feature_uri },
+            text: Some(LATEST_DEFERRED_FEATURE_SOURCE.to_owned()),
+        },
+    );
+    assert_eq!(state.deferred_document_save_count(), 1);
+    assert!(state.feature_index(feature_path).is_none());
+
+    workspace_initialization_id
 }
 
 #[test]
@@ -238,27 +263,9 @@ async fn initialize_async_installs_workspace_capability_through_router_event() {
     std::fs::write(&feature_path, "Feature: async initialization\n").expect("write feature file");
     let (installed_sender, mut installed) = tokio::sync::mpsc::unbounded_channel();
     let feature_path_for_router = feature_path.clone();
-    let feature_uri = Url::from_file_path(&feature_path).expect("feature URI");
     let mut state = ServerState::new(ServerConfig::default());
-    let workspace_initialization_id = state.begin_workspace_initialization(Vec::new(), true);
-    handle_did_save_text_document(
-        &mut state,
-        DidSaveTextDocumentParams {
-            text_document: TextDocumentIdentifier {
-                uri: feature_uri.clone(),
-            },
-            text: None,
-        },
-    );
-    handle_did_save_text_document(
-        &mut state,
-        DidSaveTextDocumentParams {
-            text_document: TextDocumentIdentifier { uri: feature_uri },
-            text: Some("Feature: latest deferred save\n".to_owned()),
-        },
-    );
-    assert_eq!(state.deferred_document_save_count(), 1);
-    assert!(state.feature_index(&feature_path).is_none());
+    let workspace_initialization_id =
+        queue_coalesced_deferred_feature_saves(&mut state, &feature_path);
     let (mainloop, client) = MainLoop::new_server(move |client| {
         state.set_client(client);
         let mut router = Router::new(state);
@@ -297,7 +304,7 @@ async fn initialize_async_installs_workspace_capability_through_router_event() {
     };
     assert_eq!(
         indexed_source.as_deref(),
-        Some("Feature: latest deferred save\n")
+        Some(LATEST_DEFERRED_FEATURE_SOURCE)
     );
     mainloop_task.abort();
     let Err(error) = mainloop_task.await else {
