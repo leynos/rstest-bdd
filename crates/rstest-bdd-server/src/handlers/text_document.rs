@@ -90,10 +90,24 @@ pub(super) fn index_saved_document(state: &mut ServerState, params: DidSaveTextD
     }
 }
 
+fn index_saved_source<T, E>(
+    path: &std::path::Path,
+    text: Option<&str>,
+    index_file: impl FnOnce(&std::path::Path) -> Result<T, E>,
+    index_source: impl FnOnce(std::path::PathBuf, &str) -> Result<T, E>,
+) -> Result<T, E> {
+    text.map_or_else(
+        || index_file(path),
+        |source| index_source(path.to_path_buf(), source),
+    )
+}
+
 fn handle_feature_file_save(state: &mut ServerState, path: &std::path::Path, text: Option<&str>) {
-    let index_result = text.map_or_else(
-        || state.index_feature_file(path),
-        |source| index_feature_source(path.to_path_buf(), source),
+    let index_result = index_saved_source(
+        path,
+        text,
+        |path| state.index_feature_file(path),
+        index_feature_source,
     );
 
     apply_feature_index_result(
@@ -135,10 +149,7 @@ pub(super) fn apply_feature_index_result(
 }
 
 fn handle_rust_file_save(state: &mut ServerState, path: &std::path::Path, text: Option<&str>) {
-    let index_result = text.map_or_else(
-        || index_rust_file(path),
-        |source| index_rust_source(path.to_path_buf(), source),
-    );
+    let index_result = index_saved_source(path, text, index_rust_file, index_rust_source);
 
     apply_rust_index_result(
         state,
@@ -192,11 +203,11 @@ mod tests {
 
     use std::sync::{Arc, Mutex};
 
-    use lsp_types::{TextDocumentIdentifier, Url};
-    use metrics::{
+    use ::metrics::{
         Counter, CounterFn, Gauge, Histogram, Key, KeyName, Metadata, Recorder, SharedString, Unit,
         with_local_recorder,
     };
+    use lsp_types::{TextDocumentIdentifier, Url};
     use tempfile::TempDir;
 
     use crate::config::ServerConfig;
@@ -339,58 +350,5 @@ mod tests {
         }
     }
 
-    #[test]
-    fn records_indexing_outcomes_with_bounded_labels() {
-        assert_eq!(INDEXING_COUNTER, "rstest_bdd_server_indexing_total");
-        let workspace = TempDir::new().expect("workspace directory");
-        let outside_workspace = TempDir::new().expect("outside workspace directory");
-        let mut state = ServerState::new(ServerConfig::default());
-        state
-            .set_workspace_info(WorkspaceInfo {
-                root: workspace.path().to_path_buf(),
-                packages: Vec::new(),
-            })
-            .expect("configure workspace root");
-        let recorder = IndexingRecorder::default();
-
-        with_local_recorder(&recorder, || {
-            handle_did_save_text_document(
-                &mut state,
-                did_save_params(
-                    &workspace.path().join("success.feature"),
-                    Some("Feature: metrics\n  Scenario: test\n    Given a step\n"),
-                ),
-            );
-            handle_did_save_text_document(
-                &mut state,
-                did_save_params(&outside_workspace.path().join("outside.feature"), None),
-            );
-            handle_did_save_text_document(
-                &mut state,
-                did_save_params(
-                    &workspace.path().join("steps.rs"),
-                    Some(concat!(
-                        "#[given(\"first\")]\n",
-                        "#[when(\"second\")]\n",
-                        "fn conflicting_step() {}\n\n",
-                        "#[given(\"valid\")]\n",
-                        "fn valid_step() {}\n",
-                    )),
-                ),
-            );
-        });
-
-        assert_eq!(recorder.count("feature", "success"), 1);
-        assert_eq!(recorder.count("feature", "workspace-boundary-failure"), 1);
-        assert_eq!(recorder.count("rust", "success"), 1);
-        assert_eq!(recorder.count("rust", "recoverable-diagnostic"), 1);
-        let counters = recorder.registered_counters();
-        assert_eq!(counters.len(), 4);
-        for counter in counters {
-            assert_eq!(counter.name, INDEXING_COUNTER);
-            assert_eq!(counter.labels.len(), 2);
-            assert!(counter.labels.iter().any(|(key, _)| key == "operation"));
-            assert!(counter.labels.iter().any(|(key, _)| key == "outcome"));
-        }
-    }
+    mod metrics;
 }
