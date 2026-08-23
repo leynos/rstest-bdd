@@ -119,8 +119,9 @@ mod tests {
 
     use super::*;
 
-    const DEFERRED_SAVE_URI_ALPHABET: u8 = 130;
+    const DEFERRED_SAVE_URI_ALPHABET: usize = 130;
     const TEST_MAXIMUM_DOCUMENTS: usize = 8;
+    const TEST_MAXIMUM_DOCUMENT_URI_ALPHABET: usize = 8;
     const TEST_MAXIMUM_BYTES: usize = 160;
 
     fn save(uri: &str, text: &str) -> DidSaveTextDocumentParams {
@@ -135,7 +136,7 @@ mod tests {
 
     #[derive(Clone, Debug)]
     enum DeferredSaveOperation {
-        Push { uri: u8, source_length: usize },
+        Push { uri: usize, source_length: usize },
         Take,
         Clear,
     }
@@ -143,7 +144,7 @@ mod tests {
     fn deferred_save_operations() -> impl Strategy<Value = Vec<DeferredSaveOperation>> {
         let random_operations = prop::collection::vec(
             prop_oneof![
-                (0_u8..DEFERRED_SAVE_URI_ALPHABET, 20_usize..48).prop_map(
+                (0_usize..DEFERRED_SAVE_URI_ALPHABET, 20_usize..48).prop_map(
                     |(uri, source_length)| { DeferredSaveOperation::Push { uri, source_length } }
                 ),
                 Just(DeferredSaveOperation::Take),
@@ -160,7 +161,7 @@ mod tests {
                     .into_iter()
                     .enumerate()
                     .map(|(index, source_length)| DeferredSaveOperation::Push {
-                        uri: index as u8,
+                        uri: index,
                         source_length,
                     })
                     .collect::<Vec<_>>();
@@ -169,7 +170,7 @@ mod tests {
             })
     }
 
-    fn save_for_uri(uri: u8, source_length: usize) -> DidSaveTextDocumentParams {
+    fn save_for_uri(uri: usize, source_length: usize) -> DidSaveTextDocumentParams {
         save(
             &format!("file:///deferred-{uri}.rs"),
             &"x".repeat(source_length),
@@ -304,7 +305,7 @@ mod tests {
             source_lengths in prop::collection::vec(20_usize..48, 4..80),
             random_operations in prop::collection::vec(
                 prop_oneof![
-                    (0_u8..TEST_MAXIMUM_DOCUMENTS as u8, 20_usize..48)
+                    (0_usize..TEST_MAXIMUM_DOCUMENT_URI_ALPHABET, 20_usize..48)
                         .prop_map(|(uri, source_length)| {
                             DeferredSaveOperation::Push { uri, source_length }
                         }),
@@ -321,7 +322,7 @@ mod tests {
                 .into_iter()
                 .enumerate()
                 .map(|(index, source_length)| DeferredSaveOperation::Push {
-                    uri: index as u8,
+                    uri: index,
                     source_length,
                 })
                 .collect::<Vec<_>>();

@@ -1,23 +1,22 @@
 //! Unit tests for server lifecycle handling.
 
 mod deferred_save;
+mod delivery_failure;
+mod paths;
 mod retry;
 
 use super::*;
 use crate::config::ServerConfig;
+use async_lsp::MainLoop;
 use async_lsp::router::Router;
-use async_lsp::{ClientSocket, MainLoop};
 use lsp_types::{
     ClientCapabilities, DidSaveTextDocumentParams, TextDocumentIdentifier, WorkspaceFolder,
 };
-use metrics::with_local_recorder;
 use rstest::{fixture, rstest};
 use std::ops::ControlFlow;
-use std::str::FromStr;
 use tempfile::TempDir;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
-use crate::handlers::workspace_metrics::WorkspaceRecorder;
 use crate::handlers::{
     DeferredDocumentSavesIndexed, handle_deferred_document_saves_indexed,
     handle_did_save_text_document,
@@ -102,23 +101,6 @@ fn handle_shutdown_returns_ok(mut create_test_state: ServerState) {
     let result = handle_shutdown(&mut create_test_state);
 
     assert!(result.is_ok());
-}
-
-#[test]
-fn url_to_path_returns_none_for_non_file_url() {
-    let url = Url::from_str("https://example.com/path").expect("valid URL");
-    let path = url_to_path(&url);
-
-    assert!(path.is_none());
-}
-
-#[rstest]
-fn url_to_path_handles_file_url(platform_test_path: PathBuf) {
-    let url = Url::from_file_path(&platform_test_path).expect("valid path");
-    let path = url_to_path(&url);
-
-    assert!(path.is_some());
-    assert_eq!(path.expect("should have path"), platform_test_path);
 }
 
 #[rstest]
@@ -247,40 +229,6 @@ fn handle_workspace_ready_installs_capability() {
             .feature_index(&info.root.join("does_not_exist.feature"))
             .is_none()
     );
-}
-
-#[test]
-fn workspace_ready_delivery_failure_keeps_deferred_saves_for_the_stopped_router() {
-    let workspace = cargo_workspace().expect("create Cargo workspace");
-    let deferred_uri = Url::from_file_path(workspace.path().join("deferred.feature"))
-        .expect("deferred feature URI");
-    let mut state = ServerState::new(ServerConfig::default());
-    let workspace_initialization_id = state.begin_workspace_initialization(Vec::new(), true);
-    handle_did_save_text_document(
-        &mut state,
-        DidSaveTextDocumentParams {
-            text_document: TextDocumentIdentifier { uri: deferred_uri },
-            text: None,
-        },
-    );
-    let recorder = WorkspaceRecorder::default();
-
-    with_local_recorder(&recorder, || {
-        emit_workspace_ready(
-            &ClientSocket::new_closed(),
-            WorkspaceReadyEvent {
-                preparation: prepare_workspace(workspace.path()),
-                initialization_id: workspace_initialization_id,
-            },
-        );
-    });
-
-    assert_eq!(
-        recorder.workspace_outcome_count("workspace-preparation", "event-delivery-failure"),
-        1
-    );
-    assert_eq!(state.deferred_document_save_count(), 1);
-    assert!(state.workspace_preparation_pending());
 }
 
 #[tokio::test]
