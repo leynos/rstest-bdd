@@ -5,17 +5,19 @@ mod retry;
 
 use super::*;
 use crate::config::ServerConfig;
-use async_lsp::MainLoop;
 use async_lsp::router::Router;
+use async_lsp::{ClientSocket, MainLoop};
 use lsp_types::{
     ClientCapabilities, DidSaveTextDocumentParams, TextDocumentIdentifier, WorkspaceFolder,
 };
+use metrics::with_local_recorder;
 use rstest::{fixture, rstest};
 use std::ops::ControlFlow;
 use std::str::FromStr;
 use tempfile::TempDir;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
+use crate::handlers::workspace_metrics::WorkspaceRecorder;
 use crate::handlers::{
     DeferredDocumentSavesIndexed, handle_deferred_document_saves_indexed,
     handle_did_save_text_document,
@@ -247,6 +249,40 @@ fn handle_workspace_ready_installs_capability() {
     );
 }
 
+#[test]
+fn workspace_ready_delivery_failure_keeps_deferred_saves_for_the_stopped_router() {
+    let workspace = cargo_workspace().expect("create Cargo workspace");
+    let deferred_uri = Url::from_file_path(workspace.path().join("deferred.feature"))
+        .expect("deferred feature URI");
+    let mut state = ServerState::new(ServerConfig::default());
+    let workspace_initialization_id = state.begin_workspace_initialization(Vec::new(), true);
+    handle_did_save_text_document(
+        &mut state,
+        DidSaveTextDocumentParams {
+            text_document: TextDocumentIdentifier { uri: deferred_uri },
+            text: None,
+        },
+    );
+    let recorder = WorkspaceRecorder::default();
+
+    with_local_recorder(&recorder, || {
+        emit_workspace_ready(
+            &ClientSocket::new_closed(),
+            WorkspaceReadyEvent {
+                preparation: prepare_workspace(workspace.path()),
+                initialization_id: workspace_initialization_id,
+            },
+        );
+    });
+
+    assert_eq!(
+        recorder.workspace_outcome_count("workspace-preparation", "event-delivery-failure"),
+        1
+    );
+    assert_eq!(state.deferred_document_save_count(), 1);
+    assert!(state.workspace_preparation_pending());
+}
+
 #[tokio::test]
 async fn initialize_async_installs_workspace_capability_through_router_event() {
     let workspace = cargo_workspace().expect("create Cargo workspace");
@@ -260,8 +296,17 @@ async fn initialize_async_installs_workspace_capability_through_router_event() {
     handle_did_save_text_document(
         &mut state,
         DidSaveTextDocumentParams {
-            text_document: TextDocumentIdentifier { uri: feature_uri },
+            text_document: TextDocumentIdentifier {
+                uri: feature_uri.clone(),
+            },
             text: None,
+        },
+    );
+    handle_did_save_text_document(
+        &mut state,
+        DidSaveTextDocumentParams {
+            text_document: TextDocumentIdentifier { uri: feature_uri },
+            text: Some("Feature: latest deferred save\n".to_owned()),
         },
     );
     assert_eq!(state.deferred_document_save_count(), 1);
@@ -275,9 +320,11 @@ async fn initialize_async_installs_workspace_capability_through_router_event() {
         });
         router.event::<DeferredDocumentSavesIndexed>(move |state, event| {
             handle_deferred_document_saves_indexed(state, event);
-            let is_indexed = state.feature_index(&feature_path_for_router).is_some();
+            let indexed_source = state
+                .feature_index(&feature_path_for_router)
+                .map(|index| index.source.clone());
             assert!(
-                installed_sender.send(is_indexed).is_ok(),
+                installed_sender.send(indexed_source).is_ok(),
                 "test must receive workspace replay status"
             );
             ControlFlow::Continue(())
@@ -297,12 +344,12 @@ async fn initialize_async_installs_workspace_capability_through_router_event() {
     let result = initialize_async(Ok(outcome), Some(client.clone())).await;
 
     assert!(result.is_ok());
-    let Some(is_indexed) = installed.recv().await else {
+    let Some(indexed_source) = installed.recv().await else {
         panic!("router should receive the workspace preparation event");
     };
-    assert!(
-        is_indexed,
-        "the deferred did-save should be replayed after workspace readiness"
+    assert_eq!(
+        indexed_source.as_deref(),
+        Some("Feature: latest deferred save\n")
     );
     mainloop_task.abort();
     let Err(error) = mainloop_task.await else {

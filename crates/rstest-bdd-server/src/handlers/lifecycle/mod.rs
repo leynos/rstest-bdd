@@ -106,7 +106,11 @@ pub fn initialize_result() -> InitializeResult {
     }
 }
 
-/// Result of the blocking workspace discovery and capability opening.
+/// Result of blocking workspace discovery and capability opening.
+///
+/// The preparation runs outside the LSP router task. The router applies the
+/// selected outcome through [`WorkspaceReadyEvent`], retaining the
+/// non-fatal-error policy for discovery and capability-opening failures.
 #[derive(Debug)]
 pub enum WorkspacePreparation {
     /// Cargo discovery and root capability opening both succeeded.
@@ -125,8 +129,11 @@ pub enum WorkspacePreparation {
     },
 }
 
-/// Event emitted after blocking workspace preparation completes, carrying the
-/// preparation result for the router task to apply to `ServerState`.
+/// Event emitted after blocking workspace preparation completes.
+///
+/// The router task consumes this event to install the prepared workspace in
+/// `ServerState`. Its private initialization identifier ensures that a result
+/// from an earlier initialization cannot overwrite a newer workspace state.
 pub struct WorkspaceReadyEvent {
     /// Blocking discovery and capability-open result for the router to apply.
     pub preparation: WorkspacePreparation,
@@ -284,20 +291,13 @@ where
                             "workspace-preparation",
                             workspace_preparation_outcome(&preparation),
                         );
-                        if let Some(client) = client
-                            && let Err(error) = client.emit(WorkspaceReadyEvent {
-                                preparation,
-                                initialization_id: workspace_initialization_id,
-                            })
-                        {
-                            record_workspace_outcome(
-                                "workspace-preparation",
-                                "event-delivery-failure",
-                            );
-                            warn!(
-                                error = %error,
-                                event = "workspace-ready",
-                                "failed to publish workspace preparation"
+                        if let Some(client) = client {
+                            emit_workspace_ready(
+                                &client,
+                                WorkspaceReadyEvent {
+                                    preparation,
+                                    initialization_id: workspace_initialization_id,
+                                },
                             );
                         }
                     }
@@ -313,6 +313,17 @@ where
         return Ok((result, Some(background_task)));
     }
     Ok((result, None))
+}
+
+fn emit_workspace_ready(client: &ClientSocket, event: WorkspaceReadyEvent) {
+    if let Err(error) = client.emit(event) {
+        record_workspace_outcome("workspace-preparation", "event-delivery-failure");
+        warn!(
+            error = %error,
+            event = "workspace-ready",
+            "failed to publish workspace preparation"
+        );
+    }
 }
 
 /// Handle the `initialized` notification from the client.

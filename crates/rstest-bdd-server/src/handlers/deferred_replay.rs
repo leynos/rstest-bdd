@@ -175,8 +175,26 @@ mod tests {
 
     use std::future::pending;
 
+    use async_lsp::ClientSocket;
+    use metrics::with_local_recorder;
+
     use super::*;
     use crate::config::ServerConfig;
+    use crate::handlers::workspace_metrics::WorkspaceRecorder;
+
+    #[test]
+    fn deferred_replay_delivery_failure_records_a_bounded_outcome() {
+        let recorder = WorkspaceRecorder::default();
+
+        with_local_recorder(&recorder, || {
+            emit_replayed_indexes(&ClientSocket::new_closed(), 1, Vec::new());
+        });
+
+        assert_eq!(
+            recorder.workspace_outcome_count("deferred-save", "event-delivery-failure"),
+            1
+        );
+    }
 
     #[tokio::test]
     async fn stale_replay_does_not_replace_the_current_workspace_task() {

@@ -95,13 +95,15 @@ async fn run_server_async(config: ServerConfig) -> std::io::Result<()> {
     let (server, _client) = async_lsp::MainLoop::new_server(|client| {
         let mut state = ServerState::new(config.clone());
         state.set_client(client.clone());
+        let mut router = Router::new(state);
+        configure_router(&mut router);
 
         ServiceBuilder::new()
             .layer(TracingLayer::default())
             .layer(LifecycleLayer::default())
             .layer(CatchUnwindLayer::default())
             .layer(ConcurrencyLayer::default())
-            .service(build_router(state))
+            .service(router)
     });
 
     // Use platform-appropriate stdio with tokio integration
@@ -128,9 +130,8 @@ async fn run_server_async(config: ServerConfig) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Construct the router and register every LSP request, notification, and event.
-fn build_router(state: ServerState) -> Router<ServerState> {
-    let mut router = Router::new(state);
+/// Register every LSP request, notification, and event on `router`.
+fn configure_router(router: &mut Router<ServerState>) {
     router
         .request::<request::Initialize, _>(|st, params| {
             let outcome = handle_initialise(st, params);
@@ -195,5 +196,59 @@ fn build_router(state: ServerState) -> Router<ServerState> {
         handle_deferred_document_saves_indexed(state, event);
         ControlFlow::Continue(())
     });
-    router
+}
+
+#[cfg(test)]
+mod tests {
+    //! Protocol-wiring tests for the language-server binary.
+
+    use std::future::pending;
+
+    use tower::Service;
+
+    use super::*;
+
+    struct CancellationSignal(Option<tokio::sync::oneshot::Sender<()>>);
+
+    impl Drop for CancellationSignal {
+        fn drop(&mut self) {
+            if let Some(sender) = self.0.take() {
+                let _ = sender.send(());
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn shutdown_aborts_and_awaits_the_owned_workspace_task() {
+        let (cancelled_sender, cancelled) = tokio::sync::oneshot::channel();
+        let (started_sender, started) = tokio::sync::oneshot::channel();
+        let workspace_task = tokio::spawn(async move {
+            let _cancellation_signal = CancellationSignal(Some(cancelled_sender));
+            if started_sender.send(()).is_err() {
+                return;
+            }
+            pending::<()>().await;
+        });
+        let mut state = ServerState::new(ServerConfig::default());
+        state.replace_workspace_task(workspace_task);
+        assert!(started.await.is_ok(), "workspace task should start");
+        let mut router = Router::new(state);
+        configure_router(&mut router);
+
+        let response = router
+            .call(
+                serde_json::from_value(serde_json::json!({
+                    "id": 0,
+                    "method": "shutdown",
+                }))
+                .expect("shutdown request must deserialize"),
+            )
+            .await;
+
+        assert!(response.is_ok(), "shutdown request should succeed");
+        assert!(
+            cancelled.await.is_ok(),
+            "shutdown should abort and await the retained workspace task"
+        );
+    }
 }

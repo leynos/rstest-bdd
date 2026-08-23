@@ -42,6 +42,19 @@ impl DeferredDocumentSaves {
         &mut self,
         params: DidSaveTextDocumentParams,
     ) -> Result<usize, DeferredSaveDropReason> {
+        self.push_with_limits(
+            params,
+            MAX_DEFERRED_DOCUMENT_SAVES,
+            MAX_DEFERRED_DOCUMENT_BYTES,
+        )
+    }
+
+    fn push_with_limits(
+        &mut self,
+        params: DidSaveTextDocumentParams,
+        maximum_documents: usize,
+        maximum_bytes: usize,
+    ) -> Result<usize, DeferredSaveDropReason> {
         let byte_count = save_byte_count(&params);
         let existing_index = self
             .saves
@@ -53,10 +66,10 @@ impl DeferredDocumentSaves {
         let retained_count = self.saves.len() - usize::from(existing_index.is_some());
         let retained_bytes = self.byte_count - existing_byte_count;
 
-        if retained_count >= MAX_DEFERRED_DOCUMENT_SAVES {
+        if retained_count >= maximum_documents {
             return Err(DeferredSaveDropReason::DocumentLimit);
         }
-        if retained_bytes.saturating_add(byte_count) > MAX_DEFERRED_DOCUMENT_BYTES {
+        if retained_bytes.saturating_add(byte_count) > maximum_bytes {
             return Err(DeferredSaveDropReason::ByteLimit);
         }
 
@@ -107,6 +120,8 @@ mod tests {
     use super::*;
 
     const DEFERRED_SAVE_URI_ALPHABET: u8 = 130;
+    const TEST_MAXIMUM_DOCUMENTS: usize = 8;
+    const TEST_MAXIMUM_BYTES: usize = 160;
 
     fn save(uri: &str, text: &str) -> DidSaveTextDocumentParams {
         let Ok(uri) = Url::parse(uri) else {
@@ -126,23 +141,32 @@ mod tests {
     }
 
     fn deferred_save_operations() -> impl Strategy<Value = Vec<DeferredSaveOperation>> {
-        prop::collection::vec(
+        let random_operations = prop::collection::vec(
             prop_oneof![
-                (
-                    0_u8..DEFERRED_SAVE_URI_ALPHABET,
-                    prop_oneof![
-                        16 => 0_usize..64,
-                        1 => Just(MAX_DEFERRED_DOCUMENT_BYTES),
-                    ],
-                )
-                    .prop_map(|(uri, source_length)| {
-                        DeferredSaveOperation::Push { uri, source_length }
-                    }),
+                (0_u8..DEFERRED_SAVE_URI_ALPHABET, 20_usize..48).prop_map(
+                    |(uri, source_length)| { DeferredSaveOperation::Push { uri, source_length } }
+                ),
                 Just(DeferredSaveOperation::Take),
                 Just(DeferredSaveOperation::Clear),
             ],
             0..160,
+        );
+        (
+            prop::collection::vec(20_usize..48, MAX_DEFERRED_DOCUMENT_SAVES + 1..=144),
+            random_operations,
         )
+            .prop_map(|(source_lengths, mut operations)| {
+                let mut forced_rejection = source_lengths
+                    .into_iter()
+                    .enumerate()
+                    .map(|(index, source_length)| DeferredSaveOperation::Push {
+                        uri: index as u8,
+                        source_length,
+                    })
+                    .collect::<Vec<_>>();
+                forced_rejection.append(&mut operations);
+                forced_rejection
+            })
     }
 
     fn save_for_uri(uri: u8, source_length: usize) -> DidSaveTextDocumentParams {
@@ -169,6 +193,15 @@ mod tests {
         assert_eq!(saves.byte_count, saves.recomputed_byte_count());
         assert!(saves.len() <= MAX_DEFERRED_DOCUMENT_SAVES);
         assert!(saves.byte_count <= MAX_DEFERRED_DOCUMENT_BYTES);
+    }
+
+    fn assert_rejected_push_preserves_state(
+        saves: &DeferredDocumentSaves,
+        previous_saves: &VecDeque<DidSaveTextDocumentParams>,
+        previous_byte_count: usize,
+    ) {
+        assert_eq!(&saves.saves, previous_saves);
+        assert_eq!(saves.byte_count, previous_byte_count);
     }
 
     #[test]
@@ -208,11 +241,14 @@ mod tests {
             assert!(saves.push(save(&uri, "source")).is_ok());
         }
 
+        let previous_saves = saves.saves.clone();
+        let previous_byte_count = saves.byte_count;
         assert_eq!(
             saves.push(save("file:///deferred-overflow.rs", "source")),
             Err(DeferredSaveDropReason::DocumentLimit)
         );
         assert_eq!(saves.len(), MAX_DEFERRED_DOCUMENT_SAVES);
+        assert_rejected_push_preserves_state(&saves, &previous_saves, previous_byte_count);
     }
 
     proptest! {
@@ -224,13 +260,24 @@ mod tests {
         ) {
             let mut saves = DeferredDocumentSaves::default();
             let mut expected = Vec::new();
+            let mut saw_document_limit = false;
 
             for operation in operations {
                 match operation {
                     DeferredSaveOperation::Push { uri, source_length } => {
                         let save = save_for_uri(uri, source_length);
-                        if saves.push(save.clone()).is_ok() {
-                            retain_latest_save(&mut expected, save);
+                        let previous_saves = saves.saves.clone();
+                        let previous_byte_count = saves.byte_count;
+                        match saves.push(save.clone()) {
+                            Ok(_) => retain_latest_save(&mut expected, save),
+                            Err(reason) => {
+                                saw_document_limit |= reason == DeferredSaveDropReason::DocumentLimit;
+                                assert_rejected_push_preserves_state(
+                                    &saves,
+                                    &previous_saves,
+                                    previous_byte_count,
+                                );
+                            }
                         }
                     }
                     DeferredSaveOperation::Take => {
@@ -249,6 +296,75 @@ mod tests {
                     expected.iter().collect::<Vec<_>>()
                 );
             }
+            prop_assert!(saw_document_limit);
+        }
+
+        #[test]
+        fn preserves_rejection_state_for_bounded_cumulative_bytes(
+            source_lengths in prop::collection::vec(20_usize..48, 4..80),
+            random_operations in prop::collection::vec(
+                prop_oneof![
+                    (0_u8..TEST_MAXIMUM_DOCUMENTS as u8, 20_usize..48)
+                        .prop_map(|(uri, source_length)| {
+                            DeferredSaveOperation::Push { uri, source_length }
+                        }),
+                    Just(DeferredSaveOperation::Take),
+                    Just(DeferredSaveOperation::Clear),
+                ],
+                0..80,
+            ),
+        ) {
+            let mut saves = DeferredDocumentSaves::default();
+            let mut expected = Vec::new();
+            let mut saw_byte_limit = false;
+            let mut operations = source_lengths
+                .into_iter()
+                .enumerate()
+                .map(|(index, source_length)| DeferredSaveOperation::Push {
+                    uri: index as u8,
+                    source_length,
+                })
+                .collect::<Vec<_>>();
+            operations.extend(random_operations);
+
+            for operation in operations {
+                match operation {
+                    DeferredSaveOperation::Push { uri, source_length } => {
+                        let save = save_for_uri(uri, source_length);
+                        let previous_saves = saves.saves.clone();
+                        let previous_byte_count = saves.byte_count;
+                        match saves.push_with_limits(
+                            save.clone(),
+                            TEST_MAXIMUM_DOCUMENTS,
+                            TEST_MAXIMUM_BYTES,
+                        ) {
+                            Ok(_) => retain_latest_save(&mut expected, save),
+                            Err(reason) => {
+                                saw_byte_limit |= reason == DeferredSaveDropReason::ByteLimit;
+                                assert_rejected_push_preserves_state(
+                                    &saves,
+                                    &previous_saves,
+                                    previous_byte_count,
+                                );
+                            }
+                        }
+                    }
+                    DeferredSaveOperation::Take => {
+                        prop_assert_eq!(saves.take(), expected);
+                        expected = Vec::new();
+                    }
+                    DeferredSaveOperation::Clear => {
+                        saves.clear();
+                        expected = Vec::new();
+                    }
+                }
+                assert_deferred_save_invariants(&saves);
+                prop_assert_eq!(
+                    saves.saves.iter().collect::<Vec<_>>(),
+                    expected.iter().collect::<Vec<_>>()
+                );
+            }
+            prop_assert!(saw_byte_limit);
         }
     }
 }
