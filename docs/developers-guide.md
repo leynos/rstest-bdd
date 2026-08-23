@@ -348,15 +348,15 @@ the base lives in exactly one place.
 
 ## Workflow pins and Dependabot
 
-Dependabot owns the upgrade of GitHub Actions and reusable workflows,
-including calls into `leynos/shared-actions`. Contract tests that assert a
-caller's exact commit SHA create a lockstep dependency: every time Dependabot
-opens a bump PR, the test fails until a human edits the pinned constant to
-match. That defeats the purpose of automated dependency updates and turns a
-routine bump into a manual chore.
+Dependabot owns the upgrade of GitHub Actions and reusable workflows, including
+calls into `leynos/shared-actions`. Contract tests that assert a caller's exact
+commit SHA create a lockstep dependency: every time Dependabot opens a bump PR,
+the test fails until a human edits the pinned constant to match. That defeats
+the purpose of automated dependency updates and turns a routine bump into a
+manual chore.
 
-Contract tests may still verify the _shape_ of a reusable-workflow caller.
-They must not verify the specific SHA value.
+Contract tests may still verify the _shape_ of a reusable-workflow caller. They
+must not verify the specific SHA value.
 
 - Do assert the workflow references the correct reusable workflow path.
 - Do assert the ref is pinned to a full 40-character commit SHA, not a
@@ -387,6 +387,10 @@ as a test assertion on the SHA string.
 pinned Typos release. `make spellcheck` remains an alias for existing tooling,
 and `make markdownlint` depends on the same gate, so prose checks cannot bypass
 the repository-wide spelling policy.
+
+The shared Markdown discovery used by `make markdownlint` and the spelling gate
+excludes ignored `.vtcode` task metadata, keeping editor task files out of
+project documentation validation.
 
 The checked-in `typos.toml` is generated from the shared dictionary and the
 repository overlay in `typos.local.toml`. Do not edit generated entries by
@@ -662,6 +666,46 @@ name-only compatibility field, and publish `FixtureRequirement { name, ty }`
 through the hidden `StepFixtureRequirements` inventory sidecar whenever macro
 code knows the requested Rust type. Manual `step!` registrations without that
 sidecar remain valid and report `<unknown>` as the requested fixture type.
+
+### Generated-wrapper Tokio bridge
+
+`rstest-bdd` owns the hidden `__rstest_bdd_tokio` re-export of its Tokio
+runtime dependency. Generated async step wrappers in `rstest-bdd-macros` are
+its only permitted call-sites: they use the bridge to detect an active runtime,
+build a current-thread fallback runtime, and create a `LocalSet`. Downstream
+step code must not reference the bridge directly or depend on a particular
+Tokio crate name.
+
+The bridge composes only from macro-generated wrappers through the resolved
+`rstest_bdd` crate path; it is not a general runtime facade and must not be
+re-exported by harnesses or custom adapters. Keeping Tokio as an `rstest-bdd`
+runtime dependency gives generated code one stable, hygienic source-level path
+regardless of how a downstream crate names, re-exports, or otherwise obtains
+Tokio. Although marked `#[doc(hidden)]`, changing or removing this bridge is a
+breaking change for existing async-step macro expansions.
+
+### Shared scenario-token assembly
+
+The private `ScenarioTestConfig` trait in
+`crates/rstest-bdd-macros/src/codegen/scenario/runtime/mod.rs` is the shared
+pipeline for regular scenarios and scenario outlines. `TestTokensConfig` owns
+one processed step set; `OutlineTestTokensConfig` owns the per-Examples-row
+sets. Both implementations expose the common metadata and select their own
+`CodeComponents` implementation.
+
+`generate_test_tokens_for_config` owns the common assembly sequence: it
+materializes the context iterators, creates scenario literals, wraps the user
+block for its return and async semantics, and selects the harness or
+non-harness assembly path. Keep behaviour shared here when it applies to both
+scenario shapes.
+
+`generate_test_tokens` and `generate_test_tokens_outline` remain intentionally
+typed entry points. Keep outline-specific row substitution and case-index
+handling in the outline path, and keep regular-step processing in the regular
+path; do not widen the private trait into a public configuration API merely to
+make those shapes look identical. The `reject_async_harness` check is applied
+before both paths, so an `async fn` combined with `harness` is rejected for
+regular scenarios and scenario outlines alike.
 
 ## Shared policy crate (`rstest-bdd-policy`)
 
@@ -1068,12 +1112,14 @@ publish boundary exactly once: the client-socket guard, the path-to-URI guard,
 `PublishDiagnosticsParams` construction, the `textDocument/publishDiagnostics`
 notification, and failure logging.
 
-- **Ownership:** the diagnostics handler layer owns the helper; it is private
-  to the `diagnostics::publish` module.
-- **Permitted call-sites:** the public per-file-kind functions
-  (`publish_feature_diagnostics`, `publish_rust_diagnostics`, and any future
-  variant). New diagnostic publishers must delegate to `publish_with` with a
-  compute closure rather than re-implementing the guards or notify call.
+- **Ownership:** the diagnostics handler layer owns the helper; its
+  `pub(super)` visibility from the `diagnostics` parent module lets sibling
+  publishers such as `diagnostics::rust_index` reuse it while keeping it
+  internal to the diagnostics tree.
+- **Permitted call-sites:** `publish_feature_diagnostics` and the save-pipeline
+  `publish_rust_index_result_diagnostics` helper. New diagnostic publishers
+  must delegate to `publish_with` with a compute closure rather than
+  re-implementing the guards or notify call.
 - **Composition rules:** the compute closure returns
   `Option<Vec<Diagnostic>>` — `None` skips publishing entirely (used when a
   feature file has no index, preserving previously published diagnostics), while
@@ -1400,3 +1446,68 @@ no extension.
 Invariants (ASCII-case insensitivity, rejection of differing extensions, and
 behaviour for missing, repeated, and trailing dots) are pinned by the property
 suite in `crates/rstest-bdd-server/tests/has_extension_props.rs`.
+
+### Rust indexing results and recoverable diagnostics
+
+`index_rust_source` and `index_rust_file` return
+`Result<RustStepIndexResult, RustStepIndexError>`. A successful
+`RustStepIndexResult` owns both the `RustStepFileIndex` and the per-function
+`RustStepIndexDiagnostic` values. A whole-file read failure or `syn` parse
+failure is fatal; the handler logs it and retains the previous file index.
+
+Invalid step attributes on one function are recoverable. The collector keeps
+valid neighbouring definitions and reports `MultipleStepAttributes` or
+`InvalidStepAttributeArguments` for the affected function. The save handler
+stores the valid index, publishes those diagnostics, and republishes feature
+diagnostics so a partially valid Rust file remains useful for navigation.
+
+### Workspace-root capability and feature-source boundary
+
+`WorkspaceRoot` is the server-side capability for disk-backed feature reads. It
+validates that a requested path is beneath the retained root, rejects
+parent-directory traversal and non-UTF-8 relative paths, and reads through the
+capability-scoped directory. Opening the capability is blocking. The
+`initialize_async` lifecycle handler backgrounds discovery and root opening in
+`spawn_blocking`, emits `WorkspaceReadyEvent` when preparation completes, and
+lets the router install the prepared capability. Discovery and root-opening
+failures are logged and remain non-fatal, so initialization still returns its
+normal result. Did-save notifications received while the workspace capability
+is being prepared are replayed in arrival order on the router task after
+`WorkspaceReadyEvent` installs the capability.
+The pending queue coalesces newer saves for the same URI and is bounded to 128
+distinct notifications and 4 MiB of combined URI and source text. A save that
+would exceed either limit is dropped and recorded as a deferred-save outcome;
+the queue therefore cannot retain unbounded editor input while preparation is
+blocked.
+
+`ServerState::index_feature_file` owns the disk boundary: it reads through
+`WorkspaceRoot` and then passes the resulting text to `index_feature_source`.
+The feature indexer therefore parses source text and does not perform
+filesystem access. A save notification that includes source text goes directly
+to `index_feature_source`, avoiding a second read and a race with the editor's
+on-disk write. `index_feature_source` applies the canonical trailing-newline
+normalization before parsing.
+
+### Bounded indexing metrics
+
+The on-save handlers record the counter `rstest_bdd_server_indexing_total` with
+exactly two labels: `operation` and `outcome`. Both label values come from fixed
+`&'static str` match arms; paths, error messages, and other unbounded input
+must not become metric labels.
+
+`operation` is `feature` or `rust`. A successful save records `success`; a Rust
+result also records one `recoverable-diagnostic` outcome per diagnostic.
+Feature failures use `workspace-root-unavailable`, `workspace-boundary-failure`,
+`non-utf8-path`, `read-failure`, `parse-failure`, or `docstring-span-failure`.
+Rust failures use `read-failure` or `parse-failure`. Keep new outcomes in the
+corresponding exhaustive mapping and preserve the two-label shape.
+Recorder-backed tests in `handlers/text_document.rs` pin the metric name,
+labels, and representative outcomes.
+
+Workspace preparation and deferred-save lifecycle events use
+`rstest_bdd_server_workspace_preparation_total`, with fixed `operation` and
+`outcome` labels. `rstest_bdd_server_deferred_document_saves` reports the
+current bounded queue depth, and
+`rstest_bdd_server_workspace_preparation_duration_seconds` records preparation
+time. Do not add paths, package names, source text, diagnostic text, or other
+unbounded values to any metric label.

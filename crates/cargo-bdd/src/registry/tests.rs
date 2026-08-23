@@ -17,6 +17,25 @@ fn detects_unrecognized_flag_from_clap() {
 }
 
 #[test]
+fn skips_unexpected_dump_steps_argument_diagnostic() {
+    let stderr = "error: unexpected argument '--dump-steps' found\n";
+    let result = handle_binary_execution_stderr(Path::new("test-binary"), stderr)
+        .expect("unsupported dump flag should not bail");
+    assert!(result.is_none());
+}
+
+#[test]
+fn returns_unrelated_binary_execution_errors() {
+    let stderr = "test failed: an assertion panicked\n";
+    let error = handle_binary_execution_stderr(Path::new("test-binary"), stderr)
+        .expect_err("unexpected binary failure must be reported");
+    let message = error.to_string();
+
+    assert!(message.contains("test-binary"));
+    assert!(message.contains(stderr.trim()));
+}
+
+#[test]
 fn ignores_unrelated_failures_containing_dump_steps() {
     let stderr = concat!(
         "test failed: invalid option for upstream tool\n",

@@ -120,12 +120,11 @@ fn adapt_boundary(
         signature.asyncness = Some(syn::parse_quote!(async));
     }
     let generated_test_attrs = generate_test_attrs_with_boundary(attrs, policy, is_async);
-    let body = adapt_fallible_gpui_boundary(
-        generated_test_attrs.uses_gpui_boundary,
-        return_kind,
-        &mut signature,
-        body,
-    );
+    let body = if generated_test_attrs.uses_gpui_boundary && is_fallible {
+        adapt_fallible_gpui_boundary(&mut signature, &body)
+    } else {
+        body
+    };
     (signature, body.to_string())
 }
 

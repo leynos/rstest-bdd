@@ -2,7 +2,7 @@
 
 use std::borrow::Cow;
 use std::ops::Range;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use gherkin::GherkinEnv;
 
@@ -50,54 +50,6 @@ impl<'a> FeatureSource<'a> {
     }
 }
 
-impl AsRef<str> for FeatureSource<'_> {
-    fn as_ref(&self) -> &str {
-        self.0
-    }
-}
-
-impl<'a> From<&'a str> for FeatureSource<'a> {
-    fn from(source: &'a str) -> Self {
-        Self::new(source)
-    }
-}
-
-/// Parse and index a `.feature` file from disk.
-///
-/// The returned index uses byte offsets within the (normalized) feature text,
-/// matching the behaviour of `gherkin` which appends a trailing newline when
-/// missing.
-///
-/// # Errors
-///
-/// Returns an error when the feature file cannot be read or when it cannot be
-/// parsed as valid Gherkin.
-///
-/// # Examples
-///
-/// ```rust,no_run
-/// use rstest_bdd_server::indexing::{index_feature_file, FeatureIndexError};
-///
-/// # fn main() -> Result<(), FeatureIndexError> {
-/// let path = std::env::temp_dir().join("rstest-bdd-index-demo.feature");
-/// std::fs::write(
-///     &path,
-///     "Feature: demo\n  Scenario: s\n    Given a message\n",
-/// )
-/// .expect("feature file write should succeed");
-///
-/// let index = index_feature_file(&path)?;
-/// assert_eq!(index.steps.len(), 1);
-/// # std::fs::remove_file(path).ok();
-/// # Ok(())
-/// # }
-/// ```
-pub fn index_feature_file(path: &Path) -> Result<FeatureFileIndex, FeatureIndexError> {
-    let mut text = std::fs::read_to_string(path)?;
-    normalize_trailing_newline(&mut text);
-    index_feature_text(path.to_path_buf(), FeatureSource::new(&text))
-}
-
 /// Parse and index a `.feature` file from source text.
 ///
 /// This is primarily intended for language-server integrations that receive
@@ -128,6 +80,24 @@ pub fn index_feature_source(
 ) -> Result<FeatureFileIndex, FeatureIndexError> {
     let source = normalize_source_text(source);
     index_feature_text(path, FeatureSource::new(source.as_ref()))
+}
+
+/// Parse and index an owned `.feature` source buffer.
+///
+/// Disk-backed callers use this entry point so a missing trailing newline is
+/// appended in place before the index takes its required owned source copy.
+///
+/// # Errors
+///
+/// Returns an error when the feature text cannot be parsed as valid Gherkin.
+pub(crate) fn index_feature_source_owned(
+    path: PathBuf,
+    mut source: String,
+) -> Result<FeatureFileIndex, FeatureIndexError> {
+    if !source.ends_with('\n') {
+        source.push('\n');
+    }
+    index_feature_text(path, FeatureSource::new(&source))
 }
 
 fn index_feature_text(
@@ -228,12 +198,6 @@ fn process_rule(
         accumulators,
         &combined_background_indices,
     )
-}
-
-fn normalize_trailing_newline(text: &mut String) {
-    if !text.ends_with('\n') {
-        text.push('\n');
-    }
 }
 
 fn normalize_source_text(source: &str) -> Cow<'_, str> {

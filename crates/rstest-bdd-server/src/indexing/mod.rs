@@ -17,6 +17,7 @@
 //! the step attribute (e.g., `#[given("...")]`) to enable accurate diagnostic
 //! highlighting in language server clients.
 
+use std::ops::Deref;
 use std::path::PathBuf;
 
 use gherkin::{Span, StepType};
@@ -24,10 +25,13 @@ use gherkin::{Span, StepType};
 mod feature;
 mod registry;
 mod rust;
+mod workspace;
 
-pub use feature::{index_feature_file, index_feature_source};
+pub use feature::index_feature_source;
+pub(crate) use feature::index_feature_source_owned;
 pub use registry::{CompiledStepDefinition, StepDefinitionRegistry, StepPatternCompileError};
 pub use rust::{index_rust_file, index_rust_source};
+pub use workspace::WorkspaceRoot;
 
 /// Parsed index for a single `.feature` file.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -137,6 +141,21 @@ pub struct IndexedScenarioOutline {
 /// Errors that can occur during `.feature` indexing.
 #[derive(Debug, thiserror::Error)]
 pub enum FeatureIndexError {
+    /// The server has not retained a workspace-root capability for disk reads.
+    #[error("workspace root is unavailable for feature-file reads")]
+    WorkspaceRootUnavailable,
+    /// The requested feature file is not within the configured workspace root.
+    #[error("feature file is outside the workspace root: {}", .path.display())]
+    OutsideWorkspaceRoot {
+        /// Absolute path supplied by the client.
+        path: PathBuf,
+    },
+    /// The relative feature-file path is not valid UTF-8.
+    #[error("feature file path is not valid UTF-8: {}", .path.display())]
+    NonUtf8Path {
+        /// Path supplied by the client after workspace-root validation.
+        path: PathBuf,
+    },
     /// Failed to read the source `.feature` file.
     #[error("failed to read feature file: {0}")]
     Read(#[from] std::io::Error),
@@ -156,6 +175,23 @@ pub struct RustStepFileIndex {
     pub path: PathBuf,
     /// Step definitions collected from the file.
     pub step_definitions: Vec<IndexedStepDefinition>,
+}
+
+/// Rust step definitions and recoverable diagnostics from one source file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RustStepIndexResult {
+    /// Successfully indexed definitions.
+    pub index: RustStepFileIndex,
+    /// Per-function diagnostics that did not prevent indexing other definitions.
+    pub diagnostics: Vec<RustStepIndexDiagnostic>,
+}
+
+impl Deref for RustStepIndexResult {
+    type Target = RustStepFileIndex;
+
+    fn deref(&self) -> &Self::Target {
+        &self.index
+    }
 }
 
 /// Span information for a Rust step attribute and its associated function.
@@ -263,6 +299,11 @@ pub enum RustStepIndexError {
     /// Failed to parse the Rust source into a syntax tree.
     #[error("failed to parse rust source: {0}")]
     Parse(#[from] syn::Error),
+}
+
+/// Recoverable errors reported for individual Rust step functions.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+pub enum RustStepIndexDiagnostic {
     /// A step function was annotated with multiple step attributes.
     #[error("step function '{function}' has multiple step attributes")]
     MultipleStepAttributes {

@@ -64,9 +64,9 @@ impl<'a> StepExecutorExpectation<'a> {
 ///
 /// # Arguments
 ///
-/// * `tokens` - The generated token stream to parse
-/// * `function_name` - The name of the function to find in the generated code
-/// * `description` - A human-readable description for error messages
+/// * `tokens` - The generated token stream to parse.
+/// * `expectation` - The expected runtime delegation; it provides the function
+///   name to find and a human-readable description for error messages.
 fn assert_step_executor_delegates_to_runtime(
     tokens: proc_macro2::TokenStream,
     expectation: StepExecutorExpectation<'_>,
@@ -212,6 +212,7 @@ fn skip_extractor_references_execution_error() {
     );
 }
 
+#[track_caller]
 fn assert_skip_handler_returns(
     return_kind: ScenarioReturnKind,
     empty_message: &str,
@@ -220,14 +221,11 @@ fn assert_skip_handler_returns(
 ) {
     let if_expr = parse_skip_handler(return_kind);
     let returns = collect_returns(&if_expr.then_branch);
-    let panic_with_message = |message: &str| panic!("{message}");
-
-    if returns.is_empty() {
-        panic_with_message(empty_message);
-    }
-    if !returns.iter().all(|ret| predicate(ret)) {
-        panic_with_message(predicate_message);
-    }
+    assert!(!returns.is_empty(), "{empty_message}");
+    assert!(
+        returns.iter().all(|ret| predicate(ret)),
+        "{predicate_message}"
+    );
 }
 
 #[test]

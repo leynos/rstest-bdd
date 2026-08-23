@@ -131,6 +131,7 @@ mod tests {
 
     use super::*;
     use crate::config::ServerConfig;
+    use crate::discovery::WorkspaceInfo;
     use crate::handlers::handle_did_save_text_document;
     use gherkin::Span;
     use lsp_types::{DidSaveTextDocumentParams, TextDocumentIdentifier};
@@ -209,6 +210,12 @@ mod tests {
         .expect("write rust file");
 
         let mut state = ServerState::new(ServerConfig::default());
+        state
+            .set_workspace_info(WorkspaceInfo {
+                root: dir.path().to_path_buf(),
+                packages: Vec::new(),
+            })
+            .expect("configure workspace root");
 
         // Index both files
         let feature_uri = Url::from_file_path(&feature_path).expect("feature URI");

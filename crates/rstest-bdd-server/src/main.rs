@@ -15,13 +15,14 @@ use async_lsp::tracing::TracingLayer;
 use clap::Parser;
 use lsp_types::{notification, request};
 use tower::ServiceBuilder;
-use tracing::info;
+use tracing::{info, warn};
 
 use rstest_bdd_server::config::{LogLevel, ServerConfig};
 use rstest_bdd_server::error::ServerError;
 use rstest_bdd_server::handlers::{
+    DeferredDocumentSavesIndexed, WorkspaceReadyEvent, handle_deferred_document_saves_indexed,
     handle_definition, handle_did_save_text_document, handle_implementation, handle_initialise,
-    handle_initialised, handle_shutdown,
+    handle_initialised, handle_shutdown, handle_workspace_ready, launch_workspace_preparation,
 };
 use rstest_bdd_server::logging::init_logging;
 use rstest_bdd_server::server::ServerState;
@@ -94,37 +95,8 @@ async fn run_server_async(config: ServerConfig) -> std::io::Result<()> {
     let (server, _client) = async_lsp::MainLoop::new_server(|client| {
         let mut state = ServerState::new(config.clone());
         state.set_client(client.clone());
-
         let mut router = Router::new(state);
-        router
-            .request::<request::Initialize, _>(|st, params| {
-                let result = handle_initialise(st, params);
-                std::future::ready(result)
-            })
-            .request::<request::Shutdown, _>(|st, _params| {
-                let result = handle_shutdown(st);
-                std::future::ready(result)
-            })
-            .request::<request::GotoDefinition, _>(|st, params| {
-                let result = handle_definition(st, &params);
-                std::future::ready(result)
-            })
-            .request::<request::GotoImplementation, _>(|st, params| {
-                let result = handle_implementation(st, &params);
-                std::future::ready(result)
-            })
-            .notification::<notification::Initialized>(|st, params| {
-                handle_initialised(st, params);
-                ControlFlow::Continue(())
-            })
-            .notification::<notification::Exit>(|_, ()| ControlFlow::Break(Ok(())))
-            .notification::<notification::DidOpenTextDocument>(|_, _| ControlFlow::Continue(()))
-            .notification::<notification::DidChangeTextDocument>(|_, _| ControlFlow::Continue(()))
-            .notification::<notification::DidSaveTextDocument>(|st, params| {
-                handle_did_save_text_document(st, params);
-                ControlFlow::Continue(())
-            })
-            .notification::<notification::DidCloseTextDocument>(|_, _| ControlFlow::Continue(()));
+        configure_router(&mut router);
 
         ServiceBuilder::new()
             .layer(TracingLayer::default())
@@ -156,4 +128,127 @@ async fn run_server_async(config: ServerConfig) -> std::io::Result<()> {
 
     info!("server exited");
     Ok(())
+}
+
+/// Register every LSP request, notification, and event on `router`.
+fn configure_router(router: &mut Router<ServerState>) {
+    router
+        .request::<request::Initialize, _>(|st, params| {
+            let outcome = handle_initialise(st, params);
+            let client = st.client().cloned();
+            let initialization = launch_workspace_preparation(outcome, client);
+            let result = match initialization {
+                Ok((result, Some(task))) => {
+                    st.replace_workspace_task(task);
+                    Ok(result)
+                }
+                Ok((result, None)) => Ok(result),
+                Err(error) => Err(error),
+            };
+            async move { result }
+        })
+        .request::<request::Shutdown, _>(|st, _params| {
+            let result = handle_shutdown(st);
+            let task = st.take_workspace_task();
+            async move {
+                if let Some(task) = task {
+                    task.abort();
+                    if let Err(error) = task.await
+                        && !error.is_cancelled()
+                    {
+                        warn!(error = %error, "workspace task failed during shutdown");
+                    }
+                }
+                result
+            }
+        })
+        .request::<request::GotoDefinition, _>(|st, params| {
+            let result = handle_definition(st, &params);
+            std::future::ready(result)
+        })
+        .request::<request::GotoImplementation, _>(|st, params| {
+            let result = handle_implementation(st, &params);
+            std::future::ready(result)
+        })
+        .notification::<notification::Initialized>(|st, params| {
+            handle_initialised(st, params);
+            ControlFlow::Continue(())
+        })
+        .notification::<notification::Exit>(|st, ()| {
+            if let Some(task) = st.take_workspace_task() {
+                task.abort();
+            }
+            ControlFlow::Break(Ok(()))
+        })
+        .notification::<notification::DidOpenTextDocument>(|_, _| ControlFlow::Continue(()))
+        .notification::<notification::DidChangeTextDocument>(|_, _| ControlFlow::Continue(()))
+        .notification::<notification::DidSaveTextDocument>(|st, params| {
+            handle_did_save_text_document(st, params);
+            ControlFlow::Continue(())
+        })
+        .notification::<notification::DidCloseTextDocument>(|_, _| ControlFlow::Continue(()));
+
+    router.event::<WorkspaceReadyEvent>(|state, event| {
+        handle_workspace_ready(state, event);
+        ControlFlow::Continue(())
+    });
+    router.event::<DeferredDocumentSavesIndexed>(|state, event| {
+        handle_deferred_document_saves_indexed(state, event);
+        ControlFlow::Continue(())
+    });
+}
+
+#[cfg(test)]
+mod tests {
+    //! Protocol-wiring tests for the language-server binary.
+
+    use std::future::pending;
+
+    use tower::Service;
+
+    use super::*;
+
+    struct CancellationSignal(Option<tokio::sync::oneshot::Sender<()>>);
+
+    impl Drop for CancellationSignal {
+        fn drop(&mut self) {
+            if let Some(sender) = self.0.take() {
+                let _ = sender.send(());
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn shutdown_aborts_and_awaits_the_owned_workspace_task() {
+        let (cancelled_sender, cancelled) = tokio::sync::oneshot::channel();
+        let (started_sender, started) = tokio::sync::oneshot::channel();
+        let workspace_task = tokio::spawn(async move {
+            let _cancellation_signal = CancellationSignal(Some(cancelled_sender));
+            if started_sender.send(()).is_err() {
+                return;
+            }
+            pending::<()>().await;
+        });
+        let mut state = ServerState::new(ServerConfig::default());
+        state.replace_workspace_task(workspace_task);
+        assert!(started.await.is_ok(), "workspace task should start");
+        let mut router = Router::new(state);
+        configure_router(&mut router);
+
+        let response = router
+            .call(
+                serde_json::from_value(serde_json::json!({
+                    "id": 0,
+                    "method": "shutdown",
+                }))
+                .expect("shutdown request must deserialize"),
+            )
+            .await;
+
+        assert!(response.is_ok(), "shutdown request should succeed");
+        assert!(
+            cancelled.await.is_ok(),
+            "shutdown should abort and await the retained workspace task"
+        );
+    }
 }

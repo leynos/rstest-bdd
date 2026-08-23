@@ -22,6 +22,7 @@ cargo_metadata.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 eyre.workspace = true
+tracing.workspace = true
 
 [dev-dependencies]
 assert_cmd = "2"

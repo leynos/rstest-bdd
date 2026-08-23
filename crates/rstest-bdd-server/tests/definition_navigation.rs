@@ -8,8 +8,10 @@ use lsp_types::{
     TextDocumentIdentifier, TextDocumentPositionParams, Url, WorkDoneProgressParams,
 };
 use rstest_bdd_server::config::ServerConfig;
+use rstest_bdd_server::discovery::WorkspaceInfo;
 use rstest_bdd_server::handlers::{handle_definition, handle_did_save_text_document};
 use rstest_bdd_server::server::ServerState;
+use rstest_bdd_server::test_support::write_workspace_file;
 use tempfile::TempDir;
 
 /// Helper to create `GotoDefinitionParams` for a given URI and position.
@@ -25,12 +27,10 @@ fn make_params(uri: Url, line: u32, character: u32) -> GotoDefinitionParams {
 }
 
 /// Helper function to index a file by simulating a didSave notification.
-#[expect(
-    clippy::expect_used,
-    reason = "behavioural tests use explicit panics for clarity"
-)]
 fn index_file(state: &mut ServerState, path: &std::path::Path) {
-    let uri = Url::from_file_path(path).expect("file URI");
+    let Ok(uri) = Url::from_file_path(path) else {
+        panic!("test file path must convert to URI: {}", path.display());
+    };
     let params = DidSaveTextDocumentParams {
         text_document: TextDocumentIdentifier { uri },
         text: None,
@@ -51,16 +51,23 @@ struct DefinitionTestScenario {
 
 impl DefinitionTestScenario {
     /// Creates a new test scenario with an empty setup.
-    #[expect(
-        clippy::expect_used,
-        reason = "behavioural tests use explicit panics for clarity"
-    )]
     fn new() -> Self {
+        let dir = match TempDir::new() {
+            Ok(dir) => dir,
+            Err(error) => panic!("create temporary scenario directory: {error}"),
+        };
+        let mut state = ServerState::new(ServerConfig::default());
+        if let Err(error) = state.set_workspace_info(WorkspaceInfo {
+            root: dir.path().to_path_buf(),
+            packages: Vec::new(),
+        }) {
+            panic!("configure workspace root: {error}");
+        }
         Self {
-            dir: TempDir::new().expect("temp dir"),
+            dir,
             feature_files: Vec::new(),
             rust_file_content: String::new(),
-            state: ServerState::new(ServerConfig::default()),
+            state,
         }
     }
 
@@ -85,21 +92,15 @@ impl DefinitionTestScenario {
     ///
     /// Returns a tuple of `(TempDir, PathBuf, ServerState)` where `PathBuf` is
     /// the path to the Rust steps file.
-    #[expect(
-        clippy::expect_used,
-        reason = "behavioural tests use explicit panics for clarity"
-    )]
     fn build(mut self) -> (TempDir, std::path::PathBuf, ServerState) {
         // Create and index feature files
         for (filename, content) in &self.feature_files {
-            let path = self.dir.path().join(filename);
-            std::fs::write(&path, content).expect("write feature file");
+            let path = write_workspace_file(&self.dir, filename, content);
             index_file(&mut self.state, &path);
         }
 
         // Create and index Rust file
-        let rust_path = self.dir.path().join("steps.rs");
-        std::fs::write(&rust_path, &self.rust_file_content).expect("write rust file");
+        let rust_path = write_workspace_file(&self.dir, "steps.rs", &self.rust_file_content);
         index_file(&mut self.state, &rust_path);
 
         (self.dir, rust_path, self.state)
@@ -110,19 +111,20 @@ impl DefinitionTestScenario {
 ///
 /// Returns `None` if the handler returns `None`, or extracts the locations
 /// array from the response. Panics if the response is not an array variant.
-#[expect(
-    clippy::expect_used,
-    reason = "behavioural tests use explicit panics for clarity"
-)]
 fn get_definition_locations(
     state: &ServerState,
     rust_path: &std::path::Path,
     line: u32,
     character: u32,
 ) -> Option<Vec<lsp_types::Location>> {
-    let rust_uri = Url::from_file_path(rust_path).expect("rust URI");
+    let Ok(rust_uri) = Url::from_file_path(rust_path) else {
+        panic!("Rust path must convert to URI: {}", rust_path.display());
+    };
     let params = make_params(rust_uri, line, character);
-    let response = handle_definition(state, &params).expect("definition response");
+    let response = match handle_definition(state, &params) {
+        Ok(response) => response,
+        Err(error) => panic!("definition response: {error}"),
+    };
 
     response.map(|resp| match resp {
         lsp_types::GotoDefinitionResponse::Array(locs) => locs,

@@ -23,7 +23,7 @@ use syn::spanned::Spanned;
 
 use super::{
     IndexedStepDefinition, IndexedStepParameter, RustAttributeSpan, RustFunctionId,
-    RustStepFileIndex, RustStepIndexError,
+    RustStepFileIndex, RustStepIndexDiagnostic, RustStepIndexError, RustStepIndexResult,
 };
 
 mod params;
@@ -53,13 +53,13 @@ use params::parse_function_parameters;
 /// std::fs::write(&path, "#[given(\"a message\")]\nfn a_message() {}\n")?;
 ///
 /// let index = index_rust_file(&path)?;
-/// assert_eq!(index.path, path);
+/// assert_eq!(index.index.path, path);
 ///
-/// # std::fs::remove_file(&index.path).ok();
+/// # std::fs::remove_file(&index.index.path).ok();
 /// # Ok(())
 /// # }
 /// ```
-pub fn index_rust_file(path: &Path) -> Result<RustStepFileIndex, RustStepIndexError> {
+pub fn index_rust_file(path: &Path) -> Result<RustStepIndexResult, RustStepIndexError> {
     let source = std::fs::read_to_string(path)?;
     index_rust_source(path.to_path_buf(), &source)
 }
@@ -83,9 +83,9 @@ pub fn index_rust_file(path: &Path) -> Result<RustStepFileIndex, RustStepIndexEr
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let source = "#[when]\nfn do_the_thing() {}\n";
 /// let index = index_rust_source(PathBuf::from("steps.rs"), source)?;
-/// assert_eq!(index.step_definitions.len(), 1);
+/// assert_eq!(index.index.step_definitions.len(), 1);
 ///
-/// let step = index.step_definitions.first().expect("indexed step");
+/// let step = index.index.step_definitions.first().expect("indexed step");
 /// assert_eq!(step.pattern, "do the thing");
 /// # Ok(())
 /// # }
@@ -93,43 +93,61 @@ pub fn index_rust_file(path: &Path) -> Result<RustStepFileIndex, RustStepIndexEr
 pub fn index_rust_source(
     path: PathBuf,
     source: &str,
-) -> Result<RustStepFileIndex, RustStepIndexError> {
+) -> Result<RustStepIndexResult, RustStepIndexError> {
     let file = syn::parse_file(source)?;
-    let mut step_definitions = Vec::new();
-    let mut module_path = Vec::new();
-    collect_step_definitions(&file.items, source, &mut module_path, &mut step_definitions)?;
-
-    Ok(RustStepFileIndex {
-        path,
+    let mut collector = StepDefinitionCollector {
+        source,
+        module_path: Vec::new(),
+        step_definitions: Vec::new(),
+        diagnostics: Vec::new(),
+    };
+    collector.collect_step_definitions(&file.items);
+    let StepDefinitionCollector {
         step_definitions,
+        diagnostics,
+        ..
+    } = collector;
+
+    Ok(RustStepIndexResult {
+        index: RustStepFileIndex {
+            path,
+            step_definitions,
+        },
+        diagnostics,
     })
 }
 
-fn collect_step_definitions(
-    items: &[syn::Item],
-    source: &str,
-    module_path: &mut Vec<String>,
-    out: &mut Vec<IndexedStepDefinition>,
-) -> Result<(), RustStepIndexError> {
-    for item in items {
-        match item {
-            syn::Item::Fn(item_fn) => {
-                if let Some(step) = index_step_function(item_fn, source, module_path)? {
-                    out.push(step);
+/// Accumulates indexing output for one Rust source traversal.
+struct StepDefinitionCollector<'a> {
+    source: &'a str,
+    module_path: Vec<String>,
+    step_definitions: Vec<IndexedStepDefinition>,
+    diagnostics: Vec<RustStepIndexDiagnostic>,
+}
+
+impl StepDefinitionCollector<'_> {
+    fn collect_step_definitions(&mut self, items: &[syn::Item]) {
+        for item in items {
+            match item {
+                syn::Item::Fn(item_fn) => {
+                    match index_step_function(item_fn, self.source, &self.module_path) {
+                        Ok(Some(step)) => self.step_definitions.push(step),
+                        Ok(None) => {}
+                        Err(diagnostic) => self.diagnostics.push(diagnostic),
+                    }
                 }
+                syn::Item::Mod(item_mod) => {
+                    let Some((_, items)) = item_mod.content.as_ref() else {
+                        continue;
+                    };
+                    self.module_path.push(item_mod.ident.to_string());
+                    self.collect_step_definitions(items);
+                    self.module_path.pop();
+                }
+                _ => {}
             }
-            syn::Item::Mod(item_mod) => {
-                let Some((_, items)) = item_mod.content.as_ref() else {
-                    continue;
-                };
-                module_path.push(item_mod.ident.to_string());
-                collect_step_definitions(items, source, module_path, out)?;
-                module_path.pop();
-            }
-            _ => {}
         }
     }
-    Ok(())
 }
 
 /// Find and validate the step attribute on a function.
@@ -138,7 +156,7 @@ fn collect_step_definitions(
 /// exactly one is present. Returns an error if multiple step attributes exist.
 fn find_step_attribute(
     item_fn: &syn::ItemFn,
-) -> Result<Option<StepAttribute<'_>>, RustStepIndexError> {
+) -> Result<Option<StepAttribute<'_>>, RustStepIndexDiagnostic> {
     let mut step_attribute: Option<StepAttribute<'_>> = None;
 
     for attr in &item_fn.attrs {
@@ -147,7 +165,7 @@ fn find_step_attribute(
         };
 
         if step_attribute.is_some() {
-            return Err(RustStepIndexError::MultipleStepAttributes {
+            return Err(RustStepIndexDiagnostic::MultipleStepAttributes {
                 function: item_fn.sig.ident.to_string(),
             });
         }
@@ -165,7 +183,7 @@ fn index_step_function(
     item_fn: &syn::ItemFn,
     source: &str,
     module_path: &[String],
-) -> Result<Option<IndexedStepDefinition>, RustStepIndexError> {
+) -> Result<Option<IndexedStepDefinition>, RustStepIndexDiagnostic> {
     let Some(step_attribute) = find_step_attribute(item_fn)? else {
         return Ok(None);
     };
@@ -265,7 +283,7 @@ fn parse_step_pattern(
     attr: &syn::Attribute,
     function_ident: &syn::Ident,
     attribute: &'static str,
-) -> Result<(String, bool), RustStepIndexError> {
+) -> Result<(String, bool), RustStepIndexDiagnostic> {
     match &attr.meta {
         syn::Meta::Path(_) => Ok((infer_pattern(function_ident), true)),
         syn::Meta::List(meta_list) => {
@@ -273,7 +291,7 @@ fn parse_step_pattern(
                 return Ok((infer_pattern(function_ident), true));
             }
             let pattern_lit = attr.parse_args::<syn::LitStr>().map_err(|err| {
-                RustStepIndexError::InvalidStepAttributeArguments {
+                RustStepIndexDiagnostic::InvalidStepAttributeArguments {
                     function: function_ident.to_string(),
                     attribute,
                     message: err.to_string(),
@@ -286,14 +304,14 @@ fn parse_step_pattern(
         }
         syn::Meta::NameValue(name_value) => {
             let syn::Expr::Lit(expr_lit) = &name_value.value else {
-                return Err(RustStepIndexError::InvalidStepAttributeArguments {
+                return Err(RustStepIndexDiagnostic::InvalidStepAttributeArguments {
                     function: function_ident.to_string(),
                     attribute,
                     message: "expected string literal value".to_string(),
                 });
             };
             let syn::Lit::Str(lit) = &expr_lit.lit else {
-                return Err(RustStepIndexError::InvalidStepAttributeArguments {
+                return Err(RustStepIndexDiagnostic::InvalidStepAttributeArguments {
                     function: function_ident.to_string(),
                     attribute,
                     message: "expected string literal value".to_string(),

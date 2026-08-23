@@ -82,7 +82,7 @@ impl<'a> From<&'a str> for PatternStr<'a> {
     }
 }
 
-/// Wrapper for step text content from scenarios.
+/// Wrapper borrowing step text content from scenarios.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct StepText<'a>(pub(crate) &'a str);
 
@@ -367,7 +367,7 @@ pub type StepCtx<'ctx, 'fixtures> = &'ctx mut crate::context::StepContext<'fixtu
 /// Alias for the step text argument in async wrapper signatures.
 ///
 /// This alias is named `StepTextRef` to avoid colliding with [`StepText`], the
-/// owned step-text wrapper type used by lookup APIs.
+/// borrowed step-text wrapper type used by lookup APIs.
 pub type StepTextRef<'ctx> = &'ctx str;
 
 /// Alias for the optional step docstring argument in async wrapper signatures.
