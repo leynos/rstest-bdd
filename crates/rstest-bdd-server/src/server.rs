@@ -82,7 +82,7 @@ impl std::fmt::Debug for ServerState {
                 "workspace_preparation_pending",
                 &self.workspace_preparation_pending,
             )
-            .field("workspace_task", &self.workspace_task.is_running())
+            .field("workspace_task", &self.workspace_task.has_retained_task())
             .field(
                 "deferred_document_saves",
                 &self.deferred_document_saves.len(),

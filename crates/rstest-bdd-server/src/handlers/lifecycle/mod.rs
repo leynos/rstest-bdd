@@ -204,7 +204,7 @@ pub fn handle_workspace_ready(state: &mut ServerState, event: WorkspaceReadyEven
             warn!(error = %root_error, "failed to open workspace root capability");
         }
     }
-    start_deferred_document_save_replay(state, deferred_document_saves);
+    start_deferred_document_save_replay(state, event.initialization_id, deferred_document_saves);
 }
 
 fn workspace_preparation_outcome(preparation: &WorkspacePreparation) -> &'static str {

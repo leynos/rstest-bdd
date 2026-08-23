@@ -15,8 +15,8 @@ use crate::indexing::{
 use crate::server::ServerState;
 
 use super::diagnostics::{
-    clear_rust_index_diagnostics, publish_all_feature_diagnostics, publish_feature_diagnostics,
-    publish_rust_index_result_diagnostics,
+    FeatureDiagnosticPublication, clear_rust_index_diagnostics, publish_all_feature_diagnostics,
+    publish_feature_diagnostics, publish_rust_index_result_diagnostics,
 };
 use super::util::has_extension;
 use super::workspace_metrics::{record_deferred_save_depth, record_workspace_outcome};
@@ -96,13 +96,19 @@ fn handle_feature_file_save(state: &mut ServerState, path: &std::path::Path, tex
         |source| index_feature_source(path.to_path_buf(), source),
     );
 
-    apply_feature_index_result(state, path, index_result);
+    apply_feature_index_result(
+        state,
+        path,
+        index_result,
+        FeatureDiagnosticPublication::Immediate,
+    );
 }
 
 pub(super) fn apply_feature_index_result(
     state: &mut ServerState,
     path: &std::path::Path,
     index_result: Result<crate::indexing::FeatureFileIndex, FeatureIndexError>,
+    diagnostic_publication: FeatureDiagnosticPublication,
 ) {
     match index_result {
         Ok(index) => {
@@ -114,8 +120,12 @@ pub(super) fn apply_feature_index_result(
                 "indexed feature file"
             );
             state.upsert_feature_index(index);
-            // Publish diagnostics for this feature file
-            publish_feature_diagnostics(state, path);
+            if matches!(
+                diagnostic_publication,
+                FeatureDiagnosticPublication::Immediate
+            ) {
+                publish_feature_diagnostics(state, path);
+            }
         }
         Err(err) => {
             record_indexing_outcome("feature", feature_indexing_outcome(&err));
@@ -130,13 +140,19 @@ fn handle_rust_file_save(state: &mut ServerState, path: &std::path::Path, text: 
         |source| index_rust_source(path.to_path_buf(), source),
     );
 
-    apply_rust_index_result(state, path, index_result);
+    apply_rust_index_result(
+        state,
+        path,
+        index_result,
+        FeatureDiagnosticPublication::Immediate,
+    );
 }
 
 pub(super) fn apply_rust_index_result(
     state: &mut ServerState,
     path: &std::path::Path,
     index_result: Result<crate::indexing::RustStepIndexResult, RustStepIndexError>,
+    diagnostic_publication: FeatureDiagnosticPublication,
 ) {
     match index_result {
         Ok(result) => {
@@ -155,8 +171,12 @@ pub(super) fn apply_rust_index_result(
             for diagnostic in result.diagnostics {
                 warn!(path = %path.display(), error = %diagnostic, "indexed Rust file with a step diagnostic");
             }
-            // Rust file changes may affect all feature file diagnostics
-            publish_all_feature_diagnostics(state);
+            if matches!(
+                diagnostic_publication,
+                FeatureDiagnosticPublication::Immediate
+            ) {
+                publish_all_feature_diagnostics(state);
+            }
         }
         Err(err) => {
             record_indexing_outcome("rust", rust_indexing_outcome(&err));

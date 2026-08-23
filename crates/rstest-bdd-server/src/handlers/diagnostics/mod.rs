@@ -58,6 +58,15 @@ const CODE_EXAMPLE_COLUMN_MISSING: &str = "example-column-missing";
 /// Diagnostic code for Examples column not referenced by any step placeholder.
 const CODE_EXAMPLE_COLUMN_SURPLUS: &str = "example-column-surplus";
 
+/// When feature diagnostics are published after applying an index result.
+#[derive(Clone, Copy)]
+pub(super) enum FeatureDiagnosticPublication {
+    /// Publish immediately for a standalone did-save notification.
+    Immediate,
+    /// Let the deferred replay publish all feature diagnostics once per batch.
+    DeferredReplay,
+}
+
 // Re-export public items
 pub use compute::{compute_unimplemented_step_diagnostics, compute_unused_step_diagnostics};
 pub use placeholder::compute_signature_mismatch_diagnostics;

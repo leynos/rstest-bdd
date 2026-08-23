@@ -96,78 +96,12 @@ async fn run_server_async(config: ServerConfig) -> std::io::Result<()> {
         let mut state = ServerState::new(config.clone());
         state.set_client(client.clone());
 
-        let mut router = Router::new(state);
-        router
-            .request::<request::Initialize, _>(|st, params| {
-                let outcome = handle_initialise(st, params);
-                let client = st.client().cloned();
-                let initialization = launch_workspace_preparation(outcome, client);
-                let result = match initialization {
-                    Ok((result, Some(task))) => {
-                        st.replace_workspace_task(task);
-                        Ok(result)
-                    }
-                    Ok((result, None)) => Ok(result),
-                    Err(error) => Err(error),
-                };
-                async move { result }
-            })
-            .request::<request::Shutdown, _>(|st, _params| {
-                let result = handle_shutdown(st);
-                let task = st.take_workspace_task();
-                async move {
-                    if let Some(task) = task {
-                        task.abort();
-                        if let Err(error) = task.await
-                            && !error.is_cancelled()
-                        {
-                            warn!(error = %error, "workspace task failed during shutdown");
-                        }
-                    }
-                    result
-                }
-            })
-            .request::<request::GotoDefinition, _>(|st, params| {
-                let result = handle_definition(st, &params);
-                std::future::ready(result)
-            })
-            .request::<request::GotoImplementation, _>(|st, params| {
-                let result = handle_implementation(st, &params);
-                std::future::ready(result)
-            })
-            .notification::<notification::Initialized>(|st, params| {
-                handle_initialised(st, params);
-                ControlFlow::Continue(())
-            })
-            .notification::<notification::Exit>(|st, ()| {
-                if let Some(task) = st.take_workspace_task() {
-                    task.abort();
-                }
-                ControlFlow::Break(Ok(()))
-            })
-            .notification::<notification::DidOpenTextDocument>(|_, _| ControlFlow::Continue(()))
-            .notification::<notification::DidChangeTextDocument>(|_, _| ControlFlow::Continue(()))
-            .notification::<notification::DidSaveTextDocument>(|st, params| {
-                handle_did_save_text_document(st, params);
-                ControlFlow::Continue(())
-            })
-            .notification::<notification::DidCloseTextDocument>(|_, _| ControlFlow::Continue(()));
-
-        router.event::<WorkspaceReadyEvent>(|state, event| {
-            handle_workspace_ready(state, event);
-            ControlFlow::Continue(())
-        });
-        router.event::<DeferredDocumentSavesIndexed>(|state, event| {
-            handle_deferred_document_saves_indexed(state, event);
-            ControlFlow::Continue(())
-        });
-
         ServiceBuilder::new()
             .layer(TracingLayer::default())
             .layer(LifecycleLayer::default())
             .layer(CatchUnwindLayer::default())
             .layer(ConcurrencyLayer::default())
-            .service(router)
+            .service(build_router(state))
     });
 
     // Use platform-appropriate stdio with tokio integration
@@ -192,4 +126,74 @@ async fn run_server_async(config: ServerConfig) -> std::io::Result<()> {
 
     info!("server exited");
     Ok(())
+}
+
+/// Construct the router and register every LSP request, notification, and event.
+fn build_router(state: ServerState) -> Router<ServerState> {
+    let mut router = Router::new(state);
+    router
+        .request::<request::Initialize, _>(|st, params| {
+            let outcome = handle_initialise(st, params);
+            let client = st.client().cloned();
+            let initialization = launch_workspace_preparation(outcome, client);
+            let result = match initialization {
+                Ok((result, Some(task))) => {
+                    st.replace_workspace_task(task);
+                    Ok(result)
+                }
+                Ok((result, None)) => Ok(result),
+                Err(error) => Err(error),
+            };
+            async move { result }
+        })
+        .request::<request::Shutdown, _>(|st, _params| {
+            let result = handle_shutdown(st);
+            let task = st.take_workspace_task();
+            async move {
+                if let Some(task) = task {
+                    task.abort();
+                    if let Err(error) = task.await
+                        && !error.is_cancelled()
+                    {
+                        warn!(error = %error, "workspace task failed during shutdown");
+                    }
+                }
+                result
+            }
+        })
+        .request::<request::GotoDefinition, _>(|st, params| {
+            let result = handle_definition(st, &params);
+            std::future::ready(result)
+        })
+        .request::<request::GotoImplementation, _>(|st, params| {
+            let result = handle_implementation(st, &params);
+            std::future::ready(result)
+        })
+        .notification::<notification::Initialized>(|st, params| {
+            handle_initialised(st, params);
+            ControlFlow::Continue(())
+        })
+        .notification::<notification::Exit>(|st, ()| {
+            if let Some(task) = st.take_workspace_task() {
+                task.abort();
+            }
+            ControlFlow::Break(Ok(()))
+        })
+        .notification::<notification::DidOpenTextDocument>(|_, _| ControlFlow::Continue(()))
+        .notification::<notification::DidChangeTextDocument>(|_, _| ControlFlow::Continue(()))
+        .notification::<notification::DidSaveTextDocument>(|st, params| {
+            handle_did_save_text_document(st, params);
+            ControlFlow::Continue(())
+        })
+        .notification::<notification::DidCloseTextDocument>(|_, _| ControlFlow::Continue(()));
+
+    router.event::<WorkspaceReadyEvent>(|state, event| {
+        handle_workspace_ready(state, event);
+        ControlFlow::Continue(())
+    });
+    router.event::<DeferredDocumentSavesIndexed>(|state, event| {
+        handle_deferred_document_saves_indexed(state, event);
+        ControlFlow::Continue(())
+    });
+    router
 }

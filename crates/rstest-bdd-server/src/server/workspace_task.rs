@@ -10,7 +10,7 @@ pub(super) struct WorkspaceTask(Option<JoinHandle<()>>);
 
 impl WorkspaceTask {
     /// Return whether an owned task is still retained.
-    pub(super) fn is_running(&self) -> bool {
+    pub(super) fn has_retained_task(&self) -> bool {
         self.0.is_some()
     }
 

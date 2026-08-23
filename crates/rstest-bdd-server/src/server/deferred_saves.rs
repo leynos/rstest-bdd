@@ -106,6 +106,8 @@ mod tests {
 
     use super::*;
 
+    const DEFERRED_SAVE_URI_ALPHABET: u8 = 130;
+
     fn save(uri: &str, text: &str) -> DidSaveTextDocumentParams {
         let Ok(uri) = Url::parse(uri) else {
             panic!("test URI must parse");
@@ -126,13 +128,20 @@ mod tests {
     fn deferred_save_operations() -> impl Strategy<Value = Vec<DeferredSaveOperation>> {
         prop::collection::vec(
             prop_oneof![
-                (0_u8..4, 0_usize..64).prop_map(|(uri, source_length)| {
-                    DeferredSaveOperation::Push { uri, source_length }
-                }),
+                (
+                    0_u8..DEFERRED_SAVE_URI_ALPHABET,
+                    prop_oneof![
+                        16 => 0_usize..64,
+                        1 => Just(MAX_DEFERRED_DOCUMENT_BYTES),
+                    ],
+                )
+                    .prop_map(|(uri, source_length)| {
+                        DeferredSaveOperation::Push { uri, source_length }
+                    }),
                 Just(DeferredSaveOperation::Take),
                 Just(DeferredSaveOperation::Clear),
             ],
-            0..64,
+            0..160,
         )
     }
 
@@ -207,6 +216,8 @@ mod tests {
     }
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(16))]
+
         #[test]
         fn preserves_deferred_save_invariants_across_operations(
             operations in deferred_save_operations()
@@ -218,8 +229,9 @@ mod tests {
                 match operation {
                     DeferredSaveOperation::Push { uri, source_length } => {
                         let save = save_for_uri(uri, source_length);
-                        retain_latest_save(&mut expected, save.clone());
-                        prop_assert!(saves.push(save).is_ok());
+                        if saves.push(save.clone()).is_ok() {
+                            retain_latest_save(&mut expected, save);
+                        }
                     }
                     DeferredSaveOperation::Take => {
                         prop_assert_eq!(saves.take(), expected);

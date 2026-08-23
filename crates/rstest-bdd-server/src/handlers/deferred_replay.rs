@@ -8,7 +8,7 @@ use std::path::PathBuf;
 
 use async_lsp::ClientSocket;
 use lsp_types::DidSaveTextDocumentParams;
-use tracing::warn;
+use tracing::{Instrument, debug, info_span, warn};
 
 use crate::indexing::{
     FeatureFileIndex, FeatureIndexError, RustStepIndexError, RustStepIndexResult, WorkspaceRoot,
@@ -16,6 +16,7 @@ use crate::indexing::{
 };
 use crate::server::ServerState;
 
+use super::diagnostics::{FeatureDiagnosticPublication, publish_all_feature_diagnostics};
 use super::text_document::{
     apply_feature_index_result, apply_rust_index_result, index_saved_document,
 };
@@ -24,6 +25,7 @@ use super::workspace_metrics::{record_deferred_save_depth, record_workspace_outc
 
 /// Completed indexes from a deferred did-save replay worker.
 pub struct DeferredDocumentSavesIndexed {
+    initialization_id: u64,
     results: Vec<DeferredDocumentSaveIndex>,
 }
 
@@ -43,6 +45,7 @@ enum DeferredDocumentSaveIndex {
 /// Start a bounded deferred-save replay without blocking the router.
 pub(crate) fn start_deferred_document_save_replay(
     state: &mut ServerState,
+    initialization_id: u64,
     deferred_document_saves: Vec<DidSaveTextDocumentParams>,
 ) {
     record_deferred_save_depth(0);
@@ -54,24 +57,35 @@ pub(crate) fn start_deferred_document_save_replay(
         return;
     };
     let workspace_root = state.workspace_root_for_replay();
-    let task = tokio::spawn(async move {
-        let results = tokio::task::spawn_blocking(move || {
-            index_deferred_document_saves(deferred_document_saves, workspace_root.as_ref())
-        })
-        .await;
-        match results {
-            Ok(results) => emit_replayed_indexes(&client, results),
-            Err(error) => {
-                record_workspace_outcome("deferred-save", "join-failure");
-                warn!(error = %error, "deferred document-save replay task failed");
+    let span = info_span!("deferred_save_replay", initialization_id);
+    let task = tokio::spawn(
+        async move {
+            let results = tokio::task::spawn_blocking(move || {
+                index_deferred_document_saves(deferred_document_saves, workspace_root.as_ref())
+            })
+            .await;
+            match results {
+                Ok(results) => emit_replayed_indexes(&client, initialization_id, results),
+                Err(error) => {
+                    record_workspace_outcome("deferred-save", "join-failure");
+                    warn!(error = %error, "deferred document-save replay task failed");
+                }
             }
         }
-    });
+        .instrument(span),
+    );
     state.replace_workspace_task(task);
 }
 
-fn emit_replayed_indexes(client: &ClientSocket, results: Vec<DeferredDocumentSaveIndex>) {
-    if let Err(error) = client.emit(DeferredDocumentSavesIndexed { results }) {
+fn emit_replayed_indexes(
+    client: &ClientSocket,
+    initialization_id: u64,
+    results: Vec<DeferredDocumentSaveIndex>,
+) {
+    if let Err(error) = client.emit(DeferredDocumentSavesIndexed {
+        initialization_id,
+        results,
+    }) {
         record_workspace_outcome("deferred-save", "event-delivery-failure");
         warn!(error = %error, event = "deferred-save-indexed", "failed to publish deferred indexes");
     }
@@ -82,18 +96,36 @@ pub fn handle_deferred_document_saves_indexed(
     state: &mut ServerState,
     event: DeferredDocumentSavesIndexed,
 ) {
+    if !state.is_current_workspace_initialization(event.initialization_id) {
+        debug!(
+            initialization_id = event.initialization_id,
+            "discarding stale deferred-save replay"
+        );
+        return;
+    }
     state.clear_workspace_task();
     for result in event.results {
         record_workspace_outcome("deferred-save", "replayed");
         match result {
             DeferredDocumentSaveIndex::Feature { path, result } => {
-                apply_feature_index_result(state, &path, result);
+                apply_feature_index_result(
+                    state,
+                    &path,
+                    result,
+                    FeatureDiagnosticPublication::DeferredReplay,
+                );
             }
             DeferredDocumentSaveIndex::Rust { path, result } => {
-                apply_rust_index_result(state, &path, result);
+                apply_rust_index_result(
+                    state,
+                    &path,
+                    result,
+                    FeatureDiagnosticPublication::DeferredReplay,
+                );
             }
         }
     }
+    publish_all_feature_diagnostics(state);
 }
 
 fn index_deferred_document_saves(
@@ -135,4 +167,48 @@ fn index_disk_backed_feature(
     let workspace_root = workspace_root.ok_or(FeatureIndexError::WorkspaceRootUnavailable)?;
     let source = workspace_root.read_feature_source(path)?;
     index_feature_source_owned(path.to_path_buf(), source)
+}
+
+#[cfg(test)]
+mod tests {
+    //! Tests for background deferred-save replay results.
+
+    use std::future::pending;
+
+    use super::*;
+    use crate::config::ServerConfig;
+
+    #[tokio::test]
+    async fn stale_replay_does_not_replace_the_current_workspace_task() {
+        let mut state = ServerState::new(ServerConfig::default());
+        let stale_initialization_id = state.begin_workspace_initialization(Vec::new(), true);
+        let current_initialization_id = state.begin_workspace_initialization(Vec::new(), true);
+        let task = tokio::spawn(pending::<()>());
+        state.replace_workspace_task(task);
+        let path = PathBuf::from("stale.feature");
+        let index = index_feature_source(path.clone(), "Feature: stale\n")
+            .expect("feature source should index");
+
+        handle_deferred_document_saves_indexed(
+            &mut state,
+            DeferredDocumentSavesIndexed {
+                initialization_id: stale_initialization_id,
+                results: vec![DeferredDocumentSaveIndex::Feature {
+                    path: path.clone(),
+                    result: Ok(index),
+                }],
+            },
+        );
+
+        assert!(state.is_current_workspace_initialization(current_initialization_id));
+        assert!(state.feature_index(&path).is_none());
+        let Some(task) = state.take_workspace_task() else {
+            panic!("the current workspace task should remain retained");
+        };
+        task.abort();
+        let Err(error) = task.await else {
+            panic!("the pending workspace task should be cancelled");
+        };
+        assert!(error.is_cancelled());
+    }
 }
