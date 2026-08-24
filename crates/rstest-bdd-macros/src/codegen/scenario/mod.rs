@@ -23,7 +23,6 @@
 //! [`generate_scenario_outline`], which delegate to the internal helpers
 //! after resolving adapter API paths once at the expansion boundary.
 
-use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use std::borrow::Cow;
@@ -139,7 +138,7 @@ pub(crate) fn generate_scenario_code(
     ctx_prelude: impl Iterator<Item = TokenStream2>,
     ctx_inserts: impl Iterator<Item = TokenStream2>,
     ctx_postlude: impl Iterator<Item = TokenStream2>,
-) -> TokenStream {
+) -> TokenStream2 {
     // Check if this is a scenario outline with placeholders in steps
     let is_outline_with_placeholders =
         config.examples.is_some() && steps_contain_placeholders(&config.steps);
@@ -157,7 +156,7 @@ pub(crate) fn generate_scenario_code(
 }
 
 /// Reject unsupported combinations of a harness and an async scenario.
-fn reject_async_harness(config: &ScenarioConfig<'_>) -> Option<TokenStream> {
+fn reject_async_harness(config: &ScenarioConfig<'_>) -> Option<TokenStream2> {
     if config.harness.is_none() || !config.runtime.is_async() {
         return None;
     }
@@ -168,14 +167,14 @@ fn reject_async_harness(config: &ScenarioConfig<'_>) -> Option<TokenStream> {
          use a synchronous scenario function with `TokioHarness` instead \
          (the harness provides the Tokio runtime for step functions)",
     );
-    Some(TokenStream::from(err.into_compile_error()))
+    Some(err.into_compile_error())
 }
 
 /// Generate code for a regular scenario (no placeholder substitution).
 fn generate_regular_scenario_code<P, I, Q>(
     config: &ScenarioConfig<'_>,
     ctx: ContextConfig<P, I, Q>,
-) -> TokenStream
+) -> TokenStream2
 where
     P: Iterator<Item = TokenStream2>,
     I: Iterator<Item = TokenStream2>,
@@ -228,7 +227,7 @@ where
         body,
     );
     let fallback_diagnostics = config.fallback_diagnostics;
-    TokenStream::from(quote! {
+    quote! {
         #fallback_diagnostics
         #trait_assertions
         #test_attrs
@@ -236,14 +235,14 @@ where
         #(#attrs)*
         #underscore_expect
         #vis #signature { #body }
-    })
+    }
 }
 
 /// Generate code for a scenario outline with placeholder substitution.
 fn generate_outline_scenario_code<P, I, Q>(
     config: &ScenarioConfig<'_>,
     ctx: ContextConfig<P, I, Q>,
-) -> TokenStream
+) -> TokenStream2
 where
     P: Iterator<Item = TokenStream2>,
     I: Iterator<Item = TokenStream2>,
@@ -259,7 +258,7 @@ where
             proc_macro2::Span::call_site(),
             "Scenario outline examples missing",
         );
-        return TokenStream::from(err.into_compile_error());
+        return err.into_compile_error();
     };
     let headers = ExampleHeaders::new(examples.headers.clone());
     let all_rows_steps: Result<Vec<_>, _> = examples
@@ -274,7 +273,7 @@ where
 
     let all_rows_steps = match all_rows_steps {
         Ok(steps) => steps,
-        Err(err) => return TokenStream::from(err),
+        Err(err) => return err,
     };
 
     let adapters = resolve_scenario_adapters(config);
@@ -318,7 +317,7 @@ where
         body,
     );
     let fallback_diagnostics = config.fallback_diagnostics;
-    TokenStream::from(quote! {
+    quote! {
         #fallback_diagnostics
         #trait_assertions
         #test_attrs
@@ -326,7 +325,7 @@ where
         #(#attrs)*
         #underscore_expect
         #vis #signature { #body }
-    })
+    }
 }
 
 #[cfg(test)]
