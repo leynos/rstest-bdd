@@ -22,15 +22,24 @@ fn classify_step(src: &str, placeholders: &[&str]) -> syn::Result<ExtractedArgs>
 }
 
 #[rstest]
+#[case::shared("&TestCtx")]
+#[case::mutable("&mut TestCtx")]
 #[googletest::test]
-fn marker_binds_the_reserved_fixture_key() -> googletest::Result<()> {
-    let extracted = classify_step("fn s(#[harness_context] ctx: &TestCtx) {}", &[])?;
+fn marker_binds_the_reserved_fixture_key_and_preserves_context_type(
+    #[case] context_ty: &str,
+) -> googletest::Result<()> {
+    let extracted = classify_step(
+        &format!("fn s(#[harness_context] ctx: {context_ty}) {{}}"),
+        &[],
+    )?;
+    let expected_ty: syn::Type = syn::parse_str(context_ty)?;
 
     verify_that!(
         extracted.args,
         elements_are![matches_pattern!(Arg::Fixture {
-            name: displays_as(eq("rstest_bdd_harness_context")),
+            name: displays_as(eq(rstest_bdd_policy::HARNESS_CONTEXT_FIXTURE)),
             pat: displays_as(eq("ctx")),
+            ty: eq(&expected_ty),
             ..
         })]
     )
@@ -79,22 +88,6 @@ fn parameter_named_after_the_reserved_key_produces_the_same_fixture() {
             })
             .collect::<Vec<_>>(),
     );
-}
-
-#[rstest]
-#[googletest::test]
-fn mutable_reference_context_is_classified_as_a_mutable_fixture() -> googletest::Result<()> {
-    let extracted = classify_step("fn s(#[harness_context] ctx: &mut TestCtx) {}", &[])?;
-
-    verify_that!(
-        extracted.args,
-        elements_are![matches_pattern!(Arg::Fixture {
-            name: displays_as(eq("rstest_bdd_harness_context")),
-            pat: displays_as(eq("ctx")),
-            ty: anything(),
-            ..
-        })]
-    )
 }
 
 #[gtest]
