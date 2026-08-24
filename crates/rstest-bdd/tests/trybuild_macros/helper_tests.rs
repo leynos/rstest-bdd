@@ -1,9 +1,5 @@
 //! Unit tests for normalizer and path helpers used by trybuild macro tests.
-use std::{
-    any::Any,
-    borrow::Cow,
-    panic::{self, AssertUnwindSafe},
-};
+use std::{borrow::Cow, panic};
 
 use camino::{Utf8Path, Utf8PathBuf};
 use cap_std::{ambient_authority, fs::Dir};
@@ -15,6 +11,10 @@ use super::{
     wrappers::{FixtureStderr, FixtureTestPath},
     *,
 };
+
+#[path = "helper_tests/fixture_write.rs"]
+mod fixture_write;
+
 fn write_fixture_file(crate_dir: &Dir, path: &Utf8Path, bytes: &[u8], label: &str) {
     if let Some(parent) = path.parent() {
         if let Err(error) = crate_dir.create_dir_all(parent.as_std_path()) {
@@ -24,18 +24,6 @@ fn write_fixture_file(crate_dir: &Dir, path: &Utf8Path, bytes: &[u8], label: &st
     if let Err(error) = crate_dir.write(path.as_std_path(), bytes) {
         panic!("failed to write {label}: {error}");
     }
-}
-fn captured_panic_message(result: Result<(), Box<dyn Any + Send>>) -> String {
-    let Err(payload) = result else {
-        panic!("expected helper to panic");
-    };
-    if let Some(message) = payload.downcast_ref::<&str>() {
-        return (*message).to_owned();
-    }
-    let Some(message) = payload.downcast_ref::<String>() else {
-        panic!("expected helper panic payload to be a string");
-    };
-    message.clone()
 }
 struct NormalizerFixture {
     expected_path: Utf8PathBuf,
@@ -116,66 +104,6 @@ fn expected_stderr_path_handles_multiple_extensions() {
     assert_eq!(
         path,
         Utf8Path::new("tests/ui_macros/example.feature.stderr")
-    );
-}
-
-/// Stage a temporary directory, provoke a `write_fixture_file` failure, and
-/// assert the resulting panic message keeps the caller's label.
-///
-/// `set_up` prepares whatever obstruction the failure path needs; `path` and
-/// `label` are forwarded to `write_fixture_file` unchanged.
-fn assert_write_fixture_file_panic(
-    set_up: impl FnOnce(&Dir),
-    path: &Utf8Path,
-    label: &str,
-    expected_prefix: &str,
-) {
-    let temp_dir = match tempfile::tempdir() {
-        Ok(temp_dir) => temp_dir,
-        Err(error) => panic!("failed to create temporary directory: {error}"),
-    };
-    let crate_dir = match Dir::open_ambient_dir(temp_dir.path(), ambient_authority()) {
-        Ok(crate_dir) => crate_dir,
-        Err(error) => panic!("failed to open temporary directory: {error}"),
-    };
-    set_up(&crate_dir);
-
-    let result = panic::catch_unwind(AssertUnwindSafe(|| {
-        write_fixture_file(&crate_dir, path, b"stderr", label);
-    }));
-    let message = captured_panic_message(result);
-
-    assert!(
-        message.starts_with(expected_prefix),
-        "panic message should start with {expected_prefix:?}: {message}",
-    );
-}
-
-#[test]
-fn write_fixture_file_preserves_create_directory_panic_label() {
-    assert_write_fixture_file_panic(
-        |crate_dir| {
-            if let Err(error) = crate_dir.write("blocked", b"not a directory") {
-                panic!("failed to create blocked path: {error}");
-            }
-        },
-        Utf8Path::new("blocked/output.stderr"),
-        "expected stderr fixture",
-        "failed to create directory for expected stderr fixture:",
-    );
-}
-
-#[test]
-fn write_fixture_file_preserves_write_panic_label() {
-    assert_write_fixture_file_panic(
-        |crate_dir| {
-            if let Err(error) = crate_dir.create_dir("blocked") {
-                panic!("failed to create blocked directory: {error}");
-            }
-        },
-        Utf8Path::new("blocked"),
-        "wip stderr fixture",
-        "failed to write wip stderr fixture:",
     );
 }
 
