@@ -6,7 +6,9 @@
 //! codegen refactor silently dropping the binding, without depending on the
 //! expensive nested-cargo regression test (`ExecPlan` Milestone 4).
 
-use std::path::{Path as StdPath, PathBuf};
+use crate::staging::trybuild_target_directory;
+use camino::{Utf8Path, Utf8PathBuf};
+use std::path::Path as StdPath;
 
 /// Assert that the staged compile-pass fixtures registered the tracking
 /// binding: at least one dep-info under the trybuild build tree lists the
@@ -17,32 +19,27 @@ use std::path::{Path as StdPath, PathBuf};
 /// nested-cargo regression test. The check scans the trybuild artefacts from
 /// the run we have already paid for (see the `ExecPlan` Milestone 4 section).
 pub(crate) fn assert_trybuild_tracking_registered_in_dep_info() {
-    let workspace_target = workspace_target_directory();
-    let staged_feature = workspace_target.join("tests/trybuild/rstest-bdd/basic.feature");
-    let needle = staged_feature
-        .to_string_lossy()
-        .replace('\\', "/")
-        .to_lowercase();
+    let target_directory = workspace_target_directory();
+    let staged_feature = target_directory.join("tests/trybuild/rstest-bdd/basic.feature");
+    let needle = staged_feature.as_str().replace('\\', "/").to_lowercase();
     let mut listed = 0;
-    collect_dep_info_matches(&workspace_target, &needle, &mut listed);
+    collect_dep_info_matches(target_directory.as_std_path(), &needle, &mut listed);
     assert!(
         listed > 0,
-        "no trybuild dep-info below {} lists the staged `{needle}`; \
-         the macro-emitted tracking binding is not reaching dep-info",
-        workspace_target.display()
+        "no trybuild dep-info below {target_directory} lists the staged `{needle}`; \
+         the macro-emitted tracking binding is not reaching dep-info"
     );
 }
 
 /// Return the workspace target directory containing trybuild's copied source.
 ///
-/// Trybuild keeps its generated fixture crate here. Coverage may direct the
-/// corresponding compiler artefacts to a subdirectory, so the assertion scans
-/// this entire root for the staged path's dep-info entry.
-fn workspace_target_directory() -> PathBuf {
-    let crate_dir = StdPath::new(env!("CARGO_MANIFEST_DIR"));
-    crate_dir.parent().and_then(StdPath::parent).map_or_else(
+/// Trybuild keeps its generated fixture crate here. Staging and inspection use
+/// the same Cargo-selected root, including a coverage-specific target directory.
+fn workspace_target_directory() -> Utf8PathBuf {
+    let crate_dir = Utf8Path::new(env!("CARGO_MANIFEST_DIR"));
+    crate_dir.parent().and_then(Utf8Path::parent).map_or_else(
         || panic!("workspace root must be two levels above the manifest dir"),
-        |workspace_root| workspace_root.join("target"),
+        trybuild_target_directory,
     )
 }
 

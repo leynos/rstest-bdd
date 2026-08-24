@@ -53,6 +53,7 @@ fn ui_fixture(case: impl Into<UiFixtureCase>) -> Utf8PathBuf {
 }
 
 #[test]
+#[serial_test::serial(trybuild_target_directory)]
 fn step_macros_compile() -> io::Result<()> {
     // This test spawns `cargo` (through `trybuild` and `cargo clippy`). On
     // Windows, nextest wraps test binaries in Job Objects and those child
@@ -75,6 +76,7 @@ fn step_macros_compile() -> io::Result<()> {
     // release supporting that edition. This workspace forbids unsafe code, so
     // `temp_env` provides the same scoped mutation without weakening that lint.
     temp_env::with_var_unset("RUST_BACKTRACE", || {
+        let _target_root_snapshots = staging::stage_target_root_snapshots()?;
         let t = trybuild::TestCases::new();
 
         run_passing_macro_tests(&t);

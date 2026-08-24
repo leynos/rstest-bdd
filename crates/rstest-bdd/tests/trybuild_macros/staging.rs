@@ -11,6 +11,12 @@ const MACROS_FIXTURES_DIR: &str = "tests/fixtures_macros";
 const FEATURES_DIR: &str = "tests/features";
 const FEATURES_AUTO_DIR: &str = "tests/features/auto";
 
+const TARGET_ROOT_SNAPSHOTS: &[&str] = &[
+    "tests/fixtures_macros/scenario_missing_file.stderr",
+    "tests/fixtures_macros/scenarios_autodiscovery_invalid_path.stderr",
+    "tests/fixtures_macros/scenarios_missing_dir.stderr",
+    "tests/fixtures_macros/scenario_unrelatable_path.stderr",
+];
 #[cfg(windows)]
 const UNRELATABLE_FEATURE_PATH: &str = r"C:\Users\Public\rstest-bdd-unrelatable\x.feature";
 /// A staged feature file on Windows' `C:` root.
@@ -103,7 +109,7 @@ fn stage_trybuild_support_files() -> io::Result<()> {
         .and_then(Utf8Path::parent)
         .map(Utf8Path::to_owned)
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "workspace root must exist"))?;
-    let target_dir = target_directory(&workspace_root);
+    let target_dir = trybuild_target_directory(&workspace_root);
     let target_dir_handle = Dir::open_ambient_dir(target_dir.as_std_path(), ambient_authority())?;
 
     let trybuild_crate_relative = Utf8Path::new("tests/trybuild/rstest-bdd");
@@ -161,12 +167,82 @@ fn stage_trybuild_support_files() -> io::Result<()> {
     Ok(())
 }
 
-fn target_directory(workspace_root: &Utf8Path) -> Utf8PathBuf {
+/// Resolve the Cargo target directory shared by trybuild staging and inspection.
+///
+/// Cargo exposes an explicit target directory to integration tests through
+/// `CARGO_TARGET_DIR`. Both halves of the tracking assertion must use it so
+/// coverage artefacts do not separate the staged feature from its dep-info.
+pub(super) fn trybuild_target_directory(workspace_root: &Utf8Path) -> Utf8PathBuf {
     env::var_os("CARGO_TARGET_DIR")
         .and_then(|value| Utf8PathBuf::from_path_buf(value.into()).ok())
         .unwrap_or_else(|| workspace_root.join("target"))
 }
 
+/// Restores snapshots whose diagnostics include Cargo's target directory.
+///
+/// Trybuild compares full diagnostics. When coverage selects a target
+/// subdirectory, its otherwise identical feature-path diagnostics need that
+/// root for the duration of the comparison. This guard restores checked-in
+/// snapshots before the test returns.
+pub(super) struct TargetRootSnapshotGuard {
+    crate_root: Utf8PathBuf,
+    originals: Vec<(Utf8PathBuf, String)>,
+}
+
+impl Drop for TargetRootSnapshotGuard {
+    fn drop(&mut self) {
+        let Ok(crate_dir) =
+            Dir::open_ambient_dir(self.crate_root.as_std_path(), ambient_authority())
+        else {
+            return;
+        };
+        for (path, contents) in &self.originals {
+            let _ = crate_dir.write(path.as_std_path(), contents.as_bytes());
+        }
+    }
+}
+
+/// Stage temporary target-root-specific snapshots for a trybuild run.
+pub(super) fn stage_target_root_snapshots() -> io::Result<TargetRootSnapshotGuard> {
+    let crate_root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let workspace_root = crate_root
+        .parent()
+        .and_then(Utf8Path::parent)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "workspace root must exist"))?;
+    let target_root = trybuild_target_directory(workspace_root);
+    let snapshot_target_root = target_root.strip_prefix(workspace_root).map_or_else(
+        |_| target_root.to_string(),
+        |relative| format!("$WORKSPACE/{relative}"),
+    );
+    let crate_dir = Dir::open_ambient_dir(crate_root.as_std_path(), ambient_authority())?;
+    let mut originals = Vec::new();
+
+    for path in TARGET_ROOT_SNAPSHOTS {
+        let path = Utf8PathBuf::from(path);
+        let original = crate_dir.read_to_string(path.as_std_path())?;
+        originals.push((path, original));
+    }
+
+    let guard = TargetRootSnapshotGuard {
+        crate_root,
+        originals,
+    };
+    for (path, original) in &guard.originals {
+        let adjusted = original.replace("$WORKSPACE/target", snapshot_target_root.as_str());
+        crate_dir.write(path.as_std_path(), adjusted.as_bytes())?;
+    }
+    Ok(guard)
+}
+/// Resolve the Cargo target directory shared by trybuild staging and inspection.
+///
+/// Cargo exposes an explicit target directory to integration tests through
+/// `CARGO_TARGET_DIR`. Both halves of the tracking assertion must use it so
+/// coverage artefacts do not separate the staged feature from its dep-info.
+pub(super) fn trybuild_target_directory(workspace_root: &Utf8Path) -> Utf8PathBuf {
+    env::var_os("CARGO_TARGET_DIR")
+        .and_then(|value| Utf8PathBuf::from_path_buf(value.into()).ok())
+        .unwrap_or_else(|| workspace_root.join("target"))
+}
 fn write_feature_files(
     root: &Dir,
     destination_root: &StdPath,
@@ -237,4 +313,36 @@ fn collect_feature_files(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    //! Target-directory selection regression tests for trybuild support.
+
+    use super::*;
+    use serial_test::serial;
+
+    #[test]
+    #[serial(trybuild_target_directory)]
+    fn target_directory_uses_cargo_target_dir() {
+        let workspace_root = Utf8Path::new("workspace");
+        let configured_target = Utf8PathBuf::from("coverage-target");
+
+        temp_env::with_var("CARGO_TARGET_DIR", Some(configured_target.as_str()), || {
+            assert_eq!(trybuild_target_directory(workspace_root), configured_target);
+        });
+    }
+
+    #[test]
+    #[serial(trybuild_target_directory)]
+    fn target_directory_falls_back_to_workspace_target() {
+        let workspace_root = Utf8Path::new("workspace");
+
+        temp_env::with_var_unset("CARGO_TARGET_DIR", || {
+            assert_eq!(
+                trybuild_target_directory(workspace_root),
+                workspace_root.join("target")
+            );
+        });
+    }
 }
