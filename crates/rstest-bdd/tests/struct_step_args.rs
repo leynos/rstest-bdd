@@ -28,15 +28,13 @@ struct ProductState {
     product: Slot<ProductInput>,
 }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
-fn cart_state() -> CartState {
-    CartState::default()
-}
+fn cart_state() -> CartState { CartState::default() }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
-fn product_state() -> ProductState {
-    ProductState::default()
-}
+fn product_state() -> ProductState { ProductState::default() }
 
 #[given("a cart containing {quantity:u32} {item} at ${price:f32}")]
 fn a_cart_with_items(#[step_args] details: CartInput, cart_state: &CartState) {

@@ -6,8 +6,12 @@
 
 use rstest::rstest;
 
-use super::wire::{did_save, is_non_empty_diagnostics, shutdown_and_exit};
-use super::{MAX_RECV_MESSAGES, ServerHandle, server};
+use super::{
+    MAX_RECV_MESSAGES,
+    ServerHandle,
+    server,
+    wire::{did_save, is_non_empty_diagnostics, shutdown_and_exit},
+};
 
 /// Exercise the canonical publication boundary end-to-end through the public
 /// publishers. An unimplemented step first emits a non-empty

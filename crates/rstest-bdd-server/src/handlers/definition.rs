@@ -5,17 +5,14 @@
 //! annotated with `#[given]`, `#[when]`, or `#[then]`, the handler returns
 //! all matching feature step locations.
 
-use std::path::Path;
-use std::sync::Arc;
+use std::{path::Path, sync::Arc};
 
 use async_lsp::ResponseError;
 use lsp_types::{GotoDefinitionParams, GotoDefinitionResponse, Location, Url};
 use tracing::debug;
 
-use crate::indexing::CompiledStepDefinition;
-use crate::server::ServerState;
-
 use super::util::{gherkin_span_to_lsp_range, has_extension};
+use crate::{indexing::CompiledStepDefinition, server::ServerState};
 
 /// Handle `textDocument/definition` requests.
 ///
@@ -174,19 +171,22 @@ fn find_matching_feature_locations(
 mod tests {
     //! Unit tests for go-to-definition handling.
 
-    use super::*;
-    use crate::config::ServerConfig;
-    use crate::discovery::WorkspaceInfo;
-    use crate::handlers::handle_did_save_text_document;
+    use std::path::PathBuf;
+
     use lsp_types::{DidSaveTextDocumentParams, Position, TextDocumentIdentifier};
     use rstest::{fixture, rstest};
-    use std::path::PathBuf;
     use tempfile::TempDir;
 
+    use super::*;
+    use crate::{
+        config::ServerConfig,
+        discovery::WorkspaceInfo,
+        handlers::handle_did_save_text_document,
+    };
+
+    #[rstest_bdd_test_macros::allow_fixture_expansion_lints]
     #[fixture]
-    fn test_state() -> ServerState {
-        ServerState::new(ServerConfig::default())
-    }
+    fn test_state() -> ServerState { ServerState::new(ServerConfig::default()) }
 
     #[rstest]
     fn find_step_at_position_returns_none_for_empty_registry(test_state: ServerState) {

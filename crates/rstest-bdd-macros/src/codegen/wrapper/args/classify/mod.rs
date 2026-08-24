@@ -23,9 +23,7 @@ use type_shape::{is_docstring_canonical, is_type_seq, should_classify_as_datatab
 /// must distinguish a `CachedTable` parameter from a raw `Vec<Vec<String>>` one.
 /// It lives here rather than alongside the other shape predicates in
 /// [`type_shape`] so that `classify::is_cached_table` remains its path.
-pub(crate) fn is_cached_table(ty: &syn::Type) -> bool {
-    is_type_seq(ty, &["CachedTable"])
-}
+pub(crate) fn is_cached_table(ty: &syn::Type) -> bool { is_type_seq(ty, &["CachedTable"]) }
 
 /// Diagnostic for a `datatable` parameter declared with an unsupported type.
 const DATATABLE_TYPE_ERROR: &str = concat!(
@@ -249,10 +247,9 @@ where
 /// via [`extract_flag_attribute`].
 ///
 /// - `st` — classification accumulator, mutated on success.
-/// - `arg` — the parameter being classified; its attribute list is mutated
-///   in place even when validation subsequently fails.
-/// - `pat` / `ty` — the parameter's identifier and type, pre-extracted by
-///   the caller.
+/// - `arg` — the parameter being classified; its attribute list is mutated in place even when
+///   validation subsequently fails.
+/// - `pat` / `ty` — the parameter's identifier and type, pre-extracted by the caller.
 ///
 /// Returns `Ok(true)` when the parameter was claimed, `Ok(false)` to let the
 /// next classifier try.

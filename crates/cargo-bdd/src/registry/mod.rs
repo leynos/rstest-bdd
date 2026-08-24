@@ -1,9 +1,11 @@
 //! Registry collection helpers shared by the CLI subcommands.
 
-use std::collections::HashSet;
-use std::io::{self, BufReader, Read, Write};
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::{
+    collections::HashSet,
+    io::{self, BufReader, Read, Write},
+    path::{Path, PathBuf},
+    process::{Child, Command, Stdio},
+};
 
 use cargo_metadata::{Message, Package, PackageId, Target};
 use eyre::{Context, Result, bail, eyre};
@@ -159,7 +161,8 @@ fn parse_cargo_messages(
                 let _ = child.wait();
                 return Err(eyre!(err)).wrap_err_with(|| {
                     format!(
-                        "failed to parse cargo metadata message for target {target_name} in package {package_name}",
+                        "failed to parse cargo metadata message for target {target_name} in \
+                         package {package_name}",
                     )
                 });
             }

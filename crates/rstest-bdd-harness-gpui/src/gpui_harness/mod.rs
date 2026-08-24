@@ -28,16 +28,23 @@
 //! `GpuiHarness::run`-driving test with `#[serial_test::serial]` so
 //! libtest cannot interleave them on the same process.
 
+use std::{
+    any::Any,
+    cell::RefCell,
+    io::{self, Write},
+    panic::{self, AssertUnwindSafe},
+    sync::{Mutex, PoisonError},
+};
+
 use gpui::TestAppContext;
 use rstest_bdd::panic_message;
 use rstest_bdd_harness::{
-    HarnessAdapter, HarnessResult, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner,
+    HarnessAdapter,
+    HarnessResult,
+    ScenarioMetadata,
+    ScenarioRunRequest,
+    ScenarioRunner,
 };
-use std::any::Any;
-use std::cell::RefCell;
-use std::io::{self, Write};
-use std::panic::{self, AssertUnwindSafe};
-use std::sync::{Mutex, PoisonError};
 
 /// Executes scenario runners inside the GPUI test harness.
 ///
@@ -49,16 +56,16 @@ use std::sync::{Mutex, PoisonError};
 /// # Examples
 ///
 /// ```
-/// use rstest_bdd_harness::{HarnessAdapter, ScenarioMetadata, ScenarioRunRequest, ScenarioRunner};
+/// use rstest_bdd_harness::{
+///     HarnessAdapter,
+///     ScenarioMetadata,
+///     ScenarioRunRequest,
+///     ScenarioRunner,
+/// };
 /// use rstest_bdd_harness_gpui::GpuiHarness;
 ///
 /// let request = ScenarioRunRequest::new(
-///     ScenarioMetadata::new(
-///         "tests/features/demo.feature",
-///         "GPUI scenario",
-///         5,
-///         vec![],
-///     ),
+///     ScenarioMetadata::new("tests/features/demo.feature", "GPUI scenario", 5, vec![]),
 ///     ScenarioRunner::new(|cx: gpui::TestAppContext| cx.test_function_name().is_none()),
 /// );
 ///
@@ -83,17 +90,13 @@ struct ContextCleanup<'a> {
 }
 
 impl Drop for ContextCleanup<'_> {
-    fn drop(&mut self) {
-        GpuiHarness::finish_context(self.dispatcher, self.context);
-    }
+    fn drop(&mut self) { GpuiHarness::finish_context(self.dispatcher, self.context); }
 }
 
 impl GpuiHarness {
     /// Creates a new GPUI harness instance.
     #[must_use]
-    pub const fn new() -> Self {
-        Self
-    }
+    pub const fn new() -> Self { Self }
 
     /// Runs a single GPUI scenario request, dispatching through `gpui::run_test`.
     ///
@@ -185,8 +188,7 @@ impl GpuiHarness {
             .take();
         let Some(runner) = runner else {
             panic!(
-                "rstest-bdd-harness-gpui: scenario runner invoked more than once: \
-                 {scenario_name}"
+                "rstest-bdd-harness-gpui: scenario runner invoked more than once: {scenario_name}"
             );
         };
         runner.run(context)
@@ -223,7 +225,7 @@ impl GpuiHarness {
         let Some(output) = output else {
             panic!(
                 "rstest-bdd-harness-gpui: test harness produced no scenario result: \
-                {scenario_name}"
+                 {scenario_name}"
             );
         };
         output

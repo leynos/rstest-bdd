@@ -2,21 +2,23 @@
 
 use std::path::Path;
 
-use rstest::fixture;
-use rstest_bdd as bdd;
-use rstest_bdd::assert_scenario_skipped;
-use rstest_bdd_macros::{given, scenario, then};
-use serial_test::serial;
-
 #[cfg(feature = "diagnostics")]
 use bdd::reporting;
 #[cfg(feature = "diagnostics")]
 use bdd::reporting::{
-    ScenarioMetadata, ScenarioRecord, SkippedScenario, record as record_scenario,
+    ScenarioMetadata,
+    ScenarioRecord,
+    SkippedScenario,
+    record as record_scenario,
 };
 use bdd::reporting::{ScenarioStatus, drain as drain_reports};
+use rstest::fixture;
+use rstest_bdd as bdd;
+use rstest_bdd::assert_scenario_skipped;
+use rstest_bdd_macros::{given, scenario, then};
 #[cfg(feature = "diagnostics")]
 use serde_json::Value;
+use serial_test::serial;
 
 #[must_use]
 struct FailOnSkippedGuard;
@@ -36,20 +38,16 @@ impl FailOnSkippedGuard {
 impl Drop for FailOnSkippedGuard {
     // Clearing the override re-exposes the RSTEST_BDD_FAIL_ON_SKIPPED variable.
     // Tests using this guard must be marked #[serial] to avoid races.
-    fn drop(&mut self) {
-        bdd::config::clear_fail_on_skipped_override();
-    }
+    fn drop(&mut self) { bdd::config::clear_fail_on_skipped_override(); }
 }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
-fn fail_on_enabled() -> FailOnSkippedGuard {
-    FailOnSkippedGuard::enable()
-}
+fn fail_on_enabled() -> FailOnSkippedGuard { FailOnSkippedGuard::enable() }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
-fn fail_on_disabled() -> FailOnSkippedGuard {
-    FailOnSkippedGuard::disable()
-}
+fn fail_on_disabled() -> FailOnSkippedGuard { FailOnSkippedGuard::disable() }
 
 fn assert_feature_path_suffix(actual: &str, expected_suffix: &str) {
     let actual_path = Path::new(actual);

@@ -8,25 +8,22 @@ use japanese_ledger::HouseholdLedger;
 use rstest::fixture;
 use rstest_bdd_macros::{given, scenario, then, when};
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn ledger() -> HouseholdLedger {
-    HouseholdLedger::new()
+    let ledger = HouseholdLedger::new();
+    std::hint::black_box(&ledger);
+    ledger
 }
 
 #[given("残高は{start:i32}である")]
-fn starting_balance(ledger: &HouseholdLedger, start: i32) {
-    ledger.set_balance(start);
-}
+fn starting_balance(ledger: &HouseholdLedger, start: i32) { ledger.set_balance(start); }
 
 #[when("残高に{income:i32}を加える")]
-fn apply_income(ledger: &HouseholdLedger, income: i32) {
-    ledger.apply_income(income);
-}
+fn apply_income(ledger: &HouseholdLedger, income: i32) { ledger.apply_income(income); }
 
 #[when("残高から{expense:i32}を引く")]
-fn apply_expense(ledger: &HouseholdLedger, expense: i32) {
-    ledger.apply_expense(expense);
-}
+fn apply_expense(ledger: &HouseholdLedger, expense: i32) { ledger.apply_expense(expense); }
 
 #[then("残高は{expected:i32}である")]
 fn assert_balance(ledger: &HouseholdLedger, expected: i32) {

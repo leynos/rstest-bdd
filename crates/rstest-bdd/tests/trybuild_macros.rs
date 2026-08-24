@@ -6,16 +6,22 @@
 //!
 //! Normalizers rewrite fixture paths and strip nightly-only hints so the
 //! assertions remain stable across platforms.
+use std::{
+    borrow::Cow,
+    env,
+    io,
+    panic::{self, AssertUnwindSafe},
+    path::Path as StdPath,
+    process::Command,
+};
+
 use camino::{Utf8Path, Utf8PathBuf};
 use cap_std::{ambient_authority, fs::Dir};
-use std::borrow::Cow;
-use std::env;
-use std::io;
-use std::panic::{self, AssertUnwindSafe};
-use std::path::Path as StdPath;
-use std::process::Command;
 use wrappers::{
-    MacroFixtureCase, NormalizerInput, UiFixtureCase, normalize_fixture_paths,
+    MacroFixtureCase,
+    NormalizerInput,
+    UiFixtureCase,
+    normalize_fixture_paths,
     strip_nightly_macro_backtrace_hint,
 };
 

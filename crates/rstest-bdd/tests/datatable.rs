@@ -78,7 +78,8 @@ fn typed_users_invalid(datatable: Vec<Vec<String>>) {
     };
     assert_eq!(
         err.to_string(),
-        "row 2, column 3 (active): unrecognised boolean value 'maybe' (expected yes/y/true/1 or no/n/false/0)"
+        "row 2, column 3 (active): unrecognised boolean value 'maybe' (expected yes/y/true/1 or \
+         no/n/false/0)"
     );
 }
 
@@ -106,13 +107,9 @@ struct DerivedRow {
 #[derive(Debug, Clone, PartialEq, Eq, DataTableRow)]
 struct TupleRow(String, u8, bool);
 
-fn default_region() -> String {
-    String::from("EMEA")
-}
+fn default_region() -> String { String::from("EMEA") }
 
-fn parse_age(value: &str) -> Result<u8, std::num::ParseIntError> {
-    value.trim().parse()
-}
+fn parse_age(value: &str) -> Result<u8, std::num::ParseIntError> { value.trim().parse() }
 
 #[derive(Debug, PartialEq, Eq, DataTable)]
 struct DerivedRowCollection(Rows<DerivedRow>);

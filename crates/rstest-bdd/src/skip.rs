@@ -6,12 +6,14 @@
 //! configuration flag is enabled scenarios without an `@allow_skipped` tag
 //! panic after the final step instead of being marked as skipped.
 
-use std::cell::RefCell;
-use std::fmt;
-use std::marker::PhantomData;
-use std::panic;
-use std::rc::Rc;
-use std::thread::{self, ThreadId};
+use std::{
+    cell::RefCell,
+    fmt,
+    marker::PhantomData,
+    panic,
+    rc::Rc,
+    thread::{self, ThreadId},
+};
 
 thread_local! {
     static SCOPE_STACK: RefCell<Vec<ScopeEntry>> = const { RefCell::new(Vec::new()) };
@@ -27,15 +29,11 @@ pub struct SkipRequest {
 impl SkipRequest {
     /// Create a new skip request with an optional message.
     #[must_use]
-    pub fn new(message: Option<String>) -> Self {
-        Self { message }
-    }
+    pub fn new(message: Option<String>) -> Self { Self { message } }
 
     /// Consume the request, returning the original message.
     #[must_use]
-    pub fn into_message(self) -> Option<String> {
-        self.message
-    }
+    pub fn into_message(self) -> Option<String> { self.message }
 
     /// Panic with this skip request.
     #[track_caller]
@@ -173,8 +171,9 @@ impl fmt::Display for ScopeError {
                 let (scope, name, line) = metadata.describe();
                 write!(
                     f,
-                    "rstest_bdd::skip! may only run on the thread executing the {scope} '{}'\
-                     (defined at {}:{}). Expected thread id {:?} but {:?} attempted to invoke it.",
+                    "rstest_bdd::skip! may only run on the thread executing the {scope} \
+                     '{}'(defined at {}:{}). Expected thread id {:?} but {:?} attempted to invoke \
+                     it.",
                     name, metadata.file, line, expected, actual,
                 )
             }
@@ -245,9 +244,11 @@ impl fmt::Display for SkipRequest {
 mod tests {
     //! Unit tests for scenario skip handling.
 
-    use super::*;
-    use rstest::rstest;
     use std::panic::{self, UnwindSafe};
+
+    use rstest::rstest;
+
+    use super::*;
 
     fn with_test_scope<F: FnOnce()>(body: F) {
         let guard = enter_scope(ScopeKind::Step, "test_scope", file!(), line!());
@@ -335,9 +336,7 @@ mod tests {
             crate::skip!("helper triggered skip");
         }
 
-        fn helper() {
-            nested_helper();
-        }
+        fn helper() { nested_helper(); }
 
         let result = panic::catch_unwind(|| with_test_scope(helper));
         assert!(result.is_err(), "helper skip should raise panic payload");

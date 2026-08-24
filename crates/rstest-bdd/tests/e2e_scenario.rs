@@ -3,15 +3,13 @@
 use rstest::fixture;
 use rstest_bdd_macros::{given, scenario, then, when};
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
-fn number() -> i32 {
-    21
-}
+fn number() -> i32 { 21 }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
-fn multiplier() -> i32 {
-    2
-}
+fn multiplier() -> i32 { 2 }
 
 #[given("number is available")]
 fn check_number(number: i32) {

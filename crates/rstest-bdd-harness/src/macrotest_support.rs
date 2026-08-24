@@ -12,10 +12,12 @@
 //! `CARGO_MANIFEST_DIR` resolves at compile time inside the caller crate;
 //! sharing the helpers via this module avoids that per-crate coupling.
 
-use std::error::Error;
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::{
+    error::Error,
+    fs,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 /// Returns `true` when the macrotest refresh workflow is enabled.
 ///

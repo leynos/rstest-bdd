@@ -96,14 +96,10 @@ impl DeferredDocumentSaves {
     }
 
     /// Return the number of retained saves.
-    pub(super) fn len(&self) -> usize {
-        self.saves.len()
-    }
+    pub(super) fn len(&self) -> usize { self.saves.len() }
 
     #[cfg(test)]
-    fn recomputed_byte_count(&self) -> usize {
-        self.saves.iter().map(save_byte_count).sum()
-    }
+    fn recomputed_byte_count(&self) -> usize { self.saves.iter().map(save_byte_count).sum() }
 }
 
 fn save_byte_count(params: &DidSaveTextDocumentParams) -> usize {

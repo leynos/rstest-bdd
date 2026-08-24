@@ -1,9 +1,9 @@
 //! Tests for wrapper-local argument bindings.
 
-use super::super::bindings as arg_bindings;
-use super::*;
 use quote::format_ident;
 use syn::parse_quote;
+
+use super::{super::bindings as arg_bindings, *};
 
 #[test]
 fn collect_ordered_arguments_preserves_call_order() {

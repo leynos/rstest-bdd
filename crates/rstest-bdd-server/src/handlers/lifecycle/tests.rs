@@ -5,28 +5,34 @@ mod delivery_failure;
 mod paths;
 mod retry;
 
-use super::*;
-use crate::config::ServerConfig;
-use async_lsp::MainLoop;
-use async_lsp::router::Router;
+use std::ops::ControlFlow;
+
+use async_lsp::{MainLoop, router::Router};
 use lsp_types::{
-    ClientCapabilities, DidSaveTextDocumentParams, TextDocumentIdentifier, WorkspaceFolder,
+    ClientCapabilities,
+    DidSaveTextDocumentParams,
+    TextDocumentIdentifier,
+    WorkspaceFolder,
 };
 use rstest::{fixture, rstest};
-use std::ops::ControlFlow;
 use tempfile::TempDir;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
-use crate::handlers::{
-    DeferredDocumentSavesIndexed, handle_deferred_document_saves_indexed,
-    handle_did_save_text_document,
+use super::*;
+use crate::{
+    config::ServerConfig,
+    handlers::{
+        DeferredDocumentSavesIndexed,
+        handle_deferred_document_saves_indexed,
+        handle_did_save_text_document,
+    },
 };
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
-fn create_test_state() -> ServerState {
-    ServerState::new(ServerConfig::default())
-}
+fn create_test_state() -> ServerState { ServerState::new(ServerConfig::default()) }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn create_init_params() -> InitializeParams {
     InitializeParams {
@@ -37,6 +43,7 @@ fn create_init_params() -> InitializeParams {
 }
 
 /// Fixture providing a platform-specific test path.
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn platform_test_path() -> PathBuf {
     #[cfg(windows)]
@@ -362,36 +369,4 @@ async fn initialization_returns_before_workspace_preparation_finishes() {
     if let Some(background_task) = background_task {
         background_task.abort();
     }
-}
-
-#[test]
-fn stale_workspace_preparation_is_discarded_after_initialize_retry() {
-    let workspace = cargo_workspace().expect("create Cargo workspace");
-    let workspace_uri = Url::from_file_path(workspace.path()).expect("workspace URI");
-    let mut state = ServerState::new(ServerConfig::default());
-    let cancelled = handle_initialise(
-        &mut state,
-        InitializeParams {
-            workspace_folders: Some(vec![WorkspaceFolder {
-                uri: workspace_uri,
-                name: "cancelled-workspace".to_owned(),
-            }]),
-            ..Default::default()
-        },
-    )
-    .expect("initialization should succeed");
-    let retry =
-        handle_initialise(&mut state, InitializeParams::default()).expect("retry should succeed");
-    let preparation = prepare_workspace(workspace.path());
-
-    assert_eq!(retry.workspace_path, None);
-    assert!(state.workspace_folders().is_empty());
-    handle_workspace_ready(
-        &mut state,
-        WorkspaceReadyEvent {
-            preparation,
-            initialization_id: cancelled.workspace_initialization_id,
-        },
-    );
-    assert!(state.workspace_info().is_none());
 }

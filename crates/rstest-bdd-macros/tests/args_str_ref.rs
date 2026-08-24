@@ -1,7 +1,8 @@
 //! Tests for `&str` reference handling in argument extraction.
 
-use rstest::rstest;
 use std::collections::HashSet;
+
+use rstest::rstest;
 use syn::parse_quote;
 
 #[path = "../src/codegen/wrapper/args/mod.rs"]

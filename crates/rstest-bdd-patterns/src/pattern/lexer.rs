@@ -1,11 +1,9 @@
 //! Pattern lexer converting pattern strings into semantic tokens.
 
-use std::iter::Peekable;
-use std::str::CharIndices;
-
-use crate::errors::PatternError;
+use std::{iter::Peekable, str::CharIndices};
 
 use super::placeholder::{PlaceholderSpec, parse_placeholder};
+use crate::errors::PatternError;
 
 /// Token produced by the pattern lexer.
 ///
@@ -76,9 +74,7 @@ impl<'pattern> LexerContext<'pattern> {
         }
     }
 
-    fn into_tokens(self) -> Vec<Token> {
-        self.tokens
-    }
+    fn into_tokens(self) -> Vec<Token> { self.tokens }
 }
 
 /// Tokenize a step pattern into literals and placeholders.
@@ -90,7 +86,7 @@ impl<'pattern> LexerContext<'pattern> {
 /// # Examples
 ///
 /// ```
-/// use rstest_bdd_patterns::pattern::lexer::{lex_pattern, Token};
+/// use rstest_bdd_patterns::pattern::lexer::{Token, lex_pattern};
 ///
 /// let tokens = lex_pattern("Given {value:u32}").expect("valid pattern syntax");
 /// assert_eq!(tokens.len(), 2);
@@ -153,13 +149,9 @@ fn handle_close_brace(index: usize, context: &mut LexerContext<'_>) {
     }
 }
 
-fn is_placeholder_start(ch: char) -> bool {
-    is_valid_placeholder_start(ch)
-}
+fn is_placeholder_start(ch: char) -> bool { is_valid_placeholder_start(ch) }
 
-fn is_valid_placeholder_start(ch: char) -> bool {
-    ch.is_ascii_alphabetic() || ch == '_'
-}
+fn is_valid_placeholder_start(ch: char) -> bool { ch.is_ascii_alphabetic() || ch == '_' }
 
 fn parse_and_consume_placeholder(
     bytes: &[u8],

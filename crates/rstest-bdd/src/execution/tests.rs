@@ -14,9 +14,8 @@ use std::sync::Arc;
 
 use rstest::rstest;
 
-use crate::{StepError, StepKeyword};
-
 use super::{ExecutionError, MissingFixturesDetails, RuntimeMode, TestAttributeHint};
+use crate::{StepError, StepKeyword};
 
 #[test]
 fn runtime_mode_sync_is_default() {
@@ -89,7 +88,8 @@ fn test_attribute_hint_exhaustive_variant_guard() {
 
 #[expect(
     deprecated,
-    reason = "FIXME: https://github.com/leynos/rstest-bdd/issues/409 - testing deprecated skip encoding functions"
+    reason = "FIXME: https://github.com/leynos/rstest-bdd/issues/409 - testing deprecated skip \
+              encoding functions"
 )]
 mod deprecated_skip_encoding {
     //! Tests for deprecated skip encoding functions.
@@ -100,7 +100,10 @@ mod deprecated_skip_encoding {
     use rstest::rstest;
 
     use super::super::{
-        SKIP_NONE_PREFIX, SKIP_SOME_PREFIX, decode_skip_message, encode_skip_message,
+        SKIP_NONE_PREFIX,
+        SKIP_SOME_PREFIX,
+        decode_skip_message,
+        encode_skip_message,
     };
 
     #[test]

@@ -1,18 +1,26 @@
 //! Unit tests for scenario test generation helpers.
 
-use rstest::rstest;
+use std::collections::HashSet;
 
-use super::super::macro_args::FixtureSpec;
-use super::super::macro_args::RuntimeCompatibilityAlias;
-use super::super::macro_args::RuntimeMode;
-use super::super::macro_args::runtime_compatibility_alias;
-use super::{
-    build_fixture_params, build_lint_attributes, build_test_signature, dedupe_name,
-    resolve_effective_runtime, resolve_fixture_error_type, resolve_harness_path,
-};
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
-use std::collections::HashSet;
+use rstest::rstest;
+
+use super::{
+    super::macro_args::{
+        FixtureSpec,
+        RuntimeCompatibilityAlias,
+        RuntimeMode,
+        runtime_compatibility_alias,
+    },
+    build_fixture_params,
+    build_lint_attributes,
+    build_test_signature,
+    dedupe_name,
+    resolve_effective_runtime,
+    resolve_fixture_error_type,
+    resolve_harness_path,
+};
 
 #[test]
 fn deduplicates_duplicate_titles() {
@@ -72,9 +80,7 @@ macro_rules! assert_fixtures_before_examples {
     }};
 }
 
-fn sig_to_string(sig: &syn::Signature) -> String {
-    quote!(#sig).to_string()
-}
+fn sig_to_string(sig: &syn::Signature) -> String { quote!(#sig).to_string() }
 
 #[test]
 fn build_lint_attributes_empty_fixtures_produces_no_attributes() {

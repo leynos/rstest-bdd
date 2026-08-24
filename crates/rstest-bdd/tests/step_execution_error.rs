@@ -7,10 +7,10 @@
 //!
 //! # Error Types Tested
 //!
-//! - [`HandlerFailed`](rstest_bdd::execution::ExecutionError::HandlerFailed):
-//!   Step handler returns an error (e.g., `Err("message")`)
-//! - [`MissingFixtures`](rstest_bdd::execution::ExecutionError::MissingFixtures):
-//!   Step requires fixtures not available in the scenario context
+//! - [`HandlerFailed`](rstest_bdd::execution::ExecutionError::HandlerFailed): Step handler returns
+//!   an error (e.g., `Err("message")`)
+//! - [`MissingFixtures`](rstest_bdd::execution::ExecutionError::MissingFixtures): Step requires
+//!   fixtures not available in the scenario context
 //!
 //! # Note on `StepNotFound`
 //!

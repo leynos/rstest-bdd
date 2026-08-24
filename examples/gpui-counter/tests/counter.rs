@@ -8,25 +8,22 @@ use gpui_counter::CounterApp;
 use rstest::fixture;
 use rstest_bdd_macros::{given, scenario, then, when};
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn app() -> CounterApp {
-    CounterApp::new(0)
+    let app = CounterApp::new(0);
+    std::hint::black_box(&app);
+    app
 }
 
 #[given("a counter starting at {start:i32}")]
-fn a_counter_starting_at(app: &CounterApp, start: i32) {
-    app.set_value(start);
-}
+fn a_counter_starting_at(app: &CounterApp, start: i32) { app.set_value(start); }
 
 #[when("I increment the counter by {amount:u32}")]
-fn increment_counter(app: &CounterApp, amount: u32) {
-    app.increment(amount);
-}
+fn increment_counter(app: &CounterApp, amount: u32) { app.increment(amount); }
 
 #[when("I decrement the counter by {amount:u32}")]
-fn decrement_counter(app: &CounterApp, amount: u32) {
-    app.decrement(amount);
-}
+fn decrement_counter(app: &CounterApp, amount: u32) { app.decrement(amount); }
 
 #[when("I record the GPUI test context")]
 fn record_gpui_test_context(

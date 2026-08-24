@@ -7,13 +7,23 @@
 //! `find_step_with_metadata`) against a pool of registered steps and asserts
 //! the invariant via `unused_steps`.
 
-use proptest::prelude::*;
 use std::collections::BTreeSet;
 
+use proptest::prelude::*;
 use rstest_bdd::{
-    StepContext, StepError, StepExecution, StepKeyword, find_step, find_step_async,
-    find_step_async_with_mode, find_step_with_metadata, lookup_step, lookup_step_async,
-    lookup_step_async_with_mode, step, unused_steps,
+    StepContext,
+    StepError,
+    StepExecution,
+    StepKeyword,
+    find_step,
+    find_step_async,
+    find_step_async_with_mode,
+    find_step_with_metadata,
+    lookup_step,
+    lookup_step_async,
+    lookup_step_async_with_mode,
+    step,
+    unused_steps,
 };
 
 #[expect(

@@ -4,12 +4,15 @@ use async_lsp::ClientSocket;
 use lsp_types::{DidSaveTextDocumentParams, TextDocumentIdentifier, Url};
 use metrics::with_local_recorder;
 
-use super::super::{WorkspaceReadyEvent, emit_workspace_ready, prepare_workspace};
-use super::cargo_workspace;
-use crate::config::ServerConfig;
-use crate::handlers::handle_did_save_text_document;
-use crate::handlers::workspace_metrics::WorkspaceRecorder;
-use crate::server::ServerState;
+use super::{
+    super::{WorkspaceReadyEvent, emit_workspace_ready, prepare_workspace},
+    cargo_workspace,
+};
+use crate::{
+    config::ServerConfig,
+    handlers::{handle_did_save_text_document, workspace_metrics::WorkspaceRecorder},
+    server::ServerState,
+};
 
 #[test]
 fn workspace_ready_delivery_failure_keeps_deferred_saves_for_the_stopped_router() {

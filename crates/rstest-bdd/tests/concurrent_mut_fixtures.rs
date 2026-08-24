@@ -17,15 +17,13 @@ struct LeftCounter(u32);
 #[derive(Default)]
 struct RightCounter(u32);
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
-fn left() -> LeftCounter {
-    LeftCounter(10)
-}
+fn left() -> LeftCounter { LeftCounter(10) }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
-fn right() -> RightCounter {
-    RightCounter(20)
-}
+fn right() -> RightCounter { RightCounter(20) }
 
 #[given("two counters are available")]
 fn counters_available(left: &LeftCounter, right: &RightCounter) {
@@ -80,10 +78,9 @@ impl HarnessAdapter for CountingHarness {
     }
 }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
-fn harness_world() -> HarnessWorld {
-    HarnessWorld::default()
-}
+fn harness_world() -> HarnessWorld { HarnessWorld::default() }
 
 #[given("the harness world starts empty")]
 fn harness_world_starts_empty(harness_world: &HarnessWorld) {

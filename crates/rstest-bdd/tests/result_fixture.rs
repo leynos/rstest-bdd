@@ -5,8 +5,10 @@
 //! and inject the inner `T` into step functions via `StepContext`.
 
 use rstest::fixture;
-use rstest_bdd::StepResult;
-use rstest_bdd::reporting::{ScenarioStatus, drain as drain_reports};
+use rstest_bdd::{
+    StepResult,
+    reporting::{ScenarioStatus, drain as drain_reports},
+};
 use rstest_bdd_macros::{given, scenario, then, when};
 use serial_test::serial;
 
@@ -21,26 +23,20 @@ impl ResultWorld {
         clippy::unnecessary_wraps,
         reason = "returns Result to exercise the Result-unwrapping fixture codegen path"
     )]
-    fn try_new() -> Result<Self, String> {
-        Ok(Self { value: 42 })
-    }
+    fn try_new() -> Result<Self, String> { Ok(Self { value: 42 }) }
 
-    fn try_new_failing() -> Result<Self, String> {
-        Err("fixture initialization failed".to_owned())
-    }
+    fn try_new_failing() -> Result<Self, String> { Err("fixture initialization failed".to_owned()) }
 }
 
 /// Fixture that returns `Result<ResultWorld, String>`.
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
-fn world() -> Result<ResultWorld, String> {
-    ResultWorld::try_new()
-}
+fn world() -> Result<ResultWorld, String> { ResultWorld::try_new() }
 
 /// Fixture that always fails, for testing error propagation.
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
-fn failing_world() -> Result<ResultWorld, String> {
-    ResultWorld::try_new_failing()
-}
+fn failing_world() -> Result<ResultWorld, String> { ResultWorld::try_new_failing() }
 
 #[given("a world initialized from a Result fixture")]
 fn given_world(world: &ResultWorld) {
@@ -48,9 +44,7 @@ fn given_world(world: &ResultWorld) {
 }
 
 #[when("the world is mutated")]
-fn when_mutated(world: &mut ResultWorld) {
-    world.value += 1;
-}
+fn when_mutated(world: &mut ResultWorld) { world.value += 1; }
 
 #[then("the world reflects the mutation")]
 fn then_mutated(world: &ResultWorld) {
@@ -62,9 +56,7 @@ fn then_mutated(world: &ResultWorld) {
     name = "successful fixture initialization"
 )]
 #[serial]
-fn result_fixture_success(world: Result<ResultWorld, String>) -> Result<(), String> {
-    Ok(())
-}
+fn result_fixture_success(world: Result<ResultWorld, String>) -> Result<(), String> { Ok(()) }
 
 #[scenario(
     path = "tests/features/result_fixture.feature",
@@ -138,12 +130,12 @@ fn result_fixture_error_propagates() {
 // -- StepResult<T, E> fixture tests ---
 
 /// Fixture that returns `StepResult<ResultWorld, String>`.
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
-fn step_result_world() -> StepResult<ResultWorld, String> {
-    ResultWorld::try_new()
-}
+fn step_result_world() -> StepResult<ResultWorld, String> { ResultWorld::try_new() }
 
 /// Fixture that always fails, for testing `StepResult` error propagation.
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn failing_step_result_world() -> StepResult<ResultWorld, String> {
     Err("step-result fixture initialization failed".to_owned())
@@ -158,9 +150,7 @@ fn given_step_result_world(step_result_world: &ResultWorld) {
 }
 
 #[when("the StepResult world is mutated")]
-fn when_step_result_mutated(step_result_world: &mut ResultWorld) {
-    step_result_world.value += 10;
-}
+fn when_step_result_mutated(step_result_world: &mut ResultWorld) { step_result_world.value += 10; }
 
 #[then("the StepResult world reflects the mutation")]
 fn then_step_result_mutated(step_result_world: &ResultWorld) {

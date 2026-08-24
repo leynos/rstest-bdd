@@ -2,9 +2,10 @@
 //! harness adapter and attribute policy.
 #![cfg(feature = "native-gpui-tests")]
 
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
 use rstest_bdd_macros::{given, scenario, scenarios, then, when};
 use serial_test::serial;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 static CONTEXT_POINTER: AtomicUsize = AtomicUsize::new(0);
 static CONTEXT_MUTATED: AtomicBool = AtomicBool::new(false);
@@ -73,9 +74,7 @@ fn gpui_context_was_harness_provided_not_attribute_provided(
 }
 
 #[given("a plain GPUI policy scenario runs")]
-fn plain_gpui_policy_scenario_runs() {
-    GPUI_POLICY_RAN.store(true, Ordering::SeqCst);
-}
+fn plain_gpui_policy_scenario_runs() { GPUI_POLICY_RAN.store(true, Ordering::SeqCst); }
 
 #[then("the plain GPUI policy scenario completed")]
 fn plain_gpui_policy_scenario_completed() {

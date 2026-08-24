@@ -104,14 +104,10 @@ fn has_unfollowable_generic(segment: &syn::PathSegment) -> bool {
 }
 
 /// Test whether `ty` is `String`, the only type a `DocString` parameter accepts.
-pub(super) fn is_string(ty: &syn::Type) -> bool {
-    is_type_seq(ty, &["String"])
-}
+pub(super) fn is_string(ty: &syn::Type) -> bool { is_type_seq(ty, &["String"]) }
 
 /// Test whether `ty` is the raw `Vec<Vec<String>>` table representation.
-pub(super) fn is_datatable(ty: &syn::Type) -> bool {
-    is_type_seq(ty, &["Vec", "Vec", "String"])
-}
+pub(super) fn is_datatable(ty: &syn::Type) -> bool { is_type_seq(ty, &["Vec", "Vec", "String"]) }
 
 /// Test whether a parameter is the canonical `DataTable` shape.
 ///
@@ -144,8 +140,9 @@ mod tests {
     //! guard, a wrong leaf at depth, a non-path type at depth, and a
     //! non-type first generic argument were all unpinned.
 
-    use super::*;
     use rstest::rstest;
+
+    use super::*;
 
     /// Parse a type from source, failing loudly when a test input is malformed.
     ///

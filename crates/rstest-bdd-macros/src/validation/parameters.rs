@@ -3,9 +3,9 @@
 //! Underscore-prefixed parameter names (e.g., `_param`) match unprefixed headers
 //! (e.g., `param`), enabling idiomatic Rust unused parameter marking.
 
-use crate::utils::errors::error_to_tokens;
-use crate::utils::pattern::ident_matches_normalized;
 use proc_macro2::TokenStream;
+
+use crate::utils::{errors::error_to_tokens, pattern::ident_matches_normalized};
 
 fn parameter_matches_header(arg: &syn::FnArg, header: &str) -> bool {
     match arg {

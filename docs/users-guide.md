@@ -28,9 +28,27 @@ Each `Cargo.toml` declares `rust-version = "1.85"`, so `cargo` will refuse to
 compile the project on older compilers. The workspace uses the Rust 2024
 edition.
 
-`rstest-bdd` builds on stable Rust. The repository pins a stable toolchain for
-development via `rust-toolchain.toml` so contributors get consistent `rustfmt`
-and `clippy` behaviour.
+`rstest-bdd` builds, tests, and lints on stable Rust. The repository pins that
+toolchain through `rust-toolchain.toml`, so ordinary `cargo` and Clippy
+commands use stable Rust.
+
+### Formatting toolchain
+
+The workspace's `.rustfmt.toml` uses unstable formatting options. `make fmt` and
+`make check-fmt` therefore select the dated nightly formatter named by
+`FMT_TOOLCHAIN` in the Makefile, while every other Cargo invocation stays on
+stable. Install the matching formatter after installing the stable toolchain:
+
+```sh
+rustup toolchain install nightly-2026-08-07 --profile minimal --component rustfmt
+```
+
+Use `make fmt` rather than stable `cargo fmt`. Configure editor format-on-save
+to invoke `rustup run nightly-2026-08-07 rustfmt`, with any editor-specific
+arguments needed to pass the current file on standard input and read the
+formatted output from standard output. For rust-analyzer clients, set
+`rust-analyzer.rustfmt.overrideCommand` to that command array. This keeps local
+edits aligned with `make check-fmt` and CI.
 
 Step definitions may be synchronous functions (`fn`) or asynchronous functions (
 `async fn`). The framework no longer depends on the `async-trait` crate to

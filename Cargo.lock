@@ -237,6 +237,7 @@ dependencies = [
  "rstest",
  "rstest-bdd",
  "rstest-bdd-harness",
+ "rstest-bdd-test-macros",
  "serde",
  "serde_json",
  "serial_test 2.0.0",
@@ -765,6 +766,7 @@ dependencies = [
  "rstest-bdd",
  "rstest-bdd-harness-gpui",
  "rstest-bdd-macros",
+ "rstest-bdd-test-macros",
 ]
 
 [[package]]
@@ -1076,6 +1078,7 @@ dependencies = [
  "rstest",
  "rstest-bdd",
  "rstest-bdd-macros",
+ "rstest-bdd-test-macros",
 ]
 
 [[package]]
@@ -1569,6 +1572,7 @@ dependencies = [
  "rstest-bdd-macros",
  "rstest-bdd-patterns",
  "rstest-bdd-policy",
+ "rstest-bdd-test-macros",
  "rust-embed",
  "serde",
  "serde_json",
@@ -1591,6 +1595,7 @@ dependencies = [
  "proptest",
  "rstest",
  "rstest-bdd-harness",
+ "rstest-bdd-test-macros",
  "temp-env",
  "tempfile",
  "thiserror 2.0.18",
@@ -1611,6 +1616,7 @@ dependencies = [
  "rstest-bdd",
  "rstest-bdd-harness",
  "rstest-bdd-macros",
+ "rstest-bdd-test-macros",
  "serial_test 2.0.0",
  "tokio",
  "tracing",
@@ -1629,6 +1635,7 @@ dependencies = [
  "rstest-bdd",
  "rstest-bdd-harness",
  "rstest-bdd-macros",
+ "rstest-bdd-test-macros",
  "serial_test 3.5.0",
  "tokio",
  "trybuild",
@@ -1654,6 +1661,7 @@ dependencies = [
  "rstest-bdd-harness",
  "rstest-bdd-patterns",
  "rstest-bdd-policy",
+ "rstest-bdd-test-macros",
  "serial_test 2.0.0",
  "syn 2.0.117",
  "tempfile",
@@ -1698,6 +1706,7 @@ dependencies = [
  "rstest",
  "rstest-bdd-patterns",
  "rstest-bdd-server",
+ "rstest-bdd-test-macros",
  "serde",
  "serde_json",
  "syn 2.0.117",
@@ -1708,6 +1717,15 @@ dependencies = [
  "tower",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "rstest-bdd-test-macros"
+version = "0.6.0-beta4"
+dependencies = [
+ "quote",
+ "rstest",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -2222,6 +2240,7 @@ dependencies = [
  "rstest-bdd",
  "rstest-bdd-harness",
  "rstest-bdd-macros",
+ "rstest-bdd-test-macros",
  "toml 0.9.12+spec-1.1.0",
 ]
 
@@ -2259,6 +2278,7 @@ dependencies = [
  "rstest-bdd",
  "rstest-bdd-harness-tokio",
  "rstest-bdd-macros",
+ "rstest-bdd-test-macros",
  "thiserror 2.0.18",
  "tokio",
 ]

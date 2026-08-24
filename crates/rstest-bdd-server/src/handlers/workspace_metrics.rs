@@ -4,18 +4,26 @@
 //! fixed operations and outcomes only; client paths and source text never form
 //! part of a metric key.
 
-use std::time::Duration;
-
-use metrics::{counter, describe_counter, describe_gauge, describe_histogram, gauge, histogram};
-
 #[cfg(test)]
 use std::sync::{Arc, Mutex, PoisonError};
+use std::time::Duration;
 
 #[cfg(test)]
 use metrics::{
-    Counter, CounterFn, Gauge, GaugeFn, Histogram, HistogramFn, Key, KeyName, Metadata, Recorder,
-    SharedString, Unit,
+    Counter,
+    CounterFn,
+    Gauge,
+    GaugeFn,
+    Histogram,
+    HistogramFn,
+    Key,
+    KeyName,
+    Metadata,
+    Recorder,
+    SharedString,
+    Unit,
 };
+use metrics::{counter, describe_counter, describe_gauge, describe_histogram, gauge, histogram};
 
 const WORKSPACE_COUNTER: &str = "rstest_bdd_server_workspace_preparation_total";
 const DEFERRED_SAVE_GAUGE: &str = "rstest_bdd_server_deferred_document_saves";

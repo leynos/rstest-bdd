@@ -3,8 +3,14 @@
 use std::sync::Arc;
 
 use proptest::prelude::*;
-use rstest_bdd::execution::{ExecutionError, StepExecutionRequest, execute_step};
-use rstest_bdd::{StepContext, StepError, StepExecution, StepKeyword, step};
+use rstest_bdd::{
+    StepContext,
+    StepError,
+    StepExecution,
+    StepKeyword,
+    execution::{ExecutionError, StepExecutionRequest, execute_step},
+    step,
+};
 
 const PROPERTY_STEP_TEXT: &str = "property missing fixture diagnostics";
 const FIXTURE_NAME_POOL: [&str; 12] = [

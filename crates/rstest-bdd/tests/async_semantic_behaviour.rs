@@ -4,43 +4,47 @@
 #[path = "common/async_semantic_behaviour_support.rs"]
 mod async_semantic_behaviour_support;
 
-use std::cell::RefCell;
-use std::panic::catch_unwind;
-
-use rstest::fixture;
-use rstest_bdd::assert_scenario_skipped;
-use rstest_bdd::panic_message;
-use rstest_bdd::reporting::drain as drain_reports;
-use rstest_bdd_macros::{given, scenario, then, when};
-use serial_test::serial;
+use std::{cell::RefCell, panic::catch_unwind};
 
 #[cfg(feature = "diagnostics")]
 use async_semantic_behaviour_support::{BypassedStepQuery, assert_bypassed_step_recorded};
 use async_semantic_behaviour_support::{
-    CleanupProbe, ERROR_SCENARIO_NAME, FEATURE_PATH, SKIP_SCENARIO_NAME, ScenarioRef,
-    SemanticValue, StepRef, assert_feature_path_suffix, assert_handler_failure_context,
-    cleanup_drops, clear_events, push_event, reset_cleanup_drops, scenario_line, snapshot_events,
+    CleanupProbe,
+    ERROR_SCENARIO_NAME,
+    FEATURE_PATH,
+    SKIP_SCENARIO_NAME,
+    ScenarioRef,
+    SemanticValue,
+    StepRef,
+    assert_feature_path_suffix,
+    assert_handler_failure_context,
+    cleanup_drops,
+    clear_events,
+    push_event,
+    reset_cleanup_drops,
+    scenario_line,
+    snapshot_events,
 };
+use rstest::fixture;
+use rstest_bdd::{assert_scenario_skipped, panic_message, reporting::drain as drain_reports};
+use rstest_bdd_macros::{given, scenario, then, when};
+use serial_test::serial;
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
-fn semantic_order_fixture() -> RefCell<Vec<String>> {
-    RefCell::new(vec!["fixture-created".into()])
-}
+fn semantic_order_fixture() -> RefCell<Vec<String>> { RefCell::new(vec!["fixture-created".into()]) }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
-fn semantic_value_fixture() -> SemanticValue {
-    SemanticValue(1)
-}
+fn semantic_value_fixture() -> SemanticValue { SemanticValue(1) }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
-fn semantic_shared_counter() -> RefCell<usize> {
-    RefCell::new(0)
-}
+fn semantic_shared_counter() -> RefCell<usize> { RefCell::new(0) }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
-fn semantic_cleanup_probe() -> CleanupProbe {
-    CleanupProbe
-}
+fn semantic_cleanup_probe() -> CleanupProbe { CleanupProbe }
 
 #[given("semantic async skip state is reset")]
 fn semantic_skip_state_reset() {

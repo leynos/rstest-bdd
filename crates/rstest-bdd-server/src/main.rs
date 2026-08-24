@@ -4,28 +4,38 @@
 //! (IDE) integration with the rstest-bdd Behaviour-Driven Development (BDD)
 //! testing framework. It communicates via JSON-RPC over stdin/stdout.
 
-use std::ops::ControlFlow;
-use std::path::PathBuf;
+use std::{ops::ControlFlow, path::PathBuf};
 
-use async_lsp::concurrency::ConcurrencyLayer;
-use async_lsp::panic::CatchUnwindLayer;
-use async_lsp::router::Router;
-use async_lsp::server::LifecycleLayer;
-use async_lsp::tracing::TracingLayer;
+use async_lsp::{
+    concurrency::ConcurrencyLayer,
+    panic::CatchUnwindLayer,
+    router::Router,
+    server::LifecycleLayer,
+    tracing::TracingLayer,
+};
 use clap::Parser;
 use lsp_types::{notification, request};
+use rstest_bdd_server::{
+    config::{LogLevel, ServerConfig},
+    error::ServerError,
+    handlers::{
+        DeferredDocumentSavesIndexed,
+        WorkspaceReadyEvent,
+        handle_deferred_document_saves_indexed,
+        handle_definition,
+        handle_did_save_text_document,
+        handle_implementation,
+        handle_initialise,
+        handle_initialised,
+        handle_shutdown,
+        handle_workspace_ready,
+        launch_workspace_preparation,
+    },
+    logging::init_logging,
+    server::ServerState,
+};
 use tower::ServiceBuilder;
 use tracing::{info, warn};
-
-use rstest_bdd_server::config::{LogLevel, ServerConfig};
-use rstest_bdd_server::error::ServerError;
-use rstest_bdd_server::handlers::{
-    DeferredDocumentSavesIndexed, WorkspaceReadyEvent, handle_deferred_document_saves_indexed,
-    handle_definition, handle_did_save_text_document, handle_implementation, handle_initialise,
-    handle_initialised, handle_shutdown, handle_workspace_ready, launch_workspace_preparation,
-};
-use rstest_bdd_server::logging::init_logging;
-use rstest_bdd_server::server::ServerState;
 
 /// LSP server for rstest-bdd Behaviour-Driven Development (BDD) testing framework.
 #[derive(Parser, Debug)]

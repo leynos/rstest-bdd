@@ -1,7 +1,10 @@
 //! GPUI-specific attribute policy tests for scenario test-attribute generation.
 
 use super::{
-    RuntimeMode, ScenarioReturnKind, TestAttrPolicy, adapt_fallible_gpui_boundary,
+    RuntimeMode,
+    ScenarioReturnKind,
+    TestAttrPolicy,
+    adapt_fallible_gpui_boundary,
     generate_test_attrs,
 };
 use crate::codegen::scenario::test_attrs::generate_test_attrs_with_boundary;
@@ -95,7 +98,8 @@ fn generate_test_attrs_dedupes_gpui_policy_and_user_attribute() {
     let gpui_count = output.match_indices("gpui :: test").count();
     assert_eq!(
         gpui_count, 1,
-        "expected exactly one gpui::test when both user attribute and policy are present, got {gpui_count}: {output}"
+        "expected exactly one gpui::test when both user attribute and policy are present, got \
+         {gpui_count}: {output}"
     );
 }
 

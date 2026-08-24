@@ -1,24 +1,34 @@
 //! Behavioural tests for harness adapter execution semantics.
 
+use std::{
+    cell::Cell,
+    io,
+    panic::{AssertUnwindSafe, catch_unwind},
+    rc::Rc,
+};
+
 use rstest::{fixture, rstest};
 use rstest_bdd_harness::{
-    FailingHarness, HarnessAdapter, HarnessError, HarnessResult, ScenarioMetadata,
-    ScenarioRunRequest, ScenarioRunner, StdHarness, StdScenarioRunRequest, StdScenarioRunner,
+    FailingHarness,
+    HarnessAdapter,
+    HarnessError,
+    HarnessResult,
+    ScenarioMetadata,
+    ScenarioRunRequest,
+    ScenarioRunner,
+    StdHarness,
+    StdScenarioRunRequest,
+    StdScenarioRunner,
 };
-use std::cell::Cell;
-use std::io;
-use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::rc::Rc;
 
 #[path = "../src/test_utils.rs"]
 mod test_utils;
 
 use test_utils::{STD_HARNESS_PANIC_MESSAGE, panic_payload_matches};
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
-fn default_metadata() -> ScenarioMetadata {
-    ScenarioMetadata::default()
-}
+fn default_metadata() -> ScenarioMetadata { ScenarioMetadata::default() }
 
 #[derive(Debug)]
 struct MetadataProbeHarness {

@@ -1,8 +1,14 @@
 //! Tests for placeholder extraction logic.
 
 use rstest::rstest;
-use rstest_bdd::localization::{ScopedLocalization, strip_directional_isolates};
-use rstest_bdd::{PlaceholderError, StepPattern, StepPatternError, StepText, extract_placeholders};
+use rstest_bdd::{
+    PlaceholderError,
+    StepPattern,
+    StepPatternError,
+    StepText,
+    extract_placeholders,
+    localization::{ScopedLocalization, strip_directional_isolates},
+};
 use unic_langid::langid;
 
 mod support;
@@ -212,7 +218,8 @@ fn extraction_reports_invalid_placeholder_error() {
     assert!(matches!(err, PlaceholderError::InvalidPlaceholder(_)));
     assert_eq!(
         strip_directional_isolates(&err.to_string()),
-        "invalid placeholder syntax: invalid placeholder in step pattern at byte 6 (zero-based) for placeholder 'n'",
+        "invalid placeholder syntax: invalid placeholder in step pattern at byte 6 (zero-based) \
+         for placeholder 'n'",
     );
 }
 

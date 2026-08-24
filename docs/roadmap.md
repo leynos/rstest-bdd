@@ -865,8 +865,8 @@ changing the public trait contracts.
   `docs/users-guide.md`. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.2.
   Delivered 2026-07-06: expanded the user-guide "Bulk-migration cookbook" to
   share the whole step library (given/when/then plus the state scaffolding) in
-  one `#[path]`-included module per crate, framed as the beta shape that
-  v0.6.0 final (10.3.1/10.3.2) shrinks, with inventory-per-binary and `pub`/
+  one `#[path]`-included module per crate, framed as the beta shape that v0.6.0
+  final (10.3.1/10.3.2) shrinks, with inventory-per-binary and `pub`/
   subdirectory rationale, the module-qualified `#[from(...)]` form, and the
   GPUI specialization bridged to published `gpui 0.2.2` via the mapping table
   and cross-linked to `stateful_window.rs`. Backed by a harness-agnostic
@@ -890,8 +890,8 @@ changing the public trait contracts.
   lint-clean `let ... else { panic!(...) }` invariant form. Finish line: the
   published snippets compile against crates.io `gpui 0.2.2`, the vendored and
   published variants are visibly paired, and a drift gate covers both. Design
-  Doc: `docs/rstest-bdd-design.md` §2.7.6.2. Origin:
-  `leynos/rstest-bdd#575` and the gauss v0.6.0-beta3 adoption report.
+  Doc: `docs/rstest-bdd-design.md` §2.7.6.2. Origin: `leynos/rstest-bdd#575`
+  and the gauss v0.6.0-beta3 adoption report.
 
 > **Note (dual-track maintenance):** items 10.2.4 and 10.2.5 introduce a
 > vendored-to-published mapping table that must be kept in sync with any
@@ -912,10 +912,10 @@ superseded by ADR-012 before implementation, so the release is ready when
 feature-file edits cannot leave users running stale scenarios.
 
 - [x] 10.3.1. **Superseded by 12.1.3 before implementation.** ADR-011 proposed
-  a generic `ScenarioStore<T>` core (in `rstest-bdd`) to replace
-  per-scenario thread-local `RefCell` boilerplate; it would expose `set`, `with`,
-  `with_mut`, `take`, and `reset` operations and wrap the two-sided reset
-  protocol, alongside a GPUI-specific `GpuiScenarioStore` re-export in
+  a generic `ScenarioStore<T>` core (in `rstest-bdd`) to replace per-scenario
+  thread-local `RefCell` boilerplate; it would expose `set`, `with`, `with_mut`,
+  `take`, and `reset` operations and wrap the two-sided reset protocol,
+  alongside a GPUI-specific `GpuiScenarioStore` re-export in
   `rstest-bdd-harness-gpui`. These helpers did not ship; ADR-012 instead landed
   framework-managed scenario storage and cleanup, so the v0.6.x thread-local
   interim pattern is retired by the v0.7.0 lifecycle contract rather than by a
@@ -926,19 +926,19 @@ feature-file edits cannot leave users running stale scenarios.
   a cleanup-guard fixture-generating macro in `rstest-bdd-harness-gpui` to
   produce the `ScenarioStateCleanup` `Drop` guard and the
   `#[fixture] fn scenario_state_cleanup()` function, so GPUI scenarios could
-  adopt the two-sided reset protocol with a single macro call. The macro did not
-  ship; ADR-012 instead made cleanup of framework-owned scenario storage part of
-  the v0.7.0 lifecycle contract, which the existing cleanup-probe suite pins
-  across success, assertion failure, and skip. ADR:
+  adopt the two-sided reset protocol with a single macro call. The macro did
+  not ship; ADR-012 instead made cleanup of framework-owned scenario storage
+  part of the v0.7.0 lifecycle contract, which the existing cleanup-probe suite
+  pins across success, assertion failure, and skip. ADR:
   `docs/adr-011-first-party-scenario-state-and-cleanup.md`. Design Doc:
   `docs/rstest-bdd-design.md` §2.7.6.4. (Doggylump)
 - [ ] 10.3.3. Editing only a `.feature` file triggers a rebuild of the scenario
   binary. The `#[scenario]`/`scenarios!` expansion registers each bound feature
-  file as a Cargo rebuild dependency without embedding an absolute path into the
-  compiled artefact, and a portability-aware regression test proves a
-  `.feature`-only edit forces recompilation and a fresh test failure. The fix is
-  non-breaking: no existing call site changes. Finish line: the regression test
-  fails against the current `std::fs`-read macro and passes after the fix;
+  file as a Cargo rebuild dependency without embedding an absolute path into
+  the compiled artefact, and a portability-aware regression test proves a
+  `.feature`-only edit forces recompilation and a fresh test failure. The fix
+  is non-breaking: no existing call site changes. Finish line: the regression
+  test fails against the current `std::fs`-read macro and passes after the fix;
   required `trybuild` compile-pass and compile-fail fixtures pin the emitted
   binding and the missing-`.feature` diagnostic; a redacted `insta` snapshot
   with semantic assertions pins any touched diagnostic wording; no absolute
@@ -1050,8 +1050,8 @@ an assertion cannot disappear behind macro classification or generated code.
   returns `Err`, spelled `Result`, `StepResult`, an alias explicitly marked
   `result`, and a genuine value alias; no `Err` case is boxed and discarded as
   an opaque payload. ADR: `docs/adr-002-stable-step-return-classification.md`.
-  Design Doc: `docs/rstest-bdd-design.md` §2.1. Origin:
-  `leynos/rstest-bdd#573` and the gauss v0.6.0-beta3 validation matrix.
+  Design Doc: `docs/rstest-bdd-design.md` §2.1. Origin: `leynos/rstest-bdd#573`
+  and the gauss v0.6.0-beta3 validation matrix.
 - [ ] 11.3.2. Harness-generated tests consume the result of fallible scenario
   functions, including under `GpuiHarness`, without triggering
   `unused_must_use` under `-D warnings`. Unit-returning scenarios continue to
@@ -1061,8 +1061,8 @@ an assertion cannot disappear behind macro classification or generated code.
   with `Result<(), E>` scenario bodies under denied warnings; runtime tests
   prove scenario-body and step errors both fail the test. ADR:
   `docs/adr-006-fallible-scenario-functions.md`. Design Doc:
-  `docs/rstest-bdd-design.md` §§2.7.2-2.7.4. Origin:
-  `leynos/rstest-bdd#574` and the gauss v0.6.0-beta3 validation matrix.
+  `docs/rstest-bdd-design.md` §§2.7.2-2.7.4. Origin: `leynos/rstest-bdd#574`
+  and the gauss v0.6.0-beta3 validation matrix.
 
 > **Note (ADR-008 follow-up):** roadmap items 9.7.1–9.7.4 shipped the
 > harness-led attribute defaults under maintainer authorization, but
@@ -1083,9 +1083,8 @@ an assertion cannot disappear behind macro classification or generated code.
   durable-handle patterns to framework-managed scenario-boundary cleanup.
   Finish line: runtime unit tests prove concurrent distinct mutable borrows
   succeed, same-fixture conflicts fail, generated-wrapper tests cover harness
-  context plus world state, and the migration guide carries the mapping
-  table. ADR:
-  `docs/adr-012-guard-based-stepcontext-borrowing.md`. Design Doc:
+  context plus world state, and the migration guide carries the mapping table.
+  ADR: `docs/adr-012-guard-based-stepcontext-borrowing.md`. Design Doc:
   `docs/rstest-bdd-design.md` §2.7.6.5. (Pandalump, Telefono)
 - [x] 12.1.2. `FixtureRefMut` exposes a stable, opaque public API that preserves
   value-accessor methods while hiding internal enum and representation details.
@@ -1096,13 +1095,12 @@ an assertion cannot disappear behind macro classification or generated code.
   (Telefono)
 - [x] 12.1.3. A stable world lifecycle contract guarantees fresh
   framework-owned scenario storage, after-scenario cleanup, and cleanup on
-  failure or skip, so users can model scenario state without thread-local
-  reset conventions: the framework automatically constructs the
-  `StepContext` and drops framework-owned fixture cells at the scenario
-  boundary (success, failure, and skip), with no caller-managed reset. The
-  migration guide explains how v0.6 workarounds map to the v0.7 lifecycle.
-  Prerequisite: 12.1.1. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.5.
-  Finish line:
+  failure or skip, so users can model scenario state without thread-local reset
+  conventions: the framework automatically constructs the `StepContext` and
+  drops framework-owned fixture cells at the scenario boundary (success,
+  failure, and skip), with no caller-managed reset. The migration guide
+  explains how v0.6 workarounds map to the v0.7 lifecycle. Prerequisite:
+  12.1.1. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.5. Finish line:
   lifecycle tests pass for success, assertion failure, and skip, and the
   migration guide includes the v0.6-to-v0.7 mapping. (Doggylump)
 

@@ -7,16 +7,17 @@
 mod support;
 
 use rstest::{fixture, rstest};
-use rstest_bdd_server::handlers::compute_table_docstring_mismatch_diagnostics;
-use rstest_bdd_server::server::ServerState;
+use rstest_bdd_server::{
+    handlers::compute_table_docstring_mismatch_diagnostics,
+    server::ServerState,
+};
 use support::{ScenarioBuilder, TestScenario};
 use tempfile::TempDir;
 
 /// Fixture providing a fresh scenario builder for each test.
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
-fn scenario_builder() -> ScenarioBuilder {
-    ScenarioBuilder::new()
-}
+fn scenario_builder() -> ScenarioBuilder { ScenarioBuilder::new() }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Test-local helpers

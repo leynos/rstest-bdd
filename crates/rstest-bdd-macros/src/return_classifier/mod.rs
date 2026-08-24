@@ -66,7 +66,8 @@ pub(crate) fn classify_return_type(
                 if is_definitely_non_result_type(ty) {
                     Err(syn::Error::new_spanned(
                         ty,
-                        "return override `result` requires a return type shaped like `Result<T, E>` or `StepResult<T, E>`",
+                        "return override `result` requires a return type shaped like `Result<T, \
+                         E>` or `StepResult<T, E>`",
                     ))
                 } else {
                     // We cannot resolve type aliases during macro expansion.
@@ -107,9 +108,7 @@ fn classify_result_like(ty: &Type) -> Option<ReturnKind> {
 /// However, the runtime helper [`__rstest_bdd_payload_from_value`] identifies
 /// unit aliases via `TypeId` comparison, so steps returning unit aliases will
 /// still produce `None` payloads rather than boxed `()` values.
-fn is_unit_type(ty: &Type) -> bool {
-    matches!(ty, Type::Tuple(tuple) if tuple.elems.is_empty())
-}
+fn is_unit_type(ty: &Type) -> bool { matches!(ty, Type::Tuple(tuple) if tuple.elems.is_empty()) }
 
 fn is_definitely_non_result_type(ty: &Type) -> bool {
     match ty {
@@ -200,14 +199,10 @@ fn is_step_result_path(path: &Path) -> bool {
     })
 }
 
-pub(crate) fn first_type_argument(path: &Path) -> Option<&Type> {
-    nth_type_argument(path, 0)
-}
+pub(crate) fn first_type_argument(path: &Path) -> Option<&Type> { nth_type_argument(path, 0) }
 
 /// Extracts the error type `E` from `Result<T, E>` or `StepResult<T, E>`.
-pub(crate) fn second_type_argument(path: &Path) -> Option<&Type> {
-    nth_type_argument(path, 1)
-}
+pub(crate) fn second_type_argument(path: &Path) -> Option<&Type> { nth_type_argument(path, 1) }
 
 fn nth_type_argument(path: &Path, n: usize) -> Option<&Type> {
     let segment = path.segments.last()?;

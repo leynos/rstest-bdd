@@ -1,10 +1,14 @@
 //! Parameterized tests for combined `scenarios!` argument parsing cases.
 
+use syn::parse_quote;
+
 use super::{
-    RuntimeCompatibilityAlias, RuntimeMode, ScenariosArgs, runtime_compatibility_alias,
+    RuntimeCompatibilityAlias,
+    RuntimeMode,
+    ScenariosArgs,
+    runtime_compatibility_alias,
     try_parse_scenarios_args,
 };
-use syn::parse_quote;
 
 #[rstest::rstest]
 #[case::scenarios_args_parses_all_arguments(

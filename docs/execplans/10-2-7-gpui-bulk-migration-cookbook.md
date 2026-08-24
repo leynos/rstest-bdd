@@ -42,8 +42,7 @@ Success is visible in five ways:
 1. `docs/users-guide.md` contains an expanded "Bulk-migration cookbook"
    subsection that documents sharing the *step library* (not only the state
    scaffolding), is framed as the beta shape that v0.6.0 final shrinks, bridges
-   the
-   GPUI specifics to published `gpui 0.2.2`, and points at the executable
+   the GPUI specifics to published `gpui 0.2.2`, and points at the executable
    reference.
 2. A new executable reference suite proves one shared step library is reused by
    two scenarios across two feature files, with **zero** step definitions in
@@ -118,9 +117,9 @@ The rejected alternative — a second feature-gated GPUI suite with two
 window-opening binaries — was declined because it re-proves the
 harness-agnostic sharing mechanism at high cost, hand-builds boilerplate that
 roadmap items 10.3.1/10.3.2 replace as v0.6.0 final work, trips the dead-code
-lint, and would be built
-by copying `stateful_window.rs` wholesale (Constraint 2 forbids refactoring
-it), i.e. the anti-duplication exemplar would itself be duplication.
+lint, and would be built by copying `stateful_window.rs` wholesale (Constraint
+2 forbids refactoring it), i.e. the anti-duplication exemplar would itself be
+duplication.
 
 Confirm at approval: harness-agnostic executable proof plus GPUI prose
 cross-linked to `stateful_window.rs` (recommended), versus a new GPUI-specific
@@ -353,8 +352,8 @@ Stop and escalate (document in Decision Log, await direction) when:
   proof in `rstest-bdd`, not a new feature-gated GPUI suite. Rationale: the
   reuse property is harness-agnostic and already precedented by
   `noop_steps.rs`; a GPUI suite re-proves it at high cost, hand-builds
-  thread-local boilerplate that 10.3.1/10.3.2 delete for v0.6.0 final, trips the
-  dead-code lint, targets vendored gpui for a published-gpui audience, and
+  thread-local boilerplate that 10.3.1/10.3.2 delete for v0.6.0 final, trips
+  the dead-code lint, targets vendored gpui for a published-gpui audience, and
   would be built by copying `stateful_window.rs` (which Constraint 2 forbids
   refactoring), making the anti-duplication exemplar out of duplication. The
   GPUI half is already proven by `stateful_window.rs`; the cookbook prose
@@ -824,13 +823,13 @@ agnostic runtime shared-step-library proof in `rstest-bdd` (built on shipped
 agnostic, the GPUI half is already proven by `stateful_window.rs`, and a GPUI
 suite would hand-build boilerplate that roadmap 10.3.1/10.3.2 shrink in v0.6.0
 final, trip the dead-code lint, target vendored gpui for a published-gpui
-audience, and duplicate
-`stateful_window.rs`. Corrected the Red stage to a stepless-module runtime
-`StepNotFound` (was an incoherent missing-module compile error). Added a
-`cargo clean -p rstest-bdd` cache guard for the feature-file rebuild foot-gun,
-a "named tests must appear" acceptance guard, the qualified `#[from]` form and
-`pub` requirement, the published-gpui bridge, the "beta shape, shrinks in
-v0.6.0 final" framing, and dead-code/doc-parity-script constraints.
+audience, and duplicate `stateful_window.rs`. Corrected the Red stage to a
+stepless-module runtime `StepNotFound` (was an incoherent missing-module
+compile error). Added a `cargo clean -p rstest-bdd` cache guard for the
+feature-file rebuild foot-gun, a "named tests must appear" acceptance guard,
+the qualified `#[from]` form and `pub` requirement, the published-gpui bridge,
+the "beta shape, shrinks in v0.6.0 final" framing, and
+dead-code/doc-parity-script constraints.
 
 Revision 3 (2026-07-06). Added Constraint 9 — every cookbook example must be
 test-backed (a runtime test, the now-required trybuild compile-pass fixture, or

@@ -4,23 +4,22 @@ use std::sync::Arc;
 
 use i18n_embed::fluent::fluent_language_loader;
 use rstest::rstest;
-use rstest_bdd::execution::{ExecutionError, MissingFixtureDiagnostic, MissingFixturesDetails};
-use rstest_bdd::localization::{ScopedLocalization, strip_directional_isolates};
-use rstest_bdd::{Localizations, StepError, StepKeyword};
+use rstest_bdd::{
+    Localizations,
+    StepError,
+    StepKeyword,
+    execution::{ExecutionError, MissingFixtureDiagnostic, MissingFixturesDetails},
+    localization::{ScopedLocalization, strip_directional_isolates},
+};
 use unic_langid::{LanguageIdentifier, langid};
-
 /// Helper to create a Skip error without message.
-fn skip_without_message() -> ExecutionError {
-    ExecutionError::Skip { message: None }
-}
-
+fn skip_without_message() -> ExecutionError { ExecutionError::Skip { message: None } }
 /// Helper to create a Skip error with message.
 fn skip_with_message(msg: &str) -> ExecutionError {
     ExecutionError::Skip {
         message: Some(msg.into()),
     }
 }
-
 /// Helper to create a `StepNotFound` error.
 fn step_not_found() -> ExecutionError {
     ExecutionError::StepNotFound {
@@ -124,15 +123,20 @@ fn handler_failed() -> ExecutionError {
 )]
 #[case::step_not_found(
     step_not_found(),
-    "Step not found at index 3: Given a user named Alice (feature: features/auth.feature, scenario: User login)"
+    "Step not found at index 3: Given a user named Alice (feature: features/auth.feature, \
+     scenario: User login)"
 )]
 #[case::missing_fixtures(
     missing_fixtures(),
-    "Step 'a database connection' (defined at tests/steps.rs:42) requires fixtures db, cache, but the following are missing: db. Requested fixture information: db: DbPool. Available fixtures from scenario: cache, config  (feature: features/db.feature, scenario: Database query)"
+    "Step 'a database connection' (defined at tests/steps.rs:42) requires fixtures db, cache, but \
+     the following are missing: db. Requested fixture information: db: DbPool. Available fixtures \
+     from scenario: cache, config  (feature: features/db.feature, scenario: Database query)"
 )]
 #[case::handler_failed(
     handler_failed(),
-    "Step failed at index 1: When the user clicks submit - Error executing step 'the user clicks submit' via function 'click_submit': button not found (feature: features/form.feature, scenario: Form submission)"
+    "Step failed at index 1: When the user clicks submit - Error executing step 'the user clicks \
+     submit' via function 'click_submit': button not found (feature: features/form.feature, \
+     scenario: Form submission)"
 )]
 fn execution_error_display_uses_localized_messages_and_context(
     #[case] error: ExecutionError,

@@ -11,8 +11,10 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 use syn::Type;
 
-use crate::datatable::config::{DefaultValue, FieldSpec};
-use crate::datatable::parser::accessor_expr;
+use crate::datatable::{
+    config::{DefaultValue, FieldSpec},
+    parser::accessor_expr,
+};
 
 pub(crate) fn build_field_binding(
     index: usize,

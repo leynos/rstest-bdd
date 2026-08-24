@@ -1,7 +1,8 @@
 //! Behavioural tests covering scenario outlines without Examples tables.
 
-use super::*;
 use gherkin::{Feature, LineCol, Scenario, Span};
+
+use super::*;
 
 #[test]
 fn scenario_outline_missing_examples_surfaces_scenario_name() {

@@ -2,11 +2,11 @@
 
 use lsp_types::{DidSaveTextDocumentParams, TextDocumentIdentifier, Url};
 
-use super::super::{WorkspaceReadyEvent, handle_workspace_ready, prepare_workspace};
-use super::cargo_workspace;
-use crate::config::ServerConfig;
-use crate::handlers::handle_did_save_text_document;
-use crate::server::ServerState;
+use super::{
+    super::{WorkspaceReadyEvent, handle_workspace_ready, prepare_workspace},
+    cargo_workspace,
+};
+use crate::{config::ServerConfig, handlers::handle_did_save_text_document, server::ServerState};
 
 #[test]
 fn workspace_ready_replays_a_deferred_disk_backed_feature_save() {

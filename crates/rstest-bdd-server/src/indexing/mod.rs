@@ -5,8 +5,8 @@
 //!
 //! - Feature steps (keyword, text, step span)
 //! - Feature doc strings, data tables, and Examples header columns
-//! - Rust step definitions annotated with `#[given]`, `#[when]`, and `#[then]`
-//!   (keyword, pattern string, parameters, table/doc string expectations)
+//! - Rust step definitions annotated with `#[given]`, `#[when]`, and `#[then]` (keyword, pattern
+//!   string, parameters, table/doc string expectations)
 //!
 //! The implementation relies on the `gherkin` crate for syntactic parsing.
 //! Where `gherkin` does not expose spans (for example doc string blocks and
@@ -17,8 +17,7 @@
 //! the step attribute (e.g., `#[given("...")]`) to enable accurate diagnostic
 //! highlighting in language server clients.
 
-use std::ops::Deref;
-use std::path::PathBuf;
+use std::{ops::Deref, path::PathBuf};
 
 use gherkin::{Span, StepType};
 
@@ -189,9 +188,7 @@ pub struct RustStepIndexResult {
 impl Deref for RustStepIndexResult {
     type Target = RustStepFileIndex;
 
-    fn deref(&self) -> &Self::Target {
-        &self.index
-    }
+    fn deref(&self) -> &Self::Target { &self.index }
 }
 
 /// Span information for a Rust step attribute and its associated function.

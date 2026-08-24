@@ -4,16 +4,17 @@
 //! between sync and async wrapper emission, keeping `assembly.rs` focused on
 //! orchestration and within the project's file length limits.
 
-use super::super::super::args::ExtractedArgs;
-use super::super::super::arguments::{
-    StepMeta, collect_ordered_arguments, prepare_argument_processing,
-};
-use super::super::datatable_cache::{
-    DatatableCacheComponents, generate_datatable_cache_definitions,
-};
-use super::super::identifiers::generate_wrapper_signature;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
+
+use super::super::{
+    super::{
+        args::ExtractedArgs,
+        arguments::{StepMeta, collect_ordered_arguments, prepare_argument_processing},
+    },
+    datatable_cache::{DatatableCacheComponents, generate_datatable_cache_definitions},
+    identifiers::generate_wrapper_signature,
+};
 
 /// Generate a compile-time assertion that the step struct field count matches the
 /// expected number of placeholder captures.

@@ -10,6 +10,13 @@ SHELL := bash
 export PATH := $(HOME)/.cargo/bin:$(HOME)/.bun/bin:$(HOME)/.local/bin:$(PATH)
 APP ?= cargo-bdd
 CARGO ?= $(or $(shell command -v cargo 2>/dev/null),$(HOME)/.cargo/bin/cargo)
+# `.rustfmt.toml` enables unstable rustfmt options, which only a nightly
+# rustfmt understands. Formatting therefore runs on nightly while every other
+# Cargo invocation stays on the pinned stable toolchain. The nightly is pinned
+# to a date so that an upstream rustfmt change cannot reformat the tree out
+# from under unrelated pull requests.
+FMT_TOOLCHAIN ?= nightly-2026-08-07
+CARGO_FMT ?= $(CARGO) +$(FMT_TOOLCHAIN) fmt
 BUILD_JOBS ?=
 RUST_FLAGS ?= -D warnings
 RUSTDOC_FLAGS ?= --cfg docsrs -D warnings
@@ -92,13 +99,13 @@ forbid-async-trait: ## Ensure the async-trait crate and macro remain absent
 	python3 scripts/check_forbidden_async_trait.py
 
 fmt: build-python ## Format Rust and Markdown sources
-	$(CARGO) fmt --all
+	$(CARGO_FMT) --all
 	$(UV_ENV) $(UV) run ruff format $(PYTHON_TARGETS)
 	$(UV_ENV) $(UV) run ruff check --select I --fix $(PYTHON_TARGETS)
 	mdformat-all
 
 check-fmt: build-python ## Verify formatting
-	$(CARGO) fmt --all -- --check
+	$(CARGO_FMT) --all -- --check
 	$(UV_ENV) $(UV) run ruff format --check $(PYTHON_TARGETS)
 
 markdownlint: spelling ## Lint Markdown files and enforce en-GB-oxendict spelling

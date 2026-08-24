@@ -4,8 +4,9 @@
 //! definitions, and a JSON dump — consumed by `cargo bdd` and test-suite
 //! health checks.
 
-use super::{Step, StepKey, USED_STEPS, all_steps};
 use hashbrown::HashMap;
+
+use super::{Step, StepKey, USED_STEPS, all_steps};
 
 /// Return registered steps that were never executed.
 #[must_use]
@@ -51,17 +52,14 @@ pub fn duplicate_steps() -> Vec<Vec<&'static Step>> {
 /// assert!(json.contains("\"steps\""));
 /// ```
 #[cfg(feature = "diagnostics")]
-pub fn dump_registry() -> serde_json::Result<String> {
-    super::diagnostics::dump_registry()
-}
+pub fn dump_registry() -> serde_json::Result<String> { super::diagnostics::dump_registry() }
 
 #[cfg(test)]
 mod tests {
     //! Unit tests for registry introspection queries.
 
-    use crate::{StepContext, StepError, StepExecution, StepFuture, StepKeyword, step};
-
     use super::{all_steps, duplicate_steps, unused_steps};
+    use crate::{StepContext, StepError, StepExecution, StepFuture, StepKeyword, step};
 
     const USED_PATTERN: &str = "introspection used step";
     const UNUSED_PATTERN: &str = "introspection unused step";

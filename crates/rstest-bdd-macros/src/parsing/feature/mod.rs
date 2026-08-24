@@ -1,15 +1,20 @@
 //! Feature file loading and scenario extraction.
 
-use gherkin::{Feature, GherkinEnv, Scenario, Step, StepType};
-use std::collections::HashMap;
 use std::{
+    collections::HashMap,
     path::{Path, PathBuf},
     sync::{LazyLock, RwLock},
 };
 
-use crate::parsing::examples::ExampleTable;
-use crate::parsing::tags::{self, TagExpression};
-use crate::utils::errors::error_to_tokens;
+use gherkin::{Feature, GherkinEnv, Scenario, Step, StepType};
+
+use crate::{
+    parsing::{
+        examples::ExampleTable,
+        tags::{self, TagExpression},
+    },
+    utils::errors::error_to_tokens,
+};
 cfg_if::cfg_if! {
     if #[cfg(feature = "compile-time-validation")] {
         use crate::validation::examples::{validate_examples_in_feature_text, FeatureText};
