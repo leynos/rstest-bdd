@@ -182,7 +182,7 @@ pub fn extract_args(
         // placed after the `is_placeholder` check, a placeholder-named
         // parameter would skip it and the marker would leak into generated
         // code as `cannot find attribute`.
-        if classify_harness_context(&mut state, arg, &pat, &ty, placeholders)? {
+        if classify_harness_context(&mut state, arg, placeholders)? {
             continue 'args;
         }
 

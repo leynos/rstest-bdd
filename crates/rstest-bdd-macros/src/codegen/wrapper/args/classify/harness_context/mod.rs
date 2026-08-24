@@ -9,6 +9,7 @@
 use std::collections::HashSet;
 
 use super::{Arg, ExtractedArgs, extract_flag_attribute};
+use quote::ToTokens;
 
 #[cfg(test)]
 mod prop_tests;
@@ -74,8 +75,6 @@ fn validate_harness_context_marker(
 pub(crate) fn classify_harness_context(
     st: &mut ExtractedArgs,
     arg: &mut syn::PatType,
-    pat: &syn::Ident,
-    ty: &syn::Type,
     placeholders: &HashSet<String>,
 ) -> syn::Result<bool> {
     let via_marker = extract_flag_attribute(arg, "harness_context")?;
@@ -83,7 +82,21 @@ pub(crate) fn classify_harness_context(
         return Ok(false);
     }
 
-    validate_harness_context_marker(arg, pat, placeholders)?;
+    let pat = match &*arg.pat {
+        syn::Pat::Ident(pat_ident) => pat_ident.ident.clone(),
+        other => {
+            let pattern = other.to_token_stream().to_string();
+            return Err(syn::Error::new(
+                proc_macro2::Span::call_site(),
+                format!(
+                    "unsupported parameter pattern `{pattern}`; use a simple identifier (e.g., `arg: T`)"
+                ),
+            ));
+        }
+    };
+    let ty = (*arg.ty).clone();
+
+    validate_harness_context_marker(arg, &pat, placeholders)?;
 
     // `HARNESS_CONTEXT_FIXTURE` is a compile-time constant that is a valid Rust
     // identifier; `classify::harness_context::tests` pins that invariant, so
