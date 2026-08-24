@@ -22,14 +22,6 @@ use rstest_bdd_server::{
 };
 use tempfile::TempDir;
 
-
-//! Behavioural tests for `textDocument/definition` navigation.
-//!
-//! These tests verify end-to-end navigation from Rust step functions to
-//! matching feature steps in `.feature` files.
-};
-};
-
 /// Helper to create `GotoDefinitionParams` for a given URI and position.
 fn make_params(uri: Url, line: u32, character: u32) -> GotoDefinitionParams {
     GotoDefinitionParams {

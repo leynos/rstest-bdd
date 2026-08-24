@@ -20,17 +20,6 @@ use crate::{
     server::ServerState,
 };
 
-
-//! Shared test support utilities for rstest-bdd-server tests.
-//!
-//! This module provides common infrastructure for both unit and integration
-//! tests, including:
-//! - Temporary directory and file management
-//! - File indexing via simulated LSP save events
-//! - Scenario building for diagnostic and navigation tests
-//! - Newtype wrappers for improved type safety
-};
-
 /// Newtype wrapper for test file names to improve type safety.
 #[derive(Debug, Clone)]
 pub struct Filename(pub(crate) String);
