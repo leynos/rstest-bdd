@@ -17,7 +17,7 @@ pub(super) fn clear_registry() {
 pub(super) fn create_test_step(keyword: StepKeyword, text: &str) -> ParsedStep {
     ParsedStep {
         keyword,
-        text: text.to_string(),
+        text: text.to_owned(),
         docstring: None,
         table: None,
         #[cfg(feature = "compile-time-validation")]

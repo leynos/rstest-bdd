@@ -100,8 +100,8 @@ pub fn initialize_result() -> InitializeResult {
     InitializeResult {
         capabilities: build_server_capabilities(),
         server_info: Some(ServerInfo {
-            name: "rstest-bdd-lsp".to_string(),
-            version: Some(env!("CARGO_PKG_VERSION").to_string()),
+            name: "rstest-bdd-lsp".to_owned(),
+            version: Some(env!("CARGO_PKG_VERSION").to_owned()),
         }),
     }
 }

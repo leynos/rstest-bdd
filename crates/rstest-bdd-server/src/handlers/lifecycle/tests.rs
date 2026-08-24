@@ -113,7 +113,7 @@ fn extract_workspace_path_from_various_sources(
         (
             vec![WorkspaceFolder {
                 uri: url.clone(),
-                name: "folder".to_string(),
+                name: "folder".to_owned(),
             }],
             None,
         )
@@ -212,7 +212,7 @@ fn prepare_workspace_discovers_and_opens_capability() {
     match preparation {
         WorkspacePreparation::Discovered(info, _) => {
             assert_eq!(info.root, workspace.path());
-            assert!(info.packages.contains(&"test-project".to_string()));
+            assert!(info.packages.contains(&"test-project".to_owned()));
         }
         other => panic!("expected discovered workspace, got {other:?}"),
     }

@@ -257,7 +257,7 @@ mod tests {
 
     #[test]
     fn request_skip_raises_panic() {
-        let result = panic::catch_unwind(|| SkipRequest::raise(Some("skip".to_string())));
+        let result = panic::catch_unwind(|| SkipRequest::raise(Some("skip".to_owned())));
         assert!(result.is_err(), "request_skip should panic");
     }
 
@@ -296,7 +296,7 @@ mod tests {
         };
         assert_eq!(
             request.into_message(),
-            expected.map(ToString::to_string),
+            expected.map(str::to_owned),
             "skip! should produce the expected optional message",
         );
     }

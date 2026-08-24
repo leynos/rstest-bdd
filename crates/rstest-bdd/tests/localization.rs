@@ -131,8 +131,8 @@ fn message_helpers_use_active_locale() {
     let detailed = strip_directional_isolates(&message_with_args(
         "assert-step-err-missing-substring",
         |args| {
-            args.set("display", "boom".to_string());
-            args.set("expected", "snap".to_string());
+            args.set("display", "boom".to_owned());
+            args.set("expected", "snap".to_owned());
         },
     ));
     assert!(detailed.contains("boom"));

@@ -17,8 +17,8 @@ pub(super) fn parse_function_parameters(
         .iter()
         .map(|input| match input {
             syn::FnArg::Receiver(_) => IndexedStepParameter {
-                name: Some("self".to_string()),
-                ty: "Self".to_string(),
+                name: Some("self".to_owned()),
+                ty: "Self".to_owned(),
                 is_datatable: false,
                 is_docstring: false,
                 is_step_struct: false,

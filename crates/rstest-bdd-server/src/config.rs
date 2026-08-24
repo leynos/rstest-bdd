@@ -282,8 +282,8 @@ mod tests {
     #[test]
     fn server_config_from_env_with_reads_values() {
         let config = ServerConfig::from_env_with(|key| match key {
-            "RSTEST_BDD_LSP_LOG_LEVEL" => Ok("debug".to_string()),
-            "RSTEST_BDD_LSP_DEBOUNCE_MS" => Ok("123".to_string()),
+            "RSTEST_BDD_LSP_LOG_LEVEL" => Ok("debug".to_owned()),
+            "RSTEST_BDD_LSP_DEBOUNCE_MS" => Ok("123".to_owned()),
             _ => Err(env::VarError::NotPresent),
         })
         .expect("expected parsed config");
@@ -295,7 +295,7 @@ mod tests {
     #[test]
     fn server_config_from_env_with_reads_workspace_root() {
         let config = ServerConfig::from_env_with(|key| match key {
-            "RSTEST_BDD_LSP_WORKSPACE_ROOT" => Ok("/my/workspace".to_string()),
+            "RSTEST_BDD_LSP_WORKSPACE_ROOT" => Ok("/my/workspace".to_owned()),
             _ => Err(env::VarError::NotPresent),
         })
         .expect("expected parsed config");
@@ -306,13 +306,13 @@ mod tests {
     #[test]
     fn server_config_from_env_with_rejects_invalid_values() {
         let result = ServerConfig::from_env_with(|key| match key {
-            "RSTEST_BDD_LSP_LOG_LEVEL" => Ok("invalid".to_string()),
+            "RSTEST_BDD_LSP_LOG_LEVEL" => Ok("invalid".to_owned()),
             _ => Err(env::VarError::NotPresent),
         });
         assert!(result.is_err());
 
         let result = ServerConfig::from_env_with(|key| match key {
-            "RSTEST_BDD_LSP_DEBOUNCE_MS" => Ok("invalid".to_string()),
+            "RSTEST_BDD_LSP_DEBOUNCE_MS" => Ok("invalid".to_owned()),
             _ => Err(env::VarError::NotPresent),
         });
         assert!(result.is_err());

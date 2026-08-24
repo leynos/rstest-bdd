@@ -306,7 +306,7 @@ mod tests {
                 assert_eq!(service.pending_reminder_count(), 2);
                 assert_eq!(
                     service.pending_recipients(),
-                    vec!["Ada".to_string(), "Grace".to_string()]
+                    vec!["Ada".to_owned(), "Grace".to_owned()]
                 );
 
                 let result = service.flush().await;
@@ -317,8 +317,8 @@ mod tests {
                 assert_eq!(
                     service.delivered_reminders(),
                     vec![
-                        "Reminder sent to Ada".to_string(),
-                        "Reminder sent to Grace".to_string(),
+                        "Reminder sent to Ada".to_owned(),
+                        "Reminder sent to Grace".to_owned(),
                     ]
                 );
                 assert_eq!(service.pending_reminder_count(), 0);
@@ -341,20 +341,20 @@ mod tests {
                 assert!(first.is_ok(), "first flush should succeed: {first:?}");
                 assert_eq!(
                     service.delivered_reminders(),
-                    vec!["Reminder sent to Ada".to_string()]
+                    vec!["Reminder sent to Ada".to_owned()]
                 );
                 assert!(service.pending_recipients().is_empty());
 
                 service.schedule_reminder("Linus");
-                assert_eq!(service.pending_recipients(), vec!["Linus".to_string()]);
+                assert_eq!(service.pending_recipients(), vec!["Linus".to_owned()]);
 
                 let second = service.flush().await;
                 assert!(second.is_ok(), "second flush should succeed: {second:?}");
                 assert_eq!(
                     service.delivered_reminders(),
                     vec![
-                        "Reminder sent to Ada".to_string(),
-                        "Reminder sent to Linus".to_string(),
+                        "Reminder sent to Ada".to_owned(),
+                        "Reminder sent to Linus".to_owned(),
                     ]
                 );
             })
@@ -376,16 +376,16 @@ mod tests {
                 let succeeding_task: ReminderTask = Box::pin(async move {
                     delivered
                         .borrow_mut()
-                        .push("Reminder sent to Grace".to_string());
+                        .push("Reminder sent to Grace".to_owned());
                 });
 
                 service.pending.borrow_mut().extend([
                     PendingReminder {
-                        recipient: "Ada".to_string(),
+                        recipient: "Ada".to_owned(),
                         task: failing_task,
                     },
                     PendingReminder {
-                        recipient: "Grace".to_string(),
+                        recipient: "Grace".to_owned(),
                         task: succeeding_task,
                     },
                 ]);
@@ -394,7 +394,7 @@ mod tests {
                 assert!(result.is_err(), "flush should report the first join error");
                 assert_eq!(
                     service.delivered_reminders(),
-                    vec!["Reminder sent to Grace".to_string()]
+                    vec!["Reminder sent to Grace".to_owned()]
                 );
                 assert_eq!(service.pending_reminder_count(), 0);
                 assert!(service.pending_recipients().is_empty());
@@ -430,7 +430,7 @@ mod tests {
                 service.flush().await.expect("flush should succeed");
                 assert_eq!(
                     service.delivered_reminders(),
-                    vec!["Reminder sent to Ada".to_string()],
+                    vec!["Reminder sent to Ada".to_owned()],
                     "delivered_reminders should contain Ada after flush"
                 );
                 assert_eq!(

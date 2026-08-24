@@ -68,7 +68,7 @@ fn multiple_placeholders_with_mixed_hints() {
     assert_eq!(summary.ordered[0].name, "name");
     assert_eq!(summary.ordered[0].hint, None);
     assert_eq!(summary.ordered[1].name, "count");
-    assert_eq!(summary.ordered[1].hint, Some("u32".to_string()));
+    assert_eq!(summary.ordered[1].hint, Some("u32".to_owned()));
 }
 
 #[test]
@@ -90,11 +90,11 @@ fn placeholder_hints_align_with_names_for_wrapper_config() {
 
     // First: {name:string}
     assert_eq!(placeholder_names[0], "name");
-    assert_eq!(placeholder_hints[0], &Some("string".to_string()));
+    assert_eq!(placeholder_hints[0], &Some("string".to_owned()));
 
     // Second: {count:u32}
     assert_eq!(placeholder_names[1], "count");
-    assert_eq!(placeholder_hints[1], &Some("u32".to_string()));
+    assert_eq!(placeholder_hints[1], &Some("u32".to_owned()));
 
     // Third: {note} - no hint
     assert_eq!(placeholder_names[2], "note");

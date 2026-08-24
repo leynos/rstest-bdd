@@ -186,7 +186,7 @@ proptest! {
     fn normalized_name_consumes_an_exactly_matching_placeholder(
         (name, ..) in prefixed_name(),
     ) {
-        let normalized = normalize_param_name(&name).to_string();
+        let normalized = normalize_param_name(&name).to_owned();
         let outcome = classify(&[], &name, HashSet::from([normalized]));
 
         prop_assert_eq!(outcome.result.as_ref().ok(), Some(&true), "{}", outcome.error());
@@ -201,7 +201,7 @@ proptest! {
         (name, ..) in prefixed_name(),
         other in ident_base(),
     ) {
-        let normalized = normalize_param_name(&name).to_string();
+        let normalized = normalize_param_name(&name).to_owned();
         prop_assume!(other != normalized);
 
         let outcome = classify(&[], &name, HashSet::from([other.clone()]));
@@ -217,7 +217,7 @@ proptest! {
     fn implicit_fixture_key_is_the_normalized_name_and_a_valid_identifier(
         (name, ..) in prefixed_name(),
     ) {
-        let normalized = normalize_param_name(&name).to_string();
+        let normalized = normalize_param_name(&name).to_owned();
         let outcome = classify(&[], &name, HashSet::new());
 
         let Some(key) = outcome.sole_fixture_name() else {
@@ -233,7 +233,7 @@ proptest! {
     fn a_single_bare_from_is_accepted_and_uses_the_normalized_name(
         (name, ..) in prefixed_name(),
     ) {
-        let normalized = normalize_param_name(&name).to_string();
+        let normalized = normalize_param_name(&name).to_owned();
         let outcome = classify(&[FromForm::Bare.tokens()], &name, HashSet::new());
 
         prop_assert_eq!(outcome.result.as_ref().ok(), Some(&true), "{}", outcome.error());

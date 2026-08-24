@@ -131,7 +131,7 @@ fn skip_forbidden_whitespace(
         return Err(placeholder_error(
             "invalid placeholder in step pattern",
             ctx.start,
-            Some(ctx.name.to_string()),
+            Some(ctx.name.to_owned()),
         ));
     }
 
@@ -169,12 +169,12 @@ fn parse_optional_hint(
         return Err(placeholder_error(
             "invalid placeholder in step pattern",
             ctx.start,
-            Some(ctx.name.to_string()),
+            Some(ctx.name.to_owned()),
         ));
     }
 
     *index = end;
-    Ok(Some(raw.to_string()))
+    Ok(Some(raw.to_owned()))
 }
 
 /// Determine whether a backslash escapes a brace inside a placeholder hint.
@@ -215,7 +215,7 @@ fn extract_hint_bytes<'a>(
             return Err(placeholder_error(
                 "missing closing '}' for placeholder",
                 ctx.start,
-                Some(ctx.name.to_string()),
+                Some(ctx.name.to_owned()),
             ));
         };
 
@@ -227,7 +227,7 @@ fn extract_hint_bytes<'a>(
             return Err(placeholder_error(
                 "invalid placeholder in step pattern",
                 ctx.start,
-                Some(ctx.name.to_string()),
+                Some(ctx.name.to_owned()),
             ));
         }
 
@@ -235,7 +235,7 @@ fn extract_hint_bytes<'a>(
             return Err(placeholder_error(
                 "invalid placeholder in step pattern",
                 ctx.start,
-                Some(ctx.name.to_string()),
+                Some(ctx.name.to_owned()),
             ));
         }
 
@@ -246,7 +246,7 @@ fn extract_hint_bytes<'a>(
         placeholder_error(
             "invalid placeholder in step pattern",
             ctx.start,
-            Some(ctx.name.to_string()),
+            Some(ctx.name.to_owned()),
         )
     })?;
 
@@ -276,7 +276,7 @@ fn parse_hint_text<'a>(
         placeholder_error(
             "invalid placeholder in step pattern",
             start,
-            Some(name.to_string()),
+            Some(name.to_owned()),
         )
     })
 }

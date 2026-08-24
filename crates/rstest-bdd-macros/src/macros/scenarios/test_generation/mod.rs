@@ -110,7 +110,7 @@ fn resolve_effective_runtime(
 }
 
 pub(super) fn dedupe_name(base: &str, used: &mut HashSet<String>) -> String {
-    let mut name = base.to_string();
+    let mut name = base.to_owned();
     let mut counter = 1usize;
     while used.contains(&name) {
         name = format!("{base}_{counter}");
@@ -204,7 +204,7 @@ fn normalize_type_key(ty: &syn::Type) -> String {
         .collect::<Vec<_>>()
         .join(" ")
         .trim_start_matches("::")
-        .to_string()
+        .to_owned()
 }
 
 /// Resolves a unified error type from `Result`-typed fixture specifications.

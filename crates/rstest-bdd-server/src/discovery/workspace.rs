@@ -219,7 +219,7 @@ edition = "2024"
         assert!(result.is_ok());
         let info = result.expect("should discover workspace");
         assert_eq!(info.root, workspace.path());
-        assert!(info.packages.contains(&"test-project".to_string()));
+        assert!(info.packages.contains(&"test-project".to_owned()));
     }
 
     #[rstest]
