@@ -10,5 +10,9 @@ rstest-bdd = { path = "../../../crates/rstest-bdd" }
 rstest-bdd-macros = { path = "../../../crates/rstest-bdd-macros" }
 
 # Keep this fixture outside the root workspace so gpui resolves from crates.io
-# instead of inheriting the workspace's vendor/gpui path dependency.
+# instead of inheriting the workspace's vendor/gpui path dependency. Pin the
+# resolver explicitly so dependency resolution does not drift with the
+# toolchain's edition-inferred default, which would break `cargo check
+# --locked`.
 [workspace]
+resolver = "2"
