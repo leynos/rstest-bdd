@@ -131,6 +131,11 @@ impl ReminderService {
     /// [`LocalSet::run_until`](tokio::task::LocalSet::run_until) or
     /// [`LocalSet::block_on`](tokio::task::LocalSet::block_on)).
     ///
+    /// # Errors
+    ///
+    /// Returns [`ReminderServiceError::Join`] if a scheduled reminder task
+    /// cannot be joined.
+    ///
     /// # Examples
     ///
     /// ```
@@ -165,11 +170,7 @@ impl ReminderService {
             }
         }
 
-        if let Some(error) = first_error {
-            Err(error)
-        } else {
-            Ok(())
-        }
+        first_error.map_or_else(|| Ok(()), Err)
     }
 
     /// Returns the delivered reminder messages in delivery order.
