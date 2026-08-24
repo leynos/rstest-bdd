@@ -9,31 +9,26 @@ use lsp_types::DidSaveTextDocumentParams;
 use metrics::{counter, describe_counter};
 use tracing::{debug, warn};
 
-use crate::indexing::{
-    FeatureIndexError, RustStepIndexError, index_feature_source, index_rust_file, index_rust_source,
-    server::ServerState,
-    indexing::{index_feature_file, index_feature_source, index_rust_file, index_rust_source},
-};
-
-use super::diagnostics::{
-    FeatureDiagnosticPublication, clear_rust_index_diagnostics, publish_all_feature_diagnostics,
-    publish_feature_diagnostics, publish_rust_index_result_diagnostics,
-    diagnostics::{,
-    publish_rust_diagnostics,
-    publish_feature_diagnostics,
-    publish_all_feature_diagnostics,
-};
-use super::workspace_metrics::{record_deferred_save_depth, record_workspace_outcome};
-
-
-//! Text document notification handlers.
-//!
-//! Phase 7 focuses on building language-server foundations. This module
-//! provides the on-save indexing pipeline for `.feature` files and Rust step
-//! definition sources. Indexing results are stored in the shared server state.
-//! After indexing, diagnostics are computed and published via the LSP protocol.
+use super::{
     diagnostics::{
+        FeatureDiagnosticPublication,
+        clear_rust_index_diagnostics,
+        publish_all_feature_diagnostics,
+        publish_feature_diagnostics,
+        publish_rust_index_result_diagnostics,
+    },
+    util::has_extension,
+    workspace_metrics::{record_deferred_save_depth, record_workspace_outcome},
 };
+use crate::{
+    indexing::{
+        FeatureIndexError,
+        RustStepIndexError,
+        index_feature_source,
+        index_rust_file,
+        index_rust_source,
+    },
+    server::ServerState,
 };
 
 const INDEXING_COUNTER: &str = "rstest_bdd_server_indexing_total";
@@ -219,17 +214,23 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     use ::metrics::{
-        Counter, CounterFn, Gauge, Histogram, Key, KeyName, Metadata, Recorder, SharedString, Unit,
+        Counter,
+        CounterFn,
+        Gauge,
+        Histogram,
+        Key,
+        KeyName,
+        Metadata,
+        Recorder,
+        SharedString,
+        Unit,
         with_local_recorder,
     };
     use lsp_types::{TextDocumentIdentifier, Url};
     use tempfile::TempDir;
 
-    use crate::config::ServerConfig;
-    use crate::discovery::WorkspaceInfo;
-    use crate::server::ServerState;
-
     use super::*;
+    use crate::{config::ServerConfig, discovery::WorkspaceInfo, server::ServerState};
 
     #[derive(Default)]
     struct IndexingRecorder {
@@ -346,13 +347,9 @@ mod tests {
             }
         }
 
-        fn register_gauge(&self, _: &Key, _: &Metadata<'_>) -> Gauge {
-            Gauge::noop()
-        }
+        fn register_gauge(&self, _: &Key, _: &Metadata<'_>) -> Gauge { Gauge::noop() }
 
-        fn register_histogram(&self, _: &Key, _: &Metadata<'_>) -> Histogram {
-            Histogram::noop()
-        }
+        fn register_histogram(&self, _: &Key, _: &Metadata<'_>) -> Histogram { Histogram::noop() }
     }
 
     fn did_save_params(path: &std::path::Path, text: Option<&str>) -> DidSaveTextDocumentParams {

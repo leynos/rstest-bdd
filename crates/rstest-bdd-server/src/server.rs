@@ -3,20 +3,31 @@
 //! This module defines the central state shared across all LSP handlers and
 //! provides the service construction for the language server.
 
-use std::collections::HashMap;
-use std::path::Path;
+use std::{collections::HashMap, path::Path};
 
 use async_lsp::ClientSocket;
-use lsp_types::{ClientCapabilities, ServerCapabilities, WorkspaceFolder};
-use lsp_types::{TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions};
+use lsp_types::{
+    ClientCapabilities,
+    ServerCapabilities,
+    TextDocumentSyncCapability,
+    TextDocumentSyncKind,
+    TextDocumentSyncOptions,
+    WorkspaceFolder,
+};
 use tracing::warn;
 
-use crate::config::ServerConfig;
-use crate::discovery::WorkspaceInfo;
-use crate::error::ServerError;
-use crate::indexing::{
-    FeatureFileIndex, FeatureIndexError, RustStepFileIndex, StepDefinitionRegistry, WorkspaceRoot,
-    index_feature_source_owned,
+use crate::{
+    config::ServerConfig,
+    discovery::WorkspaceInfo,
+    error::ServerError,
+    indexing::{
+        FeatureFileIndex,
+        FeatureIndexError,
+        RustStepFileIndex,
+        StepDefinitionRegistry,
+        WorkspaceRoot,
+        index_feature_source_owned,
+    },
 };
 
 mod deferred_saves;
@@ -103,8 +114,7 @@ impl ServerState {
     /// # Examples
     ///
     /// ```
-    /// use rstest_bdd_server::config::ServerConfig;
-    /// use rstest_bdd_server::server::ServerState;
+    /// use rstest_bdd_server::{config::ServerConfig, server::ServerState};
     ///
     /// let config = ServerConfig::default();
     /// let state = ServerState::new(config);
@@ -131,15 +141,11 @@ impl ServerState {
     }
 
     /// Store the client socket for sending notifications.
-    pub fn set_client(&mut self, client: ClientSocket) {
-        self.client = Some(client);
-    }
+    pub fn set_client(&mut self, client: ClientSocket) { self.client = Some(client); }
 
     /// Access the client socket for sending notifications.
     #[must_use]
-    pub fn client(&self) -> Option<&ClientSocket> {
-        self.client.as_ref()
-    }
+    pub fn client(&self) -> Option<&ClientSocket> { self.client.as_ref() }
 
     /// Store client capabilities received during initialization.
     pub fn set_client_capabilities(&mut self, capabilities: ClientCapabilities) {
@@ -225,9 +231,7 @@ impl ServerState {
 
     /// Access the workspace folders provided by the client.
     #[must_use]
-    pub fn workspace_folders(&self) -> &[WorkspaceFolder] {
-        &self.workspace_folders
-    }
+    pub fn workspace_folders(&self) -> &[WorkspaceFolder] { &self.workspace_folders }
 
     /// Store discovered workspace information and its read capability.
     ///
@@ -278,9 +282,7 @@ impl ServerState {
 
     /// Access discovered workspace information, if available.
     #[must_use]
-    pub fn workspace_info(&self) -> Option<&WorkspaceInfo> {
-        self.workspace_info.as_ref()
-    }
+    pub fn workspace_info(&self) -> Option<&WorkspaceInfo> { self.workspace_info.as_ref() }
 
     /// Index a disk-backed feature file through the workspace-root capability.
     ///
@@ -301,20 +303,14 @@ impl ServerState {
 
     /// Access the current server configuration.
     #[must_use]
-    pub fn config(&self) -> &ServerConfig {
-        &self.config
-    }
+    pub fn config(&self) -> &ServerConfig { &self.config }
 
     /// Mark the server as initialized.
-    pub fn mark_initialised(&mut self) {
-        self.initialized = true;
-    }
+    pub fn mark_initialised(&mut self) { self.initialized = true; }
 
     /// Check if the server is initialized.
     #[must_use]
-    pub fn is_initialised(&self) -> bool {
-        self.initialized
-    }
+    pub fn is_initialised(&self) -> bool { self.initialized }
 
     /// Insert or update the cached index for a `.feature` file.
     pub fn upsert_feature_index(&mut self, index: FeatureFileIndex) {
@@ -340,9 +336,7 @@ impl ServerState {
 
     /// Access the compiled step registry.
     #[must_use]
-    pub fn step_registry(&self) -> &StepDefinitionRegistry {
-        &self.step_registry
-    }
+    pub fn step_registry(&self) -> &StepDefinitionRegistry { &self.step_registry }
 
     /// Insert or update the cached index for a Rust source file.
     ///

@@ -6,15 +6,15 @@
 //! path validation and capability-rooted file reads live here at the server
 //! boundary rather than in the indexing domain.
 
-use std::fmt;
-use std::path::{Component, Path};
+use std::{
+    fmt,
+    path::{Component, Path},
+};
 
 use camino::{Utf8Path, Utf8PathBuf};
-use cap_std::ambient_authority;
-use cap_std::fs_utf8::Dir;
+use cap_std::{ambient_authority, fs_utf8::Dir};
 
-use crate::error::ServerError;
-use crate::indexing::FeatureIndexError;
+use crate::{error::ServerError, indexing::FeatureIndexError};
 
 /// Validated capability for reading files beneath one workspace root.
 pub struct WorkspaceRoot {
@@ -50,9 +50,7 @@ impl WorkspaceRoot {
 
     /// Return the validated root path.
     #[must_use]
-    pub fn path(&self) -> &Utf8Path {
-        &self.path
-    }
+    pub fn path(&self) -> &Utf8Path { &self.path }
 
     /// Duplicate the directory capability for background file reads.
     ///
@@ -108,12 +106,13 @@ impl WorkspaceRoot {
 mod tests {
     //! Unit tests for the workspace-root file-read adapter boundary.
 
-    use super::*;
     #[cfg(unix)]
     use std::ffi::OsString;
     #[cfg(unix)]
     use std::os::unix::ffi::OsStringExt;
     use std::path::PathBuf;
+
+    use super::*;
 
     fn open_workspace_with_feature(
         workspace: &Path,

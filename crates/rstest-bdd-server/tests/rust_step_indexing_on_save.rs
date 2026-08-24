@@ -3,14 +3,18 @@
 use std::path::Path;
 
 use lsp_types::{
-    DidSaveTextDocumentParams, NumberOrString, PublishDiagnosticsParams, TextDocumentIdentifier,
+    DidSaveTextDocumentParams,
+    NumberOrString,
+    PublishDiagnosticsParams,
+    TextDocumentIdentifier,
     Url,
 };
-use tempfile::TempDir;
-
-
-//! Behavioural test for Rust step indexing on save.
+use rstest_bdd_server::{
+    config::ServerConfig,
+    handlers::handle_did_save_text_document,
+    server::ServerState,
 };
+use tempfile::TempDir;
 
 fn did_save_params(uri: Url, text: Option<&str>) -> DidSaveTextDocumentParams {
     DidSaveTextDocumentParams {
@@ -321,8 +325,7 @@ fn did_save_retains_valid_steps_after_recoverable_attribute_diagnostic() {
 
 #[tokio::test]
 async fn did_save_clears_recoverable_index_diagnostics_after_success_and_parse_failure() {
-    use async_lsp::MainLoop;
-    use async_lsp::router::Router;
+    use async_lsp::{MainLoop, router::Router};
     use tokio::io::AsyncReadExt;
     use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 

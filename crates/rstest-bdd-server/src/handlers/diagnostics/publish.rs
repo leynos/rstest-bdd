@@ -12,27 +12,16 @@ use std::path::Path;
 use async_lsp::lsp_types::{Diagnostic, PublishDiagnosticsParams, Url, notification};
 use tracing::{debug, warn};
 
-use crate::indexing::RustStepIndexDiagnostic;
-use crate::server::ServerState;
-
 use super::{
-    CODE_INVALID_STEP_ATTRIBUTE_ARGUMENTS, CODE_MULTIPLE_STEP_ATTRIBUTES, DIAGNOSTIC_SOURCE,
+    CODE_INVALID_STEP_ATTRIBUTE_ARGUMENTS,
+    CODE_MULTIPLE_STEP_ATTRIBUTES,
+    DIAGNOSTIC_SOURCE,
     compute::{compute_unimplemented_step_diagnostics, compute_unused_step_diagnostics},
-    table_docstring::compute_table_docstring_mismatch_diagnostics,
-    scenario_outline::compute_scenario_outline_column_diagnostics,
     placeholder::compute_signature_mismatch_diagnostics,
+    scenario_outline::compute_scenario_outline_column_diagnostics,
+    table_docstring::compute_table_docstring_mismatch_diagnostics,
 };
-
-
-//! Diagnostic publishing via LSP.
-//!
-//! This module handles publishing diagnostics to the LSP client via
-//! `textDocument/publishDiagnostics` notifications. All publishing flows
-//! through the canonical [`publish_with`] boundary: one place owns the
-//! client/URI guards, parameter construction, notification, and error
-//! logging. The per-file-kind functions only differ in the diagnostics they
-//! compute.
-};
+use crate::{indexing::RustStepIndexDiagnostic, server::ServerState};
 
 /// Compute all diagnostics for a feature file, or `None` when the file has
 /// no feature index (in which case nothing is published, preserving any

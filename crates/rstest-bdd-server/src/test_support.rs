@@ -6,16 +6,19 @@
 //! - File indexing via simulated LSP save events
 //! - Scenario building for diagnostic and navigation tests
 //! - Newtype wrappers for improved type safety
-use lsp_types::{DidSaveTextDocumentParams, TextDocumentIdentifier, Url};
 use std::path::Path;
-use tempfile::TempDir;
 
 use camino::Utf8Path;
-use cap_std::ambient_authority;
-use cap_std::fs_utf8::Dir;
+use cap_std::{ambient_authority, fs_utf8::Dir};
+use lsp_types::{DidSaveTextDocumentParams, TextDocumentIdentifier, Url};
+use tempfile::TempDir;
 
-use crate::discovery::WorkspaceInfo;
-use crate::{config::ServerConfig, handlers::handle_did_save_text_document, server::ServerState};
+use crate::{
+    config::ServerConfig,
+    discovery::WorkspaceInfo,
+    handlers::handle_did_save_text_document,
+    server::ServerState,
+};
 
 /// Newtype wrapper for test file names to improve type safety.
 #[derive(Debug, Clone)]

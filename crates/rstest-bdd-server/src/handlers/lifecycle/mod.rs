@@ -3,22 +3,28 @@
 //! This module implements the core lifecycle protocol handlers required by
 //! the LSP specification: `initialize`, `initialized`, and `shutdown`.
 
-use std::path::{Path, PathBuf};
-use std::time::Instant;
+use std::{
+    path::{Path, PathBuf},
+    time::Instant,
+};
 
-use async_lsp::ClientSocket;
-use async_lsp::ResponseError;
+use async_lsp::{ClientSocket, ResponseError};
 use lsp_types::{InitializeParams, InitializeResult, InitializedParams, ServerInfo, Url};
 use tracing::{Instrument, debug, info, warn};
 
-use crate::discovery::{WorkspaceInfo, discover_workspace};
-use crate::error::ServerError;
-use crate::indexing::WorkspaceRoot;
-use crate::server::{ServerState, build_server_capabilities};
-
-use super::deferred_replay::start_deferred_document_save_replay;
-use super::workspace_metrics::{
-    record_deferred_save_depth, record_workspace_outcome, record_workspace_preparation_duration,
+use super::{
+    deferred_replay::start_deferred_document_save_replay,
+    workspace_metrics::{
+        record_deferred_save_depth,
+        record_workspace_outcome,
+        record_workspace_preparation_duration,
+    },
+};
+use crate::{
+    discovery::{WorkspaceInfo, discover_workspace},
+    error::ServerError,
+    indexing::WorkspaceRoot,
+    server::{ServerState, build_server_capabilities},
 };
 /// Outcome of the synchronous part of handling an `initialize` request.
 ///
@@ -48,7 +54,6 @@ pub struct InitializeOutcome {
 /// # Errors
 ///
 /// Returns a `ResponseError` when the server is already initialized.
-///
 pub fn handle_initialise(
     state: &mut ServerState,
     params: InitializeParams,
@@ -377,9 +382,7 @@ fn extract_workspace_path(
 /// Convert a URL to a file system path.
 ///
 /// Only handles `file://` URLs; returns `None` for other schemes.
-fn url_to_path(url: &Url) -> Option<PathBuf> {
-    url.to_file_path().ok()
-}
+fn url_to_path(url: &Url) -> Option<PathBuf> { url.to_file_path().ok() }
 
 /// Convert a server error to an LSP response error.
 fn response_error(err: &ServerError, code: async_lsp::ErrorCode) -> ResponseError {

@@ -128,7 +128,6 @@ and promotes every Rustdoc warning to an error. `--workspace` checks every
 member crate, while `--no-deps` keeps the gate focused on documentation owned
 by this repository.
 
-
 ## Rust formatting and workspace lints (ADR-016)
 
 The repository's formatter configuration is the root
@@ -1404,7 +1403,6 @@ findings, so exclusions are the only sanctioned escape hatch for
 legitimately-ambient code such as test-support crates and integration test
 crates.
 
-
 #### Fixture-expansion lint allowance
 
 `crates/rstest-bdd-test-macros` owns the narrow `unused_braces` allowance
@@ -1529,12 +1527,11 @@ lets the router install the prepared capability. Discovery and root-opening
 failures are logged and remain non-fatal, so initialization still returns its
 normal result. Did-save notifications received while the workspace capability
 is being prepared are replayed in arrival order on the router task after
-`WorkspaceReadyEvent` installs the capability.
-The pending queue coalesces newer saves for the same URI and is bounded to 128
-distinct notifications and 4 MiB of combined URI and source text. A save that
-would exceed either limit is dropped and recorded as a deferred-save outcome;
-the queue therefore cannot retain unbounded editor input while preparation is
-blocked.
+`WorkspaceReadyEvent` installs the capability. The pending queue coalesces
+newer saves for the same URI and is bounded to 128 distinct notifications and 4
+MiB of combined URI and source text. A save that would exceed either limit is
+dropped and recorded as a deferred-save outcome; the queue therefore cannot
+retain unbounded editor input while preparation is blocked.
 
 `ServerState::index_feature_file` owns the disk boundary: it reads through
 `WorkspaceRoot` and then passes the resulting text to `index_feature_source`.

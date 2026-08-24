@@ -1,6 +1,7 @@
 //! Tests for Rust step definition indexing.
 use proptest::prelude::*;
 use rstest::rstest;
+
 use super::*;
 
 #[test]

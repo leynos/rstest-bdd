@@ -4,16 +4,15 @@
 //! files and Rust step definitions, publishing them via the LSP protocol.
 //! Diagnostics are triggered on file save and report:
 //!
-//! - **Unimplemented feature steps**: Steps in `.feature` files with no
-//!   matching Rust implementation.
-//! - **Unused step definitions**: Rust step definitions not matched by any
-//!   feature step.
-//! - **Placeholder count mismatches**: Step patterns with a different number
-//!   of placeholders than the function has step arguments.
-//! - **Table/docstring expectation mismatches**: Feature steps with tables or
-//!   docstrings that don't match what the Rust implementation expects.
-//! - **Scenario outline column mismatches**: Scenario outlines with
-//!   placeholders that don't match the Examples table columns.
+//! - **Unimplemented feature steps**: Steps in `.feature` files with no matching Rust
+//!   implementation.
+//! - **Unused step definitions**: Rust step definitions not matched by any feature step.
+//! - **Placeholder count mismatches**: Step patterns with a different number of placeholders than
+//!   the function has step arguments.
+//! - **Table/docstring expectation mismatches**: Feature steps with tables or docstrings that don't
+//!   match what the Rust implementation expects.
+//! - **Scenario outline column mismatches**: Scenario outlines with placeholders that don't match
+//!   the Examples table columns.
 
 mod compute;
 mod placeholder;

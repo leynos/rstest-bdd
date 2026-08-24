@@ -10,18 +10,26 @@ use async_lsp::ClientSocket;
 use lsp_types::DidSaveTextDocumentParams;
 use tracing::{Instrument, debug, info_span, warn};
 
-use crate::indexing::{
-    FeatureFileIndex, FeatureIndexError, RustStepIndexError, RustStepIndexResult, WorkspaceRoot,
-    index_feature_source, index_feature_source_owned, index_rust_file, index_rust_source,
+use super::{
+    diagnostics::{FeatureDiagnosticPublication, publish_all_feature_diagnostics},
+    text_document::{apply_feature_index_result, apply_rust_index_result, index_saved_document},
+    util::has_extension,
+    workspace_metrics::{record_deferred_save_depth, record_workspace_outcome},
 };
-use crate::server::ServerState;
-
-use super::diagnostics::{FeatureDiagnosticPublication, publish_all_feature_diagnostics};
-use super::text_document::{
-    apply_feature_index_result, apply_rust_index_result, index_saved_document,
+use crate::{
+    indexing::{
+        FeatureFileIndex,
+        FeatureIndexError,
+        RustStepIndexError,
+        RustStepIndexResult,
+        WorkspaceRoot,
+        index_feature_source,
+        index_feature_source_owned,
+        index_rust_file,
+        index_rust_source,
+    },
+    server::ServerState,
 };
-use super::util::has_extension;
-use super::workspace_metrics::{record_deferred_save_depth, record_workspace_outcome};
 
 /// Completed indexes from a deferred did-save replay worker.
 pub struct DeferredDocumentSavesIndexed {
@@ -179,8 +187,7 @@ mod tests {
     use metrics::with_local_recorder;
 
     use super::*;
-    use crate::config::ServerConfig;
-    use crate::handlers::workspace_metrics::WorkspaceRecorder;
+    use crate::{config::ServerConfig, handlers::workspace_metrics::WorkspaceRecorder};
 
     #[test]
     fn deferred_replay_delivery_failure_records_a_bounded_outcome() {

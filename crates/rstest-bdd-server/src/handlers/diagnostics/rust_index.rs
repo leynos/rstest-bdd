@@ -7,10 +7,8 @@
 
 use std::path::Path;
 
-use crate::indexing::RustStepIndexDiagnostic;
-use crate::server::ServerState;
-
 use super::publish::{compute_rust_file_diagnostics, publish_with};
+use crate::{indexing::RustStepIndexDiagnostic, server::ServerState};
 
 /// Publish all Rust-file diagnostics, including recoverable indexing failures.
 ///
@@ -56,9 +54,10 @@ mod tests {
     use lsp_types::{DiagnosticSeverity, NumberOrString, Position, Range};
     use rstest::rstest;
 
-    use super::super::DIAGNOSTIC_SOURCE;
-    use super::super::publish::build_rust_index_diagnostic;
-    use super::*;
+    use super::{
+        super::{DIAGNOSTIC_SOURCE, publish::build_rust_index_diagnostic},
+        *,
+    };
 
     #[test]
     fn maps_invalid_step_attribute_arguments_to_a_warning() {

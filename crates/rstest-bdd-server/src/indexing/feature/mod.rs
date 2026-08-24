@@ -1,13 +1,15 @@
 //! Gherkin `.feature` file indexing support.
 
-use std::borrow::Cow;
-use std::ops::Range;
-use std::path::PathBuf;
+use std::{borrow::Cow, ops::Range, path::PathBuf};
 
 use gherkin::GherkinEnv;
 
 use super::{
-    FeatureFileIndex, FeatureIndexError, IndexedDocstring, IndexedScenarioOutline, IndexedStep,
+    FeatureFileIndex,
+    FeatureIndexError,
+    IndexedDocstring,
+    IndexedScenarioOutline,
+    IndexedStep,
     IndexedTable,
 };
 
@@ -17,7 +19,10 @@ mod table;
 
 use docstring::find_docstring_span;
 use outline::{
-    ScenarioStepIndices, build_scenario_outline, extract_example_columns, is_scenario_outline,
+    ScenarioStepIndices,
+    build_scenario_outline,
+    extract_example_columns,
+    is_scenario_outline,
 };
 
 /// Accumulates indexed steps and scenario outlines during feature indexing.
@@ -33,21 +38,13 @@ struct IndexingAccumulators<'a> {
 struct FeatureSource<'a>(&'a str);
 
 impl<'a> FeatureSource<'a> {
-    fn new(source: &'a str) -> Self {
-        Self(source)
-    }
+    fn new(source: &'a str) -> Self { Self(source) }
 
-    fn as_str(&self) -> &'a str {
-        self.0
-    }
+    fn as_str(&self) -> &'a str { self.0 }
 
-    fn get(&self, range: Range<usize>) -> Option<&'a str> {
-        self.0.get(range)
-    }
+    fn get(&self, range: Range<usize>) -> Option<&'a str> { self.0.get(range) }
 
-    fn len(&self) -> usize {
-        self.0.len()
-    }
+    fn len(&self) -> usize { self.0.len() }
 }
 
 /// Parse and index a `.feature` file from source text.
@@ -65,7 +62,7 @@ impl<'a> FeatureSource<'a> {
 /// ```rust,no_run
 /// use std::path::PathBuf;
 ///
-/// use rstest_bdd_server::indexing::{index_feature_source, FeatureIndexError};
+/// use rstest_bdd_server::indexing::{FeatureIndexError, index_feature_source};
 ///
 /// # fn main() -> Result<(), FeatureIndexError> {
 /// let feature = "Feature: demo\n  Scenario: s\n    Given a message\n";

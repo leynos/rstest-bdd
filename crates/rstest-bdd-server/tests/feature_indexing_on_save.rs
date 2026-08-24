@@ -1,15 +1,18 @@
 //! Behavioural test for `.feature` file indexing on save.
 
+use std::path::Path;
+
 use lsp_types::{DidSaveTextDocumentParams, TextDocumentIdentifier, Url};
 use rstest::{fixture, rstest};
-use rstest_bdd_server::discovery::WorkspaceInfo;
-use std::path::Path;
+use rstest_bdd_server::{
+    config::ServerConfig,
+    discovery::WorkspaceInfo,
+    handlers::handle_did_save_text_document,
+    server::ServerState,
+};
 use tempfile::TempDir;
 
-
-//! Behavioural test for `.feature` file indexing on save.
-};
-
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn workspace_root() -> TempDir {
     let Ok(workspace_root) = TempDir::new() else {
@@ -18,6 +21,7 @@ fn workspace_root() -> TempDir {
     workspace_root
 }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn state_for_workspace(#[default(Path::new(""))] root: &Path) -> ServerState {
     let mut state = ServerState::new(ServerConfig::default());

@@ -10,9 +10,7 @@ pub(super) struct WorkspaceTask(Option<JoinHandle<()>>);
 
 impl WorkspaceTask {
     /// Return whether an owned task is still retained.
-    pub(super) fn has_retained_task(&self) -> bool {
-        self.0.is_some()
-    }
+    pub(super) fn has_retained_task(&self) -> bool { self.0.is_some() }
 
     /// Abort and discard the currently owned task.
     pub(super) fn abort(&mut self) {
@@ -30,14 +28,10 @@ impl ServerState {
     }
 
     /// Drop the owned task handle after its result has been applied.
-    pub(crate) fn clear_workspace_task(&mut self) {
-        self.workspace_task.0 = None;
-    }
+    pub(crate) fn clear_workspace_task(&mut self) { self.workspace_task.0 = None; }
 
     /// Take the task so shutdown can cancel and await it.
-    pub fn take_workspace_task(&mut self) -> Option<JoinHandle<()>> {
-        self.workspace_task.0.take()
-    }
+    pub fn take_workspace_task(&mut self) -> Option<JoinHandle<()>> { self.workspace_task.0.take() }
 }
 
 #[cfg(test)]
