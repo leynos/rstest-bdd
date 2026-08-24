@@ -58,9 +58,10 @@ fn copy_dir_recursive(from: &Path, to: &Path) -> io::Result<()> {
     Ok(())
 }
 
-/// Collect the source fixture tree as sorted (relative path, contents) pairs,
-/// excluding the lockfile — Cargo regenerates the scratch lockfile, so it must
-/// not invalidate the source stamp.
+/// Collect the source fixture tree as sorted (relative path, contents) pairs.
+///
+/// The nested Cargo invocations use `--locked`, so a lockfile-only update must
+/// invalidate the scratch copy before Cargo observes the stale lockfile.
 fn collect_source_entries(source: &Path) -> Vec<(PathBuf, Vec<u8>)> {
     fn walk(dir: &Path, base: &Path, out: &mut Vec<(PathBuf, Vec<u8>)>) -> io::Result<()> {
         for entry in fs::read_dir(dir)? {
@@ -68,7 +69,7 @@ fn collect_source_entries(source: &Path) -> Vec<(PathBuf, Vec<u8>)> {
             let rel = base.join(entry.file_name());
             if entry.file_type()?.is_dir() {
                 walk(&entry.path(), &rel, out)?;
-            } else if entry.file_name() != "Cargo.lock" {
+            } else {
                 let contents = fs::read(entry.path())?;
                 out.push((rel, contents));
             }
@@ -325,9 +326,24 @@ pub(crate) fn normalize_dep_path(path: &Path) -> String {
 
 #[cfg(test)]
 mod tests {
-    //! Unit tests for fixture-manifest serialization.
+    //! Unit tests for fixture hashing and manifest serialisation.
 
-    use super::toml_basic_string;
+    use super::{source_tree_hash, toml_basic_string};
+    use std::fs;
+    use tempfile::tempdir;
+
+    #[test]
+    fn source_tree_hash_changes_when_lockfile_changes() -> std::io::Result<()> {
+        let fixture = tempdir()?;
+        let lockfile = fixture.path().join("Cargo.lock");
+        fs::write(&lockfile, "first lock")?;
+        let initial_hash = source_tree_hash(fixture.path());
+
+        fs::write(lockfile, "updated lock")?;
+
+        assert_ne!(initial_hash, source_tree_hash(fixture.path()));
+        Ok(())
+    }
 
     #[test]
     fn toml_basic_string_escapes_windows_paths() {
