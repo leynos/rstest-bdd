@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Fail the build when ``async-trait`` sneaks back into the tree."""
+"""Fail the build when ``async-trait`` sneaks back into the tree.
+
+The ban applies to Rust sources, Cargo manifests, and Cargo lockfiles. One
+lockfile is exempt; see :data:`EXCLUDED_LOCKFILES` for the rationale.
+"""
 
 from __future__ import annotations
 
@@ -20,6 +24,18 @@ SKIP_DIRS = {".git", "target", "node_modules", "docs"}
 
 ASYNC_TRAIT_PATTERN = re.compile(r"\basync[-_]trait\b")
 LOCKFILE_PATTERN = re.compile(r'^\s*name\s*=\s*"async-trait"$', re.MULTILINE)
+
+# Lockfiles exempt from the ban, as repository-relative POSIX paths.
+#
+# ``tests/fixtures/published-gpui-0-2-2`` is a standalone workspace pinning the
+# published ``gpui 0.2.2`` release so ``make check-published-gpui`` can validate
+# the documented call sites with ``cargo check --locked``. That requires a
+# tracked lockfile, and published GPUI reaches ``async-trait`` transitively via
+# ``ashpd -> zbus``; the fixture never declares it. The root workspace lockfile
+# stays free of ``async-trait``, so the policy still holds where it governs our
+# own dependencies. Only the lockfile is exempt: Rust sources and Cargo
+# manifests inside the fixture are still scanned.
+EXCLUDED_LOCKFILES = frozenset({"tests/fixtures/published-gpui-0-2-2/Cargo.lock"})
 
 
 def is_scannable_file(path: Path) -> bool:
@@ -206,6 +222,18 @@ def lockfile_mentions_async_trait(path: Path) -> bool:
     return bool(LOCKFILE_PATTERN.search(contents))
 
 
+def is_excluded_lockfile(relative: Path) -> bool:
+    """Check whether *relative* names a lockfile exempt from the ban."""
+    return relative.as_posix() in EXCLUDED_LOCKFILES
+
+
+def lockfile_violates_policy(path: Path, relative: Path) -> bool:
+    """Check whether a lockfile references ``async-trait`` and is not exempt."""
+    if is_excluded_lockfile(relative):
+        return False
+    return lockfile_mentions_async_trait(path)
+
+
 def find_violations(root: Path) -> list[str]:
     """Return a list describing where forbidden patterns appear."""
     problems: list[str] = []
@@ -218,7 +246,9 @@ def find_violations(root: Path) -> list[str]:
             )
         elif file_path.suffix == ".toml" and manifest_declares_async_trait(file_path):
             problems.append(f"{relative}: declares async-trait dependency")
-        elif file_path.suffix == ".lock" and lockfile_mentions_async_trait(file_path):
+        elif file_path.suffix == ".lock" and lockfile_violates_policy(
+            file_path, relative
+        ):
             problems.append(f"{relative}: references async-trait in lockfile")
     return problems
 
