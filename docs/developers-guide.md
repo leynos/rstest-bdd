@@ -262,9 +262,9 @@ Mitigation:
   nextest like any other test.
 - `.config/nextest.toml` raises the `slow-timeout` for the trybuild
   compile-test binaries (including both `macro_compile` binaries and
-  `rstest-bdd::trybuild_macros`) to 300 s as a local-development safety net.
-  This does not fix the deadlock; it only delays termination to allow the build
-  to complete on fast machines.
+  `rstest-bdd::trybuild_macros`) to 10 minutes as a local-development safety
+  net. This does not fix the deadlock; it only delays termination to allow the
+  build to complete on fast machines.
 - `.config/nextest.toml` also places the `cargo-bdd::cli` and trybuild
   binaries in a `cargo-spawning` test group with `max-threads = 1`, so these
   cargo-spawning tests run one at a time rather than contending for the
