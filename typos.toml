@@ -51,7 +51,6 @@ extend-ignore-re = [
     "\\bRuntimeFlavor\\b",
     "\\bTrUe\\b",
     "\\bcaf\\b",
-    "\\binventario\\b",
     "\\bnOt\\b",
     "\\bruntime_flavor\\b",
     "\\brust-analyzer\\b",
@@ -1151,6 +1150,7 @@ extend-ignore-re = [
 "internationalizers" = "internationalizers"
 "internationalizes" = "internationalizes"
 "internationalizing" = "internationalizing"
+"inventario" = "inventario"
 "italicisable" = "italicizable"
 "italicisably" = "italicizably"
 "italicisation" = "italicization"
