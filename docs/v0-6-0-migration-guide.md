@@ -166,7 +166,7 @@ Both are replaced by a single function taking a `BypassedScenario` descriptor
 plus the steps. The descriptor borrows its tags, so the reason the second entry
 point existed no longer applies:
 
-```rust,no_run
+```rust,ignore
 // Before:
 record_bypassed_steps(
     "tests/features/skip.feature",

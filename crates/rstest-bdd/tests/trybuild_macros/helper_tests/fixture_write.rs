@@ -54,6 +54,7 @@ struct FixtureWriteContext {
     crate_dir: Dir,
 }
 
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
 fn fixture_write_context() -> FixtureWriteContext {
     let temp_dir = match tempfile::tempdir() {
