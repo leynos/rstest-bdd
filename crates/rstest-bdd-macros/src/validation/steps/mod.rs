@@ -27,7 +27,7 @@ use crate::{
     utils::warnings::emit_warning,
 };
 
-/// Step definitions indexed by their normalised crate identifier.
+/// Step definitions indexed by their normalized crate identifier.
 type Registry = HashMap<Box<str>, CrateDefs>;
 
 /// Step patterns registered for one crate, grouped by semantic keyword.

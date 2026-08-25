@@ -105,7 +105,7 @@ pub(crate) fn first_party_adapter_fallback_diagnostic(
     adapter_fallback::first_party_adapter_fallback_warning_tokens(resolution.fallback.as_ref())
 }
 
-/// Return the generated-test attribute hint for a recognised first-party adapter.
+/// Return the generated-test attribute hint for a recognized first-party adapter.
 pub(crate) fn first_party_adapter_attribute_hint(
     adapter_path: &syn::Path,
 ) -> Option<TestAttributeHint> {
@@ -118,7 +118,7 @@ pub(crate) fn first_party_adapter_attribute_hint(
     }
 }
 
-/// Resolve a recognised first-party adapter path to its API crate root.
+/// Resolve a recognized first-party adapter path to its API crate root.
 fn first_party_adapter_api_path(adapter_path: &syn::Path) -> Option<TokenStream2> {
     first_party_adapter_spec(adapter_path)
         .map(|spec| first_party_adapter_api_root(adapter_path, spec))
@@ -130,7 +130,7 @@ fn first_party_adapter_spec(adapter_path: &syn::Path) -> Option<&'static CrateSp
         .into_iter()
         .find(|spec| first_party_adapter_path_matches(adapter_path, spec))
 }
-/// Select the API root for a recognised adapter path.
+/// Select the API root for a recognized adapter path.
 fn first_party_adapter_api_root(adapter_path: &syn::Path, spec: &CrateSpec) -> TokenStream2 {
     if path_root_matches_crate(adapter_path, spec) {
         let Some(root) = adapter_path.segments.first().map(|segment| &segment.ident) else {
