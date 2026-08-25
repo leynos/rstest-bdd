@@ -8,10 +8,7 @@ use proptest::prelude::*;
 use syn::{Ident, parse_quote};
 
 use super::helpers::{bind_args, bind_fixture_args};
-use crate::codegen::wrapper::{
-    args::{Arg, ExtractedArgs},
-    arguments::{BoundFixtureArg, BoundStepArg},
-};
+use crate::codegen::wrapper::args::{Arg, ExtractedArgs};
 
 /// Kinds represented in the generated argument sequence.
 #[derive(Clone, Copy, Debug)]
@@ -98,52 +95,27 @@ fn bindings(prefix: &str, count: usize) -> Vec<Ident> {
         .collect()
 }
 
-/// Assert that fixture bindings remain paired with their originating fixtures.
-fn assert_fixture_bindings(bound: &[BoundFixtureArg<'_>], expected_names: &[String]) {
+/// Assert that bindings remain paired with their originating arguments.
+fn assert_bindings<T>(
+    bound: &[T],
+    expected_names: &[String],
+    binding_prefix: &str,
+    project: impl Fn(&T) -> (String, String),
+) {
     let actual = bound
         .iter()
         .enumerate()
         .map(|(index, binding)| {
-            (
-                binding.arg.name.to_string(),
-                binding.binding.to_string(),
-                index,
-            )
+            let (source_name, binding_name) = project(binding);
+            (source_name, binding_name, index)
         })
         .collect::<Vec<_>>();
     let expected = expected_names
         .iter()
         .enumerate()
-        .map(|(index, name)| (name.clone(), format!("fixture_binding_{index}"), index))
+        .map(|(index, name)| (name.clone(), format!("{binding_prefix}_{index}"), index))
         .collect::<Vec<_>>();
-    assert_eq!(
-        actual, expected,
-        "fixture bindings must retain source associations"
-    );
-}
-
-/// Assert that step bindings remain paired with their originating step arguments.
-fn assert_step_bindings(bound: &[BoundStepArg<'_>], expected_names: &[String]) {
-    let actual = bound
-        .iter()
-        .enumerate()
-        .map(|(index, binding)| {
-            (
-                binding.arg.pat.to_string(),
-                binding.binding.to_string(),
-                index,
-            )
-        })
-        .collect::<Vec<_>>();
-    let expected = expected_names
-        .iter()
-        .enumerate()
-        .map(|(index, name)| (name.clone(), format!("step_binding_{index}"), index))
-        .collect::<Vec<_>>();
-    assert_eq!(
-        actual, expected,
-        "step bindings must retain source associations"
-    );
+    assert_eq!(actual, expected, "bindings must retain source associations");
 }
 
 proptest! {
@@ -194,7 +166,17 @@ proptest! {
         let bound_fixtures = bind_fixture_args(&fixture_args, &fixture_bindings);
         let bound_steps = bind_args(&step_args, &step_bindings);
 
-        assert_fixture_bindings(&bound_fixtures, &fixture_names);
-        assert_step_bindings(&bound_steps, &step_names);
+        assert_bindings(
+            &bound_fixtures,
+            &fixture_names,
+            "fixture_binding",
+            |binding| (binding.arg.name.to_string(), binding.binding.to_string()),
+        );
+        assert_bindings(
+            &bound_steps,
+            &step_names,
+            "step_binding",
+            |binding| (binding.arg.pat.to_string(), binding.binding.to_string()),
+        );
     }
 }
