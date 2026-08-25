@@ -371,7 +371,6 @@ repository with `git show <commit>:crates/gpui/src/app/test_context.rs`. Unit
 tests for the table checker live in
 `scripts/tests/test_check_gpui_mapping_table.py`.
 
-
 ## Published GPUI fixture check (`make check-published-gpui`)
 
 `docs/users-guide.md` carries a "Published gpui 0.2.2 stateful step variants"
