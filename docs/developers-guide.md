@@ -1372,6 +1372,26 @@ feature-gated regression suite in
 `crates/rstest-bdd-harness-gpui/tests/scenario_name_in_logs.rs` apply the
 attribute to every `GpuiHarness::run`-driving test.
 
+
+## Fallible feature-file discovery
+
+`rstest_bdd_server::discovery::find_feature_files` is the public entry point
+for collecting `.feature` paths under a workspace. It returns
+`Result<Vec<PathBuf>, ServerError>` and propagates `ServerError::Io` from the
+workspace and feature-directory traversal, including failures while reading
+directory entries.
+
+Callers must preserve this fallible boundary. Propagate the result with `?`
+when the enclosing operation is fallible. At an error-reporting boundary,
+match `ServerError::Io` when filesystem failures need distinct diagnostics,
+then preserve or return the error. Do not convert an error to an empty list or
+discard failed entries while retaining successful paths: that makes discovery
+appear successful with an incomplete result.
+
+Any directory-reader seam used to make metadata and iterator failures
+deterministic in unit tests is private to workspace discovery; callers use
+`find_feature_files` rather than that abstraction.
+
 ## Canonical diagnostic publish path
 
 All Language Server Protocol (LSP) diagnostic publishing in `rstest-bdd-server`

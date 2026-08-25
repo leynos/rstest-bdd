@@ -39,6 +39,10 @@ that need a new testing practice to be useful.
   bypassed steps, replacing the six-parameter form and the separate
   `record_bypassed_steps_with_tags` entry point. Only code that calls it
   directly is affected; generated scenario code is updated by the macros.
+- `rstest_bdd_server::discovery::find_feature_files` now returns
+  `Result<Vec<PathBuf>, ServerError>`. Callers must propagate the result and
+  handle `ServerError::Io`; do not turn discovery failures into empty or
+  partial feature lists.
 
 ### Update underscore-prefixed implicit fixtures
 
@@ -153,6 +157,29 @@ match ctx.insert_value(Box::new(7_u32)) {
 
 `InsertOutcome` is `#[must_use]`, so discarding it implicitly now warns. Use
 `is_inserted()` for a boolean check that does not consume the outcome.
+
+
+### Propagate feature-file discovery errors
+
+Update callers of the public `find_feature_files` API to return its
+`ServerError` rather than treating a failed traversal as an empty result:
+
+```rust,no_run
+use std::path::{Path, PathBuf};
+
+use rstest_bdd_server::discovery::find_feature_files;
+use rstest_bdd_server::error::ServerError;
+
+fn discover_features(root: &Path) -> Result<Vec<PathBuf>, ServerError> {
+    let feature_files = find_feature_files(root)?;
+    Ok(feature_files)
+}
+```
+
+When the caller needs to distinguish filesystem failures, handle
+`ServerError::Io` explicitly. Do not use an empty fallback or discard failed
+directory reads while retaining successful entries: either approach can hide
+missing feature files and produce an incomplete discovery result.
 
 ### Update direct `record_bypassed_steps` callers
 
