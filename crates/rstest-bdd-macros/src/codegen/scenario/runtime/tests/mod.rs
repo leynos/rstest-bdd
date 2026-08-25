@@ -2,16 +2,12 @@
 
 use rstest::rstest;
 
-use super::generators::{
-    generate_async_step_executor,
-    generate_skip_extractor,
-    generate_step_executor,
+use super::{
+    ScenarioLiteralsInput,
+    create_scenario_literals,
+    generators::{generate_async_step_executor, generate_skip_extractor, generate_step_executor},
 };
 use crate::codegen::scenario::ScenarioReturnKind;
-
-
-//! Tests for runtime scaffolding code generation.
-};
 
 mod support;
 

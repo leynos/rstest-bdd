@@ -117,11 +117,11 @@ fn canonicalize_with_cap_std(path: &Path) -> Option<PathBuf> {
     not(test),
     expect(
         dead_code,
-        reason = "retained per the 10.3.3 ExecPlan Milestone 6: the manifest-relative \
-                  work must not repurpose this memoized absolute form's cache key, and \
-                  compile-time diagnostics may still need the canonical absolute path \
-                  (the missing-file path currently canonicalizes inside \
-                  `parse_and_load_feature` if `CARGO_MANIFEST_DIR` is joined)"
+        reason = "retained per the 10.3.3 ExecPlan Milestone 6: the manifest-relative work must \
+                  not repurpose this memoized absolute form's cache key, and compile-time \
+                  diagnostics may still need the canonical absolute path (the missing-file path \
+                  currently canonicalizes inside `parse_and_load_feature` if `CARGO_MANIFEST_DIR` \
+                  is joined)"
     )
 )]
 pub(super) fn canonical_feature_path(path: &Path) -> String {
@@ -338,9 +338,11 @@ mod manifest_relative_tests {
     //! provides that in-process exclusion (the same pattern the existing
     //! `paths::tests` module uses).
 
-    use super::manifest_relative_feature_path;
-    use serial_test::serial;
     use std::path::Path;
+
+    use serial_test::serial;
+
+    use super::manifest_relative_feature_path;
 
     #[serial]
     #[test]

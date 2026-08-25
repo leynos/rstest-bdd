@@ -6,9 +6,11 @@
 //! codegen refactor silently dropping the binding, without depending on the
 //! expensive nested-cargo regression test (`ExecPlan` Milestone 4).
 
-use crate::staging::trybuild_target_directory;
-use camino::{Utf8Path, Utf8PathBuf};
 use std::path::Path as StdPath;
+
+use camino::{Utf8Path, Utf8PathBuf};
+
+use crate::staging::trybuild_target_directory;
 
 /// Assert that the staged compile-pass fixtures registered the tracking
 /// binding: at least one dep-info under the trybuild build tree lists the
@@ -26,8 +28,8 @@ pub(crate) fn assert_trybuild_tracking_registered_in_dep_info() {
     collect_dep_info_matches(target_directory.as_std_path(), &needle, &mut listed);
     assert!(
         listed > 0,
-        "no trybuild dep-info below {target_directory} lists the staged `{needle}`; \
-         the macro-emitted tracking binding is not reaching dep-info"
+        "no trybuild dep-info below {target_directory} lists the staged `{needle}`; the \
+         macro-emitted tracking binding is not reaching dep-info"
     );
 }
 

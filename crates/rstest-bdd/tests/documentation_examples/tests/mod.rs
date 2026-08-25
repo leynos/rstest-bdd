@@ -5,21 +5,31 @@
 //! integration-ish tests run against the real enforced documents, so a
 //! malformed marker in `docs/users-guide.md` fails here with a named line.
 
-use super::{
-    DocumentPath, EnforcedRegion, ExampleId, ScanRegion, ScanState, SectionHeading,
-    documented_example, extract_marker_id, find_region_bounds, load_documented_examples,
-    parse_fenced_example, previous_marker, scan_region,
-};
 use eyre::Result;
 
-fn lines(text: &str) -> Vec<&str> {
-    text.lines().collect()
-}
+use super::{
+    DocumentPath,
+    EnforcedRegion,
+    ExampleId,
+    ScanRegion,
+    ScanState,
+    SectionHeading,
+    documented_example,
+    extract_marker_id,
+    find_region_bounds,
+    load_documented_examples,
+    parse_fenced_example,
+    previous_marker,
+    scan_region,
+};
+
+fn lines(text: &str) -> Vec<&str> { text.lines().collect() }
 
 #[test]
 fn region_runs_from_heading_to_next_same_or_higher_level() {
     let text = lines(
-        "## Top\n\n### Feature file rebuild invalidation\n\nsome text\n\n```rust\nx\n```\n\n### Next\n\ntext\n",
+        "## Top\n\n### Feature file rebuild invalidation\n\nsome text\n\n```rust\nx\n```\n\n### \
+         Next\n\ntext\n",
     );
     let (start, end) =
         find_region_bounds(&text, SectionHeading("Feature file rebuild invalidation"))

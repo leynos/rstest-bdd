@@ -18,12 +18,15 @@
 //! workspace `target/`, and `LLVM_PROFILE_FILE` is redirected to a scratch
 //! directory so nested coverage never merges into the parent's gated profile.
 
+use std::{
+    io,
+    path::Path,
+    process::{Command, Output, Stdio},
+    thread,
+    time::{Duration, Instant},
+};
+
 use serde_json::Value;
-use std::io;
-use std::path::Path;
-use std::process::{Command, Output, Stdio};
-use std::thread;
-use std::time::{Duration, Instant};
 
 /// Per-invocation wall-clock bound for each nested `cargo` call. Realistic
 /// warm invocations finish in well under 60 s even on a two-core runner; this
@@ -189,8 +192,8 @@ fn timeout_error(stdout: &[u8], stderr: &[u8]) -> io::Error {
     io::Error::new(
         io::ErrorKind::TimedOut,
         format!(
-            "nested cargo exceeded its {} s wall-clock bound; the child was \
-             killed\nstdout so far:\n{}\nstderr so far:\n{}",
+            "nested cargo exceeded its {} s wall-clock bound; the child was killed\nstdout so \
+             far:\n{}\nstderr so far:\n{}",
             CHILD_TIMEOUT.as_secs(),
             String::from_utf8_lossy(stdout),
             String::from_utf8_lossy(stderr)

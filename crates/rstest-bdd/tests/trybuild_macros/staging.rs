@@ -233,16 +233,6 @@ pub(super) fn stage_target_root_snapshots() -> io::Result<TargetRootSnapshotGuar
     }
     Ok(guard)
 }
-/// Resolve the Cargo target directory shared by trybuild staging and inspection.
-///
-/// Cargo exposes an explicit target directory to integration tests through
-/// `CARGO_TARGET_DIR`. Both halves of the tracking assertion must use it so
-/// coverage artefacts do not separate the staged feature from its dep-info.
-pub(super) fn trybuild_target_directory(workspace_root: &Utf8Path) -> Utf8PathBuf {
-    env::var_os("CARGO_TARGET_DIR")
-        .and_then(|value| Utf8PathBuf::from_path_buf(value.into()).ok())
-        .unwrap_or_else(|| workspace_root.join("target"))
-}
 fn write_feature_files(
     root: &Dir,
     destination_root: &StdPath,
@@ -319,8 +309,9 @@ fn collect_feature_files(
 mod tests {
     //! Target-directory selection regression tests for trybuild support.
 
-    use super::*;
     use serial_test::serial;
+
+    use super::*;
 
     #[test]
     #[serial(trybuild_target_directory)]

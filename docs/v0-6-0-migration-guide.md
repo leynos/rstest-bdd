@@ -783,7 +783,6 @@ Two consequences to plan for:
   `format_location`) now collides on the identical relative path. Qualify
   entries by package name in your reporting layer if you merge dumps.
 
-
 ### Feature-file rebuild invalidation
 
 Since v0.6.0, `#[scenario]` and `scenarios!` register every bound `.feature`

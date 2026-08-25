@@ -2266,12 +2266,10 @@ Invariants (ASCII-case insensitivity, rejection of differing extensions, and
 behaviour for missing, repeated, and trailing dots) are pinned by the property
 suite in `crates/rstest-bdd-server/tests/has_extension_props.rs`.
 
-
 ## Feature-file rebuild invalidation conventions (roadmap 10.3.3)
 
 Four internal conventions from the 10.3.3 rebuild-invalidation work, so the
 next person does not rediscover them.
-
 
 ### The cargo-spawning fixture-crate pattern
 
@@ -2302,7 +2300,6 @@ pattern in `crates/rstest-bdd/tests/feature_rebuild_invalidation/`:
   (`max-threads = 1`); when adding another such test, update the worst-case
   arithmetic comment in `.config/nextest.toml`.
 
-
 ### Macro-emitted token streams carry no absolute path literal
 
 The `#[scenario]` and `scenarios!` expansions must not embed an absolute
@@ -2317,7 +2314,6 @@ in `codegen/scenario/runtime/tests/` — keep those in mind before touching the
 path plumbing in `macros/scenario/paths.rs` or
 `macros/scenarios/test_generation/`.
 
-
 ### `googletest` and `pretty_assertions` house style
 
 The repository's first adoption of `googletest` (ExecPlan Decision D1). Use
@@ -2330,7 +2326,6 @@ deferred multi-failure reporting require the `#[gtest]` attribute, which plain
 (non-scenario) tests attach as `#[rstest]` then `#[gtest]` — both attribute
 orders work, and a `-> Result<()>` body's assertion results are panics, not
 errors to propagate.
-
 
 ### Tested living documentation
 
@@ -2354,6 +2349,7 @@ the recipe currently executed: the suite writes it into a fixture crate's
 compiled and run by the next `cargo test`. To add a new executable example, add
 the marker + fence in an enforced region and consume it with
 `documented_example("id")` from a test.
+
 ### Rust indexing results and recoverable diagnostics
 
 `index_rust_source` and `index_rust_file` return

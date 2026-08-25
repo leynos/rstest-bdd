@@ -11,13 +11,13 @@
 //! the output proves the recipe works, so a recipe that stops working fails
 //! the suite instead of rotting silently.
 
-use std::sync::OnceLock;
-use std::time::{Duration, SystemTime};
+use std::{
+    sync::OnceLock,
+    time::{Duration, SystemTime},
+};
 
+use super::{fixtures, process};
 use crate::documentation_examples::documented_example;
-
-use super::fixtures;
-use super::process;
 
 /// Outcome of the build-script addition experiment.
 pub(crate) struct AdditionOutcome {
@@ -181,7 +181,8 @@ fn added_file_path() -> std::path::PathBuf {
 /// filesystem timestamp is never ambiguous.
 fn add_new_feature_file() -> Result<(), String> {
     let path = added_file_path();
-    let content = "Feature: The added feature\n\n  Scenario: The added scenario\n    Given a directory-bound step\n";
+    let content = "Feature: The added feature\n\n  Scenario: The added scenario\n    Given a \
+                   directory-bound step\n";
     std::fs::write(&path, content)
         .map_err(|err| format!("cannot write {}: {err}", path.display()))?;
     // On Windows, drop the write handle before reopening to set the time.

@@ -38,8 +38,7 @@ mod outcome;
 #[path = "harness/process.rs"]
 mod process;
 
-use std::path::PathBuf;
-use std::sync::OnceLock;
+use std::{path::PathBuf, sync::OnceLock};
 
 pub(crate) use addition::addition_outcome;
 pub(crate) use outcome::{DepInfoOutcome, RebuildOutcome};
@@ -105,8 +104,8 @@ fn build_dep_info_outcome() -> DepInfoOutcome {
             dep_info_sample: stdout,
             child_env_detail: process::describe_env(&env),
             baseline_error: Some(
-                "no `compiler-artifact` with a test-binary `executable` was \
-                 reported by `cargo test --no-run --message-format=json`"
+                "no `compiler-artifact` with a test-binary `executable` was reported by `cargo \
+                 test --no-run --message-format=json`"
                     .to_owned(),
             ),
         };
@@ -191,9 +190,8 @@ fn build_rebuild_outcome() -> RebuildOutcome {
     let replaced = original.replace(&then_line_original, &then_line_edited);
     assert_ne!(
         replaced, original,
-        "expected to find the `Then` step line `{then_line_original}` \
-         in the fixture's feature file; the file has drifted from the \
-         contract the experiment relies on"
+        "expected to find the `Then` step line `{then_line_original}` in the fixture's feature \
+         file; the file has drifted from the contract the experiment relies on"
     );
     if let Err(err) = std::fs::write(&feature_path, &replaced) {
         panic!(

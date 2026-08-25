@@ -12,12 +12,12 @@
 //!
 //! The invariants that keep the documentation honest:
 //!
-//! - a marker must be immediately followed by a fence (the loader errors when
-//!   a marker is not followed by one);
+//! - a marker must be immediately followed by a fence (the loader errors when a marker is not
+//!   followed by one);
 //! - the fence must declare a language;
 //! - identifiers must be non-empty and unique across the loaded documents;
-//! - an **unmarked fence inside an enforced region** is a hard error, so the
-//!   documentation cannot quietly acquire an untested example.
+//! - an **unmarked fence inside an enforced region** is a hard error, so the documentation cannot
+//!   quietly acquire an untested example.
 //!
 //! Enforcement is deliberately **regional**, not document-wide:
 //! `docs/users-guide.md` has dozens of fenced blocks and marking them all is a
@@ -26,9 +26,9 @@
 //! the next heading of the same or higher level, or the end of the document —
 //! is a region where every fence must be marked.
 
+use std::{collections::HashSet, path::Path};
+
 use eyre::{Context, ContextCompat, Result, bail};
-use std::collections::HashSet;
-use std::path::Path;
 
 /// One marked fenced example loaded from a user-facing document.
 pub struct DocumentedExample {
@@ -53,9 +53,7 @@ pub struct EnforcedRegion {
 pub(super) struct DocumentPath(&'static str);
 
 impl DocumentPath {
-    fn as_str(self) -> &'static str {
-        self.0
-    }
+    fn as_str(self) -> &'static str { self.0 }
 }
 
 /// A Markdown heading that bounds an enforced document region.
@@ -63,9 +61,7 @@ impl DocumentPath {
 pub(super) struct SectionHeading(&'static str);
 
 impl SectionHeading {
-    fn as_str(self) -> &'static str {
-        self.0
-    }
+    fn as_str(self) -> &'static str { self.0 }
 }
 
 /// A `tested-example` marker identifier accepted by the document parser.
@@ -73,9 +69,7 @@ impl SectionHeading {
 pub(super) struct ExampleId(String);
 
 impl ExampleId {
-    fn as_str(&self) -> &str {
-        &self.0
-    }
+    fn as_str(&self) -> &str { &self.0 }
 }
 
 /// The language label attached to a Markdown fenced code block.
@@ -83,9 +77,7 @@ impl ExampleId {
 pub(super) struct FenceLanguage(String);
 
 impl FenceLanguage {
-    pub(super) fn as_str(&self) -> &str {
-        &self.0
-    }
+    pub(super) fn as_str(&self) -> &str { &self.0 }
 }
 
 /// Immutable boundaries and source for one enforced document region.
@@ -151,8 +143,8 @@ pub fn documented_example(id: &str) -> Result<DocumentedExample> {
         .into_iter()
         .find(|example| example.id.as_str() == id)
         .wrap_err_with(|| {
-            "no tested-example marker named `{id}` is loaded; the enforced \
-         documents may not yet carry it"
+            "no tested-example marker named `{id}` is loaded; the enforced documents may not yet \
+             carry it"
         })
 }
 
@@ -175,9 +167,7 @@ fn find_region_bounds(lines: &[&str], section: SectionHeading) -> Result<(usize,
         let level = trimmed.chars().take_while(|c| *c == '#').count();
         (level != 0 && level <= 6).then_some(level)
     }
-    fn heading_text(line: &str) -> &str {
-        line.trim().trim_start_matches('#').trim()
-    }
+    fn heading_text(line: &str) -> &str { line.trim().trim_start_matches('#').trim() }
 
     let headings: Vec<(usize, usize)> = lines
         .iter()
@@ -217,9 +207,8 @@ fn scan_region(region: &ScanRegion<'_>, state: &mut ScanState) -> Result<()> {
         }
         let Some(id) = previous_marker(region.lines, region.start, idx) else {
             bail!(
-                "unmarked fenced block at line {} in the enforced `{}` \
-                 region: every fence there needs a \
-                 `<!-- tested-example: id -->` marker immediately before it",
+                "unmarked fenced block at line {} in the enforced `{}` region: every fence there \
+                 needs a `<!-- tested-example: id -->` marker immediately before it",
                 idx + 1,
                 region.document.as_str(),
             );

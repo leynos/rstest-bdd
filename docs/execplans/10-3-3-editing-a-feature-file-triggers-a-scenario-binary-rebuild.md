@@ -5,8 +5,8 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
 Status: COMPLETE — all eight milestones implemented, gated and
-CodeRabbit-reviewed; the roadmap item is ticked and the branch is
-pushed for review.
+CodeRabbit-reviewed; the roadmap item is ticked and the branch is pushed for
+review.
 
 Roadmap item: 10.3.3 (`docs/roadmap.md`, phase 10.3 "v0.6.0 final
 requirements").
@@ -552,15 +552,15 @@ implementation.
   makes the state self-healing.
 
 - Observation: **Cargo treats a `rerun-if-changed` path that does not exist
-  as perpetually dirty, re-running the build script — and rebuilding the
-  crate — on every invocation.** The recipe-corruption probe corrupted the
-  watch line to `tests/features-NOPE` (a non-existent directory) and the
-  addition scenario still ran; corrupting it to a wrong *existing* directory
-  (`src`) left the fixture stale and the test failed as intended. The
-  extractor's unit test therefore pins the **exact** `cargo::rerun-if-changed=tests/features`
-  line, so any drift is caught deterministically; the behavioural test proves
-  a build script present with the correct line closes the gap end-to-end, and
-  fails when the script is absent or watches a wrong existing directory.
+  as perpetually dirty, re-running the build script — and rebuilding the crate
+  — on every invocation.** The recipe-corruption probe corrupted the watch line
+  to `tests/features-NOPE` (a non-existent directory) and the addition scenario
+  still ran; corrupting it to a wrong *existing* directory (`src`) left the
+  fixture stale and the test failed as intended. The extractor's unit test
+  therefore pins the **exact** `cargo::rerun-if-changed=tests/features` line,
+  so any drift is caught deterministically; the behavioural test proves a build
+  script present with the correct line closes the gap end-to-end, and fails
+  when the script is absent or watches a wrong existing directory.
 
 - Observation: **`cargo update --precise` can pin a coherent lock back to a
   target world, but only after the target package is already in the lock.**
@@ -2133,36 +2133,35 @@ acceptance transcript at the top of this plan reproduces verbatim, and the
 edit-and-rebuild regression scenario enforces it on every run.
 
 **Observations, measured on this host (24-core, 2026-08-17).** The full
-workspace `make test` nextest run is ~52–66 s (1726 tests) with the three
-new nested-cargo tests contributing ~1–5 s each warm; the `cargo-spawning`
-group's worst-case arithmetic is 2880 s under a 50 m ceiling. The
-compile-time cost of the bindings was not re-measured beyond the plan's
-transcript E — the suite shapes match (per-file bindings, modest file
-sizes), and the plan's tolerance is over pathological suites only. The
-`.expanded.rs` macrotest gate is **dead**: only live when
-`RSTEST_BDD_RUN_MACROTEST` *and* `cargo expand` are present, neither of
-which CI installs or sets; the snapshots are curated excerpts already out
-of step with real expansion (see Decision M2b). The residual
-`scenarios!` addition gap caused no review confusion because Decision D2
-closes it with the tested recipe; the only surprise reviewer feedback was
+workspace `make test` nextest run is ~52–66 s (1726 tests) with the three new
+nested-cargo tests contributing ~1–5 s each warm; the `cargo-spawning` group's
+worst-case arithmetic is 2880 s under a 50 m ceiling. The compile-time cost of
+the bindings was not re-measured beyond the plan's transcript E — the suite
+shapes match (per-file bindings, modest file sizes), and the plan's tolerance
+is over pathological suites only. The `.expanded.rs` macrotest gate is
+**dead**: only live when `RSTEST_BDD_RUN_MACROTEST` *and* `cargo expand` are
+present, neither of which CI installs or sets; the snapshots are curated
+excerpts already out of step with real expansion (see Decision M2b). The
+residual `scenarios!` addition gap caused no review confusion because Decision
+D2 closes it with the tested recipe; the only surprise reviewer feedback was
 the Windows-only dep-info normalization gap, fixed in M8.
 
-**Windows legs.** Not verifiable locally; the D4 compile-fail fixture and
-the dep-info assertion are authored with Windows normals and case-folding
-and are exercised by the two Windows CI legs. The only known residual is
-the `#[cfg(windows)]`-gated unrelatable-root fixture's `.stderr`, which
-the Windows legs will pin or correct on first run.
+**Windows legs.** Not verifiable locally; the D4 compile-fail fixture and the
+dep-info assertion are authored with Windows normals and case-folding and are
+exercised by the two Windows CI legs. The only known residual is the
+`#[cfg(windows)]`-gated unrelatable-root fixture's `.stderr`, which the Windows
+legs will pin or correct on first run.
 
-**Lessons.** (1) Cargo's `rerun-if-changed` treats a *missing* watch path
-as perpetually dirty — a recipe corruption to a non-existent path survives
-the behavioural test, so the exact line is pinned at extraction. (2)
+**Lessons.** (1) Cargo's `rerun-if-changed` treats a *missing* watch path as
+perpetually dirty — a recipe corruption to a non-existent path survives the
+behavioural test, so the exact line is pinned at extraction. (2)
 `str::split_once` and proc-macro2 literal printing each drop/echo data in
-subtle ways (delimiters, raw continuation indentation) — both pinned by
-focused tests. (3) The proc-macro bridge forbids unit-testing full macro
-expansions; assertions are assembled from the two TokenStream2 producers.
-(4) `cargo update --precise` after a minimal-lock union converged in two
-rounds, keeping the second fixture byte-identical to the first at the
-compiled-unit level.
+subtle ways (delimiters, raw continuation indentation) — both pinned by focused
+tests. (3) The proc-macro bridge forbids unit-testing full macro expansions;
+assertions are assembled from the two TokenStream2 producers. (4)
+`cargo update --precise` after a minimal-lock union converged in two rounds,
+keeping the second fixture byte-identical to the first at the compiled-unit
+level.
 
 ## Revision notes
 

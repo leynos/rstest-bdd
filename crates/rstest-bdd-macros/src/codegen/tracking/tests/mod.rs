@@ -17,10 +17,10 @@
 //! becomes a component-wise `..` offset.
 
 use proptest::prelude::*;
+use quote::quote;
 use rstest::rstest;
 
 use super::{TrackedFeaturePath, Untrackable, feature_tracking_item};
-use quote::quote;
 
 /// The doc text the tracking `const` must carry, rebuilt here as a
 /// `concat!` too so the exact-equality assertion cannot be vacuous while
@@ -51,8 +51,7 @@ fn emits_exact_binding_for_representative_relative_path() {
     assert_eq!(
         emitted.to_string(),
         expected_binding("tests/features/invalidation.feature"),
-        "the tracking item must emit the exact deferred-path binding for a \
-         relative input path"
+        "the tracking item must emit the exact deferred-path binding for a relative input path"
     );
 }
 
@@ -183,8 +182,7 @@ fn same_drive_different_case_annotations_relate() {
 #[cfg(unix)]
 #[test]
 fn non_utf8_component_is_untrackable() {
-    use std::ffi::OsString;
-    use std::os::unix::ffi::OsStringExt;
+    use std::{ffi::OsString, os::unix::ffi::OsStringExt};
 
     let raw = OsString::from_vec(b"tests/\xff\xfe.feature".to_vec());
     let result = TrackedFeaturePath::try_new(std::path::Path::new(&raw));

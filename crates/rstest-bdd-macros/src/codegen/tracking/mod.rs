@@ -29,9 +29,10 @@
 //! cache-key helper whose `..` collapsing would name a different file through
 //! a symlink. Reusing it would be a silent correctness bug.
 
+use std::path::{Component, Path, PathBuf};
+
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
-use std::path::{Component, Path, PathBuf};
 
 /// Why a feature file cannot be registered as a Cargo rebuild dependency.
 #[derive(Debug)]
@@ -112,9 +113,7 @@ impl TrackedFeaturePath {
     }
 
     /// The manifest-relative literal, using `/` separators throughout.
-    pub(crate) fn relative_literal(&self) -> &str {
-        &self.0
-    }
+    pub(crate) fn relative_literal(&self) -> &str { &self.0 }
 
     /// Emits the Cargo rebuild-dependency item for this feature file.
     pub(crate) fn binding(&self) -> TokenStream {
@@ -212,20 +211,19 @@ fn untrackable_error(untrackable: Untrackable, span: Span) -> TokenStream {
         Untrackable::UnrelatableRoot(path) => {
             let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_default();
             format!(
-                "feature file `{}` shares no filesystem root with the crate \
-                 manifest directory (`{manifest}`), so it cannot be registered \
-                 as a Cargo rebuild dependency. Use a manifest-relative path, \
-                 or a path on the same filesystem root.",
+                "feature file `{}` shares no filesystem root with the crate manifest directory \
+                 (`{manifest}`), so it cannot be registered as a Cargo rebuild dependency. Use a \
+                 manifest-relative path, or a path on the same filesystem root.",
                 path.display()
             )
         }
         Untrackable::NonUtf8(path) => format!(
-            "feature file path `{}` is not valid UTF-8, so it cannot be \
-             registered as a Cargo rebuild dependency.",
+            "feature file path `{}` is not valid UTF-8, so it cannot be registered as a Cargo \
+             rebuild dependency.",
             path.display()
         ),
         Untrackable::Empty => "feature file path is empty, so it cannot be registered as a Cargo \
-             rebuild dependency."
+                               rebuild dependency."
             .to_owned(),
     };
     syn::Error::new(span, message).into_compile_error()

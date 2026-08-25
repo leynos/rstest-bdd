@@ -13,9 +13,11 @@
 //! harness's protocol version) differs from the recorded one or the manifest
 //! still carries relative dependency paths.
 
-use std::fs;
-use std::io;
-use std::path::{Path, PathBuf};
+use std::{
+    fs,
+    io,
+    path::{Path, PathBuf},
+};
 
 /// Path of the workspace's shared build-output directory.
 pub(crate) fn shared_target_dir() -> PathBuf {
@@ -23,14 +25,10 @@ pub(crate) fn shared_target_dir() -> PathBuf {
 }
 
 /// Root scratch directory owned exclusively by this harness.
-pub(crate) fn scratch_root() -> PathBuf {
-    shared_target_dir().join("tests/rebuild-invalidation")
-}
+pub(crate) fn scratch_root() -> PathBuf { shared_target_dir().join("tests/rebuild-invalidation") }
 
 /// The copied fixture crate inside the scratch area.
-pub(crate) fn scratch_fixture_dir() -> PathBuf {
-    scratch_root().join("fixture")
-}
+pub(crate) fn scratch_fixture_dir() -> PathBuf { scratch_root().join("fixture") }
 
 /// The checked-in fixture crate source.
 pub(crate) fn source_fixture_dir() -> PathBuf {
@@ -142,14 +140,10 @@ pub(crate) fn source_addition_dir() -> PathBuf {
 }
 
 /// Root scratch directory owned exclusively by the addition experiment.
-fn add_addition_root() -> PathBuf {
-    shared_target_dir().join("tests/feature-addition")
-}
+fn add_addition_root() -> PathBuf { shared_target_dir().join("tests/feature-addition") }
 
 /// The copied `feature_addition` fixture crate inside its scratch area.
-pub(crate) fn scratch_addition_dir() -> PathBuf {
-    add_addition_root().join("fixture")
-}
+pub(crate) fn scratch_addition_dir() -> PathBuf { add_addition_root().join("fixture") }
 
 /// Core of the stamp-file protocol: re-copy `source` to `scratch` (after
 /// rewriting its manifest's path dependencies to absolute paths) unless the
@@ -186,9 +180,7 @@ fn scratch_is_current(scratch: &Path, stamp_path: &Path, stamp: &str) -> bool {
 }
 
 /// The recorded stamp, or the empty string when the scratch is uninitialized.
-fn read_stamp(path: &Path) -> String {
-    fs::read_to_string(path).unwrap_or_default()
-}
+fn read_stamp(path: &Path) -> String { fs::read_to_string(path).unwrap_or_default() }
 
 /// Whether every `path = "…"` value in the scratch manifest is absolute.
 ///
@@ -326,11 +318,13 @@ pub(crate) fn normalize_dep_path(path: &Path) -> String {
 
 #[cfg(test)]
 mod tests {
-    //! Unit tests for fixture hashing and manifest serialisation.
+    //! Unit tests for fixture hashing and manifest serialization.
+
+    use std::fs;
+
+    use tempfile::tempdir;
 
     use super::{source_tree_hash, toml_basic_string};
-    use std::fs;
-    use tempfile::tempdir;
 
     #[test]
     fn source_tree_hash_changes_when_lockfile_changes() -> std::io::Result<()> {
