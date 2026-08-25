@@ -239,17 +239,18 @@ def find_violations(root: Path) -> list[str]:
     problems: list[str] = []
     for file_path in iter_candidate_files(root):
         relative = file_path.relative_to(root)
+        relative_display = relative.as_posix()
         if file_path.suffix == ".rs":
             problems.extend(
-                f"{relative}:{line_no}: contains forbidden async-trait usage"
+                f"{relative_display}:{line_no}: contains forbidden async-trait usage"
                 for line_no in find_async_trait_in_rust(file_path)
             )
         elif file_path.suffix == ".toml" and manifest_declares_async_trait(file_path):
-            problems.append(f"{relative}: declares async-trait dependency")
+            problems.append(f"{relative_display}: declares async-trait dependency")
         elif file_path.suffix == ".lock" and lockfile_violates_policy(
             file_path, relative
         ):
-            problems.append(f"{relative}: references async-trait in lockfile")
+            problems.append(f"{relative_display}: references async-trait in lockfile")
     return problems
 
 
