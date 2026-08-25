@@ -15,6 +15,7 @@ use crate::codegen::{HarnessApiResolution, SharedAdapterResolutions};
 
 /// The adapter decision for one scenario.
 pub(super) struct ScenarioAdapters<'a> {
+    /// Shared, pure adapter resolutions for this generated scenario.
     pub(super) resolutions: Cow<'a, SharedAdapterResolutions>,
 }
 

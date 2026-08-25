@@ -1,6 +1,6 @@
 //! Tests for generated compile-time trait assertions.
 
-use super::generate_trait_assertions;
+use super::super::adapters::generate_trait_assertions;
 
 #[derive(Clone, Copy)]
 enum ParamKind {

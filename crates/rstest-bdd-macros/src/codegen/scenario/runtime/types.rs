@@ -74,6 +74,7 @@ pub(crate) struct TestTokensConfig<'a> {
 pub(crate) struct OutlineTestTokensConfig<'a> {
     /// Processed steps for each Examples row (one set per row).
     pub(crate) all_rows_steps: Vec<ProcessedStepTokens>,
+    /// Metadata shared by each generated outline case.
     pub(crate) metadata: ScenarioMetadata<'a>,
 }
 

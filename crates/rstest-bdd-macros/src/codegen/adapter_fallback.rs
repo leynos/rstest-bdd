@@ -34,11 +34,13 @@ pub(super) fn fallback_candidate(adapter_path: &syn::Path) -> Option<AdapterFall
 }
 
 #[cfg(not(test))]
+/// Determine whether the candidate adapter crate is directly resolvable.
 fn fallback_crate_is_resolvable(spec: &CrateSpec) -> bool {
     super::try_resolve_crate_path(spec).is_some()
 }
 
 #[cfg(test)]
+/// Treat syntactic candidates as resolvable so unit tests avoid Cargo state.
 fn fallback_crate_is_resolvable(_: &CrateSpec) -> bool {
     // Unit tests exercise the syntactic decision independently of Cargo's
     // package-resolution environment.
@@ -48,10 +50,13 @@ fn fallback_crate_is_resolvable(_: &CrateSpec) -> bool {
 /// Metadata for one qualifying first-party adapter fallback.
 #[derive(Clone, Copy)]
 pub(super) struct AdapterFallback {
+    /// First-party adapter specification associated with the fallback.
     spec: &'static CrateSpec,
+    /// Terminal adapter identifier span used for the diagnostic.
     span: Span,
 }
 
+/// Determine whether a path's penultimate segment is the expected crate name.
 fn path_penultimate_ident_matches(path: &syn::Path, expected: &str) -> bool {
     let mut segments = path.segments.iter().rev();
     let _adapter_type = segments.next();
@@ -88,6 +93,7 @@ pub(super) fn emit_first_party_adapter_fallback_warning(fallback: Option<&Adapte
 
 #[cfg(not(test))]
 #[cfg(not(rstest_bdd_nightly))]
+/// Suppress native diagnostics on stable where generated tokens provide them.
 pub(super) fn emit_first_party_adapter_fallback_warning(_: Option<&AdapterFallback>) {}
 
 #[cfg(test)]
@@ -140,7 +146,9 @@ pub(crate) fn first_party_adapter_fallback_warning_tokens(
 /// scenarios the feature directory yields.
 #[derive(Clone)]
 pub(crate) struct SharedAdapterResolutions {
+    /// Resolution for the supplied harness adapter, if any.
     pub(crate) harness: Option<super::HarnessApiResolution>,
+    /// Resolution for the supplied attribute policy, if any.
     pub(crate) attributes: Option<super::HarnessApiResolution>,
 }
 

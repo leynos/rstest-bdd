@@ -91,8 +91,11 @@ where
     I: Iterator<Item = TokenStream2>,
     Q: Iterator<Item = TokenStream2>,
 {
+    /// Tokens emitted before the generated test body.
     pub prelude: P,
+    /// Tokens inserted into the generated test body.
     pub inserts: I,
+    /// Tokens emitted after the generated test body.
     pub postlude: Q,
 }
 
@@ -102,6 +105,7 @@ where
     I: Iterator<Item = TokenStream2>,
     Q: Iterator<Item = TokenStream2>,
 {
+    /// Group the three context token iterators for one generation pass.
     pub fn new(prelude: P, inserts: I, postlude: Q) -> Self {
         Self {
             prelude,
@@ -111,6 +115,7 @@ where
     }
 }
 
+/// Convert scenario metadata into literals embedded in generated test tokens.
 fn create_scenario_literals(input: ScenarioLiteralsInput<'_>) -> ScenarioLiterals {
     let allow_literal = syn::LitBool::new(input.allow_skipped, proc_macro2::Span::call_site());
     let feature_literal =
@@ -159,6 +164,7 @@ fn generate_common_components(
     )
 }
 
+/// Generate the executor-loop components for a regular scenario.
 fn generate_code_components(
     processed_steps: &ProcessedSteps,
     is_async: bool,
@@ -188,6 +194,7 @@ fn generate_code_components(
     }
 }
 
+/// Assemble a generated test without harness delegation.
 fn assemble_test_tokens(
     literals: ScenarioLiterals,
     components: CodeComponents,

@@ -1,9 +1,10 @@
 //! Code generation for scenario tests.
 //!
 //! This module coordinates code generation for a BDD scenario or outline across
-//! six focused sub-modules:
+//! seven focused sub-modules:
 //!
 //! - [`adapters`] — resolves adapter APIs and fallback diagnostics once per expansion boundary.
+//! - [`boundary`] — applies shared adapter decisions at the macro-expansion boundary.
 //!
 //! - [`domain`] — shared types for steps, examples, and docstrings.
 //! - [`helpers`] — step-processing utilities and case-attribute generators.
@@ -42,12 +43,12 @@ use helpers::{
 };
 pub(crate) use metadata::{FeaturePath, ScenarioName};
 use runtime::{
+    ContextIterators,
     OutlineTestTokensConfig,
     ProcessedSteps,
     ScenarioMetadata,
     TestTokensConfig,
     generate_test_tokens,
-    ContextIterators,
 };
 
 pub(crate) use crate::macros::scenarios::ScenariosRuntimeMode as RuntimeMode;
@@ -56,24 +57,17 @@ use crate::{
     parsing::placeholder::contains_placeholders,
 };
 
-use test_attrs::{TestAttrPolicy, generate_test_attrs_with_boundary};
-
-pub(crate) use domain::*;
-pub(crate) use helpers::process_steps;
-};
-pub(crate) use metadata::{FeaturePath, ScenarioName};
-};
-pub(crate) use crate::macros::scenarios::ScenariosRuntimeMode as RuntimeMode;
-};
-
 /// Return kinds supported by scenario bodies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ScenarioReturnKind {
+    /// The scenario body returns no value.
     Unit,
+    /// The scenario body returns `Result<(), E>`.
     ResultUnit,
 }
 
 impl ScenarioReturnKind {
+    /// Whether generated code must propagate a scenario-body error.
     pub(crate) fn is_fallible(self) -> bool { matches!(self, Self::ResultUnit) }
 }
 
@@ -119,11 +113,15 @@ pub(crate) struct ScenarioConfig<'a> {
 
 /// Configuration for context iterators in scenario code generation.
 pub(crate) struct ContextConfig<P, I, Q> {
+    /// Tokens emitted before the generated scenario body.
     pub(crate) prelude: P,
+    /// Tokens inserted into the generated scenario body.
     pub(crate) inserts: I,
+    /// Tokens emitted after the generated scenario body.
     pub(crate) postlude: Q,
 }
 
+/// Determine whether inherited scenario tags permit skipping the scenario.
 pub(crate) fn scenario_allows_skip(tags: &[String]) -> bool {
     tags.iter().any(|tag| tag == "@allow_skipped")
 }
