@@ -1,22 +1,13 @@
 //! Attribute macros enabling Behaviour-Driven testing with `rstest`.
 //!
 //! # Feature flags
-//! - `compile-time-validation`: registers steps at compile time and attaches
-//!   spans for diagnostics.
-//! - `strict-compile-time-validation`: escalates missing or ambiguous steps to
-//!   compile errors; implies `compile-time-validation`.
-//!
-//! Both features are disabled by default.
-#![cfg_attr(all(rstest_bdd_nightly, not(test)), feature(proc_macro_diagnostic))]
-
-//! Attribute macros enabling Behaviour-Driven testing with `rstest`.
-//!
-//! # Feature flags
 //! - `compile-time-validation`: registers steps at compile time and attaches spans for diagnostics.
 //! - `strict-compile-time-validation`: escalates missing or ambiguous steps to compile errors;
 //!   implies `compile-time-validation`.
 //!
 //! Both features are disabled by default.
+#![cfg_attr(all(rstest_bdd_nightly, not(test)), feature(proc_macro_diagnostic))]
+
 mod codegen;
 mod datatable;
 mod macros;
@@ -31,10 +22,7 @@ mod validation;
 use std::panic::UnwindSafe;
 
 use proc_macro::TokenStream;
-use proc_macro_error3::entry_point;
-use proc_macro_error3::proc_macro_error;
-use proc_macro_error::{entry_point, proc_macro_error};
-
+use proc_macro_error3::{entry_point, proc_macro_error};
 pub(crate) use step_keyword::StepKeyword;
 
 /// Run a procedural macro while mapping panics into `proc_macro_error`

@@ -180,8 +180,9 @@ former validates generated documentation and links under the docs.rs
 configuration, while the latter verifies that executable examples compile and
 behave as documented.
 
-For documentation changes, run `make fmt`, `make markdownlint`, `make
-spellcheck`, and `make nixie`. `make markdownlint` also runs the spelling gate.
+For documentation changes, run `make fmt`, `make markdownlint`,
+`make spellcheck`, and `make nixie`. `make markdownlint` also runs the spelling
+gate.
 
 ## nextest configuration (`.config/nextest.toml`)
 

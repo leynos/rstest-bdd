@@ -952,8 +952,8 @@ diagnostic, even when the Tokio adapter crate is also a dependency.
 
 The macro resolves each supplied adapter path once and emits at most one
 diagnostic for that resolution. See the
-[developers' guide][developers-guide-adapter-fallback] for the
-nightly and stable implementation details.
+[developers' guide][developers-guide-adapter-fallback] for the nightly and
+stable implementation details.
 
 Prefer the canonical paths:
 

@@ -7,24 +7,31 @@ mod harness;
 mod tests;
 mod types;
 
-use proc_macro2::TokenStream as TokenStream2;
-use quote::quote;
-
-use crate::codegen::scenario::ScenarioReturnKind;
-
-use super::helpers::ProcessedStepTokens;
 use body::wrap_scenario_block;
 use generators::{
-    generate_async_step_executor, generate_async_step_executor_loop,
-    generate_async_step_executor_loop_outline, generate_scenario_guard, generate_skip_extractor,
-    generate_skip_handler, generate_step_executor, generate_step_executor_loop,
+    generate_async_step_executor,
+    generate_async_step_executor_loop,
+    generate_async_step_executor_loop_outline,
+    generate_scenario_guard,
+    generate_skip_extractor,
+    generate_skip_handler,
+    generate_step_executor,
+    generate_step_executor_loop,
     generate_step_executor_loop_outline,
 };
 use harness::{HarnessAssemblyPaths, assemble_test_tokens_with_harness};
+use proc_macro2::TokenStream as TokenStream2;
+use quote::quote;
 use types::{CodeComponents, ScenarioLiterals, ScenarioLiteralsInput, TokenAssemblyContext};
 pub(crate) use types::{
-    OutlineTestTokensConfig, ProcessedSteps, ScenarioMetadata, TestTokensConfig,
+    OutlineTestTokensConfig,
+    ProcessedSteps,
+    ScenarioMetadata,
+    TestTokensConfig,
 };
+
+use super::helpers::ProcessedStepTokens;
+use crate::codegen::scenario::ScenarioReturnKind;
 /// Common interface for scenario test configuration types.
 trait ScenarioTestConfig {
     /// Generates the code components for this scenario type.
@@ -34,24 +41,16 @@ trait ScenarioTestConfig {
     fn metadata(&self) -> &ScenarioMetadata<'_>;
 
     /// Extracts the common scenario metadata fields.
-    fn literals_input(&self) -> ScenarioLiteralsInput<'_> {
-        self.metadata().literals_input()
-    }
+    fn literals_input(&self) -> ScenarioLiteralsInput<'_> { self.metadata().literals_input() }
 
     /// Returns the test function block.
-    fn block(&self) -> &syn::Block {
-        self.metadata().block
-    }
+    fn block(&self) -> &syn::Block { self.metadata().block }
 
     /// Returns the return kind for the scenario body.
-    fn return_kind(&self) -> ScenarioReturnKind {
-        self.metadata().return_kind
-    }
+    fn return_kind(&self) -> ScenarioReturnKind { self.metadata().return_kind }
 
     /// Whether the scenario runs asynchronously.
-    fn is_async(&self) -> bool {
-        self.metadata().is_async
-    }
+    fn is_async(&self) -> bool { self.metadata().is_async }
 
     /// Returns the harness type and its pre-resolved base API path.
     fn harness(&self) -> Option<(&syn::Path, &TokenStream2)> {
@@ -70,9 +69,7 @@ impl ScenarioTestConfig for TestTokensConfig<'_> {
         )
     }
 
-    fn metadata(&self) -> &ScenarioMetadata<'_> {
-        &self.metadata
-    }
+    fn metadata(&self) -> &ScenarioMetadata<'_> { &self.metadata }
 }
 
 impl ScenarioTestConfig for OutlineTestTokensConfig<'_> {
@@ -84,9 +81,7 @@ impl ScenarioTestConfig for OutlineTestTokensConfig<'_> {
         )
     }
 
-    fn metadata(&self) -> &ScenarioMetadata<'_> {
-        &self.metadata
-    }
+    fn metadata(&self) -> &ScenarioMetadata<'_> { &self.metadata }
 }
 
 /// Context token stream iterators for test generation.

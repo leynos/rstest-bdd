@@ -4,28 +4,28 @@
 //! BDD scenario or scenario outline. The pipeline is partitioned across
 //! six focused sub-modules:
 //!
-//! - [`adapters`] — owns adapter API resolution and the corresponding fallback
-//!   diagnostics for an expansion boundary, so generated scenarios reuse one
-//!   decision.
+//! - [`adapters`] — owns adapter API resolution and the corresponding fallback diagnostics for an
+//!   expansion boundary, so generated scenarios reuse one decision.
 //!
-//! - [`domain`] — domain types shared across the pipeline (`StepText`,
-//!   `ExampleHeaders`, `ExampleRow`, and `Docstring`).
+//! - [`domain`] — domain types shared across the pipeline (`StepText`, `ExampleHeaders`,
+//!   `ExampleRow`, and `Docstring`).
 //! - [`helpers`] — step-processing utilities and case-attribute generators.
-//! - [`metadata`] — strongly-typed wrappers for feature-path and
-//!   scenario-name values used in generated code.
-//! - [`runtime`] — token generation for the async runtime wrapper and the
-//!   harness-orchestrated `ScenarioRunRequest`.
-//! - [`test_attrs`] — ADR-008 attribute-policy resolution, translating
-//!   harness and runtime-mode hints into the correct set of test attributes
-//!   (`#[rstest::rstest]`, `#[tokio::test]`, `#[gpui::test]`).
+//! - [`metadata`] — strongly-typed wrappers for feature-path and scenario-name values used in
+//!   generated code.
+//! - [`runtime`] — token generation for the async runtime wrapper and the harness-orchestrated
+//!   `ScenarioRunRequest`.
+//! - [`test_attrs`] — ADR-008 attribute-policy resolution, translating harness and runtime-mode
+//!   hints into the correct set of test attributes (`#[rstest::rstest]`, `#[tokio::test]`,
+//!   `#[gpui::test]`).
 //!
 //! Public entry points are [`generate_scenario`] and
 //! [`generate_scenario_outline`], which delegate to the internal helpers
 //! after resolving adapter API paths once at the expansion boundary.
 
+use std::borrow::Cow;
+
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
-use std::borrow::Cow;
 
 mod adapters;
 mod boundary;
@@ -40,18 +40,26 @@ use boundary::finalize_scenario_signature;
 pub(crate) use domain::*;
 pub(crate) use helpers::process_steps;
 use helpers::{
-    generate_case_attrs, generate_indexed_case_attrs, process_steps_substituted, row_has_values,
+    generate_case_attrs,
+    generate_indexed_case_attrs,
+    process_steps_substituted,
+    row_has_values,
 };
 pub(crate) use metadata::{FeaturePath, ScenarioName};
 use runtime::{
-    OutlineTestTokensConfig, ProcessedSteps, ScenarioMetadata, TestTokensConfig,
-    generate_test_tokens, generate_test_tokens_outline,
+    OutlineTestTokensConfig,
+    ProcessedSteps,
+    ScenarioMetadata,
+    TestTokensConfig,
+    generate_test_tokens,
+    generate_test_tokens_outline,
 };
 
 pub(crate) use crate::macros::scenarios::ScenariosRuntimeMode as RuntimeMode;
-use crate::macros::scenarios::ScenariosTestAttributeHint as TestAttributeHint;
-
-use crate::parsing::placeholder::contains_placeholders;
+use crate::{
+    macros::scenarios::ScenariosTestAttributeHint as TestAttributeHint,
+    parsing::placeholder::contains_placeholders,
+};
 
 /// Return kinds supported by scenario bodies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -61,9 +69,7 @@ pub(crate) enum ScenarioReturnKind {
 }
 
 impl ScenarioReturnKind {
-    pub(crate) fn is_fallible(self) -> bool {
-        matches!(self, Self::ResultUnit)
-    }
+    pub(crate) fn is_fallible(self) -> bool { matches!(self, Self::ResultUnit) }
 }
 
 /// Configuration for generating code for a single scenario test.
@@ -163,9 +169,9 @@ fn reject_async_harness(config: &ScenarioConfig<'_>) -> Option<TokenStream2> {
 
     let err = syn::Error::new(
         proc_macro2::Span::call_site(),
-        "combining `harness` with `async fn` scenarios is not supported; \
-         use a synchronous scenario function with `TokioHarness` instead \
-         (the harness provides the Tokio runtime for step functions)",
+        "combining `harness` with `async fn` scenarios is not supported; use a synchronous \
+         scenario function with `TokioHarness` instead (the harness provides the Tokio runtime \
+         for step functions)",
     );
     Some(err.into_compile_error())
 }

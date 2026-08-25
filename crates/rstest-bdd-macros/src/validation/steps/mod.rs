@@ -12,7 +12,6 @@
 
 mod crate_id;
 mod messages;
-
 use std::{
     collections::HashMap,
     sync::{LazyLock, Mutex},
@@ -28,22 +27,17 @@ use crate::{
     utils::warnings::emit_warning,
 };
 
-/// Internal alias for shared implementation data.
 type Registry = HashMap<Box<str>, CrateDefs>;
 
-/// Step patterns grouped by semantic keyword for one crate.
 #[derive(Default, Clone)]
 struct CrateDefs {
-    /// Registered patterns indexed by their step keyword.
     by_kw: HashMap<StepKeyword, Vec<&'static MacroPattern>>,
 }
 
 impl CrateDefs {
-    /// Returns the patterns registered for a keyword.
     fn patterns(&self, kw: StepKeyword) -> &[&'static MacroPattern] {
         self.by_kw.get(&kw).map_or(&[], Vec::as_slice)
     }
-    /// Returns whether no step patterns are registered.
     fn is_empty(&self) -> bool { self.by_kw.values().all(Vec::is_empty) }
 }
 
@@ -150,18 +144,14 @@ fn validate_single_step(
 /// Decision on whether to validate steps.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum RegistryDecision {
-    /// Continue validating against the available registry entries.
     Continue,
-    /// Skip validation because no local definitions are available.
     Skip,
-    /// Skip validation after emitting a registry warning.
     WarnAndSkip,
 }
 
 /// Check whether the registry holds definitions for the current crate.
 fn validate_registry_state(
     defs: Option<&CrateDefs>,
-    #[cfg_attr(test, expect(unused_variables, reason = "crate ID unused in tests"))]
     crate_id_str: &str,
     strict: bool,
 ) -> RegistryDecision {
@@ -172,12 +162,13 @@ fn validate_registry_state(
             if strict {
                 RegistryDecision::Continue
             } else {
-                #[cfg(not(test))]
-                emit_warning!(
+                emit_warning(
                     proc_macro2::Span::call_site(),
-                    "step registry has no definitions for crate ID '{}'. This may indicate a \
-                     registry issue.",
-                    crate_id_str
+                    format!(
+                        "step registry has no definitions for crate ID '{crate_id_str}'. This may \
+                         indicate a registry issue."
+                    ),
+                    None,
                 );
                 RegistryDecision::WarnAndSkip
             }
@@ -216,7 +207,6 @@ pub(crate) fn validate_steps_exist(steps: &[ParsedStep], strict: bool) -> Result
     handle_validation_result(&missing, strict)
 }
 
-/// Converts missing-step results into strict errors or non-strict warnings.
 fn handle_validation_result(
     missing: &[(proc_macro2::Span, String)],
     strict: bool,
@@ -233,7 +223,6 @@ fn handle_validation_result(
     }
 }
 
-/// Builds a strict-mode error from one or more missing steps.
 fn create_strict_mode_error(missing: &[(proc_macro2::Span, String)]) -> Result<(), syn::Error> {
     let msg = match missing {
         [(span, only)] => {
@@ -251,7 +240,6 @@ fn create_strict_mode_error(missing: &[(proc_macro2::Span, String)]) -> Result<(
     Err(syn::Error::new(span, msg))
 }
 
-/// Emits non-strict diagnostics for missing step definitions.
 fn emit_non_strict_warnings(missing: &[(proc_macro2::Span, String)]) {
     for (span, msg) in missing {
         let loc = span.start();

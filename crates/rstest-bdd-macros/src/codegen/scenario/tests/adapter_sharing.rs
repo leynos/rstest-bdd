@@ -10,7 +10,12 @@
 //! `proc_macro::Diagnostic` and leaves the token stream free of markers.
 
 use super::{
-    FeaturePath, RuntimeMode, ScenarioConfig, ScenarioName, ScenarioReturnKind, blank,
+    FeaturePath,
+    RuntimeMode,
+    ScenarioConfig,
+    ScenarioName,
+    ScenarioReturnKind,
+    blank,
     generate_scenario_code,
 };
 use crate::codegen::SharedAdapterResolutions;

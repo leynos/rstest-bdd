@@ -8,12 +8,8 @@ use super::{
     ScenarioReturnKind,
     TestAttrPolicy,
     blank,
+    generate_scenario_code,
     generate_test_attrs,
-    blank, generate_scenario_code, generate_test_attrs,
-};
-
-
-//! Tests covering the `ScenarioConfig` execution-runtime split.
 };
 
 #[test]

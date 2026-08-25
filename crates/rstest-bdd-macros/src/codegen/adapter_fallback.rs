@@ -8,11 +8,9 @@
 //! that fallback loud: a native nightly diagnostic plus generated tokens that
 //! produce a stable-toolchain `deprecated` warning carrying the same guidance.
 
-use proc_macro2::Span;
-use proc_macro2::TokenStream as TokenStream2;
+use proc_macro2::{Span, TokenStream as TokenStream2};
 
-use super::path_last_ident_matches;
-use super::{CrateSpec, GPUI_HARNESS, TOKIO_HARNESS};
+use super::{CrateSpec, GPUI_HARNESS, TOKIO_HARNESS, path_last_ident_matches};
 
 /// Find the first-party adapter spec whose adapter type name matches the
 /// final segment of `adapter_path` when that adapter crate is resolvable.
@@ -67,7 +65,8 @@ fn path_penultimate_ident_matches(path: &syn::Path, expected: &str) -> bool {
 fn first_party_adapter_fallback_message(spec: &CrateSpec) -> String {
     format!(
         concat!(
-            "rstest-bdd could not identify this harness or attribute-policy path as a first-party adapter; ",
+            "rstest-bdd could not identify this harness or attribute-policy path as a first-party \
+             adapter; ",
             "falling back to `rstest-bdd-harness` for base harness API types. ",
             "Use the canonical crate-root path, ensure `{}` is directly resolvable as `{}`, ",
             "or add `rstest-bdd-harness` as a direct dev-dependency."

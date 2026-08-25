@@ -2,8 +2,12 @@
 
 use proc_macro2::TokenStream as TokenStream2;
 
-use crate::codegen::scenario::helpers::ProcessedStepTokens;
-use crate::codegen::scenario::{FeaturePath, ScenarioName, ScenarioReturnKind};
+use crate::codegen::scenario::{
+    FeaturePath,
+    ScenarioName,
+    ScenarioReturnKind,
+    helpers::ProcessedStepTokens,
+};
 
 /// Grouped tokens for scenario steps.
 #[derive(Debug)]

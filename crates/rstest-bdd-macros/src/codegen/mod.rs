@@ -42,15 +42,11 @@ const GPUI_HARNESS: CrateSpec = CrateSpec {
 };
 
 /// Return a token stream pointing to the `rstest_bdd` crate or its renamed form.
-pub(crate) fn rstest_bdd_path() -> TokenStream2 {
-    resolve_crate_path(&RSTEST_BDD)
-}
+pub(crate) fn rstest_bdd_path() -> TokenStream2 { resolve_crate_path(&RSTEST_BDD) }
 
 /// Return a token stream pointing to the `rstest_bdd_harness` crate or its
 /// renamed form.
-pub(crate) fn rstest_bdd_harness_path() -> TokenStream2 {
-    resolve_crate_path(&RSTEST_BDD_HARNESS)
-}
+pub(crate) fn rstest_bdd_harness_path() -> TokenStream2 { resolve_crate_path(&RSTEST_BDD_HARNESS) }
 
 /// Try to return a token stream pointing to the requested crate or renamed
 /// dependency without panicking when the consumer does not depend on it.
@@ -66,9 +62,7 @@ fn try_resolve_crate_path(spec: &CrateSpec) -> Option<TokenStream2> {
 /// Used by the `runtime = "tokio-current-thread"` compatibility alias to
 /// resolve `TokioHarness` via proper crate lookup, supporting downstream
 /// crates that rename the dependency in their `Cargo.toml`.
-pub(crate) fn rstest_bdd_harness_tokio_path() -> TokenStream2 {
-    resolve_crate_path(&TOKIO_HARNESS)
-}
+pub(crate) fn rstest_bdd_harness_tokio_path() -> TokenStream2 { resolve_crate_path(&TOKIO_HARNESS) }
 
 /// Return the crate root that provides base harness API for the given harness
 /// or attribute-policy path.
@@ -210,13 +204,19 @@ fn handle_missing_crate(spec: &CrateSpec, err: &proc_macro_crate::Error) -> Toke
 mod tests {
     //! Unit tests for shared code generation utilities.
 
-    use super::{
-        GPUI_HARNESS, RSTEST_BDD, RSTEST_BDD_HARNESS, TOKIO_HARNESS, handle_missing_crate,
-    };
+    use std::path::PathBuf;
+
     use proc_macro_crate::Error;
     use proptest::prelude::*;
     use rstest::rstest;
-    use std::path::PathBuf;
+
+    use super::{
+        GPUI_HARNESS,
+        RSTEST_BDD,
+        RSTEST_BDD_HARNESS,
+        TOKIO_HARNESS,
+        handle_missing_crate,
+    };
 
     fn not_found_error(crate_name: &str) -> Error {
         Error::CrateNotFound {

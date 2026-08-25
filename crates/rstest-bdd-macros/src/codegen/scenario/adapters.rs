@@ -5,9 +5,10 @@
 //! and emits their diagnostics, and every scenario generated beneath that
 //! boundary reuses the decision without re-emitting.
 
+use std::borrow::Cow;
+
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
-use std::borrow::Cow;
 
 use super::ScenarioConfig;
 use crate::codegen::{HarnessApiResolution, SharedAdapterResolutions};
