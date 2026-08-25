@@ -109,7 +109,7 @@ pub(crate) struct ScenarioLiteralsInput<'a> {
 
 #[derive(Debug)]
 /// Internal data used by the macros implementation.
-pub(super) struct CodeComponents {
+pub(crate) struct CodeComponents {
     /// Stores the internal `step_executor` value.
     pub(super) step_executor: TokenStream2,
     /// Stores the internal `skip_extractor` value.

@@ -33,7 +33,7 @@ pub(crate) use types::{
 use super::helpers::ProcessedStepTokens;
 use crate::codegen::scenario::ScenarioReturnKind;
 /// Common interface for scenario test configuration types.
-trait ScenarioTestConfig {
+pub(crate) trait ScenarioTestConfig {
     /// Generates the code components for this scenario type.
     fn generate_components(&self) -> CodeComponents;
 
@@ -188,18 +188,6 @@ fn generate_code_components(
     }
 }
 
-pub(crate) fn generate_test_tokens(
-    config: &TestTokensConfig<'_>,
-    ctx_prelude: impl Iterator<Item = TokenStream2>,
-    ctx_inserts: impl Iterator<Item = TokenStream2>,
-    ctx_postlude: impl Iterator<Item = TokenStream2>,
-) -> TokenStream2 {
-    generate_test_tokens_for_config(
-        config,
-        ContextIterators::new(ctx_prelude, ctx_inserts, ctx_postlude),
-    )
-}
-
 fn assemble_test_tokens(
     literals: ScenarioLiterals,
     components: CodeComponents,
@@ -305,7 +293,7 @@ where
 }
 
 /// Generates test tokens for any scenario configuration.
-fn generate_test_tokens_for_config<P, I, Q>(
+pub(crate) fn generate_test_tokens<P, I, Q>(
     config: &impl ScenarioTestConfig,
     ctx_iterators: ContextIterators<P, I, Q>,
 ) -> TokenStream2
@@ -351,22 +339,4 @@ fn generate_code_components_outline(
         step_executor_loop,
         skip_handler,
     }
-}
-
-/// Generates test tokens for scenario outlines with placeholder substitution.
-///
-/// This function creates the test body for scenario outlines where step text
-/// contains placeholders that are substituted with values from the Examples table.
-/// Each Examples row produces a separate test case, and the substituted steps
-/// are organized in a 2D array indexed by case.
-pub(crate) fn generate_test_tokens_outline(
-    config: &OutlineTestTokensConfig<'_>,
-    ctx_prelude: impl Iterator<Item = TokenStream2>,
-    ctx_inserts: impl Iterator<Item = TokenStream2>,
-    ctx_postlude: impl Iterator<Item = TokenStream2>,
-) -> TokenStream2 {
-    generate_test_tokens_for_config(
-        config,
-        ContextIterators::new(ctx_prelude, ctx_inserts, ctx_postlude),
-    )
 }

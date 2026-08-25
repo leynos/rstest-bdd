@@ -1,19 +1,14 @@
 //! Code generation for scenario tests.
 //!
-//! This module coordinates the full code-generation pipeline for a single
-//! BDD scenario or scenario outline. The pipeline is partitioned across
+//! This module coordinates code generation for a BDD scenario or outline across
 //! six focused sub-modules:
 //!
-//! - [`adapters`] — owns adapter API resolution and the corresponding fallback diagnostics for an
-//!   expansion boundary, so generated scenarios reuse one decision.
+//! - [`adapters`] — resolves adapter APIs and fallback diagnostics once per expansion boundary.
 //!
-//! - [`domain`] — domain types shared across the pipeline (`StepText`, `ExampleHeaders`,
-//!   `ExampleRow`, and `Docstring`).
+//! - [`domain`] — shared types for steps, examples, and docstrings.
 //! - [`helpers`] — step-processing utilities and case-attribute generators.
-//! - [`metadata`] — strongly-typed wrappers for feature-path and scenario-name values used in
-//!   generated code.
-//! - [`runtime`] — token generation for the async runtime wrapper and the harness-orchestrated
-//!   `ScenarioRunRequest`.
+//! - [`metadata`] — feature-path and scenario-name wrappers for generated code.
+//! - [`runtime`] — async wrapper and harness-orchestrated runtime tokens.
 //! - [`test_attrs`] — ADR-008 attribute-policy resolution, translating harness and runtime-mode
 //!   hints into the correct set of test attributes (`#[rstest::rstest]`, `#[tokio::test]`,
 //!   `#[gpui::test]`).
@@ -52,13 +47,23 @@ use runtime::{
     ScenarioMetadata,
     TestTokensConfig,
     generate_test_tokens,
-    generate_test_tokens_outline,
+    ContextIterators,
 };
 
 pub(crate) use crate::macros::scenarios::ScenariosRuntimeMode as RuntimeMode;
 use crate::{
     macros::scenarios::ScenariosTestAttributeHint as TestAttributeHint,
     parsing::placeholder::contains_placeholders,
+};
+
+use test_attrs::{TestAttrPolicy, generate_test_attrs_with_boundary};
+
+pub(crate) use domain::*;
+pub(crate) use helpers::process_steps;
+};
+pub(crate) use metadata::{FeaturePath, ScenarioName};
+};
+pub(crate) use crate::macros::scenarios::ScenariosRuntimeMode as RuntimeMode;
 };
 
 /// Return kinds supported by scenario bodies.
@@ -221,7 +226,10 @@ where
         .examples
         .as_ref()
         .map_or_else(Vec::new, generate_case_attrs);
-    let body = generate_test_tokens(&test_config, ctx.prelude, ctx.inserts, ctx.postlude);
+    let body = generate_test_tokens(
+        &test_config,
+        ContextIterators::new(ctx.prelude, ctx.inserts, ctx.postlude),
+    );
     let attrs = config.attrs;
     let vis = config.vis;
     let mut signature = Cow::Borrowed(config.sig);
@@ -303,8 +311,10 @@ where
     };
 
     let case_attrs = generate_indexed_case_attrs(examples);
-    let body =
-        generate_test_tokens_outline(&outline_config, ctx.prelude, ctx.inserts, ctx.postlude);
+    let body = generate_test_tokens(
+        &outline_config,
+        ContextIterators::new(ctx.prelude, ctx.inserts, ctx.postlude),
+    );
 
     // Add the hidden case index parameter to the signature
     let mut signature: Cow<'_, syn::Signature> = Cow::Owned((*config.sig).clone());
