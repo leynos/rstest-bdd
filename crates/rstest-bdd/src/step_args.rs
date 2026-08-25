@@ -13,6 +13,7 @@ use std::fmt;
 /// annotated with `#[derive(StepArgs)]` fails.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StepArgsError {
+    /// Human-readable conversion failure message.
     message: String,
 }
 

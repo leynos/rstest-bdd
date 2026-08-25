@@ -28,6 +28,7 @@ pub(super) enum RuntimeCompatibilityAlias {
     TokioHarnessAdapter,
 }
 
+/// Provides the internal `fn` operation.
 pub(super) const fn runtime_compatibility_alias(
     runtime: RuntimeMode,
 ) -> Option<RuntimeCompatibilityAlias> {
@@ -40,7 +41,9 @@ pub(super) const fn runtime_compatibility_alias(
 /// A single fixture specification: `name: Type`.
 #[derive(Clone, Debug)]
 pub(super) struct FixtureSpec {
+    /// Stores the internal `name` value.
     pub(super) name: syn::Ident,
+    /// Stores the internal `ty` value.
     pub(super) ty: syn::Type,
 }
 
@@ -53,21 +56,35 @@ impl Parse for FixtureSpec {
     }
 }
 
+/// Internal data used by the macros implementation.
 pub(super) struct ScenariosArgs {
+    /// Stores the internal `dir` value.
     pub(super) dir: LitStr,
+    /// Stores the internal `tag_filter` value.
     pub(super) tag_filter: Option<LitStr>,
+    /// Stores the internal `fixtures` value.
     pub(super) fixtures: Vec<FixtureSpec>,
+    /// Stores the internal `runtime` value.
     pub(super) runtime: RuntimeMode,
+    /// Stores the internal `harness` value.
     pub(super) harness: Option<syn::Path>,
+    /// Stores the internal `attributes` value.
     pub(super) attributes: Option<syn::Path>,
 }
 
+/// Documents the internal `ScenariosArg` item.
 enum ScenariosArg {
+    /// Represents the internal validation outcome.
     Dir(LitStr),
+    /// Represents the internal validation outcome.
     Tags(LitStr),
+    /// Represents the internal validation outcome.
     Fixtures(Vec<FixtureSpec>),
+    /// Represents the internal validation outcome.
     Runtime(RuntimeMode),
+    /// Represents the internal validation outcome.
     Harness(syn::Path),
+    /// Represents the internal validation outcome.
     Attributes(syn::Path),
 }
 

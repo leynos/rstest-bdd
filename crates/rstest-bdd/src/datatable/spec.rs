@@ -7,7 +7,9 @@ use super::DataTableError;
 /// Metadata describing the header row of a data table.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HeaderSpec {
+    /// Column names in their original order.
     columns: Vec<String>,
+    /// Mapping from column names to their zero-based positions.
     index: HashMap<String, usize>,
 }
 
@@ -69,14 +71,20 @@ impl HeaderSpec {
 /// Representation of a single row within a data table.
 #[derive(Debug)]
 pub struct RowSpec<'h> {
+    /// Header metadata, when the table has a header row.
     header: Option<&'h HeaderSpec>,
+    /// One-based row number including the header.
     row_number: usize,
+    /// Zero-based row index excluding the header.
     index: usize,
+    /// Remaining cell values in their current order.
     cells: Vec<String>,
+    /// Original column positions mapped to current cell positions.
     indices: Vec<Option<usize>>,
 }
 
 impl<'h> RowSpec<'h> {
+    /// Create a row specification with all cells initially available.
     pub(super) fn new(
         header: Option<&'h HeaderSpec>,
         row_number: usize,

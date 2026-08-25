@@ -145,3 +145,17 @@ fn my_scenario() -> Result<(), MyError> {
 - A unit-returning scenario still propagates `Err` from fallible steps. Users
   only need a fallible scenario signature when the scenario body itself needs
   to use `?`; this distinction should remain explicit in migration guidance.
+
+## Delivery addendum (2026-08-25)
+
+Roadmap item 11.3.2 is delivered. Standard and Tokio generated test boundaries
+preserve the fallible scenario's native `Result` return, allowing the test
+harness to consume it through Rust's `Termination` support. The GPUI boundary
+is intentionally unit-returning: its generated wrapper consumes the scenario
+`Result`, records an error outcome, and panics with the fixed message
+`scenario returned an error` when the result is `Err`.
+
+This addendum supersedes the v0.6.0-beta3 pending-risk statement above. The
+statement remains as historical context for the failure that motivated this
+work; generated standard, Tokio, and GPUI paths now consume the fallible
+scenario result without an `unused_must_use` warning under `-D warnings`.

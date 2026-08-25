@@ -21,6 +21,7 @@ use crate::{
     },
 };
 
+/// Provides the internal `expand` operation.
 pub(crate) fn expand(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     match expand_inner(&input) {
@@ -29,6 +30,7 @@ pub(crate) fn expand(input: TokenStream) -> TokenStream {
     }
 }
 
+/// Provides the internal `expand_inner` operation.
 fn expand_inner(input: &DeriveInput) -> syn::Result<TokenStream2> {
     let Data::Struct(DataStruct { fields, .. }) = &input.data else {
         return Err(syn::Error::new(
@@ -64,6 +66,7 @@ fn expand_inner(input: &DeriveInput) -> syn::Result<TokenStream2> {
     })
 }
 
+/// Provides the internal `build_constructor` operation.
 fn build_constructor(fields: &[FieldSpec]) -> TokenStream2 {
     fields
         .iter()
@@ -87,6 +90,7 @@ fn build_constructor(fields: &[FieldSpec]) -> TokenStream2 {
         )
 }
 
+/// Provides the internal `augment_generics` operation.
 fn augment_generics(generics: &Generics, fields: &[FieldSpec]) -> Generics {
     let mut generics = generics.clone();
     if generics.type_params().next().is_none() {
@@ -107,6 +111,7 @@ fn augment_generics(generics: &Generics, fields: &[FieldSpec]) -> Generics {
     generics
 }
 
+/// Provides the internal `needs_from_str_bound` operation.
 fn needs_from_str_bound(config: &FieldConfig, inner_ty: &Type) -> bool {
     config.parse_with.is_none() && !config.truthy && !is_string_type(inner_ty)
 }

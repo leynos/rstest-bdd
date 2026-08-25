@@ -10,25 +10,41 @@ use std::sync::{LazyLock, Mutex};
 use hashbrown::HashSet;
 use serde::Serialize;
 
-use super::{StepKey, USED_STEPS, all_steps, resolve_step, step_by_key};
+use super::{
+    StepKey,
+    USED_STEPS,
+    all_steps,
+    bypassed::BypassedScenario,
+    resolve_step,
+    step_by_key,
+};
 use crate::{
     reporting::{self, ScenarioStatus},
     types::StepKeyword,
 };
 
+/// Recorded metadata for a bypassed step.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub(super) struct BypassedStepRecord {
+    /// Registry key for the bypassed step.
     pub(super) key: StepKey,
+    /// Feature path containing the scenario.
     pub(super) feature_path: String,
+    /// Name of the bypassed scenario.
     pub(super) scenario_name: String,
+    /// Source line of the bypassed scenario.
     pub(super) scenario_line: u32,
+    /// Tags attached to the scenario.
     pub(super) tags: Vec<String>,
+    /// Optional reason recorded for the bypass.
     pub(super) reason: Option<String>,
 }
 
+/// Process-wide registry of bypassed steps.
 static BYPASSED_STEPS: LazyLock<Mutex<HashSet<BypassedStepRecord>>> =
     LazyLock::new(|| Mutex::new(HashSet::new()));
 
+/// Add a bypassed step record to the registry.
 fn mark_bypassed(record: BypassedStepRecord) {
     BYPASSED_STEPS
         .lock()
@@ -36,6 +52,7 @@ fn mark_bypassed(record: BypassedStepRecord) {
         .insert(record);
 }
 
+/// Snapshot all currently recorded bypassed steps.
 fn bypassed_records() -> Vec<BypassedStepRecord> {
     BYPASSED_STEPS
         .lock()
@@ -45,73 +62,99 @@ fn bypassed_records() -> Vec<BypassedStepRecord> {
         .collect()
 }
 
-pub(super) fn record_bypassed_steps_impl<'a, I>(
-    feature_path: &str,
-    scenario_name: &str,
-    scenario_line: u32,
-    tags: &[String],
-    reason: Option<&str>,
-    steps: I,
-) where
+/// Record each registered step skipped by a scenario.
+pub(super) fn record_bypassed_steps_impl<'a, I>(scenario: BypassedScenario<'_>, steps: I)
+where
     I: IntoIterator<Item = (StepKeyword, &'a str)>,
 {
     for (keyword, text) in steps {
         if let Some(step) = resolve_step(keyword, text.into()) {
             let record = BypassedStepRecord {
                 key: (step.keyword, step.pattern),
-                feature_path: feature_path.to_owned(),
-                scenario_name: scenario_name.to_owned(),
-                scenario_line,
-                tags: tags.to_owned(),
-                reason: reason.map(str::to_owned),
+                feature_path: scenario.feature_path.to_owned(),
+                scenario_name: scenario.scenario_name.to_owned(),
+                scenario_line: scenario.scenario_line,
+                tags: scenario.tags.to_owned(),
+                reason: scenario.reason.map(str::to_owned),
             };
             mark_bypassed(record);
         }
     }
 }
 
+/// Serializable registry step entry.
 #[derive(Serialize)]
 struct DumpedStep {
+    /// Step keyword.
     keyword: &'static str,
+    /// Step pattern.
     pattern: &'static str,
+    /// Source file defining the step.
     file: &'static str,
+    /// Source line defining the step.
     line: u32,
+    /// Whether the step was used.
     used: bool,
+    /// Whether the step was bypassed.
     bypassed: bool,
 }
 
+/// Serializable scenario outcome entry.
 #[derive(Serialize)]
 struct DumpedScenario {
+    /// Feature path containing the scenario.
     feature_path: String,
+    /// Human-readable scenario name.
     scenario_name: String,
+    /// Lowercase scenario status label.
     status: &'static str,
+    /// Optional skip message.
     message: Option<String>,
+    /// Whether skipping was explicitly allowed.
     allow_skipped: bool,
+    /// Whether skipping forced a failure.
     forced_failure: bool,
+    /// Source line of the scenario.
     line: u32,
+    /// Scenario tags.
     tags: Vec<String>,
 }
 
+/// Serializable bypassed-step entry.
 #[derive(Serialize)]
 struct DumpedBypassedStep {
+    /// Step keyword.
     keyword: &'static str,
+    /// Step pattern.
     pattern: &'static str,
+    /// Source file defining the step.
     file: &'static str,
+    /// Source line defining the step.
     line: u32,
+    /// Feature path containing the scenario.
     feature_path: String,
+    /// Scenario name.
     scenario_name: String,
+    /// Source line of the scenario.
     scenario_line: u32,
+    /// Scenario tags.
     tags: Vec<String>,
+    /// Optional bypass reason.
     reason: Option<String>,
 }
 
+/// Top-level registry dump consumed by diagnostics tooling.
 #[derive(Serialize)]
 struct RegistryDump {
+    /// Registered step entries.
     steps: Vec<DumpedStep>,
+    /// Recorded scenario entries.
     scenarios: Vec<DumpedScenario>,
+    /// Recorded bypassed-step entries.
     bypassed_steps: Vec<DumpedBypassedStep>,
 }
 
+/// Serialize the current step and scenario registry.
 pub(super) fn dump_registry() -> serde_json::Result<String> {
     let used = USED_STEPS
         .lock()

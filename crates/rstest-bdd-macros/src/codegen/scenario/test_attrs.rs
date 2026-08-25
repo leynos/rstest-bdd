@@ -38,25 +38,36 @@ fn is_two_segment_attr(attr: &syn::Attribute, crate_name: &str, fn_name: &str) -
     segments.next().is_none() && first.ident == crate_name && second.ident == fn_name
 }
 
+/// Provides the internal `is_tokio_test_attr` operation.
 fn is_tokio_test_attr(attr: &syn::Attribute) -> bool { is_two_segment_attr(attr, "tokio", "test") }
 
+/// Provides the internal `is_gpui_test_attr` operation.
 fn is_gpui_test_attr(attr: &syn::Attribute) -> bool { is_two_segment_attr(attr, "gpui", "test") }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Documents the internal `PolicyAttribute` item.
 enum PolicyAttribute {
+    /// Represents the internal validation outcome.
     Rstest,
+    /// Represents the internal validation outcome.
     TokioCurrentThread,
+    /// Represents the internal validation outcome.
     GpuiTest,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// Documents the internal `ResolvedAttributePolicy` item.
 enum ResolvedAttributePolicy {
+    /// Represents the internal validation outcome.
     Default,
+    /// Represents the internal validation outcome.
     TokioCurrentThread,
+    /// Represents the internal validation outcome.
     Gpui,
 }
 
 impl ResolvedAttributePolicy {
+    /// Provides the internal `test_attributes` operation.
     fn test_attributes(self) -> &'static [PolicyAttribute] {
         const DEFAULT: [PolicyAttribute; 1] = [PolicyAttribute::Rstest];
         const TOKIO: [PolicyAttribute; 2] =
@@ -71,16 +82,19 @@ impl ResolvedAttributePolicy {
     }
 }
 
+/// Provides the internal `resolve_attribute_hint_from_policy_path` operation.
 fn resolve_attribute_hint_from_policy_path(path: &syn::Path) -> Option<TestAttributeHint> {
     resolve_attribute_hint_from_path(path, resolve_test_attribute_hint_for_policy_path)
         .or_else(|| first_party_adapter_attribute_hint(path))
 }
 
+/// Provides the internal `resolve_attribute_hint_from_harness_path` operation.
 fn resolve_attribute_hint_from_harness_path(path: &syn::Path) -> Option<TestAttributeHint> {
     resolve_attribute_hint_from_path(path, resolve_test_attribute_hint_for_harness_path)
         .or_else(|| first_party_adapter_attribute_hint(path))
 }
 
+/// Provides the internal `resolve_attribute_hint_from_path` operation.
 fn resolve_attribute_hint_from_path(
     path: &syn::Path,
     resolver: fn(&[&str]) -> Option<TestAttributeHint>,
@@ -107,6 +121,7 @@ pub(super) struct TestAttrPolicy<'a> {
     pub(super) attributes: Option<&'a syn::Path>,
 }
 
+/// Provides the internal `resolve_attribute_policy` operation.
 fn resolve_attribute_policy(policy: &TestAttrPolicy<'_>) -> ResolvedAttributePolicy {
     let hint = policy.attributes.map_or_else(
         || {
@@ -133,10 +148,13 @@ fn resolve_attribute_policy(policy: &TestAttrPolicy<'_>) -> ResolvedAttributePol
 
 /// Generated test attributes and their effect on the function boundary.
 pub(super) struct GeneratedTestAttrs {
+    /// Stores the internal `tokens` value.
     pub(super) tokens: TokenStream2,
+    /// Stores the internal `uses_gpui_boundary` value.
     pub(super) uses_gpui_boundary: bool,
 }
 
+/// Provides the internal `render_policy_attribute` operation.
 fn render_policy_attribute(attribute: PolicyAttribute) -> TokenStream2 {
     match attribute {
         PolicyAttribute::Rstest => quote! { #[rstest::rstest] },

@@ -12,6 +12,7 @@ use walkdir::{DirEntry, WalkDir};
 
 use super::path_resolution::canonicalize_path;
 
+/// Provides the internal `is_feature_file` operation.
 fn is_feature_file(path: &Path) -> bool {
     path.extension()
         .and_then(|e| e.to_str())
@@ -39,6 +40,7 @@ fn process_special_entry(original_path: PathBuf) -> Option<std::io::Result<PathB
     }
 }
 
+/// Provides the internal `process_dir_entry` operation.
 fn process_dir_entry(entry: DirEntry) -> Option<std::io::Result<PathBuf>> {
     let file_type = entry.file_type();
     if file_type.is_dir() {
@@ -54,6 +56,7 @@ fn process_dir_entry(entry: DirEntry) -> Option<std::io::Result<PathBuf>> {
     process_special_entry(path)
 }
 
+/// Provides the internal `convert_walkdir_error` operation.
 fn convert_walkdir_error(err: walkdir::Error) -> Option<std::io::Error> {
     if err.loop_ancestor().is_some() {
         return None;
@@ -66,6 +69,7 @@ fn convert_walkdir_error(err: walkdir::Error) -> Option<std::io::Error> {
     )
 }
 
+/// Provides the internal `collect_feature_files` operation.
 pub(super) fn collect_feature_files(base: &Path) -> std::io::Result<Vec<PathBuf>> {
     let mut files = Vec::new();
 

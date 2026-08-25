@@ -12,10 +12,13 @@ use super::FeatureSource;
 pub(super) struct LineContent<'a>(&'a str);
 
 impl<'a> LineContent<'a> {
+    /// Wrap a borrowed line for docstring scanning.
     pub(super) fn new(line: &'a str) -> Self { Self(line) }
 
+    /// Return the unmodified line content.
     pub(super) fn as_str(&self) -> &'a str { self.0 }
 
+    /// Return the line content with leading whitespace removed.
     pub(super) fn trim_start(&self) -> &'a str { self.0.trim_start() }
 }
 
@@ -26,11 +29,14 @@ impl AsRef<str> for LineContent<'_> {
 /// Tracks the state whilst scanning for docstring delimiters.
 #[derive(Debug)]
 struct DocstringState {
+    /// Delimiter opened by the most recent docstring line, if any.
     pending_delimiter: Option<&'static str>,
+    /// Byte offset of the opening delimiter line.
     docstring_start: usize,
 }
 
 impl DocstringState {
+    /// Create an empty docstring scan state.
     fn new() -> Self {
         Self {
             pending_delimiter: None,
@@ -42,7 +48,9 @@ impl DocstringState {
 /// Cursor position and line end boundary for docstring scanning.
 #[derive(Debug, Clone, Copy)]
 struct LineBounds {
+    /// Byte offset where the line begins.
     cursor: usize,
+    /// Byte offset where the line ends.
     end: usize,
 }
 
@@ -79,6 +87,7 @@ pub(super) fn find_docstring_span(source: FeatureSource<'_>, start_from: usize) 
     None
 }
 
+/// Advance from a step span to the next line boundary.
 fn advance_to_next_line_boundary(source: FeatureSource<'_>, start_from: usize) -> Option<usize> {
     if start_from > source.len() {
         return None;
@@ -93,6 +102,7 @@ fn advance_to_next_line_boundary(source: FeatureSource<'_>, start_from: usize) -
     Some(cursor)
 }
 
+/// Extract trimmed line content and its end offset at a cursor position.
 fn extract_line_info(source: FeatureSource<'_>, cursor: usize) -> Option<(LineContent<'_>, usize)> {
     let tail = source.get(cursor..source.len())?;
     let line_end = tail
@@ -103,6 +113,7 @@ fn extract_line_info(source: FeatureSource<'_>, cursor: usize) -> Option<(LineCo
     Some((line_trimmed, line_end))
 }
 
+/// Update docstring scan state for one line and return a completed span.
 fn process_line_for_docstring(
     line_trimmed: LineContent<'_>,
     bounds: LineBounds,
@@ -142,6 +153,7 @@ fn close_docstring_span(
     })
 }
 
+/// Identify a supported opening docstring delimiter on a line.
 fn parse_docstring_delimiter(line_trimmed: LineContent<'_>) -> Option<&'static str> {
     if line_trimmed.as_str().starts_with("\"\"\"") {
         return Some("\"\"\"");
@@ -152,6 +164,7 @@ fn parse_docstring_delimiter(line_trimmed: LineContent<'_>) -> Option<&'static s
     None
 }
 
+/// Check whether a line contains only a matching closing delimiter.
 fn matches_docstring_closing(line_trimmed: LineContent<'_>, delim: &'static str) -> bool {
     if !line_trimmed.as_str().starts_with(delim) {
         return false;

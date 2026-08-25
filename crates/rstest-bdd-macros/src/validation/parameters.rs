@@ -7,6 +7,7 @@ use proc_macro2::TokenStream;
 
 use crate::utils::{errors::error_to_tokens, pattern::ident_matches_normalized};
 
+/// Returns whether a function argument matches an Examples header.
 fn parameter_matches_header(arg: &syn::FnArg, header: &str) -> bool {
     match arg {
         syn::FnArg::Typed(p) => match &*p.pat {
@@ -17,6 +18,7 @@ fn parameter_matches_header(arg: &syn::FnArg, header: &str) -> bool {
     }
 }
 
+/// Finds the function argument corresponding to an Examples header.
 fn find_matching_parameter<'a>(
     sig: &'a mut syn::Signature,
     header: &str,
@@ -37,6 +39,7 @@ fn find_matching_parameter<'a>(
     }
 }
 
+/// Adds rstest's `case` attribute to an argument when needed.
 fn add_case_attribute_if_missing(arg: &mut syn::FnArg) {
     if let syn::FnArg::Typed(p) = arg {
         if !has_case_attribute(p) {
@@ -45,6 +48,7 @@ fn add_case_attribute_if_missing(arg: &mut syn::FnArg) {
     }
 }
 
+/// Returns whether a typed argument already has a `case` attribute.
 fn has_case_attribute(p: &syn::PatType) -> bool {
     p.attrs.iter().any(|attr| {
         let segs: Vec<_> = attr
@@ -57,6 +61,7 @@ fn has_case_attribute(p: &syn::PatType) -> bool {
     })
 }
 
+/// Builds the diagnostic for an Examples header without a parameter.
 fn create_parameter_mismatch_error(sig: &syn::Signature, header: &str) -> TokenStream {
     let available_params: Vec<String> = sig
         .inputs

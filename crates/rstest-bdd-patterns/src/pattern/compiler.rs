@@ -36,6 +36,7 @@ fn process_token(
     Ok(())
 }
 
+/// Create an error describing an unmatched closing brace at a byte position.
 fn unmatched_close_brace_error(index: usize) -> PatternError {
     placeholder_error("unmatched closing brace '}' in step pattern", index, None)
 }

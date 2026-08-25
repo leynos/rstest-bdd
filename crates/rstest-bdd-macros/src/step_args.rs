@@ -10,6 +10,7 @@ use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::quote;
 use syn::{DeriveInput, parse_quote, spanned::Spanned};
 
+/// Expand the `StepArgs` derive implementation.
 pub(crate) fn derive(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as DeriveInput);
     match expand(input) {
@@ -18,6 +19,7 @@ pub(crate) fn derive(input: TokenStream) -> TokenStream {
     }
 }
 
+/// Validate the input and generate its `StepArgs` implementations.
 fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
     let DeriveInput {
         ident,
@@ -40,12 +42,17 @@ fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
     expand_named_struct(&ident, generics, fields)
 }
 
+/// Parsed metadata for one named step-argument field.
 struct FieldInfo {
+    /// The source field identifier.
     ident: syn::Ident,
+    /// The source field type.
     ty: syn::Type,
+    /// The field name as a generated string literal.
     name: syn::LitStr,
 }
 
+/// Collect and validate metadata for all named fields.
 fn collect_field_info(ident: &syn::Ident, fields: syn::FieldsNamed) -> syn::Result<Vec<FieldInfo>> {
     let field_infos: Vec<FieldInfo> = fields
         .named
@@ -68,6 +75,7 @@ fn collect_field_info(ident: &syn::Ident, fields: syn::FieldsNamed) -> syn::Resu
     Ok(field_infos)
 }
 
+/// Add `FromStr` bounds for each generated field parser.
 fn add_fromstr_bounds(generics: &mut syn::Generics, field_infos: &[FieldInfo]) {
     let where_clause = generics.make_where_clause();
     for info in field_infos {
@@ -78,6 +86,7 @@ fn add_fromstr_bounds(generics: &mut syn::Generics, field_infos: &[FieldInfo]) {
     }
 }
 
+/// Generate field parsing expressions and the metadata needed to construct the value.
 fn generate_field_parsing<'a>(
     field_infos: &'a [FieldInfo],
     runtime: &TokenStream2,
@@ -115,18 +124,29 @@ fn generate_field_parsing<'a>(
     (parse_blocks, field_idents, field_name_literals, field_count)
 }
 
+/// Inputs used to generate the `StepArgs` and `TryFrom` implementations.
 struct TraitImplParams<'a> {
+    /// The source struct identifier.
     ident: &'a syn::Ident,
+    /// Generics used on the generated implementation.
     impl_generics: syn::ImplGenerics<'a>,
+    /// Type generics used on the generated implementation.
     ty_generics: syn::TypeGenerics<'a>,
+    /// Optional where clause used on the generated implementation.
     where_clause: Option<&'a syn::WhereClause>,
+    /// Number of captured fields expected by the implementation.
     field_count: usize,
+    /// Generated field-name literals exposed by `StepArgs`.
     field_name_literals: &'a [syn::LitStr],
+    /// Generated expressions that parse each capture.
     parse_fields: &'a [TokenStream2],
+    /// Generated expression constructing the final value.
     construct: TokenStream2,
+    /// Path to the runtime crate used by generated code.
     runtime: TokenStream2,
 }
 
+/// Generate the trait implementations for a named step-argument struct.
 fn generate_trait_impl(ctx: TraitImplParams<'_>) -> TokenStream2 {
     let TraitImplParams {
         ident,
@@ -168,6 +188,7 @@ fn generate_trait_impl(ctx: TraitImplParams<'_>) -> TokenStream2 {
     }
 }
 
+/// Generate implementations for a named struct after validating its fields.
 fn expand_named_struct(
     ident: &syn::Ident,
     mut generics: syn::Generics,

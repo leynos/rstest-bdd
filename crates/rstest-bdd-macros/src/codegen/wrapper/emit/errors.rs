@@ -7,9 +7,13 @@ use super::super::arguments::{StepMeta, step_error_tokens};
 
 /// Pre-generated error tokens for wrapper function error paths.
 pub(super) struct WrapperErrors {
+    /// Stores the internal `placeholder` value.
     pub placeholder: TokenStream2,
+    /// Stores the internal `panic` value.
     pub panic: TokenStream2,
+    /// Stores the internal `execution` value.
     pub execution: TokenStream2,
+    /// Stores the internal `capture_mismatch` value.
     pub capture_mismatch: TokenStream2,
 }
 

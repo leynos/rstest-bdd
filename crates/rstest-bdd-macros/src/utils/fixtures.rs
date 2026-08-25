@@ -11,8 +11,11 @@ use crate::utils::result_type::{
 
 /// Generated code for wiring scenario fixture parameters into `StepContext`.
 pub(crate) struct FixtureBindingCode {
+    /// Generated statements that prepare fixture values.
     pub prelude: Vec<TokenStream2>,
+    /// Generated statements that insert fixtures into the scenario context.
     pub ctx_inserts: Vec<TokenStream2>,
+    /// Generated statements that restore owned fixture bindings.
     pub postlude: Vec<TokenStream2>,
     /// `true` when at least one fixture parameter has a result-like type
     /// (`Result<T, E>` or `StepResult<T, E>`), meaning the scenario must
@@ -26,7 +29,10 @@ enum FixtureProcessing {
     /// Fixture is a reference and should be inserted by-reference.
     Reference,
     /// Fixture is a `Result<T, E>` or `StepResult<T, E>` and must be unwrapped.
-    ResultType { inner_ty: Box<syn::Type> },
+    ResultType {
+        /// The value type obtained after unwrapping the result-like fixture.
+        inner_ty: Box<syn::Type>,
+    },
     /// Fixture is an owned value and should be boxed in a `RefCell`.
     Owned,
 }
@@ -122,6 +128,7 @@ pub(crate) fn extract_function_fixtures(
     ))
 }
 
+/// Generate setup, insertion, and teardown code for an owned fixture.
 fn build_non_ref_fixture_binding(
     binding: &syn::Ident,
     ty: &syn::Type,
@@ -151,6 +158,7 @@ fn build_non_ref_fixture_binding(
     (prelude, insert, postlude)
 }
 
+/// Ensure a fixture pattern has an identifier for generated bindings.
 fn ensure_binding_ident(pat_ty: &mut syn::PatType, counter: usize) -> syn::Result<syn::Ident> {
     match &mut *pat_ty.pat {
         syn::Pat::Ident(id) => Ok(id.ident.clone()),
@@ -175,6 +183,7 @@ fn ensure_binding_ident(pat_ty: &mut syn::PatType, counter: usize) -> syn::Resul
     }
 }
 
+/// Resolve the context name associated with a fixture parameter.
 fn resolve_fixture_name(pat_ty: &syn::PatType) -> syn::Result<String> {
     if let Some(path) = find_from_attr(&pat_ty.attrs)? {
         let Some(last) = path.segments.last() else {
@@ -192,6 +201,7 @@ fn resolve_fixture_name(pat_ty: &syn::PatType) -> syn::Result<String> {
     ))
 }
 
+/// Find and parse a `#[from(...)]` fixture-source attribute.
 fn find_from_attr(attrs: &[syn::Attribute]) -> syn::Result<Option<syn::Path>> {
     for attr in attrs {
         if attr

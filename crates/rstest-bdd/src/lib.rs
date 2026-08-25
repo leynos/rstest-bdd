@@ -19,7 +19,7 @@ mod skip;
 /// assert_eq!(greet(), "Hello from rstest-bdd!");
 /// ```
 #[must_use]
-pub fn greet() -> &'static str { "Hello from rstest-bdd!" }
+pub const fn greet() -> &'static str { "Hello from rstest-bdd!" }
 
 #[cfg(feature = "diagnostics")]
 use ctor::ctor;
@@ -63,6 +63,7 @@ pub use placeholder::extract_placeholders;
 #[cfg(feature = "diagnostics")]
 pub use registry::dump_registry;
 pub use registry::{
+    BypassedScenario,
     FixtureRequirement,
     Step,
     StepFixtureRequirements,
@@ -76,7 +77,6 @@ pub use registry::{
     lookup_step_async,
     lookup_step_async_with_mode,
     record_bypassed_steps,
-    record_bypassed_steps_with_tags,
     unused_steps,
 };
 
@@ -204,8 +204,8 @@ pub enum StepError {
     },
 }
 
-// Macro that maps `StepError` variants to their Fluent identifiers without
-// repeating localization boilerplate in each match arm.
+/// Map `StepError` variants to their Fluent identifiers without repeating
+/// localization boilerplate in each match arm.
 macro_rules! step_error_message {
     (
         $self:expr,

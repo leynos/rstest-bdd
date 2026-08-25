@@ -85,7 +85,9 @@ pub struct GpuiHarness;
 /// to quiescence, parking is forbidden, and the context is quit, so the
 /// next scenario starts from a clean GPUI event loop.
 struct ContextCleanup<'a> {
+    /// Dispatcher whose event queue must be drained during cleanup.
     dispatcher: &'a gpui::TestDispatcher,
+    /// GPUI context to stop after the scenario completes.
     context: &'a TestAppContext,
 }
 

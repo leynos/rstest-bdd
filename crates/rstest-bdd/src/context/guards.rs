@@ -22,6 +22,7 @@ use std::{
 /// only with a mutable guard for the same fixture.
 pub struct FixtureRef<'a, T>(FixtureRefInner<'a, T>);
 
+/// Backing representation for an immutable fixture guard.
 enum FixtureRefInner<'a, T> {
     /// Reference bound directly to a shared fixture.
     Shared(&'a T),
@@ -30,8 +31,10 @@ enum FixtureRefInner<'a, T> {
 }
 
 impl<'a, T> FixtureRef<'a, T> {
+    /// Wrap a shared fixture reference without a `RefCell` guard.
     pub(super) fn shared(value: &'a T) -> Self { Self(FixtureRefInner::Shared(value)) }
 
+    /// Wrap an immutable `RefCell` borrow guard.
     pub(super) fn borrowed(guard: Ref<'a, T>) -> Self { Self(FixtureRefInner::Borrowed(guard)) }
 
     /// Access the borrowed value as an immutable reference.
@@ -65,6 +68,7 @@ impl<T> AsRef<T> for FixtureRef<'_, T> {
 pub struct FixtureRefMut<'a, T>(RefMut<'a, T>);
 
 impl<'a, T> FixtureRefMut<'a, T> {
+    /// Wrap a mutable `RefCell` borrow guard.
     pub(super) fn borrowed(guard: RefMut<'a, T>) -> Self { Self(guard) }
 
     /// Access the borrowed value mutably.

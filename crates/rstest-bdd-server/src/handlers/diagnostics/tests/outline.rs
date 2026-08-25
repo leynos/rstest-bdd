@@ -7,6 +7,26 @@
 
 use super::*;
 
+/// What a scenario-outline column case expects to see reported.
+struct OutlineExpectation<'a> {
+    /// Number of diagnostics expected for the staged feature.
+    count: usize,
+    /// Diagnostic code expected on the single diagnostic, when one is expected.
+    code: Option<&'a str>,
+    /// Fragment the diagnostic message must contain, when a code is expected.
+    message_fragment: Option<&'a str>,
+    /// Diagnostics that must each appear, irrespective of their order.
+    diagnostics: &'a [ExpectedDiagnostic<'a>],
+}
+
+/// A diagnostic code and message fragment expected from a column case.
+struct ExpectedDiagnostic<'a> {
+    /// Diagnostic code that identifies the reported problem.
+    code: &'a str,
+    /// Fragment that identifies the affected column in the diagnostic message.
+    message_fragment: &'a str,
+}
+
 /// Helper to compute scenario outline column diagnostics.
 fn compute_scenario_outline_diagnostics_for_path(
     state: &ServerState,
@@ -32,9 +52,12 @@ fn compute_scenario_outline_diagnostics_for_path(
         "      | count |\n",
         "      | 5     |\n",
     ),
-    1,
-    Some(CODE_EXAMPLE_COLUMN_MISSING),
-    Some("type"),
+    OutlineExpectation {
+        count: 1,
+        code: Some(CODE_EXAMPLE_COLUMN_MISSING),
+        message_fragment: Some("type"),
+        diagnostics: &[],
+    },
 )]
 #[case::surplus_column_only(
     // Examples has extra | unused | column not referenced by steps
@@ -46,9 +69,12 @@ fn compute_scenario_outline_diagnostics_for_path(
         "      | count | unused |\n",
         "      | 5     | value  |\n",
     ),
-    1,
-    Some(CODE_EXAMPLE_COLUMN_SURPLUS),
-    Some("unused"),
+    OutlineExpectation {
+        count: 1,
+        code: Some(CODE_EXAMPLE_COLUMN_SURPLUS),
+        message_fragment: Some("unused"),
+        diagnostics: &[],
+    },
 )]
 #[case::matched_columns(
     // <count> matches | count |
@@ -60,9 +86,12 @@ fn compute_scenario_outline_diagnostics_for_path(
         "      | count |\n",
         "      | 5     |\n",
     ),
-    0,
-    None,
-    None,
+    OutlineExpectation {
+        count: 0,
+        code: None,
+        message_fragment: None,
+        diagnostics: &[],
+    },
 )]
 #[case::multiple_placeholders_matched(
     // <count> and <type> both match columns
@@ -74,40 +103,64 @@ fn compute_scenario_outline_diagnostics_for_path(
         "      | count | type  |\n",
         "      | 5     | red   |\n",
     ),
-    0,
-    None,
-    None,
+    OutlineExpectation {
+        count: 0,
+        code: None,
+        message_fragment: None,
+        diagnostics: &[],
+    },
 )]
 #[case::missing_and_surplus(
-    // Step uses <count>, Examples has | other | - both issues
+    // Step uses <type>, Examples has an extra | unused | column.
     concat!(
         "Feature: test\n",
         "  Scenario Outline: outline\n",
-        "    Given I have <count> items\n",
+        "    Given I have <count> <type> items\n",
         "    Examples:\n",
-        "      | other |\n",
-        "      | value |\n",
+        "      | count | unused |\n",
+        "      | 5     | value  |\n",
     ),
-    // Both missing (count) and surplus (other)
-    2,
-    None,
-    None,
+    // Both missing (type) and surplus (unused).
+    OutlineExpectation {
+        count: 2,
+        code: None,
+        message_fragment: None,
+        diagnostics: &[
+            ExpectedDiagnostic {
+                code: CODE_EXAMPLE_COLUMN_MISSING,
+                message_fragment: "type",
+            },
+            ExpectedDiagnostic {
+                code: CODE_EXAMPLE_COLUMN_SURPLUS,
+                message_fragment: "unused",
+            },
+        ],
+    },
 )]
 fn scenario_outline_column_validation(
     scenario_builder: ScenarioBuilder,
     #[case] feature_content: &str,
-    #[case] expected_count: usize,
-    #[case] expected_code: Option<&str>,
-    #[case] expected_message_fragment: Option<&str>,
-) -> std::io::Result<()> {
+    #[case] expected: OutlineExpectation<'_>,
+) {
+    let OutlineExpectation {
+        count: expected_count,
+        code: expected_code,
+        message_fragment: expected_message_fragment,
+        diagnostics: expected_diagnostics,
+    } = expected;
     // Use just the feature file - no Rust code needed for column validation
     let scenario = scenario_builder.with_single_file_pair(
         feature_content,
         // Minimal Rust content to satisfy the builder
         "// no step definitions needed\n",
     );
-    let diagnostics =
-        compute_scenario_outline_diagnostics_for_path(&scenario.state, &scenario.feature_path)?;
+    let diagnostics = match compute_scenario_outline_diagnostics_for_path(
+        &scenario.state,
+        &scenario.feature_path,
+    ) {
+        Ok(found) => found,
+        Err(error) => panic!("failed to compute scenario outline diagnostics: {error}"),
+    };
 
     assert_eq!(
         diagnostics.len(),
@@ -123,7 +176,19 @@ fn scenario_outline_column_validation(
         }
     }
 
-    Ok(())
+    for expected_diagnostic in expected_diagnostics {
+        let expected_code = lsp_types::NumberOrString::String(expected_diagnostic.code.to_owned());
+        let Some(diagnostic) = diagnostics
+            .iter()
+            .find(|diagnostic| diagnostic.code.as_ref() == Some(&expected_code))
+        else {
+            panic!(
+                "expected a diagnostic with code '{}' in {diagnostics:#?}",
+                expected_diagnostic.code
+            );
+        };
+        assert_diagnostic_message_contains(diagnostic, &[expected_diagnostic.message_fragment]);
+    }
 }
 
 #[rstest]
@@ -178,12 +243,15 @@ fn placeholder_detected_in_various_contexts(
     scenario_builder: ScenarioBuilder,
     #[case] feature_content: &str,
     #[case] assertion_message: &str,
-) -> std::io::Result<()> {
+) {
     let scenario =
         scenario_builder.with_single_file_pair(feature_content, "// no step definitions\n");
-    let diagnostics =
-        compute_scenario_outline_diagnostics_for_path(&scenario.state, &scenario.feature_path)?;
+    let diagnostics = match compute_scenario_outline_diagnostics_for_path(
+        &scenario.state,
+        &scenario.feature_path,
+    ) {
+        Ok(found) => found,
+        Err(error) => panic!("failed to compute scenario outline diagnostics: {error}"),
+    };
     assert!(diagnostics.is_empty(), "{assertion_message}");
-
-    Ok(())
 }

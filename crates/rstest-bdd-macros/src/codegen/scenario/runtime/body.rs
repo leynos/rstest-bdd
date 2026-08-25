@@ -5,6 +5,7 @@ use quote::quote;
 
 use crate::codegen::scenario::ScenarioReturnKind;
 
+/// Provides the internal `wrap_scenario_block` operation.
 pub(super) fn wrap_scenario_block(
     block: &syn::Block,
     return_kind: ScenarioReturnKind,

@@ -10,26 +10,39 @@ use serde::Serialize;
 
 use super::{ScenarioRecord, ScenarioStatus, snapshot};
 
+/// Top-level JSON report payload.
 #[derive(Serialize)]
 struct JsonReport<'a> {
+    /// Serialized scenario records.
     scenarios: Vec<JsonScenario<'a>>,
 }
 
+/// JSON representation of one scenario outcome.
 #[derive(Serialize)]
 struct JsonScenario<'a> {
+    /// Feature path containing the scenario.
     feature_path: &'a str,
+    /// Human-readable scenario name.
     scenario_name: &'a str,
+    /// Lowercase scenario status label.
     status: &'static str,
+    /// Source line where the scenario is declared.
     line: u32,
+    /// Scenario tags.
     tags: &'a [String],
     #[serde(skip_serializing_if = "Option::is_none")]
+    /// Details recorded when the scenario was skipped.
     skip: Option<JsonSkip<'a>>,
 }
 
+/// JSON representation of a skipped scenario.
 #[derive(Serialize)]
 struct JsonSkip<'a> {
+    /// Optional skip message.
     message: Option<&'a str>,
+    /// Whether skipping was explicitly allowed.
     allow_skipped: bool,
+    /// Whether skipping forced a failure.
     forced_failure: bool,
 }
 

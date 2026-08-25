@@ -1,6 +1,11 @@
 //! Tests for step context and fixture management.
 
-use std::sync::Once;
+use std::sync::{
+    Once,
+    atomic::{AtomicBool, Ordering},
+};
+
+use serial_test::serial;
 
 use super::*;
 
@@ -9,13 +14,36 @@ mod guard_borrowing;
 struct NoopLogger;
 
 impl log::Log for NoopLogger {
-    fn enabled(&self, _: &log::Metadata<'_>) -> bool { true }
+    fn enabled(&self, metadata: &log::Metadata<'_>) -> bool {
+        !ENABLE_CONTEXT_WARNINGS_ONLY.load(Ordering::Relaxed)
+            || metadata.target() == CONTEXT_WARNING_TARGET
+    }
     fn log(&self, _: &log::Record<'_>) {}
     fn flush(&self) {}
 }
 
+/// Target used by the warning event and its fallback decision in `StepContext`.
+const CONTEXT_WARNING_TARGET: &str = concat!(env!("CARGO_CRATE_NAME"), "::context");
+
 static LOGGER: NoopLogger = NoopLogger;
 static INIT_LOGGER: Once = Once::new();
+/// Restricts the test logger to `CONTEXT_WARNING_TARGET` while the guard lives.
+static ENABLE_CONTEXT_WARNINGS_ONLY: AtomicBool = AtomicBool::new(false);
+
+/// Restores the test logger's default all-target filter when dropped.
+struct ContextWarningTargetFilter;
+
+impl ContextWarningTargetFilter {
+    /// Enable only warning events emitted from `StepContext`.
+    fn enable() -> Self {
+        ENABLE_CONTEXT_WARNINGS_ONLY.store(true, Ordering::Relaxed);
+        Self
+    }
+}
+
+impl Drop for ContextWarningTargetFilter {
+    fn drop(&mut self) { ENABLE_CONTEXT_WARNINGS_ONLY.store(false, Ordering::Relaxed); }
+}
 
 /// Fixture that initializes the logger for tests requiring log output.
 ///
@@ -27,6 +55,19 @@ fn logger() {
         let _ = log::set_logger(&LOGGER);
         log::set_max_level(log::LevelFilter::Warn);
     });
+}
+
+#[test]
+#[serial]
+fn ambiguous_override_fallback_uses_the_warning_event_target() {
+    logger();
+    let _filter = ContextWarningTargetFilter::enable();
+
+    assert!(!warn_logging_is_disabled(CONTEXT_WARNING_TARGET));
+    assert!(warn_logging_is_disabled(concat!(
+        env!("CARGO_CRATE_NAME"),
+        "::context::logging"
+    )));
 }
 
 #[test]

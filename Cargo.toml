@@ -104,6 +104,7 @@ use_self = "deny"
 string_lit_as_bytes = "deny"
 float_arithmetic = "deny"
 missing_panics_doc = "deny"
+missing_docs_in_private_items = "deny"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

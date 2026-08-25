@@ -96,16 +96,30 @@ generate_async_wrapper!(forced_bypass_async, forced_bypass);
 static SHOULD_SEED: AtomicBool = AtomicBool::new(false);
 
 #[cfg(feature = "diagnostics")]
-fn record_skipped_with_bypass(
-    scenario_name: &str,
+struct SkippedScenarioFixture<'a> {
+    scenario_name: &'a str,
     line: u32,
     tags: Vec<String>,
-    message: &str,
+    message: &'a str,
     allow_skipped: bool,
     forced_failure: bool,
+}
+
+#[cfg(feature = "diagnostics")]
+fn record_skipped_with_bypass(
+    scenario: SkippedScenarioFixture<'_>,
     bypassed_step: (StepKeyword, &str),
 ) {
     const FEATURE_PATH: &str = "tests/features/diagnostics.fixture";
+
+    let SkippedScenarioFixture {
+        scenario_name,
+        line,
+        tags,
+        message,
+        allow_skipped,
+        forced_failure,
+    } = scenario;
 
     let metadata =
         bdd::reporting::ScenarioMetadata::new(FEATURE_PATH, scenario_name, line, tags.clone());
@@ -119,11 +133,9 @@ fn record_skipped_with_bypass(
     ));
 
     bdd::record_bypassed_steps(
-        FEATURE_PATH,
-        scenario_name,
-        line,
-        tags,
-        Some(message),
+        bdd::BypassedScenario::new(FEATURE_PATH, scenario_name, line)
+            .with_tags(&tags)
+            .with_reason(Some(message)),
         [bypassed_step],
     );
 }
@@ -135,22 +147,26 @@ fn seed_reporting_fixture() {
     }
 
     record_skipped_with_bypass(
-        "fixture skipped scenario",
-        7,
-        vec!["@allow_skipped".into()],
-        "fixture skip message",
-        true,
-        false,
+        SkippedScenarioFixture {
+            scenario_name: "fixture skipped scenario",
+            line: 7,
+            tags: vec!["@allow_skipped".into()],
+            message: "fixture skip message",
+            allow_skipped: true,
+            forced_failure: false,
+        },
         (StepKeyword::Given, "fixture bypassed step"),
     );
 
     record_skipped_with_bypass(
-        "fixture forced failure skip",
-        12,
-        vec!["@critical".into()],
-        "fixture forced skip",
-        false,
-        true,
+        SkippedScenarioFixture {
+            scenario_name: "fixture forced failure skip",
+            line: 12,
+            tags: vec!["@critical".into()],
+            message: "fixture forced skip",
+            allow_skipped: false,
+            forced_failure: true,
+        },
         (StepKeyword::Then, "fixture forced bypass"),
     );
 

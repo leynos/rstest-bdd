@@ -98,10 +98,14 @@ fn table_docstring_validation(
     #[case] feature_content: &str,
     #[case] rust_content: &str,
     #[case] expected_code: Option<&str>,
-) -> std::io::Result<()> {
+) {
     let scenario = scenario_builder.with_single_file_pair(feature_content, rust_content);
     let diagnostics =
-        compute_table_docstring_diagnostics_for_path(&scenario.state, &scenario.feature_path)?;
+        match compute_table_docstring_diagnostics_for_path(&scenario.state, &scenario.feature_path)
+        {
+            Ok(found) => found,
+            Err(error) => panic!("failed to compute table/docstring diagnostics: {error}"),
+        };
 
     match expected_code {
         Some(code) => {
@@ -115,8 +119,6 @@ fn table_docstring_validation(
             );
         }
     }
-
-    Ok(())
 }
 
 // ========================================================================

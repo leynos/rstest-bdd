@@ -3,6 +3,7 @@
 use super::{CrateDefs, get_step_span};
 use crate::{StepKeyword, parsing::feature::ParsedStep, pattern::MacroPattern};
 
+/// Formats the diagnostic for a step with no matching definition.
 pub(super) fn format_missing_step_error(
     resolved: StepKeyword,
     step: &ParsedStep,
@@ -19,6 +20,7 @@ pub(super) fn format_missing_step_error(
     build_missing_step_message(resolved, step, &available_defs, &possible_matches)
 }
 
+/// Formats the diagnostic for a step with multiple matching definitions.
 pub(super) fn format_ambiguous_step_error(
     matches: &[&'static MacroPattern],
     step: &ParsedStep,
@@ -37,6 +39,7 @@ pub(super) fn format_ambiguous_step_error(
     syn::Error::new(span, msg)
 }
 
+/// Builds the shared missing-step diagnostic text.
 fn build_missing_step_message(
     resolved: StepKeyword,
     step: &ParsedStep,
@@ -61,6 +64,7 @@ fn build_missing_step_message(
     msg
 }
 
+/// Formats a labelled list of diagnostic items.
 fn format_item_list<T, F>(items: &[T], header: &str, fmt_item: F) -> String
 where
     F: Fn(&T) -> &str,

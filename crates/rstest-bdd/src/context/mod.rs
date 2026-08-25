@@ -31,6 +31,7 @@ mod entry;
 mod error;
 mod guards;
 mod insert_outcome;
+mod logging;
 #[cfg(test)]
 mod tests;
 
@@ -38,6 +39,7 @@ use entry::FixtureEntry;
 pub use error::FixtureBorrowError;
 pub use guards::{FixtureRef, FixtureRefMut};
 pub use insert_outcome::InsertOutcome;
+use logging::warn_logging_is_disabled;
 
 /// Reserved fixture key used for harness-provided context.
 ///
@@ -101,7 +103,11 @@ pub const RSTEST_BDD_HARNESS_CONTEXT_FIXTURE: &str = "rstest_bdd_harness_context
 /// ```
 #[derive(Default)]
 pub struct StepContext<'a> {
+    /// Fixtures indexed by name, with shared-reference and mutable storage
+    /// variants inserted by [`insert`](Self::insert) and
+    /// [`insert_owned`](Self::insert_owned).
     fixtures: HashMap<&'static str, FixtureEntry<'a>>,
+    /// Owned type-erased values returned by previous steps.
     values: HashMap<&'static str, RefCell<Box<dyn Any>>>,
 }
 impl<'a> StepContext<'a> {
@@ -316,12 +322,12 @@ impl<'a> StepContext<'a> {
                 crate::localization::message_with_args("step-context-ambiguous-override", |args| {
                     args.set("type_id", format!("{ty:?}"));
                 });
-            log::warn!("{message}");
+            log::warn!(target: module_path!(), "{message}");
             #[expect(
                 clippy::print_stderr,
                 reason = "surface ambiguous overrides when logging is disabled"
             )]
-            if warn_logging_is_disabled() {
+            if warn_logging_is_disabled(module_path!()) {
                 eprintln!("{message}");
             }
             return InsertOutcome::AmbiguousIgnored;
@@ -391,9 +397,3 @@ impl<'a> StepContext<'a> {
             .ok_or_else(|| FixtureBorrowError::not_found(name))
     }
 }
-
-/// Report whether `log::warn!` output is currently discarded.
-///
-/// Kept as a named predicate so the mirrored `eprintln!` call site stays a
-/// simple two-branch condition.
-fn warn_logging_is_disabled() -> bool { !log::log_enabled!(log::Level::Warn) }

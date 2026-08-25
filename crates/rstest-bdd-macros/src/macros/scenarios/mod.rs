@@ -42,23 +42,34 @@ use crate::{
     },
 };
 
+/// Internal data used by the macros implementation.
 struct TagFilter {
+    /// Stores the internal `expr` value.
     expr: TagExpression,
+    /// Stores the internal `span` value.
     span: Span,
+    /// Stores the internal `raw` value.
     raw: String,
 }
 
 /// Context for processing feature files, bundling configuration
 /// that remains constant across multiple feature file operations.
 struct FeatureProcessingContext<'a> {
+    /// Stores the internal `manifest_dir` value.
     manifest_dir: &'a Path,
+    /// Stores the internal `tag_filter` value.
     tag_filter: Option<&'a TagExpression>,
+    /// Stores the internal `fixtures` value.
     fixtures: &'a [FixtureSpec],
+    /// Stores the internal `runtime` value.
     runtime: RuntimeMode,
+    /// Stores the internal `harness` value.
     harness: Option<&'a syn::Path>,
+    /// Stores the internal `attributes` value.
     attributes: Option<&'a syn::Path>,
 }
 
+/// Provides the internal `resolve_manifest_directory` operation.
 #[expect(
     clippy::single_match_else,
     clippy::option_if_let_else,
@@ -77,6 +88,7 @@ fn resolve_manifest_directory() -> Result<PathBuf, TokenStream> {
     }
 }
 
+/// Provides the internal `process_scenarios` operation.
 fn process_scenarios(
     feature: &gherkin::Feature,
     ctx: &ScenarioTestContext<'_>,
@@ -102,6 +114,7 @@ fn process_scenarios(
     (tests, errors)
 }
 
+/// Provides the internal `process_feature_file` operation.
 fn process_feature_file(
     abs_path: &Path,
     ctx: &FeatureProcessingContext<'_>,
@@ -136,6 +149,7 @@ fn process_feature_file(
     process_scenarios(&feature, &test_ctx, used_names)
 }
 
+/// Provides the internal `generate_tests_from_features` operation.
 fn generate_tests_from_features(
     feature_paths: Vec<PathBuf>,
     ctx: &FeatureProcessingContext<'_>,
@@ -153,6 +167,7 @@ fn generate_tests_from_features(
     (tests, errors)
 }
 
+/// Provides the internal `parse_tag_filter` operation.
 fn parse_tag_filter(tag_lit: Option<syn::LitStr>) -> Result<Option<TagFilter>, TokenStream> {
     tag_lit.map_or_else(
         || Ok(None),
@@ -170,6 +185,7 @@ fn parse_tag_filter(tag_lit: Option<syn::LitStr>) -> Result<Option<TagFilter>, T
     )
 }
 
+/// Provides the internal `check_empty_results` operation.
 fn check_empty_results(
     tests: &[TokenStream2],
     errors: &mut Vec<TokenStream2>,
@@ -186,6 +202,7 @@ fn check_empty_results(
     }
 }
 
+/// Provides the internal `emit_runtime_deprecation_warning` operation.
 fn emit_runtime_deprecation_warning(runtime: RuntimeMode, harness: Option<&syn::Path>) {
     if runtime != RuntimeMode::TokioCurrentThread {
         return;
@@ -205,6 +222,7 @@ fn emit_runtime_deprecation_warning(runtime: RuntimeMode, harness: Option<&syn::
     }
 }
 
+/// Provides the internal `scenarios` operation.
 pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
     let ScenariosArgs {
         dir: dir_lit,

@@ -12,6 +12,7 @@ use lsp_types::{
     ClientCapabilities,
     DidSaveTextDocumentParams,
     TextDocumentIdentifier,
+    Url,
     WorkspaceFolder,
 };
 use rstest::{fixture, rstest};

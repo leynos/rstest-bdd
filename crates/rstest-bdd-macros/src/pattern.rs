@@ -11,11 +11,15 @@ mod validation {
     use regex::Regex;
     use rstest_bdd_patterns::{build_regex_from_pattern, extract_captured_values};
 
+    /// A lazily compiled pattern used by compile-time macro validation.
     pub(crate) struct MacroPattern {
+        /// The source pattern supplied by the macro author.
         text: &'static str,
+        /// The compiled regular expression, initialized on first use.
         regex: OnceLock<Regex>,
     }
 
+    /// Abort macro expansion with a diagnostic for an invalid pattern.
     fn abort_invalid_pattern(span: Span, pattern: &str, err: impl std::fmt::Display) -> ! {
         abort!(
             span,
@@ -26,6 +30,7 @@ mod validation {
     }
 
     impl MacroPattern {
+        /// Create a pattern that will compile its regular expression lazily.
         pub(crate) const fn new(value: &'static str) -> Self {
             Self {
                 text: value,
@@ -33,8 +38,10 @@ mod validation {
             }
         }
 
+        /// Return the original pattern source.
         pub(crate) const fn as_str(&self) -> &'static str { self.text }
 
+        /// Return the compiled regular expression, reporting invalid syntax at `span`.
         pub(crate) fn regex(&self, span: Span) -> &Regex {
             self.regex.get_or_init(|| {
                 let source = build_regex_from_pattern(self.text)
@@ -45,6 +52,7 @@ mod validation {
             })
         }
 
+        /// Extract captured values from `text` using this pattern.
         pub(crate) fn captures(&self, span: Span, text: &str) -> Option<Vec<String>> {
             extract_captured_values(self.regex(span), text)
         }

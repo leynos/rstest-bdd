@@ -10,6 +10,7 @@
 
 use newt_hype::base_newtype;
 
+/// Generates the internal `string_wrapper` expansion.
 macro_rules! string_wrapper {
     ($(#[$meta:meta])* $name:ident, $base:ident) => {
         base_newtype!($base);
@@ -43,6 +44,7 @@ macro_rules! string_wrapper {
     };
 }
 
+/// Generates the internal `vec_string_wrapper` expansion.
 macro_rules! vec_string_wrapper {
     ($(#[$meta:meta])* $name:ident, $base:ident) => {
         base_newtype!($base);

@@ -13,8 +13,11 @@ use crate::codegen::wrapper::args::StepStructArg;
 
 /// Placeholder information needed for step struct code generation.
 pub(super) struct PlaceholderInfo<'a> {
+    /// Stores the internal `captures` value.
     pub(super) captures: &'a [TokenStream2],
+    /// Stores the internal `names` value.
     pub(super) names: &'a [syn::LitStr],
+    /// Stores the internal `hints` value.
     pub(super) hints: &'a [Option<String>],
 }
 
@@ -23,14 +26,21 @@ pub(super) struct PlaceholderInfo<'a> {
 /// Groups the parameters required by [`generate_capture_initializers`] to reduce
 /// the function's argument count.
 struct CaptureInitContext<'a> {
+    /// Stores the internal `captures` value.
     captures: &'a [TokenStream2],
+    /// Stores the internal `missing_errs` value.
     missing_errs: &'a [TokenStream2],
+    /// Stores the internal `hints` value.
     hints: &'a [Option<String>],
+    /// Stores the internal `values_ident` value.
     values_ident: &'a proc_macro2::Ident,
+    /// Stores the internal `meta` value.
     meta: StepMeta<'a>,
+    /// Stores the internal `struct_pat` value.
     struct_pat: &'a syn::Ident,
 }
 
+/// Provides the internal `generate_missing_capture_errors` operation.
 fn generate_missing_capture_errors(
     placeholder_names: &[syn::LitStr],
     pattern: &syn::LitStr,
@@ -57,6 +67,7 @@ fn generate_missing_capture_errors(
         .collect()
 }
 
+/// Provides the internal `generate_capture_initializers` operation.
 fn generate_capture_initializers(ctx: &CaptureInitContext<'_>) -> Vec<TokenStream2> {
     let CaptureInitContext {
         captures,
@@ -105,6 +116,7 @@ fn generate_capture_initializers(ctx: &CaptureInitContext<'_>) -> Vec<TokenStrea
         .collect()
 }
 
+/// Provides the internal `gen_step_struct_decl` operation.
 pub(super) fn gen_step_struct_decl(
     step_struct: Option<super::BoundStepStructArg<'_>>,
     placeholders: &PlaceholderInfo<'_>,

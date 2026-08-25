@@ -10,6 +10,7 @@ use proc_macro2::Span;
 use super::{ScenarioLookup, args::ScenarioSelector};
 use crate::parsing::feature::{ScenarioData, extract_scenario_steps};
 
+/// Provides the internal `ensure_feature_not_empty` operation.
 pub(super) fn ensure_feature_not_empty(
     path_lit: &syn::LitStr,
     feature: &gherkin::Feature,
@@ -23,6 +24,7 @@ pub(super) fn ensure_feature_not_empty(
     }
 }
 
+/// Provides the internal `resolve_candidate_indices` operation.
 pub(super) fn resolve_candidate_indices(
     selector: Option<&ScenarioSelector>,
     feature: &gherkin::Feature,
@@ -57,6 +59,7 @@ fn resolve_index_selector(
     }
 }
 
+/// Provides the internal `select_scenario` operation.
 pub(super) fn select_scenario(
     lookup: ScenarioLookup<'_>,
     selector: Option<&ScenarioSelector>,
@@ -120,6 +123,7 @@ pub(super) fn select_scenario(
     )
 }
 
+/// Provides the internal `format_available_tags` operation.
 fn format_available_tags(tag_sets: &[Vec<String>]) -> String {
     // Multiple scenarios can feed the diagnostic when no selector is supplied;
     // serialize each tag set separately so callers can still spot gaps without
@@ -142,6 +146,7 @@ fn format_available_tags(tag_sets: &[Vec<String>]) -> String {
     format!("available tags: {}", formatted_sets.join("; "))
 }
 
+/// Provides the internal `find_scenario_by_name` operation.
 fn find_scenario_by_name(
     feature: &gherkin::Feature,
     name: &str,

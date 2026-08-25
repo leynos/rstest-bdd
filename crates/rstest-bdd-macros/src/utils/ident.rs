@@ -23,6 +23,7 @@ pub(crate) fn sanitize_ident(input: &str) -> String {
     add_prefix_if_needed(ident)
 }
 
+/// Replace non-identifier characters while collapsing adjacent underscores.
 fn replace_non_ascii_with_underscores(input: &str) -> String {
     // Single pass: map to ASCII, collapse repeated underscores on the fly.
     let mut ident = String::with_capacity(input.len());
@@ -41,6 +42,7 @@ fn replace_non_ascii_with_underscores(input: &str) -> String {
     ident
 }
 
+/// Append an underscore when the previous character was not one.
 fn should_add_underscore(ident: &mut String, prev_us: bool) -> bool {
     // Append a single underscore unless the previous character already was one.
     if !prev_us {
@@ -49,6 +51,7 @@ fn should_add_underscore(ident: &mut String, prev_us: bool) -> bool {
     true
 }
 
+/// Prefix identifiers that would otherwise be invalid or reserved.
 fn add_prefix_if_needed(mut ident: String) -> String {
     if needs_underscore_prefix(&ident) {
         ident.insert(0, '_');
@@ -56,6 +59,7 @@ fn add_prefix_if_needed(mut ident: String) -> String {
     ident
 }
 
+/// Determine whether an identifier needs a leading underscore.
 fn needs_underscore_prefix(ident: &str) -> bool {
     ident.is_empty()
         || ident.chars().next().is_some_and(|c| c.is_ascii_digit())

@@ -91,6 +91,7 @@ fn run_server(config: ServerConfig) -> std::io::Result<()> {
         .block_on(run_server_async(config))
 }
 
+/// Builds the server configuration from the environment and command-line overrides.
 fn build_config(args: &Args) -> Result<ServerConfig, ServerError> {
     let config = ServerConfig::from_env()?;
     Ok(config.apply_overrides(

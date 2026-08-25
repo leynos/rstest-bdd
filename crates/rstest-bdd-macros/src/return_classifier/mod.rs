@@ -83,6 +83,7 @@ pub(crate) fn classify_return_type(
     }
 }
 
+/// Classifies a syntactically recognized `Result`-like type.
 fn classify_result_like(ty: &Type) -> Option<ReturnKind> {
     let path = match ty {
         Type::Path(type_path) => &type_path.path,
@@ -110,6 +111,7 @@ fn classify_result_like(ty: &Type) -> Option<ReturnKind> {
 /// still produce `None` payloads rather than boxed `()` values.
 fn is_unit_type(ty: &Type) -> bool { matches!(ty, Type::Tuple(tuple) if tuple.elems.is_empty()) }
 
+/// Returns whether a type can be ruled out as a `Result`-like type.
 fn is_definitely_non_result_type(ty: &Type) -> bool {
     match ty {
         Type::Path(type_path) => {
@@ -132,6 +134,7 @@ where
     matcher(segments.as_slice())
 }
 
+/// Returns whether a path names a primitive type.
 fn is_primitive_path(path: &Path) -> bool {
     match_path_segments(path, |segments| match segments {
         [single] => is_primitive_ident(single.as_str()),
@@ -144,6 +147,7 @@ fn is_primitive_path(path: &Path) -> bool {
     })
 }
 
+/// Returns whether a path names a known non-`Result` standard type.
 fn is_known_non_result_path(path: &Path) -> bool {
     match_path_segments(path, |segments| {
         let segments: Vec<_> = segments.iter().map(String::as_str).collect();
@@ -157,6 +161,7 @@ fn is_known_non_result_path(path: &Path) -> bool {
     })
 }
 
+/// Returns whether an identifier names one of Rust's primitive types.
 fn is_primitive_ident(ident: &str) -> bool {
     const PRIMITIVE_IDENTS: &[&str] = &[
         "u8", "u16", "u32", "u64", "u128", "usize", "i8", "i16", "i32", "i64", "i128", "isize",
@@ -182,6 +187,7 @@ pub(crate) fn is_result_like_path(path: &Path) -> bool {
     is_result_path(path) || is_step_result_path(path)
 }
 
+/// Returns whether a path names a recognized standard `Result` type.
 fn is_result_path(path: &Path) -> bool {
     matches_type_path(path, "Result", |segments| {
         let segments: Vec<_> = segments.iter().map(String::as_str).collect();
@@ -189,6 +195,7 @@ fn is_result_path(path: &Path) -> bool {
     })
 }
 
+/// Returns whether a path names a recognized `StepResult` type.
 fn is_step_result_path(path: &Path) -> bool {
     matches_type_path(path, "StepResult", |segments| {
         let segments: Vec<_> = segments.iter().map(String::as_str).collect();
@@ -199,11 +206,13 @@ fn is_step_result_path(path: &Path) -> bool {
     })
 }
 
+/// Extracts the first type argument from a generic path.
 pub(crate) fn first_type_argument(path: &Path) -> Option<&Type> { nth_type_argument(path, 0) }
 
 /// Extracts the error type `E` from `Result<T, E>` or `StepResult<T, E>`.
 pub(crate) fn second_type_argument(path: &Path) -> Option<&Type> { nth_type_argument(path, 1) }
 
+/// Extracts the type argument at position `n` from a generic path.
 fn nth_type_argument(path: &Path, n: usize) -> Option<&Type> {
     let segment = path.segments.last()?;
     let args = match &segment.arguments {

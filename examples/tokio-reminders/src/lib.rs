@@ -10,10 +10,14 @@ use std::{cell::RefCell, future::Future, pin::Pin, rc::Rc};
 
 use thiserror::Error;
 
+/// Boxed asynchronous task used to deliver one reminder.
 type ReminderTask = Pin<Box<dyn Future<Output = ()>>>;
 
+/// Queued reminder recipient and its delivery task.
 struct PendingReminder {
+    /// The recipient associated with the queued reminder.
     recipient: String,
+    /// The asynchronous task that delivers the reminder.
     task: ReminderTask,
 }
 
@@ -61,7 +65,9 @@ pub enum ReminderServiceError {
 /// ```
 #[derive(Clone, Default)]
 pub struct ReminderService {
+    /// The reminder messages delivered so far.
     delivered: Rc<RefCell<Vec<String>>>,
+    /// The reminders awaiting a flush.
     pending: Rc<RefCell<Vec<PendingReminder>>>,
 }
 

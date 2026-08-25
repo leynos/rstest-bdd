@@ -21,6 +21,7 @@ use tokio::runtime::Handle;
 /// ```
 #[derive(Clone)]
 pub struct TokioTestContext {
+    /// Handle for the Tokio runtime executing the scenario.
     handle: Handle,
 }
 

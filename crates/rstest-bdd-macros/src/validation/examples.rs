@@ -11,6 +11,7 @@ pub(crate) struct FeatureText<'a>(&'a str);
 
 #[cfg(feature = "compile-time-validation")]
 impl<'a> FeatureText<'a> {
+    /// Wraps feature file text for validation.
     pub(crate) fn new(text: &'a str) -> Self { Self(text) }
 }
 
@@ -32,6 +33,7 @@ struct TableRow<'a>(&'a str);
 #[cfg(feature = "compile-time-validation")]
 #[rustfmt::skip]
 impl<'a> TableRow<'a> {
+    /// Wraps an Examples table row for validation.
     fn new(row: &'a str) -> Self { Self(row) }
 }
 
@@ -58,6 +60,7 @@ pub(crate) fn validate_examples_in_feature_text(text: FeatureText) -> Result<(),
     validate_table_column_consistency(text, examples_idx)
 }
 
+/// Finds the Examples table heading in feature text.
 #[cfg(feature = "compile-time-validation")]
 fn find_examples_table_start(text: FeatureText) -> Result<usize, TokenStream> {
     text.as_ref()
@@ -73,6 +76,7 @@ fn find_examples_table_start(text: FeatureText) -> Result<usize, TokenStream> {
         })
 }
 
+/// Checks that all rows in an Examples table have the header width.
 #[cfg(feature = "compile-time-validation")]
 fn validate_table_column_consistency(
     text: FeatureText,
@@ -104,6 +108,7 @@ fn validate_table_column_consistency(
     Ok(())
 }
 
+/// Counts the pipe-delimited columns in a table row.
 #[cfg(feature = "compile-time-validation")]
 fn count_columns(row: TableRow) -> usize {
     // Count pipe-delimited segments; subtract the leading segment before the
@@ -112,6 +117,7 @@ fn count_columns(row: TableRow) -> usize {
     row.as_ref().split('|').count().saturating_sub(1)
 }
 
+/// Formats the diagnostic for a row with the wrong number of columns.
 fn format_malformed_examples_error(row: usize, actual: usize, expected: usize) -> String {
     format!("Malformed Examples table: row {row} has {actual} columns, expected {expected}")
 }
@@ -135,6 +141,7 @@ mod column_tests {
     }
 }
 
+/// Extracts and validates the headers from the first Examples table.
 pub(crate) fn extract_and_validate_headers(
     table: &gherkin::Table,
 ) -> Result<Vec<String>, TokenStream> {
@@ -147,6 +154,7 @@ pub(crate) fn extract_and_validate_headers(
     Ok(first.clone())
 }
 
+/// Checks that all Examples tables use the same headers.
 pub(crate) fn validate_header_consistency(
     scenario: &gherkin::Scenario,
     expected_headers: &[String],
@@ -174,6 +182,7 @@ pub(crate) fn validate_header_consistency(
     Ok(())
 }
 
+/// Flattens Examples rows and checks their width against the headers.
 pub(crate) fn flatten_and_validate_rows(
     scenario: &gherkin::Scenario,
     expected_width: usize,

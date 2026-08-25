@@ -1,13 +1,10 @@
 //! GPUI-specific attribute policy tests for scenario test-attribute generation.
 
-use super::{
-    RuntimeMode,
-    ScenarioReturnKind,
-    TestAttrPolicy,
-    adapt_fallible_gpui_boundary,
-    generate_test_attrs,
+use super::{RuntimeMode, ScenarioReturnKind, TestAttrPolicy, generate_test_attrs};
+use crate::codegen::scenario::{
+    boundary::adapt_fallible_gpui_boundary,
+    test_attrs::generate_test_attrs_with_boundary,
 };
-use crate::codegen::scenario::test_attrs::generate_test_attrs_with_boundary;
 
 #[rstest::rstest]
 #[case::with_gpui_policy_emits_gpui(
@@ -124,12 +121,13 @@ fn adapt_boundary(
         signature.asyncness = Some(syn::parse_quote!(async));
     }
     let generated_test_attrs = generate_test_attrs_with_boundary(attrs, policy, is_async);
-    let body = if generated_test_attrs.uses_gpui_boundary && is_fallible {
-        adapt_fallible_gpui_boundary(&mut signature, &body)
-    } else {
-        body
-    };
-    (signature, body.to_string())
+    let adapted_body = adapt_fallible_gpui_boundary(
+        generated_test_attrs.uses_gpui_boundary,
+        return_kind,
+        &mut signature,
+        body,
+    );
+    (signature, adapted_body.to_string())
 }
 
 #[rstest::rstest]

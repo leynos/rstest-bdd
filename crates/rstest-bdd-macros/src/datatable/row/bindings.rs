@@ -16,6 +16,7 @@ use crate::datatable::{
     parser::accessor_expr,
 };
 
+/// Provides the internal `build_field_binding` operation.
 pub(crate) fn build_field_binding(
     index: usize,
     field: &FieldSpec,
@@ -61,6 +62,7 @@ pub(crate) fn build_field_binding(
     )
 }
 
+/// Provides the internal `build_default_expr` operation.
 fn build_default_expr(default: &DefaultValue, ty: &Type) -> TokenStream2 {
     match default {
         DefaultValue::Trait => quote! { <#ty as ::core::default::Default>::default() },
@@ -68,6 +70,7 @@ fn build_default_expr(default: &DefaultValue, ty: &Type) -> TokenStream2 {
     }
 }
 
+/// Provides the internal `missing_error_pattern` operation.
 fn missing_error_pattern(runtime: &TokenStream2) -> TokenStream2 {
     quote! {
         #runtime::datatable::DataTableError::MissingColumn { .. }

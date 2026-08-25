@@ -30,20 +30,27 @@ use outline::{
 /// Groups the mutable output vectors together to reduce parameter count in
 /// `process_scenarios` and `process_rule`.
 struct IndexingAccumulators<'a> {
+    /// Indexed steps accumulated for the current feature.
     steps: &'a mut Vec<IndexedStep>,
+    /// Scenario outlines accumulated for the current feature.
     scenario_outlines: &'a mut Vec<IndexedScenarioOutline>,
 }
 
+/// Borrowed feature source used by the span scanners.
 #[derive(Clone, Copy, Debug)]
 struct FeatureSource<'a>(&'a str);
 
 impl<'a> FeatureSource<'a> {
+    /// Wrap feature source text without taking ownership.
     fn new(source: &'a str) -> Self { Self(source) }
 
+    /// Return the complete source text.
     fn as_str(&self) -> &'a str { self.0 }
 
+    /// Borrow a source range when its bounds are valid.
     fn get(&self, range: Range<usize>) -> Option<&'a str> { self.0.get(range) }
 
+    /// Return the source length in bytes.
     fn len(&self) -> usize { self.0.len() }
 }
 
@@ -97,6 +104,7 @@ pub(crate) fn index_feature_source_owned(
     index_feature_text(path, FeatureSource::new(&source))
 }
 
+/// Parse and index normalized feature text.
 fn index_feature_text(
     path: PathBuf,
     source: FeatureSource<'_>,
@@ -197,6 +205,7 @@ fn process_rule(
     )
 }
 
+/// Ensure feature source text ends with a newline for stable span scanning.
 fn normalize_source_text(source: &str) -> Cow<'_, str> {
     if source.ends_with('\n') {
         return Cow::Borrowed(source);
@@ -204,6 +213,7 @@ fn normalize_source_text(source: &str) -> Cow<'_, str> {
     Cow::Owned(format!("{source}\n"))
 }
 
+/// Index the steps belonging to one feature or rule container.
 fn index_steps_for_container(
     source: FeatureSource<'_>,
     steps: &[gherkin::Step],

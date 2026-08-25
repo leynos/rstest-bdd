@@ -19,7 +19,9 @@ use crate::{
 /// the parser when constructing the table.
 #[derive(Clone, Debug)]
 pub(crate) struct ExampleTable {
+    /// Stores the internal `headers` value.
     pub(crate) headers: Vec<String>,
+    /// Stores the internal `rows` value.
     pub(crate) rows: Vec<Vec<String>>,
     /// Union of feature, scenario, and examples tags for each row.
     /// Guaranteed to match `rows` in length so callers can zip the sequences
@@ -27,10 +29,12 @@ pub(crate) struct ExampleTable {
     pub(crate) row_tags: Vec<Vec<String>>,
 }
 
+/// Provides the internal `should_process_outline` operation.
 fn should_process_outline(scenario: &gherkin::Scenario) -> bool {
     scenario.keyword == "Scenario Outline" || !scenario.examples.is_empty()
 }
 
+/// Provides the internal `get_first_examples_table` operation.
 fn get_first_examples_table(scenario: &gherkin::Scenario) -> Result<&gherkin::Table, TokenStream> {
     scenario
         .examples

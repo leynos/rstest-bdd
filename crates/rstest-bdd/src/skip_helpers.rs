@@ -44,9 +44,8 @@ pub fn __rstest_bdd_unwrap_step_skipped(exec: StepExecution) -> Option<String> {
     unwrap_skipped_message(exec)
 }
 
-// Shared helper that extracts skip messages from `StepExecution`.
-// Panics with a localized message if the execution was not skipped.
-// Used by public assertion helpers to centralize skip extraction logic.
+/// Extract a skip message, panicking with a localized message when execution
+/// was not skipped. This is shared by the public assertion helpers.
 fn unwrap_skipped_message(exec: StepExecution) -> Option<String> {
     match exec {
         StepExecution::Skipped { message } => message,

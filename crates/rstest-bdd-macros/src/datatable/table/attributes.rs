@@ -5,16 +5,23 @@
 
 use syn::{Attribute, ExprPath, LitStr, Type};
 
+/// Describes how a datatable row is mapped from parsed values.
 pub(crate) enum MapKind {
+    /// Call a mapping function that returns the row directly.
     Direct(ExprPath),
+    /// Call a fallible mapping function that returns the row.
     Try(ExprPath),
 }
 
+/// Parsed attributes controlling datatable table expansion.
 pub(crate) struct TableConfig {
+    /// Optional row type used by the generated conversion.
     pub(crate) row_ty: Option<Type>,
+    /// Optional row mapping function.
     pub(crate) map: Option<MapKind>,
 }
 
+/// Provides the internal `parse_struct_attrs` operation.
 pub(crate) fn parse_struct_attrs(attrs: &[Attribute]) -> syn::Result<TableConfig> {
     let mut config = TableConfig {
         row_ty: None,
@@ -55,6 +62,7 @@ pub(crate) fn parse_struct_attrs(attrs: &[Attribute]) -> syn::Result<TableConfig
     Ok(config)
 }
 
+/// Provides the internal `parse_row_type` operation.
 fn parse_row_type(meta: &syn::meta::ParseNestedMeta) -> syn::Result<Type> {
     let value = meta.value()?;
     if value.peek(LitStr) {

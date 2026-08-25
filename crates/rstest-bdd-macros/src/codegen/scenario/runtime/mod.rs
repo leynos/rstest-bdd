@@ -33,6 +33,7 @@ use crate::codegen::scenario::ScenarioReturnKind;
 pub(crate) struct OutlineTestTokensConfig<'a> {
     /// Processed steps for each Examples row (one set per row).
     pub(crate) all_rows_steps: Vec<ProcessedStepTokens>,
+    /// Stores the internal `metadata` value.
     pub(crate) metadata: ScenarioMetadata<'a>,
 }
 
@@ -111,8 +112,11 @@ where
     I: Iterator<Item = TokenStream2>,
     Q: Iterator<Item = TokenStream2>,
 {
+    /// Stores the internal `prelude` value.
     pub prelude: P,
+    /// Stores the internal `inserts` value.
     pub inserts: I,
+    /// Stores the internal `postlude` value.
     pub postlude: Q,
 }
 
@@ -122,6 +126,7 @@ where
     I: Iterator<Item = TokenStream2>,
     Q: Iterator<Item = TokenStream2>,
 {
+    /// Documents the internal `new` item.
     pub fn new(prelude: P, inserts: I, postlude: Q) -> Self {
         Self {
             prelude,
@@ -131,6 +136,7 @@ where
     }
 }
 
+/// Provides the internal `create_scenario_literals` operation.
 fn create_scenario_literals(input: ScenarioLiteralsInput<'_>) -> ScenarioLiterals {
     let allow_literal = syn::LitBool::new(input.allow_skipped, proc_macro2::Span::call_site());
     let feature_literal =
@@ -179,6 +185,7 @@ fn generate_common_components(
     )
 }
 
+/// Provides the internal `generate_code_components` operation.
 fn generate_code_components(
     processed_steps: &ProcessedSteps,
     is_async: bool,
@@ -208,6 +215,7 @@ fn generate_code_components(
     }
 }
 
+/// Provides the internal `generate_test_tokens` operation.
 pub(crate) fn generate_test_tokens(
     config: &TestTokensConfig<'_>,
     ctx_prelude: impl Iterator<Item = TokenStream2>,
@@ -220,6 +228,7 @@ pub(crate) fn generate_test_tokens(
     )
 }
 
+/// Provides the internal `assemble_test_tokens` operation.
 fn assemble_test_tokens(
     literals: ScenarioLiterals,
     components: CodeComponents,

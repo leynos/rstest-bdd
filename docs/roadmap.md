@@ -1052,7 +1052,7 @@ an assertion cannot disappear behind macro classification or generated code.
   an opaque payload. ADR: `docs/adr-002-stable-step-return-classification.md`.
   Design Doc: `docs/rstest-bdd-design.md` §2.1. Origin: `leynos/rstest-bdd#573`
   and the gauss v0.6.0-beta3 validation matrix.
-- [ ] 11.3.2. Harness-generated tests consume the result of fallible scenario
+- [x] 11.3.2. Harness-generated tests consume the result of fallible scenario
   functions, including under `GpuiHarness`, without triggering
   `unused_must_use` under `-D warnings`. Unit-returning scenarios continue to
   propagate fallible step errors, and the guide makes clear that a fallible

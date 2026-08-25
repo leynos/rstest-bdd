@@ -32,6 +32,7 @@ use unic_langid::LanguageIdentifier;
 #[folder = "i18n"]
 pub struct Localizations;
 
+/// Global localization loader used when no thread-local override is active.
 static LANGUAGE_LOADER: LazyLock<RwLock<FluentLanguageLoader>> = LazyLock::new(|| {
     let loader = fluent_language_loader!();
     if let Err(error) =
@@ -43,6 +44,7 @@ static LANGUAGE_LOADER: LazyLock<RwLock<FluentLanguageLoader>> = LazyLock::new(|
 });
 
 thread_local! {
+    /// Thread-local loader override used by scoped localization tests.
     static OVERRIDE_LOADER: RefCell<Option<FluentLanguageLoader>> = const { RefCell::new(None) };
 }
 
@@ -61,6 +63,7 @@ pub enum LocalizationError {
 /// lifetime of the guard.
 #[must_use]
 pub struct ScopedLocalization {
+    /// Loader override that was active before this guard was created.
     previous: Option<FluentLanguageLoader>,
 }
 
@@ -172,6 +175,7 @@ where
     with_loader(|loader| message_with_loader(loader, id, configure))
 }
 
+/// Render a localized message using a specific Fluent loader.
 pub(crate) fn message_with_loader<F>(
     loader: &FluentLanguageLoader,
     id: &str,
@@ -185,6 +189,7 @@ where
     loader.get_args_fluent(id, Some(&args))
 }
 
+/// Run a callback against the active thread-local or global loader.
 pub(crate) fn with_loader<R>(callback: impl FnOnce(&FluentLanguageLoader) -> R) -> R {
     OVERRIDE_LOADER.with(|cell| {
         let borrow = cell.borrow();

@@ -8,6 +8,7 @@ use crate::datatable::{
     validation::is_string_type,
 };
 
+/// Provides the internal `accessor_expr` operation.
 pub(crate) fn accessor_expr(
     field: &FieldSpec,
     runtime: &TokenStream2,
@@ -25,6 +26,7 @@ pub(crate) fn accessor_expr(
     }
 }
 
+/// Provides the internal `parser_closure` operation.
 pub(crate) fn parser_closure(
     config: &FieldConfig,
     target_ty: &Type,

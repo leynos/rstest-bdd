@@ -2424,6 +2424,13 @@ skip details in diagnostic tooling and IDE integrations.
   allocations, and the registry deduplicates bypassed steps with a `HashSet` to
   avoid quadratic scans in large suites.
 
+- 2026-07-30: Bypassed-step recording now takes a `BypassedScenario` descriptor
+  containing the feature path, scenario name, one-based line, tags, and
+  optional skip reason. `record_bypassed_steps` accepts that descriptor plus
+  the bypassed step iterator. This replaces the former six-argument call and
+  the separate `record_bypassed_steps_with_tags` entry point, keeping scenario
+  metadata together while preserving the no-op, non-diagnostic build path.
+
 ### 3.2 Strengths and weaknesses of the proposed architecture
 
 The proposed design has a distinct set of advantages and disadvantages rooted

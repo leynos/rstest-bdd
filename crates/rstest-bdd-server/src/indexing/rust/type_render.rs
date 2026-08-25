@@ -50,6 +50,7 @@ pub(super) fn render_type(ty: &Type) -> String {
     }
 }
 
+/// Render a borrowed or mutable reference type.
 fn render_reference(type_ref: &syn::TypeReference) -> String {
     let mut rendered = String::from("&");
     if let Some(lifetime) = &type_ref.lifetime {
@@ -142,6 +143,7 @@ fn render_bare_fn(bare_fn: &syn::TypeBareFn) -> String {
     rendered
 }
 
+/// Render a trait-object type and its bounds.
 fn render_trait_object(trait_object: &syn::TypeTraitObject) -> String {
     let bounds = trait_object
         .bounds
@@ -171,6 +173,7 @@ fn render_trait_object(trait_object: &syn::TypeTraitObject) -> String {
     }
 }
 
+/// Render a path type, including its generic arguments.
 fn render_path(path: &Path) -> String {
     let mut rendered = String::new();
     if path.leading_colon.is_some() {
@@ -188,6 +191,7 @@ fn render_path(path: &Path) -> String {
     rendered
 }
 
+/// Render generic or parenthesized path arguments.
 fn render_path_arguments(arguments: &PathArguments) -> String {
     match arguments {
         PathArguments::None => String::new(),
@@ -216,6 +220,7 @@ fn render_path_arguments(arguments: &PathArguments) -> String {
     }
 }
 
+/// Render one generic argument.
 fn render_generic_argument(argument: &GenericArgument) -> String {
     match argument {
         GenericArgument::Type(ty) => render_type(ty),
@@ -225,6 +230,7 @@ fn render_generic_argument(argument: &GenericArgument) -> String {
     }
 }
 
+/// Render a literal expression used in a type-level argument.
 fn render_lit(lit: &syn::Lit) -> String {
     match lit {
         syn::Lit::Int(lit) => lit.to_string(),
@@ -235,6 +241,7 @@ fn render_lit(lit: &syn::Lit) -> String {
     }
 }
 
+/// Render a supported expression used in a type-level argument.
 fn render_expr(expr: &Expr) -> String {
     match expr {
         Expr::Lit(expr_lit) => render_lit(&expr_lit.lit),

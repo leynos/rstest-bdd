@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 
 use cap_std::{AmbientAuthority, ambient_authority, fs::Dir};
 
+/// Provides the internal `canonicalize_absolute_path` operation.
 fn canonicalize_absolute_path(
     path: &Path,
     authority: AmbientAuthority,
@@ -29,6 +30,7 @@ fn canonicalize_absolute_path(
     }
 }
 
+/// Provides the internal `canonicalize_relative_path` operation.
 fn canonicalize_relative_path(
     path: &Path,
     authority: AmbientAuthority,
@@ -53,6 +55,7 @@ fn canonicalize_relative_path(
     }
 }
 
+/// Provides the internal `try_std_canonicalize_fallback` operation.
 fn try_std_canonicalize_fallback(path: &Path, err: std::io::Error) -> std::io::Result<PathBuf> {
     if err.kind() == std::io::ErrorKind::PermissionDenied
         && err.to_string().contains("outside of the filesystem")
@@ -67,6 +70,7 @@ fn try_std_canonicalize_fallback(path: &Path, err: std::io::Error) -> std::io::R
     }
 }
 
+/// Provides the internal `canonicalize_path` operation.
 pub(super) fn canonicalize_path(path: &Path) -> std::io::Result<PathBuf> {
     let authority = ambient_authority();
     let attempt = if path.is_absolute() {

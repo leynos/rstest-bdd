@@ -15,8 +15,11 @@ use crate::types::{PlaceholderSyntaxError, StepPatternError};
 /// Pattern text used to match a step at runtime.
 #[derive(Debug)]
 pub struct StepPattern {
+    /// Literal pattern text used for matching and hashing.
     text: &'static str,
+    /// Lazily compiled regular expression.
     pub(crate) regex: OnceLock<Regex>,
+    /// Lazily calculated specificity score.
     specificity: OnceLock<SpecificityScore>,
 }
 

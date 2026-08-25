@@ -25,6 +25,7 @@ use syn::{
 
 use crate::codegen::rstest_bdd_path;
 
+/// Provides the internal `expand` operation.
 pub(crate) fn expand(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     match expand_inner(&input) {
@@ -33,6 +34,7 @@ pub(crate) fn expand(input: TokenStream) -> TokenStream {
     }
 }
 
+/// Provides the internal `expand_inner` operation.
 fn expand_inner(input: &DeriveInput) -> syn::Result<TokenStream2> {
     let Data::Struct(DataStruct { fields, .. }) = &input.data else {
         return Err(syn::Error::new(
@@ -75,6 +77,7 @@ fn expand_inner(input: &DeriveInput) -> syn::Result<TokenStream2> {
     })
 }
 
+/// Provides the internal `extract_single_field` operation.
 fn extract_single_field(fields: &Fields) -> syn::Result<&Field> {
     if let Fields::Unnamed(unnamed) = fields {
         if unnamed.unnamed.len() == 1 {
@@ -89,6 +92,7 @@ fn extract_single_field(fields: &Fields) -> syn::Result<&Field> {
     ))
 }
 
+/// Provides the internal `extract_inner_types` operation.
 fn extract_inner_types(field: &Field) -> Option<Type> {
     let Type::Path(TypePath { path, .. }) = &field.ty else {
         return None;
@@ -106,11 +110,13 @@ fn extract_inner_types(field: &Field) -> Option<Type> {
     Some(inner.clone())
 }
 
+/// Provides the internal `is_supported_container` operation.
 fn is_supported_container(segment: &syn::PathSegment) -> bool {
     (segment.ident == "Rows" || segment.ident == "Vec")
         && matches!(segment.arguments, PathArguments::AngleBracketed(_))
 }
 
+/// Provides the internal `build_conversion` operation.
 fn build_conversion(
     field: &Field,
     config: &TableConfig,

@@ -7,7 +7,9 @@ use std::collections::VecDeque;
 
 use lsp_types::DidSaveTextDocumentParams;
 
+/// Maximum number of document saves retained during workspace preparation.
 const MAX_DEFERRED_DOCUMENT_SAVES: usize = 128;
+/// Maximum source bytes retained during workspace preparation.
 const MAX_DEFERRED_DOCUMENT_BYTES: usize = 4 * 1024 * 1024;
 
 /// Why a deferred document save could not be retained.
@@ -32,7 +34,9 @@ impl DeferredSaveDropReason {
 /// Bounded deferred did-save notifications.
 #[derive(Debug, Default)]
 pub(super) struct DeferredDocumentSaves {
+    /// Deferred saves in their retained order.
     saves: VecDeque<DidSaveTextDocumentParams>,
+    /// Total source and URI bytes retained in `saves`.
     byte_count: usize,
 }
 
@@ -49,6 +53,7 @@ impl DeferredDocumentSaves {
         )
     }
 
+    /// Push a save while applying caller-supplied queue limits.
     fn push_with_limits(
         &mut self,
         params: DidSaveTextDocumentParams,
@@ -102,6 +107,7 @@ impl DeferredDocumentSaves {
     fn recomputed_byte_count(&self) -> usize { self.saves.iter().map(save_byte_count).sum() }
 }
 
+/// Count the URI and source bytes retained by one save.
 fn save_byte_count(params: &DidSaveTextDocumentParams) -> usize {
     params.text_document.uri.as_str().len() + params.text.as_ref().map_or(0, String::len)
 }

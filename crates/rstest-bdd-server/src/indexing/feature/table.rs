@@ -26,6 +26,7 @@ pub(super) fn extract_header_cell_spans(
     ))
 }
 
+/// Find the first pipe-delimited row and its offset within a table slice.
 fn find_first_table_row_line(table_text: &str) -> Option<(&str, usize)> {
     let mut offset = 0usize;
     for line in table_text.split_inclusive('\n') {
@@ -39,6 +40,7 @@ fn find_first_table_row_line(table_text: &str) -> Option<(&str, usize)> {
     None
 }
 
+/// Split a table header row into spans for each cell's trimmed content.
 fn split_table_header_cells(line: LineContent<'_>, global_line_start: usize) -> Vec<Span> {
     let bytes = line.as_str().as_bytes();
     let mut pipe_positions = Vec::new();
@@ -74,6 +76,7 @@ fn split_table_header_cells(line: LineContent<'_>, global_line_start: usize) -> 
     spans
 }
 
+/// Trim ASCII spaces and tabs from a byte range.
 fn trim_ascii_whitespace(bytes: &[u8], mut start: usize, mut end: usize) -> (usize, usize) {
     while start < end && bytes.get(start).is_some_and(|b| is_ascii_space(*b)) {
         start = start.saturating_add(1);
@@ -88,4 +91,5 @@ fn trim_ascii_whitespace(bytes: &[u8], mut start: usize, mut end: usize) -> (usi
     (start, end)
 }
 
+/// Return whether a byte is an ASCII table-cell whitespace character.
 fn is_ascii_space(b: u8) -> bool { matches!(b, b' ' | b'\t') }

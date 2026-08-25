@@ -19,17 +19,24 @@ use super::{
     guards::{FixtureRef, FixtureRefMut},
 };
 
+/// Type-erased fixture storage and its concrete type identifier.
 pub(super) struct FixtureEntry<'a> {
+    /// Storage representation for the fixture value.
     kind: FixtureKind<'a>,
+    /// Concrete type stored by this entry.
     pub(super) type_id: TypeId,
 }
 
+/// Storage strategy used by a fixture entry.
 enum FixtureKind<'a> {
+    /// Shared reference owned by the caller.
     Shared(&'a dyn Any),
+    /// Type-erased cell supporting mutable borrowing.
     Mutable(&'a RefCell<Box<dyn Any>>),
 }
 
 impl<'a> FixtureEntry<'a> {
+    /// Create an entry backed by a shared reference.
     pub(super) fn shared<T: Any>(value: &'a T) -> Self {
         Self {
             kind: FixtureKind::Shared(value),
@@ -37,6 +44,7 @@ impl<'a> FixtureEntry<'a> {
         }
     }
 
+    /// Create an entry backed by a borrowed cell containing an owned value.
     pub(super) fn owned<T: Any>(cell: &'a RefCell<Box<dyn Any>>) -> Self {
         Self {
             kind: FixtureKind::Mutable(cell),
@@ -53,6 +61,7 @@ impl<'a> FixtureEntry<'a> {
         }
     }
 
+    /// Borrow the entry immutably after checking its stored type.
     pub(super) fn try_borrow<T: Any>(
         &self,
         name: &str,
@@ -67,6 +76,7 @@ impl<'a> FixtureEntry<'a> {
         }
     }
 
+    /// Borrow the entry mutably after checking its stored type.
     pub(super) fn try_borrow_mut<T: Any>(
         &self,
         name: &str,
@@ -78,6 +88,7 @@ impl<'a> FixtureEntry<'a> {
         }
     }
 
+    /// Verify that the requested type matches the stored type.
     fn check_type_id<T: Any>(&self, name: &str) -> Result<(), FixtureBorrowError> {
         if self.type_id == TypeId::of::<T>() {
             Ok(())

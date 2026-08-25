@@ -28,6 +28,7 @@ use std::cell::{RefCell, RefMut};
 /// `RefCell<Option<T>>`, enabling interior mutability whilst remaining safe to
 /// share between steps via immutable references.
 pub struct Slot<T> {
+    /// Interior-mutable optional payload.
     inner: RefCell<Option<T>>,
 }
 

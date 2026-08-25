@@ -76,6 +76,7 @@ mod windows_paths {
     }
 }
 
+/// Provides the internal `canonicalize_with_cap_std` operation.
 fn canonicalize_with_cap_std(path: &Path) -> Option<PathBuf> {
     let authority = ambient_authority();
     if path.is_absolute() {

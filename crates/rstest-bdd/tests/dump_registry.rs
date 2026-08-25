@@ -1,6 +1,7 @@
 //! Unit tests for registry dumping.
 
 use rstest_bdd::{
+    BypassedScenario,
     StepContext,
     StepExecution,
     StepKeyword,
@@ -190,12 +191,11 @@ fn reports_usage_flags() {
         ScenarioStatus::Passed,
     ));
 
+    let dump_tags = vec![String::from("@allow_skipped")];
     record_bypassed_steps(
-        "tests/features/dump.feature",
-        "skipped entry",
-        3,
-        vec!["@allow_skipped".into()],
-        Some("reason"),
+        BypassedScenario::new("tests/features/dump.feature", "skipped entry", 3)
+            .with_tags(&dump_tags)
+            .with_reason(Some("reason")),
         [(StepKeyword::Given, "dump unused")],
     );
 

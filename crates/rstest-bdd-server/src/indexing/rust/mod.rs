@@ -124,13 +124,18 @@ pub fn index_rust_source(
 
 /// Accumulates indexing output for one Rust source traversal.
 struct StepDefinitionCollector<'a> {
+    /// Complete Rust source being traversed.
     source: &'a str,
+    /// Module path of the item currently being traversed.
     module_path: Vec<String>,
+    /// Step definitions discovered in the source.
     step_definitions: Vec<IndexedStepDefinition>,
+    /// Recoverable diagnostics discovered during indexing.
     diagnostics: Vec<RustStepIndexDiagnostic>,
 }
 
 impl StepDefinitionCollector<'_> {
+    /// Traverse Rust items and collect nested step definitions.
     fn collect_step_definitions(&mut self, items: &[syn::Item]) {
         for item in items {
             match item {
@@ -184,6 +189,7 @@ fn find_step_attribute(
 
     Ok(step_attribute)
 }
+/// Index one function when it carries a recognized step attribute.
 fn index_step_function(
     item_fn: &syn::ItemFn,
     source: &str,
@@ -222,11 +228,15 @@ fn index_step_function(
     }))
 }
 
+/// Step keyword and attribute name extracted from a Rust attribute.
 struct AttributeKeyword {
+    /// Attribute name without the `#[]` delimiters.
     name: &'static str,
+    /// Gherkin keyword represented by the attribute.
     step_type: StepType,
 }
 
+/// Recognize a `given`, `when`, or `then` step attribute.
 fn step_attribute_keyword(attr: &syn::Attribute) -> Option<AttributeKeyword> {
     let ident = attr.path().segments.last()?.ident.to_string();
     match ident.as_str() {
@@ -246,9 +256,13 @@ fn step_attribute_keyword(attr: &syn::Attribute) -> Option<AttributeKeyword> {
     }
 }
 
+/// Borrowed step attribute details used during indexing.
 struct StepAttribute<'a> {
+    /// Gherkin keyword represented by the attribute.
     keyword: StepType,
+    /// Attribute name used in diagnostics.
     attribute: &'static str,
+    /// Original syntax node for the attribute.
     attr: &'a syn::Attribute,
 }
 
@@ -284,6 +298,7 @@ fn extract_attribute_span(
     }
 }
 
+/// Parse a step pattern, inferring it when the attribute has no value.
 fn parse_step_pattern(
     attr: &syn::Attribute,
     function_ident: &syn::Ident,
@@ -327,6 +342,7 @@ fn parse_step_pattern(
     }
 }
 
+/// Interpret a literal pattern and report whether it was inferred.
 fn interpret_pattern_literal(function_ident: &syn::Ident, raw: String) -> (String, bool) {
     if raw.is_empty() {
         return (raw, false);
@@ -337,6 +353,7 @@ fn interpret_pattern_literal(function_ident: &syn::Ident, raw: String) -> (Strin
     (raw, false)
 }
 
+/// Infer a human-readable step pattern from a function identifier.
 fn infer_pattern(function_ident: &syn::Ident) -> String {
     function_ident.to_string().replace('_', " ")
 }

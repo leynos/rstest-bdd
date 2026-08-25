@@ -700,6 +700,29 @@ otherwise differs from the Rust parameter name. When the classifier must build
 a new identifier for a normalized implicit fixture name, preserve the original
 parameter span so diagnostics still point at the user-written parameter.
 
+### Wrapper argument model
+
+The wrapper generator keeps extracted parameters in the ordered `Arg` enum. Its
+`as_fixture()` and `as_step()` methods expose borrowed, typed views without
+requiring later stages to re-match the enum. `ExtractedArgs` provides the
+corresponding iterators for fixture and step arguments.
+
+Wrapper-local bindings pair those views with generated identifiers. In
+particular, `BoundFixtureArg` carries a `FixtureArg` and its binding, while
+`BoundStepArg` carries a `StepArg` and its binding. The same pattern is used
+for struct, data-table, and doc-string arguments. Keeping the binding metadata
+next to the typed view lets code generation pass the correct argument kind to
+each declaration and parser.
+
+The production `arguments::bind_arguments` helper owns the ordered traversal
+that partitions extracted arguments and their generated bindings. Its tests
+also use a private generic `bind_arguments` helper for the shared binding-count
+check and zip, map, and collect sequence. The public test helpers remain
+type-specific: `bind_args` calls `Arg::as_step()` and builds `BoundStepArg`,
+while `bind_fixture_args` calls `Arg::as_fixture()` and builds
+`BoundFixtureArg`. Their separate panic messages are part of the focused test
+diagnostics and should remain at those type-specific boundaries.
+
 Generated wrappers must also submit typed fixture requirement metadata for
 runtime missing-fixture diagnostics. Keep `Step::fixtures` as the public
 name-only compatibility field, and publish `FixtureRequirement { name, ty }`
@@ -1184,6 +1207,24 @@ which `prepare_publish`-only tests cannot observe:
   exercised end-to-end against a live server by the `smoke_lsp` integration
   suite: an unimplemented/unused step yields a non-empty `publishDiagnostics`,
   and resolving it re-publishes an empty array for the same URI.
+
+## Bypassed-step recording contract
+
+The runtime records steps that were not executed after a scenario requested a
+skip through the public `BypassedScenario` descriptor and
+`record_bypassed_steps` function. `BypassedScenario::new()` captures the
+feature path, scenario name, and one-based scenario line. Callers can then
+attach borrowed tags with `with_tags()` and an optional skip message with
+`with_reason()` before passing the descriptor and the bypassed
+`(StepKeyword, &str)` items to `record_bypassed_steps`.
+
+The descriptor deliberately groups scenario identity and reporting metadata, so
+the recording function has one scenario argument and one step iterator. The
+former six-argument API and the separate `record_bypassed_steps_with_tags`
+entry point were removed; generated code and manual callers must use the
+descriptor form. With the `diagnostics` feature disabled, the function remains
+callable and drops the iterator without iterating it, keeping generated
+wrappers feature-independent.
 
 ## cargo-bdd scenario output formatting
 
