@@ -218,8 +218,10 @@ macro_rules! step {
 inventory::collect!(Step);
 inventory::collect!(StepFixtureRequirements);
 
+/// Stable key used to identify a registered step.
 type StepKey = (StepKeyword, &'static StepPattern);
 
+/// Lazily built map of registered steps by keyword and pattern.
 static STEP_MAP: LazyLock<HashMap<StepKey, &'static Step>> = LazyLock::new(|| {
     let steps: Vec<_> = iter::<Step>.into_iter().collect();
     let mut map = HashMap::with_capacity(steps.len());
@@ -249,8 +251,10 @@ static STEP_MAP: LazyLock<HashMap<StepKey, &'static Step>> = LazyLock::new(|| {
 // Tracks step invocations for the lifetime of the current process only. The
 // data is not persisted across binaries, keeping usage bookkeeping lightweight
 // and ephemeral.
+/// Process-local set of steps observed during execution.
 static USED_STEPS: LazyLock<Mutex<HashSet<StepKey>>> = LazyLock::new(|| Mutex::new(HashSet::new()));
 
+/// Mark a registered step as used.
 fn mark_used(key: StepKey) {
     USED_STEPS
         .lock()
@@ -258,10 +262,13 @@ fn mark_used(key: StepKey) {
         .insert(key);
 }
 
+/// Collect all steps submitted through `inventory`.
 fn all_steps() -> Vec<&'static Step> { iter::<Step>.into_iter().collect() }
 
+/// Look up a step by its stable registry key.
 fn step_by_key(key: StepKey) -> Option<&'static Step> { STEP_MAP.get(&key).copied() }
 
+/// Resolve a step whose registered pattern text exactly matches the input.
 fn resolve_exact_step(keyword: StepKeyword, pattern: PatternStr<'_>) -> Option<&'static Step> {
     // Compute the hash as if the key were (keyword, pattern.as_str()) because
     // StepPattern hashing is by its inner text.
@@ -279,6 +286,7 @@ fn resolve_exact_step(keyword: StepKeyword, pattern: PatternStr<'_>) -> Option<&
         .map(|(_, step)| *step)
 }
 
+/// Resolve the most specific registered step matching the supplied text.
 fn resolve_step(keyword: StepKeyword, text: StepText<'_>) -> Option<&'static Step> {
     // Fast path: exact pattern match
     if let Some(step) = resolve_exact_step(keyword, text.as_str().into()) {

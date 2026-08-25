@@ -15,26 +15,40 @@ use tracing::warn;
 /// Registry step entry including location metadata and execution status.
 #[derive(Debug, Deserialize, Clone)]
 pub(crate) struct Step {
+    /// Gherkin keyword for the step.
     pub keyword: String,
+    /// Registered step pattern.
     pub pattern: String,
+    /// Source file containing the step definition.
     pub file: String,
+    /// Source line containing the step definition.
     pub line: u32,
+    /// Whether the step was executed by a scenario.
     pub used: bool,
 }
 
 /// Step definition that was bypassed when a scenario requested a skip.
 #[derive(Debug, Deserialize, Clone)]
 pub(crate) struct BypassedStep {
+    /// Gherkin keyword for the step.
     pub keyword: String,
+    /// Registered step pattern.
     pub pattern: String,
+    /// Source file containing the step definition.
     pub file: String,
+    /// Source line containing the step definition.
     pub line: u32,
+    /// Feature containing the skipped scenario.
     pub feature_path: String,
+    /// Name of the skipped scenario.
     pub scenario_name: String,
     #[serde(default)]
+    /// Source line of the skipped scenario.
     pub scenario_line: u32,
     #[serde(default)]
+    /// Tags attached to the skipped scenario.
     pub tags: Vec<String>,
+    /// Optional reason recorded for the skip.
     pub reason: Option<String>,
 }
 
@@ -42,23 +56,33 @@ pub(crate) struct BypassedStep {
 #[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub(crate) enum ScenarioOutcome {
+    /// The scenario completed successfully.
     Passed,
+    /// The scenario was skipped.
     Skipped,
 }
 
 /// Registry scenario entry including metadata and skip flags.
 #[derive(Debug, Deserialize, Clone)]
 pub(crate) struct Scenario {
+    /// Feature containing the scenario.
     pub feature_path: String,
     #[serde(rename = "scenario_name")]
+    /// Scenario name.
     pub name: String,
+    /// Scenario execution outcome.
     pub status: ScenarioOutcome,
+    /// Optional execution message.
     pub message: Option<String>,
+    /// Whether the scenario may be skipped.
     pub allow_skipped: bool,
+    /// Whether the scenario was forced to fail.
     pub forced_failure: bool,
     #[serde(default)]
+    /// Source line of the scenario.
     pub line: u32,
     #[serde(default)]
+    /// Tags attached to the scenario.
     pub tags: Vec<String>,
 }
 
@@ -68,12 +92,16 @@ pub(crate) struct Scenario {
 #[derive(Debug, Deserialize, Clone, Default)]
 #[serde(default)]
 pub(crate) struct RegistryDump {
+    /// Registered step definitions.
     pub steps: Vec<Step>,
+    /// Collected scenario outcomes.
     pub scenarios: Vec<Scenario>,
+    /// Steps bypassed by skipped scenarios.
     pub bypassed_steps: Vec<BypassedStep>,
 }
 
 impl RegistryDump {
+    /// Append the entries from another registry dump.
     pub(crate) fn merge(&mut self, mut other: Self) {
         self.steps.append(&mut other.steps);
         self.scenarios.append(&mut other.scenarios);
@@ -97,6 +125,7 @@ pub(crate) fn collect_registry() -> Result<RegistryDump> {
     Ok(registry)
 }
 
+/// Return whether workspace metadata contains at least one test target.
 fn has_test_targets(metadata: &cargo_metadata::Metadata) -> bool {
     metadata
         .packages
@@ -104,6 +133,7 @@ fn has_test_targets(metadata: &cargo_metadata::Metadata) -> bool {
         .any(|p| p.targets.iter().any(|t| t.kind.iter().any(|k| k == "test")))
 }
 
+/// Build workspace test targets and return their executable paths.
 fn build_test_binaries(metadata: &cargo_metadata::Metadata) -> Result<Vec<PathBuf>> {
     let workspace: HashSet<_> = metadata.workspace_members.iter().collect();
     let mut bins = Vec::new();
@@ -115,6 +145,7 @@ fn build_test_binaries(metadata: &cargo_metadata::Metadata) -> Result<Vec<PathBu
     Ok(bins)
 }
 
+/// Build all test binaries for one workspace package.
 fn collect_package_binaries(
     package: &Package,
     bins: &mut Vec<PathBuf>,
@@ -133,6 +164,7 @@ fn collect_package_binaries(
     Ok(())
 }
 
+/// Select packages belonging to the workspace.
 fn workspace_packages<'a>(
     packages: &'a [Package],
     workspace: &'a HashSet<&'a PackageId>,
@@ -140,12 +172,14 @@ fn workspace_packages<'a>(
     packages.iter().filter(move |p| workspace.contains(&p.id))
 }
 
+/// Select test targets from a package's targets.
 fn test_targets(targets: &[Target]) -> impl Iterator<Item = &Target> + '_ {
     targets
         .iter()
         .filter(|t| t.kind.iter().any(|k| k == "test"))
 }
 
+/// Parse Cargo's JSON messages and collect test executable paths.
 fn parse_cargo_messages(
     reader: BufReader<impl Read>,
     child: &mut Child,
@@ -174,6 +208,7 @@ fn parse_cargo_messages(
     Ok(bins)
 }
 
+/// Report a failed test build and allow registry collection to continue.
 fn handle_build_failure(package_name: &str, target_name: &str) -> Result<()> {
     let mut stderr = io::stderr();
     writeln!(
@@ -183,6 +218,7 @@ fn handle_build_failure(package_name: &str, target_name: &str) -> Result<()> {
     .wrap_err("failed to write warning to stderr")
 }
 
+/// Build one test target and extract its executable path.
 fn build_test_target(package: &Package, target: &Target) -> Result<Vec<PathBuf>> {
     let mut cmd = Command::new("cargo");
     cmd.args([
@@ -223,6 +259,7 @@ fn build_test_target(package: &Package, target: &Target) -> Result<Vec<PathBuf>>
     Ok(bins)
 }
 
+/// Run a test binary and parse its registry dump, if supported.
 fn collect_registry_from_binary(bin: &Path) -> Result<Option<RegistryDump>> {
     let output = Command::new(bin)
         .arg("--dump-steps")
@@ -237,6 +274,7 @@ fn collect_registry_from_binary(bin: &Path) -> Result<Option<RegistryDump>> {
     Ok(Some(dump))
 }
 
+/// Deserialize a registry dump while ignoring unknown fields.
 fn parse_registry_dump(bytes: &[u8]) -> serde_json::Result<RegistryDump> {
     // Deliberately lenient: unknown fields are ignored so newer rstest-bdd
     // versions can extend the registry dump schema without breaking older
@@ -244,6 +282,7 @@ fn parse_registry_dump(bytes: &[u8]) -> serde_json::Result<RegistryDump> {
     serde_json::from_slice(bytes)
 }
 
+/// Handle a failed test binary invocation.
 fn handle_binary_execution_failure(
     bin: &Path,
     output: &std::process::Output,
@@ -252,6 +291,7 @@ fn handle_binary_execution_failure(
     handle_binary_execution_stderr(bin, &err)
 }
 
+/// Interpret test-binary stderr and report unsupported dump flags.
 fn handle_binary_execution_stderr(bin: &Path, stderr: &str) -> Result<Option<RegistryDump>> {
     if is_unrecognized_dump_steps(stderr) {
         warn!(

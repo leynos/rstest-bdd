@@ -10,30 +10,38 @@ use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
 use quote::quote;
 use rstest_bdd_policy::TestAttributeHint;
 
+/// Internal data used by the macros implementation.
 struct CrateSpec {
+    /// Package name used when resolving the dependency.
     package_name: &'static str,
+    /// Default Rust crate name when the dependency is not renamed.
     default_crate_name: &'static str,
+    /// Adapter types that identify this crate during path inspection.
     adapter_type_names: &'static [&'static str],
 }
 
 pub(crate) mod scenario;
 pub(crate) mod wrapper;
 
+/// Specification for the core `rstest-bdd` runtime crate.
 const RSTEST_BDD: CrateSpec = CrateSpec {
     package_name: "rstest-bdd",
     default_crate_name: "rstest_bdd",
     adapter_type_names: &[],
 };
+/// Specification for the base `rstest-bdd-harness` crate.
 const RSTEST_BDD_HARNESS: CrateSpec = CrateSpec {
     package_name: "rstest-bdd-harness",
     default_crate_name: "rstest_bdd_harness",
     adapter_type_names: &[],
 };
+/// Specification for the first-party Tokio harness adapter.
 const TOKIO_HARNESS: CrateSpec = CrateSpec {
     package_name: "rstest-bdd-harness-tokio",
     default_crate_name: "rstest_bdd_harness_tokio",
     adapter_type_names: &["TokioHarness", "TokioAttributePolicy"],
 };
+/// Specification for the first-party GPUI harness adapter.
 const GPUI_HARNESS: CrateSpec = CrateSpec {
     package_name: "rstest-bdd-harness-gpui",
     default_crate_name: "rstest_bdd_harness_gpui",
@@ -78,6 +86,7 @@ pub(crate) fn rstest_bdd_harness_api_path_for(adapter_path: &syn::Path) -> Token
     })
 }
 
+/// Identify the test-attribute hint associated with a first-party adapter.
 pub(crate) fn first_party_adapter_attribute_hint(
     adapter_path: &syn::Path,
 ) -> Option<TestAttributeHint> {
@@ -90,11 +99,13 @@ pub(crate) fn first_party_adapter_attribute_hint(
     }
 }
 
+/// Resolve the base API path for a recognized first-party adapter.
 fn first_party_adapter_api_path(adapter_path: &syn::Path) -> Option<TokenStream2> {
     first_party_adapter_spec(adapter_path)
         .map(|spec| first_party_adapter_api_root(adapter_path, spec))
 }
 
+/// Find the crate specification matching an adapter path.
 fn first_party_adapter_spec(adapter_path: &syn::Path) -> Option<&'static CrateSpec> {
     [&TOKIO_HARNESS, &GPUI_HARNESS]
         .into_iter()
@@ -102,6 +113,7 @@ fn first_party_adapter_spec(adapter_path: &syn::Path) -> Option<&'static CrateSp
 }
 
 #[cfg(not(test))]
+/// Warn when a path resembles an adapter but cannot be resolved canonically.
 fn emit_first_party_adapter_fallback_warning(adapter_path: &syn::Path) {
     let Some(spec) = [&TOKIO_HARNESS, &GPUI_HARNESS]
         .into_iter()
@@ -132,6 +144,7 @@ fn emit_first_party_adapter_fallback_warning(adapter_path: &syn::Path) {
 #[cfg(test)]
 fn emit_first_party_adapter_fallback_warning(_: &syn::Path) {}
 
+/// Construct the crate-root token stream for a recognized adapter.
 fn first_party_adapter_api_root(adapter_path: &syn::Path, spec: &CrateSpec) -> TokenStream2 {
     if path_root_matches_crate(adapter_path, spec) {
         let Some(root) = adapter_path.segments.first().map(|segment| &segment.ident) else {
@@ -143,22 +156,26 @@ fn first_party_adapter_api_root(adapter_path: &syn::Path, spec: &CrateSpec) -> T
     }
 }
 
+/// Determine whether an adapter path belongs to a first-party crate.
 fn first_party_adapter_path_matches(adapter_path: &syn::Path, spec: &CrateSpec) -> bool {
     path_last_ident_matches(adapter_path, spec.adapter_type_names)
         && (path_root_matches_crate(adapter_path, spec)
             || is_imported_adapter_type_path(adapter_path, spec))
 }
 
+/// Check whether a single-segment adapter path can refer to the crate.
 fn is_imported_adapter_type_path(path: &syn::Path, spec: &CrateSpec) -> bool {
     path.segments.len() == 1 && try_resolve_crate_path(spec).is_some()
 }
 
+/// Check whether a path ends in one of the expected identifiers.
 fn path_last_ident_matches(path: &syn::Path, expected: &[&str]) -> bool {
     path.segments
         .last()
         .is_some_and(|segment| expected.iter().any(|name| segment.ident == name))
 }
 
+/// Check whether a path starts at the specified crate root.
 fn path_root_matches_crate(path: &syn::Path, spec: &CrateSpec) -> bool {
     let Some(root) = path.segments.first() else {
         return false;
@@ -178,6 +195,7 @@ fn path_root_matches_crate(path: &syn::Path, spec: &CrateSpec) -> bool {
         .is_some_and(|crate_root| crate_root.ident == root.ident)
 }
 
+/// Resolve a dependency path, reporting a missing required crate.
 fn resolve_crate_path(spec: &CrateSpec) -> TokenStream2 {
     match crate_name(spec.package_name) {
         Ok(found) => found_crate_path(found, spec),
@@ -185,6 +203,7 @@ fn resolve_crate_path(spec: &CrateSpec) -> TokenStream2 {
     }
 }
 
+/// Convert a successful crate lookup into a fully qualified path.
 fn found_crate_path(found: FoundCrate, spec: &CrateSpec) -> TokenStream2 {
     let ident = match found {
         FoundCrate::Itself => Ident::new(spec.default_crate_name, Span::call_site()),
@@ -194,6 +213,7 @@ fn found_crate_path(found: FoundCrate, spec: &CrateSpec) -> TokenStream2 {
 }
 
 #[cfg(test)]
+/// Provide a default path when isolated unit tests omit runtime crates.
 fn handle_missing_crate(spec: &CrateSpec, _: &proc_macro_crate::Error) -> TokenStream2 {
     // Tests compile the macros crate in isolation without dependency crates, so
     // fall back to the default package name.
@@ -202,6 +222,7 @@ fn handle_missing_crate(spec: &CrateSpec, _: &proc_macro_crate::Error) -> TokenS
 }
 
 #[cfg(not(test))]
+/// Report a missing runtime crate during macro expansion.
 fn handle_missing_crate(spec: &CrateSpec, err: &proc_macro_crate::Error) -> TokenStream2 {
     let crate_name = spec.package_name;
     panic!("{crate_name} crate not found: {err}");

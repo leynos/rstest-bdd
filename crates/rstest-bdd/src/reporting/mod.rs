@@ -28,12 +28,15 @@ pub mod json;
 pub mod junit;
 
 #[cfg(feature = "diagnostics")]
+/// State machine tracking whether diagnostic dump seeds have run.
 static RUN_DUMP_SEEDS: OnceLock<AtomicU8> = OnceLock::new();
 
 #[cfg(feature = "diagnostics")]
+/// Return the process-wide diagnostic seed state.
 fn dump_seeds_state() -> &'static AtomicU8 { RUN_DUMP_SEEDS.get_or_init(|| AtomicU8::new(0)) }
 
 #[cfg(feature = "diagnostics")]
+/// Reset the diagnostic seed state after a completed drain.
 fn reset_dump_seeds_state() {
     let Some(state) = RUN_DUMP_SEEDS.get() else {
         return;
@@ -47,10 +50,12 @@ fn reset_dump_seeds_state() {
 /// Thread-safe store containing scenario records gathered during a test run.
 static REPORTS: OnceLock<Mutex<Vec<ScenarioRecord>>> = OnceLock::new();
 
+/// Return the lazily initialized scenario-record store.
 fn reports_mutex() -> &'static Mutex<Vec<ScenarioRecord>> {
     REPORTS.get_or_init(|| Mutex::new(Vec::new()))
 }
 
+/// Lock the scenario-record store, recovering records after poisoning.
 fn lock_reports() -> MutexGuard<'static, Vec<ScenarioRecord>> {
     // Recover from poisoned locks so diagnostics can still flush any
     // accumulated records when a prior test panicked whilst holding the
@@ -67,6 +72,7 @@ fn lock_reports() -> MutexGuard<'static, Vec<ScenarioRecord>> {
 #[cfg(feature = "diagnostics")]
 #[derive(Copy, Clone)]
 pub struct DumpSeed {
+    /// Callback invoked before a diagnostic registry dump.
     callback: fn(),
 }
 
@@ -89,6 +95,7 @@ impl DumpSeed {
     #[must_use]
     pub const fn new(callback: fn()) -> Self { Self { callback } }
 
+    /// Invoke the registered callback.
     fn run(self) { (self.callback)(); }
 }
 

@@ -33,19 +33,26 @@ use crate::{
 
 /// Completed indexes from a deferred did-save replay worker.
 pub struct DeferredDocumentSavesIndexed {
+    /// Identifier of the workspace initialization that produced these indexes.
     initialization_id: u64,
+    /// Index results produced by the background replay.
     results: Vec<DeferredDocumentSaveIndex>,
 }
 
+/// An index result produced while replaying one deferred document save.
 enum DeferredDocumentSaveIndex {
     /// A feature-file indexing result ready for router-owned application.
     Feature {
+        /// Path of the indexed feature file.
         path: PathBuf,
+        /// Result of indexing the feature file.
         result: Result<FeatureFileIndex, FeatureIndexError>,
     },
     /// A Rust-file indexing result ready for router-owned application.
     Rust {
+        /// Path of the indexed Rust file.
         path: PathBuf,
+        /// Result of indexing the Rust file.
         result: Result<RustStepIndexResult, RustStepIndexError>,
     },
 }
@@ -85,6 +92,7 @@ pub(crate) fn start_deferred_document_save_replay(
     state.replace_workspace_task(task);
 }
 
+/// Emit completed deferred indexes back to the LSP router.
 fn emit_replayed_indexes(
     client: &ClientSocket,
     initialization_id: u64,
@@ -136,6 +144,7 @@ pub fn handle_deferred_document_saves_indexed(
     publish_all_feature_diagnostics(state);
 }
 
+/// Index every deferred document that has a supported file extension.
 fn index_deferred_document_saves(
     deferred_document_saves: Vec<DidSaveTextDocumentParams>,
     workspace_root: Option<&WorkspaceRoot>,
@@ -146,6 +155,7 @@ fn index_deferred_document_saves(
         .collect()
 }
 
+/// Index one deferred document, returning no result for unsupported paths.
 fn index_deferred_document_save(
     params: DidSaveTextDocumentParams,
     workspace_root: Option<&WorkspaceRoot>,
@@ -168,6 +178,7 @@ fn index_deferred_document_save(
     }
 }
 
+/// Read and index a feature file through the workspace capability.
 fn index_disk_backed_feature(
     path: &std::path::Path,
     workspace_root: Option<&WorkspaceRoot>,

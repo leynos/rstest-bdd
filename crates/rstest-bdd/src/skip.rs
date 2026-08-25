@@ -23,6 +23,7 @@ thread_local! {
 /// skipped.
 #[derive(Debug)]
 pub struct SkipRequest {
+    /// Optional message explaining why execution was skipped.
     message: Option<String>,
 }
 
@@ -56,6 +57,7 @@ pub enum ScopeKind {
 }
 
 impl ScopeKind {
+    /// Return the human-readable scope label used in diagnostics.
     const fn describe(self) -> &'static str {
         match self {
             Self::Step => "step",
@@ -67,9 +69,13 @@ impl ScopeKind {
 /// Metadata describing the current execution scope.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ScopeMetadata {
+    /// Kind of scope that issued the skip request.
     kind: ScopeKind,
+    /// Name of the generated step or hook.
     name: &'static str,
+    /// Source file containing the generated function.
     file: &'static str,
+    /// Source line containing the generated function.
     line: u32,
 }
 
@@ -85,6 +91,7 @@ impl ScopeMetadata {
         }
     }
 
+    /// Return the scope label, name, and source line for diagnostics.
     fn describe(&self) -> (&'static str, &'static str, u32) {
         (self.kind.describe(), self.name, self.line)
     }
@@ -93,8 +100,11 @@ impl ScopeMetadata {
 /// RAII guard that marks the current thread as executing a step or hook.
 #[derive(Debug)]
 pub struct StepScopeGuard {
+    /// Metadata associated with the active scope.
     metadata: ScopeMetadata,
+    /// Thread on which the scope was entered.
     thread: ThreadId,
+    /// Marker preventing the guard from crossing thread boundaries.
     _not_send_or_sync: PhantomData<Rc<()>>,
 }
 
@@ -109,6 +119,7 @@ impl StepScopeGuard {
         }
     }
 
+    /// Register this guard in the current thread's scope stack.
     fn register(&self) {
         SCOPE_STACK.with(|stack| {
             stack.borrow_mut().push(ScopeEntry {
@@ -131,13 +142,17 @@ impl Drop for StepScopeGuard {
     }
 }
 
+/// Entry stored in the current thread's scope stack.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct ScopeEntry {
+    /// Metadata for the registered scope.
     metadata: ScopeMetadata,
+    /// Thread that owns the registered scope.
     thread: ThreadId,
 }
 
 impl ScopeEntry {
+    /// Ensure that the current thread owns this scope entry.
     fn ensure_thread(&self) -> Result<(), ScopeError> {
         let current = thread::current().id();
         if self.thread == current {
@@ -151,11 +166,16 @@ impl ScopeEntry {
     }
 }
 
+/// Error raised when a scope is used from the wrong thread.
 #[derive(Debug)]
 enum ScopeError {
+    /// A skip was attempted from a thread other than the owning thread.
     WrongThread {
+        /// Thread that entered the scope.
         expected: ThreadId,
+        /// Thread that attempted to use the scope.
         actual: ThreadId,
+        /// Scope metadata used to explain the mismatch.
         metadata: ScopeMetadata,
     },
 }
@@ -209,6 +229,7 @@ pub fn request_skip(scope: &StepScopeGuard, message: Option<String>) -> ! {
     SkipRequest::raise(message);
 }
 
+/// Run a callback with the innermost registered scope.
 fn with_current_scope<F, R>(callback: F) -> R
 where
     F: FnOnce(&ScopeEntry) -> R,

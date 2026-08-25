@@ -35,18 +35,26 @@ pub enum Token {
     },
 }
 
+/// Opening-brace delimiter recognized by the pattern lexer.
 const OPEN_BRACE: char = '{';
+/// Closing-brace delimiter recognized by the pattern lexer.
 const CLOSE_BRACE: char = '}';
 
+/// Peekable iterator yielding byte offsets and characters from a pattern.
 type CharIter<'pattern> = Peekable<CharIndices<'pattern>>;
 
+/// Mutable state used while converting a pattern into lexer tokens.
 struct LexerContext<'pattern> {
+    /// Remaining pattern characters and their byte offsets.
     iter: CharIter<'pattern>,
+    /// Literal text accumulated since the last emitted token.
     literal: String,
+    /// Tokens emitted while processing the pattern.
     tokens: Vec<Token>,
 }
 
 impl<'pattern> LexerContext<'pattern> {
+    /// Initialize lexer state from the supplied pattern.
     fn new(pattern: &'pattern str) -> Self {
         Self {
             iter: pattern.char_indices().peekable(),
@@ -55,6 +63,7 @@ impl<'pattern> LexerContext<'pattern> {
         }
     }
 
+    /// Emit accumulated literal text as a token when it is non-empty.
     fn flush_literal(&mut self) {
         if self.literal.is_empty() {
             return;
@@ -64,6 +73,7 @@ impl<'pattern> LexerContext<'pattern> {
             .push(Token::Literal(std::mem::take(&mut self.literal)));
     }
 
+    /// Consume characters until the iterator reaches the supplied byte offset.
     fn advance_to(&mut self, end: usize) {
         while let Some(&(next_index, _)) = self.iter.peek() {
             if next_index < end {
@@ -74,6 +84,7 @@ impl<'pattern> LexerContext<'pattern> {
         }
     }
 
+    /// Return the tokens accumulated by this lexer context.
     fn into_tokens(self) -> Vec<Token> { self.tokens }
 }
 
@@ -108,6 +119,7 @@ pub fn lex_pattern(pattern: &str) -> Result<Vec<Token>, PatternError> {
     Ok(context.into_tokens())
 }
 
+/// Preserve the escaped character as literal text, including a trailing slash.
 fn handle_backslash(context: &mut LexerContext<'_>) {
     if let Some((_, next)) = context.iter.next() {
         context.literal.push(next);
@@ -116,6 +128,7 @@ fn handle_backslash(context: &mut LexerContext<'_>) {
     }
 }
 
+/// Handle a doubled, placeholder-opening, or unmatched opening brace.
 fn handle_open_brace(
     bytes: &[u8],
     index: usize,
@@ -139,6 +152,7 @@ fn handle_open_brace(
     }
 }
 
+/// Handle a doubled closing brace as text or emit an unmatched-brace token.
 fn handle_close_brace(index: usize, context: &mut LexerContext<'_>) {
     if matches!(context.iter.peek().map(|&(_, c)| c), Some(CLOSE_BRACE)) {
         context.iter.next();
@@ -149,10 +163,13 @@ fn handle_close_brace(index: usize, context: &mut LexerContext<'_>) {
     }
 }
 
+/// Return whether a character may begin a placeholder name.
 fn is_placeholder_start(ch: char) -> bool { is_valid_placeholder_start(ch) }
 
+/// Return whether a character is an ASCII letter or underscore.
 fn is_valid_placeholder_start(ch: char) -> bool { ch.is_ascii_alphabetic() || ch == '_' }
 
+/// Parse a placeholder, emit its token, and advance past its source span.
 fn parse_and_consume_placeholder(
     bytes: &[u8],
     index: usize,

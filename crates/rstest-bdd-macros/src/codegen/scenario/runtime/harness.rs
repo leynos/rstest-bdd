@@ -52,14 +52,23 @@ fn generate_metadata_constants(
 /// Parameters for generating the runner closure body.
 #[derive(Clone, Copy)]
 struct RunnerClosureParams<'a> {
+    /// Stores the internal `allow_literal` value.
     allow_literal: &'a syn::LitBool,
+    /// Stores the internal `ctx_prelude` value.
     ctx_prelude: &'a [TokenStream2],
+    /// Stores the internal `ctx_inserts` value.
     ctx_inserts: &'a [TokenStream2],
+    /// Stores the internal `ctx_postlude` value.
     ctx_postlude: &'a [TokenStream2],
+    /// Stores the internal `block` value.
     block: &'a TokenStream2,
+    /// Stores the internal `step_executor_loop` value.
     step_executor_loop: &'a TokenStream2,
+    /// Stores the internal `skip_handler` value.
     skip_handler: &'a TokenStream2,
+    /// Stores the internal `path` value.
     path: &'a TokenStream2,
+    /// Stores the internal `harness_context_ty` value.
     harness_context_ty: &'a TokenStream2,
 }
 

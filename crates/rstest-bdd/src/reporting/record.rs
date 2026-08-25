@@ -52,10 +52,15 @@ impl ScenarioMetadata {
 /// Outcome recorded for a single scenario execution.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ScenarioRecord {
+    /// Path to the feature containing the scenario.
     feature_path: String,
+    /// Human-readable scenario name.
     scenario_name: String,
+    /// Source line where the scenario is declared.
     line: u32,
+    /// Tags attached to the scenario.
     tags: ScenarioTags,
+    /// Outcome of executing the scenario.
     status: ScenarioStatus,
 }
 
@@ -179,8 +184,11 @@ impl ScenarioStatus {
 /// Details captured when a scenario skips.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SkippedScenario {
+    /// Optional message supplied by the skipping step.
     message: Option<String>,
+    /// Whether the scenario explicitly permits skipping.
     allow_skipped: bool,
+    /// Whether global policy converts the skip into a failure.
     forced_failure: bool,
 }
 

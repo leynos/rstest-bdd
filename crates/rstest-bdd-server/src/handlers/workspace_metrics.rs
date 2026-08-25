@@ -25,8 +25,11 @@ use metrics::{
 };
 use metrics::{counter, describe_counter, describe_gauge, describe_histogram, gauge, histogram};
 
+/// Metric name for workspace preparation and deferred-save outcomes.
 const WORKSPACE_COUNTER: &str = "rstest_bdd_server_workspace_preparation_total";
+/// Metric name for the deferred-save queue depth.
 const DEFERRED_SAVE_GAUGE: &str = "rstest_bdd_server_deferred_document_saves";
+/// Metric name for workspace preparation duration.
 const WORKSPACE_DURATION: &str = "rstest_bdd_server_workspace_preparation_duration_seconds";
 
 /// Record a fixed workspace preparation or deferred-save outcome.

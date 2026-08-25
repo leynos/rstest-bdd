@@ -96,6 +96,7 @@ pub const GPUI_ATTRIBUTE_POLICY_PATH: &[&str] = &["rstest_bdd_harness_gpui", "Gp
 /// Canonical path segments for `GpuiHarness`.
 pub const GPUI_HARNESS_PATH: &[&str] = &["rstest_bdd_harness_gpui", "GpuiHarness"];
 
+/// Maps known attribute-policy paths to the test-attribute hints they require.
 const KNOWN_ATTRIBUTE_POLICY_HINTS: [(&[&str], TestAttributeHint); 3] = [
     (DEFAULT_ATTRIBUTE_POLICY_PATH, TestAttributeHint::RstestOnly),
     (
@@ -108,6 +109,7 @@ const KNOWN_ATTRIBUTE_POLICY_HINTS: [(&[&str], TestAttributeHint); 3] = [
     ),
 ];
 
+/// Maps known harness paths to the test-attribute hints they require.
 const KNOWN_HARNESS_HINTS: [(&[&str], TestAttributeHint); 3] = [
     (STD_HARNESS_PATH, TestAttributeHint::RstestOnly),
     (

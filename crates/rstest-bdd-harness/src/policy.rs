@@ -21,7 +21,9 @@
 /// ```
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TestAttribute {
+    /// The attribute path emitted by this policy.
     path: &'static str,
+    /// The optional payload rendered inside the attribute's parentheses.
     arguments: Option<&'static str>,
 }
 
@@ -83,6 +85,7 @@ pub trait AttributePolicy {
 /// This policy emits only `#[rstest::rstest]`.
 pub struct DefaultAttributePolicy;
 
+/// The default attribute sequence emitted by [`DefaultAttributePolicy`].
 const DEFAULT_TEST_ATTRIBUTES: [TestAttribute; 1] = [TestAttribute::new("rstest::rstest")];
 
 impl AttributePolicy for DefaultAttributePolicy {

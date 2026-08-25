@@ -31,6 +31,7 @@ mod entry;
 mod error;
 mod guards;
 mod insert_outcome;
+mod logging;
 #[cfg(test)]
 mod tests;
 
@@ -38,6 +39,7 @@ use entry::FixtureEntry;
 pub use error::FixtureBorrowError;
 pub use guards::{FixtureRef, FixtureRefMut};
 pub use insert_outcome::InsertOutcome;
+use logging::warn_logging_is_disabled;
 
 /// Reserved fixture key used for harness-provided context.
 ///
@@ -101,7 +103,9 @@ pub const RSTEST_BDD_HARNESS_CONTEXT_FIXTURE: &str = "rstest_bdd_harness_context
 /// ```
 #[derive(Default)]
 pub struct StepContext<'a> {
+    /// Shared-reference fixtures indexed by their generated names.
     fixtures: HashMap<&'static str, FixtureEntry<'a>>,
+    /// Owned type-erased values returned by previous steps.
     values: HashMap<&'static str, RefCell<Box<dyn Any>>>,
 }
 impl<'a> StepContext<'a> {
@@ -391,9 +395,3 @@ impl<'a> StepContext<'a> {
             .ok_or_else(|| FixtureBorrowError::not_found(name))
     }
 }
-
-/// Report whether `log::warn!` output is currently discarded.
-///
-/// Kept as a named predicate so the mirrored `eprintln!` call site stays a
-/// simple two-branch condition.
-fn warn_logging_is_disabled() -> bool { !log::log_enabled!(log::Level::Warn) }

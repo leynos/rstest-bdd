@@ -40,6 +40,7 @@ pub(super) fn parse_function_parameters(
         .collect()
 }
 
+/// Extract an identifier name from a parameter pattern.
 fn param_name(pat: &syn::Pat) -> Option<String> {
     match pat {
         syn::Pat::Ident(pat_ident) => Some(pat_ident.ident.to_string()),
@@ -47,6 +48,7 @@ fn param_name(pat: &syn::Pat) -> Option<String> {
     }
 }
 
+/// Determine whether a parameter represents a Gherkin data table.
 fn parameter_is_datatable(pat_type: &syn::PatType, name: Option<&str>) -> bool {
     if name.is_some_and(|value| value == "datatable") {
         return true;
@@ -73,6 +75,7 @@ fn parameter_is_step_struct(pat_type: &syn::PatType) -> bool {
     })
 }
 
+/// Determine whether a parameter represents a Gherkin doc string.
 fn parameter_is_docstring(name: Option<&str>, ty: &syn::Type) -> bool {
     if name.is_none_or(|value| value != "docstring") {
         return false;

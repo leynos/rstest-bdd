@@ -92,6 +92,7 @@ pub(crate) fn generate_underscore_expect(sig: &syn::Signature) -> TokenStream2 {
     }
 }
 
+/// Provides the internal `resolve_keyword_tokens` operation.
 fn resolve_keyword_tokens(steps: &[crate::parsing::feature::ParsedStep]) -> Vec<TokenStream2> {
     // Resolve textual conjunctions (And/But) to the previous primary keyword
     // without depending on the validation module, which is behind an optional
@@ -143,6 +144,7 @@ fn generate_case_attrs_internal(
         .collect()
 }
 
+/// Provides the internal `generate_table_tokens` operation.
 fn generate_table_tokens(table: Option<&[Vec<String>]>) -> TokenStream2 {
     table.map_or_else(
         || quote! { None },
@@ -235,6 +237,7 @@ pub(crate) fn generate_indexed_case_attrs(
     generate_case_attrs_internal(examples, true)
 }
 
+/// Provides the internal `substitute_table_placeholders` operation.
 fn substitute_table_placeholders(
     table: &[Vec<String>],
     context: &SubstitutionContext<'_>,

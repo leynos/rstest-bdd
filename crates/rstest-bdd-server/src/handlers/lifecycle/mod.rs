@@ -9,7 +9,7 @@ use std::{
 };
 
 use async_lsp::{ClientSocket, ResponseError};
-use lsp_types::{InitializeParams, InitializeResult, InitializedParams, ServerInfo, Url};
+use lsp_types::{InitializeParams, InitializeResult, InitializedParams, ServerInfo};
 use tracing::{Instrument, debug, info, warn};
 
 use super::{
@@ -26,6 +26,10 @@ use crate::{
     indexing::WorkspaceRoot,
     server::{ServerState, build_server_capabilities},
 };
+
+mod workspace_path;
+
+use workspace_path::extract_workspace_path;
 /// Outcome of the synchronous part of handling an `initialize` request.
 ///
 /// The initialize path is asynchronous: the non-blocking parameter handling
@@ -122,14 +126,18 @@ pub enum WorkspacePreparation {
     Discovered(WorkspaceInfo, WorkspaceRoot),
     /// Cargo discovery failed, but the requested path was opened as the root.
     DiscoveryFailed {
+        /// Capability-scoped workspace root opened for the requested path.
         root: WorkspaceRoot,
+        /// Error returned by workspace discovery.
         discovery_error: ServerError,
     },
     /// Cargo discovery succeeded, but the capability could not be opened.
     RootOpenFailed(ServerError),
     /// Both cargo discovery and root opening failed.
     DiscoveryAndRootOpenFailed {
+        /// Error returned by workspace discovery.
         discovery_error: ServerError,
+        /// Error returned while opening the workspace root capability.
         root_error: ServerError,
     },
 }
@@ -142,6 +150,7 @@ pub enum WorkspacePreparation {
 pub struct WorkspaceReadyEvent {
     /// Blocking discovery and capability-open result for the router to apply.
     pub preparation: WorkspacePreparation,
+    /// Identifier matching the initialization that requested preparation.
     initialization_id: u64,
 }
 
@@ -219,6 +228,7 @@ pub fn handle_workspace_ready(state: &mut ServerState, event: WorkspaceReadyEven
     start_deferred_document_save_replay(state, event.initialization_id, deferred_document_saves);
 }
 
+/// Map a workspace preparation result to its fixed metric outcome.
 fn workspace_preparation_outcome(preparation: &WorkspacePreparation) -> &'static str {
     match preparation {
         WorkspacePreparation::Discovered(..) => "success",
@@ -267,6 +277,7 @@ pub fn launch_workspace_preparation(
     launch_workspace_preparation_with(initialize, client, |path| prepare_workspace(&path))
 }
 
+/// Launch workspace preparation with an injectable preparation function.
 fn launch_workspace_preparation_with<F>(
     initialize: Result<InitializeOutcome, ResponseError>,
     client: Option<ClientSocket>,
@@ -320,6 +331,7 @@ where
     Ok((result, None))
 }
 
+/// Emit a completed workspace preparation event to the LSP client.
 fn emit_workspace_ready(client: &ClientSocket, event: WorkspaceReadyEvent) {
     if let Err(error) = client.emit(event) {
         record_workspace_outcome("workspace-preparation", "event-delivery-failure");
@@ -364,25 +376,6 @@ pub fn handle_shutdown(_state: &mut ServerState) -> Result<(), ResponseError> {
     info!("shutdown request received");
     Ok(())
 }
-
-/// Extract a workspace path from workspace folders.
-///
-/// Returns the path of the first workspace folder with a file:// scheme. When
-/// no folders are provided, the root URI is used (for single-root clients).
-fn extract_workspace_path(
-    workspace_folders: &[lsp_types::WorkspaceFolder],
-    root_uri: Option<&Url>,
-) -> Option<PathBuf> {
-    workspace_folders
-        .first()
-        .and_then(|f| url_to_path(&f.uri))
-        .or_else(|| root_uri.and_then(url_to_path))
-}
-
-/// Convert a URL to a file system path.
-///
-/// Only handles `file://` URLs; returns `None` for other schemes.
-fn url_to_path(url: &Url) -> Option<PathBuf> { url.to_file_path().ok() }
 
 /// Convert a server error to an LSP response error.
 fn response_error(err: &ServerError, code: async_lsp::ErrorCode) -> ResponseError {

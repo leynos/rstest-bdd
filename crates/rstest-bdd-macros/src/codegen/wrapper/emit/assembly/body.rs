@@ -53,6 +53,7 @@ fn process_datatable_cache(
     }
 }
 
+/// Provides the internal `generate_wrapper_body_impl` operation.
 fn generate_wrapper_body_impl(
     config: &super::super::WrapperConfig<'_>,
     wrapper_ident: &proc_macro2::Ident,

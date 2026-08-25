@@ -33,6 +33,7 @@ pub struct PlaceholderError {
     pub placeholder: String,
     /// The available column headers in the Examples table.
     pub available_columns: Vec<String>,
+    /// Stores the internal `available_columns_display` value.
     available_columns_display: String,
 }
 

@@ -25,8 +25,11 @@ pub enum HarnessError {
 /// feature and scenario context for logging or panic messages.
 #[derive(Debug)]
 pub struct HarnessErrorContext {
+    /// The typed harness error that caused scenario initialization to fail.
     error: HarnessError,
+    /// The feature path containing the scenario whose initialization failed.
     feature_path: String,
+    /// The name of the scenario whose initialization failed.
     scenario_name: String,
 }
 

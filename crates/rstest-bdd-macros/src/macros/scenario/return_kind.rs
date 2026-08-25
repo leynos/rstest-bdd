@@ -2,9 +2,11 @@
 
 use crate::return_classifier::{ReturnKind, classify_return_type};
 
+/// Internal constant used by the macros implementation.
 const FALLIBLE_SCENARIO_RETURN_ERROR: &str =
     "#[scenario] bodies must return () or a unit Result/StepResult";
 
+/// Provides the internal `classify_scenario_return` operation.
 pub(super) fn classify_scenario_return(
     sig: &syn::Signature,
 ) -> Result<crate::codegen::scenario::ScenarioReturnKind, syn::Error> {
@@ -16,10 +18,12 @@ pub(super) fn classify_scenario_return(
     }
 }
 
+/// Provides the internal `is_supported_scenario_return` operation.
 fn is_supported_scenario_return(return_kind: ReturnKind) -> bool {
     matches!(return_kind, ReturnKind::Unit | ReturnKind::ResultUnit)
 }
 
+/// Provides the internal `map_scenario_return_kind` operation.
 fn map_scenario_return_kind(
     return_kind: ReturnKind,
 ) -> crate::codegen::scenario::ScenarioReturnKind {
@@ -32,6 +36,7 @@ fn map_scenario_return_kind(
     }
 }
 
+/// Provides the internal `scenario_return_error` operation.
 fn scenario_return_error(sig: &syn::Signature) -> syn::Error {
     syn::Error::new_spanned(&sig.output, FALLIBLE_SCENARIO_RETURN_ERROR)
 }

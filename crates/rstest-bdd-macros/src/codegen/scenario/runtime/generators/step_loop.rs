@@ -14,9 +14,13 @@ use quote::quote;
 /// loop generation.
 #[derive(Clone, Copy)]
 struct StepDataSlices<'a> {
+    /// Stores the internal `keyword_tokens` value.
     keyword_tokens: &'a [TokenStream2],
+    /// Stores the internal `values` value.
     values: &'a [TokenStream2],
+    /// Stores the internal `docstrings` value.
     docstrings: &'a [TokenStream2],
+    /// Stores the internal `tables` value.
     tables: &'a [TokenStream2],
 }
 

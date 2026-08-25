@@ -21,6 +21,7 @@ pub(crate) enum ValidationContext {
 }
 
 impl ValidationContext {
+    /// Returns the human-readable name of this validation location.
     fn as_str(self) -> &'static str {
         match self {
             Self::Step => "step",
@@ -35,10 +36,13 @@ impl ValidationContext {
 pub(crate) struct ExampleHeaders<'a>(&'a [String]);
 
 impl<'a> ExampleHeaders<'a> {
+    /// Wraps Examples table headers for placeholder lookup.
     pub fn new(headers: &'a [String]) -> Self { Self(headers) }
 
+    /// Returns whether the headers contain `name`.
     pub fn contains(&self, name: &str) -> bool { self.0.iter().any(|h| h == name) }
 
+    /// Joins the headers with `sep` for diagnostic output.
     pub fn join(&self, sep: &str) -> String { self.0.join(sep) }
 }
 
@@ -130,9 +134,11 @@ fn validate_text_placeholders(
     Ok(())
 }
 
+/// Returns the source span attached to a parsed step.
 #[cfg(feature = "compile-time-validation")]
 fn step_span(step: &ParsedStep) -> Span { step.span }
 
+/// Returns a call-site span when source spans are unavailable.
 #[cfg(not(feature = "compile-time-validation"))]
 fn step_span(_step: &ParsedStep) -> Span { Span::call_site() }
 

@@ -13,6 +13,7 @@ use crate::datatable::{
     validation::{is_bool_type, option_inner_type},
 };
 
+/// Provides the internal `parse_struct_config` operation.
 pub(crate) fn parse_struct_config(attrs: &[Attribute]) -> syn::Result<StructConfig> {
     let mut rename_rule = None;
     for attr in attrs
@@ -24,6 +25,7 @@ pub(crate) fn parse_struct_config(attrs: &[Attribute]) -> syn::Result<StructConf
     Ok(StructConfig { rename_rule })
 }
 
+/// Provides the internal `process_datatable_attr` operation.
 fn process_datatable_attr(
     attr: &Attribute,
     rename_rule: &mut Option<RenameRule>,
@@ -31,6 +33,7 @@ fn process_datatable_attr(
     attr.parse_nested_meta(|meta| parse_rename_all_from_meta(&meta, rename_rule))
 }
 
+/// Provides the internal `parse_rename_all_from_meta` operation.
 fn parse_rename_all_from_meta(
     meta: &syn::meta::ParseNestedMeta,
     rename_rule: &mut Option<RenameRule>,
@@ -47,6 +50,7 @@ fn parse_rename_all_from_meta(
     }
 }
 
+/// Provides the internal `collect_fields` operation.
 pub(crate) fn collect_fields(
     fields: &Fields,
     config: &StructConfig,
@@ -70,6 +74,7 @@ pub(crate) fn collect_fields(
     }
 }
 
+/// Provides the internal `build_named_field` operation.
 fn build_named_field(field: &Field, config: &StructConfig) -> syn::Result<FieldSpec> {
     let ident = field
         .ident
@@ -84,11 +89,13 @@ fn build_named_field(field: &Field, config: &StructConfig) -> syn::Result<FieldS
     build_field_spec(Some(ident), field, accessor)
 }
 
+/// Provides the internal `build_unnamed_field` operation.
 fn build_unnamed_field(field: &Field, index: usize) -> syn::Result<FieldSpec> {
     let accessor = Accessor::Index { position: index };
     build_field_spec(None, field, accessor)
 }
 
+/// Provides the internal `build_field_spec` operation.
 fn build_field_spec(
     ident: Option<Ident>,
     field: &Field,
@@ -105,6 +112,7 @@ fn build_field_spec(
     })
 }
 
+/// Provides the internal `parse_field_attributes` operation.
 pub(crate) fn parse_field_attributes(
     attrs: &[Attribute],
     base_accessor: Accessor,
@@ -116,6 +124,7 @@ pub(crate) fn parse_field_attributes(
     Ok(config)
 }
 
+/// Provides the internal `process_datatable_field_attr` operation.
 fn process_datatable_field_attr(attr: &Attribute, config: &mut FieldConfig) -> syn::Result<()> {
     if !attr.path().is_ident("datatable") {
         return Ok(());
@@ -123,6 +132,7 @@ fn process_datatable_field_attr(attr: &Attribute, config: &mut FieldConfig) -> s
     attr.parse_nested_meta(|meta| process_field_meta_item(&meta, config))
 }
 
+/// Provides the internal `process_field_meta_item` operation.
 fn process_field_meta_item(
     meta: &syn::meta::ParseNestedMeta,
     config: &mut FieldConfig,
@@ -142,6 +152,7 @@ fn process_field_meta_item(
     }
 }
 
+/// Provides the internal `process_flag_attribute` operation.
 fn process_flag_attribute(
     meta: &syn::meta::ParseNestedMeta,
     ident: &str,
@@ -159,6 +170,7 @@ fn process_flag_attribute(
     Ok(())
 }
 
+/// Provides the internal `process_column_attribute` operation.
 fn process_column_attribute(
     meta: &syn::meta::ParseNestedMeta,
     config: &mut FieldConfig,
@@ -170,6 +182,7 @@ fn process_column_attribute(
     Ok(())
 }
 
+/// Provides the internal `process_default_attribute` operation.
 fn process_default_attribute(
     meta: &syn::meta::ParseNestedMeta,
     config: &mut FieldConfig,
@@ -186,6 +199,7 @@ fn process_default_attribute(
     Ok(())
 }
 
+/// Provides the internal `process_parse_with_attribute` operation.
 fn process_parse_with_attribute(
     meta: &syn::meta::ParseNestedMeta,
     config: &mut FieldConfig,
@@ -198,6 +212,7 @@ fn process_parse_with_attribute(
     }
 }
 
+/// Provides the internal `validate_field_config` operation.
 fn validate_field_config(
     config: &FieldConfig,
     is_option: bool,
@@ -232,6 +247,7 @@ fn validate_field_config(
     Ok(())
 }
 
+/// Provides the internal `ensure_when` operation.
 fn ensure_when(violation: bool, span: Span, message: &str) -> syn::Result<()> {
     if violation {
         Err(syn::Error::new(span, message))

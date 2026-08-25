@@ -74,6 +74,7 @@ pub enum DataTableError {
 }
 
 impl DataTableError {
+    /// Construct a cell-parse error with a human-readable column label.
     pub(crate) fn cell_parse<E>(
         row_number: usize,
         column_index: usize,

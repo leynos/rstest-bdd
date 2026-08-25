@@ -53,20 +53,28 @@ use crate::{
     },
 };
 
+/// Internal data used by the macros implementation.
 struct ScenarioTagFilter {
+    /// Stores the internal `expr` value.
     expr: TagExpression,
+    /// Stores the internal `span` value.
     span: Span,
+    /// Stores the internal `raw` value.
     raw: String,
 }
 
 /// Encapsulates the data needed to search and filter scenarios.
 #[derive(Copy, Clone)]
 struct ScenarioLookup<'a> {
+    /// Stores the internal `feature` value.
     feature: &'a gherkin::Feature,
+    /// Stores the internal `candidate_indices` value.
     candidate_indices: &'a [usize],
+    /// Stores the internal `tag_filter` value.
     tag_filter: Option<&'a ScenarioTagFilter>,
 }
 
+/// Provides the internal `scenario` operation.
 pub(crate) fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
     let args = syn::parse_macro_input!(attr as ScenarioArgs);
     let item_fn = syn::parse_macro_input!(item as syn::ItemFn);
@@ -76,6 +84,7 @@ pub(crate) fn scenario(attr: TokenStream, item: TokenStream) -> TokenStream {
     }
 }
 
+/// Provides the internal `try_scenario` operation.
 fn try_scenario(
     ScenarioArgs {
         path,
@@ -186,6 +195,7 @@ fn try_scenario(
     ))
 }
 
+/// Provides the internal `parse_tag_filter` operation.
 fn parse_tag_filter(
     tag_filter: Option<syn::LitStr>,
 ) -> Result<Option<ScenarioTagFilter>, TokenStream> {
@@ -207,6 +217,7 @@ fn parse_tag_filter(
         .transpose()
 }
 
+/// Provides the internal `validate_steps_compile_time` operation.
 fn validate_steps_compile_time(
     steps: &[crate::parsing::feature::ParsedStep],
 ) -> Option<TokenStream> {

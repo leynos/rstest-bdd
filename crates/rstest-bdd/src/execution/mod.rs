@@ -53,6 +53,7 @@ pub use rstest_bdd_policy::RuntimeMode;
 /// `rstest_bdd::execution` stable for downstream users.
 pub use rstest_bdd_policy::TestAttributeHint;
 
+/// Resolve the registered step described by an execution request.
 fn resolve_step_for_request(
     request: &StepExecutionRequest<'_>,
 ) -> Result<&'static Step, ExecutionError> {
@@ -67,6 +68,7 @@ fn resolve_step_for_request(
     })
 }
 
+/// Convert a step result into the executor's structured outcome.
 fn handle_step_result(
     request: &StepExecutionRequest<'_>,
     result: Result<StepExecution, crate::StepError>,

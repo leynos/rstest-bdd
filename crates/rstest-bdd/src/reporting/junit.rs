@@ -9,6 +9,7 @@ use std::fmt::{self, Write};
 
 use super::{ScenarioRecord, ScenarioStatus, snapshot};
 
+/// Failure text emitted when skip policy turns a skip into a failure.
 const FAIL_ON_SKIPPED_MESSAGE: &str = "Scenario skipped with fail_on_skipped enabled";
 
 /// Render the supplied scenario records as a `JUnit` XML document.
@@ -104,6 +105,7 @@ pub fn write_snapshot<W: Write>(writer: &mut W) -> fmt::Result {
     write(writer, &snapshot)
 }
 
+/// Write a string with XML-sensitive characters escaped.
 fn write_escaped<W: Write>(writer: &mut W, value: &str) -> fmt::Result {
     const INVALID_REPLACEMENT: &str = "&#xFFFD;";
     for character in value.chars() {
@@ -123,6 +125,7 @@ fn write_escaped<W: Write>(writer: &mut W, value: &str) -> fmt::Result {
     Ok(())
 }
 
+/// Report whether a character is permitted in XML 1.0 text.
 fn is_valid_xml_character(character: char) -> bool {
     matches!(
         u32::from(character),

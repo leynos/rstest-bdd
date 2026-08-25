@@ -119,6 +119,7 @@ fn resolve_effective_runtime(
     }
 }
 
+/// Provides the internal `dedupe_name` operation.
 pub(super) fn dedupe_name(base: &str, used: &mut HashSet<String>) -> String {
     let mut name = base.to_owned();
     let mut counter = 1usize;

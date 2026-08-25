@@ -12,6 +12,7 @@ use quote::format_ident;
 
 use crate::utils::ident::sanitize_ident;
 
+/// Internal shared state used by the macros implementation.
 static COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 /// Identifiers for sync and async wrapper components.

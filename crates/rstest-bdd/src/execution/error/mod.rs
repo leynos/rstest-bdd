@@ -275,6 +275,7 @@ impl ExecutionError {
 }
 
 impl MissingFixturesDetails {
+    /// Format the typed missing-fixture requirements for diagnostics.
     fn format_missing_requirements(&self) -> String {
         self.missing_requirements
             .iter()

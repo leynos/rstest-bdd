@@ -22,26 +22,37 @@ use super::parser::Parser;
 /// Parsed representation of a tag expression.
 #[derive(Clone, Debug)]
 pub(crate) struct TagExpression {
+    /// Stores the internal `root` value.
     root: Expr,
 }
 
+/// Internal alias for shared implementation data.
 type TagSet<'tags> = HashSet<Cow<'tags, str>>;
 
 #[derive(Clone, Debug)]
+/// Documents the internal `Expr` item.
 pub(super) enum Expr {
+    /// Represents the internal validation outcome.
     Tag(String),
+    /// Represents the internal validation outcome.
     Not(Box<Self>),
+    /// Represents the internal validation outcome.
     And(Box<Self>, Box<Self>),
+    /// Represents the internal validation outcome.
     Or(Box<Self>, Box<Self>),
 }
 
 #[derive(Debug)]
+/// Internal data used by the macros implementation.
 pub(crate) struct TagExprError {
+    /// Stores the internal `offset` value.
     offset: usize,
+    /// Stores the internal `reason` value.
     reason: String,
 }
 
 impl TagExprError {
+    /// Documents the internal `new` item.
     pub(super) fn new(offset: usize, reason: impl Into<String>) -> Self {
         Self {
             offset,
@@ -63,6 +74,7 @@ impl std::fmt::Display for TagExprError {
 impl std::error::Error for TagExprError {}
 
 impl TagExpression {
+    /// Documents the internal `parse` item.
     pub(crate) fn parse(input: &str) -> Result<Self, TagExprError> {
         let mut parser = Parser::new(input)?;
         let root = parser.parse_expression()?;
@@ -70,6 +82,7 @@ impl TagExpression {
         Ok(Self { root })
     }
 
+    /// Provides the internal `evaluate` operation.
     pub(crate) fn evaluate<'tags, I, S>(&self, tags: I) -> bool
     where
         I: IntoIterator<Item = S>,
@@ -84,6 +97,7 @@ impl TagExpression {
 }
 
 impl Expr {
+    /// Provides the internal `eval` operation.
     pub(super) fn eval(&self, tags: &TagSet<'_>) -> bool {
         match self {
             Self::Tag(tag) => tags.contains(tag.as_str()),

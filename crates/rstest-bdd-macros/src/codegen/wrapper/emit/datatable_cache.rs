@@ -36,6 +36,7 @@ pub(super) enum DatatableCacheComponents {
     },
 }
 
+/// Provides the internal `generate_datatable_cache_definitions` operation.
 pub(super) fn generate_datatable_cache_definitions(
     has_datatable: bool,
     wrapper_ident: &proc_macro2::Ident,

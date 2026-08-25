@@ -56,7 +56,9 @@ use crate::{
 ///
 /// Supports an optional step pattern literal and an optional return override hint.
 struct StepAttrArgs {
+    /// Stores the internal `pattern` value.
     pattern: Option<syn::LitStr>,
+    /// Stores the internal `return_override` value.
     return_override: Option<ReturnOverride>,
 }
 
@@ -265,12 +267,19 @@ fn signature_error_help(err_message: &str, keyword: crate::StepKeyword) -> Strin
 
 /// Inputs used to generate wrapper code for a step function.
 struct WrapperInputs<'a> {
+    /// Stores the internal `func` value.
     func: &'a syn::ItemFn,
+    /// Stores the internal `pattern` value.
     pattern: &'a syn::LitStr,
+    /// Stores the internal `keyword` value.
     keyword: crate::StepKeyword,
+    /// Stores the internal `args` value.
     args: &'a ExtractedArgs,
+    /// Stores the internal `placeholder_names` value.
     placeholder_names: &'a [syn::LitStr],
+    /// Stores the internal `placeholder_hints` value.
     placeholder_hints: &'a [Option<String>],
+    /// Stores the internal `return_kind` value.
     return_kind: ReturnKind,
 }
 

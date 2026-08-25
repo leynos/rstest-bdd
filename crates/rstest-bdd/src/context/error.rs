@@ -56,13 +56,17 @@ pub enum FixtureBorrowError {
 }
 
 impl FixtureBorrowError {
+    /// Construct a missing-fixture error for `name`.
     pub(super) fn not_found(name: &str) -> Self { Self::NotFound { name: name.into() } }
 
+    /// Construct a wrong-type error for `name`.
     pub(super) fn type_mismatch(name: &str) -> Self { Self::TypeMismatch { name: name.into() } }
 
+    /// Construct an already-borrowed error for `name`.
     pub(super) fn already_borrowed(name: &str) -> Self {
         Self::AlreadyBorrowed { name: name.into() }
     }
 
+    /// Construct a not-mutable error for `name`.
     pub(super) fn not_mutable(name: &str) -> Self { Self::NotMutable { name: name.into() } }
 }

@@ -1,6 +1,7 @@
 //! Validation helpers for datatable field types and Option detection.
 use syn::{GenericArgument, PathArguments, Type, TypePath, spanned::Spanned};
 
+/// Provides the internal `option_inner_type` operation.
 pub(crate) fn option_inner_type(ty: &Type) -> syn::Result<(bool, Type)> {
     let Type::Path(TypePath { path, .. }) = ty else {
         return Ok((false, ty.clone()));
@@ -26,6 +27,7 @@ pub(crate) fn option_inner_type(ty: &Type) -> syn::Result<(bool, Type)> {
     Ok((true, inner.clone()))
 }
 
+/// Provides the internal `is_string_type` operation.
 pub(crate) fn is_string_type(ty: &Type) -> bool {
     if let Type::Path(path) = ty {
         if let Some(segment) = path.path.segments.last() {
@@ -35,6 +37,7 @@ pub(crate) fn is_string_type(ty: &Type) -> bool {
     false
 }
 
+/// Provides the internal `is_bool_type` operation.
 pub(crate) fn is_bool_type(ty: &Type) -> bool {
     if let Type::Path(path) = ty {
         if let Some(segment) = path.path.segments.last() {

@@ -15,6 +15,7 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::{DeriveInput, spanned::Spanned};
 
+/// Expand the `ScenarioState` derive implementation.
 pub(crate) fn derive(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as DeriveInput);
     match expand(input) {
@@ -23,6 +24,7 @@ pub(crate) fn derive(input: TokenStream) -> TokenStream {
     }
 }
 
+/// Validate the input and generate its `ScenarioState` implementation.
 fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
     let ident = input.ident;
     let generics = input.generics;
@@ -58,6 +60,7 @@ fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
     })
 }
 
+/// Generate reset statements for a named-field struct.
 fn expand_named(
     fields: &syn::punctuated::Punctuated<syn::Field, syn::Token![,]>,
 ) -> syn::Result<TokenStream2> {
@@ -74,6 +77,7 @@ fn expand_named(
     Ok(quote! { #(#reset_body)* })
 }
 
+/// Generate reset statements for a tuple struct.
 fn expand_unnamed(
     fields: &syn::punctuated::Punctuated<syn::Field, syn::Token![,]>,
 ) -> syn::Result<TokenStream2> {
@@ -88,6 +92,7 @@ fn expand_unnamed(
     Ok(quote! { #(#resets)* })
 }
 
+/// Validate that a field has the required `Slot<T>` type.
 fn ensure_slot_type(field: &syn::Field, label: FieldLabel<'_>) -> syn::Result<()> {
     match &field.ty {
         syn::Type::Path(path) => {
@@ -119,12 +124,16 @@ fn ensure_slot_type(field: &syn::Field, label: FieldLabel<'_>) -> syn::Result<()
 }
 
 #[derive(Copy, Clone)]
+/// A human-readable label for a struct field in a validation diagnostic.
 enum FieldLabel<'a> {
+    /// A named field.
     Named(&'a syn::Ident),
+    /// A tuple-field index.
     Unnamed(usize),
 }
 
 impl FieldLabel<'_> {
+    /// Render the label as a field name or tuple index.
     fn describe(&self) -> String {
         match self {
             Self::Named(ident) => ident.to_string(),

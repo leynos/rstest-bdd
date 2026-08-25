@@ -7,6 +7,7 @@
 //! Scenario metadata wrappers shared across macro code generation.
 use newt_hype::base_newtype;
 
+/// Generates the internal `metadata_string` expansion.
 macro_rules! metadata_string {
     ($(#[$meta:meta])* $name:ident, $base:ident) => {
         base_newtype!($base);

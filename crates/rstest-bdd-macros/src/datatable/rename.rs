@@ -22,18 +22,28 @@ use syn::LitStr;
 ///   Gherkin scenarios (for example `Given Name`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum RenameRule {
+    /// Convert names to lowercase without separators.
     Lower,
+    /// Convert names to uppercase without separators.
     Upper,
+    /// Convert names to `snake_case`.
     Snake,
+    /// Convert names to `SCREAMING_SNAKE_CASE`.
     ScreamingSnake,
+    /// Convert names to `kebab-case`.
     Kebab,
+    /// Convert names to `SCREAMING-KEBAB-CASE`.
     ScreamingKebab,
+    /// Convert names to `camelCase`.
     Camel,
+    /// Convert names to `PascalCase`.
     Pascal,
+    /// Convert names to title case.
     Title,
 }
 
 impl RenameRule {
+    /// Applies this naming rule to a field identifier.
     pub(crate) fn apply(self, ident: &str) -> String {
         match self {
             Self::Lower => ident.to_case(Case::Flat),

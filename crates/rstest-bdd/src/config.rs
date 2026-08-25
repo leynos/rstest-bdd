@@ -5,12 +5,17 @@
 
 use std::sync::atomic::{AtomicU8, Ordering};
 
+/// Atomic state value meaning that no process-local override is set.
 const OVERRIDE_UNSET: u8 = 0;
+/// Atomic state value meaning that skipped scenarios must fail.
 const OVERRIDE_FALSE: u8 = 1;
+/// Atomic state value meaning that skipped scenarios must not fail.
 const OVERRIDE_TRUE: u8 = 2;
 
+/// Process-local override for the skipped-scenario failure policy.
 static FAIL_ON_SKIPPED_OVERRIDE: AtomicU8 = AtomicU8::new(OVERRIDE_UNSET);
 
+/// Parse the accepted textual forms of a boolean environment value.
 fn parse_env_bool(value: &str) -> Option<bool> {
     match value.trim() {
         "1" | "true" | "TRUE" | "True" | "yes" | "YES" | "Yes" | "on" | "ON" | "On" => Some(true),
@@ -21,6 +26,7 @@ fn parse_env_bool(value: &str) -> Option<bool> {
     }
 }
 
+/// Read the skipped-scenario policy from its environment variable.
 fn env_fail_on_skipped() -> Option<bool> {
     std::env::var("RSTEST_BDD_FAIL_ON_SKIPPED")
         .ok()
@@ -28,6 +34,7 @@ fn env_fail_on_skipped() -> Option<bool> {
         .and_then(parse_env_bool)
 }
 
+/// Read the process-local skipped-scenario policy override.
 fn override_state() -> Option<bool> {
     match FAIL_ON_SKIPPED_OVERRIDE.load(Ordering::Relaxed) {
         OVERRIDE_FALSE => Some(false),

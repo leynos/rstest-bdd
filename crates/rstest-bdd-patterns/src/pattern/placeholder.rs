@@ -2,17 +2,26 @@
 
 use crate::errors::{PatternError, placeholder_error};
 
+/// Parsed placeholder metadata, including its name, hint, and source span.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PlaceholderSpec {
+    /// Placeholder identifier parsed from the pattern.
     pub name: String,
+    /// Optional type hint associated with the placeholder.
     pub hint: Option<String>,
+    /// Byte offset of the placeholder's opening brace.
     pub start: usize,
+    /// Exclusive byte offset after the placeholder's closing brace.
     pub end: usize,
 }
 
+/// Byte value used to identify backslash escapes in placeholder hints.
 const BACKSLASH: u8 = 92;
+/// Byte value representing an opening brace in placeholder syntax.
 const OPEN_BRACE: u8 = 123;
+/// Byte value representing a closing brace in placeholder syntax.
 const CLOSE_BRACE: u8 = 125;
+/// Byte value separating a placeholder name from its type hint.
 const COLON: u8 = 58;
 
 /// Scan `bytes` starting at `start` (immediately after `{name` or `{name:hint`) and
@@ -44,12 +53,17 @@ fn find_closing_brace(bytes: &[u8], start: usize) -> Option<usize> {
     None
 }
 
+/// Borrowed input and metadata used while parsing one placeholder.
 struct PlaceholderContext<'a> {
+    /// Pattern bytes being inspected.
     bytes: &'a [u8],
+    /// Byte offset of the placeholder's opening brace.
     start: usize,
+    /// Placeholder name parsed before processing its remaining syntax.
     name: &'a str,
 }
 
+/// Parse a placeholder and return its exclusive end offset and metadata.
 pub(crate) fn parse_placeholder(
     bytes: &[u8],
     start: usize,
@@ -99,6 +113,7 @@ pub(crate) fn parse_placeholder(
     ))
 }
 
+/// Consume ASCII alphanumeric and underscore characters as a placeholder name.
 fn parse_name(bytes: &[u8], index: &mut usize) -> String {
     let mut name = String::new();
     while let Some(&b) = bytes.get(*index) {
@@ -113,6 +128,7 @@ fn parse_name(bytes: &[u8], index: &mut usize) -> String {
     name
 }
 
+/// Validate and skip whitespace after a placeholder name.
 fn skip_forbidden_whitespace(
     ctx: &PlaceholderContext,
     index: &mut usize,
@@ -139,6 +155,7 @@ fn skip_forbidden_whitespace(
     Ok(())
 }
 
+/// Return the first offset after contiguous ASCII whitespace at `index`.
 fn skip_all_whitespace(bytes: &[u8], mut index: usize) -> usize {
     while let Some(&byte) = bytes.get(index) {
         if !(byte as char).is_ascii_whitespace() {
@@ -149,10 +166,12 @@ fn skip_all_whitespace(bytes: &[u8], mut index: usize) -> usize {
     index
 }
 
+/// Return whether whitespace is followed by forbidden placeholder syntax.
 fn has_forbidden_byte_after_whitespace(ctx: &PlaceholderContext, index: usize) -> bool {
     matches!(ctx.bytes.get(index), Some(&COLON | &CLOSE_BRACE))
 }
 
+/// Parse and validate the optional colon-delimited type hint.
 fn parse_optional_hint(
     ctx: &PlaceholderContext,
     index: &mut usize,

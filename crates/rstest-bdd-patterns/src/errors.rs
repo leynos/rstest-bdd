@@ -74,6 +74,7 @@ pub enum PatternError {
     Regex(#[from] regex::Error),
 }
 
+/// Build a placeholder parsing error with its message, byte position, and name.
 pub(crate) fn placeholder_error(
     message: &'static str,
     position: usize,

@@ -18,9 +18,13 @@
 /// ```
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ScenarioMetadata {
+    /// The feature path containing the scenario.
     feature_path: String,
+    /// The name of the scenario being run.
     scenario_name: String,
+    /// The one-based line number of the scenario in its feature file.
     scenario_line: u32,
+    /// The tags associated with the scenario.
     tags: Vec<String>,
 }
 
@@ -73,6 +77,7 @@ impl Default for ScenarioMetadata {
 /// assert_eq!(runner.run(41), 42);
 /// ```
 pub struct ScenarioRunner<'a, C, T> {
+    /// The closure that executes the scenario with its context.
     inner: Box<dyn FnOnce(C) -> T + 'a>,
 }
 
@@ -116,7 +121,9 @@ impl<'a, T> ScenarioRunner<'a, (), T> {
 /// assert_eq!(request.run(7), "7");
 /// ```
 pub struct ScenarioRunRequest<'a, C, T> {
+    /// Metadata describing the scenario execution.
     metadata: ScenarioMetadata,
+    /// The callable runner for the scenario.
     runner: ScenarioRunner<'a, C, T>,
 }
 

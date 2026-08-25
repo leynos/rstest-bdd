@@ -18,7 +18,9 @@ use crate::{error::ServerError, indexing::FeatureIndexError};
 
 /// Validated capability for reading files beneath one workspace root.
 pub struct WorkspaceRoot {
+    /// Validated UTF-8 path of the workspace root.
     path: Utf8PathBuf,
+    /// Capability-scoped directory handle for the root.
     directory: Dir,
 }
 

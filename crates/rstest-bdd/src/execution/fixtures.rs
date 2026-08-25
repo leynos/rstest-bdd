@@ -61,6 +61,7 @@ pub(super) fn validate_required_fixtures(
     }
 }
 
+/// Return the required fixtures that are absent from the available set.
 fn collect_missing<'a>(
     fixtures: &'a [&'static str],
     available: &HashSet<&str>,
@@ -71,12 +72,14 @@ fn collect_missing<'a>(
         .collect()
 }
 
+/// Return the available fixture names in deterministic order.
 fn sorted_available(ctx: &StepContext<'_>) -> Vec<String> {
     let mut list: Vec<_> = ctx.available_fixtures().map(String::from).collect();
     list.sort_unstable();
     list
 }
 
+/// Build typed diagnostics for each missing fixture.
 fn missing_fixture_diagnostics(
     missing: &[&'static str],
     requirements: Option<&[FixtureRequirement]>,
@@ -101,6 +104,7 @@ fn missing_fixture_diagnostics(
         .collect()
 }
 
+/// Report whether the missing list includes the harness context fixture.
 fn has_harness_suggestion(missing: &[&str]) -> bool {
     missing.contains(&RSTEST_BDD_HARNESS_CONTEXT_FIXTURE)
 }

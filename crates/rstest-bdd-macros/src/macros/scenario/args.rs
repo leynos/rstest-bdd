@@ -12,25 +12,51 @@ use syn::{
     token::Comma,
 };
 
+/// Internal data used by the macros implementation.
 pub(super) struct ScenarioArgs {
+    /// Stores the internal `path` value.
     pub(super) path: LitStr,
+    /// Stores the internal `selector` value.
     pub(super) selector: Option<ScenarioSelector>,
+    /// Stores the internal `tag_filter` value.
     pub(super) tag_filter: Option<LitStr>,
+    /// Stores the internal `harness` value.
     pub(super) harness: Option<syn::Path>,
+    /// Stores the internal `attributes` value.
     pub(super) attributes: Option<syn::Path>,
 }
 
+/// Documents the internal `ScenarioSelector` item.
 pub(super) enum ScenarioSelector {
-    Index { value: usize, span: Span },
-    Name { value: String, span: Span },
+    /// Represents the internal validation outcome.
+    Index {
+        /// Zero-based scenario index.
+        value: usize,
+        /// Source span of the index argument.
+        span: Span,
+    },
+    /// Represents the internal validation outcome.
+    Name {
+        /// Scenario name selected by the argument.
+        value: String,
+        /// Source span of the name argument.
+        span: Span,
+    },
 }
 
+/// Documents the internal `ScenarioArg` item.
 enum ScenarioArg {
+    /// Represents the internal validation outcome.
     Path(LitStr),
+    /// Represents the internal validation outcome.
     Index(LitInt),
+    /// Represents the internal validation outcome.
     Name(LitStr),
+    /// Represents the internal validation outcome.
     Tags(LitStr),
+    /// Represents the internal validation outcome.
     Harness(syn::Path),
+    /// Represents the internal validation outcome.
     Attributes(syn::Path),
 }
 
@@ -149,11 +175,15 @@ fn set_selector_name(selector: &mut Option<ScenarioSelector>, lit: &LitStr) -> s
     })
 }
 
+/// Documents the internal `SelectorKind` item.
 enum SelectorKind {
+    /// Represents the internal validation outcome.
     Index,
+    /// Represents the internal validation outcome.
     Name,
 }
 
+/// Provides the internal `selector_conflict_error` operation.
 fn selector_conflict_error(
     existing: &ScenarioSelector,
     new_kind: SelectorKind,

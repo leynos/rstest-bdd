@@ -21,11 +21,13 @@ mod diagnostics {
         thread,
     };
 
+    /// Return the per-thread cache-miss counter map.
     fn counters() -> &'static Mutex<HashMap<thread::ThreadId, usize>> {
         static COUNTERS: OnceLock<Mutex<HashMap<thread::ThreadId, usize>>> = OnceLock::new();
         COUNTERS.get_or_init(|| Mutex::new(HashMap::new()))
     }
 
+    /// Increment the current thread's cache-miss count.
     pub(super) fn record_miss() {
         let mut map = counters()
             .lock()
@@ -33,6 +35,7 @@ mod diagnostics {
         *map.entry(thread::current().id()).or_insert(0) += 1;
     }
 
+    /// Read the current thread's cache-miss count.
     pub(super) fn count() -> usize {
         counters()
             .lock()
@@ -42,6 +45,7 @@ mod diagnostics {
             .unwrap_or(0)
     }
 
+    /// Clear the current thread's cache-miss count.
     pub(super) fn reset() {
         counters()
             .lock()
@@ -71,6 +75,7 @@ pub fn reset_cache_miss_count() { diagnostics::reset(); }
 /// Shareable view of a parsed data table.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CachedTable {
+    /// Shared allocation containing the table rows.
     rows: OwnedTableArc,
 }
 

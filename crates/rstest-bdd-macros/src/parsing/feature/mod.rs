@@ -24,9 +24,13 @@ cfg_if::cfg_if! {
 /// Step extracted from a scenario with optional arguments (data table and doc string).
 #[derive(Debug, Clone)]
 pub(crate) struct ParsedStep {
+    /// Stores the internal `keyword` value.
     pub keyword: crate::StepKeyword,
+    /// Stores the internal `text` value.
     pub text: String,
+    /// Stores the internal `docstring` value.
     pub docstring: Option<String>,
+    /// Stores the internal `table` value.
     pub table: Option<Vec<Vec<String>>>,
     #[cfg(feature = "compile-time-validation")]
     /// Approximate span for diagnostics.
@@ -49,9 +53,13 @@ impl Eq for ParsedStep {}
 /// Name, steps, and optional examples extracted from a Gherkin scenario.
 #[derive(Debug)]
 pub(crate) struct ScenarioData {
+    /// Stores the internal `name` value.
     pub name: String,
+    /// Stores the internal `steps` value.
     pub steps: Vec<ParsedStep>,
+    /// Stores the internal `examples` value.
     pub(crate) examples: Option<ExampleTable>,
+    /// Stores the internal `tags` value.
     pub(crate) tags: Vec<String>,
     /// 1-based source line number of the scenario declaration in the feature
     /// file.
@@ -277,6 +285,7 @@ fn iter_parsed_steps_with_background<'a>(
         .map(ParsedStep::try_from)
 }
 
+/// Provides the internal `collect_base_tags` operation.
 fn collect_base_tags(feature: &Feature, scenario: &Scenario) -> Vec<String> {
     let mut tags = Vec::new();
     tags::extend_tag_set(&mut tags, &feature.tags);
@@ -285,6 +294,7 @@ fn collect_base_tags(feature: &Feature, scenario: &Scenario) -> Vec<String> {
 }
 
 impl ScenarioData {
+    /// Provides the internal `filter_by_tags` operation.
     pub(crate) fn filter_by_tags(&mut self, expr: &TagExpression) -> bool {
         match &mut self.examples {
             Some(examples) => {

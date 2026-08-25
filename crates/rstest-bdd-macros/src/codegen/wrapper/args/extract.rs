@@ -61,6 +61,7 @@ fn span_for_token_tree(token: &TokenTree) -> proc_macro2::Span {
     }
 }
 
+/// Provides the internal `next_typed_argument` operation.
 fn next_typed_argument(
     input: &mut syn::FnArg,
 ) -> syn::Result<(&mut syn::PatType, syn::Ident, syn::Type)> {

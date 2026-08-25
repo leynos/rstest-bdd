@@ -8,6 +8,7 @@ use tracing_subscriber::{EnvFilter, fmt::format::FmtSpan};
 
 use crate::config::ServerConfig;
 
+/// Build a tracing filter from the configured log level.
 fn filter_from_config(config: &ServerConfig) -> EnvFilter {
     EnvFilter::new(config.log_level.as_filter_str())
 }

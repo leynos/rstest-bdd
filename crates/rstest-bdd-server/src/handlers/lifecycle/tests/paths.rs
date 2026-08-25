@@ -5,7 +5,7 @@ use std::{path::PathBuf, str::FromStr};
 use lsp_types::Url;
 use rstest::rstest;
 
-use super::{super::url_to_path, platform_test_path};
+use super::{super::workspace_path::url_to_path, platform_test_path};
 
 #[test]
 fn url_to_path_returns_none_for_non_file_url() {

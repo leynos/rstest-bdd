@@ -83,7 +83,9 @@ pub fn gherkin_span_to_lsp_range(source: &str, span: Span) -> Range {
 /// Used to reduce parameter count in helper functions by grouping related values.
 #[derive(Clone, Copy)]
 struct LineColPosition {
+    /// Zero-based line number.
     line: u32,
+    /// UTF-16 column number within the line.
     col: u32,
 }
 

@@ -91,6 +91,7 @@ mod tests {
     #[fixture]
     fn harness() -> TokioHarness { TokioHarness::new() }
 
+    /// Run a scenario request and panic if the harness reports an error.
     fn run_expecting_ok<T>(
         harness: TokioHarness,
         request: ScenarioRunRequest<'_, TokioTestContext, T>,

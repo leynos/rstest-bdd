@@ -8,10 +8,15 @@ use crate::{StepError, StepKeyword};
 /// Groups step-identity fields shared by the `StepNotFound` and
 /// `HandlerFailed` formatter helpers, avoiding excess argument lists.
 struct StepInfo<'a> {
+    /// Zero-based index of the step within the scenario.
     index: usize,
+    /// Keyword used by the step.
     keyword: StepKeyword,
+    /// Text supplied for the step.
     text: &'a str,
+    /// Path to the feature containing the scenario.
     feature_path: &'a str,
+    /// Name of the scenario containing the step.
     scenario_name: &'a str,
 }
 
@@ -85,6 +90,7 @@ impl ExecutionError {
         }
     }
 
+    /// Format a localized skip diagnostic.
     fn format_skip(loader: &crate::FluentLanguageLoader, message: Option<&str>) -> String {
         crate::localization::message_with_loader(loader, "execution-error-skip", |args| {
             args.set(
@@ -95,6 +101,7 @@ impl ExecutionError {
         })
     }
 
+    /// Format a localized missing-step diagnostic.
     fn format_step_not_found(loader: &crate::FluentLanguageLoader, step: &StepInfo<'_>) -> String {
         crate::localization::message_with_loader(loader, "execution-error-step-not-found", |args| {
             args.set("index", step.index.to_string());
@@ -105,6 +112,7 @@ impl ExecutionError {
         })
     }
 
+    /// Format a localized missing-fixtures diagnostic.
     fn format_missing_fixtures(
         loader: &crate::FluentLanguageLoader,
         details: &MissingFixturesDetails,
@@ -132,6 +140,7 @@ impl ExecutionError {
         )
     }
 
+    /// Format a localized handler-failure diagnostic.
     fn format_handler_failed(
         loader: &crate::FluentLanguageLoader,
         step: &StepInfo<'_>,

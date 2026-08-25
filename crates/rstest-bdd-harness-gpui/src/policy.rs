@@ -19,6 +19,7 @@ use rstest_bdd_harness::{AttributePolicy, TestAttribute};
 /// ```
 pub struct GpuiAttributePolicy;
 
+/// Attributes emitted for generated GPUI scenario tests.
 const GPUI_TEST_ATTRIBUTES: [TestAttribute; 2] = [
     TestAttribute::new("rstest::rstest"),
     TestAttribute::new("gpui::test"),

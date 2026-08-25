@@ -106,6 +106,7 @@ impl ServerConfig {
     /// an invalid value.
     pub fn from_env() -> Result<Self, ServerError> { Self::from_env_with(|key| env::var(key)) }
 
+    /// Parse configuration values supplied by an environment lookup function.
     fn from_env_with<F>(get_var: F) -> Result<Self, ServerError>
     where
         F: Fn(&str) -> Result<String, env::VarError>,

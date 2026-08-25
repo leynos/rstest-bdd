@@ -7,6 +7,7 @@ use rstest_bdd_patterns::requires_quote_stripping;
 use super::args::{Arg, DataTableArg, FixtureArg, StepArg, StepStructArg};
 
 mod bindings;
+mod declarations;
 
 mod datatable;
 mod fixtures;
@@ -22,25 +23,10 @@ use bindings::{
     wrapper_binding_idents,
 };
 use datatable::{CacheIdents, gen_datatable_decl};
+pub(super) use declarations::{PreparedArgs, StepMeta};
 use fixtures::gen_fixture_decls;
 use step_parse::{ArgParseContext, gen_single_step_parse};
 use step_struct::{PlaceholderInfo, gen_step_struct_decl};
-
-#[derive(Copy, Clone)]
-pub(super) struct StepMeta<'a> {
-    pub(super) pattern: &'a syn::LitStr,
-    pub(super) ident: &'a syn::Ident,
-}
-
-pub(super) struct PreparedArgs {
-    pub(super) declares: Vec<TokenStream2>,
-    pub(super) step_arg_parses: Vec<TokenStream2>,
-    pub(super) step_struct_decl: Option<TokenStream2>,
-    pub(super) datatable_decl: Option<TokenStream2>,
-    pub(super) docstring_decl: Option<TokenStream2>,
-    pub(super) expect_lints: Vec<syn::Path>,
-    pub(super) has_step_arg_quote_strip: bool,
-}
 
 /// Check if a type is a reference to str (i.e., `&str` or `&'a str`).
 ///
@@ -80,6 +66,7 @@ pub(super) fn step_error_tokens(
     }
 }
 
+/// Provides the internal `gen_optional_decl` operation.
 fn gen_optional_decl<T, F>(
     arg: Option<T>,
     meta: StepMeta<'_>,
@@ -167,15 +154,20 @@ pub(super) fn gen_step_parses(
 
 /// Generated step argument parses and quote-stripping indicator.
 struct StepArgParseResult {
+    /// Stores the internal `step_arg_parses` value.
     step_arg_parses: Vec<TokenStream2>,
+    /// Stores the internal `has_step_arg_quote_strip` value.
     has_step_arg_quote_strip: bool,
 }
 
 /// Input data for building step argument parse expressions.
 #[derive(Copy, Clone)]
 struct StepArgParseInputs<'a> {
+    /// Stores the internal `step_args` value.
     step_args: &'a [BoundStepArg<'a>],
+    /// Stores the internal `all_captures` value.
     all_captures: &'a [TokenStream2],
+    /// Stores the internal `placeholder_hints` value.
     placeholder_hints: &'a [Option<String>],
 }
 
@@ -256,10 +248,15 @@ pub(super) struct ArgumentProcessingInputs<'a> {
 
 /// Wrapper arguments partitioned by kind, each paired with its local binding.
 struct BoundArguments<'a> {
+    /// Stores the internal `fixtures` value.
     fixtures: Vec<BoundFixtureArg<'a>>,
+    /// Stores the internal `step_args` value.
     step_args: Vec<BoundStepArg<'a>>,
+    /// Stores the internal `step_struct` value.
     step_struct: Option<BoundStepStructArg<'a>>,
+    /// Stores the internal `datatable` value.
     datatable: Option<BoundDataTableArg<'a>>,
+    /// Stores the internal `docstring` value.
     docstring: Option<BoundDocStringArg<'a>>,
 }
 

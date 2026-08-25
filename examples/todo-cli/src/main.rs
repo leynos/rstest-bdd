@@ -19,12 +19,15 @@ fn non_blank_string() -> ValueParser {
 
 #[derive(Parser)]
 #[command(author, version, about)]
+/// Command-line arguments parsed by `todo-cli`.
 struct Cli {
+    /// Subcommand selected by the user.
     #[command(subcommand)]
     command: Command,
 }
 
 #[derive(Subcommand)]
+/// Operations supported by the command-line interface.
 enum Command {
     /// Add a task to the list.
     Add {

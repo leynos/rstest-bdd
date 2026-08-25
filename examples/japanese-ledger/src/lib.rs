@@ -27,6 +27,7 @@ use std::cell::Cell;
 /// ```
 #[derive(Debug, Default)]
 pub struct HouseholdLedger {
+    /// The current household balance in yen.
     balance: Cell<i32>,
 }
 
@@ -50,6 +51,7 @@ impl HouseholdLedger {
     /// Saturates at `i32::MIN` when the subtraction would underflow.
     pub fn apply_expense(&self, amount: i32) { self.adjust(-amount); }
 
+    /// Apply a signed balance adjustment, saturating at integer bounds.
     fn adjust(&self, delta: i32) {
         let current = self.balance.get();
         let updated = current.saturating_add(delta);

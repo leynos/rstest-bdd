@@ -61,6 +61,7 @@ pub fn truthy_bool(value: &str) -> Result<bool, TruthyBoolError> {
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 #[error("unrecognised boolean value '{value}' (expected yes/y/true/1 or no/n/false/0)")]
 pub struct TruthyBoolError {
+    /// Trimmed input that could not be classified as Boolean.
     value: String,
 }
 
@@ -104,8 +105,10 @@ pub struct TrimmedParseError<E>
 where
     E: StdError + Send + Sync + 'static,
 {
+    /// Original input before whitespace trimming.
     original_input: String,
     #[source]
+    /// Error returned by the underlying parser.
     source: E,
 }
 
@@ -113,6 +116,7 @@ impl<E> TrimmedParseError<E>
 where
     E: StdError + Send + Sync + 'static,
 {
+    /// Construct an error preserving the original input and parser error.
     pub(crate) fn new(original_input: String, source: E) -> Self {
         Self {
             original_input,

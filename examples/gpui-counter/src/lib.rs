@@ -33,7 +33,9 @@ use std::cell::Cell;
 /// ```
 #[derive(Debug, Default)]
 pub struct CounterApp {
+    /// The current counter value shared by BDD steps.
     value: Cell<i32>,
+    /// Whether a GPUI test context has been observed.
     has_observed_gpui_context: Cell<bool>,
 }
 

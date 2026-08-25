@@ -62,11 +62,14 @@ use crate::{
 /// Return kinds supported by scenario bodies.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ScenarioReturnKind {
+    /// Represents the internal validation outcome.
     Unit,
+    /// Represents the internal validation outcome.
     ResultUnit,
 }
 
 impl ScenarioReturnKind {
+    /// Provides the internal `is_fallible` operation.
     pub(crate) fn is_fallible(self) -> bool { matches!(self, Self::ResultUnit) }
 }
 
@@ -108,11 +111,15 @@ pub(crate) struct ScenarioConfig<'a> {
 
 /// Configuration for context iterators in scenario code generation.
 pub(crate) struct ContextConfig<P, I, Q> {
+    /// Stores the internal `prelude` value.
     pub(crate) prelude: P,
+    /// Stores the internal `inserts` value.
     pub(crate) inserts: I,
+    /// Stores the internal `postlude` value.
     pub(crate) postlude: Q,
 }
 
+/// Provides the internal `scenario_allows_skip` operation.
 pub(crate) fn scenario_allows_skip(tags: &[String]) -> bool {
     tags.iter().any(|tag| tag == "@allow_skipped")
 }

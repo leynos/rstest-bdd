@@ -11,14 +11,18 @@ use quote::quote;
 /// Identifiers used in capture validation code generation.
 #[derive(Clone, Copy)]
 pub(super) struct CaptureValidationIdentifiers<'a> {
+    /// Stores the internal `pattern` value.
     pub(super) pattern: &'a proc_macro2::Ident,
+    /// Stores the internal `text` value.
     pub(super) text: &'a proc_macro2::Ident,
 }
 
 /// Error token streams for capture validation failures.
 #[derive(Clone, Copy)]
 pub(super) struct CaptureValidationErrors<'a> {
+    /// Stores the internal `placeholder` value.
     pub(super) placeholder: &'a TokenStream2,
+    /// Stores the internal `capture_mismatch` value.
     pub(super) capture_mismatch: &'a TokenStream2,
 }
 

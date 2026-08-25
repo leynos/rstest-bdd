@@ -25,6 +25,7 @@ use crate::{
 #[command(author, version, about)]
 pub(crate) struct Cli {
     #[command(subcommand)]
+    /// Diagnostic command selected by the user.
     command: Commands,
 }
 
@@ -42,6 +43,7 @@ pub(crate) enum Commands {
 }
 
 #[derive(Args)]
+/// Options for listing registered steps.
 pub(crate) struct StepsArgs {
     /// Filter for step definitions bypassed when scenarios were skipped.
     #[arg(long)]
@@ -52,6 +54,7 @@ pub(crate) struct StepsArgs {
 }
 
 #[derive(Args)]
+/// Options for listing skipped scenarios.
 pub(crate) struct SkippedArgs {
     /// Include file/line information and skip reasons.
     #[arg(long)]
@@ -62,22 +65,34 @@ pub(crate) struct SkippedArgs {
 }
 
 #[derive(Serialize)]
+/// JSON representation of a skipped scenario or bypassed step.
 struct SkipReport<'a> {
+    /// Feature containing the skipped item.
     feature: &'a str,
+    /// Scenario containing the skipped item.
     scenario: &'a str,
+    /// Source line of the scenario.
     line: u32,
+    /// Tags attached to the scenario.
     tags: &'a [String],
     #[serde(skip_serializing_if = "Option::is_none")]
+    /// Optional reason recorded for the skip.
     reason: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    /// Optional bypassed step definition.
     step: Option<SkippedDefinition<'a>>,
 }
 
 #[derive(Serialize)]
+/// JSON representation of a bypassed step definition.
 struct SkippedDefinition<'a> {
+    /// Gherkin keyword for the step.
     keyword: &'a str,
+    /// Registered step pattern.
     pattern: &'a str,
+    /// Source file containing the step definition.
     file: &'a str,
+    /// Source line containing the step definition.
     line: u32,
 }
 
@@ -112,6 +127,7 @@ impl<'a> From<&'a BypassedStep> for SkipReport<'a> {
     }
 }
 
+/// Parse the command line and dispatch the selected diagnostic.
 pub(crate) fn run() -> Result<()> {
     match Cli::parse().command {
         Commands::Steps(args) => handle_steps(&args)?,
@@ -122,6 +138,7 @@ pub(crate) fn run() -> Result<()> {
     Ok(())
 }
 
+/// Handle the `steps` diagnostic, including its optional JSON mode.
 fn handle_steps(args: &StepsArgs) -> Result<()> {
     if args.skipped {
         return handle_bypassed_steps(args.json);
@@ -135,8 +152,10 @@ fn handle_steps(args: &StepsArgs) -> Result<()> {
     )
 }
 
+/// Handle the `steps --unused` diagnostic.
 fn handle_unused() -> Result<()> { write_filtered_steps(|step| !step.used, None) }
 
+/// Handle the `steps --duplicates` diagnostic.
 fn handle_duplicates() -> Result<()> {
     let mut groups: HashMap<(String, String), Vec<Step>> = HashMap::new();
     for step in collect_registry()?.steps {
@@ -157,6 +176,7 @@ fn handle_duplicates() -> Result<()> {
         .wrap_err("failed to flush duplicate listing to stdout")
 }
 
+/// Handle the `steps --skipped` diagnostic.
 fn handle_bypassed_steps(json: bool) -> Result<()> {
     let registry = collect_registry()?;
     if json {
@@ -175,6 +195,7 @@ fn handle_bypassed_steps(json: bool) -> Result<()> {
         .wrap_err("failed to flush bypassed step listing")
 }
 
+/// Handle the `skipped` diagnostic.
 fn handle_skipped(args: &SkippedArgs) -> Result<()> {
     let registry = collect_registry()?;
     let skipped: Vec<_> = registry
@@ -204,6 +225,7 @@ fn handle_skipped(args: &SkippedArgs) -> Result<()> {
         .wrap_err("failed to flush skipped scenario listing")
 }
 
+/// Write steps selected by `filter`, optionally followed by scenarios.
 fn write_filtered_steps<F>(filter: F, scenarios: Option<ScenarioDisplayOptions>) -> Result<()>
 where
     F: Fn(&Step) -> bool,
@@ -223,6 +245,7 @@ where
         .wrap_err("failed to flush step listing to stdout")
 }
 
+/// Serialize skip reports as newline-terminated JSON.
 fn write_skip_reports_json(reports: &[SkipReport<'_>]) -> Result<()> {
     let mut stdout = io::stdout();
     serde_json::to_writer(&mut stdout, reports)

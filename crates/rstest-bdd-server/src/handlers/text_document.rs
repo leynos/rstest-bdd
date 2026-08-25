@@ -31,8 +31,10 @@ use crate::{
     server::ServerState,
 };
 
+/// Metric name for indexing outcomes.
 const INDEXING_COUNTER: &str = "rstest_bdd_server_indexing_total";
 
+/// Record one indexing operation outcome.
 fn record_indexing_outcome(operation: &'static str, outcome: &'static str) {
     describe_counter!(
         INDEXING_COUNTER,
@@ -41,6 +43,7 @@ fn record_indexing_outcome(operation: &'static str, outcome: &'static str) {
     counter!(INDEXING_COUNTER, "operation" => operation, "outcome" => outcome).increment(1);
 }
 
+/// Convert a feature indexing error to its fixed metric outcome.
 fn feature_indexing_outcome(error: &FeatureIndexError) -> &'static str {
     match error {
         FeatureIndexError::WorkspaceRootUnavailable => "workspace-root-unavailable",
@@ -52,6 +55,7 @@ fn feature_indexing_outcome(error: &FeatureIndexError) -> &'static str {
     }
 }
 
+/// Convert a Rust indexing error to its fixed metric outcome.
 fn rust_indexing_outcome(error: &RustStepIndexError) -> &'static str {
     match error {
         RustStepIndexError::Read(_) => "read-failure",
@@ -86,6 +90,7 @@ pub fn handle_did_save_text_document(state: &mut ServerState, params: DidSaveTex
     index_saved_document(state, params);
 }
 
+/// Route a saved document to the appropriate indexing pipeline.
 pub(super) fn index_saved_document(state: &mut ServerState, params: DidSaveTextDocumentParams) {
     let uri = params.text_document.uri;
     let Ok(path) = uri.to_file_path() else {
@@ -100,6 +105,7 @@ pub(super) fn index_saved_document(state: &mut ServerState, params: DidSaveTextD
     }
 }
 
+/// Index either supplied document text or the file on disk.
 fn index_saved_source<T, E>(
     path: &std::path::Path,
     text: Option<&str>,
@@ -112,6 +118,7 @@ fn index_saved_source<T, E>(
     )
 }
 
+/// Index a saved feature file and publish its resulting diagnostics.
 fn handle_feature_file_save(state: &mut ServerState, path: &std::path::Path, text: Option<&str>) {
     let index_result = index_saved_source(
         path,
@@ -128,6 +135,7 @@ fn handle_feature_file_save(state: &mut ServerState, path: &std::path::Path, tex
     );
 }
 
+/// Apply a feature indexing result and publish immediate diagnostics.
 pub(super) fn apply_feature_index_result(
     state: &mut ServerState,
     path: &std::path::Path,
@@ -158,6 +166,7 @@ pub(super) fn apply_feature_index_result(
     }
 }
 
+/// Index a saved Rust file and publish its resulting diagnostics.
 fn handle_rust_file_save(state: &mut ServerState, path: &std::path::Path, text: Option<&str>) {
     let index_result = index_saved_source(path, text, index_rust_file, index_rust_source);
 
@@ -169,6 +178,7 @@ fn handle_rust_file_save(state: &mut ServerState, path: &std::path::Path, text: 
     );
 }
 
+/// Apply a Rust indexing result and publish its diagnostics.
 pub(super) fn apply_rust_index_result(
     state: &mut ServerState,
     path: &std::path::Path,

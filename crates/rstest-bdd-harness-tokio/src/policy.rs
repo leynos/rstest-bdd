@@ -24,6 +24,7 @@ use rstest_bdd_harness::{AttributePolicy, TestAttribute};
 /// ```
 pub struct TokioAttributePolicy;
 
+/// Attributes emitted for generated Tokio scenario tests.
 const TOKIO_TEST_ATTRIBUTES: [TestAttribute; 2] = [
     TestAttribute::new("rstest::rstest"),
     TestAttribute::with_arguments("tokio::test", "flavor = \"current_thread\""),

@@ -75,6 +75,7 @@ pub struct StepPatternCompileError {
 }
 
 impl StepPatternCompileError {
+    /// Build a compilation error with context from an indexed step.
     fn new(path: &Path, step: &IndexedStepDefinition, source: PatternError) -> Self {
         Self {
             path: path.display().to_string().into_boxed_str(),
@@ -86,6 +87,7 @@ impl StepPatternCompileError {
     }
 }
 
+/// Render a function identifier with its module path.
 fn format_function_id(function: &RustFunctionId) -> String {
     if function.module_path.is_empty() {
         return function.name.clone();
@@ -97,15 +99,22 @@ fn format_function_id(function: &RustFunctionId) -> String {
 /// In-memory registry of compiled step patterns.
 #[derive(Debug, Default)]
 pub struct StepDefinitionRegistry {
+    /// Compiled steps grouped by their source file.
     steps_by_file: HashMap<PathBuf, Vec<Arc<CompiledStepDefinition>>>,
+    /// Compiled steps grouped by Gherkin keyword.
     steps_by_keyword: HashMap<StepType, Vec<Arc<CompiledStepDefinition>>>,
+    /// Reverse mapping from source files to keyword entries.
     reverse_index: HashMap<PathBuf, Vec<ReverseIndexEntry>>,
+    /// Positions of compiled steps within each keyword vector.
     keyword_positions: HashMap<StepType, HashMap<usize, usize>>,
 }
 
+/// Identifies one compiled step within a keyword index.
 #[derive(Debug, Clone, Copy)]
 struct ReverseIndexEntry {
+    /// Gherkin keyword containing the entry.
     keyword: StepType,
+    /// Stable pointer key for the compiled step.
     key: usize,
 }
 
@@ -122,6 +131,7 @@ impl StepDefinitionRegistry {
         errors
     }
 
+    /// Compile each indexed step definition for one Rust source file.
     #[expect(
         clippy::unused_self,
         reason = "method kept on the registry type to allow future use of configuration/state \
@@ -144,6 +154,7 @@ impl StepDefinitionRegistry {
         (compiled, errors)
     }
 
+    /// Insert compiled steps into the per-file and per-keyword indexes.
     #[expect(
         clippy::ptr_arg,
         reason = "signature uses &PathBuf to match the refactor contract; PathBuf cloning is \
@@ -191,6 +202,7 @@ impl StepDefinitionRegistry {
         }
     }
 
+    /// Remove one compiled step from its keyword index.
     fn remove_keyword_entry(&mut self, ReverseIndexEntry { keyword, key }: ReverseIndexEntry) {
         let Some(steps) = self.steps_by_keyword.get_mut(&keyword) else {
             return;
@@ -231,6 +243,7 @@ impl StepDefinitionRegistry {
     }
 }
 
+/// Compile one indexed step definition into a registry entry.
 fn compile_step_definition(
     path: &Path,
     step: &IndexedStepDefinition,

@@ -46,8 +46,11 @@ fn has_matching_implementation(state: &ServerState, step: &IndexedStep) -> bool 
 
 /// Specification for building a step diagnostic.
 pub(super) struct DiagnosticSpec {
+    /// Stable diagnostic code emitted to the client.
     pub(super) code: &'static str,
+    /// Human-readable diagnostic message.
     pub(super) message: String,
+    /// Optional range override for diagnostics with a specialized span.
     pub(super) custom_range: Option<Range>,
 }
 
@@ -79,7 +82,12 @@ pub(super) fn build_step_diagnostic(
 /// Kinds of diagnostics that can be reported for feature steps.
 pub(super) enum FeatureStepDiagnosticKind {
     /// No Rust implementation found for the step.
-    UnimplementedStep { keyword: String, text: String },
+    UnimplementedStep {
+        /// Step keyword used in the diagnostic message.
+        keyword: String,
+        /// Step text used in the diagnostic message.
+        text: String,
+    },
     /// Feature step has a data table but implementation doesn't expect one.
     TableNotExpected,
     /// Implementation expects a data table but feature step doesn't have one.

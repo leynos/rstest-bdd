@@ -17,15 +17,23 @@ use identifiers::{WrapperIdents, generate_wrapper_identifiers, next_wrapper_id};
 
 /// Configuration required to generate a wrapper.
 pub(crate) struct WrapperConfig<'a> {
+    /// Stores the internal `ident` value.
     pub(crate) ident: &'a syn::Ident,
+    /// Stores the internal `is_async_step` value.
     pub(crate) is_async_step: bool,
+    /// Stores the internal `args` value.
     pub(crate) args: &'a ExtractedArgs,
+    /// Stores the internal `pattern` value.
     pub(crate) pattern: &'a syn::LitStr,
+    /// Stores the internal `keyword` value.
     pub(crate) keyword: crate::StepKeyword,
+    /// Stores the internal `placeholder_names` value.
     pub(crate) placeholder_names: &'a [syn::LitStr],
     /// Optional type hints for each placeholder, parallel to `placeholder_names`.
     pub(crate) placeholder_hints: &'a [Option<String>],
+    /// Stores the internal `capture_count` value.
     pub(crate) capture_count: usize,
+    /// Stores the internal `return_kind` value.
     pub(crate) return_kind: ReturnKind,
 }
 
@@ -207,6 +215,7 @@ fn generate_registration_code(
     }
 }
 
+/// Provides the internal `effective_fixture_type` operation.
 fn effective_fixture_type(ty: &syn::Type) -> &syn::Type {
     match ty {
         syn::Type::Reference(reference) if !is_unsized_reference_target(&reference.elem) => {
@@ -216,6 +225,7 @@ fn effective_fixture_type(ty: &syn::Type) -> &syn::Type {
     }
 }
 
+/// Provides the internal `is_unsized_reference_target` operation.
 fn is_unsized_reference_target(ty: &syn::Type) -> bool {
     matches!(
         ty,

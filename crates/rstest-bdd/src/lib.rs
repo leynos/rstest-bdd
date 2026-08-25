@@ -204,8 +204,8 @@ pub enum StepError {
     },
 }
 
-// Macro that maps `StepError` variants to their Fluent identifiers without
-// repeating localization boilerplate in each match arm.
+/// Map `StepError` variants to their Fluent identifiers without repeating
+/// localization boilerplate in each match arm.
 macro_rules! step_error_message {
     (
         $self:expr,

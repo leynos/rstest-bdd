@@ -17,122 +17,80 @@ use crate::return_classifier::ReturnKind;
 
 mod async_wrapper;
 mod body;
+mod lint_config;
 
-const WRAPPER_EXPECT_REASON: &str = "rstest-bdd step wrapper pattern requires these patterns for \
-                                     parameter extraction, Result normalization, and \
-                                     closure-based error handling";
-const LINT_SHADOW_REUSE: &str = "clippy::shadow_reuse";
-const LINT_UNNECESSARY_WRAPS: &str = "clippy::unnecessary_wraps";
-const LINT_STR_TO_STRING: &str = "clippy::str_to_string";
-const LINT_REDUNDANT_CLOSURE_FOR_METHOD_CALLS: &str = "clippy::redundant_closure_for_method_calls";
-const LINT_NEEDLESS_PASS_BY_VALUE: &str = "clippy::needless_pass_by_value";
-const LINT_REDUNDANT_CLOSURE: &str = "clippy::redundant_closure";
-const LINT_NEEDLESS_LIFETIMES: &str = "clippy::needless_lifetimes";
+#[cfg(test)]
+use lint_config::{
+    LINT_NEEDLESS_PASS_BY_VALUE,
+    LINT_REDUNDANT_CLOSURE,
+    LINT_REDUNDANT_CLOSURE_FOR_METHOD_CALLS,
+    LINT_SHADOW_REUSE,
+    LINT_STR_TO_STRING,
+    LINT_UNNECESSARY_WRAPS,
+    WRAPPER_EXPECT_REASON,
+};
+use lint_config::{WrapperLintConfig, generate_expect_attribute, wrapper_expect_lint_paths};
 
 /// Prepared wrapper inputs consumed by `assemble_wrapper_function`.
 struct WrapperAssembly<'a> {
+    /// Stores the internal `meta` value.
     meta: StepMeta<'a>,
+    /// Stores the internal `prepared` value.
     prepared: PreparedArgs,
+    /// Stores the internal `arg_idents` value.
     arg_idents: Vec<syn::Ident>,
+    /// Stores the internal `capture_count` value.
     capture_count: usize,
+    /// Stores the internal `return_kind` value.
     return_kind: ReturnKind,
 }
 
 /// Identifiers used during wrapper generation.
 #[derive(Copy, Clone)]
 struct WrapperIdentifiers<'a> {
+    /// Stores the internal `wrapper` value.
     wrapper: &'a proc_macro2::Ident,
+    /// Stores the internal `pattern` value.
     pattern: &'a proc_macro2::Ident,
+    /// Stores the internal `ctx` value.
     ctx: &'a proc_macro2::Ident,
+    /// Stores the internal `text` value.
     text: &'a proc_macro2::Ident,
 }
 
 /// Context struct groups related render inputs.
 struct WrapperRenderContext<'a> {
+    /// Stores the internal `errors` value.
     errors: WrapperErrors,
+    /// Stores the internal `capture_count` value.
     capture_count: usize,
+    /// Stores the internal `call_expr` value.
     call_expr: &'a TokenStream2,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq)]
+/// Documents the internal `WrapperKind` item.
 enum WrapperKind {
+    /// Represents the internal validation outcome.
     Sync,
+    /// Represents the internal validation outcome.
     Async,
-}
-
-#[derive(Copy, Clone)]
-struct WrapperLintConfig {
-    capture_count: usize,
-    has_step_struct: bool,
-    has_step_arg_quote_strip: bool,
-    return_kind: ReturnKind,
-    wrapper_kind: WrapperKind,
-}
-
-fn wrapper_expect_lint_names(config: WrapperLintConfig) -> Vec<&'static str> {
-    let mut lints = Vec::new();
-    if config.has_step_arg_quote_strip {
-        lints.push(LINT_SHADOW_REUSE);
-    }
-    if matches!(config.return_kind, ReturnKind::Unit | ReturnKind::Value) {
-        lints.push(LINT_UNNECESSARY_WRAPS);
-    }
-    let has_placeholders = config.capture_count > 0;
-    if config.has_step_struct && has_placeholders {
-        lints.push(LINT_STR_TO_STRING);
-    }
-    if has_placeholders {
-        lints.push(LINT_REDUNDANT_CLOSURE_FOR_METHOD_CALLS);
-    }
-    if config.wrapper_kind == WrapperKind::Async {
-        lints.push(LINT_NEEDLESS_LIFETIMES);
-    }
-    lints.push(LINT_NEEDLESS_PASS_BY_VALUE);
-    lints.push(LINT_REDUNDANT_CLOSURE);
-    lints
-}
-
-fn lint_path_from_str(lint: &str) -> syn::Path {
-    let mut segments = syn::punctuated::Punctuated::new();
-    for segment in lint.split("::") {
-        let ident = syn::Ident::new(segment, proc_macro2::Span::call_site());
-        segments.push(syn::PathSegment::from(ident));
-    }
-    syn::Path {
-        leading_colon: None,
-        segments,
-    }
-}
-
-fn wrapper_expect_lint_paths(config: WrapperLintConfig) -> Vec<syn::Path> {
-    wrapper_expect_lint_names(config)
-        .iter()
-        .map(|lint| lint_path_from_str(lint))
-        .collect()
-}
-
-/// Generate the expect attribute for suppressing known Clippy lints in wrapper functions.
-fn generate_expect_attribute(lint_paths: &[syn::Path]) -> TokenStream2 {
-    if lint_paths.is_empty() {
-        return TokenStream2::new();
-    }
-    quote! {
-        #[expect(
-            #(#lint_paths,)*
-            reason = #WRAPPER_EXPECT_REASON
-        )]
-    }
 }
 
 /// Code fragments for wrapper function generation.
 #[derive(Copy, Clone)]
 struct WrapperCodeFragments<'a> {
+    /// Stores the internal `path` value.
     path: &'a TokenStream2,
+    /// Stores the internal `expect_attr` value.
     expect_attr: &'a TokenStream2,
+    /// Stores the internal `capture_validation` value.
     capture_validation: &'a TokenStream2,
+    /// Stores the internal `unwind_handling` value.
     unwind_handling: &'a TokenStream2,
 }
 
+/// Provides the internal `generate_sync_unwind_handling` operation.
 fn generate_sync_unwind_handling(
     path: &TokenStream2,
     call_expr: &TokenStream2,
@@ -176,6 +134,7 @@ fn generate_wrapper_body_tokens(
     }
 }
 
+/// Provides the internal `generate_sync_wrapper_quote` operation.
 fn generate_sync_wrapper_quote(
     identifiers: WrapperIdentifiers<'_>,
     prepared: &PreparedArgs,
@@ -210,6 +169,7 @@ fn generate_sync_wrapper_quote(
     }
 }
 
+/// Provides the internal `generate_async_wrapper_quote` operation.
 fn generate_async_wrapper_quote(
     identifiers: WrapperIdentifiers<'_>,
     prepared: &PreparedArgs,

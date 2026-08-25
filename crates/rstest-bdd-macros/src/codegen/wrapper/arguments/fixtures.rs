@@ -8,10 +8,15 @@ use crate::codegen::rstest_bdd_path;
 /// Context for generating fixture declarations in step wrappers.
 #[derive(Copy, Clone)]
 struct FixtureDeclContext<'a> {
+    /// Stores the internal `binding` value.
     binding: &'a syn::Ident,
+    /// Stores the internal `name` value.
     name: &'a syn::Ident,
+    /// Stores the internal `ty` value.
     ty: &'a syn::Type,
+    /// Stores the internal `ident` value.
     ident: &'a syn::Ident,
+    /// Stores the internal `ctx_ident` value.
     ctx_ident: &'a proc_macro2::Ident,
 }
 
@@ -29,27 +34,40 @@ fn gen_missing_fixture_error(ctx: &FixtureDeclContext<'_>, fixture_ty: &syn::Typ
 }
 
 #[derive(Copy, Clone)]
+/// Documents the internal `BorrowKind` item.
 enum BorrowKind {
+    /// Represents the internal validation outcome.
     Mutable,
+    /// Represents the internal validation outcome.
     Immutable,
 }
 
 #[derive(Copy, Clone)]
+/// Documents the internal `ValueExtraction` item.
 enum ValueExtraction {
+    /// Represents the internal validation outcome.
     MutRef,
+    /// Represents the internal validation outcome.
     DerefValue,
+    /// Represents the internal validation outcome.
     ClonedValue,
 }
 
 #[derive(Copy, Clone)]
+/// Internal data used by the macros implementation.
 struct FixtureDeclConfig<'a> {
+    /// Stores the internal `borrow_ty` value.
     borrow_ty: &'a syn::Type,
+    /// Stores the internal `error_ty` value.
     error_ty: &'a syn::Type,
+    /// Stores the internal `borrow_kind` value.
     borrow_kind: BorrowKind,
+    /// Stores the internal `value_extraction` value.
     value_extraction: ValueExtraction,
 }
 
 impl<'a> FixtureDeclConfig<'a> {
+    /// Documents the internal `fn` item.
     const fn new(
         borrow_ty: &'a syn::Type,
         error_ty: &'a syn::Type,
@@ -65,6 +83,7 @@ impl<'a> FixtureDeclConfig<'a> {
     }
 }
 
+/// Provides the internal `gen_fixture_decl_inner` operation.
 fn gen_fixture_decl_inner(
     ctx: FixtureDeclContext<'_>,
     config: FixtureDeclConfig<'_>,
@@ -100,11 +119,13 @@ fn gen_fixture_decl_inner(
     }
 }
 
+/// Provides the internal `gen_mut_ref_fixture_decl` operation.
 fn gen_mut_ref_fixture_decl(ctx: FixtureDeclContext<'_>, elem: &syn::Type) -> TokenStream2 {
     let config = FixtureDeclConfig::new(elem, elem, BorrowKind::Mutable, ValueExtraction::MutRef);
     gen_fixture_decl_inner(ctx, config)
 }
 
+/// Provides the internal `gen_unsized_ref_fixture_decl` operation.
 fn gen_unsized_ref_fixture_decl(ctx: FixtureDeclContext<'_>, _elem: &syn::Type) -> TokenStream2 {
     let config = FixtureDeclConfig::new(
         ctx.ty,
@@ -115,6 +136,7 @@ fn gen_unsized_ref_fixture_decl(ctx: FixtureDeclContext<'_>, _elem: &syn::Type) 
     gen_fixture_decl_inner(ctx, config)
 }
 
+/// Provides the internal `gen_sized_ref_fixture_decl` operation.
 fn gen_sized_ref_fixture_decl(ctx: FixtureDeclContext<'_>, elem: &syn::Type) -> TokenStream2 {
     let missing_err = gen_missing_fixture_error(&ctx, elem);
     let FixtureDeclContext {
@@ -153,6 +175,7 @@ fn gen_sized_ref_fixture_decl(ctx: FixtureDeclContext<'_>, elem: &syn::Type) -> 
     }
 }
 
+/// Provides the internal `gen_owned_fixture_decl` operation.
 fn gen_owned_fixture_decl(ctx: FixtureDeclContext<'_>) -> TokenStream2 {
     let config = FixtureDeclConfig::new(
         ctx.ty,
@@ -207,6 +230,7 @@ pub(super) fn gen_fixture_decls(
         .collect()
 }
 
+/// Provides the internal `is_unsized_reference_target` operation.
 fn is_unsized_reference_target(ty: &syn::Type) -> bool {
     matches!(
         ty,
