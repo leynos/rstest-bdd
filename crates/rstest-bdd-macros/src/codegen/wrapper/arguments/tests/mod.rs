@@ -2,6 +2,7 @@
 
 mod bindings;
 mod helpers;
+mod prop_tests;
 
 use helpers::{
     bind_args,

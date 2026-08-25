@@ -103,7 +103,9 @@ pub const RSTEST_BDD_HARNESS_CONTEXT_FIXTURE: &str = "rstest_bdd_harness_context
 /// ```
 #[derive(Default)]
 pub struct StepContext<'a> {
-    /// Shared-reference fixtures indexed by their generated names.
+    /// Fixtures indexed by name, with shared-reference and mutable storage
+    /// variants inserted by [`insert`](Self::insert) and
+    /// [`insert_owned`](Self::insert_owned).
     fixtures: HashMap<&'static str, FixtureEntry<'a>>,
     /// Owned type-erased values returned by previous steps.
     values: HashMap<&'static str, RefCell<Box<dyn Any>>>,
@@ -320,12 +322,12 @@ impl<'a> StepContext<'a> {
                 crate::localization::message_with_args("step-context-ambiguous-override", |args| {
                     args.set("type_id", format!("{ty:?}"));
                 });
-            log::warn!("{message}");
+            log::warn!(target: module_path!(), "{message}");
             #[expect(
                 clippy::print_stderr,
                 reason = "surface ambiguous overrides when logging is disabled"
             )]
-            if warn_logging_is_disabled() {
+            if warn_logging_is_disabled(module_path!()) {
                 eprintln!("{message}");
             }
             return InsertOutcome::AmbiguousIgnored;

@@ -44,7 +44,7 @@ impl<'a> FixtureEntry<'a> {
         }
     }
 
-    /// Create an entry backed by an owned, mutable cell.
+    /// Create an entry backed by a borrowed cell containing an owned value.
     pub(super) fn owned<T: Any>(cell: &'a RefCell<Box<dyn Any>>) -> Self {
         Self {
             kind: FixtureKind::Mutable(cell),

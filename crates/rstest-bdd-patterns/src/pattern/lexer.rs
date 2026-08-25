@@ -119,7 +119,7 @@ pub fn lex_pattern(pattern: &str) -> Result<Vec<Token>, PatternError> {
     Ok(context.into_tokens())
 }
 
-/// Preserve the escaped character as literal text, including a trailing slash.
+/// Preserve the escaped character as literal text, including a trailing backslash.
 fn handle_backslash(context: &mut LexerContext<'_>) {
     if let Some((_, next)) = context.iter.next() {
         context.literal.push(next);

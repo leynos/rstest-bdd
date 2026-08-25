@@ -7,9 +7,11 @@ use std::sync::atomic::{AtomicU8, Ordering};
 
 /// Atomic state value meaning that no process-local override is set.
 const OVERRIDE_UNSET: u8 = 0;
-/// Atomic state value meaning that skipped scenarios must fail.
+/// Atomic state value representing `Some(false)` for the skipped-scenario
+/// failure policy.
 const OVERRIDE_FALSE: u8 = 1;
-/// Atomic state value meaning that skipped scenarios must not fail.
+/// Atomic state value representing `Some(true)` for the skipped-scenario
+/// failure policy.
 const OVERRIDE_TRUE: u8 = 2;
 
 /// Process-local override for the skipped-scenario failure policy.

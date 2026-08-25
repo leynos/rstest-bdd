@@ -22,37 +22,37 @@ use super::parser::Parser;
 /// Parsed representation of a tag expression.
 #[derive(Clone, Debug)]
 pub(crate) struct TagExpression {
-    /// Stores the internal `root` value.
+    /// Root node of the parsed tag-expression tree.
     root: Expr,
 }
 
-/// Internal alias for shared implementation data.
+/// Set of input tags used when evaluating a parsed expression.
 type TagSet<'tags> = HashSet<Cow<'tags, str>>;
 
+/// Node in the parsed tag-expression tree.
 #[derive(Clone, Debug)]
-/// Documents the internal `Expr` item.
 pub(super) enum Expr {
-    /// Represents the internal validation outcome.
+    /// Predicate matching one tag.
     Tag(String),
-    /// Represents the internal validation outcome.
+    /// Negation of a nested expression.
     Not(Box<Self>),
-    /// Represents the internal validation outcome.
+    /// Conjunction of two expressions.
     And(Box<Self>, Box<Self>),
-    /// Represents the internal validation outcome.
+    /// Disjunction of two expressions.
     Or(Box<Self>, Box<Self>),
 }
 
+/// Parse error carrying the byte offset and reason for the failure.
 #[derive(Debug)]
-/// Internal data used by the macros implementation.
 pub(crate) struct TagExprError {
-    /// Stores the internal `offset` value.
+    /// Byte offset at which parsing failed.
     offset: usize,
-    /// Stores the internal `reason` value.
+    /// Explanation of the parse failure.
     reason: String,
 }
 
 impl TagExprError {
-    /// Documents the internal `new` item.
+    /// Construct an error from a byte offset and failure reason.
     pub(super) fn new(offset: usize, reason: impl Into<String>) -> Self {
         Self {
             offset,

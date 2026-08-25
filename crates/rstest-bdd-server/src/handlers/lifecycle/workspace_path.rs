@@ -4,10 +4,10 @@ use std::path::PathBuf;
 
 use lsp_types::{Url, WorkspaceFolder};
 
-/// Extract a workspace path from workspace folders.
+/// Extract a workspace path from the first workspace folder.
 ///
-/// Returns the path of the first workspace folder with a file:// scheme. When
-/// no folders are provided, the root URI is used (for single-root clients).
+/// If that folder is not a file URI, or no folders are provided, the root URI
+/// is used instead.
 pub(super) fn extract_workspace_path(
     workspace_folders: &[WorkspaceFolder],
     root_uri: Option<&Url>,
