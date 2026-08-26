@@ -261,6 +261,11 @@ terminal step index. The final names and representation remain subject to the
 Stage 1 compatibility review, but these accessors and source semantics are
 binding.
 
+Each terminal outcome contains exactly one `StepOutcome` for every invocation
+in the plan, in plan order. After a terminal skip or failure, every remaining
+invocation is recorded as `Bypassed`; diagnostics or reporter configuration
+must not change this sequence.
+
 `SourceLocation` consists of a path, a one-based line, and an optional one-based
 column measured in Unicode scalar values. Locations are never added to
 `ExecutionError` and are never inferred by parsing error strings.
@@ -294,19 +299,23 @@ The runner owns the following sequence:
 5. Insert any returned value into `StepContext` under the existing unique-type
    rule.
 6. Record the completed step outcome.
-7. Stop after a skip or failure and mark later steps as bypassed where reporting
-   requires it.
+7. Stop after a skip or failure and append a `Bypassed` outcome for every
+   remaining invocation, regardless of reporting or diagnostics configuration.
 8. Run after-scenario cleanup on every terminal path.
 9. Return `Passed`, `Skipped`, or `Failed` without panicking.
 
 This sequence becomes normative. Macro code generation may construct static
 arrays and adapters, but it must not carry an independent result-handling loop.
 
-
 ### Skip parity
 
 A successfully skipped step remains `Skipped` in every configuration. Its
 `forced_failure` value is exactly `!allow_skipped && fail_on_skipped`.
+The runner resolves `fail_on_skipped` once per run, using programmatic
+configuration first, then `RSTEST_BDD_FAIL_ON_SKIPPED`, and finally `false`.
+Both runner forms use that resolved value. Macro-generated tests and external
+frontends must use the same resolution rather than implementing separate
+skip-failure policy.
 
 | `allow_skipped` | `fail_on_skipped` | Step outcome | `forced_failure` |
 | --- | --- | --- | --- |
@@ -318,7 +327,6 @@ A successfully skipped step remains `Skipped` in every configuration. Its
 The verification suite must execute and assert all four rows. They are part of
 the parity contract, including when an aggregate caller later treats a forced
 skip as a failure.
-
 
 ### Lifecycle and outcome contract
 
@@ -339,7 +347,6 @@ primary before or step failure exists. When there is no primary failure,
 including a normal skipped terminal, an after failure returns `Failed` and is
 attributed to the after lifecycle. The public outcome must expose this primary
 versus cleanup distinction without requiring these illustrative type names.
-
 
 ### Asynchronous cancellation
 
@@ -466,7 +473,9 @@ verification must cover policy, not merely API examples.
    outcomes.
 3. **Skip parity tests.** Exercise the four `allow_skipped` and
    `fail_on_skipped` combinations and assert `Skipped` plus the exact
-   `forced_failure` rule.
+   `forced_failure` rule. Vary the programmatic, environment, and default
+   sources of `fail_on_skipped`, then compare synchronous, asynchronous,
+   macro-generated, and external-frontend paths using the same resolved value.
 4. **Lifecycle tests.** In coordination with ADR 012, prove before-scenario and
    after-scenario hooks run exactly once on before failure, step pass, skip,
    failure, resolution or fixture failure, and panic or unwind. Assert primary
@@ -532,7 +541,6 @@ lifecycle interactions grow beyond those tests.
   crate split or optional dependency.
 - Parallel scenario execution remains a caller concern. The runner executes one
   scenario; it does not schedule suites.
-
 
 ## Implementation follow-ups
 

@@ -1185,7 +1185,6 @@ an assertion cannot disappear behind macro classification or generated code.
 [implicit-fixture-guide]: users-guide.md#implicit-fixture-injection
 [implicit-fixture-trybuild]: ../crates/rstest-bdd/tests/ui_macros/implicit_fixture_missing.rs
 
-
 ## 13. Parser-neutral scenario execution
 
 Idea: if the runtime owns a parser-neutral plan and structured terminal
@@ -1198,7 +1197,6 @@ frontend. The first step makes the runtime contract directly testable; the
 second transfers the existing Gherkin frontend to that contract; and the final
 step proves that a non-Gherkin caller can preserve its own source information
 and process policy.
-
 
 ### 13.1. Establish the source-neutral runtime contract
 
