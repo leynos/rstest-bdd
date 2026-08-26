@@ -131,7 +131,7 @@ struct WindowRegistryState {
 }
 
 impl WindowRegistryState {
-    /// Initialize empty state with a unique registry provenance identity.
+    /// Initialise empty state with a unique registry provenance identity.
     fn new() -> Self {
         Self {
             registry_id: NEXT_REGISTRY_ID.fetch_add(1, Ordering::Relaxed),
