@@ -98,12 +98,23 @@ pub fn test(args: TokenStream, input: TokenStream) -> TokenStream {
     expanded.into()
 }
 
+/// Generated statements and arguments that isolate each injected test context.
+///
+/// Keeping creation and teardown alongside their corresponding argument list
+/// ensures the expansion drains and closes every context that it constructs.
 struct ContextSetup {
+    /// Statements that construct the mutable contexts before the test body.
     setup: Vec<proc_macro2::TokenStream>,
+    /// Borrowed context arguments passed to the annotated test function.
     args: Vec<proc_macro2::TokenStream>,
+    /// Statements that drain and close contexts after the test body returns.
     teardown: Vec<proc_macro2::TokenStream>,
 }
 
+/// Reject signature forms the shim cannot execute while preserving error spans.
+///
+/// The generated wrapper needs concrete context bindings, so generic functions
+/// and receiver parameters have no sound expansion in this limited test API.
 fn validate_signature(signature: &Signature) -> syn::Result<()> {
     if !signature.generics.params.is_empty() {
         return Err(Error::new_spanned(
@@ -126,6 +137,10 @@ fn validate_signature(signature: &Signature) -> syn::Result<()> {
     Ok(())
 }
 
+/// Confirm that one injected parameter is a reference to the test context.
+///
+/// This intentionally rejects arbitrary references because every argument is
+/// supplied by a newly constructed `gpui::TestAppContext`.
 fn validate_argument(argument: &PatType) -> syn::Result<()> {
     let Type::Reference(reference) = argument.ty.as_ref() else {
         return Err(Error::new_spanned(
@@ -137,6 +152,10 @@ fn validate_argument(argument: &PatType) -> syn::Result<()> {
     validate_context_reference(reference)
 }
 
+/// Validate the terminal type name of a context reference at its source span.
+///
+/// The shim accepts qualified context paths, but reports the offending type
+/// directly when the final segment cannot be provided by its generated setup.
 fn validate_context_reference(reference: &TypeReference) -> syn::Result<()> {
     let Type::Path(path) = reference.elem.as_ref() else {
         return Err(Error::new_spanned(
@@ -159,6 +178,10 @@ fn validate_context_reference(reference: &TypeReference) -> syn::Result<()> {
     }
 }
 
+/// Generate context construction, argument borrowing, and deterministic teardown.
+///
+/// Every supplied context is drained before and after it is quit, preventing
+/// pending tasks from leaking between attempts in the generated test wrapper.
 fn build_context_setup(
     signature: &Signature,
     declared_name: &syn::Ident,

@@ -25,10 +25,13 @@ use std::{
 
 use crate::TestAppContext;
 
+/// Allocates process-unique registry identities for rejecting foreign handles.
 static NEXT_REGISTRY_ID: AtomicU64 = AtomicU64::new(1);
 
+/// Owns the mutable window/entity state for one `TestAppContext`.
 #[derive(Clone, Debug)]
 pub(crate) struct WindowRegistry {
+    /// Shared interior state so visual contexts retain access after construction.
     inner: Rc<RefCell<WindowRegistryState>>,
 }
 
@@ -41,6 +44,10 @@ impl Default for WindowRegistry {
 }
 
 impl WindowRegistry {
+    /// Allocate a window/entity pair before invoking the view constructor.
+    ///
+    /// Reserving both identifiers first lets the constructor retain a visual
+    /// context that can address the newly created window.
     pub(crate) fn add_window_view<T>(
         &self,
         build_view: impl FnOnce(&mut VisualTestContext) -> T,
@@ -73,12 +80,18 @@ impl WindowRegistry {
         (entity, visual_context)
     }
 
+    /// Return a snapshot of handles owned by this registry.
     pub(crate) fn handles(&self) -> Vec<AnyWindowHandle> { self.inner.borrow().windows.clone() }
 
+    /// Report whether a handle belongs to this registry's window set.
     pub(crate) fn contains(&self, window: AnyWindowHandle) -> bool {
         self.inner.borrow().windows.contains(&window)
     }
 
+    /// Store a view under the window and typed handle allocated for it.
+    ///
+    /// Callers must have allocated both values from this registry; later reads
+    /// verify that ownership before downcasting the erased value.
     fn insert_entity<T>(&self, window: AnyWindowHandle, entity: Entity<T>, view: T)
     where
         T: 'static,
@@ -93,22 +106,32 @@ impl WindowRegistry {
     }
 }
 
+/// Type-erased entity storage paired with its owning window.
 #[derive(Debug)]
 struct StoredEntity {
+    /// Window permitted to access this value.
     window: AnyWindowHandle,
+    /// Runtime-erased view value, downcast only through a matching `Entity<T>`.
     value: Box<dyn Any>,
 }
 
+/// Mutable bookkeeping for the windows and entities of one test context.
 #[derive(Debug)]
 struct WindowRegistryState {
+    /// Process-unique provenance used to reject foreign handles.
     registry_id: u64,
+    /// Last entity identity issued by this registry.
     next_entity_id: u64,
+    /// Last window identity issued by this registry.
     next_window_id: u64,
+    /// Handles returned to callers in creation order.
     windows: Vec<AnyWindowHandle>,
+    /// Type-erased entity values indexed by their stable identity.
     entities: HashMap<u64, StoredEntity>,
 }
 
 impl WindowRegistryState {
+    /// Initialise empty state with a unique registry provenance identity.
     fn new() -> Self {
         Self {
             registry_id: NEXT_REGISTRY_ID.fetch_add(1, Ordering::Relaxed),
@@ -123,8 +146,11 @@ impl WindowRegistryState {
 /// Durable typed handle for an entity stored in a GPUI test window.
 #[derive(Debug)]
 pub struct Entity<T> {
+    /// Registry that created this handle and therefore owns its entity value.
     registry_id: u64,
+    /// Stable identity used as the entity-store key.
     id: u64,
+    /// Retains the entity's compile-time type without storing a `T` value.
     _marker: PhantomData<fn() -> T>,
 }
 
@@ -143,7 +169,9 @@ impl<T> Copy for Entity<T> {}
 /// Type-erased durable handle for a GPUI test window.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct AnyWindowHandle {
+    /// Registry that created this handle and therefore owns its window.
     registry_id: u64,
+    /// Stable identity used to distinguish windows within the registry.
     id: u64,
 }
 
@@ -157,7 +185,10 @@ impl AnyWindowHandle {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum EntityError {
     /// The entity handle does not identify an entity of the expected type.
-    NotFound { id: u64 },
+    NotFound {
+        /// Stable identifier from the handle that could not be resolved.
+        id: u64,
+    },
 }
 
 impl fmt::Display for EntityError {
@@ -176,7 +207,9 @@ impl Error for EntityError {}
 /// Window-bound visual context reconstructed during GPUI tests.
 #[derive(Clone, Debug)]
 pub struct VisualTestContext {
+    /// Window to which all reads and writes through this context are confined.
     window: AnyWindowHandle,
+    /// Shared state that validates registry and window ownership before access.
     registry: Rc<RefCell<WindowRegistryState>>,
 }
 
@@ -195,6 +228,11 @@ impl VisualTestContext {
     pub const fn window_handle(&self) -> AnyWindowHandle { self.window }
 
     /// Mutates an entity when the handle identifies a value of the expected type.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`EntityError::NotFound`] when the handle comes from another
+    /// registry or window, or when it identifies a different concrete type.
     pub fn update_entity<T>(
         &mut self,
         entity: Entity<T>,
@@ -227,10 +265,12 @@ impl VisualTestContext {
             .map(read)
     }
 
+    /// Bind a visual context to one known window and its registry state.
     fn new(window: AnyWindowHandle, registry: Rc<RefCell<WindowRegistryState>>) -> Self {
         Self { window, registry }
     }
 
+    /// Borrow a typed entity only when its registry and window match this context.
     fn entity_mut<T>(&mut self, entity: Entity<T>) -> Option<RefMut<'_, T>>
     where
         T: 'static,
