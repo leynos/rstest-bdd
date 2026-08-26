@@ -1992,7 +1992,7 @@ fn given_shell_open(
 ) -> StepResult<()> {
     let (shell, visual_cx) = cx.add_window_view(|_context| Shell::default());
     world.shell = Some(shell);
-    world.visual_cx = Some(visual_cx);
+    world.window = Some(visual_cx.window_handle());
     Ok(())
 }
 ```
@@ -2000,7 +2000,9 @@ fn given_shell_open(
 Generated wrappers must borrow mutable harness context and mutable world state
 from the same `StepContext` before calling that function. The current
 `borrow_mut(&mut self, ...)` contract makes that pair the troublesome part, not
-the step body itself.
+the step body itself. The snippet already stores only the durable window
+handle, as §2.7.6.2 requires, so the rejection turns solely on the two mutable
+fixture parameters.
 
 ##### 2.7.6.2 Interim GPUI state pattern
 

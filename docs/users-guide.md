@@ -1326,17 +1326,17 @@ both `&mut TestAppContext` and shared mutable scenario state, which the v0.6
 
 ##### Durable handles versus visual context
 
-`gpui::TestAppContext::add_window_view` creates a test window and returns
-`(Entity<T>, VisualTestContext)`. `Entity<T>` is the typed, durable handle to
-the stored view; `VisualTestContext::window_handle()` returns the
-`AnyWindowHandle` that identifies the window itself. Both are cheap to copy and
-remain valid across steps. `VisualTestContext`, by contrast, borrows from the
+`gpui::TestAppContext::add_window_view` creates a test window and returns the
+typed view entity plus a visual context. The vendored fork returns
+`(Entity<T>, VisualTestContext)` by value; published `gpui 0.2.2` returns
+`(Entity<T>, &mut VisualTestContext)`. `Entity<T>` is the typed, durable handle
+to the stored view, and `VisualTestContext::window_handle()` returns the
+`AnyWindowHandle` that identifies the window itself. Both handles remain valid
+across steps. `VisualTestContext`, by contrast, is tied to the
 `TestAppContext` it was created against and must not be stored across steps: a
-later step is handed a fresh `&mut TestAppContext` from the harness, so any
-saved `VisualTestContext` would be tied to a stale borrow. Stateful steps
-therefore store `Entity<T>` and `AnyWindowHandle` only, and rebuild a fresh
-`VisualTestContext` inside each step that needs visual interaction using
-`gpui::VisualTestContext::from_window(window, &mut cx)`.
+later step receives a fresh `&mut TestAppContext` from the harness. Stateful
+steps therefore store `Entity<T>` and `AnyWindowHandle` only, and rebuild a
+fresh `VisualTestContext` inside each step that needs visual interaction.
 
 ##### Reset protocol
 
@@ -1378,11 +1378,14 @@ test-group matrix.
 
 #### Worked example
 
-The snippets below mirror the regression suite at
-`crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` identifier for
-identifier. Treat that file as the executable reference: if a snippet here
+The scenario-state and vendored call-site snippets below mirror the regression
+suite at
+`crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` exactly. Treat that
+file as the executable reference: if a snippet here
 drifts from the suite, the suite wins and this section should be updated to
-match.
+match. Projects consuming published `gpui 0.2.2` should use the parallel
+[published call-site variants](#published-gpui-022-stateful-step-variants)
+instead.
 
 The first snippet declares the scenario-state container, the two reset helpers,
 the `Drop`-based cleanup type, and the two `#[scenario]` functions that bind to
@@ -1544,6 +1547,101 @@ panic-on-invariant-violation `let … else { panic!(…) }` branches and
 `StepResult` within the same playbook reads ambiguously, so pick one shape per
 scenario.
 
+### Published gpui 0.2.2 stateful step variants
+
+Projects that depend on `gpui = "0.2.2"` from crates.io can reuse the
+scenario-state container, reset helpers, cleanup fixture, and scenario
+functions above unchanged. Replace the vendored `#[given]`, `#[when]`, and
+`#[then]` call sites with the variants below. The published methods used here
+come from the `AppContext` and `VisualContext` traits, so both traits must be
+in scope. Anonymous imports keep their names from colliding with application
+types.
+
+The published `#[given]` passes the window and view context to the view
+constructor. `add_window_view` binds `visual_context` as
+`&mut VisualTestContext`; copy the window handle before storing only the
+durable handles:
+
+```rust,ignore
+use gpui::{AppContext as _, VisualContext as _};
+use rstest_bdd_macros::given;
+
+#[given("a fresh GPUI window is opened")]
+fn fresh_gpui_window_is_opened(
+    #[from(rstest_bdd_harness_context)] context: &mut gpui::TestAppContext,
+) {
+    let stale_window_count = with_state(|state| usize::from(state.window.is_some()));
+    reset_state_before_assignment();
+
+    let (entity, visual_context) =
+        context.add_window_view(|_window, view_cx| CounterView::new(view_cx));
+    let window = visual_context.window_handle();
+
+    with_state(|state| {
+        state.entity = Some(entity);
+        state.window = Some(window);
+        state.opened_window_count = context.windows().len();
+    });
+
+    assert_eq!(
+        stale_window_count, 0,
+        "reset-before-assignment should remove stale scenario state"
+    );
+}
+```
+
+The published reconstruction constructor returns `VisualTestContext` by value.
+Its entity methods take the entity by reference: `update_entity`'s callback
+receives `&mut Context<T>` as its second argument, whereas `read_entity`'s
+callback receives `&App`. Their `AppContext::Result<R>` alias is `R`,
+so assertions compare the returned values directly rather than unwrapping
+`Option` or `Result`. Unlike the vendored helper, the published helper clones
+the stored entity because published `Entity<T>` is `Clone`, not `Copy`:
+
+```rust,ignore
+use gpui::AppContext as _;
+use rstest_bdd_macros::{then, when};
+
+fn current_handles() -> (gpui::Entity<CounterView>, gpui::AnyWindowHandle) {
+    with_state(|state| {
+        let Some(entity) = state.entity.clone() else {
+            panic!("scenario should have stored an entity handle");
+        };
+        let Some(window) = state.window else {
+            panic!("scenario should have stored a window handle");
+        };
+        (entity, window)
+    })
+}
+
+#[when("the view is updated through a reconstructed visual context")]
+fn view_is_updated_through_reconstructed_visual_context(
+    #[from(rstest_bdd_harness_context)] context: &mut gpui::TestAppContext,
+) {
+    let (entity, window) = current_handles();
+    let mut visual_context = gpui::VisualTestContext::from_window(window, context);
+    visual_context.update_entity(&entity, |view, _view_cx| view.value += 1);
+}
+
+#[then("the durable handles still identify the updated view")]
+fn durable_handles_identify_the_updated_view(
+    #[from(rstest_bdd_harness_context)] context: &mut gpui::TestAppContext,
+) {
+    let (entity, window) = current_handles();
+    let visual_context = gpui::VisualTestContext::from_window(window, context);
+
+    assert_eq!(
+        visual_context.read_entity(&entity, |view, _app| view.value),
+        1
+    );
+}
+```
+
+These blocks use `rust,ignore` because this repository's doctest dependency is
+the vendored gpui shim. They reproduce the published `gpui 0.2.2` signatures;
+replace `CounterView::new` with the downstream view's constructor when copying
+the pattern.
+
 ### Fixture key versus parameter name
 
 Steps request the GPUI context through the *reserved fixture key*
@@ -1584,6 +1682,13 @@ full Whitaker suite run by `make lint` includes `no_unwrap_or_else_panic`, so
 infrastructure invariant. The workspace also denies `clippy::expect_used` and
 `clippy::unwrap_used`, so `.expect(...)` and `.unwrap()` are not acceptable
 replacements.
+
+Clippy's `allow-expect-in-tests` escape hatch does not rescue these snippets.
+It is not enabled in this workspace, and step functions and their helpers are
+ordinary functions rather than `#[test]` functions, so Clippy does not treat
+them as test code even when they live in a `tests/` binary. Downstream projects
+that do enable the option inherit the same constraint for their step
+definitions.
 
 Use `let … else { panic!(…) }` with a fresh binding name:
 
