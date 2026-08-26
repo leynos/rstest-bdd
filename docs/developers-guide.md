@@ -498,7 +498,7 @@ workspace root; this is the only nextest configuration file the runner loads.
 The file sets the timeout policy for the test suite:
 
 - The default profile kills any test that runs past a 60 s `slow-timeout`
-  (`terminate-after = 1`, 5 s grace period) and applies a 50 m `global-timeout`
+  (`terminate-after = 1`, 5 s grace period) and applies a 75 m `global-timeout`
   to the whole run. This allows the cargo-spawning group to run its bounded
   tests one at a time without exhausting the whole-suite budget. The global
   timeout must stay above the largest per-test budget below, or the run is

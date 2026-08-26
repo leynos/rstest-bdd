@@ -196,12 +196,12 @@ fn try_scenario(
         fallback_diagnostics: Some(&fallback_diagnostics),
     };
 
-    let generated = proc_macro2::TokenStream::from(generate_scenario_code(
+    let generated = generate_scenario_code(
         &config,
         ctx_prelude.into_iter(),
         ctx_inserts.into_iter(),
         ctx_postlude.into_iter(),
-    ));
+    );
 
     // Emit the Cargo rebuild-dependency tracking item as a sibling of the
     // generated test function, at item scope (Decision D0 in the 10.3.3
