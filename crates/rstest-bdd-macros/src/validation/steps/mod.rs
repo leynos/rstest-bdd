@@ -12,7 +12,6 @@
 
 mod crate_id;
 mod messages;
-
 use std::{
     collections::HashMap,
     sync::{LazyLock, Mutex},
@@ -20,15 +19,18 @@ use std::{
 
 use crate_id::{current_crate_id, normalize_crate_id};
 use messages::{format_ambiguous_step_error, format_missing_step_error};
-#[cfg(not(test))]
-use proc_macro_error::emit_warning;
 
-use crate::{StepKeyword, parsing::feature::ParsedStep, pattern::MacroPattern};
+use crate::{
+    StepKeyword,
+    parsing::feature::ParsedStep,
+    pattern::MacroPattern,
+    utils::warnings::emit_warning,
+};
 
-/// Internal alias for shared implementation data.
+/// Step definitions indexed by their normalized crate identifier.
 type Registry = HashMap<Box<str>, CrateDefs>;
 
-/// Step patterns grouped by semantic keyword for one crate.
+/// Step patterns registered for one crate, grouped by semantic keyword.
 #[derive(Default, Clone)]
 struct CrateDefs {
     /// Registered patterns indexed by their step keyword.
@@ -36,11 +38,11 @@ struct CrateDefs {
 }
 
 impl CrateDefs {
-    /// Returns the patterns registered for a keyword.
+    /// Return patterns registered for one semantic keyword.
     fn patterns(&self, kw: StepKeyword) -> &[&'static MacroPattern] {
         self.by_kw.get(&kw).map_or(&[], Vec::as_slice)
     }
-    /// Returns whether no step patterns are registered.
+    /// Determine whether this crate has no registered step patterns.
     fn is_empty(&self) -> bool { self.by_kw.values().all(Vec::is_empty) }
 }
 
@@ -158,7 +160,6 @@ enum RegistryDecision {
 /// Check whether the registry holds definitions for the current crate.
 fn validate_registry_state(
     defs: Option<&CrateDefs>,
-    #[cfg_attr(test, expect(unused_variables, reason = "crate ID unused in tests"))]
     crate_id_str: &str,
     strict: bool,
 ) -> RegistryDecision {
@@ -169,12 +170,13 @@ fn validate_registry_state(
             if strict {
                 RegistryDecision::Continue
             } else {
-                #[cfg(not(test))]
-                emit_warning!(
+                emit_warning(
                     proc_macro2::Span::call_site(),
-                    "step registry has no definitions for crate ID '{}'. This may indicate a \
-                     registry issue.",
-                    crate_id_str
+                    format!(
+                        "step registry has no definitions for crate ID '{crate_id_str}'. This may \
+                         indicate a registry issue."
+                    ),
+                    None,
                 );
                 RegistryDecision::WarnAndSkip
             }
@@ -213,7 +215,7 @@ pub(crate) fn validate_steps_exist(steps: &[ParsedStep], strict: bool) -> Result
     handle_validation_result(&missing, strict)
 }
 
-/// Converts missing-step results into strict errors or non-strict warnings.
+/// Convert missing-step results into strict errors or non-strict warnings.
 fn handle_validation_result(
     missing: &[(proc_macro2::Span, String)],
     strict: bool,
@@ -230,7 +232,7 @@ fn handle_validation_result(
     }
 }
 
-/// Builds a strict-mode error from one or more missing steps.
+/// Build a strict-mode error from one or more missing steps.
 fn create_strict_mode_error(missing: &[(proc_macro2::Span, String)]) -> Result<(), syn::Error> {
     let msg = match missing {
         [(span, only)] => {
@@ -248,21 +250,18 @@ fn create_strict_mode_error(missing: &[(proc_macro2::Span, String)]) -> Result<(
     Err(syn::Error::new(span, msg))
 }
 
-/// Emits non-strict diagnostics for missing step definitions.
-#[cfg_attr(test, expect(unused_variables, reason = "test warnings"))]
+/// Emit non-strict diagnostics for missing step definitions.
 fn emit_non_strict_warnings(missing: &[(proc_macro2::Span, String)]) {
-    #[cfg(not(test))]
     for (span, msg) in missing {
         let loc = span.start();
         if loc.line == 0 && loc.column == 0 {
-            emit_warning!(
+            emit_warning(
                 proc_macro2::Span::call_site(),
-                "rstest-bdd[non-strict]: {}",
-                msg;
-                note = "location unavailable (synthetic or default span)"
+                format!("rstest-bdd[non-strict]: {msg}"),
+                Some("location unavailable (synthetic or default span)"),
             );
         } else {
-            emit_warning!(*span, "rstest-bdd[non-strict]: {}", msg);
+            emit_warning(*span, format!("rstest-bdd[non-strict]: {msg}"), None);
         }
     }
 }

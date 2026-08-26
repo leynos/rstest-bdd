@@ -12,7 +12,7 @@ use quote::quote;
 use super::{
     ScenarioConfig,
     ScenarioReturnKind,
-    generate_trait_assertions,
+    adapters::generate_trait_assertions,
     helpers::generate_underscore_expect,
     test_attrs::{TestAttrPolicy, generate_test_attrs_with_boundary},
 };
@@ -55,6 +55,8 @@ pub(super) fn adapt_fallible_gpui_boundary(
 /// Finalize attributes and the executable boundary for a scenario signature.
 pub(super) fn finalize_scenario_signature(
     config: &ScenarioConfig<'_>,
+    harness_resolution: Option<&crate::codegen::HarnessApiResolution>,
+    attributes_resolution: Option<&crate::codegen::HarnessApiResolution>,
     signature: &mut Cow<'_, syn::Signature>,
     body: TokenStream2,
 ) -> (TokenStream2, TokenStream2, TokenStream2, TokenStream2) {
@@ -65,7 +67,10 @@ pub(super) fn finalize_scenario_signature(
     };
     let generated_test_attrs =
         generate_test_attrs_with_boundary(config.attrs, &policy, config.runtime.is_async());
-    let trait_assertions = generate_trait_assertions(config.harness, config.attributes);
+    let trait_assertions = generate_trait_assertions(
+        config.harness.zip(harness_resolution),
+        config.attributes.zip(attributes_resolution),
+    );
     let adapted_body =
         if generated_test_attrs.uses_gpui_boundary && config.return_kind.is_fallible() {
             adapt_fallible_gpui_boundary(true, config.return_kind, signature.to_mut(), body)

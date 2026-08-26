@@ -1,0 +1,16 @@
+warning: the `runtime = "tokio-current-thread"` syntax is deprecated; use `harness = rstest_bdd_harness_tokio::TokioHarness` instead
+  --> tests/fixtures_macros/nightly_runtime_deprecation_warning.rs:14:1
+   |
+14 | / scenarios!(
+15 | |     "basic.feature",
+16 | |     runtime = "tokio-current-thread"
+17 | | );
+   | |_^
+   |
+   = note: this warning originates in the macro `scenarios` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: nightly runtime warning snapshot sentinel
+  --> tests/fixtures_macros/nightly_runtime_deprecation_warning.rs:19:1
+   |
+19 | compile_error!("nightly runtime warning snapshot sentinel");
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

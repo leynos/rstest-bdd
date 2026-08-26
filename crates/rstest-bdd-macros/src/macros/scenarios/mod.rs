@@ -18,7 +18,6 @@ use std::{
 };
 
 use proc_macro::TokenStream;
-use proc_macro_error::emit_warning;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::{format_ident, quote};
 
@@ -28,8 +27,8 @@ pub(crate) use self::macro_args::{
 };
 use self::{
     feature_discovery::collect_feature_files,
-    macro_args::{FixtureSpec, RuntimeMode, ScenariosArgs},
-    test_generation::{ScenarioTestContext, generate_scenario_test},
+    macro_args::{FixtureSpec, RuntimeMode, ScenariosArgs, runtime_compatibility_alias},
+    test_generation::{ScenarioTestContext, generate_scenario_test, resolve_harness_path},
 };
 use crate::{
     parsing::{
@@ -39,6 +38,7 @@ use crate::{
     utils::{
         errors::{error_to_tokens, normalized_dir_read_error},
         ident::sanitize_ident,
+        warnings::emit_warning,
     },
 };
 
@@ -67,6 +67,12 @@ struct FeatureProcessingContext<'a> {
     harness: Option<&'a syn::Path>,
     /// Stores the internal `attributes` value.
     attributes: Option<&'a syn::Path>,
+    /// Harness path actually generated against, after applying any runtime
+    /// compatibility alias. Resolved once so every scenario agrees with the
+    /// single diagnostic emitted at the expansion boundary.
+    effective_harness: Option<&'a syn::Path>,
+    /// Adapter API paths resolved once for the whole `scenarios!` expansion.
+    resolutions: &'a crate::codegen::SharedAdapterResolutions,
 }
 
 /// Provides the internal `resolve_manifest_directory` operation.
@@ -144,6 +150,8 @@ fn process_feature_file(
         runtime: ctx.runtime,
         harness: ctx.harness,
         attributes: ctx.attributes,
+        effective_harness: ctx.effective_harness,
+        resolutions: ctx.resolutions,
     };
 
     process_scenarios(&feature, &test_ctx, used_names)
@@ -208,16 +216,26 @@ fn emit_runtime_deprecation_warning(runtime: RuntimeMode, harness: Option<&syn::
         return;
     }
     if harness.is_some() {
-        emit_warning!(
+        emit_warning(
             Span::call_site(),
-            "the `runtime = \"tokio-current-thread\"` argument is deprecated and redundant when \
-             an explicit `harness` is set; remove the `runtime` argument"
+            concat!(
+                "the `runtime = \"tokio-current-thread\"` argument is ",
+                "deprecated and redundant when an explicit `harness` is set; ",
+                "remove the `runtime` argument"
+            )
+            .to_owned(),
+            None,
         );
     } else {
-        emit_warning!(
+        emit_warning(
             Span::call_site(),
-            "the `runtime = \"tokio-current-thread\"` syntax is deprecated; use `harness = \
-             rstest_bdd_harness_tokio::TokioHarness` instead"
+            concat!(
+                "the `runtime = \"tokio-current-thread\"` syntax is ",
+                "deprecated; use ",
+                "`harness = rstest_bdd_harness_tokio::TokioHarness` instead"
+            )
+            .to_owned(),
+            None,
         );
     }
 }
@@ -256,6 +274,18 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
         }
     };
 
+    // Resolve the supplied adapter paths once for the whole expansion. Every
+    // generated scenario reuses this decision, so a feature directory with many
+    // scenarios reports one diagnostic per supplied path instead of one per
+    // generated test.
+    let effective_harness =
+        resolve_harness_path(harness.as_ref(), runtime_compatibility_alias(runtime));
+    let resolutions = crate::codegen::SharedAdapterResolutions::resolve(
+        effective_harness.as_ref(),
+        attributes.as_ref(),
+    );
+    let fallback_diagnostics = resolutions.emit_diagnostics();
+
     let ctx = FeatureProcessingContext {
         manifest_dir: &manifest_dir,
         tag_filter: tag_filter.as_ref().map(|f| &f.expr),
@@ -263,6 +293,8 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
         runtime,
         harness: harness.as_ref(),
         attributes: attributes.as_ref(),
+        effective_harness: effective_harness.as_ref(),
+        resolutions: &resolutions,
     };
     let (tests, mut errors) = generate_tests_from_features(feature_paths, &ctx);
 
@@ -281,6 +313,7 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
         #[doc = #module_doc]
         mod #module_ident {
             use super::*;
+            #fallback_diagnostics
             #(#tests)*
             #(#errors)*
         }

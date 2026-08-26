@@ -40,8 +40,9 @@ cap-std.workspace = true
 insta.workspace = true
 rstest.workspace = true
 rstest-bdd-test-macros.workspace = true
-rstest-bdd-macros.workspace = true
+rstest-bdd-macros = { workspace = true, features = ["compile-time-validation"] }
 rstest-bdd-harness = { workspace = true, features = ["testing"] }
+rustversion.workspace = true
 trybuild.workspace = true
 proptest.workspace = true
 serial_test.workspace = true

@@ -4,25 +4,23 @@
 //! does not depend on the runtime crate at compile-time.
 
 use proc_macro_crate::{FoundCrate, crate_name};
-#[cfg(not(test))]
-use proc_macro_error::emit_warning;
 use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
 use quote::quote;
 use rstest_bdd_policy::TestAttributeHint;
-
-/// Internal data used by the macros implementation.
+/// Package and crate-name metadata used while resolving generated paths.
 struct CrateSpec {
-    /// Package name used when resolving the dependency.
+    /// Cargo package name supplied to `proc_macro_crate`.
     package_name: &'static str,
-    /// Default Rust crate name when the dependency is not renamed.
+    /// Default Rust crate identifier when the package is not renamed.
     default_crate_name: &'static str,
-    /// Adapter types that identify this crate during path inspection.
+    /// Adapter type names that establish first-party adapter evidence.
     adapter_type_names: &'static [&'static str],
 }
-
+mod adapter_fallback;
 pub(crate) mod scenario;
 pub(crate) mod wrapper;
-
+pub(crate) use adapter_fallback::SharedAdapterResolutions;
+use adapter_fallback::{AdapterFallback, fallback_candidate};
 /// Specification for the core `rstest-bdd` runtime crate.
 const RSTEST_BDD: CrateSpec = CrateSpec {
     package_name: "rstest-bdd",
@@ -47,14 +45,11 @@ const GPUI_HARNESS: CrateSpec = CrateSpec {
     default_crate_name: "rstest_bdd_harness_gpui",
     adapter_type_names: &["GpuiHarness", "GpuiAttributePolicy"],
 };
-
 /// Return a token stream pointing to the `rstest_bdd` crate or its renamed form.
 pub(crate) fn rstest_bdd_path() -> TokenStream2 { resolve_crate_path(&RSTEST_BDD) }
-
 /// Return a token stream pointing to the `rstest_bdd_harness` crate or its
 /// renamed form.
 pub(crate) fn rstest_bdd_harness_path() -> TokenStream2 { resolve_crate_path(&RSTEST_BDD_HARNESS) }
-
 /// Try to return a token stream pointing to the requested crate or renamed
 /// dependency without panicking when the consumer does not depend on it.
 fn try_resolve_crate_path(spec: &CrateSpec) -> Option<TokenStream2> {
@@ -62,7 +57,6 @@ fn try_resolve_crate_path(spec: &CrateSpec) -> Option<TokenStream2> {
         .ok()
         .map(|found| found_crate_path(found, spec))
 }
-
 /// Return a token stream pointing to the `rstest_bdd_harness_tokio` crate or
 /// its renamed form.
 ///
@@ -70,7 +64,6 @@ fn try_resolve_crate_path(spec: &CrateSpec) -> Option<TokenStream2> {
 /// resolve `TokioHarness` via proper crate lookup, supporting downstream
 /// crates that rename the dependency in their `Cargo.toml`.
 pub(crate) fn rstest_bdd_harness_tokio_path() -> TokenStream2 { resolve_crate_path(&TOKIO_HARNESS) }
-
 /// Return the crate root that provides base harness API for the given harness
 /// or attribute-policy path.
 ///
@@ -79,14 +72,40 @@ pub(crate) fn rstest_bdd_harness_tokio_path() -> TokenStream2 { resolve_crate_pa
 /// dependency. Renamed dependencies that cannot be resolved at
 /// macro-expansion time (including test builds) fall back to the base
 /// `rstest-bdd-harness` path.
-pub(crate) fn rstest_bdd_harness_api_path_for(adapter_path: &syn::Path) -> TokenStream2 {
-    first_party_adapter_api_path(adapter_path).unwrap_or_else(|| {
-        emit_first_party_adapter_fallback_warning(adapter_path);
-        rstest_bdd_harness_path()
-    })
+#[derive(Clone)]
+pub(crate) struct HarnessApiResolution {
+    /// Base harness API crate path selected for generated code.
+    pub(crate) api_path: TokenStream2,
+    /// Optional metadata used to emit the fallback diagnostic at the boundary.
+    fallback: Option<AdapterFallback>,
 }
 
-/// Identify the test-attribute hint associated with a first-party adapter.
+/// Resolve the base harness API path and any qualifying fallback metadata.
+///
+/// This operation is pure: callers decide where to emit the optional
+/// diagnostic so one resolution can be reused throughout code generation.
+pub(crate) fn resolve_harness_api(adapter_path: &syn::Path) -> HarnessApiResolution {
+    if let Some(api_path) = first_party_adapter_api_path(adapter_path) {
+        return HarnessApiResolution {
+            api_path,
+            fallback: None,
+        };
+    }
+    HarnessApiResolution {
+        api_path: rstest_bdd_harness_path(),
+        fallback: fallback_candidate(adapter_path),
+    }
+}
+
+/// Emit or generate the diagnostic selected for one fallback resolution.
+pub(crate) fn first_party_adapter_fallback_diagnostic(
+    resolution: &HarnessApiResolution,
+) -> TokenStream2 {
+    adapter_fallback::emit_first_party_adapter_fallback_warning(resolution.fallback.as_ref());
+    adapter_fallback::first_party_adapter_fallback_warning_tokens(resolution.fallback.as_ref())
+}
+
+/// Return the generated-test attribute hint for a recognized first-party adapter.
 pub(crate) fn first_party_adapter_attribute_hint(
     adapter_path: &syn::Path,
 ) -> Option<TestAttributeHint> {
@@ -99,52 +118,19 @@ pub(crate) fn first_party_adapter_attribute_hint(
     }
 }
 
-/// Resolve the base API path for a recognized first-party adapter.
+/// Resolve a recognized first-party adapter path to its API crate root.
 fn first_party_adapter_api_path(adapter_path: &syn::Path) -> Option<TokenStream2> {
     first_party_adapter_spec(adapter_path)
         .map(|spec| first_party_adapter_api_root(adapter_path, spec))
 }
 
-/// Find the crate specification matching an adapter path.
+/// Return the first-party adapter specification matching a supplied path.
 fn first_party_adapter_spec(adapter_path: &syn::Path) -> Option<&'static CrateSpec> {
     [&TOKIO_HARNESS, &GPUI_HARNESS]
         .into_iter()
         .find(|spec| first_party_adapter_path_matches(adapter_path, spec))
 }
-
-#[cfg(not(test))]
-/// Warn when a path resembles an adapter but cannot be resolved canonically.
-fn emit_first_party_adapter_fallback_warning(adapter_path: &syn::Path) {
-    let Some(spec) = [&TOKIO_HARNESS, &GPUI_HARNESS]
-        .into_iter()
-        .find(|spec| path_last_ident_matches(adapter_path, spec.adapter_type_names))
-    else {
-        return;
-    };
-    let span = adapter_path
-        .segments
-        .last()
-        .map_or_else(Span::call_site, |segment| segment.ident.span());
-    let package_name = spec.package_name;
-    let default_crate_name = spec.default_crate_name;
-    emit_warning!(
-        span,
-        concat!(
-            "rstest-bdd could not identify this harness or attribute-policy path as a first-party \
-             adapter; ",
-            "falling back to `rstest-bdd-harness` for base harness API types. ",
-            "Use the canonical crate-root path, ensure `{}` is directly resolvable as `{}`, ",
-            "or add `rstest-bdd-harness` as a direct dev-dependency."
-        ),
-        package_name,
-        default_crate_name
-    );
-}
-
-#[cfg(test)]
-fn emit_first_party_adapter_fallback_warning(_: &syn::Path) {}
-
-/// Construct the crate-root token stream for a recognized adapter.
+/// Select the API root for a recognized adapter path.
 fn first_party_adapter_api_root(adapter_path: &syn::Path, spec: &CrateSpec) -> TokenStream2 {
     if path_root_matches_crate(adapter_path, spec) {
         let Some(root) = adapter_path.segments.first().map(|segment| &segment.ident) else {
@@ -156,26 +142,26 @@ fn first_party_adapter_api_root(adapter_path: &syn::Path, spec: &CrateSpec) -> T
     }
 }
 
-/// Determine whether an adapter path belongs to a first-party crate.
+/// Determine whether a path has sufficient evidence for a first-party adapter.
 fn first_party_adapter_path_matches(adapter_path: &syn::Path, spec: &CrateSpec) -> bool {
     path_last_ident_matches(adapter_path, spec.adapter_type_names)
         && (path_root_matches_crate(adapter_path, spec)
             || is_imported_adapter_type_path(adapter_path, spec))
 }
 
-/// Check whether a single-segment adapter path can refer to the crate.
+/// Determine whether an unqualified imported adapter type can be resolved.
 fn is_imported_adapter_type_path(path: &syn::Path, spec: &CrateSpec) -> bool {
     path.segments.len() == 1 && try_resolve_crate_path(spec).is_some()
 }
 
-/// Check whether a path ends in one of the expected identifiers.
+/// Determine whether the final path segment is one of the expected identifiers.
 fn path_last_ident_matches(path: &syn::Path, expected: &[&str]) -> bool {
     path.segments
         .last()
         .is_some_and(|segment| expected.iter().any(|name| segment.ident == name))
 }
 
-/// Check whether a path starts at the specified crate root.
+/// Determine whether the root segment names a first-party adapter crate.
 fn path_root_matches_crate(path: &syn::Path, spec: &CrateSpec) -> bool {
     let Some(root) = path.segments.first() else {
         return false;
@@ -195,7 +181,7 @@ fn path_root_matches_crate(path: &syn::Path, spec: &CrateSpec) -> bool {
         .is_some_and(|crate_root| crate_root.ident == root.ident)
 }
 
-/// Resolve a dependency path, reporting a missing required crate.
+/// Resolve a dependency specification to a generated crate path.
 fn resolve_crate_path(spec: &CrateSpec) -> TokenStream2 {
     match crate_name(spec.package_name) {
         Ok(found) => found_crate_path(found, spec),
@@ -203,7 +189,7 @@ fn resolve_crate_path(spec: &CrateSpec) -> TokenStream2 {
     }
 }
 
-/// Convert a successful crate lookup into a fully qualified path.
+/// Convert a resolved dependency into a fully-qualified token path.
 fn found_crate_path(found: FoundCrate, spec: &CrateSpec) -> TokenStream2 {
     let ident = match found {
         FoundCrate::Itself => Ident::new(spec.default_crate_name, Span::call_site()),
@@ -213,7 +199,7 @@ fn found_crate_path(found: FoundCrate, spec: &CrateSpec) -> TokenStream2 {
 }
 
 #[cfg(test)]
-/// Provide a default path when isolated unit tests omit runtime crates.
+/// Provide a deterministic default crate path for isolated macro tests.
 fn handle_missing_crate(spec: &CrateSpec, _: &proc_macro_crate::Error) -> TokenStream2 {
     // Tests compile the macros crate in isolation without dependency crates, so
     // fall back to the default package name.
@@ -222,7 +208,7 @@ fn handle_missing_crate(spec: &CrateSpec, _: &proc_macro_crate::Error) -> TokenS
 }
 
 #[cfg(not(test))]
-/// Report a missing runtime crate during macro expansion.
+/// Abort expansion when a required generated-code dependency is unavailable.
 fn handle_missing_crate(spec: &CrateSpec, err: &proc_macro_crate::Error) -> TokenStream2 {
     let crate_name = spec.package_name;
     panic!("{crate_name} crate not found: {err}");
@@ -308,15 +294,43 @@ mod tests {
     #[case::gpui_policy_imported("GpuiAttributePolicy", ":: rstest_bdd_harness")]
     fn adapter_api_path_uses_expected_crate(#[case] adapter_path: &str, #[case] expected: &str) {
         let adapter_path = parse_path(adapter_path);
-        let tokens = super::rstest_bdd_harness_api_path_for(&adapter_path);
-        assert_eq!(tokens.to_string(), expected);
+        let resolution = super::resolve_harness_api(&adapter_path);
+        assert_eq!(resolution.api_path.to_string(), expected);
+    }
+
+    #[rstest]
+    #[case::aliased_tokio(
+        "alias::rstest_bdd_harness_tokio::TokioHarness",
+        ":: rstest_bdd_harness",
+        true
+    )]
+    #[case::canonical_tokio(
+        "rstest_bdd_harness_tokio::TokioHarness",
+        ":: rstest_bdd_harness_tokio",
+        false
+    )]
+    #[case::canonical_gpui(
+        "rstest_bdd_harness_gpui::GpuiAttributePolicy",
+        ":: rstest_bdd_harness_gpui",
+        false
+    )]
+    #[case::custom_tokio_name("custom::TokioHarness", ":: rstest_bdd_harness", false)]
+    fn pure_resolution_selects_path_and_fallback_metadata(
+        #[case] adapter_path: &str,
+        #[case] expected_path: &str,
+        #[case] has_fallback: bool,
+    ) {
+        let resolution = super::resolve_harness_api(&parse_path(adapter_path));
+
+        assert_eq!(resolution.api_path.to_string(), expected_path);
+        assert_eq!(resolution.fallback.is_some(), has_fallback);
     }
 
     #[test]
     fn matching_type_name_under_unknown_root_uses_base_harness_crate() {
         let harness_path = syn::parse_quote!(my_harness::TokioHarness);
-        let tokens = super::rstest_bdd_harness_api_path_for(&harness_path);
-        assert_eq!(tokens.to_string(), ":: rstest_bdd_harness");
+        let resolution = super::resolve_harness_api(&harness_path);
+        assert_eq!(resolution.api_path.to_string(), ":: rstest_bdd_harness");
     }
 
     #[test]
@@ -324,7 +338,7 @@ mod tests {
         // Simulates: use rstest_bdd_harness_tokio::TokioHarness as TH;
         // #[scenario(harness = my_mod::TH)] - type alias not in known names.
         let harness_path = syn::parse_quote!(rstest_bdd_harness_tokio::SomeAlias);
-        let tokens = super::rstest_bdd_harness_api_path_for(&harness_path);
+        let tokens = super::resolve_harness_api(&harness_path).api_path;
         // The type name is not in TOKIO_HARNESS.adapter_type_names, so fall back.
         assert_eq!(tokens.to_string(), ":: rstest_bdd_harness");
     }
@@ -335,14 +349,14 @@ mod tests {
         // #[scenario(harness = tok::TokioHarness)]
         // In a test build try_resolve_crate_path returns None, so no root match.
         let harness_path = syn::parse_quote!(tok::TokioHarness);
-        let tokens = super::rstest_bdd_harness_api_path_for(&harness_path);
+        let tokens = super::resolve_harness_api(&harness_path).api_path;
         assert_eq!(tokens.to_string(), ":: rstest_bdd_harness");
     }
 
     #[test]
     fn custom_harness_api_path_uses_base_harness_crate() {
         let harness_path = syn::parse_quote!(my_harness::Harness);
-        let tokens = super::rstest_bdd_harness_api_path_for(&harness_path);
+        let tokens = super::resolve_harness_api(&harness_path).api_path;
         assert_eq!(tokens.to_string(), ":: rstest_bdd_harness");
     }
 

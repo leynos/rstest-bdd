@@ -68,6 +68,7 @@ temp-env = "0.3.6"
 tempfile = "3.23"
 i18n-embed = { version = "0.16", features = ["fluent-system", "desktop-requester"] }
 rust-embed = "8.5.0"
+rustversion = "1"
 fluent = "0.17"
 unic-langid = { version = "0.9", features = ["macros"] }
 async-lsp = { version = "0.2", features = ["tokio"] }

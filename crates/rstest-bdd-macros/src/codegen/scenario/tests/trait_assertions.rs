@@ -1,6 +1,6 @@
 //! Tests for generated compile-time trait assertions.
 
-use super::generate_trait_assertions;
+use super::super::adapters::generate_trait_assertions;
 
 #[derive(Clone, Copy)]
 enum ParamKind {
@@ -46,9 +46,10 @@ fn assert_single_trait_assertion(
     expected_trait: TraitName,
     excluded_trait: TraitName,
 ) {
+    let resolution = crate::codegen::resolve_harness_api(path);
     let (harness, attributes) = match param_kind {
-        ParamKind::Harness => (Some(path), None),
-        ParamKind::Attributes => (None, Some(path)),
+        ParamKind::Harness => (Some((path, &resolution)), None),
+        ParamKind::Attributes => (None, Some((path, &resolution))),
     };
     let tokens = generate_trait_assertions(harness, attributes);
     let output = tokens.to_string();
@@ -76,9 +77,10 @@ fn assert_trait_assertion_crate_path(
     expected_trait: TraitName,
     expected_crate: ExpectedCrate,
 ) {
+    let resolution = crate::codegen::resolve_harness_api(path);
     let (harness, attributes) = match param_kind {
-        ParamKind::Harness => (Some(path), None),
-        ParamKind::Attributes => (None, Some(path)),
+        ParamKind::Harness => (Some((path, &resolution)), None),
+        ParamKind::Attributes => (None, Some((path, &resolution))),
     };
     let tokens = generate_trait_assertions(harness, attributes);
     let output = tokens.to_string();
@@ -161,7 +163,12 @@ fn trait_assertions_single_param(
 fn trait_assertions_with_both() {
     let harness_path = parse_path!("my::Harness");
     let policy_path = parse_path!("my::Policy");
-    let tokens = generate_trait_assertions(Some(&harness_path), Some(&policy_path));
+    let harness_resolution = crate::codegen::resolve_harness_api(&harness_path);
+    let policy_resolution = crate::codegen::resolve_harness_api(&policy_path);
+    let tokens = generate_trait_assertions(
+        Some((&harness_path, &harness_resolution)),
+        Some((&policy_path, &policy_resolution)),
+    );
     let output = tokens.to_string();
 
     assert!(
@@ -192,7 +199,8 @@ fn trait_assertions_with_neither() {
 #[test]
 fn trait_assertions_harness_includes_default_bound() {
     let harness_path = parse_path!("my::Harness");
-    let tokens = generate_trait_assertions(Some(&harness_path), None);
+    let resolution = crate::codegen::resolve_harness_api(&harness_path);
+    let tokens = generate_trait_assertions(Some((&harness_path, &resolution)), None);
     let output = tokens.to_string();
 
     assert!(

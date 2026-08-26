@@ -36,13 +36,15 @@ walkdir = "2.5.0"
 proc-macro-crate = "3"
 regex.workspace = true
 cfg-if.workspace = true
-proc-macro-error = "1"
+proc-macro-error3 = { version = "3.1.0", default-features = false, features = ["syn2-error"] }
 camino.workspace = true
 cap-std.workspace = true
 convert_case.workspace = true
 newt-hype.workspace = true
 thiserror.workspace = true
 
+[build-dependencies]
+rustc_version = "0.4"
 [dev-dependencies]
 proptest.workspace = true
 rstest.workspace = true
