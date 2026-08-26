@@ -1389,7 +1389,7 @@ execution, centralizing policy decisions that were previously embedded in the
 codegen layer. This separation keeps macro-generated code lightweight and makes
 runtime behaviour easier to test independently.
 
-ADR 017 records the accepted future direction for parser-neutral plans and a
+ADR 018 records the accepted future direction for parser-neutral plans and a
 canonical structured scenario runner built on this module. That direction is
 future roadmap work; this section describes the current execution module and
 does not claim that the parser-neutral plan or runner has been implemented.
