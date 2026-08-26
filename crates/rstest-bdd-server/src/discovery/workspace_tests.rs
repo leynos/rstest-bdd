@@ -36,7 +36,7 @@ fn discovers_workspace_from_root(create_test_workspace: io::Result<TempDir>) {
     assert!(result.is_ok());
     let info = result.expect("should discover workspace");
     assert_eq!(info.root, workspace.path());
-    assert!(info.packages.contains(&"test-project".to_string()));
+    assert!(info.packages.contains(&"test-project".to_owned()));
 }
 
 #[rstest]
@@ -53,8 +53,7 @@ fn discovers_workspace_from_subdirectory(create_test_workspace: io::Result<TempD
 fn fails_when_no_manifest_found() {
     let dir = TempDir::new().expect("failed to create temp dir");
     let result = discover_workspace(dir.path());
-    assert!(result.is_err());
-    let err = result.unwrap_err();
+    let err = result.expect_err("workspace discovery should fail when no Cargo.toml exists");
     assert!(err.to_string().contains("no Cargo.toml found"));
 }
 
@@ -163,6 +162,8 @@ fn reports_recursive_directory_read_failure() {
 enum ReaderFailure {
     Metadata,
     NestedDirectoryEntry,
+    ManifestMetadata,
+    WorkspaceDirectoryEntry,
 }
 
 struct FailingDirectoryReader {
@@ -173,23 +174,39 @@ impl DirectoryReader for FailingDirectoryReader {
     type Entries = std::vec::IntoIter<io::Result<PathBuf>>;
 
     fn read_dir(&self, path: &Path) -> io::Result<Self::Entries> {
-        let entries = if path.ends_with("nested") {
-            vec![Err(io::Error::from(io::ErrorKind::PermissionDenied))]
-        } else {
-            vec![Ok(path.join("nested"))]
+        let entries = match self.failure {
+            ReaderFailure::NestedDirectoryEntry if path.ends_with("nested") => {
+                vec![Err(io::Error::from(io::ErrorKind::PermissionDenied))]
+            }
+            ReaderFailure::ManifestMetadata if path == Path::new("workspace") => {
+                vec![Ok(path.join("crate"))]
+            }
+            ReaderFailure::WorkspaceDirectoryEntry if path == Path::new("workspace") => {
+                vec![Err(io::Error::from(io::ErrorKind::PermissionDenied))]
+            }
+            _ => vec![Ok(path.join("nested"))],
         };
 
         Ok(entries.into_iter())
     }
 
-    fn is_directory(&self, _path: &Path) -> io::Result<bool> {
+    fn is_directory(&self, path: &Path) -> io::Result<bool> {
         match self.failure {
             ReaderFailure::Metadata => Err(io::Error::from(io::ErrorKind::PermissionDenied)),
+            ReaderFailure::ManifestMetadata => Ok(!path.ends_with("features")),
+            ReaderFailure::WorkspaceDirectoryEntry => Ok(false),
             ReaderFailure::NestedDirectoryEntry => Ok(true),
         }
     }
 
-    fn is_file(&self, _path: &Path) -> io::Result<bool> { Ok(false) }
+    fn is_file(&self, _path: &Path) -> io::Result<bool> {
+        match self.failure {
+            ReaderFailure::ManifestMetadata => {
+                Err(io::Error::from(io::ErrorKind::PermissionDenied))
+            }
+            _ => Ok(false),
+        }
+    }
 }
 
 #[test]
@@ -216,6 +233,29 @@ fn reports_nested_feature_directory_entry_failure() {
     assert_io_error_kind(error, io::ErrorKind::PermissionDenied);
 }
 
+#[test]
+fn reports_crate_manifest_metadata_failure() {
+    let reader = FailingDirectoryReader {
+        failure: ReaderFailure::ManifestMetadata,
+    };
+
+    let error = find_feature_files_with(Path::new("workspace"), &reader)
+        .expect_err("unreadable crate manifest should return an I/O error");
+
+    assert_io_error_kind(error, io::ErrorKind::PermissionDenied);
+}
+
+#[test]
+fn reports_workspace_directory_entry_failure() {
+    let reader = FailingDirectoryReader {
+        failure: ReaderFailure::WorkspaceDirectoryEntry,
+    };
+
+    let error = find_feature_files_with(Path::new("workspace"), &reader)
+        .expect_err("unreadable workspace directory entry should return an I/O error");
+
+    assert_io_error_kind(error, io::ErrorKind::PermissionDenied);
+}
 #[test]
 fn reports_recursive_directory_entry_failure() {
     let reader = FailingDirectoryReader {

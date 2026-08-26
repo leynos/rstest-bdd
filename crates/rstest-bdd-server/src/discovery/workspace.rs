@@ -128,18 +128,25 @@ pub fn find_feature_files(workspace_root: &Path) -> Result<Vec<PathBuf>, ServerE
     find_feature_files_with(workspace_root, &StandardDirectoryReader)
 }
 
+/// Provides the directory operations required by workspace discovery.
 trait DirectoryReader {
+    /// The iterator returned by [`DirectoryReader::read_dir`].
     type Entries: Iterator<Item = io::Result<PathBuf>>;
 
+    /// Reads a directory, preserving errors encountered while iterating it.
     fn read_dir(&self, path: &Path) -> io::Result<Self::Entries>;
 
+    /// Reports whether a path names a directory, or returns its metadata error.
     fn is_directory(&self, path: &Path) -> io::Result<bool>;
 
+    /// Reports whether a path names a file, or returns its metadata error.
     fn is_file(&self, path: &Path) -> io::Result<bool>;
 }
 
+/// Uses the standard filesystem APIs to read workspace directories.
 struct StandardDirectoryReader;
 
+/// Iterator that maps standard directory entries to their paths.
 type StandardDirectoryEntries =
     std::iter::Map<std::fs::ReadDir, fn(io::Result<std::fs::DirEntry>) -> io::Result<PathBuf>>;
 
@@ -161,10 +168,12 @@ impl DirectoryReader for StandardDirectoryReader {
     }
 }
 
+/// Extracts a path from a directory entry while preserving entry errors.
 fn directory_entry_path(entry: io::Result<std::fs::DirEntry>) -> io::Result<PathBuf> {
     entry.map(|entry| entry.path())
 }
 
+/// Finds feature files using the supplied directory-operation implementation.
 fn find_feature_files_with<R: DirectoryReader>(
     workspace_root: &Path,
     reader: &R,
@@ -187,6 +196,7 @@ fn find_feature_files_with<R: DirectoryReader>(
     Ok(features)
 }
 
+/// Collects an optional feature directory, ignoring only a missing directory.
 fn collect_optional_feature_directory<R: DirectoryReader>(
     reader: &R,
     directory: &Path,
@@ -200,6 +210,7 @@ fn collect_optional_feature_directory<R: DirectoryReader>(
     }
 }
 
+/// Checks an optional file path, ignoring only a missing file.
 fn is_optional_file<R: DirectoryReader>(reader: &R, path: &Path) -> Result<bool, ServerError> {
     match reader.is_file(path) {
         Ok(is_file) => Ok(is_file),
@@ -255,8 +266,4 @@ fn collect_feature_files_recursive<R: DirectoryReader>(
 
 #[cfg(test)]
 #[path = "workspace_tests.rs"]
-#[expect(
-    clippy::unwrap_used,
-    reason = "tests require explicit panic messages for debugging failures"
-)]
 mod tests;
