@@ -98,16 +98,16 @@ fn build_dep_info_outcome() -> DepInfoOutcome {
     // *real* rebuild input; rustc's `.d` written next to the binary is a
     // stable proxy for it with the same hash suffix.
     let Some(executable) = process::locate_test_executable(&stdout).map(PathBuf::from) else {
+        let error = format!(
+            "no `compiler-artifact` with a test-binary `executable` was reported by `cargo test \
+             --no-run --message-format=json`; child output:\n{stdout}"
+        );
         return outcome::DepInfoOutcome {
             dep_info_entry_count: 0,
             scenarios_no_match_tracked: false,
             dep_info_sample: stdout,
             child_env_detail: process::describe_env(&env),
-            baseline_error: Some(
-                "no `compiler-artifact` with a test-binary `executable` was reported by `cargo \
-                 test --no-run --message-format=json`"
-                    .to_owned(),
-            ),
+            baseline_error: Some(error),
         };
     };
     let dot_d = PathBuf::from(&executable).with_extension("d");

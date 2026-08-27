@@ -13,10 +13,11 @@
 //! the rebuild experiment would fail the test for the wrong reason. The child
 //! properties are therefore inherited wholesale from the parent and only
 //! surgically adjusted — `CARGO_MAKEFLAGS` (a jobserver a nested process
-//! cannot open, a classic Windows stall) and `CARGO_PKG_*` (they describe a
-//! different crate) are stripped, `CARGO_TARGET_DIR` falls back to the shared
-//! workspace `target/`, and `LLVM_PROFILE_FILE` is redirected to a scratch
-//! directory so nested coverage never merges into the parent's gated profile.
+//! cannot open, a classic Windows stall), `CARGO_PKG_*` (they describe a
+//! different crate), and `CARGO_LLVM_COV*` (they control the outer coverage
+//! driver) are stripped. `CARGO_TARGET_DIR` falls back to the shared workspace
+//! `target/`, and `LLVM_PROFILE_FILE` is redirected to a scratch directory so
+//! nested coverage never merges into the parent's gated profile.
 
 use std::{
     io,
@@ -47,7 +48,9 @@ pub(crate) fn build_child_env() -> ChildEnv {
     let mut vars: Vec<(std::ffi::OsString, std::ffi::OsString)> = std::env::vars_os().collect();
     vars.retain(|(key, _)| {
         let key = key.to_string_lossy();
-        key != "CARGO_MAKEFLAGS" && !key.starts_with("CARGO_PKG_")
+        key != "CARGO_MAKEFLAGS"
+            && !key.starts_with("CARGO_PKG_")
+            && !key.starts_with("CARGO_LLVM_COV")
     });
 
     // Propagate the shared build directory: whatever Cargo already set (CI's
@@ -224,4 +227,43 @@ pub(crate) fn locate_test_executable(json: &str) -> Option<String> {
         }
         value.get("executable")?.as_str().map(str::to_owned)
     })
+}
+
+#[cfg(test)]
+mod tests {
+    //! Environment-isolation regression tests for nested Cargo invocations.
+
+    use super::*;
+
+    #[test]
+    #[serial_test::serial(child_environment)]
+    fn child_environment_strips_llvm_cov_control_variables() {
+        temp_env::with_var("CARGO_LLVM_COV", Some("1"), || {
+            temp_env::with_var(
+                "CARGO_LLVM_COV_TARGET_DIR",
+                Some("/temporary/coverage-target"),
+                || {
+                    temp_env::with_var(
+                        "CARGO_LLVM_COV_BUILD_DIR",
+                        Some("/temporary/coverage-build"),
+                        || {
+                            temp_env::with_var(
+                                "RSTEST_BDD_NESTED_CARGO_SENTINEL",
+                                Some("kept"),
+                                || {
+                                    let env = build_child_env();
+                                    assert!(env.vars.iter().all(|(key, _)| {
+                                        !key.to_string_lossy().starts_with("CARGO_LLVM_COV")
+                                    }));
+                                    assert!(env.vars.iter().any(|(key, value)| {
+                                        key == "RSTEST_BDD_NESTED_CARGO_SENTINEL" && value == "kept"
+                                    }));
+                                },
+                            );
+                        },
+                    );
+                },
+            );
+        });
+    }
 }
