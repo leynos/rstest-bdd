@@ -29,10 +29,8 @@ jobs:
     uses: leynos/shared-actions/.github/workflows/mutation-cargo.yml@57a33fa65e329db7edc81ece661f1a2e1d39868f
     with:
       # The workspace's mutable source lives under crates/; the root
-      # Cargo.toml is a virtual manifest with no src/. Cargo metadata includes
-      # vendor/gpui and vendor/gpui-macros as workspace members, but paths:
-      # "crates/" restricts scheduled change detection. No vendor/** exclusion
-      # is configured, so manual whole-workspace runs may process vendored code.
+      # Cargo.toml is a virtual manifest with no src/. paths: "crates/"
+      # limits scheduled change detection.
       paths: "crates/"
       # Example applications, test-fixture crates (cargo-bdd's minimal
       # fixture workspace, trybuild/macrotest fixture and UI-expectation
