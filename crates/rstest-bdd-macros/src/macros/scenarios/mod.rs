@@ -233,6 +233,67 @@ fn emit_runtime_deprecation_warning(runtime: RuntimeMode, harness: Option<&syn::
     }
 }
 
+/// Inputs required to emit the items produced by a `scenarios!` expansion.
+struct ScenariosModuleEmission<'a> {
+    /// Parsed directory, retained to preserve the existing module-name derivation.
+    dir: &'a Path,
+    /// Directory literal that supplies the generated module's name, docs, and
+    /// tracking-item span.
+    dir_lit: &'a syn::LitStr,
+    /// Every discovered feature file, including files excluded by a tag filter.
+    feature_paths: &'a [PathBuf],
+    /// Diagnostics emitted before generated tests within the module.
+    fallback_diagnostics: TokenStream2,
+    /// Generated scenario-test items.
+    tests: Vec<TokenStream2>,
+    /// Generated error items.
+    errors: Vec<TokenStream2>,
+}
+
+/// Emits tracking items and the generated scenario module in source order.
+fn emit_scenarios_module(emission: ScenariosModuleEmission<'_>) -> TokenStream {
+    let ScenariosModuleEmission {
+        dir,
+        dir_lit,
+        feature_paths,
+        fallback_diagnostics,
+        tests,
+        errors,
+    } = emission;
+
+    // Emit one Cargo rebuild-dependency tracking item per **discovered**
+    // file, as a sibling of the generated scenario module, independent of
+    // whether any test is generated for that file. A `tags =` filter that
+    // matches nothing in a particular file still parses it, and that file
+    // must remain tracked — a body-scoped or per-test binding would leave it
+    // untracked and reopen the foot-gun in exactly the macro that is the
+    // harder case (Decision D0 / ExecPlan Milestone 3).
+    let tracking_items = feature_paths
+        .iter()
+        .map(|path| crate::codegen::tracking::feature_tracking_item(path, dir_lit.span()))
+        .collect::<Vec<_>>();
+
+    let module_ident = {
+        let base = dir
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("scenarios");
+        format_ident!("{}_scenarios", sanitize_ident(base))
+    };
+    let module_doc = format!("Scenarios auto-generated from `{}`.", dir_lit.value());
+
+    TokenStream::from(quote! {
+        #(#tracking_items)*
+        #[doc = #module_doc]
+        mod #module_ident {
+            use super::*;
+            #fallback_diagnostics
+            #(#tests)*
+            #(#errors)*
+        }
+    })
+}
+
 /// Provides the internal `scenarios` operation.
 pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
     let ScenariosArgs {
@@ -293,88 +354,16 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
 
     check_empty_results(&tests, &mut errors, tag_filter.as_ref());
 
-    // Emit one Cargo rebuild-dependency tracking item per **discovered**
-    // file, as a sibling of the generated scenario module, independent of
-    // whether any test is generated for that file. A `tags =` filter that
-    // matches nothing in a particular file still parses it, and that file
-    // must remain tracked — a body-scoped or per-test binding would leave it
-    // untracked and reopen the foot-gun in exactly the macro that is the
-    // harder case (Decision D0 / ExecPlan Milestone 3).
-    let tracking_items = feature_paths
-        .iter()
-        .map(|path| crate::codegen::tracking::feature_tracking_item(path, dir_lit.span()))
-        .collect::<Vec<_>>();
-
-    let module_ident = {
-        let base = dir
-            .file_name()
-            .and_then(|s| s.to_str())
-            .unwrap_or("scenarios");
-        format_ident!("{}_scenarios", sanitize_ident(base))
-    };
-    let module_doc = format!("Scenarios auto-generated from `{}`.", dir_lit.value());
-
-    TokenStream::from(quote! {
-        #(#tracking_items)*
-        #[doc = #module_doc]
-        mod #module_ident {
-            use super::*;
-            #fallback_diagnostics
-            #(#tests)*
-            #(#errors)*
-        }
+    emit_scenarios_module(ScenariosModuleEmission {
+        dir: &dir,
+        dir_lit: &dir_lit,
+        feature_paths: &feature_paths,
+        fallback_diagnostics,
+        tests,
+        errors,
     })
 }
 
-#[cfg(unix)]
 #[cfg(test)]
-mod tests {
-    //! Unit tests for the `scenarios!` macro entry point.
-
-    use std::{fs, os::unix::fs::symlink, path::Path};
-
-    use tempfile::tempdir;
-
-    use super::feature_discovery::collect_feature_files;
-
-    #[test]
-    fn collects_symlinked_feature_files_without_following_directory_loops() {
-        let temp = tempdir().expect("test setup should succeed");
-        let features_root = temp.path().join("features");
-        fs::create_dir_all(features_root.join("nested")).expect("test setup should succeed");
-
-        let feature_path = features_root.join("nested/example.feature");
-        fs::write(&feature_path, "Feature: Example\n").expect("test setup should succeed");
-
-        let symlink_path = features_root.join("symlink.feature");
-        symlink(&feature_path, &symlink_path).expect("test setup should succeed");
-
-        let relative_symlink_path = features_root.join("relative_link.feature");
-        symlink(Path::new("nested/example.feature"), &relative_symlink_path)
-            .expect("test setup should succeed");
-
-        let loop_dir = features_root.join("loop");
-        symlink(&features_root, &loop_dir).expect("test setup should succeed");
-
-        let files =
-            collect_feature_files(features_root.as_path()).expect("test setup should succeed");
-
-        let mut expected = vec![feature_path, symlink_path, relative_symlink_path];
-        expected.sort();
-        assert_eq!(files, expected);
-    }
-}
-
-#[cfg(not(unix))]
-#[cfg(test)]
-mod tests {
-    //! Covers the non-Unix scenario-discovery test configuration.
-    //!
-    //! This portability guard complements the Unix-only symlink-discovery test
-    //! above when Unix symlink APIs and directory-loop semantics are absent.
-
-    #[test]
-    fn collects_symlinked_feature_files_without_following_directory_loops() {
-        assert!(cfg!(not(unix)));
-    }
-}
+#[path = "tests/mod.rs"]
+mod tests;
