@@ -5,10 +5,12 @@
 //! of a step signature: three request spellings must converge on one fixture
 //! key, and every misuse must produce a targeted diagnostic.
 
-use super::super::super::{Arg, ExtractedArgs, extract_args};
+use std::collections::HashSet;
+
 use googletest::prelude::*;
 use rstest::rstest;
-use std::collections::HashSet;
+
+use super::super::super::{Arg, ExtractedArgs, extract_args};
 
 /// Parse a step function source string and classify its arguments.
 ///

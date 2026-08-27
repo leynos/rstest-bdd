@@ -6,11 +6,12 @@
 //! every request spelling classifies the parameter as an `Arg::Fixture` named
 //! `rstest_bdd_harness_context`, consuming no placeholder.
 
-use super::super::super::Arg;
-use super::super::super::extract_args;
+use std::collections::HashSet;
+
 use googletest::prelude::*;
 use proptest::prelude::*;
-use std::collections::HashSet;
+
+use super::super::super::{Arg, extract_args};
 
 /// First character of a generated identifier: always a letter, so the base is
 /// never empty and never starts with a digit or underscore.

@@ -10,16 +10,20 @@
 //! (`reset_wrapper_counter_for_tests`), so every test in this module must be
 //! `#[serial]`; otherwise the generated identifiers race between threads.
 
-use super::args::{ExtractedArgs, extract_args};
-use super::emit::reset_wrapper_counter_for_tests;
-use super::{WrapperConfig, generate_wrapper_code};
-use crate::StepKeyword;
-use crate::return_classifier::ReturnKind;
+use std::collections::HashSet;
+
 use proc_macro2::TokenStream;
 use quote::ToTokens;
 use serial_test::serial;
-use std::collections::HashSet;
 use syn::parse_quote;
+
+use super::{
+    WrapperConfig,
+    args::{ExtractedArgs, extract_args},
+    emit::reset_wrapper_counter_for_tests,
+    generate_wrapper_code,
+};
+use crate::{StepKeyword, return_classifier::ReturnKind};
 
 /// Build a `WrapperConfig` for a single-parameter step function source.
 ///

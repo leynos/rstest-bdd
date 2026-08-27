@@ -1122,7 +1122,6 @@ the classifier unit tests and the wrapper equivalence tests in
 `codegen/wrapper/equivalence_tests.rs` pin that identity, and an `insta`
 snapshot trips if the emitted shape drifts.
 
-
 ## Shared policy crate (`rstest-bdd-policy`)
 
 The workspace owns policy type definitions in `rstest-bdd-policy`.[^1] That

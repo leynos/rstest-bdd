@@ -8,8 +8,9 @@
 
 use std::collections::HashSet;
 
-use super::{Arg, ExtractedArgs, extract_flag_attribute};
 use quote::ToTokens;
+
+use super::{Arg, ExtractedArgs, extract_flag_attribute};
 
 #[cfg(test)]
 mod prop_tests;
@@ -89,7 +90,8 @@ pub(crate) fn classify_harness_context(
             return Err(syn::Error::new(
                 proc_macro2::Span::call_site(),
                 format!(
-                    "unsupported parameter pattern `{pattern}`; use a simple identifier (e.g., `arg: T`)"
+                    "unsupported parameter pattern `{pattern}`; use a simple identifier (e.g., \
+                     `arg: T`)"
                 ),
             ));
         }
