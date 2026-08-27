@@ -1679,6 +1679,7 @@ dependencies = [
  "anyhow",
  "camino",
  "cap-std",
+ "cargo_metadata",
  "ctor",
  "derive_more",
  "eyre",

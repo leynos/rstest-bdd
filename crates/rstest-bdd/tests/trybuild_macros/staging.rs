@@ -2,10 +2,11 @@
 //!
 //! Handles discovery and copying of feature files to the trybuild test
 //! environment, ensuring fixtures can locate their dependencies at compile time.
-use std::{env, io, path::Path as StdPath};
+use std::{env, io, path::Path as StdPath, sync::OnceLock};
 
 use camino::{Utf8Path, Utf8PathBuf};
 use cap_std::{ambient_authority, fs::Dir};
+use cargo_metadata::MetadataCommand;
 
 const MACROS_FIXTURES_DIR: &str = "tests/fixtures_macros";
 const FEATURES_DIR: &str = "tests/features";
@@ -169,13 +170,37 @@ fn stage_trybuild_support_files() -> io::Result<()> {
 
 /// Resolve the Cargo target directory shared by trybuild staging and inspection.
 ///
-/// Cargo exposes an explicit target directory to integration tests through
-/// `CARGO_TARGET_DIR`. Both halves of the tracking assertion must use it so
-/// coverage artefacts do not separate the staged feature from its dep-info.
+/// Trybuild obtains this value from `cargo metadata` before configuring its
+/// nested build. Use Cargo's answer rather than guessing from the test
+/// process's environment, which can differ from a coverage wrapper's CLI.
 pub(super) fn trybuild_target_directory(workspace_root: &Utf8Path) -> Utf8PathBuf {
-    env::var_os("CARGO_TARGET_DIR")
-        .and_then(|value| Utf8PathBuf::from_path_buf(value.into()).ok())
-        .unwrap_or_else(|| workspace_root.join("target"))
+    static TARGET_DIRECTORY: OnceLock<Result<Utf8PathBuf, String>> = OnceLock::new();
+    metadata_target_directory(workspace_root, &TARGET_DIRECTORY)
+}
+
+fn metadata_target_directory(
+    workspace_root: &Utf8Path,
+    cache: &OnceLock<Result<Utf8PathBuf, String>>,
+) -> Utf8PathBuf {
+    match cache.get_or_init(|| {
+        MetadataCommand::new()
+            .current_dir(workspace_root)
+            .exec()
+            .map(|metadata| metadata.target_directory)
+            .map_err(|error| error.to_string())
+    }) {
+        Ok(target_directory) => target_directory.clone(),
+        Err(error) => {
+            // This fallback is only for environments where Cargo metadata
+            // cannot run (for example, a sandbox without a reachable manifest).
+            // A successful metadata query remains Cargo's authoritative oracle.
+            log::warn!(
+                "trybuild target-directory fallback to `{}` because cargo metadata failed: {error}",
+                workspace_root.join("target")
+            );
+            workspace_root.join("target")
+        }
+    }
 }
 
 /// Restores snapshots whose diagnostics include Cargo's target directory.
@@ -310,30 +335,46 @@ mod tests {
     //! Target-directory selection regression tests for trybuild support.
 
     use serial_test::serial;
+    use tempfile::tempdir;
 
     use super::*;
 
     #[test]
     #[serial(trybuild_target_directory)]
-    fn target_directory_uses_cargo_target_dir() {
-        let workspace_root = Utf8Path::new("workspace");
-        let configured_target = Utf8PathBuf::from("coverage-target");
+    fn target_directory_matches_metadata_with_cargo_target_dir() {
+        let workspace_root = Utf8Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .and_then(Utf8Path::parent)
+            .expect("workspace root must be two levels above the manifest directory");
+        let temp_dir = tempdir().expect("temporary target directory should be created");
+        let configured_target = Utf8PathBuf::from_path_buf(temp_dir.path().join("coverage-target"))
+            .expect("temporary target directory should be valid UTF-8");
+        let cache = OnceLock::new();
 
         temp_env::with_var("CARGO_TARGET_DIR", Some(configured_target.as_str()), || {
-            assert_eq!(trybuild_target_directory(workspace_root), configured_target);
+            assert_eq!(
+                metadata_target_directory(workspace_root, &cache),
+                configured_target
+            );
         });
     }
 
     #[test]
     #[serial(trybuild_target_directory)]
-    fn target_directory_falls_back_to_workspace_target() {
-        let workspace_root = Utf8Path::new("workspace");
+    fn target_directory_matches_metadata_without_cargo_target_dir() {
+        let workspace_root = Utf8Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .and_then(Utf8Path::parent)
+            .expect("workspace root must be two levels above the manifest directory");
+        let cache = OnceLock::new();
 
         temp_env::with_var_unset("CARGO_TARGET_DIR", || {
-            assert_eq!(
-                trybuild_target_directory(workspace_root),
-                workspace_root.join("target")
-            );
+            let expected = MetadataCommand::new()
+                .current_dir(workspace_root)
+                .exec()
+                .expect("cargo metadata should resolve the workspace target directory")
+                .target_directory;
+            assert_eq!(metadata_target_directory(workspace_root, &cache), expected);
         });
     }
 }
