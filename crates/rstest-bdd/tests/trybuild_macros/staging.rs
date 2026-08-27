@@ -170,30 +170,44 @@ fn stage_trybuild_support_files() -> io::Result<()> {
 
 /// Resolve the Cargo target directory shared by trybuild staging and inspection.
 ///
-/// Trybuild obtains this value from `cargo metadata` before configuring its
-/// nested build. Use Cargo's answer rather than guessing from the test
-/// process's environment, which can differ from a coverage wrapper's CLI.
+/// The running integration-test executable is compiled beneath Cargo's
+/// effective target root, including a `--target-dir` selected by `cargo
+/// llvm-cov`. Prefer that path over `cargo metadata`: metadata does not receive
+/// a caller's command-line target-directory override.
 pub(super) fn trybuild_target_directory(workspace_root: &Utf8Path) -> Utf8PathBuf {
-    static TARGET_DIRECTORY: OnceLock<Result<Utf8PathBuf, String>> = OnceLock::new();
-    metadata_target_directory(workspace_root, &TARGET_DIRECTORY)
+    static TARGET_DIRECTORY: OnceLock<Utf8PathBuf> = OnceLock::new();
+    TARGET_DIRECTORY
+        .get_or_init(|| {
+            target_directory_from_running_test_executable()
+                .unwrap_or_else(|| metadata_target_directory(workspace_root))
+        })
+        .clone()
 }
 
-fn metadata_target_directory(
-    workspace_root: &Utf8Path,
-    cache: &OnceLock<Result<Utf8PathBuf, String>>,
-) -> Utf8PathBuf {
-    match cache.get_or_init(|| {
-        MetadataCommand::new()
-            .current_dir(workspace_root)
-            .exec()
-            .map(|metadata| metadata.target_directory)
-            .map_err(|error| error.to_string())
-    }) {
-        Ok(target_directory) => target_directory.clone(),
+fn target_directory_from_running_test_executable() -> Option<Utf8PathBuf> {
+    let executable = Utf8PathBuf::from_path_buf(env::current_exe().ok()?).ok()?;
+    target_directory_from_test_executable(executable.as_path())
+}
+
+/// Extract Cargo's target root from an integration-test executable path.
+///
+/// This helper serves only the trybuild test-support module. Its callers must
+/// use the returned root for both staged inputs and inspection artefacts.
+fn target_directory_from_test_executable(executable: &Utf8Path) -> Option<Utf8PathBuf> {
+    let dependencies = executable.parent()?;
+    if dependencies.file_name() != Some("deps") {
+        return None;
+    }
+    Some(dependencies.parent()?.parent()?.to_owned())
+}
+
+fn metadata_target_directory(workspace_root: &Utf8Path) -> Utf8PathBuf {
+    match MetadataCommand::new().current_dir(workspace_root).exec() {
+        Ok(metadata) => metadata.target_directory,
         Err(error) => {
-            // This fallback is only for environments where Cargo metadata
-            // cannot run (for example, a sandbox without a reachable manifest).
-            // A successful metadata query remains Cargo's authoritative oracle.
+            // This fallback is only for environments where neither the test
+            // executable layout nor Cargo metadata is available, such as a
+            // sandbox without a reachable manifest.
             log::warn!(
                 "trybuild target-directory fallback to `{}` because cargo metadata failed: {error}",
                 workspace_root.join("target")
@@ -334,47 +348,36 @@ fn collect_feature_files(
 mod tests {
     //! Target-directory selection regression tests for trybuild support.
 
-    use serial_test::serial;
-    use tempfile::tempdir;
+    use rstest::rstest;
 
     use super::*;
 
-    #[test]
-    #[serial(trybuild_target_directory)]
-    fn target_directory_matches_metadata_with_cargo_target_dir() {
-        let workspace_root = Utf8Path::new(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .and_then(Utf8Path::parent)
-            .expect("workspace root must be two levels above the manifest directory");
-        let temp_dir = tempdir().expect("temporary target directory should be created");
-        let configured_target = Utf8PathBuf::from_path_buf(temp_dir.path().join("coverage-target"))
-            .expect("temporary target directory should be valid UTF-8");
-        let cache = OnceLock::new();
-
-        temp_env::with_var("CARGO_TARGET_DIR", Some(configured_target.as_str()), || {
-            assert_eq!(
-                metadata_target_directory(workspace_root, &cache),
-                configured_target
-            );
-        });
+    #[rstest]
+    #[case::default_target(
+        "/workspace/target/debug/deps/trybuild_macros-a1b2c3",
+        "/workspace/target"
+    )]
+    #[case::coverage_target(
+        "/workspace/target/llvm-cov-target/debug/deps/trybuild_macros-a1b2c3",
+        "/workspace/target/llvm-cov-target"
+    )]
+    fn derives_target_root_from_test_executable(#[case] executable: &str, #[case] expected: &str) {
+        assert_eq!(
+            target_directory_from_test_executable(Utf8Path::new(executable)),
+            Some(Utf8PathBuf::from(expected))
+        );
     }
 
     #[test]
-    #[serial(trybuild_target_directory)]
-    fn target_directory_matches_metadata_without_cargo_target_dir() {
+    #[serial_test::serial(trybuild_target_directory)]
+    fn target_directory_uses_running_test_executable() {
         let workspace_root = Utf8Path::new(env!("CARGO_MANIFEST_DIR"))
             .parent()
             .and_then(Utf8Path::parent)
             .expect("workspace root must be two levels above the manifest directory");
-        let cache = OnceLock::new();
+        let expected = target_directory_from_running_test_executable()
+            .expect("integration tests should run from Cargo's `deps` directory");
 
-        temp_env::with_var_unset("CARGO_TARGET_DIR", || {
-            let expected = MetadataCommand::new()
-                .current_dir(workspace_root)
-                .exec()
-                .expect("cargo metadata should resolve the workspace target directory")
-                .target_directory;
-            assert_eq!(metadata_target_directory(workspace_root, &cache), expected);
-        });
+        assert_eq!(trybuild_target_directory(workspace_root), expected);
     }
 }

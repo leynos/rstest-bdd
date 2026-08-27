@@ -2045,12 +2045,12 @@ bookkeeping exactly once and applies the caller's projection to the resolved
 
 ## Internal APIs and tooling (ADR-010 to ADR-013)
 
-ADR-010 remains proposed build-tooling work. ADR-011 records historical
-scenario-state work that did not ship. ADR-012 is accepted and implemented in
-v0.7.0, while ADR-013 is accepted and governs the current Whitaker lint gate.
-They are summarized here so the decisions are discoverable from the developer
-guide; the ADRs remain the authoritative source, and the planning rationale
-lives in
+ADR-010 is accepted and implemented build-tooling work. ADR-011 records
+historical scenario-state work that did not ship. ADR-012 is accepted and
+implemented in v0.7.0, while ADR-013 is accepted and governs the current
+Whitaker lint gate. They are summarized here so the decisions are discoverable
+from the developer guide; the ADRs remain the authoritative source, and the
+planning rationale lives in
 [`docs/execplans/adopt-v0-6-0-beta2-feedback.md`](execplans/adopt-v0-6-0-beta2-feedback.md).
 
 ### Historical scenario-state helper proposal (ADR-011)
@@ -2112,28 +2112,27 @@ Tracked by roadmap items 12.1.1–12.1.3; design coverage is in
 [ADR-010](adr-010-feature-file-change-detection.md) closes a build-tooling
 foot-gun: `#[scenario(path = …)]` and `scenarios!` read `.feature` files with
 `std::fs` at macro-expansion time, so Cargo never sees them as inputs and a
-`.feature`-only edit does not trigger a rebuild. The decision:
+`.feature`-only edit would otherwise leave a stale binary. The implemented
+mechanism emits an item-scope anonymous binding for every bound feature file:
 
-- For single-file `#[scenario]` binding, prefer emitting a **relative-path**
-  `include_str!` so rustc registers the file in dep-info automatically. An
-  absolute `CARGO_MANIFEST_DIR`-rooted path is **rejected** because it breaks
-  reproducible builds (Nix sandboxes, `sccache`, Windows/POSIX separators).
-- For `scenarios!` directory-glob binding, prefer a build-script helper
-  emitting `cargo::rerun-if-changed` for the features directory and each
-  discovered file (the `theoremc` pattern), which embeds nothing in the
-  artefact.
-- The unstable `proc_macro::tracked_path` API is the long-term answer, usable
-  behind a `nightly` feature gate once stabilized.
-- Invalidation must be a *tested contract*: a portability-aware rebuild
-  regression test, a `trybuild` compile-time test for the emitted binding, and
-  redacted `insta` snapshots for any touched diagnostic — see the ADR's
-  *Testing strategy*. This is distinct from the OUT_DIR AST *caching*
-  performance idea in `rstest-bdd-design.md` §3.2.2.
+```rust
+const _: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/", REL));
+```
 
-Tracked by roadmap item 10.3.3 (pulled forward to v0.6.0 final); design
-coverage is in `rstest-bdd-design.md` §2.7.6.6. Until it lands,
-`v0-6-0-migration-guide.md` carries a caveat that `.feature`-only edits do not
-trigger a rebuild.
+The deferred manifest-relative path lets rustc register the file in dep-info
+without retaining either the feature contents or an absolute build path in the
+artefact. `scenarios!` emits one sibling binding for every discovered file,
+including a file from which a `tags =` filter generates no test. The documented
+`build.rs` recipe remains responsible for detecting feature files added after
+macro expansion.
+
+`proc_macro::tracked_path` remains unstable and is not enabled behind a
+`nightly` feature because the repository's all-features gates must stay stable.
+The implementation and its compile-time and nested-Cargo regressions are
+described in [Feature-file rebuild invalidation conventions]
+(#feature-file-rebuild-invalidation-conventions-roadmap-1033). Design coverage
+is in `rstest-bdd-design.md` §2.7.6.6 and migration guidance is in
+`v0-6-0-migration-guide.md`.
 
 ### Whitaker Dylint suite lint gate (ADR-013)
 

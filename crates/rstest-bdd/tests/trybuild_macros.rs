@@ -75,26 +75,38 @@ fn step_macros_compile() -> io::Result<()> {
     // Rust 2024 makes `std::env::remove_var` unsafe; Rust 1.85.0 is the first
     // release supporting that edition. This workspace forbids unsafe code, so
     // `temp_env` provides the same scoped mutation without weakening that lint.
-    temp_env::with_var_unset("RUST_BACKTRACE", || {
-        let _target_root_snapshots = staging::stage_target_root_snapshots()?;
-        let t = trybuild::TestCases::new();
+    let crate_root = Utf8Path::new(env!("CARGO_MANIFEST_DIR"));
+    let workspace_root = crate_root
+        .parent()
+        .and_then(Utf8Path::parent)
+        .expect("workspace root must be two levels above the manifest directory");
+    let target_directory = staging::trybuild_target_directory(workspace_root);
 
-        run_passing_macro_tests(&t);
-        #[cfg(windows)]
-        let _alternate_root = staging::stage_unrelatable_feature_root()?;
-        run_failing_macro_tests(&t);
-        run_failing_ui_tests(&t)?;
-        run_lint_ui_tests()?;
-        t.compile_fail(
-            macros_fixture(MacroFixtureCase::from("scenarios_missing_dir.rs")).as_std_path(),
-        );
-        run_conditional_ordering_tests(&t)?;
-        run_conditional_ambiguous_step_test(&t);
-        // `TestCases` runs its queued fixtures from `Drop`; inspect dep-info
-        // only after this run has actually compiled the tracking fixture.
-        drop(t);
-        tracking::assert_trybuild_tracking_registered_in_dep_info();
-        Ok(())
+    // Trybuild asks Cargo metadata for its target root. Cargo does not expose
+    // an outer `--target-dir` flag to this test process, so explicitly pass
+    // the running test's root to trybuild's nested Cargo invocations.
+    temp_env::with_var("CARGO_TARGET_DIR", Some(target_directory.as_str()), || {
+        temp_env::with_var_unset("RUST_BACKTRACE", || {
+            let _target_root_snapshots = staging::stage_target_root_snapshots()?;
+            let t = trybuild::TestCases::new();
+
+            run_passing_macro_tests(&t);
+            #[cfg(windows)]
+            let _alternate_root = staging::stage_unrelatable_feature_root()?;
+            run_failing_macro_tests(&t);
+            run_failing_ui_tests(&t)?;
+            run_lint_ui_tests()?;
+            t.compile_fail(
+                macros_fixture(MacroFixtureCase::from("scenarios_missing_dir.rs")).as_std_path(),
+            );
+            run_conditional_ordering_tests(&t)?;
+            run_conditional_ambiguous_step_test(&t);
+            // `TestCases` runs its queued fixtures from `Drop`; inspect dep-info
+            // only after this run has actually compiled the tracking fixture.
+            drop(t);
+            tracking::assert_trybuild_tracking_registered_in_dep_info();
+            Ok(())
+        })
     })
 }
 fn run_passing_macro_tests(t: &trybuild::TestCases) {
