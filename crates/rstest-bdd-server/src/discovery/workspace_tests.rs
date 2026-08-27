@@ -7,9 +7,9 @@ use tempfile::TempDir;
 
 use super::*;
 
+/// Creates a valid temporary Cargo workspace for discovery tests.
 #[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
-/// Creates a valid temporary Cargo workspace for discovery tests.
 fn create_test_workspace() -> io::Result<TempDir> {
     let dir = TempDir::new()?;
     let cargo_toml = dir.path().join("Cargo.toml");
@@ -30,8 +30,8 @@ edition = "2024"
     Ok(dir)
 }
 
-#[rstest]
 /// Discovers the workspace root and package when invoked from its root.
+#[rstest]
 fn discovers_workspace_from_root(create_test_workspace: io::Result<TempDir>) {
     let workspace = create_test_workspace.expect("test setup should succeed");
     let result = discover_workspace(workspace.path());
@@ -41,8 +41,8 @@ fn discovers_workspace_from_root(create_test_workspace: io::Result<TempDir>) {
     assert!(info.packages.contains(&"test-project".to_owned()));
 }
 
-#[rstest]
 /// Discovers the workspace root when invoked from a nested source directory.
+#[rstest]
 fn discovers_workspace_from_subdirectory(create_test_workspace: io::Result<TempDir>) {
     let workspace = create_test_workspace.expect("test setup should succeed");
     let subdir = workspace.path().join("src");
@@ -52,8 +52,8 @@ fn discovers_workspace_from_subdirectory(create_test_workspace: io::Result<TempD
     assert_eq!(info.root, workspace.path());
 }
 
-#[rstest]
 /// Reports that workspace discovery fails when no Cargo manifest is present.
+#[rstest]
 fn fails_when_no_manifest_found() {
     let dir = TempDir::new().expect("failed to create temp dir");
     let result = discover_workspace(dir.path());
@@ -88,10 +88,10 @@ fn create_workspace_with_feature(
     find_feature_files(workspace.path())
 }
 
+/// Discovers feature files in supported directories, including nested paths.
 #[rstest]
 #[case(&["tests", "features"], "example.feature", "Feature: Test")]
 #[case(&["tests", "features", "nested"], "nested.feature", "Feature: Nested")]
-/// Discovers feature files in supported directories, including nested paths.
 fn finds_feature_files_in_various_locations(
     #[case] relative_dir: &[&str],
     #[case] filename: &str,
@@ -109,8 +109,8 @@ fn finds_feature_files_in_various_locations(
     );
 }
 
-#[rstest]
 /// Returns no feature files when the workspace contains none.
+#[rstest]
 fn returns_empty_when_no_feature_files(create_test_workspace: io::Result<TempDir>) {
     let workspace = create_test_workspace.expect("test setup should succeed");
     let features = find_feature_files(workspace.path()).expect("feature discovery should succeed");
@@ -145,8 +145,8 @@ fn assert_io_error_kind(error: ServerError, expected_kind: io::ErrorKind) {
     assert_eq!(source.kind(), expected_kind);
 }
 
-#[test]
 /// Returns `ServerError::Io` with `io::ErrorKind::NotFound` for a missing workspace.
+#[test]
 fn reports_workspace_read_failure() {
     let missing_path = create_missing_path();
 
@@ -156,8 +156,8 @@ fn reports_workspace_read_failure() {
     assert_not_found_error(error);
 }
 
-#[test]
 /// Returns `ServerError::Io` with `io::ErrorKind::NotFound` for a missing feature directory.
+#[test]
 fn reports_recursive_directory_read_failure() {
     let missing_path = create_missing_path();
     let mut features = Vec::new();
@@ -220,8 +220,8 @@ impl DirectoryReader for FailingDirectoryReader {
     }
 }
 
-#[test]
 /// Returns `ServerError::Io` with `io::ErrorKind::PermissionDenied` for feature metadata failure.
+#[test]
 fn reports_optional_feature_directory_metadata_failure() {
     let reader = FailingDirectoryReader {
         failure: ReaderFailure::Metadata,
@@ -233,8 +233,8 @@ fn reports_optional_feature_directory_metadata_failure() {
     assert_io_error_kind(error, io::ErrorKind::PermissionDenied);
 }
 
-#[test]
 /// Returns `ServerError::Io` with `io::ErrorKind::PermissionDenied` for a nested entry failure.
+#[test]
 fn reports_nested_feature_directory_entry_failure() {
     let reader = FailingDirectoryReader {
         failure: ReaderFailure::NestedDirectoryEntry,
@@ -246,8 +246,8 @@ fn reports_nested_feature_directory_entry_failure() {
     assert_io_error_kind(error, io::ErrorKind::PermissionDenied);
 }
 
-#[test]
 /// Returns `ServerError::Io` with `io::ErrorKind::PermissionDenied` for crate manifest metadata.
+#[test]
 fn reports_crate_manifest_metadata_failure() {
     let reader = FailingDirectoryReader {
         failure: ReaderFailure::ManifestMetadata,
@@ -259,8 +259,8 @@ fn reports_crate_manifest_metadata_failure() {
     assert_io_error_kind(error, io::ErrorKind::PermissionDenied);
 }
 
-#[test]
 /// Returns `ServerError::Io` with `io::ErrorKind::PermissionDenied` for a workspace entry failure.
+#[test]
 fn reports_workspace_directory_entry_failure() {
     let reader = FailingDirectoryReader {
         failure: ReaderFailure::WorkspaceDirectoryEntry,
@@ -271,7 +271,9 @@ fn reports_workspace_directory_entry_failure() {
 
     assert_io_error_kind(error, io::ErrorKind::PermissionDenied);
 }
+
 /// Returns `ServerError::Io` with `io::ErrorKind::PermissionDenied` for recursive entry failure.
+#[test]
 fn reports_recursive_directory_entry_failure() {
     let reader = FailingDirectoryReader {
         failure: ReaderFailure::NestedDirectoryEntry,
