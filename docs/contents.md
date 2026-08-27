@@ -100,6 +100,8 @@
 - [ADR 017: toolchain-aware adapter fallback diagnostics][adr-017] records the
   toolchain-specific warning and pure-resolution decision for first-party
   adapter fallbacks.
+- [ADR 018: parser-neutral scenario execution][adr-018] records the accepted
+  structured scenario plan and runtime runner for non-Gherkin frontends.
 
 ## Execution plans
 
@@ -118,6 +120,7 @@
 [adr-015]: adr-015-insert-outcome-for-step-return-overrides.md
 [adr-016]: adr-016-pinned-nightly-rustfmt.md
 [adr-017]: adr-017-toolchain-aware-adapter-fallback-diagnostics.md
+[adr-018]: adr-018-parser-neutral-scenario-execution.md
 [complexity-guide]: complexity-antipatterns-and-refactoring-strategies.md
 [cucumber-async]: cucumber-rs-migration-and-async-patterns.md
 [dependency-injection]: reliable-testing-in-rust-via-dependency-injection.md
