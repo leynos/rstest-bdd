@@ -1,6 +1,10 @@
 //! Unit tests for workspace discovery.
 
-use std::{fs, io};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs,
+    io,
+};
 
 use rstest::{fixture, rstest};
 use tempfile::TempDir;
@@ -137,12 +141,220 @@ fn assert_not_found_error(error: ServerError) {
 }
 
 /// Asserts that a `ServerError::Io` wraps the expected I/O error kind.
-fn assert_io_error_kind(error: ServerError, expected_kind: io::ErrorKind) {
+pub(super) fn assert_io_error_kind(error: ServerError, expected_kind: io::ErrorKind) {
     let ServerError::Io(source) = error else {
         panic!("expected an I/O error");
     };
 
     assert_eq!(source.kind(), expected_kind);
+}
+
+/// Selects a deterministic operation in the in-memory workspace model.
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub(super) enum FailureSite {
+    /// Fails the required workspace-root directory read.
+    WorkspaceReadDirectory,
+    /// Fails required workspace-root directory-entry iteration.
+    WorkspaceDirectoryEntry,
+    /// Fails required crate-directory metadata.
+    CrateDirectoryMetadata,
+    /// Fails required crate-manifest metadata.
+    CrateManifestMetadata,
+    /// Fails the optional `tests/features` metadata probe.
+    OptionalTestsFeaturesMetadata,
+    /// Fails the optional workspace `features` metadata probe.
+    OptionalWorkspaceFeaturesMetadata,
+    /// Fails an optional crate-manifest metadata probe.
+    OptionalCrateManifestMetadata,
+}
+
+/// Supplies a bounded in-memory filesystem model for discovery properties.
+pub(super) struct InMemoryDirectoryReader {
+    entries: BTreeMap<PathBuf, Vec<PathBuf>>,
+    directories: BTreeSet<PathBuf>,
+    files: BTreeSet<PathBuf>,
+    failure: Option<(FailureSite, io::ErrorKind)>,
+}
+
+impl DirectoryReader for InMemoryDirectoryReader {
+    type Entries = std::vec::IntoIter<io::Result<PathBuf>>;
+
+    /// Reads modelled entries or returns the configured directory-read failure.
+    fn read_dir(&self, path: &Path) -> io::Result<Self::Entries> {
+        if let Some((FailureSite::WorkspaceReadDirectory, kind)) = self.failure
+            && path == Path::new("workspace")
+        {
+            return Err(io::Error::from(kind));
+        }
+
+        let mut entries = self.entries.get(path).cloned().unwrap_or_default();
+        if matches!(
+            self.failure,
+            Some((FailureSite::WorkspaceDirectoryEntry, _)) if path == Path::new("workspace")
+        ) {
+            entries.insert(0, PathBuf::new());
+        }
+
+        let failure = self.failure;
+        Ok(entries
+            .into_iter()
+            .map(move |entry| {
+                if entry.as_os_str().is_empty() {
+                    if let Some((FailureSite::WorkspaceDirectoryEntry, kind)) = failure {
+                        return Err(io::Error::from(kind));
+                    }
+                }
+
+                Ok(entry)
+            })
+            .collect::<Vec<_>>()
+            .into_iter())
+    }
+
+    /// Reports modelled directory metadata or the configured metadata failure.
+    fn is_directory(&self, path: &Path) -> io::Result<bool> {
+        if self.directory_metadata_failure(path) {
+            let Some((_, kind)) = self.failure else {
+                return Ok(self.directories.contains(path));
+            };
+            return Err(io::Error::from(kind));
+        }
+
+        Ok(self.directories.contains(path))
+    }
+
+    /// Reports modelled file metadata or the configured manifest-probe failure.
+    fn is_file(&self, path: &Path) -> io::Result<bool> {
+        if self.metadata_failure(FailureSite::CrateManifestMetadata, path)
+            || self.metadata_failure(FailureSite::OptionalCrateManifestMetadata, path)
+        {
+            let Some((_, kind)) = self.failure else {
+                return Ok(self.files.contains(path));
+            };
+            return Err(io::Error::from(kind));
+        }
+
+        Ok(self.files.contains(path))
+    }
+}
+
+impl InMemoryDirectoryReader {
+    /// Checks whether a required or optional directory metadata probe must fail.
+    fn directory_metadata_failure(&self, path: &Path) -> bool {
+        self.metadata_failure(FailureSite::CrateDirectoryMetadata, path)
+            || self.optional_directory_metadata_failure(path)
+    }
+
+    /// Checks whether an optional feature-directory metadata probe must fail.
+    fn optional_directory_metadata_failure(&self, path: &Path) -> bool {
+        self.metadata_failure(FailureSite::OptionalTestsFeaturesMetadata, path)
+            || self.metadata_failure(FailureSite::OptionalWorkspaceFeaturesMetadata, path)
+    }
+
+    /// Checks whether the configured metadata failure applies to a path.
+    fn metadata_failure(&self, site: FailureSite, path: &Path) -> bool {
+        let Some((configured_site, _)) = self.failure else {
+            return false;
+        };
+
+        configured_site == site
+            && match site {
+                FailureSite::CrateDirectoryMetadata => path == Path::new("workspace/crate"),
+                FailureSite::CrateManifestMetadata => {
+                    path == Path::new("workspace/crate/Cargo.toml")
+                }
+                FailureSite::OptionalTestsFeaturesMetadata => {
+                    path == Path::new("workspace/tests/features")
+                }
+                FailureSite::OptionalWorkspaceFeaturesMetadata => {
+                    path == Path::new("workspace/features")
+                }
+                FailureSite::OptionalCrateManifestMetadata => {
+                    path == Path::new("workspace/optional-crate/Cargo.toml")
+                }
+                FailureSite::WorkspaceReadDirectory | FailureSite::WorkspaceDirectoryEntry => false,
+            }
+    }
+}
+
+/// Holds a model reader and the feature paths that successful discovery must return.
+pub(super) struct InMemoryWorkspace {
+    /// Reader implementing the generated workspace tree and injected failure.
+    pub(super) reader: InMemoryDirectoryReader,
+    /// Sorted feature paths expected from successful discovery.
+    pub(super) expected_features: Vec<PathBuf>,
+}
+
+/// Builds a bounded workspace tree with nested feature leaves and ordered entries.
+pub(super) fn in_memory_workspace(
+    nested_feature_depths: &[u8],
+    entry_order: &[u8],
+    failure: Option<(FailureSite, io::ErrorKind)>,
+) -> InMemoryWorkspace {
+    let workspace = PathBuf::from("workspace");
+    let crate_root = workspace.join("crate");
+    let optional_crate = workspace.join("optional-crate");
+    let feature_root = crate_root.join("tests/features");
+    let mut entries = BTreeMap::new();
+    let mut directories = BTreeSet::from([
+        workspace.clone(),
+        crate_root.clone(),
+        optional_crate.clone(),
+        crate_root.join("tests"),
+        feature_root.clone(),
+    ]);
+    let files = BTreeSet::from([crate_root.join("Cargo.toml")]);
+    let mut expected_features = Vec::new();
+
+    entries.insert(workspace.clone(), vec![crate_root.clone(), optional_crate]);
+    for (feature_index, depth) in nested_feature_depths.iter().enumerate() {
+        let mut directory = feature_root.clone();
+        for level in 0..*depth {
+            let nested = directory.join(format!("nested-{feature_index}-{level}"));
+            entries
+                .entry(directory.clone())
+                .or_default()
+                .push(nested.clone());
+            directories.insert(nested.clone());
+            directory = nested;
+        }
+        let feature = directory.join(format!("feature-{feature_index}.feature"));
+        entries.entry(directory).or_default().push(feature.clone());
+        expected_features.push(feature);
+    }
+
+    for directory_entries in entries.values_mut() {
+        order_entries(directory_entries, entry_order);
+    }
+    expected_features.sort();
+
+    InMemoryWorkspace {
+        reader: InMemoryDirectoryReader {
+            entries,
+            directories,
+            files,
+            failure,
+        },
+        expected_features,
+    }
+}
+
+/// Applies generated ordering keys while preserving a deterministic path tie-breaker.
+fn order_entries(entries: &mut [PathBuf], entry_order: &[u8]) {
+    if entry_order.is_empty() {
+        return;
+    }
+
+    let mut indexed_entries = entries.iter().cloned().enumerate().collect::<Vec<_>>();
+    indexed_entries.sort_by_key(|(index, path)| {
+        (
+            entry_order.get(*index).copied().unwrap_or_default(),
+            path.clone(),
+        )
+    });
+    for (entry, (_, path)) in entries.iter_mut().zip(indexed_entries) {
+        *entry = path;
+    }
 }
 
 /// Returns `ServerError::Io` with `io::ErrorKind::NotFound` for a missing workspace.
@@ -167,122 +379,4 @@ fn reports_recursive_directory_read_failure() {
             .expect_err("missing feature directory should return an I/O error");
 
     assert_not_found_error(error);
-}
-
-#[derive(Clone, Copy)]
-enum ReaderFailure {
-    Metadata,
-    NestedDirectoryEntry,
-    ManifestMetadata,
-    WorkspaceDirectoryEntry,
-}
-
-struct FailingDirectoryReader {
-    failure: ReaderFailure,
-}
-
-impl DirectoryReader for FailingDirectoryReader {
-    type Entries = std::vec::IntoIter<io::Result<PathBuf>>;
-
-    fn read_dir(&self, path: &Path) -> io::Result<Self::Entries> {
-        let entries = match self.failure {
-            ReaderFailure::NestedDirectoryEntry if path.ends_with("nested") => {
-                vec![Err(io::Error::from(io::ErrorKind::PermissionDenied))]
-            }
-            ReaderFailure::ManifestMetadata if path == Path::new("workspace") => {
-                vec![Ok(path.join("crate"))]
-            }
-            ReaderFailure::WorkspaceDirectoryEntry if path == Path::new("workspace") => {
-                vec![Err(io::Error::from(io::ErrorKind::PermissionDenied))]
-            }
-            _ => vec![Ok(path.join("nested"))],
-        };
-
-        Ok(entries.into_iter())
-    }
-
-    fn is_directory(&self, path: &Path) -> io::Result<bool> {
-        match self.failure {
-            ReaderFailure::Metadata => Err(io::Error::from(io::ErrorKind::PermissionDenied)),
-            ReaderFailure::ManifestMetadata => Ok(!path.ends_with("features")),
-            ReaderFailure::WorkspaceDirectoryEntry => Ok(false),
-            ReaderFailure::NestedDirectoryEntry => Ok(true),
-        }
-    }
-
-    fn is_file(&self, _path: &Path) -> io::Result<bool> {
-        match self.failure {
-            ReaderFailure::ManifestMetadata => {
-                Err(io::Error::from(io::ErrorKind::PermissionDenied))
-            }
-            _ => Ok(false),
-        }
-    }
-}
-
-/// Returns `ServerError::Io` with `io::ErrorKind::PermissionDenied` for feature metadata failure.
-#[test]
-fn reports_optional_feature_directory_metadata_failure() {
-    let reader = FailingDirectoryReader {
-        failure: ReaderFailure::Metadata,
-    };
-
-    let error = find_feature_files_with(Path::new("workspace"), &reader)
-        .expect_err("unreadable feature directory should return an I/O error");
-
-    assert_io_error_kind(error, io::ErrorKind::PermissionDenied);
-}
-
-/// Returns `ServerError::Io` with `io::ErrorKind::PermissionDenied` for a nested entry failure.
-#[test]
-fn reports_nested_feature_directory_entry_failure() {
-    let reader = FailingDirectoryReader {
-        failure: ReaderFailure::NestedDirectoryEntry,
-    };
-
-    let error = find_feature_files_with(Path::new("workspace"), &reader)
-        .expect_err("unreadable nested feature directory should return an I/O error");
-
-    assert_io_error_kind(error, io::ErrorKind::PermissionDenied);
-}
-
-/// Returns `ServerError::Io` with `io::ErrorKind::PermissionDenied` for crate manifest metadata.
-#[test]
-fn reports_crate_manifest_metadata_failure() {
-    let reader = FailingDirectoryReader {
-        failure: ReaderFailure::ManifestMetadata,
-    };
-
-    let error = find_feature_files_with(Path::new("workspace"), &reader)
-        .expect_err("unreadable crate manifest should return an I/O error");
-
-    assert_io_error_kind(error, io::ErrorKind::PermissionDenied);
-}
-
-/// Returns `ServerError::Io` with `io::ErrorKind::PermissionDenied` for a workspace entry failure.
-#[test]
-fn reports_workspace_directory_entry_failure() {
-    let reader = FailingDirectoryReader {
-        failure: ReaderFailure::WorkspaceDirectoryEntry,
-    };
-
-    let error = find_feature_files_with(Path::new("workspace"), &reader)
-        .expect_err("unreadable workspace directory entry should return an I/O error");
-
-    assert_io_error_kind(error, io::ErrorKind::PermissionDenied);
-}
-
-/// Returns `ServerError::Io` with `io::ErrorKind::PermissionDenied` for recursive entry failure.
-#[test]
-fn reports_recursive_directory_entry_failure() {
-    let reader = FailingDirectoryReader {
-        failure: ReaderFailure::NestedDirectoryEntry,
-    };
-    let mut features = Vec::new();
-
-    let error =
-        collect_feature_files_recursive(&reader, Path::new("feature-directory"), &mut features)
-            .expect_err("unreadable nested feature directory should return an I/O error");
-
-    assert_io_error_kind(error, io::ErrorKind::PermissionDenied);
 }

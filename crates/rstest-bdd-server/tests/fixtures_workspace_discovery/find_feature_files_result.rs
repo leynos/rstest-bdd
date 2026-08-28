@@ -15,5 +15,5 @@ fn discover_features(workspace_root: &Path) -> Result<Vec<PathBuf>, ServerError>
 
 /// Provides the binary entry point required by the compile-pass fixture.
 fn main() {
-    let _ = discover_features;
+    let _ = discover_features(Path::new("."));
 }

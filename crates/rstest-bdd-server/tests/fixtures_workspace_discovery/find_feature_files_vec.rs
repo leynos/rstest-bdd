@@ -11,5 +11,5 @@ fn discover_features(workspace_root: &Path) -> Vec<PathBuf> {
 
 /// Provides the binary entry point required by the compile-fail fixture.
 fn main() {
-    let _ = discover_features;
+    let _ = discover_features(Path::new("."));
 }

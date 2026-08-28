@@ -7,22 +7,11 @@
 use std::{
     io,
     path::{Path, PathBuf},
-    time::Instant,
 };
 
 use cargo_metadata::MetadataCommand;
-use metrics::{counter, describe_counter, describe_histogram, histogram};
-use tracing::{info_span, warn};
 
 use crate::error::ServerError;
-
-/// Metric name for feature-file discovery outcomes.
-const FEATURE_FILE_DISCOVERY_COUNTER: &str = "rstest_bdd_server_feature_file_discovery_total";
-/// Metric name for feature-file discovery duration.
-const FEATURE_FILE_DISCOVERY_DURATION: &str =
-    "rstest_bdd_server_feature_file_discovery_duration_seconds";
-/// Fixed operation name shared by feature-file discovery telemetry.
-const FEATURE_FILE_DISCOVERY_OPERATION: &str = "feature_file_discovery";
 
 /// Information about a discovered workspace.
 ///
@@ -136,46 +125,7 @@ fn find_manifest_path(path: &Path) -> Result<PathBuf, ServerError> {
 /// }
 /// ```
 pub fn find_feature_files(workspace_root: &Path) -> Result<Vec<PathBuf>, ServerError> {
-    describe_counter!(
-        FEATURE_FILE_DISCOVERY_COUNTER,
-        "Feature-file discovery outcomes, labelled by bounded outcome"
-    );
-    describe_histogram!(
-        FEATURE_FILE_DISCOVERY_DURATION,
-        "Elapsed feature-file discovery time in seconds"
-    );
-
-    let span = info_span!(
-        FEATURE_FILE_DISCOVERY_OPERATION,
-        workspace_root = %workspace_root.display(),
-        elapsed_seconds = tracing::field::Empty,
-    );
-    let _span_guard = span.enter();
-    let started = Instant::now();
-    let result = find_feature_files_with(workspace_root, &StandardDirectoryReader);
-    let elapsed_seconds = started.elapsed().as_secs_f64();
-
-    span.record("elapsed_seconds", elapsed_seconds);
-    histogram!(FEATURE_FILE_DISCOVERY_DURATION).record(elapsed_seconds);
-
-    let outcome = if result.is_ok() {
-        "success"
-    } else {
-        "io-failure"
-    };
-    counter!(FEATURE_FILE_DISCOVERY_COUNTER, "outcome" => outcome).increment(1);
-
-    if let Err(ServerError::Io(error)) = &result {
-        warn!(
-            operation = FEATURE_FILE_DISCOVERY_OPERATION,
-            workspace_root = %workspace_root.display(),
-            error = %error,
-            elapsed_seconds,
-            "feature file discovery failed"
-        );
-    }
-
-    result
+    find_feature_files_with(workspace_root, &StandardDirectoryReader)
 }
 
 /// Provides the directory operations required by workspace discovery.
@@ -203,16 +153,19 @@ type StandardDirectoryEntries =
 impl DirectoryReader for StandardDirectoryReader {
     type Entries = StandardDirectoryEntries;
 
+    /// Reads standard filesystem entries while retaining iteration failures.
     fn read_dir(&self, path: &Path) -> io::Result<Self::Entries> {
         let entries = std::fs::read_dir(path)?;
 
         Ok(entries.map(directory_entry_path))
     }
 
+    /// Reports whether standard filesystem metadata identifies a directory.
     fn is_directory(&self, path: &Path) -> io::Result<bool> {
         std::fs::metadata(path).map(|metadata| metadata.is_dir())
     }
 
+    /// Reports whether standard filesystem metadata identifies a regular file.
     fn is_file(&self, path: &Path) -> io::Result<bool> {
         std::fs::metadata(path).map(|metadata| metadata.is_file())
     }
@@ -319,5 +272,9 @@ fn collect_feature_files_recursive<R: DirectoryReader>(
 mod tests;
 
 #[cfg(test)]
-#[path = "workspace_observability_tests.rs"]
-mod observability_tests;
+#[path = "workspace_failure_tests.rs"]
+mod failure_tests;
+
+#[cfg(test)]
+#[path = "workspace_property_tests.rs"]
+mod property_tests;
