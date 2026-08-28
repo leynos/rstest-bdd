@@ -98,12 +98,40 @@ pub fn test(args: TokenStream, input: TokenStream) -> TokenStream {
     expanded.into()
 }
 
+/// Generated statements and arguments that isolate each injected test context.
+///
+/// Keeping creation and teardown alongside their corresponding argument list
+/// lets the expansion drain and close each context after the generated test
+/// body returns normally. A panic while evaluating the body or its result
+/// skips these post-call statements; retry orchestration remains owned by
+/// `gpui::run_test`.
 struct ContextSetup {
+    /// Statements that construct the mutable contexts before the test body.
     setup: Vec<proc_macro2::TokenStream>,
+    /// Borrowed context arguments passed to the annotated test function.
     args: Vec<proc_macro2::TokenStream>,
+    /// Statements that drain and close contexts after a normal body return.
+    ///
+    /// A panic before these statements execute bypasses this generated
+    /// cleanup sequence.
     teardown: Vec<proc_macro2::TokenStream>,
 }
 
+/// Reject signature forms the shim cannot execute while preserving error spans.
+///
+/// The generated wrapper needs concrete context bindings, so generic functions
+/// and receiver parameters have no sound expansion in this limited test API.
+///
+/// # Examples
+///
+/// A concrete context parameter is accepted:
+///
+/// ```rust,ignore
+/// let signature: syn::Signature = syn::parse_quote!(
+///     fn renders_a_view(context: &gpui::TestAppContext)
+/// );
+/// assert!(validate_signature(&signature).is_ok());
+/// ```
 fn validate_signature(signature: &Signature) -> syn::Result<()> {
     if !signature.generics.params.is_empty() {
         return Err(Error::new_spanned(
@@ -126,6 +154,10 @@ fn validate_signature(signature: &Signature) -> syn::Result<()> {
     Ok(())
 }
 
+/// Confirm that one injected parameter is a reference to the test context.
+///
+/// This intentionally rejects arbitrary references because every argument is
+/// supplied by a newly constructed `gpui::TestAppContext`.
 fn validate_argument(argument: &PatType) -> syn::Result<()> {
     let Type::Reference(reference) = argument.ty.as_ref() else {
         return Err(Error::new_spanned(
@@ -137,6 +169,10 @@ fn validate_argument(argument: &PatType) -> syn::Result<()> {
     validate_context_reference(reference)
 }
 
+/// Validate the terminal type name of a context reference at its source span.
+///
+/// The shim accepts qualified context paths, but reports the offending type
+/// directly when the final segment cannot be provided by its generated setup.
 fn validate_context_reference(reference: &TypeReference) -> syn::Result<()> {
     let Type::Path(path) = reference.elem.as_ref() else {
         return Err(Error::new_spanned(
@@ -159,6 +195,13 @@ fn validate_context_reference(reference: &TypeReference) -> syn::Result<()> {
     }
 }
 
+/// Generate context construction, argument borrowing, and deterministic teardown.
+///
+/// When the generated test body returns normally, each supplied context is
+/// drained before and after it is quit, preventing pending tasks from leaking
+/// between retry attempts. Because the wrapper invokes the test body before
+/// these statements, a panic skips this post-call teardown; this helper does
+/// not install an unwind guard, and retry handling remains in `run_test`.
 fn build_context_setup(
     signature: &Signature,
     declared_name: &syn::Ident,
