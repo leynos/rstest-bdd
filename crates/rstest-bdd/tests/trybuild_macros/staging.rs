@@ -241,6 +241,20 @@ impl Drop for TargetRootSnapshotGuard {
     }
 }
 
+/// Render a target root with the platform-independent snapshot separator.
+fn snapshot_target_root(target_root: &Utf8Path, workspace_root: &Utf8Path) -> String {
+    let target_root = target_root.as_str().replace('\\', "/");
+    let workspace_root = workspace_root.as_str().replace('\\', "/");
+    let target_root_path = Utf8Path::new(&target_root);
+    let workspace_root_path = Utf8Path::new(&workspace_root);
+    let relative = target_root_path
+        .strip_prefix(workspace_root_path)
+        .ok()
+        .map(Utf8Path::to_owned);
+
+    relative.map_or_else(|| target_root, |relative| format!("$WORKSPACE/{relative}"))
+}
+
 /// Stage temporary target-root-specific snapshots for a trybuild run.
 pub(super) fn stage_target_root_snapshots() -> io::Result<TargetRootSnapshotGuard> {
     let crate_root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -249,10 +263,7 @@ pub(super) fn stage_target_root_snapshots() -> io::Result<TargetRootSnapshotGuar
         .and_then(Utf8Path::parent)
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "workspace root must exist"))?;
     let target_root = trybuild_target_directory(workspace_root);
-    let snapshot_target_root = target_root.strip_prefix(workspace_root).map_or_else(
-        |_| target_root.to_string(),
-        |relative| format!("$WORKSPACE/{relative}"),
-    );
+    let snapshot_target_root = snapshot_target_root(&target_root, workspace_root);
     let crate_dir = Dir::open_ambient_dir(crate_root.as_std_path(), ambient_authority())?;
     let mut originals = Vec::new();
 
@@ -345,39 +356,5 @@ fn collect_feature_files(
 }
 
 #[cfg(test)]
-mod tests {
-    //! Target-directory selection regression tests for trybuild support.
-
-    use rstest::rstest;
-
-    use super::*;
-
-    #[rstest]
-    #[case::default_target(
-        "/workspace/target/debug/deps/trybuild_macros-a1b2c3",
-        "/workspace/target"
-    )]
-    #[case::coverage_target(
-        "/workspace/target/llvm-cov-target/debug/deps/trybuild_macros-a1b2c3",
-        "/workspace/target/llvm-cov-target"
-    )]
-    fn derives_target_root_from_test_executable(#[case] executable: &str, #[case] expected: &str) {
-        assert_eq!(
-            target_directory_from_test_executable(Utf8Path::new(executable)),
-            Some(Utf8PathBuf::from(expected))
-        );
-    }
-
-    #[test]
-    #[serial_test::serial(trybuild_target_directory)]
-    fn target_directory_uses_running_test_executable() {
-        let workspace_root = Utf8Path::new(env!("CARGO_MANIFEST_DIR"))
-            .parent()
-            .and_then(Utf8Path::parent)
-            .expect("workspace root must be two levels above the manifest directory");
-        let expected = target_directory_from_running_test_executable()
-            .expect("integration tests should run from Cargo's `deps` directory");
-
-        assert_eq!(trybuild_target_directory(workspace_root), expected);
-    }
-}
+#[path = "staging/tests.rs"]
+mod tests;
