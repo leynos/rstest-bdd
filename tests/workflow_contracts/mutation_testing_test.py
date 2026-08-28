@@ -34,12 +34,13 @@ USES_RE = re.compile(
 )
 
 #: The exact caller configuration: workspace source under crates/;
-#: example applications, test-fixture crates, and test-support modules
-#: excluded as noise; feature-gated tests enabled to match `make test`.
+#: example applications, standalone test-fixture crates, and test-support
+#: modules excluded as noise; feature-gated tests enabled to match `make test`.
 EXPECTED_WITH = {
     "paths": "crates/",
     "exclude-globs": (
         "examples/**,"
+        "tests/fixtures/published-gpui-e2e/**,"
         "crates/cargo-bdd/tests/fixtures/**,"
         "crates/*/tests/fixtures_macros/**,"
         "crates/rstest-bdd/tests/ui_lints/**,"

@@ -1,0 +1,31 @@
+[package]
+name = "published-gpui-e2e-fixture"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+gpui = { version = "0.2.2", default-features = false, features = ["test-support"] }
+rstest-bdd = "0.6.0-beta4"
+rstest-bdd-harness = "0.6.0-beta4"
+rstest-bdd-harness-gpui = "0.6.0-beta4"
+rstest-bdd-macros = "0.6.0-beta4"
+
+[dev-dependencies]
+rstest = "0.26.1"
+serial_test = "2"
+
+# Keep this fixture outside the root workspace so GPUI resolves from crates.io
+# instead of inheriting the workspace's vendor/gpui path dependency. The
+# patched rstest-bdd crates are unpacked `cargo package` artefacts: Cargo has
+# stripped their workspace paths, including the harness's GPUI shim override.
+[workspace]
+resolver = "2"
+
+[patch.crates-io]
+rstest-bdd = { path = "../../../target/published-gpui-e2e/rstest-bdd-0.6.0-beta4" }
+rstest-bdd-harness = { path = "../../../target/published-gpui-e2e/rstest-bdd-harness-0.6.0-beta4" }
+rstest-bdd-harness-gpui = { path = "../../../target/published-gpui-e2e/rstest-bdd-harness-gpui-0.6.0-beta4" }
+rstest-bdd-macros = { path = "../../../target/published-gpui-e2e/rstest-bdd-macros-0.6.0-beta4" }
+rstest-bdd-patterns = { path = "../../../target/published-gpui-e2e/rstest-bdd-patterns-0.6.0-beta4" }
+rstest-bdd-policy = { path = "../../../target/published-gpui-e2e/rstest-bdd-policy-0.6.0-beta4" }

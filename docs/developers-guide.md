@@ -441,6 +441,49 @@ standalone step in `.github/workflows/ci.yml`:
 Consequently it does not run in a plain local `make lint`; developers touching
 the published snippets should run it by hand.
 
+
+## Published GPUI end-to-end scenario (`make e2e-published-gpui`)
+
+`tests/fixtures/published-gpui-e2e/` executes the two scenarios from the
+stateful GPUI playbook through `rstest_bdd_harness_gpui::GpuiHarness`. In
+particular, `Reconstruct visual context from durable handles` opens a published
+GPUI window, mutates its `Entity<CounterView>` through a reconstructed
+`VisualTestContext`, and asserts both the incremented value and durable handle
+identity. It therefore verifies the published `gpui 0.2.2` runtime behaviour,
+rather than only compiling the documented call shapes.
+
+Run the gate with:
+
+```bash
+make e2e-published-gpui
+```
+
+Its target first stages the packaged crates, then invokes the fixture from its
+own directory:
+
+```makefile
+e2e-published-gpui: stage-published-gpui-e2e
+	cd $(PUBLISHED_GPUI_E2E_DIR) && RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) test --locked
+```
+
+The target packages `rstest-bdd-patterns`, `rstest-bdd-policy`,
+`rstest-bdd-harness`, `rstest-bdd-macros`, `rstest-bdd`, and
+`rstest-bdd-harness-gpui` in dependency order, then extracts their normalized
+artefacts below `target/published-gpui-e2e/`. Cargo removes workspace path
+dependencies when packaging, so the staged GPUI harness manifest keeps
+`gpui = "0.2.2"` without the `vendor/gpui` path. The fixture's
+`[patch.crates-io]` table points only the rstest-bdd crates at those extracted
+artefacts; its own `gpui` dependency remains the crates.io package.
+
+The fixture has an empty `[workspace]` table and a local
+`rust-toolchain.toml` pinned to `nightly-2026-08-07`. The target changes into
+the fixture before running `cargo test --locked`, allowing rustup to discover
+that local override. This is deliberately separate from `make test`: the root
+workspace remains stable-Rust compatible and continues to use the vendored
+shim for ordinary runtime coverage. Continuous Integration installs the same
+nightly plus the Wayland, X11, and xkbcommon development libraries only for
+the explicitly named end-to-end step.
+
 ## `#[serial]`/nextest matrix validation (`scripts/check_serial_nextest_matrix.py`)
 
 The runner matrix for `#[serial]`, cargo-nextest, `#[file_serial]`, and nextest

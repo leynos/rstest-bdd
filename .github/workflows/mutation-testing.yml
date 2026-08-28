@@ -37,7 +37,7 @@ jobs:
       # crates), and test-support modules compiled into src/ exist only
       # to exercise the framework; their survivors are noise and UI-test
       # expectations must never be mutated.
-      exclude-globs: "examples/**,crates/cargo-bdd/tests/fixtures/**,crates/*/tests/fixtures_macros/**,crates/rstest-bdd/tests/ui_lints/**,crates/rstest-bdd/tests/ui_macros/**,crates/rstest-bdd/src/test_support.rs,crates/rstest-bdd-server/src/test_support.rs,crates/rstest-bdd-harness/src/binary_test_support.rs,crates/rstest-bdd-harness/src/macrotest_support.rs,crates/rstest-bdd-harness/src/test_utils.rs,crates/rstest-bdd-harness/src/trybuild_staging/**"
+      exclude-globs: "examples/**,tests/fixtures/published-gpui-e2e/**,crates/cargo-bdd/tests/fixtures/**,crates/*/tests/fixtures_macros/**,crates/rstest-bdd/tests/ui_lints/**,crates/rstest-bdd/tests/ui_macros/**,crates/rstest-bdd/src/test_support.rs,crates/rstest-bdd-server/src/test_support.rs,crates/rstest-bdd-harness/src/binary_test_support.rs,crates/rstest-bdd-harness/src/macrotest_support.rs,crates/rstest-bdd-harness/src/test_utils.rs,crates/rstest-bdd-harness/src/trybuild_staging/**"
       # Match the repository's test baseline (`make test` runs with
       # --workspace --all-targets --all-features): feature-gated tests
       # run against mutants, and each mutant is tested with the whole

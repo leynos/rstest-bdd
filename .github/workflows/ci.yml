@@ -186,6 +186,26 @@ jobs:
         if: ${{ matrix.tools && matrix.with-default-features }}
         run: make check-published-gpui
 
+      - name: Run published GPUI end-to-end scenario
+        if: ${{ matrix.tools && matrix.with-default-features }}
+        run: |
+          set -euxo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes \
+            libfontconfig1-dev \
+            libwayland-dev \
+            libx11-dev \
+            libx11-xcb-dev \
+            libxcb-render0-dev \
+            libxcb-shape0-dev \
+            libxcb-xfixes0-dev \
+            libxkbcommon-dev \
+            libxkbcommon-x11-dev \
+            libxrandr-dev \
+            pkg-config
+          rustup toolchain install nightly-2026-08-07 --profile minimal
+          make e2e-published-gpui
+
       - name: Test and Measure Coverage (with features)
         if: ${{ matrix.coverage && matrix.features != '' }}
         uses: leynos/shared-actions/.github/actions/generate-coverage@f4764bea8d813b1a8f7ebc37a44907d3c3b1e0e4

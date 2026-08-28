@@ -12,6 +12,10 @@ After bumping workspace versions:
 - Run `make update-ui-lints-lock` and commit the updated
   `crates/rstest-bdd/tests/ui_lints/Cargo.lock` to capture any new transitive
   dependencies introduced since the last release.
+- Run `make e2e-published-gpui` to execute the isolated, nightly-pinned
+  crates.io GPUI stateful scenario. This validates the packaged
+  `rstest-bdd-harness-gpui` surface separately from the stable workspace test
+  matrix.
 
 `rstest-bdd-harness-gpui` remains developed against the workspace-local GPUI
 shim through a `version` plus `path` workspace dependency, so local builds use
