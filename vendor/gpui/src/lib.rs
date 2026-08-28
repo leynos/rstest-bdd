@@ -264,16 +264,32 @@ fn resolve_iterations(default_iterations: u64) -> u64 {
 ///
 /// Invalid values are diagnosed to stderr because this shim has no logging
 /// subscriber and must make a discarded override observable to the developer.
+fn parse_env_u64(key: &str) -> Option<u64> { parse_env_u64_value(key, env::var(key)) }
+
+/// Parse a fallible environment lookup as an optional unsigned override.
+///
+/// A missing variable is deliberately optional, whereas an invalid Unicode or
+/// numeric value is discarded after its diagnostic makes the configuration
+/// mistake visible to the test author.
 #[expect(
     clippy::print_stderr,
     reason = "invalid environment overrides must be visible without global logging"
 )]
-fn parse_env_u64(key: &str) -> Option<u64> {
-    let value = env::var(key).ok()?;
-    match value.parse() {
-        Ok(parsed) => Some(parsed),
-        Err(error) => {
-            eprintln!("ignoring invalid {key} value {value:?}: {error}");
+fn parse_env_u64_value(key: &str, value: Result<String, env::VarError>) -> Option<u64> {
+    match value {
+        Ok(value) => match value.parse() {
+            Ok(parsed) => Some(parsed),
+            Err(error) => {
+                eprintln!("ignoring invalid {key} value {value:?}: {error}");
+                None
+            }
+        },
+        Err(env::VarError::NotPresent) => None,
+        Err(env::VarError::NotUnicode(value)) => {
+            eprintln!(
+                "ignoring invalid {key} value {}: value is not valid Unicode",
+                value.display()
+            );
             None
         }
     }
@@ -321,4 +337,21 @@ fn build_seed_range(start: u64, iterations: u64) -> Vec<u64> {
     }
 
     seeds
+}
+
+#[cfg(test)]
+mod tests {
+    //! Tests the environment-override boundary without mutating process state.
+
+    use std::{env::VarError, ffi::OsString};
+
+    use super::parse_env_u64_value;
+
+    /// Treats an injected non-Unicode lookup failure as an invalid override.
+    #[test]
+    fn discards_non_unicode_environment_override() {
+        let value = VarError::NotUnicode(OsString::from("invalid-byte-sequence"));
+
+        assert_eq!(parse_env_u64_value("SEED", Err(value)), None);
+    }
 }
