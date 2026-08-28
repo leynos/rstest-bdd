@@ -101,8 +101,9 @@ fn step_macros_compile() -> io::Result<()> {
             );
             run_conditional_ordering_tests(&t)?;
             run_conditional_ambiguous_step_test(&t);
+            run_feature_tracking_test(&t);
             // `TestCases` runs its queued fixtures from `Drop`; inspect dep-info
-            // only after this run has actually compiled the tracking fixture.
+            // only after the tracking fixture's dep-info is the final artefact.
             drop(t);
             tracking::assert_trybuild_tracking_registered_in_dep_info();
             Ok(())
@@ -114,7 +115,6 @@ fn run_passing_macro_tests(t: &trybuild::TestCases) {
         MacroFixtureCase::from("step_macros.rs"),
         MacroFixtureCase::from("step_macros_unicode.rs"),
         MacroFixtureCase::from("scenario_single_match.rs"),
-        MacroFixtureCase::from("scenario_feature_tracking.rs"),
         MacroFixtureCase::from("scenario_state_default.rs"),
         MacroFixtureCase::from("scenarios_fixtures.rs"),
         MacroFixtureCase::from("scenarios_autodiscovery.rs"),
@@ -135,6 +135,12 @@ fn run_passing_macro_tests(t: &trybuild::TestCases) {
     ] {
         t.pass(macros_fixture(case).as_std_path());
     }
+}
+
+/// Queue the tracking fixture last so its dep-info remains available for the
+/// post-trybuild assertion.
+fn run_feature_tracking_test(t: &trybuild::TestCases) {
+    t.pass(macros_fixture(MacroFixtureCase::from("scenario_feature_tracking.rs")).as_std_path());
 }
 
 fn run_failing_macro_tests(t: &trybuild::TestCases) {

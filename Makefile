@@ -6,6 +6,7 @@ VALE ?= vale
 .PHONY: spelling-helper-test nixie publish-check
 .PHONY: check-published-gpui stage-published-gpui-e2e e2e-published-gpui
 .PHONY: forbid-async-trait vale update-ui-lints-lock update-published-gpui-0-2-2-lock update-published-gpui-e2e-lock
+.PHONY: update-feature-rebuild-fixtures-lock
 .PHONY: test-workflow-contracts
 
 SHELL := bash
@@ -238,6 +239,10 @@ update-published-gpui-0-2-2-lock: ## Refresh the published GPUI 0.2.2 fixture lo
 
 update-published-gpui-e2e-lock: stage-published-gpui-e2e ## Refresh the published GPUI E2E fixture lockfile
 	cd $(PUBLISHED_GPUI_E2E_DIR) && $(CARGO) generate-lockfile
+
+update-feature-rebuild-fixtures-lock: ## Refresh nested feature-rebuild fixture lockfiles
+	$(CARGO) generate-lockfile --manifest-path crates/rstest-bdd/tests/fixtures/rebuild_invalidation/Cargo.toml
+	$(CARGO) generate-lockfile --manifest-path crates/rstest-bdd/tests/fixtures/feature_addition/Cargo.toml
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | \

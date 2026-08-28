@@ -2280,6 +2280,10 @@ pattern in `crates/rstest-bdd/tests/feature_rebuild_invalidation/`:
   trailing `[workspace]` stanza, a committed `Cargo.lock`, and dependencies
   byte-identical to `tests/fixtures/minimal/`'s, so the two fixtures share
   compiled units.
+- Refresh the two feature-rebuild fixture lockfiles together with
+  `make update-feature-rebuild-fixtures-lock`. Review the resulting shared
+  package versions against `tests/fixtures/minimal/Cargo.lock`; the only
+  deliberate addition is the `rstest 0.26.1` closure required by `#[scenario]`.
 - The test copies the fixture into `target/tests/<name>/` under the shared
   workspace `target/`, rewrites the copied manifest's relative `path = "…"`
   values to absolute paths (resolving against the _source_ directory, whose
