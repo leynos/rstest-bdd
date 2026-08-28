@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Fail the build when ``async-trait`` sneaks back into the tree.
 
-The ban applies to Rust sources, Cargo manifests, and Cargo lockfiles. One
-lockfile is exempt; see :data:`EXCLUDED_LOCKFILES` for the rationale.
+The ban applies to Rust sources, Cargo manifests, and Cargo lockfiles. Two
+standalone published-GPUI fixture lockfiles are exempt; see
+:data:`EXCLUDED_LOCKFILES` for the rationale.
 """
 
 from __future__ import annotations
@@ -27,15 +28,17 @@ LOCKFILE_PATTERN = re.compile(r'^\s*name\s*=\s*"async-trait"$', re.MULTILINE)
 
 # Lockfiles exempt from the ban, as repository-relative POSIX paths.
 #
-# ``tests/fixtures/published-gpui-0-2-2`` is a standalone workspace pinning the
-# published ``gpui 0.2.2`` release so ``make check-published-gpui`` can validate
-# the documented call sites with ``cargo check --locked``. That requires a
-# tracked lockfile, and published GPUI reaches ``async-trait`` transitively via
-# ``ashpd -> zbus``; the fixture never declares it. The root workspace lockfile
+# Both standalone fixtures validate published ``gpui 0.2.2`` with tracked
+# lockfiles: the compile-only call-site fixture and the executable end-to-end
+# fixture. Published GPUI reaches ``async-trait`` transitively via
+# ``ashpd -> zbus``; neither fixture declares it. The root workspace lockfile
 # stays free of ``async-trait``, so the policy still holds where it governs our
-# own dependencies. Only the lockfile is exempt: Rust sources and Cargo
-# manifests inside the fixture are still scanned.
-EXCLUDED_LOCKFILES = frozenset({"tests/fixtures/published-gpui-0-2-2/Cargo.lock"})
+# own dependencies. Only these two lockfiles are exempt: Rust sources and Cargo
+# manifests inside both fixtures are still scanned.
+EXCLUDED_LOCKFILES = frozenset({
+    "tests/fixtures/published-gpui-0-2-2/Cargo.lock",
+    "tests/fixtures/published-gpui-e2e/Cargo.lock",
+})
 
 
 def is_scannable_file(path: Path) -> bool:

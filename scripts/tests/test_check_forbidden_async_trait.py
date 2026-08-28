@@ -1,9 +1,9 @@
-"""Test the async-trait ban and its single lockfile exemption.
+"""Test the async-trait ban and its two exact lockfile exemptions.
 
-``tests/fixtures/published-gpui-0-2-2/Cargo.lock`` is exempt because the
-fixture validates the published upstream GPUI API under ``cargo check
---locked``, which requires a tracked lockfile that transitively reaches
-``async-trait``. Every other location stays banned.
+Both standalone fixtures validate published ``gpui 0.2.2`` with tracked
+lockfiles. Published GPUI reaches ``async-trait`` transitively through
+``ashpd -> zbus``. Every location other than the two exact lockfile paths stays
+banned.
 """
 
 from __future__ import annotations
@@ -19,7 +19,10 @@ if typ.TYPE_CHECKING:
     import types
 
 SCRIPTS = Path(__file__).resolve().parents[1]
-EXEMPT_LOCKFILE = "tests/fixtures/published-gpui-0-2-2/Cargo.lock"
+APPROVED_LOCKFILES = (
+    "tests/fixtures/published-gpui-0-2-2/Cargo.lock",
+    "tests/fixtures/published-gpui-e2e/Cargo.lock",
+)
 
 LOCK_WITH_ASYNC_TRAIT = """\
 version = 3
@@ -55,9 +58,12 @@ def build_tree(root: Path, files: cabc.Mapping[str, str]) -> None:
         target.write_text(content, encoding="utf-8")
 
 
-def test_exempt_lockfile_is_ignored(checker: types.ModuleType, tmp_path: Path) -> None:
-    """The published-GPUI fixture lockfile may reference async-trait."""
-    build_tree(tmp_path, {EXEMPT_LOCKFILE: LOCK_WITH_ASYNC_TRAIT})
+@pytest.mark.parametrize("approved_lockfile", APPROVED_LOCKFILES)
+def test_approved_lockfile_is_ignored(
+    checker: types.ModuleType, tmp_path: Path, approved_lockfile: str
+) -> None:
+    """Each approved published-GPUI lockfile may reference async-trait."""
+    build_tree(tmp_path, {approved_lockfile: LOCK_WITH_ASYNC_TRAIT})
 
     assert checker.find_violations(tmp_path) == []
 
@@ -85,11 +91,17 @@ def test_other_nested_lockfile_still_violates(
     assert violations == [f"{other}: references async-trait in lockfile"]
 
 
-def test_sibling_lockfile_of_exempt_fixture_still_violates(
-    checker: types.ModuleType, tmp_path: Path
+@pytest.mark.parametrize(
+    "nested",
+    [
+        "tests/fixtures/published-gpui-0-2-2/nested/Cargo.lock",
+        "tests/fixtures/published-gpui-e2e/nested/Cargo.lock",
+    ],
+)
+def test_nested_lockfile_of_approved_fixture_still_violates(
+    checker: types.ModuleType, tmp_path: Path, nested: str
 ) -> None:
-    """The exemption matches one exact path, not the fixture's whole subtree."""
-    nested = "tests/fixtures/published-gpui-0-2-2/nested/Cargo.lock"
+    """An approval matches one lockfile, not its fixture subtree."""
     build_tree(tmp_path, {nested: LOCK_WITH_ASYNC_TRAIT})
 
     violations = checker.find_violations(tmp_path)
@@ -97,11 +109,14 @@ def test_sibling_lockfile_of_exempt_fixture_still_violates(
     assert violations == [f"{nested}: references async-trait in lockfile"]
 
 
-def test_exempt_fixture_manifest_still_violates(
-    checker: types.ModuleType, tmp_path: Path
+@pytest.mark.parametrize(
+    "manifest",
+    [path.removesuffix("Cargo.lock") + "Cargo.toml" for path in APPROVED_LOCKFILES],
+)
+def test_approved_fixture_manifest_still_violates(
+    checker: types.ModuleType, tmp_path: Path, manifest: str
 ) -> None:
-    """Manifests inside the exempt fixture are still scanned."""
-    manifest = "tests/fixtures/published-gpui-0-2-2/Cargo.toml"
+    """Manifests inside approved fixtures are still scanned."""
     build_tree(tmp_path, {manifest: MANIFEST_WITH_ASYNC_TRAIT})
 
     violations = checker.find_violations(tmp_path)
@@ -109,11 +124,14 @@ def test_exempt_fixture_manifest_still_violates(
     assert violations == [f"{manifest}: declares async-trait dependency"]
 
 
-def test_exempt_fixture_rust_source_still_violates(
-    checker: types.ModuleType, tmp_path: Path
+@pytest.mark.parametrize(
+    "source",
+    [path.removesuffix("Cargo.lock") + "src/lib.rs" for path in APPROVED_LOCKFILES],
+)
+def test_approved_fixture_rust_source_still_violates(
+    checker: types.ModuleType, tmp_path: Path, source: str
 ) -> None:
-    """Rust sources inside the exempt fixture are still scanned."""
-    source = "tests/fixtures/published-gpui-0-2-2/src/lib.rs"
+    """Rust sources inside approved fixtures are still scanned."""
     build_tree(tmp_path, {source: "use async_trait::async_trait;\n"})
 
     violations = checker.find_violations(tmp_path)
@@ -121,6 +139,6 @@ def test_exempt_fixture_rust_source_still_violates(
     assert violations == [f"{source}:1: contains forbidden async-trait usage"]
 
 
-def test_exemption_covers_only_the_declared_path(checker: types.ModuleType) -> None:
-    """The exemption set names exactly the one published-GPUI lockfile."""
-    assert sorted(checker.EXCLUDED_LOCKFILES) == [EXEMPT_LOCKFILE]
+def test_exemptions_cover_only_the_declared_paths(checker: types.ModuleType) -> None:
+    """The exemption set names exactly the two published-GPUI lockfiles."""
+    assert sorted(checker.EXCLUDED_LOCKFILES) == list(APPROVED_LOCKFILES)
