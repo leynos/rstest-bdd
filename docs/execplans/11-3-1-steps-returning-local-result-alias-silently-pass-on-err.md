@@ -6,7 +6,7 @@ This ExecPlan (execution plan) is a living document. The sections
 `Conformance basis`, and `Verification plan` must be kept up to date as work
 proceeds.
 
-Status: DRAFT
+Status: BLOCKED — EP-M0 disproved the collision-safety acceptance criterion.
 
 Roadmap item: 11.3.1. Origin: `leynos/rstest-bdd#573` and the gauss
 v0.6.0-beta3 validation matrix.
@@ -177,7 +177,7 @@ Stop and escalate when any of these is reached. Do not work around them.
 
 ## Progress
 
-- [ ] EP-M0 Prototype and pin the emission shape (go/no-go).
+- [-] EP-M0 Prototype and pin the emission shape (go/no-go): blocked.
 - [ ] EP-M1 Preparatory refactors: bring `macros/mod.rs` and
       `tests/step_return.rs` under the 400-line cap. No behaviour change.
 - [ ] EP-M2 Red: behavioural feature files, the tag-identity guard test, and
@@ -230,6 +230,23 @@ Recorded during planning; keep appending during implementation.
 - Observation: `crates/rstest-bdd-macros/src/macros/mod.rs` is 399 lines
   against a hard 400-line cap, and is not allowlisted.
   Impact: any edit forces a mechanical module split first (EP-M1).
+
+- Observation: the crate-owned `StepReturnProbe` prevents an inherent method
+  on the returned value from hijacking dispatch, and the orphan rule prevents
+  downstream implementation of the runtime trait for the probe. However, a
+  downstream blanket trait with the same method name silently wins method
+  resolution for a non-`Result` value; it does not produce the planned loud
+  `E0034` ambiguity.
+  Evidence: on 2026-08-29, `~/scratch-11-3-1/examples/probe_ambiguity.rs`
+  compiled far enough to report `E0599: no method named name found for type
+  u8`, meaning the caller's `UserTrait::__rstest_bdd_step_return_kind` was
+  selected. The expected dispatch tag method was not selected or ambiguous.
+  The corresponding logs are
+  `/tmp/ep-m0-probe-blanket-collision-rstest-bdd.out` and
+  `/tmp/ep-m0-probe-hijack-rstest-bdd.out`.
+  Impact: DEC-002's safety claim and EP-M0 acceptance criterion 2 are false.
+  The mechanism tolerance is reached, so implementation must not proceed
+  without an approved design change.
 
 ## Decision log
 
@@ -350,6 +367,20 @@ Recorded during planning; keep appending during implementation.
   `Verification plan` for the justification; it is recorded there rather than
   omitted, per the ExecPlan rules.
   Date/Author: 2026-08-29, planning agent, pending approval.
+
+- DEC-012: **Proposed deviation — resolve the caller-trait collision before
+  continuing.** EP-M0 falsified the assertion that a crate-owned probe makes a
+  caller blanket trait with the dispatch method name loud. The current
+  method-call form remains susceptible to an in-scope blanket trait, even
+  though it closes the inherent-method and downstream-implementation holes.
+  The approved design needs either a stable dispatch form that cannot be
+  captured by caller method scope, or an explicit decision that the extremely
+  unlikely collision is an accepted residual risk with revised tests,
+  documentation, and migration impact. Moving imports into a runtime
+  `macro_rules!` macro is not yet accepted as a remedy: it may change hygiene,
+  but this must be proved rather than assumed. Affects DEC-002, EP-M0,
+  INV-1, LEMMA-1, the module invariants, and ADR-019. Status: pending
+  maintainer decision.
 
 ## Outcomes & retrospective
 
