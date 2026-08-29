@@ -94,7 +94,7 @@ payload interpretation, including for a genuine `Result`.
 
 ### 2026-08-29: type-directed alias dispatch
 
-ADR-019 supplements macro-time syntax with a hidden runtime bridge for
-unhinted non-unit step returns. It does not reopen the scenario `ReturnKind`
-contract. The new bridge makes local aliases of `Result<T, E>` fallible without
+ADR-019 supplements macro-time syntax with a hidden runtime bridge for unhinted
+non-unit step returns. It does not reopen the scenario `ReturnKind` contract.
+The new bridge makes local aliases of `Result<T, E>` fallible without
 misclassifying value aliases, and replaces the historical required-hint rule.

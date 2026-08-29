@@ -63,8 +63,9 @@ injected via fixtures or slots.
 
 Scenario return classification does not resolve type aliases. When using an
 alias like `type MyResult<T> = Result<T, MyError>`, the `#[scenario]` signature
-must spell out `Result<(), MyError>` or use `rstest_bdd::StepResult<(), MyError>`;
-this constraint does not apply to step return aliases.
+must spell out `Result<(), MyError>` or use
+`rstest_bdd::StepResult<(), MyError>`; this constraint does not apply to step
+return aliases.
 
 ```rust
 # use rstest_bdd::StepResult;

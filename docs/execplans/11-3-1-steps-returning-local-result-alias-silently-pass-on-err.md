@@ -1,13 +1,15 @@
 # Prevent a step returning a `Result` type alias from silently passing on `Err`
 
-This ExecPlan (execution plan) is a living document. The sections
-`Constraints`, `Tolerances (exception triggers)`, `Risks`, `Progress`,
+This ExecPlan (execution plan) is a living document. The sections `Constraints`,
+`Tolerances (exception triggers)`, `Risks`, `Progress`,
 `Surprises & discoveries`, `Decision log`, `Outcomes & retrospective`,
 `Conformance basis`, and `Verification plan` must be kept up to date as work
 proceeds.
 
 Status: COMPLETE — EP-M0 through EP-M5, deterministic validation, and final
-CodeRabbit review completed on 2026-08-29.
+CodeRabbit review completed on 2026-08-29. The canonical, unrelated Markdown
+formatter reflow is isolated in stacked base PR #682; implementation PR #681 is
+rebased on that base.
 
 Roadmap item: 11.3.1. Origin: `leynos/rstest-bdd#573` and the gauss
 v0.6.0-beta3 validation matrix.
@@ -38,10 +40,9 @@ it reports the scenario failing with the message `alias failure`. The same
 holds for `anyhow::Result<T>` and `std::io::Result<T>`, which are affected by
 exactly the same defect today.
 
-Ordinary value-returning steps keep working with no annotation. A step
-returning `-> Score` (where `type Score = u32;`) still stores `u32` as a
-fixture override. Nothing in the 90.8% of steps that return `()` changes at
-all.
+Ordinary value-returning steps keep working with no annotation. A step returning
+`-> Score` (where `type Score = u32;`) still stores `u32` as a fixture
+override. Nothing in the 90.8% of steps that return `()` changes at all.
 
 ## Definitions
 
@@ -113,9 +114,9 @@ Stop and escalate when any of these is reached. Do not work around them.
 - **Scope**: more than 55 files changed, or more than 2800 net added lines.
   The original 22–26-file, +750-to-+950 estimate omitted the required feature
   files, UI fixture, snapshots, lockfiles, the execution plan, and
-  cross-cutting documentation. The implementation remains limited to the
-  stated return-classification contract; the continuation instruction approves
-  this narrow adjustment.
+  cross-cutting documentation. The implementation remains limited to the stated
+  return-classification contract; the continuation instruction approves this
+  narrow adjustment.
 - **Mechanism**: if EP-M0 cannot produce an emission shape that is
   simultaneously correct for all probe cases and clean under
   `cargo clippy --workspace --all-targets --all-features -- -D warnings`, stop.
@@ -123,11 +124,11 @@ Stop and escalate when any of these is reached. Do not work around them.
 - **Interface**: if the change requires altering any non-`#[doc(hidden)]`
   public item of `rstest-bdd` or `rstest-bdd-macros`, stop.
 - **Dependencies**: if a new external crate dependency is required, stop,
-  except that EP-M2 and EP-M4 may add `anyhow` as a test-only direct
-  dependency of `rstest-bdd` and its isolated `tests/ui_lints` fixture. This
-  narrowly permits the required regression and downstream lint fixture to use
-  the real `anyhow::Result` surface; it must not become a production
-  dependency or expand to any other crate.
+  except that EP-M2 and EP-M4 may add `anyhow` as a test-only direct dependency
+  of `rstest-bdd` and its isolated `tests/ui_lints` fixture. This narrowly
+  permits the required regression and downstream lint fixture to use the real
+  `anyhow::Result` surface; it must not become a production dependency or
+  expand to any other crate.
 - **File-size pressure**: if `crates/rstest-bdd-macros/src/macros/mod.rs`
   cannot be brought under 400 lines by a mechanical extraction (no behaviour
   change), stop.
@@ -146,58 +147,54 @@ Stop and escalate when any of these is reached. Do not work around them.
   prelude is now a *loud* compile error (non-`Result` steps lose their only
   candidate), but a runtime-crate edit that renames or demotes the inherent
   `Result` arm lets the blanket value arm cover `Result` returns with no
-  diagnostic, silently reinstating the original false green.
-  Severity: high. Likelihood: medium.
-  Mitigation: emit the whole dispatch (prelude plus call) from exactly one
-  function; pin it with an `insta` snapshot of the token stream; the module
-  invariant list; the INV-1 tag table; and the seeded-fault negative control
-  in `Verification plan`, which seeds exactly the inherent-arm rename.
+  diagnostic, silently reinstating the original false green. Severity: high.
+  Likelihood: medium. Mitigation: emit the whole dispatch (prelude plus call)
+  from exactly one function; pin it with an `insta` snapshot of the token
+  stream; the module invariant list; the INV-1 tag table; and the seeded-fault
+  negative control in `Verification plan`, which seeds exactly the inherent-arm
+  rename.
 
 - Risk: the generated `#[expect(clippy::unnecessary_wraps)]` becomes
   unfulfilled for dispatched steps and breaks downstream `-D warnings` builds.
-  Severity: high. Likelihood: high (verified to occur).
-  Mitigation: EP-M4 reworks `wrapper_expect_lint_names` and adds a
-  `tests/ui_lints` fixture that builds a dispatched step under
-  `#![deny(warnings)]`.
+  Severity: high. Likelihood: high (verified to occur). Mitigation: EP-M4
+  reworks `wrapper_expect_lint_names` and adds a `tests/ui_lints` fixture that
+  builds a dispatched step under `#![deny(warnings)]`.
 
 - Risk: the `Ok` payload shape changes from `Result<T, E>` to `T`, so payloads
   that were previously dropped as `InsertOutcome::NoMatch` now override
-  fixtures — silent state mutation in adopter suites.
-  Severity: high. Likelihood: medium.
-  Mitigation: pin the new behaviour with
+  fixtures — silent state mutation in adopter suites. Severity: high.
+  Likelihood: medium. Mitigation: pin the new behaviour with
   `step_return_alias_ok_overrides_fixture.feature`; lead the migration-guide
   entry with it.
 
 - Risk: version skew. `rstest-bdd-macros` does not depend on `rstest-bdd`; a
-  user who updates one and not the other gets `E0433: could not find
-  __rstest_bdd_step_return in rstest_bdd` at every step site.
-  Severity: medium. Likelihood: medium.
-  Mitigation: record the constraint in `docs/releasing-crates.md` and the
-  migration guide; consider a versioned marker constant (see `DEC-008`).
+  user who updates one and not the other gets
+  `E0433: could not find __rstest_bdd_step_return in rstest_bdd` at every step
+  site. Severity: medium. Likelihood: medium. Mitigation: record the constraint
+  in `docs/releasing-crates.md` and the migration guide; consider a versioned
+  marker constant (see `DEC-008`).
 
 - Risk: trybuild `.stderr` snapshots of cross-crate trait-bound errors are the
   most toolchain-volatile class of rustc output and will churn on upgrades.
-  Severity: low. Likelihood: high.
-  Mitigation: keep the compile-fail surface to one fixture; `rustversion` is
-  already a dev-dependency of `rstest-bdd` if gating becomes necessary.
+  Severity: low. Likelihood: high. Mitigation: keep the compile-fail surface to
+  one fixture; `rustversion` is already a dev-dependency of `rstest-bdd` if
+  gating becomes necessary.
 
 - Risk: a beta adopter reads a green-to-red suite as "the release broke my
-  tests" rather than "these tests were never passing".
-  Severity: medium. Likelihood: high.
-  Mitigation: CHANGELOG and migration-guide entries must *lead* with
-  "scenarios that previously passed may now correctly fail", and the
+  tests" rather than "these tests were never passing". Severity: medium.
+  Likelihood: high. Mitigation: CHANGELOG and migration-guide entries must
+  *lead* with "scenarios that previously passed may now correctly fail", and the
   `## Common errors and fixes` entry must be findable by the panic text.
-  Landing in v0.6.0 (`DEC-009`) bounds the affected population to beta
-  adopters rather than everyone upgrading off a released 0.6.x.
+  Landing in v0.6.0 (`DEC-009`) bounds the affected population to beta adopters
+  rather than everyone upgrading off a released 0.6.x.
 
 - Risk: a future maintainer "simplifies" the inherent-plus-blanket dispatch
   into breakage — for example by "tidying" a receiver to `&self` (which moves
   that arm to the autoref probe position and reopens the caller-trait capture
   that falsified the original design) or by demoting the inherent impl to a
-  trait impl (which makes every `Result` step `E0034`).
-  Severity: medium. Likelihood: medium.
-  Mitigation: the invariant list in the module `//!` docs (EP-M3) plus the
-  type-identity guard test (EP-M2).
+  trait impl (which makes every `Result` step `E0034`). Severity: medium.
+  Likelihood: medium. Mitigation: the invariant list in the module `//!` docs
+  (EP-M3) plus the type-identity guard test (EP-M2).
 
 ## Progress
 
@@ -240,89 +237,85 @@ Stop and escalate when any of these is reached. Do not work around them.
 Recorded during planning; keep appending during implementation.
 
 - Observation: the autoref technique works on stable for every case that
-  matters, including nested aliases and aliases with defaulted type
-  parameters.
+  matters, including nested aliases and aliases with defaulted type parameters.
   Evidence: falsification experiment in `~/scratch-11-3-1`, run on
   `rustc 1.85.0` and `rustc 1.98.0`; 18 probe cases plus 4 extras, identical
-  results on both toolchains.
-  Impact: the mechanism risk is retired; the residual risk is entirely in
-  emission shape and lint interaction.
+  results on both toolchains. Impact: the mechanism risk is retired; the
+  residual risk is entirely in emission shape and lint interaction.
 
 - Observation: the change alters the `Ok` payload *shape*, not only `Err`
   propagation. Previously an alias step's payload was the whole `Result<T, E>`,
   which `insert_value` dropped as `NoMatch` without logging
   (`crates/rstest-bdd/src/context/mod.rs:317-319`). Now the payload is `T`,
-  which can match a fixture and override it.
-  Evidence: Doggylump pre-mortem, scenario 3.
-  Impact: a second behaviour change requiring its own regression and its own
-  migration-guide entry.
+  which can match a fixture and override it. Evidence: Doggylump pre-mortem,
+  scenario 3. Impact: a second behaviour change requiring its own regression
+  and its own migration-guide entry.
 
 - Observation: `-> !` steps compile today but fail under naive dispatch with
-  `error[E0282]: type annotations needed`.
-  Evidence: verified on `rustc 1.98.0`.
-  Impact: the never type needs a syntactic bypass alongside `()`.
+  `error[E0282]: type annotations needed`. Evidence: verified on
+  `rustc 1.98.0`. Impact: the never type needs a syntactic bypass alongside
+  `()`.
 
 - Observation: named `use ... as _;` trait imports emit `unused_imports` on
   every step (whichever trait loses the autoref race); a glob import does not.
-  Evidence: verified. This is why `anyhow` uses a glob.
-  Impact: the import form is a real decision, not a detail. See EP-M0.
+  Evidence: verified. This is why `anyhow` uses a glob. Impact: the import form
+  is a real decision, not a detail. See EP-M0.
 
 - Observation: the roadmap's design-doc citation is wrong. Roadmap 11.3.1 cites
   `docs/rstest-bdd-design.md` §2.1; §2.1 is "Procedural macro API design" and
   contains no return-classification prose. The material is in §3.8, lines
-  2877-2944.
-  Impact: correct the citation as part of EP-M5.
+  2877-2944. Impact: correct the citation as part of EP-M5.
 
 - Observation: `crates/rstest-bdd-macros/src/macros/mod.rs` is 399 lines
-  against a hard 400-line cap, and is not allowlisted.
-  Impact: any edit forces a mechanical module split first (EP-M1).
+  against a hard 400-line cap, and is not allowlisted. Impact: any edit forces
+  a mechanical module split first (EP-M1).
 
 - Observation: the EP-M2 `anyhow::Result` scenario needs a direct `anyhow`
   dependency in `crates/rstest-bdd`'s test build. `rg` found no `anyhow`
   declaration in the workspace manifests or lockfile, and attempting the
   scenario therefore fails at name resolution rather than exposing the
-  pre-EP-M3 false green.
-  Evidence: focused `cargo nextest` build on 2026-08-29.
+  pre-EP-M3 false green. Evidence: focused `cargo nextest` build on 2026-08-29.
   Impact: the original Dependencies tolerance blocked EP-M2. The maintainer
   approved a narrow exception for a test-only direct `anyhow` dependency; a
   fake local replacement remains disallowed because it would not validate the
   promised `anyhow::Result` compatibility.
 
 - Observation: the EP-M3/M4 full lint gate remained red after three focused
-  remediation cycles, each revealing a separate repository-required detail.
-  The first fixed an elidable lifetime in `step_return.rs`; the second added a
+  remediation cycles, each revealing a separate repository-required detail. The
+  first fixed an elidable lifetime in `step_return.rs`; the second added a
   scoped test `unnecessary_wraps` expectation; the third added a missing inner
   module comment. The next outstanding error is a missing `//!` header in
   `crates/rstest-bdd-macros/src/codegen/wrapper/emit/call_expr.rs`'s test
-  module.
-  Evidence: `/tmp/lint-29b14d61-d38d-4cc2-a64c-b257716885d0-ep-m3-m4-retry3.out`.
-  Impact: the post-turn gate directed the narrow fourth correction: add the
-  missing `//!` header to the snapshot test module. The subsequent full suite
-  passed (`check-fmt`, lint, typecheck, test, markdownlint, and nixie), so the
-  issue is resolved without broadening the implementation.
+  module. Evidence:
+  `/tmp/lint-29b14d61-d38d-4cc2-a64c-b257716885d0-ep-m3-m4-retry3.out`. Impact:
+  the post-turn gate directed the narrow fourth correction: add the missing
+  `//!` header to the snapshot test module. The subsequent full suite passed
+  (`check-fmt`, lint, typecheck, test, markdownlint, and nixie), so the issue
+  is resolved without broadening the implementation.
 
 - Observation: after EP-M4, the post-turn audit reports 37 changed files from
   `origin/main`, exceeding this plan's 26-file hard scope maximum. The added
-  files are the planned behavioural feature cases, structural dispatch test,
-  UI fixtures and snapshots, plus the preparatory EP-M1 extraction.
-  Evidence: post-turn audit `hook_run_id="stop:3"` on 2026-08-29.
-  Impact: the original estimate was too narrow. The plan now permits up to 55
-  files and +2800 lines for its required regression artefacts, plan, and
-  documentation; no unrelated implementation scope is authorized.
+  files are the planned behavioural feature cases, structural dispatch test, UI
+  fixtures and snapshots, plus the preparatory EP-M1 extraction. Evidence:
+  post-turn audit `hook_run_id="stop:3"` on 2026-08-29. Impact: the original
+  estimate was too narrow. The plan now permits up to 55 files and +2800 lines
+  for its required regression artefacts, plan, and documentation; no unrelated
+  implementation scope is authorized.
 
 - Observation: the seeded inherent-selector rename made all three selected
   false-green behavioural regressions fail and changed each concrete `Result`
   row in the tag table to the value tag, while wrapper-value rows stayed green.
-  Evidence: `/tmp/seeded-fault-behaviour-29b14d61-d38d-4cc2-a64c-b257716885d0.out`
-  and `/tmp/seeded-fault-tags-29b14d61-d38d-4cc2-a64c-b257716885d0.out` on
+  Evidence:
+  `/tmp/seeded-fault-behaviour-29b14d61-d38d-4cc2-a64c-b257716885d0.out` and
+  `/tmp/seeded-fault-tags-29b14d61-d38d-4cc2-a64c-b257716885d0.out` on
   2026-08-29. Impact: the silent-breakage control proves the intended failure
   mode; the original selector was restored before further validation.
 
 - Observation: `cargo mutants -f crates/rstest-bdd/src/step_return.rs` tested
   six function-body mutations: two were caught and four were unviable, leaving
   zero survivors. Evidence:
-  `/tmp/cargo-mutants-29b14d61-d38d-4cc2-a64c-b257716885d0-step-return.out`
-  on 2026-08-29. Impact: this supports function-body coverage only; the
+  `/tmp/cargo-mutants-29b14d61-d38d-4cc2-a64c-b257716885d0-step-return.out` on
+  2026-08-29. Impact: this supports function-body coverage only; the
   hand-seeded selector rename remains the dedicated protection for the
   method-name invariant that mutation testing cannot exercise.
 
@@ -331,85 +324,78 @@ Recorded during planning; keep appending during implementation.
   downstream implementation of the runtime trait for the probe. However, a
   downstream blanket trait with the same method name silently wins method
   resolution for a non-`Result` value; it does not produce the planned loud
-  `E0034` ambiguity.
-  Evidence: on 2026-08-29, `~/scratch-11-3-1/examples/probe_ambiguity.rs`
-  compiled far enough to report `E0599: no method named name found for type
-  u8`, meaning the caller's `UserTrait::__rstest_bdd_step_return_kind` was
-  selected. The expected dispatch tag method was not selected or ambiguous.
-  The corresponding logs are
+  `E0034` ambiguity. Evidence: on 2026-08-29,
+  `~/scratch-11-3-1/examples/probe_ambiguity.rs` compiled far enough to report
+  `E0599: no method named name found for type u8`, meaning the caller's
+  `UserTrait::__rstest_bdd_step_return_kind` was selected. The expected
+  dispatch tag method was not selected or ambiguous. The corresponding logs are
   `/tmp/ep-m0-probe-blanket-collision-rstest-bdd.out` and
-  `/tmp/ep-m0-probe-hijack-rstest-bdd.out`.
-  Impact: DEC-002's safety claim and EP-M0 acceptance criterion 2 are false.
-  The mechanism tolerance is reached, so implementation must not proceed
-  without an approved design change.
+  `/tmp/ep-m0-probe-hijack-rstest-bdd.out`. Impact: DEC-002's safety claim and
+  EP-M0 acceptance criterion 2 are false. The mechanism tolerance is reached,
+  so implementation must not proceed without an approved design change.
 
 - Observation: even under the falsified shape, an *accidental* collision was
-  not a silent false green. The hijacking method's return type has no
-  compatible `normalize`, so compilation fails downstream — the `E0599` in
-  the EP-M0 log *is* that failure. A silent capture additionally requires the
-  colliding trait to return a deliberately compatible tag type.
-  Evidence: the same `probe_ambiguity.rs` run cited above.
-  Impact: the falsified design was never one accident away from a silent
-  false green; recorded so the severity assessment stays honest. `DEC-013`
-  and `DEC-014` remove even the deliberate path.
+  not a silent false green. The hijacking method's return type has no compatible
+  `normalize`, so compilation fails downstream — the `E0599` in the EP-M0 log
+  *is* that failure. A silent capture additionally requires the colliding trait
+  to return a deliberately compatible tag type. Evidence: the same
+  `probe_ambiguity.rs` run cited above. Impact: the falsified design was never
+  one accident away from a silent false green; recorded so the severity
+  assessment stays honest. `DEC-013` and `DEC-014` remove even the deliberate
+  path.
 
 - Observation: collapsing both dispatch arms into the earliest method-probe
   position eliminates the caller-trait capture. With the `Result` arm as an
-  *inherent* method on `StepReturnProbe<'_, Result<T, E>>` and the value arm
-  as a by-value blanket trait impl on `StepReturnProbe<'_, T>`, both arms
-  match at the by-value mode of the first candidate type — a position no
-  caller trait can precede. Inherent-over-trait precedence selects the
-  `Result` arm; an adversarial blanket trait either loses (its `&self`
-  receiver probes after by-value) or ties with the value arm and produces the
-  loud `E0034`.
-  Evidence: on 2026-08-29, `~/scratch-11-3-1/examples/probe_v2_matrix.rs`
-  (fifteen-class matrix, tags identical to the original design, including the
-  non-`Copy` borrow-then-move check), `probe_v2_hijack_selfref.rs` (both arms
-  correct under an `&self` blanket), `probe_v2_hijack_selfval_result.rs`
-  (`Result` arm wins under a by-value blanket), and
-  `probe_v2_hijack_selfval.rs` (`E0034` on the value arm under a by-value
-  blanket). Identical results on `rustc 1.85.0` and current stable.
-  Impact: `DEC-013` replaces the falsified mechanism; EP-M0 acceptance
-  criterion 2 is restated and satisfiable. The emitted call also loses the
-  leading `(&probe)` autoref, retiring the `clippy::needless_borrow` hazard
-  recorded in `Artefacts and notes`.
+  *inherent* method on `StepReturnProbe<'_, Result<T, E>>` and the value arm as
+  a by-value blanket trait impl on `StepReturnProbe<'_, T>`, both arms match at
+  the by-value mode of the first candidate type — a position no caller trait
+  can precede. Inherent-over-trait precedence selects the `Result` arm; an
+  adversarial blanket trait either loses (its `&self` receiver probes after
+  by-value) or ties with the value arm and produces the loud `E0034`. Evidence:
+  on 2026-08-29, `~/scratch-11-3-1/examples/probe_v2_matrix.rs` (fifteen-class
+  matrix, tags identical to the original design, including the non-`Copy`
+  borrow-then-move check), `probe_v2_hijack_selfref.rs` (both arms correct
+  under an `&self` blanket), `probe_v2_hijack_selfval_result.rs` (`Result` arm
+  wins under a by-value blanket), and `probe_v2_hijack_selfval.rs` (`E0034` on
+  the value arm under a by-value blanket). Identical results on `rustc 1.85.0`
+  and current stable. Impact: `DEC-013` replaces the falsified mechanism; EP-M0
+  acceptance criterion 2 is restated and satisfiable. The emitted call also
+  loses the leading `(&probe)` autoref, retiring the `clippy::needless_borrow`
+  hazard recorded in `Artefacts and notes`.
 
 ## Decision log
 
 - DEC-001: Classify step return types by *type*, using autoref specialization,
-  rather than syntactically in the macro.
-  Rationale: alias expansion happens before trait selection, so the compiler
-  answers the question the macro cannot. It fixes `anyhow::Result` and
-  `io::Result` for free and imposes zero annotation burden on the 90.8% of
-  steps that return `()` or the value steps that are already correct.
-  Alternatives are exhausted: on stable there are exactly three families —
-  method-resolution ordering, nominal opt-in, and runtime `TypeId` inspection.
-  Runtime inspection is infeasible (a `TypeId` is an opaque hash of a
-  monomorphized type; you cannot ask whether one *is a* `Result` without
-  already naming `T` and `E`, and even on detection you cannot recover the
-  `Err`). Nominal opt-in is what `axum::IntoResponse` and libtest's
+  rather than syntactically in the macro. Rationale: alias expansion happens
+  before trait selection, so the compiler answers the question the macro
+  cannot. It fixes `anyhow::Result` and `io::Result` for free and imposes zero
+  annotation burden on the 90.8% of steps that return `()` or the value steps
+  that are already correct. Alternatives are exhausted: on stable there are
+  exactly three families — method-resolution ordering, nominal opt-in, and
+  runtime `TypeId` inspection. Runtime inspection is infeasible (a `TypeId` is
+  an opaque hash of a monomorphized type; you cannot ask whether one *is a*
+  `Result` without already naming `T` and `E`, and even on detection you cannot
+  recover the `Err`). Nominal opt-in is what `axum::IntoResponse` and libtest's
   `Termination` do, and it is strictly worse here because it fixes a false
   green by breaking every correct value-returning step — a headline rstest-bdd
-  feature that axum and libtest simply do not offer.
-  Date/Author: 2026-08-29, planning agent, pending approval.
+  feature that axum and libtest simply do not offer. Date/Author: 2026-08-29,
+  planning agent, pending approval.
 
 - DEC-002: Dispatch on a crate-owned probe newtype, not on the bare return
-  value.
-  Rationale: dispatching on `&V` directly leaves two holes. A user type with an
-  inherent method of the dispatch name hijacks classification silently
+  value. Rationale: dispatching on `&V` directly leaves two holes. A user type
+  with an inherent method of the dispatch name hijacks classification silently
   (verified). A downstream `impl StepReturnResultKind for MyType {}` is legal
   (foreign trait, local type) and permanently reclassifies that type. Wrapping
   the value in a crate-owned `StepReturnProbe<'_, V>` closes both: nobody can
   add an inherent method to a foreign type, and
   `impl ForeignTrait for StepReturnProbe<'_, LocalType>` violates the orphan
-  rule because `StepReturnProbe` is not `#[fundamental]`. This is stronger
-  than a sealed supertrait and cheaper.
-  Date/Author: 2026-08-29, planning agent, pending approval.
-  Amended 2026-08-29: the probe newtype survives — it still closes the
-  inherent-method hijack on the returned value and the downstream-impl
-  hole — but the further claim that it makes a caller blanket-trait
-  collision loud was falsified by EP-M0. The dispatch *mechanism* layered on
-  the probe is now `DEC-013`.
+  rule because `StepReturnProbe` is not `#[fundamental]`. This is stronger than
+  a sealed supertrait and cheaper. Date/Author: 2026-08-29, planning agent,
+  pending approval. Amended 2026-08-29: the probe newtype survives — it still
+  closes the inherent-method hijack on the returned value and the
+  downstream-impl hole — but the further claim that it makes a caller
+  blanket-trait collision loud was falsified by EP-M0. The dispatch *mechanism*
+  layered on the probe is now `DEC-013`.
 
 - DEC-003: Keep syntactic fast paths for `()` and `!` only.
   Rationale: `()` is provable from the syntax, costs nothing, and preserves the
@@ -417,8 +403,8 @@ Recorded during planning; keep appending during implementation.
   must be bypassed because dispatch on a diverging expression yields
   `error[E0282]`. Every other return type goes through dispatch; adding a
   syntactic fast path for spelled `Result` would double the codegen paths and
-  the test matrix to save ~25 dispatch sites in this workspace.
-  Date/Author: 2026-08-29, planning agent, pending approval.
+  the test matrix to save ~25 dispatch sites in this workspace. Date/Author:
+  2026-08-29, planning agent, pending approval.
 
 - DEC-004: Keep both return-kind hints, with re-scoped meanings. `value`
   becomes load-bearing (it is now the *only* way to store a `Result` as a
@@ -426,24 +412,22 @@ Recorded during planning; keep appending during implementation.
   an instruction: it preserves the good-span compile error already pinned by
   `crates/rstest-bdd/tests/ui_macros/return_override_result_requires_result.stderr`.
   Rationale: deprecating `result` costs churn for no correctness gain, and a
-  redundant-but-harmless assertion is the cheaper contract.
-  Date/Author: 2026-08-29, planning agent, pending approval.
+  redundant-but-harmless assertion is the cheaper contract. Date/Author:
+  2026-08-29, planning agent, pending approval.
 
 - DEC-005: Bound the error type on a crate-owned marker trait carrying
   `#[diagnostic::on_unimplemented]`, blanket-implemented for `E: Display`, and
   annotated `#[diagnostic::do_not_recommend]` so rustc does not suggest
-  implementing the hidden trait.
-  Rationale: this is what turns an opaque `E0277` pointing into macro-expanded
-  tokens into the actionable migration diagnostic roadmap 11.3.1 asks for. Both
-  attributes are stable at or below MSRV 1.85 (`on_unimplemented` 1.78,
-  `do_not_recommend` 1.85).
-  Date/Author: 2026-08-29, planning agent, pending approval.
+  implementing the hidden trait. Rationale: this is what turns an opaque
+  `E0277` pointing into macro-expanded tokens into the actionable migration
+  diagnostic roadmap 11.3.1 asks for. Both attributes are stable at or below
+  MSRV 1.85 (`on_unimplemented` 1.78, `do_not_recommend` 1.85). Date/Author:
+  2026-08-29, planning agent, pending approval.
 
 - DEC-006: The diagnostic note must recommend implementing `Display` **only**.
-  It must not offer the `value` hint as a remedy.
-  Rationale: `value` converts a loud compile error into a permanent silent
-  `Err`-swallow — the exact defect being fixed. `value` is documented
-  separately as a payload-storage tool.
+  It must not offer the `value` hint as a remedy. Rationale: `value` converts a
+  loud compile error into a permanent silent `Err`-swallow — the exact defect
+  being fixed. `value` is documented separately as a payload-storage tool.
   Date/Author: 2026-08-29, planning agent, pending approval.
 
 - DEC-007: Reject, at compile time, two shapes that would otherwise be new
@@ -451,19 +435,18 @@ Recorded during planning; keep appending during implementation.
   would be boxed as an opaque payload) and a return type of `impl Trait` (the
   hidden type is opaque at the dispatch site, so an RPIT hiding a `Result`
   reproduces the original bug). Both are detectable syntactically and both
-  accept an explicit hint as the escape hatch.
-  Rationale: the roadmap item exists to eliminate a class of silent false
-  green; shipping two narrower instances of the same class would be
-  self-defeating.
-  Date/Author: 2026-08-29, planning agent, pending approval.
+  accept an explicit hint as the escape hatch. Rationale: the roadmap item
+  exists to eliminate a class of silent false green; shipping two narrower
+  instances of the same class would be self-defeating. Date/Author: 2026-08-29,
+  planning agent, pending approval.
 
 - DEC-008: Record the macro/runtime version-skew constraint in
   `docs/releasing-crates.md` and the migration guide. Do **not** add a
-  versioned ABI marker in this change.
-  Rationale: the marker is a real improvement but it is a separate contract
-  decision with its own naming and stability questions, and bundling it would
-  widen an already-broad change. Revisit if skew reports appear.
-  Date/Author: 2026-08-29, planning agent, pending approval.
+  versioned ABI marker in this change. Rationale: the marker is a real
+  improvement but it is a separate contract decision with its own naming and
+  stability questions, and bundling it would widen an already-broad change.
+  Revisit if skew reports appear. Date/Author: 2026-08-29, planning agent,
+  pending approval.
 
 - DEC-009: **Target v0.6.0.** Land this before the v0.6.0 release rather than
   shipping v0.6.0 with the false green and breaking adopters again at v0.7.0.
@@ -474,85 +457,81 @@ Recorded during planning; keep appending during implementation.
   ask them to change step signatures twice for one defect. It also removes the
   semver conflict entirely: roadmap §11 states the v0.6.1 line "should stay
   semver-compatible", and all three behaviour changes here break that promise,
-  so landing in v0.6.0 means no promise needs amending.
-  Consequences for EP-M5: the migration content goes into
-  `docs/v0-6-0-migration-guide.md` under its existing `## Breaking changes`
-  section, framed as a beta-to-final change, **not** under the
-  `(v0.7.0)`-suffixed subsection pattern the repository uses for post-0.6 work
-  (precedent at that guide's lines 466-468 and 567-569). The CHANGELOG entry
-  goes under `## Unreleased` for v0.6.0. The roadmap needs an explicit note
-  that 11.3.1 landed in v0.6.0, because item 11.3 sits physically under the
-  `## 12. Pre-1.0.0 API consolidation: landed v0.7.0` heading despite its
-  `11.` numbering, which would otherwise imply the wrong release line.
+  so landing in v0.6.0 means no promise needs amending. Consequences for EP-M5:
+  the migration content goes into `docs/v0-6-0-migration-guide.md` under its
+  existing `## Breaking changes` section, framed as a beta-to-final change,
+  **not** under the `(v0.7.0)`-suffixed subsection pattern the repository uses
+  for post-0.6 work (precedent at that guide's lines 466-468 and 567-569). The
+  CHANGELOG entry goes under `## Unreleased` for v0.6.0. The roadmap needs an
+  explicit note that 11.3.1 landed in v0.6.0, because item 11.3 sits physically
+  under the `## 12. Pre-1.0.0 API consolidation: landed v0.7.0` heading despite
+  its `11.` numbering, which would otherwise imply the wrong release line.
   Date/Author: 2026-08-29, maintainer decision.
 
 - DEC-010: Write a new ADR-019 and *amend* ADR-002 rather than superseding it.
-  Rationale: ADR-002's load-bearing conclusion — reject nightly
-  `auto_traits`/`negative_impls`, stay on stable — remains true and has live
-  dependants (`docs/adr-006-fallible-scenario-functions.md:16-18`,
+  Rationale: ADR-002's load-bearing conclusion — reject nightly `auto_traits`/
+  `negative_impls`, stay on stable — remains true and has live dependants
+  (`docs/adr-006-fallible-scenario-functions.md:16-18`,
   `docs/contents.md:66-67`). Only its *mechanism* bullet dies. Follow the dated
   in-Status banner precedent set by `docs/adr-005-async-step-functions.md:5-9`.
   Date/Author: 2026-08-29, planning agent, pending approval.
 
 - DEC-011: No `proptest`, `kani`, or `verus` for this change. See
   `Verification plan` for the justification; it is recorded there rather than
-  omitted, per the ExecPlan rules.
-  Date/Author: 2026-08-29, planning agent, pending approval.
+  omitted, per the ExecPlan rules. Date/Author: 2026-08-29, planning agent,
+  pending approval.
 
 - DEC-012: **Proposed deviation — resolve the caller-trait collision before
   continuing.** EP-M0 falsified the assertion that a crate-owned probe makes a
   caller blanket trait with the dispatch method name loud. The current
   method-call form remains susceptible to an in-scope blanket trait, even
-  though it closes the inherent-method and downstream-implementation holes.
-  The approved design needs either a stable dispatch form that cannot be
-  captured by caller method scope, or an explicit decision that the extremely
-  unlikely collision is an accepted residual risk with revised tests,
-  documentation, and migration impact. Moving imports into a runtime
-  `macro_rules!` macro is not yet accepted as a remedy: it may change hygiene,
-  but this must be proved rather than assumed. Affects DEC-002, EP-M0,
-  INV-1, LEMMA-1, the module invariants, and ADR-019.
-  Status: **resolved 2026-08-29** — the maintainer approved the revised
-  dispatch design recorded as `DEC-013` and `DEC-014`; the collision is
-  eliminated rather than accepted as residual risk. The `macro_rules!`
-  hygiene remedy is withdrawn without further experiment: trait-method
-  resolution searches the traits in scope at the expansion site regardless of
-  `macro_rules!` hygiene, so it could not have isolated the caller's imports.
+  though it closes the inherent-method and downstream-implementation holes. The
+  approved design needs either a stable dispatch form that cannot be captured
+  by caller method scope, or an explicit decision that the extremely unlikely
+  collision is an accepted residual risk with revised tests, documentation, and
+  migration impact. Moving imports into a runtime `macro_rules!` macro is not
+  yet accepted as a remedy: it may change hygiene, but this must be proved
+  rather than assumed. Affects DEC-002, EP-M0, INV-1, LEMMA-1, the module
+  invariants, and ADR-019. Status: **resolved 2026-08-29** — the maintainer
+  approved the revised dispatch design recorded as `DEC-013` and `DEC-014`; the
+  collision is eliminated rather than accepted as residual risk. The
+  `macro_rules!` hygiene remedy is withdrawn without further experiment:
+  trait-method resolution searches the traits in scope at the expansion site
+  regardless of `macro_rules!` hygiene, so it could not have isolated the
+  caller's imports.
 
 - DEC-013: Replace the dual-trait autoref ordering with inherent-method
   precedence. The `Result` arm becomes an *inherent* method on
-  `StepReturnProbe<'_, ::core::result::Result<T, E>>`; the value arm becomes
-  a blanket trait impl on `StepReturnProbe<'_, T>` covering **all** `T`,
-  including `Result` — the overlap is resolved by inherent-over-trait
-  precedence, not by coherence. Both methods take `self` by value.
-  Rationale: the falsified shape placed its two arms at *different* probe
-  positions (by-value versus one autoref step later), and a caller blanket
-  trait could match at the earlier position alone, capturing dispatch
-  silently. Placing both arms at the earliest position the probe ever
-  examines — the by-value mode of the first candidate type — leaves no
-  earlier slot to capture: an adversarial trait either loses to the inherent
-  method (`Result` arm), loses to the by-value receiver (`&self` blankets),
-  or ties with the value arm and produces the loud `E0034`. No silent
-  reclassification path remains. Verified in `~/scratch-11-3-1`
-  (`examples/probe_v2_*.rs`) on `rustc 1.85.0` and current stable; see
-  `Surprises & discoveries`. Consequences: the fifteen-class classification
-  matrix is unchanged; the emission drops the leading `(&probe)` autoref and
-  its `clippy::needless_borrow` hazard; the module invariants and AXIOM-1
-  are restated; ADR-019's rationale must credit inherent precedence, not
-  autoref ordering.
-  Date/Author: 2026-08-29, maintainer decision.
+  `StepReturnProbe<'_, ::core::result::Result<T, E>>`; the value arm becomes a
+  blanket trait impl on `StepReturnProbe<'_, T>` covering **all** `T`, including
+  `Result` — the overlap is resolved by inherent-over-trait precedence, not by
+  coherence. Both methods take `self` by value. Rationale: the falsified shape
+  placed its two arms at *different* probe positions (by-value versus one
+  autoref step later), and a caller blanket trait could match at the earlier
+  position alone, capturing dispatch silently. Placing both arms at the
+  earliest position the probe ever examines — the by-value mode of the first
+  candidate type — leaves no earlier slot to capture: an adversarial trait
+  either loses to the inherent method (`Result` arm), loses to the by-value
+  receiver (`&self` blankets), or ties with the value arm and produces the loud
+  `E0034`. No silent reclassification path remains. Verified in
+  `~/scratch-11-3-1` (`examples/probe_v2_*.rs`) on `rustc 1.85.0` and current
+  stable; see `Surprises & discoveries`. Consequences: the fifteen-class
+  classification matrix is unchanged; the emission drops the leading `(&probe)`
+  autoref and its `clippy::needless_borrow` hazard; the module invariants and
+  AXIOM-1 are restated; ADR-019's rationale must credit inherent precedence,
+  not autoref ordering. Date/Author: 2026-08-29, maintainer decision.
 
 - DEC-014: Consume the selected tag through a *path-called* generic function
   bounded on a sealed trait implemented only for the two tags —
-  `::rstest_bdd::step_return::StepReturnNormalize::normalize(tag, value)` —
-  with `#[diagnostic::on_unimplemented]` naming the interference. Method
-  syntax is used for exactly one call, the probe call that must go through
-  the method probe; everything downstream is called by path.
-  Rationale: belt and braces on top of `DEC-013`. If any interception is
-  ever invented, a foreign tag cannot satisfy the sealed bound, so the
-  failure is a compile error with an actionable diagnostic rather than an
-  `E0599` pointing into macro-expanded tokens; and the sealed supertrait
-  stops a downstream crate from making a deliberately compatible tag.
-  Date/Author: 2026-08-29, maintainer decision.
+  `::rstest_bdd::step_return::StepReturnNormalize::normalize(tag, value)` — with
+  `#[diagnostic::on_unimplemented]` naming the interference. Method syntax is
+  used for exactly one call, the probe call that must go through the method
+  probe; everything downstream is called by path. Rationale: belt and braces on
+  top of `DEC-013`. If any interception is ever invented, a foreign tag cannot
+  satisfy the sealed bound, so the failure is a compile error with an
+  actionable diagnostic rather than an `E0599` pointing into macro-expanded
+  tokens; and the sealed supertrait stops a downstream crate from making a
+  deliberately compatible tag. Date/Author: 2026-08-29, maintainer decision.
 
 ## Outcomes & retrospective
 
@@ -571,13 +550,21 @@ documentation are all required acceptance artefacts. The amended 55-file,
 unrelated public API or production dependency was added. `anyhow` is confined
 to the explicitly authorized test-only direct dependencies.
 
-Validation passed on 2026-08-29: `make check-fmt`, `make lint`, `make
-typecheck`, `make test` (1,774 passed, 7 skipped), `make markdownlint`, and
-`make nixie`. The deliberate inherent-selector rename reproduced the false
+Validation passed on 2026-08-29: `make check-fmt`, `make lint`,
+`make typecheck`, `make test` (1,774 passed, 7 skipped), `make markdownlint`,
+and `make nixie`. The deliberate inherent-selector rename reproduced the false
 green in all three selected behavioural tests and every concrete `Result` tag
 row, then was restored. Mutation testing found no survivors (two caught, four
-unviable). CodeRabbit reviewed the final 49-file diff with zero concerns;
-log: `/tmp/coderabbit-29b14d61-d38d-4cc2-a64c-b257716885d0-11-3-1-steps-returning-local-result-alias-silently-pass-on-err-3.out`.
+unviable). CodeRabbit reviewed the final 49-file diff with zero concerns; log:
+`/tmp/coderabbit-29b14d61-d38d-4cc2-a64c-b257716885d0-11-3-1-steps-returning-local-result-alias-silently-pass-on-err-3.out`.
+
+The subsequent canonical `make fmt` pass reflowed five unrelated Markdown
+documents without changing words. It is deliberately delivered in stacked base
+PR #682, which PR #681 now targets, so reviewers can inspect the step-return
+implementation without formatter-only noise. The formatter base passed
+`make check-fmt`, `make markdownlint`, `make nixie`, and CodeRabbit with zero
+findings on 2026-08-29; the rebased implementation requires a fresh full
+validation and CodeRabbit review before hand-off.
 
 The residual limitation is intentional and documented: result-containing
 wrappers, references, and deref wrappers remain payload values. The tag table
@@ -610,11 +597,11 @@ The workspace lives under `crates/`:
 ### How a step return value is handled today
 
 1. `crates/rstest-bdd-macros/src/return_classifier/mod.rs` classifies the
-   declared return type into `ReturnKind::{Unit, Value, ResultUnit,
-   ResultValue}`. The decision is purely syntactic. `classify_result_like`
-   matches only `Type::Path` whose last segment is `Result` (bare, or under
-   `std::result` / `core::result`) or `StepResult` (bare, or under
-   `rstest_bdd` / `crate` / `self` / `super`).
+   declared return type into
+   `ReturnKind::{Unit, Value, ResultUnit, ResultValue}`. The decision is purely
+   syntactic. `classify_result_like` matches only `Type::Path` whose last
+   segment is `Result` (bare, or under `std::result` / `core::result`) or
+   `StepResult` (bare, or under `rstest_bdd` / `crate` / `self` / `super`).
 2. Line 82 is the defect:
 
    ```rust
@@ -629,8 +616,9 @@ The workspace lives under `crates/`:
    return value — `Err` included — as an opaque payload.
 4. `__rstest_bdd_payload_from_value<T: Any>`
    (`crates/rstest-bdd/src/lib.rs:162-170`) returns `None` when
-   `TypeId::of::<T>() == TypeId::of::<()>()`, otherwise `Some(Box::new(value))`.
-   Note it already resolves *unit* aliases correctly by `TypeId`.
+   `TypeId::of::<T>() == TypeId::of::<()>()`, otherwise
+   `Some(Box::new(value))`. Note it already resolves *unit* aliases correctly by
+   `TypeId`.
 5. The call expression is spliced into
    `catch_unwind(AssertUnwindSafe(|| { #call_expr }))` for sync steps
    (`crates/rstest-bdd-macros/src/codegen/wrapper/emit/assembly/mod.rs`,
@@ -640,9 +628,10 @@ The workspace lives under `crates/`:
 6. The scenario loop
    (`crates/rstest-bdd-macros/src/codegen/scenario/runtime/generators/step_loop.rs:61-86`)
    receives `Ok(Some(payload))` and calls `let _ = ctx.insert_value(payload)`.
-   `insert_value` returns `InsertOutcome::{Inserted, NoMatch, AmbiguousIgnored}`
-   (ADR-015). `NoMatch` is dropped silently and, unlike `AmbiguousIgnored`, is
-   not logged (`crates/rstest-bdd/src/context/mod.rs:317-319`).
+   `insert_value` returns
+   `InsertOutcome::{Inserted, NoMatch, AmbiguousIgnored}` (ADR-015). `NoMatch`
+   is dropped silently and, unlike `AmbiguousIgnored`, is not logged
+   (`crates/rstest-bdd/src/context/mod.rs:317-319`).
 
 So an alias-returning step that fails does this: the `Err` is boxed, no fixture
 has type `Result<T, E>`, `insert_value` returns `NoMatch`, the payload is
@@ -660,12 +649,12 @@ Trait resolution, by contrast, happens after alias expansion. If the generated
 code asks the *compiler* which arm applies, aliases resolve for free. The
 obstacle ADR-002 identified is real — you cannot write "for all `T` except
 `Result<_, _>`" as a blanket impl without an overlap conflict — but method
-resolution sidesteps it. Under `DEC-013` the `Result` arm is an *inherent*
-impl and the fallback is a blanket trait: the two never meet in coherence at
-all, and where both apply the method probe's inherent-over-trait precedence
-picks the inherent arm. (The originally planned variant used two disjoint
-traits ordered by autoref steps; EP-M0 falsified its collision safety, hence
-the revision.)
+resolution sidesteps it. Under `DEC-013` the `Result` arm is an *inherent* impl
+and the fallback is a blanket trait: the two never meet in coherence at all,
+and where both apply the method probe's inherent-over-trait precedence picks
+the inherent arm. (The originally planned variant used two disjoint traits
+ordered by autoref steps; EP-M0 falsified its collision safety, hence the
+revision.)
 
 ## Conformance basis
 
@@ -709,11 +698,12 @@ These are assumptions about third-party behaviour. They are not verified here;
 they are relied upon, and each is exercised at a contract-level boundary.
 
 - **AXIOM-1a**: rustc's method probe, for a receiver expression of type `U`,
-  builds candidate types by repeatedly dereferencing `U`, and for each candidate
-  type tries the by-value receiver before the autoref (`&`) receiver. Documented
-  in dtolnay's autoref-specialization case study and relied upon in production
-  by `anyhow`. Under `DEC-013` this is what defeats an `&self` caller blanket:
-  both crate arms match at the by-value mode, which is probed first.
+  builds candidate types by repeatedly dereferencing `U`, and for each
+  candidate type tries the by-value receiver before the autoref (`&`) receiver.
+  Documented in dtolnay's autoref-specialization case study and relied upon in
+  production by `anyhow`. Under `DEC-013` this is what defeats an `&self`
+  caller blanket: both crate arms match at the by-value mode, which is probed
+  first.
 - **AXIOM-1b**: at a given candidate type and receiver mode, an applicable
   *inherent* method takes precedence over every applicable trait method.
   Documented in the Rust reference's method-call-expression resolution order
@@ -736,11 +726,11 @@ they are relied upon, and each is exercised at a contract-level boundary.
 
 AXIOM-1a through AXIOM-4 were exercised directly during planning against
 `rustc 1.85.0` and `rustc 1.98.0` in a scratch crate; the 18-case probe matrix
-is reproduced in `Artefacts and notes`. AXIOM-1a and AXIOM-1b were
-re-exercised on 2026-08-29 with the `DEC-013` shape, including adversarial
-caller blankets in both receiver forms (`probe_v2_*` examples, `rustc 1.85.0`
-and stable). AXIOM-6 is re-verified at EP-M0 inside this workspace, since the
-workspace's own lint configuration differs from the scratch crate's.
+is reproduced in `Artefacts and notes`. AXIOM-1a and AXIOM-1b were re-exercised
+on 2026-08-29 with the `DEC-013` shape, including adversarial caller blankets
+in both receiver forms (`probe_v2_*` examples, `rustc 1.85.0` and stable).
+AXIOM-6 is re-verified at EP-M0 inside this workspace, since the workspace's
+own lint configuration differs from the scratch crate's.
 
 ### Obligations
 
@@ -762,14 +752,14 @@ the generated wrapper selects the `Result` arm if and only if `V` expands to
 - Artefact: `crates/rstest-bdd/tests/step_return_dispatch.rs` — a runtime-only
   table test using `rstest` `#[case]` parameterization, asserting the selected
   tag by `std::any::type_name_of_val` (stable 1.76), with `pretty_assertions`.
-- Evidence: the test fails to compile before `crates/rstest-bdd/src/step_return.rs`
+- Evidence: the test fails to compile before
+  `crates/rstest-bdd/src/step_return.rs`
   exists; after EP-M3 it passes with every class exercised.
 - Non-vacuity: each of the fifteen classes is a distinct witness, and the test
   asserts a *specific* tag name per class rather than a boolean. Renaming the
   inherent arm's method, demoting the inherent impl to a trait impl, or
-  switching either receiver from `self` to `&self` each break at least one
-  row or one collision guard. The negative control below seeds exactly such
-  a fault.
+  switching either receiver from `self` to `&self` each break at least one row
+  or one collision guard. The negative control below seeds exactly such a fault.
 
 **INV-2 — No `Err` becomes an opaque payload.** For any step whose return type
 expands to `Result<T, E>`, and which carries no `value` hint, an `Err` fails
@@ -809,7 +799,8 @@ of every return kind, compiles with zero diagnostics.
 - Rationale: an emitted `#[expect(...)]` that goes unfulfilled is a hard error
   in the adopter's crate which they cannot silence. This is the highest-blast-
   radius failure mode identified.
-- Artefact: `crates/rstest-bdd/tests/fixtures_macros/step_return_dispatch_lint_clean.rs`
+- Artefact:
+  `crates/rstest-bdd/tests/fixtures_macros/step_return_dispatch_lint_clean.rs`
   (registered in `run_passing_macro_tests`) and a new bin under
   `crates/rstest-bdd/tests/ui_lints/src/bin/`.
 - Evidence: `make lint` and `make test` pass; the `ui_lints` case exits zero.
@@ -847,8 +838,8 @@ Run once before merge and record the transcript in `Artefacts and notes`.
 In `crates/rstest-bdd/src/step_return.rs`, rename the inherent `Result` arm's
 method (for example, append `_seeded`). Under `DEC-013` this is the module's
 invariant-1 silent-breakage path: the blanket value arm then covers `Result`
-returns with no diagnostic. The workspace must still compile cleanly with
-zero warnings, and exactly these tests must fail:
+returns with no diagnostic. The workspace must still compile cleanly with zero
+warnings, and exactly these tests must fail:
 
 - `step_return::scenario_alias_no_hint_failure`
 - `step_return::scenario_anyhow_failure`
@@ -870,11 +861,11 @@ A second, cheaper control comes free: the repository's existing cargo-mutants
 workflow (`tests/workflow_contracts/mutation_testing_test.py`) covers
 `crates/`, so `crates/rstest-bdd/src/step_return.rs` is in scope. Run
 `cargo mutants -f crates/rstest-bdd/src/step_return.rs` once and confirm zero
-survivors. Note the limitation honestly: cargo-mutants mutates function
-bodies; it neither renames methods nor deletes imports from a `quote!` body,
-so it cannot reach the highest-risk element (the inherent arm's method name).
-That is why the hand-seeded control above is required and why the `insta`
-snapshot exists.
+survivors. Note the limitation honestly: cargo-mutants mutates function bodies;
+it neither renames methods nor deletes imports from a `quote!` body, so it
+cannot reach the highest-risk element (the inherent arm's method name). That is
+why the hand-seeded control above is required and why the `insta` snapshot
+exists.
 
 ### Methods deliberately not used
 
@@ -885,8 +876,8 @@ snapshot exists.
 - **`kani`**: there is no `unsafe` code, no arithmetic, and no bounded state
   machine. A bounded model check would have nothing to explore.
 - **`verus`**: no lemma is introduced. The one non-trivial proof obligation
-  (AXIOM-1a/1b, the method-probe ordering) is a property of the *compiler*,
-  not of repository-owned logic, and is treated as an axiom exercised at a
+  (AXIOM-1a/1b, the method-probe ordering) is a property of the *compiler*, not
+  of repository-owned logic, and is treated as an axiom exercised at a
   contract-level boundary — which is exactly what the ExecPlan rules require
   for third-party interfaces.
 
@@ -980,9 +971,8 @@ Both `normalize` implementations **must** delegate boxing to the existing
 "unit becomes `None`" rule will drift. `AGENTS.md` requires sweeping for an
 existing equivalent helper before adding an abstraction; this is that helper.
 
-The `StepReturnResultTag` arm of `StepReturnNormalize` must produce the
-error string as
-`value.to_string()` so it is byte-identical to the existing
+The `StepReturnResultTag` arm of `StepReturnNormalize` must produce the error
+string as `value.to_string()` so it is byte-identical to the existing
 `call_expr.rs` `Err(error.to_string())` (INV-5).
 
 ### Changed: `crates/rstest-bdd-macros/src/return_classifier/mod.rs`
@@ -1007,13 +997,14 @@ pub(crate) enum StepReturnStrategy {
 
 Keep `is_result_like_path`, `first_type_argument`, `second_type_argument`, and
 the `is_definitely_non_result_type` family. They are **not** dead: the scenario
-classifier, the `scenarios!` generator, and `crates/rstest-bdd-macros/src/utils/result_type.rs`
-(`Result`-typed fixture parameters) all still depend on them. Only the
-`unwrap_or(ReturnKind::Value)` fallback for steps goes away.
+classifier, the `scenarios!` generator, and
+`crates/rstest-bdd-macros/src/utils/result_type.rs` (`Result`-typed fixture
+parameters) all still depend on them. Only the `unwrap_or(ReturnKind::Value)`
+fallback for steps goes away.
 
-Add the two `DEC-007` rejections here: a return type of `Result<Result<..>, ..>`
-and a return type of `Type::ImplTrait` are compile errors without an explicit
-hint.
+Add the two `DEC-007` rejections here: a return type of
+`Result<Result<..>, ..>` and a return type of `Type::ImplTrait` are compile
+errors without an explicit hint.
 
 ### Changed: `crates/rstest-bdd-macros/src/codegen/wrapper/emit/call_expr.rs`
 
@@ -1042,11 +1033,11 @@ outside `/tmp` (use `~/scratch-11-3-1`, which already exists from planning).
 
 The mechanism experiments have been re-run twice: first with the dual-trait
 autoref newtype variant, which **falsified** collision safety (see
-`Surprises & discoveries` and `DEC-012`), then on 2026-08-29 with the
-approved `DEC-013` shape (`~/scratch-11-3-1/examples/probe_v2_matrix.rs` and
-the three `probe_v2_hijack_*` examples), which passed on `rustc 1.85.0` and
-current stable. The pinned prototype must preserve, and the remaining EP-M0
-work must confirm on the `DEC-013` + `DEC-014` shape:
+`Surprises & discoveries` and `DEC-012`), then on 2026-08-29 with the approved
+`DEC-013` shape (`~/scratch-11-3-1/examples/probe_v2_matrix.rs` and the three
+`probe_v2_hijack_*` examples), which passed on `rustc 1.85.0` and current
+stable. The pinned prototype must preserve, and the remaining EP-M0 work must
+confirm on the `DEC-013` + `DEC-014` shape:
 
 1. The borrow ends before the move (no `E0505`) for a non-`Copy` return
    value. (Covered by `probe_v2_matrix.rs`; keep it in the pinned prototype.)
@@ -1086,9 +1077,9 @@ using each shape and run
 
 The previously listed fallback ladder (moving the dispatch into a
 `macro_rules!` in `rstest-bdd`) is withdrawn per `DEC-012`'s resolution:
-`macro_rules!` hygiene does not isolate the caller's trait imports, so it
-cures nothing the `DEC-013` shape does not already cure. If both import
-shapes fail the lint experiment, stop and escalate.
+`macro_rules!` hygiene does not isolate the caller's trait imports, so it cures
+nothing the `DEC-013` shape does not already cure. If both import shapes fail
+the lint experiment, stop and escalate.
 
 **Go/no-go.** If no shape is simultaneously correct and lint-clean, stop and
 escalate (see `Tolerances`). Record the chosen shape verbatim in
@@ -1118,15 +1109,15 @@ exist yet, that compile failure *is* the red state — record the exact error.
 Feature files under `crates/rstest-bdd/tests/features/`, each 3-5 lines,
 following the existing `step_return_*.feature` shape:
 
-| Feature file | Step return | Expected |
-| --- | --- | --- |
-| `step_return_alias_no_hint_failure.feature` | `-> MyResult<Number>` returning `Err` | scenario panics with `alias failure` |
-| `step_return_anyhow_failure.feature` | `-> anyhow::Result<()>` returning `Err` | scenario panics |
-| `step_return_io_result_failure.feature` | `-> std::io::Result<()>` returning `Err` | scenario panics |
-| `step_return_alias_ok_overrides_fixture.feature` | `-> MyResult<Number>` returning `Ok(Number(2))` | fixture is 2 |
-| `step_return_alias_async_failure.feature` | `async fn -> MyResult<()>` returning `Err` | scenario panics |
-| `step_return_genuine_value_alias.feature` | `type Score = u32; -> Score` | passes, fixture overridden |
-| `step_return_boxed_result.feature` | `-> Box<Result<..>>` returning `Err` | scenario **passes** |
+| Feature file                                     | Step return                                     | Expected                             |
+| ------------------------------------------------ | ----------------------------------------------- | ------------------------------------ |
+| `step_return_alias_no_hint_failure.feature`      | `-> MyResult<Number>` returning `Err`           | scenario panics with `alias failure` |
+| `step_return_anyhow_failure.feature`             | `-> anyhow::Result<()>` returning `Err`         | scenario panics                      |
+| `step_return_io_result_failure.feature`          | `-> std::io::Result<()>` returning `Err`        | scenario panics                      |
+| `step_return_alias_ok_overrides_fixture.feature` | `-> MyResult<Number>` returning `Ok(Number(2))` | fixture is 2                         |
+| `step_return_alias_async_failure.feature`        | `async fn -> MyResult<()>` returning `Err`      | scenario panics                      |
+| `step_return_genuine_value_alias.feature`        | `type Score = u32; -> Score`                    | passes, fixture overridden           |
+| `step_return_boxed_result.feature`               | `-> Box<Result<..>>` returning `Err`            | scenario **passes**                  |
 
 The last row is deliberate: it pins `Box<Result<..>>` as a documented value
 classification, so a future "improvement" that starts dereferencing becomes a
@@ -1172,8 +1163,8 @@ Validation: the Stage C tests go green; `make check-fmt`, `make lint`, and
 ### Stage E — lint reconciliation and controls (EP-M4)
 
 1. Rework `wrapper_expect_lint_names` per the interface section, and update
-   `crates/rstest-bdd-macros/src/codegen/wrapper/emit/assembly/tests.rs`
-   (which asserts the lint list at lines 169 and 184) to cover every strategy.
+   `crates/rstest-bdd-macros/src/codegen/wrapper/emit/assembly/tests.rs` (which
+   asserts the lint list at lines 169 and 184) to cover every strategy.
 2. Add the `ui_lints` binary and refresh its lockfile with
    `make update-ui-lints-lock` — that target is needed *only* because the
    `ui_lints` crate is built with `cargo clippy --locked`; it is **not** needed
@@ -1191,72 +1182,58 @@ See `Concrete steps` for the exact file list.
 
 Each milestone ends in a coherent, validated repository state.
 
-**EP-M0 — emission shape decided.**
-Requirements: de-risks ROADMAP-11.3.1's mechanism.
-Acceptance: the probe matrix and the adversarial collision probes pass with
-the `DEC-013` shape on the MSRV toolchain (done 2026-08-29 in the scratch
-crate), the `DEC-014` sealed-normalize shape compiles and rejects a
+**EP-M0 — emission shape decided.** Requirements: de-risks ROADMAP-11.3.1's
+mechanism. Acceptance: the probe matrix and the adversarial collision probes
+pass with the `DEC-013` shape on the MSRV toolchain (done 2026-08-29 in the
+scratch crate), the `DEC-014` sealed-normalize shape compiles and rejects a
 downstream tag, and one import shape is verified lint-clean inside this
-workspace.
-Conformance check: no repository files changed; no interface committed yet.
-Recovery: discard the scratch crate and re-run.
-Remaining gaps: everything.
-Compatibility decision: none required.
+workspace. Conformance check: no repository files changed; no interface
+committed yet. Recovery: discard the scratch crate and re-run. Remaining gaps:
+everything. Compatibility decision: none required.
 
-**EP-M1 — file-size headroom, no behaviour change.**
-Acceptance: `make check-fmt`, `make lint`, `make test` all pass; `git diff`
-shows only moves and re-exports; `scripts/check_rs_file_lengths.py` reports no
-violations and the allowlist is unchanged.
-Conformance check: no public interface moved; no upstream assumption touched.
-Recovery: `git revert` the single refactor commit.
-Remaining gaps: the defect is still present.
-Compatibility decision: none — the extracted items are crate-private.
+**EP-M1 — file-size headroom, no behaviour change.** Acceptance:
+`make check-fmt`, `make lint`, `make test` all pass; `git diff` shows only
+moves and re-exports; `scripts/check_rs_file_lengths.py` reports no violations
+and the allowlist is unchanged. Conformance check: no public interface moved;
+no upstream assumption touched. Recovery: `git revert` the single refactor
+commit. Remaining gaps: the defect is still present. Compatibility decision:
+none — the extracted items are crate-private.
 
-**EP-M2 — red suite.**
-Acceptance: the named tests fail for the stated reasons and nothing else
-regresses.
-Conformance check: the feature files match roadmap 11.3.1's finish-line list —
-an alias returning `Err`, spelled `Result`, `StepResult`, an alias marked
-`result`, and a genuine value alias — with `anyhow::Result`, `io::Result`, the
-async path, and the payload-shape change added on top.
-Recovery: the tests are additive; delete them to return to EP-M1.
-Remaining gaps: no implementation.
-Compatibility decision: none — test-only surface.
+**EP-M2 — red suite.** Acceptance: the named tests fail for the stated reasons
+and nothing else regresses. Conformance check: the feature files match roadmap
+11.3.1's finish-line list — an alias returning `Err`, spelled `Result`,
+`StepResult`, an alias marked `result`, and a genuine value alias — with
+`anyhow::Result`, `io::Result`, the async path, and the payload-shape change
+added on top. Recovery: the tests are additive; delete them to return to EP-M1.
+Remaining gaps: no implementation. Compatibility decision: none — test-only
+surface.
 
-**EP-M3 — the defect is fixed.**
-Requirements: discharges ROADMAP-11.3.1's core requirement and INV-1, INV-2,
-INV-3, INV-5.
-Acceptance: `step_return::scenario_alias_no_hint_failure` panics with
-`alias failure`; the full gate set passes.
-Conformance check: ADR-002's constraint "make unresolved classification
-explicit without treating every named type as fallible" is satisfied — nothing
-is *assumed*, the compiler decides. No non-hidden public interface changed. No
-new dependency. No persisted or wire format touched.
-Recovery: revert the EP-M3 commits; EP-M1 and EP-M2 remain valid.
-Remaining gaps: generated-code lint expectations not yet reconciled; docs stale.
+**EP-M3 — the defect is fixed.** Requirements: discharges ROADMAP-11.3.1's core
+requirement and INV-1, INV-2, INV-3, INV-5. Acceptance:
+`step_return::scenario_alias_no_hint_failure` panics with `alias failure`; the
+full gate set passes. Conformance check: ADR-002's constraint "make unresolved
+classification explicit without treating every named type as fallible" is
+satisfied — nothing is *assumed*, the compiler decides. No non-hidden public
+interface changed. No new dependency. No persisted or wire format touched.
+Recovery: revert the EP-M3 commits; EP-M1 and EP-M2 remain valid. Remaining
+gaps: generated-code lint expectations not yet reconciled; docs stale.
 Compatibility decision: none. `rstest-bdd` is pre-1.0 and v0.6.0 is unreleased
 (`DEC-009`), so no compatibility layer is warranted and none is prescribed.
 
-**EP-M4 — generated code is lint-clean and the fix is guarded.**
-Requirements: discharges INV-4 and LEMMA-1.
-Acceptance: the `ui_lints` case exits zero; the seeded-fault control fails
-exactly the four named artefacts; `cargo mutants -f crates/rstest-bdd/src/step_return.rs`
-reports zero survivors.
+**EP-M4 — generated code is lint-clean and the fix is guarded.** Requirements:
+discharges INV-4 and LEMMA-1. Acceptance: the `ui_lints` case exits zero; the
+seeded-fault control fails exactly the four named artefacts;
+`cargo mutants -f crates/rstest-bdd/src/step_return.rs` reports zero survivors.
 Conformance check: the emitted `#[expect]` list matches the emitted body for
-every strategy.
-Recovery: the lint list change is one function; revert it alone.
-Remaining gaps: docs stale.
-Compatibility decision: none.
+every strategy. Recovery: the lint list change is one function; revert it
+alone. Remaining gaps: docs stale. Compatibility decision: none.
 
-**EP-M5 — documentation truthful.**
-Acceptance: `make markdownlint` and `make nixie` pass;
-`scripts/check_users_guide_links.py` passes; no document still asserts that an
-unresolved alias is classified as a value.
-Conformance check: every passage listed in `Concrete steps` has been updated or
-consciously retained; the roadmap entry is ticked and its design-doc citation
-corrected.
-Recovery: documentation-only; revert freely.
-Remaining gaps: none.
+**EP-M5 — documentation truthful.** Acceptance: `make markdownlint` and
+`make nixie` pass; `scripts/check_users_guide_links.py` passes; no document
+still asserts that an unresolved alias is classified as a value. Conformance
+check: every passage listed in `Concrete steps` has been updated or consciously
+retained; the roadmap entry is ticked and its design-doc citation corrected.
+Recovery: documentation-only; revert freely. Remaining gaps: none.
 Compatibility decision: none.
 
 ## Concrete steps
@@ -1279,8 +1256,8 @@ make nixie     2>&1 | tee "/tmp/nixie-rstest-bdd-$(git branch --show-current).ou
 ```
 
 Prefer delegating full gate runs to the `scrutineer` sub-agent, which runs them
-sequentially, captures each log, and returns a bounded report. When it reports a
-failure, read the cited log rather than re-running the gate.
+sequentially, captures each log, and returns a bounded report. When it reports
+a failure, read the cited log rather than re-running the gate.
 
 Expected on success, at the tail of the test log:
 
@@ -1315,8 +1292,8 @@ Run the classification table:
 cargo nextest run -p rstest-bdd --test step_return_dispatch
 ```
 
-Regenerate a trybuild `.stderr` after a deliberate diagnostic change (review the
-diff before committing; never accept it blind):
+Regenerate a trybuild `.stderr` after a deliberate diagnostic change (review
+the diff before committing; never accept it blind):
 
 ```bash
 TRYBUILD=overwrite cargo test -p rstest-bdd --test trybuild_macros
@@ -1332,8 +1309,8 @@ make update-ui-lints-lock
 ### Documentation edits (EP-M5)
 
 Each item names the file and the passage. Prefer delegating the mechanical
-prose edits to the `scribe` sub-agent, with minimal, evidence-based changes that
-preserve project terminology.
+prose edits to the `scribe` sub-agent, with minimal, evidence-based changes
+that preserve project terminology.
 
 1. **New** `docs/adr-019-type-directed-step-return-classification.md`. Status
    `Accepted`. Must state, in the rationale, *why* the mechanism sidesteps
@@ -1344,20 +1321,19 @@ preserve project terminology.
    sentence a future reader re-derives the 2025 constraint and reverts the
    change. Also record why the dual-trait autoref ordering was rejected: its
    arms sat at different probe positions, and EP-M0 proved a caller blanket
-   trait captures the earlier position silently. Also record that the
-   design satisfies `docs/ergonomics-and-developer-experience.md`'s first
-   guiding principle ("reduce ceremony … where intent can be clearly
-   inferred"), since it removes the need for `result` hints entirely.
+   trait captures the earlier position silently. Also record that the design
+   satisfies `docs/ergonomics-and-developer-experience.md`'s first guiding
+   principle ("reduce ceremony … where intent can be clearly inferred"), since
+   it removes the need for `result` hints entirely.
 2. `docs/adr-002-stable-step-return-classification.md`: keep Status
    `Accepted.`, add a dated amendment banner in the Status section following
    the precedent at `docs/adr-005-async-step-functions.md:5-9`, and add an
    `## Amendments` section. Correct or past-tense lines 32-37 (the "removing
-   the need for trait trickery" claim), 39-43, 57-63 (the inverted
-   alias paragraph — the most dangerous stale passage in the repository),
-   69-70, and 78-82. Add a fourth entry to `## Alternatives considered`
-   recording that autoref specialization was not on the table in 2025-12, so
-   ADR-019 reads as filling a blind spot rather than reversing a considered
-   decision.
+   the need for trait trickery" claim), 39-43, 57-63 (the inverted alias
+   paragraph — the most dangerous stale passage in the repository), 69-70, and
+   78-82. Add a fourth entry to `## Alternatives considered` recording that
+   autoref specialization was not on the table in 2025-12, so ADR-019 reads as
+   filling a blind spot rather than reversing a considered decision.
 3. `docs/rstest-bdd-design.md` §3.8: rewrite lines 2884-2889 and 2891-2901.
    The second passage currently *mandates* "require or diagnose an explicit
    `result`/`value` choice", which the delivered design deliberately does not
@@ -1394,8 +1370,8 @@ preserve project terminology.
    and an entry in `## Common errors and fixes` keyed on the **literal rustc
    text** so a stuck adopter can paste-and-search. Lead with "scenarios that
    previously passed may now correctly fail". Cover all three changes: `Err`
-   now fails the scenario; the `Ok` payload shape changes from `Result<T, E>`
-   to `T` so previously dropped payloads now override fixtures; and `E` must
+   now fails the scenario; the `Ok` payload shape changes from `Result<T, E>` to
+   `T` so previously dropped payloads now override fixtures; and `E` must
    implement `Display`, with `Display` as the **only** recommended remedy
    (`DEC-006`).
 8. `docs/v0-5-0-migration-guide.md` lines 64-66: add a parenthetical qualifier.
@@ -1434,13 +1410,14 @@ wrapper-local, and this self-message hides the entire mechanism) and line 2920
 is now the interesting event and is invisible). Add a participant for the
 runtime dispatch and split the self-message into the two-phase tag-then-
 normalize sequence, with an `alt` separating the still-macro-side `Unit` path
-from type-directed dispatch — otherwise the diagram asserts that dispatch always
-runs, which is false.
+from type-directed dispatch — otherwise the diagram asserts that dispatch
+always runs, which is false.
 
 Two `make nixie` constraints apply. Participant labels containing spaces or
 parentheses after `as` must be quoted. Raw newlines in node labels are
 rejected; use `<br/>`, following the precedent in the adjacent diagram at line
-2928. Add a "For screen readers:" preamble while redrawing — the second diagram
+
+1. Add a "For screen readers:" preamble while redrawing — the second diagram
 in this section has one at line 2946 and this one does not, and the
 documentation style guide requires it for complex diagrams.
 
@@ -1468,19 +1445,20 @@ that returns `Err`, spelled `Result`, `StepResult`, an alias explicitly marked
 `result`, and a genuine value alias; no `Err` case is boxed and discarded as an
 opaque payload."
 
-| Finish-line item | Evidence |
-| --- | --- |
-| alias returning `Err` | `step_return::scenario_alias_no_hint_failure` |
-| spelled `Result` | existing `step_return_fallible_result_failure.feature` |
-| `StepResult` | existing `step_return_stepresult_failure.feature` |
-| alias marked `result` | existing `step_return_alias_override.feature` |
-| genuine value alias | `step_return::scenario_genuine_value_alias` |
-| no `Err` boxed and discarded | INV-2, plus the seeded-fault negative control |
-| compile regression | `ui_macros/step_return_alias_error_not_display.rs` |
+| Finish-line item             | Evidence                                               |
+| ---------------------------- | ------------------------------------------------------ |
+| alias returning `Err`        | `step_return::scenario_alias_no_hint_failure`          |
+| spelled `Result`             | existing `step_return_fallible_result_failure.feature` |
+| `StepResult`                 | existing `step_return_stepresult_failure.feature`      |
+| alias marked `result`        | existing `step_return_alias_override.feature`          |
+| genuine value alias          | `step_return::scenario_genuine_value_alias`            |
+| no `Err` boxed and discarded | INV-2, plus the seeded-fault negative control          |
+| compile regression           | `ui_macros/step_return_alias_error_not_display.rs`     |
 
 ### Red-green-refactor evidence
 
-- **Red**: `cargo nextest run -p rstest-bdd --test step_return scenario_alias_no_hint_failure`
+- **Red**:
+  `cargo nextest run -p rstest-bdd --test step_return scenario_alias_no_hint_failure`
   reports `note: test did not panic as expected`. That is the false green
   reproduced inside the suite, and it is the precise failure mode issue #573
   reports.
@@ -1493,8 +1471,9 @@ Do not leave any expected-failure marker in the final tree.
 
 ### Quality criteria
 
-- Tests: `make test` passes, including `cargo test --doc --workspace
-  --all-features` and `uv run pytest scripts/tests`.
+- Tests: `make test` passes, including
+  `cargo test --doc --workspace --all-features` and
+  `uv run pytest scripts/tests`.
 - Verification: INV-1 through INV-5 and LEMMA-1 discharged as described, with
   the seeded-fault transcript recorded. Residual gap stated: totality is
   established over an enumerated partition, not over all types.
@@ -1546,31 +1525,31 @@ dual-trait shape's collision safety (see `Surprises & discoveries`), and on
 inherent-plus-blanket shape (`examples/probe_v2_matrix.rs`) with identical
 tags, plus the three adversarial collision probes.
 
-| Return shape | Tag |
-| --- | --- |
-| `()` | Value |
-| `i32`, `String` | Value |
-| `Result<(), String>` spelled | Result |
-| `Result<i32, MyError>` | Result |
-| `MyResult<()>` local alias (issue #573) | Result |
-| nested alias `type Outer = Inner<i32>` | Result |
-| alias with defaulted parameter `R2<T, E = MyError>` | Result |
-| `std::io::Result<()>` | Result |
-| newtype `Wrapper(Result<i32, MyError>)` | Value |
-| `&'static Result<i32, MyError>` | Value |
-| `Box<Result<..>>`, `Option<i32>`, `Deref<Target = Result<..>>` | Value |
-| `Result<i32, E>` where `E: !Display` | Result, then compile error |
-| `&'a str` borrowed from an argument | Value, then lifetime error |
-| `-> impl Debug` hiding a `Result` | Value (hence `DEC-007`) |
-| `Result<(), MyError>` after `.await` | Result |
+| Return shape                                                   | Tag                        |
+| -------------------------------------------------------------- | -------------------------- |
+| `()`                                                           | Value                      |
+| `i32`, `String`                                                | Value                      |
+| `Result<(), String>` spelled                                   | Result                     |
+| `Result<i32, MyError>`                                         | Result                     |
+| `MyResult<()>` local alias (issue #573)                        | Result                     |
+| nested alias `type Outer = Inner<i32>`                         | Result                     |
+| alias with defaulted parameter `R2<T, E = MyError>`            | Result                     |
+| `std::io::Result<()>`                                          | Result                     |
+| newtype `Wrapper(Result<i32, MyError>)`                        | Value                      |
+| `&'static Result<i32, MyError>`                                | Value                      |
+| `Box<Result<..>>`, `Option<i32>`, `Deref<Target = Result<..>>` | Value                      |
+| `Result<i32, E>` where `E: !Display`                           | Result, then compile error |
+| `&'a str` borrowed from an argument                            | Value, then lifetime error |
+| `-> impl Debug` hiding a `Result`                              | Value (hence `DEC-007`)    |
+| `Result<(), MyError>` after `.await`                           | Result                     |
 
 Two observations from that run that shaped the design. The naive
 `match expr { out => (&out).kind().normalize(out) }` shape trips
 `clippy::match_single_binding` **and** `clippy::needless_borrow`; a `let`-bound
 shape is clean. And `#[expect(clippy::needless_borrow)]` would be actively
 wrong, because the borrow is load-bearing only on the value arm, so the
-expectation would go unfulfilled on every `Result` step. (Historical note:
-under `DEC-013` the emitted call has no leading autoref borrow at all —
+expectation would go unfulfilled on every `Result` step. (Historical note: under
+`DEC-013` the emitted call has no leading autoref borrow at all —
 `StepReturnProbe(&out).__rstest_bdd_step_return_kind()` — so the
 `needless_borrow` hazard applies only to the superseded shapes. The
 `match_single_binding` point still argues for the `let`-bound emission.)
@@ -1580,15 +1559,14 @@ under `DEC-013` the emitted call has no leading autoref borrow at all —
 Order matters: the silent one goes first.
 
 1. The inherent method and the trait method **must** declare the *identical*
-   name. Renaming either does not fail to compile — the generated call
-   resolves to whichever arm still matches, and every affected return type
-   silently takes that arm. This is the only silent-breakage path, and it is
-   what the seeded-fault negative control seeds.
+   name. Renaming either does not fail to compile — the generated call resolves
+   to whichever arm still matches, and every affected return type silently
+   takes that arm. This is the only silent-breakage path, and it is what the
+   seeded-fault negative control seeds.
 2. The `Result` arm **must** stay an *inherent* impl on
    `StepReturnProbe<'_, Result<T, E>>`. Demoting it to a trait impl removes
    inherent precedence, and every `Result` step becomes an `E0034` ambiguity
-   against the blanket value arm. Loud, but it is the obvious
-   "simplification".
+   against the blanket value arm. Loud, but it is the obvious "simplification".
 3. Both dispatch methods **must** take `self` by value. Switching either to
    `&self` moves that arm to the autoref probe position, reopening the
    caller-trait capture that falsified the original dual-trait design
@@ -1604,10 +1582,10 @@ Order matters: the silent one goes first.
    `StepReturnNormalize` (`DEC-014`); do not add method-syntax sugar for it,
    and do not unseal it.
 7. Reference: the Rust reference's method-call resolution order (inherent
-   candidates precede extension candidates; by-value precedes autoref) and,
-   for the family history, dtolnay's autoref-specialization case study and
-   the sibling `(&error).anyhow_kind().new(error)` in `anyhow!`. Cite both —
-   a maintainer who recognizes the pattern will not "fix" it.
+   candidates precede extension candidates; by-value precedes autoref) and, for
+   the family history, dtolnay's autoref-specialization case study and the
+   sibling `(&error).anyhow_kind().new(error)` in `anyhow!`. Cite both — a
+   maintainer who recognizes the pattern will not "fix" it.
 
 Add `// GUARD:` pointers from the module docs to
 `crates/rstest-bdd/tests/step_return_dispatch.rs`, and reciprocal
@@ -1617,41 +1595,40 @@ Add `// GUARD:` pointers from the module docs to
 
 Read in this order before starting.
 
-| When | Document | Why |
-| --- | --- | --- |
-| Before anything | `AGENTS.md` | 400-line cap, `//!` docs, en-GB, `.expect()` policy, abstraction-documentation policy |
-| Before anything | `docs/contents.md` | The index `AGENTS.md` mandates for choosing where documentation lands |
-| Before anything | `docs/repository-layout.md` | Orientation across crates |
-| Design | `docs/adr-002-stable-step-return-classification.md` | The decision being amended |
-| Design | `docs/rstest-bdd-design.md` §3.8, lines 2828-2944 | The classification prose and diagram (**not** §2.1, which the roadmap wrongly cites) |
-| Design | `docs/documentation-style-guide.md` §ADRs | ADR-019's required sections |
-| Implementation | `docs/developers-guide.md`, "Generated-wrapper Tokio bridge" | The exact template for documenting a `#[doc(hidden)]` runtime-to-macro bridge |
-| Implementation | `docs/complexity-antipatterns-and-refactoring-strategies.md` | Guidance for the EP-M1 extractions |
-| Tests | `docs/testing-strategy.md` | The structural-versus-semantic split; the tag table is *structural* and must be justified as such |
-| Tests | `docs/rust-testing-with-rstest-fixtures.md` | Fixture and parameterization conventions |
-| Tests | `docs/rust-doctest-dry-guide.md` | Doctests run under `make test` |
-| Tests | `docs/gherkin-syntax.md` | Feature-file syntax for the new scenarios |
-| Tests | `crates/rstest-bdd/tests/ui_lints/` and `Makefile` target `update-ui-lints-lock` | The generated-code lint-cleanliness gate |
-| Docs | `docs/v0-6-0-migration-guide.md` | Where the migration content lands (`DEC-009`) |
+| When            | Document                                                                         | Why                                                                                               |
+| --------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Before anything | `AGENTS.md`                                                                      | 400-line cap, `//!` docs, en-GB, `.expect()` policy, abstraction-documentation policy             |
+| Before anything | `docs/contents.md`                                                               | The index `AGENTS.md` mandates for choosing where documentation lands                             |
+| Before anything | `docs/repository-layout.md`                                                      | Orientation across crates                                                                         |
+| Design          | `docs/adr-002-stable-step-return-classification.md`                              | The decision being amended                                                                        |
+| Design          | `docs/rstest-bdd-design.md` §3.8, lines 2828-2944                                | The classification prose and diagram (**not** §2.1, which the roadmap wrongly cites)              |
+| Design          | `docs/documentation-style-guide.md` §ADRs                                        | ADR-019's required sections                                                                       |
+| Implementation  | `docs/developers-guide.md`, "Generated-wrapper Tokio bridge"                     | The exact template for documenting a `#[doc(hidden)]` runtime-to-macro bridge                     |
+| Implementation  | `docs/complexity-antipatterns-and-refactoring-strategies.md`                     | Guidance for the EP-M1 extractions                                                                |
+| Tests           | `docs/testing-strategy.md`                                                       | The structural-versus-semantic split; the tag table is *structural* and must be justified as such |
+| Tests           | `docs/rust-testing-with-rstest-fixtures.md`                                      | Fixture and parameterization conventions                                                          |
+| Tests           | `docs/rust-doctest-dry-guide.md`                                                 | Doctests run under `make test`                                                                    |
+| Tests           | `docs/gherkin-syntax.md`                                                         | Feature-file syntax for the new scenarios                                                         |
+| Tests           | `crates/rstest-bdd/tests/ui_lints/` and `Makefile` target `update-ui-lints-lock` | The generated-code lint-cleanliness gate                                                          |
+| Docs            | `docs/v0-6-0-migration-guide.md`                                                 | Where the migration content lands (`DEC-009`)                                                     |
 
 ### Signposted skills
 
-| Stage | Skill | Why |
-| --- | --- | --- |
-| Planning | `execplans` | This document's format and living-section obligations |
-| A | `rust-router` | Load first; routes to the smallest useful follow-on skill |
-| A, D | `rust-types-and-apis` | The change is entirely trait shape, method resolution, and a `#[doc(hidden)]` surface with breaking-change semantics |
-| D | `rust-errors` | The `E: Display` boundary, the sealed marker trait, `#[diagnostic::on_unimplemented]` |
-| A, D | `codegraph-mcp` | Enumerating every `ReturnKind` call site before narrowing it |
-| C | `rust-unit-testing` | `rstest` `#[case]` tables, `pretty_assertions`, `googletest`, `insta` |
-| C, E | `nextest` | `make test` prefers `cargo nextest`; the trybuild binary is in a serialized test group |
-| B | `rust-unused-code` | The EP-M1 extractions will surface `dead_code` questions |
-| F | `arch-decision-records` | ADR-019 and the amendment-versus-supersession call |
-| F | `en-gb-oxendict` | Hard-gated by `make markdownlint` via `typos` |
-| E | `addressing-whitaker-findings` | `make lint` runs the full Whitaker Dylint suite over new public API |
-| Landing | `commit-message`, `pr-creation`, `comenq-coderabbit` | Repository-standard commit, pull-request, and review loop |
+| Stage    | Skill                                                | Why                                                                                                                  |
+| -------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Planning | `execplans`                                          | This document's format and living-section obligations                                                                |
+| A        | `rust-router`                                        | Load first; routes to the smallest useful follow-on skill                                                            |
+| A, D     | `rust-types-and-apis`                                | The change is entirely trait shape, method resolution, and a `#[doc(hidden)]` surface with breaking-change semantics |
+| D        | `rust-errors`                                        | The `E: Display` boundary, the sealed marker trait, `#[diagnostic::on_unimplemented]`                                |
+| A, D     | `codegraph-mcp`                                      | Enumerating every `ReturnKind` call site before narrowing it                                                         |
+| C        | `rust-unit-testing`                                  | `rstest` `#[case]` tables, `pretty_assertions`, `googletest`, `insta`                                                |
+| C, E     | `nextest`                                            | `make test` prefers `cargo nextest`; the trybuild binary is in a serialized test group                               |
+| B        | `rust-unused-code`                                   | The EP-M1 extractions will surface `dead_code` questions                                                             |
+| F        | `arch-decision-records`                              | ADR-019 and the amendment-versus-supersession call                                                                   |
+| F        | `en-gb-oxendict`                                     | Hard-gated by `make markdownlint` via `typos`                                                                        |
+| E        | `addressing-whitaker-findings`                       | `make lint` runs the full Whitaker Dylint suite over new public API                                                  |
+| Landing  | `commit-message`, `pr-creation`, `comenq-coderabbit` | Repository-standard commit, pull-request, and review loop                                                            |
 
 Deliberately **not** recommended, recorded here to pre-empt the question:
 `proptest`, `kani`, and `verus` (see `Verification plan`); `arch-crate-design`
-(no crate boundary moves — the module lands in the existing `rstest-bdd`
-crate).
+(no crate boundary moves — the module lands in the existing `rstest-bdd` crate).

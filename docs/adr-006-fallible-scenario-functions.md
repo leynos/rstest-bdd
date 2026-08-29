@@ -81,12 +81,11 @@ _Table 1: Trade-offs between the options._
 ## Decision outcome / proposed direction
 
 Adopt Option C. The `#[scenario]` macro classifies scenario return types using
-`ReturnKind` and permits `Result<(), E>` and
-`StepResult<(), E>` only. The skip handler returns `Ok(())` for fallible
-scenarios, and the fallible body wrapper marks the scenario as recorded before
-propagating `Err` to the test harness. Returning `Result<T, E>` where `T != ()`
-produces a compile-time error: "`#[scenario]` bodies must return () or a unit
-Result/StepResult".
+`ReturnKind` and permits `Result<(), E>` and `StepResult<(), E>` only. The skip
+handler returns `Ok(())` for fallible scenarios, and the fallible body wrapper
+marks the scenario as recorded before propagating `Err` to the test harness.
+Returning `Result<T, E>` where `T != ()` produces a compile-time error:
+"`#[scenario]` bodies must return () or a unit Result/StepResult".
 
 Std and Tokio test boundaries preserve the fallible function signature and
 propagate its result through Rust's test `Termination` support. GPUI boundaries

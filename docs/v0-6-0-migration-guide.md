@@ -131,11 +131,10 @@ Harnesses selected by `#[scenario(..., harness = ...)]` or
 harness types used through the macros must implement both `HarnessAdapter` and
 `Default`.
 
-
 ### Audit step return aliases
 
-Step wrappers now classify unhinted non-unit returns by their concrete type.
-An alias of `Result<T, E>` propagates `Err` and uses the `T` from `Ok(T)` as the
+Step wrappers now classify unhinted non-unit returns by their concrete type. An
+alias of `Result<T, E>` propagates `Err` and uses the `T` from `Ok(T)` as the
 fixture override. This corrects the former false green where an `Err` was boxed
 as an unused value and the scenario passed. It can reveal an assertion failure
 in a scenario that used to appear green.

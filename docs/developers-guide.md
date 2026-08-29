@@ -961,7 +961,6 @@ regardless of how a downstream crate names, re-exports, or otherwise obtains
 Tokio. Although marked `#[doc(hidden)]`, changing or removing this bridge is a
 breaking change for existing async-step macro expansions.
 
-
 ### Generated-wrapper step-return bridge
 
 `rstest-bdd` owns the hidden `step_return` bridge that selects whether an
@@ -973,12 +972,12 @@ implement, or re-export the bridge.
 
 The bridge composes only from macro-generated wrappers through the resolved
 `rstest_bdd` crate path. The inherent `Result` selector and blanket value trait
-must retain their shared by-value method name; that method-resolution precedence
-is what recognizes aliases without caller-trait interference. Keep wrappers
-around `Result` values opaque, and keep nested `Result` and `impl Trait`
-returns on the explicit-hint path. Although marked `#[doc(hidden)]`, changing
-or removing this bridge is a breaking change for existing step macro
-expansions.
+must retain their shared by-value method name; that method-resolution
+precedence is what recognizes aliases without caller-trait interference. Keep
+wrappers around `Result` values opaque, and keep nested `Result` and
+`impl Trait` returns on the explicit-hint path. Although marked
+`#[doc(hidden)]`, changing or removing this bridge is a breaking change for
+existing step macro expansions.
 
 ### Shared scenario-token assembly
 
