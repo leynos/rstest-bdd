@@ -27,7 +27,8 @@ diagnostics clear.
 - Support fallible scenario bodies without additional boilerplate.
 - Preserve accurate pass/fail reporting when a scenario returns `Err`.
 - Keep the skip short-circuit path type-correct for fallible signatures.
-- Align scenario handling with the existing step `ReturnKind` logic.
+- Keep scenario handling on the existing `ReturnKind` logic; step aliases use
+  the separate type-directed dispatch introduced by ADR-019.
 - Avoid introducing unused payload values in scenario results.
 
 ## Requirements
@@ -79,8 +80,8 @@ _Table 1: Trade-offs between the options._
 
 ## Decision outcome / proposed direction
 
-Adopt Option C. The `#[scenario]` macro now classifies scenario return types
-using the same `ReturnKind` logic as steps and permits `Result<(), E>` and
+Adopt Option C. The `#[scenario]` macro classifies scenario return types using
+`ReturnKind` and permits `Result<(), E>` and
 `StepResult<(), E>` only. The skip handler returns `Ok(())` for fallible
 scenarios, and the fallible body wrapper marks the scenario as recorded before
 propagating `Err` to the test harness. Returning `Result<T, E>` where `T != ()`

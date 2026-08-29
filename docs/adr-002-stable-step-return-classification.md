@@ -4,6 +4,10 @@
 
 Accepted.
 
+> Amended by ADR-019 (2026-08-29). Step wrappers now use type-directed
+> dispatch for unhinted non-unit returns; the historical macro-only contract
+> below remains to explain the original stable-Rust decision.
+
 ## Date
 
 2025-12-19.
@@ -29,12 +33,13 @@ except `Result<_, _>` and `()`” without overlapping-impl conflicts.
 
 ## Decision
 
-Move return-value normalization into macro expansion:
+Move literal return-value normalization into macro expansion:
 
 - The step macros inspect the user function signature and classify the return
   type as one of: unit, value, result-unit, result-value.
-- The generated wrapper body contains a specialized code path per return kind,
-  removing the need for trait trickery.
+- The generated wrapper body contains a specialized code path for literal
+  unit returns and explicit overrides, avoiding overlapping trait
+  implementations.
 
 To preserve ergonomics where possible, the macro recognizes these `Result`
 shapes during expansion:
@@ -54,32 +59,24 @@ type alias the macro cannot resolve, the macro trusts the hint and assumes
 `Result<..>` semantics; if the return type is not actually `Result`-like, the
 compiler will surface a type error.
 
-Without a hint, an unresolved alias is **not** assumed to be `Result`-like: it
-is classified as a value, which is the false green recorded under
-*Consequences*. An unresolved alias therefore requires explicit handling from
-the author: a fallible alias must spell out `Result<..>` or
-`rstest_bdd::StepResult<..>`, or carry the `result` hint; `value` is only for
-an alias that deliberately returns a payload, and applying it to a genuine
-`Result` suppresses its `Err`.
+Without a hint, an unresolved alias is now sent to the type-directed bridge
+defined by ADR-019. A fallible alias therefore behaves as its underlying
+`Result`, while a genuine value alias remains a value. `value` still forces a
+payload interpretation, including for a genuine `Result`.
 
 ## Consequences
 
 - The `rstest-bdd` runtime crate builds on stable Rust and no longer requires
   `#![feature(auto_traits, negative_impls)]`.
-- Return type inference is best-effort: macros cannot resolve arbitrary type
-  aliases, so callers occasionally need an explicit `result`/`value` hint.
+- Macro-time parsing remains best-effort, but the generated bridge resolves
+  ordinary unhinted aliases by their concrete type.
 - The “local compromise” is explicit and limited to the affected step
   definition, rather than forcing a global nightly toolchain.
-- A downstream v0.6.0-beta3 trial exposed a correctness failure in the
+- A downstream v0.6.0-beta3 trial exposed a correctness failure in the former
   best-effort default: a local alias of `Result<T, E>` was classified as a
-  value, so an `Err` became an opaque payload and the scenario passed. The
-  return-kind hint avoids the defect only when the caller already knows it is
-  required; prose guidance alone is not an adequate guard against a false green.
-- The implementation must therefore make unresolved classification explicit
-  without treating every named type as fallible. Roadmap item 11.3.1 tracks the
-  diagnostic or required-hint contract and its compile and runtime regression
-  matrix. Until it lands, fallible steps must spell `Result<...>` or
-  `rstest_bdd::StepResult<...>`, or use the `result` hint.
+  value, so an `Err` became an opaque payload and the scenario passed. ADR-019
+  closes that false green with inherent-method precedence, while retaining
+  explicit hints for deliberate overrides and ambiguous syntactic forms.
 
 ## Alternatives considered
 
@@ -90,3 +87,14 @@ an alias that deliberately returns a payload, and applying it to a genuine
   unnecessarily disruptive for common `Result<T, E>` usage.
 - Wait for stable specialization/negative bounds: rejected because there is no
   stable timeline and it does not address immediate downstream compatibility.
+- Autoref specialization: not considered in 2025-12. ADR-019 evaluates and
+  rejects its caller-trait collision risk after an empirical probe.
+
+## Amendments
+
+### 2026-08-29: type-directed alias dispatch
+
+ADR-019 supplements macro-time syntax with a hidden runtime bridge for
+unhinted non-unit step returns. It does not reopen the scenario `ReturnKind`
+contract. The new bridge makes local aliases of `Result<T, E>` fallible without
+misclassifying value aliases, and replaces the historical required-hint rule.

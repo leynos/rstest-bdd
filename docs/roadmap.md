@@ -1065,16 +1065,18 @@ This hardening step closes two failure modes found by the gauss beta trial. It
 asks whether every fallible step and scenario result is observably consumed, so
 an assertion cannot disappear behind macro classification or generated code.
 
-- [ ] 11.3.1. A step returning a local alias of `Result<T, E>` cannot silently
-  pass when it returns `Err`. Adopt an explicit, stable classification contract
-  for syntactically unresolved return types, with a migration diagnostic or
-  required `result`/`value` hint where the macro cannot prove the return kind.
+- [x] 11.3.1. A step returning a local alias of `Result<T, E>` cannot silently
+  pass when it returns `Err`. The v0.6.0 type-directed classification contract
+  dispatches unhinted non-unit step returns by concrete type, while explicit
+  `result`/`value` hints retain their override role.
   Preserve ordinary value-returning steps without guessing that every alias is
   fallible. Finish line: compile and runtime regressions cover an alias that
   returns `Err`, spelled `Result`, `StepResult`, an alias explicitly marked
   `result`, and a genuine value alias; no `Err` case is boxed and discarded as
-  an opaque payload. ADR: `docs/adr-002-stable-step-return-classification.md`.
-  Design Doc: `docs/rstest-bdd-design.md` §2.1. Origin: `leynos/rstest-bdd#573`
+  an opaque payload. ADRs: `docs/adr-002-stable-step-return-classification.md`
+  and `docs/adr-019-type-directed-step-return-classification.md`. Design Doc:
+  `docs/rstest-bdd-design.md` §3.8. Landed in v0.6.0 despite this item's
+  physical placement under the v0.7.0 heading. Origin: `leynos/rstest-bdd#573`
   and the gauss v0.6.0-beta3 validation matrix.
 - [x] 11.3.2. Harness-generated tests consume the result of fallible scenario
   functions, including under `GpuiHarness`, without triggering

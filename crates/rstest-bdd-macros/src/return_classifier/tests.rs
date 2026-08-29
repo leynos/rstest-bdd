@@ -1,6 +1,13 @@
 //! Unit tests for classifying step return types.
 
-use super::{ReturnKind, ReturnOverride, classify_return_type, second_type_argument};
+use super::{
+    ReturnKind,
+    ReturnOverride,
+    StepReturnStrategy,
+    classify_return_type,
+    classify_step_return_type,
+    second_type_argument,
+};
 
 /// Helper to assert that a given function signature classifies to the expected kind.
 fn assert_classifies_to(
@@ -17,6 +24,27 @@ fn assert_classifies_to(
         Err(err) => panic!("expected classification to succeed: {err}"),
     };
     assert_eq!(kind, expected);
+}
+
+/// Helper to assert the strategy used by an emitted step wrapper.
+fn assert_step_strategy(func_tokens: proc_macro2::TokenStream, expected: StepReturnStrategy) {
+    let func: syn::ItemFn = match syn::parse2(func_tokens) {
+        Ok(func) => func,
+        Err(err) => panic!("test input should be valid function syntax: {err}"),
+    };
+    let strategy = match classify_step_return_type(&func.sig.output, None) {
+        Ok(strategy) => strategy,
+        Err(err) => panic!("expected step classification to succeed: {err}"),
+    };
+    assert_eq!(strategy, expected);
+}
+
+#[test]
+fn step_strategy_bypasses_never_returns() {
+    assert_step_strategy(
+        quote::quote! { fn step() -> ! { panic!("never returns") } },
+        StepReturnStrategy::Never,
+    );
 }
 
 #[test]

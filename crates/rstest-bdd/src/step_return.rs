@@ -4,6 +4,22 @@
 //! `rstest-bdd-macros`. Its inherent `Result` method must remain by-value and
 //! keep its exact name: inherent-method precedence makes aliases resolve as
 //! `Result` without allowing caller traits to silently reclassify them.
+//!
+//! ## Invariants
+//!
+//! 1. The inherent and fallback methods must keep the same name. Renaming one silently selects the
+//!    remaining arm.
+//! 2. The `Result` arm must remain an inherent implementation on `StepReturnProbe<'_, Result<T,
+//!    E>>`; a trait implementation is ambiguous with the blanket fallback.
+//! 3. Both selector methods must take `self` by value. An `&self` receiver reopens the autoref
+//!    probe position that caller traits can capture.
+//! 4. The fallback trait must be implemented for `StepReturnProbe<..>`, not a reference to it.
+//! 5. Tags remain zero-sized and unborrowed so the probe borrow ends before normalization moves the
+//!    returned value.
+//! 6. Normalization remains available only through the path-called sealed `StepReturnNormalize`
+//!    trait; method syntax would widen this bridge.
+//!
+//! `crates/rstest-bdd/tests/step_return_dispatch.rs` guards these invariants.
 
 use core::{any::Any, fmt::Display};
 

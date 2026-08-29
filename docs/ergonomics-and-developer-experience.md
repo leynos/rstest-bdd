@@ -238,13 +238,14 @@ This requires changes to both the runtime and macro crates.
 3. **Wrapper Codegen Update (in
    **`crates/rstest-bdd-macros/src/codegen/wrapper/emit.rs`**):**
 
-    - The generated wrapper for a step function will inspect its return type.
-      - If the return type is not `()` or `Result<(), E>`, the wrapper will
-        capture the `Ok(value)` from the step function's result. If the step
-        returns `Err(e)` the error is propagated unchanged and nothing is
-        stored in the context.
-      - It will then insert this `value` into the `StepContext`, keyed by the
-        matching fixture name when the `TypeId` is unambiguous.
+    - The generated wrapper normalizes the returned value. Literal unit returns
+      take the unit path; other unhinted types use the runtime dispatch bridge
+      to distinguish a concrete `Result<T, E>` from a value alias.
+      - `Ok(value)` is captured and `Err(error)` is propagated without storing
+        a value. Genuine value aliases and result-containing wrappers remain
+        values.
+      - The wrapper then inserts the successful value into `StepContext`, keyed
+        by the matching fixture name when the `TypeId` is unambiguous.
 
 4. **Implicit Injection:** A parameter in a subsequent step that is not a
    fixture and not a step argument, but whose type matches a value stored in

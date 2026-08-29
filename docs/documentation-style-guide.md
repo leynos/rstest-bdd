@@ -375,6 +375,10 @@ Every ADR must include the following sections in order:
   the problem or question that prompted the decision. Include enough background
   for readers unfamiliar with the history.
 
+When an accepted ADR needs a targeted correction rather than replacement, add
+an `Amended by ADR-NNN (YYYY-MM-DD)` banner to its Status section and an
+`## Amendments` section that preserves the original decision as history.
+
 ### Conditional sections
 
 Include these sections as appropriate to the decision's complexity:
