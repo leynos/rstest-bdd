@@ -17,15 +17,15 @@ fn required_error_kind_strategy() -> impl Strategy<Value = io::ErrorKind> {
     ]
 }
 
-/// Maps generated indices to the required, non-optional traversal operations.
-fn required_failure_site(index: usize) -> FailureSite {
-    match index {
-        0 => FailureSite::WorkspaceReadDirectory,
-        1 => FailureSite::WorkspaceDirectoryEntry,
-        2 => FailureSite::CrateDirectoryMetadata,
-        _ => FailureSite::CrateManifestMetadata,
-    }
-}
+/// Required directory operations whose I/O failures must reach the public query.
+const REQUIRED_FAILURE_SITES: [FailureSite; 6] = [
+    FailureSite::WorkspaceReadDirectory,
+    FailureSite::WorkspaceDirectoryEntry,
+    FailureSite::RecursiveDirectoryRead,
+    FailureSite::RecursiveDirectoryEntry,
+    FailureSite::CrateDirectoryMetadata,
+    FailureSite::CrateManifestMetadata,
+];
 
 /// Maps generated indices to metadata probes where `NotFound` is optional.
 fn optional_not_found_site(index: usize) -> FailureSite {
@@ -39,24 +39,25 @@ fn optional_not_found_site(index: usize) -> FailureSite {
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(16))]
 
-    /// Propagates each required directory operation's injected I/O failure.
+    /// Propagates every required directory operation's injected I/O failure.
     #[test]
     fn propagates_required_directory_operation_errors(
         nested_feature_depths in prop::collection::vec(1_u8..=3, 1..=3),
         entry_order in prop::collection::vec(any::<u8>(), 0..=8),
-        failure_index in 0_usize..4,
         error_kind in required_error_kind_strategy(),
     ) {
-        let workspace = in_memory_workspace(
-            &nested_feature_depths,
-            &entry_order,
-            Some((required_failure_site(failure_index), error_kind)),
-        );
+        for failure_site in REQUIRED_FAILURE_SITES {
+            let workspace = in_memory_workspace(
+                &nested_feature_depths,
+                &entry_order,
+                Some((failure_site, error_kind)),
+            );
 
-        let error = find_feature_files_with(Path::new("workspace"), &workspace.reader)
-            .expect_err("required directory-operation failures must be propagated");
+            let error = find_feature_files_with(Path::new("workspace"), &workspace.reader)
+                .expect_err("required directory-operation failures must be propagated");
 
-        assert_io_error_kind(error, error_kind);
+            assert_io_error_kind(error, error_kind);
+        }
     }
 
     /// Ignores optional `NotFound` metadata probes while finding valid features.

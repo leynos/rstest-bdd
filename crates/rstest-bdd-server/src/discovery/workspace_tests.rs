@@ -156,6 +156,10 @@ pub(super) enum FailureSite {
     WorkspaceReadDirectory,
     /// Fails required workspace-root directory-entry iteration.
     WorkspaceDirectoryEntry,
+    /// Fails a required recursive feature-directory read.
+    RecursiveDirectoryRead,
+    /// Fails required entry iteration in a recursive feature directory.
+    RecursiveDirectoryEntry,
     /// Fails required crate-directory metadata.
     CrateDirectoryMetadata,
     /// Fails required crate-manifest metadata.
@@ -167,6 +171,8 @@ pub(super) enum FailureSite {
     /// Fails an optional crate-manifest metadata probe.
     OptionalCrateManifestMetadata,
 }
+/// Nested feature directory reached by every generated property-test workspace.
+const RECURSIVE_FAILURE_DIRECTORY: &str = "workspace/crate/tests/features/nested-0-0";
 
 /// Supplies a bounded in-memory filesystem model for discovery properties.
 pub(super) struct InMemoryDirectoryReader {
@@ -175,42 +181,51 @@ pub(super) struct InMemoryDirectoryReader {
     files: BTreeSet<PathBuf>,
     failure: Option<(FailureSite, io::ErrorKind)>,
 }
-
 impl DirectoryReader for InMemoryDirectoryReader {
     type Entries = std::vec::IntoIter<io::Result<PathBuf>>;
-
     /// Reads modelled entries or returns the configured directory-read failure.
     fn read_dir(&self, path: &Path) -> io::Result<Self::Entries> {
-        if let Some((FailureSite::WorkspaceReadDirectory, kind)) = self.failure
-            && path == Path::new("workspace")
-        {
-            return Err(io::Error::from(kind));
+        match self.failure {
+            Some((FailureSite::WorkspaceReadDirectory, kind)) if path == Path::new("workspace") => {
+                return Err(io::Error::from(kind));
+            }
+            Some((FailureSite::RecursiveDirectoryRead, kind))
+                if path == Path::new(RECURSIVE_FAILURE_DIRECTORY) =>
+            {
+                return Err(io::Error::from(kind));
+            }
+            _ => {}
         }
-
         let mut entries = self.entries.get(path).cloned().unwrap_or_default();
-        if matches!(
-            self.failure,
-            Some((FailureSite::WorkspaceDirectoryEntry, _)) if path == Path::new("workspace")
-        ) {
+        let entry_failure_kind = match self.failure {
+            Some((FailureSite::WorkspaceDirectoryEntry, kind))
+                if path == Path::new("workspace") =>
+            {
+                Some(kind)
+            }
+            Some((FailureSite::RecursiveDirectoryEntry, kind))
+                if path == Path::new(RECURSIVE_FAILURE_DIRECTORY) =>
+            {
+                Some(kind)
+            }
+            _ => None,
+        };
+        if entry_failure_kind.is_some() {
             entries.insert(0, PathBuf::new());
         }
-
-        let failure = self.failure;
         Ok(entries
             .into_iter()
             .map(move |entry| {
-                if entry.as_os_str().is_empty() {
-                    if let Some((FailureSite::WorkspaceDirectoryEntry, kind)) = failure {
-                        return Err(io::Error::from(kind));
-                    }
+                if entry.as_os_str().is_empty()
+                    && let Some(kind) = entry_failure_kind
+                {
+                    return Err(io::Error::from(kind));
                 }
-
                 Ok(entry)
             })
             .collect::<Vec<_>>()
             .into_iter())
     }
-
     /// Reports modelled directory metadata or the configured metadata failure.
     fn is_directory(&self, path: &Path) -> io::Result<bool> {
         if self.directory_metadata_failure(path) {
@@ -222,7 +237,6 @@ impl DirectoryReader for InMemoryDirectoryReader {
 
         Ok(self.directories.contains(path))
     }
-
     /// Reports modelled file metadata or the configured manifest-probe failure.
     fn is_file(&self, path: &Path) -> io::Result<bool> {
         if self.metadata_failure(FailureSite::CrateManifestMetadata, path)
@@ -272,7 +286,10 @@ impl InMemoryDirectoryReader {
                 FailureSite::OptionalCrateManifestMetadata => {
                     path == Path::new("workspace/optional-crate/Cargo.toml")
                 }
-                FailureSite::WorkspaceReadDirectory | FailureSite::WorkspaceDirectoryEntry => false,
+                FailureSite::WorkspaceReadDirectory
+                | FailureSite::WorkspaceDirectoryEntry
+                | FailureSite::RecursiveDirectoryRead
+                | FailureSite::RecursiveDirectoryEntry => false,
             }
     }
 }
