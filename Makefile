@@ -193,7 +193,9 @@ nixie:
 	# environment variable control for this option
 	nixie --no-sandbox
 
-publish-check: build-python ## Package crates in release order to validate publish readiness
+# Lading validates the standalone fixture manifest, whose patch paths require
+# the staged package artefacts during the publish dry run.
+publish-check: build-python stage-published-gpui-e2e ## Package crates in release order to validate publish readiness
 	$(UV_ENV) $(UV) run --with "$(LADING_SPEC)" lading publish --workspace-root . --allow-unpublished-workspace-deps
 
 test-workflow-contracts: ## Validate the mutation-testing caller contract
