@@ -65,7 +65,9 @@ def test_approved_lockfile_is_ignored(
     """Each approved published-GPUI lockfile may reference async-trait."""
     build_tree(tmp_path, {approved_lockfile: LOCK_WITH_ASYNC_TRAIT})
 
-    assert checker.find_violations(tmp_path) == []
+    assert checker.find_violations(tmp_path) == [], (
+        f"approved lockfile {approved_lockfile} should be exempt from the ban"
+    )
 
 
 def test_root_lockfile_still_violates(
@@ -76,7 +78,9 @@ def test_root_lockfile_still_violates(
 
     violations = checker.find_violations(tmp_path)
 
-    assert violations == ["Cargo.lock: references async-trait in lockfile"]
+    assert violations == ["Cargo.lock: references async-trait in lockfile"], (
+        "the root Cargo.lock must remain subject to the async-trait ban"
+    )
 
 
 def test_other_nested_lockfile_still_violates(
@@ -88,7 +92,9 @@ def test_other_nested_lockfile_still_violates(
 
     violations = checker.find_violations(tmp_path)
 
-    assert violations == [f"{other}: references async-trait in lockfile"]
+    assert violations == [f"{other}: references async-trait in lockfile"], (
+        f"unapproved nested lockfile {other} must remain subject to the ban"
+    )
 
 
 @pytest.mark.parametrize(
@@ -106,7 +112,9 @@ def test_nested_lockfile_of_approved_fixture_still_violates(
 
     violations = checker.find_violations(tmp_path)
 
-    assert violations == [f"{nested}: references async-trait in lockfile"]
+    assert violations == [f"{nested}: references async-trait in lockfile"], (
+        f"approved fixture boundary must not exempt child lockfile {nested}"
+    )
 
 
 @pytest.mark.parametrize(
@@ -121,7 +129,9 @@ def test_approved_fixture_manifest_still_violates(
 
     violations = checker.find_violations(tmp_path)
 
-    assert violations == [f"{manifest}: declares async-trait dependency"]
+    assert violations == [f"{manifest}: declares async-trait dependency"], (
+        f"approved fixture manifest {manifest} must remain subject to the ban"
+    )
 
 
 @pytest.mark.parametrize(
@@ -136,9 +146,13 @@ def test_approved_fixture_rust_source_still_violates(
 
     violations = checker.find_violations(tmp_path)
 
-    assert violations == [f"{source}:1: contains forbidden async-trait usage"]
+    assert violations == [f"{source}:1: contains forbidden async-trait usage"], (
+        f"approved fixture Rust source {source} must remain subject to the ban"
+    )
 
 
 def test_exemptions_cover_only_the_declared_paths(checker: types.ModuleType) -> None:
     """The exemption set names exactly the two published-GPUI lockfiles."""
-    assert sorted(checker.EXCLUDED_LOCKFILES) == list(APPROVED_LOCKFILES)
+    assert sorted(checker.EXCLUDED_LOCKFILES) == list(APPROVED_LOCKFILES), (
+        "the exemption set must contain only the two approved lockfile paths"
+    )

@@ -458,6 +458,30 @@ Run the gate with:
 make e2e-published-gpui
 ```
 
+
+### Linux prerequisites
+
+The published GPUI build requires these Linux development packages. Install
+them before running the gate locally:
+
+```text
+libfontconfig1-dev
+libwayland-dev
+libx11-dev
+libx11-xcb-dev
+libxcb-render0-dev
+libxcb-shape0-dev
+libxcb-xfixes0-dev
+libxkbcommon-dev
+libxkbcommon-x11-dev
+libxrandr-dev
+pkg-config
+```
+
+Continuous Integration installs these packages only in the explicitly gated
+`Run published GPUI end-to-end scenario` step; they are not prerequisites for
+the ordinary stable-Rust workspace checks.
+
 Its target first stages the packaged crates, then invokes the fixture from its
 own directory:
 

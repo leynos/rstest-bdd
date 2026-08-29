@@ -13,7 +13,7 @@ rstest-bdd-macros = "0.6.0-beta4"
 
 [dev-dependencies]
 rstest = "0.26.1"
-serial_test = "2"
+serial_test = "2.0.0"
 
 # Keep this fixture outside the root workspace so GPUI resolves from crates.io
 # instead of inheriting the workspace's vendor/gpui path dependency. The
