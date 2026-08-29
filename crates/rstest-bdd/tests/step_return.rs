@@ -4,18 +4,10 @@ use rstest::fixture;
 use rstest_bdd::StepResult;
 use rstest_bdd_macros::{given, scenario, then, when};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct Number(i32);
+#[path = "common/step_return_support.rs"]
+mod step_return_support;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct PrimaryValue(i32);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct SecondaryValue(i32);
-
-#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
-#[fixture]
-fn number() -> Number { Number(1) }
+use step_return_support::{Number, PrimaryValue, SecondaryValue, number};
 
 #[given("base number is 1")]
 fn base(number: Number) {
