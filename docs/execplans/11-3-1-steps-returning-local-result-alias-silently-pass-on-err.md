@@ -6,7 +6,9 @@ This ExecPlan (execution plan) is a living document. The sections
 `Conformance basis`, and `Verification plan` must be kept up to date as work
 proceeds.
 
-Status: BLOCKED — EP-M0 disproved the collision-safety acceptance criterion.
+Status: IN PROGRESS — EP-M0 disproved the original dual-trait autoref shape's
+collision-safety claim; the maintainer approved a revised dispatch mechanism
+(`DEC-013`, `DEC-014`) on 2026-08-29 and EP-M0 resumes against that shape.
 
 Roadmap item: 11.3.1. Origin: `leynos/rstest-bdd#573` and the gauss
 v0.6.0-beta3 validation matrix.
@@ -60,7 +62,13 @@ Terms used throughout, defined once so the rest reads plainly.
   traits, one implemented on a type and one on a reference to that type, are
   resolved by the compiler's method-probe ordering rather than by impl
   coherence. It only works inside macro-generated code. The canonical write-up
-  is dtolnay's case study, and `anyhow!` uses it in production.
+  is dtolnay's case study, and `anyhow!` uses it in production. The original
+  mechanism here (`DEC-002`); superseded for this plan by inherent-method
+  precedence (`DEC-013`) after EP-M0 falsified its collision-safety claim.
+- **Inherent-method precedence**: at a given candidate type and receiver mode,
+  rustc's method probe prefers an applicable *inherent* method over every
+  applicable trait method. The revised dispatch (`DEC-013`) uses this, rather
+  than autoref ordering across two traits, to discriminate the two arms.
 - **False green**: a test that reports success when the behaviour it asserts is
   actually broken.
 
@@ -126,12 +134,16 @@ Stop and escalate when any of these is reached. Do not work around them.
 
 ## Risks
 
-- Risk: the emitted trait prelude falls out of one emission path during a
-  future refactor, silently reinstating the original false green.
+- Risk: the silent-breakage path moves under `DEC-013`. A dropped emission
+  prelude is now a *loud* compile error (non-`Result` steps lose their only
+  candidate), but a runtime-crate edit that renames or demotes the inherent
+  `Result` arm lets the blanket value arm cover `Result` returns with no
+  diagnostic, silently reinstating the original false green.
   Severity: high. Likelihood: medium.
   Mitigation: emit the whole dispatch (prelude plus call) from exactly one
-  function; pin it with an `insta` snapshot of the token stream; add the
-  seeded-fault negative control described in `Verification plan`.
+  function; pin it with an `insta` snapshot of the token stream; the module
+  invariant list; the INV-1 tag table; and the seeded-fault negative control
+  in `Verification plan`, which seeds exactly the inherent-arm rename.
 
 - Risk: the generated `#[expect(clippy::unnecessary_wraps)]` becomes
   unfulfilled for dispatched steps and breaks downstream `-D warnings` builds.
@@ -170,14 +182,23 @@ Stop and escalate when any of these is reached. Do not work around them.
   Landing in v0.6.0 (`DEC-009`) bounds the affected population to beta
   adopters rather than everyone upgrading off a released 0.6.x.
 
-- Risk: a future maintainer "simplifies" the autoref pattern into breakage.
+- Risk: a future maintainer "simplifies" the inherent-plus-blanket dispatch
+  into breakage — for example by "tidying" a receiver to `&self` (which moves
+  that arm to the autoref probe position and reopens the caller-trait capture
+  that falsified the original design) or by demoting the inherent impl to a
+  trait impl (which makes every `Result` step `E0034`).
   Severity: medium. Likelihood: medium.
   Mitigation: the invariant list in the module `//!` docs (EP-M3) plus the
   type-identity guard test (EP-M2).
 
 ## Progress
 
-- [-] EP-M0 Prototype and pin the emission shape (go/no-go): blocked.
+- [-] EP-M0 Prototype and pin the emission shape (go/no-go): in progress.
+      The dual-trait autoref shape was falsified and replaced by the `DEC-013`
+      shape, whose matrix and collision probes passed in the scratch crate on
+      `rustc 1.85.0` and stable (2026-08-29). Remaining: the in-workspace
+      import-form and clippy experiments, the `-> !` bypass, the async check,
+      and the `DEC-014` sealed-normalize shape.
 - [ ] EP-M1 Preparatory refactors: bring `macros/mod.rs` and
       `tests/step_return.rs` under the 400-line cap. No behaviour change.
 - [ ] EP-M2 Red: behavioural feature files, the tag-identity guard test, and
@@ -248,6 +269,37 @@ Recorded during planning; keep appending during implementation.
   The mechanism tolerance is reached, so implementation must not proceed
   without an approved design change.
 
+- Observation: even under the falsified shape, an *accidental* collision was
+  not a silent false green. The hijacking method's return type has no
+  compatible `normalize`, so compilation fails downstream — the `E0599` in
+  the EP-M0 log *is* that failure. A silent capture additionally requires the
+  colliding trait to return a deliberately compatible tag type.
+  Evidence: the same `probe_ambiguity.rs` run cited above.
+  Impact: the falsified design was never one accident away from a silent
+  false green; recorded so the severity assessment stays honest. `DEC-013`
+  and `DEC-014` remove even the deliberate path.
+
+- Observation: collapsing both dispatch arms into the earliest method-probe
+  position eliminates the caller-trait capture. With the `Result` arm as an
+  *inherent* method on `StepReturnProbe<'_, Result<T, E>>` and the value arm
+  as a by-value blanket trait impl on `StepReturnProbe<'_, T>`, both arms
+  match at the by-value mode of the first candidate type — a position no
+  caller trait can precede. Inherent-over-trait precedence selects the
+  `Result` arm; an adversarial blanket trait either loses (its `&self`
+  receiver probes after by-value) or ties with the value arm and produces the
+  loud `E0034`.
+  Evidence: on 2026-08-29, `~/scratch-11-3-1/examples/probe_v2_matrix.rs`
+  (fifteen-class matrix, tags identical to the original design, including the
+  non-`Copy` borrow-then-move check), `probe_v2_hijack_selfref.rs` (both arms
+  correct under an `&self` blanket), `probe_v2_hijack_selfval_result.rs`
+  (`Result` arm wins under a by-value blanket), and
+  `probe_v2_hijack_selfval.rs` (`E0034` on the value arm under a by-value
+  blanket). Identical results on `rustc 1.85.0` and current stable.
+  Impact: `DEC-013` replaces the falsified mechanism; EP-M0 acceptance
+  criterion 2 is restated and satisfiable. The emitted call also loses the
+  leading `(&probe)` autoref, retiring the `clippy::needless_borrow` hazard
+  recorded in `Artefacts and notes`.
+
 ## Decision log
 
 - DEC-001: Classify step return types by *type*, using autoref specialization,
@@ -279,6 +331,11 @@ Recorded during planning; keep appending during implementation.
   rule because `StepReturnProbe` is not `#[fundamental]`. This is stronger
   than a sealed supertrait and cheaper.
   Date/Author: 2026-08-29, planning agent, pending approval.
+  Amended 2026-08-29: the probe newtype survives — it still closes the
+  inherent-method hijack on the returned value and the downstream-impl
+  hole — but the further claim that it makes a caller blanket-trait
+  collision loud was falsified by EP-M0. The dispatch *mechanism* layered on
+  the probe is now `DEC-013`.
 
 - DEC-003: Keep syntactic fast paths for `()` and `!` only.
   Rationale: `()` is provable from the syntax, costs nothing, and preserves the
@@ -379,8 +436,49 @@ Recorded during planning; keep appending during implementation.
   documentation, and migration impact. Moving imports into a runtime
   `macro_rules!` macro is not yet accepted as a remedy: it may change hygiene,
   but this must be proved rather than assumed. Affects DEC-002, EP-M0,
-  INV-1, LEMMA-1, the module invariants, and ADR-019. Status: pending
-  maintainer decision.
+  INV-1, LEMMA-1, the module invariants, and ADR-019.
+  Status: **resolved 2026-08-29** — the maintainer approved the revised
+  dispatch design recorded as `DEC-013` and `DEC-014`; the collision is
+  eliminated rather than accepted as residual risk. The `macro_rules!`
+  hygiene remedy is withdrawn without further experiment: trait-method
+  resolution searches the traits in scope at the expansion site regardless of
+  `macro_rules!` hygiene, so it could not have isolated the caller's imports.
+
+- DEC-013: Replace the dual-trait autoref ordering with inherent-method
+  precedence. The `Result` arm becomes an *inherent* method on
+  `StepReturnProbe<'_, ::core::result::Result<T, E>>`; the value arm becomes
+  a blanket trait impl on `StepReturnProbe<'_, T>` covering **all** `T`,
+  including `Result` — the overlap is resolved by inherent-over-trait
+  precedence, not by coherence. Both methods take `self` by value.
+  Rationale: the falsified shape placed its two arms at *different* probe
+  positions (by-value versus one autoref step later), and a caller blanket
+  trait could match at the earlier position alone, capturing dispatch
+  silently. Placing both arms at the earliest position the probe ever
+  examines — the by-value mode of the first candidate type — leaves no
+  earlier slot to capture: an adversarial trait either loses to the inherent
+  method (`Result` arm), loses to the by-value receiver (`&self` blankets),
+  or ties with the value arm and produces the loud `E0034`. No silent
+  reclassification path remains. Verified in `~/scratch-11-3-1`
+  (`examples/probe_v2_*.rs`) on `rustc 1.85.0` and current stable; see
+  `Surprises & discoveries`. Consequences: the fifteen-class classification
+  matrix is unchanged; the emission drops the leading `(&probe)` autoref and
+  its `clippy::needless_borrow` hazard; the module invariants and AXIOM-1
+  are restated; ADR-019's rationale must credit inherent precedence, not
+  autoref ordering.
+  Date/Author: 2026-08-29, maintainer decision.
+
+- DEC-014: Consume the selected tag through a *path-called* generic function
+  bounded on a sealed trait implemented only for the two tags —
+  `::rstest_bdd::step_return::StepReturnNormalize::normalize(tag, value)` —
+  with `#[diagnostic::on_unimplemented]` naming the interference. Method
+  syntax is used for exactly one call, the probe call that must go through
+  the method probe; everything downstream is called by path.
+  Rationale: belt and braces on top of `DEC-013`. If any interception is
+  ever invented, a foreign tag cannot satisfy the sealed bound, so the
+  failure is a compile error with an actionable diagnostic rather than an
+  `E0599` pointing into macro-expanded tokens; and the sealed supertrait
+  stops a downstream crate from making a deliberately compatible tag.
+  Date/Author: 2026-08-29, maintainer decision.
 
 ## Outcomes & retrospective
 
@@ -466,9 +564,13 @@ migration for no benefit in the common case.
 Trait resolution, by contrast, happens after alias expansion. If the generated
 code asks the *compiler* which arm applies, aliases resolve for free. The
 obstacle ADR-002 identified is real — you cannot write "for all `T` except
-`Result<_, _>`" as a blanket impl without an overlap conflict — but autoref
-specialization sidesteps it. Two *disjoint* traits never overlap; the choice
-between them is made by the method probe's ordering, not by coherence.
+`Result<_, _>`" as a blanket impl without an overlap conflict — but method
+resolution sidesteps it. Under `DEC-013` the `Result` arm is an *inherent*
+impl and the fallback is a blanket trait: the two never meet in coherence at
+all, and where both apply the method probe's inherent-over-trait precedence
+picks the inherent arm. (The originally planned variant used two disjoint
+traits ordered by autoref steps; EP-M0 falsified its collision safety, hence
+the revision.)
 
 ## Conformance basis
 
@@ -511,11 +613,18 @@ ADR-015 (InsertOutcome) -> EP-M2 -> tests::step_return::scenario_alias_ok_overri
 These are assumptions about third-party behaviour. They are not verified here;
 they are relied upon, and each is exercised at a contract-level boundary.
 
-- **AXIOM-1**: rustc's method probe, for a receiver expression of type `U`,
+- **AXIOM-1a**: rustc's method probe, for a receiver expression of type `U`,
   builds candidate types by repeatedly dereferencing `U`, and for each candidate
-  type tries the by-value receiver before the autoref (`&`) receiver. This is the
-  ordering the whole mechanism rests on. Documented in dtolnay's
-  autoref-specialization case study and relied upon in production by `anyhow`.
+  type tries the by-value receiver before the autoref (`&`) receiver. Documented
+  in dtolnay's autoref-specialization case study and relied upon in production
+  by `anyhow`. Under `DEC-013` this is what defeats an `&self` caller blanket:
+  both crate arms match at the by-value mode, which is probed first.
+- **AXIOM-1b**: at a given candidate type and receiver mode, an applicable
+  *inherent* method takes precedence over every applicable trait method.
+  Documented in the Rust reference's method-call-expression resolution order
+  ("inherent candidates precede extension candidates"). Under `DEC-013` this is
+  what discriminates the two arms and what defeats any caller trait for
+  `Result` returns.
 - **AXIOM-2**: type aliases are expanded before trait selection, so
   `MyResult<()>` and `Result<(), MyError>` select the same impl.
 - **AXIOM-3**: NLL ends the borrow created for the probe before the subsequent
@@ -530,11 +639,13 @@ they are relied upon, and each is exercised at a contract-level boundary.
   external macro expansion. This one is *load-bearing and least certain*, which
   is precisely why EP-M0 verifies it empirically rather than assuming it.
 
-AXIOM-1 through AXIOM-4 were exercised directly during planning against
+AXIOM-1a through AXIOM-4 were exercised directly during planning against
 `rustc 1.85.0` and `rustc 1.98.0` in a scratch crate; the 18-case probe matrix
-is reproduced in `Artefacts and notes`. AXIOM-6 is re-verified at EP-M0 inside
-this workspace, since the workspace's own lint configuration differs from the
-scratch crate's.
+is reproduced in `Artefacts and notes`. AXIOM-1a and AXIOM-1b were
+re-exercised on 2026-08-29 with the `DEC-013` shape, including adversarial
+caller blankets in both receiver forms (`probe_v2_*` examples, `rustc 1.85.0`
+and stable). AXIOM-6 is re-verified at EP-M0 inside this workspace, since the
+workspace's own lint configuration differs from the scratch crate's.
 
 ### Obligations
 
@@ -559,10 +670,11 @@ the generated wrapper selects the `Result` arm if and only if `V` expands to
 - Evidence: the test fails to compile before `crates/rstest-bdd/src/step_return.rs`
   exists; after EP-M3 it passes with every class exercised.
 - Non-vacuity: each of the fifteen classes is a distinct witness, and the test
-  asserts a *specific* tag name per class rather than a boolean. Merging the
-  two traits into one, renaming one trait's method, or implementing
-  `StepReturnValueKind` for `T` instead of `&T` each break at least one row.
-  The negative control below seeds exactly such a fault.
+  asserts a *specific* tag name per class rather than a boolean. Renaming the
+  inherent arm's method, demoting the inherent impl to a trait impl, or
+  switching either receiver from `self` to `&self` each break at least one
+  row or one collision guard. The negative control below seeds exactly such
+  a fault.
 
 **INV-2 — No `Err` becomes an opaque payload.** For any step whose return type
 expands to `Result<T, E>`, and which carries no `value` hint, an `Err` fails
@@ -637,28 +749,37 @@ tag; no return type selects both (ambiguity) or neither (no-method).
 
 Run once before merge and record the transcript in `Artefacts and notes`.
 
-In `crates/rstest-bdd-macros/src/codegen/wrapper/emit/call_expr.rs`, change the
-emitted prelude so that only the value-kind trait is in scope. The workspace
-must still compile cleanly with zero warnings, and exactly these tests must
-fail:
+In `crates/rstest-bdd/src/step_return.rs`, rename the inherent `Result` arm's
+method (for example, append `_seeded`). Under `DEC-013` this is the module's
+invariant-1 silent-breakage path: the blanket value arm then covers `Result`
+returns with no diagnostic. The workspace must still compile cleanly with
+zero warnings, and exactly these tests must fail:
 
 - `step_return::scenario_alias_no_hint_failure`
 - `step_return::scenario_anyhow_failure`
 - `step_return::scenario_alias_async_failure`
-- the `insta` snapshot of the emitted dispatch token stream
+- the INV-1 tag table in `step_return_dispatch.rs` (every `Result` row)
 
-If the workspace compiles and every test still passes, the suite does not
-detect classification degradation and the plan's mitigation for the
-missing-prelude risk is unproven. Revert the seeded fault afterwards.
+Note the `insta` snapshot of the emitted dispatch token stream stays green
+under this seed — it guards emission drift in the *macro* crate, which this
+runtime-crate fault does not touch. The complementary emission-side fault
+(dropping the value-kind trait from the emitted prelude) is now a *loud*
+compile error rather than a silent degradation; confirm that once and record
+the error text rather than treating it as a seeded-fault run.
+
+If the workspace compiles and every listed test still passes, the suite does
+not detect classification degradation and the plan's mitigation for the
+inherent-rename risk is unproven. Revert the seeded fault afterwards.
 
 A second, cheaper control comes free: the repository's existing cargo-mutants
 workflow (`tests/workflow_contracts/mutation_testing_test.py`) covers
 `crates/`, so `crates/rstest-bdd/src/step_return.rs` is in scope. Run
 `cargo mutants -f crates/rstest-bdd/src/step_return.rs` once and confirm zero
-survivors. Note the limitation honestly: cargo-mutants treats a `quote!` body
-as an opaque token literal and will **not** delete an import from it, so it
-cannot reach the highest-risk element. That is why the hand-seeded control
-above is required and why the `insta` snapshot exists.
+survivors. Note the limitation honestly: cargo-mutants mutates function
+bodies; it neither renames methods nor deletes imports from a `quote!` body,
+so it cannot reach the highest-risk element (the inherent arm's method name).
+That is why the hand-seeded control above is required and why the `insta`
+snapshot exists.
 
 ### Methods deliberately not used
 
@@ -669,8 +790,8 @@ above is required and why the `insta` snapshot exists.
 - **`kani`**: there is no `unsafe` code, no arithmetic, and no bounded state
   machine. A bounded model check would have nothing to explore.
 - **`verus`**: no lemma is introduced. The one non-trivial proof obligation
-  (AXIOM-1, the method-probe ordering) is a property of the *compiler*, not of
-  repository-owned logic, and is treated as an axiom exercised at a
+  (AXIOM-1a/1b, the method-probe ordering) is a property of the *compiler*,
+  not of repository-owned logic, and is treated as an axiom exercised at a
   contract-level boundary — which is exactly what the ExecPlan rules require
   for third-party interfaces.
 
@@ -701,17 +822,21 @@ pub struct StepReturnResultTag;
 /// Tag selected when the probed type is not a `Result`.
 pub struct StepReturnValueTag;
 
-/// Higher-priority arm: matches without an autoref step.
-pub trait StepReturnResultKind {
-    fn __rstest_bdd_step_return_kind(&self) -> StepReturnResultTag { StepReturnResultTag }
+/// `Result` arm (DEC-013): an INHERENT method, so it outranks every trait
+/// candidate — the crate's own fallback and any caller trait alike.
+impl<'a, T, E> StepReturnProbe<'a, ::core::result::Result<T, E>> {
+    pub fn __rstest_bdd_step_return_kind(self) -> StepReturnResultTag { StepReturnResultTag }
 }
-impl<T, E> StepReturnResultKind for StepReturnProbe<'_, ::core::result::Result<T, E>> {}
 
-/// Lower-priority arm: requires one autoref step, so it loses to the above.
+/// Fallback arm (DEC-013): blanket over ALL probed types, including
+/// `Result`; the overlap is resolved by inherent precedence. By-value
+/// receiver so it sits at the same (earliest) probe position.
 pub trait StepReturnValueKind {
-    fn __rstest_bdd_step_return_kind(&self) -> StepReturnValueTag { StepReturnValueTag }
+    fn __rstest_bdd_step_return_kind(self) -> StepReturnValueTag;
 }
-impl<T: ?Sized> StepReturnValueKind for &StepReturnProbe<'_, T> {}
+impl<T: ?Sized> StepReturnValueKind for StepReturnProbe<'_, T> {
+    fn __rstest_bdd_step_return_kind(self) -> StepReturnValueTag { StepReturnValueTag }
+}
 
 /// Marker carrying the migration diagnostic for a step's error type.
 #[diagnostic::on_unimplemented(
@@ -725,19 +850,34 @@ pub trait StepErrorDisplay: ::core::fmt::Display {}
 #[diagnostic::do_not_recommend]
 impl<E: ::core::fmt::Display + ?Sized> StepErrorDisplay for E {}
 
-impl StepReturnResultTag {
-    pub fn normalize<T: ::core::any::Any, E: StepErrorDisplay>(
+/// Sealed, path-called consumption of the tag (DEC-014). The generated code
+/// calls `StepReturnNormalize::normalize(tag, value)` by path, never by
+/// method syntax, so an intercepted dispatch cannot reach it and a foreign
+/// tag fails this bound with the diagnostic below.
+mod sealed {
+    pub trait Sealed {}
+    impl Sealed for super::StepReturnResultTag {}
+    impl Sealed for super::StepReturnValueTag {}
+}
+
+#[diagnostic::on_unimplemented(
+    message = "rstest-bdd step return classification was intercepted",
+    note = "a trait in scope declares a method named \
+            `__rstest_bdd_step_return_kind` that captured rstest-bdd's \
+            dispatch; rename that method or remove the conflicting trait \
+            from scope"
+)]
+pub trait StepReturnNormalize<V>: sealed::Sealed {
+    fn normalize(
         self,
-        value: ::core::result::Result<T, E>,
+        value: V,
     ) -> ::core::result::Result<Option<Box<dyn ::core::any::Any>>, String>;
 }
 
-impl StepReturnValueTag {
-    pub fn normalize<T: ::core::any::Any>(
-        self,
-        value: T,
-    ) -> ::core::result::Result<Option<Box<dyn ::core::any::Any>>, String>;
-}
+impl<T: ::core::any::Any, E: StepErrorDisplay>
+    StepReturnNormalize<::core::result::Result<T, E>> for StepReturnResultTag {}
+
+impl<V: ::core::any::Any> StepReturnNormalize<V> for StepReturnValueTag {}
 ```
 
 Both `normalize` implementations **must** delegate boxing to the existing
@@ -745,7 +885,8 @@ Both `normalize` implementations **must** delegate boxing to the existing
 "unit becomes `None`" rule will drift. `AGENTS.md` requires sweeping for an
 existing equivalent helper before adding an abstraction; this is that helper.
 
-`StepReturnResultTag::normalize` must produce the error string as
+The `StepReturnResultTag` arm of `StepReturnNormalize` must produce the
+error string as
 `value.to_string()` so it is byte-identical to the existing
 `call_expr.rs` `Err(error.to_string())` (INV-5).
 
@@ -760,7 +901,7 @@ pub(crate) enum StepReturnStrategy {
     Unit,
     /// `-> !`: emit the call and an unreachable tail.
     Never,
-    /// Ask the compiler via autoref dispatch.
+    /// Ask the compiler via probe dispatch (`DEC-013`).
     Dispatch,
     /// `value` hint: box the whole return value as a payload.
     ForcedValue,
@@ -804,28 +945,43 @@ stage's validation is failing.
 No repository code changes. Work in a scratch crate outside the repository and
 outside `/tmp` (use `~/scratch-11-3-1`, which already exists from planning).
 
-Re-run the probe matrix with the **`StepReturnProbe` newtype** variant, because
-planning verified the *bare* `&V` variant, not the newtype one. Confirm each of
-the fifteen INV-1 classes selects the expected tag, and additionally confirm:
+The mechanism experiments have been re-run twice: first with the dual-trait
+autoref newtype variant, which **falsified** collision safety (see
+`Surprises & discoveries` and `DEC-012`), then on 2026-08-29 with the
+approved `DEC-013` shape (`~/scratch-11-3-1/examples/probe_v2_matrix.rs` and
+the three `probe_v2_hijack_*` examples), which passed on `rustc 1.85.0` and
+current stable. The pinned prototype must preserve, and the remaining EP-M0
+work must confirm on the `DEC-013` + `DEC-014` shape:
 
-1. The borrow ends before the move (no `E0505`) for a non-`Copy` return value.
-2. A user blanket trait with a colliding method name now produces a loud
-   `E0034` ambiguity rather than a silent hijack.
-3. `impl StepReturnResultKind for StepReturnProbe<'_, MyLocalType> {}` is
-   rejected by the orphan rule.
-4. `-> !` still needs the syntactic bypass.
-5. `async fn` steps dispatch correctly after `.await`.
+1. The borrow ends before the move (no `E0505`) for a non-`Copy` return
+   value. (Covered by `probe_v2_matrix.rs`; keep it in the pinned prototype.)
+2. Collision safety, restated after `DEC-013`: with an adversarial blanket
+   trait declaring `__rstest_bdd_step_return_kind` in scope, in **either**
+   receiver form, a `Result` return still selects the inherent arm, and a
+   non-`Result` return either classifies correctly (`&self` form) or fails
+   loudly with `E0034` (by-value form). No silent reclassification path.
+   (Covered by the three `probe_v2_hijack_*` examples.)
+3. A downstream `impl StepReturnValueKind for StepReturnProbe<'_, LocalType>`
+   is rejected by the orphan rule, and a downstream
+   `impl StepReturnNormalize<..> for TheirTag` is rejected by the sealed
+   supertrait (`DEC-014`). Still to verify for the revised shape.
+4. `-> !` still needs the syntactic bypass. Still to verify.
+5. `async fn` steps dispatch correctly after `.await`. Still to verify.
 
-Then settle the import form. Two candidates are known to work; pick by
-measurement, not preference:
+Then settle the import form. Only one trait needs importing after `DEC-013`
+(`StepReturnValueKind`; the inherent arm needs no import and
+`StepReturnNormalize` is called by path). Two candidates are known to work;
+pick by measurement, not preference:
 
 - **Glob** — `use ::rstest_bdd::step_return::*;`. Verified to produce no
   `unused_imports`. Risk: `clippy::wildcard_imports` is pedantic-warn and the
   workspace denies warnings.
 - **Named anonymous** — an `#[allow(unused_imports)]`-annotated
-  `use ::rstest_bdd::step_return::{StepReturnResultKind as _,
-  StepReturnValueKind as _};`. Verified clean when emitted by an *external*
-  macro. Risk: `clippy::allow_attributes` is denied in this workspace.
+  `use ::rstest_bdd::step_return::StepReturnValueKind as _;`. Verified clean
+  when emitted by an *external* macro. Risk: `clippy::allow_attributes` is
+  denied in this workspace. Note the `unused_imports` pressure may be gone
+  entirely now: the value trait is *used* by every non-`Result` step and only
+  unused on `Result` steps — measure before annotating.
 
 The deciding experiment must run **inside this workspace**, not the scratch
 crate, because AXIOM-6 (clippy's external-macro suppression) is the uncertain
@@ -833,10 +989,11 @@ axiom and the workspace's lint configuration differs. Build a throwaway step
 using each shape and run
 `cargo clippy --workspace --all-targets --all-features -- -D warnings`.
 
-Fallback ladder if both shapes fail: move the dispatch into a
-`#[doc(hidden)] #[macro_export] macro_rules!` in `rstest-bdd`, so the import
-lives inside a `macro_rules!` body owned by the runtime crate and the proc
-macro emits a single invocation. This is exactly what `anyhow!` does.
+The previously listed fallback ladder (moving the dispatch into a
+`macro_rules!` in `rstest-bdd`) is withdrawn per `DEC-012`'s resolution:
+`macro_rules!` hygiene does not isolate the caller's trait imports, so it
+cures nothing the `DEC-013` shape does not already cure. If both import
+shapes fail the lint experiment, stop and escalate.
 
 **Go/no-go.** If no shape is simultaneously correct and lint-clean, stop and
 escalate (see `Tolerances`). Record the chosen shape verbatim in
@@ -941,8 +1098,11 @@ Each milestone ends in a coherent, validated repository state.
 
 **EP-M0 — emission shape decided.**
 Requirements: de-risks ROADMAP-11.3.1's mechanism.
-Acceptance: the probe matrix passes with the newtype variant on the MSRV
-toolchain, and one import shape is verified lint-clean inside this workspace.
+Acceptance: the probe matrix and the adversarial collision probes pass with
+the `DEC-013` shape on the MSRV toolchain (done 2026-08-29 in the scratch
+crate), the `DEC-014` sealed-normalize shape compiles and rejects a
+downstream tag, and one import shape is verified lint-clean inside this
+workspace.
 Conformance check: no repository files changed; no interface committed yet.
 Recovery: discard the scratch crate and re-run.
 Remaining gaps: everything.
@@ -1081,11 +1241,15 @@ prose edits to the `scribe` sub-agent, with minimal, evidence-based changes that
 preserve project terminology.
 
 1. **New** `docs/adr-019-type-directed-step-return-classification.md`. Status
-   `Accepted`. Must state, in the rationale, *why* autoref sidesteps ADR-002's
-   line 27-28 constraint: the choice is made by **method-resolution ordering
-   across autoref steps, not by impl coherence; the two impls live on two
-   disjoint traits and never overlap**. Without that sentence a future reader
-   re-derives the 2025 constraint and reverts the change. Also record that the
+   `Accepted`. Must state, in the rationale, *why* the mechanism sidesteps
+   ADR-002's line 27-28 constraint: the choice is made by **method-resolution
+   precedence — the `Result` arm is an inherent impl, the fallback a blanket
+   trait, so the two never meet in impl coherence, and where both apply,
+   inherent candidates outrank trait candidates** (`DEC-013`). Without that
+   sentence a future reader re-derives the 2025 constraint and reverts the
+   change. Also record why the dual-trait autoref ordering was rejected: its
+   arms sat at different probe positions, and EP-M0 proved a caller blanket
+   trait captures the earlier position silently. Also record that the
    design satisfies `docs/ergonomics-and-developer-experience.md`'s first
    guiding principle ("reduce ceremony … where intent can be clearly
    inferred"), since it removes the need for `result` hints entirely.
@@ -1281,8 +1445,11 @@ cache.
 ### Probe matrix from the planning falsification experiment
 
 Run on `rustc 1.85.0` (MSRV) and `rustc 1.98.0`; identical on both. This
-validated the **bare `&V`** variant; Stage A must re-run it for the
-`StepReturnProbe` newtype variant chosen in `DEC-002`.
+validated the **bare `&V`** variant. The newtype re-run then falsified the
+dual-trait shape's collision safety (see `Surprises & discoveries`), and on
+2026-08-29 the matrix was re-validated for the approved `DEC-013`
+inherent-plus-blanket shape (`examples/probe_v2_matrix.rs`) with identical
+tags, plus the three adversarial collision probes.
 
 | Return shape | Tag |
 | --- | --- |
@@ -1307,33 +1474,45 @@ Two observations from that run that shaped the design. The naive
 `clippy::match_single_binding` **and** `clippy::needless_borrow`; a `let`-bound
 shape is clean. And `#[expect(clippy::needless_borrow)]` would be actively
 wrong, because the borrow is load-bearing only on the value arm, so the
-expectation would go unfulfilled on every `Result` step.
+expectation would go unfulfilled on every `Result` step. (Historical note:
+under `DEC-013` the emitted call has no leading autoref borrow at all —
+`StepReturnProbe(&out).__rstest_bdd_step_return_kind()` — so the
+`needless_borrow` hazard applies only to the superseded shapes. The
+`match_single_binding` point still argues for the `let`-bound emission.)
 
 ### Invariants to write into the module `//!` header
 
 Order matters: the silent one goes first.
 
-1. The two traits **must** declare a method with the *identical* name.
-   Renaming one does not fail to compile — the generated call resolves to
-   whichever trait still matches, and every non-matching return type silently
-   takes the wrong arm. This is the only silent-breakage path.
-2. `StepReturnValueKind` **must** be implemented for `&StepReturnProbe<..>`,
-   never for `StepReturnProbe<..>` directly. Implementing it without the
-   reference makes both methods applicable at the same probe step, producing
-   `E0034` for every step. Loud, but it is the obvious "simplification".
-3. The two impls **must** live on two disjoint traits. Merging them into one
-   trait with two impls is `E0119` — this is exactly the wall ADR-002 hit; cite
-   ADR-002 lines 27-28.
-4. The tags **must** be zero-sized with no lifetime parameter, and `normalize`
-   **must** take `self` by value. The mechanism depends on NLL ending the probe
-   borrow before `normalize` moves the value; a tag that borrows reintroduces
-   `E0505`.
-5. The generated `&` in the probe is **not** a needless borrow. Clippy may
-   propose stripping it; whether the stripped form still dispatches correctly is
-   non-obvious and version-sensitive.
-6. Reference: dtolnay's autoref-specialization case study, and the sibling
-   `(&error).anyhow_kind().new(error)` in `anyhow!`. Cite it — a maintainer who
-   recognizes the pattern will not "fix" it.
+1. The inherent method and the trait method **must** declare the *identical*
+   name. Renaming either does not fail to compile — the generated call
+   resolves to whichever arm still matches, and every affected return type
+   silently takes that arm. This is the only silent-breakage path, and it is
+   what the seeded-fault negative control seeds.
+2. The `Result` arm **must** stay an *inherent* impl on
+   `StepReturnProbe<'_, Result<T, E>>`. Demoting it to a trait impl removes
+   inherent precedence, and every `Result` step becomes an `E0034` ambiguity
+   against the blanket value arm. Loud, but it is the obvious
+   "simplification".
+3. Both dispatch methods **must** take `self` by value. Switching either to
+   `&self` moves that arm to the autoref probe position, reopening the
+   caller-trait capture that falsified the original dual-trait design
+   (`DEC-013`).
+4. `StepReturnValueKind` **must** be implemented for `StepReturnProbe<..>`
+   itself, blanket over all `T` — never for `&StepReturnProbe<..>`. The
+   reference form *was* the falsified design.
+5. The tags **must** be zero-sized with no lifetime parameter, and
+   `StepReturnNormalize::normalize` **must** take the tag by value. The
+   mechanism depends on NLL ending the probe borrow before `normalize` moves
+   the value; a tag that borrows reintroduces `E0505`.
+6. `normalize` **must** remain reachable only through the path-called sealed
+   `StepReturnNormalize` (`DEC-014`); do not add method-syntax sugar for it,
+   and do not unseal it.
+7. Reference: the Rust reference's method-call resolution order (inherent
+   candidates precede extension candidates; by-value precedes autoref) and,
+   for the family history, dtolnay's autoref-specialization case study and
+   the sibling `(&error).anyhow_kind().new(error)` in `anyhow!`. Cite both —
+   a maintainer who recognizes the pattern will not "fix" it.
 
 Add `// GUARD:` pointers from the module docs to
 `crates/rstest-bdd/tests/step_return_dispatch.rs`, and reciprocal
