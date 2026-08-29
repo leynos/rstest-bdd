@@ -458,7 +458,6 @@ Run the gate with:
 make e2e-published-gpui
 ```
 
-
 ### Linux prerequisites
 
 The published GPUI build requires these Linux development packages. Install
