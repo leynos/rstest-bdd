@@ -9,7 +9,7 @@ proceeds.
 Status: COMPLETE — EP-M0 through EP-M5, deterministic validation, and final
 CodeRabbit review completed on 2026-08-29. The canonical, unrelated Markdown
 formatter reflow is isolated in stacked base PR #682; implementation PR #681 is
-rebased on that base.
+rebased on that base and passed a fresh full validation and CodeRabbit review.
 
 Roadmap item: 11.3.1. Origin: `leynos/rstest-bdd#573` and the gauss
 v0.6.0-beta3 validation matrix.
@@ -563,8 +563,10 @@ documents without changing words. It is deliberately delivered in stacked base
 PR #682, which PR #681 now targets, so reviewers can inspect the step-return
 implementation without formatter-only noise. The formatter base passed
 `make check-fmt`, `make markdownlint`, `make nixie`, and CodeRabbit with zero
-findings on 2026-08-29; the rebased implementation requires a fresh full
-validation and CodeRabbit review before hand-off.
+findings on 2026-08-29. The rebased implementation then passed the full
+deterministic suite again (1,774 passed, 7 skipped) and CodeRabbit reviewed the
+final 51-file diff with zero concerns; log:
+`/tmp/coderabbit-rstest-bdd-stack-final.out`.
 
 The residual limitation is intentional and documented: result-containing
 wrappers, references, and deref wrappers remain payload values. The tag table
@@ -753,8 +755,8 @@ the generated wrapper selects the `Result` arm if and only if `V` expands to
   table test using `rstest` `#[case]` parameterization, asserting the selected
   tag by `std::any::type_name_of_val` (stable 1.76), with `pretty_assertions`.
 - Evidence: the test fails to compile before
-  `crates/rstest-bdd/src/step_return.rs`
-  exists; after EP-M3 it passes with every class exercised.
+  `crates/rstest-bdd/src/step_return.rs` exists; after EP-M3 it passes with
+  every class exercised.
 - Non-vacuity: each of the fifteen classes is a distinct witness, and the test
   asserts a *specific* tag name per class rather than a boolean. Renaming the
   inherent arm's method, demoting the inherent impl to a trait impl, or
