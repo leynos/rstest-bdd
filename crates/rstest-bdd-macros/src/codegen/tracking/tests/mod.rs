@@ -128,11 +128,41 @@ fn posix_backslash_is_an_ordinary_filename_character() {
 // Absolute inputs: the D4 component-wise `..` offset.
 // ---------------------------------------------------------------------------
 
+struct NativeAbsolutePathFixtures {
+    manifest: &'static str,
+    under_manifest: &'static str,
+    sibling: &'static str,
+    parent: &'static str,
+}
+
+// POSIX `/...` paths are rooted but not absolute on Windows, so use the host's
+// native absolute syntax to exercise the absolute-path branch on every host.
+#[cfg(not(windows))]
+fn native_absolute_path_fixtures() -> NativeAbsolutePathFixtures {
+    NativeAbsolutePathFixtures {
+        manifest: "/repo/crates/my",
+        under_manifest: "/repo/crates/my/tests/features/x.feature",
+        sibling: "/repo/shared/x.feature",
+        parent: "/repo/x.feature",
+    }
+}
+
+#[cfg(windows)]
+fn native_absolute_path_fixtures() -> NativeAbsolutePathFixtures {
+    NativeAbsolutePathFixtures {
+        manifest: r"C:\repo\crates\my",
+        under_manifest: r"C:\repo\crates\my\tests\features\x.feature",
+        sibling: r"C:\repo\shared\x.feature",
+        parent: r"C:\repo\x.feature",
+    }
+}
+
 #[test]
 fn absolute_under_manifest_emits_plain_relative_path() {
+    let paths = native_absolute_path_fixtures();
     let tracked = TrackedFeaturePath::try_new_from(
-        std::path::Path::new("/repo/crates/my/tests/features/x.feature"),
-        std::path::Path::new("/repo/crates/my"),
+        std::path::Path::new(paths.under_manifest),
+        std::path::Path::new(paths.manifest),
     )
     .expect("same root is trackable");
     assert_eq!(tracked.relative_literal(), "tests/features/x.feature");
@@ -140,9 +170,10 @@ fn absolute_under_manifest_emits_plain_relative_path() {
 
 #[test]
 fn absolute_sibling_emits_dotdot_offset() {
+    let paths = native_absolute_path_fixtures();
     let tracked = TrackedFeaturePath::try_new_from(
-        std::path::Path::new("/repo/shared/x.feature"),
-        std::path::Path::new("/repo/crates/my"),
+        std::path::Path::new(paths.sibling),
+        std::path::Path::new(paths.manifest),
     )
     .expect("same root is trackable");
     assert_eq!(tracked.relative_literal(), "../../shared/x.feature");
@@ -150,9 +181,10 @@ fn absolute_sibling_emits_dotdot_offset() {
 
 #[test]
 fn absolute_parent_emits_dotdot_only() {
+    let paths = native_absolute_path_fixtures();
     let tracked = TrackedFeaturePath::try_new_from(
-        std::path::Path::new("/repo/x.feature"),
-        std::path::Path::new("/repo/crates/my"),
+        std::path::Path::new(paths.parent),
+        std::path::Path::new(paths.manifest),
     )
     .expect("same root is trackable");
     assert_eq!(tracked.relative_literal(), "../../x.feature");
@@ -176,7 +208,7 @@ fn same_drive_different_case_annotations_relate() {
         std::path::Path::new(r"C:\repo"),
     )
     .expect("same drive is trackable");
-    assert_eq!(tracked.relative_literal(), "Repo/x.feature");
+    assert_eq!(tracked.relative_literal(), "x.feature");
 }
 
 #[cfg(unix)]

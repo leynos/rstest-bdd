@@ -344,6 +344,26 @@ mod manifest_relative_tests {
 
     use super::manifest_relative_feature_path;
 
+    // POSIX `/...` paths are rooted but not absolute on Windows, so use the
+    // host's native absolute syntax to exercise the absolute-path branch.
+    #[cfg(not(windows))]
+    fn native_absolute_path_fixtures() -> (&'static str, &'static str, &'static str) {
+        (
+            "/repo/crates/my",
+            "/repo/crates/my/tests/x.feature",
+            "/repo/shared/x.feature",
+        )
+    }
+
+    #[cfg(windows)]
+    fn native_absolute_path_fixtures() -> (&'static str, &'static str, &'static str) {
+        (
+            r"C:\repo\crates\my",
+            r"C:\repo\crates\my\tests\x.feature",
+            r"C:\repo\shared\x.feature",
+        )
+    }
+
     #[serial]
     #[test]
     fn relative_input_passes_through_unchanged() {
@@ -354,9 +374,9 @@ mod manifest_relative_tests {
     #[serial]
     #[test]
     fn absolute_path_inside_manifest_becomes_relative() {
-        temp_env::with_var("CARGO_MANIFEST_DIR", Some("/repo/crates/my"), || {
-            let value =
-                manifest_relative_feature_path(Path::new("/repo/crates/my/tests/x.feature"));
+        let (manifest, inside, _) = native_absolute_path_fixtures();
+        temp_env::with_var("CARGO_MANIFEST_DIR", Some(manifest), || {
+            let value = manifest_relative_feature_path(Path::new(inside));
             assert_eq!(value, "tests/x.feature");
         });
     }
@@ -364,9 +384,10 @@ mod manifest_relative_tests {
     #[serial]
     #[test]
     fn absolute_path_outside_manifest_stays_absolute() {
-        temp_env::with_var("CARGO_MANIFEST_DIR", Some("/repo/crates/my"), || {
-            let value = manifest_relative_feature_path(Path::new("/repo/shared/x.feature"));
-            assert_eq!(value, "/repo/shared/x.feature");
+        let (manifest, _, outside) = native_absolute_path_fixtures();
+        temp_env::with_var("CARGO_MANIFEST_DIR", Some(manifest), || {
+            let value = manifest_relative_feature_path(Path::new(outside));
+            assert_eq!(value, outside);
         });
     }
 }
