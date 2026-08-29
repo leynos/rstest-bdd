@@ -10,10 +10,11 @@ use std::{
 use cap_std::{ambient_authority, fs::Dir};
 use toml::Value;
 
-const EXPECTED_TRYBUILD_BINARIES: [&str; 3] = [
+const EXPECTED_TRYBUILD_BINARIES: [&str; 4] = [
     "rstest-bdd-harness-tokio::macro_compile",
     "rstest-bdd-harness-gpui::macro_compile",
     "rstest-bdd::trybuild_macros",
+    "rstest-bdd-server::workspace_discovery_compile",
 ];
 
 #[test]

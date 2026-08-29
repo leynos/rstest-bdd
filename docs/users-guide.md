@@ -2932,6 +2932,30 @@ The `--workspace-root` flag overrides the LSP client's root URI and workspace
 folders for workspace discovery. This is useful when the editor sends incorrect
 paths or during headless or scripted testing scenarios.
 
+### Workspace discovery API
+
+Applications embedding the `rstest-bdd-server` crate can discover Gherkin
+feature files with `discovery::find_feature_files`:
+
+```rust,no_run
+use std::path::Path;
+
+use rstest_bdd_server::discovery::find_feature_files;
+use rstest_bdd_server::error::ServerError;
+
+fn discover_features(root: &Path) -> Result<(), ServerError> {
+    let feature_files = find_feature_files(root)?;
+    println!("discovered {} feature files", feature_files.len());
+    Ok(())
+}
+```
+
+The function returns `Result<Vec<PathBuf>, ServerError>`. An absent optional
+feature directory is ignored, but workspace and feature-directory metadata,
+read, and directory-entry iteration failures are returned as `ServerError::Io`.
+Callers should propagate or report those errors rather than treating them as an
+empty feature list.
+
 ### Editor integration
 
 #### VS Code

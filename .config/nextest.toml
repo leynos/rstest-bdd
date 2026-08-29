@@ -23,7 +23,7 @@ test-group = "cargo-spawning"
 # tree; on cold caches this can legitimately exceed the default 60 s limit.
 # Allow the full fixture set to rebuild without treating slow, healthy compiler
 # work as a hung test.
-filter = "binary_id(rstest-bdd-harness-tokio::macro_compile) | binary_id(rstest-bdd-harness-gpui::macro_compile) | binary_id(rstest-bdd::trybuild_macros)"
+filter = "binary_id(rstest-bdd-harness-tokio::macro_compile) | binary_id(rstest-bdd-harness-gpui::macro_compile) | binary_id(rstest-bdd::trybuild_macros) | binary_id(rstest-bdd-server::workspace_discovery_compile)"
 slow-timeout = { period = "10m", terminate-after = 1, grace-period = "5s" }
 test-group = "cargo-spawning"
 

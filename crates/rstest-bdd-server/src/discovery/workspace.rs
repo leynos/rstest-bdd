@@ -4,7 +4,10 @@
 //! from a given path using `cargo metadata`. It identifies the workspace root,
 //! package names, and feature file locations.
 
-use std::path::{Path, PathBuf};
+use std::{
+    io,
+    path::{Path, PathBuf},
+};
 
 use cargo_metadata::MetadataCommand;
 
@@ -105,19 +108,79 @@ fn find_manifest_path(path: &Path) -> Result<PathBuf, ServerError> {
 ///
 /// * `workspace_root` - The root directory of the workspace
 ///
+/// # Errors
+///
+/// Returns `ServerError::Io` when the workspace or a feature directory cannot
+/// be read, including failures encountered while iterating directory entries.
+///
 /// # Examples
 ///
 /// ```ignore
 /// use std::path::Path;
 /// use rstest_bdd_server::discovery::find_feature_files;
 ///
-/// let features = find_feature_files(Path::new("/path/to/project"));
+/// let features = find_feature_files(Path::new("/path/to/project"))?;
 /// for path in features {
 ///     println!("Found feature: {}", path.display());
 /// }
 /// ```
-#[must_use]
-pub fn find_feature_files(workspace_root: &Path) -> Vec<PathBuf> {
+pub fn find_feature_files(workspace_root: &Path) -> Result<Vec<PathBuf>, ServerError> {
+    find_feature_files_with(workspace_root, &StandardDirectoryReader)
+}
+
+/// Provides the directory operations required by workspace discovery.
+trait DirectoryReader {
+    /// The iterator returned by [`DirectoryReader::read_dir`].
+    type Entries: Iterator<Item = io::Result<PathBuf>>;
+
+    /// Reads a directory, preserving errors encountered while iterating it.
+    fn read_dir(&self, path: &Path) -> io::Result<Self::Entries>;
+
+    /// Reports whether a path names a directory, or returns its metadata error.
+    fn is_directory(&self, path: &Path) -> io::Result<bool>;
+
+    /// Reports whether a path names a file, or returns its metadata error.
+    fn is_file(&self, path: &Path) -> io::Result<bool>;
+}
+
+/// Uses the standard filesystem APIs to read workspace directories.
+struct StandardDirectoryReader;
+
+/// Iterator that maps standard directory entries to their paths.
+type StandardDirectoryEntries =
+    std::iter::Map<std::fs::ReadDir, fn(io::Result<std::fs::DirEntry>) -> io::Result<PathBuf>>;
+
+impl DirectoryReader for StandardDirectoryReader {
+    type Entries = StandardDirectoryEntries;
+
+    /// Reads standard filesystem entries while retaining iteration failures.
+    fn read_dir(&self, path: &Path) -> io::Result<Self::Entries> {
+        let entries = std::fs::read_dir(path)?;
+
+        Ok(entries.map(directory_entry_path))
+    }
+
+    /// Reports whether standard filesystem metadata identifies a directory.
+    fn is_directory(&self, path: &Path) -> io::Result<bool> {
+        std::fs::metadata(path).map(|metadata| metadata.is_dir())
+    }
+
+    /// Reports whether standard filesystem metadata identifies a regular file.
+    fn is_file(&self, path: &Path) -> io::Result<bool> {
+        std::fs::metadata(path).map(|metadata| metadata.is_file())
+    }
+}
+
+/// Extracts a path from a directory entry while preserving entry errors.
+fn directory_entry_path(entry: io::Result<std::fs::DirEntry>) -> io::Result<PathBuf> {
+    entry.map(|entry| entry.path())
+}
+
+/// Finds feature files using the supplied directory-operation implementation.
+fn find_feature_files_with<R: DirectoryReader>(
+    workspace_root: &Path,
+    reader: &R,
+) -> Result<Vec<PathBuf>, ServerError> {
     let mut features = Vec::new();
 
     // Check common feature file locations
@@ -127,177 +190,91 @@ pub fn find_feature_files(workspace_root: &Path) -> Vec<PathBuf> {
     ];
 
     for dir in &search_dirs {
-        if dir.is_dir() {
-            collect_feature_files_recursive(dir, &mut features);
-        }
+        collect_optional_feature_directory(reader, dir, &mut features)?;
     }
 
     // Also search in crate subdirectories
-    search_crate_subdirectories(workspace_root, &mut features);
+    search_crate_subdirectories(reader, workspace_root, &mut features)?;
 
-    features
+    Ok(features)
+}
+
+/// Collects an optional feature directory, ignoring only a missing directory.
+fn collect_optional_feature_directory<R: DirectoryReader>(
+    reader: &R,
+    directory: &Path,
+    features: &mut Vec<PathBuf>,
+) -> Result<(), ServerError> {
+    match reader.is_directory(directory) {
+        Ok(true) => collect_feature_files_recursive(reader, directory, features),
+        Ok(false) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error.into()),
+    }
+}
+
+/// Checks an optional file path, ignoring only a missing file.
+fn is_optional_file<R: DirectoryReader>(reader: &R, path: &Path) -> Result<bool, ServerError> {
+    match reader.is_file(path) {
+        Ok(is_file) => Ok(is_file),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(error.into()),
+    }
 }
 
 /// Search for feature files in crate subdirectories.
 ///
 /// Looks for `tests/features/` directories within each subdirectory of the
 /// workspace root (typical layout for multi-crate workspaces).
-fn search_crate_subdirectories(workspace_root: &Path, features: &mut Vec<PathBuf>) {
-    let Ok(entries) = std::fs::read_dir(workspace_root) else {
-        return;
-    };
+fn search_crate_subdirectories<R: DirectoryReader>(
+    reader: &R,
+    workspace_root: &Path,
+    features: &mut Vec<PathBuf>,
+) -> Result<(), ServerError> {
+    let entries = reader.read_dir(workspace_root)?;
 
-    for entry in entries.filter_map(Result::ok) {
-        let path = entry.path();
-        if !path.is_dir() {
+    for path in entries {
+        let path = path?;
+        if !reader.is_directory(&path)? {
             continue;
         }
-        if !path.join("Cargo.toml").is_file() {
+        if !is_optional_file(reader, &path.join("Cargo.toml"))? {
             continue;
         }
 
         let crate_features = path.join("tests").join("features");
-        if crate_features.is_dir() {
-            collect_feature_files_recursive(&crate_features, features);
-        }
+        collect_optional_feature_directory(reader, &crate_features, features)?;
     }
+
+    Ok(())
 }
 
 /// Recursively collect `.feature` files from a directory.
-fn collect_feature_files_recursive(dir: &Path, features: &mut Vec<PathBuf>) {
-    if let Ok(entries) = std::fs::read_dir(dir) {
-        for entry in entries.filter_map(Result::ok) {
-            let path = entry.path();
-            if path.is_dir() {
-                collect_feature_files_recursive(&path, features);
-            } else if path.extension().is_some_and(|ext| ext == "feature") {
-                features.push(path);
-            }
+fn collect_feature_files_recursive<R: DirectoryReader>(
+    reader: &R,
+    dir: &Path,
+    features: &mut Vec<PathBuf>,
+) -> Result<(), ServerError> {
+    for path in reader.read_dir(dir)? {
+        let path = path?;
+        if reader.is_directory(&path)? {
+            collect_feature_files_recursive(reader, &path, features)?;
+        } else if path.extension().is_some_and(|ext| ext == "feature") {
+            features.push(path);
         }
     }
+
+    Ok(())
 }
 
 #[cfg(test)]
-#[expect(
-    clippy::unwrap_used,
-    reason = "tests require explicit panic messages for debugging failures"
-)]
-mod tests {
-    //! Unit tests for workspace discovery.
+#[path = "workspace_tests.rs"]
+mod tests;
 
-    use std::{fs, io};
+#[cfg(test)]
+#[path = "workspace_failure_tests.rs"]
+mod failure_tests;
 
-    use rstest::{fixture, rstest};
-    use tempfile::TempDir;
-
-    use super::*;
-
-    #[rstest_bdd_test_macros::allow_fixture_expansion_lints]
-    #[fixture]
-    fn create_test_workspace() -> io::Result<TempDir> {
-        let dir = TempDir::new()?;
-        let cargo_toml = dir.path().join("Cargo.toml");
-        fs::write(
-            &cargo_toml,
-            r#"[package]
-name = "test-project"
-version = "0.1.0"
-edition = "2024"
-"#,
-        )?;
-
-        // Create a simple src/lib.rs so the package is valid
-        let src_dir = dir.path().join("src");
-        fs::create_dir_all(&src_dir)?;
-        fs::write(src_dir.join("lib.rs"), "")?;
-
-        Ok(dir)
-    }
-
-    #[rstest]
-    fn discovers_workspace_from_root(create_test_workspace: io::Result<TempDir>) {
-        let workspace = create_test_workspace.expect("test setup should succeed");
-        let result = discover_workspace(workspace.path());
-        assert!(result.is_ok());
-        let info = result.expect("should discover workspace");
-        assert_eq!(info.root, workspace.path());
-        assert!(info.packages.contains(&"test-project".to_owned()));
-    }
-
-    #[rstest]
-    fn discovers_workspace_from_subdirectory(create_test_workspace: io::Result<TempDir>) {
-        let workspace = create_test_workspace.expect("test setup should succeed");
-        let subdir = workspace.path().join("src");
-        let result = discover_workspace(&subdir);
-        assert!(result.is_ok());
-        let info = result.expect("should discover workspace");
-        assert_eq!(info.root, workspace.path());
-    }
-
-    #[rstest]
-    fn fails_when_no_manifest_found() {
-        let dir = TempDir::new().expect("failed to create temp dir");
-        let result = discover_workspace(dir.path());
-        assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(err.to_string().contains("no Cargo.toml found"));
-    }
-
-    /// Creates a test workspace with a feature file in a specified directory.
-    ///
-    /// # Arguments
-    ///
-    /// * `relative_dir` - Path segments relative to the workspace root (e.g., `&["tests",
-    ///   "features"]`)
-    /// * `filename` - Name of the feature file to create
-    /// * `content` - Content to write to the feature file
-    ///
-    /// # Returns
-    ///
-    /// The result of calling `find_feature_files` on the workspace.
-    fn create_workspace_with_feature(
-        relative_dir: &[&str],
-        filename: &str,
-        content: &str,
-    ) -> io::Result<Vec<PathBuf>> {
-        let workspace = create_test_workspace()?;
-        let mut dir = workspace.path().to_path_buf();
-        for segment in relative_dir {
-            dir = dir.join(segment);
-        }
-        fs::create_dir_all(&dir)?;
-        fs::write(dir.join(filename), content)?;
-
-        Ok(find_feature_files(workspace.path()))
-    }
-
-    #[rstest]
-    #[case(&["tests", "features"], "example.feature", "Feature: Test")]
-    #[case(&["tests", "features", "nested"], "nested.feature", "Feature: Nested")]
-    fn finds_feature_files_in_various_locations(
-        #[case] relative_dir: &[&str],
-        #[case] filename: &str,
-        #[case] content: &str,
-    ) -> io::Result<()> {
-        let features = create_workspace_with_feature(relative_dir, filename, content)?;
-
-        assert_eq!(features.len(), 1);
-        assert!(
-            features
-                .first()
-                .expect("should have one feature")
-                .ends_with(filename)
-        );
-        Ok(())
-    }
-
-    #[rstest]
-    fn returns_empty_when_no_feature_files(create_test_workspace: io::Result<TempDir>) {
-        let features = find_feature_files(
-            create_test_workspace
-                .expect("test setup should succeed")
-                .path(),
-        );
-        assert!(features.is_empty());
-    }
-}
+#[cfg(test)]
+#[path = "workspace_property_tests.rs"]
+mod property_tests;

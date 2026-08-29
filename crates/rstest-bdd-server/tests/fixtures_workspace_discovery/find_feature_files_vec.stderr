@@ -1,0 +1,14 @@
+error[E0308]: mismatched types
+ --> tests/fixtures_workspace_discovery/find_feature_files_vec.rs:9:5
+  |
+8 | fn discover_features(workspace_root: &Path) -> Vec<PathBuf> {
+  |                                                ------------ expected `Vec<PathBuf>` because of return type
+9 |     find_feature_files(workspace_root)
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `Vec<PathBuf>`, found `Result<Vec<PathBuf>, ServerError>`
+  |
+  = note: expected struct `Vec<PathBuf>`
+               found enum `Result<Vec<PathBuf>, ServerError>`
+help: consider using `Result::expect` to unwrap the `Result<Vec<PathBuf>, ServerError>` value, panicking if the value is a `Result::Err`
+  |
+9 |     find_feature_files(workspace_root).expect("REASON")
+  |                                       +++++++++++++++++

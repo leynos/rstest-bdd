@@ -200,14 +200,15 @@ The file sets the timeout policy for the test suite:
 - A second override raises the `slow-timeout` further, to 10 minutes, for the
   trybuild-based compile-test binaries:
   `rstest-bdd-harness-tokio::macro_compile`,
-  `rstest-bdd-harness-gpui::macro_compile`, and `rstest-bdd::trybuild_macros`.
+  `rstest-bdd-harness-gpui::macro_compile`, `rstest-bdd::trybuild_macros`, and
+  `rstest-bdd-server::workspace_discovery_compile`.
   These tests invoke `cargo build` against a large dependency tree. The
   10-minute allowance permits the full fixture set to rebuild on a cold cache
   without treating slow, healthy compiler work as a hung test. The strict 60 s
   default remains in force elsewhere, and these tests stay in the
-  `cargo-spawning` group so they run serially.
+  `cargo-spawning` group so all four run serially.
 - Both overrides also place their binaries in a `cargo-spawning` test group
-  (`max-threads = 1`), so `cargo-bdd::cli` and the three trybuild binaries run
+  (`max-threads = 1`), so `cargo-bdd::cli` and the four trybuild binaries run
   one at a time instead of contending for CPU with concurrent `cargo` builds.
 - A `long` profile (`--profile long`) relaxes the limits further (180 s
   `slow-timeout`, 30 m `global-timeout`) for deliberately slow local runs.
@@ -261,10 +262,11 @@ Mitigation:
   where this deadlock applies. On Linux and macOS the fixtures run under
   nextest like any other test.
 - `.config/nextest.toml` raises the `slow-timeout` for the trybuild
-  compile-test binaries (including both `macro_compile` binaries and
-  `rstest-bdd::trybuild_macros`) to 10 minutes as a local-development safety
-  net. This does not fix the deadlock; it only delays termination to allow the
-  build to complete on fast machines.
+  compile-test binaries (including both `macro_compile` binaries,
+  `rstest-bdd::trybuild_macros`, and
+  `rstest-bdd-server::workspace_discovery_compile`) to 10 minutes as a
+  local-development safety net. This does not fix the deadlock; it only delays
+  termination to allow the build to complete on fast machines.
 - `.config/nextest.toml` also places the `cargo-bdd::cli` and trybuild
   binaries in a `cargo-spawning` test group with `max-threads = 1`, so these
   cargo-spawning tests run one at a time rather than contending for the
@@ -1371,6 +1373,25 @@ module-level docs; both the in-module unit tests in
 feature-gated regression suite in
 `crates/rstest-bdd-harness-gpui/tests/scenario_name_in_logs.rs` apply the
 attribute to every `GpuiHarness::run`-driving test.
+
+## Fallible feature-file discovery
+
+`rstest_bdd_server::discovery::find_feature_files` is the public entry point
+for collecting `.feature` paths under a workspace. It returns
+`Result<Vec<PathBuf>, ServerError>` and propagates `ServerError::Io` from the
+workspace and feature-directory traversal, including failures while reading
+directory entries.
+
+Callers must preserve this fallible boundary. Propagate the result with `?`
+when the enclosing operation is fallible. At an error-reporting boundary, match
+`ServerError::Io` when filesystem failures need distinct diagnostics, then
+preserve or return the error. Do not convert an error to an empty list or
+discard failed entries while retaining successful paths: that makes discovery
+appear successful with an incomplete result.
+
+Any directory-reader seam used to make metadata and iterator failures
+deterministic in unit tests is private to workspace discovery; callers use
+`find_feature_files` rather than that abstraction.
 
 ## Canonical diagnostic publish path
 

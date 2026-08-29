@@ -53,6 +53,7 @@ rstest.workspace = true
 rstest-bdd-test-macros.workspace = true
 rstest-bdd-server = { path = ".", features = ["test-support"] }
 tempfile.workspace = true
+trybuild.workspace = true
 # `io-util` supplies `duplex`/`empty`/`AsyncReadExt` for the in-process
 # transport-backed diagnostic-publishing test.
 tokio = { workspace = true, features = ["io-util"] }
