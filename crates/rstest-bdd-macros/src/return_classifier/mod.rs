@@ -45,6 +45,64 @@ pub(crate) enum ReturnOverride {
     Value,
 }
 
+/// How a step wrapper normalizes a returned value.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum StepReturnStrategy {
+    /// The step returns unit or has no explicit return type.
+    Unit,
+    /// The step diverges and needs no normalization.
+    Never,
+    /// The compiler selects either the `Result` or value normalization arm.
+    Dispatch,
+    /// The `value` hint forces payload treatment.
+    ForcedValue,
+    /// The `result` hint forces fallible treatment.
+    ForcedResult,
+}
+
+/// Classify a step return type without guessing whether a named type is `Result`.
+pub(crate) fn classify_step_return_type(
+    output: &ReturnType,
+    override_hint: Option<ReturnOverride>,
+) -> syn::Result<StepReturnStrategy> {
+    let ty = match output {
+        ReturnType::Default => return Ok(StepReturnStrategy::Unit),
+        ReturnType::Type(_, ty) => ty.as_ref(),
+    };
+
+    if is_unit_type(ty) {
+        return Ok(StepReturnStrategy::Unit);
+    }
+    if matches!(ty, Type::Never(_)) {
+        return Ok(StepReturnStrategy::Never);
+    }
+
+    match override_hint {
+        Some(ReturnOverride::Value) => Ok(StepReturnStrategy::ForcedValue),
+        Some(ReturnOverride::Result) => {
+            if is_definitely_non_result_type(ty) {
+                Err(syn::Error::new_spanned(
+                    ty,
+                    "return override `result` requires a return type shaped like `Result<T, E>` \
+                     or `StepResult<T, E>`",
+                ))
+            } else {
+                Ok(StepReturnStrategy::ForcedResult)
+            }
+        }
+        None if is_nested_result_type(ty) => Err(syn::Error::new_spanned(
+            ty,
+            "unhinted step returns may not nest `Result`; use an explicit `value` or `result` hint",
+        )),
+        None if matches!(ty, Type::ImplTrait(_)) => Err(syn::Error::new_spanned(
+            ty,
+            "unhinted step returns may not use `impl Trait`; use an explicit `value` or `result` \
+             hint",
+        )),
+        None => Ok(StepReturnStrategy::Dispatch),
+    }
+}
+
 /// Classify a function return type into one of the supported wrapper shapes.
 pub(crate) fn classify_return_type(
     output: &ReturnType,
@@ -100,6 +158,16 @@ fn classify_result_like(ty: &Type) -> Option<ReturnKind> {
     }
 
     None
+}
+
+/// Returns whether a syntactically known result has another result as its payload.
+fn is_nested_result_type(ty: &Type) -> bool {
+    let Type::Path(type_path) = ty else {
+        return false;
+    };
+    is_result_like_path(&type_path.path)
+        && first_type_argument(&type_path.path)
+            .is_some_and(|inner| classify_result_like(inner).is_some())
 }
 
 /// Check if a type is the literal unit type `()`.

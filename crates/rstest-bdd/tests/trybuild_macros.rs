@@ -102,6 +102,7 @@ fn run_passing_macro_tests(t: &trybuild::TestCases) {
         MacroFixtureCase::from("step_fixture_requirements/single_mutable_fixture.rs"),
         MacroFixtureCase::from("step_fixture_requirements/mixed_mutability_fixtures.rs"),
         MacroFixtureCase::from("step_fixture_requirements/two_mutable_fixtures.rs"),
+        MacroFixtureCase::from("step_return_dispatch_lint_clean.rs"),
     ] {
         t.pass(macros_fixture(case).as_std_path());
     }
@@ -155,6 +156,9 @@ fn run_failing_ui_tests(t: &trybuild::TestCases) {
         UiFixtureCase::from("implicit_fixture_missing.rs"),
         UiFixtureCase::from("placeholder_missing_params.rs"),
         UiFixtureCase::from("return_override_result_requires_result.rs"),
+        UiFixtureCase::from("step_return_alias_error_not_display.rs"),
+        UiFixtureCase::from("step_return_nested_result.rs"),
+        UiFixtureCase::from("step_return_impl_trait.rs"),
         UiFixtureCase::from("insert_value_must_use.rs"),
     ] {
         t.compile_fail(ui_fixture(case).as_std_path());
@@ -171,6 +175,7 @@ fn run_lint_ui_tests() -> io::Result<()> {
             "scenario_underscore_fixture_param",
             &["-D", "clippy::used_underscore_binding"][..],
         ),
+        ("step_return_dispatch_lint_clean", &["-D", "warnings"][..]),
     ];
 
     for (bin, lint_args) in cases {

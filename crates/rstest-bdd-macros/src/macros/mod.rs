@@ -44,7 +44,7 @@ pub(crate) use when::when;
 
 use crate::{
     codegen::wrapper::{WrapperConfig, args::ExtractedArgs, extract_args, generate_wrapper_code},
-    return_classifier::{ReturnKind, classify_return_type},
+    return_classifier::{StepReturnStrategy, classify_step_return_type},
     utils::{
         errors::error_to_tokens,
         pattern::{infer_pattern, placeholder_names},
@@ -177,8 +177,8 @@ struct WrapperInputs<'a> {
     placeholder_names: &'a [syn::LitStr],
     /// Stores the internal `placeholder_hints` value.
     placeholder_hints: &'a [Option<String>],
-    /// Stores the internal `return_kind` value.
-    return_kind: ReturnKind,
+    /// Stores the internal `strategy` value.
+    strategy: StepReturnStrategy,
 }
 
 /// Build wrapper configuration from [`WrapperInputs`] and emit the wrapper tokens.
@@ -192,7 +192,7 @@ fn build_and_generate_wrapper(inputs: &WrapperInputs<'_>) -> proc_macro2::TokenS
         placeholder_names: inputs.placeholder_names,
         placeholder_hints: inputs.placeholder_hints,
         capture_count: inputs.placeholder_names.len(),
-        return_kind: inputs.return_kind,
+        strategy: inputs.strategy,
     };
     generate_wrapper_code(&config)
 }
@@ -237,7 +237,7 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) 
         .iter()
         .map(|info| info.hint.clone())
         .collect();
-    let return_kind = match classify_return_type(&func.sig.output, attr_args.return_override) {
+    let strategy = match classify_step_return_type(&func.sig.output, attr_args.return_override) {
         Ok(kind) => kind,
         Err(err) => return error_to_tokens(&err).into(),
     };
@@ -249,7 +249,7 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) 
         args: &args,
         placeholder_names: &placeholder_literals,
         placeholder_hints: &placeholder_hints,
-        return_kind,
+        strategy,
     });
 
     TokenStream::from(quote! {

@@ -8,6 +8,8 @@ pub mod config;
 pub mod execution;
 mod macros;
 mod skip;
+#[doc(hidden)]
+pub mod step_return;
 
 /// Returns a greeting for the library.
 ///

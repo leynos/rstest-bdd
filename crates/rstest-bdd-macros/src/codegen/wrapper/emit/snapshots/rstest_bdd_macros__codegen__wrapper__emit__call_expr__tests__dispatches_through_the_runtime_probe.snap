@@ -1,0 +1,5 @@
+---
+source: crates/rstest-bdd-macros/src/codegen/wrapper/emit/call_expr.rs
+expression: tokens.to_string()
+---
+{ use :: rstest_bdd :: step_return :: StepReturnValueKind as _ ; let __rstest_bdd_step_return_value = step () ; let __rstest_bdd_step_return_tag = :: rstest_bdd :: step_return :: StepReturnProbe (& __rstest_bdd_step_return_value ,) . __rstest_bdd_step_return_kind () ; :: rstest_bdd :: step_return :: StepReturnNormalize :: normalize (__rstest_bdd_step_return_tag , __rstest_bdd_step_return_value ,) }

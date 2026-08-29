@@ -4,7 +4,7 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 
 use super::WrapperKind;
-use crate::return_classifier::ReturnKind;
+use crate::return_classifier::StepReturnStrategy;
 
 /// Explains why generated wrapper functions need their expected lint list.
 pub(super) const WRAPPER_EXPECT_REASON: &str = "rstest-bdd step wrapper pattern requires these \
@@ -36,8 +36,8 @@ pub(super) struct WrapperLintConfig {
     pub(super) has_step_struct: bool,
     /// Whether ordinary step arguments strip placeholder quotes.
     pub(super) has_step_arg_quote_strip: bool,
-    /// The return form of the wrapped step function.
-    pub(super) return_kind: ReturnKind,
+    /// The return strategy of the wrapped step function.
+    pub(super) strategy: StepReturnStrategy,
     /// Whether the wrapper is synchronous or asynchronous.
     pub(super) wrapper_kind: WrapperKind,
 }
@@ -48,7 +48,10 @@ fn wrapper_expect_lint_names(config: WrapperLintConfig) -> Vec<&'static str> {
     if config.has_step_arg_quote_strip {
         lints.push(LINT_SHADOW_REUSE);
     }
-    if matches!(config.return_kind, ReturnKind::Unit | ReturnKind::Value) {
+    if matches!(
+        config.strategy,
+        StepReturnStrategy::Unit | StepReturnStrategy::ForcedValue
+    ) {
         lints.push(LINT_UNNECESSARY_WRAPS);
     }
     let has_placeholders = config.capture_count > 0;

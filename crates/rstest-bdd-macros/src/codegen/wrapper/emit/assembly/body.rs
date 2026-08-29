@@ -67,7 +67,7 @@ fn generate_wrapper_body_impl(
         placeholder_names,
         placeholder_hints,
         capture_count,
-        return_kind,
+        strategy,
         is_async_step,
         ..
     } = *config;
@@ -103,7 +103,7 @@ fn generate_wrapper_body_impl(
             prepared,
             arg_idents,
             capture_count,
-            return_kind,
+            strategy,
         },
         wrapper_kind,
         is_async_step,

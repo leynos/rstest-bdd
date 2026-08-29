@@ -1,0 +1,43 @@
+error[E0277]: a step's error type `NotDisplay` must implement `std::fmt::Display`
+ --> tests/ui_macros/step_return_alias_error_not_display.rs:9:1
+  |
+9 | #[when("a direct error is not displayable")]
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this step returns `Result<_, NotDisplay>`
+  |
+help: the trait `rstest_bdd::step_return::StepErrorDisplay` is not implemented for `NotDisplay`
+ --> tests/ui_macros/step_return_alias_error_not_display.rs:5:1
+  |
+5 | struct NotDisplay;
+  | ^^^^^^^^^^^^^^^^^
+  = note: rstest-bdd renders a step's `Err` through `Display`
+help: the trait `rstest_bdd::step_return::StepReturnNormalize<Result<T, E>>` is conditionally implemented for `rstest_bdd::step_return::StepReturnResultTag`
+ --> src/step_return.rs
+  |
+  | impl<T: Any, E: StepErrorDisplay> StepReturnNormalize<Result<T, E>> for StepReturnResultTag {
+  | ^^^^^^^^^^^^^^^^----------------^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |                 |
+  |                 unsatisfied requirement introduced here: `NotDisplay: rstest_bdd::step_return::StepErrorDisplay`
+  = note: required for `rstest_bdd::step_return::StepReturnResultTag` to implement `rstest_bdd::step_return::StepReturnNormalize<Result<(), NotDisplay>>`
+  = note: this error originates in the attribute macro `when` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: a step's error type `NotDisplay` must implement `std::fmt::Display`
+  --> tests/ui_macros/step_return_alias_error_not_display.rs:12:1
+   |
+12 | #[when("an alias error is not displayable")]
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this step returns `Result<_, NotDisplay>`
+   |
+help: the trait `rstest_bdd::step_return::StepErrorDisplay` is not implemented for `NotDisplay`
+  --> tests/ui_macros/step_return_alias_error_not_display.rs:5:1
+   |
+ 5 | struct NotDisplay;
+   | ^^^^^^^^^^^^^^^^^
+   = note: rstest-bdd renders a step's `Err` through `Display`
+help: the trait `rstest_bdd::step_return::StepReturnNormalize<Result<T, E>>` is conditionally implemented for `rstest_bdd::step_return::StepReturnResultTag`
+  --> src/step_return.rs
+   |
+   | impl<T: Any, E: StepErrorDisplay> StepReturnNormalize<Result<T, E>> for StepReturnResultTag {
+   | ^^^^^^^^^^^^^^^^----------------^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |                 |
+   |                 unsatisfied requirement introduced here: `NotDisplay: rstest_bdd::step_return::StepErrorDisplay`
+   = note: required for `rstest_bdd::step_return::StepReturnResultTag` to implement `rstest_bdd::step_return::StepReturnNormalize<Result<(), NotDisplay>>`
+   = note: this error originates in the attribute macro `when` (in Nightly builds, run with -Z macro-backtrace for more info)

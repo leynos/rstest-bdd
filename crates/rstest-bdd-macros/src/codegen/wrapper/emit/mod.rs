@@ -4,7 +4,7 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 
 use super::args::ExtractedArgs;
-use crate::return_classifier::ReturnKind;
+use crate::return_classifier::StepReturnStrategy;
 
 mod assembly;
 mod call_expr;
@@ -33,8 +33,8 @@ pub(crate) struct WrapperConfig<'a> {
     pub(crate) placeholder_hints: &'a [Option<String>],
     /// Stores the internal `capture_count` value.
     pub(crate) capture_count: usize,
-    /// Stores the internal `return_kind` value.
-    pub(crate) return_kind: ReturnKind,
+    /// Stores the internal `strategy` value.
+    pub(crate) strategy: StepReturnStrategy,
 }
 
 /// Generate an async wrapper that wraps a sync step in an immediately-ready future.

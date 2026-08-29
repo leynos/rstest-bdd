@@ -119,7 +119,12 @@ Stop and escalate when any of these is reached. Do not work around them.
   Do not ship a shape that requires adopters to silence lints.
 - **Interface**: if the change requires altering any non-`#[doc(hidden)]`
   public item of `rstest-bdd` or `rstest-bdd-macros`, stop.
-- **Dependencies**: if a new external crate dependency is required, stop.
+- **Dependencies**: if a new external crate dependency is required, stop,
+  except that EP-M2 and EP-M4 may add `anyhow` as a test-only direct
+  dependency of `rstest-bdd` and its isolated `tests/ui_lints` fixture. This
+  narrowly permits the required regression and downstream lint fixture to use
+  the real `anyhow::Result` surface; it must not become a production
+  dependency or expand to any other crate.
 - **File-size pressure**: if `crates/rstest-bdd-macros/src/macros/mod.rs`
   cannot be brought under 400 lines by a mechanical extraction (no behaviour
   change), stop.
@@ -199,13 +204,26 @@ Stop and escalate when any of these is reached. Do not work around them.
       `rustc 1.85.0` and stable (2026-08-29). Remaining: the in-workspace
       import-form and clippy experiments, the `-> !` bypass, the async check,
       and the `DEC-014` sealed-normalize shape.
-- [ ] EP-M1 Preparatory refactors: bring `macros/mod.rs` and
+- [x] EP-M1 Preparatory refactors: bring `macros/mod.rs` and
       `tests/step_return.rs` under the 400-line cap. No behaviour change.
-- [ ] EP-M2 Red: behavioural feature files, the tag-identity guard test, and
-      the compile-fail fixture, all failing for the expected reason.
-- [ ] EP-M3 Green: the runtime dispatch module and the macro emission change.
-- [ ] EP-M4 Lint-expectation reconciliation, `ui_lints` fixture, and the
-      seeded-fault negative control.
+      Completed in `66832f24` and `6cb31c8f`; `make check-fmt`, `make lint`,
+      and `make test` passed, then CodeRabbit reported zero findings on
+      `6cb31c8f` (2026-08-29).
+- [x] EP-M2 Red: behavioural feature files, the tag-identity guard test, and
+      the compile-fail fixture observed the expected pre-implementation
+      failures. The maintainer approved the narrow test-only `anyhow`
+      dependency exception on 2026-08-29 after the original dependency
+      tolerance blocked the required real-type regression.
+- [x] EP-M3 Green: the runtime dispatch module and macro emission change pass
+      focused behavioural, structural, and trybuild tests, plus the full
+      deterministic suite on 2026-08-29.
+- [x] EP-M4 Lint-expectation reconciliation and the `ui_lints` fixture pass
+      under `#![deny(warnings)]`; the emitted-token snapshot is checked in.
+      The seeded-fault negative control remains for final pre-merge validation.
+- [-] Scope tolerance: the post-turn audit counts 37 changed files against the
+      hard maximum of 26. This exceeds the plan's permitted scope before EP-M5
+      documentation work begins, so implementation, commits, publication, and
+      CodeRabbit are paused pending an explicit amendment.
 - [ ] EP-M5 Documentation: ADR-019, the ADR-002 amendment, design doc and
       diagram, users' guide, developers' guide, known issues, migration guide,
       CHANGELOG, contents index, ergonomics doc, and the roadmap.
@@ -251,6 +269,38 @@ Recorded during planning; keep appending during implementation.
 - Observation: `crates/rstest-bdd-macros/src/macros/mod.rs` is 399 lines
   against a hard 400-line cap, and is not allowlisted.
   Impact: any edit forces a mechanical module split first (EP-M1).
+
+- Observation: the EP-M2 `anyhow::Result` scenario needs a direct `anyhow`
+  dependency in `crates/rstest-bdd`'s test build. `rg` found no `anyhow`
+  declaration in the workspace manifests or lockfile, and attempting the
+  scenario therefore fails at name resolution rather than exposing the
+  pre-EP-M3 false green.
+  Evidence: focused `cargo nextest` build on 2026-08-29.
+  Impact: the original Dependencies tolerance blocked EP-M2. The maintainer
+  approved a narrow exception for a test-only direct `anyhow` dependency; a
+  fake local replacement remains disallowed because it would not validate the
+  promised `anyhow::Result` compatibility.
+
+- Observation: the EP-M3/M4 full lint gate remained red after three focused
+  remediation cycles, each revealing a separate repository-required detail.
+  The first fixed an elidable lifetime in `step_return.rs`; the second added a
+  scoped test `unnecessary_wraps` expectation; the third added a missing inner
+  module comment. The next outstanding error is a missing `//!` header in
+  `crates/rstest-bdd-macros/src/codegen/wrapper/emit/call_expr.rs`'s test
+  module.
+  Evidence: `/tmp/lint-29b14d61-d38d-4cc2-a64c-b257716885d0-ep-m3-m4-retry3.out`.
+  Impact: the post-turn gate directed the narrow fourth correction: add the
+  missing `//!` header to the snapshot test module. The subsequent full suite
+  passed (`check-fmt`, lint, typecheck, test, markdownlint, and nixie), so the
+  issue is resolved without broadening the implementation.
+
+- Observation: after EP-M4, the post-turn audit reports 37 changed files from
+  `origin/main`, exceeding this plan's 26-file hard scope maximum. The added
+  files are the planned behavioural feature cases, structural dispatch test,
+  UI fixtures and snapshots, plus the preparatory EP-M1 extraction.
+  Evidence: post-turn audit `hook_run_id="stop:3"` on 2026-08-29.
+  Impact: the Scope tolerance requires an explicit amendment before EP-M5,
+  committing, publication, or CodeRabbit review can continue.
 
 - Observation: the crate-owned `StepReturnProbe` prevents an inherent method
   on the returned value from hijacking dispatch, and the orphan rule prevents
