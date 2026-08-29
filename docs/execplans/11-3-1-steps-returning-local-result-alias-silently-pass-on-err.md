@@ -533,6 +533,13 @@ Recorded during planning; keep appending during implementation.
   tokens; and the sealed supertrait stops a downstream crate from making a
   deliberately compatible tag. Date/Author: 2026-08-29, maintainer decision.
 
+- DEC-015: Reconcile the completed delivery record rather than rewriting its
+  planning chronology. DEC-001 through DEC-011 were accepted and implemented;
+  DEC-012 was resolved by DEC-013 and DEC-014. The earlier "pending approval"
+  labels record the state when each entry was first written, while `Progress`
+  and `Outcomes & retrospective` record their completed state. Date/Author:
+  2026-08-29, delivery reconciliation.
+
 ## Outcomes & retrospective
 
 The delivered mechanism is the revised `DEC-013`/`DEC-014` design, not the
@@ -662,8 +669,9 @@ revision.)
 
 Upstream artefacts and their revisions at the time of writing.
 
-- `docs/roadmap.md` item **11.3.1** (unchecked), located at lines 1057-1075.
-  Its design-doc citation (§2.1) is wrong; the material is at §3.8.
+- `docs/roadmap.md` item **11.3.1** (checked complete), located at lines
+  1057-1075. Its design-doc citation now correctly names §3.8, and the item
+  records that it landed in v0.6.0.
 - `docs/adr-002-stable-step-return-classification.md`, Status `Accepted`,
   dated 2025-12-19. To be amended, not superseded (`DEC-010`).
 - `docs/adr-006-fallible-scenario-functions.md` — depends on ADR-002 for the
@@ -1182,7 +1190,10 @@ See `Concrete steps` for the exact file list.
 
 ## Milestones and plateaus
 
-Each milestone ends in a coherent, validated repository state.
+Each milestone ends in a coherent, validated repository state. The "Remaining
+gaps" entries below record the state at the close of each historical plateau;
+the current plan status and final evidence are in `Progress` and
+`Outcomes & retrospective`.
 
 **EP-M0 — emission shape decided.** Requirements: de-risks ROADMAP-11.3.1's
 mechanism. Acceptance: the probe matrix and the adversarial collision probes
@@ -1634,3 +1645,11 @@ Read in this order before starting.
 Deliberately **not** recommended, recorded here to pre-empt the question:
 `proptest`, `kani`, and `verus` (see `Verification plan`); `arch-crate-design`
 (no crate boundary moves — the module lands in the existing `rstest-bdd` crate).
+
+## Revision note
+
+Updated on 2026-08-29 after delivery reconciliation. The plan now explicitly
+records the accepted decisions, completed roadmap task, stacked formatter base,
+final deterministic validation, and zero-finding CodeRabbit review. Historical
+planning labels and plateau gaps remain as chronology only; no implementation
+work remains.
