@@ -9,16 +9,21 @@ use super::{
     second_type_argument,
 };
 
+/// Parses the function input used by return-classifier tests.
+fn parse_test_function(func_tokens: proc_macro2::TokenStream) -> syn::ItemFn {
+    match syn::parse2(func_tokens) {
+        Ok(func) => func,
+        Err(err) => panic!("test input should be valid function syntax: {err}"),
+    }
+}
+
 /// Helper to assert that a given function signature classifies to the expected kind.
 fn assert_classifies_to(
     func_tokens: proc_macro2::TokenStream,
     override_hint: Option<ReturnOverride>,
     expected: ReturnKind,
 ) {
-    let func: syn::ItemFn = match syn::parse2(func_tokens) {
-        Ok(func) => func,
-        Err(err) => panic!("test input should be valid function syntax: {err}"),
-    };
+    let func = parse_test_function(func_tokens);
     let kind = match classify_return_type(&func.sig.output, override_hint) {
         Ok(kind) => kind,
         Err(err) => panic!("expected classification to succeed: {err}"),
@@ -28,10 +33,7 @@ fn assert_classifies_to(
 
 /// Helper to assert the strategy used by an emitted step wrapper.
 fn assert_step_strategy(func_tokens: proc_macro2::TokenStream, expected: StepReturnStrategy) {
-    let func: syn::ItemFn = match syn::parse2(func_tokens) {
-        Ok(func) => func,
-        Err(err) => panic!("test input should be valid function syntax: {err}"),
-    };
+    let func = parse_test_function(func_tokens);
     let strategy = match classify_step_return_type(&func.sig.output, None) {
         Ok(strategy) => strategy,
         Err(err) => panic!("expected step classification to succeed: {err}"),
