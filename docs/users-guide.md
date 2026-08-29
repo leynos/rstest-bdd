@@ -1332,11 +1332,11 @@ typed view entity plus a visual context. The vendored fork returns
 `(Entity<T>, &mut VisualTestContext)`. `Entity<T>` is the typed, durable handle
 to the stored view, and `VisualTestContext::window_handle()` returns the
 `AnyWindowHandle` that identifies the window itself. Both handles remain valid
-across steps. `VisualTestContext`, by contrast, is tied to the
-`TestAppContext` it was created against and must not be stored across steps: a
-later step receives a fresh `&mut TestAppContext` from the harness. Stateful
-steps therefore store `Entity<T>` and `AnyWindowHandle` only, and rebuild a
-fresh `VisualTestContext` inside each step that needs visual interaction.
+across steps. `VisualTestContext`, by contrast, is tied to the `TestAppContext`
+it was created against and must not be stored across steps: a later step
+receives a fresh `&mut TestAppContext` from the harness. Stateful steps
+therefore store `Entity<T>` and `AnyWindowHandle` only, and rebuild a fresh
+`VisualTestContext` inside each step that needs visual interaction.
 
 ##### Reset protocol
 
@@ -1379,11 +1379,10 @@ test-group matrix.
 #### Worked example
 
 The scenario-state and vendored call-site snippets below mirror the regression
-suite at
-`crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` exactly. Treat that
-file as the executable reference: if a snippet here
-drifts from the suite, the suite wins and this section should be updated to
-match. Projects consuming published `gpui 0.2.2` should use the parallel
+suite at `crates/rstest-bdd-harness-gpui/tests/stateful_window.rs` exactly.
+Treat that file as the executable reference: if a snippet here drifts from the
+suite, the suite wins and this section should be updated to match. Projects
+consuming published `gpui 0.2.2` should use the parallel
 [published call-site variants](#published-gpui-022-stateful-step-variants)
 instead.
 
@@ -1593,10 +1592,10 @@ fn fresh_gpui_window_is_opened(
 The published reconstruction constructor returns `VisualTestContext` by value.
 Its entity methods take the entity by reference: `update_entity`'s callback
 receives `&mut Context<T>` as its second argument, whereas `read_entity`'s
-callback receives `&App`. Their `AppContext::Result<R>` alias is `R`,
-so assertions compare the returned values directly rather than unwrapping
-`Option` or `Result`. Unlike the vendored helper, the published helper clones
-the stored entity because published `Entity<T>` is `Clone`, not `Copy`:
+callback receives `&App`. Their `AppContext::Result<R>` alias is `R`, so
+assertions compare the returned values directly rather than unwrapping `Option`
+or `Result`. Unlike the vendored helper, the published helper clones the stored
+entity because published `Entity<T>` is `Clone`, not `Copy`:
 
 ```rust,ignore
 use gpui::AppContext as _;
