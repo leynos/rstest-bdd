@@ -1,10 +1,16 @@
 //! Return type classification for step wrappers.
 //!
 //! `rstest-bdd` step macros generate wrapper functions that normalize user step
-//! return values into a common representation. On stable Rust, we cannot rely
-//! on overlapping trait impls (nor negative impls) to differentiate between
-//! `T`, `()`, and `Result<..>`, so we perform best-effort classification during
-//! macro expansion instead.
+//! return values into a common representation. The retained syntactic
+//! classifier recognizes unit, never, and spelled `Result` paths during macro
+//! expansion, but it cannot resolve local type aliases.
+//!
+//! Unhinted non-unit step returns therefore use runtime dispatch through
+//! `rstest_bdd::step_return`. That bridge resolves the concrete return type:
+//! an unhinted local alias of `Result<T, E>` dispatches as `Result`, while a
+//! genuine value alias remains a value. Explicit `result` and `value` hints
+//! retain their override roles, respectively forcing fallible normalization or
+//! payload treatment.
 //!
 //! ## Recognized Result paths
 //!
@@ -16,10 +22,9 @@
 //! - `rstest_bdd::StepResult<..>`, `crate::StepResult<..>`, `self::StepResult<..>`,
 //!   `super::StepResult<..>`
 //!
-//! User-defined type aliases (e.g., `type MyResult<T> = Result<T, MyError>`)
-//! are **not** resolved at macro expansion time. The explicit `result` hint
-//! opts into a wrapper shape that expects `Result<..>` semantics and allows
-//! aliases to compile as long as the return type is ultimately `Result`-like.
+//! These paths are a syntactic fast path only. Other unhinted non-unit return
+//! types, including user-defined aliases, are classified by the runtime
+//! dispatch bridge.
 
 use syn::{Path, ReturnType, Type};
 
