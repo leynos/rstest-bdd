@@ -185,46 +185,11 @@ impl DirectoryReader for InMemoryDirectoryReader {
     type Entries = std::vec::IntoIter<io::Result<PathBuf>>;
     /// Reads modelled entries or returns the configured directory-read failure.
     fn read_dir(&self, path: &Path) -> io::Result<Self::Entries> {
-        match self.failure {
-            Some((FailureSite::WorkspaceReadDirectory, kind)) if path == Path::new("workspace") => {
-                return Err(io::Error::from(kind));
-            }
-            Some((FailureSite::RecursiveDirectoryRead, kind))
-                if path == Path::new(RECURSIVE_FAILURE_DIRECTORY) =>
-            {
-                return Err(io::Error::from(kind));
-            }
-            _ => {}
+        if let Some(kind) = self.directory_read_failure(path) {
+            return Err(io::Error::from(kind));
         }
-        let mut entries = self.entries.get(path).cloned().unwrap_or_default();
-        let entry_failure_kind = match self.failure {
-            Some((FailureSite::WorkspaceDirectoryEntry, kind))
-                if path == Path::new("workspace") =>
-            {
-                Some(kind)
-            }
-            Some((FailureSite::RecursiveDirectoryEntry, kind))
-                if path == Path::new(RECURSIVE_FAILURE_DIRECTORY) =>
-            {
-                Some(kind)
-            }
-            _ => None,
-        };
-        if entry_failure_kind.is_some() {
-            entries.insert(0, PathBuf::new());
-        }
-        Ok(entries
-            .into_iter()
-            .map(move |entry| {
-                if entry.as_os_str().is_empty()
-                    && let Some(kind) = entry_failure_kind
-                {
-                    return Err(io::Error::from(kind));
-                }
-                Ok(entry)
-            })
-            .collect::<Vec<_>>()
-            .into_iter())
+
+        Ok(self.directory_entries(path))
     }
     /// Reports modelled directory metadata or the configured metadata failure.
     fn is_directory(&self, path: &Path) -> io::Result<bool> {
@@ -253,6 +218,42 @@ impl DirectoryReader for InMemoryDirectoryReader {
 }
 
 impl InMemoryDirectoryReader {
+    /// Selects a configured directory-read failure for the requested path.
+    fn directory_read_failure(&self, path: &Path) -> Option<io::ErrorKind> {
+        self.failure.and_then(|(site, kind)| match site {
+            FailureSite::WorkspaceReadDirectory if path == Path::new("workspace") => Some(kind),
+            FailureSite::RecursiveDirectoryRead
+                if path == Path::new(RECURSIVE_FAILURE_DIRECTORY) =>
+            {
+                Some(kind)
+            }
+            _ => None,
+        })
+    }
+    /// Selects a configured directory-entry iterator failure for the requested path.
+    fn directory_entry_failure(&self, path: &Path) -> Option<io::ErrorKind> {
+        self.failure.and_then(|(site, kind)| match site {
+            FailureSite::WorkspaceDirectoryEntry if path == Path::new("workspace") => Some(kind),
+            FailureSite::RecursiveDirectoryEntry
+                if path == Path::new(RECURSIVE_FAILURE_DIRECTORY) =>
+            {
+                Some(kind)
+            }
+            _ => None,
+        })
+    }
+    /// Creates the modelled entry iterator, prefixing any configured entry failure.
+    fn directory_entries(&self, path: &Path) -> <Self as DirectoryReader>::Entries {
+        let mut entries = self.entries.get(path).map_or_else(Vec::new, |entries| {
+            entries.iter().cloned().map(Ok).collect()
+        });
+        if let Some(kind) = self.directory_entry_failure(path) {
+            entries.insert(0, Err(io::Error::from(kind)));
+        }
+
+        entries.into_iter()
+    }
+
     /// Checks whether a required or optional directory metadata probe must fail.
     fn directory_metadata_failure(&self, path: &Path) -> bool {
         self.metadata_failure(FailureSite::CrateDirectoryMetadata, path)
