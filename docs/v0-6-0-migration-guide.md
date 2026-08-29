@@ -522,9 +522,8 @@ of the user guide is the in-depth reference; the steps below mirror its outline:
 5. **Rebuild `VisualTestContext` per step.** Replace any stored
    `VisualTestContext` field with the durable handles, and in each subsequent
    step reconstruct the visual context with
-   `gpui::VisualTestContext::from_window(window, cx)`. The vendored gpui
-   return is `Option<VisualTestContext>`; treat `None` as an invariant
-   violation:
+   `gpui::VisualTestContext::from_window(window, cx)`. The vendored gpui return
+   is `Option<VisualTestContext>`; treat `None` as an invariant violation:
 
    ```rust,ignore
    let Some(visual_cx) = gpui::VisualTestContext::from_window(window, cx) else {
@@ -695,8 +694,8 @@ fn when_shell_receives_input(
 Guard-based borrowing removes the `E0499`/`E0502` obstacle to holding `cx` and
 `world` at once, but it does not make a stored `VisualTestContext` valid. That
 value is tied to the `TestAppContext` it was built against, and each step
-receives a fresh one, so `UiWorld` still keeps only the durable
-`Entity<T>` and `AnyWindowHandle` and rebuilds the visual context per step, as
+receives a fresh one, so `UiWorld` still keeps only the durable `Entity<T>` and
+`AnyWindowHandle` and rebuilds the visual context per step, as
 [Rebuild `VisualTestContext` per step](#migrate-a-stateful-gpui-test) requires.
 
 ## Migration checklist
@@ -788,8 +787,7 @@ fn given_shell_open(
 ```
 
 The rejection here comes from the two `&mut` fixture parameters, not from the
-body: the snippet already stores only durable handles, as the playbook
-requires.
+body: the snippet already stores only durable handles, as the playbook requires.
 
 The same constraint is not GPUI-specific. This non-GPUI shape is also rejected
 when both parameters come from the same `StepContext`.

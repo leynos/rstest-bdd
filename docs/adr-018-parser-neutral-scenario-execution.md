@@ -19,9 +19,9 @@ generates the remaining scenario orchestration code.
 
 The generated scenario loop currently owns policy that is not intrinsically
 Gherkin-specific. It executes steps in order, inserts step return values into
-`StepContext`, stops after a failure or skip, records skipped work, and converts
-terminal failures into panics for the Rust test harness. This policy exists as
-quoted generated code rather than as a public runtime function.
+`StepContext`, stops after a failure or skip, records skipped work, and
+converts terminal failures into panics for the Rust test harness. This policy
+exists as quoted generated code rather than as a public runtime function.
 
 Trymark proposes a standalone Markdown frontend for literate behavioural tests.
 The stock Trymark executable must run in repositories that contain no
@@ -37,8 +37,8 @@ that accepts an already-parsed scenario would let frontends supply steps
 without translating them into temporary Gherkin or generated Rust source.
 
 The decision is whether rstest-bdd should expose parser-neutral scenario
-orchestration as a supported runtime API, and how to do so without weakening the
-existing Gherkin and rstest integrations.
+orchestration as a supported runtime API, and how to do so without weakening
+the existing Gherkin and rstest integrations.
 
 ## Decision drivers
 
@@ -88,8 +88,8 @@ existing Gherkin and rstest integrations.
 1. The parser-neutral plan contains no `gherkin` Abstract Syntax Tree (AST),
    Markdown, Trymark, Clap, process, snapshot, or reporter types.
 2. The runtime runner does not panic for an ordinary scenario failure. It
-   returns a typed outcome. Panics from step handlers remain represented through
-   the existing step-error machinery.
+   returns a typed outcome. Panics from step handlers remain represented
+   through the existing step-error machinery.
 3. The initial change is additive. Existing step macros, scenario macros,
    `execute_step`, and `execute_step_async` continue to work.
 4. The procedural macro crate delegates canonical scenario-loop policy to the
@@ -149,8 +149,8 @@ Markdown.
 ### Option E: extract a new shared core crate immediately
 
 The project could first move the registry, context, execution, plan, and runner
-into a new `rstest-bdd-core` crate, with Gherkin and rstest integrations layered
-above it.
+into a new `rstest-bdd-core` crate, with Gherkin and rstest integrations
+layered above it.
 
 Deferred. The conceptual split may become useful, particularly if the existing
 runtime's `gherkin` dependency proves undesirable for standalone consumers.
@@ -158,22 +158,23 @@ Doing it before the public runner exists combines two architectural changes and
 makes review harder. The first implementation should add the boundary inside
 `rstest-bdd`; later evidence can justify extraction.
 
-| Topic | Independent engine | Temporary Gherkin or Rust | Parser-neutral runner | Immediate core crate |
-| --- | --- | --- | --- | --- |
-| One execution policy | No | Partly | Yes | Yes |
-| Source fidelity | Yes | No | Yes | Yes |
-| No Rust setup for stock Trymark | Yes | No | Yes | Yes |
-| Change to rstest-bdd | None | Small frontend workaround | Focused runtime API | Large package refactor |
-| Risk of semantic drift | High | Medium | Low | Low |
-| Initial implementation cost | Medium | Medium | Medium | High |
+| Topic                           | Independent engine | Temporary Gherkin or Rust | Parser-neutral runner | Immediate core crate   |
+| ------------------------------- | ------------------ | ------------------------- | --------------------- | ---------------------- |
+| One execution policy            | No                 | Partly                    | Yes                   | Yes                    |
+| Source fidelity                 | Yes                | No                        | Yes                   | Yes                    |
+| No Rust setup for stock Trymark | Yes                | No                        | Yes                   | Yes                    |
+| Change to rstest-bdd            | None               | Small frontend workaround | Focused runtime API   | Large package refactor |
+| Risk of semantic drift          | High               | Medium                    | Low                   | Low                    |
+| Initial implementation cost     | Medium             | Medium                    | Medium                | High                   |
 
 _Table 1: Trade-offs between the considered execution architectures._
 
 ## Decision outcome and proposed direction
 
-rstest-bdd will expose parser-neutral scenario execution from its runtime crate.
-The Gherkin macros will become one frontend over that API. Trymark can become a
-second frontend while shipping as an independent repository and executable.
+rstest-bdd will expose parser-neutral scenario execution from its runtime
+crate. The Gherkin macros will become one frontend over that API. Trymark can
+become a second frontend while shipping as an independent repository and
+executable.
 
 ### Scenario plan
 
@@ -182,11 +183,11 @@ shape remains an implementation detail to settle through a focused API spike,
 but it must support borrowed static data from generated tests and owned dynamic
 data from external parsers.
 
-The first plan contract includes tags and `allow_skipped`; they are not deferred
-to a later policy object. The representation must support both generated
-borrowed static sources and external owned sources. Its final ownership shape,
-field names, and type names remain free to evolve until the Stage 1
-compatibility review.
+The first plan contract includes tags and `allow_skipped`; they are not
+deferred to a later policy object. The representation must support both
+generated borrowed static sources and external owned sources. Its final
+ownership shape, field names, and type names remain free to evolve until the
+Stage 1 compatibility review.
 
 The following snippet is illustrative only. It does not establish final public
 field or type names, lifetime syntax, or ownership representation:
@@ -266,15 +267,15 @@ in the plan, in plan order. After a terminal skip or failure, every remaining
 invocation is recorded as `Bypassed`; diagnostics or reporter configuration
 must not change this sequence.
 
-`SourceLocation` consists of a path, a one-based line, and an optional one-based
-column measured in Unicode scalar values. Locations are never added to
+`SourceLocation` consists of a path, a one-based line, and an optional
+one-based column measured in Unicode scalar values. Locations are never added to
 `ExecutionError` and are never inferred by parsing error strings.
 
 The runner surface will provide synchronous and asynchronous forms:
 
 The first runner accepts a per-run `ScenarioScope` lifecycle token, not a bare
-`&mut StepContext`. The scope is consumed once and cannot be reused. It owns the
-lifecycle and cleanup guard around the otherwise caller-backed context.
+`&mut StepContext`. The scope is consumed once and cannot be reused. It owns
+the lifecycle and cleanup guard around the otherwise caller-backed context.
 
 ```rust,no_run
 pub fn run_scenario(
@@ -310,19 +311,19 @@ arrays and adapters, but it must not carry an independent result-handling loop.
 ### Skip parity
 
 A successfully skipped step remains `Skipped` in every configuration. Its
-`forced_failure` value is exactly `!allow_skipped && fail_on_skipped`.
-The runner resolves `fail_on_skipped` once per run, using programmatic
+`forced_failure` value is exactly `!allow_skipped && fail_on_skipped`. The
+runner resolves `fail_on_skipped` once per run, using programmatic
 configuration first, then `RSTEST_BDD_FAIL_ON_SKIPPED`, and finally `false`.
 Both runner forms use that resolved value. Macro-generated tests and external
 frontends must use the same resolution rather than implementing separate
 skip-failure policy.
 
 | `allow_skipped` | `fail_on_skipped` | Step outcome | `forced_failure` |
-| --- | --- | --- | --- |
-| `false` | `false` | `Skipped` | `false` |
-| `false` | `true` | `Skipped` | `true` |
-| `true` | `false` | `Skipped` | `false` |
-| `true` | `true` | `Skipped` | `false` |
+| --------------- | ----------------- | ------------ | ---------------- |
+| `false`         | `false`           | `Skipped`    | `false`          |
+| `false`         | `true`            | `Skipped`    | `true`           |
+| `true`          | `false`           | `Skipped`    | `false`          |
+| `true`          | `true`            | `Skipped`    | `false`          |
 
 The verification suite must execute and assert all four rows. They are part of
 the parity contract, including when an aggregate caller later treats a forced
@@ -333,14 +334,14 @@ skip as a failure.
 Once a scenario scope begins, cleanup and the after-scenario hook run exactly
 once on every listed terminal path:
 
-| Path | Step execution | After/cleanup | Primary outcome |
-| --- | --- | --- | --- |
-| Before-hook failure | No steps run | Exactly once | Before failure wins |
-| Step pass | Eligible steps continue | Exactly once | Step results decide |
-| Step skip | Later steps are bypassed | Exactly once | Normal skip remains terminal |
-| Step failure | Later steps are bypassed | Exactly once | Step failure wins |
-| Resolution or fixture failure | Later steps are bypassed | Exactly once | Resolution/fixture failure wins |
-| Panic or unwind | Execution stops as applicable | Exactly once | Panic/step failure wins |
+| Path                          | Step execution                | After/cleanup | Primary outcome                 |
+| ----------------------------- | ----------------------------- | ------------- | ------------------------------- |
+| Before-hook failure           | No steps run                  | Exactly once  | Before failure wins             |
+| Step pass                     | Eligible steps continue       | Exactly once  | Step results decide             |
+| Step skip                     | Later steps are bypassed      | Exactly once  | Normal skip remains terminal    |
+| Step failure                  | Later steps are bypassed      | Exactly once  | Step failure wins               |
+| Resolution or fixture failure | Later steps are bypassed      | Exactly once  | Resolution/fixture failure wins |
+| Panic or unwind               | Execution stops as applicable | Exactly once  | Panic/step failure wins         |
 
 An after/cleanup failure is retained as a secondary cleanup diagnostic when a
 primary before or step failure exists. When there is no primary failure,
@@ -446,14 +447,14 @@ failures. The two paths must agree before macro migration.
 
 Change macro output to build a plan and call the runtime API. Remove the old
 result-handling loop after parity tests pass. Retain only thin generated
-adapters for fixture setup, harness integration, outline values, and translation
-to the Rust test harness.
+adapters for fixture setup, harness integration, outline values, and
+translation to the Rust test harness.
 
 ### Stage 4: validate an external frontend
 
-Use Trymark, or a small conformance frontend if Trymark is not yet available, to
-parse scenarios at runtime and execute standard linked steps. This stage proves
-that the API is genuinely parser-neutral rather than merely a rearranged
+Use Trymark, or a small conformance frontend if Trymark is not yet available,
+to parse scenarios at runtime and execute standard linked steps. This stage
+proves that the API is genuinely parser-neutral rather than merely a rearranged
 Gherkin implementation.
 
 A later release may deprecate Gherkin-specific runtime field names or extract a
