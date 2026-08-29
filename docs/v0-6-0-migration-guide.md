@@ -743,7 +743,6 @@ receives a fresh one, so `UiWorld` still keeps only the durable `Entity<T>` and
 `AnyWindowHandle` and rebuilds the visual context per step, as
 [Rebuild `VisualTestContext` per step](#migrate-a-stateful-gpui-test) requires.
 
-
 ### Feature paths in diagnostics and reports are now manifest-relative
 
 `ScenarioMetadata::feature_path` and every surface that displays it — the JSON
