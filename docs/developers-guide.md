@@ -441,7 +441,6 @@ standalone step in `.github/workflows/ci.yml`:
 Consequently it does not run in a plain local `make lint`; developers touching
 the published snippets should run it by hand.
 
-
 ## Published GPUI end-to-end scenario (`make e2e-published-gpui`)
 
 `tests/fixtures/published-gpui-e2e/` executes the two scenarios from the
