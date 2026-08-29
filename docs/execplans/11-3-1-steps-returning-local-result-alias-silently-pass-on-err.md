@@ -480,28 +480,30 @@ ADR-015 (InsertOutcome) -> EP-M2 -> tests::step_return::scenario_alias_ok_overri
 These are assumptions about third-party behaviour. They are not verified here;
 they are relied upon, and each is exercised at a contract-level boundary.
 
-- **AX-1**: rustc's method probe, for a receiver expression of type `U`, builds
-  candidate types by repeatedly dereferencing `U`, and for each candidate type
-  tries the by-value receiver before the autoref (`&`) receiver. This is the
+- **AXIOM-1**: rustc's method probe, for a receiver expression of type `U`,
+  builds candidate types by repeatedly dereferencing `U`, and for each candidate
+  type tries the by-value receiver before the autoref (`&`) receiver. This is the
   ordering the whole mechanism rests on. Documented in dtolnay's
   autoref-specialization case study and relied upon in production by `anyhow`.
-- **AX-2**: type aliases are expanded before trait selection, so
+- **AXIOM-2**: type aliases are expanded before trait selection, so
   `MyResult<()>` and `Result<(), MyError>` select the same impl.
-- **AX-3**: NLL ends the borrow created for the probe before the subsequent
+- **AXIOM-3**: NLL ends the borrow created for the probe before the subsequent
   move of the same value, because the tag returned is a zero-sized type with no
   lifetime parameter.
-- **AX-4**: the orphan rule forbids `impl ForeignTrait for ForeignType<Local>`
-  when `ForeignType` is not `#[fundamental]`.
-- **AX-5**: `#[diagnostic::on_unimplemented]` (stable 1.78) and
+- **AXIOM-4**: the orphan rule forbids
+  `impl ForeignTrait for ForeignType<Local>` when `ForeignType` is not
+  `#[fundamental]`.
+- **AXIOM-5**: `#[diagnostic::on_unimplemented]` (stable 1.78) and
   `#[diagnostic::do_not_recommend]` (stable 1.85) behave as documented at MSRV.
-- **AX-6**: clippy suppresses most style lints for code originating in an
+- **AXIOM-6**: clippy suppresses most style lints for code originating in an
   external macro expansion. This one is *load-bearing and least certain*, which
   is precisely why EP-M0 verifies it empirically rather than assuming it.
 
-AX-1 through AX-4 were exercised directly during planning against `rustc 1.85.0`
-and `rustc 1.98.0` in a scratch crate; the 18-case probe matrix is reproduced in
-`Artefacts and notes`. AX-6 is re-verified at EP-M0 inside this workspace, since
-the workspace's own lint configuration differs from the scratch crate's.
+AXIOM-1 through AXIOM-4 were exercised directly during planning against
+`rustc 1.85.0` and `rustc 1.98.0` in a scratch crate; the 18-case probe matrix
+is reproduced in `Artefacts and notes`. AXIOM-6 is re-verified at EP-M0 inside
+this workspace, since the workspace's own lint configuration differs from the
+scratch crate's.
 
 ### Obligations
 
@@ -636,7 +638,7 @@ above is required and why the `insta` snapshot exists.
 - **`kani`**: there is no `unsafe` code, no arithmetic, and no bounded state
   machine. A bounded model check would have nothing to explore.
 - **`verus`**: no lemma is introduced. The one non-trivial proof obligation
-  (AX-1, the method-probe ordering) is a property of the *compiler*, not of
+  (AXIOM-1, the method-probe ordering) is a property of the *compiler*, not of
   repository-owned logic, and is treated as an axiom exercised at a
   contract-level boundary — which is exactly what the ExecPlan rules require
   for third-party interfaces.
@@ -795,7 +797,7 @@ measurement, not preference:
   macro. Risk: `clippy::allow_attributes` is denied in this workspace.
 
 The deciding experiment must run **inside this workspace**, not the scratch
-crate, because AX-6 (clippy's external-macro suppression) is the uncertain
+crate, because AXIOM-6 (clippy's external-macro suppression) is the uncertain
 axiom and the workspace's lint configuration differs. Build a throwaway step
 using each shape and run
 `cargo clippy --workspace --all-targets --all-features -- -D warnings`.
