@@ -1216,6 +1216,34 @@ an assertion cannot disappear behind macro classification or generated code.
   migration guide, and publish/package tests all reflect the same packaging
   model. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.5. (Pandalump)
 
+
+### 12.3. Make step vocabularies and captures explicit
+
+This step tests whether reusable domain language can remain deterministic when
+scenarios own an explicit vocabulary and capture aggregates own explicit field
+names. Its results inform the v1 registry and typed-text extension boundaries.
+See [RFC 0001](rfcs/0001-explicit-step-library-scopes.md) and
+[RFC 0002](rfcs/0002-named-step-argument-binding.md).
+
+- [x] 12.3.1. Add closed, lexical step-library selection to `#[scenario]` and
+  `scenarios!`, with `#[step_library]` module declarations, a global-library
+  compatibility default, per-library registry indexes, and scope-aware runtime,
+  preflight, introspection, reporting, and language-server lookup.
+  - Success: identical keyword-pattern pairs work in disjoint libraries;
+    selected equal-specific candidates fail with every library and source
+    location; library-list and previous-step order cannot redirect a match.
+  - See RFC 0001 §§Proposed design and Verification.
+- [x] 12.3.2. Bind derived `StepArgs` aggregates by placeholder name and share
+  named-field metadata, rename rules, and scalar conversion generation with
+  named `DataTableRow` derives, without changing tuple-table semantics.
+  - Requires 12.3.1 only for combined feature coverage; the binding contract is
+    independently usable.
+  - Success: reordered fields, explicit placeholder mappings, renaming,
+    trimming, custom parsers, missing and unconsumed captures, and every
+    capture-order permutation have deterministic diagnostics; table row and
+    column diagnostics remain unchanged.
+  - See RFC 0002 §§Proposed design and Verification.
+
 [implicit-fixture-guide]: users-guide.md#implicit-fixture-injection
 [implicit-fixture-trybuild]: ../crates/rstest-bdd/tests/ui_macros/implicit_fixture_missing.rs
 

@@ -762,7 +762,9 @@ Named libraries retain inventory registration while partitioning the registry
 by declared Rust module. Scenario code passes a closed `StepScope`; lookup uses
 only that scope and rejects equally specific candidates. Library order and the
 previously matched step are deliberately absent from dispatch, preserving a
-lexical, deterministic specification vocabulary.
+lexical, deterministic specification vocabulary. RFC 0001
+([explicit step-library scopes](rfcs/0001-explicit-step-library-scopes.md))
+defines the public selection contract, ambiguity model, and tooling scope.
 
 The `inventory` crate provides a clean and powerful abstraction over the
 link-time collection mechanism described above. It offers "typed distributed
@@ -3401,7 +3403,10 @@ These macros keep test code succinct while still surfacing detailed diagnostics.
 - Added a `StepArgs` trait plus `StepArgsError` type in the runtime crate.
   The derive macro (`#[derive(StepArgs)]`) implements both the trait and
   `TryFrom<Vec<String>>`, ensuring each field declares the necessary `FromStr`
-  bound.
+  bound. Derived aggregates bind captures by placeholder name rather than field
+  declaration order; RFC 0002
+  ([named step-argument binding](rfcs/0002-named-step-argument-binding.md))
+  defines the mapping, conversion, and migration contract.
 - The wrapper honours a `#[step_args]` marker on exactly one parameter.
   The attribute is required because procedural macros cannot discover whether
   an arbitrary type derives `StepArgs` without extra user input.[^12][^13] The
