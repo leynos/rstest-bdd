@@ -635,6 +635,22 @@ If a workflow's behaviour genuinely depends on a feature only present from a
 particular commit onwards, express that as a comment or a changelog note, not
 as a test assertion on the SHA string.
 
+### Cargo update grouping
+
+The Cargo Dependabot entry scans the workspace root and the standalone fixture
+packages in `crates/cargo-bdd/tests/fixtures/minimal`,
+`crates/rstest-bdd/tests/fixtures_macros`, `crates/rstest-bdd/tests/ui_macros`,
+and `crates/rstest-bdd/tests/ui_lints`. Its `cargo-by-dependency` group uses
+`group-by: dependency-name` so that, when Cargo can resolve one compatible
+version, Dependabot updates that dependency across every scanned directory in a
+single pull request.
+
+Each standalone fixture manifest must declare the workspace MSRV with
+`rust-version = "1.85"`. Keep these declarations synchronized with
+`workspace.package.rust-version` when the repository MSRV changes; otherwise,
+the fixture resolvers can accept different dependency versions and split a
+cross-directory update.
+
 ## Spelling policy
 
 `make spelling` enforces en-GB-oxendict spelling over tracked text with the
