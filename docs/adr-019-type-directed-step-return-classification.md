@@ -2,7 +2,8 @@
 
 ## Status
 
-Accepted.
+Accepted (2026-08-29): Dispatch unhinted non-unit step returns through a
+type-directed bridge while preserving explicit hints and value aliases.
 
 ## Date
 
@@ -30,7 +31,8 @@ ergonomics principle is to reduce ceremony where intent can be clearly inferred.
 ## Decision outcome
 
 Step macros still classify literal `()` and `!`, and honour explicit `value` and
-`result` hints. Every other unhinted step return is passed to the hidden
+`result` hints. Every other unhinted step return, apart from classifier-rejected
+nested `Result` and `impl Trait` shapes, is passed to the hidden
 `rstest_bdd::step_return` bridge. `StepReturnProbe<'_, Result<T, E>>` exposes
 an inherent selector method, while a blanket trait supplies the value fallback.
 The selected zero-sized tag then normalizes the original value: `Result` errors

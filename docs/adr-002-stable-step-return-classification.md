@@ -36,7 +36,7 @@ except `Result<_, _>` and `()`” without overlapping-impl conflicts.
 Move literal return-value normalization into macro expansion:
 
 - The step macros inspect the user function signature and classify the return
-  type as one of: unit, value, result-unit, result-value.
+  type as one of the following: unit, value, result-unit, result-value.
 - The generated wrapper body contains a specialized code path for literal
   unit returns and explicit overrides, avoiding overlapping trait
   implementations.

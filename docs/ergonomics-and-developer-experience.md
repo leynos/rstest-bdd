@@ -239,7 +239,8 @@ This requires changes to both the runtime and macro crates.
    **`crates/rstest-bdd-macros/src/codegen/wrapper/emit.rs`**):**
 
     - The generated wrapper normalizes the returned value. Literal unit returns
-      take the unit path; other unhinted types use the runtime dispatch bridge
+      take the unit path; other unhinted types, apart from classifier-rejected
+      nested `Result` and `impl Trait` shapes, use the runtime dispatch bridge
       to distinguish a concrete `Result<T, E>` from a value alias.
       - `Ok(value)` is captured and `Err(error)` is propagated without storing
         a value. Genuine value aliases and result-containing wrappers remain

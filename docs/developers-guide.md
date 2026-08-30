@@ -970,6 +970,21 @@ call-sites: they probe the returned value, call the sealed normalizer by path,
 and pass the original value exactly once. Downstream step code must not invoke,
 implement, or re-export the bridge.
 
+The bridge's regression coverage uses existing test-only development
+dependencies: `anyhow` in `rstest-bdd` exercises the real `anyhow::Result`
+surface, while `insta` in `rstest-bdd` and `rstest-bdd-macros` pins the emitted
+dispatch tokens. Neither dependency is part of the production dependency
+graph. Run the runtime dispatch table and emission snapshot with:
+
+```bash
+cargo test -p rstest-bdd --test step_return_dispatch
+cargo test -p rstest-bdd-macros --lib \
+  codegen::wrapper::emit::call_expr::tests
+```
+
+Refresh the macro snapshot deliberately by prefixing the second command with
+`INSTA_UPDATE=always`, then review the changed snapshot before committing it.
+
 The bridge composes only from macro-generated wrappers through the resolved
 `rstest_bdd` crate path. The inherent `Result` selector and blanket value trait
 must retain their shared by-value method name; that method-resolution
