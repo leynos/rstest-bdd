@@ -26,6 +26,9 @@ updates:
       - "/crates/rstest-bdd/tests/fixtures_macros"
       - "/crates/rstest-bdd/tests/ui_macros"
       - "/crates/rstest-bdd/tests/ui_lints"
+    groups:
+      cargo-by-dependency:
+        group-by: dependency-name
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
