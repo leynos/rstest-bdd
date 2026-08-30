@@ -57,7 +57,11 @@ pub fn discover_workspace(path: &Path) -> Result<WorkspaceInfo, ServerError> {
         .no_deps()
         .exec()?;
 
-    let packages = metadata.packages.iter().map(|p| p.name.clone()).collect();
+    let packages = metadata
+        .packages
+        .iter()
+        .map(|package| package.name.to_string())
+        .collect();
 
     Ok(WorkspaceInfo {
         root: metadata.workspace_root.into_std_path_buf(),

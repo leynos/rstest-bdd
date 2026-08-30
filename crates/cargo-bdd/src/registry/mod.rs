@@ -7,10 +7,13 @@ use std::{
     process::{Child, Command, Stdio},
 };
 
-use cargo_metadata::{Message, Package, PackageId, Target};
 use eyre::{Context, Result, bail, eyre};
 use serde::Deserialize;
 use tracing::warn;
+
+
+//! Registry collection helpers shared by the CLI subcommands.
+};
 
 /// Registry step entry including location metadata and execution status.
 #[derive(Debug, Deserialize, Clone)]
@@ -127,10 +130,11 @@ pub(crate) fn collect_registry() -> Result<RegistryDump> {
 
 /// Return whether workspace metadata contains at least one test target.
 fn has_test_targets(metadata: &cargo_metadata::Metadata) -> bool {
-    metadata
-        .packages
-        .iter()
-        .any(|p| p.targets.iter().any(|t| t.kind.iter().any(|k| k == "test")))
+    metadata.packages.iter().any(|p| {
+        p.targets
+            .iter()
+            .any(|target| target.kind.iter().any(|kind| kind == &TargetKind::Test))
+    })
 }
 
 /// Build workspace test targets and return their executable paths.
@@ -176,7 +180,7 @@ fn workspace_packages<'a>(
 fn test_targets(targets: &[Target]) -> impl Iterator<Item = &Target> + '_ {
     targets
         .iter()
-        .filter(|t| t.kind.iter().any(|k| k == "test"))
+        .filter(|target| target.kind.iter().any(|kind| kind == &TargetKind::Test))
 }
 
 /// Parse Cargo's JSON messages and collect test executable paths.
@@ -328,7 +332,11 @@ pub(crate) fn is_unrecognized_dump_steps(stderr: &str) -> bool {
 pub(crate) fn extract_test_executable(msg: &Message) -> Option<PathBuf> {
     match msg {
         Message::CompilerArtifact(artefact)
-            if artefact.target.kind.iter().any(|kind| kind == "test") =>
+            if artefact
+                .target
+                .kind
+                .iter()
+                .any(|kind| kind == &TargetKind::Test) =>
         {
             artefact.executable.clone().map(PathBuf::from)
         }
