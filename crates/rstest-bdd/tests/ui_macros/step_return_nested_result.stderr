@@ -1,0 +1,5 @@
+error: unhinted step returns may not nest `Result`; use an explicit `value` or `result` hint
+ --> tests/ui_macros/step_return_nested_result.rs:6:23
+  |
+6 | fn nested_result() -> Result<Result<(), &'static str>, &'static str> { Ok(Ok(())) }
+  |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

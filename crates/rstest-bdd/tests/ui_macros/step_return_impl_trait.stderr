@@ -1,0 +1,5 @@
+error: unhinted step returns may not use `impl Trait`; use an explicit `value` or `result` hint
+ --> tests/ui_macros/step_return_impl_trait.rs:6:23
+  |
+6 | fn opaque_result() -> impl std::fmt::Debug { Ok::<(), &'static str>(()) }
+  |                       ^^^^^^^^^^^^^^^^^^^^

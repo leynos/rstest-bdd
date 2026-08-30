@@ -17,6 +17,11 @@ After bumping workspace versions:
   `rstest-bdd-harness-gpui` surface separately from the stable workspace test
   matrix.
 
+`rstest-bdd-macros` generated wrappers reference the hidden
+`rstest_bdd::step_return` bridge. Release compatible macro and runtime versions
+together: a newer macro with an older runtime lacks that bridge, while a newer
+runtime remains compatible with generated wrappers that do not use it.
+
 `rstest-bdd-harness-gpui` remains developed against the workspace-local GPUI
 shim through a `version` plus `path` workspace dependency, so local builds use
 the stable-compatible shim while the publish path still declares the matching

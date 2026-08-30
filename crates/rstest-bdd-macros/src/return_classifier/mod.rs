@@ -1,10 +1,16 @@
 //! Return type classification for step wrappers.
 //!
 //! `rstest-bdd` step macros generate wrapper functions that normalize user step
-//! return values into a common representation. On stable Rust, we cannot rely
-//! on overlapping trait impls (nor negative impls) to differentiate between
-//! `T`, `()`, and `Result<..>`, so we perform best-effort classification during
-//! macro expansion instead.
+//! return values into a common representation. The retained syntactic
+//! classifier recognizes unit, never, and spelled `Result` paths during macro
+//! expansion, but it cannot resolve local type aliases.
+//!
+//! Unhinted non-unit step returns therefore use runtime dispatch through
+//! `rstest_bdd::step_return`. That bridge resolves the concrete return type:
+//! an unhinted local alias of `Result<T, E>` dispatches as `Result`, while a
+//! genuine value alias remains a value. Explicit `result` and `value` hints
+//! retain their override roles, respectively forcing fallible normalization or
+//! payload treatment.
 //!
 //! ## Recognized Result paths
 //!
@@ -16,10 +22,9 @@
 //! - `rstest_bdd::StepResult<..>`, `crate::StepResult<..>`, `self::StepResult<..>`,
 //!   `super::StepResult<..>`
 //!
-//! User-defined type aliases (e.g., `type MyResult<T> = Result<T, MyError>`)
-//! are **not** resolved at macro expansion time. The explicit `result` hint
-//! opts into a wrapper shape that expects `Result<..>` semantics and allows
-//! aliases to compile as long as the return type is ultimately `Result`-like.
+//! These paths are a syntactic fast path only. Other unhinted non-unit return
+//! types, including user-defined aliases, are classified by the runtime
+//! dispatch bridge.
 
 use syn::{Path, ReturnType, Type};
 
@@ -43,6 +48,64 @@ pub(crate) enum ReturnOverride {
     Result,
     /// Force treating the return type as a value payload.
     Value,
+}
+
+/// How a step wrapper normalizes a returned value.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum StepReturnStrategy {
+    /// The step returns unit or has no explicit return type.
+    Unit,
+    /// The step diverges and needs no normalization.
+    Never,
+    /// The compiler selects either the `Result` or value normalization arm.
+    Dispatch,
+    /// The `value` hint forces payload treatment.
+    ForcedValue,
+    /// The `result` hint forces fallible treatment.
+    ForcedResult,
+}
+
+/// Classify a step return type without guessing whether a named type is `Result`.
+pub(crate) fn classify_step_return_type(
+    output: &ReturnType,
+    override_hint: Option<ReturnOverride>,
+) -> syn::Result<StepReturnStrategy> {
+    let ty = match output {
+        ReturnType::Default => return Ok(StepReturnStrategy::Unit),
+        ReturnType::Type(_, ty) => ty.as_ref(),
+    };
+
+    if is_unit_type(ty) {
+        return Ok(StepReturnStrategy::Unit);
+    }
+    if matches!(ty, Type::Never(_)) {
+        return Ok(StepReturnStrategy::Never);
+    }
+
+    match override_hint {
+        Some(ReturnOverride::Value) => Ok(StepReturnStrategy::ForcedValue),
+        Some(ReturnOverride::Result) => {
+            if is_definitely_non_result_type(ty) {
+                Err(syn::Error::new_spanned(
+                    ty,
+                    "return override `result` requires a return type shaped like `Result<T, E>` \
+                     or `StepResult<T, E>`",
+                ))
+            } else {
+                Ok(StepReturnStrategy::ForcedResult)
+            }
+        }
+        None if is_nested_result_type(ty) => Err(syn::Error::new_spanned(
+            ty,
+            "unhinted step returns may not nest `Result`; use an explicit `value` or `result` hint",
+        )),
+        None if matches!(ty, Type::ImplTrait(_)) => Err(syn::Error::new_spanned(
+            ty,
+            "unhinted step returns may not use `impl Trait`; use an explicit `value` or `result` \
+             hint",
+        )),
+        None => Ok(StepReturnStrategy::Dispatch),
+    }
 }
 
 /// Classify a function return type into one of the supported wrapper shapes.
@@ -100,6 +163,16 @@ fn classify_result_like(ty: &Type) -> Option<ReturnKind> {
     }
 
     None
+}
+
+/// Returns whether a syntactically known result has another result as its payload.
+fn is_nested_result_type(ty: &Type) -> bool {
+    let Type::Path(type_path) = ty else {
+        return false;
+    };
+    is_result_like_path(&type_path.path)
+        && first_type_argument(&type_path.path)
+            .is_some_and(|inner| classify_result_like(inner).is_some())
 }
 
 /// Check if a type is the literal unit type `()`.

@@ -4,18 +4,10 @@ use rstest::fixture;
 use rstest_bdd::StepResult;
 use rstest_bdd_macros::{given, scenario, then, when};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct Number(i32);
+#[path = "common/step_return_support.rs"]
+mod step_return_support;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct PrimaryValue(i32);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct SecondaryValue(i32);
-
-#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
-#[fixture]
-fn number() -> Number { Number(1) }
+use step_return_support::{Number, PrimaryValue, SecondaryValue, number};
 
 #[given("base number is 1")]
 fn base(number: Number) {
@@ -91,6 +83,8 @@ fn stepresult_increment_fails(number: Number) -> StepResult<Number, &'static str
 }
 
 type AliasResult<T> = Result<T, &'static str>;
+type MyResult<T> = Result<T, &'static str>;
+type Score = u32;
 
 #[when(result)]
 #[expect(
@@ -107,6 +101,58 @@ fn alias_increment_fails(number: Number) -> AliasResult<Number> {
     assert_eq!(number.0, 1);
     Err("alias failure")
 }
+
+#[when("an unhinted alias fails")]
+fn unhinted_alias_fails(number: Number) -> MyResult<Number> {
+    assert_eq!(number.0, 1);
+    Err("alias failure")
+}
+
+#[when("an anyhow result fails")]
+fn anyhow_result_fails() -> anyhow::Result<()> { Err(anyhow::anyhow!("anyhow failure")) }
+
+#[when("an io result fails")]
+fn io_result_fails() -> std::io::Result<()> { Err(std::io::Error::other("io failure")) }
+
+#[when("an unhinted alias overrides the number")]
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "step intentionally returns a Result alias to exercise payload normalization"
+)]
+fn unhinted_alias_overrides_number(number: Number) -> MyResult<Number> {
+    assert_eq!(number.0, 1);
+    Ok(Number(2))
+}
+
+#[when("an async unhinted alias fails")]
+async fn async_unhinted_alias_fails(number: Number) -> MyResult<()> {
+    assert_eq!(number.0, 1);
+    tokio::task::yield_now().await;
+    Err("async alias failure")
+}
+
+#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
+#[fixture]
+fn score() -> Score { 1 }
+
+#[given("the score is 1")]
+fn score_is_one(score: Score) {
+    assert_eq!(score, 1);
+}
+
+#[when("the score is increased")]
+fn increase_score(score: Score) -> Score {
+    assert_eq!(score, 1);
+    2
+}
+
+#[then("the score is 2")]
+fn score_is_two(score: Score) {
+    assert_eq!(score, 2);
+}
+
+#[when("a boxed result is returned")]
+fn boxed_result_is_returned() -> Box<Result<(), &'static str>> { Box::new(Err("boxed failure")) }
 
 #[when(value)]
 fn value_increment_succeeds(number: Number) -> Number {
@@ -227,3 +273,29 @@ fn scenario_alias_override_success(number: Number) { let _ = number; }
 #[scenario(path = "tests/features/step_return_alias_override.feature")]
 #[should_panic(expected = "alias failure")]
 fn scenario_alias_override_failure(number: Number) { let _ = number; }
+
+#[scenario(path = "tests/features/step_return_alias_no_hint_failure.feature")]
+#[should_panic(expected = "alias failure")]
+fn scenario_alias_no_hint_failure(_number: Number) {}
+
+#[scenario(path = "tests/features/step_return_anyhow_failure.feature")]
+#[should_panic(expected = "anyhow failure")]
+fn scenario_anyhow_failure() {}
+
+#[scenario(path = "tests/features/step_return_io_result_failure.feature")]
+#[should_panic(expected = "io failure")]
+fn scenario_io_result_failure() {}
+
+#[scenario(path = "tests/features/step_return_alias_ok_overrides_fixture.feature")]
+fn scenario_alias_ok_overrides_fixture(_number: Number) {}
+
+#[scenario(path = "tests/features/step_return_alias_async_failure.feature")]
+#[tokio::test(flavor = "current_thread")]
+#[should_panic(expected = "async alias failure")]
+async fn scenario_alias_async_failure(_number: Number) {}
+
+#[scenario(path = "tests/features/step_return_genuine_value_alias.feature")]
+fn scenario_genuine_value_alias(_score: Score) {}
+
+#[scenario(path = "tests/features/step_return_boxed_result.feature")]
+fn scenario_boxed_result() {}

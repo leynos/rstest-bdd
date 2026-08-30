@@ -13,7 +13,7 @@ use super::{
     call_expr::generate_call_expression,
     errors::{WrapperErrors, prepare_wrapper_errors},
 };
-use crate::return_classifier::ReturnKind;
+use crate::return_classifier::StepReturnStrategy;
 
 mod async_wrapper;
 mod body;
@@ -41,8 +41,8 @@ struct WrapperAssembly<'a> {
     arg_idents: Vec<syn::Ident>,
     /// Stores the internal `capture_count` value.
     capture_count: usize,
-    /// Stores the internal `return_kind` value.
-    return_kind: ReturnKind,
+    /// Stores the internal `strategy` value.
+    strategy: StepReturnStrategy,
 }
 
 /// Identifiers used during wrapper generation.
@@ -285,19 +285,19 @@ fn assemble_wrapper_function(
         mut prepared,
         arg_idents,
         capture_count,
-        return_kind,
+        strategy,
     } = assembly;
     let WrapperIdentifiers {
         text: text_ident, ..
     } = identifiers;
     let errors = prepare_wrapper_errors(meta, text_ident);
     let StepMeta { ident, .. } = meta;
-    let call_expr = generate_call_expression(return_kind, ident, &arg_idents, is_async_step);
+    let call_expr = generate_call_expression(strategy, ident, &arg_idents, is_async_step);
     let lint_config = WrapperLintConfig {
         capture_count,
         has_step_struct: prepared.step_struct_decl.is_some(),
         has_step_arg_quote_strip: prepared.has_step_arg_quote_strip,
-        return_kind,
+        strategy,
         wrapper_kind,
     };
     prepared.expect_lints = wrapper_expect_lint_paths(lint_config);

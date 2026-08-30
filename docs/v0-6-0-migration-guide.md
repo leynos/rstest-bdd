@@ -21,6 +21,10 @@ that need a new testing practice to be useful.
 - `StepContext::insert_value` now returns `InsertOutcome` instead of
   `Option<Box<dyn Any>>`. Only code that calls `insert_value` directly is
   affected; generated scenario code is updated by the macros.
+- Scenarios that previously passed may now correctly fail when a step's local
+  alias of `Result<T, E>` returns `Err`. Successful aliases now inject `T`
+  rather than boxing the whole `Result<T, E>` as a payload, and their error
+  type must implement `Display`.
 - Rust indexing entry points now return `RustStepIndexResult` on successful
   reads and parses. Update callers of `index_rust_file` and `index_rust_source`
   to consume the owned `.index` and inspect its recoverable `.diagnostics`;
@@ -126,6 +130,20 @@ Harnesses selected by `#[scenario(..., harness = ...)]` or
 `scenarios!(..., harness = ...)` are instantiated with `Default`, so custom
 harness types used through the macros must implement both `HarnessAdapter` and
 `Default`.
+
+### Audit step return aliases
+
+Step wrappers now classify unhinted non-unit returns by their concrete type. An
+alias of `Result<T, E>` propagates `Err` and uses the `T` from `Ok(T)` as the
+fixture override. This corrects the former false green where an `Err` was boxed
+as an unused value and the scenario passed. It can reveal an assertion failure
+in a scenario that used to appear green.
+
+The migration also changes the successful payload shape: code that depended on
+a dropped `Result<T, E>` payload now receives `T` and can override a matching
+fixture. The `E` type must implement `Display`; implement `Display` for the
+error type. That is the only supported remedy, because the framework renders
+step errors through that trait.
 
 ### Update direct `insert_value` callers
 
@@ -711,6 +729,10 @@ receives a fresh one, so `UiWorld` still keeps only the durable `Entity<T>` and
   `request.run_without_context()` for unit-context harnesses.
 - [ ] Make scenarios return `Result` or `StepResult` before passing
   `Result<T, E>` or `StepResult<T, E>` fixtures by value.
+- [ ] Audit named step return aliases. Confirm fallible aliases return errors
+  that implement `Display`, and confirm `Ok(T)` overrides a matching `T`
+  fixture only when exactly one matching `TypeId` exists; missing or ambiguous
+  matches leave fixtures unchanged.
 - [ ] Add `rstest-bdd-harness-tokio` or `rstest-bdd-harness-gpui` only to test
   targets that need those framework integrations.
 - [ ] Remove redundant paired first-party `attributes = ...` arguments from
@@ -746,6 +768,10 @@ receives a fresh one, so `UiWorld` still keeps only the durable `Entity<T>` and
 - **Error:** fixture parameter borrows a result-like type
   - **Fix:** Pass the fixture as owned `Result<T, E>` or `StepResult<T, E>`,
     and make the scenario return a compatible fallible type.
+- **Error:** `a step's error type \`MyError\` must implement
+  \`std::fmt::Display\``
+  - **Fix:** Implement `Display` for `MyError`. Step errors are rendered through
+    `Display`; do not try to restore the old boxed-payload behaviour.
 - **Error:** an underscore-prefixed parameter no longer resolves to the
   expected fixture
   - **Fix:** Use `#[from(_fixture_name)]` when the literal fixture key starts

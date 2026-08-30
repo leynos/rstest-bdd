@@ -22,8 +22,9 @@ use super::{
     WrapperKind,
     assemble_wrapper_function,
 };
-use crate::return_classifier::ReturnKind;
+use crate::return_classifier::StepReturnStrategy;
 
+/// Renders a syntax path for assertions on generated attributes.
 fn path_to_string(path: &syn::Path) -> String {
     path.segments
         .iter()
@@ -32,6 +33,7 @@ fn path_to_string(path: &syn::Path) -> String {
         .join("::")
 }
 
+/// Extracts a string-valued lint reason from attribute metadata.
 fn extract_reason_from_meta(name_value: &syn::MetaNameValue) -> Option<String> {
     if let syn::Expr::Lit(syn::ExprLit {
         lit: syn::Lit::Str(lit_str),
@@ -44,6 +46,7 @@ fn extract_reason_from_meta(name_value: &syn::MetaNameValue) -> Option<String> {
     }
 }
 
+/// Collects expected lint names into the comparison representation.
 fn expected_lints(lints: &[&str]) -> HashSet<String> {
     lints.iter().map(|lint| (*lint).to_owned()).collect()
 }
@@ -83,10 +86,11 @@ fn parse_expect_attribute(wrapper_fn: &syn::ItemFn) -> (HashSet<String>, Option<
     (lint_names, reason, unexpected_meta)
 }
 
+/// Generates and parses a representative wrapper for structural assertions.
 fn assemble_wrapper_for_test(
     prepared: PreparedArgs,
     capture_count: usize,
-    return_kind: ReturnKind,
+    strategy: StepReturnStrategy,
 ) -> syn::ItemFn {
     let wrapper_ident = format_ident!("__rstest_bdd_wrapper_test");
     let pattern_ident = format_ident!("__RSTEST_BDD_PATTERN_TEST");
@@ -110,7 +114,7 @@ fn assemble_wrapper_for_test(
             prepared,
             arg_idents: Vec::new(),
             capture_count,
-            return_kind,
+            strategy,
         },
         WrapperKind::Sync,
         false,
@@ -127,7 +131,7 @@ struct WrapperTestConfig {
     step_struct_decl: Option<proc_macro2::TokenStream>,
     has_step_arg_quote_strip: bool,
     capture_count: usize,
-    return_kind: ReturnKind,
+    strategy: StepReturnStrategy,
 }
 
 /// Helper to assert that a wrapper emits the expected Clippy expect attribute.
@@ -136,7 +140,7 @@ fn assert_wrapper_expect_lints(config: WrapperTestConfig, expected_lint_names: &
         step_struct_decl,
         has_step_arg_quote_strip,
         capture_count,
-        return_kind,
+        strategy,
     } = config;
     let prepared = PreparedArgs {
         declares: Vec::new(),
@@ -147,7 +151,7 @@ fn assert_wrapper_expect_lints(config: WrapperTestConfig, expected_lint_names: &
         expect_lints: Vec::new(),
         has_step_arg_quote_strip,
     };
-    let wrapper_fn = assemble_wrapper_for_test(prepared, capture_count, return_kind);
+    let wrapper_fn = assemble_wrapper_for_test(prepared, capture_count, strategy);
     let (lint_names, reason, unexpected_meta) = parse_expect_attribute(&wrapper_fn);
 
     let expected = expected_lints(expected_lint_names);
@@ -166,7 +170,7 @@ fn assert_wrapper_expect_lints(config: WrapperTestConfig, expected_lint_names: &
         step_struct_decl: None,
         has_step_arg_quote_strip: true,
         capture_count: 1,
-        return_kind: ReturnKind::Unit,
+        strategy: StepReturnStrategy::Unit,
     },
     &[
         LINT_SHADOW_REUSE,
@@ -181,7 +185,7 @@ fn assert_wrapper_expect_lints(config: WrapperTestConfig, expected_lint_names: &
         step_struct_decl: Some(quote! {}),
         has_step_arg_quote_strip: false,
         capture_count: 1,
-        return_kind: ReturnKind::ResultValue,
+        strategy: StepReturnStrategy::Dispatch,
     },
     &[
         LINT_STR_TO_STRING,

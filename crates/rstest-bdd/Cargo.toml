@@ -35,6 +35,7 @@ unic-langid.workspace = true
 tokio.workspace = true
 
 [dev-dependencies]
+anyhow = "1.0.104"
 camino.workspace = true
 cap-std.workspace = true
 insta.workspace = true

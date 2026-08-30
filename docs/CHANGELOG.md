@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Scenarios that previously passed may now correctly fail: unhinted steps that
+  return a local alias of `Result<T, E>` now propagate `Err` rather than boxing
+  it as a payload. `Ok(T)` injects `T`, and `E` must implement `Display`.
+
 - `StepContext::insert_value` now returns an `InsertOutcome` enum instead of
   `Option<Box<dyn Any>>`, distinguishing a recorded override (carrying any
   displaced previous override) from values dropped because no fixture matches

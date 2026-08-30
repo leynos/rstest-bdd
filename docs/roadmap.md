@@ -904,17 +904,16 @@ changing the public trait contracts.
   vendored-to-published mapping table, and `make check-published-gpui` compiles
   the fixture with `--locked` under `-D warnings`, wired into CI. The fixture
   is also under `make fmt` and `make check-fmt`, which do not otherwise reach a
-  nested workspace. Delivered 2026-08-28:
-  `tests/fixtures/published-gpui-e2e/` now packages and extracts first-party
-  artefacts, allowing its patched harness to resolve crates.io `gpui 0.2.2`
-  without the workspace's vendored path. Its local `nightly-2026-08-07`
-  toolchain runs both stateful Given/When/Then scenarios through `GpuiHarness`,
-  including the published constructor, direct entity read/update return values,
-  and durable-handle identity. The explicit `make e2e-published-gpui`
-  CI/release gate leaves the stable workspace matrix unchanged. This closes the
-  executable verification caveat from leynos/rstest-bdd#575 and
-  leynos/rstest-bdd#610 while following the packaged dependency-isolation
-  approach from leynos/rstest-bdd#482. Validation: run
+  nested workspace. Delivered 2026-08-28: `tests/fixtures/published-gpui-e2e/`
+  now packages and extracts first-party artefacts, allowing its patched harness
+  to resolve crates.io `gpui 0.2.2` without the workspace's vendored path. Its
+  local `nightly-2026-08-07` toolchain runs both stateful Given/When/Then
+  scenarios through `GpuiHarness`, including the published constructor, direct
+  entity read/update return values, and durable-handle identity. The explicit
+  `make e2e-published-gpui` CI/release gate leaves the stable workspace matrix
+  unchanged. This closes the executable verification caveat from
+  leynos/rstest-bdd#575 and leynos/rstest-bdd#610 while following the packaged
+  dependency-isolation approach from leynos/rstest-bdd#482. Validation: run
   `make e2e-published-gpui` alongside the existing stable quality gates.
 
 > **Note (dual-track maintenance):** items 10.2.4 and 10.2.5 introduce a
@@ -1065,16 +1064,18 @@ This hardening step closes two failure modes found by the gauss beta trial. It
 asks whether every fallible step and scenario result is observably consumed, so
 an assertion cannot disappear behind macro classification or generated code.
 
-- [ ] 11.3.1. A step returning a local alias of `Result<T, E>` cannot silently
-  pass when it returns `Err`. Adopt an explicit, stable classification contract
-  for syntactically unresolved return types, with a migration diagnostic or
-  required `result`/`value` hint where the macro cannot prove the return kind.
-  Preserve ordinary value-returning steps without guessing that every alias is
-  fallible. Finish line: compile and runtime regressions cover an alias that
-  returns `Err`, spelled `Result`, `StepResult`, an alias explicitly marked
-  `result`, and a genuine value alias; no `Err` case is boxed and discarded as
-  an opaque payload. ADR: `docs/adr-002-stable-step-return-classification.md`.
-  Design Doc: `docs/rstest-bdd-design.md` §2.1. Origin: `leynos/rstest-bdd#573`
+- [x] 11.3.1. A step returning a local alias of `Result<T, E>` cannot silently
+  pass when it returns `Err`. The v0.6.0 type-directed classification contract
+  dispatches unhinted non-unit step returns by concrete type, while explicit
+  `result`/`value` hints retain their override role. Preserve ordinary
+  value-returning steps without guessing that every alias is fallible. Finish
+  line: compile and runtime regressions cover an alias that returns `Err`,
+  spelled `Result`, `StepResult`, an alias explicitly marked `result`, and a
+  genuine value alias; no `Err` case is boxed and discarded as an opaque
+  payload. ADRs: `docs/adr-002-stable-step-return-classification.md` and
+  `docs/adr-019-type-directed-step-return-classification.md`. Design Doc:
+  `docs/rstest-bdd-design.md` §3.8. Landed in v0.6.0 despite this item's
+  physical placement under the v0.7.0 heading. Origin: `leynos/rstest-bdd#573`
   and the gauss v0.6.0-beta3 validation matrix.
 - [x] 11.3.2. Harness-generated tests consume the result of fallible scenario
   functions, including under `GpuiHarness`, without triggering

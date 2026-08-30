@@ -26,132 +26,30 @@
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{
-    parse::{Parse, ParseStream},
-    parse_quote,
-};
+use syn::parse_quote;
 
 mod given;
 mod scenario;
 pub(crate) mod scenarios;
+mod step_attr_args;
 mod then;
 mod when;
 
 pub(crate) use given::given;
 pub(crate) use scenario::scenario;
 pub(crate) use scenarios::scenarios;
+use step_attr_args::StepAttrArgs;
 pub(crate) use then::then;
 pub(crate) use when::when;
 
 use crate::{
     codegen::wrapper::{WrapperConfig, args::ExtractedArgs, extract_args, generate_wrapper_code},
-    return_classifier::{ReturnKind, ReturnOverride, classify_return_type},
+    return_classifier::{StepReturnStrategy, classify_step_return_type},
     utils::{
         errors::error_to_tokens,
         pattern::{infer_pattern, placeholder_names},
     },
 };
-
-/// Parsed arguments for step attribute macros.
-///
-/// Supports an optional step pattern literal and an optional return override hint.
-struct StepAttrArgs {
-    /// Stores the internal `pattern` value.
-    pattern: Option<syn::LitStr>,
-    /// Stores the internal `return_override` value.
-    return_override: Option<ReturnOverride>,
-}
-
-impl Parse for StepAttrArgs {
-    fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
-        if input.is_empty() {
-            return Ok(Self {
-                pattern: None,
-                return_override: None,
-            });
-        }
-
-        // Check for expr = "..." syntax (cucumber-rs compatibility)
-        if input.peek(syn::Ident) {
-            if let Some(result) = try_parse_expr_syntax(input)? {
-                return Ok(result);
-            }
-        }
-
-        if input.peek(syn::LitStr) {
-            let pattern: syn::LitStr = input.parse()?;
-            let return_override = parse_optional_return_override(input)?;
-            return Ok(Self {
-                pattern: Some(pattern),
-                return_override,
-            });
-        }
-
-        let return_override = Some(parse_return_override(input)?);
-        if !input.is_empty() {
-            return Err(input.error("unexpected tokens in step attribute"));
-        }
-        Ok(Self {
-            pattern: None,
-            return_override,
-        })
-    }
-}
-
-/// Try to parse `expr = "pattern"` syntax, returning `Some(StepAttrArgs)` if successful.
-fn try_parse_expr_syntax(input: ParseStream<'_>) -> syn::Result<Option<StepAttrArgs>> {
-    let fork = input.fork();
-    let Ok(ident) = fork.parse::<syn::Ident>() else {
-        return Ok(None);
-    };
-
-    if ident != "expr" || !fork.peek(syn::Token![=]) {
-        return Ok(None);
-    }
-
-    // Commit to expr syntax branch
-    let _: syn::Ident = input.parse()?;
-    input.parse::<syn::Token![=]>()?;
-    let pattern: syn::LitStr = input.parse()?;
-    let return_override = parse_optional_return_override(input)?;
-
-    Ok(Some(StepAttrArgs {
-        pattern: Some(pattern),
-        return_override,
-    }))
-}
-
-/// Parse optional return override after a comma, and verify no trailing tokens remain.
-fn parse_optional_return_override(input: ParseStream<'_>) -> syn::Result<Option<ReturnOverride>> {
-    let return_override = if input.is_empty() {
-        None
-    } else {
-        input.parse::<syn::Token![,]>()?;
-        Some(parse_return_override(input)?)
-    };
-
-    if !input.is_empty() {
-        return Err(input.error("unexpected tokens in step attribute"));
-    }
-
-    Ok(return_override)
-}
-
-/// Parse the return override hint for a step attribute.
-///
-/// Accepts either `result` (treat the step return type as Result-like) or
-/// `value` (treat the step return type as a non-Result payload).
-fn parse_return_override(input: ParseStream<'_>) -> syn::Result<ReturnOverride> {
-    let ident: syn::Ident = input.parse()?;
-    match ident.to_string().as_str() {
-        "result" => Ok(ReturnOverride::Result),
-        "value" => Ok(ReturnOverride::Value),
-        _ => Err(syn::Error::new_spanned(
-            ident,
-            "expected `result` or `value`",
-        )),
-    }
-}
 
 /// Determine the step pattern literal for a step function.
 ///
@@ -279,8 +177,8 @@ struct WrapperInputs<'a> {
     placeholder_names: &'a [syn::LitStr],
     /// Stores the internal `placeholder_hints` value.
     placeholder_hints: &'a [Option<String>],
-    /// Stores the internal `return_kind` value.
-    return_kind: ReturnKind,
+    /// Stores the internal `strategy` value.
+    strategy: StepReturnStrategy,
 }
 
 /// Build wrapper configuration from [`WrapperInputs`] and emit the wrapper tokens.
@@ -294,7 +192,7 @@ fn build_and_generate_wrapper(inputs: &WrapperInputs<'_>) -> proc_macro2::TokenS
         placeholder_names: inputs.placeholder_names,
         placeholder_hints: inputs.placeholder_hints,
         capture_count: inputs.placeholder_names.len(),
-        return_kind: inputs.return_kind,
+        strategy: inputs.strategy,
     };
     generate_wrapper_code(&config)
 }
@@ -339,7 +237,7 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) 
         .iter()
         .map(|info| info.hint.clone())
         .collect();
-    let return_kind = match classify_return_type(&func.sig.output, attr_args.return_override) {
+    let strategy = match classify_step_return_type(&func.sig.output, attr_args.return_override) {
         Ok(kind) => kind,
         Err(err) => return error_to_tokens(&err).into(),
     };
@@ -351,7 +249,7 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) 
         args: &args,
         placeholder_names: &placeholder_literals,
         placeholder_hints: &placeholder_hints,
-        return_kind,
+        strategy,
     });
 
     TokenStream::from(quote! {

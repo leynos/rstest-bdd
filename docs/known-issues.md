@@ -1,5 +1,23 @@
 # Known issues
 
+## Result-containing wrapper returns remain payloads
+
+- **Status:** Open by design; tracked by ADR-019.
+- **Affected usage:** Steps returning `Box<Result<..>>`, `Option<Result<..>>`,
+  `&Result<..>`, or a type with `Deref<Target = Result<..>>`.
+- **Symptom:** The outer type is treated as a value. An `Err` inside it is not
+  propagated as a scenario failure and can be stored as a payload.
+- **Reproduction:** See the `boxed_result`, `optional_result`,
+  `reference_result`, and `deref_result` cases in
+  `crates/rstest-bdd/tests/step_return_dispatch.rs` and the behavioural
+  `step_return_boxed_result.feature` regression.
+- **Workaround:** Return `Result<T, E>` directly, or use `#[when(result)]`
+  when the return is itself result-like and the explicit interpretation is
+  intentional.
+- **Next steps:** Keep the structural regressions. Do not add dereferencing or
+  unwrapping to the classifier without a new ADR: those changes redefine which
+  user values are payloads.
+
 ## rustc internal compiler error (ICE) with mutable world macro
 
 - **Status:** Open; gated by the `mutable_world_macro` Cargo feature.

@@ -398,28 +398,17 @@ still allowing a functional style without mutable fixtures.
 Steps may also return `Result<T, E>`. An `Err` aborts the scenario, while an
 `Ok` value is injected as above.
 
-The step macros recognize these `Result` shapes during expansion:
+Unhinted non-unit steps are classified by their concrete return type. This
+includes local aliases: an alias of `Result<T, E>` propagates `Err` and injects
+the `T` from `Ok(T)`, while a genuine value alias remains a payload. A result
+containing wrapper such as `Box<Result<T, E>>`, `Option<Result<T, E>>`, or
+`&Result<T, E>` remains a value; the framework does not unwrap user types.
 
-- `Result<..>`, `std::result::Result<..>`, and `core::result::Result<..>`
-- `rstest_bdd::StepResult<..>` (an alias provided by the runtime crate)
-
-When inference cannot determine whether a return type is a `Result` (for
-example, when returning a type alias), prefer returning
-`rstest_bdd::StepResult` or spelling out `Result<..>` in the signature.
-Alternatively, add an explicit return-kind hint: `#[when(result)]` /
-`#[when(value)]`.
-
-The `result`/`value` hints are validated for obvious misconfigurations.
-`result` is rejected for primitive return types. Where `result` is given for an
-alias, the macro cannot validate the underlying definition and trusts the hint,
-assuming `Result<..>` semantics.
-
-Without a hint, an unresolved alias is **not** assumed to be `Result`-like: it
-is classified as a value, so an `Err` is stored as a payload and the step
-passes. Always give an unresolved alias explicit handling: if the alias is
-fallible, spell out `Result<..>` or `rstest_bdd::StepResult<..>`, or add the
-`result` hint. Reserve the `value` hint for an alias that deliberately returns
-a payload — applying it to a real `Result` suppresses its `Err`.
+Use `#[when(result)]` only to force a fallible interpretation for an ambiguous
+form. It is rejected for primitive return types. When used with an alias, the
+compiler verifies that the alias is ultimately `Result`-like. Use
+`#[when(value)]` only when a real `Result` is intentionally the payload,
+because it suppresses that result's `Err`.
 
 Use `#[when("...", value)]` (or `#[when(value)]` when using the inferred
 pattern) to force treating the return value as a payload even when it is

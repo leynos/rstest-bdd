@@ -64,7 +64,8 @@
 - [ADR 001: async fixtures and test](adr-001-async-fixtures-and-test.md)
   records the async fixture and test decision.
 - [ADR 002: stable step return classification][adr-002]
-  records the return-value classification decision for step functions.
+  records the return-value classification decision for step functions, as
+  amended by ADR-019.
 - [ADR 003: scenarios macro fixtures](adr-003-scenarios-macro-fixtures.md)
   records how scenario macros interact with fixtures.
 - [ADR 004: policy crate](adr-004-policy-crate.md) records the decision to
@@ -102,6 +103,8 @@
   adapter fallbacks.
 - [ADR 018: parser-neutral scenario execution][adr-018] records the accepted
   structured scenario plan and runtime runner for non-Gherkin frontends.
+- [ADR 019: type-directed step-return classification][adr-019] records the
+  inherent-method dispatch that makes local `Result` aliases fallible.
 
 ## Execution plans
 
@@ -121,6 +124,7 @@
 [adr-016]: adr-016-pinned-nightly-rustfmt.md
 [adr-017]: adr-017-toolchain-aware-adapter-fallback-diagnostics.md
 [adr-018]: adr-018-parser-neutral-scenario-execution.md
+[adr-019]: adr-019-type-directed-step-return-classification.md
 [complexity-guide]: complexity-antipatterns-and-refactoring-strategies.md
 [cucumber-async]: cucumber-rs-migration-and-async-patterns.md
 [dependency-injection]: reliable-testing-in-rust-via-dependency-injection.md

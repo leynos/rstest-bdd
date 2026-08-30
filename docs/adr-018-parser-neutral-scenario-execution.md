@@ -318,6 +318,9 @@ Both runner forms use that resolved value. Macro-generated tests and external
 frontends must use the same resolution rather than implementing separate
 skip-failure policy.
 
+**Skip-parity matrix.** This matrix defines the step outcome and forced-failure
+value for each combination of `allow_skipped` and `fail_on_skipped`.
+
 | `allow_skipped` | `fail_on_skipped` | Step outcome | `forced_failure` |
 | --------------- | ----------------- | ------------ | ---------------- |
 | `false`         | `false`           | `Skipped`    | `false`          |
@@ -334,14 +337,19 @@ skip as a failure.
 Once a scenario scope begins, cleanup and the after-scenario hook run exactly
 once on every listed terminal path:
 
-| Path                          | Step execution                | After/cleanup | Primary outcome                 |
-| ----------------------------- | ----------------------------- | ------------- | ------------------------------- |
-| Before-hook failure           | No steps run                  | Exactly once  | Before failure wins             |
-| Step pass                     | Eligible steps continue       | Exactly once  | Step results decide             |
-| Step skip                     | Later steps are bypassed      | Exactly once  | Normal skip remains terminal    |
-| Step failure                  | Later steps are bypassed      | Exactly once  | Step failure wins               |
-| Resolution or fixture failure | Later steps are bypassed      | Exactly once  | Resolution/fixture failure wins |
-| Panic or unwind               | Execution stops as applicable | Exactly once  | Panic/step failure wins         |
+**Lifecycle terminal-path matrix.** This matrix describes step execution,
+after/cleanup handling, including after/cleanup failures, and the primary
+outcome for each terminal path.
+
+| Path                          | Step execution                 | After/cleanup | Primary outcome                       |
+| ----------------------------- | ------------------------------ | ------------- | ------------------------------------- |
+| Before-hook failure           | No steps run                   | Exactly once  | Before failure wins                   |
+| Step pass                     | Eligible steps continue        | Exactly once  | Step results decide                   |
+| Step skip                     | Later steps are bypassed       | Exactly once  | Normal skip remains terminal          |
+| Step failure                  | Later steps are bypassed       | Exactly once  | Step failure wins                     |
+| Resolution or fixture failure | Later steps are bypassed       | Exactly once  | Resolution/fixture failure wins       |
+| Panic or unwind               | Execution stops as applicable  | Exactly once  | Panic/step failure wins               |
+| After/cleanup failure         | Steps complete or are bypassed | Exactly once  | Failed when no earlier failure exists |
 
 An after/cleanup failure is retained as a secondary cleanup diagnostic when a
 primary before or step failure exists. When there is no primary failure,

@@ -6,6 +6,7 @@ publish = false
 rust-version = "1.85"
 
 [dependencies]
+anyhow = "1.0.104"
 rstest = "0.26.1"
 rstest-bdd = { path = "../../../rstest-bdd" }
 rstest-bdd-macros = { path = "../../../rstest-bdd-macros" }
