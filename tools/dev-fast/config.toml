@@ -24,7 +24,7 @@ codegen-backend = true
 [profile.dev]
 codegen-backend = "cranelift"
 
-# mold ships for Linux only, so the flag is gated behind a target `cfg`. On
+# `mold` is available on Linux only, so the flag is gated behind a target `cfg`. On
 # macOS and Windows the table simply does not apply and the platform default
 # linker is used.
 [target.'cfg(target_os = "linux")']
