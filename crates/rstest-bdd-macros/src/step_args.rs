@@ -5,14 +5,13 @@
 //! by their placeholder names. Fields use [`FromStr`] unless they configure a
 //! custom parser, enabling the runtime wrapper to construct the struct without
 //! declaration-order coupling.
-
 use std::collections::HashSet;
 
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::quote;
 use syn::{Attribute, DeriveInput, LitStr, parse_quote, spanned::Spanned};
-
+mod field_attributes;
 /// Expand the `StepArgs` derive implementation.
 pub(crate) fn derive(input: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(input as DeriveInput);
@@ -21,7 +20,6 @@ pub(crate) fn derive(input: TokenStream) -> TokenStream {
         Err(err) => err.into_compile_error().into(),
     }
 }
-
 /// Validate the input and generate its `StepArgs` implementations.
 fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
     let DeriveInput {
@@ -45,7 +43,6 @@ fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
     };
     expand_named_struct(&ident, generics, fields, &attrs)
 }
-
 /// Parsed metadata for one named step-argument field.
 struct FieldInfo {
     /// The source field identifier.
@@ -59,7 +56,6 @@ struct FieldInfo {
     /// Optional custom scalar parser.
     parse_with: Option<syn::ExprPath>,
 }
-
 /// Collect and validate metadata for all named fields.
 fn collect_field_info(
     ident: &syn::Ident,
@@ -101,10 +97,8 @@ fn collect_field_info(
             "StepArgs structs must define at least one field",
         ));
     }
-
     Ok(field_infos)
 }
-
 /// Parse the struct-level `step_args(rename_all = "...")` setting.
 fn parse_rename_rule(
     attrs: &[Attribute],
@@ -128,17 +122,15 @@ fn parse_rename_rule(
     }
     Ok(rename_rule)
 }
-
 /// Parsed `#[step_args(...)]` options for one struct field.
-struct StepFieldConfig {
+pub(super) struct StepFieldConfig {
     /// Explicit placeholder name, when it differs from the field name.
-    placeholder: Option<String>,
+    pub(super) placeholder: Option<String>,
     /// Whether surrounding whitespace is removed before parsing.
-    trim: bool,
+    pub(super) trim: bool,
     /// Parser used instead of [`FromStr`] conversion.
-    parse_with: Option<syn::ExprPath>,
+    pub(super) parse_with: Option<syn::ExprPath>,
 }
-
 /// Parse field-level `step_args` configuration.
 fn parse_step_field(attrs: &[Attribute]) -> syn::Result<StepFieldConfig> {
     let mut config = StepFieldConfig {
@@ -151,30 +143,11 @@ fn parse_step_field(attrs: &[Attribute]) -> syn::Result<StepFieldConfig> {
         .filter(|attr| attr.path().is_ident("step_args"))
     {
         attr.parse_nested_meta(|meta| {
-            if meta.path.is_ident("placeholder") {
-                let value: LitStr = meta.value()?.parse()?;
-                if config.placeholder.replace(value.value()).is_some() {
-                    return Err(meta.error("duplicate placeholder attribute"));
-                }
-            } else if meta.path.is_ident("trim") {
-                if config.trim {
-                    return Err(meta.error("duplicate trim attribute"));
-                }
-                config.trim = true;
-            } else if meta.path.is_ident("parse_with") {
-                let parser: syn::ExprPath = meta.value()?.parse()?;
-                if config.parse_with.replace(parser).is_some() {
-                    return Err(meta.error("duplicate parse_with attribute"));
-                }
-            } else {
-                return Err(meta.error("unsupported step_args field attribute"));
-            }
-            Ok(())
+            field_attributes::process_step_field_meta_item(&meta, &mut config)
         })?;
     }
     Ok(config)
 }
-
 /// Add `FromStr` bounds for each generated field parser.
 fn add_fromstr_bounds(generics: &mut syn::Generics, field_infos: &[FieldInfo]) {
     let where_clause = generics.make_where_clause();
@@ -185,7 +158,6 @@ fn add_fromstr_bounds(generics: &mut syn::Generics, field_infos: &[FieldInfo]) {
             .push(parse_quote!(#ty: ::core::str::FromStr));
     }
 }
-
 /// Generate named field parsing expressions and construction metadata.
 fn generate_field_parsing<'a>(
     field_infos: &'a [FieldInfo],
@@ -234,10 +206,8 @@ fn generate_field_parsing<'a>(
     let field_idents = field_infos.iter().map(|info| &info.ident).collect();
     let field_name_literals = field_infos.iter().map(|info| info.name.clone()).collect();
     let field_count = field_infos.len();
-
     (parse_blocks, field_idents, field_name_literals, field_count)
 }
-
 /// Inputs used to generate the `StepArgs` and `TryFrom` implementations.
 struct TraitImplParams<'a> {
     /// The source struct identifier.
@@ -395,5 +365,36 @@ mod tests {
             msg.contains("StepArgs requires named struct fields"),
             "unexpected error: {msg}"
         );
+    }
+
+    #[test]
+    fn rejects_invalid_step_args_field_attributes() {
+        for (attribute, diagnostic) in [
+            (
+                quote!(#[step_args(placeholder = "first", placeholder = "second")]),
+                "duplicate placeholder attribute",
+            ),
+            (quote!(#[step_args(trim, trim)]), "duplicate trim attribute"),
+            (
+                quote!(#[step_args(parse_with = parse_one, parse_with = parse_two)]),
+                "duplicate parse_with attribute",
+            ),
+            (
+                quote!(#[step_args(unsupported)]),
+                "unsupported step_args field attribute",
+            ),
+        ] {
+            let err = expand_tokens(quote! {
+                struct InvalidArgs {
+                    #attribute
+                    value: String,
+                }
+            })
+            .expect_err("invalid field attributes should fail");
+            assert!(
+                err.to_string().contains(diagnostic),
+                "expected '{diagnostic}' in: {err}"
+            );
+        }
     }
 }
