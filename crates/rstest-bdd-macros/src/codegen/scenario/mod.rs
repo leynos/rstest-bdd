@@ -109,6 +109,8 @@ pub(crate) struct ScenarioConfig<'a> {
     pub(crate) resolutions: Option<&'a crate::codegen::SharedAdapterResolutions>,
     /// Boundary tokens for `#[scenario]`; `scenarios!` emits around its module.
     pub(crate) fallback_diagnostics: Option<&'a TokenStream2>,
+    /// Closed step-library scope emitted into the executor.
+    pub(crate) scope: TokenStream2,
 }
 
 /// Configuration for context iterators in scenario code generation.
@@ -215,6 +217,7 @@ where
         return_kind: config.return_kind,
         harness: config.harness,
         harness_api_path: harness_resolution.map(|resolution| resolution.api_path.clone()),
+        scope: config.scope.clone(),
     };
     let test_config = TestTokensConfig {
         processed_steps,
@@ -302,6 +305,7 @@ where
         return_kind: config.return_kind,
         harness: config.harness,
         harness_api_path: harness_resolution.map(|resolution| resolution.api_path.clone()),
+        scope: config.scope.clone(),
     };
     let outline_config = OutlineTestTokensConfig {
         all_rows_steps,

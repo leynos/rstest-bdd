@@ -17,6 +17,15 @@ pub struct StepArgsError {
     message: String,
 }
 
+/// One named placeholder capture supplied to a [`StepArgs`] implementation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StepCapture {
+    /// Placeholder name from the step pattern.
+    pub name: &'static str,
+    /// Capture text after pattern-level normalization.
+    pub value: String,
+}
+
 impl StepArgsError {
     /// Construct a new error with the provided message.
     #[must_use]
@@ -45,6 +54,20 @@ impl StepArgsError {
         ))
     }
 
+    /// Build an error describing a missing named placeholder.
+    #[must_use]
+    pub fn missing_field(field: &'static str, placeholder: &'static str) -> Self {
+        Self::new(format!(
+            "field '{field}' requires placeholder '{{{placeholder}}}'"
+        ))
+    }
+
+    /// Build an error describing a placeholder not claimed by the aggregate.
+    #[must_use]
+    pub fn unconsumed_capture(placeholder: &str) -> Self {
+        Self::new(format!("unconsumed placeholder '{{{placeholder}}}'"))
+    }
+
     /// Access the underlying error message.
     #[must_use]
     pub fn message(&self) -> &str { &self.message }
@@ -70,6 +93,28 @@ pub trait StepArgs: Sized {
     /// Returns [`StepArgsError`] when the conversion fails (for example when a
     /// field cannot be parsed into the requested type).
     fn from_captures(values: Vec<String>) -> Result<Self, StepArgsError>;
+
+    /// Convert named captures into a populated struct.
+    ///
+    /// The default preserves the legacy positional contract for manual
+    /// implementations. Derived implementations override it and bind by name.
+    ///
+    /// # Errors
+    /// Returns [`StepArgsError`] when the captures cannot populate the value.
+    fn from_named_captures(captures: Vec<StepCapture>) -> Result<Self, StepArgsError> {
+        if captures.len() != Self::FIELD_COUNT {
+            return Err(StepArgsError::count_mismatch(
+                Self::FIELD_COUNT,
+                captures.len(),
+            ));
+        }
+        for capture in &captures {
+            if !Self::FIELD_NAMES.contains(&capture.name) {
+                return Err(StepArgsError::unconsumed_capture(capture.name));
+            }
+        }
+        Self::from_captures(captures.into_iter().map(|capture| capture.value).collect())
+    }
 }
 
 #[cfg(test)]

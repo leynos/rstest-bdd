@@ -755,6 +755,15 @@ registered, producing a spurious "No matching step definition" error. A UI test
 
 ### 2.3 The `inventory` solution: A global step registry
 
+
+#### Lexical step-library scopes
+
+Named libraries retain inventory registration while partitioning the registry
+by declared Rust module. Scenario code passes a closed `StepScope`; lookup uses
+only that scope and rejects equally specific candidates. Library order and the
+previously matched step are deliberately absent from dispatch, preserving a
+lexical, deterministic specification vocabulary.
+
 The `inventory` crate provides a clean and powerful abstraction over the
 link-time collection mechanism described above. It offers "typed distributed
 plugin registration," allowing different parts of a program to submit items
@@ -3445,7 +3454,7 @@ These macros keep test code succinct while still surfacing detailed diagnostics.
     <https://testautomationu.applitools.com/behaviour-driven-python-with-pytest-bdd/chapter5.html>.
 [^9]: How can developers create parameterized tests in Rust? - Stack Overflow,
     accessed on 20 July 2025,
-    <https://stackoverflow.com/questions/34662713/how-can-i-create-parameterised-tests-in-rust>.
+    <https://stackoverflow.com/questions/34662713/how-can-i-create-parameterized-tests-in-rust>.
 [^10]: pytest-bdd - Read the Docs, accessed on 20 July 2025,
     <https://readthedocs.org/projects/pytest-bdd/downloads/pdf/latest/>.
 [^11]: pytest-bdd - PyPI, accessed on 20 July 2025,

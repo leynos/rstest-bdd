@@ -70,6 +70,7 @@ fn scenario_output_with_shared_resolutions(
         attributes: None,
         resolutions: Some(resolutions),
         fallback_diagnostics: None,
+        scope: quote::quote!(::rstest_bdd::StepScope::global()),
     };
 
     generate_scenario_code(
