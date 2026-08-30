@@ -26,6 +26,7 @@ use crate::{
             generate_scenario_code,
         },
     },
+    macros::scenario::paths::render_feature_path,
     parsing::{examples::ExampleTable, feature::ScenarioData, tags::TagExpression},
     return_classifier::{ReturnKind, classify_return_type},
     utils::{
@@ -325,7 +326,7 @@ pub(super) fn generate_scenario_test(
     // — `strip_prefix` output when relative, the absolute path on fallback —
     // so re-joining it with `manifest_dir` (its old absolutization) is
     // removed here.
-    let feature_path = ctx.rel_path.display().to_string();
+    let feature_path = render_feature_path(ctx.rel_path);
     let vis = syn::Visibility::Inherited;
     let block: syn::Block = if return_kind.is_fallible() {
         syn::parse_quote!({ Ok(()) })

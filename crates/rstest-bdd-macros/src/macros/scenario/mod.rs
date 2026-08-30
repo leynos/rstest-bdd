@@ -21,7 +21,7 @@
 //! ```
 
 mod args;
-mod paths;
+pub(super) mod paths;
 mod return_kind;
 mod selection;
 

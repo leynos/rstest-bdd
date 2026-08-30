@@ -159,6 +159,19 @@ pub(super) fn canonical_feature_path(path: &Path) -> String {
     entry.clone()
 }
 
+/// Renders diagnostic and reporting metadata, not a path for filesystem access.
+pub(in crate::macros) fn render_feature_path(path: &Path) -> String {
+    #[cfg(windows)]
+    {
+        path.display().to_string().replace('\\', "/")
+    }
+
+    #[cfg(not(windows))]
+    {
+        path.display().to_string()
+    }
+}
+
 /// The feature path embedded in generated code, in the Decision D3 form:
 /// *relative to the consuming crate's manifest directory when the feature
 /// file lies within it; otherwise absolute.*
@@ -177,12 +190,10 @@ pub(super) fn manifest_relative_feature_path(path: &Path) -> String {
         .map(PathBuf::from)
         .unwrap_or_default();
     if path.is_absolute() {
-        path.strip_prefix(&manifest_dir).map_or_else(
-            |_| path.display().to_string(),
-            |rel| rel.display().to_string(),
-        )
+        path.strip_prefix(&manifest_dir)
+            .map_or_else(|_| render_feature_path(path), render_feature_path)
     } else {
-        path.display().to_string()
+        render_feature_path(path)
     }
 }
 #[cfg(test)]
@@ -330,64 +341,5 @@ mod tests {
 }
 
 #[cfg(test)]
-mod manifest_relative_tests {
-    //! Tests for the Decision D3 path form embedded in generated code.
-    //!
-    //! These tests mutate `CARGO_MANIFEST_DIR`, so they must not run
-    //! concurrently with the canonical-path tests that read it; `#[serial]`
-    //! provides that in-process exclusion (the same pattern the existing
-    //! `paths::tests` module uses).
-
-    use std::path::Path;
-
-    use serial_test::serial;
-
-    use super::manifest_relative_feature_path;
-
-    // POSIX `/...` paths are rooted but not absolute on Windows, so use the
-    // host's native absolute syntax to exercise the absolute-path branch.
-    #[cfg(not(windows))]
-    fn native_absolute_path_fixtures() -> (&'static str, &'static str, &'static str) {
-        (
-            "/repo/crates/my",
-            "/repo/crates/my/tests/x.feature",
-            "/repo/shared/x.feature",
-        )
-    }
-
-    #[cfg(windows)]
-    fn native_absolute_path_fixtures() -> (&'static str, &'static str, &'static str) {
-        (
-            r"C:\repo\crates\my",
-            r"C:\repo\crates\my\tests\x.feature",
-            r"C:\repo\shared\x.feature",
-        )
-    }
-
-    #[serial]
-    #[test]
-    fn relative_input_passes_through_unchanged() {
-        let value = manifest_relative_feature_path(Path::new("tests/features/x.feature"));
-        assert_eq!(value, "tests/features/x.feature");
-    }
-
-    #[serial]
-    #[test]
-    fn absolute_path_inside_manifest_becomes_relative() {
-        let (manifest, inside, _) = native_absolute_path_fixtures();
-        temp_env::with_var("CARGO_MANIFEST_DIR", Some(manifest), || {
-            let value = manifest_relative_feature_path(Path::new(inside));
-            assert_eq!(value, "tests/x.feature");
-        });
-    }
-
-    #[serial]
-    #[test]
-    fn absolute_path_outside_manifest_stays_absolute() {
-        let (manifest, _, outside) = native_absolute_path_fixtures();
-        temp_env::with_var("CARGO_MANIFEST_DIR", Some(manifest), || {
-            let value = manifest_relative_feature_path(Path::new(outside));
-            assert_eq!(value, outside);
-        });
-    }
-}
+#[path = "paths/manifest_relative_tests.rs"]
+mod manifest_relative_tests;
