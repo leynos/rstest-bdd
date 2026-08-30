@@ -7,13 +7,10 @@ use std::{
     process::{Child, Command, Stdio},
 };
 
+use cargo_metadata::{Message, Package, PackageId, Target, TargetKind};
 use eyre::{Context, Result, bail, eyre};
 use serde::Deserialize;
 use tracing::warn;
-
-
-//! Registry collection helpers shared by the CLI subcommands.
-};
 
 /// Registry step entry including location metadata and execution status.
 #[derive(Debug, Deserialize, Clone)]
