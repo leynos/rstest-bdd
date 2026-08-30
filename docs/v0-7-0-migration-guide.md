@@ -3,6 +3,8 @@
 This guide covers user-facing changes made after the `v0.6.0` tag and before
 `v0.7.0`. It groups the changes by the amount of migration work they require:
 breaking changes and deprecations that need action, followed by a checklist.
+Read the [users' guide](users-guide.md) for routine use and the linked RFCs for
+design rationale.
 
 ## Breaking changes
 
@@ -27,6 +29,22 @@ lookup therefore has the same usage-tracking effect as the deprecated helper it
 replaces: a resolved step no longer appears in `unused_steps()`. Code that
 relied on a lookup being read-only should move its query to the point where the
 step is actually selected for execution.
+
+### Bind derived `StepArgs` by placeholder name
+
+`StepArgs` derives bind captures by placeholder name. Fields whose Rust names
+differ from placeholders must add
+`#[step_args(placeholder = "placeholder_name")]`; positional coincidence is no
+longer accepted by derived bindings. See
+[RFC 0002](rfcs/0002-named-step-argument-binding.md).
+
+## New scoped-vocabulary model
+
+Unannotated definitions and scenarios remain compatible through the built-in
+`rstest_bdd::global` library. A scenario that supplies `libraries = [...]`
+selects exactly those libraries; it does not add global definitions implicitly.
+Add `rstest_bdd::global` explicitly when a scoped scenario needs compatibility
+steps. See [RFC 0001](rfcs/0001-explicit-step-library-scopes.md).
 
 ## Deprecations
 
@@ -85,10 +103,33 @@ when the call holds step text and placeholder matching is wanted.
       explicit type is required.
 - [ ] Review lookups that were expected to leave usage tracking unchanged; the
       metadata pair records usage when it resolves a step.
+- [ ] Move reusable domain steps into `#[step_library]` modules.
+- [ ] Add every required library to each scoped `#[scenario]` or `scenarios!`
+  binding, including `rstest_bdd::global` where needed.
+- [ ] Resolve scoped ambiguity by making the selected vocabulary unambiguous;
+  do not rely on library-list order.
+- [ ] Audit every derived `StepArgs` struct. Add `placeholder = "..."` to a
+  field whose Rust name does not equal its pattern placeholder.
+- [ ] Use `trim` and `parse_with` only for capture-specific normalization and
+  conversion; retain `#[datatable(...)]` policies for table fields.
+
+## Common errors
+
+- **Error:** a scoped scenario has no matching definition.
+  - **Fix:** select the library that owns the definition, or add
+    `rstest_bdd::global` explicitly for an unannotated definition.
+- **Error:** selected libraries have equally specific matching definitions.
+  - **Fix:** remove one library from the scenario scope or make the patterns
+    semantically distinct. Reordering the list cannot resolve the ambiguity.
+- **Error:** a derived `StepArgs` field requires a placeholder.
+  - **Fix:** align the field and placeholder names or add
+    `#[step_args(placeholder = "...")]`.
 
 ## Further reading
 
 - [Users' guide: migrating from deprecated lookups][users-guide-lookups]
+- [RFC 0001: explicit step library scopes](rfcs/0001-explicit-step-library-scopes.md)
+- [RFC 0002: named step argument binding](rfcs/0002-named-step-argument-binding.md)
 - [Developer's guide](developers-guide.md)
 - [rstest-bdd design](rstest-bdd-design.md)
 - [ADR 024: structural usage tracking in registry lookups][adr-024]
