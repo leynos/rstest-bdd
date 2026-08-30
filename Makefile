@@ -5,7 +5,7 @@ VALE ?= vale
 .PHONY: spelling-config spelling-config-write spelling-phrase-check
 .PHONY: spelling-helper-test nixie publish-check
 .PHONY: check-published-gpui stage-published-gpui-e2e e2e-published-gpui
-.PHONY: forbid-async-trait vale update-ui-lints-lock update-published-gpui-e2e-lock
+.PHONY: forbid-async-trait vale update-ui-lints-lock update-published-gpui-0-2-2-lock update-published-gpui-e2e-lock
 .PHONY: test-workflow-contracts
 
 SHELL := bash
@@ -203,6 +203,9 @@ test-workflow-contracts: ## Validate the mutation-testing caller contract
 
 update-ui-lints-lock: ## Refresh ui_lints trybuild lockfile for `--locked` CI
 	$(CARGO) generate-lockfile --manifest-path crates/rstest-bdd/tests/ui_lints/Cargo.toml
+
+update-published-gpui-0-2-2-lock: ## Refresh the published GPUI 0.2.2 fixture lockfile
+	$(CARGO) generate-lockfile --manifest-path $(PUBLISHED_GPUI_MANIFEST)
 
 update-published-gpui-e2e-lock: stage-published-gpui-e2e ## Refresh the published GPUI E2E fixture lockfile
 	cd $(PUBLISHED_GPUI_E2E_DIR) && $(CARGO) generate-lockfile
