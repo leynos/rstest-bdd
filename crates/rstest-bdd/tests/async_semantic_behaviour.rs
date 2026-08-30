@@ -179,6 +179,7 @@ async fn semantic_async_skip_scenario(
     path = "tests/features/async_semantic_behaviour.feature",
     name = "async steps preserve declaration order"
 )]
+#[serial]
 fn semantic_step_ordering_outline(
     #[from(semantic_order_fixture)] semantic_order_fixture: RefCell<Vec<String>>,
     item: String,
@@ -200,6 +201,7 @@ fn semantic_step_ordering_outline(
     path = "tests/features/async_semantic_behaviour.feature",
     name = "async returned fixtures reach the next step"
 )]
+#[serial]
 #[tokio::test(flavor = "current_thread")]
 async fn semantic_async_returned_fixture_scenario(semantic_value_fixture: SemanticValue) {
     let _ = semantic_value_fixture;
@@ -209,6 +211,7 @@ async fn semantic_async_returned_fixture_scenario(semantic_value_fixture: Semant
     path = "tests/features/async_semantic_behaviour.feature",
     name = "async RefCell fixtures survive cross-step borrows"
 )]
+#[serial]
 #[tokio::test(flavor = "current_thread")]
 async fn semantic_async_refcell_fixture_scenario(
     #[from(semantic_shared_counter)] semantic_shared_counter: RefCell<usize>,
