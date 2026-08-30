@@ -122,7 +122,7 @@ def msys_unix_path(path: str) -> str:
 
 
 def shell_safe_executable_reference(
-    path: Path,
+    path: Path | str,
     environment: RecipeShellEnvironment,
 ) -> str:
     """Return the unquoted executable reference understood by Make's shell."""
@@ -280,7 +280,7 @@ def test_shell_safe_executable_reference_preserves_a_posix_path() -> None:
     )
 
     assert (
-        shell_safe_executable_reference(Path("/example/fake-cargo"), environment)
+        shell_safe_executable_reference("/example/fake-cargo", environment)
         == "/example/fake-cargo"
     )
 
