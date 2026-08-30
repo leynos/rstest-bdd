@@ -2,7 +2,6 @@
 //! exclusive `index`/`name` selectors, optional tag filters, and optional
 //! harness adapter and attribute policy paths. Reports duplicates and
 //! conflicts with combined `syn::Error`s.
-
 use proc_macro2::Span;
 use quote::{format_ident, quote};
 use syn::{
@@ -64,42 +63,42 @@ enum ScenarioArg {
     /// Closed list of selected step libraries.
     Libraries(Vec<syn::Path>),
 }
-
 impl Parse for ScenarioArg {
     fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
         if input.peek(LitStr) {
-            let lit: LitStr = input.parse()?;
-            Ok(Self::Path(lit))
+            Ok(Self::Path(input.parse()?))
         } else {
-            let ident: syn::Ident = input.parse()?;
-            input.parse::<syn::token::Eq>()?;
-            if ident == "path" {
-                Ok(Self::Path(input.parse()?))
-            } else if ident == "index" {
-                Ok(Self::Index(input.parse()?))
-            } else if ident == "name" {
-                Ok(Self::Name(input.parse()?))
-            } else if ident == "tags" {
-                Ok(Self::Tags(input.parse()?))
-            } else if ident == "harness" {
-                Ok(Self::Harness(input.parse()?))
-            } else if ident == "attributes" {
-                Ok(Self::Attributes(input.parse()?))
-            } else if ident == "libraries" {
-                let content;
-                syn::bracketed!(content in input);
-                let paths = Punctuated::<syn::Path, Comma>::parse_terminated(&content)?;
-                Ok(Self::Libraries(paths.into_iter().collect()))
-            } else {
-                Err(input.error(
-                    "expected `path`, `index`, `name`, `tags`, `harness`, `attributes`, or \
-                     `libraries`",
-                ))
-            }
+            Self::parse_named(input)
         }
     }
 }
-
+impl ScenarioArg {
+    /// Parse a named `#[scenario]` argument.
+    fn parse_named(input: ParseStream<'_>) -> syn::Result<Self> {
+        let ident: syn::Ident = input.parse()?;
+        input.parse::<syn::token::Eq>()?;
+        match ident.to_string().as_str() {
+            "path" => Ok(Self::Path(input.parse()?)),
+            "index" => Ok(Self::Index(input.parse()?)),
+            "name" => Ok(Self::Name(input.parse()?)),
+            "tags" => Ok(Self::Tags(input.parse()?)),
+            "harness" => Ok(Self::Harness(input.parse()?)),
+            "attributes" => Ok(Self::Attributes(input.parse()?)),
+            "libraries" => Ok(Self::Libraries(parse_libraries(input)?)),
+            _ => Err(input.error(
+                "expected `path`, `index`, `name`, `tags`, `harness`, `attributes`, or `libraries`",
+            )),
+        }
+    }
+}
+/// Parse the closed list supplied to `libraries = [path, ...]`.
+fn parse_libraries(input: ParseStream<'_>) -> syn::Result<Vec<syn::Path>> {
+    let content;
+    syn::bracketed!(content in input);
+    Ok(Punctuated::<syn::Path, Comma>::parse_terminated(&content)?
+        .into_iter()
+        .collect())
+}
 impl Parse for ScenarioArgs {
     fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
         let args = Punctuated::<ScenarioArg, Comma>::parse_terminated(input)?;
@@ -140,7 +139,6 @@ impl Parse for ScenarioArgs {
         })
     }
 }
-
 /// Generate the runtime scope expression for the selected module paths.
 pub(super) fn library_scope_tokens(libraries: Option<&[syn::Path]>) -> proc_macro2::TokenStream {
     let runtime = crate::codegen::rstest_bdd_path();
@@ -150,7 +148,6 @@ pub(super) fn library_scope_tokens(libraries: Option<&[syn::Path]>) -> proc_macr
     let markers: Vec<_> = libraries.iter().map(library_marker_path).collect();
     quote! { #runtime::StepScope::new(&[#(#markers),*]) }
 }
-
 /// Convert one selected library module path into its generated marker path.
 fn library_marker_path(path: &syn::Path) -> proc_macro2::TokenStream {
     if path
@@ -171,7 +168,6 @@ fn library_marker_path(path: &syn::Path) -> proc_macro2::TokenStream {
         quote! { #parent::#marker }
     }
 }
-
 /// Assign `value` to `slot` if empty, or return a duplicate-argument error.
 fn set_unique_field<T>(
     slot: &mut Option<T>,
@@ -185,7 +181,6 @@ fn set_unique_field<T>(
     *slot = Some(value);
     Ok(())
 }
-
 /// Generic helper to set a selector after checking for conflicts.
 fn set_selector<F>(
     selector: &mut Option<ScenarioSelector>,
@@ -202,7 +197,6 @@ where
     *selector = Some(build()?);
     Ok(())
 }
-
 /// Set the scenario selector to an index, rejecting conflicts with an existing selector.
 fn set_selector_index(selector: &mut Option<ScenarioSelector>, i: &LitInt) -> syn::Result<()> {
     set_selector(selector, SelectorKind::Index, i.span(), || {
@@ -212,7 +206,6 @@ fn set_selector_index(selector: &mut Option<ScenarioSelector>, i: &LitInt) -> sy
         })
     })
 }
-
 /// Set the scenario selector to a name, rejecting conflicts with an existing selector.
 fn set_selector_name(selector: &mut Option<ScenarioSelector>, lit: &LitStr) -> syn::Result<()> {
     set_selector(selector, SelectorKind::Name, lit.span(), || {
@@ -222,7 +215,6 @@ fn set_selector_name(selector: &mut Option<ScenarioSelector>, lit: &LitStr) -> s
         })
     })
 }
-
 /// Documents the internal `SelectorKind` item.
 enum SelectorKind {
     /// Represents the internal validation outcome.
@@ -230,7 +222,6 @@ enum SelectorKind {
     /// Represents the internal validation outcome.
     Name,
 }
-
 /// Provides the internal `selector_conflict_error` operation.
 fn selector_conflict_error(
     existing: &ScenarioSelector,
@@ -265,7 +256,6 @@ fn selector_conflict_error(
         }
     }
 }
-
 #[cfg(test)]
 mod tests {
     //! Unit tests for `#[scenario]` attribute argument parsing.
@@ -277,7 +267,6 @@ mod tests {
     fn parse_scenario_args(tokens: proc_macro2::TokenStream) -> syn::Result<ScenarioArgs> {
         syn::parse2(tokens)
     }
-
     fn assert_parse_error_contains(result: syn::Result<ScenarioArgs>, expected_keyword: &str) {
         match result {
             Ok(_) => panic!("parsing should fail"),
@@ -290,7 +279,6 @@ mod tests {
             }
         }
     }
-
     #[test]
     fn parses_harness_argument() {
         let args = parse_scenario_args(quote!(
@@ -357,6 +345,31 @@ mod tests {
             parse_scenario_args(quote!(path = "test.feature")).expect("scenario args should parse");
         assert!(args.harness.is_none());
         assert!(args.attributes.is_none());
+    }
+
+    #[test]
+    fn parses_libraries_in_declaration_order() {
+        let args = parse_scenario_args(quote!(
+            path = "test.feature",
+            libraries = [accounts, filesystem]
+        ))
+        .expect("scenario args should parse");
+        let libraries = args.libraries.expect("libraries should be set");
+        let paths: Vec<_> = libraries
+            .iter()
+            .map(|path| quote!(#path).to_string())
+            .collect();
+        assert_eq!(paths, ["accounts", "filesystem"]);
+    }
+
+    #[test]
+    fn rejects_duplicate_libraries() {
+        let result = parse_scenario_args(quote!(
+            path = "test.feature",
+            libraries = [accounts],
+            libraries = [filesystem]
+        ));
+        assert_parse_error_contains(result, "duplicate");
     }
 
     #[test]
