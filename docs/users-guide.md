@@ -154,9 +154,35 @@ For cucumber-rs migration compatibility notes, see
 
 The procedural macro implementation expands the annotated function into two
 parts: the original function and a wrapper function that registers the step in
-a global registry. The wrapper captures the step keyword, pattern string and
-associated fixtures and uses the `inventory` crate to publish them for later
-lookup.
+the built-in global library. The wrapper captures the step keyword, pattern
+string and associated fixtures and uses the `inventory` crate to publish them
+for later lookup.
+
+### Step libraries
+
+Use `#[step_library]` on a module to declare a named vocabulary. A scenario
+selects an exact, closed list through `libraries = [...]`; an omitted list
+selects only `rstest_bdd::global`, which contains unannotated definitions.
+
+```rust,no_run
+use rstest_bdd_macros::{given, scenario, step_library};
+
+#[step_library]
+mod accounts {
+    use super::given;
+
+    #[given("the domain is empty")]
+    fn account_is_empty() {}
+}
+
+#[scenario(path = "tests/features/accounts.feature", libraries = [accounts])]
+fn account_scenarios() {}
+```
+
+Library order never supplies precedence. If selected libraries provide equally
+specific matches, execution fails with every candidate's library, pattern, and
+source location. Add `rstest_bdd::global` explicitly when a scoped scenario
+also needs compatibility definitions.
 
 ### Fixtures and implicit injection
 
@@ -448,11 +474,12 @@ whose fields mirror the placeholders and annotate the relevant parameter with
 to consume every placeholder for that parameter, while fixtures and other
 special arguments (`datatable`/`docstring`) continue to work as usual.
 
-Fields must implement `FromStr`, and the derive macro enforces the bounds
-automatically. Placeholders and struct fields must appear in the same order.
-During expansion the macro inserts a compile-time check to ensure the field
-count matches the pattern, producing a trait-bound error if the struct does not
-implement `StepArgs`.
+Fields bind by placeholder name rather than declaration order. A field uses its
+Rust name by default; use `#[step_args(placeholder = "...")]` for a business
+name that differs. `#[step_args(rename_all = "camelCase")]` applies the same
+rename rules as named `DataTableRow` fields. Fields normally implement
+`FromStr`; `trim` and `parse_with = parser` normalize and convert one capture
+without affecting table-row policies.
 
 ```rust,no_run
 use rstest::fixture;

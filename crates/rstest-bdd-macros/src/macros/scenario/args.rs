@@ -4,6 +4,7 @@
 //! conflicts with combined `syn::Error`s.
 
 use proc_macro2::Span;
+use quote::{format_ident, quote};
 use syn::{
     LitInt,
     LitStr,
@@ -24,6 +25,8 @@ pub(super) struct ScenarioArgs {
     pub(super) harness: Option<syn::Path>,
     /// Stores the internal `attributes` value.
     pub(super) attributes: Option<syn::Path>,
+    /// Explicitly selected step libraries.
+    pub(super) libraries: Option<Vec<syn::Path>>,
 }
 
 /// Documents the internal `ScenarioSelector` item.
@@ -58,6 +61,8 @@ enum ScenarioArg {
     Harness(syn::Path),
     /// Represents the internal validation outcome.
     Attributes(syn::Path),
+    /// Closed list of selected step libraries.
+    Libraries(Vec<syn::Path>),
 }
 
 impl Parse for ScenarioArg {
@@ -80,9 +85,16 @@ impl Parse for ScenarioArg {
                 Ok(Self::Harness(input.parse()?))
             } else if ident == "attributes" {
                 Ok(Self::Attributes(input.parse()?))
+            } else if ident == "libraries" {
+                let content;
+                syn::bracketed!(content in input);
+                let paths = Punctuated::<syn::Path, Comma>::parse_terminated(&content)?;
+                Ok(Self::Libraries(paths.into_iter().collect()))
             } else {
-                Err(input
-                    .error("expected `path`, `index`, `name`, `tags`, `harness`, or `attributes`"))
+                Err(input.error(
+                    "expected `path`, `index`, `name`, `tags`, `harness`, `attributes`, or \
+                     `libraries`",
+                ))
             }
         }
     }
@@ -96,6 +108,7 @@ impl Parse for ScenarioArgs {
         let mut tag_filter = None;
         let mut harness = None;
         let mut attributes = None;
+        let mut libraries = None;
 
         for arg in args {
             match arg {
@@ -109,6 +122,9 @@ impl Parse for ScenarioArgs {
                 ScenarioArg::Attributes(p) => {
                     set_unique_field(&mut attributes, p, "attributes", input)?;
                 }
+                ScenarioArg::Libraries(paths) => {
+                    set_unique_field(&mut libraries, paths, "libraries", input)?;
+                }
             }
         }
 
@@ -120,7 +136,39 @@ impl Parse for ScenarioArgs {
             tag_filter,
             harness,
             attributes,
+            libraries,
         })
+    }
+}
+
+/// Generate the runtime scope expression for the selected module paths.
+pub(super) fn library_scope_tokens(libraries: Option<&[syn::Path]>) -> proc_macro2::TokenStream {
+    let runtime = crate::codegen::rstest_bdd_path();
+    let Some(libraries) = libraries else {
+        return quote! { #runtime::StepScope::global() };
+    };
+    let markers: Vec<_> = libraries.iter().map(library_marker_path).collect();
+    quote! { #runtime::StepScope::new(&[#(#markers),*]) }
+}
+
+/// Convert one selected library module path into its generated marker path.
+fn library_marker_path(path: &syn::Path) -> proc_macro2::TokenStream {
+    if path
+        .segments
+        .last()
+        .is_some_and(|segment| segment.ident == "global")
+    {
+        return quote! { #path::STEP_LIBRARY };
+    }
+    let mut parent = path.clone();
+    let Some(last) = parent.segments.pop() else {
+        return quote! { compile_error!("step library path cannot be empty") };
+    };
+    let marker = format_ident!("__RSTEST_BDD_STEP_LIBRARY_{}", last.into_value().ident);
+    if parent.segments.is_empty() {
+        quote! { #marker }
+    } else {
+        quote! { #parent::#marker }
     }
 }
 

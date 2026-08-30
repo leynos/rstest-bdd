@@ -39,7 +39,7 @@ use crate::parsing::feature::{
     parse_and_load_feature, ScenarioData,
 };
 use self::{
-    args::ScenarioArgs,
+    args::{ScenarioArgs, library_scope_tokens},
     paths::manifest_relative_feature_path,
     return_kind::classify_scenario_return,
     selection::{ensure_feature_not_empty, resolve_candidate_indices, select_scenario},
@@ -92,10 +92,12 @@ fn try_scenario(
         tag_filter,
         harness,
         attributes,
+        libraries,
     }: ScenarioArgs,
     mut item_fn: syn::ItemFn,
 ) -> std::result::Result<TokenStream, TokenStream> {
     let path_lit = path;
+    let scope = library_scope_tokens(libraries.as_deref());
     let path = PathBuf::from(path_lit.value());
     let attrs = &item_fn.attrs;
     let vis = &item_fn.vis;
@@ -144,8 +146,10 @@ fn try_scenario(
             .map_err(|e| proc_macro::TokenStream::from(e.into_compile_error()))?;
     }
 
-    if let Some(err) = validate_steps_compile_time(&steps) {
-        return Err(err);
+    if libraries.is_none() {
+        if let Some(err) = validate_steps_compile_time(&steps) {
+            return Err(err);
+        }
     }
 
     process_scenario_outline_examples(sig, examples.as_ref())
@@ -194,6 +198,7 @@ fn try_scenario(
         attributes: attributes.as_ref(),
         resolutions: Some(&resolutions),
         fallback_diagnostics: Some(&fallback_diagnostics),
+        scope,
     };
 
     let generated = generate_scenario_code(

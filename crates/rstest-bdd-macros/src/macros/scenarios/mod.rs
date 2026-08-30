@@ -27,7 +27,13 @@ pub(crate) use self::macro_args::{
 };
 use self::{
     feature_discovery::collect_feature_files,
-    macro_args::{FixtureSpec, RuntimeMode, ScenariosArgs, runtime_compatibility_alias},
+    macro_args::{
+        FixtureSpec,
+        RuntimeMode,
+        ScenariosArgs,
+        library_scope_tokens,
+        runtime_compatibility_alias,
+    },
     test_generation::{ScenarioTestContext, generate_scenario_test, resolve_harness_path},
 };
 use crate::{
@@ -71,6 +77,8 @@ struct FeatureProcessingContext<'a> {
     /// compatibility alias. Resolved once so every scenario agrees with the
     /// single diagnostic emitted at the expansion boundary.
     effective_harness: Option<&'a syn::Path>,
+    /// Closed step-library scope used by every generated scenario.
+    scope: &'a TokenStream2,
     /// Adapter API paths resolved once for the whole `scenarios!` expansion.
     resolutions: &'a crate::codegen::SharedAdapterResolutions,
 }
@@ -144,6 +152,7 @@ fn process_feature_file(
         harness: ctx.harness,
         attributes: ctx.attributes,
         effective_harness: ctx.effective_harness,
+        scope: ctx.scope,
         resolutions: ctx.resolutions,
     };
 
@@ -303,6 +312,7 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
         runtime,
         harness,
         attributes,
+        libraries,
     } = syn::parse_macro_input!(input as ScenariosArgs);
     let dir = PathBuf::from(dir_lit.value());
 
@@ -338,6 +348,7 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
         effective_harness.as_ref(),
         attributes.as_ref(),
     );
+    let scope = library_scope_tokens(libraries.as_deref());
     let fallback_diagnostics = resolutions.emit_diagnostics();
 
     let ctx = FeatureProcessingContext {
@@ -348,6 +359,7 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
         harness: harness.as_ref(),
         attributes: attributes.as_ref(),
         effective_harness: effective_harness.as_ref(),
+        scope: &scope,
         resolutions: &resolutions,
     };
     let (tests, mut errors) = generate_tests_from_features(&feature_paths, &ctx);

@@ -30,9 +30,10 @@ use crate::{
     StepExecution,
     StepExecutionMode,
     StepKeyword,
+    StepScope,
     StepText,
     context::StepContext,
-    find_step_with_metadata,
+    find_step_with_metadata_in_scope,
 };
 
 /// Prefix character for encoded skip messages with no message content.
@@ -57,15 +58,17 @@ pub use rstest_bdd_policy::TestAttributeHint;
 fn resolve_step_for_request(
     request: &StepExecutionRequest<'_>,
 ) -> Result<&'static Step, ExecutionError> {
-    find_step_with_metadata(request.keyword, StepText::from(request.text)).ok_or_else(|| {
-        ExecutionError::StepNotFound {
+    find_step_with_metadata_in_scope(request.scope, request.keyword, StepText::from(request.text))
+        .map_err(|error| ExecutionError::StepAmbiguous {
+            message: error.to_string(),
+        })?
+        .ok_or_else(|| ExecutionError::StepNotFound {
             index: request.index,
             keyword: request.keyword,
             text: request.text.to_owned(),
             feature_path: request.feature_path.to_owned(),
             scenario_name: request.scenario_name.to_owned(),
-        }
-    })
+        })
 }
 
 /// Convert a step result into the executor's structured outcome.
@@ -221,6 +224,8 @@ pub struct StepExecutionRequest<'a> {
     pub feature_path: &'a str,
     /// Name of the scenario for diagnostics.
     pub scenario_name: &'a str,
+    /// Closed library scope selected by the generated scenario.
+    pub scope: StepScope,
 }
 
 /// Execute a single step with validation and error handling.
@@ -264,10 +269,12 @@ pub struct StepExecutionRequest<'a> {
 /// use rstest_bdd::{
 ///     StepContext,
 ///     StepKeyword,
+///     StepScope,
 ///     execution::{ExecutionError, StepExecutionRequest, execute_step},
 /// };
 ///
 /// let request = StepExecutionRequest {
+///     scope: StepScope::global(),
 ///     index: 0,
 ///     keyword: StepKeyword::Given,
 ///     text: "undefined step",
@@ -315,10 +322,12 @@ pub fn execute_step(
 /// use rstest_bdd::{
 ///     StepContext,
 ///     StepKeyword,
+///     StepScope,
 ///     execution::{ExecutionError, StepExecutionRequest, execute_step_async},
 /// };
 ///
 /// let request = StepExecutionRequest {
+///     scope: StepScope::global(),
 ///     index: 0,
 ///     keyword: StepKeyword::Given,
 ///     text: "undefined step",

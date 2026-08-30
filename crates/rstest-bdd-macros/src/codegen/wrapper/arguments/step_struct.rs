@@ -1,8 +1,8 @@
 //! Step-struct argument code generation.
 //!
 //! Step-struct arguments (from `#[step_args]`) bundle all placeholder captures
-//! into a single type implementing `TryFrom<Vec<String>>`. This module emits
-//! the capture collection and conversion code, including `:string` hint
+//! into a single type implementing `StepArgs`. This module emits the named
+//! capture collection and conversion code, including `:string` hint
 //! handling for quoted captures.
 
 use proc_macro2::TokenStream as TokenStream2;
@@ -28,6 +28,8 @@ pub(super) struct PlaceholderInfo<'a> {
 struct CaptureInitContext<'a> {
     /// Stores the internal `captures` value.
     captures: &'a [TokenStream2],
+    /// Placeholder names paired with the captured values.
+    names: &'a [syn::LitStr],
     /// Stores the internal `missing_errs` value.
     missing_errs: &'a [TokenStream2],
     /// Stores the internal `hints` value.
@@ -38,6 +40,8 @@ struct CaptureInitContext<'a> {
     meta: StepMeta<'a>,
     /// Stores the internal `struct_pat` value.
     struct_pat: &'a syn::Ident,
+    /// Runtime crate path used by the generated wrapper.
+    runtime: &'a TokenStream2,
 }
 
 /// Provides the internal `generate_missing_capture_errors` operation.
@@ -71,19 +75,22 @@ fn generate_missing_capture_errors(
 fn generate_capture_initializers(ctx: &CaptureInitContext<'_>) -> Vec<TokenStream2> {
     let CaptureInitContext {
         captures,
+        names,
         missing_errs,
         hints,
         values_ident,
         meta,
         struct_pat,
+        runtime,
     } = ctx;
     let StepMeta { pattern, ident } = meta;
     let raw_ident = format_ident!("raw");
     captures
         .iter()
         .zip(missing_errs.iter())
+        .zip(names.iter())
         .enumerate()
-        .map(|(idx, (capture, missing))| {
+        .map(|(idx, ((capture, missing), name))| {
             let hint = hints.get(idx).and_then(|h| h.as_deref());
             let needs_quote_strip = rstest_bdd_patterns::requires_quote_stripping(hint);
             if needs_quote_strip {
@@ -104,12 +111,18 @@ fn generate_capture_initializers(ctx: &CaptureInitContext<'_>) -> Vec<TokenStrea
                 quote! {
                     let #raw_ident = #capture.ok_or_else(|| #missing)?;
                     #quote_strip
-                    #values_ident.push(stripped.to_string());
+                    #values_ident.push(#runtime::StepCapture {
+                        name: #name,
+                        value: stripped.to_string(),
+                    });
                 }
             } else {
                 quote! {
                     let #raw_ident = #capture.ok_or_else(|| #missing)?;
-                    #values_ident.push(#raw_ident.to_string());
+                    #values_ident.push(#runtime::StepCapture {
+                        name: #name,
+                        value: #raw_ident.to_string(),
+                    });
                 }
             }
         })
@@ -138,6 +151,7 @@ pub(super) fn gen_step_struct_decl(
         "placeholder hints must stay aligned with names"
     );
     let capture_count = names.len();
+    let runtime = crate::codegen::rstest_bdd_path();
     step_struct.map(|arg| {
         let StepStructArg { pat, ty } = arg.arg;
         let binding = arg.binding;
@@ -146,11 +160,13 @@ pub(super) fn gen_step_struct_decl(
         let missing_errs = generate_missing_capture_errors(names, pattern, ident, pat);
         let capture_init_ctx = CaptureInitContext {
             captures,
+            names,
             missing_errs: &missing_errs,
             hints,
             values_ident: &values_ident,
             meta,
             struct_pat: pat,
+            runtime: &runtime,
         };
         let capture_inits = generate_capture_initializers(&capture_init_ctx);
         let convert_err = step_error_tokens(
@@ -169,7 +185,7 @@ pub(super) fn gen_step_struct_decl(
         quote! {
             let mut #values_ident = Vec::with_capacity(#capture_count);
             #(#capture_inits)*
-            let #binding: #ty = ::std::convert::TryFrom::try_from(#values_ident)
+            let #binding: #ty = <#ty as #runtime::step_args::StepArgs>::from_named_captures(#values_ident)
                 .map_err(|error| #convert_err)?;
         }
     })

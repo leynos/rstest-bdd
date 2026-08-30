@@ -2049,6 +2049,17 @@ bookkeeping exactly once and applies the caller's projection to the resolved
   model cheaply, and the property suite already exercises every variant against
   hit and miss lookups.
 
+
+## Step-library lookup invariant
+
+`StepScope` is a closed, scenario-owned list of `StepLibraryId` values.
+`#[step_library]` submits module metadata; the registry assigns a definition to
+the nearest declared module prefix and otherwise assigns it to
+`rstest_bdd::global`. Exact lookup is indexed by library, keyword, and pattern;
+parameterized lookup visits only the selected library buckets. Never add a
+first-match or declaration-order fallback: equally specific candidates must
+return `StepLookupError` with the scope and source locations intact.
+
 ## Internal APIs and tooling (ADR-010 to ADR-013)
 
 ADR-010 is accepted and implemented build-tooling work. ADR-011 records
