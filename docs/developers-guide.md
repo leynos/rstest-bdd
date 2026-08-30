@@ -201,12 +201,12 @@ The file sets the timeout policy for the test suite:
   trybuild-based compile-test binaries:
   `rstest-bdd-harness-tokio::macro_compile`,
   `rstest-bdd-harness-gpui::macro_compile`, `rstest-bdd::trybuild_macros`, and
-  `rstest-bdd-server::workspace_discovery_compile`.
-  These tests invoke `cargo build` against a large dependency tree. The
-  10-minute allowance permits the full fixture set to rebuild on a cold cache
-  without treating slow, healthy compiler work as a hung test. The strict 60 s
-  default remains in force elsewhere, and these tests stay in the
-  `cargo-spawning` group so all four run serially.
+  `rstest-bdd-server::workspace_discovery_compile`. These tests invoke
+  `cargo build` against a large dependency tree. The 10-minute allowance
+  permits the full fixture set to rebuild on a cold cache without treating
+  slow, healthy compiler work as a hung test. The strict 60 s default remains
+  in force elsewhere, and these tests stay in the `cargo-spawning` group so all
+  four run serially.
 - Both overrides also place their binaries in a `cargo-spawning` test group
   (`max-threads = 1`), so `cargo-bdd::cli` and the four trybuild binaries run
   one at a time instead of contending for CPU with concurrent `cargo` builds.
@@ -497,14 +497,14 @@ dependencies when packaging, so the staged GPUI harness manifest keeps
 `[patch.crates-io]` table points only the rstest-bdd crates at those extracted
 artefacts; its own `gpui` dependency remains the crates.io package.
 
-The fixture has an empty `[workspace]` table and a local
-`rust-toolchain.toml` pinned to `nightly-2026-08-07`. The target changes into
-the fixture before running `cargo test --locked`, allowing rustup to discover
-that local override. This is deliberately separate from `make test`: the root
-workspace remains stable-Rust compatible and continues to use the vendored
-shim for ordinary runtime coverage. Continuous Integration installs the same
-nightly plus the Wayland, X11, and xkbcommon development libraries only for
-the explicitly named end-to-end step.
+The fixture has an empty `[workspace]` table and a local `rust-toolchain.toml`
+pinned to `nightly-2026-08-07`. The target changes into the fixture before
+running `cargo test --locked`, allowing rustup to discover that local override.
+This is deliberately separate from `make test`: the root workspace remains
+stable-Rust compatible and continues to use the vendored shim for ordinary
+runtime coverage. Continuous Integration installs the same nightly plus the
+Wayland, X11, and xkbcommon development libraries only for the explicitly named
+end-to-end step.
 
 ## `#[serial]`/nextest matrix validation (`scripts/check_serial_nextest_matrix.py`)
 
@@ -973,8 +973,8 @@ implement, or re-export the bridge.
 The bridge's regression coverage uses existing test-only development
 dependencies: `anyhow` in `rstest-bdd` exercises the real `anyhow::Result`
 surface, while `insta` in `rstest-bdd` and `rstest-bdd-macros` pins the emitted
-dispatch tokens. Neither dependency is part of the production dependency
-graph. Run the runtime dispatch table and emission snapshot with:
+dispatch tokens. Neither dependency is part of the production dependency graph.
+Run the runtime dispatch table and emission snapshot with:
 
 ```bash
 cargo test -p rstest-bdd --test step_return_dispatch

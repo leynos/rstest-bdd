@@ -341,15 +341,15 @@ once on every listed terminal path:
 after/cleanup handling, including after/cleanup failures, and the primary
 outcome for each terminal path.
 
-| Path                          | Step execution                 | After/cleanup | Primary outcome                 |
-| ----------------------------- | ------------------------------ | ------------- | ------------------------------- |
-| Before-hook failure           | No steps run                   | Exactly once  | Before failure wins             |
-| Step pass                     | Eligible steps continue        | Exactly once  | Step results decide             |
-| Step skip                     | Later steps are bypassed       | Exactly once  | Normal skip remains terminal    |
-| Step failure                  | Later steps are bypassed       | Exactly once  | Step failure wins               |
-| Resolution or fixture failure | Later steps are bypassed       | Exactly once  | Resolution/fixture failure wins |
-| Panic or unwind               | Execution stops as applicable  | Exactly once  | Panic/step failure wins         |
-| After/cleanup failure         | Steps complete or are bypassed | Exactly once  | Failed when no earlier failure  |
+| Path                          | Step execution                 | After/cleanup | Primary outcome                       |
+| ----------------------------- | ------------------------------ | ------------- | ------------------------------------- |
+| Before-hook failure           | No steps run                   | Exactly once  | Before failure wins                   |
+| Step pass                     | Eligible steps continue        | Exactly once  | Step results decide                   |
+| Step skip                     | Later steps are bypassed       | Exactly once  | Normal skip remains terminal          |
+| Step failure                  | Later steps are bypassed       | Exactly once  | Step failure wins                     |
+| Resolution or fixture failure | Later steps are bypassed       | Exactly once  | Resolution/fixture failure wins       |
+| Panic or unwind               | Execution stops as applicable  | Exactly once  | Panic/step failure wins               |
+| After/cleanup failure         | Steps complete or are bypassed | Exactly once  | Failed when no earlier failure exists |
 
 An after/cleanup failure is retained as a secondary cleanup diagnostic when a
 primary before or step failure exists. When there is no primary failure,

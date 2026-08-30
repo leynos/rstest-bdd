@@ -904,17 +904,16 @@ changing the public trait contracts.
   vendored-to-published mapping table, and `make check-published-gpui` compiles
   the fixture with `--locked` under `-D warnings`, wired into CI. The fixture
   is also under `make fmt` and `make check-fmt`, which do not otherwise reach a
-  nested workspace. Delivered 2026-08-28:
-  `tests/fixtures/published-gpui-e2e/` now packages and extracts first-party
-  artefacts, allowing its patched harness to resolve crates.io `gpui 0.2.2`
-  without the workspace's vendored path. Its local `nightly-2026-08-07`
-  toolchain runs both stateful Given/When/Then scenarios through `GpuiHarness`,
-  including the published constructor, direct entity read/update return values,
-  and durable-handle identity. The explicit `make e2e-published-gpui`
-  CI/release gate leaves the stable workspace matrix unchanged. This closes the
-  executable verification caveat from leynos/rstest-bdd#575 and
-  leynos/rstest-bdd#610 while following the packaged dependency-isolation
-  approach from leynos/rstest-bdd#482. Validation: run
+  nested workspace. Delivered 2026-08-28: `tests/fixtures/published-gpui-e2e/`
+  now packages and extracts first-party artefacts, allowing its patched harness
+  to resolve crates.io `gpui 0.2.2` without the workspace's vendored path. Its
+  local `nightly-2026-08-07` toolchain runs both stateful Given/When/Then
+  scenarios through `GpuiHarness`, including the published constructor, direct
+  entity read/update return values, and durable-handle identity. The explicit
+  `make e2e-published-gpui` CI/release gate leaves the stable workspace matrix
+  unchanged. This closes the executable verification caveat from
+  leynos/rstest-bdd#575 and leynos/rstest-bdd#610 while following the packaged
+  dependency-isolation approach from leynos/rstest-bdd#482. Validation: run
   `make e2e-published-gpui` alongside the existing stable quality gates.
 
 > **Note (dual-track maintenance):** items 10.2.4 and 10.2.5 introduce a

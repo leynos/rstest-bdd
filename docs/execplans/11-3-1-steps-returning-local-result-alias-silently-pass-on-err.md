@@ -582,7 +582,8 @@ all Rust types.
 
 ## Context and orientation
 
-You have only this repository and this file. Here is what you need to know.
+Only this repository and this file are available. The following context is
+required.
 
 `rstest-bdd` is a behaviour-driven-development test framework for Rust. A
 `.feature` file written in Gherkin lists steps; Rust functions annotated
@@ -895,7 +896,9 @@ This is recorded as a conclusion with its rationale, not omitted.
 
 ## Interfaces and dependencies
 
-No new external dependencies. Everything below lives in existing crates.
+No new production dependencies are introduced. Everything below lives in
+existing crates; the existing test-only `anyhow` exceptions recorded in EP-M2
+and EP-M4 remain authorized for their regression and lint-fixture coverage.
 
 ### New: `crates/rstest-bdd/src/step_return.rs`
 
@@ -1251,8 +1254,7 @@ Compatibility decision: none.
 
 ## Concrete steps
 
-Run everything from the repository root:
-`/home/leynos/.lody/repos/github---leynos---rstest-bdd/worktrees/7e774aa3-6d3d-4d34-8bf8-ad2f1350d2b6`.
+Run from the repository root.
 
 ### Gates
 
@@ -1653,3 +1655,7 @@ records the accepted decisions, completed roadmap task, stacked formatter base,
 final deterministic validation, and zero-finding CodeRabbit review. Historical
 planning labels and plateau gaps remain as chronology only; no implementation
 work remains.
+
+Updated on 2026-08-30 after a documentation-only reviewer follow-up. The
+dependency, execution-location, and migration guidance are now explicit; no
+implementation scope or remaining work is affected.

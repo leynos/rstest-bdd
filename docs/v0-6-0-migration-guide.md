@@ -730,7 +730,9 @@ receives a fresh one, so `UiWorld` still keeps only the durable `Entity<T>` and
 - [ ] Make scenarios return `Result` or `StepResult` before passing
   `Result<T, E>` or `StepResult<T, E>` fixtures by value.
 - [ ] Audit named step return aliases. Confirm fallible aliases return errors
-  that implement `Display`, and confirm `Ok(T)` should override a `T` fixture.
+  that implement `Display`, and confirm `Ok(T)` overrides a matching `T`
+  fixture only when exactly one matching `TypeId` exists; missing or ambiguous
+  matches leave fixtures unchanged.
 - [ ] Add `rstest-bdd-harness-tokio` or `rstest-bdd-harness-gpui` only to test
   targets that need those framework integrations.
 - [ ] Remove redundant paired first-party `attributes = ...` arguments from

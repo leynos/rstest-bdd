@@ -31,13 +31,13 @@ ergonomics principle is to reduce ceremony where intent can be clearly inferred.
 ## Decision outcome
 
 Step macros still classify literal `()` and `!`, and honour explicit `value` and
-`result` hints. Every other unhinted step return, apart from classifier-rejected
-nested `Result` and `impl Trait` shapes, is passed to the hidden
-`rstest_bdd::step_return` bridge. `StepReturnProbe<'_, Result<T, E>>` exposes
-an inherent selector method, while a blanket trait supplies the value fallback.
-The selected zero-sized tag then normalizes the original value: `Result` errors
-become scenario failures, and successful payloads retain ordinary override
-behaviour.
+`result` hints. Every other unhinted step return, apart from
+classifier-rejected nested `Result` and `impl Trait` shapes, is passed to the
+hidden `rstest_bdd::step_return` bridge. `StepReturnProbe<'_, Result<T, E>>`
+exposes an inherent selector method, while a blanket trait supplies the value
+fallback. The selected zero-sized tag then normalizes the original value:
+`Result` errors become scenario failures, and successful payloads retain
+ordinary override behaviour.
 
 The mechanism sidesteps ADR-002's stable-Rust constraint through
 method-resolution precedence: the `Result` arm is an inherent implementation,
