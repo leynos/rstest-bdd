@@ -23,6 +23,24 @@ struct ProductInput {
     price: f32,
 }
 
+#[derive(Debug, PartialEq, StepArgs)]
+struct ReorderedTransfer {
+    recipient: String,
+    #[step_args(placeholder = "sender")]
+    from: String,
+    amount: u64,
+}
+
+#[derive(Debug, PartialEq, StepArgs)]
+struct NormalizedAmount {
+    #[step_args(trim, parse_with = parse_cents)]
+    amount: u64,
+}
+
+fn parse_cents(raw: &str) -> Result<u64, std::num::ParseIntError> {
+    raw.strip_suffix(" cents").unwrap_or(raw).parse()
+}
+
 #[derive(Default, ScenarioState)]
 struct ProductState {
     product: Slot<ProductInput>,
@@ -119,4 +137,43 @@ fn struct_step_args_reports_parse_failure() {
     };
     let expected = rstest_bdd::step_args::StepArgsError::parse_failure("quantity", "invalid");
     assert_eq!(err.to_string(), expected.to_string());
+}
+
+#[test]
+fn step_args_bind_named_captures_independently_of_field_order() {
+    let transfer = <ReorderedTransfer as rstest_bdd::StepArgs>::from_named_captures(vec![
+        rstest_bdd::step_args::StepCapture {
+            name: "sender",
+            value: String::from("Alice"),
+        },
+        rstest_bdd::step_args::StepCapture {
+            name: "amount",
+            value: String::from("42"),
+        },
+        rstest_bdd::step_args::StepCapture {
+            name: "recipient",
+            value: String::from("Bob"),
+        },
+    ])
+    .expect("named captures should populate the transfer");
+    assert_eq!(
+        transfer,
+        ReorderedTransfer {
+            recipient: String::from("Bob"),
+            from: String::from("Alice"),
+            amount: 42,
+        }
+    );
+}
+
+#[test]
+fn step_args_trim_before_custom_parsing() {
+    let amount = <NormalizedAmount as rstest_bdd::StepArgs>::from_named_captures(vec![
+        rstest_bdd::step_args::StepCapture {
+            name: "amount",
+            value: String::from(" 42 cents "),
+        },
+    ])
+    .expect("trimmed capture should parse through the custom parser");
+    assert_eq!(amount, NormalizedAmount { amount: 42 });
 }

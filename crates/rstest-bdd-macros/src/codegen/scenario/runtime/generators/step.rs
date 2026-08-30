@@ -33,9 +33,12 @@ use quote::quote;
 ///     rstest_bdd::execution::execute_step(&StepExecutionRequest { ... }, ctx)
 /// }
 /// ```
-pub(in crate::codegen::scenario::runtime) fn generate_step_executor() -> TokenStream2 {
+pub(in crate::codegen::scenario::runtime) fn generate_step_executor(
+    scope: &TokenStream2,
+) -> TokenStream2 {
     let path = crate::codegen::rstest_bdd_path();
     quote! {
+        const __RSTEST_BDD_STEP_SCOPE: #path::StepScope = #scope;
         #[expect(
             clippy::too_many_arguments,
             reason = "wrapper bridges macro-generated calls to runtime StepExecutionRequest",
@@ -59,6 +62,7 @@ pub(in crate::codegen::scenario::runtime) fn generate_step_executor() -> TokenSt
                     table,
                     feature_path,
                     scenario_name,
+                    scope: __RSTEST_BDD_STEP_SCOPE,
                 },
                 ctx,
             )
@@ -118,9 +122,12 @@ pub(in crate::codegen::scenario::runtime) fn generate_skip_extractor() -> TokenS
 ///     rstest_bdd::execution::execute_step_async(&StepExecutionRequest { ... }, ctx).await
 /// }
 /// ```
-pub(in crate::codegen::scenario::runtime) fn generate_async_step_executor() -> TokenStream2 {
+pub(in crate::codegen::scenario::runtime) fn generate_async_step_executor(
+    scope: &TokenStream2,
+) -> TokenStream2 {
     let path = crate::codegen::rstest_bdd_path();
     quote! {
+        const __RSTEST_BDD_STEP_SCOPE: #path::StepScope = #scope;
         #[expect(
             clippy::too_many_arguments,
             reason = "wrapper bridges macro-generated calls to runtime StepExecutionRequest",
@@ -144,6 +151,7 @@ pub(in crate::codegen::scenario::runtime) fn generate_async_step_executor() -> T
                     table,
                     feature_path,
                     scenario_name,
+                    scope: __RSTEST_BDD_STEP_SCOPE,
                 },
                 ctx,
             )

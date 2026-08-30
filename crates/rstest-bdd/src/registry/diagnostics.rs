@@ -12,9 +12,11 @@ use serde::Serialize;
 
 use super::{
     StepKey,
+    StepScope,
     USED_STEPS,
     all_steps,
     bypassed::BypassedScenario,
+    library_for_step,
     resolve_step,
     step_by_key,
 };
@@ -68,9 +70,9 @@ where
     I: IntoIterator<Item = (StepKeyword, &'a str)>,
 {
     for (keyword, text) in steps {
-        if let Some(step) = resolve_step(keyword, text.into()) {
+        if let Ok(Some(step)) = resolve_step(StepScope::global(), keyword, text.into()) {
             let record = BypassedStepRecord {
-                key: (step.keyword, step.pattern),
+                key: (library_for_step(step), step.keyword, step.pattern.as_str()),
                 feature_path: scenario.feature_path.to_owned(),
                 scenario_name: scenario.scenario_name.to_owned(),
                 scenario_line: scenario.scenario_line,
@@ -168,8 +170,8 @@ pub(super) fn dump_registry() -> serde_json::Result<String> {
             pattern: s.pattern.as_str(),
             file: s.file,
             line: s.line,
-            used: used.contains(&(s.keyword, s.pattern)),
-            bypassed: bypassed_keys.contains(&(s.keyword, s.pattern)),
+            used: used.contains(&(library_for_step(s), s.keyword, s.pattern.as_str())),
+            bypassed: bypassed_keys.contains(&(library_for_step(s), s.keyword, s.pattern.as_str())),
         })
         .collect();
 

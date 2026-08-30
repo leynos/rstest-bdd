@@ -34,6 +34,7 @@ fn main() {
     assert_eq!(requirements[0].ty, "SomeFixture");
 
     let request = StepExecutionRequest {
+        scope: rstest_bdd::StepScope::global(),
         index: 0,
         keyword: StepKeyword::Given,
         text: "single mutable fixture",
