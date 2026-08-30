@@ -7,6 +7,7 @@
 //! graceful shutdown.
 
 mod clearing;
+mod stderr;
 mod wire;
 
 use std::{
@@ -17,6 +18,7 @@ use std::{
 
 use rstest::{fixture, rstest};
 use serde_json::{Value, json};
+use stderr::StderrCapture;
 use tempfile::TempDir;
 use wire::{
     MessageReceiver,
@@ -69,7 +71,9 @@ fn init_server_handle(temp_dir: TempDir) -> ServerHandle {
     let mut child = spawn_server(&[]);
     let mut stdin = child.stdin.take().expect("stdin");
     let stdout = child.stdout.take().expect("stdout");
-    let receiver = MessageReceiver::spawn(BufReader::new(stdout));
+    let stderr = child.stderr.take().expect("stderr");
+    let stderr = StderrCapture::spawn(stderr);
+    let receiver = MessageReceiver::spawn(BufReader::new(stdout), stderr.diagnostics());
 
     let init_response = initialize(&mut stdin, &receiver, root_uri.as_str());
 
@@ -78,6 +82,7 @@ fn init_server_handle(temp_dir: TempDir) -> ServerHandle {
         child,
         stdin,
         receiver,
+        stderr,
         init_response,
     }
 }
@@ -89,6 +94,7 @@ struct ServerHandle {
     child: Child,
     stdin: ChildStdin,
     receiver: MessageReceiver,
+    stderr: StderrCapture,
     /// The response from the `initialize` request.
     init_response: Value,
 }
@@ -229,7 +235,13 @@ fn smoke_initialize_and_shutdown(mut server: ServerHandle) {
     let info = &server.init_response["result"]["serverInfo"];
     assert_eq!(info["name"], "rstest-bdd-lsp");
 
-    shutdown_and_exit(&mut server.stdin, &server.receiver, &mut server.child, 99);
+    shutdown_and_exit(
+        &mut server.stdin,
+        &server.receiver,
+        &mut server.child,
+        &mut server.stderr,
+        99,
+    );
 }
 
 #[rstest]
@@ -258,7 +270,13 @@ fn smoke_definition_request_returns_locations(mut server: ServerHandle) {
     assert_eq!(def_response["id"], 2, "definition response id");
     validate_definition_locations(&def_response);
 
-    shutdown_and_exit(&mut server.stdin, &server.receiver, &mut server.child, 99);
+    shutdown_and_exit(
+        &mut server.stdin,
+        &server.receiver,
+        &mut server.child,
+        &mut server.stderr,
+        99,
+    );
 }
 
 #[rstest]
@@ -305,5 +323,11 @@ fn smoke_diagnostics_published_for_unimplemented_step(mut server: ServerHandle) 
         "diagnostic message should mention the unimplemented step, got: {first_msg}"
     );
 
-    shutdown_and_exit(&mut server.stdin, &server.receiver, &mut server.child, 99);
+    shutdown_and_exit(
+        &mut server.stdin,
+        &server.receiver,
+        &mut server.child,
+        &mut server.stderr,
+        99,
+    );
 }

@@ -14,6 +14,8 @@ use std::{
 
 use serde_json::{Value, json};
 
+use super::stderr::StderrDiagnostics;
+
 /// Maximum time to wait for a single JSON-RPC message before assuming the
 /// server has stalled.
 const READ_TIMEOUT: Duration = Duration::from_secs(10);
@@ -53,6 +55,7 @@ pub fn encode_message(body: &Value) -> Vec<u8> {
 /// crashes or fails to produce output.
 pub struct MessageReceiver {
     rx: mpsc::Receiver<Value>,
+    stderr: StderrDiagnostics,
 }
 
 /// Read LSP headers and return the content length, or `None` on EOF or
@@ -93,7 +96,10 @@ impl MessageReceiver {
         clippy::expect_used,
         reason = "body parse failures are test-fatal programming errors"
     )]
-    pub fn spawn(mut reader: BufReader<impl Read + Send + 'static>) -> Self {
+    pub fn spawn(
+        mut reader: BufReader<impl Read + Send + 'static>,
+        stderr: StderrDiagnostics,
+    ) -> Self {
         let (tx, rx) = mpsc::channel();
         std::thread::spawn(move || {
             while let Some(content_length) = read_headers(&mut reader) {
@@ -105,7 +111,7 @@ impl MessageReceiver {
                 }
             }
         });
-        Self { rx }
+        Self { rx, stderr }
     }
 
     /// Receive the next message, blocking up to [`READ_TIMEOUT`].
@@ -113,14 +119,18 @@ impl MessageReceiver {
     /// # Panics
     ///
     /// Panics if no message arrives within the timeout.
-    #[expect(
-        clippy::expect_used,
-        reason = "timeout is a test-fatal condition indicating a server stall"
-    )]
     pub fn recv(&self) -> Value {
-        self.rx
-            .recv_timeout(READ_TIMEOUT)
-            .expect("timed out waiting for JSON-RPC message from server")
+        match self.rx.recv_timeout(READ_TIMEOUT) {
+            Ok(message) => message,
+            Err(mpsc::RecvTimeoutError::Timeout) => panic!(
+                "timed out waiting for JSON-RPC message from server; {}",
+                self.stderr.render()
+            ),
+            Err(mpsc::RecvTimeoutError::Disconnected) => panic!(
+                "JSON-RPC message receiver closed before a server response; {}",
+                self.stderr.render()
+            ),
+        }
     }
 
     /// Receive messages until one has the given response `id`.
@@ -172,7 +182,7 @@ pub fn spawn_server(extra_args: &[&str]) -> Child {
         .args(extra_args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        .stderr(Stdio::piped())
         .spawn()
         .expect("start rstest-bdd-lsp binary")
 }
@@ -224,6 +234,7 @@ pub fn shutdown_and_exit(
     stdin: &mut impl Write,
     receiver: &MessageReceiver,
     child: &mut Child,
+    stderr: &mut super::stderr::StderrCapture,
     request_id: u64,
 ) {
     let shutdown_request = json!({
@@ -251,7 +262,8 @@ pub fn shutdown_and_exit(
             Some(status) => {
                 assert!(
                     status.success(),
-                    "server should exit cleanly, got: {status}"
+                    "server should exit cleanly, got: {status}; {}",
+                    stderr.finish()
                 );
                 return;
             }
@@ -259,8 +271,9 @@ pub fn shutdown_and_exit(
                 let _ = child.kill();
                 let _ = child.wait();
                 panic!(
-                    "server did not exit within {} s; killed",
-                    EXIT_TIMEOUT.as_secs()
+                    "server did not exit within {} s; killed; {}",
+                    EXIT_TIMEOUT.as_secs(),
+                    stderr.finish()
                 );
             }
             None => std::thread::sleep(Duration::from_millis(50)),

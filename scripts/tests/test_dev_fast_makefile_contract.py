@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import dataclasses as dc
+import ntpath
 import os
 import re
+import shlex
 import shutil
 import stat
 import subprocess  # noqa: S404 - integration test invokes the trusted local Makefile.
-import sys
 import tomllib
 import typing as typ
 from pathlib import Path
@@ -42,9 +43,19 @@ class DevFastInvocation:
     """The fake Cargo call and its Makefile execution result."""
 
     fake_cargo: Path
+    fake_cargo_reference: str
     invocation_log: Path
     result: subprocess.CompletedProcess[str]
     real_cargo: str | None
+
+
+@dc.dataclass(frozen=True)
+class RecipeShellEnvironment:
+    """The Make executable and shell that evaluate a target recipe."""
+
+    make_executable: str
+    recipe_shell: str
+    cygpath: str | None
 
 
 def make_executable() -> str:
@@ -54,22 +65,96 @@ def make_executable() -> str:
     return executable
 
 
+def recipe_shell_environment() -> RecipeShellEnvironment:
+    """Discover the shell that the selected Make uses for its recipes."""
+    executable = make_executable()
+    result = subprocess.run(  # noqa: S603 - the local Make executable is trusted.
+        [executable, "--no-print-directory", "-f", "-", "print-recipe-shell"],
+        cwd=REPO_ROOT,
+        input='print-recipe-shell:\n\t@printf "%s\\n" "$(SHELL)"\n',
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    return RecipeShellEnvironment(
+        make_executable=executable,
+        recipe_shell=result.stdout.strip(),
+        cygpath=shutil.which("cygpath"),
+    )
+
+
+def is_posix_hosted_windows_shell(environment: RecipeShellEnvironment) -> bool:
+    """Return whether MinGW/MSYS Make delegates recipes to a POSIX shell."""
+    return environment.make_executable.lower().endswith(
+        ".exe"
+    ) and environment.recipe_shell.startswith("/")
+
+
+def is_native_windows_path(path: str) -> bool:
+    """Return whether *path* uses a drive-qualified Windows path syntax."""
+    drive, _ = ntpath.splitdrive(path)
+    return bool(drive)
+
+
+def cygpath_unix(path: str, cygpath: str) -> str:
+    """Convert a Windows path to the active POSIX shell namespace."""
+    result = subprocess.run(  # noqa: S603 - cygpath comes from the active shell environment.
+        [cygpath, "--unix", path],
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    converted = result.stdout.strip()
+    assert converted, "cygpath should return a POSIX path"
+    return converted
+
+
+def msys_unix_path(path: str) -> str:
+    """Map a drive-qualified Windows path to MSYS/MinGW's `/drive` namespace."""
+    drive, tail = ntpath.splitdrive(path)
+    assert drive, f"expected a drive-qualified Windows path, got {path!r}"
+    unix_tail = tail.replace("\\", "/").lstrip("/")
+    return f"/{drive[0].lower()}/{unix_tail}"
+
+
+def shell_safe_executable_reference(
+    path: Path,
+    environment: RecipeShellEnvironment,
+) -> str:
+    """Return the unquoted executable reference understood by Make's shell."""
+    native_path = str(path)
+    if not (
+        is_posix_hosted_windows_shell(environment)
+        and is_native_windows_path(native_path)
+    ):
+        return native_path
+    if environment.cygpath is not None:
+        return cygpath_unix(native_path, environment.cygpath)
+    return msys_unix_path(native_path)
+
+
+def shell_safe_command_word(reference: str) -> str:
+    """Quote an executable reference only when the POSIX shell requires it."""
+    return shlex.quote(reference)
+
+
 def write_fake_cargo(tmp_path: Path) -> tuple[Path, Path]:
     """Create a Cargo stand-in that records each received argument vector."""
     invocation_log = tmp_path / "cargo-invocations.log"
     fake_cargo = tmp_path / "cargo"
     fake_cargo.write_text(
         "\n".join([
-            f"#!{sys.executable}",
-            "import os",
-            "import sys",
-            "from pathlib import Path",
+            "#!/usr/bin/env sh",
             "",
-            (
-                'with Path(os.environ["FAKE_CARGO_INVOCATIONS"]).open('
-                '"a", encoding="utf-8") as invocation_log:'
-            ),
-            '    invocation_log.write("\\0".join(sys.argv) + "\\n")',
+            'printf "%s" "$0" >> "$FAKE_CARGO_INVOCATIONS"',
+            'for argument in "$@"; do',
+            '    printf "\\0%s" "$argument" >> "$FAKE_CARGO_INVOCATIONS"',
+            "done",
+            'printf "\\n" >> "$FAKE_CARGO_INVOCATIONS"',
             "",
         ]),
         encoding="utf-8",
@@ -83,13 +168,19 @@ def invoke_dev_fast_target(
 ) -> DevFastInvocation:
     """Run one dev-fast target with Cargo replaced by a recording executable."""
     fake_cargo, invocation_log = write_fake_cargo(tmp_path)
+    environment = recipe_shell_environment()
+    fake_cargo_reference = shell_safe_executable_reference(fake_cargo, environment)
+    invocation_log_reference = shell_safe_executable_reference(
+        invocation_log,
+        environment,
+    )
     original_path = os.environ["PATH"]
     real_cargo = shutil.which("cargo", path=original_path)
     monkeypatch.setenv("PATH", f"{tmp_path}{os.pathsep}{original_path}")
-    monkeypatch.setenv("CARGO", str(fake_cargo))
-    monkeypatch.setenv("FAKE_CARGO_INVOCATIONS", str(invocation_log))
+    monkeypatch.setenv("CARGO", shell_safe_command_word(fake_cargo_reference))
+    monkeypatch.setenv("FAKE_CARGO_INVOCATIONS", invocation_log_reference)
     result = subprocess.run(  # noqa: S603 - target and command are controlled by this test.
-        [make_executable(), "--no-print-directory", target],
+        [environment.make_executable, "--no-print-directory", target],
         cwd=REPO_ROOT,
         env=os.environ.copy(),
         text=True,
@@ -100,6 +191,7 @@ def invoke_dev_fast_target(
     )
     return DevFastInvocation(
         fake_cargo=fake_cargo,
+        fake_cargo_reference=fake_cargo_reference,
         invocation_log=invocation_log,
         result=result,
         real_cargo=real_cargo,
@@ -120,9 +212,9 @@ def assert_cargo_invocation(
     ]
     assert len(records) == 1
     executable, *arguments = records[0].split("\0")
-    assert Path(executable).resolve() == invocation.fake_cargo.resolve()
+    assert executable == invocation.fake_cargo_reference
     if invocation.real_cargo is not None:
-        assert Path(executable).resolve() != Path(invocation.real_cargo).resolve()
+        assert executable != invocation.real_cargo
     assert arguments == [
         f"+{DEV_FAST_TOOLCHAIN}",
         "--config",
@@ -177,3 +269,70 @@ def test_cargo_auto_configuration_excludes_the_dev_fast_fragment() -> None:
     assert DEV_FAST_CONFIG not in cargo_config
     assert "codegen-backend" not in cargo_config
     assert "-fuse-ld=mold" not in cargo_config
+
+
+def test_shell_safe_executable_reference_preserves_a_posix_path() -> None:
+    """Unix-like Make environments retain a directly executable path."""
+    environment = RecipeShellEnvironment(
+        make_executable="/usr/bin/make",
+        recipe_shell="/bin/sh",
+        cygpath=None,
+    )
+
+    assert (
+        shell_safe_executable_reference(Path("/example/fake-cargo"), environment)
+        == "/example/fake-cargo"
+    )
+
+
+def test_shell_safe_executable_reference_uses_cygpath_for_mingw(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """MinGW's POSIX recipe shell receives the path returned by `cygpath`."""
+    environment = RecipeShellEnvironment(
+        make_executable=r"C:\mingw64\bin\make.EXE",
+        recipe_shell="/usr/bin/sh",
+        cygpath=r"C:\msys64\usr\bin\cygpath.exe",
+    )
+    observed_command: list[str] = []
+
+    def fake_run(command: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        observed_command.extend(command)
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            "/c/Users/runneradmin/cargo\n",
+            "",
+        )
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    assert (
+        shell_safe_executable_reference(
+            Path(r"C:\Users\runneradmin\cargo"),
+            environment,
+        )
+        == "/c/Users/runneradmin/cargo"
+    )
+    assert observed_command == [
+        r"C:\msys64\usr\bin\cygpath.exe",
+        "--unix",
+        r"C:\Users\runneradmin\cargo",
+    ]
+
+
+def test_shell_safe_executable_reference_uses_msys_fallback_without_cygpath() -> None:
+    """A MinGW shell without `cygpath` receives the equivalent MSYS path."""
+    environment = RecipeShellEnvironment(
+        make_executable=r"C:\mingw64\bin\make.EXE",
+        recipe_shell="/usr/bin/sh",
+        cygpath=None,
+    )
+
+    assert (
+        shell_safe_executable_reference(
+            Path(r"C:\Users\runneradmin\cargo"),
+            environment,
+        )
+        == "/c/Users/runneradmin/cargo"
+    )

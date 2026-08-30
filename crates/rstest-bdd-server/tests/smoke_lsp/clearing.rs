@@ -86,7 +86,13 @@ fn smoke_feature_diagnostics_cleared_once_step_implemented(mut server: ServerHan
         )
         .expect("expected empty diagnostics clearing the resolved feature");
 
-    shutdown_and_exit(&mut server.stdin, &server.receiver, &mut server.child, 99);
+    shutdown_and_exit(
+        &mut server.stdin,
+        &server.receiver,
+        &mut server.child,
+        &mut server.stderr,
+        99,
+    );
 }
 
 /// Exercise the Rust side of the canonical boundary end-to-end: a Rust step
@@ -170,5 +176,11 @@ fn smoke_rust_diagnostics_cleared_once_step_referenced(mut server: ServerHandle)
         )
         .expect("expected empty rust diagnostics clearing the resolved step");
 
-    shutdown_and_exit(&mut server.stdin, &server.receiver, &mut server.child, 99);
+    shutdown_and_exit(
+        &mut server.stdin,
+        &server.receiver,
+        &mut server.child,
+        &mut server.stderr,
+        99,
+    );
 }
