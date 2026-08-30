@@ -24,6 +24,7 @@ use super::{
 };
 use crate::return_classifier::StepReturnStrategy;
 
+/// Renders a syntax path for assertions on generated attributes.
 fn path_to_string(path: &syn::Path) -> String {
     path.segments
         .iter()
@@ -32,6 +33,7 @@ fn path_to_string(path: &syn::Path) -> String {
         .join("::")
 }
 
+/// Extracts a string-valued lint reason from attribute metadata.
 fn extract_reason_from_meta(name_value: &syn::MetaNameValue) -> Option<String> {
     if let syn::Expr::Lit(syn::ExprLit {
         lit: syn::Lit::Str(lit_str),
@@ -44,6 +46,7 @@ fn extract_reason_from_meta(name_value: &syn::MetaNameValue) -> Option<String> {
     }
 }
 
+/// Collects expected lint names into the comparison representation.
 fn expected_lints(lints: &[&str]) -> HashSet<String> {
     lints.iter().map(|lint| (*lint).to_owned()).collect()
 }
@@ -83,6 +86,7 @@ fn parse_expect_attribute(wrapper_fn: &syn::ItemFn) -> (HashSet<String>, Option<
     (lint_names, reason, unexpected_meta)
 }
 
+/// Generates and parses a representative wrapper for structural assertions.
 fn assemble_wrapper_for_test(
     prepared: PreparedArgs,
     capture_count: usize,

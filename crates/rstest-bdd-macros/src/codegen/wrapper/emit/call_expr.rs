@@ -66,6 +66,7 @@ mod tests {
 
     use super::{StepReturnStrategy, generate_call_expression};
 
+    /// Verifies the emitted dispatch expression through its approved snapshot.
     #[test]
     fn dispatches_through_the_runtime_probe() {
         let ident = format_ident!("step");

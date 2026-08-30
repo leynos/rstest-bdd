@@ -37,70 +37,71 @@ macro_rules! selected_tag_name {
     }};
 }
 
-// Guards invariant 1 of `step_return.rs`: aliases select the inherent Result arm.
+/// Guards invariant 1 of `step_return.rs`: aliases select the inherent Result arm.
 fn unit_tag() -> &'static str { selected_tag_name!(()) }
 
-// Guards invariant 1 of `step_return.rs`: ordinary values select the fallback arm.
+/// Guards invariant 1 of `step_return.rs`: ordinary values select the fallback arm.
 fn value_tag() -> &'static str { selected_tag_name!(7_u8) }
 
-// Guards invariant 1 of `step_return.rs`: value aliases remain values.
+/// Guards invariant 1 of `step_return.rs`: value aliases remain values.
 fn value_alias_tag() -> &'static str { selected_tag_name!(7 as Score) }
 
-// Guards invariant 1 of `step_return.rs`: spelled Results select the inherent arm.
+/// Guards invariant 1 of `step_return.rs`: spelled Results select the inherent arm.
 fn result_tag() -> &'static str { selected_tag_name!(Ok::<u8, &'static str>(7)) }
 
-// Guards invariant 1 of `step_return.rs`: StepResult aliases select the Result arm.
+/// Guards invariant 1 of `step_return.rs`: `StepResult` aliases select the Result arm.
 fn step_result_tag() -> &'static str {
     let value: StepResult<u8, &'static str> = Ok(7);
     selected_tag_name!(value)
 }
 
-// Guards invariant 1 of `step_return.rs`: local Result aliases select the Result arm.
+/// Guards invariant 1 of `step_return.rs`: local Result aliases select the Result arm.
 fn alias_tag() -> &'static str {
     let value: Alias<u8> = Ok(7);
     selected_tag_name!(value)
 }
 
-// Guards invariant 1 of `step_return.rs`: nested aliases select the Result arm.
+/// Guards invariant 1 of `step_return.rs`: nested aliases select the Result arm.
 fn nested_alias_tag() -> &'static str {
     let value: Outer = Ok(7);
     selected_tag_name!(value)
 }
 
-// Guards invariant 1 of `step_return.rs`: aliases with defaults select the Result arm.
+/// Guards invariant 1 of `step_return.rs`: aliases with defaults select the Result arm.
 fn defaulted_alias_tag() -> &'static str {
     let value: Defaulted = Ok(7);
     selected_tag_name!(value)
 }
 
-// Guards invariant 1 of `step_return.rs`: qualified Result aliases select the Result arm.
+/// Guards invariant 1 of `step_return.rs`: qualified Result aliases select the Result arm.
 fn io_result_tag() -> &'static str {
     let value: std::io::Result<()> = Ok(());
     selected_tag_name!(value)
 }
 
-// Guards invariant 1 of `step_return.rs`: references are not dereferenced for dispatch.
+/// Guards invariant 1 of `step_return.rs`: references are not dereferenced for dispatch.
 fn reference_result_tag() -> &'static str {
     let result = Ok::<u8, &'static str>(7);
     selected_tag_name!(&result)
 }
 
-// Guards invariant 1 of `step_return.rs`: boxed Results remain values.
+/// Guards invariant 1 of `step_return.rs`: boxed Results remain values.
 fn boxed_result_tag() -> &'static str { selected_tag_name!(Box::new(Ok::<u8, &'static str>(7))) }
 
-// Guards invariant 1 of `step_return.rs`: optional Results remain values.
+/// Guards invariant 1 of `step_return.rs`: optional Results remain values.
 fn optional_result_tag() -> &'static str { selected_tag_name!(Some(Ok::<u8, &'static str>(7))) }
 
-// Guards invariant 1 of `step_return.rs`: newtypes around Results remain values.
+/// Guards invariant 1 of `step_return.rs`: newtypes around Results remain values.
 fn newtype_tag() -> &'static str {
     let value = Newtype(Ok(7));
-    let _ = &value.0;
+    assert_eq!(value.0.as_ref().ok(), Some(&7));
     selected_tag_name!(value)
 }
 
-// Guards invariant 1 of `step_return.rs`: deref targets are not followed.
+/// Guards invariant 1 of `step_return.rs`: deref targets are not followed.
 fn deref_result_tag() -> &'static str { selected_tag_name!(DerefResult(Ok(7))) }
 
+/// Verifies that each test return shape selects its expected dispatch tag.
 #[rstest]
 #[case::unit(unit_tag, type_name_of_val(&StepReturnValueTag))]
 #[case::plain_value(value_tag, type_name_of_val(&StepReturnValueTag))]
@@ -123,6 +124,7 @@ fn selects_the_expected_tag(
     assert_eq!(selected_tag(), expected_tag);
 }
 
+/// Verifies that error normalization retains the `Display` message.
 #[test]
 fn result_normalization_preserves_display_message() {
     struct Error;

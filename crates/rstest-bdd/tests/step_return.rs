@@ -276,7 +276,7 @@ fn scenario_alias_override_failure(number: Number) { let _ = number; }
 
 #[scenario(path = "tests/features/step_return_alias_no_hint_failure.feature")]
 #[should_panic(expected = "alias failure")]
-fn scenario_alias_no_hint_failure(number: Number) { let _ = number; }
+fn scenario_alias_no_hint_failure(_number: Number) {}
 
 #[scenario(path = "tests/features/step_return_anyhow_failure.feature")]
 #[should_panic(expected = "anyhow failure")]
@@ -287,15 +287,15 @@ fn scenario_anyhow_failure() {}
 fn scenario_io_result_failure() {}
 
 #[scenario(path = "tests/features/step_return_alias_ok_overrides_fixture.feature")]
-fn scenario_alias_ok_overrides_fixture(number: Number) { let _ = number; }
+fn scenario_alias_ok_overrides_fixture(_number: Number) {}
 
 #[scenario(path = "tests/features/step_return_alias_async_failure.feature")]
 #[tokio::test(flavor = "current_thread")]
 #[should_panic(expected = "async alias failure")]
-async fn scenario_alias_async_failure(number: Number) { let _ = number; }
+async fn scenario_alias_async_failure(_number: Number) {}
 
 #[scenario(path = "tests/features/step_return_genuine_value_alias.feature")]
-fn scenario_genuine_value_alias(score: Score) { let _ = score; }
+fn scenario_genuine_value_alias(_score: Score) {}
 
 #[scenario(path = "tests/features/step_return_boxed_result.feature")]
 fn scenario_boxed_result() {}
