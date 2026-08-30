@@ -385,7 +385,6 @@ The following tooling is available in this environment:
 These practices help maintain a high-quality codebase and facilitate
 collaboration.
 
-
 ## Fast development builds
 
 `make dev-build` and `make dev-test` compile with the opt-in Cranelift
