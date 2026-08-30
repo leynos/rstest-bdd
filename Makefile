@@ -4,7 +4,8 @@ VALE ?= vale
 .PHONY: lint-whitaker typecheck fmt check-fmt markdownlint spellcheck spelling
 .PHONY: spelling-config spelling-config-write spelling-phrase-check
 .PHONY: spelling-helper-test nixie publish-check
-.PHONY: check-published-gpui forbid-async-trait vale update-ui-lints-lock
+.PHONY: check-published-gpui stage-published-gpui-e2e e2e-published-gpui
+.PHONY: forbid-async-trait vale update-ui-lints-lock update-published-gpui-e2e-lock
 .PHONY: test-workflow-contracts
 
 SHELL := bash
@@ -97,6 +98,18 @@ typecheck: build-python ## Run cargo and Python type checks with warnings denied
 	$(UV_ENV) $(UV) run ty check $(PYTHON_TARGETS)
 
 PUBLISHED_GPUI_MANIFEST := tests/fixtures/published-gpui-0-2-2/Cargo.toml
+PUBLISHED_GPUI_E2E_DIR := tests/fixtures/published-gpui-e2e
+PUBLISHED_GPUI_E2E_STAGE_DIR := target/published-gpui-e2e
+PUBLISHED_GPUI_E2E_VERSION := 0.6.0-beta4
+PUBLISHED_GPUI_E2E_PACKAGES := \
+	rstest-bdd-patterns \
+	rstest-bdd-policy \
+	rstest-bdd-harness \
+	rstest-bdd-macros \
+	rstest-bdd \
+	rstest-bdd-harness-gpui
+PUBLISHED_GPUI_E2E_PACKAGE_PATCHES := $(foreach package,$(PUBLISHED_GPUI_E2E_PACKAGES),\
+	--config 'patch.crates-io.$(package).path="$(CURDIR)/crates/$(package)"')
 
 check-published-gpui: ## Compile the published gpui 0.2.2 documentation fixture
 	# This nested workspace bypasses the root workspace's vendored gpui path.
@@ -107,13 +120,40 @@ check-published-gpui: ## Compile the published gpui 0.2.2 documentation fixture
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) check --locked \
 		--manifest-path $(PUBLISHED_GPUI_MANIFEST)
 
+stage-published-gpui-e2e: ## Package first-party crates for the published GPUI E2E fixture
+	# Cargo's package manifest removes workspace path overrides, including the
+	# vendored GPUI shim. Extracting the packages makes that published surface
+	# available to the standalone fixture without changing the root workspace.
+	# Temporary patches merely let Cargo package unreleased beta dependencies;
+	# they do not appear in the normalized package manifests being extracted.
+	rm -rf $(PUBLISHED_GPUI_E2E_STAGE_DIR)
+	mkdir -p $(PUBLISHED_GPUI_E2E_STAGE_DIR)
+	set -e; \
+	for package in $(PUBLISHED_GPUI_E2E_PACKAGES); do \
+		$(CARGO) package --allow-dirty --no-verify --package "$$package" \
+			$(PUBLISHED_GPUI_E2E_PACKAGE_PATCHES); \
+		tar -xzf "target/package/$$package-$(PUBLISHED_GPUI_E2E_VERSION).crate" \
+			-C $(PUBLISHED_GPUI_E2E_STAGE_DIR); \
+	done
+	@sed -n '/^\[dependencies\.gpui\]/,/^\[/p' \
+		$(PUBLISHED_GPUI_E2E_STAGE_DIR)/rstest-bdd-harness-gpui-$(PUBLISHED_GPUI_E2E_VERSION)/Cargo.toml \
+		| grep -q 'version = "0.2.2"'
+	@! sed -n '/^\[dependencies\.gpui\]/,/^\[/p' \
+		$(PUBLISHED_GPUI_E2E_STAGE_DIR)/rstest-bdd-harness-gpui-$(PUBLISHED_GPUI_E2E_VERSION)/Cargo.toml \
+		| grep -q '^path = '
+
+e2e-published-gpui: stage-published-gpui-e2e ## Run the nightly published-GPUI stateful scenario
+	# `cd` lets rustup discover this fixture's pinned nightly override.
+	cd $(PUBLISHED_GPUI_E2E_DIR) && RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) test --locked
+
 forbid-async-trait: ## Ensure the async-trait crate and macro remain absent
 	python3 scripts/check_forbidden_async_trait.py
 
 fmt: build-python ## Format Rust and Markdown sources
 	$(CARGO_FMT) --all
-	# The published gpui fixture is its own workspace, so `--all` misses it.
+	# Published GPUI fixtures are their own workspaces, so `--all` misses them.
 	$(CARGO_FMT) --manifest-path $(PUBLISHED_GPUI_MANIFEST)
+	$(CARGO_FMT) --manifest-path $(PUBLISHED_GPUI_E2E_DIR)/Cargo.toml
 	$(UV_ENV) $(UV) run ruff format $(PYTHON_TARGETS)
 	$(UV_ENV) $(UV) run ruff check --select I --fix $(PYTHON_TARGETS)
 	mdformat-all
@@ -121,6 +161,7 @@ fmt: build-python ## Format Rust and Markdown sources
 check-fmt: build-python ## Verify formatting
 	$(CARGO_FMT) --all -- --check
 	$(CARGO_FMT) --manifest-path $(PUBLISHED_GPUI_MANIFEST) -- --check
+	$(CARGO_FMT) --manifest-path $(PUBLISHED_GPUI_E2E_DIR)/Cargo.toml -- --check
 	$(UV_ENV) $(UV) run ruff format --check $(PYTHON_TARGETS)
 
 markdownlint: spelling ## Lint Markdown files and enforce en-GB-oxendict spelling
@@ -152,7 +193,9 @@ nixie:
 	# environment variable control for this option
 	nixie --no-sandbox
 
-publish-check: build-python ## Package crates in release order to validate publish readiness
+# Lading validates the standalone fixture manifest, whose patch paths require
+# the staged package artefacts during the publish dry run.
+publish-check: build-python stage-published-gpui-e2e ## Package crates in release order to validate publish readiness
 	$(UV_ENV) $(UV) run --with "$(LADING_SPEC)" lading publish --workspace-root . --allow-unpublished-workspace-deps
 
 test-workflow-contracts: ## Validate the mutation-testing caller contract
@@ -160,6 +203,9 @@ test-workflow-contracts: ## Validate the mutation-testing caller contract
 
 update-ui-lints-lock: ## Refresh ui_lints trybuild lockfile for `--locked` CI
 	$(CARGO) generate-lockfile --manifest-path crates/rstest-bdd/tests/ui_lints/Cargo.toml
+
+update-published-gpui-e2e-lock: stage-published-gpui-e2e ## Refresh the published GPUI E2E fixture lockfile
+	cd $(PUBLISHED_GPUI_E2E_DIR) && $(CARGO) generate-lockfile
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | \
