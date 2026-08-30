@@ -7,11 +7,6 @@ that need a new testing practice to be useful.
 
 ## Breaking changes
 
-- `StepArgs` derives now bind captures by placeholder name. Fields whose Rust
-  names differ from placeholders must add
-  `#[step_args(placeholder = "placeholder_name")]`; positional coincidence is
-  no longer accepted by derived bindings.
-
 - Implicit fixture names now normalize exactly one leading underscore.
   Parameters named `world` and `_world` both resolve to the implicit fixture key
   `world`; `__world` resolves to `_world`. Explicit `#[from(...)]` fixture
