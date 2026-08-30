@@ -58,6 +58,8 @@ pub(super) struct ScenarioTestContext<'a> {
     pub(super) attributes: Option<&'a syn::Path>,
     /// Harness path generated against, after any runtime compatibility alias.
     pub(super) effective_harness: Option<&'a syn::Path>,
+    /// Closed step-library scope shared by generated tests.
+    pub(super) scope: &'a TokenStream2,
     /// Adapter API paths resolved once for the whole `scenarios!` expansion.
     pub(super) resolutions: &'a crate::codegen::SharedAdapterResolutions,
 }
@@ -353,6 +355,7 @@ pub(super) fn generate_scenario_test(
         attributes: ctx.attributes,
         resolutions: Some(ctx.resolutions),
         fallback_diagnostics: None,
+        scope: ctx.scope.clone(),
     };
     generate_scenario_code(
         &config,

@@ -9,6 +9,11 @@
 //! a metadata lookup, it inherits the usage-marking behaviour that
 //! [`super::ResolvedStep`] applies on construction.
 //!
+//! The public helpers collapse [`super::StepLookupError`] to `None`, which is
+//! the compatibility contract these deprecated projections have always had.
+//! Callers that need the ambiguity diagnostic must use the metadata pair and
+//! handle the `Result`.
+//!
 //! New code should call the metadata pair directly and project the field it
 //! needs. The helpers here remain available, with deprecation warnings, until
 //! the next breaking release; the v0.7.0 migration guide maps each one to its

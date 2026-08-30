@@ -48,6 +48,7 @@ fn missing_fixture_details_for(
     }
 
     let request = StepExecutionRequest {
+        scope: rstest_bdd::StepScope::global(),
         index: 0,
         keyword: StepKeyword::Given,
         text: PROPERTY_STEP_TEXT,

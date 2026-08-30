@@ -13,6 +13,7 @@
 //! Regression tests in this module and in `rstest-bdd::execution` guard that
 //! shared source of truth so macro/runtime policy semantics do not drift.
 
+use quote::{format_ident, quote};
 pub(crate) use rstest_bdd_policy::{RuntimeMode, TestAttributeHint};
 use syn::{
     LitStr,
@@ -70,6 +71,8 @@ pub(super) struct ScenariosArgs {
     pub(super) harness: Option<syn::Path>,
     /// Stores the internal `attributes` value.
     pub(super) attributes: Option<syn::Path>,
+    /// Closed set of step libraries selected for generated scenarios.
+    pub(super) libraries: Option<Vec<syn::Path>>,
 }
 
 /// Documents the internal `ScenariosArg` item.
@@ -86,6 +89,8 @@ enum ScenariosArg {
     Harness(syn::Path),
     /// Represents the internal validation outcome.
     Attributes(syn::Path),
+    /// Closed step-library list.
+    Libraries(Vec<syn::Path>),
 }
 
 impl Parse for ScenariosArg {
@@ -109,10 +114,20 @@ fn parse_named_arg(ident: &syn::Ident, input: ParseStream<'_>) -> syn::Result<Sc
         "runtime" => parse_runtime_arg(input),
         "harness" => Ok(ScenariosArg::Harness(input.parse()?)),
         "attributes" => Ok(ScenariosArg::Attributes(input.parse()?)),
+        "libraries" => parse_libraries_arg(input),
         _ => Err(input.error(
-            "expected `dir`, `path`, `tags`, `fixtures`, `runtime`, `harness`, or `attributes`",
+            "expected `dir`, `path`, `tags`, `fixtures`, `runtime`, `harness`, `attributes`, or \
+             `libraries`",
         )),
     }
+}
+
+/// Parse the closed `libraries = [path, ...]` selection argument.
+fn parse_libraries_arg(input: ParseStream<'_>) -> syn::Result<ScenariosArg> {
+    let content;
+    syn::bracketed!(content in input);
+    let paths = Punctuated::<syn::Path, Comma>::parse_terminated(&content)?;
+    Ok(ScenariosArg::Libraries(paths.into_iter().collect()))
 }
 
 /// Parse the fixtures argument: `fixtures = [name: Type, ...]`
@@ -170,6 +185,7 @@ fn process_args(
     Option<RuntimeMode>,
     Option<syn::Path>,
     Option<syn::Path>,
+    Option<Vec<syn::Path>>,
 )> {
     let mut dir = None;
     let mut tag_filter = None;
@@ -177,6 +193,7 @@ fn process_args(
     let mut runtime = None;
     let mut harness = None;
     let mut attributes = None;
+    let mut libraries = None;
 
     for arg in args {
         match arg {
@@ -190,16 +207,22 @@ fn process_args(
             ScenariosArg::Attributes(p) => {
                 set_once(&mut attributes, p, "attributes", input)?;
             }
+            ScenariosArg::Libraries(paths) => {
+                set_once(&mut libraries, paths, "libraries", input)?;
+            }
         }
     }
 
-    Ok((dir, tag_filter, fixtures, runtime, harness, attributes))
+    Ok((
+        dir, tag_filter, fixtures, runtime, harness, attributes, libraries,
+    ))
 }
 
 impl Parse for ScenariosArgs {
     fn parse(input: ParseStream<'_>) -> syn::Result<Self> {
         let args = Punctuated::<ScenariosArg, Comma>::parse_terminated(input)?;
-        let (dir, tag_filter, fixtures, runtime, harness, attributes) = process_args(args, input)?;
+        let (dir, tag_filter, fixtures, runtime, harness, attributes, libraries) =
+            process_args(args, input)?;
 
         let dir = dir.ok_or_else(|| input.error("`dir` (or `path`) argument is required"))?;
         let runtime = runtime.unwrap_or_default();
@@ -211,7 +234,40 @@ impl Parse for ScenariosArgs {
             runtime,
             harness,
             attributes,
+            libraries,
         })
+    }
+}
+
+/// Generate the runtime scope expression for the selected module paths.
+pub(super) fn library_scope_tokens(libraries: Option<&[syn::Path]>) -> proc_macro2::TokenStream {
+    let runtime = crate::codegen::rstest_bdd_path();
+    let Some(libraries) = libraries else {
+        return quote! { #runtime::StepScope::global() };
+    };
+    let markers: Vec<_> = libraries.iter().map(library_marker_path).collect();
+    quote! { #runtime::StepScope::new(&[#(#markers),*]) }
+}
+
+/// Convert one selected library module path into its generated marker path.
+fn library_marker_path(path: &syn::Path) -> proc_macro2::TokenStream {
+    if path
+        .segments
+        .last()
+        .is_some_and(|segment| segment.ident == "global")
+    {
+        return quote! { #path::STEP_LIBRARY };
+    }
+    let mut parent = path.clone();
+    let Some(last) = parent.segments.pop() else {
+        return quote! { compile_error!("step library path cannot be empty") };
+    };
+    let last = last.into_value();
+    let marker = format_ident!("__RSTEST_BDD_STEP_LIBRARY_{}", last.ident);
+    if parent.segments.is_empty() {
+        quote! { #marker }
+    } else {
+        quote! { #parent::#marker }
     }
 }
 

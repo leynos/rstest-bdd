@@ -93,6 +93,7 @@ impl ExecutionError {
                 };
                 Self::format_step_not_found(loader, &step)
             }
+            Self::StepAmbiguous { message } => message.clone(),
             Self::MissingFixtures(details) => Self::format_missing_fixtures(loader, details, path),
             Self::HandlerFailed {
                 index,
