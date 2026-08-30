@@ -12,16 +12,20 @@ use rstest::fixture;
 use rstest_bdd_macros::{given, scenario, then, when};
 use serial_test::serial;
 
+/// Holds the counter value rendered by the published-GPUI test window.
 #[derive(Default)]
 struct CounterView {
+    /// Stores the value that the reconstructed visual context increments.
     value: usize,
 }
 
 impl CounterView {
+    /// Creates an empty counter view for a newly opened GPUI window.
     fn new(_view_context: &mut gpui::Context<Self>) -> Self { Self::default() }
 }
 
 impl gpui::Render for CounterView {
+    /// Renders no elements because this fixture verifies state rather than UI output.
     fn render(
         &mut self,
         _window: &mut gpui::Window,
@@ -31,41 +35,53 @@ impl gpui::Render for CounterView {
     }
 }
 
+/// Stores durable handles and reset observations for one stateful scenario.
 #[derive(Default)]
 struct ScenarioState {
+    /// Retains the counter entity created by the Given step.
     entity: Option<gpui::Entity<CounterView>>,
+    /// Retains the window handle paired with the counter entity.
     window: Option<gpui::AnyWindowHandle>,
+    /// Records how many windows the current scenario opened.
     opened_window_count: usize,
 }
 
 thread_local! {
+    /// Holds isolated state for the scenario executing on the current test thread.
     static SCENARIO_STATE: RefCell<ScenarioState> = RefCell::new(ScenarioState::default());
 }
 
+/// Runs an operation with the thread-local state for the active scenario.
 fn with_state<R>(operation: impl FnOnce(&mut ScenarioState) -> R) -> R {
     SCENARIO_STATE.with(|state| operation(&mut state.borrow_mut()))
 }
 
+/// Clears scenario state before the Given step assigns fresh durable handles.
 fn reset_state_before_assignment() {
     SCENARIO_STATE.with(|state| *state.borrow_mut() = ScenarioState::default());
 }
 
+/// Clears scenario state after the cleanup fixture finishes.
 fn reset_state_after_scenario() {
     SCENARIO_STATE.with(|state| *state.borrow_mut() = ScenarioState::default());
 }
 
+/// Clears thread-local state when the scenario cleanup fixture is dropped.
 struct ScenarioStateCleanup;
 
 impl Drop for ScenarioStateCleanup {
+    /// Resets the state after each scenario, including assertion failures.
     fn drop(&mut self) { reset_state_after_scenario(); }
 }
 
+/// Initializes scenario state and returns the guard that resets it afterwards.
 #[fixture]
 fn scenario_state_cleanup() -> ScenarioStateCleanup {
     reset_state_before_assignment();
     ScenarioStateCleanup
 }
 
+/// Returns the durable entity and window handles stored by the Given step.
 fn current_handles() -> (gpui::Entity<CounterView>, gpui::AnyWindowHandle) {
     with_state(|state| {
         let Some(entity) = state.entity.clone() else {
@@ -78,6 +94,7 @@ fn current_handles() -> (gpui::Entity<CounterView>, gpui::AnyWindowHandle) {
     })
 }
 
+/// Opens a published-GPUI window and stores its durable handles for later steps.
 #[given("a fresh GPUI window is opened")]
 fn fresh_gpui_window_is_opened(
     #[from(rstest_bdd_harness_context)] context: &mut gpui::TestAppContext,
@@ -102,6 +119,7 @@ fn fresh_gpui_window_is_opened(
     );
 }
 
+/// Increments the stored counter through a reconstructed published visual context.
 #[when("the view is updated through a reconstructed visual context")]
 fn view_is_updated_through_reconstructed_visual_context(
     #[from(rstest_bdd_harness_context)] context: &mut gpui::TestAppContext,
@@ -119,6 +137,7 @@ fn view_is_updated_through_reconstructed_visual_context(
     );
 }
 
+/// Verifies that reconstructed published-GPUI handles identify the updated view.
 #[then("the durable handles still identify the updated view")]
 fn durable_handles_identify_the_updated_view(
     #[from(rstest_bdd_harness_context)] context: &mut gpui::TestAppContext,
@@ -145,6 +164,7 @@ fn durable_handles_identify_the_updated_view(
     );
 }
 
+/// Verifies that the current scenario contains only its freshly assigned handles.
 #[then("no stale handles from a previous scenario remain")]
 fn no_stale_handles_from_previous_scenario_remain() {
     with_state(|state| {
@@ -159,6 +179,7 @@ fn no_stale_handles_from_previous_scenario_remain() {
     });
 }
 
+/// Executes the scenario that reconstructs a visual context from durable handles.
 #[scenario(
     path = "tests/features/stateful_window.feature",
     name = "Reconstruct visual context from durable handles",
@@ -170,6 +191,7 @@ fn scenario_reconstructs_visual_context_from_durable_handles(
 ) {
 }
 
+/// Executes the scenario that proves a second window starts from reset state.
 #[scenario(
     path = "tests/features/stateful_window.feature",
     name = "Opening a second GPUI window starts from reset state",

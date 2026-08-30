@@ -22,6 +22,9 @@ serial_test = "2.0.0"
 [workspace]
 resolver = "2"
 
+[lints.clippy]
+missing_docs_in_private_items = "deny"
+
 [patch.crates-io]
 rstest-bdd = { path = "../../../target/published-gpui-e2e/rstest-bdd-0.6.0-beta4" }
 rstest-bdd-harness = { path = "../../../target/published-gpui-e2e/rstest-bdd-harness-0.6.0-beta4" }
