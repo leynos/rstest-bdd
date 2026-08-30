@@ -1,5 +1,6 @@
 //! Behavioural test covering struct-based step arguments.
 
+use proptest::prelude::*;
 use rstest::fixture;
 use rstest_bdd::Slot;
 use rstest_bdd_macros::{ScenarioState, StepArgs, given, scenario, then, when};
@@ -164,6 +165,39 @@ fn step_args_bind_named_captures_independently_of_field_order() {
             amount: 42,
         }
     );
+}
+
+proptest! {
+    #[test]
+    fn named_capture_order_does_not_change_step_args_binding(
+        captures in prop::sample::select(vec![
+            [("sender", "Alice"), ("amount", "42"), ("recipient", "Bob")],
+            [("sender", "Alice"), ("recipient", "Bob"), ("amount", "42")],
+            [("amount", "42"), ("sender", "Alice"), ("recipient", "Bob")],
+            [("amount", "42"), ("recipient", "Bob"), ("sender", "Alice")],
+            [("recipient", "Bob"), ("sender", "Alice"), ("amount", "42")],
+            [("recipient", "Bob"), ("amount", "42"), ("sender", "Alice")],
+        ]),
+    ) {
+        let captures = captures
+            .into_iter()
+            .map(|(name, value)| rstest_bdd::StepCapture {
+                name,
+                value: String::from(value),
+            })
+            .collect();
+        let transfer = <ReorderedTransfer as rstest_bdd::StepArgs>::from_named_captures(captures)
+            .expect("every capture permutation should populate the transfer");
+
+        prop_assert_eq!(
+            transfer,
+            ReorderedTransfer {
+                recipient: String::from("Bob"),
+                from: String::from("Alice"),
+                amount: 42,
+            },
+        );
+    }
 }
 
 #[test]
