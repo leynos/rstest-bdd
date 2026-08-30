@@ -221,7 +221,7 @@ vale: ## Check prose
 
 # Opt-in accelerated debug builds (Cranelift + mold); requires a nightly
 # toolchain. See AGENTS.md and tools/dev-fast/config.toml.
-DEV_FAST_TOOLCHAIN ?= nightly
+DEV_FAST_TOOLCHAIN ?= nightly-2026-08-16
 DEV_FAST_CONFIG ?= tools/dev-fast/config.toml
 
 .PHONY: dev-build dev-test

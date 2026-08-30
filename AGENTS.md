@@ -391,8 +391,15 @@ collaboration.
 backend and the mold linker configured in `tools/dev-fast/config.toml`.
 They require a nightly toolchain with the
 `rustc-codegen-cranelift-preview` component and, on Linux, a `mold` binary
-on the `PATH`. The fragment is passed explicitly with `--config`, so release,
-coverage, and verification builds are unaffected; never copy its contents
-into `.cargo/config.toml`, which Cargo applies to every build.
-The targets use `DEV_FAST_TOOLCHAIN ?= nightly` by default; set that Make
-variable when a different nightly toolchain is required.
+on the `PATH`. Install the selected toolchain and component with:
+
+```sh
+rustup toolchain install nightly-2026-08-16 \
+  --component rustc-codegen-cranelift-preview
+```
+
+The fragment is passed explicitly with `--config`, so release, coverage, and
+verification builds are unaffected; never copy its contents into
+`.cargo/config.toml`, which Cargo applies to every build. The targets use
+`DEV_FAST_TOOLCHAIN ?= nightly-2026-08-16` by default; set that Make variable
+when a different nightly toolchain is required.
