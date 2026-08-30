@@ -221,11 +221,12 @@ vale: ## Check prose
 
 # Opt-in accelerated debug builds (Cranelift + mold); requires a nightly
 # toolchain. See AGENTS.md and tools/dev-fast/config.toml.
+DEV_FAST_TOOLCHAIN ?= nightly
 DEV_FAST_CONFIG ?= tools/dev-fast/config.toml
 
 .PHONY: dev-build dev-test
 dev-build: ## Build debug binaries with Cranelift and mold
-	cargo --config "$(DEV_FAST_CONFIG)" build
+	$(CARGO) +$(DEV_FAST_TOOLCHAIN) --config "$(DEV_FAST_CONFIG)" build
 
 dev-test: ## Run tests with Cranelift and mold
-	cargo --config "$(DEV_FAST_CONFIG)" test
+	$(CARGO) +$(DEV_FAST_TOOLCHAIN) --config "$(DEV_FAST_CONFIG)" test
