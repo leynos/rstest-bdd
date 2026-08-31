@@ -1,4 +1,4 @@
-# flake8-return Style Guide (Python 3.12)
+# flake8-return Style Guide (Python 3.14)
 
 The `flake8-return` rules ensure consistent and explicit return behaviour,
 ensuring functions are clear in intent and free from unnecessary control flow.

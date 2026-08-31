@@ -323,6 +323,6 @@ class TestMakefileHook:
             "\nlint-whitaker:", maxsplit=1
         )[0]
 
-        assert "python3 scripts/check_serial_nextest_matrix.py" in lint_target, (
-            "make lint should run the serial/nextest matrix checker"
-        )
+        assert (
+            "$(PROJECT_PYTHON) scripts/check_serial_nextest_matrix.py" in lint_target
+        ), "make lint should run the serial/nextest matrix checker"

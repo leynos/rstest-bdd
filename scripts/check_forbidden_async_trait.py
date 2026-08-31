@@ -6,12 +6,15 @@ standalone published-GPUI fixture lockfiles are exempt; see
 :data:`EXCLUDED_LOCKFILES` for the rationale.
 """
 
-import collections.abc as cabc
 import enum
 import re
 import sys
 import tomllib
+import typing as typ
 from pathlib import Path
+
+if typ.TYPE_CHECKING:
+    import collections.abc as cabc
 
 # Restrict the scan to files whose extensions could legitimately reference the
 # crate. This avoids doc files where the name may be mentioned in prose.
@@ -217,7 +220,7 @@ def manifest_declares_async_trait(path: Path) -> bool:
     """Check whether a Cargo manifest declares ``async-trait``."""
     try:
         data = tomllib.loads(path.read_text(encoding="utf-8"))
-    except (UnicodeDecodeError, tomllib.TOMLDecodeError, OSError):
+    except UnicodeDecodeError, tomllib.TOMLDecodeError, OSError:
         return False
     return toml_tree_declares_async_trait(data)
 
@@ -226,7 +229,7 @@ def lockfile_mentions_async_trait(path: Path) -> bool:
     """Check whether a Cargo lockfile references ``async-trait``."""
     try:
         contents = path.read_text(encoding="utf-8")
-    except (UnicodeDecodeError, OSError):
+    except UnicodeDecodeError, OSError:
         return False
     return bool(LOCKFILE_PATTERN.search(contents))
 

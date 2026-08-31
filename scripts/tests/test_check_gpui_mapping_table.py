@@ -1,6 +1,6 @@
 """Unit tests for the GPUI mapping-table drift checker."""
 
-from pathlib import Path
+import typing as typ
 
 import pytest
 from check_gpui_mapping_table import (
@@ -12,6 +12,9 @@ from check_gpui_mapping_table import (
     extract_mapping_rows,
     normalize_table_row,
 )
+
+if typ.TYPE_CHECKING:
+    from pathlib import Path
 
 TABLE = "\n".join([
     (

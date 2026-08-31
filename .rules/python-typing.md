@@ -1,6 +1,6 @@
-# Advanced Typing and Language Features (Python 3.12)
+# Advanced Typing and Language Features (Python 3.14)
 
-> This section documents Python 3.12 typing features and best
+> This section documents Python 3.14 typing features and best
 > practices to improve clarity, correctness, and tooling support. Use these
 > features to write expressive, modern Python.
 
@@ -99,7 +99,8 @@ class Child(Base):
         print("Running")
 ```
 
-This decorator is a no-op at runtime but improves tooling correctness.
+This decorator performs no runtime validation and makes a best-effort attempt
+to set `__override__ = True`, while improving tooling correctness.
 
 ## `TypeGuard` (PEP 647)
 
@@ -115,15 +116,15 @@ def is_str_list(val: list[object]) -> typing.TypeGuard[list[str]]:
 ```
 
 Unlike `isinstance`, this informs the type checker that `val` is now
-`list[str]` when the guard returns true. The later `TypeIs` (PEP 742) is not
-available on this repository's Python 3.12 baseline; use it only through a
-deliberately supported compatibility dependency.
+`list[str]` when the guard returns true. `TypeIs` (PEP 742) is available on
+this repository's Python 3.14 baseline; use it when narrowing both the true
+and false branches is useful.
 
 ## Defaults for TypeVars (PEP 696)
 
-TypeVar defaults were introduced after Python 3.12. Do not pass `default=` to
-`typing.TypeVar` in code targeting this repository's baseline. Use an explicit
-overload, factory, or value default instead.
+TypeVar defaults were introduced after Python 3.12 and are available on this
+repository's Python 3.14 baseline. Use `default=` when it accurately models
+the API; otherwise use an explicit overload, factory, or value default.
 
 ```python
 T = typing.TypeVar("T")
@@ -187,7 +188,7 @@ from __future__ import annotations
 
 When a runtime consumer inspects concrete annotation objects, omit the import
 or provide the referenced types at runtime instead. The project baseline is
-Python 3.12.
+Python 3.14.
 
 ## `if typing.TYPE_CHECKING`
 

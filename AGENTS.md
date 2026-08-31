@@ -347,7 +347,7 @@ internally facing conventions or practices in `docs/developers-guide.md`.
 For Python development, refer to the detailed guidelines in the `.rules/`
 directory:
 
-- [Python code style guidelines](.rules/python-00.md) - Core Python 3.12 style
+- [Python code style guidelines](.rules/python-00.md) - Core Python 3.14 style
   conventions.
 - [Python context managers](.rules/python-context-managers.md) - Best practices
   for context managers.

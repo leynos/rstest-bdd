@@ -1,7 +1,7 @@
 """Unit tests for the users-guide link checker."""
 
 import re
-from pathlib import Path
+import typing as typ
 
 import pytest
 from check_users_guide_links import (
@@ -15,6 +15,9 @@ from check_users_guide_links import (
 )
 from hypothesis import given
 from hypothesis import strategies as st
+
+if typ.TYPE_CHECKING:
+    from pathlib import Path
 
 # Characters at which str.splitlines() breaks a line. Heading strategies
 # exclude them so a generated heading stays on a single Markdown line.

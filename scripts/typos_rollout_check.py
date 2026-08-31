@@ -1,6 +1,6 @@
 #!/usr/bin/env -S uv run python
 # /// script
-# requires-python = ">=3.12"
+# requires-python = ">=3.14"
 # dependencies = ["pathspec==1.1.1"]
 # ///
 """Enforce exact phrase corrections alongside the Typos scanner.
@@ -14,14 +14,17 @@ Run it from the repository root with
 """
 
 import argparse
-import collections.abc as cabc
 import dataclasses as dc
 import re
 import subprocess
 import tomllib
+import typing as typ
 from pathlib import Path
 
 from pathspec import GitIgnoreSpec
+
+if typ.TYPE_CHECKING:
+    import collections.abc as cabc
 
 POLICY_PATHS = frozenset(
     {
@@ -231,7 +234,7 @@ def check_phrase_corrections(
             continue
         try:
             text = (repository / relative).read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
+        except OSError, UnicodeDecodeError:
             continue
         masked = _masked(text, policy.ignore_patterns)
         found.extend(

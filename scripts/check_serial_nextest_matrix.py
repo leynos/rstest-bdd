@@ -21,7 +21,6 @@ Exit codes
 
 import re
 import sys
-import typing as typ
 from pathlib import Path
 
 DESIGN_DOC = Path("docs/rstest-bdd-design.md")
@@ -34,88 +33,33 @@ EXPECTED_DATA_ROWS = 2
 class SerialNextestMatrixError(ValueError):
     """A `#[serial]`/nextest runner matrix is missing or malformed."""
 
-    @classmethod
-    def _for_heading(cls, template: str, heading: str) -> typ.Self:
-        """
-        Build an error from a heading-only message template.
+    @staticmethod
+    def heading_not_found_message(heading: str) -> str:
+        """Return the message for a missing anchor heading."""
+        return f"heading not found: {heading}"
 
-        Parameters
-        ----------
-        cls : type[SerialNextestMatrixError]
-            The error type being constructed.
-        template : str
-            Format string that accepts a ``heading`` field.
-        heading : str
-            Heading text to interpolate into ``template``.
+    @staticmethod
+    def separator_not_found_message(heading: str) -> str:
+        """Return the message for a table without its separator row."""
+        return f"runner matrix under {heading!r} has no separator row"
 
-        Returns
-        -------
-        SerialNextestMatrixError
-            Error built from the formatted heading template.
-        """
-        return cls(template.format(heading=heading))
-
-    @classmethod
-    def heading_not_found(cls, heading: str) -> typ.Self:
-        """Build an error for a missing anchor heading."""
-        return cls._for_heading("heading not found: {heading}", heading)
-
-    @classmethod
-    def separator_not_found(cls, heading: str) -> typ.Self:
-        """Build an error for a table without its separator row."""
-        return cls._for_heading(
-            "runner matrix under {heading!r} has no separator row", heading
-        )
-
-    @classmethod
-    def wrong_row_count(cls, heading: str, actual: int) -> typ.Self:
-        """
-        Build an error for a table with the wrong number of data rows.
-
-        Parameters
-        ----------
-        heading : str
-            The heading that anchors the table.
-        actual : int
-            The number of data rows that were found.
-
-        Returns
-        -------
-        SerialNextestMatrixError
-            Error raised when the table has the wrong number of rows.
-        """
-        message = (
+    @staticmethod
+    def wrong_row_count_message(heading: str, actual: int) -> str:
+        """Return the message for an unexpected number of data rows."""
+        return (
             f"runner matrix under {heading!r} has {actual} data rows; "
             f"expected {EXPECTED_DATA_ROWS}"
         )
-        return cls(message)
 
-    @classmethod
-    def table_not_found(cls, heading: str) -> typ.Self:
-        """Build an error for a missing runner matrix."""
-        return cls._for_heading(
-            "runner matrix not found under heading: {heading}", heading
-        )
+    @staticmethod
+    def table_not_found_message(heading: str) -> str:
+        """Return the message for a missing runner matrix."""
+        return f"runner matrix not found under heading: {heading}"
 
-    @classmethod
-    def document_unreadable(cls, relative_path: Path, error: OSError) -> typ.Self:
-        """
-        Build an error for a document that could not be read.
-
-        Parameters
-        ----------
-        relative_path : Path
-            The document path relative to the repository root.
-        error : OSError
-            The underlying read failure.
-
-        Returns
-        -------
-        SerialNextestMatrixError
-            Error raised when the document cannot be read.
-        """
-        message = f"could not read {relative_path}: {error}"
-        return cls(message)
+    @staticmethod
+    def document_unreadable_message(relative_path: Path, error: OSError) -> str:
+        """Return the message for a document that could not be read."""
+        return f"could not read {relative_path}: {error}"
 
 
 def normalize_table_row(row: str) -> str:
@@ -217,10 +161,12 @@ def _parse_table_at(section: list[str], header_index: int, heading: str) -> list
     if separator_index >= len(section) or not _is_separator_row(
         section[separator_index]
     ):
-        raise SerialNextestMatrixError.separator_not_found(heading)
+        message = SerialNextestMatrixError.separator_not_found_message(heading)
+        raise SerialNextestMatrixError(message)
     rows = _collect_table_rows(section, separator_index + 1)
     if len(rows) != EXPECTED_DATA_ROWS:
-        raise SerialNextestMatrixError.wrong_row_count(heading, len(rows))
+        message = SerialNextestMatrixError.wrong_row_count_message(heading, len(rows))
+        raise SerialNextestMatrixError(message)
     return rows
 
 
@@ -242,20 +188,21 @@ def extract_matrix_rows(markdown: str, heading: str) -> list[str]:
 
     Raises
     ------
-    SerialNextestMatrixError.heading_not_found
-        The requested heading is absent.
-    SerialNextestMatrixError.table_not_found
-        The anchored section contains no runner matrix.
+    SerialNextestMatrixError
+        The requested heading or runner matrix is absent, the matrix
+        separator is missing, or the table has the wrong number of data rows.
     """
     section = find_section_after_heading(markdown, heading)
     if section is None:
-        raise SerialNextestMatrixError.heading_not_found(heading)
+        message = SerialNextestMatrixError.heading_not_found_message(heading)
+        raise SerialNextestMatrixError(message)
 
     for index, line in enumerate(section):
         if _is_runner_header(line):
             return _parse_table_at(section, index, heading)
 
-    raise SerialNextestMatrixError.table_not_found(heading)
+    message = SerialNextestMatrixError.table_not_found_message(heading)
+    raise SerialNextestMatrixError(message)
 
 
 def read_matrix_rows(root: Path, relative_path: Path, heading: str) -> list[str]:
@@ -278,14 +225,18 @@ def read_matrix_rows(root: Path, relative_path: Path, heading: str) -> list[str]
 
     Raises
     ------
-    SerialNextestMatrixError.document_unreadable
-        The document cannot be read.
+    SerialNextestMatrixError
+        The document cannot be read, or its matrix heading, table, separator,
+        or data-row count is invalid.
     """
     path = root / relative_path
     try:
         markdown = path.read_text(encoding="utf-8")
     except OSError as err:
-        raise SerialNextestMatrixError.document_unreadable(relative_path, err) from err
+        message = SerialNextestMatrixError.document_unreadable_message(
+            relative_path, err
+        )
+        raise SerialNextestMatrixError(message) from err
     return extract_matrix_rows(markdown, heading)
 
 

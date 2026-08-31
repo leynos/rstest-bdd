@@ -20,10 +20,11 @@ ______________________________________________________________________
 
 The `[project]` table is defined by PEP 621 and is now the canonical place to
 declare metadata (name, version, authors, etc.) and runtime dependencies. At
-minimum, PEP 621 requires:
+minimum, PEP 621 requires `name` to be declared statically. `version` must be
+declared statically or listed in `dynamic = ["version"]`:
 
 - `name`
-- `version`
+- `version` or `dynamic = ["version"]`
 
 However, you almost always want to include at least the following additional
 fields for clarity and compatibility:
@@ -35,14 +36,14 @@ version = "0.1.0"              # Initial semantic version
 description = "A brief overview"       # Short summary
 readme = "README.md"           # Path to your README file (automatically included)
 requires-python = ">=3.12"     # Restrict Python versions, if needed
-license = { text = "MIT" }     # SPDX-compatible license expression or file
+license = "MIT"                # SPDX licence expression
+license-files = ["LICENSE"]    # Include distributed licence files
 authors = [
   { name = "Alice Example", email = "alice@example.org" }
 ]
 keywords = ["uv", "astral", "example"]   # (Optional) for metadata registries
 classifiers = [
   "Programming Language :: Python :: 3",
-  "License :: OSI Approved :: MIT License",
   "Operating System :: OS Independent"
 ]
 dependencies = [
@@ -51,33 +52,37 @@ dependencies = [
 ]
 ```
 
-- **`name` and `version`:** Mandatory per PEP 621. (Python Packaging[^4],
-  Reddit[^5])
+- **`name`:** Must be declared statically per PEP 621. **`version`** must be
+  declared statically or provided through `dynamic = ["version"]`. (Python
+  Packaging[^4], Reddit[^5])
 - **`description` and `readme`:** Although not mandatory, they help with
   indexing and packaging tools; `readme = "README.md"` tells `uv` (and PyPI) to
   include your README as the long description. (Astral Docs[^1], Python
   Packaging[^4])
 - **`requires-python`:** Constrains which Python interpreters your package
   supports (e.g. `>=3.12`). (Python Packaging[^4], Reddit[^5])
-- **`license`:** Specify a licence as an SPDX identifier (via
-  `license = { text = "ISC" }`) or point to a file (e.g.
-  `license = { file = "LICENSE" }`). (Python Packaging[^4], Reddit[^5])
+- **`license`:** Specify a licence as an SPDX expression (for example,
+  `license = "ISC"`). If licence files are distributed, list them with
+  `license-files` (for example, `license-files = ["LICENSE"]`). Do not use
+  the deprecated `License ::` classifiers. (Python Packaging[^4], Reddit[^5])
 - **`authors`:** A list of tables with `name` and `email`. Many registries
   (e.g., PyPI) pull this for display. (Python Packaging[^4], Reddit[^5])
 - **`keywords` and `classifiers`:** These help search engines and package
   indexes. Classifiers must follow the exact trove list defined by PyPA.
   (Python Packaging[^4], Reddit[^5])
 - **`dependencies`:** A list of PEP 508-style requirements (e.g.,
-  `"requests>=2.25"`). `uv sync` will install exactly those versions, updating
-  the lockfile as needed. (Astral Docs[^1], RidgeRun.ai[^2])
+  `"requests>=2.25"`) that define version constraints. `uv sync` installs the
+  exact versions resolved and recorded in `uv.lock`, updating the lockfile as
+  needed. (Astral Docs[^1], RidgeRun.ai[^2])
 
 ______________________________________________________________________
 
 ## 3. Runtime vs. development dependencies
 
-`uv` (via PEP 621 and PEP 735) exposes three dependency fields. Choosing the
-right one decides whether a dependency ships to every end user or only ever
-exists on a contributor's machine.
+`project.dependencies` and `project.optional-dependencies` are defined by PEP
+621, while `dependency-groups` is defined by PEP 735. Choosing the right one
+decides whether a dependency ships to every end user or only ever exists on a
+contributor's machine.
 
 Table 1. Dependency field selection.
 
@@ -189,10 +194,12 @@ ______________________________________________________________________
 
 ## 5. Declaring a Build System
 
-PEP 517/518 require a `[build-system]` table to tell tools how to build and
-install your project. A "modern" convention is to specify `setuptools>=61.0`
-(for editable installs without `setup.py`) or a lighter alternative like
-`flit_core`. Below is the typical setup using setuptools:
+The `[build-system]` table is optional under PEP 517/518. When present, it tells
+tools how to build and install your project, and `uv` uses its presence to
+determine whether to install the current project. When absent, `uv` falls back
+to the legacy setuptools backend. A "modern" convention is to specify
+`setuptools>=61.0` (for editable installs without `setup.py`) or a lighter
+alternative like `flit_core`. Below is the typical setup using setuptools:
 
 ```toml
 [build-system]
@@ -206,10 +213,10 @@ build-backend = "setuptools.build_meta"
 - **`build-backend`:** The entry point for your build backend.
   `setuptools.build_meta` is the PEP 517-compliant backend for setuptools.
   (Python Packaging[^4], Astral Docs[^7])
-- **Note:** If you omit `[build-system]`, `uv` will assume
-  `setuptools.build_meta:__legacy__` and still install dependencies, but it
-  won't editably install your own project unless you set
-  `tool.uv.package = true` (see next section). (Astral Docs[^7])
+- **Note:** If you omit `[build-system]`, `uv` falls back to
+  `setuptools.build_meta:__legacy__` and installs dependencies, but it will not
+  install your own project unless you set `tool.uv.package = true` (see next
+  section). (Astral Docs[^7])
 
 ______________________________________________________________________
 
@@ -245,14 +252,14 @@ version = "0.1.0"
 description = "An illustrative example for Astral uv"
 readme = "README.md"
 requires-python = ">=3.12"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
   { name = "Alice Example", email = "alice@example.org" }
 ]
 keywords = ["astral", "uv", "pyproject", "example"]
 classifiers = [
   "Programming Language :: Python :: 3",
-  "License :: OSI Approved :: MIT License",
   "Operating System :: OS Independent"
 ]
 dependencies = [
@@ -293,8 +300,9 @@ package = true
 
 1. **Metadata under `[project]`:**
 
-   - `name`, `version` (mandatory per PEP 621) (Python Packaging[^4],
-     Reddit[^5])
+   - `name` must be declared statically; `version` must be declared statically
+     or provided through `dynamic = ["version"]` (PEP 621). (Python Packaging
+     [^4], Reddit[^5])
    - `description`, `readme`, `requires-python`: provide clarity about the
      project and help tools like PyPI. (Python Packaging[^4], Reddit[^5])
    - `license`, `authors`, `keywords`, `classifiers`: standardized metadata,
@@ -342,10 +350,12 @@ ______________________________________________________________________
    fields, always run `uv sync` (or `uv lock`) to update `uv.lock`. This
    guarantees reproducible environments. (Astral Docs[^1])
 
-3. **Semantic Versioning:** Follow [semver](https://semver.org/) for `version`
-   values (e.g., `1.2.3`). Bump patch versions for bug fixes, minor for
-   backward-compatible changes, and major for breaking changes. (Python
-   Packaging[^4])
+3. **Semantic Versioning (optional project policy):** Python package `version`
+   values must comply with [PEP 440](https://peps.python.org/pep-0440/). A
+   project may additionally adopt [SemVer](https://semver.org/) for its version
+   policy (for example, `1.2.3`), using patch, minor, and major increments for
+   bug fixes, backward-compatible changes, and breaking changes respectively.
+   (Python Packaging[^4])
 
 4. **Keep Build Constraints Minimal:** If you don't need editable installs, you
    can omit `[build-system]` (but then `uv` won't build your package; it will

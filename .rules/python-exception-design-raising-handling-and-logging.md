@@ -148,14 +148,14 @@ duplicate noise.
 ## 5) Performance considerations in loops (PERF203)
 
 ```python
-# ❌ try/except inside a tight loop
+# ✅ Preserve per-item recovery when later items must still be parsed
 for item in items:
     try:
         parse(item)
     except ParseError:
         continue
 
-# ✅ hoist the try, or avoid exceptions on the hot path
+# ✅ Hoist the try when aborting on the first ParseError is intended
 try:
     for item in items:
         parse(item)
@@ -163,9 +163,12 @@ except ParseError:
     handle_parse_failure()
 ```
 
+These forms are not behaviourally equivalent: the inner handler skips a failed
+item and continues parsing, while the hoisted handler aborts at the first
+`ParseError`. Choose the form that preserves the required recovery semantics.
 Exception handling carries overhead on the exceptional path; hoisting the block
-can improve throughput in hot loops (PERF203). Treat as a micro‑optimization
-guided by profiling.
+can improve throughput in hot loops (PERF203). Treat that as a
+micro-optimization guided by profiling.
 
 ## 6) Testing: assert specific failures (B017)
 
@@ -264,7 +267,7 @@ def test_amount_must_be_int() -> None:
 ```toml
 # pyproject.toml
 [tool.ruff]
-target-version = "py312"
+target-version = "py314"
 
 [tool.ruff.lint]
 select = [

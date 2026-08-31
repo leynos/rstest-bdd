@@ -6,12 +6,15 @@ lockfiles. Published GPUI reaches ``async-trait`` transitively through
 banned.
 """
 
-import collections.abc as cabc
 import importlib
-import types
+import typing as typ
 from pathlib import Path
 
 import pytest
+
+if typ.TYPE_CHECKING:
+    import collections.abc as cabc
+    import types
 
 SCRIPTS = Path(__file__).resolve().parents[1]
 APPROVED_LOCKFILES = (

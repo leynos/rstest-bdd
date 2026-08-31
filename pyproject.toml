@@ -2,7 +2,7 @@
 name = "rstest-bdd-python-tooling"
 version = "0.0.0"
 description = "Python tooling environment for rstest-bdd helper scripts"
-requires-python = ">=3.13"
+requires-python = ">=3.14"
 dependencies = []
 
 [tool.uv]
@@ -29,7 +29,7 @@ python-tools = [
 [tool.ruff]
 line-length = 88
 preview = true
-target-version = "py312"
+target-version = "py314"
 
 [tool.ruff.lint]
 select = [
@@ -170,9 +170,9 @@ max-bool-expr = 2
 max-locals = 10
 
 [tool.pylint.main]
-# Keep standard Pylint analysis aligned with the oldest supported helper-script
-# syntax; the DF12 pass below receives its CPython 3.14 baseline explicitly.
-py-version = "3.12"
+# Analyse CPython 3.14 syntax in both the standard PyPy-backed integration and
+# the DF12 pass, which receives the same baseline explicitly.
+py-version = "3.14"
 recursive = true
 max-module-lines = 400
 

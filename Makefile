@@ -29,10 +29,11 @@ ACRONYM_SCRIPT ?= scripts/update_acronym_allowlist.py
 UV ?= $(or $(shell command -v uv 2>/dev/null),$(HOME)/.local/bin/uv)
 UVX ?= $(or $(shell command -v uvx 2>/dev/null),$(HOME)/.local/bin/uvx)
 UV_ENV = UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools
+PROJECT_PYTHON = $(UV_ENV) $(UV) run --python 3.14 python
 # Keep the Makefile and CI pins aligned; workflow-contract tests protect the
 # shared value without making a specific release part of the test contract.
 RUFF_VERSION ?= 0.16.4
-RUFF = $(UV_ENV) $(UV) tool run ruff@$(RUFF_VERSION) --config pyproject.toml
+RUFF = $(UV_ENV) $(UV) tool run --python 3.14 ruff@$(RUFF_VERSION) --config pyproject.toml
 TY_VERSION ?= 0.0.74
 TY = $(UV_ENV) $(UV) run --with ty==$(TY_VERSION) ty
 PATHSPEC_VERSION ?= 1.1.1
@@ -100,10 +101,10 @@ lint: ## Run Clippy and the Whitaker Dylint suite with warnings denied
 	RUSTDOCFLAGS="$(RUSTDOC_FLAGS)" $(CARGO) doc --workspace --no-deps
 	$(MAKE) lint-whitaker
 	$(MAKE) lint-python
-	python3 scripts/check_rs_file_lengths.py
-	python3 scripts/check_users_guide_links.py
-	python3 scripts/check_gpui_mapping_table.py
-	python3 scripts/check_serial_nextest_matrix.py
+	$(PROJECT_PYTHON) scripts/check_rs_file_lengths.py
+	$(PROJECT_PYTHON) scripts/check_users_guide_links.py
+	$(PROJECT_PYTHON) scripts/check_gpui_mapping_table.py
+	$(PROJECT_PYTHON) scripts/check_serial_nextest_matrix.py
 
 lint-whitaker: ## Run the Whitaker Dylint suite with warnings denied
 	RUSTFLAGS="$(RUST_FLAGS)" $(WHITAKER) --all -- $(CARGO_FLAGS)
@@ -116,7 +117,7 @@ lint-python: build-python ## Run Python linters
 
 typecheck: build-python ## Run cargo and Python type checks with warnings denied
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) check $(CARGO_FLAGS) $(BUILD_JOBS)
-	$(TY) check --python-version 3.12 $(PYTHON_TARGETS)
+	$(TY) check --python-version 3.14 $(PYTHON_TARGETS)
 
 PUBLISHED_GPUI_MANIFEST := tests/fixtures/published-gpui-0-2-2/Cargo.toml
 PUBLISHED_GPUI_E2E_DIR := tests/fixtures/published-gpui-e2e
@@ -168,7 +169,7 @@ e2e-published-gpui: stage-published-gpui-e2e ## Run the nightly published-GPUI s
 	cd $(PUBLISHED_GPUI_E2E_DIR) && RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) test --locked
 
 forbid-async-trait: ## Ensure the async-trait crate and macro remain absent
-	python3 scripts/check_forbidden_async_trait.py
+	$(PROJECT_PYTHON) scripts/check_forbidden_async_trait.py
 
 fmt: build-python ## Format Rust and Markdown sources
 	$(CARGO_FMT) --all
@@ -191,10 +192,15 @@ markdownlint: spelling ## Lint Markdown files and enforce en-GB-oxendict spellin
 spellcheck: spelling ## Compatibility alias for the repository spelling gate
 
 spelling: spelling-phrase-check ## Enforce en-GB-oxendict in tracked text
-	@git ls-files -z | while IFS= read -r -d '' path; do \
-		[[ ! -e "$$path" ]] || printf '%s\0' "$$path"; \
-	done | xargs -0 -r env $(UV_ENV) $(UV) tool run typos@$(TYPOS_VERSION) \
-		--config typos.toml --force-exclude --hidden
+	@files=(); \
+	while IFS= read -r -d '' path; do \
+		[[ ! -e "$$path" ]] || files+=("$$path"); \
+	done < <(git ls-files -z); \
+	if (( $${#files[@]} > 0 )); then \
+		printf '%s\0' "$${files[@]}" | \
+			xargs -0 env $(UV_ENV) $(UV) tool run typos@$(TYPOS_VERSION) \
+				--config typos.toml --force-exclude --hidden; \
+	fi
 
 spelling-phrase-check: spelling-config ## Reject prohibited spelling phrases
 	@PYTHONPATH=scripts $(UV_ENV) $(UV) run --no-project --python 3.14 scripts/typos_rollout_check.py --repository .
@@ -207,8 +213,8 @@ spelling-config-write: spelling-helper-test ## Generate spelling configuration
 	@$(TYPOS_CONFIG_BUILDER) --repository .
 
 spelling-helper-test: ## Validate the shared spelling-policy integration
-	@$(UV_ENV) $(UV) tool run ruff@$(RUFF_VERSION) format --isolated --target-version py313 --check $(SPELLING_PY_SRCS)
-	@$(UV_ENV) $(UV) tool run ruff@$(RUFF_VERSION) check --isolated --target-version py313 $(SPELLING_PY_SRCS)
+	@$(UV_ENV) $(UV) tool run --python 3.14 ruff@$(RUFF_VERSION) format --isolated --target-version py314 --check $(SPELLING_PY_SRCS)
+	@$(UV_ENV) $(UV) tool run --python 3.14 ruff@$(RUFF_VERSION) check --isolated --target-version py314 $(SPELLING_PY_SRCS)
 	@$(SPELLING_HELPER_PYTEST) $(SPELLING_PY_TESTS) -c /dev/null --rootdir=. -p no:cacheprovider $(SPELLING_COVERAGE_ARGS)
 
 nixie:
@@ -239,7 +245,7 @@ help: ## Show available targets
 
 vale: ## Check prose
 	$(VALE) sync
-	$(UV) run $(ACRONYM_SCRIPT)
+	$(PROJECT_PYTHON) $(ACRONYM_SCRIPT)
 	$(VALE) --no-global --output line .
 
 # Opt-in accelerated debug builds (Cranelift + mold); requires a nightly
