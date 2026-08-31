@@ -1216,7 +1216,6 @@ an assertion cannot disappear behind macro classification or generated code.
   migration guide, and publish/package tests all reflect the same packaging
   model. Design Doc: `docs/rstest-bdd-design.md` §2.7.6.5. (Pandalump)
 
-
 ### 12.3. Make step vocabularies and captures explicit
 
 This step tests whether reusable domain language can remain deterministic when
