@@ -32,6 +32,7 @@ use self::{
         RuntimeMode,
         ScenariosArgs,
         library_scope_tokens,
+        library_validation_names,
         runtime_compatibility_alias,
     },
     test_generation::{ScenarioTestContext, generate_scenario_test, resolve_harness_path},
@@ -79,6 +80,8 @@ struct FeatureProcessingContext<'a> {
     effective_harness: Option<&'a syn::Path>,
     /// Closed step-library scope used by every generated scenario.
     scope: &'a TokenStream2,
+    /// Locally visible identities for compile-time step validation.
+    library_validation_names: Option<&'a [Box<str>]>,
     /// Adapter API paths resolved once for the whole `scenarios!` expansion.
     resolutions: &'a crate::codegen::SharedAdapterResolutions,
 }
@@ -112,6 +115,12 @@ fn process_scenarios(
                     .tag_filter
                     .is_none_or(|filter| data.filter_by_tags(filter))
                 {
+                    if let Err(error) =
+                        validate_steps_compile_time(&data.steps, ctx.library_validation_names)
+                    {
+                        errors.push(error_to_tokens(&error));
+                        continue;
+                    }
                     tests.push(generate_scenario_test(ctx, used_names, data));
                 }
             }
@@ -122,6 +131,28 @@ fn process_scenarios(
     (tests, errors)
 }
 
+/// Validate generated scenarios with the same scope semantics as `#[scenario]`.
+fn validate_steps_compile_time(
+    steps: &[crate::parsing::feature::ParsedStep],
+    libraries: Option<&[Box<str>]>,
+) -> Result<(), syn::Error> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "strict-compile-time-validation")] {
+            libraries.map_or_else(
+                || crate::validation::steps::validate_steps_exist(steps, true),
+                |libraries| crate::validation::steps::validate_steps_exist_in_scope(steps, libraries, true),
+            )
+        } else if #[cfg(feature = "compile-time-validation")] {
+            libraries.map_or_else(
+                || crate::validation::steps::validate_steps_exist(steps, false),
+                |libraries| crate::validation::steps::validate_steps_exist_in_scope(steps, libraries, false),
+            )
+        } else {
+            let _ = (steps, libraries);
+            Ok(())
+        }
+    }
+}
 /// Provides the internal `process_feature_file` operation.
 fn process_feature_file(
     abs_path: &Path,
@@ -153,6 +184,7 @@ fn process_feature_file(
         attributes: ctx.attributes,
         effective_harness: ctx.effective_harness,
         scope: ctx.scope,
+        library_validation_names: ctx.library_validation_names,
         resolutions: ctx.resolutions,
     };
 
@@ -349,6 +381,7 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
         attributes.as_ref(),
     );
     let scope = library_scope_tokens(libraries.as_deref());
+    let library_validation_names = libraries.as_deref().map(library_validation_names);
     let fallback_diagnostics = resolutions.emit_diagnostics();
 
     let ctx = FeatureProcessingContext {
@@ -360,6 +393,7 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
         attributes: attributes.as_ref(),
         effective_harness: effective_harness.as_ref(),
         scope: &scope,
+        library_validation_names: library_validation_names.as_deref(),
         resolutions: &resolutions,
     };
     let (tests, mut errors) = generate_tests_from_features(&feature_paths, &ctx);
@@ -379,3 +413,7 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
 #[cfg(test)]
 #[path = "tests/mod.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "tests.rs"]
+mod scope_tests;

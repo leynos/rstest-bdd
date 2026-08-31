@@ -242,6 +242,8 @@ impl RustAttributeSpan {
 /// A Rust function annotated with `#[given]`, `#[when]`, or `#[then]`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IndexedStepDefinition {
+    /// Nearest lexical step library, or the built-in global library.
+    pub library: String,
     /// The step keyword provided by the macro attribute.
     pub keyword: StepType,
     /// The step pattern string registered by the macro.

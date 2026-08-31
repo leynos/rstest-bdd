@@ -39,7 +39,7 @@ use crate::parsing::feature::{
     parse_and_load_feature, ScenarioData,
 };
 use self::{
-    args::{ScenarioArgs, library_scope_tokens},
+    args::{ScenarioArgs, library_scope_tokens, library_validation_names},
     paths::manifest_relative_feature_path,
     return_kind::classify_scenario_return,
     selection::{ensure_feature_not_empty, resolve_candidate_indices, select_scenario},
@@ -146,10 +146,12 @@ fn try_scenario(
             .map_err(|e| proc_macro::TokenStream::from(e.into_compile_error()))?;
     }
 
-    if libraries.is_none() {
-        if let Some(err) = validate_steps_compile_time(&steps) {
+    if let Some(libraries) = libraries.as_deref() {
+        if let Some(err) = validate_steps_compile_time_in_scope(&steps, libraries) {
             return Err(err);
         }
+    } else if let Some(err) = validate_steps_compile_time(&steps) {
+        return Err(err);
     }
 
     process_scenario_outline_examples(sig, examples.as_ref())
@@ -262,4 +264,26 @@ fn validate_steps_compile_time(
     };
     res.err()
         .map(|e| proc_macro::TokenStream::from(e.into_compile_error()))
+}
+
+/// Validate steps against the explicit closed library list, when locally known.
+fn validate_steps_compile_time_in_scope(
+    steps: &[crate::parsing::feature::ParsedStep],
+    libraries: &[syn::Path],
+) -> Option<TokenStream> {
+    let libraries = library_validation_names(libraries);
+    let res: Result<(), syn::Error> = {
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "strict-compile-time-validation")] {
+                crate::validation::steps::validate_steps_exist_in_scope(steps, &libraries, true)
+            } else if #[cfg(feature = "compile-time-validation")] {
+                crate::validation::steps::validate_steps_exist_in_scope(steps, &libraries, false)
+            } else {
+                let _ = (steps, libraries);
+                Ok(())
+            }
+        }
+    };
+    res.err()
+        .map(|error| proc_macro::TokenStream::from(error.into_compile_error()))
 }

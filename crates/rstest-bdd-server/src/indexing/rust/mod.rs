@@ -103,6 +103,7 @@ pub fn index_rust_source(
     let mut collector = StepDefinitionCollector {
         source,
         module_path: Vec::new(),
+        library_path: None,
         step_definitions: Vec::new(),
         diagnostics: Vec::new(),
     };
@@ -128,6 +129,8 @@ struct StepDefinitionCollector<'a> {
     source: &'a str,
     /// Module path of the item currently being traversed.
     module_path: Vec<String>,
+    /// Nearest `#[step_library]` module enclosing the current item.
+    library_path: Option<Vec<String>>,
     /// Step definitions discovered in the source.
     step_definitions: Vec<IndexedStepDefinition>,
     /// Recoverable diagnostics discovered during indexing.
@@ -140,7 +143,12 @@ impl StepDefinitionCollector<'_> {
         for item in items {
             match item {
                 syn::Item::Fn(item_fn) => {
-                    match index_step_function(item_fn, self.source, &self.module_path) {
+                    match index_step_function(
+                        item_fn,
+                        self.source,
+                        &self.module_path,
+                        self.library_path.as_deref(),
+                    ) {
                         Ok(Some(step)) => self.step_definitions.push(step),
                         Ok(None) => {}
                         Err(diagnostic) => self.diagnostics.push(diagnostic),
@@ -151,7 +159,12 @@ impl StepDefinitionCollector<'_> {
                         continue;
                     };
                     self.module_path.push(item_mod.ident.to_string());
+                    let previous_library = self.library_path.clone();
+                    if is_step_library(item_mod) {
+                        self.library_path = Some(self.module_path.clone());
+                    }
                     self.collect_step_definitions(items);
+                    self.library_path = previous_library;
                     self.module_path.pop();
                 }
                 _ => {}
@@ -160,6 +173,13 @@ impl StepDefinitionCollector<'_> {
     }
 }
 
+/// Return whether a module establishes a lexical step-library boundary.
+fn is_step_library(item_mod: &syn::ItemMod) -> bool {
+    item_mod
+        .attrs
+        .iter()
+        .any(|attribute| attribute.path().is_ident("step_library"))
+}
 /// Find and validate the step attribute on a function.
 ///
 /// Returns `None` if no step attribute is found, or `Some(StepAttribute)` if
@@ -194,6 +214,7 @@ fn index_step_function(
     item_fn: &syn::ItemFn,
     source: &str,
     module_path: &[String],
+    library_path: Option<&[String]>,
 ) -> Result<Option<IndexedStepDefinition>, RustStepIndexDiagnostic> {
     let Some(step_attribute) = find_step_attribute(item_fn)? else {
         return Ok(None);
@@ -214,6 +235,10 @@ fn index_step_function(
     let attribute_span = extract_attribute_span(step_attribute.attr, &item_fn.sig, source);
 
     Ok(Some(IndexedStepDefinition {
+        library: library_path.map_or_else(
+            || String::from("rstest_bdd::global"),
+            |path| path.join("::"),
+        ),
         keyword: step_attribute.keyword,
         pattern,
         pattern_inferred,

@@ -131,6 +131,59 @@ fn errors_when_step_matches_three_definitions() {
 }
 
 #[test]
+#[serial]
+fn scoped_validation_uses_only_selected_libraries() {
+    clear_registry();
+    let account = syn::LitStr::new("the domain is empty", proc_macro2::Span::call_site());
+    let filesystem = syn::LitStr::new("the domain is empty", proc_macro2::Span::call_site());
+    register_step_in_library(StepKeyword::Given, &account, "accounts");
+    register_step_in_library(StepKeyword::Given, &filesystem, "filesystem");
+    let steps = [create_test_step(StepKeyword::Given, "the domain is empty")];
+    let accounts = vec![Box::<str>::from("accounts")];
+
+    assert!(validate_steps_exist_in_scope(&steps, &accounts, true).is_ok());
+}
+
+#[test]
+#[serial]
+fn scoped_validation_reports_unselected_library_hints() {
+    clear_registry();
+    let account = syn::LitStr::new("a different account step", proc_macro2::Span::call_site());
+    let filesystem = syn::LitStr::new("the domain is empty", proc_macro2::Span::call_site());
+    register_step_in_library(StepKeyword::Given, &account, "accounts");
+    register_step_in_library(StepKeyword::Given, &filesystem, "filesystem");
+    let steps = [create_test_step(StepKeyword::Given, "the domain is empty")];
+    let accounts = vec![Box::<str>::from("accounts")];
+
+    let error = validate_steps_exist_in_scope(&steps, &accounts, true)
+        .expect_err("missing selected definition should be an error")
+        .to_string();
+    assert!(error.contains("Selected libraries: [accounts]"));
+    assert!(error.contains("unselected libraries"));
+    assert!(error.contains("filesystem"));
+}
+
+#[test]
+#[serial]
+fn scoped_validation_reports_equal_candidates_without_precedence() {
+    clear_registry();
+    let account = syn::LitStr::new("the domain is empty", proc_macro2::Span::call_site());
+    let filesystem = syn::LitStr::new("the domain is empty", proc_macro2::Span::call_site());
+    register_step_in_library(StepKeyword::Given, &account, "accounts");
+    register_step_in_library(StepKeyword::Given, &filesystem, "filesystem");
+    let steps = [create_test_step(StepKeyword::Given, "the domain is empty")];
+    let libraries = vec![Box::<str>::from("accounts"), Box::<str>::from("filesystem")];
+
+    let error = validate_steps_exist_in_scope(&steps, &libraries, true)
+        .expect_err("equal scoped candidates should be ambiguous")
+        .to_string();
+    assert!(error.contains("Ambiguous step definition"));
+    assert!(error.contains("Selected libraries: [accounts, filesystem]"));
+    assert!(error.contains("accounts"));
+    assert!(error.contains("filesystem"));
+}
+
+#[test]
 fn normalizes_crate_id_without_out_dir_component() {
     assert_eq!(normalize_crate_id("my_crate").as_ref(), "my_crate");
 }

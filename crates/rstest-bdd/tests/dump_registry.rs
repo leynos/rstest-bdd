@@ -128,6 +128,14 @@ fn validate_scenario_metadata(scenarios: &[Value]) {
     };
     assert_eq!(skipped["line"].as_u64(), Some(3));
     assert_eq!(
+        skipped["libraries"]
+            .as_array()
+            .and_then(|libraries| libraries.first())
+            .and_then(Value::as_str),
+        Some("rstest_bdd::global"),
+        "unscoped scenarios should report the global library"
+    );
+    assert_eq!(
         skipped["tags"]
             .as_array()
             .and_then(|tags| tags.first())
@@ -157,6 +165,15 @@ fn validate_bypassed_steps_metadata(bypassed_steps: &[Value]) {
         panic!("bypassed entry present");
     };
     assert_eq!(entry["scenario_line"].as_u64(), Some(3));
+    assert_eq!(entry["library"].as_str(), Some("rstest_bdd::global"));
+    assert_eq!(
+        entry["libraries"]
+            .as_array()
+            .and_then(|libraries| libraries.first())
+            .and_then(Value::as_str),
+        Some("rstest_bdd::global"),
+        "bypassed steps should retain their scenario scope"
+    );
     assert_eq!(
         entry["tags"]
             .as_array()
