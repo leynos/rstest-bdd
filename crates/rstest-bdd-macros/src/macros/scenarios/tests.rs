@@ -51,7 +51,7 @@ fn scenarios_args(dir: &Path) -> ScenariosArgs {
 
 /// Shared inputs for constructing a scenario test context.
 #[derive(Clone, Copy)]
-struct TestContextInputs<'a> {
+struct TestContextArgs<'a> {
     /// The feature file being processed.
     feature_path: &'a Path,
     /// Optional filter limiting processed scenarios.
@@ -62,13 +62,13 @@ struct TestContextInputs<'a> {
     resolutions: &'a SharedAdapterResolutions,
 }
 
-fn test_context(inputs: TestContextInputs<'_>) -> ScenarioTestContext<'_> {
-    let TestContextInputs {
+fn test_context(args: TestContextArgs<'_>) -> ScenarioTestContext<'_> {
+    let TestContextArgs {
         feature_path,
         tag_filter,
         library_validation_names,
         resolutions,
-    } = inputs;
+    } = args;
     let scope = Box::leak(Box::new(quote!(::rstest_bdd::StepScope::global())));
     ScenarioTestContext {
         feature_stem: "example",
@@ -161,7 +161,7 @@ fn process_scenario_skips_filtered_out_scenarios() -> Result<(), String> {
         parse_and_load_feature(feature_path.as_path()).map_err(|error| error.to_string())?;
     let filter = TagExpression::parse("@selected").map_err(|error| error.to_string())?;
     let resolutions = SharedAdapterResolutions::resolve(None, None);
-    let context = test_context(TestContextInputs {
+    let context = test_context(TestContextArgs {
         feature_path: feature_path.as_path(),
         tag_filter: Some(&filter),
         library_validation_names: None,
@@ -190,7 +190,7 @@ fn process_scenario_returns_validation_errors_without_generating_a_test() -> Res
     register_step_in_library(StepKeyword::Given, &pattern, "accounts");
     let libraries = vec![Box::<str>::from("accounts")];
     let resolutions = SharedAdapterResolutions::resolve(None, None);
-    let context = test_context(TestContextInputs {
+    let context = test_context(TestContextArgs {
         feature_path: feature_path.as_path(),
         tag_filter: None,
         library_validation_names: Some(&libraries),
@@ -226,7 +226,7 @@ fn process_scenario_generates_a_test_when_validation_succeeds() -> Result<(), St
         &LitStr::new("the system works", Span::call_site()),
     );
     let resolutions = SharedAdapterResolutions::resolve(None, None);
-    let context = test_context(TestContextInputs {
+    let context = test_context(TestContextArgs {
         feature_path: feature_path.as_path(),
         tag_filter: None,
         library_validation_names: None,
