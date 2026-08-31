@@ -31,7 +31,6 @@
   limitations that maintainers should keep visible.
 - [Changelog](CHANGELOG.md) records repository-level release history.
 
-
 ## Requests for Comments
 
 - [RFC 0001: Explicit step-library scopes](rfcs/0001-explicit-step-library-scopes.md)

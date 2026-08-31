@@ -3094,7 +3094,6 @@ returns `Option<ResolvedStep>`.
   model cheaply, and the property suite already exercises every variant against
   hit and miss lookups.
 
-
 ## Step-library lookup invariant
 
 `StepScope` is a closed, scenario-owned list of `StepLibraryId` values.

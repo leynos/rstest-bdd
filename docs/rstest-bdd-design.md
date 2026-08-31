@@ -755,7 +755,6 @@ registered, producing a spurious "No matching step definition" error. A UI test
 
 ### 2.3 The `inventory` solution: A global step registry
 
-
 #### Lexical step-library scopes
 
 Named libraries retain inventory registration while partitioning the registry
