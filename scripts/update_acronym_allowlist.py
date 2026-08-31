@@ -7,8 +7,6 @@
 # ///
 """CLI entry point for syncing project acronyms into the Vale allow list."""
 
-from __future__ import annotations
-
 import sys
 from pathlib import Path
 

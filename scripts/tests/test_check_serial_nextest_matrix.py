@@ -1,10 +1,8 @@
 """Unit tests for the `#[serial]`/nextest matrix drift checker."""
 
-from __future__ import annotations
-
 import os
 import shutil
-import subprocess  # noqa: S404 - behavioural tests invoke trusted local scripts.
+import subprocess  # ruff: ignore[suspicious-subprocess-import] - behavioural tests invoke trusted local scripts.
 import sys
 from pathlib import Path
 

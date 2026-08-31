@@ -152,7 +152,10 @@ fn gen_sized_ref_fixture_decl(ctx: FixtureDeclContext<'_>, elem: &syn::Type) -> 
     let elem_ref_ty = quote::quote! { &'static #elem };
 
     quote::quote! {
-        #[allow(non_camel_case_types)]
+        #[expect(
+            non_camel_case_types,
+            reason = "generated guard name follows the hygienic fixture-binding namespace"
+        )]
         enum #guard_enum_ident<'a> {
             Owned(#path::FixtureRef<'a, #elem>),
             Shared(#path::FixtureRef<'a, #elem_ref_ty>),

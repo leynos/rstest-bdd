@@ -6,16 +6,12 @@ standalone published-GPUI fixture lockfiles are exempt; see
 :data:`EXCLUDED_LOCKFILES` for the rationale.
 """
 
-from __future__ import annotations
-
+import collections.abc as cabc
+import enum
 import re
 import sys
 import tomllib
-import typing as typ
 from pathlib import Path
-
-if typ.TYPE_CHECKING:
-    import collections.abc as cabc
 
 # Restrict the scan to files whose extensions could legitimately reference the
 # crate. This avoids doc files where the name may be mentioned in prose.
@@ -25,6 +21,14 @@ SKIP_DIRS = {".git", "target", "node_modules", "docs"}
 
 ASYNC_TRAIT_PATTERN = re.compile(r"\basync[-_]trait\b")
 LOCKFILE_PATTERN = re.compile(r'^\s*name\s*=\s*"async-trait"$', re.MULTILINE)
+
+
+class CommentState(enum.Enum):
+    """Represent whether the line scanner is inside a block comment."""
+
+    CODE = False
+    BLOCK_COMMENT = True
+
 
 # Lockfiles exempt from the ban, as repository-relative POSIX paths.
 #
@@ -131,11 +135,11 @@ def handle_plain_code(line: str, cursor: int) -> tuple[bool, int, bool]:
 
 def process_line_for_async_trait(
     line: str,
-    in_block_comment: bool,  # noqa: FBT001 FIXME: signature mandated by design
-) -> tuple[bool, bool]:
+    comment_state: CommentState,
+) -> tuple[bool, CommentState]:
     """Process a line to detect ``async-trait`` usage outside of comments."""
     cursor = 0
-    current_block_state = in_block_comment
+    current_block_state = comment_state is CommentState.BLOCK_COMMENT
 
     while cursor <= len(line):
         if current_block_state:
@@ -143,7 +147,7 @@ def process_line_for_async_trait(
                 line, cursor
             )
             if found:
-                return (True, current_block_state)
+                return (True, CommentState(current_block_state))
             continue
 
         start_block = line.find("/*", cursor)
@@ -161,9 +165,9 @@ def process_line_for_async_trait(
             found, cursor, current_block_state = handle_plain_code(line, cursor)
 
         if found:
-            return (True, current_block_state)
+            return (True, CommentState(current_block_state))
 
-    return (False, current_block_state)
+    return (False, CommentState(current_block_state))
 
 
 def find_async_trait_in_rust(path: Path) -> list[int]:
@@ -174,9 +178,9 @@ def find_async_trait_in_rust(path: Path) -> list[int]:
     except UnicodeDecodeError:
         return offences
 
-    in_block_comment = False
+    comment_state = CommentState.CODE
     for line_no, line in enumerate(contents.splitlines(), start=1):
-        found, in_block_comment = process_line_for_async_trait(line, in_block_comment)
+        found, comment_state = process_line_for_async_trait(line, comment_state)
         if found:
             offences.append(line_no)
     return offences
@@ -193,18 +197,20 @@ def is_dependencies_section_with_async_trait(key: str, value: object) -> bool:
 
 def toml_tree_declares_async_trait(node: object) -> bool:
     """Return ``True`` when a TOML tree contains an ``async-trait`` dependency."""
-    if isinstance(node, dict):
-        return any(
-            isinstance(key, str)
-            and (
-                is_dependencies_section_with_async_trait(key, value)
-                or toml_tree_declares_async_trait(value)
+    match node:
+        case dict() as table:
+            return any(
+                isinstance(key, str)
+                and (
+                    is_dependencies_section_with_async_trait(key, value)
+                    or toml_tree_declares_async_trait(value)
+                )
+                for key, value in table.items()
             )
-            for key, value in node.items()
-        )
-    if isinstance(node, list):
-        return any(toml_tree_declares_async_trait(item) for item in node)
-    return False
+        case list() as items:
+            return any(toml_tree_declares_async_trait(item) for item in items)
+        case _:
+            return False
 
 
 def manifest_declares_async_trait(path: Path) -> bool:

@@ -126,19 +126,13 @@ impl StepDefinitionRegistry {
     pub fn replace_rust_file(&mut self, index: &RustStepFileIndex) -> Vec<StepPatternCompileError> {
         self.invalidate_file(&index.path);
 
-        let (compiled, errors) = self.compile_steps(index);
+        let (compiled, errors) = Self::compile_steps(index);
         self.insert_compiled_steps(&index.path, compiled);
         errors
     }
 
     /// Compile each indexed step definition for one Rust source file.
-    #[expect(
-        clippy::unused_self,
-        reason = "method kept on the registry type to allow future use of configuration/state \
-                  while matching the refactor contract"
-    )]
     fn compile_steps(
-        &self,
         index: &RustStepFileIndex,
     ) -> (Vec<CompiledStepDefinition>, Vec<StepPatternCompileError>) {
         let mut compiled = Vec::new();
@@ -155,12 +149,7 @@ impl StepDefinitionRegistry {
     }
 
     /// Insert compiled steps into the per-file and per-keyword indexes.
-    #[expect(
-        clippy::ptr_arg,
-        reason = "signature uses &PathBuf to match the refactor contract; PathBuf cloning is \
-                  required for HashMap keys"
-    )]
-    fn insert_compiled_steps(&mut self, path: &PathBuf, compiled: Vec<CompiledStepDefinition>) {
+    fn insert_compiled_steps(&mut self, path: &Path, compiled: Vec<CompiledStepDefinition>) {
         if compiled.is_empty() {
             return;
         }
@@ -186,8 +175,9 @@ impl StepDefinitionRegistry {
             });
         }
 
-        self.reverse_index.insert(path.clone(), reverse_entries);
-        self.steps_by_file.insert(path.clone(), shared);
+        self.reverse_index
+            .insert(path.to_path_buf(), reverse_entries);
+        self.steps_by_file.insert(path.to_path_buf(), shared);
     }
 
     /// Remove all compiled step definitions for a given Rust source path.

@@ -6,7 +6,7 @@ use std::{
     sync::{LazyLock, RwLock},
 };
 
-use gherkin::{Feature, GherkinEnv, Scenario, Step, StepType};
+use gherkin::{Feature, GherkinEnv, Scenario, Step};
 
 use crate::{
     parsing::{
@@ -70,35 +70,6 @@ pub(crate) struct ScenarioData {
 static FEATURE_CACHE: LazyLock<RwLock<HashMap<PathBuf, Feature>>> =
     LazyLock::new(|| RwLock::new(HashMap::new()));
 
-/// Map a textual step keyword and `StepType` to a `StepKeyword`.
-///
-/// Conjunction keywords such as "And" and "But" inherit the semantic
-/// meaning of the preceding step but remain distinct for later resolution.
-/// Matching is case-insensitive to tolerate unusual source casing.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "retained for future compile-time validation paths"
-    )
-)]
-pub(crate) fn parse_step_keyword(kw: &str, ty: StepType) -> crate::StepKeyword {
-    let lower = kw.trim().to_ascii_lowercase();
-    if lower == "and" {
-        return crate::StepKeyword::And;
-    }
-    if lower == "but" {
-        return crate::StepKeyword::But;
-    }
-    match ty {
-        StepType::Given => crate::StepKeyword::Given,
-        StepType::When => crate::StepKeyword::When,
-        StepType::Then => crate::StepKeyword::Then,
-    }
-}
-
-// Note: historic helpers for conjunction resolution lived here; the codegen
-// path now resolves conjunctions locally to avoid feature-gated deps.
 /// Convert a Gherkin step to a `ParsedStep`.
 ///
 /// Uses the textual keyword when present to honour conjunctions

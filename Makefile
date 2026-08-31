@@ -29,7 +29,12 @@ ACRONYM_SCRIPT ?= scripts/update_acronym_allowlist.py
 UV ?= $(or $(shell command -v uv 2>/dev/null),$(HOME)/.local/bin/uv)
 UVX ?= $(or $(shell command -v uvx 2>/dev/null),$(HOME)/.local/bin/uvx)
 UV_ENV = UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools
-RUFF_VERSION ?= 0.15.12
+# Keep the Makefile and CI pins aligned; workflow-contract tests protect the
+# shared value without making a specific release part of the test contract.
+RUFF_VERSION ?= 0.16.4
+RUFF = $(UV_ENV) $(UV) tool run ruff@$(RUFF_VERSION) --config pyproject.toml
+TY_VERSION ?= 0.0.74
+TY = $(UV_ENV) $(UV) run --with ty==$(TY_VERSION) ty
 PATHSPEC_VERSION ?= 1.1.1
 TYPOS_VERSION ?= 1.48.0
 TYPOS_CONFIG_BUILDER_COMMIT := d6da92f02240a79a945c835f69bdd08a888da1d0
@@ -47,8 +52,22 @@ SPELLING_HELPER_PYTEST = PYTHONPATH=scripts $(UV_ENV) $(UV) run --no-project \
 MD_FILES_FIND = find . -type f -name '*.md' -not -path '*/target/*' -not -path '*/node_modules/*' -not -path './.vtcode/*' -print0
 LADING_REF ?= e0a8d43fa3d6d7598cad0d4c25883e7ea625feb9
 LADING_SPEC ?= lading @ git+https://github.com/leynos/lading@$(LADING_REF)
-PYTHON_TARGETS ?= $(filter-out $(SPELLING_PY_SRCS),$(shell find scripts -type f -name "*.py" -print | sort))
-PYLINT_TARGETS ?= $(PYTHON_TARGETS)
+PYTHON_TARGETS ?= $(filter-out $(SPELLING_PY_SRCS),$(shell find scripts tests/workflow_contracts -type f -name "*.py" -print | sort))
+PYLINT_PYTHON ?= pypy
+PYLINT_TARGETS ?= scripts tests/workflow_contracts
+PYLINT_PYPY_SHIM_REF ?= 726d09f968b4d729ee4b29c71fc732e744854f3b
+PYLINT_PYPY_SHIM = git+https://github.com/leynos/pylint-pypy-shim.git@$(PYLINT_PYPY_SHIM_REF)
+DF12_PYTHON_LINTS_REF ?= v0.3.0
+DF12_PYTHON_LINTS = git+https://github.com/leynos/df12-python-lints.git@$(DF12_PYTHON_LINTS_REF)
+DF12_PYTHON ?= 3.14
+PYLINT = $(UV_ENV) $(UV) tool run --python $(PYLINT_PYTHON) \
+	--from '$(PYLINT_PYPY_SHIM)' pylint-pypy
+DF12_PYLINT_MESSAGES = R9101,C9102,R9103,R9104,C9105,C9106,C9107,R9108,R9109,R9110,R9111,R9112,C9112
+DF12_PYLINT = $(UV_ENV) $(UV) run --python $(DF12_PYTHON) pylint \
+	--py-version=$(DF12_PYTHON) --disable=all --load-plugins=df12_python_lints \
+	--enable=$(DF12_PYLINT_MESSAGES)
+AMBRLEAKS = $(UV_ENV) $(UV) tool run --python $(DF12_PYTHON) \
+	--from '$(DF12_PYTHON_LINTS)' ambrleaks
 WHITAKER ?= whitaker
 
 build: target/debug/$(APP) ## Build debug binary
@@ -90,12 +109,14 @@ lint-whitaker: ## Run the Whitaker Dylint suite with warnings denied
 	RUSTFLAGS="$(RUST_FLAGS)" $(WHITAKER) --all -- $(CARGO_FLAGS)
 
 lint-python: build-python ## Run Python linters
-	$(UV_ENV) $(UV) run ruff check $(PYTHON_TARGETS)
-	$(UV_ENV) $(UV) run pylint $(PYLINT_TARGETS)
+	$(RUFF) check $(PYTHON_TARGETS)
+	$(PYLINT) $(PYLINT_TARGETS)
+	$(DF12_PYLINT) $(PYLINT_TARGETS)
+	$(AMBRLEAKS) tests
 
 typecheck: build-python ## Run cargo and Python type checks with warnings denied
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) check $(CARGO_FLAGS) $(BUILD_JOBS)
-	$(UV_ENV) $(UV) run ty check $(PYTHON_TARGETS)
+	$(TY) check --python-version 3.12 $(PYTHON_TARGETS)
 
 PUBLISHED_GPUI_MANIFEST := tests/fixtures/published-gpui-0-2-2/Cargo.toml
 PUBLISHED_GPUI_E2E_DIR := tests/fixtures/published-gpui-e2e
@@ -154,15 +175,15 @@ fmt: build-python ## Format Rust and Markdown sources
 	# Published GPUI fixtures are their own workspaces, so `--all` misses them.
 	$(CARGO_FMT) --manifest-path $(PUBLISHED_GPUI_MANIFEST)
 	$(CARGO_FMT) --manifest-path $(PUBLISHED_GPUI_E2E_DIR)/Cargo.toml
-	$(UV_ENV) $(UV) run ruff format $(PYTHON_TARGETS)
-	$(UV_ENV) $(UV) run ruff check --select I --fix $(PYTHON_TARGETS)
+	$(RUFF) format $(PYTHON_TARGETS)
+	$(RUFF) check --select I --fix $(PYTHON_TARGETS)
 	mdformat-all
 
 check-fmt: build-python ## Verify formatting
 	$(CARGO_FMT) --all -- --check
 	$(CARGO_FMT) --manifest-path $(PUBLISHED_GPUI_MANIFEST) -- --check
 	$(CARGO_FMT) --manifest-path $(PUBLISHED_GPUI_E2E_DIR)/Cargo.toml -- --check
-	$(UV_ENV) $(UV) run ruff format --check $(PYTHON_TARGETS)
+	$(RUFF) format --check $(PYTHON_TARGETS)
 
 markdownlint: spelling ## Lint Markdown files and enforce en-GB-oxendict spelling
 	$(MD_FILES_FIND) | xargs -0 $(MDLINT)
@@ -170,8 +191,10 @@ markdownlint: spelling ## Lint Markdown files and enforce en-GB-oxendict spellin
 spellcheck: spelling ## Compatibility alias for the repository spelling gate
 
 spelling: spelling-phrase-check ## Enforce en-GB-oxendict in tracked text
-	@git ls-files -z | xargs -0 -r env $(UV_ENV) \
-		$(UV) tool run typos@$(TYPOS_VERSION) --config typos.toml --force-exclude --hidden
+	@git ls-files -z | while IFS= read -r -d '' path; do \
+		[[ ! -e "$$path" ]] || printf '%s\0' "$$path"; \
+	done | xargs -0 -r env $(UV_ENV) $(UV) tool run typos@$(TYPOS_VERSION) \
+		--config typos.toml --force-exclude --hidden
 
 spelling-phrase-check: spelling-config ## Reject prohibited spelling phrases
 	@PYTHONPATH=scripts $(UV_ENV) $(UV) run --no-project --python 3.14 scripts/typos_rollout_check.py --repository .

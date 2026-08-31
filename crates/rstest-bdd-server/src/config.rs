@@ -178,10 +178,6 @@ impl ServerConfig {
 }
 
 #[cfg(test)]
-#[expect(
-    clippy::unwrap_used,
-    reason = "tests require explicit panic messages for debugging failures"
-)]
 mod tests {
     //! Unit tests for server configuration parsing.
 
@@ -206,14 +202,10 @@ mod tests {
 
     #[test]
     fn log_level_rejects_invalid_values() {
-        let result = "invalid".parse::<LogLevel>();
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("unknown log level")
-        );
+        let Err(error) = "invalid".parse::<LogLevel>() else {
+            panic!("invalid log level should fail to parse");
+        };
+        assert!(error.to_string().contains("unknown log level"));
     }
 
     #[test]

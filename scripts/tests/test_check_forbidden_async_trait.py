@@ -6,17 +6,12 @@ lockfiles. Published GPUI reaches ``async-trait`` transitively through
 banned.
 """
 
-from __future__ import annotations
-
+import collections.abc as cabc
 import importlib
-import typing as typ
+import types
 from pathlib import Path
 
 import pytest
-
-if typ.TYPE_CHECKING:
-    import collections.abc as cabc
-    import types
 
 SCRIPTS = Path(__file__).resolve().parents[1]
 APPROVED_LOCKFILES = (
@@ -148,6 +143,39 @@ def test_approved_fixture_rust_source_still_violates(
 
     assert violations == [f"{source}:1: contains forbidden async-trait usage"], (
         f"approved fixture Rust source {source} must remain subject to the ban"
+    )
+
+
+@pytest.mark.parametrize(
+    ("contents", "expected_lines"),
+    [
+        ("use async_trait::async_trait;", [1]),
+        ("// use async_trait::async_trait;", []),
+        ("/* use async_trait::async_trait; */", []),
+        ("/*\nuse async_trait::async_trait;\n*/\nuse async_trait::async_trait;", [4]),
+        ("/* comment */ use async_trait::async_trait;", [1]),
+    ],
+    ids=[
+        "code",
+        "line-comment",
+        "inline-block-comment",
+        "multiline-block-comment",
+        "after-block-comment",
+    ],
+)
+def test_rust_comment_scanner_preserves_comment_state(
+    checker: types.ModuleType,
+    tmp_path: Path,
+    contents: str,
+    expected_lines: list[int],
+) -> None:
+    """Only code outside each block-comment state may contain the banned crate."""
+    source = tmp_path / "src" / "lib.rs"
+    source.parent.mkdir()
+    source.write_text(contents, encoding="utf-8")
+
+    assert checker.find_async_trait_in_rust(source) == expected_lines, (
+        f"expected lines {expected_lines} for {contents!r}"
     )
 
 

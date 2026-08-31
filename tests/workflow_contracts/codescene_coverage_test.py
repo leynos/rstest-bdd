@@ -9,8 +9,6 @@ SHA value itself is owned by Dependabot and is deliberately not asserted.
 Run via ``make test-workflow-contracts``.
 """
 
-from __future__ import annotations
-
 import re
 from pathlib import Path
 

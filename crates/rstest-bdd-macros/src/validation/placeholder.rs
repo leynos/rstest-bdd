@@ -143,7 +143,6 @@ fn step_span(step: &ParsedStep) -> Span { step.span }
 fn step_span(_step: &ParsedStep) -> Span { Span::call_site() }
 
 #[cfg(test)]
-#[expect(clippy::unwrap_used, reason = "tests use unwrap for brevity")]
 mod tests {
     //! Unit tests for placeholder validation against example headers.
 
@@ -202,10 +201,9 @@ mod tests {
         expected_placeholder: &str,
         expected_context: ValidationContext,
     ) {
-        let result = validate_step_placeholders(steps, headers);
-        assert!(result.is_err());
-
-        let err = result.unwrap_err();
+        let Err(err) = validate_step_placeholders(steps, headers) else {
+            panic!("placeholder validation should fail");
+        };
         let msg = err.to_string();
         assert!(
             msg.contains(expected_placeholder),
@@ -220,12 +218,9 @@ mod tests {
 
     /// Asserts that placeholder validation succeeds.
     fn assert_valid_placeholders(steps: &[ParsedStep], headers: &[String]) {
-        let result = validate_step_placeholders(steps, ExampleHeaders::new(headers));
-        assert!(
-            result.is_ok(),
-            "Expected validation to pass but got error: {:?}",
-            result.unwrap_err()
-        );
+        if let Err(error) = validate_step_placeholders(steps, ExampleHeaders::new(headers)) {
+            panic!("expected placeholder validation to pass: {error}");
+        }
     }
 
     #[rstest]

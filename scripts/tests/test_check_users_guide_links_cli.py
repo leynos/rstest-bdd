@@ -5,15 +5,10 @@ exercising the ``--root`` option and exit codes rather than the helper
 functions (which have their own unit tests).
 """
 
-from __future__ import annotations
-
-import typing as typ
+from pathlib import Path
 
 import pytest
 from check_users_guide_links import BASE_URL, GUIDE, main
-
-if typ.TYPE_CHECKING:
-    from pathlib import Path
 
 
 def _run_checker(root: Path) -> int:

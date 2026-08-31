@@ -22,10 +22,9 @@ Exit codes
     A table is missing, malformed, or the two table bodies differ.
 """
 
-from __future__ import annotations
-
 import re
 import sys
+import typing as typ
 from pathlib import Path
 
 DESIGN_DOC = Path("docs/rstest-bdd-design.md")
@@ -42,19 +41,19 @@ class MappingTableError(ValueError):
     """A GPUI mapping table is missing or malformed."""
 
     @classmethod
-    def heading_not_found(cls, heading: str) -> MappingTableError:
+    def heading_not_found(cls, heading: str) -> typ.Self:
         """Build an error for a missing anchor heading."""
         message = f"heading not found: {heading}"
         return cls(message)
 
     @classmethod
-    def separator_not_found(cls, heading: str) -> MappingTableError:
+    def separator_not_found(cls, heading: str) -> typ.Self:
         """Build an error for a table without its separator row."""
         message = f"mapping table under {heading!r} has no separator row"
         return cls(message)
 
     @classmethod
-    def wrong_row_count(cls, heading: str, actual: int) -> MappingTableError:
+    def wrong_row_count(cls, heading: str, actual: int) -> typ.Self:
         """Build an error for a table with the wrong number of data rows."""
         message = (
             f"mapping table under {heading!r} has {actual} data rows; "
@@ -63,15 +62,13 @@ class MappingTableError(ValueError):
         return cls(message)
 
     @classmethod
-    def table_not_found(cls, heading: str) -> MappingTableError:
+    def table_not_found(cls, heading: str) -> typ.Self:
         """Build an error for a missing mapping table."""
         message = f"mapping table not found under heading: {heading}"
         return cls(message)
 
     @classmethod
-    def document_unreadable(
-        cls, relative_path: Path, error: OSError
-    ) -> MappingTableError:
+    def document_unreadable(cls, relative_path: Path, error: OSError) -> typ.Self:
         """Build an error for a document that could not be read."""
         message = f"could not read {relative_path}: {error}"
         return cls(message)
@@ -179,9 +176,10 @@ def extract_mapping_rows(markdown: str, heading: str) -> list[str]:
 
     Raises
     ------
-    ValueError
-        If the section or table cannot be found, or if the table has the wrong
-        number of data rows.
+    MappingTableError.heading_not_found
+        The requested heading is absent.
+    MappingTableError.table_not_found
+        The anchored section contains no mapping table.
     """
     section = find_section_after_heading(markdown, heading)
     if section is None:
@@ -211,6 +209,11 @@ def read_mapping_rows(root: Path, relative_path: Path, heading: str) -> list[str
     -------
     list[str]
         Normalized data rows.
+
+    Raises
+    ------
+    MappingTableError.document_unreadable
+        The document cannot be read.
     """
     path = root / relative_path
     try:

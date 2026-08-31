@@ -102,12 +102,10 @@ impl CounterApp {
 
 /// Clamps an `i64` value to the `i32` range.
 fn saturate_to_i32(value: i64) -> i32 {
-    #[expect(
-        clippy::cast_possible_truncation,
-        reason = "value is clamped to i32 range before truncation"
-    )]
-    {
-        value.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32
+    match i32::try_from(value) {
+        Ok(value) => value,
+        Err(_) if value.is_negative() => i32::MIN,
+        Err(_) => i32::MAX,
     }
 }
 

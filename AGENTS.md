@@ -341,6 +341,36 @@ interface that a user should know about. Document internally facing interfaces
 or practices in the relevant component architecture document. Document
 internally facing conventions or practices in `docs/developers-guide.md`.
 
+
+## Python development guidelines
+
+For Python development, refer to the detailed guidelines in the `.rules/`
+directory:
+
+- [Python code style guidelines](.rules/python-00.md) - Core Python 3.12 style
+  conventions.
+- [Python context managers](.rules/python-context-managers.md) - Best practices
+  for context managers.
+- [Python exceptions and logging][python-exceptions] - Raising and handling
+  exceptions and logging.
+- [Python generators](.rules/python-generators.md) - Generator and iterator
+  patterns.
+- [Python project configuration](.rules/python-pyproject.md) -
+  `pyproject.toml` and packaging.
+- [Python return patterns](.rules/python-return.md) - Function return
+  conventions.
+- [Python typing](.rules/python-typing.md) - Type annotation best practices.
+
+[python-exceptions]: .rules/python-exception-design-raising-handling-and-logging.md
+
+Additional docs:
+
+- [Scripting standards](docs/scripting-standards.md) - Guidance for writing
+  robust scripts, including secure command execution via `cuprum`, catalogue
+  allowlisting, and command mocking patterns with `cmd-mox`.
+- Before adding or updating helper scripts, read the scripting standards guide
+  and follow its `Cyclopts`, `plumbum`, `pathlib`, and `cmd-mox` conventions.
+
 ## Additional tooling
 
 The following tooling is available in this environment:

@@ -35,16 +35,11 @@ Exit codes
     Violations found, or the guide itself could not be read.
 """
 
-from __future__ import annotations
-
 import argparse
+import collections.abc as cabc
 import re
 import sys
-import typing as typ
 from pathlib import Path
-
-if typ.TYPE_CHECKING:
-    import collections.abc as cabc
 
 GUIDE = Path("docs/users-guide.md")
 # Canonical prefix for cross-references into this repository. Update this

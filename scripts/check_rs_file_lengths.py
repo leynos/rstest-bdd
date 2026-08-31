@@ -23,8 +23,6 @@ Violating files should be refactored into smaller modules rather than added to
 the allowlist unless a tracked refactor is in progress.
 """
 
-from __future__ import annotations
-
 import sys
 from pathlib import Path
 

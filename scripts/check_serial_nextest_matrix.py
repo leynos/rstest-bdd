@@ -19,10 +19,9 @@ Exit codes
     A table is missing, malformed, or the two table bodies differ.
 """
 
-from __future__ import annotations
-
 import re
 import sys
+import typing as typ
 from pathlib import Path
 
 DESIGN_DOC = Path("docs/rstest-bdd-design.md")
@@ -36,7 +35,7 @@ class SerialNextestMatrixError(ValueError):
     """A `#[serial]`/nextest runner matrix is missing or malformed."""
 
     @classmethod
-    def _for_heading(cls, template: str, heading: str) -> SerialNextestMatrixError:
+    def _for_heading(cls, template: str, heading: str) -> typ.Self:
         """
         Build an error from a heading-only message template.
 
@@ -57,19 +56,19 @@ class SerialNextestMatrixError(ValueError):
         return cls(template.format(heading=heading))
 
     @classmethod
-    def heading_not_found(cls, heading: str) -> SerialNextestMatrixError:
+    def heading_not_found(cls, heading: str) -> typ.Self:
         """Build an error for a missing anchor heading."""
         return cls._for_heading("heading not found: {heading}", heading)
 
     @classmethod
-    def separator_not_found(cls, heading: str) -> SerialNextestMatrixError:
+    def separator_not_found(cls, heading: str) -> typ.Self:
         """Build an error for a table without its separator row."""
         return cls._for_heading(
             "runner matrix under {heading!r} has no separator row", heading
         )
 
     @classmethod
-    def wrong_row_count(cls, heading: str, actual: int) -> SerialNextestMatrixError:
+    def wrong_row_count(cls, heading: str, actual: int) -> typ.Self:
         """
         Build an error for a table with the wrong number of data rows.
 
@@ -92,16 +91,14 @@ class SerialNextestMatrixError(ValueError):
         return cls(message)
 
     @classmethod
-    def table_not_found(cls, heading: str) -> SerialNextestMatrixError:
+    def table_not_found(cls, heading: str) -> typ.Self:
         """Build an error for a missing runner matrix."""
         return cls._for_heading(
             "runner matrix not found under heading: {heading}", heading
         )
 
     @classmethod
-    def document_unreadable(
-        cls, relative_path: Path, error: OSError
-    ) -> SerialNextestMatrixError:
+    def document_unreadable(cls, relative_path: Path, error: OSError) -> typ.Self:
         """
         Build an error for a document that could not be read.
 
@@ -245,9 +242,10 @@ def extract_matrix_rows(markdown: str, heading: str) -> list[str]:
 
     Raises
     ------
-    ValueError
-        If the section or table cannot be found, or if the table has the wrong
-        number of data rows.
+    SerialNextestMatrixError.heading_not_found
+        The requested heading is absent.
+    SerialNextestMatrixError.table_not_found
+        The anchored section contains no runner matrix.
     """
     section = find_section_after_heading(markdown, heading)
     if section is None:
@@ -277,6 +275,11 @@ def read_matrix_rows(root: Path, relative_path: Path, heading: str) -> list[str]
     -------
     list[str]
         Normalized data rows.
+
+    Raises
+    ------
+    SerialNextestMatrixError.document_unreadable
+        The document cannot be read.
     """
     path = root / relative_path
     try:
