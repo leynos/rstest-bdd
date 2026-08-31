@@ -34,13 +34,13 @@ pub(crate) fn build_field_binding(
     on_missing.map_or_else(
         || build_required_binding(&binding_ident, &accessor),
         |on_missing| {
-            build_recovering_binding(
-                &binding_ident,
-                &accessor,
-                &missing_pattern,
-                &on_missing,
+            build_recovering_binding(RecoveringBinding {
+                binding_ident: &binding_ident,
+                accessor: &accessor,
+                missing_pattern: &missing_pattern,
+                on_missing: &on_missing,
                 is_optional,
-            )
+            })
         },
     )
 }
@@ -75,14 +75,30 @@ fn build_required_binding(binding_ident: &syn::Ident, accessor: &TokenStream2) -
     }
 }
 
-/// Emit an optional or defaulted binding that recovers only missing table data.
-fn build_recovering_binding(
-    binding_ident: &syn::Ident,
-    accessor: &TokenStream2,
-    missing_pattern: &TokenStream2,
-    on_missing: &TokenStream2,
+/// Groups the inputs required to generate a recovering field binding.
+#[derive(Clone, Copy)]
+struct RecoveringBinding<'a> {
+    /// Identifier that receives the converted value.
+    binding_ident: &'a syn::Ident,
+    /// Generated expression that retrieves and converts the field.
+    accessor: &'a TokenStream2,
+    /// Pattern that matches missing column and cell errors.
+    missing_pattern: &'a TokenStream2,
+    /// Expression to emit when the source field is absent.
+    on_missing: &'a TokenStream2,
+    /// Whether a successful value needs wrapping in `Some`.
     is_optional: bool,
-) -> TokenStream2 {
+}
+
+/// Emit an optional or defaulted binding that recovers only missing table data.
+fn build_recovering_binding(binding: RecoveringBinding<'_>) -> TokenStream2 {
+    let RecoveringBinding {
+        binding_ident,
+        accessor,
+        missing_pattern,
+        on_missing,
+        is_optional,
+    } = binding;
     let on_success = if is_optional {
         quote! { Some(value) }
     } else {
