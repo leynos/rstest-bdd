@@ -192,49 +192,52 @@ fn scoped_validation_reports_equal_candidates_without_precedence() {
     assert!(error.contains("filesystem"));
 }
 
-#[test]
-#[serial]
-fn global_registration_populates_global_and_scoped_indexes() -> Result<(), String> {
+fn registration_index_counts(
+    crate_id: &str,
+    library: &str,
+    register: impl FnOnce(),
+) -> Result<(usize, usize), String> {
     clear_registry();
-    let crate_id = "global-registration-test";
-    register_step_for_crate(StepKeyword::Given, "the global step", crate_id);
+    register();
 
     let registry = REGISTERED
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let defs = registry
-        .get(normalize_crate_id(crate_id).as_ref())
-        .ok_or_else(|| "global registration should create a crate definition entry".to_owned())?;
-    assert_eq!(defs.patterns(StepKeyword::Given).len(), 1);
-    assert_eq!(
-        defs.scoped_by_kw
-            .get(&(Box::<str>::from("rstest_bdd::global"), StepKeyword::Given))
-            .map(Vec::len),
-        Some(1)
-    );
+    let crate_id = normalize_crate_id(crate_id);
+    let defs = registry.get(crate_id.as_ref()).ok_or_else(|| {
+        format!("registration should create a crate definition entry for {crate_id}")
+    })?;
+    let global_count = defs.patterns(StepKeyword::Given).len();
+    let scoped_count = defs
+        .scoped_by_kw
+        .get(&(Box::<str>::from(library), StepKeyword::Given))
+        .map_or(0, Vec::len);
+
+    Ok((global_count, scoped_count))
+}
+
+#[test]
+#[serial]
+fn global_registration_populates_global_and_scoped_indexes() -> Result<(), String> {
+    let crate_id = "global-registration-test";
+    let counts = registration_index_counts(crate_id, "rstest_bdd::global", || {
+        register_step_for_crate(StepKeyword::Given, "the global step", crate_id);
+    })?;
+
+    assert_eq!(counts, (1, 1));
     Ok(())
 }
 
 #[test]
 #[serial]
 fn named_library_registration_avoids_global_index() -> Result<(), String> {
-    clear_registry();
+    let crate_id = current_crate_id();
     let pattern = syn::LitStr::new("the named step", proc_macro2::Span::call_site());
-    register_step_in_library(StepKeyword::Given, &pattern, "accounts");
+    let counts = registration_index_counts(crate_id, "accounts", || {
+        register_step_in_library(StepKeyword::Given, &pattern, "accounts");
+    })?;
 
-    let registry = REGISTERED
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let defs = registry
-        .get(current_crate_id())
-        .ok_or_else(|| "named registration should create a crate definition entry".to_owned())?;
-    assert!(defs.patterns(StepKeyword::Given).is_empty());
-    assert_eq!(
-        defs.scoped_by_kw
-            .get(&(Box::<str>::from("accounts"), StepKeyword::Given))
-            .map(Vec::len),
-        Some(1)
-    );
+    assert_eq!(counts, (0, 1));
     Ok(())
 }
 
