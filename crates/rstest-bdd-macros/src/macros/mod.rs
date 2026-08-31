@@ -26,11 +26,11 @@
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::parse_quote;
 
 mod given;
 mod scenario;
 pub(crate) mod scenarios;
+mod skip_scope;
 mod step_attr_args;
 mod then;
 mod when;
@@ -38,6 +38,7 @@ mod when;
 pub(crate) use given::given;
 pub(crate) use scenario::scenario;
 pub(crate) use scenarios::scenarios;
+use skip_scope::inject_skip_scope;
 use step_attr_args::StepAttrArgs;
 pub(crate) use then::then;
 pub(crate) use when::when;
@@ -204,6 +205,10 @@ fn build_and_generate_wrapper(inputs: &WrapperInputs<'_>) -> proc_macro2::TokenS
 /// wrapper code. Emits the original function alongside the generated wrapper.
 fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) -> TokenStream {
     let mut func = syn::parse_macro_input!(item as syn::ItemFn);
+    #[cfg(feature = "compile-time-validation")]
+    let library = take_step_library_attribute(&mut func.attrs);
+    #[cfg(not(feature = "compile-time-validation"))]
+    take_step_library_attribute(&mut func.attrs);
     inject_skip_scope(&mut func);
     let attr_args = if attr.is_empty() {
         StepAttrArgs {
@@ -215,7 +220,11 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) 
     };
     let pattern = determine_step_pattern(attr_args.pattern, &func.sig.ident);
     #[cfg(feature = "compile-time-validation")]
-    crate::validation::steps::register_step(keyword, &pattern);
+    if let Some(library) = library.as_deref() {
+        crate::validation::steps::register_step_in_library(keyword, &pattern, library);
+    } else {
+        crate::validation::steps::register_step(keyword, &pattern);
+    }
     let mut placeholder_summary = match placeholder_names(&pattern.value()) {
         Ok(set) => set,
         Err(mut err) => {
@@ -258,40 +267,24 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) 
     })
 }
 
-/// Wraps a step function body with an RAII guard so the runtime can validate
-/// every call to `skip!` against the current execution scope.
-fn inject_skip_scope(func: &mut syn::ItemFn) {
-    let path = crate::codegen::rstest_bdd_path();
-    let ident = &func.sig.ident;
-    let scope_init: syn::Stmt = parse_quote! {
-        #[expect(unused_variables, reason = "RAII guard, only Drop matters")]
-        let __rstest_bdd_step_scope_guard = #path::__rstest_bdd_enter_scope(
-            #path::__rstest_bdd_scope_kind::Step,
-            stringify!(#ident),
-            file!(),
-            line!(),
-        );
+/// Remove and return the lexical-library marker injected by `#[step_library]`.
+fn take_step_library_attribute(attributes: &mut Vec<syn::Attribute>) -> Option<String> {
+    let index = attributes.iter().position(|attribute| {
+        attribute
+            .path()
+            .is_ident("rstest_bdd_internal_step_library")
+    })?;
+    let attribute = attributes.remove(index);
+    let syn::Meta::NameValue(value) = attribute.meta else {
+        return None;
     };
-    let original_stmts = func.block.stmts.clone();
-    *func.block = parse_quote!({
-        #scope_init
-        #(#original_stmts)*
-    });
+    let syn::Expr::Lit(expression) = value.value else {
+        return None;
+    };
+    let syn::Lit::Str(library) = expression.lit else {
+        return None;
+    };
+    Some(library.value())
 }
-
 #[cfg(test)]
-mod tests {
-    //! Unit tests for step-attribute diagnostic help text.
-
-    use super::signature_error_help;
-    use crate::{StepKeyword, codegen::wrapper::args::classify::DUPLICATE_DATATABLE_ERROR};
-
-    #[test]
-    fn duplicate_datatable_help_names_the_remedy() {
-        // Pins the `DUPLICATE_DATATABLE_ERROR` -> help-text mapping directly,
-        // independent of the trybuild fixture (which only runs under
-        // `cargo test`, not `make test`/nextest).
-        let help = signature_error_help(DUPLICATE_DATATABLE_ERROR, StepKeyword::Given);
-        assert_eq!(help, "Remove one of the DataTable parameters.");
-    }
-}
+mod tests;

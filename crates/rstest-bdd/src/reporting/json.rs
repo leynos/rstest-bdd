@@ -30,6 +30,8 @@ struct JsonScenario<'a> {
     line: u32,
     /// Scenario tags.
     tags: &'a [String],
+    /// Closed library identities selected by the scenario.
+    libraries: Vec<&'static str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     /// Details recorded when the scenario was skipped.
     skip: Option<JsonSkip<'a>>,
@@ -69,6 +71,12 @@ impl<'a> From<&'a ScenarioRecord> for JsonScenario<'a> {
             status: record.status().label(),
             line: record.line(),
             tags: record.tags(),
+            libraries: record
+                .scope()
+                .libraries()
+                .iter()
+                .map(|library| library.as_str())
+                .collect(),
             skip,
         }
     }

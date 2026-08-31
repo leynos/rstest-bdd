@@ -42,6 +42,7 @@ pub(in crate::codegen::scenario::runtime) fn generate_scenario_guard() -> TokenS
             scenario_name: &'static str,
             line: u32,
             tags: #path::reporting::ScenarioTags,
+            scope: #path::StepScope,
         }
 
         impl __RstestBddScenarioReportGuard {
@@ -50,6 +51,7 @@ pub(in crate::codegen::scenario::runtime) fn generate_scenario_guard() -> TokenS
                 scenario_name: &'static str,
                 line: u32,
                 tags: #path::reporting::ScenarioTags,
+                scope: #path::StepScope,
             ) -> Self {
                 Self {
                     recorded: false,
@@ -57,6 +59,7 @@ pub(in crate::codegen::scenario::runtime) fn generate_scenario_guard() -> TokenS
                     scenario_name,
                     line,
                     tags,
+                    scope,
                 }
             }
 
@@ -82,7 +85,8 @@ pub(in crate::codegen::scenario::runtime) fn generate_scenario_guard() -> TokenS
                         self.scenario_name,
                         self.line,
                         tags,
-                    );
+                    )
+                    .with_scope(self.scope);
                     #path::reporting::record(#path::reporting::ScenarioRecord::from_metadata(
                         metadata,
                         #path::reporting::ScenarioStatus::Passed,
@@ -137,7 +141,8 @@ pub(in crate::codegen::scenario::runtime) fn generate_skip_handler(
                             __RSTEST_BDD_SCENARIO_LINE,
                         )
                         .with_tags(__rstest_bdd_scenario_guard.tags())
-                        .with_reason(__rstest_bdd_message.as_deref()),
+                        .with_reason(__rstest_bdd_message.as_deref())
+                        .with_scope(__RSTEST_BDD_STEP_SCOPE),
                         __rstest_bdd_bypassed,
                     );
                 }
@@ -154,7 +159,8 @@ pub(in crate::codegen::scenario::runtime) fn generate_skip_handler(
                 __RSTEST_BDD_SCENARIO_NAME,
                 __RSTEST_BDD_SCENARIO_LINE,
                 __rstest_bdd_scenario_tags_owned,
-            );
+            )
+            .with_scope(__RSTEST_BDD_STEP_SCOPE);
             #path::reporting::record(#path::reporting::ScenarioRecord::from_metadata(
                 __rstest_bdd_metadata,
                 #path::reporting::ScenarioStatus::Skipped(__rstest_bdd_skip_details),
