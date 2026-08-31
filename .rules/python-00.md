@@ -76,14 +76,13 @@ def scale(values: list[float], factor: float) -> list[float]:
 
 ## Testing with pytest
 
-- **Colocate unit tests with code** using an `unittests` subdirectory and a
-  `test_` prefix. This keeps logic and its tests together:
+- Place unit tests in a `tests` directory and a `test_` prefix.
 
 ```text
 user_auth/
   models.py
   login_flow.py
-  unittests/
+  tests/
     test_models.py
     test_login_flow.py
 ```
