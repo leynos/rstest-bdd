@@ -45,7 +45,7 @@ rstest = "0.26.1"
 insta = "1.47.2"
 macrotest = "1"
 metrics = "0.24.2"
-prettyplease = "0.2"
+prettyplease = "0.3"
 trybuild = "1"
 serial_test = "2"
 serde = { version = "1.0", features = ["derive"] }
