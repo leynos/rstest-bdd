@@ -1,8 +1,5 @@
-//! Code generation utilities for the proc macros.
-//!
-//! This module emits fully-qualified paths (`::rstest_bdd::…`) so the macros crate
-//! does not depend on the runtime crate at compile-time.
-
+//! Code generation utilities that emit fully-qualified `::rstest_bdd::…` paths
+//! without a compile-time dependency on the runtime crate.
 use proc_macro_crate::{FoundCrate, crate_name};
 use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
 use quote::quote;
@@ -47,7 +44,11 @@ const GPUI_HARNESS: CrateSpec = CrateSpec {
     adapter_type_names: &["GpuiHarness", "GpuiAttributePolicy"],
 };
 /// Return a token stream pointing to the `rstest_bdd` crate or its renamed form.
+#[cfg(not(test))]
 pub(crate) fn rstest_bdd_path() -> TokenStream2 { resolve_crate_path(&RSTEST_BDD) }
+
+#[cfg(test)]
+pub(crate) fn rstest_bdd_path() -> TokenStream2 { quote!(::rstest_bdd) }
 /// Return a token stream pointing to the `rstest_bdd_harness` crate or its
 /// renamed form.
 pub(crate) fn rstest_bdd_harness_path() -> TokenStream2 { resolve_crate_path(&RSTEST_BDD_HARNESS) }
