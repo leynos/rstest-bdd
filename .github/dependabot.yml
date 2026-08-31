@@ -26,6 +26,7 @@ updates:
       - "/crates/rstest-bdd/tests/fixtures_macros"
       - "/crates/rstest-bdd/tests/ui_macros"
       - "/crates/rstest-bdd/tests/ui_lints"
+      - "/tests/fixtures/published-gpui-0-2-2"
     groups:
       cargo-by-dependency:
         group-by: dependency-name
