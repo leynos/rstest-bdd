@@ -49,12 +49,26 @@ fn scenarios_args(dir: &Path) -> ScenariosArgs {
     }
 }
 
-fn test_context<'a>(
+/// Shared inputs for constructing a scenario test context.
+#[derive(Clone, Copy)]
+struct TestContextInputs<'a> {
+    /// The feature file being processed.
     feature_path: &'a Path,
+    /// Optional filter limiting processed scenarios.
     tag_filter: Option<&'a TagExpression>,
+    /// Optional closed scope for compile-time validation.
     library_validation_names: Option<&'a [Box<str>]>,
+    /// Resolved runtime adapter information.
     resolutions: &'a SharedAdapterResolutions,
-) -> ScenarioTestContext<'a> {
+}
+
+fn test_context(inputs: TestContextInputs<'_>) -> ScenarioTestContext<'_> {
+    let TestContextInputs {
+        feature_path,
+        tag_filter,
+        library_validation_names,
+        resolutions,
+    } = inputs;
     let scope = Box::leak(Box::new(quote!(::rstest_bdd::StepScope::global())));
     ScenarioTestContext {
         feature_stem: "example",
@@ -140,19 +154,19 @@ fn expand_scenarios_normalizes_missing_directory_errors() -> Result<(), String> 
 
 #[test]
 fn process_scenario_skips_filtered_out_scenarios() -> Result<(), String> {
-    let (temp, feature_path) =
+    let (_temp, feature_path) =
         write_feature("Feature: Example\n@ignored\nScenario: ignored\nGiven the system works\n")
             .map_err(|error| error.to_string())?;
     let feature =
         parse_and_load_feature(feature_path.as_path()).map_err(|error| error.to_string())?;
     let filter = TagExpression::parse("@selected").map_err(|error| error.to_string())?;
     let resolutions = SharedAdapterResolutions::resolve(None, None);
-    let context = test_context(
-        feature_path.as_path(),
-        Some(&filter),
-        None,
-        &resolutions,
-    );
+    let context = test_context(TestContextInputs {
+        feature_path: feature_path.as_path(),
+        tag_filter: Some(&filter),
+        library_validation_names: None,
+        resolutions: &resolutions,
+    });
     let mut names = HashSet::new();
 
     let result =
@@ -166,7 +180,7 @@ fn process_scenario_skips_filtered_out_scenarios() -> Result<(), String> {
 #[serial]
 fn process_scenario_returns_validation_errors_without_generating_a_test() -> Result<(), String> {
     clear_registered_steps_for_tests();
-    let (temp, feature_path) =
+    let (_temp, feature_path) =
         write_feature("Feature: Example\nScenario: ambiguous\nGiven the system works\n")
             .map_err(|error| error.to_string())?;
     let feature =
@@ -176,12 +190,12 @@ fn process_scenario_returns_validation_errors_without_generating_a_test() -> Res
     register_step_in_library(StepKeyword::Given, &pattern, "accounts");
     let libraries = vec![Box::<str>::from("accounts")];
     let resolutions = SharedAdapterResolutions::resolve(None, None);
-    let context = test_context(
-        feature_path.as_path(),
-        None,
-        Some(&libraries),
-        &resolutions,
-    );
+    let context = test_context(TestContextInputs {
+        feature_path: feature_path.as_path(),
+        tag_filter: None,
+        library_validation_names: Some(&libraries),
+        resolutions: &resolutions,
+    });
     let mut names = HashSet::new();
 
     let result = process_scenario(&feature, 0, &context, &mut names);
@@ -201,7 +215,7 @@ fn process_scenario_returns_validation_errors_without_generating_a_test() -> Res
 fn process_scenario_generates_a_test_when_validation_succeeds() -> Result<(), String> {
     #[cfg(feature = "compile-time-validation")]
     clear_registered_steps_for_tests();
-    let (temp, feature_path) =
+    let (_temp, feature_path) =
         write_feature("Feature: Example\nScenario: works\nGiven the system works\n")
             .map_err(|error| error.to_string())?;
     let feature =
@@ -212,12 +226,12 @@ fn process_scenario_generates_a_test_when_validation_succeeds() -> Result<(), St
         &LitStr::new("the system works", Span::call_site()),
     );
     let resolutions = SharedAdapterResolutions::resolve(None, None);
-    let context = test_context(
-        feature_path.as_path(),
-        None,
-        None,
-        &resolutions,
-    );
+    let context = test_context(TestContextInputs {
+        feature_path: feature_path.as_path(),
+        tag_filter: None,
+        library_validation_names: None,
+        resolutions: &resolutions,
+    });
     let mut names = HashSet::new();
 
     let generated = process_scenario(&feature, 0, &context, &mut names)
