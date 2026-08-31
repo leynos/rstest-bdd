@@ -144,20 +144,33 @@ fn scoped_validation_uses_only_selected_libraries() {
     assert!(validate_steps_exist_in_scope(&steps, &accounts, true).is_ok());
 }
 
+fn scoped_validation_error(definitions: &[(&str, &str)], selected_libraries: &[&str]) -> String {
+    clear_registry();
+    for (library, pattern) in definitions {
+        let pattern = syn::LitStr::new(pattern, proc_macro2::Span::call_site());
+        register_step_in_library(StepKeyword::Given, &pattern, library);
+    }
+    let steps = [create_test_step(StepKeyword::Given, "the domain is empty")];
+    let libraries = selected_libraries
+        .iter()
+        .map(|library| Box::<str>::from(*library))
+        .collect::<Vec<_>>();
+
+    validate_steps_exist_in_scope(&steps, &libraries, true)
+        .expect_err("scoped validation fixture must produce an error")
+        .to_string()
+}
+
 #[test]
 #[serial]
 fn scoped_validation_reports_unselected_library_hints() {
-    clear_registry();
-    let account = syn::LitStr::new("a different account step", proc_macro2::Span::call_site());
-    let filesystem = syn::LitStr::new("the domain is empty", proc_macro2::Span::call_site());
-    register_step_in_library(StepKeyword::Given, &account, "accounts");
-    register_step_in_library(StepKeyword::Given, &filesystem, "filesystem");
-    let steps = [create_test_step(StepKeyword::Given, "the domain is empty")];
-    let accounts = vec![Box::<str>::from("accounts")];
-
-    let error = validate_steps_exist_in_scope(&steps, &accounts, true)
-        .expect_err("missing selected definition should be an error")
-        .to_string();
+    let error = scoped_validation_error(
+        &[
+            ("accounts", "a different account step"),
+            ("filesystem", "the domain is empty"),
+        ],
+        &["accounts"],
+    );
     assert!(error.contains("Selected libraries: [accounts]"));
     assert!(error.contains("unselected libraries"));
     assert!(error.contains("filesystem"));
@@ -166,21 +179,63 @@ fn scoped_validation_reports_unselected_library_hints() {
 #[test]
 #[serial]
 fn scoped_validation_reports_equal_candidates_without_precedence() {
-    clear_registry();
-    let account = syn::LitStr::new("the domain is empty", proc_macro2::Span::call_site());
-    let filesystem = syn::LitStr::new("the domain is empty", proc_macro2::Span::call_site());
-    register_step_in_library(StepKeyword::Given, &account, "accounts");
-    register_step_in_library(StepKeyword::Given, &filesystem, "filesystem");
-    let steps = [create_test_step(StepKeyword::Given, "the domain is empty")];
-    let libraries = vec![Box::<str>::from("accounts"), Box::<str>::from("filesystem")];
-
-    let error = validate_steps_exist_in_scope(&steps, &libraries, true)
-        .expect_err("equal scoped candidates should be ambiguous")
-        .to_string();
+    let error = scoped_validation_error(
+        &[
+            ("accounts", "the domain is empty"),
+            ("filesystem", "the domain is empty"),
+        ],
+        &["accounts", "filesystem"],
+    );
     assert!(error.contains("Ambiguous step definition"));
     assert!(error.contains("Selected libraries: [accounts, filesystem]"));
     assert!(error.contains("accounts"));
     assert!(error.contains("filesystem"));
+}
+
+#[test]
+#[serial]
+fn global_registration_populates_global_and_scoped_indexes() -> Result<(), String> {
+    clear_registry();
+    let crate_id = "global-registration-test";
+    register_step_for_crate(StepKeyword::Given, "the global step", crate_id);
+
+    let registry = REGISTERED
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let defs = registry
+        .get(normalize_crate_id(crate_id).as_ref())
+        .ok_or_else(|| "global registration should create a crate definition entry".to_owned())?;
+    assert_eq!(defs.patterns(StepKeyword::Given).len(), 1);
+    assert_eq!(
+        defs.scoped_by_kw
+            .get(&(Box::<str>::from("rstest_bdd::global"), StepKeyword::Given))
+            .map(Vec::len),
+        Some(1)
+    );
+    Ok(())
+}
+
+#[test]
+#[serial]
+fn named_library_registration_avoids_global_index() -> Result<(), String> {
+    clear_registry();
+    let pattern = syn::LitStr::new("the named step", proc_macro2::Span::call_site());
+    register_step_in_library(StepKeyword::Given, &pattern, "accounts");
+
+    let registry = REGISTERED
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let defs = registry
+        .get(current_crate_id())
+        .ok_or_else(|| "named registration should create a crate definition entry".to_owned())?;
+    assert!(defs.patterns(StepKeyword::Given).is_empty());
+    assert_eq!(
+        defs.scoped_by_kw
+            .get(&(Box::<str>::from("accounts"), StepKeyword::Given))
+            .map(Vec::len),
+        Some(1)
+    );
+    Ok(())
 }
 
 #[test]

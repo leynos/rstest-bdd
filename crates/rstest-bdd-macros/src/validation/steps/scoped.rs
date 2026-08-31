@@ -86,7 +86,7 @@ fn format_scoped_missing_step_error(
         keyword.as_str(),
         step.text,
     );
-    let candidates = defs.matching_unselected(keyword, &step.text, libraries, get_step_span(step));
+    let candidates = defs.matching_unselected(keyword, step, libraries);
     if !candidates.is_empty() {
         message.push_str("\nMatching definitions exist only in unselected libraries:");
         for candidate in candidates {

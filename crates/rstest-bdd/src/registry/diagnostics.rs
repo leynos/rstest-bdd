@@ -178,7 +178,20 @@ pub(super) fn dump_registry() -> serde_json::Result<String> {
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let bypassed = bypassed_records();
     let bypassed_keys: HashSet<StepKey> = bypassed.iter().map(|entry| entry.key).collect();
-    let steps: Vec<_> = all_steps()
+    let steps = dump_steps(&used, &bypassed_keys);
+    let scenarios = dump_scenarios();
+    let bypassed_steps = dump_bypassed_steps(bypassed);
+
+    serde_json::to_string(&RegistryDump {
+        steps,
+        scenarios,
+        bypassed_steps,
+    })
+}
+
+/// Transform registered definitions into their diagnostics representation.
+fn dump_steps(used: &HashSet<StepKey>, bypassed_keys: &HashSet<StepKey>) -> Vec<DumpedStep> {
+    all_steps()
         .into_iter()
         .map(|s| DumpedStep {
             library: library_for_step(s).as_str(),
@@ -189,9 +202,12 @@ pub(super) fn dump_registry() -> serde_json::Result<String> {
             used: used.contains(&(library_for_step(s), s.keyword, s.pattern.as_str())),
             bypassed: bypassed_keys.contains(&(library_for_step(s), s.keyword, s.pattern.as_str())),
         })
-        .collect();
+        .collect()
+}
 
-    let scenarios = reporting::snapshot()
+/// Transform the reporting snapshot into serialized scenario metadata.
+fn dump_scenarios() -> Vec<DumpedScenario> {
+    reporting::snapshot()
         .into_iter()
         .map(|record| {
             let (status, message, allow_skipped, forced_failure) = match record.status() {
@@ -220,9 +236,12 @@ pub(super) fn dump_registry() -> serde_json::Result<String> {
                     .collect(),
             }
         })
-        .collect();
+        .collect()
+}
 
-    let bypassed_steps = bypassed
+/// Transform bypass records while omitting steps that are no longer registered.
+fn dump_bypassed_steps(bypassed: Vec<BypassedStepRecord>) -> Vec<DumpedBypassedStep> {
+    bypassed
         .into_iter()
         .filter_map(|entry| {
             step_by_key(entry.key).map(|step| DumpedBypassedStep {
@@ -239,11 +258,5 @@ pub(super) fn dump_registry() -> serde_json::Result<String> {
                 reason: entry.reason,
             })
         })
-        .collect();
-
-    serde_json::to_string(&RegistryDump {
-        steps,
-        scenarios,
-        bypassed_steps,
-    })
+        .collect()
 }
