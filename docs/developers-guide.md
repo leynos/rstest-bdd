@@ -184,7 +184,6 @@ For documentation changes, run `make fmt`, `make markdownlint`,
 `make spellcheck`, and `make nixie`. `make markdownlint` also runs the spelling
 gate.
 
-
 ## Fast development builds
 
 Use `make dev-build` to compile debug binaries and `make dev-test` to run the
