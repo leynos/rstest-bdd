@@ -12,6 +12,7 @@
 
 mod crate_id;
 mod messages;
+mod scoped;
 use std::{
     collections::HashMap,
     sync::{LazyLock, Mutex},
@@ -19,6 +20,7 @@ use std::{
 
 use crate_id::{current_crate_id, normalize_crate_id};
 use messages::{format_ambiguous_step_error, format_missing_step_error};
+pub(crate) use scoped::validate_steps_exist_in_scope;
 
 use crate::{
     StepKeyword,
@@ -35,6 +37,19 @@ type Registry = HashMap<Box<str>, CrateDefs>;
 struct CrateDefs {
     /// Registered patterns indexed by their step keyword.
     by_kw: HashMap<StepKeyword, Vec<&'static MacroPattern>>,
+    /// Registered patterns indexed by their lexical step-library identity.
+    scoped_by_kw: HashMap<(Box<str>, StepKeyword), Vec<RegisteredStep>>,
+}
+
+/// One locally visible step definition and the library that owns it.
+#[derive(Clone)]
+struct RegisteredStep {
+    /// Compiled pattern registered by the step attribute macro.
+    pattern: &'static MacroPattern,
+    /// Stable lexical library identity used during macro expansion.
+    library: Box<str>,
+    /// Source coordinates rendered while the span is still thread-local.
+    source_location: String,
 }
 
 impl CrateDefs {
@@ -44,6 +59,44 @@ impl CrateDefs {
     }
     /// Determine whether this crate has no registered step patterns.
     fn is_empty(&self) -> bool { self.by_kw.values().all(Vec::is_empty) }
+
+    /// Return locally visible definitions selected by the supplied closed scope.
+    fn scoped_patterns(&self, kw: StepKeyword, libraries: &[Box<str>]) -> Vec<&RegisteredStep> {
+        libraries
+            .iter()
+            .flat_map(|library| {
+                self.scoped_by_kw
+                    .get(&(library.clone(), kw))
+                    .into_iter()
+                    .flatten()
+            })
+            .collect()
+    }
+
+    /// Return whether at least one selected library is visible to this macro.
+    fn knows_any_library(&self, libraries: &[Box<str>]) -> bool {
+        libraries
+            .iter()
+            .any(|library| self.scoped_by_kw.keys().any(|(known, _)| known == library))
+    }
+
+    /// Return matching definitions that exist locally but outside the scope.
+    fn matching_unselected(
+        &self,
+        kw: StepKeyword,
+        text: &str,
+        libraries: &[Box<str>],
+        span: proc_macro2::Span,
+    ) -> Vec<&RegisteredStep> {
+        self.scoped_by_kw
+            .iter()
+            .filter(|((library, candidate_kw), _)| {
+                *candidate_kw == kw && !libraries.iter().any(|selected| selected == library)
+            })
+            .flat_map(|(_, definitions)| definitions)
+            .filter(|definition| definition.pattern.regex(span).is_match(text))
+            .collect()
+    }
 }
 
 /// Global registry of step definitions.
@@ -66,6 +119,17 @@ static REGISTERED: LazyLock<Mutex<Registry>> = LazyLock::new(|| Mutex::new(HashM
 /// Patterns are leaked into static memory because macros require `'static` lifetimes.
 /// Registration occurs during macro expansion so the total leak is bounded.
 fn register_step_inner(keyword: StepKeyword, pattern: &syn::LitStr, crate_id: impl AsRef<str>) {
+    register_step_in_library_inner(keyword, pattern, crate_id, "rstest_bdd::global", true);
+}
+
+/// Leak, compile, and register one step pattern in a named lexical library.
+fn register_step_in_library_inner(
+    keyword: StepKeyword,
+    pattern: &syn::LitStr,
+    crate_id: impl AsRef<str>,
+    library: impl AsRef<str>,
+    add_to_global: bool,
+) {
     let leaked: &'static str = Box::leak(pattern.value().into_boxed_str());
     let stored: &'static MacroPattern = Box::leak(Box::new(MacroPattern::new(leaked)));
     let _ = stored.regex(pattern.span());
@@ -76,7 +140,18 @@ fn register_step_inner(keyword: StepKeyword, pattern: &syn::LitStr, crate_id: im
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let crate_id = normalize_crate_id(crate_id.as_ref());
     let defs = reg.entry(crate_id).or_default();
-    defs.by_kw.entry(keyword).or_default().push(stored);
+    if add_to_global {
+        defs.by_kw.entry(keyword).or_default().push(stored);
+    }
+    let library = library.as_ref();
+    defs.scoped_by_kw
+        .entry((library.into(), keyword))
+        .or_default()
+        .push(RegisteredStep {
+            pattern: stored,
+            library: library.into(),
+            source_location: format_span_location(pattern.span()),
+        });
 }
 
 /// Record a step definition so scenarios can validate against it.
@@ -84,6 +159,11 @@ fn register_step_inner(keyword: StepKeyword, pattern: &syn::LitStr, crate_id: im
 /// Steps are registered for the current crate.
 pub(crate) fn register_step(keyword: StepKeyword, pattern: &syn::LitStr) {
     register_step_inner(keyword, pattern, current_crate_id());
+}
+
+/// Record an inline-library step definition without making it global.
+pub(crate) fn register_step_in_library(keyword: StepKeyword, pattern: &syn::LitStr, library: &str) {
+    register_step_in_library_inner(keyword, pattern, current_crate_id(), library, false);
 }
 
 #[cfg(test)]
@@ -213,6 +293,12 @@ pub(crate) fn validate_steps_exist(steps: &[ParsedStep], strict: bool) -> Result
     drop(reg);
     let missing = validate_individual_steps(steps, defs_owned.as_ref())?;
     handle_validation_result(&missing, strict)
+}
+
+/// Render the source coordinates available from the proc-macro span.
+fn format_span_location(span: proc_macro2::Span) -> String {
+    let location = span.start();
+    format!("line {}, column {}", location.line, location.column)
 }
 
 /// Convert missing-step results into strict errors or non-strict warnings.

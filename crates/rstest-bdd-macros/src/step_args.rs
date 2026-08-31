@@ -11,6 +11,14 @@ use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::quote;
 use syn::{Attribute, DeriveInput, LitStr, parse_quote, spanned::Spanned};
+
+use crate::named_fields::{
+    MissingValuePolicy,
+    NamedFieldSpec,
+    ScalarConversion,
+    requires_fromstr,
+    scalar_parser_expression,
+};
 mod field_attributes;
 /// Expand the `StepArgs` derive implementation.
 pub(crate) fn derive(input: TokenStream) -> TokenStream {
@@ -43,19 +51,8 @@ fn expand(input: DeriveInput) -> syn::Result<TokenStream2> {
     };
     expand_named_struct(&ident, generics, fields, &attrs)
 }
-/// Parsed metadata for one named step-argument field.
-struct FieldInfo {
-    /// The source field identifier.
-    ident: syn::Ident,
-    /// The source field type.
-    ty: syn::Type,
-    /// The field name as a generated string literal.
-    name: syn::LitStr,
-    /// Whether surrounding whitespace is removed before conversion.
-    trim: bool,
-    /// Optional custom scalar parser.
-    parse_with: Option<syn::ExprPath>,
-}
+/// Shared metadata for one named step-argument field.
+type FieldInfo = NamedFieldSpec;
 /// Collect and validate metadata for all named fields.
 fn collect_field_info(
     ident: &syn::Ident,
@@ -83,11 +80,15 @@ fn collect_field_info(
             ));
         }
         field_infos.push(FieldInfo {
-            name: syn::LitStr::new(&source, Span::call_site()),
-            ident: field_ident,
-            ty: field.ty,
-            trim: config.trim,
-            parse_with: config.parse_with,
+            rust_field: field_ident,
+            source_name: syn::LitStr::new(&source, Span::call_site()),
+            target_type: field.ty,
+            conversion: ScalarConversion {
+                trim: config.trim,
+                parse_with: config.parse_with,
+                truthy: false,
+            },
+            missing: MissingValuePolicy::Required,
         });
     }
 
@@ -151,8 +152,11 @@ fn parse_step_field(attrs: &[Attribute]) -> syn::Result<StepFieldConfig> {
 /// Add `FromStr` bounds for each generated field parser.
 fn add_fromstr_bounds(generics: &mut syn::Generics, field_infos: &[FieldInfo]) {
     let where_clause = generics.make_where_clause();
-    for info in field_infos.iter().filter(|info| info.parse_with.is_none()) {
-        let ty = &info.ty;
+    for info in field_infos
+        .iter()
+        .filter(|info| requires_fromstr(&info.conversion, &info.target_type))
+    {
+        let ty = &info.target_type;
         where_clause
             .predicates
             .push(parse_quote!(#ty: ::core::str::FromStr));
@@ -171,18 +175,31 @@ fn generate_field_parsing<'a>(
     let parse_blocks: Vec<_> = field_infos
         .iter()
         .map(|info| {
-            let ident = &info.ident;
-            let ty = &info.ty;
-            let name = &info.name;
-            let normalized = if info.trim {
-                quote! { raw.value.trim() }
-            } else {
-                quote! { raw.value.as_str() }
-            };
-            let parse = info.parse_with.as_ref().map_or_else(
-                || quote! { #normalized.parse::<#ty>() },
-                |parser| quote! { #parser(#normalized) },
+            let ident = &info.rust_field;
+            let ty = &info.target_type;
+            let name = &info.source_name;
+            let parse = scalar_parser_expression(
+                &info.conversion,
+                quote! { raw.value.as_str() },
+                ty,
+                runtime,
             );
+            let parse_failure = if info.conversion.parse_with.is_some() {
+                quote! {
+                    #runtime::step_args::StepArgsError::custom_parse_failure(
+                        stringify!(#ident),
+                        &raw.value,
+                        error,
+                    )
+                }
+            } else {
+                quote! {
+                    #runtime::step_args::StepArgsError::parse_failure(
+                        stringify!(#ident),
+                        &raw.value,
+                    )
+                }
+            };
             quote! {
                 let raw = captures
                     .iter()
@@ -193,18 +210,18 @@ fn generate_field_parsing<'a>(
                     ))?;
                 let #ident: #ty = match #parse {
                     Ok(value) => value,
-                    Err(_) => {
-                        return Err(#runtime::step_args::StepArgsError::parse_failure(
-                            stringify!(#ident),
-                            &raw.value,
-                        ));
+                    Err(error) => {
+                        return Err(#parse_failure);
                     }
                 };
             }
         })
         .collect();
-    let field_idents = field_infos.iter().map(|info| &info.ident).collect();
-    let field_name_literals = field_infos.iter().map(|info| info.name.clone()).collect();
+    let field_idents = field_infos.iter().map(|info| &info.rust_field).collect();
+    let field_name_literals = field_infos
+        .iter()
+        .map(|info| info.source_name.clone())
+        .collect();
     let field_count = field_infos.len();
     (parse_blocks, field_idents, field_name_literals, field_count)
 }
@@ -274,6 +291,14 @@ fn generate_trait_impl(ctx: TraitImplParams<'_>) -> TokenStream2 {
                 {
                     return Err(#runtime::step_args::StepArgsError::unconsumed_capture(capture.name));
                 }
+                if let Some(capture) = captures.iter().enumerate().find_map(|(index, capture)| {
+                    captures[..index]
+                        .iter()
+                        .any(|earlier| earlier.name == capture.name)
+                        .then_some(capture)
+                }) {
+                    return Err(#runtime::step_args::StepArgsError::duplicate_capture(capture.name));
+                }
                 #(#parse_fields)*
                 Ok(#construct)
             }
@@ -322,79 +347,4 @@ fn expand_named_struct(
 }
 
 #[cfg(test)]
-mod tests {
-    //! Unit tests for step argument parsing.
-
-    use proc_macro2::TokenStream as TokenStream2;
-    use quote::quote;
-    use syn::DeriveInput;
-
-    use super::expand;
-
-    fn expand_tokens(tokens: TokenStream2) -> syn::Result<TokenStream2> {
-        let input = syn::parse2::<DeriveInput>(tokens)?;
-        expand(input)
-    }
-
-    #[test]
-    fn derives_step_args_for_named_struct() {
-        let tokens = expand_tokens(quote! {
-            struct AccountArgs {
-                count: u32,
-                label: String,
-            }
-        })
-        .expect("derive should succeed");
-        let rendered = tokens.to_string();
-        assert!(
-            rendered.contains("impl :: rstest_bdd :: step_args :: StepArgs for AccountArgs"),
-            "StepArgs impl missing: {rendered}"
-        );
-        assert!(rendered.contains("const FIELD_COUNT : usize = 2"));
-        assert!(rendered.contains("label"));
-    }
-
-    #[test]
-    fn rejects_tuple_structs() {
-        let err = expand_tokens(quote! {
-            struct TupleArgs(u32, String);
-        })
-        .expect_err("tuple structs should fail");
-        let msg = err.to_string();
-        assert!(
-            msg.contains("StepArgs requires named struct fields"),
-            "unexpected error: {msg}"
-        );
-    }
-
-    #[test]
-    fn rejects_invalid_step_args_field_attributes() {
-        for (attribute, diagnostic) in [
-            (
-                quote!(#[step_args(placeholder = "first", placeholder = "second")]),
-                "duplicate placeholder attribute",
-            ),
-            (quote!(#[step_args(trim, trim)]), "duplicate trim attribute"),
-            (
-                quote!(#[step_args(parse_with = parse_one, parse_with = parse_two)]),
-                "duplicate parse_with attribute",
-            ),
-            (
-                quote!(#[step_args(unsupported)]),
-                "unsupported step_args field attribute",
-            ),
-        ] {
-            let err = expand_tokens(quote! {
-                struct InvalidArgs {
-                    #attribute
-                    value: String,
-                }
-            })
-            .expect_err("invalid field attributes should fail");
-            assert!(
-                err.to_string().contains(diagnostic),
-                "expected '{diagnostic}' in: {err}"
-            );
-        }
-    }
-}
+mod tests;

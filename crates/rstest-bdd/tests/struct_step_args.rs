@@ -211,3 +211,41 @@ fn step_args_trim_before_custom_parsing() {
     .expect("trimmed capture should parse through the custom parser");
     assert_eq!(amount, NormalizedAmount { amount: 42 });
 }
+
+#[test]
+fn step_args_reports_duplicate_named_captures() {
+    let error = <ReorderedTransfer as rstest_bdd::StepArgs>::from_named_captures(vec![
+        rstest_bdd::StepCapture {
+            name: "sender",
+            value: String::from("Alice"),
+        },
+        rstest_bdd::StepCapture {
+            name: "sender",
+            value: String::from("Bob"),
+        },
+        rstest_bdd::StepCapture {
+            name: "amount",
+            value: String::from("42"),
+        },
+    ])
+    .expect_err("duplicate captures should be rejected");
+    assert_eq!(
+        error.to_string(),
+        "duplicate placeholder capture '{sender}'"
+    );
+}
+
+#[test]
+fn step_args_preserves_custom_parser_failure() {
+    let error = <NormalizedAmount as rstest_bdd::StepArgs>::from_named_captures(vec![
+        rstest_bdd::StepCapture {
+            name: "amount",
+            value: String::from("not cents"),
+        },
+    ])
+    .expect_err("custom parser should reject invalid input");
+    assert!(
+        error.to_string().contains("invalid digit found in string"),
+        "custom parser diagnostic should be preserved: {error}"
+    );
+}

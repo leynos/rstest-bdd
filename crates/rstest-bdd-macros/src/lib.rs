@@ -11,6 +11,7 @@
 mod codegen;
 mod datatable;
 mod macros;
+mod named_fields;
 mod parsing;
 mod pattern;
 mod return_classifier;

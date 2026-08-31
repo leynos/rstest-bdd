@@ -208,6 +208,7 @@ fn process_args(
                 set_once(&mut attributes, p, "attributes", input)?;
             }
             ScenariosArg::Libraries(paths) => {
+                validate_unique_libraries(&paths)?;
                 set_once(&mut libraries, paths, "libraries", input)?;
             }
         }
@@ -216,6 +217,21 @@ fn process_args(
     Ok((
         dir, tag_filter, fixtures, runtime, harness, attributes, libraries,
     ))
+}
+
+/// Reject a repeated library path before it can create duplicate candidates.
+fn validate_unique_libraries(libraries: &[syn::Path]) -> syn::Result<()> {
+    let mut seen = std::collections::HashSet::new();
+    for library in libraries {
+        let rendered = quote::quote!(#library).to_string();
+        if !seen.insert(rendered) {
+            return Err(syn::Error::new_spanned(
+                library,
+                "duplicate step library in `libraries` argument",
+            ));
+        }
+    }
+    Ok(())
 }
 
 impl Parse for ScenariosArgs {
@@ -247,6 +263,27 @@ pub(super) fn library_scope_tokens(libraries: Option<&[syn::Path]>) -> proc_macr
     };
     let markers: Vec<_> = libraries.iter().map(library_marker_path).collect();
     quote! { #runtime::StepScope::new(&[#(#markers),*]) }
+}
+
+/// Convert selected Rust library paths into local validation identities.
+pub(super) fn library_validation_names(libraries: &[syn::Path]) -> Vec<Box<str>> {
+    libraries
+        .iter()
+        .map(|path| {
+            path.segments
+                .iter()
+                .filter(|segment| {
+                    !matches!(
+                        segment.ident.to_string().as_str(),
+                        "crate" | "self" | "super"
+                    )
+                })
+                .map(|segment| segment.ident.to_string())
+                .collect::<Vec<_>>()
+                .join("::")
+                .into_boxed_str()
+        })
+        .collect()
 }
 
 /// Convert one selected library module path into its generated marker path.
