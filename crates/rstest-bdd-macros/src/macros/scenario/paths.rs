@@ -208,10 +208,7 @@ fn clear_feature_path_cache() {
 mod tests {
     //! Unit tests for canonical feature path handling.
 
-    use std::{
-        env,
-        path::{Path, PathBuf},
-    };
+    use std::path::{Path, PathBuf};
 
     use rstest::{fixture, rstest};
     use serial_test::serial;
@@ -282,28 +279,32 @@ mod tests {
         dir.remove_file(&target)
     }
 
-    #[serial]
+    #[serial(cargo_manifest_dir)]
     #[rstest]
     fn canonicalizes_with_manifest_dir(_cache_cleared: ()) {
-        let manifest = PathBuf::from(
-            env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is required for tests"),
+        let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        temp_env::with_var(
+            "CARGO_MANIFEST_DIR",
+            Some(env!("CARGO_MANIFEST_DIR")),
+            || {
+                let path = Path::new("Cargo.toml");
+                let expected = canonicalize_with_cap_std(&manifest.join(path))
+                    .expect("canonical path")
+                    .display()
+                    .to_string();
+                assert_eq!(canonical_feature_path(path), expected);
+            },
         );
-        let path = Path::new("Cargo.toml");
-        let expected = canonicalize_with_cap_std(&manifest.join(path))
-            .expect("canonical path")
-            .display()
-            .to_string();
-        assert_eq!(canonical_feature_path(path), expected);
     }
 
-    #[serial]
+    #[serial(cargo_manifest_dir)]
     #[rstest]
     fn falls_back_on_missing_path(_cache_cleared: ()) {
         let path = Path::new("does-not-exist.feature");
         assert_eq!(canonical_feature_path(path), path.display().to_string());
     }
 
-    #[serial]
+    #[serial(cargo_manifest_dir)]
     #[rstest]
     fn equivalent_relatives_map_to_same_result(_cache_cleared: ()) {
         let a = Path::new("./features/../features/example.feature");
@@ -311,7 +312,7 @@ mod tests {
         assert_eq!(canonical_feature_path(a), canonical_feature_path(b));
     }
 
-    #[serial]
+    #[serial(cargo_manifest_dir)]
     #[rstest]
     fn caches_paths_between_calls(_cache_cleared: ()) {
         use std::time::{SystemTime, UNIX_EPOCH};
@@ -321,22 +322,26 @@ mod tests {
             .unwrap_or_default()
             .as_nanos();
         let file_name = format!("cache_{unique}.feature");
-        let manifest = PathBuf::from(
-            env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is required for tests"),
+        let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        temp_env::with_var(
+            "CARGO_MANIFEST_DIR",
+            Some(env!("CARGO_MANIFEST_DIR")),
+            || {
+                let tmp_dir = manifest.join("target/canonical-path-cache-tests");
+                create_dir_all_cap(&tmp_dir).expect("create tmp dir");
+                let file_path = tmp_dir.join(&file_name);
+                write_file_cap(&file_path, b"").expect("create temp feature file");
+
+                let rel_path = format!("target/canonical-path-cache-tests/{file_name}");
+                let path = Path::new(&rel_path);
+                let first = canonical_feature_path(path);
+
+                remove_file_cap(&file_path).expect("remove temp feature file");
+                let second = canonical_feature_path(path);
+
+                assert_eq!(first, second);
+            },
         );
-        let tmp_dir = manifest.join("target/canonical-path-cache-tests");
-        create_dir_all_cap(&tmp_dir).expect("create tmp dir");
-        let file_path = tmp_dir.join(&file_name);
-        write_file_cap(&file_path, b"").expect("create temp feature file");
-
-        let rel_path = format!("target/canonical-path-cache-tests/{file_name}");
-        let path = Path::new(&rel_path);
-        let first = canonical_feature_path(path);
-
-        remove_file_cap(&file_path).expect("remove temp feature file");
-        let second = canonical_feature_path(path);
-
-        assert_eq!(first, second);
     }
 }
 
