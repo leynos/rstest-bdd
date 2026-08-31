@@ -10,7 +10,7 @@ use super::{
     MAX_RECV_MESSAGES,
     ServerHandle,
     server,
-    wire::{did_save, is_non_empty_diagnostics, shutdown_and_exit},
+    wire::{did_save, is_non_empty_diagnostics},
 };
 
 /// Exercise the canonical publication boundary end-to-end through the public
@@ -86,13 +86,7 @@ fn smoke_feature_diagnostics_cleared_once_step_implemented(mut server: ServerHan
         )
         .expect("expected empty diagnostics clearing the resolved feature");
 
-    shutdown_and_exit(
-        &mut server.stdin,
-        &server.receiver,
-        &mut server.child,
-        &mut server.stderr,
-        99,
-    );
+    server.shutdown_and_exit(99);
 }
 
 /// Exercise the Rust side of the canonical boundary end-to-end: a Rust step
@@ -176,11 +170,5 @@ fn smoke_rust_diagnostics_cleared_once_step_referenced(mut server: ServerHandle)
         )
         .expect("expected empty rust diagnostics clearing the resolved step");
 
-    shutdown_and_exit(
-        &mut server.stdin,
-        &server.receiver,
-        &mut server.child,
-        &mut server.stderr,
-        99,
-    );
+    server.shutdown_and_exit(99);
 }
