@@ -41,17 +41,55 @@ class MappingTableError(ValueError):
 
     @staticmethod
     def heading_not_found_message(heading: str) -> str:
-        """Return the message for a missing anchor heading."""
+        """
+        Return the message for a missing anchor heading.
+
+        Parameters
+        ----------
+        heading : str
+            The heading that could not be found.
+
+        Returns
+        -------
+        str
+            The generated missing-heading error message.
+        """
         return f"heading not found: {heading}"
 
     @staticmethod
     def separator_not_found_message(heading: str) -> str:
-        """Return the message for a table without its separator row."""
+        """
+        Return the message for a table without its separator row.
+
+        Parameters
+        ----------
+        heading : str
+            The heading under which the separator row is missing.
+
+        Returns
+        -------
+        str
+            The generated missing-separator error message.
+        """
         return f"mapping table under {heading!r} has no separator row"
 
     @staticmethod
     def wrong_row_count_message(heading: str, actual: int) -> str:
-        """Return the message for an unexpected number of data rows."""
+        """
+        Return the message for an unexpected number of data rows.
+
+        Parameters
+        ----------
+        heading : str
+            The heading under which the row count is incorrect.
+        actual : int
+            The number of data rows that were found.
+
+        Returns
+        -------
+        str
+            The generated wrong-row-count error message.
+        """
         return (
             f"mapping table under {heading!r} has {actual} data rows; "
             f"expected {EXPECTED_DATA_ROWS}"
@@ -59,12 +97,38 @@ class MappingTableError(ValueError):
 
     @staticmethod
     def table_not_found_message(heading: str) -> str:
-        """Return the message for a missing mapping table."""
+        """
+        Return the message for a missing mapping table.
+
+        Parameters
+        ----------
+        heading : str
+            The heading under which the mapping table is missing.
+
+        Returns
+        -------
+        str
+            The generated missing-table error message.
+        """
         return f"mapping table not found under heading: {heading}"
 
     @staticmethod
     def document_unreadable_message(relative_path: Path, error: OSError) -> str:
-        """Return the message for a document that could not be read."""
+        """
+        Return the message for a document that could not be read.
+
+        Parameters
+        ----------
+        relative_path : Path
+            The path of the unreadable document.
+        error : OSError
+            The operating-system error raised while reading the document.
+
+        Returns
+        -------
+        str
+            The generated unreadable-document error message.
+        """
         return f"could not read {relative_path}: {error}"
 
 

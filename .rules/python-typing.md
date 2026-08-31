@@ -178,9 +178,11 @@ types module to avoid duplication.
 
 ## `from __future__ import annotations`
 
-Python 3.12 evaluates annotations at definition time by default. Use this
-import when forward references, circular imports, or types imported only under
-`TYPE_CHECKING` would otherwise fail at runtime.
+Python 3.14 evaluates annotations lazily by default, so forward references,
+circular imports, and types imported only under `TYPE_CHECKING` do not generally
+require this import. Retain `from __future__ import annotations` only for
+compatibility with older Python versions or tooling that requires postponed
+evaluation; it stores annotations as strings.
 
 ```python
 from __future__ import annotations

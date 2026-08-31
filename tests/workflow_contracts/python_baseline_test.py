@@ -23,7 +23,7 @@ PEP_723_BLOCK = re.compile(
     r"^# /// script\n(?P<body>.*?)^# ///$",
     re.MULTILINE | re.DOTALL,
 )
-LOW_PYTHON_VERSION = re.compile(r"(?<!\d)3\.(?:12|13)(?!\d)")
+LOW_PYTHON_VERSION = re.compile(r"(?<!\d)3\.(?:1[0-3]|[0-9])(?!\d)")
 PYTHON_RUNTIME_CONTEXTS = frozenset({"env", "inputs", "matrix", "with"})
 
 
@@ -115,7 +115,10 @@ def test_python_analysers_target_python_314() -> None:
             "PROJECT_PYTHON = $(UV_ENV) $(UV) run --python 3.14 python" in makefile
         ),
         "ruff-target-count": makefile.count("--target-version py314"),
-        "ty": "$(TY) check --python-version 3.14" in makefile,
+        "ty": (
+            "$(TY) check --python-version 3.14 "
+            "$(PYTHON_TARGETS) $(SPELLING_PY_SRCS)" in makefile
+        ),
     }
     expected = {
         "df12": True,
@@ -157,10 +160,23 @@ def test_internal_uv_scripts_require_python_314() -> None:
 def test_workflows_do_not_configure_old_python(
     workflow_path: Path,
 ) -> None:
-    """Active workflows must not select Python 3.12 or 3.13 runtimes."""
+    """Active workflows must not select pre-3.14 Python runtimes."""
     workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
     for setting, value in _workflow_version_values(workflow):
         assert LOW_PYTHON_VERSION.search(str(value)) is None, (
             f"{workflow_path.name}:{setting} configures an obsolete Python "
             f"runtime: {value!r}"
         )
+
+
+def test_low_python_version_matches_every_pre_314_minor() -> None:
+    """The obsolete-runtime matcher must cover Python 3.0 through 3.13."""
+    for minor in range(14):
+        version = f"3.{minor}"
+        assert LOW_PYTHON_VERSION.fullmatch(version), version
+
+
+@pytest.mark.parametrize("version", ["3.14", "13.12", "3.140"])
+def test_low_python_version_preserves_version_boundaries(version: str) -> None:
+    """The obsolete-runtime matcher must reject newer and embedded versions."""
+    assert LOW_PYTHON_VERSION.search(version) is None, version

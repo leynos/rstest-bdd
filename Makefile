@@ -117,7 +117,7 @@ lint-python: build-python ## Run Python linters
 
 typecheck: build-python ## Run cargo and Python type checks with warnings denied
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) check $(CARGO_FLAGS) $(BUILD_JOBS)
-	$(TY) check --python-version 3.14 $(PYTHON_TARGETS)
+	$(TY) check --python-version 3.14 $(PYTHON_TARGETS) $(SPELLING_PY_SRCS)
 
 PUBLISHED_GPUI_MANIFEST := tests/fixtures/published-gpui-0-2-2/Cargo.toml
 PUBLISHED_GPUI_E2E_DIR := tests/fixtures/published-gpui-e2e
