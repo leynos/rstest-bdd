@@ -87,7 +87,7 @@ struct FeatureProcessingContext<'a> {
 }
 
 /// Provides the internal `resolve_manifest_directory` operation.
-fn resolve_manifest_directory() -> Result<PathBuf, TokenStream> {
+fn resolve_manifest_directory() -> Result<PathBuf, TokenStream2> {
     std::env::var("CARGO_MANIFEST_DIR")
         .map(PathBuf::from)
         .map_err(|_| {
@@ -95,7 +95,7 @@ fn resolve_manifest_directory() -> Result<PathBuf, TokenStream> {
                 Span::call_site(),
                 "CARGO_MANIFEST_DIR is not set. This macro must run within Cargo.",
             );
-            error_to_tokens(&err).into()
+            error_to_tokens(&err)
         })
 }
 
@@ -108,29 +108,36 @@ fn process_scenarios(
     let mut tests = Vec::new();
     let mut errors = Vec::new();
 
-    for idx in 0..feature.scenarios.len() {
-        match extract_scenario_steps(feature, Some(idx)) {
-            Ok(mut data) => {
-                if ctx
-                    .tag_filter
-                    .is_none_or(|filter| data.filter_by_tags(filter))
-                {
-                    if let Err(error) =
-                        validate_steps_compile_time(&data.steps, ctx.library_validation_names)
-                    {
-                        errors.push(error_to_tokens(&error));
-                        continue;
-                    }
-                    tests.push(generate_scenario_test(ctx, used_names, data));
-                }
-            }
-            Err(err) => errors.push(err),
+    for index in 0..feature.scenarios.len() {
+        match process_scenario(feature, index, ctx, used_names) {
+            Ok(Some(test)) => tests.push(test),
+            Ok(None) => {}
+            Err(error) => errors.push(error),
         }
     }
 
     (tests, errors)
 }
 
+/// Process one scenario while preserving generation and validation ordering.
+fn process_scenario(
+    feature: &gherkin::Feature,
+    index: usize,
+    ctx: &ScenarioTestContext<'_>,
+    used_names: &mut HashSet<String>,
+) -> Result<Option<TokenStream2>, TokenStream2> {
+    let mut data = extract_scenario_steps(feature, Some(index))?;
+    if !ctx
+        .tag_filter
+        .is_none_or(|filter| data.filter_by_tags(filter))
+    {
+        return Ok(None);
+    }
+    validate_steps_compile_time(&data.steps, ctx.library_validation_names)
+        .map_err(|error| error_to_tokens(&error))?;
+
+    Ok(Some(generate_scenario_test(ctx, used_names, data)))
+}
 /// Validate generated scenarios with the same scope semantics as `#[scenario]`.
 fn validate_steps_compile_time(
     steps: &[crate::parsing::feature::ParsedStep],
@@ -210,7 +217,7 @@ fn generate_tests_from_features(
 }
 
 /// Provides the internal `parse_tag_filter` operation.
-fn parse_tag_filter(tag_lit: Option<syn::LitStr>) -> Result<Option<TagFilter>, TokenStream> {
+fn parse_tag_filter(tag_lit: Option<syn::LitStr>) -> Result<Option<TagFilter>, TokenStream2> {
     tag_lit.map_or_else(
         || Ok(None),
         |lit| match TagExpression::parse(&lit.value()) {
@@ -221,7 +228,7 @@ fn parse_tag_filter(tag_lit: Option<syn::LitStr>) -> Result<Option<TagFilter>, T
             })),
             Err(err) => {
                 let syn_err = syn::Error::new(lit.span(), err.to_string());
-                Err(error_to_tokens(&syn_err).into())
+                Err(error_to_tokens(&syn_err))
             }
         },
     )
@@ -337,6 +344,15 @@ fn emit_scenarios_module(emission: ScenariosModuleEmission<'_>) -> TokenStream {
 
 /// Provides the internal `scenarios` operation.
 pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
+    let args = syn::parse_macro_input!(input as ScenariosArgs);
+    expand_scenarios(args)
+}
+
+/// Expand parsed `scenarios!` arguments into the generated feature module.
+fn expand_scenarios(args: ScenariosArgs) -> TokenStream { expand_scenarios_tokens(args).into() }
+
+/// Expand parsed arguments into testable proc-macro tokens.
+fn expand_scenarios_tokens(args: ScenariosArgs) -> TokenStream2 {
     let ScenariosArgs {
         dir: dir_lit,
         tag_filter: tag_lit,
@@ -345,7 +361,7 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
         harness,
         attributes,
         libraries,
-    } = syn::parse_macro_input!(input as ScenariosArgs);
+    } = args;
     let dir = PathBuf::from(dir_lit.value());
 
     emit_runtime_deprecation_warning(runtime, harness.as_ref());
@@ -366,7 +382,7 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
         Err(err) => {
             let msg = normalized_dir_read_error(&search_dir, &err);
             let err = syn::Error::new(Span::call_site(), msg);
-            return error_to_tokens(&err).into();
+            return error_to_tokens(&err);
         }
     };
 
@@ -408,8 +424,8 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
         tests,
         errors,
     })
+    .into()
 }
-
 #[cfg(test)]
 #[path = "tests/mod.rs"]
 mod tests;
