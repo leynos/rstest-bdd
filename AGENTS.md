@@ -341,7 +341,6 @@ interface that a user should know about. Document internally facing interfaces
 or practices in the relevant component architecture document. Document
 internally facing conventions or practices in `docs/developers-guide.md`.
 
-
 ## Python development guidelines
 
 For Python development, refer to the detailed guidelines in the `.rules/`

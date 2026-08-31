@@ -1,7 +1,5 @@
 """Contract tests for workspace lint inheritance in example manifests."""
 
-from __future__ import annotations
-
 import tomllib
 from pathlib import Path
 
@@ -24,5 +22,9 @@ def test_example_manifest_inherits_workspace_lints_from_the_lints_table(
     with (REPO_ROOT / manifest).open("rb") as manifest_file:
         parsed = tomllib.load(manifest_file)
 
-    assert "lints" not in parsed["package"]
-    assert parsed["lints"]["workspace"] is True
+    assert "lints" not in parsed["package"], (
+        f"{manifest} should keep lint inheritance out of [package]"
+    )
+    assert parsed["lints"]["workspace"] is True, (
+        f"{manifest} should inherit workspace lints from [lints]"
+    )
