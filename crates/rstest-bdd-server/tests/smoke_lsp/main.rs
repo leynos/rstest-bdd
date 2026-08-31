@@ -7,30 +7,30 @@
 //! graceful shutdown.
 
 mod clearing;
+mod stderr;
 mod wire;
 
 use std::{
     io::BufReader,
     path::{Path, PathBuf},
     process::{Child, ChildStdin},
+    time::Duration,
 };
 
 use rstest::{fixture, rstest};
 use serde_json::{Value, json};
+use stderr::StderrCapture;
 use tempfile::TempDir;
-use wire::{
-    MessageReceiver,
-    did_save,
-    initialize,
-    is_non_empty_diagnostics,
-    shutdown_and_exit,
-    spawn_server,
-};
+use wire::{MessageReceiver, did_save, initialize, is_non_empty_diagnostics, spawn_server};
 
 /// Maximum number of JSON-RPC messages to scan through when waiting for an
 /// expected response or notification.  Extracted as a constant so CI can tune
 /// the value in one place if interleaved traffic grows.
 const MAX_RECV_MESSAGES: usize = 20;
+
+/// Maximum time to wait for the server process to exit after the `exit`
+/// notification is sent.
+const EXIT_TIMEOUT: Duration = Duration::from_secs(5);
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -69,7 +69,9 @@ fn init_server_handle(temp_dir: TempDir) -> ServerHandle {
     let mut child = spawn_server(&[]);
     let mut stdin = child.stdin.take().expect("stdin");
     let stdout = child.stdout.take().expect("stdout");
-    let receiver = MessageReceiver::spawn(BufReader::new(stdout));
+    let stderr = child.stderr.take().expect("stderr");
+    let stderr = StderrCapture::spawn(stderr);
+    let receiver = MessageReceiver::spawn(BufReader::new(stdout), stderr.diagnostics());
 
     let init_response = initialize(&mut stdin, &receiver, root_uri.as_str());
 
@@ -78,6 +80,7 @@ fn init_server_handle(temp_dir: TempDir) -> ServerHandle {
         child,
         stdin,
         receiver,
+        stderr,
         init_response,
     }
 }
@@ -89,6 +92,7 @@ struct ServerHandle {
     child: Child,
     stdin: ChildStdin,
     receiver: MessageReceiver,
+    stderr: StderrCapture,
     /// The response from the `initialize` request.
     init_response: Value,
 }
@@ -96,6 +100,59 @@ struct ServerHandle {
 impl ServerHandle {
     /// Convenience accessor for the workspace root path.
     fn workspace_root(&self) -> &Path { self.dir.path() }
+
+    /// Send the shutdown request and exit notification, then wait for exit.
+    #[expect(
+        clippy::expect_used,
+        clippy::indexing_slicing,
+        reason = "shutdown/exit failures are test-fatal protocol errors"
+    )]
+    fn shutdown_and_exit(&mut self, request_id: u64) {
+        let shutdown_request = json!({
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "method": "shutdown",
+            "params": null
+        });
+        wire::send(&mut self.stdin, &shutdown_request);
+        let (shutdown_response, _) = self
+            .receiver
+            .recv_response_for_id(request_id, wire::MAX_HANDSHAKE_MESSAGES);
+        assert_eq!(shutdown_response["id"], request_id, "shutdown response id");
+
+        let exit_notification = json!({
+            "jsonrpc": "2.0",
+            "method": "exit",
+            "params": null
+        });
+        wire::send(&mut self.stdin, &exit_notification);
+
+        // Wait for exit with a bounded timeout, killing the process if it
+        // stalls to prevent CI hangs.
+        let deadline = std::time::Instant::now() + EXIT_TIMEOUT;
+        loop {
+            match self.child.try_wait().expect("check server exit status") {
+                Some(status) => {
+                    assert!(
+                        status.success(),
+                        "server should exit cleanly, got: {status}; {}",
+                        self.stderr.finish()
+                    );
+                    return;
+                }
+                None if std::time::Instant::now() >= deadline => {
+                    let _ = self.child.kill();
+                    let _ = self.child.wait();
+                    panic!(
+                        "server did not exit within {} s; killed; {}",
+                        EXIT_TIMEOUT.as_secs(),
+                        self.stderr.finish()
+                    );
+                }
+                None => std::thread::sleep(Duration::from_millis(50)),
+            }
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -229,7 +286,7 @@ fn smoke_initialize_and_shutdown(mut server: ServerHandle) {
     let info = &server.init_response["result"]["serverInfo"];
     assert_eq!(info["name"], "rstest-bdd-lsp");
 
-    shutdown_and_exit(&mut server.stdin, &server.receiver, &mut server.child, 99);
+    server.shutdown_and_exit(99);
 }
 
 #[rstest]
@@ -258,7 +315,7 @@ fn smoke_definition_request_returns_locations(mut server: ServerHandle) {
     assert_eq!(def_response["id"], 2, "definition response id");
     validate_definition_locations(&def_response);
 
-    shutdown_and_exit(&mut server.stdin, &server.receiver, &mut server.child, 99);
+    server.shutdown_and_exit(99);
 }
 
 #[rstest]
@@ -305,5 +362,5 @@ fn smoke_diagnostics_published_for_unimplemented_step(mut server: ServerHandle) 
         "diagnostic message should mention the unimplemented step, got: {first_msg}"
     );
 
-    shutdown_and_exit(&mut server.stdin, &server.receiver, &mut server.child, 99);
+    server.shutdown_and_exit(99);
 }

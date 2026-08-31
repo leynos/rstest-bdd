@@ -46,8 +46,16 @@ updates:
     labels:
       - "dependencies"
       - "python"
+      - "uv"
     schedule:
       interval: "daily"
     cooldown:
       default-days: 7
       semver-major-days: 14
+  - package-ecosystem: rust-toolchain
+    directory: /
+    labels:
+      - dependencies
+      - rust-toolchain
+    schedule:
+      interval: weekly

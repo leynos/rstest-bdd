@@ -45,7 +45,7 @@ SPELLING_HELPER_PYTEST = PYTHONPATH=scripts $(UV_ENV) $(UV) run --no-project \
 	--with pytest-cov==7.0.0 python -m pytest
 # Shared Markdown file list used by markdownlint and the spelling gate.
 MD_FILES_FIND = find . -type f -name '*.md' -not -path '*/target/*' -not -path '*/node_modules/*' -not -path './.vtcode/*' -print0
-LADING_REF ?= d3217a599ea34adad6a6e3845845fff2fe923758
+LADING_REF ?= e0a8d43fa3d6d7598cad0d4c25883e7ea625feb9
 LADING_SPEC ?= lading @ git+https://github.com/leynos/lading@$(LADING_REF)
 PYTHON_TARGETS ?= $(filter-out $(SPELLING_PY_SRCS),$(shell find scripts -type f -name "*.py" -print | sort))
 PYLINT_TARGETS ?= $(PYTHON_TARGETS)
@@ -218,3 +218,15 @@ vale: ## Check prose
 	$(VALE) sync
 	$(UV) run $(ACRONYM_SCRIPT)
 	$(VALE) --no-global --output line .
+
+# Opt-in accelerated debug builds (Cranelift + mold); requires a nightly
+# toolchain. See AGENTS.md and tools/dev-fast/config.toml.
+DEV_FAST_TOOLCHAIN ?= nightly-2026-08-16
+DEV_FAST_CONFIG ?= tools/dev-fast/config.toml
+
+.PHONY: dev-build dev-test
+dev-build: ## Build debug binaries with Cranelift and mold
+	$(CARGO) +$(DEV_FAST_TOOLCHAIN) --config "$(DEV_FAST_CONFIG)" build
+
+dev-test: ## Run tests with Cranelift and mold
+	$(CARGO) +$(DEV_FAST_TOOLCHAIN) --config "$(DEV_FAST_CONFIG)" test

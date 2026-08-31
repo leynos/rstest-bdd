@@ -14,17 +14,15 @@ use std::{
 
 use serde_json::{Value, json};
 
+use super::stderr::StderrDiagnostics;
+
 /// Maximum time to wait for a single JSON-RPC message before assuming the
 /// server has stalled.
 const READ_TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Maximum time to wait for the server process to exit after the `exit`
-/// notification is sent.
-const EXIT_TIMEOUT: Duration = Duration::from_secs(5);
-
 /// Maximum number of JSON-RPC messages to scan through during lifecycle
 /// handshake exchanges (initialize, shutdown).
-const MAX_HANDSHAKE_MESSAGES: usize = 10;
+pub(super) const MAX_HANDSHAKE_MESSAGES: usize = 10;
 
 // ---------------------------------------------------------------------------
 // Encoding
@@ -53,6 +51,7 @@ pub fn encode_message(body: &Value) -> Vec<u8> {
 /// crashes or fails to produce output.
 pub struct MessageReceiver {
     rx: mpsc::Receiver<Value>,
+    stderr: StderrDiagnostics,
 }
 
 /// Read LSP headers and return the content length, or `None` on EOF or
@@ -93,7 +92,10 @@ impl MessageReceiver {
         clippy::expect_used,
         reason = "body parse failures are test-fatal programming errors"
     )]
-    pub fn spawn(mut reader: BufReader<impl Read + Send + 'static>) -> Self {
+    pub fn spawn(
+        mut reader: BufReader<impl Read + Send + 'static>,
+        stderr: StderrDiagnostics,
+    ) -> Self {
         let (tx, rx) = mpsc::channel();
         std::thread::spawn(move || {
             while let Some(content_length) = read_headers(&mut reader) {
@@ -105,7 +107,7 @@ impl MessageReceiver {
                 }
             }
         });
-        Self { rx }
+        Self { rx, stderr }
     }
 
     /// Receive the next message, blocking up to [`READ_TIMEOUT`].
@@ -113,14 +115,18 @@ impl MessageReceiver {
     /// # Panics
     ///
     /// Panics if no message arrives within the timeout.
-    #[expect(
-        clippy::expect_used,
-        reason = "timeout is a test-fatal condition indicating a server stall"
-    )]
     pub fn recv(&self) -> Value {
-        self.rx
-            .recv_timeout(READ_TIMEOUT)
-            .expect("timed out waiting for JSON-RPC message from server")
+        match self.rx.recv_timeout(READ_TIMEOUT) {
+            Ok(message) => message,
+            Err(mpsc::RecvTimeoutError::Timeout) => panic!(
+                "timed out waiting for JSON-RPC message from server; {}",
+                self.stderr.render()
+            ),
+            Err(mpsc::RecvTimeoutError::Disconnected) => panic!(
+                "JSON-RPC message receiver closed before a server response; {}",
+                self.stderr.render()
+            ),
+        }
     }
 
     /// Receive messages until one has the given response `id`.
@@ -172,7 +178,7 @@ pub fn spawn_server(extra_args: &[&str]) -> Child {
         .args(extra_args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        .stderr(Stdio::piped())
         .spawn()
         .expect("start rstest-bdd-lsp binary")
 }
@@ -212,60 +218,6 @@ pub fn initialize(stdin: &mut impl Write, receiver: &MessageReceiver, root_uri: 
     send(stdin, &initialized_notification);
 
     response
-}
-
-/// Send shutdown request and exit notification, then wait for exit.
-#[expect(
-    clippy::expect_used,
-    clippy::indexing_slicing,
-    reason = "shutdown/exit failures are test-fatal protocol errors"
-)]
-pub fn shutdown_and_exit(
-    stdin: &mut impl Write,
-    receiver: &MessageReceiver,
-    child: &mut Child,
-    request_id: u64,
-) {
-    let shutdown_request = json!({
-        "jsonrpc": "2.0",
-        "id": request_id,
-        "method": "shutdown",
-        "params": null
-    });
-    send(stdin, &shutdown_request);
-    let (shutdown_response, _) = receiver.recv_response_for_id(request_id, MAX_HANDSHAKE_MESSAGES);
-    assert_eq!(shutdown_response["id"], request_id, "shutdown response id");
-
-    let exit_notification = json!({
-        "jsonrpc": "2.0",
-        "method": "exit",
-        "params": null
-    });
-    send(stdin, &exit_notification);
-
-    // Wait for exit with a bounded timeout, killing the process if it
-    // stalls to prevent CI hangs.
-    let deadline = std::time::Instant::now() + EXIT_TIMEOUT;
-    loop {
-        match child.try_wait().expect("check server exit status") {
-            Some(status) => {
-                assert!(
-                    status.success(),
-                    "server should exit cleanly, got: {status}"
-                );
-                return;
-            }
-            None if std::time::Instant::now() >= deadline => {
-                let _ = child.kill();
-                let _ = child.wait();
-                panic!(
-                    "server did not exit within {} s; killed",
-                    EXIT_TIMEOUT.as_secs()
-                );
-            }
-            None => std::thread::sleep(Duration::from_millis(50)),
-        }
-    }
 }
 
 /// Send a `textDocument/didSave` notification for the given file.

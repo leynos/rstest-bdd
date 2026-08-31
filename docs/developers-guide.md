@@ -184,6 +184,31 @@ For documentation changes, run `make fmt`, `make markdownlint`,
 `make spellcheck`, and `make nixie`. `make markdownlint` also runs the spelling
 gate.
 
+## Fast development builds
+
+Use `make dev-build` to compile debug binaries and `make dev-test` to run the
+workspace tests with the opt-in Cranelift backend. Both targets pass
+`tools/dev-fast/config.toml` explicitly to Cargo with `--config`; Cargo must
+not discover this fragment through its automatic configuration paths.
+
+The targets use the pinned `nightly-2026-08-16` toolchain and require the
+`rustc-codegen-cranelift-preview` component. Install them with:
+
+```sh
+rustup toolchain install nightly-2026-08-16 \
+  --component rustc-codegen-cranelift-preview
+```
+
+`DEV_FAST_CONFIG` overrides the configuration fragment path, and
+`DEV_FAST_TOOLCHAIN` overrides the selected nightly when invoking either Make
+target. On Linux, `mold` must also be available on `PATH`.
+
+Cranelift is configured for debug development builds only. It trades runtime
+performance for faster compilation; release, coverage, CI, and verification
+builds continue to use the default LLVM backend and platform linker. Do not
+copy this fragment into `.cargo/config.toml`, because Cargo applies that file
+automatically to every build.
+
 ## nextest configuration (`.config/nextest.toml`)
 
 cargo-nextest reads its configuration from `.config/nextest.toml` at the

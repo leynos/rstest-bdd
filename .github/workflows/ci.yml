@@ -16,7 +16,7 @@ jobs:
       CODESCENE_CLI_SHA256: ${{ vars.CODESCENE_CLI_SHA256 }}
       RUSTFLAGS: -D warnings
       RUSTDOCFLAGS: -D warnings
-      LADING_REF: d3217a599ea34adad6a6e3845845fff2fe923758
+      LADING_REF: e0a8d43fa3d6d7598cad0d4c25883e7ea625feb9
       MERMAN_CLI_VERSION: '0.7.0'
       WHITAKER_INSTALLER_VERSION: '0.2.6'
     strategy:
