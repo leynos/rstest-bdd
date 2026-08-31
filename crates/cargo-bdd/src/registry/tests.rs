@@ -49,7 +49,7 @@ fn ignores_unrelated_failures_containing_dump_steps() {
 fn parses_registry_dump_with_bypassed_steps() {
     let json = r#"
     {
-      "steps": [{"keyword":"Given","pattern":"x","file":"f","line":1,"used":false}],
+      "steps": [{"library":"accounts","keyword":"Given","pattern":"x","file":"f","line":1,"used":false}],
       "scenarios": [{
         "feature_path":"feature",
         "scenario_name":"scenario",
@@ -58,9 +58,11 @@ fn parses_registry_dump_with_bypassed_steps() {
         "allow_skipped":true,
         "forced_failure":false,
         "line":42,
-        "tags":["@t"]
+        "tags":["@t"],
+        "libraries":["accounts"]
       }],
       "bypassed_steps": [{
+        "library":"accounts",
         "keyword":"Given",
         "pattern":"x",
         "file":"f",
@@ -69,6 +71,7 @@ fn parses_registry_dump_with_bypassed_steps() {
         "scenario_name":"scenario",
         "scenario_line":42,
         "tags":["@t"],
+        "libraries":["accounts"],
         "reason":"reason"
       }]
     }
@@ -79,12 +82,29 @@ fn parses_registry_dump_with_bypassed_steps() {
     };
     assert_eq!(scenario.line, 42);
     assert_eq!(scenario.tags, vec!["@t".to_owned()]);
+    assert_eq!(scenario.libraries, vec!["accounts".to_owned()]);
+    let Some(step) = parsed.steps.first() else {
+        panic!("step entry");
+    };
+    assert_eq!(step.library, "accounts");
     let Some(bypassed) = parsed.bypassed_steps.first() else {
         panic!("bypassed entry");
     };
     assert_eq!(bypassed.scenario_line, 42);
     assert_eq!(bypassed.tags, vec!["@t".to_owned()]);
+    assert_eq!(bypassed.libraries, vec!["accounts".to_owned()]);
     assert_eq!(bypassed.reason.as_deref(), Some("reason"));
+    assert_eq!(bypassed.library, "accounts");
+}
+
+#[test]
+fn old_registry_dumps_default_to_the_global_library() {
+    let json = r#"{"steps":[{"keyword":"Given","pattern":"x","file":"f","line":1,"used":false}]}"#;
+    let parsed = parse_registry_dump(json.as_bytes()).expect("legacy dump should parse");
+    let Some(step) = parsed.steps.first() else {
+        panic!("step entry");
+    };
+    assert_eq!(step.library, "rstest_bdd::global");
 }
 
 fn parse_message(json: &str) -> serde_json::Result<MetadataMessage> { serde_json::from_str(json) }

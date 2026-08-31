@@ -10,6 +10,7 @@ use crate::registry::ScenarioOutcome;
 #[fixture]
 fn sample_scenario() -> Scenario {
     Scenario {
+        libraries: vec![String::from("rstest_bdd::global")],
         feature_path: "features/checkout.feature".to_owned(),
         name: "declined card is rejected".to_owned(),
         status: ScenarioOutcome::Skipped,
@@ -106,6 +107,7 @@ fn snapshot_scenario_modes(
 #[test]
 fn snapshot_bypassed_steps() {
     let steps = [BypassedStep {
+        library: String::from("rstest_bdd::global"),
         keyword: "Given".to_owned(),
         pattern: "a declined card".to_owned(),
         file: "tests/steps.rs".to_owned(),
@@ -114,6 +116,7 @@ fn snapshot_bypassed_steps() {
         scenario_name: "declined card is rejected".to_owned(),
         scenario_line: 42,
         tags: vec!["payments".to_owned()],
+        libraries: vec![String::from("rstest_bdd::global")],
         reason: Some("sandbox unavailable".to_owned()),
     }];
     let mut buffer = Vec::new();
@@ -136,6 +139,7 @@ fn scenario_strategy() -> impl Strategy<Value = Scenario> {
     )
         .prop_map(
             |(feature_path, name, message, allow_skipped, forced_failure, line, tags)| Scenario {
+                libraries: vec![String::from("rstest_bdd::global")],
                 feature_path,
                 name,
                 status: ScenarioOutcome::Skipped,

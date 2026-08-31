@@ -361,3 +361,10 @@ fn scenarios_args_rejects_duplicate_attributes() {
     ));
     assert_parse_error_contains(result, "duplicate");
 }
+
+#[test]
+fn scenarios_args_rejects_repeated_library_paths() {
+    let result =
+        try_parse_scenarios_args(quote!(dir = "features", libraries = [accounts, accounts]));
+    assert_parse_error_contains(result, "duplicate step library");
+}

@@ -28,7 +28,7 @@ pub struct StepLibrary {
 }
 
 /// Closed set of libraries available to one scenario.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct StepScope {
     /// Library identities selected for the scenario.
     libraries: &'static [StepLibraryId],

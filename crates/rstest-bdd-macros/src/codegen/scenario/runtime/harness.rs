@@ -111,6 +111,7 @@ fn generate_runner_closure_body(params: RunnerClosureParams<'_>) -> TokenStream2
             __RSTEST_BDD_SCENARIO_NAME,
             __RSTEST_BDD_SCENARIO_LINE,
             __RSTEST_BDD_SCENARIO_TAGS.clone(),
+            __RSTEST_BDD_STEP_SCOPE,
         );
         let mut __rstest_bdd_skipped: Option<Option<String>> = None;
         let mut __rstest_bdd_skipped_at: Option<usize> = None;

@@ -60,6 +60,8 @@ pub(super) struct ScenarioTestContext<'a> {
     pub(super) effective_harness: Option<&'a syn::Path>,
     /// Closed step-library scope shared by generated tests.
     pub(super) scope: &'a TokenStream2,
+    /// Locally visible library identities for compile-time step validation.
+    pub(super) library_validation_names: Option<&'a [Box<str>]>,
     /// Adapter API paths resolved once for the whole `scenarios!` expansion.
     pub(super) resolutions: &'a crate::codegen::SharedAdapterResolutions,
 }

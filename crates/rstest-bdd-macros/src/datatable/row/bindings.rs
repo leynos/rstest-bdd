@@ -11,9 +11,12 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::{format_ident, quote};
 use syn::Type;
 
-use crate::datatable::{
-    config::{DefaultValue, FieldSpec},
-    parser::accessor_expr,
+use crate::{
+    datatable::{
+        config::{DefaultValue, FieldSpec},
+        parser::accessor_expr,
+    },
+    named_fields::MissingValuePolicy,
 };
 
 /// Provides the internal `build_field_binding` operation.
@@ -23,16 +26,22 @@ pub(crate) fn build_field_binding(
     runtime: &TokenStream2,
 ) -> TokenStream2 {
     let binding_ident = field
-        .ident
+        .named
+        .as_ref()
+        .map(|named| named.rust_field.clone())
+        .or_else(|| field.ident.clone())
         .clone()
         .unwrap_or_else(|| format_ident!("__field_{index}"));
     let accessor = accessor_expr(field, runtime, index);
     let missing_pattern = missing_error_pattern(runtime);
-    let on_missing = if field.config.optional {
+    let (is_optional, has_default) = missing_value_policy(field);
+    let on_missing = if is_optional {
         Some(quote! { None })
-    } else if let Some(default) = &field.config.default {
-        let expr = build_default_expr(default, &field.ty);
-        Some(quote! { #expr })
+    } else if has_default {
+        field.config.default.as_ref().map(|default| {
+            let expr = build_default_expr(default, &field.ty);
+            quote! { #expr }
+        })
     } else {
         None
     };
@@ -44,7 +53,7 @@ pub(crate) fn build_field_binding(
             }
         },
         |on_missing| {
-            let on_success = if field.config.optional {
+            let on_success = if is_optional {
                 quote! { Some(value) }
             } else {
                 quote! { value }
@@ -60,6 +69,19 @@ pub(crate) fn build_field_binding(
             }
         },
     )
+}
+
+/// Read source-specific missing-value policy without changing tuple semantics.
+fn missing_value_policy(field: &FieldSpec) -> (bool, bool) {
+    match field.named.as_ref().map(|named| &named.missing) {
+        Some(MissingValuePolicy::DataTable {
+            optional,
+            has_default,
+        }) => (*optional, *has_default),
+        Some(MissingValuePolicy::Required) | None => {
+            (field.config.optional, field.config.default.is_some())
+        }
+    }
 }
 
 /// Provides the internal `build_default_expr` operation.

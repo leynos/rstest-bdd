@@ -43,6 +43,18 @@ impl StepArgsError {
         ))
     }
 
+    /// Build an error preserving a custom scalar parser's diagnostic text.
+    #[must_use]
+    pub fn custom_parse_failure(
+        field: &'static str,
+        raw: &str,
+        error: impl std::fmt::Display,
+    ) -> Self {
+        Self::new(format!(
+            "failed to parse field '{field}' from value '{raw}': {error}"
+        ))
+    }
+
     /// Build an error describing a mismatch between expected and actual counts.
     ///
     /// The derive macro validates capture counts at compile time, but the
@@ -66,6 +78,12 @@ impl StepArgsError {
     #[must_use]
     pub fn unconsumed_capture(placeholder: &str) -> Self {
         Self::new(format!("unconsumed placeholder '{{{placeholder}}}'"))
+    }
+
+    /// Build an error describing a duplicate placeholder capture.
+    #[must_use]
+    pub fn duplicate_capture(placeholder: &str) -> Self {
+        Self::new(format!("duplicate placeholder capture '{{{placeholder}}}'"))
     }
 
     /// Access the underlying error message.
@@ -138,6 +156,15 @@ mod tests {
         assert_eq!(
             err.to_string(),
             "expected 2 captured value(s) but received 1"
+        );
+    }
+
+    #[test]
+    fn custom_parse_failure_preserves_parser_message() {
+        let err = StepArgsError::custom_parse_failure("amount", "invalid", "not money");
+        assert_eq!(
+            err.to_string(),
+            "failed to parse field 'amount' from value 'invalid': not money"
         );
     }
 }
