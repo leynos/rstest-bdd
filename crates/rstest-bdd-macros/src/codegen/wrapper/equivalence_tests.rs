@@ -23,7 +23,7 @@ use super::{
     emit::reset_wrapper_counter_for_tests,
     generate_wrapper_code,
 };
-use crate::{StepKeyword, return_classifier::ReturnKind};
+use crate::{StepKeyword, return_classifier::StepReturnStrategy};
 
 /// Build a `WrapperConfig` for a single-parameter step function source.
 ///
@@ -49,7 +49,7 @@ fn wrapper_for_step(src: &str) -> TokenStream {
         placeholder_names: &[],
         placeholder_hints: &[],
         capture_count: 0,
-        return_kind: ReturnKind::Unit,
+        strategy: StepReturnStrategy::Unit,
     };
     generate_wrapper_code(&config)
 }

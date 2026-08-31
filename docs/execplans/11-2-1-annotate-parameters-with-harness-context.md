@@ -1616,6 +1616,19 @@ Explicit non-goals, deferred with rationale:
 
 ## Revision notes
 
+**2026-08-31 — rebased onto `origin/main` at `d05f12b7`.**
+
+The rebase retained the new `googletest` and `pretty_assertions` workspace
+development dependencies, the macro crate's inheritance entries, and main's
+dependency upgrades. It took main's `Cargo.lock` before rebuilding it against
+the merged manifests.
+
+The target branch had also replaced `WrapperConfig::return_kind` with
+`WrapperConfig::strategy`. The marker-equivalence test now constructs
+`StepReturnStrategy::Unit`, preserving the same unit-return wrapper contract.
+`make check-fmt`, `make lint`, `make typecheck`, and `make test` passed after
+the repair (1,830 tests passed; 7 skipped).
+
 **2026-08-16 — rebased onto `origin/main` at `3e6c367`.**
 
 What changed: the branch picked up three upstream commits, of which `3e6c367`

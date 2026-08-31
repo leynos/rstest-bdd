@@ -1058,7 +1058,6 @@ make those shapes look identical. The `reject_async_harness` check is applied
 before both paths, so an `async fn` combined with `harness` is rejected for
 regular scenarios and scenario outlines alike.
 
-
 ## Assertion vocabulary: `googletest`, `pretty_assertions`, and `insta`
 
 This workspace's test suites use three assertion tools, each for a distinct
@@ -1092,7 +1091,6 @@ module only.
 `pretty_assertions` are for in-body assertions; snapshots capture multivariant
 output. These tools came in with the `#[harness_context]` classifier work
 (roadmap 11.2.1); the fixtures there demonstrate the convention.
-
 
 ### The `#[harness_context]` classifier stage
 
