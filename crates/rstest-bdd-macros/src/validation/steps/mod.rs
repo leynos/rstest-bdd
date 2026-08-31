@@ -1,18 +1,14 @@
 //! Compile-time step registration and validation.
 //!
-//! Steps are stored per crate and keyword, enabling fast lookups without
-//! scanning unrelated definitions. In non-strict mode missing local
-//! definitions emit warnings so cross-crate steps remain usable. This module
-//! stores step definitions registered via `#[given]`, `#[when]`, and `#[then]`
-//! attribute macros and provides validation utilities for the `#[scenario]`
-//! macro. It ensures that every Gherkin step in a scenario has a corresponding
-//! step definition. Missing steps yield a `compile_error!` during macro
-//! expansion, preventing tests from compiling with incomplete behaviour
-//! coverage.
+//! Per-crate definitions enable local strict validation while retaining
+//! cross-crate warnings. Attribute macros register definitions here, and the
+//! scenario macro rejects Gherkin steps without a corresponding definition.
 
 mod crate_id;
 mod messages;
 mod scoped;
+#[cfg(test)]
+mod test_support;
 use std::{
     collections::HashMap,
     sync::{LazyLock, Mutex},
@@ -21,6 +17,8 @@ use std::{
 use crate_id::{current_crate_id, normalize_crate_id};
 use messages::{format_ambiguous_step_error, format_missing_step_error};
 pub(crate) use scoped::validate_steps_exist_in_scope;
+#[cfg(test)]
+pub(crate) use test_support::clear_registered_steps_for_tests;
 
 use crate::{
     StepKeyword,
@@ -84,9 +82,8 @@ impl CrateDefs {
     fn matching_unselected(
         &self,
         kw: StepKeyword,
-        text: &str,
+        step: &ParsedStep,
         libraries: &[Box<str>],
-        span: proc_macro2::Span,
     ) -> Vec<&RegisteredStep> {
         self.scoped_by_kw
             .iter()
@@ -94,7 +91,12 @@ impl CrateDefs {
                 *candidate_kw == kw && !libraries.iter().any(|selected| selected == library)
             })
             .flat_map(|(_, definitions)| definitions)
-            .filter(|definition| definition.pattern.regex(span).is_match(text))
+            .filter(|definition| {
+                definition
+                    .pattern
+                    .regex(get_step_span(step))
+                    .is_match(&step.text)
+            })
             .collect()
     }
 }
@@ -108,27 +110,35 @@ impl CrateDefs {
 /// fast, crate-scoped lookups during validation.
 static REGISTERED: LazyLock<Mutex<Registry>> = LazyLock::new(|| Mutex::new(HashMap::new()));
 
-/// Leak and compile a step pattern before registering.
-///
-/// Patterns are stored in a global static registry for the life of the
-/// process. Macros therefore require 'static lifetimes, satisfied by
-/// leaking each boxed pattern into static memory. Registration happens
-/// during macro expansion and test initialization, so the leak is bounded
-/// by the number of step definitions registered in the current compilation
-/// session, including those registered by tests.
-/// Patterns are leaked into static memory because macros require `'static` lifetimes.
-/// Registration occurs during macro expansion so the total leak is bounded.
+/// Lexical destination for a registered step definition.
+#[derive(Clone, Copy)]
+struct StepRegistrationScope<'a> {
+    /// Identifies the crate that owns the step definition.
+    crate_id: &'a str,
+    /// Names the lexical library that contains the definition.
+    library: &'a str,
+    /// Controls whether the legacy global index receives the definition.
+    add_to_global: bool,
+}
+
+/// Leak, compile, and register a global step pattern for macro expansion.
 fn register_step_inner(keyword: StepKeyword, pattern: &syn::LitStr, crate_id: impl AsRef<str>) {
-    register_step_in_library_inner(keyword, pattern, crate_id, "rstest_bdd::global", true);
+    register_step_in_library_inner(
+        keyword,
+        pattern,
+        StepRegistrationScope {
+            crate_id: crate_id.as_ref(),
+            library: "rstest_bdd::global",
+            add_to_global: true,
+        },
+    );
 }
 
 /// Leak, compile, and register one step pattern in a named lexical library.
 fn register_step_in_library_inner(
     keyword: StepKeyword,
     pattern: &syn::LitStr,
-    crate_id: impl AsRef<str>,
-    library: impl AsRef<str>,
-    add_to_global: bool,
+    scope: StepRegistrationScope<'_>,
 ) {
     let leaked: &'static str = Box::leak(pattern.value().into_boxed_str());
     let stored: &'static MacroPattern = Box::leak(Box::new(MacroPattern::new(leaked)));
@@ -138,18 +148,17 @@ fn register_step_in_library_inner(
     let mut reg = REGISTERED
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    let crate_id = normalize_crate_id(crate_id.as_ref());
+    let crate_id = normalize_crate_id(scope.crate_id);
     let defs = reg.entry(crate_id).or_default();
-    if add_to_global {
+    if scope.add_to_global {
         defs.by_kw.entry(keyword).or_default().push(stored);
     }
-    let library = library.as_ref();
     defs.scoped_by_kw
-        .entry((library.into(), keyword))
+        .entry((scope.library.into(), keyword))
         .or_default()
         .push(RegisteredStep {
             pattern: stored,
-            library: library.into(),
+            library: scope.library.into(),
             source_location: format_span_location(pattern.span()),
         });
 }
@@ -163,7 +172,16 @@ pub(crate) fn register_step(keyword: StepKeyword, pattern: &syn::LitStr) {
 
 /// Record an inline-library step definition without making it global.
 pub(crate) fn register_step_in_library(keyword: StepKeyword, pattern: &syn::LitStr, library: &str) {
-    register_step_in_library_inner(keyword, pattern, current_crate_id(), library, false);
+    let crate_id = current_crate_id();
+    register_step_in_library_inner(
+        keyword,
+        pattern,
+        StepRegistrationScope {
+            crate_id,
+            library,
+            add_to_global: false,
+        },
+    );
 }
 
 #[cfg(test)]
