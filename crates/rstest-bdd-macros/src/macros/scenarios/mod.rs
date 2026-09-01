@@ -9,6 +9,7 @@
 
 mod feature_discovery;
 mod macro_args;
+mod module_emission;
 mod path_resolution;
 mod test_generation;
 
@@ -19,7 +20,6 @@ use std::{
 
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
-use quote::{format_ident, quote};
 
 pub(crate) use self::macro_args::{
     RuntimeMode as ScenariosRuntimeMode,
@@ -35,6 +35,7 @@ use self::{
         library_validation_names,
         runtime_compatibility_alias,
     },
+    module_emission::generate_scenarios_module,
     test_generation::{ScenarioTestContext, generate_scenario_test, resolve_harness_path},
 };
 use crate::{
@@ -281,67 +282,6 @@ fn emit_runtime_deprecation_warning(runtime: RuntimeMode, harness: Option<&syn::
     }
 }
 
-/// Inputs required to emit the items produced by a `scenarios!` expansion.
-struct ScenariosModuleEmission<'a> {
-    /// Parsed directory, retained to preserve the existing module-name derivation.
-    dir: &'a Path,
-    /// Directory literal that supplies the generated module's name, docs, and
-    /// tracking-item span.
-    dir_lit: &'a syn::LitStr,
-    /// Every discovered feature file, including files excluded by a tag filter.
-    feature_paths: &'a [PathBuf],
-    /// Diagnostics emitted before generated tests within the module.
-    fallback_diagnostics: TokenStream2,
-    /// Generated scenario-test items.
-    tests: Vec<TokenStream2>,
-    /// Generated error items.
-    errors: Vec<TokenStream2>,
-}
-
-/// Emits tracking items and the generated scenario module in source order.
-fn emit_scenarios_module(emission: ScenariosModuleEmission<'_>) -> TokenStream {
-    let ScenariosModuleEmission {
-        dir,
-        dir_lit,
-        feature_paths,
-        fallback_diagnostics,
-        tests,
-        errors,
-    } = emission;
-
-    // Emit one Cargo rebuild-dependency tracking item per **discovered**
-    // file, as a sibling of the generated scenario module, independent of
-    // whether any test is generated for that file. A `tags =` filter that
-    // matches nothing in a particular file still parses it, and that file
-    // must remain tracked — a body-scoped or per-test binding would leave it
-    // untracked and reopen the foot-gun in exactly the macro that is the
-    // harder case (Decision D0 / ExecPlan Milestone 3).
-    let tracking_items = feature_paths
-        .iter()
-        .map(|path| crate::codegen::tracking::feature_tracking_item(path, dir_lit.span()))
-        .collect::<Vec<_>>();
-
-    let module_ident = {
-        let base = dir
-            .file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or("scenarios");
-        format_ident!("{}_scenarios", sanitize_ident(base))
-    };
-    let module_doc = format!("Scenarios auto-generated from `{}`.", dir_lit.value());
-
-    TokenStream::from(quote! {
-        #(#tracking_items)*
-        #[doc = #module_doc]
-        mod #module_ident {
-            use super::*;
-            #fallback_diagnostics
-            #(#tests)*
-            #(#errors)*
-        }
-    })
-}
-
 /// Provides the internal `scenarios` operation.
 pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
     let args = syn::parse_macro_input!(input as ScenariosArgs);
@@ -351,6 +291,21 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
 /// Expand parsed `scenarios!` arguments into the generated feature module.
 fn expand_scenarios(args: ScenariosArgs) -> TokenStream { expand_scenarios_tokens(args).into() }
 
+/// Owns the values emitted in a generated scenarios module.
+struct GeneratedScenariosModule {
+    /// Source feature directory used to derive the module identifier.
+    dir: PathBuf,
+    /// Literal source directory used in the module documentation.
+    dir_lit: syn::LitStr,
+    /// Every discovered feature file, including files excluded by a tag filter.
+    feature_paths: Vec<PathBuf>,
+    /// Adapter diagnostics emitted inside the generated module.
+    fallback_diagnostics: TokenStream2,
+    /// Generated scenario test functions in source order.
+    tests: Vec<TokenStream2>,
+    /// Generation errors emitted after scenario test functions.
+    errors: Vec<TokenStream2>,
+}
 /// Expand parsed arguments into testable proc-macro tokens.
 fn expand_scenarios_tokens(args: ScenariosArgs) -> TokenStream2 {
     let ScenariosArgs {
@@ -416,15 +371,14 @@ fn expand_scenarios_tokens(args: ScenariosArgs) -> TokenStream2 {
 
     check_empty_results(&tests, &mut errors, tag_filter.as_ref());
 
-    emit_scenarios_module(ScenariosModuleEmission {
-        dir: &dir,
-        dir_lit: &dir_lit,
-        feature_paths: &feature_paths,
+    generate_scenarios_module(GeneratedScenariosModule {
+        dir,
+        dir_lit,
+        feature_paths,
         fallback_diagnostics,
         tests,
         errors,
     })
-    .into()
 }
 #[cfg(test)]
 #[path = "tests/mod.rs"]
