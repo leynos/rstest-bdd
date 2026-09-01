@@ -1,6 +1,10 @@
 //! Unit tests for the `scenarios!` macro entry point.
 
-use std::{collections::HashSet, fs, path::Path};
+use std::{
+    collections::HashSet,
+    fs,
+    path::{Path, PathBuf},
+};
 
 use proc_macro2::Span;
 use quote::quote;
@@ -11,8 +15,10 @@ use syn::LitStr;
 use tempfile::TempDir;
 
 use super::{
+    GeneratedScenariosModule,
     ScenarioTestContext,
     expand_scenarios_tokens,
+    generate_scenarios_module,
     macro_args::ScenariosArgs,
     process_scenario,
 };
@@ -152,6 +158,42 @@ fn expand_scenarios_normalizes_missing_directory_errors() -> Result<(), String> 
     assert!(tokens.contains("failed to read directory"));
     assert!(tokens.contains("directory not found"));
     Ok(())
+}
+
+#[test]
+fn generate_scenarios_module_preserves_module_contents() {
+    let tokens = generate_scenarios_module(GeneratedScenariosModule {
+        dir: PathBuf::from("tests/features/accounts"),
+        dir_lit: LitStr::new("tests/features/accounts", Span::call_site()),
+        feature_paths: Vec::new(),
+        fallback_diagnostics: quote!(compile_error!("fallback diagnostic")),
+        tests: vec![quote!(
+            fn generated_test() {}
+        )],
+        errors: vec![quote!(compile_error!("generation error"))],
+    })
+    .to_string();
+
+    let module_index = tokens
+        .find("mod accounts_scenarios")
+        .expect("generated module should use the feature directory name");
+    let fallback_index = tokens
+        .find("fallback diagnostic")
+        .expect("fallback diagnostics should remain in the module");
+    let test_index = tokens
+        .find("fn generated_test")
+        .expect("generated tests should remain in the module");
+    let error_index = tokens
+        .find("generation error")
+        .expect("generation errors should remain in the module");
+
+    assert!(
+        tokens.contains("Scenarios auto-generated from `tests/features/accounts`."),
+        "{tokens}"
+    );
+    assert!(fallback_index > module_index);
+    assert!(fallback_index < test_index);
+    assert!(test_index < error_index);
 }
 
 #[test]
