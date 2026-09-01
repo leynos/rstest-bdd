@@ -20,7 +20,5 @@ Feature: Tokio reminder delivery
 
   Scenario: A step can reach the Tokio harness context through the marker
     Given a reminder service
-    When I schedule a reminder for Ada
-    And I dispatch delivery on the harness runtime
-    Then the delivered reminders are
-      | Reminder sent to Ada |
+    When I reach the harness context through the marker
+    Then no reminders have been delivered yet

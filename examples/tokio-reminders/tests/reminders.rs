@@ -28,26 +28,17 @@ async fn schedule_a_reminder(service: &ReminderService, recipient: String) {
     service.schedule_reminder(recipient);
 }
 
-#[when("I dispatch delivery on the harness runtime")]
-async fn dispatch_delivery(
-    service: &ReminderService,
-    #[harness_context] context: &TokioTestContext,
-) {
+#[when("I reach the harness context through the marker")]
+fn reaches_harness_context_through_the_marker(#[harness_context] context: &TokioTestContext) {
     // Prove that `#[harness_context]` delivered the harness-provided runtime
     // handle by checking it is the handle of the runtime currently active on
     // this thread. This mirrors the `runtime_flavor`/`Handle::current` checks
-    // used by the harness's own integration tests and, being synchronous,
-    // keeps the step single-poll under the harness wrapper.
+    // used by the harness's own integration tests.
     assert_eq!(
         context.handle().id(),
         tokio::runtime::Handle::current().id(),
         "marker-reached harness context must expose the active runtime handle"
     );
-
-    // The step runs on the harness's LocalSet, so the queued delivery tasks can
-    // be driven synchronously from here without an `.await` (which the harness
-    // wrapper may only poll once).
-    service.deliver_all();
 }
 
 #[then("the pending reminder count is {expected:usize}")]

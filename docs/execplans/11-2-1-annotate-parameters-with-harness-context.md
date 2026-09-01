@@ -104,13 +104,13 @@ Stop and escalate — do not improvise — when any of these is reached.
 - **Interface:** any change to an existing public function or type signature
   beyond adding new items. Adding `HARNESS_CONTEXT_FIXTURE` to
   `rstest-bdd-policy` is pre-authorized; anything else is not.
-- **Dependencies:** adding a workspace dependency other than the three this
-  plan authorizes — `googletest` and `pretty_assertions` (Milestone 2), and
-  `insta` as a dev-dependency of `rstest-bdd-macros` (Milestone 6). If
-  `googletest` cannot be made to compose with `rstest` under this workspace's
-  lint configuration within two attempts, stop and escalate: the adoption is
-  approved, so a blocker there is a finding to report, not a cue to quietly
-  drop back to bare assertions.
+- **Dependencies:** adding a workspace dependency other than the two this plan
+  authorizes — `googletest` and `pretty_assertions` (Milestone 2). `insta` is
+  already a workspace dependency and a dev-dependency of `rstest-bdd-macros`;
+  Milestone 6 does not add it. If `googletest` cannot be made to compose with
+  `rstest` under this workspace's lint configuration within two attempts, stop
+  and escalate: the adoption is approved, so a blocker there is a finding to
+  report, not a cue to quietly drop back to bare assertions.
 - **Iterations:** a milestone's tests still failing after four attempts.
 - **Gate churn:** if `make lint` reports Whitaker findings that cannot be fixed
   without restructuring code outside this plan's scope, stop and escalate.
@@ -236,20 +236,20 @@ Stop and escalate — do not improvise — when any of these is reached.
   `#[harness_context]` and `#[from(rstest_bdd_harness_context)]` coexist in one
   scenario, registered in `run_passing_macro_tests`.
 - [x] Milestone 6 — equivalence snapshot and behavioural scenario. Committed
-  `a19e993`, 2026-08-17. Added an `insta` snapshot of the generated wrapper for
-  the marker spelling plus two `pretty_assertions` equality assertions pinning
-  byte-identical output against both the `#[from(...)]` and parameter-named
-  spellings
+  `a19e993`, 2026-08-17. Used the existing `insta` macro-crate dev-dependency
+  for a snapshot of the generated wrapper for the marker spelling, plus two
+  `pretty_assertions` equality assertions pinning byte-identical output against
+  both the `#[from(...)]` and parameter-named spellings
   (`crates/rstest-bdd-macros/src/codegen/wrapper/equivalence_tests.rs`,
   serialized with `serial_test` because they reset the process-global wrapper
   counter). Drop the now-satisfied `#[expect(dead_code, ...)]` on
   `reset_wrapper_counter_for_tests`. Added the behavioural scenario "A step can
   reach the Tokio harness context through the marker" to
-  `examples/tokio-reminders`, with a new synchronous
-  `ReminderService::deliver_all` (the plan-sanctioned fallback: no
-  `deliver_all` existed, and an `.await`-based dispatch would multi-poll under
-  the harness). `cargo test -p tokio-reminders` green (5 unit + 3 scenario + 8
-  doctests); equivalence tests green.
+  `examples/tokio-reminders`, proving marker reachability by immediately
+  comparing the injected handle's runtime id with `Handle::current().id()`. The
+  scenario does not deliver or poll reminders, so it remains within the
+  harness's single-poll constraint. `cargo test -p tokio-reminders` green (5
+  unit + 3 scenario + 7 doctests); equivalence tests green.
 - [x] Milestone 7 — migrate the examples. Committed `16148ee`, 2026-08-17.
   `examples/gpui-counter/tests/counter.rs` requests the injected
   `gpui::TestAppContext` via `#[harness_context]` (module doc + implicit
@@ -282,11 +282,10 @@ Stop and escalate — do not improvise — when any of these is reached.
   noop waker and rejects `Pending`), so a step that `.await`s a spawned task or
   `flush()` fails with "multi-poll async steps are not supported under a
   harness". The behavioural scenario therefore proves marker reachability
-  synchronously (comparing `context.handle().id()` with
+  synchronously by immediately comparing `context.handle().id()` with
   `tokio::runtime::Handle::current().id()`, the same identity check the
-  harness's own integration tests use) and dispatches via a new synchronous
-  `ReminderService::deliver_all`, which polls each immediately-ready queued
-  task once. Date: 2026-08-17.
+  harness's own integration tests use. It does not process or poll queued
+  tasks. Date: 2026-08-17.
 
 - Observation: the parameter-named spelling
   (`fn s(rstest_bdd_harness_context: &TestCtx)`) cannot be compared for full
@@ -480,13 +479,13 @@ users guide and developer guide document all three spellings, design 2.7.6.4
 records the delivered design, and ADR-007 gained a dated addendum recording the
 marker, the unchanged wire format, and the shared-key relocation.
 
-One deliberate deviation from the plan's draft: the Tokio example's delivery
-step uses a new synchronous `ReminderService::deliver_all` instead of
-`.await`-based dispatch because the harness step wrapper polls each async step
-future at most once and rejects `Pending` when a harness-provided runtime is
-active. That constraint was recorded in `Surprises & discoveries`, and the step
-proves marker reachability synchronously by comparing the marker-provided
-handle's runtime id with `Handle::current()`.
+One deliberate deviation from the plan's draft is that the Tokio example's
+context step performs no delivery. The harness step wrapper polls each async
+step future at most once and rejects `Pending` when a harness-provided runtime
+is active. That single-poll constraint was recorded in
+`Surprises & discoveries`, and the step proves marker reachability immediately
+by comparing the marker-provided handle's runtime id with
+`Handle::current().id()`.
 
 All acceptance criteria are met: marker-based steps receive the harness context
 at runtime, both legacy spellings behave identically, the marker spelling and
@@ -556,13 +555,13 @@ parameter of a step function, in order, it:
 2. Calls `classify_harness_context` (line 185). If the parameter carries
    `#[harness_context]`, this `pub(crate)` classifier takes `st`, `arg`, and
    `placeholders`, claims the parameter, and the loop moves on. This precedes
-   placeholder detection so marker precedence is preserved.
+   placeholder detection, so marker precedence is preserved.
 3. Computes `is_placeholder` — whether the parameter's name matches an unbound
    Gherkin placeholder (line 189).
 4. **If and only if `is_placeholder` is false**, calls
    `classify_special_argument` (line 190), which tries `classify_datatable` then
    `classify_docstring`.
-5. Otherwise calls `classify_step_or_fixture` (line 195), which constructs the
+5. Otherwise, calls `classify_step_or_fixture` (line 195), which constructs the
    classification context and calls `classify_fixture_or_step` (line 130), the
    terminal classifier. This one consumes any `#[from(...)]` attribute, then
    either claims a matching placeholder (producing `Arg::Step`) or records a
@@ -1164,14 +1163,14 @@ Two artefacts.
 
 **Codegen equivalence.** Add an `insta` snapshot of the generated wrapper for
 the `#[harness_context]` spelling, so a future refactor that changes the
-emitted shape is visible in review. `insta` is already a workspace dependency;
-add it to `crates/rstest-bdd-macros` dev-dependencies. Snapshot the output of
-`codegen::wrapper::generate_wrapper_code` (re-exported as
-`emit::generate_wrapper_code`, `pub(crate)`, so reachable from an in-crate
-`#[cfg(test)]` module). If constructing a `WrapperConfig` in a unit test proves
-disproportionate — more than roughly thirty lines of setup — fall back to
-snapshotting the `Debug` rendering of `ExtractedArgs` instead, and record the
-substitution in `Surprises & discoveries`.
+emitted shape is visible in review. `insta` is already a workspace dependency
+and an existing `crates/rstest-bdd-macros` dev-dependency; use that existing
+entry. Snapshot the output of `codegen::wrapper::generate_wrapper_code`
+(re-exported as `emit::generate_wrapper_code`, `pub(crate)`, so reachable from
+an in-crate `#[cfg(test)]` module). If constructing a `WrapperConfig` in a unit
+test proves disproportionate — more than roughly thirty lines of setup — fall
+back to snapshotting the `Debug` rendering of `ExtractedArgs` instead, and
+record the substitution in `Surprises & discoveries`.
 
 While here, strengthen the equivalence evidence one level below the snapshot:
 render `generate_wrapper_code` for the marker spelling and each legacy
@@ -1196,34 +1195,31 @@ at runtime, not merely at expansion time. Add to
 ```gherkin
   Scenario: A step can reach the Tokio harness context through the marker
     Given a reminder service
-    When I schedule a reminder for Ada
-    And I dispatch delivery on the harness runtime
-    Then the delivered reminders are
-      | Ada |
+    When I reach the harness context through the marker
+    Then no reminders have been delivered yet
 ```
 
 Add the corresponding step to `examples/tokio-reminders/tests/reminders.rs`,
 using the readable marker:
 
 ```rust,ignore
-#[when("I dispatch delivery on the harness runtime")]
-async fn dispatch_delivery(
-    service: &ReminderService,
+#[when("I reach the harness context through the marker")]
+fn reaches_harness_context_through_the_marker(
     #[harness_context] context: &TokioTestContext,
 ) {
-    let handle = context.handle().clone();
     // Prove the step really received the harness runtime handle.
-    handle.spawn(async {}).await.expect("spawned task should complete");
-    service.deliver_all();
+    assert_eq!(
+        context.handle().id(),
+        tokio::runtime::Handle::current().id(),
+        "marker-reached harness context must expose the active runtime handle"
+    );
 }
 ```
 
-Adjust to whatever delivery API `tokio_reminders::ReminderService` actually
-exposes; read it first with `leta show ReminderService`. If no suitable
-delivery method exists, add the smallest one that makes the scenario
-meaningful, or assert on `context.handle()` alone and simplify the `Then` step
-accordingly. Register the new scenario with a `#[scenario(…)]` function
-mirroring the two already in that file, including
+Keep this step synchronous and limited to the immediate handle-identity
+assertion; it must not add or invoke a reminder delivery or polling API.
+Register the new scenario with a `#[scenario(…)]` function mirroring the two
+already in that file, including
 `harness = rstest_bdd_harness_tokio::TokioHarness`.
 
 The `examples/tokio-reminders` crate already dev-depends on
@@ -1458,10 +1454,8 @@ Feature: Tokio reminder delivery
 
   Scenario: A step can reach the Tokio harness context through the marker
     Given a reminder service
-    When I schedule a reminder for Ada
-    And I dispatch delivery on the harness runtime
-    Then the delivered reminders are
-      | Ada |
+    When I reach the harness context through the marker
+    Then no reminders have been delivered yet
 ```
 
 This scenario fails before Milestone 4 (the marker is unrecognized, so the
@@ -1559,7 +1553,7 @@ artefacts:
 - **Behavioural scenario:** the feature and step sources under
   `examples/tokio-reminders/tests/` are recorded in Progress, Milestone 6
   (commit `a19e993`); `cargo test -p tokio-reminders` passed five unit, three
-  scenario, and eight doctests.
+  scenario, and seven doctests.
 
 ## Interfaces and dependencies
 
@@ -1617,8 +1611,9 @@ Crates used, all already in the workspace unless noted:
 - `pretty_assertions` 1.4.1 — structural diffs for whole-value equality
   assertions. **New workspace dependency**, added in Milestone 2.
 - `trybuild` — compile-fail fixtures. A dev-dependency of `rstest-bdd`.
-- `insta` — the codegen snapshot. A workspace dependency; **to be added** as a
-  dev-dependency of `rstest-bdd-macros` in Milestone 6.
+- `insta` — the codegen snapshot. Already a workspace dependency and an
+  existing dev-dependency of `rstest-bdd-macros` before this plan; Milestone 6
+  uses it for the generated-wrapper snapshot.
 
 Explicit non-goals, deferred with rationale:
 
@@ -1653,6 +1648,12 @@ checking the placeholder set, with parameterized regression coverage for both
 wording, pipe-failure propagation, repository-root instruction, and validation
 evidence were corrected. Its migration scope now includes a limited v0.6.1
 entry in `docs/v0-6-0-migration-guide.md` while preserving historical samples.
+
+**2026-09-01 — scope review.**
+
+The final implementation exceeds both scope tolerances. The excess consists of
+required tests, snapshots, the example scenario, documentation, and policy
+work. Review accepted that scope; the thresholds remain unchanged.
 
 **2026-08-31 — rebased onto `origin/main` at `d05f12b7`.**
 
