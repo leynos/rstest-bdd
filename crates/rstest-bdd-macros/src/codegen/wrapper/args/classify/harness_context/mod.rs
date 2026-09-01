@@ -10,7 +10,7 @@ use std::collections::HashSet;
 
 use quote::ToTokens;
 
-use super::{Arg, ExtractedArgs, extract_flag_attribute};
+use super::{Arg, ExtractedArgs, extract_flag_attribute, normalize_param_name};
 
 #[cfg(test)]
 mod prop_tests;
@@ -58,7 +58,7 @@ fn validate_harness_context_marker(
             return Err(syn::Error::new_spanned(arg, message));
         }
     }
-    if placeholders.contains(&pat.to_string()) {
+    if placeholders.contains(normalize_param_name(&pat.to_string())) {
         return Err(syn::Error::new_spanned(
             arg,
             format!("`#[harness_context]` cannot bind step-argument placeholder `{pat}`"),

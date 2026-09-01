@@ -22,7 +22,7 @@ fn record_gpui_test_context(
 
 `rstest_bdd_harness_context` is an implementation detail: it is the string key
 under which the framework stores `HarnessAdapter::Context` in the per-step
-`StepContext` fixture map. Users must know and correctly type a 27-character
+`StepContext` fixture map. Users must know and correctly type a 26-character
 internal identifier in order to reach a first-class feature. Adopters of the
 v0.6.0 beta line reported this as a friction point.
 
@@ -39,13 +39,13 @@ The reserved key does not disappear. It stays exactly where it is, inside
 generated code, and the old spelling keeps working unchanged. This is a v0.6.1
 additive-hardening change: purely additive, semver-compatible, no removals.
 
-You can observe success three ways:
+Success is observable in three ways:
 
 1. A step function annotated `#[harness_context]` receives the harness context
    at runtime, proved by a passing behavioural scenario in
    `examples/tokio-reminders`.
-2. The two spellings generate byte-identical wrapper code, proved by a unit
-   test comparing token streams.
+2. The marker spelling generates byte-identical wrapper code to each legacy
+   spelling, proved by unit tests comparing token streams.
 3. Misuse produces targeted compiler diagnostics rather than a bare
    `cannot find attribute` error, proved by `trybuild` compile-fail fixtures.
 
@@ -259,23 +259,21 @@ Stop and escalate — do not improvise — when any of these is reached.
   `cargo test -p gpui-counter` green (6 unit + 2 scenario + 3 doctest). The
   crate-level tests keep the legacy spelling as back-compatibility evidence.
 - [x] Milestone 8 — documentation. Committed `e3798a5`, 2026-08-17.
-  `docs/users-guide.md` (harness-context marker as primary form,
-  three-spelling table, marker constraints, cross-reference from
-  "Supported `#[from]` forms"), `docs/developers-guide.md`
-  (`classify_harness_context` stage, shared `HARNESS_CONTEXT_FIXTURE`
-  constant, `#[step_args]` cross-guard), `docs/rstest-bdd-design.md`
-  §2.7.6.4 (marker recorded as delivered), and
-  `docs/adr-007-harness-context-injection.md` (dated addendum). `docs/`
-  tree passes `markdownlint` and `make nixie`; full-tree `make
-  markdownlint` fails only on the gitignored `.vtcode/` runtime
-  artefacts.
+  `docs/users-guide.md` (harness-context marker as primary form, three-spelling
+  table, marker constraints, cross-reference from "Supported `#[from]` forms"),
+  `docs/developers-guide.md` (`classify_harness_context` stage, shared
+  `HARNESS_CONTEXT_FIXTURE` constant, `#[step_args]` cross-guard),
+  `docs/rstest-bdd-design.md` §2.7.6.4 (marker recorded as delivered), and
+  `docs/adr-007-harness-context-injection.md` (dated addendum). `docs/` tree
+  passes `markdownlint` and `make nixie`; full-tree `make markdownlint` fails
+  only on the gitignored `.vtcode/` runtime artefacts.
 - [x] Milestone 9 — roadmap tick, full gates, and pull request. Committed
   `ca7b73e`, 2026-08-17. `docs/roadmap.md` 11.2.1 ticked `[x]` with a
-  completion note; this plan set `Status: COMPLETE` and filled in `Outcomes &
-  retrospective`. Full gate set green on the final tree: `make check-fmt`,
-  `make lint` (clippy `-D warnings`, `cargo doc`, Whitaker, ruff, pylint, and
-  all four structural checks), and `make test` (nextest 1728 passed / 7
-  skipped, doc tests clean, python 69 passed).
+  completion note; this plan set `Status: COMPLETE` and filled in
+  `Outcomes & retrospective`. Full gate set green on the final tree:
+  `make check-fmt`, `make lint` (clippy `-D warnings`, `cargo doc`, Whitaker,
+  ruff, pylint, and all four structural checks), and `make test` (nextest 1728
+  passed / 7 skipped, doc tests clean, python 69 passed).
 
 ## Surprises & discoveries
 
@@ -400,8 +398,9 @@ Stop and escalate — do not improvise — when any of these is reached.
 - Decision: `#[from(rstest_bdd_harness_context)]` is not deprecated in v0.6.1.
   Rationale: the roadmap requires "backwards-compatible support"; a deprecation
   warning in a patch-compatible release would force churn on adopters mid-beta,
-  and the v0.7.0 line (roadmap 12.2.1) will supersede both spellings with typed
-  extractors anyway. Date/Author: 2026-08-15, planning agent.
+  and the v0.7.0 line (roadmap 12.2.1) will supersede the three accepted
+  spellings with typed extractors anyway. Date/Author: 2026-08-15, planning
+  agent.
 
 - Decision: record the change as a dated addendum to
   `docs/adr-007-harness-context-injection.md` rather than a new ADR. Rationale:
@@ -478,23 +477,23 @@ renamed, or re-typed; the crate-level test suites were left on the legacy
 spelling as the standing compatibility evidence. User-facing examples
 (`tokio-reminders` and `gpui-counter`) compile and run with the marker, the
 users guide and developer guide document all three spellings, design 2.7.6.4
-records the delivered design, and ADR-007 gained a dated addendum recording
-the marker, the unchanged wire format, and the shared-key relocation.
+records the delivered design, and ADR-007 gained a dated addendum recording the
+marker, the unchanged wire format, and the shared-key relocation.
 
 One deliberate deviation from the plan's draft: the Tokio example's delivery
 step uses a new synchronous `ReminderService::deliver_all` instead of
-`.await`-based dispatch, because the harness step wrapper polls each async
-step future at most once and rejects `Pending` when a harness-provided runtime
-is active. That constraint was recorded in `Surprises & discoveries`, and the
-step proves marker reachability synchronously by comparing the marker-provided
+`.await`-based dispatch, because the harness step wrapper polls each async step
+future at most once and rejects `Pending` when a harness-provided runtime is
+active. That constraint was recorded in `Surprises & discoveries`, and the step
+proves marker reachability synchronously by comparing the marker-provided
 handle's runtime id with `Handle::current()`.
 
 All acceptance criteria are met: marker-based steps receive the harness context
-at runtime, the legacy spelling behaves identically, both spellings produce
-identical generated code, every misuse produces a targeted diagnostic naming
-the conflict, the GPUI example compiles and passes with the marker, and the
-public constant remains available with its original value. Gates were green at
-each milestone commit.
+at runtime, both legacy spellings behave identically, the marker spelling and
+both legacy spellings produce identical generated code, every misuse produces a
+targeted diagnostic naming the conflict, the GPUI example compiles and passes
+with the marker, and the public constant remains available with its original
+value. Gates were green at each milestone commit.
 
 ## Context and orientation
 
@@ -546,7 +545,7 @@ that matter here:
 
 ### The parameter classification pipeline
 
-This is the code you will modify. Everything lives under
+The code to modify lives entirely under
 `crates/rstest-bdd-macros/src/codegen/wrapper/args/`.
 
 The entry point is `extract_args` in `extract.rs` (line 157). For each
@@ -577,15 +576,15 @@ today is: the user's identifier lands in `Arg::Fixture::name`, and `stringify!`
 turns it back into the string the runtime looks up. Nothing in the macro crate
 knows that this particular string is special.
 
-Two shared helpers you will reuse:
+Two shared helpers are reused:
 
 - `extract_flag_attribute(arg, attr_name)` in `classify/mod.rs` (line 107).
   Strips every attribute whose path is `attr_name` from a parameter, returning
   whether one was present, and erroring on the argued form (`#[foo(1)]`) or a
   duplicate. Already used by `#[datatable]` and `#[step_args]`.
-- `Arg::Fixture { pat, name, ty }` in `args/mod.rs` (lines 27-48). The variant
-  you will construct, with `name` set to a synthesized
-  `rstest_bdd_harness_context` identifier.
+- `Arg::Fixture { pat, name, ty }` in `args/mod.rs` (lines 27-48). Construct
+  this variant with `name` set to a synthesized `rstest_bdd_harness_context`
+  identifier.
 
 Existing precedent for rejecting attribute combinations:
 
@@ -685,9 +684,9 @@ Load these; they encode conventions this plan assumes.
 - `leta` — semantic code navigation. Use `leta show <symbol>` instead of
   reading files, and `leta refs <symbol>` instead of grepping for usages. Add
   the workspace first: `leta workspace add "$(pwd)"`.
-- `rust-router` — routes to the smallest useful Rust skill. From it you will
-  most likely want `rust-unit-testing` (fixtures, table tests, assertion
-  choice) and `rust-types-and-apis`.
+- `rust-router` — routes to the smallest useful Rust skill. The likely useful
+  choices are `rust-unit-testing` (fixtures, table tests, assertion choice) and
+  `rust-types-and-apis`.
 - `proptest` — for the property test in Milestone 3.
 - `addressing-whitaker-findings` — the Whitaker Dylint suite runs in
   `make lint`; this skill is the remediation playbook.
@@ -1033,7 +1032,8 @@ with an explicit message and record the deviation in
 Validation (red): the focused run must fail, and the failure must be the
 assertion, not a compile error.
 
-```sh
+```bash
+set -o pipefail
 cargo test -p rstest-bdd-macros harness_context 2>&1 \
   | tee /tmp/red-rstest-bdd-11-2-1.out
 ```
@@ -1113,7 +1113,8 @@ comfortably, but check with `wc -l` before committing.
 
 Validation (green): the Milestone 3 tests pass.
 
-```sh
+```bash
+set -o pipefail
 cargo test -p rstest-bdd-macros harness_context 2>&1 \
   | tee /tmp/green-rstest-bdd-11-2-1.out
 ```
@@ -1138,14 +1139,15 @@ Register each `UiFixtureCase::from(…)` in `run_failing_ui_tests`.
 Also add a passing fixture to `run_passing_macro_tests` under
 `crates/rstest-bdd/tests/fixtures_macros/`, exercising a full harness-backed
 scenario in which one step uses `#[harness_context]` and another uses
-`#[from(rstest_bdd_harness_context)]`, proving the two coexist in a single
-suite.
+`#[from(rstest_bdd_harness_context)]`, proving those two spellings coexist in a
+single suite.
 
 Generate the `.stderr` snapshots with `TRYBUILD=overwrite` on the toolchain
 pinned in `rust-toolchain.toml`, then read each one. A snapshot that mentions
 `cannot find attribute` is a bug in Milestone 4, not an acceptable snapshot.
 
-```sh
+```bash
+set -o pipefail
 TRYBUILD=overwrite cargo test -p rstest-bdd --test trybuild_macros 2>&1 \
   | tee /tmp/trybuild-rstest-bdd-11-2-1.out
 git diff --stat crates/rstest-bdd/tests/ui_macros/
@@ -1169,16 +1171,20 @@ snapshotting the `Debug` rendering of `ExtractedArgs` instead, and record the
 substitution in `Surprises & discoveries`.
 
 While here, strengthen the equivalence evidence one level below the snapshot:
-render `generate_wrapper_code` for both spellings and compare the two token
-streams as strings with `pretty_assertions::assert_eq!`. Milestone 3 case 2
-already pins equality at the `ExtractedArgs` level, which is where the
-classifier's contract lives; this pins it at the emitted-code level, which is
-what users actually compile. Both are cheap, and the `pretty_assertions` diff
+render `generate_wrapper_code` for the marker spelling and each legacy
+spelling, then compare the marker's token stream separately with the stream from
+`#[from(rstest_bdd_harness_context)]` and with the stream from the
+parameter-named spelling. Milestone 3 case 2 already pins equality at the
+`ExtractedArgs` level for the marker and `#[from(...)]` spellings, which is
+where the classifier's contract lives; the parameter-named spelling is covered
+there by its resolved fixture name because its identifier span differs. This
+pins all three spellings at the emitted-code level, which is what users
+actually compile. The comparisons are cheap, and the `pretty_assertions` diff
 makes a divergence readable rather than a wall of tokens. If the
-`WrapperConfig` fallback above was taken, skip this comparison too and say so.
+`WrapperConfig` fallback above was taken, skip these comparisons too and say so.
 
-The snapshot is a format-drift tripwire, not the contract. The two equality
-assertions are the contract.
+The snapshot is a format-drift tripwire, not the contract. The classifier-level
+and emitted-code equality assertions are the contract.
 
 **Behavioural scenario.** This is the end-to-end evidence that the marker works
 at runtime, not merely at expansion time. Add to
@@ -1222,7 +1228,8 @@ The `examples/tokio-reminders` crate already dev-depends on
 
 Validation:
 
-```sh
+```bash
+set -o pipefail
 cargo test -p tokio-reminders 2>&1 | tee /tmp/bdd-rstest-bdd-11-2-1.out
 ```
 
@@ -1247,7 +1254,8 @@ requirement.
 
 Validation:
 
-```sh
+```bash
+set -o pipefail
 cargo test -p gpui-counter 2>&1 | tee /tmp/gpui-rstest-bdd-11-2-1.out
 ```
 
@@ -1339,8 +1347,7 @@ bounded report.
 
 ## Concrete steps
 
-Run everything from the repository root:
-`/home/leynos/.lody/repos/github---leynos---rstest-bdd/worktrees/fe0e6f5b-25f6-4f0e-bc3b-475f6d2b1e3f`.
+Run everything from the repository root: `$(git rev-parse --show-toplevel)`.
 
 Set up navigation once per session:
 
@@ -1352,7 +1359,8 @@ git branch --show-current   # expect: 11-2-1-annotate-parameters-with-harness-co
 The gate commands, in the order they must be run. Tee every one; this
 environment truncates long output.
 
-```sh
+```bash
+set -o pipefail
 make check-fmt 2>&1 | tee "/tmp/check-fmt-rstest-bdd-$(git branch --show-current).out"
 make lint      2>&1 | tee "/tmp/lint-rstest-bdd-$(git branch --show-current).out"
 make test      2>&1 | tee "/tmp/test-rstest-bdd-$(git branch --show-current).out"
@@ -1360,7 +1368,8 @@ make test      2>&1 | tee "/tmp/test-rstest-bdd-$(git branch --show-current).out
 
 For documentation changes:
 
-```sh
+```bash
+set -o pipefail
 make fmt          2>&1 | tee "/tmp/fmt-rstest-bdd-$(git branch --show-current).out"
 make markdownlint 2>&1 | tee "/tmp/mdlint-rstest-bdd-$(git branch --show-current).out"
 make nixie        2>&1 | tee "/tmp/nixie-rstest-bdd-$(git branch --show-current).out"
@@ -1389,7 +1398,8 @@ Clippy rather than the Dylint suite. In a test helper, use
 
 Focused loops during Milestones 3 and 4:
 
-```sh
+```bash
+set -o pipefail
 cargo test -p rstest-bdd-macros harness_context 2>&1 \
   | tee "/tmp/focus-rstest-bdd-$(git branch --show-current).out"
 ```
@@ -1466,11 +1476,14 @@ Phrased as behaviour a human can verify.
    `fn s(#[from(rstest_bdd_harness_context)] ctx: &TokioTestContext)` still
    compiles and behaves identically. Verified by the pre-existing tests under
    `crates/rstest-bdd-harness-tokio/tests/`, unmodified and still passing.
-3. Both spellings produce identical generated code. Verified at two levels: a
-   `pretty_assertions::assert_eq!` over the `ExtractedArgs` each spelling
-   produces, in
-   `crates/rstest-bdd-macros/src/codegen/wrapper/args/classify/harness_context/tests.rs`,
-   and a second over the rendered wrapper token streams (Milestone 6).
+3. The marker spelling produces identical generated code to each legacy
+   spelling: `#[from(rstest_bdd_harness_context)]` and the parameter-named
+   `rstest_bdd_harness_context` form. At the `ExtractedArgs` level, a
+   `pretty_assertions::assert_eq!` compares the marker and `#[from(...)]`
+   forms, while a resolved-name assertion covers the parameter-named form
+   because its identifier span differs. At the emitted-code level, two
+   `pretty_assertions::assert_eq!` assertions compare the marker output with
+   each legacy output (Milestone 6).
 4. `#[harness_context]` combined with `#[from]`, `#[datatable]`, or
    `#[step_args]`, or applied to a placeholder-bound parameter, or given
    arguments, or duplicated, produces a targeted diagnostic naming the
@@ -1527,9 +1540,23 @@ required beyond removing `/tmp` logs, which is optional.
 
 ## Artefacts and notes
 
-Record here, as work proceeds: the red-stage failure transcript, the
-green-stage pass, the `trybuild` snapshot diff, and the passing behavioural
-scenario output. Keep each to a few lines.
+The completed validation evidence is recorded below and in the committed
+artefacts:
+
+- **Red stage:** Progress, Milestone 3 (commit `2f583ed`), records 12 focused
+  assertion failures and one passing identifier-invariant test; the run did not
+  fail to compile.
+- **Green stage:** Progress, Milestone 4 (commit `0d719e9`), records 13/13
+  focused tests passing for each target and the full gates passing with 1,724
+  tests passed and seven skipped.
+- **`trybuild` snapshots:** the six `.stderr` files under
+  `crates/rstest-bdd/tests/ui_macros/`, recorded in Progress, Milestone 5
+  (commit `29e70fe`), contain targeted diagnostics and no
+  `cannot find attribute` message.
+- **Behavioural scenario:** the feature and step sources under
+  `examples/tokio-reminders/tests/` are recorded in Progress, Milestone 6
+  (commit `a19e993`); `cargo test -p tokio-reminders` passed five unit, three
+  scenario, and eight doctests.
 
 ## Interfaces and dependencies
 
@@ -1606,15 +1633,25 @@ Explicit non-goals, deferred with rationale:
   means teaching the `#[scenario]` attribute about a step-function marker,
   which widens the blast radius past this plan's tolerances. Raise it as a
   follow-up task.
-- Migrating the prose and code samples in
-  `docs/v0-6-0-migration-guide.md`. That document describes migrating *to*
-  v0.6.0 and should keep showing the spelling that release shipped.
+- Rewriting all historical prose and code samples in
+  `docs/v0-6-0-migration-guide.md`. A short harness-context migration entry is
+  in scope for this beta line; historical samples should continue showing the
+  spelling shipped in v0.6.0.
 - Converting the existing `assert!(matches!(…))` assertions in
   `classify/tests.rs` to matchers. Worth doing once the Milestone 2 convention
   is established, but it is unrelated churn inside a file with 16 lines of
   head-room. Propose it as a follow-up.
 
 ## Revision notes
+
+**2026-09-01 — review repair.**
+
+Marker-placeholder validation now normalizes a leading underscore before
+checking the placeholder set, with parameterized regression coverage for both
+`count` and `_count`. The plan's documented 26-character count, equivalence
+wording, pipe-failure propagation, repository-root instruction, and validation
+evidence were corrected. Its migration scope now includes a limited v0.6.1
+entry in `docs/v0-6-0-migration-guide.md` while preserving historical samples.
 
 **2026-08-31 — rebased onto `origin/main` at `d05f12b7`.**
 

@@ -154,9 +154,14 @@ fn rejects_conflicting_annotations(
     verify_that!(result, err(displays_as(contains_substring(expected))))
 }
 
-#[test]
-fn rejects_the_marker_on_a_placeholder_bound_parameter() {
-    let result = classify_step("fn s(#[harness_context] count: &Ctx) {}", &["count"]);
+#[rstest]
+#[case("count")]
+#[case("_count")]
+fn rejects_the_marker_on_a_placeholder_bound_parameter(#[case] parameter: &str) {
+    let result = classify_step(
+        &format!("fn s(#[harness_context] {parameter}: &Ctx) {{}}"),
+        &["count"],
+    );
 
     let Err(err) = result else {
         panic!("a placeholder-bound marker parameter must be rejected");
