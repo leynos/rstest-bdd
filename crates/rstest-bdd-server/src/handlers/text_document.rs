@@ -9,26 +9,40 @@ use metrics::{counter, describe_counter};
 use tracing::{debug, warn};
 
 use super::{
-    diagnostics::{
-        FeatureDiagnosticPublication,
-        clear_rust_index_diagnostics,
-        publish_all_feature_diagnostics,
-        publish_feature_diagnostics,
-        publish_rust_index_result_diagnostics,
+    diagnostics::{,
+    FeatureDiagnosticPublication,
+    clear_rust_index_diagnostics,
+    publish_all_feature_diagnostics,
+    publish_feature_diagnostics,
+    publish_rust_index_result_diagnostics,
     },
     util::has_extension,
     workspace_metrics::{record_deferred_save_depth, record_workspace_outcome},
 };
 use crate::{
-    indexing::{
-        FeatureIndexError,
-        RustStepIndexError,
-        index_feature_source,
-        index_rust_file,
-        index_rust_source,
+    indexing::{,
+    FeatureIndexError,
+    RustStepIndexError,
+    index_feature_source,
+    index_rust_source_with_bindings,
+    index_rust_file_with_bindings,
+    RustSourceIndexResult,
     },
     lsp::DidSaveTextDocumentParams,
     server::ServerState,
+};
+
+use lsp_types::DidSaveTextDocumentParams;
+
+//! Text document notification handlers.
+//!
+//! Phase 7 focuses on building language-server foundations. This module
+//! provides the on-save indexing pipeline for `.feature` files and Rust step
+//! definition sources. Indexing results are stored in the shared server state.
+//! After indexing, diagnostics are computed and published via the LSP protocol.
+    diagnostics::{
+};
+    indexing::{
 };
 
 /// Metric name for indexing outcomes.
@@ -168,9 +182,14 @@ pub(super) fn apply_feature_index_result(
 
 /// Index a saved Rust file and publish its resulting diagnostics.
 fn handle_rust_file_save(state: &mut ServerState, path: &std::path::Path, text: Option<&str>) {
-    let index_result = index_saved_source(path, text, index_rust_file, index_rust_source);
+    let index_result = index_saved_source(
+        path,
+        text,
+        index_rust_file_with_bindings,
+        index_rust_source_with_bindings,
+    );
 
-    apply_rust_index_result(
+    apply_rust_source_index_result(
         state,
         path,
         index_result,
@@ -178,6 +197,19 @@ fn handle_rust_file_save(state: &mut ServerState, path: &std::path::Path, text: 
     );
 }
 
+/// Apply internal scenario bindings before the existing Rust step-index result.
+pub(super) fn apply_rust_source_index_result(
+    state: &mut ServerState,
+    path: &std::path::Path,
+    index_result: Result<RustSourceIndexResult, RustStepIndexError>,
+    diagnostic_publication: FeatureDiagnosticPublication,
+) {
+    let step_result = index_result.map(|result| {
+        state.upsert_rust_scenario_bindings(path, result.scenario_bindings);
+        result.steps
+    });
+    apply_rust_index_result(state, path, step_result, diagnostic_publication);
+}
 /// Apply a Rust indexing result and publish its diagnostics.
 pub(super) fn apply_rust_index_result(
     state: &mut ServerState,

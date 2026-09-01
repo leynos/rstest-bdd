@@ -31,9 +31,11 @@ use crate::{
 };
 
 mod deferred_saves;
+mod scenario_scopes;
 mod workspace_task;
 
 use deferred_saves::{DeferredDocumentSaves, DeferredSaveDropReason};
+use scenario_scopes::ScenarioScopeRegistry;
 use workspace_task::WorkspaceTask;
 
 /// Central state shared across all LSP handlers.
@@ -71,6 +73,8 @@ pub struct ServerState {
     rust_step_indices: HashMap<std::path::PathBuf, RustStepFileIndex>,
     /// Compiled step patterns keyed by keyword, built from Rust step indices.
     step_registry: StepDefinitionRegistry,
+    /// Closed step-library scopes selected by Rust scenario bindings.
+    scenario_scopes: ScenarioScopeRegistry,
     /// Client socket for sending notifications (e.g., diagnostics).
     client: Option<ClientSocket>,
 }
@@ -103,6 +107,7 @@ impl std::fmt::Debug for ServerState {
             .field("feature_indices", &self.feature_indices)
             .field("rust_step_indices", &self.rust_step_indices)
             .field("step_registry", &self.step_registry)
+            .field("scenario_scopes", &self.scenario_scopes)
             .field("client", &self.client.as_ref().map(|_| "<ClientSocket>"))
             .finish()
     }
@@ -136,6 +141,7 @@ impl ServerState {
             feature_indices: HashMap::new(),
             rust_step_indices: HashMap::new(),
             step_registry: StepDefinitionRegistry::default(),
+            scenario_scopes: ScenarioScopeRegistry::default(),
             client: None,
         }
     }

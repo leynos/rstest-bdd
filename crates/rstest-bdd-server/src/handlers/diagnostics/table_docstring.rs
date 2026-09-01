@@ -70,7 +70,7 @@ fn check_table_docstring_mismatches(
     let mut diagnostics = Vec::new();
 
     // Find the best matching implementation
-    let matching_impl = find_best_matching_implementation(state, step);
+    let matching_impl = find_best_matching_implementation(state, feature_index, step);
     let Some(impl_def) = matching_impl else {
         // No implementation found - handled by unimplemented step diagnostic
         return diagnostics;
@@ -183,12 +183,12 @@ impl FeatureStepDiagnosticKind {
 /// diagnostics are consistent with actual execution.
 fn find_best_matching_implementation(
     state: &ServerState,
+    feature_index: &FeatureFileIndex,
     step: &IndexedStep,
 ) -> Option<Arc<CompiledStepDefinition>> {
     state
-        .step_registry()
-        .steps_for_keyword(step.step_type)
-        .iter()
+        .steps_for_feature_keyword(&feature_index.path, step.step_type)
+        .into_iter()
         .filter(|compiled| compiled.regex.is_match(&step.text))
         .max_by(|a, b| {
             // Use SpecificityScore for consistent ordering with runtime resolution.
