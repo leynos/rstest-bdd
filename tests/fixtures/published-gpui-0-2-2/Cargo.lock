@@ -1409,6 +1409,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "derive_more"
+version = "2.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d751e9e49156b02b44f9c1815bcb94b984cdcc4396ecc32521c739452808b134"
+dependencies = [
+ "derive_more-impl",
+]
+
+[[package]]
+name = "derive_more-impl"
+version = "2.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "799a97264921d8623a957f6c3b9011f3b5492f557bbb7a5a19b7fa6d06ba8dcb"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "rustc_version",
+ "syn 2.0.119",
+]
+
+[[package]]
 name = "digest"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2324,7 +2345,7 @@ dependencies = [
  "core-video",
  "cosmic-text",
  "ctor 0.4.3",
- "derive_more",
+ "derive_more 0.99.20",
  "embed-resource",
  "etagere",
  "filedescriptor",
@@ -2435,7 +2456,7 @@ dependencies = [
  "async-compression",
  "async-fs",
  "bytes",
- "derive_more",
+ "derive_more 0.99.20",
  "futures",
  "gpui_util",
  "http",
@@ -2635,9 +2656,9 @@ checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
 name = "hermit-abi"
-version = "0.5.2"
+version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc0fef456e4baa96da950455cd02c081ca953b141298e41db3fc7e36b1da849c"
+checksum = "e17592d60ebacc7d5e169f4663c5f84f9161cc90328abcfe8456f41e4dfcb284"
 
 [[package]]
 name = "hex"
@@ -3354,9 +3375,9 @@ dependencies = [
 
 [[package]]
 name = "lyon_algorithms"
-version = "1.0.20"
+version = "1.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8575c0d003ae459399623c4def180c63b77f343b1a7fee64f249b349e7699a31"
+checksum = "cdfa8785f95e57914ddb35e3b59994aeba6f5e79e9cfd03da1c269f010f36009"
 dependencies = [
  "lyon_path",
  "num-traits",
@@ -3385,9 +3406,9 @@ dependencies = [
 
 [[package]]
 name = "lyon_tessellation"
-version = "1.0.20"
+version = "1.0.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e43b7e44161571868f5c931d12583592c223c5583eef86b08aa02b7048a3552"
+checksum = "dabea159dc6eea9171a541b458134b70ca95e3162d068132b2b3b9bc01aad06e"
 dependencies = [
  "float_next_after",
  "lyon_path",
@@ -4802,7 +4823,7 @@ name = "rstest-bdd"
 version = "0.6.0-beta4"
 dependencies = [
  "ctor 0.2.9",
- "derive_more",
+ "derive_more 2.1.1",
  "fluent",
  "gherkin",
  "hashbrown 0.17.1",
@@ -6480,9 +6501,9 @@ dependencies = [
 
 [[package]]
 name = "value-bag"
-version = "1.14.0"
+version = "1.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11d4788a546b899f8656382fe210e0c478fe3d2dcd6263d50cb6cc268240de6c"
+checksum = "068e763e8279de7ab94b6afebded2cb701678af094feb1c12ccb061b4783c1be"
 dependencies = [
  "value-bag-serde1",
  "value-bag-sval2",
