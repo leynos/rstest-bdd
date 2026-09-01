@@ -1,0 +1,56 @@
+name: Refresh derived fixture lockfiles
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+    paths:
+      - Cargo.toml
+      - crates/**/Cargo.toml
+      - tests/fixtures/published-gpui-0-2-2/Cargo.toml
+      - tests/fixtures/published-gpui-e2e/Cargo.toml
+
+permissions:
+  contents: write
+
+jobs:
+  refresh-lockfiles:
+    if: ${{ github.actor == 'dependabot[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Dependabot pull request head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: true
+
+      - name: Setup Rust
+        uses: leynos/shared-actions/.github/actions/setup-rust@794e4801babcf68065c660fdf4781ad62be5d061
+
+      - name: Refresh published GPUI fixture lockfiles
+        run: |
+          make update-published-gpui-0-2-2-lock
+          make update-published-gpui-e2e-lock
+
+      - name: Configure Git author
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+      - name: Commit refreshed lockfiles
+        id: commit
+        run: |
+          if git diff --quiet -- \
+            tests/fixtures/published-gpui-0-2-2/Cargo.lock \
+            tests/fixtures/published-gpui-e2e/Cargo.lock; then
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git add -- \
+            tests/fixtures/published-gpui-0-2-2/Cargo.lock \
+            tests/fixtures/published-gpui-e2e/Cargo.lock
+          git commit -m 'chore(deps): refresh published GPUI fixture lockfiles'
+          echo 'changed=true' >> "$GITHUB_OUTPUT"
+
+      - name: Push refreshed lockfiles
+        if: ${{ steps.commit.outputs.changed == 'true' }}
+        run: git push origin HEAD:${{ github.event.pull_request.head.ref }}
