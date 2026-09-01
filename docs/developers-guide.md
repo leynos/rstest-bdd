@@ -4,6 +4,21 @@ For engineers and contributors working on the rstest-bdd codebase.  This guide
 covers workspace tooling, test infrastructure, macro internals, and the
 patterns used across crates — it is not a user-facing tutorial.
 
+
+## GitHub Actions runner profiles
+
+The delayed pull-request comment job uses the shared uncached
+`namespace-profile-default` runner (Ubuntu 22.04, amd64, 4 vCPU, and 16 GB).
+Its cache volume is disabled, so the initial adoption slice introduces no new
+cache ownership or cache-write policy.
+
+The main build-and-coverage matrix remains on GitHub-hosted Linux and Windows
+runners. Its Linux legs combine workspace compilation, broad coverage, and
+tooling setup; migrate them only after an equivalent 8-vCPU shared Linux
+profile is available and measured. Windows remains GitHub-hosted because this
+pilot has no shared Windows Namespace profile. Externally owned reusable
+workflows retain their own runner selection.
+
 ## Workspace dependency policy
 
 Keep workspace-local development and crates.io publication on the same manifest

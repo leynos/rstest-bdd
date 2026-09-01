@@ -14,7 +14,7 @@ on:
 
 jobs:
   delay_and_comment:
-    runs-on: ubuntu-latest
+    runs-on: namespace-profile-default
     permissions:
       pull-requests: write   # needed to post comments
     steps:
