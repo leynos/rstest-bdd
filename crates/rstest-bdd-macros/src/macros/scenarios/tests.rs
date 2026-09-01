@@ -99,11 +99,13 @@ fn expand_scenarios_generates_module_for_valid_features() -> Result<(), String> 
         &LitStr::new("the system works", Span::call_site()),
     );
     let tokens = expand_scenarios_tokens(scenarios_args(temp.path())).to_string();
+    let expected_feature_path = LitStr::new(&feature_path.display().to_string(), Span::call_site());
+    let expected_feature_path_tokens = quote!(#expected_feature_path).to_string();
 
     assert!(tokens.contains("mod "), "{tokens}");
     assert!(tokens.contains("_scenarios"), "{tokens}");
     assert!(tokens.contains("StepScope :: global ()"));
-    assert!(tokens.contains(feature_path.to_string_lossy().as_ref()));
+    assert!(tokens.contains(&expected_feature_path_tokens), "{tokens}");
     assert!(!tokens.contains("compile_error"));
     #[cfg(feature = "compile-time-validation")]
     clear_registered_steps_for_tests();
