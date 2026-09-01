@@ -30,26 +30,34 @@ impl ScenarioScopeRegistry {
 
     /// Return the union of closed scopes that bind one feature file.
     fn libraries_for_feature(&self, feature_path: &Path) -> Option<Vec<String>> {
-        let mut seen = HashSet::new();
-        let mut libraries = Vec::new();
-        let mut has_binding = false;
-
-        for (rust_path, bindings) in &self.bindings_by_file {
-            for binding in bindings {
-                if !binding_matches_feature(rust_path, &binding.target, feature_path) {
-                    continue;
-                }
-                has_binding = true;
-                for library in &binding.libraries {
-                    if seen.insert(library.as_str()) {
-                        libraries.push(library.clone());
-                    }
-                }
-            }
-        }
-
-        has_binding.then_some(libraries)
+        let mut bindings = self.matching_bindings(feature_path).peekable();
+        bindings.peek()?;
+        Some(unique_libraries(bindings))
     }
+
+    /// Iterate over bindings whose target contains one feature file.
+    fn matching_bindings<'a>(
+        &'a self,
+        feature_path: &'a Path,
+    ) -> impl Iterator<Item = &'a IndexedScenarioBinding> {
+        self.bindings_by_file
+            .iter()
+            .flat_map(move |(rust_path, bindings)| {
+                bindings.iter().filter(move |binding| {
+                    binding_matches_feature(rust_path, &binding.target, feature_path)
+                })
+            })
+    }
+}
+
+/// Preserve declaration order while deduplicating libraries across bindings.
+fn unique_libraries<'a>(bindings: impl Iterator<Item = &'a IndexedScenarioBinding>) -> Vec<String> {
+    let mut seen = HashSet::new();
+    bindings
+        .flat_map(|binding| &binding.libraries)
+        .filter(|library| seen.insert(library.as_str()))
+        .cloned()
+        .collect()
 }
 
 impl ServerState {
