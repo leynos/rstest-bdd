@@ -482,7 +482,7 @@ marker, the unchanged wire format, and the shared-key relocation.
 
 One deliberate deviation from the plan's draft: the Tokio example's delivery
 step uses a new synchronous `ReminderService::deliver_all` instead of
-`.await`-based dispatch, because the harness step wrapper polls each async step
+`.await`-based dispatch because the harness step wrapper polls each async step
 future at most once and rejects `Pending` when a harness-provided runtime is
 active. That constraint was recorded in `Surprises & discoveries`, and the step
 proves marker reachability synchronously by comparing the marker-provided
@@ -548,17 +548,22 @@ that matter here:
 The code to modify lives entirely under
 `crates/rstest-bdd-macros/src/codegen/wrapper/args/`.
 
-The entry point is `extract_args` in `extract.rs` (line 157). For each
+The entry point is `extract_args` in `extract.rs` (line 165). For each
 parameter of a step function, in order, it:
 
-1. Calls `extract_step_struct_attribute` (line 165). If the parameter carries
+1. Calls `extract_step_struct_attribute` (line 173). If the parameter carries
    `#[step_args]`, `classify_step_struct` claims it and the loop moves on.
-2. Computes `is_placeholder` — whether the parameter's name matches an unbound
-   Gherkin placeholder (line 170).
-3. **If and only if `is_placeholder` is false**, calls
-   `classify_special_argument` (line 171), which tries `classify_datatable` then
+2. Calls `classify_harness_context` (line 185). If the parameter carries
+   `#[harness_context]`, this `pub(crate)` classifier takes `st`, `arg`, and
+   `placeholders`, claims the parameter, and the loop moves on. This precedes
+   placeholder detection so marker precedence is preserved.
+3. Computes `is_placeholder` — whether the parameter's name matches an unbound
+   Gherkin placeholder (line 189).
+4. **If and only if `is_placeholder` is false**, calls
+   `classify_special_argument` (line 190), which tries `classify_datatable` then
    `classify_docstring`.
-4. Otherwise falls through to `classify_fixture_or_step` (line 176), the
+5. Otherwise calls `classify_step_or_fixture` (line 195), which constructs the
+   classification context and calls `classify_fixture_or_step` (line 130), the
    terminal classifier. This one consumes any `#[from(...)]` attribute, then
    either claims a matching placeholder (producing `Arg::Step`) or records a
    fixture injection (producing `Arg::Fixture { pat, name, ty }`).
@@ -1048,11 +1053,9 @@ with a module-level `//!` comment, as `AGENTS.md` requires. It should expose
 one function:
 
 ```rust
-pub(super) fn classify_harness_context(
+pub(crate) fn classify_harness_context(
     st: &mut ExtractedArgs,
     arg: &mut syn::PatType,
-    pat: &syn::Ident,
-    ty: &syn::Type,
     placeholders: &HashSet<String>,
 ) -> syn::Result<bool>;
 ```
@@ -1092,10 +1095,10 @@ Behaviour, in order:
 5. Return `Ok(true)`.
 
 Wire it into `extract_args` in `extract.rs`, **before** the `is_placeholder`
-computation at line 170:
+computation at line 189:
 
 ```rust
-if classify_harness_context(&mut state, arg, &pat, &ty, placeholders)? {
+if classify_harness_context(&mut state, arg, placeholders)? {
     continue 'args;
 }
 ```
@@ -1579,11 +1582,9 @@ In
 `crates/rstest-bdd-macros/src/codegen/wrapper/args/classify/harness_context/mod.rs`:
 
 ```rust
-pub(super) fn classify_harness_context(
+pub(crate) fn classify_harness_context(
     st: &mut ExtractedArgs,
     arg: &mut syn::PatType,
-    pat: &syn::Ident,
-    ty: &syn::Type,
     placeholders: &std::collections::HashSet<String>,
 ) -> syn::Result<bool>;
 ```
