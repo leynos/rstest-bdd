@@ -107,16 +107,22 @@ class TestExtractMatrixRows:
 
     def test_reports_missing_heading(self) -> None:
         """A missing anchor heading is an explicit error."""
-        with pytest.raises(ValueError, match="heading not found"):
+        with pytest.raises(ValueError, match="heading not found") as error:
             extract_matrix_rows(document("Different heading"), MATRIX_HEADING)
+        assert str(error.value) == f"heading not found: {MATRIX_HEADING}", (
+            "a missing anchor should report its complete heading"
+        )
 
     def test_reports_missing_table(self) -> None:
         """A section without the runner matrix should be rejected."""
-        with pytest.raises(ValueError, match="runner matrix not found"):
+        with pytest.raises(ValueError, match="runner matrix not found") as error:
             extract_matrix_rows(
                 "# Top\n\n## Test-runner parallelism and scenario state\n",
                 MATRIX_HEADING,
             )
+        assert str(error.value) == (
+            f"runner matrix not found under heading: {MATRIX_HEADING}"
+        ), "a missing table should report its complete heading"
 
     def test_reports_missing_separator(self) -> None:
         """A runner table without a separator row should be rejected."""
@@ -125,10 +131,13 @@ class TestExtractMatrixRows:
             "| `cargo test` | In-process mutex; required | "
             "Not provided by `#[serial]` |\n"
         )
-        with pytest.raises(ValueError, match="has no separator row"):
+        with pytest.raises(ValueError, match="has no separator row") as error:
             extract_matrix_rows(
                 document(MATRIX_HEADING, malformed_table), MATRIX_HEADING
             )
+        assert str(error.value) == (
+            f"runner matrix under {MATRIX_HEADING!r} has no separator row"
+        ), "a missing separator should report its complete quoted heading"
 
 
 class TestCheckMatrixTables:

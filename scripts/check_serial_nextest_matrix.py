@@ -34,38 +34,9 @@ class SerialNextestMatrixError(ValueError):
     """A `#[serial]`/nextest runner matrix is missing or malformed."""
 
     @staticmethod
-    def heading_not_found_message(heading: str) -> str:
-        """
-        Return the message for a missing anchor heading.
-
-        Parameters
-        ----------
-        heading : str
-            The heading that could not be found.
-
-        Returns
-        -------
-        str
-            The generated missing-heading error message.
-        """
-        return f"heading not found: {heading}"
-
-    @staticmethod
-    def separator_not_found_message(heading: str) -> str:
-        """
-        Return the message for a table without its separator row.
-
-        Parameters
-        ----------
-        heading : str
-            The heading under which the separator row is missing.
-
-        Returns
-        -------
-        str
-            The generated missing-separator error message.
-        """
-        return f"runner matrix under {heading!r} has no separator row"
+    def _for_heading(template: str, heading: str) -> str:
+        """Format a runner-matrix error message with its heading."""
+        return template.format(heading=heading)
 
     @staticmethod
     def wrong_row_count_message(heading: str, actual: int) -> str:
@@ -88,23 +59,6 @@ class SerialNextestMatrixError(ValueError):
             f"runner matrix under {heading!r} has {actual} data rows; "
             f"expected {EXPECTED_DATA_ROWS}"
         )
-
-    @staticmethod
-    def table_not_found_message(heading: str) -> str:
-        """
-        Return the message for a missing runner matrix.
-
-        Parameters
-        ----------
-        heading : str
-            The heading under which the runner matrix is missing.
-
-        Returns
-        -------
-        str
-            The generated missing-matrix error message.
-        """
-        return f"runner matrix not found under heading: {heading}"
 
     @staticmethod
     def document_unreadable_message(relative_path: Path, error: OSError) -> str:
@@ -225,7 +179,9 @@ def _parse_table_at(section: list[str], header_index: int, heading: str) -> list
     if separator_index >= len(section) or not _is_separator_row(
         section[separator_index]
     ):
-        message = SerialNextestMatrixError.separator_not_found_message(heading)
+        message = SerialNextestMatrixError._for_heading(
+            "runner matrix under {heading!r} has no separator row", heading
+        )
         raise SerialNextestMatrixError(message)
     rows = _collect_table_rows(section, separator_index + 1)
     if len(rows) != EXPECTED_DATA_ROWS:
@@ -258,14 +214,18 @@ def extract_matrix_rows(markdown: str, heading: str) -> list[str]:
     """
     section = find_section_after_heading(markdown, heading)
     if section is None:
-        message = SerialNextestMatrixError.heading_not_found_message(heading)
+        message = SerialNextestMatrixError._for_heading(
+            "heading not found: {heading}", heading
+        )
         raise SerialNextestMatrixError(message)
 
     for index, line in enumerate(section):
         if _is_runner_header(line):
             return _parse_table_at(section, index, heading)
 
-    message = SerialNextestMatrixError.table_not_found_message(heading)
+    message = SerialNextestMatrixError._for_heading(
+        "runner matrix not found under heading: {heading}", heading
+    )
     raise SerialNextestMatrixError(message)
 
 
