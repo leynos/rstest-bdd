@@ -22,8 +22,6 @@ Exit codes
     A table is missing, malformed, or the two table bodies differ.
 """
 
-from __future__ import annotations
-
 import re
 import sys
 from pathlib import Path
@@ -41,40 +39,97 @@ EXPECTED_DATA_ROWS = 4
 class MappingTableError(ValueError):
     """A GPUI mapping table is missing or malformed."""
 
-    @classmethod
-    def heading_not_found(cls, heading: str) -> MappingTableError:
-        """Build an error for a missing anchor heading."""
-        message = f"heading not found: {heading}"
-        return cls(message)
+    @staticmethod
+    def heading_not_found_message(heading: str) -> str:
+        """
+        Return the message for a missing anchor heading.
 
-    @classmethod
-    def separator_not_found(cls, heading: str) -> MappingTableError:
-        """Build an error for a table without its separator row."""
-        message = f"mapping table under {heading!r} has no separator row"
-        return cls(message)
+        Parameters
+        ----------
+        heading : str
+            The heading that could not be found.
 
-    @classmethod
-    def wrong_row_count(cls, heading: str, actual: int) -> MappingTableError:
-        """Build an error for a table with the wrong number of data rows."""
-        message = (
+        Returns
+        -------
+        str
+            The generated missing-heading error message.
+        """
+        return f"heading not found: {heading}"
+
+    @staticmethod
+    def separator_not_found_message(heading: str) -> str:
+        """
+        Return the message for a table without its separator row.
+
+        Parameters
+        ----------
+        heading : str
+            The heading under which the separator row is missing.
+
+        Returns
+        -------
+        str
+            The generated missing-separator error message.
+        """
+        return f"mapping table under {heading!r} has no separator row"
+
+    @staticmethod
+    def wrong_row_count_message(heading: str, actual: int) -> str:
+        """
+        Return the message for an unexpected number of data rows.
+
+        Parameters
+        ----------
+        heading : str
+            The heading under which the row count is incorrect.
+        actual : int
+            The number of data rows that were found.
+
+        Returns
+        -------
+        str
+            The generated wrong-row-count error message.
+        """
+        return (
             f"mapping table under {heading!r} has {actual} data rows; "
             f"expected {EXPECTED_DATA_ROWS}"
         )
-        return cls(message)
 
-    @classmethod
-    def table_not_found(cls, heading: str) -> MappingTableError:
-        """Build an error for a missing mapping table."""
-        message = f"mapping table not found under heading: {heading}"
-        return cls(message)
+    @staticmethod
+    def table_not_found_message(heading: str) -> str:
+        """
+        Return the message for a missing mapping table.
 
-    @classmethod
-    def document_unreadable(
-        cls, relative_path: Path, error: OSError
-    ) -> MappingTableError:
-        """Build an error for a document that could not be read."""
-        message = f"could not read {relative_path}: {error}"
-        return cls(message)
+        Parameters
+        ----------
+        heading : str
+            The heading under which the mapping table is missing.
+
+        Returns
+        -------
+        str
+            The generated missing-table error message.
+        """
+        return f"mapping table not found under heading: {heading}"
+
+    @staticmethod
+    def document_unreadable_message(relative_path: Path, error: OSError) -> str:
+        """
+        Return the message for a document that could not be read.
+
+        Parameters
+        ----------
+        relative_path : Path
+            The path of the unreadable document.
+        error : OSError
+            The operating-system error raised while reading the document.
+
+        Returns
+        -------
+        str
+            The generated unreadable-document error message.
+        """
+        return f"could not read {relative_path}: {error}"
 
 
 def normalize_table_row(row: str) -> str:
@@ -154,10 +209,12 @@ def _parse_table_at(section: list[str], header_index: int, heading: str) -> list
     if separator_index >= len(section) or not section[separator_index].startswith(
         TABLE_SEPARATOR
     ):
-        raise MappingTableError.separator_not_found(heading)
+        message = MappingTableError.separator_not_found_message(heading)
+        raise MappingTableError(message)
     rows = _collect_table_rows(section, separator_index + 1)
     if len(rows) != EXPECTED_DATA_ROWS:
-        raise MappingTableError.wrong_row_count(heading, len(rows))
+        message = MappingTableError.wrong_row_count_message(heading, len(rows))
+        raise MappingTableError(message)
     return rows
 
 
@@ -179,19 +236,21 @@ def extract_mapping_rows(markdown: str, heading: str) -> list[str]:
 
     Raises
     ------
-    ValueError
-        If the section or table cannot be found, or if the table has the wrong
-        number of data rows.
+    MappingTableError
+        The requested heading or mapping table is absent, the mapping table
+        separator is missing, or the table has the wrong number of data rows.
     """
     section = find_section_after_heading(markdown, heading)
     if section is None:
-        raise MappingTableError.heading_not_found(heading)
+        message = MappingTableError.heading_not_found_message(heading)
+        raise MappingTableError(message)
 
     for index, line in enumerate(section):
         if line.startswith(TABLE_HEADER):
             return _parse_table_at(section, index, heading)
 
-    raise MappingTableError.table_not_found(heading)
+    message = MappingTableError.table_not_found_message(heading)
+    raise MappingTableError(message)
 
 
 def read_mapping_rows(root: Path, relative_path: Path, heading: str) -> list[str]:
@@ -211,12 +270,19 @@ def read_mapping_rows(root: Path, relative_path: Path, heading: str) -> list[str
     -------
     list[str]
         Normalized data rows.
+
+    Raises
+    ------
+    MappingTableError
+        The document cannot be read, or its mapping-table heading, table,
+        separator, or data-row count is invalid.
     """
     path = root / relative_path
     try:
         markdown = path.read_text(encoding="utf-8")
     except OSError as err:
-        raise MappingTableError.document_unreadable(relative_path, err) from err
+        message = MappingTableError.document_unreadable_message(relative_path, err)
+        raise MappingTableError(message) from err
     return extract_mapping_rows(markdown, heading)
 
 

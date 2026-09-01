@@ -42,13 +42,7 @@ impl StepKeyword {
 
     /// Return the keyword as a string slice.
     #[must_use]
-    #[cfg_attr(
-        not(feature = "compile-time-validation"),
-        expect(
-            dead_code,
-            reason = "used by validation module behind compile-time-validation feature"
-        )
-    )]
+    #[cfg(feature = "compile-time-validation")]
     pub(crate) fn as_str(self) -> &'static str { self.0.as_str() }
 
     /// Resolve conjunctions to the semantic keyword of the previous step.

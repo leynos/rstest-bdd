@@ -104,16 +104,11 @@ fn handle_shutdown_returns_ok(mut create_test_state: ServerState) {
 }
 
 #[rstest]
-#[case::from_workspace_folders(true, None)]
-#[case::from_root_uri(false, Some("root_uri"))]
-#[expect(
-    clippy::used_underscore_binding,
-    reason = "rstest uses this parameter; name matches review instructions"
-)]
+#[case::from_workspace_folders(true)]
+#[case::from_root_uri(false)]
 fn extract_workspace_path_from_various_sources(
     platform_test_path: PathBuf,
     #[case] use_folders: bool,
-    #[case] _description: Option<&str>,
 ) {
     let url = Url::from_file_path(&platform_test_path).expect("valid path");
 

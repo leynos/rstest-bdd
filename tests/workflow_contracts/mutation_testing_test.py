@@ -14,8 +14,6 @@ pull request rather than surfacing in a scheduled or manual run.
 Run via ``make test-workflow-contracts``.
 """
 
-from __future__ import annotations
-
 import re
 from pathlib import Path
 
@@ -23,7 +21,10 @@ import pytest
 import yaml
 
 WORKFLOW_PATH = (
-    Path(__file__).resolve().parents[2] / ".github" / "workflows" / "mutation-testing.yml"
+    Path(__file__)
+    .resolve()
+    .parents[2]
+    .joinpath(".github", "workflows", "mutation-testing.yml")
 )
 
 #: The reusable workflow path must be pinned to a full 40-hex commit SHA
@@ -101,8 +102,8 @@ def test_uses_reference_is_pinned_to_a_commit_sha(
     a specific commit.
     """
     uses = mutation_job.get("uses")
-    assert uses is not None, "jobs.mutation.uses is missing"
-    assert USES_RE.match(uses), (
+    assert isinstance(uses, str), "jobs.mutation.uses must be a string"
+    assert USES_RE.fullmatch(uses), (
         f"jobs.mutation.uses must reference mutation-cargo.yml pinned to a "
         f"full 40-character lowercase-hex commit SHA, not a branch or tag: "
         f"{uses!r}"
@@ -156,8 +157,14 @@ def test_triggers_keep_schedule_and_plain_dispatch(
         f"on.schedule must be the daily 03:35 UTC cron, got {schedule!r}"
     )
     assert "workflow_dispatch" in triggers, "on.workflow_dispatch is missing"
-    dispatch = triggers.get("workflow_dispatch") or {}
-    inputs = dispatch.get("inputs") or {}
+    dispatch = triggers.get("workflow_dispatch")
+    if dispatch is None:
+        dispatch = {}
+    assert isinstance(dispatch, dict), "on.workflow_dispatch must be a mapping"
+    inputs = dispatch.get("inputs")
+    if inputs is None:
+        inputs = {}
+    assert isinstance(inputs, dict), "on.workflow_dispatch.inputs must be a mapping"
     assert "branch" not in inputs, (
         "on.workflow_dispatch must not declare a branch input; the Actions "
         "run-workflow control selects the ref"

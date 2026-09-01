@@ -120,13 +120,7 @@ proptest! {
         ops in proptest::collection::vec(op_strategy(), 1..40),
     ) {
         let cells: Vec<_> = (0..FIXTURE_NAMES.len())
-            .map(|index| {
-                #[expect(
-                    clippy::cast_possible_truncation,
-                    reason = "fixture pool has three entries"
-                )]
-                StepContext::owned_cell(index as u32)
-            })
+            .map(|index| StepContext::owned_cell(u32::try_from(index).unwrap_or(u32::MAX)))
             .collect();
         let mut ctx = StepContext::default();
         for (name, cell) in FIXTURE_NAMES.iter().zip(&cells) {

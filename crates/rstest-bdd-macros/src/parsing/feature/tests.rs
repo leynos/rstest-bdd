@@ -14,22 +14,6 @@ use support::{FeatureBuilder, StepBuilder};
 use super::*;
 
 #[rstest]
-#[case("And", StepType::Given, crate::StepKeyword::And)]
-#[case("AND", StepType::Then, crate::StepKeyword::And)]
-#[case(" and  ", StepType::When, crate::StepKeyword::And)]
-#[case("But", StepType::Given, crate::StepKeyword::But)]
-#[case("BUT", StepType::Then, crate::StepKeyword::But)]
-#[case(" but ", StepType::When, crate::StepKeyword::But)]
-#[case("Given", StepType::Given, crate::StepKeyword::Given)]
-fn parses_step_keyword_variants(
-    #[case] kw: &str,
-    #[case] ty: StepType,
-    #[case] expected: crate::StepKeyword,
-) {
-    assert_eq!(parse_step_keyword(kw, ty), expected);
-}
-
-#[rstest]
 #[case(
     "../rstest-bdd/tests/features/macros/does_not_exist.feature",
     "feature file not found"

@@ -1,9 +1,9 @@
 """Test exact phrase-policy enforcement."""
 
 import importlib
-from pathlib import Path
 import subprocess
 import types
+from pathlib import Path
 
 import pytest
 
@@ -83,9 +83,9 @@ class TestPhrasePolicyChecker:
             {
                 "README.md": (
                     f"{PROHIBITED}\n{TITLE_PROHIBITED} prose\n"
-                    + "pre-hand"
-                    + "-written\n"
-                    + f"`{PROHIBITED}`\n"
+                    "pre-hand"
+                    "-written\n"
+                    f"`{PROHIBITED}`\n"
                 ),
                 "skip.md": f"{PROHIBITED}\n",
                 **policy_files(),

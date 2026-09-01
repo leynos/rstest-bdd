@@ -1,7 +1,5 @@
 """Unit tests for the GPUI mapping-table drift checker."""
 
-from __future__ import annotations
-
 import typing as typ
 
 import pytest
@@ -17,7 +15,6 @@ from check_gpui_mapping_table import (
 
 if typ.TYPE_CHECKING:
     from pathlib import Path
-
 
 TABLE = "\n".join([
     (
@@ -74,7 +71,9 @@ class TestNormalizeTableRow:
     def test_collapses_whitespace_runs(self) -> None:
         """Spacing-only table alignment changes should disappear."""
         row = "> | a |  b   c |"
-        assert normalize_table_row(row) == "> | a | b c |"
+        assert normalize_table_row(row) == "> | a | b c |", (
+            "whitespace runs should collapse"
+        )
 
 
 class TestExtractMappingRows:
@@ -83,14 +82,16 @@ class TestExtractMappingRows:
     def test_extracts_four_data_rows_from_anchored_section(self) -> None:
         """The table anchored below the requested heading should be read."""
         rows = extract_mapping_rows(document(DESIGN_HEADING), DESIGN_HEADING)
-        assert len(rows) == 4
-        assert rows[1].startswith("> | obtain window handle |")
+        assert len(rows) == 4, "the mapping table should have four data rows"
+        assert rows[1].startswith("> | obtain window handle |"), (
+            "row two should describe window handles"
+        )
 
     def test_accepts_numbered_heading_prefix(self) -> None:
         """Design headings may include section numbers before the anchor text."""
         markdown = document(f"2.7.6.2 {DESIGN_HEADING}")
         rows = extract_mapping_rows(markdown, DESIGN_HEADING)
-        assert len(rows) == 4
+        assert len(rows) == 4, "a numbered heading should preserve all data rows"
 
     def test_reports_missing_heading(self) -> None:
         """A missing anchor heading is an explicit error."""
@@ -111,7 +112,9 @@ class TestCheckMappingTables:
     def test_passes_for_identical_data_rows(self, tmp_path: Path) -> None:
         """Identical mapping-table rows should pass."""
         write_repo_docs(tmp_path)
-        assert not check_mapping_tables(tmp_path)
+        assert not check_mapping_tables(tmp_path), (
+            "identical mapping tables should pass"
+        )
 
     def test_reports_content_mutation(self, tmp_path: Path) -> None:
         """A changed data cell should produce a row-specific violation."""
@@ -120,9 +123,13 @@ class TestCheckMappingTables:
 
         violations = check_mapping_tables(tmp_path)
 
-        assert violations[0] == "GPUI mapping table data rows differ:"
-        assert "row 2:" in violations
-        assert any(str(USERS_GUIDE) in violation for violation in violations)
+        assert violations[0] == "GPUI mapping table data rows differ:", (
+            "drift needs a summary"
+        )
+        assert "row 2:" in violations, "the changed row should be identified"
+        assert any(str(USERS_GUIDE) in violation for violation in violations), (
+            "the users-guide source should be identified"
+        )
 
     def test_ignores_whitespace_only_mutation(self, tmp_path: Path) -> None:
         """Extra table alignment whitespace must not count as drift."""
@@ -132,7 +139,9 @@ class TestCheckMappingTables:
         )
         write_repo_docs(tmp_path, users_table=mutated)
 
-        assert not check_mapping_tables(tmp_path)
+        assert not check_mapping_tables(tmp_path), (
+            "whitespace-only changes should not drift"
+        )
 
     def test_reports_missing_table_anchor(self, tmp_path: Path) -> None:
         """A missing heading should fail rather than silently skipping a table."""
@@ -143,5 +152,7 @@ class TestCheckMappingTables:
 
         violations = check_mapping_tables(tmp_path)
 
-        assert len(violations) == 1
-        assert "heading not found" in violations[0]
+        assert len(violations) == 1, "a missing anchor should produce one violation"
+        assert "heading not found" in violations[0], (
+            "the violation should name the missing heading"
+        )

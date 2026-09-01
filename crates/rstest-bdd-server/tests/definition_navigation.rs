@@ -53,7 +53,7 @@ fn index_file(state: &mut ServerState, path: &std::path::Path) {
 struct DefinitionTestScenario {
     dir: TempDir,
     feature_files: Vec<(String, String)>,
-    rust_file_content: String,
+    rust_file_content: &'static str,
     state: ServerState,
 }
 
@@ -74,7 +74,7 @@ impl DefinitionTestScenario {
         Self {
             dir,
             feature_files: Vec::new(),
-            rust_file_content: String::new(),
+            rust_file_content: "",
             state,
         }
     }
@@ -87,12 +87,8 @@ impl DefinitionTestScenario {
     }
 
     /// Sets the Rust step definitions file content.
-    #[expect(
-        clippy::assigning_clones,
-        reason = "no allocation to reuse; direct assignment is clearer"
-    )]
-    fn with_rust_steps(mut self, content: &str) -> Self {
-        self.rust_file_content = content.to_owned();
+    fn with_rust_steps(mut self, content: &'static str) -> Self {
+        self.rust_file_content = content;
         self
     }
 
@@ -108,7 +104,7 @@ impl DefinitionTestScenario {
         }
 
         // Create and index Rust file
-        let rust_path = write_workspace_file(&self.dir, "steps.rs", &self.rust_file_content);
+        let rust_path = write_workspace_file(&self.dir, "steps.rs", self.rust_file_content);
         index_file(&mut self.state, &rust_path);
 
         (self.dir, rust_path, self.state)

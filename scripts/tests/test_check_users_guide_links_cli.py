@@ -5,8 +5,6 @@ exercising the ``--root`` option and exit codes rather than the helper
 functions (which have their own unit tests).
 """
 
-from __future__ import annotations
-
 import typing as typ
 
 import pytest

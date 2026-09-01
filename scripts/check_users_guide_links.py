@@ -35,8 +35,6 @@ Exit codes
     Violations found, or the guide itself could not be read.
 """
 
-from __future__ import annotations
-
 import argparse
 import re
 import sys

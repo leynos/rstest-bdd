@@ -1,10 +1,8 @@
 """Integration coverage for the Whitaker lint gate."""
 
-from __future__ import annotations
-
 import os
 import shutil
-import subprocess  # noqa: S404 - integration test invokes trusted local tooling.
+import subprocess  # ruff: ignore[suspicious-subprocess-import] - integration test invokes trusted local tooling.
 from pathlib import Path
 
 import pytest
@@ -64,7 +62,7 @@ def run_lint_whitaker(manifest_path: Path) -> subprocess.CompletedProcess[str]:
     env.pop("WHITAKER", None)
     make = make_executable()
     # The executable and arguments are controlled by this test and the repo.
-    return subprocess.run(  # noqa: S603
+    return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - test controls executable and arguments.
         [
             make,
             "--no-print-directory",

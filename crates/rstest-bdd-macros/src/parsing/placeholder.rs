@@ -113,7 +113,6 @@ fn extract_placeholder_names(text: &str) -> Vec<String> {
 }
 
 #[cfg(test)]
-#[expect(clippy::unwrap_used, reason = "tests use unwrap for brevity")]
 mod tests {
     //! Unit tests for parsing placeholder syntax.
 
@@ -158,7 +157,9 @@ mod tests {
         #[case] row: Vec<String>,
         #[case] expected: &str,
     ) {
-        let result = substitute_placeholders(text, &headers, &row).unwrap();
+        let Ok(result) = substitute_placeholders(text, &headers, &row) else {
+            panic!("placeholder substitution should succeed");
+        };
         assert_eq!(result, expected);
     }
 
@@ -168,10 +169,9 @@ mod tests {
         let headers = vec!["count".to_owned()];
         let row = vec!["5".to_owned()];
 
-        let result = substitute_placeholders(text, &headers, &row);
-        assert!(result.is_err());
-
-        let err = result.unwrap_err();
+        let Err(err) = substitute_placeholders(text, &headers, &row) else {
+            panic!("undefined placeholder should fail substitution");
+        };
         assert_eq!(err.placeholder, "undefined");
         assert_eq!(err.available_columns, vec!["count".to_owned()]);
     }
@@ -182,7 +182,9 @@ mod tests {
         let headers = vec!["user_name".to_owned(), "item_count".to_owned()];
         let row = vec!["Alice".to_owned(), "42".to_owned()];
 
-        let result = substitute_placeholders(text, &headers, &row).unwrap();
+        let Ok(result) = substitute_placeholders(text, &headers, &row) else {
+            panic!("placeholder substitution should succeed");
+        };
         assert_eq!(result, "The Alice has 42 items");
     }
 
@@ -192,7 +194,9 @@ mod tests {
         let headers = vec!["start count".to_owned(), "item-id".to_owned()];
         let row = vec!["3".to_owned(), "apples".to_owned()];
 
-        let result = substitute_placeholders(text, &headers, &row).unwrap();
+        let Ok(result) = substitute_placeholders(text, &headers, &row) else {
+            panic!("placeholder substitution should succeed");
+        };
         assert_eq!(result, "The 3 includes apples");
     }
 

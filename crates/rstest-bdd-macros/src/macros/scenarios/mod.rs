@@ -76,22 +76,16 @@ struct FeatureProcessingContext<'a> {
 }
 
 /// Provides the internal `resolve_manifest_directory` operation.
-#[expect(
-    clippy::single_match_else,
-    clippy::option_if_let_else,
-    reason = "explicit match clarifies control flow"
-)]
 fn resolve_manifest_directory() -> Result<PathBuf, TokenStream> {
-    match std::env::var("CARGO_MANIFEST_DIR") {
-        Ok(v) => Ok(PathBuf::from(v)),
-        Err(_) => {
+    std::env::var("CARGO_MANIFEST_DIR")
+        .map(PathBuf::from)
+        .map_err(|_| {
             let err = syn::Error::new(
                 Span::call_site(),
                 "CARGO_MANIFEST_DIR is not set. This macro must run within Cargo.",
             );
-            Err(error_to_tokens(&err).into())
-        }
-    }
+            error_to_tokens(&err).into()
+        })
 }
 
 /// Provides the internal `process_scenarios` operation.

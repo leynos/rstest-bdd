@@ -1,7 +1,5 @@
 """Integration coverage for the opt-in dev-fast Makefile targets."""
 
-from __future__ import annotations
-
 import dataclasses as dc
 import ntpath
 import os
@@ -9,7 +7,7 @@ import re
 import shlex
 import shutil
 import stat
-import subprocess  # noqa: S404 - integration test invokes the trusted local Makefile.
+import subprocess  # ruff: ignore[suspicious-subprocess-import] - integration test invokes the trusted local Makefile.
 import tomllib
 import typing as typ
 from pathlib import Path
@@ -38,7 +36,7 @@ DEV_FAST_CONFIG = make_variable("DEV_FAST_CONFIG")
 DEV_FAST_CONFIG_FILE = REPO_ROOT / DEV_FAST_CONFIG
 
 
-@dc.dataclass(frozen=True)
+@dc.dataclass(frozen=True, slots=True)
 class DevFastInvocation:
     """The fake Cargo call and its Makefile execution result."""
 
@@ -49,7 +47,7 @@ class DevFastInvocation:
     real_cargo: str | None
 
 
-@dc.dataclass(frozen=True)
+@dc.dataclass(frozen=True, slots=True)
 class RecipeShellEnvironment:
     """The Make executable and shell that evaluate a target recipe."""
 
@@ -68,7 +66,7 @@ def make_executable() -> str:
 def recipe_shell_environment() -> RecipeShellEnvironment:
     """Discover the shell that the selected Make uses for its recipes."""
     executable = make_executable()
-    result = subprocess.run(  # noqa: S603 - the local Make executable is trusted.
+    result = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - the local Make executable is trusted.
         [executable, "--no-print-directory", "-f", "-", "print-recipe-shell"],
         cwd=REPO_ROOT,
         input='print-recipe-shell:\n\t@printf "%s\\n" "$(SHELL)"\n',
@@ -100,7 +98,7 @@ def is_native_windows_path(path: str) -> bool:
 
 def cygpath_unix(path: str, cygpath: str) -> str:
     """Convert a Windows path to the active POSIX shell namespace."""
-    result = subprocess.run(  # noqa: S603 - cygpath comes from the active shell environment.
+    result = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - cygpath comes from the active shell environment.
         [cygpath, "--unix", path],
         text=True,
         capture_output=True,
@@ -179,7 +177,7 @@ def invoke_dev_fast_target(
     monkeypatch.setenv("PATH", f"{tmp_path}{os.pathsep}{original_path}")
     monkeypatch.setenv("CARGO", shell_safe_command_word(fake_cargo_reference))
     monkeypatch.setenv("FAKE_CARGO_INVOCATIONS", invocation_log_reference)
-    result = subprocess.run(  # noqa: S603 - target and command are controlled by this test.
+    result = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - target and command are controlled by this test.
         [environment.make_executable, "--no-print-directory", target],
         cwd=REPO_ROOT,
         env=os.environ.copy(),
@@ -210,17 +208,21 @@ def assert_cargo_invocation(
         for record in invocation.invocation_log.read_text(encoding="utf-8").splitlines()
         if record
     ]
-    assert len(records) == 1
+    assert len(records) == 1, f"expected one Cargo invocation, got {records!r}"
     executable, *arguments = records[0].split("\0")
-    assert executable == invocation.fake_cargo_reference
+    assert executable == invocation.fake_cargo_reference, (
+        f"expected fake Cargo {invocation.fake_cargo_reference!r}, got {executable!r}"
+    )
     if invocation.real_cargo is not None:
-        assert executable != invocation.real_cargo
+        assert executable != invocation.real_cargo, (
+            f"target unexpectedly invoked real Cargo {invocation.real_cargo!r}"
+        )
     assert arguments == [
         f"+{DEV_FAST_TOOLCHAIN}",
         "--config",
         DEV_FAST_CONFIG,
         expected_subcommand,
-    ]
+    ], f"unexpected Cargo arguments: {arguments!r}"
 
 
 def test_dev_build_uses_the_dev_fast_cargo_contract(
@@ -252,12 +254,16 @@ def test_dev_fast_configuration_enables_the_expected_backends() -> None:
     with DEV_FAST_CONFIG_FILE.open("rb") as config_file:
         config = tomllib.load(config_file)
 
-    assert config["unstable"]["codegen-backend"] is True
-    assert config["profile"]["dev"]["codegen-backend"] == "cranelift"
+    assert config["unstable"]["codegen-backend"] is True, (
+        "dev-fast config should enable unstable codegen backends"
+    )
+    assert config["profile"]["dev"]["codegen-backend"] == "cranelift", (
+        "dev-fast config should select Cranelift for the development profile"
+    )
     assert (
         "-Clink-arg=-fuse-ld=mold"
         in config["target"]['cfg(target_os = "linux")']["rustflags"]
-    )
+    ), "dev-fast Linux Rust flags should select the configured linker"
 
 
 def test_cargo_auto_configuration_excludes_the_dev_fast_fragment() -> None:
@@ -266,9 +272,15 @@ def test_cargo_auto_configuration_excludes_the_dev_fast_fragment() -> None:
         return
 
     cargo_config = CARGO_CONFIG_FILE.read_text(encoding="utf-8")
-    assert DEV_FAST_CONFIG not in cargo_config
-    assert "codegen-backend" not in cargo_config
-    assert "-fuse-ld=mold" not in cargo_config
+    assert DEV_FAST_CONFIG not in cargo_config, (
+        "Cargo's auto-discovered configuration must not load the dev-fast fragment"
+    )
+    assert "codegen-backend" not in cargo_config, (
+        "Cargo's auto-discovered configuration must not select a codegen backend"
+    )
+    assert "-fuse-ld=mold" not in cargo_config, (
+        "Cargo's auto-discovered configuration must not select the dev-fast linker"
+    )
 
 
 def test_shell_safe_executable_reference_preserves_a_posix_path() -> None:
@@ -282,7 +294,7 @@ def test_shell_safe_executable_reference_preserves_a_posix_path() -> None:
     assert (
         shell_safe_executable_reference("/example/fake-cargo", environment)
         == "/example/fake-cargo"
-    )
+    ), "a POSIX recipe shell should preserve an already-POSIX executable path"
 
 
 def test_shell_safe_executable_reference_uses_cygpath_for_mingw(
@@ -313,12 +325,12 @@ def test_shell_safe_executable_reference_uses_cygpath_for_mingw(
             environment,
         )
         == "/c/Users/runneradmin/cargo"
-    )
+    ), "a MinGW recipe shell should receive cygpath's POSIX executable path"
     assert observed_command == [
         r"C:\msys64\usr\bin\cygpath.exe",
         "--unix",
         r"C:\Users\runneradmin\cargo",
-    ]
+    ], "cygpath should receive the Windows executable path with the Unix flag"
 
 
 def test_shell_safe_executable_reference_uses_msys_fallback_without_cygpath() -> None:
@@ -335,4 +347,4 @@ def test_shell_safe_executable_reference_uses_msys_fallback_without_cygpath() ->
             environment,
         )
         == "/c/Users/runneradmin/cargo"
-    )
+    ), "a MinGW recipe shell should derive the MSYS executable path without cygpath"

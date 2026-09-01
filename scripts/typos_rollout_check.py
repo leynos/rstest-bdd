@@ -1,6 +1,6 @@
 #!/usr/bin/env -S uv run python
 # /// script
-# requires-python = ">=3.13"
+# requires-python = ">=3.14"
 # dependencies = ["pathspec==1.1.1"]
 # ///
 """Enforce exact phrase corrections alongside the Typos scanner.
@@ -13,17 +13,18 @@ Run it from the repository root with
 ``uv run scripts/typos_rollout_check.py --repository .``.
 """
 
-from __future__ import annotations
-
 import argparse
-from collections.abc import Iterator, Sequence
-from dataclasses import dataclass
-from pathlib import Path
+import dataclasses as dc
 import re
 import subprocess
 import tomllib
+import typing as typ
+from pathlib import Path
 
 from pathspec import GitIgnoreSpec
+
+if typ.TYPE_CHECKING:
+    import collections.abc as cabc
 
 POLICY_PATHS = frozenset(
     {
@@ -34,7 +35,7 @@ POLICY_PATHS = frozenset(
 )
 
 
-@dataclass(frozen=True)
+@dc.dataclass(frozen=True, slots=True)
 class PhraseFinding:
     """Describe one prohibited phrase in tracked text.
 
@@ -59,7 +60,7 @@ class PhraseFinding:
     correction: str
 
 
-@dataclass(frozen=True)
+@dc.dataclass(frozen=True, slots=True)
 class PhrasePolicy:
     """Hold the effective policy needed by the consumer phrase scanner.
 
@@ -188,7 +189,7 @@ def _phrase_findings(
     text: str,
     masked: str,
     phrase_corrections: tuple[tuple[str, str], ...],
-) -> Iterator[PhraseFinding]:
+) -> cabc.Iterator[PhraseFinding]:
     """Yield exact phrase findings from one masked tracked file."""
     for phrase, correction in phrase_corrections:
         for match in re.finditer(
@@ -233,7 +234,7 @@ def check_phrase_corrections(
             continue
         try:
             text = (repository / relative).read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
+        except OSError, UnicodeDecodeError:
             continue
         masked = _masked(text, policy.ignore_patterns)
         found.extend(
@@ -242,7 +243,7 @@ def check_phrase_corrections(
     return tuple(found)
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def main(argv: cabc.Sequence[str] | None = None) -> int:
     """Report prohibited phrases and return the spelling-gate status.
 
     Parameters

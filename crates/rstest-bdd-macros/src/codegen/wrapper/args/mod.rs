@@ -94,15 +94,11 @@ pub struct DataTableArg<'a> {
     pub ty: &'a syn::Type,
 }
 
-#[expect(
-    clippy::use_self,
-    reason = "enum variant paths remain explicit in match arms"
-)]
 impl Arg {
     /// Provides the internal `fn` operation.
     pub const fn as_fixture(&self) -> Option<FixtureArg<'_>> {
         match self {
-            Arg::Fixture { name, ty, .. } => Some(FixtureArg { name, ty }),
+            Self::Fixture { name, ty, .. } => Some(FixtureArg { name, ty }),
             _ => None,
         }
     }
@@ -110,7 +106,7 @@ impl Arg {
     /// Provides the internal `fn` operation.
     pub const fn as_step(&self) -> Option<StepArg<'_>> {
         match self {
-            Arg::Step { pat, ty } => Some(StepArg { pat, ty }),
+            Self::Step { pat, ty } => Some(StepArg { pat, ty }),
             _ => None,
         }
     }
@@ -118,7 +114,7 @@ impl Arg {
     /// Provides the internal `fn` operation.
     pub const fn as_step_struct(&self) -> Option<StepStructArg<'_>> {
         match self {
-            Arg::StepStruct { pat, ty } => Some(StepStructArg { pat, ty }),
+            Self::StepStruct { pat, ty } => Some(StepStructArg { pat, ty }),
             _ => None,
         }
     }
@@ -126,41 +122,37 @@ impl Arg {
     /// Provides the internal `fn` operation.
     pub const fn as_datatable(&self) -> Option<DataTableArg<'_>> {
         match self {
-            Arg::DataTable { ty, .. } => Some(DataTableArg { ty }),
+            Self::DataTable { ty, .. } => Some(DataTableArg { ty }),
             _ => None,
         }
     }
 }
 
-#[expect(
-    clippy::use_self,
-    reason = "enum variant paths remain explicit in formatter"
-)]
 impl fmt::Debug for Arg {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Arg::Fixture { pat, name, ty } => f
+            Self::Fixture { pat, name, ty } => f
                 .debug_struct("Fixture")
                 .field("pat", pat)
                 .field("name", name)
                 .field("ty", ty)
                 .finish(),
-            Arg::Step { pat, ty } => f
+            Self::Step { pat, ty } => f
                 .debug_struct("Step")
                 .field("pat", pat)
                 .field("ty", ty)
                 .finish(),
-            Arg::StepStruct { pat, ty } => f
+            Self::StepStruct { pat, ty } => f
                 .debug_struct("StepStruct")
                 .field("pat", pat)
                 .field("ty", ty)
                 .finish(),
-            Arg::DataTable { pat, ty } => f
+            Self::DataTable { pat, ty } => f
                 .debug_struct("DataTable")
                 .field("pat", pat)
                 .field("ty", ty)
                 .finish(),
-            Arg::DocString { pat } => f.debug_struct("DocString").field("pat", pat).finish(),
+            Self::DocString { pat } => f.debug_struct("DocString").field("pat", pat).finish(),
         }
     }
 }

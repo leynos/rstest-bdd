@@ -271,10 +271,6 @@ struct StepAttribute<'a> {
 /// Converts `syn`'s 1-based line numbers to 0-based for LSP compatibility.
 /// Byte column offsets from `syn` are converted to UTF-16 code units as required
 /// by the LSP specification.
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "line/column numbers from syn will not exceed u32::MAX in practice"
-)]
 fn extract_attribute_span(
     attr: &syn::Attribute,
     fn_sig: &syn::Signature,
@@ -284,15 +280,16 @@ fn extract_attribute_span(
     let span = attr.span();
     let start = span.start();
     let end = span.end();
-    let fn_line = fn_sig.fn_token.span().start().line.saturating_sub(1) as u32;
+    let fn_line =
+        u32::try_from(fn_sig.fn_token.span().start().line.saturating_sub(1)).unwrap_or(u32::MAX);
     let start_line_0 = start.line.saturating_sub(1);
     let end_line_0 = end.line.saturating_sub(1);
     let start_col_utf16 = byte_col_to_utf16_col(source, start_line_0, start.column);
     let end_col_utf16 = byte_col_to_utf16_col(source, end_line_0, end.column);
     RustAttributeSpan {
-        start_line: start_line_0 as u32,
+        start_line: u32::try_from(start_line_0).unwrap_or(u32::MAX),
         start_column: start_col_utf16,
-        end_line: end_line_0 as u32,
+        end_line: u32::try_from(end_line_0).unwrap_or(u32::MAX),
         end_column: end_col_utf16,
         function_line: fn_line,
     }
