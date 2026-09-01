@@ -8,7 +8,12 @@ const INTERNAL_LIBRARY_ATTRIBUTE: &str = "rstest_bdd_internal_step_library";
 
 /// Declare a module as a step library and publish its selection marker.
 pub(crate) fn step_library(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    let mut module = syn::parse_macro_input!(item as syn::ItemMod);
+    let module = syn::parse_macro_input!(item as syn::ItemMod);
+    expand_step_library(module).into()
+}
+
+/// Expand a parsed step-library module.
+fn expand_step_library(mut module: syn::ItemMod) -> proc_macro2::TokenStream {
     let library_path = take_library_path(&mut module).unwrap_or_else(|| module.ident.to_string());
     if let Some((_, items)) = &mut module.content {
         annotate_step_items(items, &library_path);
@@ -20,13 +25,14 @@ pub(crate) fn step_library(_attr: TokenStream, item: TokenStream) -> TokenStream
     let module_tokens = module.content.as_ref().map_or_else(
         || quote! { #module },
         |(_, items)| {
-            let outer_attributes = module
+            let (outer_attributes, inner_attributes): (Vec<_>, Vec<_>) = module
                 .attrs
                 .iter()
-                .filter(|attribute| matches!(attribute.style, syn::AttrStyle::Outer));
+                .partition(|attribute| matches!(attribute.style, syn::AttrStyle::Outer));
             quote! {
                 #(#outer_attributes)*
                 #visibility mod #ident {
+                    #(#inner_attributes)*
                     //! Named step-library vocabulary.
 
                     #(#items)*
@@ -49,7 +55,6 @@ pub(crate) fn step_library(_attr: TokenStream, item: TokenStream) -> TokenStream
             }
         }
     }
-    .into()
 }
 
 /// Extract an inherited nearest-library path from a module attribute.
@@ -120,4 +125,50 @@ fn annotate_item(attributes: &mut Vec<syn::Attribute>, library_path: &str) {
     }
     let path = syn::LitStr::new(library_path, proc_macro2::Span::call_site());
     attributes.push(syn::parse_quote!(#[rstest_bdd_internal_step_library = #path]));
+}
+
+#[cfg(test)]
+mod tests {
+    //! Regression tests for step-library module reconstruction.
+
+    use super::*;
+
+    #[test]
+    fn inline_expansion_preserves_outer_and_inner_attributes() {
+        let item = quote! {
+            #[cfg(feature = "outer")]
+            mod accounts {
+                #![cfg(any(unix, windows))]
+                #![allow(dead_code)]
+                //! User-written library documentation.
+
+                fn helper() {}
+            }
+        };
+
+        let module = syn::parse2::<syn::ItemMod>(item).expect("input step library");
+        let expanded = expand_step_library(module);
+        let file = syn::parse2::<syn::File>(expanded).expect("expanded step library");
+        let module = file
+            .items
+            .iter()
+            .find_map(|item| match item {
+                syn::Item::Mod(module) if module.ident == "accounts" => Some(module),
+                _ => None,
+            })
+            .expect("reconstructed accounts module");
+
+        assert!(module.attrs.iter().any(|attribute| {
+            matches!(attribute.style, syn::AttrStyle::Outer) && attribute.path().is_ident("cfg")
+        }));
+        assert_eq!(
+            module
+                .attrs
+                .iter()
+                .filter(|attribute| matches!(attribute.style, syn::AttrStyle::Inner(_)))
+                .count(),
+            4,
+            "cfg, allow, user documentation, and generated documentation must remain inner"
+        );
+    }
 }
