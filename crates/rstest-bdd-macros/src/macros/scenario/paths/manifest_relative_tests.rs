@@ -8,7 +8,9 @@ use std::path::Path;
 
 use serial_test::serial;
 
-use super::{manifest_relative_feature_path, render_feature_path};
+use super::manifest_relative_feature_path;
+#[cfg(not(windows))]
+use super::render_feature_path;
 
 // POSIX `/...` paths are rooted but not absolute on Windows, so use the host's
 // native absolute syntax to exercise the absolute-path branch.
