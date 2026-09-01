@@ -1,11 +1,10 @@
 //! Milestone 7's build-script addition experiment (`ExecPlan` 10.3.3).
 //!
 //! Closes the file-*addition* gap that per-file tracking cannot see: the
-//! `feature_addition` fixture binds a directory with `scenarios!` and has
-//! **no** committed `build.rs`. This experiment writes the `build.rs`
-//! extracted from the *tested living documentation* example in
-//! `docs/users-guide.md` (marker `scenarios-build-script`), adds a
-//! `build = "build.rs"` key to the fixture's manifest, runs `cargo test`
+//! `feature_addition` fixture binds a directory with `scenarios!`, declares
+//! but does **not** commit its `build.rs`. This experiment writes the
+//! `build.rs` extracted from the *tested living documentation* example in
+//! `docs/users-guide.md` (marker `scenarios-build-script`), runs `cargo test`
 //! (the baseline scenario must run), adds a brand-new `.feature` file to the
 //! bound directory, and re-runs `cargo test` — the new scenario appearing in
 //! the output proves the recipe works, so a recipe that stops working fails
@@ -60,9 +59,16 @@ fn run_addition_experiment() -> AdditionOutcome {
             second_run_recompiled: false,
         };
     }
-    add_build_key_to_manifest();
-
     let env = process::build_child_env();
+    if let Err(err) = preflight_manifest_lockfile_consistency(&env) {
+        return AdditionOutcome {
+            baseline_error: Some(err),
+            baseline_output: String::new(),
+            new_scenario_ran: false,
+            second_run_output: String::new(),
+            second_run_recompiled: false,
+        };
+    }
     let outcome = run_cargo(&env, &["test", "--locked", "--offline"]);
     let (baseline_error, baseline_output) = match outcome {
         Ok(captured) => (None, captured.stdout),
@@ -139,22 +145,20 @@ fn write_build_script_from_docs() -> Result<(), String> {
         .map_err(|err| format!("cannot write {}: {err}", build_rs.display()))
 }
 
-/// Add `build = "build.rs"` to the fixture's `[package]` table when absent.
-fn add_build_key_to_manifest() {
-    let manifest_path = fixtures::scratch_addition_dir().join("Cargo.toml");
-    let text = match std::fs::read_to_string(&manifest_path) {
-        Ok(text) => text,
-        Err(err) => panic!("cannot read addition manifest: {err}"),
-    };
-    if text.contains("build = \"build.rs\"") {
-        return;
-    }
-    let Some((before_deps, after_deps)) = text.split_once("[dependencies]") else {
-        panic!("addition manifest has no [dependencies] table");
-    };
-    let rewritten = format!("{before_deps}build = \"build.rs\"\n\n[dependencies]{after_deps}");
-    if let Err(err) = std::fs::write(&manifest_path, rewritten) {
-        panic!("cannot write addition manifest: {err}");
+/// Verify that the copied manifest and lockfile are consistent before its
+/// behavioural commands obscure lockfile drift behind missing test output.
+fn preflight_manifest_lockfile_consistency(env: &process::ChildEnv) -> Result<(), String> {
+    let captured = run_cargo(
+        env,
+        &["metadata", "--locked", "--offline", "--format-version", "1"],
+    )?;
+    if captured.status {
+        Ok(())
+    } else {
+        Err(format!(
+            "manifest-lockfile consistency preflight failed for the prepared addition fixture:\n{}",
+            captured.stdout
+        ))
     }
 }
 

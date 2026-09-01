@@ -2,6 +2,7 @@
 name = "rstest-bdd-feature-addition-fixture"
 version = "0.1.0"
 edition = "2024"
+build = "build.rs"
 
 # Dependencies are byte-identical to `crates/cargo-bdd/tests/fixtures/minimal`,
 # including `features = ["diagnostics", "test-support"]` on `rstest-bdd`, and

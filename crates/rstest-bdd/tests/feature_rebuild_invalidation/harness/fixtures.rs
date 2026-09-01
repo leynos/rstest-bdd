@@ -124,8 +124,8 @@ pub(crate) fn ensure_fixture_copied() {
 }
 
 /// The second fixture used by Milestone 7's build-script test: bound via
-/// `scenarios!` with **no** committed `build.rs` (the test writes it from the
-/// extracted documentation example). Own scratch tree of its own.
+/// `scenarios!` with a declared but **uncommitted** `build.rs` (the test writes
+/// it from the extracted documentation example). Own scratch tree of its own.
 pub(crate) fn ensure_addition_fixture_copied() {
     copy_fixture(
         &source_addition_dir(),
