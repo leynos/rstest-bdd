@@ -12,7 +12,11 @@ use tracing::{Instrument, debug, info_span, warn};
 
 use super::{
     diagnostics::{FeatureDiagnosticPublication, publish_all_feature_diagnostics},
-    text_document::{apply_feature_index_result, apply_rust_index_result, index_saved_document},
+    text_document::{
+        apply_feature_index_result,
+        apply_rust_source_index_result,
+        index_saved_document,
+    },
     util::has_extension,
     workspace_metrics::{record_deferred_save_depth, record_workspace_outcome},
 };
@@ -20,13 +24,13 @@ use crate::{
     indexing::{
         FeatureFileIndex,
         FeatureIndexError,
+        RustSourceIndexResult,
         RustStepIndexError,
-        RustStepIndexResult,
         WorkspaceRoot,
         index_feature_source,
         index_feature_source_owned,
-        index_rust_file,
-        index_rust_source,
+        index_rust_file_with_bindings,
+        index_rust_source_with_bindings,
     },
     server::ServerState,
 };
@@ -53,7 +57,7 @@ enum DeferredDocumentSaveIndex {
         /// Path of the indexed Rust file.
         path: PathBuf,
         /// Result of indexing the Rust file.
-        result: Result<RustStepIndexResult, RustStepIndexError>,
+        result: Result<RustSourceIndexResult, RustStepIndexError>,
     },
 }
 
@@ -132,7 +136,7 @@ pub fn handle_deferred_document_saves_indexed(
                 );
             }
             DeferredDocumentSaveIndex::Rust { path, result } => {
-                apply_rust_index_result(
+                apply_rust_source_index_result(
                     state,
                     &path,
                     result,
@@ -169,8 +173,8 @@ fn index_deferred_document_save(
         Some(DeferredDocumentSaveIndex::Feature { path, result })
     } else if has_extension(&path, "rs") {
         let result = params.text.map_or_else(
-            || index_rust_file(&path),
-            |source| index_rust_source(path.clone(), &source),
+            || index_rust_file_with_bindings(&path),
+            |source| index_rust_source_with_bindings(path.clone(), &source),
         );
         Some(DeferredDocumentSaveIndex::Rust { path, result })
     } else {

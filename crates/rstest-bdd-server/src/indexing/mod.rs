@@ -29,6 +29,11 @@ mod workspace;
 pub use feature::index_feature_source;
 pub(crate) use feature::index_feature_source_owned;
 pub use registry::{CompiledStepDefinition, StepDefinitionRegistry, StepPatternCompileError};
+pub(crate) use rust::{
+    RustSourceIndexResult,
+    index_rust_file_with_bindings,
+    index_rust_source_with_bindings,
+};
 pub use rust::{index_rust_file, index_rust_source};
 pub use workspace::WorkspaceRoot;
 
@@ -174,6 +179,24 @@ pub struct RustStepFileIndex {
     pub path: PathBuf,
     /// Step definitions collected from the file.
     pub step_definitions: Vec<IndexedStepDefinition>,
+}
+
+/// Feature-path selection made by a Rust scenario binding.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum ScenarioBindingTarget {
+    /// One feature file selected by `#[scenario]`.
+    Feature(PathBuf),
+    /// A feature directory selected by `scenarios!`.
+    Directory(PathBuf),
+}
+
+/// Closed step-library selection attached to a Rust scenario binding.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct IndexedScenarioBinding {
+    /// Feature file or directory selected by the binding.
+    pub target: ScenarioBindingTarget,
+    /// Exact selected libraries, or the built-in global library by default.
+    pub libraries: Vec<String>,
 }
 
 /// Rust step definitions and recoverable diagnostics from one source file.

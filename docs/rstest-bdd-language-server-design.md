@@ -337,6 +337,17 @@ diagnostics while borrowing that source text. The entry point creates it once,
 then consumes its output to construct `RustStepIndexResult`; handlers, caches,
 and other indexers must not reuse it outside that source-file boundary.
 
+The sibling `indexing/rust/scenario_bindings.rs` adapter indexes only the
+feature path and closed `libraries` selection from `#[scenario]` and
+`scenarios!`. `ScenarioScopeRegistry` owns those records after indexing and
+resolves relative paths against ancestors of the Rust source file. Feature
+navigation and diagnostics must obtain candidate definitions through
+`ServerState::steps_for_feature_keyword`; they must not call the unscoped
+keyword registry directly. Rust-to-feature lookups use
+`ServerState::feature_selects_library` for the inverse check. This boundary
+keeps syntax parsing in the Rust indexer, path resolution in server state, and
+pattern matching in handlers without exposing a second public registry API.
+
 Figure: Class diagram of the Rust step indexing data structures and how they
 are cached in the language server state.
 

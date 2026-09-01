@@ -23,10 +23,11 @@ use super::{
 use crate::{
     indexing::{
         FeatureIndexError,
+        RustSourceIndexResult,
         RustStepIndexError,
         index_feature_source,
-        index_rust_file,
-        index_rust_source,
+        index_rust_file_with_bindings,
+        index_rust_source_with_bindings,
     },
     server::ServerState,
 };
@@ -168,14 +169,33 @@ pub(super) fn apply_feature_index_result(
 
 /// Index a saved Rust file and publish its resulting diagnostics.
 fn handle_rust_file_save(state: &mut ServerState, path: &std::path::Path, text: Option<&str>) {
-    let index_result = index_saved_source(path, text, index_rust_file, index_rust_source);
+    let index_result = index_saved_source(
+        path,
+        text,
+        index_rust_file_with_bindings,
+        index_rust_source_with_bindings,
+    );
 
-    apply_rust_index_result(
+    apply_rust_source_index_result(
         state,
         path,
         index_result,
         FeatureDiagnosticPublication::Immediate,
     );
+}
+
+/// Apply internal scenario bindings before the existing Rust step-index result.
+pub(super) fn apply_rust_source_index_result(
+    state: &mut ServerState,
+    path: &std::path::Path,
+    index_result: Result<RustSourceIndexResult, RustStepIndexError>,
+    diagnostic_publication: FeatureDiagnosticPublication,
+) {
+    let step_result = index_result.map(|result| {
+        state.upsert_rust_scenario_bindings(path, result.scenario_bindings);
+        result.steps
+    });
+    apply_rust_index_result(state, path, step_result, diagnostic_publication);
 }
 
 /// Apply a Rust indexing result and publish its diagnostics.

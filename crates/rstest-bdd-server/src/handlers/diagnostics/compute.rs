@@ -30,17 +30,20 @@ pub fn compute_unimplemented_step_diagnostics(
     feature_index
         .steps
         .iter()
-        .filter(|step| !has_matching_implementation(state, step))
+        .filter(|step| !has_matching_implementation(state, feature_index, step))
         .map(|step| build_unimplemented_step_diagnostic(feature_index, step))
         .collect()
 }
 
 /// Check if a feature step has at least one matching Rust implementation.
-fn has_matching_implementation(state: &ServerState, step: &IndexedStep) -> bool {
+fn has_matching_implementation(
+    state: &ServerState,
+    feature_index: &FeatureFileIndex,
+    step: &IndexedStep,
+) -> bool {
     state
-        .step_registry()
-        .steps_for_keyword(step.step_type)
-        .iter()
+        .steps_for_feature_keyword(&feature_index.path, step.step_type)
+        .into_iter()
         .any(|compiled| compiled.regex.is_match(&step.text))
 }
 
@@ -149,6 +152,9 @@ pub fn compute_unused_step_diagnostics(state: &ServerState, rust_path: &Path) ->
 /// Check if a Rust step definition is matched by at least one feature step.
 fn has_matching_feature_step(state: &ServerState, step_def: &Arc<CompiledStepDefinition>) -> bool {
     state.all_feature_indices().any(|feature_index| {
+        if !state.feature_selects_library(&feature_index.path, &step_def.library) {
+            return false;
+        }
         feature_index
             .steps
             .iter()
