@@ -271,6 +271,15 @@ fn snapshot_target_root(target_root: &Utf8Path, workspace_root: &Utf8Path) -> St
     )
 }
 
+fn apply_snapshot_target_root(original: &str, rendered_target_root: &str) -> String {
+    if rendered_target_root.starts_with("$WORKSPACE/") {
+        return original.replace("$WORKSPACE/target", rendered_target_root);
+    }
+
+    let replacement = format!("{rendered_target_root}{}", std::path::MAIN_SEPARATOR);
+    original.replace("$WORKSPACE/target/", &replacement)
+}
+
 /// Stage temporary target-root-specific snapshots for a trybuild run.
 pub(super) fn stage_target_root_snapshots() -> io::Result<TargetRootSnapshotGuard> {
     let crate_root = Utf8PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -294,7 +303,7 @@ pub(super) fn stage_target_root_snapshots() -> io::Result<TargetRootSnapshotGuar
         originals,
     };
     for (path, original) in &guard.originals {
-        let adjusted = original.replace("$WORKSPACE/target", snapshot_target_root.as_str());
+        let adjusted = apply_snapshot_target_root(original, snapshot_target_root.as_str());
         crate_dir.write(path.as_std_path(), adjusted.as_bytes())?;
     }
     Ok(guard)

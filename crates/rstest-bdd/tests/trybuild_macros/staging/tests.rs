@@ -61,3 +61,15 @@ fn renders_snapshot_target_root(
         expected
     );
 }
+
+#[test]
+fn outside_snapshot_root_uses_native_boundary_separator() {
+    let original = "$WORKSPACE/target/tests/trybuild/rstest-bdd/tests/features/x.feature";
+    let target_root = r"C:\outside\target";
+    let expected = format!(
+        r"C:\outside\target{}tests/trybuild/rstest-bdd/tests/features/x.feature",
+        std::path::MAIN_SEPARATOR
+    );
+
+    assert_eq!(apply_snapshot_target_root(original, target_root), expected);
+}
