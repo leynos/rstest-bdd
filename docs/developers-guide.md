@@ -63,6 +63,13 @@ selection; callers must not add `runs-on`. The workflow contract suite protects
 that ownership boundary alongside the matrix assignments and prerequisite
 ordering.
 
+The Linux tools lanes also call the SHA-pinned shared `install-whitaker`
+action. That action owns installer caching, validates and normalizes the Cargo
+home, and invokes the installer by its absolute path. Keep this boundary rather
+than recreating the install script inline: it makes the tool location explicit
+across GitHub-hosted and Namespace runner images and preserves the shared
+failure metrics.
+
 ## Workspace dependency policy
 
 Keep workspace-local development and crates.io publication on the same manifest
@@ -1947,7 +1954,8 @@ scoped mechanism if another macro expansion needs one.
 When maintaining the pin:
 
 1. Update `WHITAKER_INSTALLER_VERSION` in `.github/workflows/ci.yml`; the
-   suite itself is rolling and updated by rerunning `whitaker-installer`.
+   SHA-pinned shared `install-whitaker` action consumes that value. The suite
+   itself is rolling and updated by rerunning `whitaker-installer`.
 2. Re-run `make lint-whitaker`, then the full `make lint` gate.
 3. Update ADR-013 only if the mechanism or adopted lint set changes.
 

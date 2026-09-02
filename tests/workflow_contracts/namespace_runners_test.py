@@ -128,12 +128,31 @@ def test_build_matrix_preserves_pinned_github_caches() -> None:
         for step in _steps(build_test)
         if str(step.get("uses", "")).startswith("actions/cache@")
     ]
-    assert len(cache_uses) == 2, (
-        "ci.yml:build-test must retain the Merman and Whitaker GitHub caches"
+    assert len(cache_uses) == 1, (
+        "ci.yml:build-test must retain the direct Merman GitHub cache; the "
+        "shared Whitaker action owns its installer cache"
     )
     assert all(
         re.fullmatch(r"actions/cache@[0-9a-f]{40}", uses) for uses in cache_uses
     ), "direct GitHub cache actions must remain pinned to full commit SHAs"
+
+
+def test_whitaker_uses_shared_pinned_installer_action() -> None:
+    """Require the shared action that normalizes Whitaker installer paths."""
+    build_test = _job("ci.yml", "build-test")
+    install_step = next(
+        step for step in _steps(build_test) if step.get("name") == "Install Whitaker"
+    )
+    assert install_step.get("uses") == (
+        "leynos/shared-actions/.github/actions/install-whitaker@"
+        "794e4801babcf68065c660fdf4781ad62be5d061"
+    ), "ci.yml:Install Whitaker must pin the shared installer action"
+    assert install_step.get("with") == {
+        "installer-version": "${{ env.WHITAKER_INSTALLER_VERSION }}"
+    }, "ci.yml:Install Whitaker must pass the workflow's installer pin"
+    assert "run" not in install_step, (
+        "ci.yml:Install Whitaker must not duplicate the shared installer action"
+    )
 
 
 def test_windows_profile_provisions_make_before_repository_steps() -> None:

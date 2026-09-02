@@ -142,27 +142,11 @@ jobs:
         if: ${{ matrix.tools }}
         run: uv tool install nixie-cli==1.1.0
 
-      - name: Cache Whitaker installer
-        if: ${{ matrix.tools }}
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
-        with:
-          path: |
-            ~/.cargo/bin/whitaker-installer
-            ~/.cache/cargo-binstall
-          key: whitaker-installer-${{ runner.os }}-${{ runner.arch }}-${{ env.WHITAKER_INSTALLER_VERSION }}
-
       - name: Install Whitaker
         if: ${{ matrix.tools }}
-        run: |
-          if ! command -v whitaker-installer >/dev/null 2>&1; then
-            if cargo binstall --version >/dev/null 2>&1; then
-              cargo binstall --no-confirm --locked "whitaker-installer@${WHITAKER_INSTALLER_VERSION}"
-            else
-              echo "cargo-binstall unavailable; building whitaker-installer from crates.io"
-              cargo install --locked whitaker-installer --version "${WHITAKER_INSTALLER_VERSION}"
-            fi
-          fi
-          whitaker-installer
+        uses: leynos/shared-actions/.github/actions/install-whitaker@794e4801babcf68065c660fdf4781ad62be5d061
+        with:
+          installer-version: ${{ env.WHITAKER_INSTALLER_VERSION }}
 
       - name: Nixie
         if: ${{ matrix.tools }}
