@@ -8,12 +8,14 @@ use rstest::rstest;
 use super::{
     Normalizer,
     NormalizerInput,
-    wrappers::{FixtureStderr, FixtureTestPath},
+    wrappers::{FixtureStderr, FixtureTestPath, normalize_conditional_trait_help},
     *,
 };
 
 #[path = "helper_tests/fixture_write.rs"]
 mod fixture_write;
+#[path = "helper_tests/wip_paths.rs"]
+mod wip_paths;
 
 fn write_fixture_file(crate_dir: &Dir, path: &Utf8Path, bytes: &[u8], label: &str) {
     if let Some(parent) = path.parent() {
@@ -81,10 +83,10 @@ impl Drop for NormalizerFixture {
 }
 
 #[test]
-fn wip_stderr_path_builds_target_location() {
+fn wip_stderr_path_builds_crate_wip_location() {
     let path =
         wip_stderr_path(Utf8Path::new("tests/fixtures_macros/__helper_case.rs").as_std_path());
-    assert_eq!(path, Utf8Path::new("target/tests/wip/__helper_case.stderr"));
+    assert_eq!(path, Utf8Path::new("wip/__helper_case.stderr"));
 }
 
 #[test]
@@ -161,6 +163,30 @@ fn strip_nightly_macro_backtrace_hint_leaves_text_without_hint() {
 }
 
 #[test]
+fn normalize_conditional_trait_help_removes_stable_wording_difference() {
+    let input = "help: the trait `StepReturnNormalize<Result<T, E>>` is conditionally implemented \
+                 for `StepReturnResultTag`\n       | ^^^^^^^^^^^^^^^^----------------^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n       |                 unsatisfied requirement introduced here: `NotDisplay: rstest_bdd::step_return::StepErrorDisplay`\n";
+    let expected = "help: the trait `StepReturnNormalize<Result<T, E>>` is implemented for \
+                    `StepReturnResultTag`\n       | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n";
+    assert_eq!(
+        normalize_conditional_trait_help(NormalizerInput::from(input)),
+        expected
+    );
+}
+
+#[test]
+fn normalize_conditional_trait_help_removes_requirement_connector() {
+    let input = concat!(
+        "       |                 |\n",
+        "       |                 unsatisfied requirement introduced here: `NotDisplay`\n",
+    );
+    assert_eq!(
+        normalize_conditional_trait_help(NormalizerInput::from(input)),
+        "\n"
+    );
+}
+
+#[test]
 fn normalize_fixture_paths_rewrites_relative_fixture_paths() {
     let dollar = '$';
     let input = "Warning:  --> tests/fixtures_macros/example.rs:3:1";
@@ -216,9 +242,11 @@ fn run_compile_fail_with_normalized_output_handles_multiple_normalizers() {
     let result = panic::catch_unwind(|| {
         run_compile_fail_with_normalized_output(
             || panic!("expected failure"),
+            || Ok(()),
             Utf8Path::new(TEST_PATH),
             &[strip_hint_one, strip_hint_two],
-        );
+        )
+        .expect("normalized outputs should be readable");
     });
     assert!(result.is_ok(), "normalized outputs should match");
     assert!(
@@ -238,9 +266,11 @@ fn run_compile_fail_with_normalized_output_accepts_empty_output() {
     let result = panic::catch_unwind(|| {
         run_compile_fail_with_normalized_output(
             || panic!("expected failure"),
+            || Ok(()),
             Utf8Path::new(TEST_PATH),
             &[],
-        );
+        )
+        .expect("normalized outputs should be readable");
     });
     assert!(result.is_ok(), "identical empty outputs should be accepted");
     assert!(
@@ -261,9 +291,11 @@ fn run_compile_fail_with_normalized_output_detects_mismatch() {
     let result = panic::catch_unwind(|| {
         run_compile_fail_with_normalized_output(
             || panic!("expected failure"),
+            || Ok(()),
             Utf8Path::new(TEST_PATH),
             &[trim_trailing],
-        );
+        )
+        .expect("normalized outputs should be readable");
     });
     assert!(
         result.is_err(),
@@ -313,9 +345,11 @@ fn run_compile_fail_with_normalized_output_test_cases(
     let result = panic::catch_unwind(|| {
         run_compile_fail_with_normalized_output(
             || panic!("expected failure"),
+            || Ok(()),
             Utf8Path::new(test_path),
             &[trim_trailing],
-        );
+        )
+        .expect("normalized outputs should be readable");
     });
 
     if should_succeed {

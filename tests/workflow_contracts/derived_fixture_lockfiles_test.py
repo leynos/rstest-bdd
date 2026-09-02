@@ -104,7 +104,7 @@ def test_dependabot_pr_trigger_is_narrow_and_manifest_scoped(
         "pull_request_target must be a mapping"
     )
     assert pull_request_target.get("types") == ["opened", "reopened", "synchronize"], (
-        "pull_request_target must run only for lifecycle pull-request events"
+        "pull_request_target must cover the complete pull-request lifecycle"
     )
     assert pull_request_target.get("paths") == MANIFEST_PATHS, (
         "pull_request_target must be limited to manifest changes"
@@ -123,7 +123,7 @@ def test_write_permission_is_gated_to_dependabot(
 def test_permissions_are_only_contents_write(workflow: dict[str, object]) -> None:
     """The job token has the minimum scope required to push regenerated locks."""
     assert workflow.get("permissions") == {"contents": "write"}, (
-        "the workflow must have only contents write permission"
+        "the workflow must grant only contents write permission"
     )
 
 
@@ -135,18 +135,18 @@ def test_checkout_uses_the_dependabot_head_with_credentials(
     assert (
         checkout.get("uses")
         == "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1"
-    ), "the checkout action must use the pinned revision"
+    ), "checkout must use the pinned actions/checkout release"
     assert checkout.get("with") == {
         "ref": "${{ github.event.pull_request.head.sha }}",
         "persist-credentials": True,
-    }, "the checkout must use the Dependabot head and retain credentials"
+    }, "checkout must use the pull-request head with credentials"
 
 
 def test_setup_rust_matches_ci(refresh_job: dict[str, object]) -> None:
     """Lock resolution uses the same Rust setup action as normal CI."""
     setup = _named_step(refresh_job, "Setup Rust")
     assert setup.get("uses") == _ci_setup_rust_uses(_load(CI_WORKFLOW_PATH)), (
-        "the lockfile refresh must use CI's Rust setup action"
+        "the refresh workflow must use the CI Rust setup action"
     )
 
 
@@ -157,34 +157,39 @@ def test_refresh_commit_and_push_touch_only_generated_lockfiles(
     refresh = _named_step(refresh_job, "Refresh published GPUI fixture lockfiles")
     assert refresh.get("run") == (
         "make update-published-gpui-0-2-2-lock\nmake update-published-gpui-e2e-lock\n"
-    ), "the refresh step must update both published-GPUI lockfiles"
+    ), "the refresh step must update both published fixture lockfiles"
 
     author = _named_step(refresh_job, "Configure Git author")
     assert author.get("run") == (
         "git config user.name 'github-actions[bot]'\n"
-        "git config user.email '41898282+github-actions[bot]@"
-        "users.noreply.github.com'\n"
-    ), "the commit author must be github-actions[bot]"
+        "git config user.email "
+        "'41898282+github-actions[bot]@users.noreply.github.com'\n"
+    ), "the author step must configure the GitHub Actions bot identity"
 
     commit = _named_step(refresh_job, "Commit refreshed lockfiles")
     commit_script = commit.get("run")
-    assert isinstance(commit_script, str), "the commit step must run a script"
-    for lockfile in LOCKFILES:
-        assert lockfile in commit_script, f"the commit script must name {lockfile}"
-    assert all(
-        fragment in commit_script
-        for fragment in [
-            "git diff --quiet --",
-            "git add --",
-            "git commit -m 'chore(deps): refresh published GPUI fixture lockfiles'",
-        ]
-    ), "the commit script must inspect, stage, and commit the lockfile changes"
+    expected_commit_script = (
+        "if git diff --quiet -- \\\n"
+        "  tests/fixtures/published-gpui-0-2-2/Cargo.lock \\\n"
+        "  tests/fixtures/published-gpui-e2e/Cargo.lock; then\n"
+        "  echo 'changed=false' >> \"$GITHUB_OUTPUT\"\n"
+        "  exit 0\n"
+        "fi\n"
+        "git add -- \\\n"
+        "  tests/fixtures/published-gpui-0-2-2/Cargo.lock \\\n"
+        "  tests/fixtures/published-gpui-e2e/Cargo.lock\n"
+        "git commit -m 'chore(deps): refresh published GPUI fixture lockfiles'\n"
+        "echo 'changed=true' >> \"$GITHUB_OUTPUT\"\n"
+    )
+    assert commit_script == expected_commit_script, (
+        "the commit step must stage and commit only the generated lockfiles"
+    )
 
     push = _named_step(refresh_job, "Push refreshed lockfiles")
     assert push.get("if") == "${{ steps.commit.outputs.changed == 'true' }}", (
-        "the push must run only after the commit step records a change"
+        "the push step must run only when lockfiles changed"
     )
     assert (
         push.get("run")
         == "git push origin HEAD:${{ github.event.pull_request.head.ref }}"
-    ), "the push must target the Dependabot pull-request head"
+    ), "the push step must push the refreshed lockfiles to the pull-request head"

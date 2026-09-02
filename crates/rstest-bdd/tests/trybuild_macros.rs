@@ -21,6 +21,7 @@ use wrappers::{
     MacroFixtureCase,
     NormalizerInput,
     UiFixtureCase,
+    normalize_conditional_trait_help,
     normalize_fixture_paths,
     strip_nightly_macro_backtrace_hint,
 };
@@ -29,8 +30,12 @@ use wrappers::{
 mod staging;
 #[path = "trybuild_macros/whitaker.rs"]
 mod whitaker;
+#[path = "trybuild_macros/wip.rs"]
+mod wip;
 #[path = "trybuild_macros/wrappers.rs"]
 mod wrappers;
+
+use wip::{read_wip_stderr, remove_stale_wip_stderr, wip_stderr_path};
 
 fn macros_fixture(case: impl Into<MacroFixtureCase>) -> Utf8PathBuf {
     let case = case.into();
@@ -71,12 +76,12 @@ fn step_macros_compile() -> io::Result<()> {
 
         run_passing_macro_tests(&t);
         run_failing_macro_tests(&t);
-        run_failing_ui_tests(&t);
+        run_failing_ui_tests(&t)?;
         run_lint_ui_tests()?;
         t.compile_fail(
             macros_fixture(MacroFixtureCase::from("scenarios_missing_dir.rs")).as_std_path(),
         );
-        run_conditional_ordering_tests(&t);
+        run_conditional_ordering_tests(&t)?;
         run_conditional_ambiguous_step_test(&t);
         Ok(())
     })
@@ -142,7 +147,7 @@ fn run_failing_macro_tests(t: &trybuild::TestCases) {
     }
 }
 
-fn run_failing_ui_tests(t: &trybuild::TestCases) {
+fn run_failing_ui_tests(t: &trybuild::TestCases) -> io::Result<()> {
     for case in [
         UiFixtureCase::from("datatable_wrong_type.rs"),
         UiFixtureCase::from("datatable_duplicate.rs"),
@@ -163,13 +168,18 @@ fn run_failing_ui_tests(t: &trybuild::TestCases) {
         UiFixtureCase::from("implicit_fixture_missing.rs"),
         UiFixtureCase::from("placeholder_missing_params.rs"),
         UiFixtureCase::from("return_override_result_requires_result.rs"),
-        UiFixtureCase::from("step_return_alias_error_not_display.rs"),
         UiFixtureCase::from("step_return_nested_result.rs"),
         UiFixtureCase::from("step_return_impl_trait.rs"),
         UiFixtureCase::from("insert_value_must_use.rs"),
     ] {
         t.compile_fail(ui_fixture(case).as_std_path());
     }
+    compile_fail_with_normalized_output(
+        ui_fixture(UiFixtureCase::from(
+            "step_return_alias_error_not_display.rs",
+        )),
+        &[normalize_conditional_trait_help],
+    )
 }
 
 fn run_lint_ui_tests() -> io::Result<()> {
@@ -228,7 +238,7 @@ fn run_lint_ui_case(bin: &str, lint_args: &[&str]) -> io::Result<()> {
     unexpected_cfgs,
     reason = "integration test inspects dependency feature flags"
 )]
-fn run_conditional_ordering_tests(t: &trybuild::TestCases) {
+fn run_conditional_ordering_tests(t: &trybuild::TestCases) -> io::Result<()> {
     let ordering_cases = [
         MacroFixtureCase::from("scenario_missing_step.rs"),
         MacroFixtureCase::from("scenario_out_of_order.rs"),
@@ -242,8 +252,10 @@ fn run_conditional_ordering_tests(t: &trybuild::TestCases) {
         for case in ordering_cases.iter().cloned() {
             t.pass(macros_fixture(case).as_std_path());
         }
-        compile_fail_missing_step_warning(t);
+        compile_fail_missing_step_warning(t)?;
     }
+
+    Ok(())
 }
 
 #[expect(
@@ -261,48 +273,65 @@ fn run_conditional_ambiguous_step_test(t: &trybuild::TestCases) {
 type Normalizer = for<'a> fn(NormalizerInput<'a>) -> String;
 
 #[rustversion::not(nightly)]
-fn compile_fail_missing_step_warning(t: &trybuild::TestCases) {
+fn compile_fail_missing_step_warning(_t: &trybuild::TestCases) -> io::Result<()> {
     compile_fail_with_normalized_output(
-        t,
         macros_fixture(MacroFixtureCase::from("scenario_missing_step_warning.rs")),
         &[strip_nightly_macro_backtrace_hint, normalize_fixture_paths],
-    );
+    )
 }
 
 #[rustversion::nightly]
-fn compile_fail_missing_step_warning(t: &trybuild::TestCases) {
+fn compile_fail_missing_step_warning(_t: &trybuild::TestCases) -> io::Result<()> {
     compile_fail_with_normalized_output(
-        t,
         macros_fixture(MacroFixtureCase::from("nightly_registry_warning.rs")),
         &[strip_nightly_macro_backtrace_hint, normalize_fixture_paths],
-    );
+    )
 }
 
 fn compile_fail_with_normalized_output(
-    t: &trybuild::TestCases,
     test_path: impl AsRef<Utf8Path>,
     normalizers: &[Normalizer],
-) {
+) -> io::Result<()> {
     let test_path = test_path.as_ref();
+    let crate_dir = Dir::open_ambient_dir(
+        Utf8Path::new(env!("CARGO_MANIFEST_DIR")).as_std_path(),
+        ambient_authority(),
+    )?;
+    let expected_path = expected_stderr_path(test_path.as_std_path());
+    let expected = crate_dir.read_to_string(expected_path.as_std_path())?;
+
+    remove_stale_wip_stderr(test_path)?;
+    crate_dir.remove_file(expected_path.as_std_path())?;
+
     run_compile_fail_with_normalized_output(
-        || t.compile_fail(test_path.as_std_path()),
+        || {
+            let t = trybuild::TestCases::new();
+            t.compile_fail(test_path.as_std_path());
+        },
+        || crate_dir.write(expected_path.as_std_path(), expected.as_bytes()),
         test_path,
         normalizers,
-    );
+    )
 }
 
-fn run_compile_fail_with_normalized_output<F>(
+fn run_compile_fail_with_normalized_output<F, R>(
     compile_fail: F,
+    restore_expected: R,
     test_path: &Utf8Path,
     normalizers: &[Normalizer],
-) where
+) -> io::Result<()>
+where
     F: FnOnce(),
+    R: FnOnce() -> io::Result<()>,
 {
-    match panic::catch_unwind(AssertUnwindSafe(compile_fail)) {
-        Ok(()) => (),
+    let compilation = panic::catch_unwind(AssertUnwindSafe(compile_fail));
+    restore_expected()?;
+
+    match compilation {
+        Ok(()) => Ok(()),
         Err(panic) => {
-            if normalized_outputs_match(test_path, normalizers).unwrap_or(false) {
-                return;
+            if normalized_outputs_match(test_path, normalizers)? {
+                return Ok(());
             }
 
             panic::resume_unwind(panic);
@@ -315,31 +344,26 @@ fn normalized_outputs_match(test_path: &Utf8Path, normalizers: &[Normalizer]) ->
         Utf8Path::new(env!("CARGO_MANIFEST_DIR")).as_std_path(),
         ambient_authority(),
     )?;
-    let actual_path = wip_stderr_path(test_path.as_std_path());
     let expected_path = expected_stderr_path(test_path.as_std_path());
-    let actual = crate_dir.read_to_string(actual_path.as_std_path())?;
+    let current_dir = Dir::open_ambient_dir(".", ambient_authority())?;
+    let actual_path = wip_stderr_path(test_path.as_std_path());
+    let (actual, is_in_current_dir) =
+        read_wip_stderr(&current_dir, &crate_dir, actual_path.as_std_path())?;
     let expected = crate_dir.read_to_string(expected_path.as_std_path())?;
 
     if apply_normalizers(NormalizerInput::from(actual.as_str()), normalizers)
         == apply_normalizers(NormalizerInput::from(expected.as_str()), normalizers)
     {
-        let _ = crate_dir.remove_file(actual_path.as_std_path());
+        let wip_dir = if is_in_current_dir {
+            &current_dir
+        } else {
+            &crate_dir
+        };
+        wip_dir.remove_file(actual_path.as_std_path())?;
         return Ok(true);
     }
 
     Ok(false)
-}
-
-fn wip_stderr_path(test_path: &StdPath) -> Utf8PathBuf {
-    let Some(file_name) = test_path.file_name() else {
-        panic!("trybuild test path must include file name");
-    };
-    let Some(file_name) = file_name.to_str() else {
-        panic!("file name must be valid UTF-8");
-    };
-    let mut path = Utf8PathBuf::from(file_name);
-    path.set_extension("stderr");
-    Utf8PathBuf::from("target/tests/wip").join(path)
 }
 
 fn expected_stderr_path(test_path: &StdPath) -> Utf8PathBuf {
