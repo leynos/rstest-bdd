@@ -68,7 +68,12 @@ action. That action owns installer caching, validates and normalizes the Cargo
 home, and invokes the installer by its absolute path. Keep this boundary rather
 than recreating the install script inline: it makes the tool location explicit
 across GitHub-hosted and Namespace runner images and preserves the shared
-failure metrics.
+failure metrics. Before invoking the action, the workflow adds
+`$HOME/.local/bin` to `GITHUB_PATH`. Whitaker's verified dependency releases
+use the XDG user binary directory rather than the Cargo home, and the
+`namespace-profile-default` Ubuntu 22.04 image does not expose that directory
+by default. Keep the path step immediately before the action so Whitaker can
+verify `cargo-dylint` after installing it.
 
 ## Workspace dependency policy
 

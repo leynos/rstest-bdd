@@ -140,8 +140,30 @@ def test_build_matrix_preserves_pinned_github_caches() -> None:
 def test_whitaker_uses_shared_pinned_installer_action() -> None:
     """Require the shared action that normalizes Whitaker installer paths."""
     build_test = _job("ci.yml", "build-test")
-    install_step = next(
-        step for step in _steps(build_test) if step.get("name") == "Install Whitaker"
+    steps = _steps(build_test)
+    path_index = next(
+        index
+        for index, step in enumerate(steps)
+        if step.get("name") == "Expose user-local tools"
+    )
+    install_index = next(
+        index
+        for index, step in enumerate(steps)
+        if step.get("name") == "Install Whitaker"
+    )
+    path_step = steps[path_index]
+    install_step = steps[install_index]
+    assert path_step.get("if") == "${{ matrix.tools }}", (
+        "ci.yml:user-local path setup must remain limited to Linux tools lanes"
+    )
+    assert path_step.get("shell") == "bash", (
+        "ci.yml:user-local path setup must use the Linux runner shell"
+    )
+    assert path_step.get("run") == 'echo "$HOME/.local/bin" >> "$GITHUB_PATH"', (
+        "ci.yml:user-local path setup must expose Whitaker dependency binaries"
+    )
+    assert path_index < install_index, (
+        "ci.yml:user-local bin directory must be on PATH before Whitaker runs"
     )
     assert install_step.get("uses") == (
         "leynos/shared-actions/.github/actions/install-whitaker@"

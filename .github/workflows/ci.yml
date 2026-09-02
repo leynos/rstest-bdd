@@ -142,6 +142,11 @@ jobs:
         if: ${{ matrix.tools }}
         run: uv tool install nixie-cli==1.1.0
 
+      - name: Expose user-local tools
+        if: ${{ matrix.tools }}
+        shell: bash
+        run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
       - name: Install Whitaker
         if: ${{ matrix.tools }}
         uses: leynos/shared-actions/.github/actions/install-whitaker@794e4801babcf68065c660fdf4781ad62be5d061
