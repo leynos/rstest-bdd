@@ -8,7 +8,7 @@ use rstest::rstest;
 use super::{
     Normalizer,
     NormalizerInput,
-    wrappers::{FixtureStderr, FixtureTestPath},
+    wrappers::{FixtureStderr, FixtureTestPath, normalize_conditional_trait_help},
     *,
 };
 
@@ -157,6 +157,18 @@ fn strip_nightly_macro_backtrace_hint_leaves_text_without_hint() {
     assert_eq!(
         strip_nightly_macro_backtrace_hint(NormalizerInput::from(text)),
         text
+    );
+}
+
+#[test]
+fn normalize_conditional_trait_help_removes_stable_wording_difference() {
+    let input = "help: the trait `StepReturnNormalize<Result<T, E>>` is conditionally implemented \
+                 for `StepReturnResultTag`";
+    let expected = "help: the trait `StepReturnNormalize<Result<T, E>>` is implemented for \
+                    `StepReturnResultTag`";
+    assert_eq!(
+        normalize_conditional_trait_help(NormalizerInput::from(input)),
+        expected
     );
 }
 

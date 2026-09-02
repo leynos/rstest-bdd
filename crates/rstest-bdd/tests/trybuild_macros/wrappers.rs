@@ -134,3 +134,11 @@ pub(crate) fn strip_nightly_macro_backtrace_hint(input: NormalizerInput<'_>) -> 
         "",
     )
 }
+
+/// Normalizes stable compiler wording for conditional trait implementations.
+pub(crate) fn normalize_conditional_trait_help(input: NormalizerInput<'_>) -> String {
+    input.as_ref().replace(
+        "StepReturnNormalize<Result<T, E>>` is conditionally implemented for",
+        "StepReturnNormalize<Result<T, E>>` is implemented for",
+    )
+}

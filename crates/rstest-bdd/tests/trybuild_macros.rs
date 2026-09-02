@@ -21,6 +21,7 @@ use wrappers::{
     MacroFixtureCase,
     NormalizerInput,
     UiFixtureCase,
+    normalize_conditional_trait_help,
     normalize_fixture_paths,
     strip_nightly_macro_backtrace_hint,
 };
@@ -163,13 +164,19 @@ fn run_failing_ui_tests(t: &trybuild::TestCases) {
         UiFixtureCase::from("implicit_fixture_missing.rs"),
         UiFixtureCase::from("placeholder_missing_params.rs"),
         UiFixtureCase::from("return_override_result_requires_result.rs"),
-        UiFixtureCase::from("step_return_alias_error_not_display.rs"),
         UiFixtureCase::from("step_return_nested_result.rs"),
         UiFixtureCase::from("step_return_impl_trait.rs"),
         UiFixtureCase::from("insert_value_must_use.rs"),
     ] {
         t.compile_fail(ui_fixture(case).as_std_path());
     }
+    compile_fail_with_normalized_output(
+        t,
+        ui_fixture(UiFixtureCase::from(
+            "step_return_alias_error_not_display.rs",
+        )),
+        &[normalize_conditional_trait_help],
+    );
 }
 
 fn run_lint_ui_tests() -> io::Result<()> {
