@@ -20,7 +20,7 @@ jobs:
       MERMAN_CLI_VERSION: '0.7.0'
       RUFF_VERSION: '0.16.4'
       TY_VERSION: '0.0.74'
-      WHITAKER_INSTALLER_VERSION: '0.2.6'
+      WHITAKER_INSTALLER_VERSION: '0.2.7'
     strategy:
       fail-fast: false
       matrix:

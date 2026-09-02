@@ -159,10 +159,10 @@ suite's toolchain to `nightly-2026-05-28` with Dylint `6.0.1`
   remains enforced as part of that suite.
 - **Installation:** `whitaker-installer`, pinned in CI by
   `WHITAKER_INSTALLER_VERSION` in `.github/workflows/ci.yml` (currently
-  `0.2.6`). Local setup mirrors CI:
+  `0.2.7`). Local setup mirrors CI:
 
   ```bash
-  cargo install --locked whitaker-installer --version 0.2.6
+  cargo install --locked whitaker-installer --version 0.2.7
   whitaker-installer
   ```
 
@@ -196,7 +196,7 @@ environment:
 - `cargo-dylint --version` reports `6.0.1`, and the suite's lockfile pins
   `dylint`, `dylint_internal`, `dylint_linting`, and `dylint_testing` at
   `6.0.1`.
-- CI installs `whitaker-installer@0.2.6` and runs `make lint`, which drives
+- CI installs `whitaker-installer@0.2.7` and runs `make lint`, which drives
   `whitaker --all` through this same wrapper.
 
 Contributor-facing setup and maintenance steps are documented in

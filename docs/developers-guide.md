@@ -693,7 +693,7 @@ the test fails until a human edits the pinned constant to match. That defeats
 the purpose of automated dependency updates and turns a routine bump into a
 manual chore.
 
-Contract tests may still verify the _shape_ of a reusable-workflow caller. They
+Contract tests may still verify the *shape* of a reusable-workflow caller. They
 must not verify the specific SHA value.
 
 - Do assert the workflow references the correct reusable workflow path.
@@ -1291,7 +1291,7 @@ StepRef {
 Fields: `keyword: &'a str`, `text: &'a str`, `function_name: &'a str`,
 `handler_error: &'a str`.
 
-#### `BypassedStepQuery<'a>` _(requires `diagnostics` feature)_
+#### `BypassedStepQuery<'a>` *(requires `diagnostics` feature)*
 
 Bundles the four fields needed to look up a bypassed-step record in the
 diagnostics registry dump.
@@ -1328,7 +1328,7 @@ directional marks) and asserts it matches a regex covering the step keyword,
 step text, function name, handler error, feature path suffix, and scenario
 name. Panics on regex compile failure or mismatch.
 
-#### `assert_bypassed_step_recorded(BypassedStepQuery)` _(requires `diagnostics` feature)_
+#### `assert_bypassed_step_recorded(BypassedStepQuery)` *(requires `diagnostics` feature)*
 
 Dumps the diagnostics registry, parses it as JSON, and asserts that
 `bypassed_steps` contains an entry matching all four fields of the query.
@@ -1835,8 +1835,8 @@ not ship and was superseded by ADR-012 before implementation:
   would not import the harness.
 - The proposal required reset before assignment and `Drop` cleanup on success,
   assertion failure, and skip, covered by unit, property-based (`proptest`), and
-  `serial_test`-guarded thread-isolation tests — see the ADR's _Testing
-  strategy_.
+  `serial_test`-guarded thread-isolation tests — see the ADR's *Testing
+  strategy*.
 
 Roadmap items 10.3.1 and 10.3.2 retain this proposal as an explicitly
 superseded historical record; design coverage is in `rstest-bdd-design.md`
@@ -1865,7 +1865,7 @@ should preserve these contracts:
   thread-local reset protocol is historical.
 - Borrow-state invariants are the highest-risk part of the surface and must be
   covered by generated-wrapper, property-based (`proptest`), and lifecycle
-  tests — see the ADR's _Testing strategy_.
+  tests — see the ADR's *Testing strategy*.
 
 Tracked by roadmap items 12.1.1–12.1.3; design coverage is in
 `rstest-bdd-design.md` §2.7.6.5.
@@ -1887,10 +1887,10 @@ foot-gun: `#[scenario(path = …)]` and `scenarios!` read `.feature` files with
   artefact.
 - The unstable `proc_macro::tracked_path` API is the long-term answer, usable
   behind a `nightly` feature gate once stabilized.
-- Invalidation must be a _tested contract_: a portability-aware rebuild
+- Invalidation must be a *tested contract*: a portability-aware rebuild
   regression test, a `trybuild` compile-time test for the emitted binding, and
   redacted `insta` snapshots for any touched diagnostic — see the ADR's
-  _Testing strategy_. This is distinct from the OUT_DIR AST _caching_
+  *Testing strategy*. This is distinct from the OUT_DIR AST *caching*
   performance idea in `rstest-bdd-design.md` §3.2.2.
 
 Tracked by roadmap item 10.3.3 (pulled forward to v0.6.0 final); design
@@ -1909,7 +1909,7 @@ Local setup installs the `whitaker` wrapper and its pinned Dylint driver
 toolchain via the installer:
 
 ```bash
-cargo install --locked whitaker-installer --version 0.2.6
+cargo install --locked whitaker-installer --version 0.2.7
 whitaker-installer
 ```
 
