@@ -163,9 +163,9 @@ fn strip_nightly_macro_backtrace_hint_leaves_text_without_hint() {
 #[test]
 fn normalize_conditional_trait_help_removes_stable_wording_difference() {
     let input = "help: the trait `StepReturnNormalize<Result<T, E>>` is conditionally implemented \
-                 for `StepReturnResultTag`";
+                 for `StepReturnResultTag`\n       | ^^^^^^^^^^^^^^^^----------------^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n       |                 unsatisfied requirement introduced here: `NotDisplay: rstest_bdd::step_return::StepErrorDisplay`\n";
     let expected = "help: the trait `StepReturnNormalize<Result<T, E>>` is implemented for \
-                    `StepReturnResultTag`";
+                    `StepReturnResultTag`\n       | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n";
     assert_eq!(
         normalize_conditional_trait_help(NormalizerInput::from(input)),
         expected

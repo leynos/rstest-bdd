@@ -137,8 +137,27 @@ pub(crate) fn strip_nightly_macro_backtrace_hint(input: NormalizerInput<'_>) -> 
 
 /// Normalizes stable compiler wording for conditional trait implementations.
 pub(crate) fn normalize_conditional_trait_help(input: NormalizerInput<'_>) -> String {
-    input.as_ref().replace(
-        "StepReturnNormalize<Result<T, E>>` is conditionally implemented for",
-        "StepReturnNormalize<Result<T, E>>` is implemented for",
-    )
+    let text = input.as_ref();
+    let mut normalized = text
+        .lines()
+        .filter_map(|line| {
+            if line.contains("unsatisfied requirement introduced here:") {
+                return None;
+            }
+            let line = line.replace(
+                "StepReturnNormalize<Result<T, E>>` is conditionally implemented for",
+                "StepReturnNormalize<Result<T, E>>` is implemented for",
+            );
+            if line.contains("^^^^^^^^") && line.contains("--------") {
+                Some(line.replace('-', "^"))
+            } else {
+                Some(line)
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    if text.ends_with('\n') {
+        normalized.push('\n');
+    }
+    normalized
 }
