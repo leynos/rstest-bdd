@@ -28,8 +28,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v5
 
       - name: Setup Rust
-        # TODO: Replace this temporary PR head after shared-actions PR #421 merges.
-        uses: leynos/shared-actions/.github/actions/setup-rust@93ad65e414a16e8f8933a1ca114ccd480fdfa87e
+        # Merged shared-actions PR #421 cache-provider revision.
+        uses: leynos/shared-actions/.github/actions/setup-rust@5daae0a332441d170d88ca648c9e71f0bbe96cb3
 
       - name: Install bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6  # v2
@@ -44,7 +44,7 @@ jobs:
       # Mirrors the "no features" coverage leg in ci.yml (the broadest
       # default-features suite), so the uploaded report matches the PR gate.
       - name: Test and Measure Coverage
-        uses: leynos/shared-actions/.github/actions/generate-coverage@93ad65e414a16e8f8933a1ca114ccd480fdfa87e
+        uses: leynos/shared-actions/.github/actions/generate-coverage@5daae0a332441d170d88ca648c9e71f0bbe96cb3
         env:
           # Match the per-invocation coverage timeout used in ci.yml.
           RUN_RUST_CARGO_WAIT_TIMEOUT: '1800'

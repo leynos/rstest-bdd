@@ -33,11 +33,11 @@ setup. It is the sole owner for Cargo, uv, Bun, signed prebuilt CI tools, and
 local sccache state, so the workflow must not reintroduce direct
 `actions/cache` entries for those paths.
 The temporary shared setup-rust revision
-`93ad65e414a16e8f8933a1ca114ccd480fdfa87e` accepts
+`5daae0a332441d170d88ca648c9e71f0bbe96cb3` accepts
 `cache-provider: external` and `use-sccache: 'false'`; the workflow then
 installs the pinned prebuilt `sccache` binary and reports its statistics.
 Replace the temporary action revision with the merged shared-actions revision
-after PR #421 lands. The coverage reusable action currently owns its distinct
+through merged PR #421. The coverage reusable action currently owns its distinct
 coverage-tool and ratchet archives until it provides the same external-cache
 contract.
 

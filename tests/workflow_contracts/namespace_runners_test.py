@@ -21,7 +21,7 @@ WINDOWS_PROFILE = "namespace-profile-rust-windows-ci"
 NAMESPACE_CACHE_ACTION = (
     "namespacelabs/nscloud-cache-action@c5f8dab7560444c4bf8dbc64f1b203431873c547"
 )
-SHARED_SETUP_RUST_CACHE_PROVIDER_HEAD = "93ad65e414a16e8f8933a1ca114ccd480fdfa87e"
+SHARED_SETUP_RUST_CACHE_PROVIDER_HEAD = "5daae0a332441d170d88ca648c9e71f0bbe96cb3"
 EXPECTED_BUILD_MATRIX = [
     {
         "os": LINUX_PROFILE,

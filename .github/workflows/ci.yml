@@ -93,8 +93,8 @@ jobs:
           df -h /
 
       - name: Setup Rust
-        # TODO: Replace this temporary PR head after shared-actions PR #421 merges.
-        uses: leynos/shared-actions/.github/actions/setup-rust@93ad65e414a16e8f8933a1ca114ccd480fdfa87e
+        # Merged shared-actions PR #421 cache-provider revision.
+        uses: leynos/shared-actions/.github/actions/setup-rust@5daae0a332441d170d88ca648c9e71f0bbe96cb3
         with:
           cache-provider: external
           use-sccache: 'false'
@@ -230,8 +230,8 @@ jobs:
 
       - name: Test and Measure Coverage (with features)
         if: ${{ matrix.coverage && matrix.features != '' }}
-        # TODO: Replace this temporary PR head after shared-actions PR #421 merges.
-        uses: leynos/shared-actions/.github/actions/generate-coverage@93ad65e414a16e8f8933a1ca114ccd480fdfa87e
+        # Merged shared-actions PR #421 cache-provider revision.
+        uses: leynos/shared-actions/.github/actions/generate-coverage@5daae0a332441d170d88ca648c9e71f0bbe96cb3
         continue-on-error: true
         env:
           # Windows coverage runs (build plus doctests) exceed the shared
@@ -251,8 +251,8 @@ jobs:
 
       - name: Test and Measure Coverage (no features)
         if: ${{ matrix.coverage && matrix.features == '' }}
-        # TODO: Replace this temporary PR head after shared-actions PR #421 merges.
-        uses: leynos/shared-actions/.github/actions/generate-coverage@93ad65e414a16e8f8933a1ca114ccd480fdfa87e
+        # Merged shared-actions PR #421 cache-provider revision.
+        uses: leynos/shared-actions/.github/actions/generate-coverage@5daae0a332441d170d88ca648c9e71f0bbe96cb3
         # The CodeScene leg (the default-features Linux leg) gates on the
         # ratchet, so a coverage failure must fail the build there; other
         # legs stay best-effort as before. Selected by matrix values rather
