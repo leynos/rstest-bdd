@@ -171,7 +171,6 @@ fn run_failing_ui_tests(t: &trybuild::TestCases) {
         t.compile_fail(ui_fixture(case).as_std_path());
     }
     compile_fail_with_normalized_output(
-        t,
         ui_fixture(UiFixtureCase::from(
             "step_return_alias_error_not_display.rs",
         )),
@@ -268,31 +267,31 @@ fn run_conditional_ambiguous_step_test(t: &trybuild::TestCases) {
 type Normalizer = for<'a> fn(NormalizerInput<'a>) -> String;
 
 #[rustversion::not(nightly)]
-fn compile_fail_missing_step_warning(t: &trybuild::TestCases) {
+fn compile_fail_missing_step_warning(_t: &trybuild::TestCases) {
     compile_fail_with_normalized_output(
-        t,
         macros_fixture(MacroFixtureCase::from("scenario_missing_step_warning.rs")),
         &[strip_nightly_macro_backtrace_hint, normalize_fixture_paths],
     );
 }
 
 #[rustversion::nightly]
-fn compile_fail_missing_step_warning(t: &trybuild::TestCases) {
+fn compile_fail_missing_step_warning(_t: &trybuild::TestCases) {
     compile_fail_with_normalized_output(
-        t,
         macros_fixture(MacroFixtureCase::from("nightly_registry_warning.rs")),
         &[strip_nightly_macro_backtrace_hint, normalize_fixture_paths],
     );
 }
 
 fn compile_fail_with_normalized_output(
-    t: &trybuild::TestCases,
     test_path: impl AsRef<Utf8Path>,
     normalizers: &[Normalizer],
 ) {
     let test_path = test_path.as_ref();
     run_compile_fail_with_normalized_output(
-        || t.compile_fail(test_path.as_std_path()),
+        || {
+            let t = trybuild::TestCases::new();
+            t.compile_fail(test_path.as_std_path());
+        },
         test_path,
         normalizers,
     );
