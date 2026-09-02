@@ -1042,8 +1042,20 @@ and asserting correct responses and diagnostics. Three smoke tests validate:
 2. Definition request returning correct feature file locations.
 3. Diagnostic publication for unimplemented feature steps.
 
-These tests run as part of the standard CI pipeline (`make test`) and use
-`--debounce-ms 0` to eliminate indexing delay.
+The definition-navigation smoke test establishes an indexing completion
+boundary before making its request. After `initialize`, it saves both the
+feature file and the Rust step file, then waits for the
+`textDocument/publishDiagnostics` notification for the Rust file. The existing
+`index_and_wait` helper implements this protocol: the notification is emitted
+after the ordered saves have updated the feature index and step registry. The
+test then sends `textDocument/definition` and receives the response by its
+JSON- RPC id, because indexing notifications may still be buffered on the wire.
+Tests must not replace this protocol with sleeps, timing assumptions, or
+platform-specific branches. `--debounce-ms 0` avoids an intentional debounce in
+the smoke-test process, but does not prove that asynchronous indexing has
+completed.
+
+These tests run as part of the standard CI pipeline (`make test`).
 
 ### Next phases
 
