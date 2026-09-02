@@ -161,9 +161,10 @@ suite's toolchain to `nightly-2026-05-28` with Dylint `6.0.1`
   `WHITAKER_INSTALLER_VERSION` in `.github/workflows/ci.yml` (currently
   `0.2.7`). CI delegates caching, normalized Cargo-home resolution, and
   absolute-path execution to the SHA-pinned shared `install-whitaker` action.
-  The Linux workflow exposes `$HOME/.local/bin` before the action because
-  Whitaker installs its verified Dylint dependency releases into the XDG user
-  binary directory. Local setup mirrors the resulting installation:
+  Its Linux lane uses the uncached Ubuntu 24.04 `rust-linux-ci` Namespace
+  profile, whose GNU C Library baseline can execute Whitaker's
+  repository-hosted Dylint dependency binaries. Local setup mirrors the
+  resulting installation:
 
   ```bash
   cargo install --locked whitaker-installer --version 0.2.7

@@ -15,7 +15,8 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
-LINUX_PROFILE = "namespace-profile-default"
+DELAYED_COMMENT_PROFILE = "namespace-profile-default"
+LINUX_PROFILE = "namespace-profile-rust-linux-ci"
 WINDOWS_PROFILE = "namespace-profile-rust-windows-ci"
 EXPECTED_BUILD_MATRIX = [
     {
@@ -79,8 +80,8 @@ def _steps(job: dict[str, object]) -> list[dict[str, object]]:
 def test_comment_job_uses_the_shared_uncached_namespace_profile() -> None:
     """Keep the controlled utility-job assignment from drifting."""
     job = _job("delayed-pr-comment.yml", "delay_and_comment")
-    assert job.get("runs-on") == LINUX_PROFILE, (
-        f"delayed-pr-comment.yml:delay_and_comment must use {LINUX_PROFILE}"
+    assert job.get("runs-on") == DELAYED_COMMENT_PROFILE, (
+        f"delayed-pr-comment.yml:delay_and_comment must use {DELAYED_COMMENT_PROFILE}"
     )
     assert job.get("timeout-minutes") == 65, (
         "delayed-pr-comment.yml:delay_and_comment must bound runner occupancy"
@@ -141,29 +142,11 @@ def test_whitaker_uses_shared_pinned_installer_action() -> None:
     """Require the shared action that normalizes Whitaker installer paths."""
     build_test = _job("ci.yml", "build-test")
     steps = _steps(build_test)
-    path_index = next(
-        index
-        for index, step in enumerate(steps)
-        if step.get("name") == "Expose user-local tools"
+    install_step = next(
+        step for step in steps if step.get("name") == "Install Whitaker"
     )
-    install_index = next(
-        index
-        for index, step in enumerate(steps)
-        if step.get("name") == "Install Whitaker"
-    )
-    path_step = steps[path_index]
-    install_step = steps[install_index]
-    assert path_step.get("if") == "${{ matrix.tools }}", (
-        "ci.yml:user-local path setup must remain limited to Linux tools lanes"
-    )
-    assert path_step.get("shell") == "bash", (
-        "ci.yml:user-local path setup must use the Linux runner shell"
-    )
-    assert path_step.get("run") == 'echo "$HOME/.local/bin" >> "$GITHUB_PATH"', (
-        "ci.yml:user-local path setup must expose Whitaker dependency binaries"
-    )
-    assert path_index < install_index, (
-        "ci.yml:user-local bin directory must be on PATH before Whitaker runs"
+    assert install_step.get("if") == "${{ matrix.tools }}", (
+        "ci.yml:Install Whitaker must remain limited to Linux tools lanes"
     )
     assert install_step.get("uses") == (
         "leynos/shared-actions/.github/actions/install-whitaker@"
@@ -174,6 +157,9 @@ def test_whitaker_uses_shared_pinned_installer_action() -> None:
     }, "ci.yml:Install Whitaker must pass the workflow's installer pin"
     assert "run" not in install_step, (
         "ci.yml:Install Whitaker must not duplicate the shared installer action"
+    )
+    assert not any(step.get("name") == "Expose user-local tools" for step in steps), (
+        "ci.yml must not shadow Cargo-installed tools with an XDG PATH override"
     )
 
 

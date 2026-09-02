@@ -13,13 +13,14 @@ repository before merging a workflow that names it.
 
 | Profile tag       | Workflow label                      | Operating system    | Machine shape | Namespace cache volume | Intended workload                 |
 | ----------------- | ----------------------------------- | ------------------- | ------------- | ---------------------- | --------------------------------- |
-| `default`         | `namespace-profile-default`         | Ubuntu 22.04        | 4 vCPU, 16 GB | Disabled               | Linux matrix and delayed comments |
+| `default`         | `namespace-profile-default`         | Ubuntu 22.04        | 4 vCPU, 16 GB | Disabled               | Delayed comments                  |
+| `rust-linux-ci`   | `namespace-profile-rust-linux-ci`   | Ubuntu 24.04        | 8 vCPU, 16 GB | Disabled               | Linux build-and-coverage matrix   |
 | `rust-windows-ci` | `namespace-profile-rust-windows-ci` | Windows Server 2022 | 8 vCPU, 16 GB | Disabled               | Windows build-and-coverage matrix |
 
 *Table: Namespace runner profiles used directly by rstest-bdd workflows.*
 
 The `build-test` matrix resolves `runs-on` from `matrix.os`. Both Linux feature
-lanes use `namespace-profile-default`; both Windows feature lanes use
+lanes use `namespace-profile-rust-linux-ci`; both Windows feature lanes use
 `namespace-profile-rust-windows-ci`. The feature sets, default-feature policy,
 coverage behaviour, and Windows `use-nextest: false` deadlock mitigation stay
 unchanged. The CodeScene and coverage-ratchet conditions identify the Linux
@@ -68,12 +69,11 @@ action. That action owns installer caching, validates and normalizes the Cargo
 home, and invokes the installer by its absolute path. Keep this boundary rather
 than recreating the install script inline: it makes the tool location explicit
 across GitHub-hosted and Namespace runner images and preserves the shared
-failure metrics. Before invoking the action, the workflow adds
-`$HOME/.local/bin` to `GITHUB_PATH`. Whitaker's verified dependency releases
-use the XDG user binary directory rather than the Cargo home, and the
-`namespace-profile-default` Ubuntu 22.04 image does not expose that directory
-by default. Keep the path step immediately before the action so Whitaker can
-verify `cargo-dylint` after installing it.
+failure metrics. The current Whitaker dependency releases require the GNU C
+Library baseline supplied by Ubuntu 24.04. Keep the Linux matrix on
+`rust-linux-ci`: an Ubuntu 22.04 profile cannot execute those release binaries,
+and adding the XDG user binary directory to `PATH` would only make an
+incompatible binary shadow Whitaker's Cargo fallback.
 
 ## Workspace dependency policy
 

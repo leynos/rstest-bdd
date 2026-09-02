@@ -25,13 +25,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: namespace-profile-default
+          - os: namespace-profile-rust-linux-ci
             coverage: true
             features: ''
             with-default-features: true
             tools: true
             use-nextest: true
-          - os: namespace-profile-default
+          - os: namespace-profile-rust-linux-ci
             coverage: true
             features: strict-compile-time-validation
             with-default-features: false
@@ -142,46 +142,11 @@ jobs:
         if: ${{ matrix.tools }}
         run: uv tool install nixie-cli==1.1.0
 
-      - name: Expose user-local tools
-        if: ${{ matrix.tools }}
-        shell: bash
-        run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
       - name: Install Whitaker
         if: ${{ matrix.tools }}
         uses: leynos/shared-actions/.github/actions/install-whitaker@794e4801babcf68065c660fdf4781ad62be5d061
         with:
           installer-version: ${{ env.WHITAKER_INSTALLER_VERSION }}
-
-      - name: Diagnose Whitaker installation failure
-        if: ${{ failure() && matrix.tools }}
-        shell: bash
-        run: |
-          set +e
-          printf 'PATH=%s\n' "$PATH"
-          printf 'XDG_BIN_HOME=%s\n' "${XDG_BIN_HOME:-<unset>}"
-          printf 'CARGO_HOME=%s\n' "${CARGO_HOME:-<unset>}"
-          getconf GNU_LIBC_VERSION
-          for candidate in \
-            "$HOME/.local/bin/cargo-dylint" \
-            "$HOME/.local/bin/dylint-link" \
-            "$HOME/.cargo/bin/cargo-dylint" \
-            "$HOME/.cargo/bin/dylint-link"; do
-            if [[ ! -e "$candidate" ]]; then
-              printf '%s: missing\n' "$candidate"
-              continue
-            fi
-            ls -l "$candidate"
-            file "$candidate"
-            "$candidate" --version 2>&1
-            printf '%s --version exit=%s\n' "$candidate" "$?"
-            if [[ "$candidate" == */cargo-dylint ]]; then
-              "$candidate" dylint --version 2>&1
-              printf '%s dylint --version exit=%s\n' "$candidate" "$?"
-            fi
-          done
-          cargo dylint --version 2>&1
-          printf 'cargo dylint --version exit=%s\n' "$?"
 
       - name: Nixie
         if: ${{ matrix.tools }}
@@ -264,7 +229,7 @@ jobs:
         # legs stay best-effort as before. Selected by matrix values rather
         # than a dedicated key so the job name (a required check context)
         # is unchanged.
-        continue-on-error: ${{ !(matrix.os == 'namespace-profile-default' && matrix.features == '') }}
+        continue-on-error: ${{ !(matrix.os == 'namespace-profile-rust-linux-ci' && matrix.features == '') }}
         env:
           # Windows coverage runs (build plus doctests) exceed the shared
           # action's 600s per-invocation default; give them headroom.
@@ -282,7 +247,7 @@ jobs:
           # Ratchet only the default-features Linux leg: the two Linux
           # coverage legs would otherwise collide on the per-run baseline
           # cache key.
-          with-ratchet: ${{ (matrix.os == 'namespace-profile-default' && matrix.features == '') && 'true' || 'false' }}
+          with-ratchet: ${{ (matrix.os == 'namespace-profile-rust-linux-ci' && matrix.features == '') && 'true' || 'false' }}
 
       - name: Verify coverage output exists
         if: ${{ matrix.coverage }}
@@ -295,7 +260,7 @@ jobs:
         env:
           CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
         if: >-
-          matrix.os == 'namespace-profile-default' &&
+          matrix.os == 'namespace-profile-rust-linux-ci' &&
           matrix.features == '' &&
           github.event_name == 'pull_request' &&
           env.CS_ACCESS_TOKEN != ''
