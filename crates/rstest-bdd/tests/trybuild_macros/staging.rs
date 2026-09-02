@@ -78,8 +78,20 @@ pub(crate) fn ui_fixture(case: &str) -> Utf8PathBuf {
 /// the staged fixture to `C:` gives that load a real feature while the
 /// trybuild crate remains on the hosted runner's `D:` workspace root.
 #[cfg(windows)]
-pub(crate) fn stage_unrelatable_feature_root() -> io::Result<AlternateFeatureRoot> {
+pub(crate) fn stage_unrelatable_feature_root() -> io::Result<Option<AlternateFeatureRoot>> {
     let crate_root = Utf8Path::new(env!("CARGO_MANIFEST_DIR"));
+    let workspace_root = crate_root
+        .parent()
+        .and_then(Utf8Path::parent)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "workspace root must exist"))?;
+    let target_root = trybuild_target_directory(workspace_root);
+    if target_root.as_std_path().starts_with(r"C:\") {
+        // Lading's publish preflight uses a temporary C: target. The fixed C:
+        // fixture cannot exercise an unrelatable root there; the ordinary
+        // Windows CI target is on D: and retains the compile-fail coverage.
+        return Ok(None);
+    }
+
     let source = crate_root.join("tests/fixtures_macros/unrelatable/x.feature");
     let destination = StdPath::new(UNRELATABLE_FEATURE_PATH);
     let Some(parent) = destination.parent() else {
@@ -90,7 +102,7 @@ pub(crate) fn stage_unrelatable_feature_root() -> io::Result<AlternateFeatureRoo
     };
     std::fs::create_dir_all(parent)?;
     std::fs::copy(&source, destination)?;
-    Ok(AlternateFeatureRoot)
+    Ok(Some(AlternateFeatureRoot))
 }
 #[expect(clippy::expect_used, reason = "test setup failure should panic")]
 fn ensure_trybuild_support_files() {
@@ -243,7 +255,8 @@ impl Drop for TargetRootSnapshotGuard {
 
 /// Render a target root with the platform-independent snapshot separator.
 fn snapshot_target_root(target_root: &Utf8Path, workspace_root: &Utf8Path) -> String {
-    let target_root = target_root.as_str().replace('\\', "/");
+    let native_target_root = target_root.as_str();
+    let target_root = native_target_root.replace('\\', "/");
     let workspace_root = workspace_root.as_str().replace('\\', "/");
     let target_root_path = Utf8Path::new(&target_root);
     let workspace_root_path = Utf8Path::new(&workspace_root);
@@ -252,7 +265,10 @@ fn snapshot_target_root(target_root: &Utf8Path, workspace_root: &Utf8Path) -> St
         .ok()
         .map(Utf8Path::to_owned);
 
-    relative.map_or_else(|| target_root, |relative| format!("$WORKSPACE/{relative}"))
+    relative.map_or_else(
+        || native_target_root.to_owned(),
+        |relative| format!("$WORKSPACE/{relative}"),
+    )
 }
 
 /// Stage temporary target-root-specific snapshots for a trybuild run.

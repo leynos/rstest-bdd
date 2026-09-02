@@ -46,6 +46,11 @@ fn target_directory_uses_running_test_executable() {
     "$WORKSPACE/target/llvm-cov-target"
 )]
 #[case::outside_workspace("/shared/target", "/workspace", "/shared/target")]
+#[case::outside_workspace_with_windows_separators(
+    r"C:\outside\target",
+    r"D:\workspace",
+    r"C:\outside\target"
+)]
 fn renders_snapshot_target_root(
     #[case] target_root: &str,
     #[case] workspace_root: &str,

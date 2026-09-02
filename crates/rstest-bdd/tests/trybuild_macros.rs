@@ -92,8 +92,17 @@ fn step_macros_compile() -> io::Result<()> {
 
             run_passing_macro_tests(&t);
             #[cfg(windows)]
-            let _alternate_root = staging::stage_unrelatable_feature_root()?;
+            let alternate_root = staging::stage_unrelatable_feature_root()?;
             run_failing_macro_tests(&t);
+            // POSIX absolute paths share `/`. Windows exercises D4 only when
+            // the staged C: fixture differs from trybuild's target drive.
+            #[cfg(windows)]
+            if alternate_root.is_some() {
+                t.compile_fail(
+                    macros_fixture(MacroFixtureCase::from("scenario_unrelatable_path.rs"))
+                        .as_std_path(),
+                );
+            }
             run_failing_ui_tests(&t)?;
             run_lint_ui_tests()?;
             t.compile_fail(
@@ -174,15 +183,6 @@ fn run_failing_macro_tests(t: &trybuild::TestCases) {
     ] {
         t.compile_fail(macros_fixture(case).as_std_path());
     }
-
-    // D4's unrelatable-root diagnostic (different Windows drive or UNC
-    // prefix): on POSIX every absolute path shares `/`, so the fixture can
-    // only fail where the case is real. The Windows CI legs exercise and pin
-    // it via `scenario_unrelatable_path.stderr`.
-    #[cfg(windows)]
-    t.compile_fail(
-        macros_fixture(MacroFixtureCase::from("scenario_unrelatable_path.rs")).as_std_path(),
-    );
 }
 
 fn run_failing_ui_tests(t: &trybuild::TestCases) -> io::Result<()> {
