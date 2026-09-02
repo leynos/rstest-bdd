@@ -57,11 +57,11 @@ is valid only after the workspace index contains both the feature step and its
 Rust implementation. Maintain this sequence in definition-navigation tests:
 
 1. Complete the `initialize` handshake.
-2. Save both the feature file and the Rust step file using `index_and_wait`, or
-   an equivalent deterministic helper.
-3. Wait for `textDocument/publishDiagnostics` for the Rust file URI. This is
-   the completion boundary: the ordered saves have been processed, and the
-   feature index and step registry are ready for navigation.
+2. Save the feature file and wait for `textDocument/publishDiagnostics` for
+   its exact URI.
+3. Save the Rust step file and wait for `textDocument/publishDiagnostics` for
+   its exact URI. Together, the two URI-matched acknowledgements establish
+   that the feature index and step registry are ready for navigation.
 4. Send `textDocument/definition` and receive its response by JSON-RPC id, so
    buffered notifications cannot be mistaken for the response.
 

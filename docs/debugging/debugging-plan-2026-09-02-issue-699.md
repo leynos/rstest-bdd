@@ -133,6 +133,17 @@ ______________________________________________________________________
 - **Escalation trigger**: All hypotheses are falsified; revise this plan using
   the experiment outputs and the failed Windows log.
 
+## Falsification Results
+
+- **H1 falsified**: Direct and deferred save handling preserve the feature then
+  Rust order. The original helper nevertheless left a single, ambiguous
+  readiness boundary. The replacement uses phase-specific acknowledgements.
+- **H2 falsified for this fixture**: Its Rust source indexes successfully,
+  although an unrelated fatal index failure can publish empty diagnostics.
+- **H3 not falsified**: `recv_notification_matching` discards non-matching
+  messages. The replacement must therefore wait for each URI before sending
+  the next dependent save.
+
 ## Notes for Executing Agent
 
 Run only the supplied minimal experiment. Do not run repository-wide gates,
