@@ -81,10 +81,10 @@ impl Drop for NormalizerFixture {
 }
 
 #[test]
-fn wip_stderr_path_builds_target_location() {
+fn wip_stderr_path_builds_crate_wip_location() {
     let path =
         wip_stderr_path(Utf8Path::new("tests/fixtures_macros/__helper_case.rs").as_std_path());
-    assert_eq!(path, Utf8Path::new("target/tests/wip/__helper_case.stderr"));
+    assert_eq!(path, Utf8Path::new("wip/__helper_case.stderr"));
 }
 
 #[test]
@@ -228,9 +228,11 @@ fn run_compile_fail_with_normalized_output_handles_multiple_normalizers() {
     let result = panic::catch_unwind(|| {
         run_compile_fail_with_normalized_output(
             || panic!("expected failure"),
+            || Ok(()),
             Utf8Path::new(TEST_PATH),
             &[strip_hint_one, strip_hint_two],
-        );
+        )
+        .expect("normalised outputs should be readable");
     });
     assert!(result.is_ok(), "normalized outputs should match");
     assert!(
@@ -250,9 +252,11 @@ fn run_compile_fail_with_normalized_output_accepts_empty_output() {
     let result = panic::catch_unwind(|| {
         run_compile_fail_with_normalized_output(
             || panic!("expected failure"),
+            || Ok(()),
             Utf8Path::new(TEST_PATH),
             &[],
-        );
+        )
+        .expect("normalised outputs should be readable");
     });
     assert!(result.is_ok(), "identical empty outputs should be accepted");
     assert!(
@@ -273,9 +277,11 @@ fn run_compile_fail_with_normalized_output_detects_mismatch() {
     let result = panic::catch_unwind(|| {
         run_compile_fail_with_normalized_output(
             || panic!("expected failure"),
+            || Ok(()),
             Utf8Path::new(TEST_PATH),
             &[trim_trailing],
-        );
+        )
+        .expect("normalised outputs should be readable");
     });
     assert!(
         result.is_err(),
@@ -325,9 +331,11 @@ fn run_compile_fail_with_normalized_output_test_cases(
     let result = panic::catch_unwind(|| {
         run_compile_fail_with_normalized_output(
             || panic!("expected failure"),
+            || Ok(()),
             Utf8Path::new(test_path),
             &[trim_trailing],
-        );
+        )
+        .expect("normalised outputs should be readable");
     });
 
     if should_succeed {
