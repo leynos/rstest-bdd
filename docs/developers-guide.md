@@ -2025,7 +2025,6 @@ the `KEYWORDS` const table consumed by `StepKeyword::from_str`
 - Entries store the canonical title-case rendering used in generated output
   and diagnostics.
 
-
 ## Registry lookup and usage-marking invariants
 
 Every public registry lookup in `crates/rstest-bdd/src/registry/` preserves
@@ -2384,7 +2383,6 @@ valid neighbouring definitions and reports `MultipleStepAttributes` or
 stores the valid index, publishes those diagnostics, and republishes feature
 diagnostics so a partially valid Rust file remains useful for navigation.
 
-
 ### Named textual-field binding
 
 The macro crate keeps named `StepArgs` captures and named `DataTableRow` fields
@@ -2402,7 +2400,6 @@ borrowed source expressions, so it does not impose an owned map or a runtime
 parser registry on either path. New named textual sources should reuse the
 field specification and scalar conversion boundary while supplying their own
 source context and missing-value policy.
-
 
 ### Scoped language-server lookup
 
