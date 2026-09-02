@@ -30,8 +30,12 @@ use wrappers::{
 mod staging;
 #[path = "trybuild_macros/whitaker.rs"]
 mod whitaker;
+#[path = "trybuild_macros/wip.rs"]
+mod wip;
 #[path = "trybuild_macros/wrappers.rs"]
 mod wrappers;
+
+use wip::{read_wip_stderr, remove_stale_wip_stderr, wip_stderr_path};
 
 fn macros_fixture(case: impl Into<MacroFixtureCase>) -> Utf8PathBuf {
     let case = case.into();
@@ -294,10 +298,9 @@ fn compile_fail_with_normalized_output(
         ambient_authority(),
     )?;
     let expected_path = expected_stderr_path(test_path.as_std_path());
-    let actual_path = wip_stderr_path(test_path.as_std_path());
     let expected = crate_dir.read_to_string(expected_path.as_std_path())?;
 
-    remove_file_if_present(&crate_dir, actual_path.as_std_path())?;
+    remove_stale_wip_stderr(test_path)?;
     crate_dir.remove_file(expected_path.as_std_path())?;
 
     run_compile_fail_with_normalized_output(
@@ -336,44 +339,31 @@ where
     }
 }
 
-fn remove_file_if_present(crate_dir: &Dir, path: &StdPath) -> io::Result<()> {
-    match crate_dir.remove_file(path) {
-        Ok(()) => Ok(()),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
-        Err(error) => Err(error),
-    }
-}
-
 fn normalized_outputs_match(test_path: &Utf8Path, normalizers: &[Normalizer]) -> io::Result<bool> {
     let crate_dir = Dir::open_ambient_dir(
         Utf8Path::new(env!("CARGO_MANIFEST_DIR")).as_std_path(),
         ambient_authority(),
     )?;
-    let actual_path = wip_stderr_path(test_path.as_std_path());
     let expected_path = expected_stderr_path(test_path.as_std_path());
-    let actual = crate_dir.read_to_string(actual_path.as_std_path())?;
+    let current_dir = Dir::open_ambient_dir(".", ambient_authority())?;
+    let actual_path = wip_stderr_path(test_path.as_std_path());
+    let (actual, is_in_current_dir) =
+        read_wip_stderr(&current_dir, &crate_dir, actual_path.as_std_path())?;
     let expected = crate_dir.read_to_string(expected_path.as_std_path())?;
 
     if apply_normalizers(NormalizerInput::from(actual.as_str()), normalizers)
         == apply_normalizers(NormalizerInput::from(expected.as_str()), normalizers)
     {
-        let _ = crate_dir.remove_file(actual_path.as_std_path());
+        let wip_dir = if is_in_current_dir {
+            &current_dir
+        } else {
+            &crate_dir
+        };
+        let _ = wip_dir.remove_file(actual_path.as_std_path());
         return Ok(true);
     }
 
     Ok(false)
-}
-
-fn wip_stderr_path(test_path: &StdPath) -> Utf8PathBuf {
-    let Some(file_name) = test_path.file_name() else {
-        panic!("trybuild test path must include file name");
-    };
-    let Some(file_name) = file_name.to_str() else {
-        panic!("file name must be valid UTF-8");
-    };
-    let mut path = Utf8PathBuf::from(file_name);
-    path.set_extension("stderr");
-    Utf8PathBuf::from("wip").join(path)
 }
 
 fn expected_stderr_path(test_path: &StdPath) -> Utf8PathBuf {

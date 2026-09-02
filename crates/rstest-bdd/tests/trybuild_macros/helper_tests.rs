@@ -14,6 +14,8 @@ use super::{
 
 #[path = "helper_tests/fixture_write.rs"]
 mod fixture_write;
+#[path = "helper_tests/wip_paths.rs"]
+mod wip_paths;
 
 fn write_fixture_file(crate_dir: &Dir, path: &Utf8Path, bytes: &[u8], label: &str) {
     if let Some(parent) = path.parent() {
