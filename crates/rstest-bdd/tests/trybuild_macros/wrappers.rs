@@ -141,35 +141,43 @@ pub(crate) fn normalize_conditional_trait_help(input: NormalizerInput<'_>) -> St
     let mut lines = text.lines().peekable();
     let mut normalized = Vec::new();
     while let Some(line) = lines.next() {
-        let trimmed = line.trim();
-        let is_connector = trimmed
-            .strip_prefix('|')
-            .and_then(|line| line.strip_suffix('|'))
-            .is_some_and(|contents| contents.trim().is_empty());
-        if line.contains("unsatisfied requirement introduced here:") {
+        if should_discard_conditional_trait_help_line(line, lines.peek().copied()) {
             continue;
         }
-        if is_connector
-            && matches!(
-                lines.peek(),
-                Some(next) if next.contains("unsatisfied requirement introduced here:")
-            )
-        {
-            continue;
-        }
-        let line = line.replace(
-            "StepReturnNormalize<Result<T, E>>` is conditionally implemented for",
-            "StepReturnNormalize<Result<T, E>>` is implemented for",
-        );
-        if line.contains("^^^^^^^^") && line.contains("--------") {
-            normalized.push(line.replace('-', "^"));
-        } else {
-            normalized.push(line);
-        }
+        normalized.push(normalize_conditional_trait_help_line(line));
     }
     let mut normalized = normalized.join("\n");
     if text.ends_with('\n') {
         normalized.push('\n');
     }
     normalized
+}
+
+fn should_discard_conditional_trait_help_line(line: &str, next_line: Option<&str>) -> bool {
+    line_contains_stable_requirement(line)
+        || (is_requirement_connector(line)
+            && next_line.is_some_and(line_contains_stable_requirement))
+}
+
+fn line_contains_stable_requirement(line: &str) -> bool {
+    line.contains("unsatisfied requirement introduced here:")
+}
+
+fn is_requirement_connector(line: &str) -> bool {
+    line.trim()
+        .strip_prefix('|')
+        .and_then(|line| line.strip_suffix('|'))
+        .is_some_and(|contents| contents.trim().is_empty())
+}
+
+fn normalize_conditional_trait_help_line(line: &str) -> String {
+    let normalized = line.replace(
+        "StepReturnNormalize<Result<T, E>>` is conditionally implemented for",
+        "StepReturnNormalize<Result<T, E>>` is implemented for",
+    );
+    if normalized.contains("^^^^^^^^") && normalized.contains("--------") {
+        normalized.replace('-', "^")
+    } else {
+        normalized
+    }
 }
