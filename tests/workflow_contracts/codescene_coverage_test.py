@@ -25,7 +25,7 @@ CODESCENE_COVERAGE_USES_RE = re.compile(
     r"[0-9a-f]{40}$"
 )
 CODESCENE_GUARD = (
-    "matrix.os == 'ubuntu-latest' && "
+    "matrix.os == 'namespace-profile-default' && "
     "matrix.features == '' && "
     "github.event_name == 'pull_request' && "
     "env.CS_ACCESS_TOKEN != ''"
@@ -42,7 +42,7 @@ EXPECTED_GENERATOR_INPUTS = {
     "use-cargo-nextest": "${{ matrix.use-nextest }}",
     "pytest-workers": "",
     "with-ratchet": (
-        "${{ (matrix.os == 'ubuntu-latest' && matrix.features == '') "
+        "${{ (matrix.os == 'namespace-profile-default' && matrix.features == '') "
         "&& 'true' || 'false' }}"
     ),
 }

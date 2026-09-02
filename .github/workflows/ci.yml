@@ -25,19 +25,19 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: namespace-profile-default
             coverage: true
             features: ''
             with-default-features: true
             tools: true
             use-nextest: true
-          - os: ubuntu-latest
+          - os: namespace-profile-default
             coverage: true
             features: strict-compile-time-validation
             with-default-features: false
             tools: true
             use-nextest: true
-          - os: windows-latest
+          - os: namespace-profile-rust-windows-ci
             coverage: true
             features: ''
             with-default-features: true
@@ -45,7 +45,7 @@ jobs:
             # Avoid Windows nested Cargo/nextest hangs; see
             # rust-lang/cargo#15744 and nextest-rs/nextest#2463.
             use-nextest: false
-          - os: windows-latest
+          - os: namespace-profile-rust-windows-ci
             coverage: true
             features: strict-compile-time-validation
             with-default-features: false
@@ -54,6 +54,16 @@ jobs:
             # rust-lang/cargo#15744 and nextest-rs/nextest#2463.
             use-nextest: false
     steps:
+      - name: Verify and install Windows runner tools
+        if: ${{ runner.os == 'Windows' }}
+        shell: pwsh
+        run: |
+          Get-Command git | Out-Null
+          Get-Command bash | Out-Null
+          Get-Command choco | Out-Null
+          choco install make --yes --no-progress
+          Get-Command make | Out-Null
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v5
         with:
@@ -235,7 +245,7 @@ jobs:
         # legs stay best-effort as before. Selected by matrix values rather
         # than a dedicated key so the job name (a required check context)
         # is unchanged.
-        continue-on-error: ${{ !(matrix.os == 'ubuntu-latest' && matrix.features == '') }}
+        continue-on-error: ${{ !(matrix.os == 'namespace-profile-default' && matrix.features == '') }}
         env:
           # Windows coverage runs (build plus doctests) exceed the shared
           # action's 600s per-invocation default; give them headroom.
@@ -253,7 +263,7 @@ jobs:
           # Ratchet only the default-features Linux leg: the two Linux
           # coverage legs would otherwise collide on the per-run baseline
           # cache key.
-          with-ratchet: ${{ (matrix.os == 'ubuntu-latest' && matrix.features == '') && 'true' || 'false' }}
+          with-ratchet: ${{ (matrix.os == 'namespace-profile-default' && matrix.features == '') && 'true' || 'false' }}
 
       - name: Verify coverage output exists
         if: ${{ matrix.coverage }}
@@ -266,7 +276,7 @@ jobs:
         env:
           CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
         if: >-
-          matrix.os == 'ubuntu-latest' &&
+          matrix.os == 'namespace-profile-default' &&
           matrix.features == '' &&
           github.event_name == 'pull_request' &&
           env.CS_ACCESS_TOKEN != ''

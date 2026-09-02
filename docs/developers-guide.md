@@ -6,17 +6,62 @@ patterns used across crates — it is not a user-facing tutorial.
 
 ## GitHub Actions runner profiles
 
-The delayed pull-request comment job uses the shared uncached
-`namespace-profile-default` runner (Ubuntu 22.04, amd64, 4 vCPU, and 16 GB).
-Its cache volume is disabled, so the initial adoption slice introduces no new
-cache ownership or cache-write policy.
+Repository-owned build-matrix and delayed-comment jobs use deployed Namespace
+runner profiles. Profile tags and workflow labels are an external contract:
+create and verify a profile in the Namespace workspace connected to this
+repository before merging a workflow that names it.
 
-The main build-and-coverage matrix remains on GitHub-hosted Linux and Windows
-runners. Its Linux legs combine workspace compilation, broad coverage, and
-tooling setup; migrate them only after an equivalent 8-vCPU shared Linux
-profile is available and measured. Windows remains GitHub-hosted because this
-pilot has no shared Windows Namespace profile. Externally owned reusable
-workflows retain their own runner selection.
+| Profile tag       | Workflow label                      | Operating system    | Machine shape | Namespace cache volume | Intended workload                 |
+| ----------------- | ----------------------------------- | ------------------- | ------------- | ---------------------- | --------------------------------- |
+| `default`         | `namespace-profile-default`         | Ubuntu 22.04        | 4 vCPU, 16 GB | Disabled               | Linux matrix and delayed comments |
+| `rust-windows-ci` | `namespace-profile-rust-windows-ci` | Windows Server 2022 | 8 vCPU, 16 GB | Disabled               | Windows build-and-coverage matrix |
+
+*Table: Namespace runner profiles used directly by rstest-bdd workflows.*
+
+The `build-test` matrix resolves `runs-on` from `matrix.os`. Both Linux feature
+lanes use `namespace-profile-default`; both Windows feature lanes use
+`namespace-profile-rust-windows-ci`. The feature sets, default-feature policy,
+coverage behaviour, and Windows `use-nextest: false` deadlock mitigation stay
+unchanged. The CodeScene and coverage-ratchet conditions identify the Linux
+profile explicitly, so a profile reassignment must update those conditions and
+the workflow contracts together.
+
+Profile cache volumes are disabled for this baseline. That does not disable the
+workflow's existing `actions/cache` entries or the caches nested in the pinned
+shared actions; those remain GitHub-backed and preserve the pre-migration cache
+semantics. Do not add `nscloud-cache-action` without a separately reviewed
+cache-volume deployment and trusted-branch write policy. Namespace-managed
+runners already carry service authentication, so the matrix does not use
+`nscloud-setup` and keeps its token scope at `contents: read`.
+
+Namespace images have a smaller tool contract than GitHub-hosted images. The
+Linux runner supplies Bash, `sudo`, and `apt`; pinned setup actions install
+Rust, `uv`, and Bun, while the published-GPUI step installs its development
+libraries explicitly. The Windows runner must expose Git, Git Bash, and
+Chocolatey before repository code runs. Its first matrix step verifies those
+commands, installs GNU Make through Chocolatey, and verifies `make` before
+checkout. Git Bash is required by the shared Rust and coverage composite
+actions and by the root Makefile's `SHELL := bash` contract.
+
+The pinned shared Rust and coverage actions currently reach nested cache,
+sccache, and artefact actions as well as Node 24 checkout and `setup-uv`
+runtimes. Namespace can promote an older nested Node runtime. Keep the
+workflow-wide `ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION` compatibility switch
+unset; if an exact-head Windows run shows a promotion-specific crash, update
+the nested action chain upstream or document and scope a temporary switch to
+the affected Windows job only.
+
+Use `nsc github profile list -o json` and
+`nsc github profile describe --profile_id ID -o json` to verify the deployed
+profile specification. After workflow changes, correlate GitHub jobs with
+`nsc github job list` and `nsc github job describe` to prove admission, native
+platform, runner provisioning, and execution timing.
+
+The mutation-testing and Dependabot auto-merge jobs call SHA-pinned reusable
+workflows in `leynos/shared-actions`. Their callees continue to own runner
+selection; callers must not add `runs-on`. The workflow contract suite protects
+that ownership boundary alongside the matrix assignments and prerequisite
+ordering.
 
 ## Workspace dependency policy
 
