@@ -20,8 +20,8 @@ The BDD scenarios live in `tests/features/counter.feature`. Step definitions in
 - Binding first-party GPUI scenarios with `harness = GpuiHarness` alone.
 - Relying on the macro to infer `GpuiAttributePolicy` from the first-party
   harness path.
-- Accessing the injected `gpui::TestAppContext` through the
-  `#[from(rstest_bdd_harness_context)]` fixture key.
+- Accessing the injected `gpui::TestAppContext` through the `#[harness_context]`
+  marker.
 - Recording harness context observations (e.g. `TestAppContext` availability)
   in the example's own domain model.
 

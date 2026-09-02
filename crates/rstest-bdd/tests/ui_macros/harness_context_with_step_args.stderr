@@ -1,0 +1,8 @@
+error: invalid step function signature: `#[harness_context]` cannot be combined with `#[step_args]`
+
+         = help: Use a step attribute (such as `#[given]`) on `fn name(...args...)` with supported step arguments/fixtures (step attributes include `#[given]`, `#[when]`, and `#[then]`); remove `self` if present.
+
+ --> tests/ui_macros/harness_context_with_step_args.rs:7:5
+  |
+7 |     #[harness_context]
+  |     ^

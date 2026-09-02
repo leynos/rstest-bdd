@@ -1,0 +1,8 @@
+error: invalid step function signature: `#[harness_context]` cannot be combined with `#[datatable]`
+
+         = help: Use a step attribute (such as `#[given]`) on `fn name(...args...)` with supported step arguments/fixtures (step attributes include `#[given]`, `#[when]`, and `#[then]`); remove `self` if present.
+
+ --> tests/ui_macros/harness_context_with_datatable.rs:8:5
+  |
+8 |     #[datatable]
+  |     ^

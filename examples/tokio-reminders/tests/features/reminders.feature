@@ -17,3 +17,8 @@ Feature: Tokio reminder delivery
       | Ada |
       | Grace |
     And no reminders have been delivered yet
+
+  Scenario: A step can reach the Tokio harness context through the marker
+    Given a reminder service
+    When I reach the harness context through the marker
+    Then no reminders have been delivered yet

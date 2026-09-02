@@ -104,6 +104,27 @@ fn validate_no_from_attr(arg: &syn::PatType) -> syn::Result<()> {
     )
 }
 
+/// Reject `#[harness_context]` on a `#[step_args]` parameter.
+///
+/// The `#[step_args]` classifier runs before the `#[harness_context]`
+/// classifier in `extract_args`, so this guard is what stops the marker from
+/// surviving into generated code when the attributes appear in this order.
+/// The message agrees with `classify_harness_context`'s own rejection so users
+/// see one story regardless of attribute order.
+///
+/// # Errors
+///
+/// Returns an error when `arg` carries a `#[harness_context]` attribute.
+fn validate_harness_context_attr(arg: &syn::PatType) -> syn::Result<()> {
+    validate_condition(
+        arg.attrs
+            .iter()
+            .any(|a| a.path().is_ident("harness_context")),
+        arg,
+        super::harness_context::HARNESS_CONTEXT_WITH_STEP_ARGS_ERROR,
+    )
+}
+
 /// Require that a `#[step_args]` parameter owns its struct type.
 ///
 /// The generated wrapper constructs the struct locally and moves it into the
@@ -161,8 +182,9 @@ pub(crate) fn classify_step_struct(
     let ty = &arg.ty;
     validate_single_step_struct(st, arg)?;
     validate_no_named_args(st, arg)?;
-    validate_has_placeholders(placeholders, arg)?;
     validate_no_from_attr(arg)?;
+    validate_harness_context_attr(arg)?;
+    validate_has_placeholders(placeholders, arg)?;
     validate_owned_type(ty.as_ref())?;
     let idx = st.push(Arg::StepStruct {
         pat: pat.clone(),

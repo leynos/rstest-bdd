@@ -47,6 +47,8 @@ thiserror.workspace = true
 rustc_version = "0.4"
 [dev-dependencies]
 insta.workspace = true
+googletest.workspace = true
+pretty_assertions.workspace = true
 proptest.workspace = true
 rstest.workspace = true
 rstest-bdd-test-macros.workspace = true

@@ -431,6 +431,28 @@ fn starts_at(
 }
 ```
 
+#### Use the harness-context marker (v0.6.1 beta)
+
+The v0.6.1 beta adds `#[harness_context]` as a readable way to request the
+harness-provided context. Replace the legacy spelling above with:
+
+```rust,no_run
+#[given("the app counter starts at {n}")]
+fn starts_at(
+    #[harness_context] app: &AppContext,
+    n: usize,
+) {
+    assert_eq!(app.counter, n);
+}
+```
+
+The marker, `#[from(rstest_bdd_harness_context)] app: &AppContext`, and a
+parameter named `rstest_bdd_harness_context` all request the same reserved
+fixture key. Existing `#[from(rstest_bdd_harness_context)]` code remains
+supported. The marker is bare, takes no arguments, and may appear only once per
+parameter. Do not combine it with `#[from]`, `#[datatable]`, or `#[step_args]`,
+or use it on a parameter bound to a step-pattern placeholder.
+
 Harnesses that do not inject context should keep `type Context = ()` and call
 `request.run_without_context()`.
 

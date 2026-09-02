@@ -13,6 +13,8 @@ mod errors;
 mod identifiers;
 
 use assembly::{generate_async_wrapper_body, generate_wrapper_body};
+#[cfg(test)]
+pub(crate) use identifiers::reset_wrapper_counter_for_tests;
 use identifiers::{WrapperIdents, generate_wrapper_identifiers, next_wrapper_id};
 
 /// Configuration required to generate a wrapper.
