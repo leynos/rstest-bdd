@@ -10,13 +10,11 @@ help: the trait `rstest_bdd::step_return::StepErrorDisplay` is not implemented f
 5 | struct NotDisplay;
   | ^^^^^^^^^^^^^^^^^
   = note: rstest-bdd renders a step's `Err` through `Display`
-help: the trait `rstest_bdd::step_return::StepReturnNormalize<Result<T, E>>` is conditionally implemented for `rstest_bdd::step_return::StepReturnResultTag`
+help: the trait `rstest_bdd::step_return::StepReturnNormalize<Result<T, E>>` is implemented for `rstest_bdd::step_return::StepReturnResultTag`
  --> src/step_return.rs
   |
   | impl<T: Any, E: StepErrorDisplay> StepReturnNormalize<Result<T, E>> for StepReturnResultTag {
-  | ^^^^^^^^^^^^^^^^----------------^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  |                 |
-  |                 unsatisfied requirement introduced here: `NotDisplay: rstest_bdd::step_return::StepErrorDisplay`
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   = note: required for `rstest_bdd::step_return::StepReturnResultTag` to implement `rstest_bdd::step_return::StepReturnNormalize<Result<(), NotDisplay>>`
   = note: this error originates in the attribute macro `when` (in Nightly builds, run with -Z macro-backtrace for more info)
 
@@ -32,12 +30,10 @@ help: the trait `rstest_bdd::step_return::StepErrorDisplay` is not implemented f
  5 | struct NotDisplay;
    | ^^^^^^^^^^^^^^^^^
    = note: rstest-bdd renders a step's `Err` through `Display`
-help: the trait `rstest_bdd::step_return::StepReturnNormalize<Result<T, E>>` is conditionally implemented for `rstest_bdd::step_return::StepReturnResultTag`
+help: the trait `rstest_bdd::step_return::StepReturnNormalize<Result<T, E>>` is implemented for `rstest_bdd::step_return::StepReturnResultTag`
   --> src/step_return.rs
    |
    | impl<T: Any, E: StepErrorDisplay> StepReturnNormalize<Result<T, E>> for StepReturnResultTag {
-   | ^^^^^^^^^^^^^^^^----------------^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-   |                 |
-   |                 unsatisfied requirement introduced here: `NotDisplay: rstest_bdd::step_return::StepErrorDisplay`
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    = note: required for `rstest_bdd::step_return::StepReturnResultTag` to implement `rstest_bdd::step_return::StepReturnNormalize<Result<(), NotDisplay>>`
    = note: this error originates in the attribute macro `when` (in Nightly builds, run with -Z macro-backtrace for more info)
