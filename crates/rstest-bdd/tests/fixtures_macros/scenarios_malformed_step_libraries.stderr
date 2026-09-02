@@ -1,0 +1,5 @@
+error: expected identifier
+ --> tests/fixtures_macros/scenarios_malformed_step_libraries.rs:5:48
+  |
+5 | scenarios!("tests/features/auto", libraries = ["accounts"]);
+  |                                                ^^^^^^^^^^

@@ -72,6 +72,7 @@ async fn sync_wrapper_refuses_to_create_nested_runtime() {
         StepKeyword::When,
         StepText::from("an async step increments the state"),
     )
+    .expect("lookup should be unambiguous")
     .expect("expected async step to be registered");
 
     let mut ctx = StepContext::default();

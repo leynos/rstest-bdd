@@ -114,8 +114,9 @@ pub trait StepArgs: Sized {
 
     /// Convert named captures into a populated struct.
     ///
-    /// The default preserves the legacy positional contract for manual
-    /// implementations. Derived implementations override it and bind by name.
+    /// The default validates the named record and passes values to a manual
+    /// [`Self::from_captures`] implementation in [`Self::FIELD_NAMES`] order.
+    /// Derived implementations override it to parse fields directly by name.
     ///
     /// # Errors
     /// Returns [`StepArgsError`] when the captures cannot populate the value.
@@ -126,12 +127,30 @@ pub trait StepArgs: Sized {
                 captures.len(),
             ));
         }
-        for capture in &captures {
+        for (index, capture) in captures.iter().enumerate() {
             if !Self::FIELD_NAMES.contains(&capture.name) {
                 return Err(StepArgsError::unconsumed_capture(capture.name));
             }
+            if captures
+                .iter()
+                .take(index)
+                .any(|earlier| earlier.name == capture.name)
+            {
+                return Err(StepArgsError::duplicate_capture(capture.name));
+            }
         }
-        Self::from_captures(captures.into_iter().map(|capture| capture.value).collect())
+        let mut captures = captures;
+        let values = Self::FIELD_NAMES
+            .iter()
+            .map(|field_name| {
+                let index = captures
+                    .iter()
+                    .position(|capture| capture.name == *field_name)
+                    .ok_or_else(|| StepArgsError::missing_field(field_name, field_name))?;
+                Ok(captures.swap_remove(index).value)
+            })
+            .collect::<Result<Vec<_>, StepArgsError>>()?;
+        Self::from_captures(values)
     }
 }
 
@@ -139,7 +158,17 @@ pub trait StepArgs: Sized {
 mod tests {
     //! Unit tests for step argument extraction.
 
-    use super::StepArgsError;
+    use super::{StepArgs, StepArgsError, StepCapture};
+
+    #[derive(Debug, PartialEq, Eq)]
+    struct ManualArgs(Vec<String>);
+
+    impl StepArgs for ManualArgs {
+        const FIELD_COUNT: usize = 2;
+        const FIELD_NAMES: &'static [&'static str] = &["first", "second"];
+
+        fn from_captures(values: Vec<String>) -> Result<Self, StepArgsError> { Ok(Self(values)) }
+    }
 
     #[test]
     fn parse_failure_formats_message() {
@@ -166,5 +195,42 @@ mod tests {
             err.to_string(),
             "failed to parse field 'amount' from value 'invalid': not money"
         );
+    }
+
+    #[test]
+    fn manual_implementation_receives_values_in_field_order() {
+        let args = ManualArgs::from_named_captures(vec![
+            StepCapture {
+                name: "second",
+                value: String::from("two"),
+            },
+            StepCapture {
+                name: "first",
+                value: String::from("one"),
+            },
+        ])
+        .expect("valid named captures should be reordered");
+
+        assert_eq!(
+            args,
+            ManualArgs(vec![String::from("one"), String::from("two")])
+        );
+    }
+
+    #[test]
+    fn manual_implementation_rejects_duplicate_capture_names() {
+        let error = ManualArgs::from_named_captures(vec![
+            StepCapture {
+                name: "first",
+                value: String::from("one"),
+            },
+            StepCapture {
+                name: "first",
+                value: String::from("another"),
+            },
+        ])
+        .expect_err("duplicate named captures should fail");
+
+        assert_eq!(error, StepArgsError::duplicate_capture("first"));
     }
 }

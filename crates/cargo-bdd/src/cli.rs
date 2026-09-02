@@ -1,7 +1,7 @@
 //! Command dispatch and formatting for the `cargo bdd` entrypoint.
 
 use std::{
-    collections::HashMap,
+    collections::BTreeMap,
     io::{self, Write},
 };
 
@@ -179,7 +179,7 @@ fn handle_duplicates() -> Result<()> {
 
 /// Group steps by the library-local identity used for duplicate diagnostics.
 fn group_duplicate_steps(steps: impl IntoIterator<Item = Step>) -> Vec<Vec<Step>> {
-    let mut groups: HashMap<(String, String, String), Vec<Step>> = HashMap::new();
+    let mut groups: BTreeMap<(String, String, String), Vec<Step>> = BTreeMap::new();
     for step in steps {
         groups
             .entry((
@@ -358,5 +358,43 @@ mod tests {
         ];
 
         assert!(group_duplicate_steps(steps).is_empty());
+    }
+
+    #[test]
+    fn duplicate_groups_are_ordered_by_library_keyword_and_pattern() {
+        let step = |library: &str, keyword: &str, pattern: &str| Step {
+            library: library.to_owned(),
+            keyword: keyword.to_owned(),
+            pattern: pattern.to_owned(),
+            file: "steps.rs".to_owned(),
+            line: 1,
+            used: false,
+        };
+        let steps = [
+            step("filesystem", "Then", "z"),
+            step("accounts", "Given", "a"),
+            step("filesystem", "Then", "z"),
+            step("accounts", "Given", "a"),
+        ];
+
+        let keys = group_duplicate_steps(steps)
+            .into_iter()
+            .map(|group| {
+                let first = group.first().expect("duplicate group must be non-empty");
+                (
+                    first.library.clone(),
+                    first.keyword.clone(),
+                    first.pattern.clone(),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            keys,
+            [
+                ("accounts".into(), "Given".into(), "a".into()),
+                ("filesystem".into(), "Then".into(), "z".into()),
+            ]
+        );
     }
 }

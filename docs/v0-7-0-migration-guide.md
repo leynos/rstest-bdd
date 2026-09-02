@@ -11,6 +11,31 @@ design rationale.
   `#[step_args(placeholder = "placeholder_name")]`; positional coincidence is
   no longer accepted by derived bindings. See
   [RFC 0002](rfcs/0002-named-step-argument-binding.md).
+- `StepExecutionRequest` now requires a `scope` field. Manual request
+  construction should use `StepScope::global()` for the previous unscoped
+  behaviour, or the selected scope for a named-library scenario:
+
+  ```rust,no_run
+  use rstest_bdd::{StepKeyword, StepScope};
+  use rstest_bdd::execution::StepExecutionRequest;
+
+  let request = StepExecutionRequest {
+      index: 0,
+      keyword: StepKeyword::Given,
+      text: "the service is running",
+      docstring: None,
+      table: None,
+      feature_path: "tests/features/service.feature",
+      scenario_name: "Running service",
+      scope: StepScope::global(),
+  };
+  ```
+
+- Registry lookup functions now return `Result<Option<_>, StepLookupError>`.
+  Handle the error before the optional result so equally specific matches are
+  not silently discarded. Scoped metadata lookup is a pure query and does not
+  mark a definition as used; scenario execution marks a successfully resolved
+  step at the execution boundary.
 
 ## New scoped-vocabulary model
 

@@ -134,6 +134,7 @@ fn wrapper_errors_localize(
 #[test]
 fn find_step_with_metadata_returns_step_with_fixtures() {
     let step = find_step_with_metadata(StepKeyword::Then, StepText::from("needs fixture"))
+        .expect("lookup should be unambiguous")
         .expect("step 'needs fixture' not found in registry");
 
     assert_eq!(step.pattern.as_str(), "needs fixture");
@@ -148,12 +149,13 @@ fn find_step_with_metadata_returns_none_for_unknown_step() {
         StepText::from("nonexistent step pattern"),
     );
 
-    assert!(result.is_none());
+    assert!(result.expect("lookup should be unambiguous").is_none());
 }
 
 #[test]
 fn find_step_with_metadata_returns_empty_fixtures_for_no_fixture_step() {
     let step = find_step_with_metadata(StepKeyword::When, StepText::from("behavioural"))
+        .expect("lookup should be unambiguous")
         .expect("step 'behavioural' not found in registry");
 
     assert_eq!(step.pattern.as_str(), "behavioural");
@@ -180,6 +182,7 @@ fn fixture_validation_detects_missing_fixtures() {
     // This test validates the fixture validation logic that is used in
     // execute_single_step() by replicating the same check here.
     let step = find_step_with_metadata(StepKeyword::Then, StepText::from("needs fixture"))
+        .expect("lookup should be unambiguous")
         .expect("step 'needs fixture' not found in registry");
 
     // Create a context with some fixtures but NOT the "missing" fixture
@@ -202,6 +205,7 @@ fn fixture_validation_detects_missing_fixtures() {
 #[test]
 fn fixture_validation_passes_when_all_fixtures_present() {
     let step = find_step_with_metadata(StepKeyword::Then, StepText::from("needs fixture"))
+        .expect("lookup should be unambiguous")
         .expect("step 'needs fixture' not found in registry");
 
     // Create a context with the required "missing" fixture
@@ -224,6 +228,7 @@ fn fixture_validation_passes_when_all_fixtures_present() {
 fn find_step_with_metadata_marks_step_as_used() {
     // The step "needs fixture" should be marked as used after find_step_with_metadata
     let step = find_step_with_metadata(StepKeyword::Then, StepText::from("needs fixture"))
+        .expect("lookup should be unambiguous")
         .expect("step 'needs fixture' not found in registry");
 
     // Verify the step is no longer in the unused_steps list by comparing pointers.

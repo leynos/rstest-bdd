@@ -1,0 +1,5 @@
+error: duplicate step library in `libraries` argument
+ --> tests/fixtures_macros/scenarios_duplicate_step_libraries.rs:5:58
+  |
+5 | scenarios!("tests/features/auto", libraries = [accounts, accounts]);
+  |                                                          ^^^^^^^^

@@ -8,3 +8,9 @@ Feature: Struct-based step arguments
   Scenario: String hints with step_args struct
     Given a product named "Widget Pro" priced at $19.99
     Then the product summary shows "Widget Pro" at $19.99
+
+  Scenario: Reordered struct fields bind through the generated wrapper
+    Given Alice transfers 42 to Bob
+
+  Scenario: Struct rename rules bind through the generated wrapper
+    Given checking sends to savings

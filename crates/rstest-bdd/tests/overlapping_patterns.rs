@@ -63,7 +63,9 @@ fn assert_step_execution(
     expected_counters: (usize, usize, usize),
     assertion_message: &str,
 ) {
-    let step_fn = find_step(StepKeyword::Given, step_text.into()).expect("step not found");
+    let step_fn = find_step(StepKeyword::Given, step_text.into())
+        .expect("lookup should be unambiguous")
+        .expect("step not found");
 
     let mut ctx = StepContext::default();
     match step_fn(&mut ctx, step_text, None, None) {
@@ -89,7 +91,9 @@ fn assert_typed_step_execution(
     expected_counters: (usize, usize),
     assertion_message: &str,
 ) {
-    let step_fn = find_step(StepKeyword::Given, step_text.into()).expect("step not found");
+    let step_fn = find_step(StepKeyword::Given, step_text.into())
+        .expect("lookup should be unambiguous")
+        .expect("step not found");
 
     let mut ctx = StepContext::default();
     match step_fn(&mut ctx, step_text, None, None) {

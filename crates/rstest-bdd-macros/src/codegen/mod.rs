@@ -1,5 +1,6 @@
-//! Code generation utilities that emit fully-qualified `::rstest_bdd::…` paths
-//! without a compile-time dependency on the runtime crate.
+//! Code-generation utilities that resolve and emit fully qualified paths to
+//! the runtime crate, including paths through renamed `rstest-bdd`
+//! dependencies, without a compile-time dependency on the runtime crate.
 use proc_macro_crate::{FoundCrate, crate_name};
 use proc_macro2::{Ident, Span, TokenStream as TokenStream2};
 use quote::quote;

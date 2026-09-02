@@ -3087,11 +3087,18 @@ Note: `code` values are stable identifiers intended for programmatic use.
 
 Step wrapper functions parse the returned strings and convert them with
 `FromStr` before calling the original step. Scenario execution searches the
-step registry using `find_step`, which falls back to placeholder matching when
-no exact pattern is present. This approach keeps the macros lightweight while
-supporting type‑safe parameters in steps. The parser handles escaped braces,
-nested brace pairs, and treats other backslash escapes literally, preventing
-greedy captures while still requiring well‑formed placeholders.
+selected closed library scope with `find_step_with_metadata_in_scope`, which
+falls back to placeholder matching when no exact pattern is present. Equally
+specific matches return `StepLookupError` rather than using registration or
+library order. This approach keeps the macros lightweight while supporting
+type‑safe parameters in steps. The parser handles escaped braces, nested brace
+pairs, and treats other backslash escapes literally, preventing greedy captures
+while still requiring well‑formed placeholders.
+
+Scoped metadata lookup is read-only: it does not mark a definition as used.
+Execution marks the successfully resolved step at its command boundary, so
+usage reports reflect executed steps rather than inspection or preflight
+queries.
 
 When available, if a table parameter implements `TryFrom<Vec<Vec<String>>>`,
 the wrapper will run the conversion after materializing the nested vectors. The
@@ -3110,12 +3117,14 @@ sequenceDiagram
     participant StepWrapper
     participant StepFunction
 
-    ScenarioRunner->>StepRegistry: find_step(keyword, text)
+    ScenarioRunner->>StepRegistry: find_step_with_metadata_in_scope(scope, keyword, text)
     alt exact match
-        StepRegistry-->>ScenarioRunner: StepFn
+        StepRegistry-->>ScenarioRunner: Step metadata
     else placeholder match
         StepRegistry->>StepRegistry: extract_placeholders(pattern, text)
-        StepRegistry-->>ScenarioRunner: StepFn
+        StepRegistry-->>ScenarioRunner: Step metadata
+    else equally specific matches
+        StepRegistry-->>ScenarioRunner: StepLookupError
     end
     ScenarioRunner->>StepWrapper: call StepFn(ctx, text, docstring: Option<&str>, table: Option<&[&[&str]]>)
     StepWrapper->>StepWrapper: extract_placeholders(pattern, text)
