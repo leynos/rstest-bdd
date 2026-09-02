@@ -109,8 +109,14 @@ fn find_matching_rust_locations(
     feature_index: &FeatureFileIndex,
     step: &IndexedStep,
 ) -> Vec<Location> {
-    state
-        .steps_for_feature_keyword(&feature_index.path, step.step_type)
+    let candidates = match state.steps_for_feature_keyword(&feature_index.path, step.step_type) {
+        Ok(candidates) => candidates,
+        Err(error) => {
+            error.emit_warning();
+            return Vec::new();
+        }
+    };
+    candidates
         .into_iter()
         .filter(|compiled| compiled.regex.is_match(&step.text))
         .filter_map(build_rust_location)

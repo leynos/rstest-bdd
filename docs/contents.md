@@ -31,11 +31,11 @@
   limitations that maintainers should keep visible.
 - [Changelog](CHANGELOG.md) records repository-level release history.
 
-## Requests for Comments
+## Requests for comments
 
-- [RFC 0001: Explicit step-library scopes](rfcs/0001-explicit-step-library-scopes.md)
+- [RFC 0001: Explicit step-library scopes][rfc-0001]
   defines closed-world, lexical selection of a scenario's step vocabulary.
-- [RFC 0002: Named step-argument binding](rfcs/0002-named-step-argument-binding.md)
+- [RFC 0002: Named step-argument binding][rfc-0002]
   defines name-based `StepArgs` capture binding and shared conversion policy.
 
 ## User and migration references
@@ -138,3 +138,5 @@
 [cucumber-async]: cucumber-rs-migration-and-async-patterns.md
 [dependency-injection]: reliable-testing-in-rust-via-dependency-injection.md
 [fluent-guide]: localizable-rust-libraries-with-fluent.md
+[rfc-0001]: rfcs/0001-explicit-step-library-scopes.md
+[rfc-0002]: rfcs/0002-named-step-argument-binding.md

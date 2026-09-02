@@ -34,6 +34,7 @@ use crate::{
     StepText,
     context::StepContext,
     find_step_with_metadata_in_scope,
+    registry::mark_step_used,
 };
 
 /// Prefix character for encoded skip messages with no message content.
@@ -58,17 +59,23 @@ pub use rstest_bdd_policy::TestAttributeHint;
 fn resolve_step_for_request(
     request: &StepExecutionRequest<'_>,
 ) -> Result<&'static Step, ExecutionError> {
-    find_step_with_metadata_in_scope(request.scope, request.keyword, StepText::from(request.text))
-        .map_err(|error| ExecutionError::StepAmbiguous {
-            message: error.to_string(),
-        })?
-        .ok_or_else(|| ExecutionError::StepNotFound {
-            index: request.index,
-            keyword: request.keyword,
-            text: request.text.to_owned(),
-            feature_path: request.feature_path.to_owned(),
-            scenario_name: request.scenario_name.to_owned(),
-        })
+    let step = find_step_with_metadata_in_scope(
+        request.scope,
+        request.keyword,
+        StepText::from(request.text),
+    )
+    .map_err(|error| ExecutionError::StepAmbiguous {
+        message: error.to_string(),
+    })?
+    .ok_or_else(|| ExecutionError::StepNotFound {
+        index: request.index,
+        keyword: request.keyword,
+        text: request.text.to_owned(),
+        feature_path: request.feature_path.to_owned(),
+        scenario_name: request.scenario_name.to_owned(),
+    })?;
+    mark_step_used(step);
+    Ok(step)
 }
 
 /// Convert a step result into the executor's structured outcome.

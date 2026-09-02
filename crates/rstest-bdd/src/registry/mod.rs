@@ -144,6 +144,11 @@ fn mark_used(key: StepKey) {
         .insert(key);
 }
 
+/// Record a resolved step as used by an execution boundary.
+pub(crate) fn mark_step_used(step: &'static Step) {
+    mark_used((library_for_step(step), step.keyword, step.pattern.as_str()));
+}
+
 /// Collect all steps submitted through `inventory`.
 fn all_steps() -> Vec<&'static Step> { iter::<Step>.into_iter().collect() }
 
@@ -277,76 +282,69 @@ fn select_most_specific(
 
 /// Mark a resolved step as used and apply a projection to it.
 ///
-/// This is the canonical post-resolution path shared by every public lookup
-/// function: the `mark_used` call lives here exactly once, so any lookup
-/// variant that returns `Some` is guaranteed to record the step for
-/// unused-step diagnostics. New lookup variants must resolve a step and pass
-/// it through this helper rather than calling `mark_used` directly; see the
-/// developers' guide for the invariant.
+/// This is the canonical post-resolution path for lookup operations whose
+/// contract records usage. The scoped metadata query remains side-effect free;
+/// execution records its resolved step explicitly at the command boundary.
 fn mark_and_project<T>(
     step: Option<&'static Step>,
     project: impl FnOnce(&'static Step) -> T,
 ) -> Option<T> {
     step.map(|found| {
-        mark_used((
-            library_for_step(found),
-            found.keyword,
-            found.pattern.as_str(),
-        ));
+        mark_step_used(found);
         project(found)
     })
 }
 
 /// Look up a registered step by keyword and pattern.
-#[must_use]
-pub fn lookup_step(keyword: StepKeyword, pattern: PatternStr<'_>) -> Option<StepFn> {
-    mark_and_project(
-        resolve_exact_step(StepScope::global(), keyword, pattern)
-            .ok()
-            .flatten(),
-        |step| step.run,
-    )
+///
+/// # Errors
+///
+/// Returns [`StepLookupError`] when equally specific definitions match.
+pub fn lookup_step(
+    keyword: StepKeyword,
+    pattern: PatternStr<'_>,
+) -> Result<Option<StepFn>, StepLookupError> {
+    resolve_exact_step(StepScope::global(), keyword, pattern)
+        .map(|step| mark_and_project(step, |found| found.run))
 }
 
 /// Find a registered step whose pattern matches the provided text.
-#[must_use]
-pub fn find_step(keyword: StepKeyword, text: StepText<'_>) -> Option<StepFn> {
-    mark_and_project(
-        resolve_step(StepScope::global(), keyword, text)
-            .ok()
-            .flatten(),
-        |step| step.run,
-    )
+///
+/// # Errors
+///
+/// Returns [`StepLookupError`] when equally specific definitions match.
+pub fn find_step(
+    keyword: StepKeyword,
+    text: StepText<'_>,
+) -> Result<Option<StepFn>, StepLookupError> {
+    resolve_step(StepScope::global(), keyword, text)
+        .map(|step| mark_and_project(step, |found| found.run))
 }
 
 /// Look up a registered async step by keyword and pattern.
 ///
-/// Returns the async step function pointer for use in async scenario execution.
-/// The async wrapper returns an immediately-ready future for sync step
-/// definitions.
-#[must_use]
-pub fn lookup_step_async(keyword: StepKeyword, pattern: PatternStr<'_>) -> Option<AsyncStepFn> {
-    mark_and_project(
-        resolve_exact_step(StepScope::global(), keyword, pattern)
-            .ok()
-            .flatten(),
-        |step| step.run_async,
-    )
+/// # Errors
+///
+/// Returns [`StepLookupError`] when equally specific definitions match.
+pub fn lookup_step_async(
+    keyword: StepKeyword,
+    pattern: PatternStr<'_>,
+) -> Result<Option<AsyncStepFn>, StepLookupError> {
+    resolve_exact_step(StepScope::global(), keyword, pattern)
+        .map(|step| mark_and_project(step, |found| found.run_async))
 }
 
 /// Find a registered async step whose pattern matches the provided text.
 ///
-/// Returns the async step function pointer for use in async scenario execution.
-/// The async wrapper returns an immediately-ready future for sync step
-/// definitions.
-#[must_use]
-pub fn find_step_async(keyword: StepKeyword, text: StepText<'_>) -> Option<AsyncStepFn> {
-    mark_and_project(
-        resolve_step(StepScope::global(), keyword, text)
-            .ok()
-            .flatten(),
-        |step| step.run_async,
-    )
+/// # Errors
+///
+/// Returns [`StepLookupError`] when equally specific definitions match.
+pub fn find_step_async(
+    keyword: StepKeyword,
+    text: StepText<'_>,
+) -> Result<Option<AsyncStepFn>, StepLookupError> {
+    resolve_step(StepScope::global(), keyword, text)
+        .map(|step| mark_and_project(step, |found| found.run_async))
 }
 
 /// Find a registered step and return its full metadata.
@@ -360,23 +358,29 @@ pub fn find_step_async(keyword: StepKeyword, text: StepText<'_>) -> Option<Async
 /// ```ignore
 /// use rstest_bdd::{find_step_with_metadata, StepKeyword, StepText};
 ///
-/// if let Some(step) = find_step_with_metadata(StepKeyword::Given, StepText::from("a value")) {
+/// if let Some(step) = find_step_with_metadata(StepKeyword::Given, StepText::from("a value"))? {
 ///     println!("Step requires fixtures: {:?}", step.fixtures);
 ///     // Invoke the step function
 ///     let result = (step.run)(&mut ctx, text, None, None);
 /// }
+/// # Ok::<(), rstest_bdd::StepLookupError>(())
 /// ```
-#[must_use]
-pub fn find_step_with_metadata(keyword: StepKeyword, text: StepText<'_>) -> Option<&'static Step> {
-    mark_and_project(
-        resolve_step(StepScope::global(), keyword, text)
-            .ok()
-            .flatten(),
-        |step| step,
-    )
+///
+/// # Errors
+///
+/// Returns [`StepLookupError`] when equally specific definitions match.
+pub fn find_step_with_metadata(
+    keyword: StepKeyword,
+    text: StepText<'_>,
+) -> Result<Option<&'static Step>, StepLookupError> {
+    resolve_step(StepScope::global(), keyword, text)
+        .map(|step| mark_and_project(step, |found| found))
 }
 
 /// Find a registered step in `scope`, preserving ambiguity diagnostics.
+///
+/// This metadata query does not mark the resolved definition as used. Runtime
+/// execution performs that mutation after resolution at its command boundary.
 ///
 /// # Errors
 ///
@@ -387,6 +391,5 @@ pub fn find_step_with_metadata_in_scope(
     keyword: StepKeyword,
     text: StepText<'_>,
 ) -> Result<Option<&'static Step>, StepLookupError> {
-    let step = resolve_step(scope, keyword, text)?;
-    Ok(mark_and_project(step, |found| found))
+    resolve_step(scope, keyword, text)
 }

@@ -142,6 +142,16 @@ fn scoped_validation_uses_only_selected_libraries() {
     let accounts = vec![Box::<str>::from("accounts")];
 
     assert!(validate_steps_exist_in_scope(&steps, &accounts, true).is_ok());
+
+    let partly_external = vec![
+        Box::<str>::from("accounts"),
+        Box::<str>::from("external::shared"),
+    ];
+    let external_step = [create_test_step(
+        StepKeyword::Given,
+        "an externally defined step",
+    )];
+    assert!(validate_steps_exist_in_scope(&external_step, &partly_external, true).is_ok());
 }
 
 fn scoped_validation_error(definitions: &[(&str, &str)], selected_libraries: &[&str]) -> String {

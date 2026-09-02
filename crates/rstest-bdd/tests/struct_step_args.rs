@@ -1,7 +1,6 @@
 //! Behavioural test covering struct-based step arguments.
 
-use proptest::prelude::*;
-use rstest::fixture;
+use rstest::{fixture, rstest};
 use rstest_bdd::Slot;
 use rstest_bdd_macros::{ScenarioState, StepArgs, given, scenario, then, when};
 
@@ -38,8 +37,38 @@ struct NormalizedAmount {
     amount: u64,
 }
 
+#[derive(Debug, PartialEq, StepArgs)]
+#[step_args(rename_all = "camelCase")]
+struct RenamedAccounts {
+    source_account: String,
+    destination_account: String,
+}
+
 fn parse_cents(raw: &str) -> Result<u64, std::num::ParseIntError> {
     raw.strip_suffix(" cents").unwrap_or(raw).parse()
+}
+
+#[given("{sender} transfers {amount:u64} to {recipient}")]
+fn capture_reordered_transfer(#[step_args] transfer: ReorderedTransfer) {
+    assert_eq!(
+        transfer,
+        ReorderedTransfer {
+            recipient: String::from("Bob"),
+            from: String::from("Alice"),
+            amount: 42,
+        }
+    );
+}
+
+#[given("{sourceAccount} sends to {destinationAccount}")]
+fn capture_renamed_accounts(#[step_args] accounts: RenamedAccounts) {
+    assert_eq!(
+        accounts,
+        RenamedAccounts {
+            source_account: String::from("checking"),
+            destination_account: String::from("savings"),
+        }
+    );
 }
 
 #[derive(Default, ScenarioState)]
@@ -127,6 +156,18 @@ fn struct_step_args(#[from(cart_state)] _cart_state: CartState) {}
 )]
 fn struct_step_args_with_string_hint(#[from(product_state)] _product_state: ProductState) {}
 
+#[scenario(
+    path = "tests/features/struct_step_args.feature",
+    name = "Reordered struct fields bind through the generated wrapper"
+)]
+fn reordered_struct_step_args() {}
+
+#[scenario(
+    path = "tests/features/struct_step_args.feature",
+    name = "Struct rename rules bind through the generated wrapper"
+)]
+fn renamed_struct_step_args() {}
+
 #[test]
 fn struct_step_args_reports_parse_failure() {
     let Err(err) = <CartInput as rstest_bdd::step_args::StepArgs>::from_captures(vec![
@@ -138,6 +179,22 @@ fn struct_step_args_reports_parse_failure() {
     };
     let expected = rstest_bdd::step_args::StepArgsError::parse_failure("quantity", "invalid");
     assert_eq!(err.to_string(), expected.to_string());
+}
+
+#[rstest]
+#[case(vec![String::from("2"), String::from("pumpkins")])]
+#[case(vec![
+    String::from("2"),
+    String::from("pumpkins"),
+    String::from("4.50"),
+    String::from("surplus"),
+])]
+fn struct_step_args_rejects_missing_or_surplus_positional_captures(#[case] captures: Vec<String>) {
+    let actual = captures.len();
+    let error = <CartInput as rstest_bdd::StepArgs>::from_captures(captures)
+        .expect_err("capture count mismatches must fail before pairing values");
+
+    assert_eq!(error, rstest_bdd::StepArgsError::count_mismatch(3, actual));
 }
 
 #[test]
@@ -167,37 +224,34 @@ fn step_args_bind_named_captures_independently_of_field_order() {
     );
 }
 
-proptest! {
-    #[test]
-    fn named_capture_order_does_not_change_step_args_binding(
-        captures in prop::sample::select(vec![
-            [("sender", "Alice"), ("amount", "42"), ("recipient", "Bob")],
-            [("sender", "Alice"), ("recipient", "Bob"), ("amount", "42")],
-            [("amount", "42"), ("sender", "Alice"), ("recipient", "Bob")],
-            [("amount", "42"), ("recipient", "Bob"), ("sender", "Alice")],
-            [("recipient", "Bob"), ("sender", "Alice"), ("amount", "42")],
-            [("recipient", "Bob"), ("amount", "42"), ("sender", "Alice")],
-        ]),
-    ) {
-        let captures = captures
-            .into_iter()
-            .map(|(name, value)| rstest_bdd::StepCapture {
-                name,
-                value: String::from(value),
-            })
-            .collect();
-        let transfer = <ReorderedTransfer as rstest_bdd::StepArgs>::from_named_captures(captures)
-            .expect("every capture permutation should populate the transfer");
+#[rstest]
+#[case([("sender", "Alice"), ("amount", "42"), ("recipient", "Bob")])]
+#[case([("sender", "Alice"), ("recipient", "Bob"), ("amount", "42")])]
+#[case([("amount", "42"), ("sender", "Alice"), ("recipient", "Bob")])]
+#[case([("amount", "42"), ("recipient", "Bob"), ("sender", "Alice")])]
+#[case([("recipient", "Bob"), ("sender", "Alice"), ("amount", "42")])]
+#[case([("recipient", "Bob"), ("amount", "42"), ("sender", "Alice")])]
+fn named_capture_order_does_not_change_step_args_binding(
+    #[case] captures: [(&'static str, &'static str); 3],
+) {
+    let captures = captures
+        .into_iter()
+        .map(|(name, value)| rstest_bdd::StepCapture {
+            name,
+            value: String::from(value),
+        })
+        .collect();
+    let transfer = <ReorderedTransfer as rstest_bdd::StepArgs>::from_named_captures(captures)
+        .expect("every capture permutation should populate the transfer");
 
-        prop_assert_eq!(
-            transfer,
-            ReorderedTransfer {
-                recipient: String::from("Bob"),
-                from: String::from("Alice"),
-                amount: 42,
-            },
-        );
-    }
+    assert_eq!(
+        transfer,
+        ReorderedTransfer {
+            recipient: String::from("Bob"),
+            from: String::from("Alice"),
+            amount: 42,
+        },
+    );
 }
 
 #[test]
@@ -232,6 +286,26 @@ fn step_args_reports_duplicate_named_captures() {
     assert_eq!(
         error.to_string(),
         "duplicate placeholder capture '{sender}'"
+    );
+}
+
+#[test]
+fn step_args_rename_all_does_not_fall_back_to_rust_field_names() {
+    let error = <RenamedAccounts as rstest_bdd::StepArgs>::from_named_captures(vec![
+        rstest_bdd::StepCapture {
+            name: "source_account",
+            value: String::from("checking"),
+        },
+        rstest_bdd::StepCapture {
+            name: "destination_account",
+            value: String::from("savings"),
+        },
+    ])
+    .expect_err("Rust field names must not bypass rename_all");
+
+    assert_eq!(
+        error,
+        rstest_bdd::StepArgsError::unconsumed_capture("source_account")
     );
 }
 

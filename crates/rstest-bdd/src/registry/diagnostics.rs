@@ -193,14 +193,18 @@ pub(super) fn dump_registry() -> serde_json::Result<String> {
 fn dump_steps(used: &HashSet<StepKey>, bypassed_keys: &HashSet<StepKey>) -> Vec<DumpedStep> {
     all_steps()
         .into_iter()
-        .map(|s| DumpedStep {
-            library: library_for_step(s).as_str(),
-            keyword: s.keyword.as_str(),
-            pattern: s.pattern.as_str(),
-            file: s.file,
-            line: s.line,
-            used: used.contains(&(library_for_step(s), s.keyword, s.pattern.as_str())),
-            bypassed: bypassed_keys.contains(&(library_for_step(s), s.keyword, s.pattern.as_str())),
+        .map(|step| {
+            let library = library_for_step(step);
+            let key = (library, step.keyword, step.pattern.as_str());
+            DumpedStep {
+                library: library.as_str(),
+                keyword: step.keyword.as_str(),
+                pattern: step.pattern.as_str(),
+                file: step.file,
+                line: step.line,
+                used: used.contains(&key),
+                bypassed: bypassed_keys.contains(&key),
+            }
         })
         .collect()
 }

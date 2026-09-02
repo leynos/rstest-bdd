@@ -107,8 +107,8 @@ scenario's meaning.
 
 ### Lookup and ambiguity
 
-Screen reader description: the diagram shows a generated scenario sending one
-step request to its executor. The executor asks the registry to resolve the
+Screen reader description: the diagram shows a generated scenario sending a
+one-step request to its executor. The executor asks the registry to resolve the
 request within the scenario's fixed scope. A unique most-specific result runs
 the step definition; equally specific results return a lookup error that the
 executor reports as a scoped ambiguity.

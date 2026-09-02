@@ -2,6 +2,7 @@
 
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
+use rstest::rstest;
 use syn::DeriveInput;
 
 use super::expand;
@@ -42,33 +43,33 @@ fn rejects_tuple_structs() {
     );
 }
 
-#[test]
-fn rejects_invalid_step_args_field_attributes() {
-    for (attribute, diagnostic) in [
-        (
-            quote!(#[step_args(placeholder = "first", placeholder = "second")]),
-            "duplicate placeholder attribute",
-        ),
-        (quote!(#[step_args(trim, trim)]), "duplicate trim attribute"),
-        (
-            quote!(#[step_args(parse_with = parse_one, parse_with = parse_two)]),
-            "duplicate parse_with attribute",
-        ),
-        (
-            quote!(#[step_args(unsupported)]),
-            "unsupported step_args field attribute",
-        ),
-    ] {
-        let err = expand_tokens(quote! {
-            struct InvalidArgs {
-                #attribute
-                value: String,
-            }
-        })
-        .expect_err("invalid field attributes should fail");
-        assert!(
-            err.to_string().contains(diagnostic),
-            "expected '{diagnostic}' in: {err}"
-        );
-    }
+#[rstest]
+#[case(
+    quote!(#[step_args(placeholder = "first", placeholder = "second")]),
+    "duplicate placeholder attribute"
+)]
+#[case(quote!(#[step_args(trim, trim)]), "duplicate trim attribute")]
+#[case(
+    quote!(#[step_args(parse_with = parse_one, parse_with = parse_two)]),
+    "duplicate parse_with attribute"
+)]
+#[case(
+    quote!(#[step_args(unsupported)]),
+    "unsupported step_args field attribute"
+)]
+fn rejects_invalid_step_args_field_attributes(
+    #[case] attribute: TokenStream2,
+    #[case] diagnostic: &str,
+) {
+    let err = expand_tokens(quote! {
+        struct InvalidArgs {
+            #attribute
+            value: String,
+        }
+    })
+    .expect_err("invalid field attributes should fail");
+    assert!(
+        err.to_string().contains(diagnostic),
+        "expected '{diagnostic}' in: {err}"
+    );
 }

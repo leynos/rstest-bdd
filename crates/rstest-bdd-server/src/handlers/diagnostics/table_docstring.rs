@@ -186,8 +186,14 @@ fn find_best_matching_implementation(
     feature_index: &FeatureFileIndex,
     step: &IndexedStep,
 ) -> Option<Arc<CompiledStepDefinition>> {
-    state
-        .steps_for_feature_keyword(&feature_index.path, step.step_type)
+    let candidates = match state.steps_for_feature_keyword(&feature_index.path, step.step_type) {
+        Ok(candidates) => candidates,
+        Err(error) => {
+            error.emit_warning();
+            return None;
+        }
+    };
+    candidates
         .into_iter()
         .filter(|compiled| compiled.regex.is_match(&step.text))
         .max_by(|a, b| {

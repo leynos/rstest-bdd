@@ -120,7 +120,14 @@ fn process_feature_index(
     feature_index: &crate::indexing::FeatureFileIndex,
     step_def: &CompiledStepDefinition,
 ) -> Vec<Location> {
-    if !state.feature_selects_library(&feature_index.path, &step_def.library) {
+    let selected = match state.feature_selects_library(&feature_index.path, &step_def.library) {
+        Ok(selected) => selected,
+        Err(error) => {
+            error.emit_warning();
+            return Vec::new();
+        }
+    };
+    if !selected {
         return Vec::new();
     }
     // Read feature file for span conversion
