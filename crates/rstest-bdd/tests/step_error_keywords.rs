@@ -5,7 +5,7 @@ mod step_error_common;
 
 use rstest::rstest;
 use rstest_bdd::{StepError, StepKeyword};
-use step_error_common::{StepInvocation, invoke_step};
+use step_error_common::{StepInvocation, StepInvocationError, invoke_step};
 
 fn assert_step_error(
     actual: &StepError,
@@ -203,7 +203,9 @@ fn step_error_scenarios(
     #[case] expected_function: &str,
     #[case] expected_error: StepError,
 ) {
-    let Err(err) = invoke_step(&StepInvocation::new(keyword, step_pattern, step_text)) else {
+    let Err(StepInvocationError::Step(err)) =
+        invoke_step(&StepInvocation::new(keyword, step_pattern, step_text))
+    else {
         panic!("expected error for '{step_text}'");
     };
     assert_step_error(&err, expected_function, step_pattern, &expected_error);
