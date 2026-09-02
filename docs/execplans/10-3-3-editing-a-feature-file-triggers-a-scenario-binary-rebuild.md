@@ -2235,3 +2235,17 @@ level.
   remaining work: none — no milestone, decision or measurement changed. This is
   a citation-accuracy pass, matching what `#651` itself did for the other
   maintained documents.
+- **2026-09-02, revision 6.** Rebased the completed implementation onto
+  `origin/main` commit `cb7c658`, which delivered roadmap 11.2.1's
+  `#[harness_context]` parameter marker. The shared dependency declarations now
+  retain main's pinned `googletest` 0.14.3 `proptest` integration and
+  `pretty_assertions` 1.4.1 requirement, while this plan's `insta` filter and
+  `temp-env` requirements remain enabled. The combined trybuild registry keeps
+  main's six marker diagnostics and coexistence fixture alongside this plan's
+  feature-tracking and unrelatable-root cases. Main's current fragment-based
+  derived-lock workflow contract supersedes this branch's older exact-script
+  rebase repair. The workspace lock was regenerated from the combined
+  manifests, and `make update-feature-rebuild-fixtures-lock` confirmed both
+  nested fixture locks already matched their maintained resolution. Effect on
+  remaining work: none — the new shared fixtures and helpers compose with the
+  tracking coverage without changing any milestone or path semantics.
