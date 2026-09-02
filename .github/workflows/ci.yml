@@ -28,18 +28,21 @@ jobs:
       matrix:
         include:
           - os: namespace-profile-rust-linux-ci
+            rust-toolchain: stable
             coverage: true
             features: ''
             with-default-features: true
             tools: true
             use-nextest: true
           - os: namespace-profile-rust-linux-ci
+            rust-toolchain: stable
             coverage: true
             features: strict-compile-time-validation
             with-default-features: false
             tools: true
             use-nextest: true
           - os: namespace-profile-rust-windows-ci
+            rust-toolchain: stable-x86_64-pc-windows-msvc
             coverage: true
             features: ''
             with-default-features: true
@@ -48,6 +51,7 @@ jobs:
             # rust-lang/cargo#15744 and nextest-rs/nextest#2463.
             use-nextest: false
           - os: namespace-profile-rust-windows-ci
+            rust-toolchain: stable-x86_64-pc-windows-msvc
             coverage: true
             features: strict-compile-time-validation
             with-default-features: false
@@ -110,6 +114,7 @@ jobs:
         # Merged shared-actions PR #421 cache-provider revision.
         uses: leynos/shared-actions/.github/actions/setup-rust@5daae0a332441d170d88ca648c9e71f0bbe96cb3
         with:
+          toolchain: ${{ matrix.rust-toolchain }}
           cache-provider: external
           use-sccache: 'false'
 
@@ -142,10 +147,30 @@ jobs:
         if: ${{ matrix.tools }}
         shell: bash
         run: |
+          set -euo pipefail
           tool_dir="$GITHUB_WORKSPACE/.ci-tools"
           mkdir -p "$tool_dir"
-          cargo binstall --no-confirm --only-signed --disable-strategies compile \
-            --install-path "$tool_dir" "merman-cli@${MERMAN_CLI_VERSION}"
+          expected_version="merman-cli ${MERMAN_CLI_VERSION}"
+          installed_version=""
+          if [[ -x "$tool_dir/merman-cli" ]]; then
+            installed_version="$("$tool_dir/merman-cli" --version | tr -d '\r')"
+          fi
+          if [[ "$installed_version" != "$expected_version" ]]; then
+            archive="merman-cli-x86_64-unknown-linux-gnu.tar.xz"
+            archive_url="https://github.com/Latias94/merman/releases/download/v${MERMAN_CLI_VERSION}/${archive}"
+            expected_sha256="dfdc2a978a884aa5a2ad5b85285fb5175cb435e82cf96efa860a550749e09d99"
+            install_directory="$(mktemp -d)"
+            trap 'find "$install_directory" -depth -delete' EXIT
+            curl --fail --location --silent --show-error \
+              --output "$install_directory/$archive" "$archive_url"
+            printf '%s  %s\n' "$expected_sha256" "$install_directory/$archive" \
+              | sha256sum --check
+            tar -xJf "$install_directory/$archive" -C "$install_directory"
+            install -m 0755 \
+              "$install_directory/merman-cli-x86_64-unknown-linux-gnu/merman-cli" \
+              "$tool_dir/merman-cli"
+          fi
+          "$tool_dir/merman-cli" --version | grep -Fx "$expected_version"
 
       - name: Install prebuilt sccache
         shell: bash

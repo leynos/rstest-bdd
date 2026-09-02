@@ -25,6 +25,7 @@ SHARED_SETUP_RUST_CACHE_PROVIDER_HEAD = "5daae0a332441d170d88ca648c9e71f0bbe96cb
 EXPECTED_BUILD_MATRIX = [
     {
         "os": LINUX_PROFILE,
+        "rust-toolchain": "stable",
         "coverage": True,
         "features": "",
         "with-default-features": True,
@@ -33,6 +34,7 @@ EXPECTED_BUILD_MATRIX = [
     },
     {
         "os": LINUX_PROFILE,
+        "rust-toolchain": "stable",
         "coverage": True,
         "features": "strict-compile-time-validation",
         "with-default-features": False,
@@ -41,6 +43,7 @@ EXPECTED_BUILD_MATRIX = [
     },
     {
         "os": WINDOWS_PROFILE,
+        "rust-toolchain": "stable-x86_64-pc-windows-msvc",
         "coverage": True,
         "features": "",
         "with-default-features": True,
@@ -49,6 +52,7 @@ EXPECTED_BUILD_MATRIX = [
     },
     {
         "os": WINDOWS_PROFILE,
+        "rust-toolchain": "stable-x86_64-pc-windows-msvc",
         "coverage": True,
         "features": "strict-compile-time-validation",
         "with-default-features": False,
@@ -184,6 +188,7 @@ def test_build_matrix_configures_external_cache_and_bounded_parallelism() -> Non
         f"{SHARED_SETUP_RUST_CACHE_PROVIDER_HEAD}"
     ), "ci.yml:Setup Rust must use the temporary external-cache provider revision"
     assert setup_step.get("with") == {
+        "toolchain": "${{ matrix.rust-toolchain }}",
         "cache-provider": "external",
         "use-sccache": "false",
     }, "ci.yml:Setup Rust must leave cache ownership to Namespace"
@@ -235,16 +240,19 @@ def test_build_matrix_installs_merman_without_a_source_build() -> None:
     )
     install_command = str(merman_step.get("run"))
     required_fragments = {
-        "cargo binstall",
-        "--disable-strategies compile",
-        "--only-signed",
-        '--install-path "$tool_dir"',
+        "dfdc2a978a884aa5a2ad5b85285fb5175cb435e82cf96efa860a550749e09d99",
+        "sha256sum --check",
+        '"$tool_dir/merman-cli" --version',
+        "https://github.com/Latias94/merman/releases/download/",
     }
     missing_fragments = sorted(
         fragment for fragment in required_fragments if fragment not in install_command
     )
     assert not missing_fragments, (
         f"ci.yml:Merman installer omits required fragments: {missing_fragments}"
+    )
+    assert "cargo binstall" not in install_command, (
+        "ci.yml:Merman installer must not fall back to a Cargo source build"
     )
 
 

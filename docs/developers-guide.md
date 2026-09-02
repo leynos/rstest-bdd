@@ -30,17 +30,16 @@ the workflow contracts together.
 
 The matrix mounts the attached Namespace cache volume after checkout and before
 tool setup. It explicitly owns Cargo downloads, uv and Bun data, signed
-prebuilt CI tools, and local sccache state, so the workflow must not reintroduce
-direct `actions/cache` entries for those paths.
-The workflow deliberately avoids the cache action's `rust` and `bun` modes:
-the former mounts the disposable Cargo `target` directory, while the latter
-executes Bun during cache planning before every matrix lane provides it. The
-shared setup-rust revision
-`5daae0a332441d170d88ca648c9e71f0bbe96cb3` accepts
+prebuilt CI tools, and local sccache state, so the workflow must not
+reintroduce direct `actions/cache` entries for those paths. The workflow
+deliberately avoids the cache action's `rust` and `bun` modes: the former
+mounts the disposable Cargo `target` directory, while the latter executes Bun
+during cache planning before every matrix lane provides it. The shared
+setup-rust revision `5daae0a332441d170d88ca648c9e71f0bbe96cb3` accepts
 `cache-provider: external` and `use-sccache: 'false'`; the workflow then
-installs the pinned prebuilt `sccache` binary and reports its statistics.
-is the merged shared-actions PR #421 revision. The coverage reusable action
-uses the same external-cache contract.
+installs the pinned prebuilt `sccache` binary and reports its statistics. is
+the merged shared-actions PR #421 revision. The coverage reusable action uses
+the same external-cache contract.
 
 Each Namespace job is constrained to at most 4 vCPU and 8 GB memory. CI sets
 `CARGO_BUILD_JOBS=4` and `NEXTEST_TEST_THREADS=4` so build and nextest
@@ -56,8 +55,17 @@ Rust, `uv`, and Bun, while the published-GPUI step installs its development
 libraries explicitly. The Windows runner must expose Git, Git Bash, and
 Chocolatey before repository code runs. Its first matrix step verifies those
 commands, installs GNU Make through Chocolatey, and verifies `make` before
-checkout. Git Bash is required by the shared Rust and coverage composite
-actions and by the root Makefile's `SHELL := bash` contract.
+checkout. The matrix pins `stable-x86_64-pc-windows-msvc`; relying on the
+runner's default Rust host can select the GNU toolchain, whose distribution
+lacks the profiler runtime required by coverage. Git Bash is required by the
+shared Rust and coverage composite actions and by the root Makefile's
+`SHELL := bash` contract.
+
+The Linux tools lanes install Merman 0.7.0 from its upstream release archive,
+verify the pinned SHA-256 before extraction, and retain the verified binary in
+the Namespace tool directory. Cargo Binstall's quick-install mirror does not
+publish a signature for that archive, so a signed-only Binstall command cannot
+provide it without falling back to a forbidden source build.
 
 The pinned shared Rust and coverage actions currently reach nested cache,
 sccache, and artefact actions as well as Node 24 checkout and `setup-uv`
