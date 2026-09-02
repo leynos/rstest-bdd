@@ -234,6 +234,16 @@ Namespace cache action or add runner authentication because managed profile
 runners provide that authentication. The runner assignments and prerequisite
 ordering are enforced by `tests/workflow_contracts/namespace_runners_test.py`.
 
+### Validation (2026-09-02)
+
+The focused `make test-workflow-contracts` gate passed all 41 contracts,
+including the separation between this addendum and the historical update. The
+complete deterministic repository gate also passed locally. In PR #710,
+[CI run 33640986488](https://github.com/leynos/rstest-bdd/actions/runs/33640986488)
+passed all four `build-test` matrix lanes: Linux default, Linux strict,
+Windows default, and Windows strict. `nsc github job describe` confirmed that
+the Linux jobs used `rust-linux-ci` and the Windows jobs used `rust-windows-ci`.
+
 ## Known limitations
 
 The adopted lint does not replace Clippy. `clippy::shadow_reuse`,
