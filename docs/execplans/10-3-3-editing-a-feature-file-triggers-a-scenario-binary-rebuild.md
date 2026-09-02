@@ -2249,3 +2249,19 @@ level.
   nested fixture locks already matched their maintained resolution. Effect on
   remaining work: none — the new shared fixtures and helpers compose with the
   tracking coverage without changing any milestone or path semantics.
+- **2026-09-02, revision 7.** Rebased again onto `origin/main` commit
+  `6576c938`, incorporating the refreshed trybuild snapshot contract from
+  `a085576f` and the shared Namespace Linux runner profile. Five successive
+  `step_macros_compile` conflicts were resolved by retaining this plan's
+  target-root override, snapshot staging, conditional Windows D4 fixture,
+  last-queued tracking fixture and post-`drop(t)` dep-info assertion, while
+  adopting main's fallible UI and conditional-ordering helpers with `?` error
+  propagation. Main's new shared WIP-path support and conditional-trait
+  diagnostic normalization remain intact. The runner-profile change affects CI
+  provisioning only. The combined root trybuild file exceeded the repository's
+  400-line limit, so its sole serialized entrypoint now lives in a private
+  `runner` module. That module owns only process-wide environment orchestration
+  and test-group queueing; fixture paths and guards remain in `staging`, and it
+  is not a reusable setup layer. Effect on remaining work: none — the merged
+  trybuild infrastructure strengthens snapshot portability without changing the
+  tracking binding, path semantics or acceptance contract.
