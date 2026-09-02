@@ -159,15 +159,10 @@ suite's toolchain to `nightly-2026-05-28` with Dylint `6.0.1`
   remains enforced as part of that suite.
 - **Installation:** `whitaker-installer`, pinned in CI by
   `WHITAKER_INSTALLER_VERSION` in `.github/workflows/ci.yml` (currently
-  `0.2.7`). CI delegates caching, normalized Cargo-home resolution, and
-  absolute-path execution to the SHA-pinned shared `install-whitaker` action.
-  Its Linux lane uses the uncached Ubuntu 24.04 `rust-linux-ci` Namespace
-  profile, whose GNU C Library baseline can execute Whitaker's
-  repository-hosted Dylint dependency binaries. Local setup mirrors the
-  resulting installation:
+  `0.2.6`). Local setup mirrors CI:
 
   ```bash
-  cargo install --locked whitaker-installer --version 0.2.7
+  cargo install --locked whitaker-installer --version 0.2.6
   whitaker-installer
   ```
 
@@ -201,11 +196,43 @@ environment:
 - `cargo-dylint --version` reports `6.0.1`, and the suite's lockfile pins
   `dylint`, `dylint_internal`, `dylint_linting`, and `dylint_testing` at
   `6.0.1`.
-- CI installs `whitaker-installer@0.2.7` and runs `make lint`, which drives
+- CI installs `whitaker-installer@0.2.6` and runs `make lint`, which drives
   `whitaker --all` through this same wrapper.
 
 Contributor-facing setup and maintenance steps are documented in
 `docs/developers-guide.md` under "Whitaker Dylint suite lint gate (ADR-013)".
+
+## Addendum (2026-09-02): Namespace CI runner migration
+
+The repository-owned CI matrix now runs on uncached Namespace profiles. This
+deployment changes the runner environment, not the four-lane test contract
+described above:
+
+- Both Linux lanes use `namespace-profile-rust-linux-ci`, an Ubuntu 24.04,
+  amd64 profile with 8 vCPU and 16 GB. The newer GNU C Library baseline can
+  execute Whitaker's repository-hosted Dylint dependency binaries.
+- CI pins `whitaker-installer` at `0.2.7` and invokes the SHA-pinned
+  `leynos/shared-actions/.github/actions/install-whitaker` action. The shared
+  action normalizes Cargo home, caches the installer with GitHub Actions cache,
+  and executes the installer by absolute path.
+- The earlier shared Rust setup publishes
+  `${CARGO_HOME:-$HOME/.cargo}/bin` through `GITHUB_PATH`, and the pinned
+  `setup-uv` action publishes `$HOME/.local/bin` before Whitaker installation.
+  Those existing setup actions provide user binary-directory discovery; the
+  repository does not add another `PATH` override.
+- Both Windows lanes use `namespace-profile-rust-windows-ci`, a Windows Server
+  2022, amd64 profile with 8 vCPU and 16 GB. Before checkout, the workflow
+  verifies Git, Git Bash, and Chocolatey, installs GNU Make through Chocolatey,
+  and verifies `make`.
+- The migration preserves the two default-feature and two strict-validation
+  lanes, `contents: read` permissions, GitHub-backed caches, coverage and
+  ratchet semantics, and all action SHA pins. Reusable workflow calls remain
+  free of `runs-on`, so their external callees continue to own runner selection.
+
+The Namespace profile cache volumes are disabled. CI does not attach a
+Namespace cache action or add runner authentication because managed profile
+runners provide that authentication. The runner assignments and prerequisite
+ordering are enforced by `tests/workflow_contracts/namespace_runners_test.py`.
 
 ## Known limitations
 
