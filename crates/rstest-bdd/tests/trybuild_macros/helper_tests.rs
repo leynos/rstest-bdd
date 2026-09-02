@@ -232,7 +232,7 @@ fn run_compile_fail_with_normalized_output_handles_multiple_normalizers() {
             Utf8Path::new(TEST_PATH),
             &[strip_hint_one, strip_hint_two],
         )
-        .expect("normalised outputs should be readable");
+        .expect("normalized outputs should be readable");
     });
     assert!(result.is_ok(), "normalized outputs should match");
     assert!(
@@ -256,7 +256,7 @@ fn run_compile_fail_with_normalized_output_accepts_empty_output() {
             Utf8Path::new(TEST_PATH),
             &[],
         )
-        .expect("normalised outputs should be readable");
+        .expect("normalized outputs should be readable");
     });
     assert!(result.is_ok(), "identical empty outputs should be accepted");
     assert!(
@@ -281,7 +281,7 @@ fn run_compile_fail_with_normalized_output_detects_mismatch() {
             Utf8Path::new(TEST_PATH),
             &[trim_trailing],
         )
-        .expect("normalised outputs should be readable");
+        .expect("normalized outputs should be readable");
     });
     assert!(
         result.is_err(),
@@ -335,7 +335,7 @@ fn run_compile_fail_with_normalized_output_test_cases(
             Utf8Path::new(test_path),
             &[trim_trailing],
         )
-        .expect("normalised outputs should be readable");
+        .expect("normalized outputs should be readable");
     });
 
     if should_succeed {
