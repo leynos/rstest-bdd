@@ -8,8 +8,6 @@ Run with:
     pytest tests/workflow_contracts/namespace_runners_test.py
 """
 
-from __future__ import annotations
-
 from pathlib import Path
 
 import yaml
