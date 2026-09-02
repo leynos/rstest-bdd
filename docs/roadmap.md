@@ -1056,7 +1056,7 @@ remove the existing `StepContext`, harness, or macro surfaces.
   Dylint 5 mechanism in ADR-013 and
   `docs/execplans/10-2-5-playbook-variant-compiles-under-pedantic-lint-profile.md`
   as historical, and confirmed the repository consumes the
-  `whitaker-installer` flow (CI pins `WHITAKER_INSTALLER_VERSION` at `0.2.6`)
+  `whitaker-installer` flow (CI pins `WHITAKER_INSTALLER_VERSION` at `0.2.7`)
   rather than building a pinned Whitaker tag. See leynos/rstest-bdd#597.
 
 ## 12. Pre-1.0.0 API consolidation: landed v0.7.0 implementation

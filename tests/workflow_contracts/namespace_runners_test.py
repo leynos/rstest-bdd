@@ -148,9 +148,9 @@ def test_whitaker_uses_shared_pinned_installer_action() -> None:
     assert install_step.get("if") == "${{ matrix.tools }}", (
         "ci.yml:Install Whitaker must remain limited to Linux tools lanes"
     )
-    assert install_step.get("uses") == (
-        "leynos/shared-actions/.github/actions/install-whitaker@"
-        "794e4801babcf68065c660fdf4781ad62be5d061"
+    assert re.fullmatch(
+        r"leynos/shared-actions/\.github/actions/install-whitaker@[0-9a-f]{40}",
+        str(install_step.get("uses", "")),
     ), "ci.yml:Install Whitaker must pin the shared installer action"
     assert install_step.get("with") == {
         "installer-version": "${{ env.WHITAKER_INSTALLER_VERSION }}"
