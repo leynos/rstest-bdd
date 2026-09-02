@@ -168,14 +168,20 @@ def test_refresh_commit_and_push_touch_only_generated_lockfiles(
 
     commit = _named_step(refresh_job, "Commit refreshed lockfiles")
     commit_script = commit.get("run")
-    assert isinstance(commit_script, str), "the commit step must run a script"
-    required_fragments = [
-        *LOCKFILES,
-        "git diff --quiet --",
-        "git add --",
-        "git commit -m 'chore(deps): refresh published GPUI fixture lockfiles'",
-    ]
-    assert all(fragment in commit_script for fragment in required_fragments), (
+    expected_commit_script = (
+        "if git diff --quiet -- \\\n"
+        "  tests/fixtures/published-gpui-0-2-2/Cargo.lock \\\n"
+        "  tests/fixtures/published-gpui-e2e/Cargo.lock; then\n"
+        "  echo 'changed=false' >> \"$GITHUB_OUTPUT\"\n"
+        "  exit 0\n"
+        "fi\n"
+        "git add -- \\\n"
+        "  tests/fixtures/published-gpui-0-2-2/Cargo.lock \\\n"
+        "  tests/fixtures/published-gpui-e2e/Cargo.lock\n"
+        "git commit -m 'chore(deps): refresh published GPUI fixture lockfiles'\n"
+        "echo 'changed=true' >> \"$GITHUB_OUTPUT\"\n"
+    )
+    assert commit_script == expected_commit_script, (
         "the commit step must stage and commit only the generated lockfiles"
     )
 
