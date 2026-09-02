@@ -6,6 +6,7 @@
 //! malformed marker in `docs/users-guide.md` fails here with a named line.
 
 use eyre::Result;
+use rstest::rstest;
 
 use super::{
     DocumentPath,
@@ -154,27 +155,14 @@ fn unterminated_fence_is_an_error() {
     assert!(err.is_err());
 }
 
-#[test]
-fn mismatched_fence_delimiter_is_unterminated() {
-    let result = parse_fenced_example(
-        &lines("```rust\na\n~~~\n"),
-        0,
-        ExampleId("mismatched".to_owned()),
-    );
+#[rstest]
+#[case::mismatched_delimiter("```rust\na\n~~~\n", "mismatched")]
+#[case::shorter_closing_fence("````rust\na\n```\n", "short")]
+fn incompatible_closing_fence_is_unterminated(#[case] source: &str, #[case] id: &str) {
+    let result = parse_fenced_example(&lines(source), 0, ExampleId(id.to_owned()));
     let error = result
         .err()
-        .expect("mismatched fences must be unterminated");
-    assert!(format!("{error:?}").contains("unterminated"));
-}
-
-#[test]
-fn shorter_closing_fence_is_unterminated() {
-    let result = parse_fenced_example(
-        &lines("````rust\na\n```\n"),
-        0,
-        ExampleId("short".to_owned()),
-    );
-    let error = result.err().expect("shorter fences must be unterminated");
+        .expect("incompatible closing fences must be unterminated");
     assert!(format!("{error:?}").contains("unterminated"));
 }
 
