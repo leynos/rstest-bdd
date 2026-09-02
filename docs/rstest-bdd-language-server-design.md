@@ -1049,7 +1049,8 @@ feature file and the Rust step file, then waits for the
 `index_and_wait` helper implements this protocol: the notification is emitted
 after the ordered saves have updated the feature index and step registry. The
 test then sends `textDocument/definition` and receives the response by its
-JSON- RPC id, because indexing notifications may still be buffered on the wire.
+`JSON-RPC` id, because indexing notifications may still be buffered on the
+wire.
 Tests must not replace this protocol with sleeps, timing assumptions, or
 platform-specific branches. `--debounce-ms 0` avoids an intentional debounce in
 the smoke-test process, but does not prove that asynchronous indexing has
