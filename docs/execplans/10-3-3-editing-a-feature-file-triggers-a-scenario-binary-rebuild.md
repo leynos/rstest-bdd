@@ -2135,22 +2135,23 @@ edit-and-rebuild regression scenario enforces it on every run.
 **Observations, measured on this host (24-core, 2026-08-17).** The full
 workspace `make test` nextest run is ~52–66 s (1726 tests) with the three new
 nested-cargo tests contributing ~1–5 s each warm; the `cargo-spawning` group's
-worst-case arithmetic is 2880 s under a 50 m ceiling. The compile-time cost of
-the bindings was not re-measured beyond the plan's transcript E — the suite
-shapes match (per-file bindings, modest file sizes), and the plan's tolerance
-is over pathological suites only. The `.expanded.rs` macrotest gate is
-**dead**: only live when `RSTEST_BDD_RUN_MACROTEST` *and* `cargo expand` are
-present, neither of which CI installs or sets; the snapshots are curated
-excerpts already out of step with real expansion (see Decision M2b). The
-residual `scenarios!` addition gap caused no review confusion because Decision
-D2 closes it with the tested recipe; the only surprise reviewer feedback was
-the Windows-only dep-info normalization gap, fixed in M8.
+worst-case arithmetic is 4,380 s (73 m) under a 75 m ceiling, leaving 120 s of
+slack. The compile-time cost of the bindings was not re-measured beyond the
+plan's transcript E — the suite shapes match (per-file bindings, modest file
+sizes), and the plan's tolerance is over pathological suites only. The
+`.expanded.rs` macrotest gate is **dead**: only live when
+`RSTEST_BDD_RUN_MACROTEST` *and* `cargo expand` are present, neither of which
+CI installs or sets; the snapshots are curated excerpts already out of step
+with real expansion (see Decision M2b). The residual `scenarios!` addition gap
+caused no review confusion because Decision D2 closes it with the tested
+recipe; the only surprise reviewer feedback was the Windows-only dep-info
+normalization gap, fixed in M8.
 
 **Windows legs.** Not verifiable locally; the D4 compile-fail fixture and the
-dep-info assertion are authored with Windows normals and case-folding and are
-exercised by the two Windows CI legs. The only known residual is the
-`#[cfg(windows)]`-gated unrelatable-root fixture's `.stderr`, which the Windows
-legs will pin or correct on first run.
+dep-info assertion are authored with Windows normals and case-folding. Both
+Windows CI legs pass these checks, including the `#[cfg(windows)]`-gated
+unrelatable-root fixture. There is no macOS CI leg, so macOS portability is not
+verified by this project matrix.
 
 **Lessons.** (1) Cargo's `rerun-if-changed` treats a *missing* watch path as
 perpetually dirty — a recipe corruption to a non-existent path survives the
@@ -2265,3 +2266,9 @@ level.
   is not a reusable setup layer. Effect on remaining work: none — the merged
   trybuild infrastructure strengthens snapshot portability without changing the
   tracking binding, path semantics or acceptance contract.
+- **2026-09-02, revision 8.** Updated the completed retrospective after the
+  maintained nextest configuration moved the global timeout to 75 minutes: the
+  cargo-spawning budget is 4,380 seconds (73 minutes), leaving 120 seconds of
+  slack. The four build-test CI legs, including both Windows legs, pass, as do
+  the CodeScene coverage and health checks. No macOS CI leg exists, so the
+  portability statement remains limited to Linux and Windows.

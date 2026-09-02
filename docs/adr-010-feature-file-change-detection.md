@@ -209,10 +209,11 @@ foot-gun. Recorded here to keep the analysis complete; addressed separately in
 
 ## Decision outcome
 
-Neither option is unambiguously superior across all axes. This ADR records the
-trade-offs and establishes the binding constraints; the choice of mechanism is
-deferred to the implementing ExecPlan (roadmap item 10.3.3), which has access
-to the actual call-site span data and the `scenarios!` implementation.
+`include_bytes!` is the accepted mechanism for registering bound feature files
+as Cargo rebuild dependencies. The macros emit an item-scope anonymous binding
+for each file, using a manifest-relative path where possible; the tested
+`build.rs` recipe remains necessary for files added after macro expansion. This
+ADR records the trade-offs and the binding constraints that shaped that choice.
 
 Binding constraints for the implementing ExecPlan:
 
@@ -225,14 +226,12 @@ Binding constraints for the implementing ExecPlan:
    `tests/build_discovery_bdd.rs`. The test must tolerate coarse filesystem
    `mtime` granularity and must be serialized so nextest's process-per-test
    parallelism cannot race on the workspace `target` directory.
-3. **Option B (build script) is the preferred default** for
-   `scenarios!` directory-glob binding. It avoids binary-size overhead and
-   cleanly handles the case where the set of feature files is not known at
-   macro-expansion time.
-4. **Option A (relative-path `include_str!`) is preferred for
-   `#[scenario]`** single-file binding, if the call-site span can yield a
-   reliable relative path that rustc resolves correctly. This is the path of
-   zero consumer friction.
+3. **`include_bytes!` is used for both macros.** `#[scenario]` emits one
+   binding for its bound file, while `scenarios!` emits one for each discovered
+   file, including files excluded by a tag filter.
+4. **The `build.rs` recipe supplements per-file bindings.** It watches the
+   bound directory recursively so `scenarios!` also notices files added after
+   macro expansion.
 5. **Option C (`tracked_path`)** is recorded as the right long-term answer.
    Not adoptable behind a `nightly` feature gate while the workspace's own
    gates run `--all-features` on a stable toolchain (which would enable it and

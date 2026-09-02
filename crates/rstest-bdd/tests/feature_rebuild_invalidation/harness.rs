@@ -110,7 +110,7 @@ fn build_dep_info_outcome() -> DepInfoOutcome {
             baseline_error: Some(error),
         };
     };
-    let dot_d = PathBuf::from(&executable).with_extension("d");
+    let dot_d = executable.with_extension("d");
     let dep_content = match std::fs::read_to_string(&dot_d) {
         Ok(content) => content,
         Err(err) => panic!(
@@ -222,12 +222,9 @@ fn build_rebuild_outcome() -> RebuildOutcome {
     let recompiled = second_captured
         .stdout
         .contains("Compiling rstest-bdd-rebuild-invalidation-fixture");
-    // The load-bearing check: the new expectation string exists only in the
-    // new Gherkin text, so a failure message naming it proves the binary was
-    // recompiled from that text.
-    let names_new_expectation = second_captured
-        .stdout
-        .contains(&EDITED_EXPECTATION.to_string());
+    // The assertion renderer emits this right-hand value only for the edited
+    // Gherkin expectation. A bare `101` can appear in unrelated Cargo output.
+    let names_new_expectation = second_captured.stdout.contains("right: 101");
 
     outcome::RebuildOutcome {
         baseline_passed,

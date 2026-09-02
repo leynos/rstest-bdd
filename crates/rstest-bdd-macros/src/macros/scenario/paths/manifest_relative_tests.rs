@@ -68,3 +68,34 @@ fn absolute_path_outside_manifest_stays_absolute() {
         assert_eq!(value, outside);
     });
 }
+
+#[serial(cargo_manifest_dir)]
+#[test]
+fn relative_path_escaping_manifest_becomes_absolute() {
+    let (manifest, ..) = native_absolute_path_fixtures();
+    temp_env::with_var("CARGO_MANIFEST_DIR", Some(manifest), || {
+        let value = manifest_relative_feature_path(Path::new("../shared/x.feature"));
+        #[cfg(windows)]
+        assert_eq!(value, "C:/repo/crates/shared/x.feature");
+        #[cfg(not(windows))]
+        assert_eq!(value, "/repo/crates/shared/x.feature");
+    });
+}
+
+#[serial(cargo_manifest_dir)]
+#[test]
+fn lexically_external_absolute_path_stays_absolute() {
+    let (manifest, ..) = native_absolute_path_fixtures();
+    #[cfg(windows)]
+    let external = r"C:\repo\crates\my\..\shared\x.feature";
+    #[cfg(not(windows))]
+    let external = "/repo/crates/my/../shared/x.feature";
+
+    temp_env::with_var("CARGO_MANIFEST_DIR", Some(manifest), || {
+        let value = manifest_relative_feature_path(Path::new(external));
+        #[cfg(windows)]
+        assert_eq!(value, "C:/repo/crates/my/../shared/x.feature");
+        #[cfg(not(windows))]
+        assert_eq!(value, external);
+    });
+}

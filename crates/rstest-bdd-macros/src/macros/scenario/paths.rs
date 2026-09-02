@@ -6,7 +6,7 @@
 
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     sync::{LazyLock, RwLock},
 };
 
@@ -189,12 +189,39 @@ pub(super) fn manifest_relative_feature_path(path: &Path) -> String {
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
         .map(PathBuf::from)
         .unwrap_or_default();
-    if path.is_absolute() {
-        path.strip_prefix(&manifest_dir)
-            .map_or_else(|_| render_feature_path(path), render_feature_path)
-    } else {
-        render_feature_path(path)
+    let absolute_path = path.is_absolute().then(|| path.to_path_buf());
+    let resolved = lexical_normalize(&manifest_dir.join(path));
+    let manifest_dir = lexical_normalize(&manifest_dir);
+
+    resolved.strip_prefix(&manifest_dir).map_or_else(
+        |_| {
+            absolute_path.map_or_else(
+                || render_feature_path(&resolved),
+                |path| render_feature_path(&path),
+            )
+        },
+        render_feature_path,
+    )
+}
+
+/// Resolve `.` and `..` lexically for metadata containment checks only.
+///
+/// This deliberately does not touch the filesystem: feature loading retains
+/// its existing symlink semantics, while metadata needs to distinguish a
+/// crate-local spelling from one that escapes the manifest directory.
+fn lexical_normalize(path: &Path) -> PathBuf {
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::ParentDir if normalized.file_name().is_some() => {
+                normalized.pop();
+            }
+            Component::ParentDir if !path.has_root() => normalized.push(".."),
+            Component::CurDir | Component::ParentDir => {}
+            component => normalized.push(component.as_os_str()),
+        }
     }
+    normalized
 }
 #[cfg(test)]
 fn clear_feature_path_cache() {

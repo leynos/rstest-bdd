@@ -3229,6 +3229,7 @@ three amigos in the specification process.
 [design-runner-parallelism]: https://github.com/leynos/rstest-bdd/blob/main/docs/rstest-bdd-design.md#2767-test-runner-parallelism-and-scenario-state
 [developers-guide-adapter-fallback]: https://github.com/leynos/rstest-bdd/blob/main/docs/developers-guide.md#adapter-fallback-diagnostics
 [developer-serial-nextest]: https://github.com/leynos/rstest-bdd/blob/main/docs/developers-guide.md#serial-file_serial-and-nextest-test-groups
+[developers-guide]: https://github.com/leynos/rstest-bdd/blob/main/docs/developers-guide.md
 [nextest-test-groups]: https://nexte.st/docs/configuration/test-groups/
 
 ### Feature file rebuild invalidation
@@ -3244,11 +3245,18 @@ reflect the new text immediately.
 `.feature` file it discovers in the bound directory — including files whose
 scenarios are excluded by a `tags =` filter.
 
+Generated scenario metadata renders feature paths as manifest-relative paths
+with `/` separators when the file is inside the consuming crate's manifest
+directory. A file outside that directory remains absolute when it shares the
+same filesystem root; an unrelated root is rejected at compile time. The
+rendered value is carried by `ScenarioMetadata::feature_path` and appears in
+JSON and JUnit reports and in `cargo bdd --dump-steps` output.
+
 Per-file tracking covers *edits* to files that existed when the macro ran. It
 cannot see a file that is *added* afterwards, because nothing referenced a file
 that did not exist at expansion time. To close that gap, add a `build.rs` to
-your crate that tells Cargo to rerun the build script whenever the bound
-directory changes:
+the consuming crate. It tells Cargo to rerun the build script whenever the
+bound directory changes:
 
 <!-- tested-example: scenarios-build-script -->
 
@@ -3263,7 +3271,7 @@ directory line covers new files and subdirectories; a hand-maintained per-file
 list can silently omit a new subdirectory, which is the failure mode this
 mechanism exists to prevent. The snippet above is executed by this repository's
 test suite (it is extracted from this document and run against a scratch crate,
-see the developers' guide), so it cannot rot.
+see the [developers' guide][developers-guide]), so it cannot rot.
 
 #### Cost
 

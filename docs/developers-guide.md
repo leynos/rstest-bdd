@@ -531,6 +531,11 @@ The file sets the timeout policy for the test suite:
   budget is 180 s + (20 m × 4) + (600 s × 3) = 6,180 s (103 m), which is why
   the global timeout above it is set at the run level rather than the group
   level; the group bound only serializes execution, it does not cap it.
+
+The feature-rebuild fixture-manifest rewriter is the sole owner of TOML
+basic-string encoding for its rewritten absolute dependency paths. It must
+escape backslashes and double quotes so the copied fixture remains valid on
+Windows; use a TOML serializer for any broader configuration-writing need.
 - A `long` profile (`--profile long`) relaxes the limits further (180 s
   `slow-timeout`, 30 m `global-timeout`) for deliberately slow local runs.
 
@@ -2292,11 +2297,12 @@ pattern in `crates/rstest-bdd/tests/feature_rebuild_invalidation/`:
   depth the `..` counts match), and mutates only the copy.
 - A versioned stamp file (a hash of the source tree, written last) makes the
   copy idempotent; stale scratch trees are always re-copied.
-- Every nested `cargo` invocation uses a byte-identical child environment:
-  `.env_clear()` plus a captured snapshot of the parent, with `CARGO_MAKEFLAGS`
-  and `CARGO_PKG_*` stripped, `CARGO_TARGET_DIR` inherited or defaulted to the
-  workspace `target/`, and `LLVM_PROFILE_FILE` redirected under the scratch so
-  nested coverage never merges into the parent's gated profile.
+- Every nested `cargo` invocation uses a controlled child environment:
+  `.env_clear()` plus a captured snapshot of the parent, with `CARGO_MAKEFLAGS`,
+  `CARGO_PKG_*`, and `CARGO_LLVM_COV*` stripped, `CARGO_TARGET_DIR` inherited
+  or defaulted to the workspace `target/`, and `LLVM_PROFILE_FILE` redirected
+  under the scratch so nested coverage never merges into the parent's gated
+  profile.
 - The child runs under the harness's own wall-clock bound via
   `env!("CARGO")`, and its stdout/stderr pipes are drained by reader threads
   while the run polls for exit — a voluminous `--message-format=json` build

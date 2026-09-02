@@ -238,32 +238,30 @@ mod tests {
     #[test]
     #[serial_test::serial(child_environment)]
     fn child_environment_strips_llvm_cov_control_variables() {
-        temp_env::with_var("CARGO_LLVM_COV", Some("1"), || {
-            temp_env::with_var(
-                "CARGO_LLVM_COV_TARGET_DIR",
-                Some("/temporary/coverage-target"),
-                || {
-                    temp_env::with_var(
-                        "CARGO_LLVM_COV_BUILD_DIR",
-                        Some("/temporary/coverage-build"),
-                        || {
-                            temp_env::with_var(
-                                "RSTEST_BDD_NESTED_CARGO_SENTINEL",
-                                Some("kept"),
-                                || {
-                                    let env = build_child_env();
-                                    assert!(env.vars.iter().all(|(key, _)| {
-                                        !key.to_string_lossy().starts_with("CARGO_LLVM_COV")
-                                    }));
-                                    assert!(env.vars.iter().any(|(key, value)| {
-                                        key == "RSTEST_BDD_NESTED_CARGO_SENTINEL" && value == "kept"
-                                    }));
-                                },
-                            );
-                        },
-                    );
-                },
-            );
-        });
+        temp_env::with_vars(
+            [
+                ("CARGO_LLVM_COV", Some("1")),
+                (
+                    "CARGO_LLVM_COV_TARGET_DIR",
+                    Some("/temporary/coverage-target"),
+                ),
+                (
+                    "CARGO_LLVM_COV_BUILD_DIR",
+                    Some("/temporary/coverage-build"),
+                ),
+                ("RSTEST_BDD_NESTED_CARGO_SENTINEL", Some("kept")),
+            ],
+            || {
+                let env = build_child_env();
+                assert!(
+                    env.vars
+                        .iter()
+                        .all(|(key, _)| !key.to_string_lossy().starts_with("CARGO_LLVM_COV"))
+                );
+                assert!(env.vars.iter().any(|(key, value)| {
+                    key == "RSTEST_BDD_NESTED_CARGO_SENTINEL" && value == "kept"
+                }));
+            },
+        );
     }
 }

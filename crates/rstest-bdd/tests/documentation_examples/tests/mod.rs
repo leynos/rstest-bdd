@@ -19,7 +19,6 @@ use super::{
     find_region_bounds,
     load_documented_examples,
     parse_fenced_example,
-    previous_marker,
     scan_region,
 };
 
@@ -94,7 +93,7 @@ fn marked_fence_extracts_example() {
 }
 
 #[test]
-fn marker_without_fence_is_ignored() {
+fn marker_without_fence_is_rejected() {
     let text = lines("### Region\n\n<!-- tested-example: sample -->\n\nno fence follows\n");
     let region = ScanRegion {
         lines: &text,
@@ -102,8 +101,9 @@ fn marker_without_fence_is_ignored() {
         end: text.len(),
         document: DocumentPath("docs.md"),
     };
-    scan_region(&region, &mut ScanState::default())
-        .expect("an ignored marker must not fail the scan");
+    let error = scan_region(&region, &mut ScanState::default())
+        .expect_err("a marker without a fenced example must fail the scan");
+    assert!(format!("{error:?}").contains("is not followed by a fenced block"));
 }
 
 #[test]
@@ -155,13 +155,27 @@ fn unterminated_fence_is_an_error() {
 }
 
 #[test]
-fn previous_marker_skips_blank_lines() {
-    let text = lines("<!-- tested-example: above -->\n\n```rust\nx\n```\n");
-    assert_eq!(
-        previous_marker(&text, 0, 2),
-        Some(ExampleId("above".to_owned()))
+fn mismatched_fence_delimiter_is_unterminated() {
+    let result = parse_fenced_example(
+        &lines("```rust\na\n~~~\n"),
+        0,
+        ExampleId("mismatched".to_owned()),
     );
-    assert_eq!(previous_marker(&text, 0, 0), None);
+    let error = result
+        .err()
+        .expect("mismatched fences must be unterminated");
+    assert!(format!("{error:?}").contains("unterminated"));
+}
+
+#[test]
+fn shorter_closing_fence_is_unterminated() {
+    let result = parse_fenced_example(
+        &lines("````rust\na\n```\n"),
+        0,
+        ExampleId("short".to_owned()),
+    );
+    let error = result.err().expect("shorter fences must be unterminated");
+    assert!(format!("{error:?}").contains("unterminated"));
 }
 
 #[test]

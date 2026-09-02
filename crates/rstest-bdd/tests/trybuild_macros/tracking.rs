@@ -50,6 +50,7 @@ fn workspace_target_directory() -> Utf8PathBuf {
 /// drive-letter-cased paths) matches the staged feature path deterministically.
 fn normalize_dep_info_content(content: &str) -> String {
     content
+        .replace("\\ ", " ")
         .replace("\\:", ":")
         .replace('\\', "/")
         .replace("//", "/")
@@ -82,5 +83,20 @@ fn collect_dep_info_matches(dir: &StdPath, needle: &str, listed: &mut usize) {
         {
             *listed += 1;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! Unit tests for dep-info path normalization.
+
+    use super::normalize_dep_info_content;
+
+    #[test]
+    fn unescapes_spaces_before_normalizing_separators() {
+        assert_eq!(
+            normalize_dep_info_content(r"C:\workspace\feature\ file\:name.feature"),
+            "c:/workspace/feature file:name.feature"
+        );
     }
 }

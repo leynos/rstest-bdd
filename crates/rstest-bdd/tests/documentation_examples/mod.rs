@@ -95,6 +95,10 @@ struct ScanState {
     seen: HashSet<String>,
 }
 
+mod scanner;
+
+use scanner::scan_region;
+
 /// The regions currently under enforcement. Keep this list in sync with the
 /// documents; the loaders below enforce exactly it.
 fn enforced_regions() -> Vec<EnforcedRegion> {
@@ -193,68 +197,22 @@ fn find_region_bounds(lines: &[&str], section: SectionHeading) -> Result<(usize,
     Ok((start, end))
 }
 
-/// Scan `region.lines[region.start..region.end]`, extracting marked fenced examples
-/// and hard-erroring on unmarked ones.
-fn scan_region(region: &ScanRegion<'_>, state: &mut ScanState) -> Result<()> {
-    let mut idx = region.start;
-    while idx < region.end {
-        let Some(line) = region.lines.get(idx) else {
-            break;
-        };
-        if !is_fence(line) {
-            idx += 1;
-            continue;
-        }
-        let Some(id) = previous_marker(region.lines, region.start, idx) else {
-            bail!(
-                "unmarked fenced block at line {} in the enforced `{}` region: every fence there \
-                 needs a `<!-- tested-example: id -->` marker immediately before it",
-                idx + 1,
-                region.document.as_str(),
-            );
-        };
-        let (example, consumed) = parse_fenced_example(region.lines, idx, id)?;
-        if example.id.as_str().is_empty() {
-            bail!(
-                "empty tested-example identifier in `{}` at line {}",
-                region.document.as_str(),
-                idx + 1,
-            );
-        }
-        if !state.seen.insert(example.id.as_str().to_owned()) {
-            bail!(
-                "duplicate tested-example identifier `{}` in `{document}`",
-                example.id.as_str(),
-                document = region.document.as_str(),
-            );
-        }
-        state.collected.push(example);
-        idx += consumed;
-    }
-    Ok(())
-}
-
 /// Whether a line opens a Markdown fence (an optional run of spaces then
 /// three or more backticks or tildes).
-fn is_fence(line: &str) -> bool {
-    let trimmed = line.trim_start();
-    trimmed.starts_with("```") || trimmed.starts_with("~~~")
-}
+fn is_fence(line: &str) -> bool { fence_delimiter(line).is_some() }
 
-/// The marker immediately above `fence_idx` (skipping blank lines) within the
-/// region that starts at `region_start`, or `None` when no marker precedes
-/// the fence.
-fn previous_marker(lines: &[&str], region_start: usize, fence_idx: usize) -> Option<ExampleId> {
-    let mut cursor = fence_idx;
-    while cursor > region_start {
-        cursor -= 1;
-        let line = lines.get(cursor)?.trim();
-        if line.is_empty() {
-            continue;
-        }
-        return extract_marker_id(line);
+/// Return a Markdown fence's delimiter character and run length.
+fn fence_delimiter(line: &str) -> Option<(char, usize)> {
+    let trimmed = line.trim_start();
+    let delimiter = trimmed.chars().next()?;
+    if !matches!(delimiter, '`' | '~') {
+        return None;
     }
-    None
+    let length = trimmed
+        .chars()
+        .take_while(|character| *character == delimiter)
+        .count();
+    (length >= 3).then_some((delimiter, length))
 }
 
 /// Parse the identifier out of a `<!-- tested-example: ID -->` marker line.
@@ -279,9 +237,12 @@ fn parse_fenced_example(
         .get(fence_idx)
         .ok_or_else(|| eyre::eyre!("tested-example `{}` fence line is missing", id.as_str()))?
         .trim_start();
+    let (opening_delimiter, opening_length) = fence_delimiter(opening)
+        .ok_or_else(|| eyre::eyre!("tested-example `{}` fence line is invalid", id.as_str()))?;
     let language = opening
-        .trim_start_matches('`')
-        .trim_start_matches('~')
+        .char_indices()
+        .nth(opening_length)
+        .map_or("", |(index, _)| opening.get(index..).unwrap_or_default())
         .trim()
         .to_owned();
     if language.is_empty() {
@@ -296,7 +257,9 @@ fn parse_fenced_example(
         let Some(line) = lines.get(cursor) else {
             bail!("tested-example `{}` fence is unterminated", id.as_str());
         };
-        if is_fence(line) {
+        if fence_delimiter(line).is_some_and(|(delimiter, length)| {
+            delimiter == opening_delimiter && length >= opening_length
+        }) {
             break;
         }
         body_lines.push(*line);

@@ -130,15 +130,15 @@ with other tests on the same thread pool.
 Roadmap 10.3.3 introduced a distinct class of test: a fixture crate is copied
 into the shared workspace `target/`, its manifest's relative path dependencies
 are rewritten to absolute paths, and a nested `cargo` invocation is driven
-against it with a byte-identical child environment. The strategy guarantees
-that apply:
+against it with a controlled child environment. The strategy guarantees that
+apply:
 
 - The checked-in fixture is never mutated; all edits happen in the scratch
   copy, so a killed test is recovered by deleting the scratch directory.
 - The child environment differs from the parent's only where cross-talk or
-  stalls would result (`CARGO_MAKEFLAGS`, `CARGO_PKG_*` stripped;
-  `LLVM_PROFILE_FILE` redirected; `CARGO_TARGET_DIR` inherited or defaulted to
-  the workspace target).
+  stalls would result (`CARGO_MAKEFLAGS`, `CARGO_PKG_*`, and `CARGO_LLVM_COV*`
+  stripped; `LLVM_PROFILE_FILE` redirected; `CARGO_TARGET_DIR` inherited or
+  defaulted to the workspace target).
 - Every nested `cargo` invocation runs under the harness's own wall-clock
   bound, and the binary is serialized against other cargo-spawning tests
   through the `cargo-spawning` nextest test-group.
@@ -155,13 +155,13 @@ A second new class of test executes fenced examples extracted from user-facing
 Markdown (roadmap 10.3.3, Milestone 7, modelled on
 [`netsuke`](https://github.com/leynos/netsuke)). Markers
 (`<!-- tested-example: id -->`) key each executable example; enforcement is
-regional so the documentation cannot quietly acquire an untested example inside
-an enforced section. The recipe in the users-guide's rebuild invalidation
-section is the first such example and is executed end-to-end: it is written
-into a fixture crate's `build.rs` and a behavioural test proves a newly added
-`.feature` file is run. The rule of thumb: prose that must not rot when
-executed — recipes, configs, commands — should be marked and consumed by a test
-rather than duplicated.
+regional, so the documentation cannot quietly acquire an untested example
+inside an enforced section. The recipe in the users-guide's rebuild
+invalidation section is the first such example and is executed end-to-end: it
+is written into a fixture crate's `build.rs` and a behavioural test proves a
+newly added `.feature` file is run. The rule of thumb: prose that must not rot
+when executed — recipes, configs, commands — should be marked and consumed by a
+test rather than duplicated. <!-- [type:grammar] -->
 
 ## Assertion posture
 

@@ -116,6 +116,18 @@ fn windows_separators_become_slashes() {
     assert_eq!(tracked.relative_literal(), "a/b/x.feature");
 }
 
+#[cfg(windows)]
+#[rstest]
+#[case::rooted_without_prefix(r"\rooted\x.feature")]
+#[case::drive_relative(r"C:drive-relative\x.feature")]
+fn windows_non_absolute_rooted_paths_are_untrackable(#[case] input: &str) {
+    let result = TrackedFeaturePath::try_new_from(
+        std::path::Path::new(input),
+        std::path::Path::new(r"C:\repo"),
+    );
+    assert!(matches!(result, Err(Untrackable::UnrelatableRoot(_))));
+}
+
 #[cfg(not(windows))]
 #[test]
 fn posix_backslash_is_an_ordinary_filename_character() {

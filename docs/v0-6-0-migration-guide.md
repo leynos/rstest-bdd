@@ -836,9 +836,9 @@ input set is updated.
   descriptor form.
 - [ ] Re-baseline JUnit history, ownership and quarantine rules after the
   one-time `classname` discontinuity (feature paths are now manifest-relative).
-- [ ] Replace any feature-file path outside the manifest directory with a
-  manifest-relative path (or a path on the same filesystem root); the D4
-  `compile_error!` names the offending file.
+- [ ] Replace any feature-file path with a manifest-relative path when the
+  file is inside the crate, or an absolute path on the same filesystem root
+  when the file is external; the D4 `compile_error!` names an offending file.
 - [ ] Update hermetic build inputs to declare the bound `.feature` files.
 - [ ] Run feature-gated downstream tests before assuming v0.6.0 broke the API:
   use `cargo test --workspace --all-features`, or the project's Continuous

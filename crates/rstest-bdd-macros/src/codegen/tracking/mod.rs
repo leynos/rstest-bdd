@@ -29,7 +29,7 @@
 //! cache-key helper whose `..` collapsing would name a different file through
 //! a symlink. Reusing it would be a silent correctness bug.
 
-use std::path::{Component, Path, PathBuf};
+use std::path::{Component, Path, PathBuf, Prefix};
 
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
@@ -140,7 +140,10 @@ fn normalize_relative(path: &Path) -> Result<String, Untrackable> {
     let mut parts: Vec<String> = Vec::new();
     for component in path.components() {
         match component {
-            Component::CurDir | Component::Prefix(_) | Component::RootDir => {}
+            Component::CurDir => {}
+            Component::Prefix(_) | Component::RootDir => {
+                return Err(Untrackable::UnrelatableRoot(path.to_path_buf()));
+            }
             Component::ParentDir => parts.push("..".to_owned()),
             Component::Normal(text) => {
                 let Some(text) = text.to_str() else {
@@ -173,11 +176,36 @@ fn components_eq(a: &std::ffi::OsStr, b: &std::ffi::OsStr) -> bool {
 fn paths_share_root(path: &Path, manifest: &Path) -> bool {
     match (path.components().next(), manifest.components().next()) {
         (Some(Component::Prefix(path_prefix)), Some(Component::Prefix(manifest_prefix))) => {
-            path_prefix.kind() == manifest_prefix.kind()
+            prefix_kinds_match(path_prefix.kind(), manifest_prefix.kind())
                 && components_eq(path_prefix.as_os_str(), manifest_prefix.as_os_str())
         }
         (Some(Component::Prefix(_)), _) | (_, Some(Component::Prefix(_))) => false,
         _ => true,
+    }
+}
+
+/// Whether two Windows prefix kinds have the same structural form.
+///
+/// `Disk` and `VerbatimDisk` embed the drive letter in their `Prefix` value,
+/// so direct equality would reject `c:` versus `C:` before `components_eq`
+/// can apply the filesystem's case-folding rules.
+fn prefix_kinds_match(path: Prefix<'_>, manifest: Prefix<'_>) -> bool {
+    #[cfg(windows)]
+    {
+        matches!(
+            (path, manifest),
+            (Prefix::Disk(_), Prefix::Disk(_))
+                | (Prefix::VerbatimDisk(_), Prefix::VerbatimDisk(_))
+                | (Prefix::UNC(_, _), Prefix::UNC(_, _))
+                | (Prefix::VerbatimUNC(_, _), Prefix::VerbatimUNC(_, _))
+                | (Prefix::Verbatim(_), Prefix::Verbatim(_))
+                | (Prefix::DeviceNS(_), Prefix::DeviceNS(_))
+        )
+    }
+
+    #[cfg(not(windows))]
+    {
+        path == manifest
     }
 }
 

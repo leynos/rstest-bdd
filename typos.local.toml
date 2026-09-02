@@ -22,7 +22,9 @@ ignore = [
   "`mold`",
   # GitHub Actions and Cargo machine interfaces retain upstream spelling.
   '(?m)^\s*CARGO_TERM_COLOR: always$',
-  '--color',
+  '\b--color\b',
+  # This equivalent punctuation-delimited form avoids Rust regex look-around.
+  '(^|[^[:alnum:]_])--color($|[^[:alnum:]_])',
   '(?m)^\s*types: \[opened, reopened, synchronize, labeled, ready_for_review\]$',
   '\bCompilerArtifact\b',
   '"reason": "compiler-artifact"',
