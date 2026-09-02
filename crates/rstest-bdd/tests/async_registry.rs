@@ -54,11 +54,15 @@ fn assert_async_wrapper_works(
 }
 
 /// Verify that a step is marked as used after being looked up.
+///
+/// # Errors
+///
+/// Returns [`StepLookupError`] when the lookup is ambiguous.
 fn assert_step_marked_as_used(
     pattern: &str,
     lookup_fn: impl FnOnce() -> Result<Option<AsyncStepFn>, StepLookupError>,
     api_name: &str,
-) {
+) -> Result<(), StepLookupError> {
     // Verify the step is initially in the unused list.
     let unused_before: Vec<_> = unused_steps().iter().map(|s| s.pattern.as_str()).collect();
     assert!(
@@ -67,7 +71,7 @@ fn assert_step_marked_as_used(
     );
 
     // Resolve the step.
-    let result = lookup_fn().expect("lookup should be unambiguous");
+    let result = lookup_fn()?;
     assert!(result.is_some(), "Step should be found");
 
     // Verify the step is no longer in the unused list.
@@ -76,6 +80,7 @@ fn assert_step_marked_as_used(
         !unused_after.contains(&pattern),
         "Step should no longer appear in unused_steps after {api_name}"
     );
+    Ok(())
 }
 
 // Register a test step for async registry tests.
@@ -220,12 +225,12 @@ step!(
 );
 
 #[test]
-fn find_step_async_marks_step_as_used() {
+fn find_step_async_marks_step_as_used() -> Result<(), StepLookupError> {
     assert_step_marked_as_used(
         "async unused tracking test step",
         || find_step_async(StepKeyword::Given, "async unused tracking test step".into()),
         "find_step_async",
-    );
+    )
 }
 
 // Register another step for testing lookup_step_async unused tracking.
@@ -238,7 +243,7 @@ step!(
 );
 
 #[test]
-fn lookup_step_async_marks_step_as_used() {
+fn lookup_step_async_marks_step_as_used() -> Result<(), StepLookupError> {
     assert_step_marked_as_used(
         "async lookup unused tracking test step",
         || {
@@ -248,5 +253,5 @@ fn lookup_step_async_marks_step_as_used() {
             )
         },
         "lookup_step_async",
-    );
+    )
 }

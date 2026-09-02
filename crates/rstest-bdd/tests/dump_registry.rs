@@ -5,6 +5,7 @@ use rstest_bdd::{
     StepContext,
     StepExecution,
     StepKeyword,
+    StepLookupError,
     dump_registry,
     find_step,
     record_bypassed_steps,
@@ -32,9 +33,8 @@ step!(
     &[]
 );
 
-fn execute_and_validate_step(keyword: StepKeyword, pattern: &str) {
-    let Some(runner) = find_step(keyword, pattern.into()).expect("lookup should be unambiguous")
-    else {
+fn execute_and_validate_step(keyword: StepKeyword, pattern: &str) -> Result<(), StepLookupError> {
+    let Some(runner) = find_step(keyword, pattern.into())? else {
         panic!("step not found");
     };
     let mut ctx = StepContext::default();
@@ -43,6 +43,7 @@ fn execute_and_validate_step(keyword: StepKeyword, pattern: &str) {
         Ok(StepExecution::Skipped { .. }) => panic!("step unexpectedly skipped"),
         Err(e) => panic!("execution failed: {e}"),
     }
+    Ok(())
 }
 
 fn validate_skipped_scenario(scenarios: &[Value]) {
@@ -185,7 +186,7 @@ fn validate_bypassed_steps_metadata(bypassed_steps: &[Value]) {
 }
 
 #[test]
-fn reports_usage_flags() {
+fn reports_usage_flags() -> Result<(), StepLookupError> {
     let _ = reporting::drain();
     let skipped_metadata = ScenarioMetadata::new(
         "tests/features/dump.feature",
@@ -217,7 +218,7 @@ fn reports_usage_flags() {
         [(StepKeyword::Given, "dump unused")],
     );
 
-    execute_and_validate_step(StepKeyword::Given, "dump used");
+    execute_and_validate_step(StepKeyword::Given, "dump used")?;
 
     let json = match dump_registry() {
         Ok(json) => json,
@@ -242,4 +243,5 @@ fn reports_usage_flags() {
     };
     validate_bypassed_steps_metadata(bypassed_steps);
     let _ = reporting::drain();
+    Ok(())
 }
