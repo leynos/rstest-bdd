@@ -21,6 +21,8 @@ jobs:
       RUFF_VERSION: '0.16.4'
       TY_VERSION: '0.0.74'
       WHITAKER_INSTALLER_VERSION: '0.2.7'
+      CARGO_BUILD_JOBS: '4'
+      NEXTEST_TEST_THREADS: '4'
     strategy:
       fail-fast: false
       matrix:
@@ -91,7 +93,11 @@ jobs:
           df -h /
 
       - name: Setup Rust
-        uses: leynos/shared-actions/.github/actions/setup-rust@794e4801babcf68065c660fdf4781ad62be5d061
+        # TODO: Replace this temporary PR head after shared-actions PR #421 merges.
+        uses: leynos/shared-actions/.github/actions/setup-rust@93ad65e414a16e8f8933a1ca114ccd480fdfa87e
+        with:
+          cache-provider: external
+          use-sccache: 'false'
 
       - name: Install bun
         if: ${{ matrix.tools }}
@@ -99,10 +105,26 @@ jobs:
         with:
           bun-version: '1.2.21'
 
-      - name: Setup uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
+      - name: Mount Namespace cache volume
+        id: namespace-cache
+        uses: namespacelabs/nscloud-cache-action@c5f8dab7560444c4bf8dbc64f1b203431873c547
         with:
-          version: '0.11.8'
+          cache: |
+            bun
+            rust
+            uv
+          path: |
+            ~/.cache/sccache
+            ${{ github.workspace }}/.ci-tools
+
+      - name: Report Namespace cache status
+        if: ${{ always() }}
+        shell: bash
+        env:
+          NAMESPACE_CACHE_HIT: ${{ steps.namespace-cache.outputs.cache-hit }}
+        run: |
+          set -euo pipefail
+          printf 'namespace-cache.hit=%s\n' "$NAMESPACE_CACHE_HIT" >> "$GITHUB_STEP_SUMMARY"
 
       # `.rustfmt.toml` uses unstable options, so `make check-fmt` shells out
       # to the pinned nightly rustfmt named by the Makefile's FMT_TOOLCHAIN.
@@ -114,21 +136,25 @@ jobs:
         if: ${{ matrix.tools }}
         run: make check-fmt
 
-      - name: Set up isolated Rust for Merman
+      - name: Install prebuilt Merman CLI
         if: ${{ matrix.tools }}
-        run: rustup toolchain install 1.95.0
+        shell: bash
+        run: |
+          tool_dir="$GITHUB_WORKSPACE/.ci-tools"
+          mkdir -p "$tool_dir"
+          cargo binstall --no-confirm --only-signed --disable-strategies compile \
+            --install-path "$tool_dir" "merman-cli@${MERMAN_CLI_VERSION}"
 
-      - name: Cache Merman CLI
-        if: ${{ matrix.tools }}
-        id: cache-merman-cli
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
-        with:
-          path: ~/.cargo/bin/merman-cli
-          key: merman-cli-${{ runner.os }}-${{ runner.arch }}-${{ env.MERMAN_CLI_VERSION }}
-
-      - name: Install Merman CLI
-        if: ${{ matrix.tools && steps.cache-merman-cli.outputs.cache-hit != 'true' }}
-        run: cargo +1.95.0 install merman-cli --version "=${MERMAN_CLI_VERSION}" --locked
+      - name: Install prebuilt sccache
+        shell: bash
+        run: |
+          set -euo pipefail
+          tool_dir="$GITHUB_WORKSPACE/.ci-tools"
+          mkdir -p "$tool_dir"
+          cargo binstall --no-confirm --only-signed --disable-strategies compile \
+            --install-path "$tool_dir" 'sccache@0.12.0'
+          printf '%s\n' "$tool_dir" >> "$GITHUB_PATH"
+          printf 'RUSTC_WRAPPER=%s/sccache\n' "$tool_dir" >> "$GITHUB_ENV"
 
       - name: Install Mermaid CLI
         if: ${{ matrix.tools }}
@@ -204,13 +230,15 @@ jobs:
 
       - name: Test and Measure Coverage (with features)
         if: ${{ matrix.coverage && matrix.features != '' }}
-        uses: leynos/shared-actions/.github/actions/generate-coverage@794e4801babcf68065c660fdf4781ad62be5d061
+        # TODO: Replace this temporary PR head after shared-actions PR #421 merges.
+        uses: leynos/shared-actions/.github/actions/generate-coverage@93ad65e414a16e8f8933a1ca114ccd480fdfa87e
         continue-on-error: true
         env:
           # Windows coverage runs (build plus doctests) exceed the shared
           # action's 600s per-invocation default; give them headroom.
           RUN_RUST_CARGO_WAIT_TIMEOUT: '1800'
         with:
+          cache-provider: external
           output-path: coverage.xml
           format: cobertura
           features: rstest-bdd/diagnostics rstest-bdd-server/test-support ${{ matrix.features }}
@@ -223,7 +251,8 @@ jobs:
 
       - name: Test and Measure Coverage (no features)
         if: ${{ matrix.coverage && matrix.features == '' }}
-        uses: leynos/shared-actions/.github/actions/generate-coverage@794e4801babcf68065c660fdf4781ad62be5d061
+        # TODO: Replace this temporary PR head after shared-actions PR #421 merges.
+        uses: leynos/shared-actions/.github/actions/generate-coverage@93ad65e414a16e8f8933a1ca114ccd480fdfa87e
         # The CodeScene leg (the default-features Linux leg) gates on the
         # ratchet, so a coverage failure must fail the build there; other
         # legs stay best-effort as before. Selected by matrix values rather
@@ -235,6 +264,7 @@ jobs:
           # action's 600s per-invocation default; give them headroom.
           RUN_RUST_CARGO_WAIT_TIMEOUT: '1800'
         with:
+          cache-provider: external
           output-path: coverage.xml
           format: cobertura
           features: rstest-bdd/diagnostics rstest-bdd-macros/compile-time-validation rstest-bdd-server/test-support
@@ -274,3 +304,14 @@ jobs:
 
       - name: Publish dry run
         run: make publish-check
+
+      - name: Report sccache statistics
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if command -v sccache >/dev/null 2>&1; then
+            sccache --show-stats
+          else
+            echo 'sccache was unavailable before its prebuilt installation completed.'
+          fi

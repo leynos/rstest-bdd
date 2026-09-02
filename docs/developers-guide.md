@@ -6,16 +6,17 @@ patterns used across crates — it is not a user-facing tutorial.
 
 ## GitHub Actions runner profiles
 
-Repository-owned build-matrix and delayed-comment jobs use deployed Namespace
-runner profiles. Profile tags and workflow labels are an external contract:
-create and verify a profile in the Namespace workspace connected to this
-repository before merging a workflow that names it.
+Repository-owned build-matrix jobs use deployed Namespace runner profiles.
+Profile tags and workflow labels are an external contract: create and verify a
+profile in the Namespace workspace connected to this repository before merging
+a workflow that names it. The delayed-comment workflow stays on
+`ubuntu-latest`: it waits and calls GitHub's API, so a build runner and cache
+provide no benefit.
 
 | Profile tag       | Workflow label                      | Operating system    | Machine shape | Namespace cache volume | Intended workload                 |
 | ----------------- | ----------------------------------- | ------------------- | ------------- | ---------------------- | --------------------------------- |
-| `default`         | `namespace-profile-default`         | Ubuntu 22.04        | 4 vCPU, 16 GB | Disabled               | Delayed comments                  |
-| `rust-linux-ci`   | `namespace-profile-rust-linux-ci`   | Ubuntu 24.04        | 8 vCPU, 16 GB | Disabled               | Linux build-and-coverage matrix   |
-| `rust-windows-ci` | `namespace-profile-rust-windows-ci` | Windows Server 2022 | 8 vCPU, 16 GB | Disabled               | Windows build-and-coverage matrix |
+| `rust-linux-ci`   | `namespace-profile-rust-linux-ci`   | Ubuntu 24.04        | 4 vCPU, 8 GB  | Attached               | Linux build-and-coverage matrix   |
+| `rust-windows-ci` | `namespace-profile-rust-windows-ci` | Windows Server 2022 | 4 vCPU, 8 GB  | Attached               | Windows build-and-coverage matrix |
 
 *Table: Namespace runner profiles used directly by rstest-bdd workflows.*
 
@@ -27,13 +28,26 @@ unchanged. The CodeScene and coverage-ratchet conditions identify the Linux
 profile explicitly, so a profile reassignment must update those conditions and
 the workflow contracts together.
 
-Profile cache volumes are disabled for this baseline. That does not disable the
-workflow's existing `actions/cache` entries or the caches nested in the pinned
-shared actions; those remain GitHub-backed and preserve the pre-migration cache
-semantics. Do not add `nscloud-cache-action` without a separately reviewed
-cache-volume deployment and trusted-branch write policy. Namespace-managed
-runners already carry service authentication, so the matrix does not use
-`nscloud-setup` and keeps its token scope at `contents: read`.
+The matrix mounts the attached Namespace cache volume after checkout and tool
+setup. It is the sole owner for Cargo, uv, Bun, signed prebuilt CI tools, and
+local sccache state, so the workflow must not reintroduce direct
+`actions/cache` entries for those paths.
+The temporary shared setup-rust revision
+`93ad65e414a16e8f8933a1ca114ccd480fdfa87e` accepts
+`cache-provider: external` and `use-sccache: 'false'`; the workflow then
+installs the pinned prebuilt `sccache` binary and reports its statistics.
+Replace the temporary action revision with the merged shared-actions revision
+after PR #421 lands. The coverage reusable action currently owns its distinct
+coverage-tool and ratchet archives until it provides the same external-cache
+contract.
+
+Each Namespace job is constrained to at most 4 vCPU and 8 GB memory. CI sets
+`CARGO_BUILD_JOBS=4` and `NEXTEST_TEST_THREADS=4` so build and nextest
+parallelism cannot exceed that runner shape. The Python coverage suite remains
+serial because its Whitaker integration invokes Cargo and would otherwise
+contend on Cargo's package-cache lock. Namespace-managed runners already carry
+service authentication, so the matrix does not use `nscloud-setup` and keeps
+its token scope at `contents: read`.
 
 Namespace images have a smaller tool contract than GitHub-hosted images. The
 Linux runner supplies Bash, `sudo`, and `apt`; pinned setup actions install

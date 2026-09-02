@@ -15,9 +15,13 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
-DELAYED_COMMENT_PROFILE = "namespace-profile-default"
+DELAYED_COMMENT_RUNNER = "ubuntu-latest"
 LINUX_PROFILE = "namespace-profile-rust-linux-ci"
 WINDOWS_PROFILE = "namespace-profile-rust-windows-ci"
+NAMESPACE_CACHE_ACTION = (
+    "namespacelabs/nscloud-cache-action@c5f8dab7560444c4bf8dbc64f1b203431873c547"
+)
+SHARED_SETUP_RUST_CACHE_PROVIDER_HEAD = "93ad65e414a16e8f8933a1ca114ccd480fdfa87e"
 EXPECTED_BUILD_MATRIX = [
     {
         "os": LINUX_PROFILE,
@@ -77,11 +81,11 @@ def _steps(job: dict[str, object]) -> list[dict[str, object]]:
     return steps
 
 
-def test_comment_job_uses_the_shared_uncached_namespace_profile() -> None:
-    """Keep the controlled utility-job assignment from drifting."""
+def test_comment_job_stays_on_github_hosted_linux() -> None:
+    """Keep API-bound delay work off paid Namespace compute."""
     job = _job("delayed-pr-comment.yml", "delay_and_comment")
-    assert job.get("runs-on") == DELAYED_COMMENT_PROFILE, (
-        f"delayed-pr-comment.yml:delay_and_comment must use {DELAYED_COMMENT_PROFILE}"
+    assert job.get("runs-on") == DELAYED_COMMENT_RUNNER, (
+        f"delayed-pr-comment.yml:delay_and_comment must use {DELAYED_COMMENT_RUNNER}"
     )
     assert job.get("timeout-minutes") == 65, (
         "delayed-pr-comment.yml:delay_and_comment must bound runner occupancy"
@@ -116,26 +120,118 @@ def test_build_matrix_keeps_least_privilege_and_managed_runner_auth() -> None:
     assert not any(
         uses.startswith("namespacelabs/nscloud-setup@") for uses in action_uses
     ), "Namespace profile runners must not add redundant nscloud authentication"
-    assert not any(
-        uses.startswith("namespacelabs/nscloud-cache-action@") for uses in action_uses
-    ), "the uncached baseline must not attach a Namespace cache volume"
-
-
-def test_build_matrix_preserves_pinned_github_caches() -> None:
-    """Retain the workflow's existing GitHub cache actions on uncached profiles."""
-    build_test = _job("ci.yml", "build-test")
-    cache_uses = [
-        str(step.get("uses"))
-        for step in _steps(build_test)
-        if str(step.get("uses", "")).startswith("actions/cache@")
-    ]
-    assert len(cache_uses) == 1, (
-        "ci.yml:build-test must retain the direct Merman GitHub cache; the "
-        "shared Whitaker action owns its installer cache"
+    assert NAMESPACE_CACHE_ACTION in action_uses, (
+        "ci.yml:build-test must mount the approved Namespace cache action"
     )
-    assert all(
-        re.fullmatch(r"actions/cache@[0-9a-f]{40}", uses) for uses in cache_uses
-    ), "direct GitHub cache actions must remain pinned to full commit SHAs"
+
+
+def test_build_matrix_uses_one_cache_owner_for_workflow_paths() -> None:
+    """Keep direct cache paths on the Namespace volume, not GitHub archives."""
+    build_test = _job("ci.yml", "build-test")
+    steps = _steps(build_test)
+    cache_step = next(
+        step for step in steps if step.get("uses") == NAMESPACE_CACHE_ACTION
+    )
+    assert cache_step.get("id") == "namespace-cache", (
+        "ci.yml:Namespace cache action must expose its cache-hit output"
+    )
+    assert cache_step.get("with") == {
+        "cache": "bun\nrust\nuv\n",
+        "path": "~/.cache/sccache\n${{ github.workspace }}/.ci-tools\n",
+    }, "ci.yml:Namespace cache action must own the selected cache paths"
+    assert not any(
+        str(step.get("uses", "")).startswith("actions/cache@") for step in steps
+    ), "ci.yml:build-test must not overlap Namespace-managed paths with GitHub caches"
+    cache_index = steps.index(cache_step)
+    checkout_index = next(
+        index for index, step in enumerate(steps) if step.get("name") == "Checkout"
+    )
+    assert checkout_index < cache_index, (
+        "ci.yml:Namespace cache wiring must happen after checkout"
+    )
+
+
+def test_build_matrix_configures_external_cache_and_bounded_parallelism() -> None:
+    """Keep cache ownership and build concurrency within the runner capacity."""
+    build_test = _job("ci.yml", "build-test")
+    env = build_test.get("env")
+    assert isinstance(env, dict), "ci.yml:build-test must declare an environment"
+    assert env.get("CARGO_BUILD_JOBS") == "4", (
+        "ci.yml:build-test must cap Cargo builds at the four-vCPU runner limit"
+    )
+    assert env.get("NEXTEST_TEST_THREADS") == "4", (
+        "ci.yml:build-test must cap nextest at the four-vCPU runner limit"
+    )
+    setup_step = next(
+        step for step in _steps(build_test) if step.get("name") == "Setup Rust"
+    )
+    assert setup_step.get("uses") == (
+        "leynos/shared-actions/.github/actions/setup-rust@"
+        f"{SHARED_SETUP_RUST_CACHE_PROVIDER_HEAD}"
+    ), "ci.yml:Setup Rust must use the temporary external-cache provider revision"
+    assert setup_step.get("with") == {
+        "cache-provider": "external",
+        "use-sccache": "false",
+    }, "ci.yml:Setup Rust must leave cache ownership to Namespace"
+
+
+def test_build_matrix_reports_cache_and_sccache_state() -> None:
+    """Expose cache outcomes without enabling the shared sccache cache backend."""
+    steps = _steps(_job("ci.yml", "build-test"))
+    cache_summary = next(
+        step for step in steps if step.get("name") == "Report Namespace cache status"
+    )
+    assert "steps.namespace-cache.outputs.cache-hit" in str(cache_summary.get("env")), (
+        "ci.yml:cache summary must report the Namespace cache-hit output"
+    )
+    assert "GITHUB_STEP_SUMMARY" in str(cache_summary.get("run")), (
+        "ci.yml:cache summary must write to the job summary"
+    )
+    sccache_install = next(
+        step for step in steps if step.get("name") == "Install prebuilt sccache"
+    )
+    sccache_install_command = str(sccache_install.get("run"))
+    required_fragments = {
+        "cargo binstall",
+        "--disable-strategies compile",
+        "--only-signed",
+        "RUSTC_WRAPPER",
+    }
+    missing_fragments = sorted(
+        fragment
+        for fragment in required_fragments
+        if fragment not in sccache_install_command
+    )
+    assert not missing_fragments, (
+        f"ci.yml:sccache installer omits required fragments: {missing_fragments}"
+    )
+    sccache_summary = next(
+        step for step in steps if step.get("name") == "Report sccache statistics"
+    )
+    assert "sccache --show-stats" in str(sccache_summary.get("run")), (
+        "ci.yml must expose sccache statistics when the binary is available"
+    )
+
+
+def test_build_matrix_installs_merman_without_a_source_build() -> None:
+    """Require the pinned prebuilt Merman installation path."""
+    steps = _steps(_job("ci.yml", "build-test"))
+    merman_step = next(
+        step for step in steps if step.get("name") == "Install prebuilt Merman CLI"
+    )
+    install_command = str(merman_step.get("run"))
+    required_fragments = {
+        "cargo binstall",
+        "--disable-strategies compile",
+        "--only-signed",
+        '--install-path "$tool_dir"',
+    }
+    missing_fragments = sorted(
+        fragment for fragment in required_fragments if fragment not in install_command
+    )
+    assert not missing_fragments, (
+        f"ci.yml:Merman installer omits required fragments: {missing_fragments}"
+    )
 
 
 def test_whitaker_uses_shared_pinned_installer_action() -> None:

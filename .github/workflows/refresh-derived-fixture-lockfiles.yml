@@ -24,7 +24,8 @@ jobs:
           persist-credentials: true
 
       - name: Setup Rust
-        uses: leynos/shared-actions/.github/actions/setup-rust@794e4801babcf68065c660fdf4781ad62be5d061
+        # TODO: Replace this temporary PR head after shared-actions PR #421 merges.
+        uses: leynos/shared-actions/.github/actions/setup-rust@93ad65e414a16e8f8933a1ca114ccd480fdfa87e
 
       - name: Refresh published GPUI fixture lockfiles
         run: |

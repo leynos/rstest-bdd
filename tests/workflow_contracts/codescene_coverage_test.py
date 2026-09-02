@@ -31,6 +31,7 @@ CODESCENE_GUARD = (
     "env.CS_ACCESS_TOKEN != ''"
 )
 EXPECTED_GENERATOR_INPUTS = {
+    "cache-provider": "external",
     "output-path": "coverage.xml",
     "format": "cobertura",
     "features": (

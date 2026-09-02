@@ -1,5 +1,4 @@
 self-hosted-runner:
   labels:
-    - namespace-profile-default
     - namespace-profile-rust-linux-ci
     - namespace-profile-rust-windows-ci
