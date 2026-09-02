@@ -189,7 +189,7 @@ fn generate_field_parsing<'a>(
                     #runtime::step_args::StepArgsError::custom_parse_failure(
                         stringify!(#ident),
                         &raw.value,
-                        error,
+                        _error,
                     )
                 }
             } else {
@@ -210,7 +210,7 @@ fn generate_field_parsing<'a>(
                     ))?;
                 let #ident: #ty = match #parse {
                     Ok(value) => value,
-                    Err(error) => {
+                    Err(_error) => {
                         return Err(#parse_failure);
                     }
                 };
@@ -267,6 +267,12 @@ fn generate_trait_impl(ctx: TraitImplParams<'_>) -> TokenStream2 {
             const FIELD_NAMES: &'static [&'static str] = &[#(#field_name_literals),*];
 
             fn from_captures(values: Vec<String>) -> Result<Self, #runtime::step_args::StepArgsError> {
+                if values.len() != Self::FIELD_NAMES.len() {
+                    return Err(#runtime::step_args::StepArgsError::count_mismatch(
+                        Self::FIELD_NAMES.len(),
+                        values.len(),
+                    ));
+                }
                 let captures = Self::FIELD_NAMES
                     .iter()
                     .copied()
@@ -292,8 +298,9 @@ fn generate_trait_impl(ctx: TraitImplParams<'_>) -> TokenStream2 {
                     return Err(#runtime::step_args::StepArgsError::unconsumed_capture(capture.name));
                 }
                 if let Some(capture) = captures.iter().enumerate().find_map(|(index, capture)| {
-                    captures[..index]
+                    captures
                         .iter()
+                        .take(index)
                         .any(|earlier| earlier.name == capture.name)
                         .then_some(capture)
                 }) {

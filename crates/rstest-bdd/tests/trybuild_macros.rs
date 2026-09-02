@@ -68,6 +68,8 @@ fn run_passing_macro_tests(t: &trybuild::TestCases) {
         MacroFixtureCase::from("scenario_harness_failing.rs"),
         MacroFixtureCase::from("scenario_async_step_tokio_bridge.rs"),
         MacroFixtureCase::from("scenario_step_libraries.rs"),
+        MacroFixtureCase::from("scenario_local_and_cross_crate_libraries.rs"),
+        MacroFixtureCase::from("scenarios_step_libraries.rs"),
         MacroFixtureCase::from("step_args_named_fields.rs"),
         MacroFixtureCase::from("execution_policy_reexports.rs"),
         MacroFixtureCase::from("scenarios_harness_params.rs"),
@@ -117,6 +119,8 @@ fn run_failing_macro_tests(t: &trybuild::TestCases) {
         MacroFixtureCase::from("scenario_harness_async_rejected.rs"),
         MacroFixtureCase::from("scenario_outline_harness_async_rejected.rs"),
         MacroFixtureCase::from("scenario_malformed_step_libraries.rs"),
+        MacroFixtureCase::from("scenarios_malformed_step_libraries.rs"),
+        MacroFixtureCase::from("scenarios_duplicate_step_libraries.rs"),
         MacroFixtureCase::from("result_fixture_requires_result_scenario.rs"),
     ] {
         t.compile_fail(macros_fixture(case).as_std_path());

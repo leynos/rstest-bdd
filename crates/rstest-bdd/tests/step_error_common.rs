@@ -249,6 +249,7 @@ impl<'a> StepInvocation<'a> {
 pub fn invoke_step(invocation: &StepInvocation<'_>) -> Result<StepExecution, StepError> {
     let mut ctx = StepContext::default();
     let Some(step_fn) = rstest_bdd::lookup_step(invocation.keyword, invocation.step_pattern.into())
+        .expect("step lookup should be unambiguous")
     else {
         panic!("step '{}' not found in registry", invocation.step_pattern);
     };

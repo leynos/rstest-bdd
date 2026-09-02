@@ -99,12 +99,33 @@ fn parses_registry_dump_with_bypassed_steps() {
 
 #[test]
 fn old_registry_dumps_default_to_the_global_library() {
-    let json = r#"{"steps":[{"keyword":"Given","pattern":"x","file":"f","line":1,"used":false}]}"#;
+    let json = r#"
+    {
+      "steps":[{"keyword":"Given","pattern":"x","file":"f","line":1,"used":false}],
+      "scenarios":[{
+        "feature_path":"feature", "scenario_name":"scenario", "status":"passed",
+        "message":null, "allow_skipped":false, "forced_failure":false
+      }],
+      "bypassed_steps":[{
+        "keyword":"Given", "pattern":"x", "file":"f", "line":1,
+        "feature_path":"feature", "scenario_name":"scenario", "reason":null
+      }]
+    }
+    "#;
     let parsed = parse_registry_dump(json.as_bytes()).expect("legacy dump should parse");
     let Some(step) = parsed.steps.first() else {
         panic!("step entry");
     };
     assert_eq!(step.library, "rstest_bdd::global");
+    let Some(scenario) = parsed.scenarios.first() else {
+        panic!("scenario entry");
+    };
+    assert_eq!(scenario.libraries, ["rstest_bdd::global"]);
+    let Some(bypassed) = parsed.bypassed_steps.first() else {
+        panic!("bypassed step entry");
+    };
+    assert_eq!(bypassed.library, "rstest_bdd::global");
+    assert_eq!(bypassed.libraries, ["rstest_bdd::global"]);
 }
 
 fn parse_message(json: &str) -> serde_json::Result<MetadataMessage> { serde_json::from_str(json) }

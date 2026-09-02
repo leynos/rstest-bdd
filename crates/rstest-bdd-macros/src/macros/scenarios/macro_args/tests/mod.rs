@@ -65,6 +65,7 @@ macro_rules! assert_tag_filter_eq {
 }
 
 mod combined_arguments;
+mod library_markers;
 
 #[test]
 fn fixture_spec_parses_simple_type() {

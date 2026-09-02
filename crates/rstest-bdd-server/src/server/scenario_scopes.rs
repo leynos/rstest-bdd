@@ -1,12 +1,13 @@
 //! Resolves feature files to the closed step-library scopes in Rust bindings.
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeSet, HashMap},
     path::{Path, PathBuf},
     sync::Arc,
 };
 
 use gherkin::StepType;
+use tracing::warn;
 
 use super::ServerState;
 use crate::indexing::{CompiledStepDefinition, IndexedScenarioBinding, ScenarioBindingTarget};
@@ -16,6 +17,30 @@ use crate::indexing::{CompiledStepDefinition, IndexedScenarioBinding, ScenarioBi
 pub(super) struct ScenarioScopeRegistry {
     /// Bindings replaced atomically when one Rust file is re-indexed.
     bindings_by_file: HashMap<PathBuf, Vec<IndexedScenarioBinding>>,
+}
+
+/// Conflicting closed scopes selected by bindings for one feature file.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("feature {} has conflicting step-library scopes: {scopes:?}", feature_path.display())]
+pub(crate) struct ScenarioScopeConflict {
+    /// Feature file whose bindings disagree.
+    feature_path: PathBuf,
+    /// Distinct normalized closed scopes selected for the feature.
+    scopes: Vec<Vec<String>>,
+}
+
+impl ScenarioScopeConflict {
+    /// Emit the conservative no-candidate fallback as a structured warning.
+    pub(crate) fn emit_warning(&self) {
+        warn!(
+            operation = "resolve-feature-step-scope",
+            feature_path = %self.feature_path.display(),
+            selected_scopes = ?self.scopes,
+            failure_category = "conflicting-closed-scopes",
+            fallback_state = "no-step-candidates",
+            "scenario bindings select conflicting closed step-library scopes"
+        );
+    }
 }
 
 impl ScenarioScopeRegistry {
@@ -28,11 +53,22 @@ impl ScenarioScopeRegistry {
         }
     }
 
-    /// Return the union of closed scopes that bind one feature file.
-    fn libraries_for_feature(&self, feature_path: &Path) -> Option<Vec<String>> {
-        let mut bindings = self.matching_bindings(feature_path).peekable();
-        bindings.peek()?;
-        Some(unique_libraries(bindings))
+    /// Return the single closed scope selected for one feature file.
+    fn libraries_for_feature(
+        &self,
+        feature_path: &Path,
+    ) -> Result<Option<Vec<String>>, ScenarioScopeConflict> {
+        let scopes: BTreeSet<_> = self
+            .matching_bindings(feature_path)
+            .map(|binding| normalized_scope(&binding.libraries))
+            .collect();
+        if scopes.len() > 1 {
+            return Err(ScenarioScopeConflict {
+                feature_path: feature_path.to_path_buf(),
+                scopes: scopes.into_iter().collect(),
+            });
+        }
+        Ok(scopes.into_iter().next())
     }
 
     /// Iterate over bindings whose target contains one feature file.
@@ -50,14 +86,12 @@ impl ScenarioScopeRegistry {
     }
 }
 
-/// Preserve declaration order while deduplicating libraries across bindings.
-fn unique_libraries<'a>(bindings: impl Iterator<Item = &'a IndexedScenarioBinding>) -> Vec<String> {
-    let mut seen = HashSet::new();
-    bindings
-        .flat_map(|binding| &binding.libraries)
-        .filter(|library| seen.insert(library.as_str()))
-        .cloned()
-        .collect()
+/// Normalize a closed scope because library order carries no precedence.
+fn normalized_scope(libraries: &[String]) -> Vec<String> {
+    let mut normalized = libraries.to_vec();
+    normalized.sort_unstable();
+    normalized.dedup();
+    normalized
 }
 
 impl ServerState {
@@ -75,22 +109,28 @@ impl ServerState {
         &self,
         feature_path: &Path,
         keyword: StepType,
-    ) -> Vec<&Arc<CompiledStepDefinition>> {
+    ) -> Result<Vec<&Arc<CompiledStepDefinition>>, ScenarioScopeConflict> {
         let libraries = self
             .scenario_scopes
-            .libraries_for_feature(feature_path)
+            .libraries_for_feature(feature_path)?
             .unwrap_or_else(|| vec![String::from("rstest_bdd::global")]);
-        self.step_registry
-            .steps_for_keyword_in_scope(keyword, &libraries)
+        Ok(self
+            .step_registry
+            .steps_for_keyword_in_scope(keyword, &libraries))
     }
 
     /// Return whether a feature binding selects one definition's library.
-    pub(crate) fn feature_selects_library(&self, feature_path: &Path, library: &str) -> bool {
-        self.scenario_scopes
-            .libraries_for_feature(feature_path)
+    pub(crate) fn feature_selects_library(
+        &self,
+        feature_path: &Path,
+        library: &str,
+    ) -> Result<bool, ScenarioScopeConflict> {
+        Ok(self
+            .scenario_scopes
+            .libraries_for_feature(feature_path)?
             .map_or(library == "rstest_bdd::global", |libraries| {
                 libraries.iter().any(|selected| selected == library)
-            })
+            }))
     }
 }
 
@@ -152,13 +192,75 @@ mod tests {
             scopes.libraries_for_feature(Path::new(
                 "/workspace/crate/tests/features/account.feature"
             )),
-            Some(vec![String::from("accounts")])
+            Ok(Some(vec![String::from("accounts")]))
         );
         assert_eq!(
             scopes.libraries_for_feature(Path::new(
                 "/workspace/crate/tests/features/files/write.feature"
             )),
-            Some(vec![String::from("filesystem")])
+            Ok(Some(vec![String::from("filesystem")]))
+        );
+    }
+
+    #[test]
+    fn reports_conflicting_scopes_without_merging_them() {
+        let feature_path = Path::new("/workspace/crate/tests/features/account.feature");
+        let mut scopes = ScenarioScopeRegistry::default();
+        scopes.replace_rust_file(
+            Path::new("/workspace/crate/src/accounts.rs"),
+            vec![IndexedScenarioBinding {
+                target: ScenarioBindingTarget::Feature(PathBuf::from(
+                    "tests/features/account.feature",
+                )),
+                libraries: vec![String::from("accounts")],
+            }],
+        );
+        scopes.replace_rust_file(
+            Path::new("/workspace/crate/src/filesystem.rs"),
+            vec![IndexedScenarioBinding {
+                target: ScenarioBindingTarget::Feature(PathBuf::from(
+                    "tests/features/account.feature",
+                )),
+                libraries: vec![String::from("filesystem")],
+            }],
+        );
+
+        let error = scopes
+            .libraries_for_feature(feature_path)
+            .expect_err("different closed scopes must remain ambiguous");
+
+        assert_eq!(
+            error.scopes,
+            [
+                vec![String::from("accounts")],
+                vec![String::from("filesystem")]
+            ]
+        );
+    }
+
+    #[test]
+    fn treats_reordered_library_lists_as_the_same_scope() {
+        let feature_path = Path::new("/workspace/crate/tests/features/account.feature");
+        let target =
+            ScenarioBindingTarget::Feature(PathBuf::from("tests/features/account.feature"));
+        let mut scopes = ScenarioScopeRegistry::default();
+        scopes.replace_rust_file(
+            Path::new("/workspace/crate/src/lib.rs"),
+            vec![
+                IndexedScenarioBinding {
+                    target: target.clone(),
+                    libraries: vec![String::from("common"), String::from("accounts")],
+                },
+                IndexedScenarioBinding {
+                    target,
+                    libraries: vec![String::from("accounts"), String::from("common")],
+                },
+            ],
+        );
+
+        assert_eq!(
+            scopes.libraries_for_feature(feature_path),
+            Ok(Some(vec![String::from("accounts"), String::from("common")]))
         );
     }
 }

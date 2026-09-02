@@ -45,7 +45,9 @@ fn r#match_logs_in() {}
 #[case(StepKeyword::When, "match logs in")]
 fn steps_with_inferred_patterns_execute(#[case] kw: StepKeyword, #[case] pattern: &str) {
     let mut ctx = StepContext::default();
-    let step_fn = find_step(kw, pattern.into()).expect("step not found");
+    let step_fn = find_step(kw, pattern.into())
+        .expect("lookup should be unambiguous")
+        .expect("step not found");
     if let Err(e) = step_fn(&mut ctx, pattern, None, None) {
         panic!("step failed: {e:?}");
     }
@@ -54,5 +56,9 @@ fn steps_with_inferred_patterns_execute(#[case] kw: StepKeyword, #[case] pattern
 /// Returns `None` when no step matches the pattern.
 #[test]
 fn find_step_returns_none_for_unknown_pattern() {
-    assert!(find_step(StepKeyword::When, "user signs out".into()).is_none());
+    assert!(
+        find_step(StepKeyword::When, "user signs out".into())
+            .expect("lookup should be unambiguous")
+            .is_none()
+    );
 }

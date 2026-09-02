@@ -208,7 +208,7 @@ fn step_attr(attr: TokenStream, item: TokenStream, keyword: crate::StepKeyword) 
     #[cfg(feature = "compile-time-validation")]
     let library = take_step_library_attribute(&mut func.attrs);
     #[cfg(not(feature = "compile-time-validation"))]
-    take_step_library_attribute(&mut func.attrs);
+    let _ = take_step_library_attribute(&mut func.attrs);
     inject_skip_scope(&mut func);
     let attr_args = if attr.is_empty() {
         StepAttrArgs {

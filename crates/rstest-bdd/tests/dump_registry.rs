@@ -33,7 +33,8 @@ step!(
 );
 
 fn execute_and_validate_step(keyword: StepKeyword, pattern: &str) {
-    let Some(runner) = find_step(keyword, pattern.into()) else {
+    let Some(runner) = find_step(keyword, pattern.into()).expect("lookup should be unambiguous")
+    else {
         panic!("step not found");
     };
     let mut ctx = StepContext::default();

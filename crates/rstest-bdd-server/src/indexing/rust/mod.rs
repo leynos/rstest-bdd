@@ -130,10 +130,13 @@ impl StepDefinitionCollector<'_> {
 
 /// Return whether a module establishes a lexical step-library boundary.
 fn is_step_library(item_mod: &syn::ItemMod) -> bool {
-    item_mod
-        .attrs
-        .iter()
-        .any(|attribute| attribute.path().is_ident("step_library"))
+    item_mod.attrs.iter().any(|attribute| {
+        attribute
+            .path()
+            .segments
+            .last()
+            .is_some_and(|segment| segment.ident == "step_library")
+    })
 }
 /// Find and validate the step attribute on a function.
 ///

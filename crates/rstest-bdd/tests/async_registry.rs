@@ -14,6 +14,7 @@ use rstest_bdd::{
     StepExecution,
     StepFuture,
     StepKeyword,
+    StepLookupError,
     find_step_async,
     iter,
     lookup_step_async,
@@ -34,8 +35,13 @@ use poll_step_future_support::poll_step_future;
 
 /// Verify that an async step wrapper lookup succeeds and can be polled to completion.
 #[expect(clippy::expect_used, reason = "test helper validates lookup succeeds")]
-fn assert_async_wrapper_works(lookup_fn: impl FnOnce() -> Option<AsyncStepFn>, test_text: &str) {
-    let async_fn = lookup_fn().expect("step should be found");
+fn assert_async_wrapper_works(
+    lookup_fn: impl FnOnce() -> Result<Option<AsyncStepFn>, StepLookupError>,
+    test_text: &str,
+) {
+    let async_fn = lookup_fn()
+        .expect("lookup should be unambiguous")
+        .expect("step should be found");
     let mut ctx = StepContext::default();
     let future = async_fn(&mut ctx, test_text, None, None);
     let result = poll_step_future(future);
@@ -48,7 +54,7 @@ fn assert_async_wrapper_works(lookup_fn: impl FnOnce() -> Option<AsyncStepFn>, t
 /// Verify that a step is marked as used after being looked up.
 fn assert_step_marked_as_used(
     pattern: &str,
-    lookup_fn: impl FnOnce() -> Option<AsyncStepFn>,
+    lookup_fn: impl FnOnce() -> Result<Option<AsyncStepFn>, StepLookupError>,
     api_name: &str,
 ) {
     // Verify the step is initially in the unused list.
@@ -59,7 +65,7 @@ fn assert_step_marked_as_used(
     );
 
     // Resolve the step.
-    let result = lookup_fn();
+    let result = lookup_fn().expect("lookup should be unambiguous");
     assert!(result.is_some(), "Step should be found");
 
     // Verify the step is no longer in the unused list.
@@ -192,7 +198,7 @@ fn async_lookup_returns_none_for_invalid_input(
         _ => panic!("unknown API: {api_name}"),
     };
     assert!(
-        result.is_none(),
+        result.expect("lookup should be unambiguous").is_none(),
         "{api_name} should return None {failure_reason}"
     );
 }
