@@ -62,14 +62,21 @@ fn renders_snapshot_target_root(
     );
 }
 
-#[test]
-fn outside_snapshot_root_uses_native_boundary_separator() {
-    let original = "$WORKSPACE/target/tests/trybuild/rstest-bdd/tests/features/x.feature";
+#[rstest]
+#[case::feature_suffix(
+    "$WORKSPACE/target/tests/trybuild/rstest-bdd/tests/features/x.feature",
+    "tests/features/x.feature"
+)]
+#[case::trybuild_crate_root("$WORKSPACE/target/tests/trybuild/rstest-bdd", "")]
+fn outside_snapshot_root_uses_native_trybuild_prefix(#[case] original: &str, #[case] suffix: &str) {
     let target_root = r"C:\outside\target";
-    let expected = format!(
-        r"C:\outside\target{}tests/trybuild/rstest-bdd/tests/features/x.feature",
-        std::path::MAIN_SEPARATOR
-    );
+    let separator = std::path::MAIN_SEPARATOR;
+    let mut expected =
+        [target_root, "tests", "trybuild", "rstest-bdd"].join(&separator.to_string());
+    if !suffix.is_empty() {
+        expected.push(separator);
+        expected.push_str(suffix);
+    }
 
     assert_eq!(apply_snapshot_target_root(original, target_root), expected);
 }

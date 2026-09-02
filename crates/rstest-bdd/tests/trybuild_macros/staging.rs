@@ -272,12 +272,21 @@ fn snapshot_target_root(target_root: &Utf8Path, workspace_root: &Utf8Path) -> St
 }
 
 fn apply_snapshot_target_root(original: &str, rendered_target_root: &str) -> String {
+    const TRYBUILD_CRATE_ROOT: &str = "$WORKSPACE/target/tests/trybuild/rstest-bdd";
+
     if rendered_target_root.starts_with("$WORKSPACE/") {
         return original.replace("$WORKSPACE/target", rendered_target_root);
     }
 
-    let replacement = format!("{rendered_target_root}{}", std::path::MAIN_SEPARATOR);
-    original.replace("$WORKSPACE/target/", &replacement)
+    let separator = std::path::MAIN_SEPARATOR;
+    let native_trybuild_root =
+        [rendered_target_root, "tests", "trybuild", "rstest-bdd"].join(&separator.to_string());
+    let source_with_boundary = format!("{TRYBUILD_CRATE_ROOT}/");
+    let replacement_with_boundary = format!("{native_trybuild_root}{separator}");
+
+    original
+        .replace(&source_with_boundary, &replacement_with_boundary)
+        .replace(TRYBUILD_CRATE_ROOT, &native_trybuild_root)
 }
 
 /// Stage temporary target-root-specific snapshots for a trybuild run.
