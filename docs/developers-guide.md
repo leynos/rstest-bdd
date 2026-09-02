@@ -4,7 +4,6 @@ For engineers and contributors working on the rstest-bdd codebase.  This guide
 covers workspace tooling, test infrastructure, macro internals, and the
 patterns used across crates — it is not a user-facing tutorial.
 
-
 ## GitHub Actions runner profiles
 
 The delayed pull-request comment job uses the shared uncached

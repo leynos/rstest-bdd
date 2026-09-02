@@ -32,9 +32,9 @@ def _job(workflow_name: str, job_name: str) -> dict[str, object]:
 def test_comment_job_uses_the_shared_uncached_namespace_profile() -> None:
     """Keep the controlled utility-job assignment from drifting."""
     job = _job("delayed-pr-comment.yml", "delay_and_comment")
-    assert job.get("runs-on") == (
-        "namespace-profile-default"
-    ), "delayed-pr-comment.yml:delay_and_comment must use namespace-profile-default"
+    assert job.get("runs-on") == ("namespace-profile-default"), (
+        "delayed-pr-comment.yml:delay_and_comment must use namespace-profile-default"
+    )
     assert job.get("timeout-minutes") == 65, (
         "delayed-pr-comment.yml:delay_and_comment must bound runner occupancy"
     )
