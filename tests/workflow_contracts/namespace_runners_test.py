@@ -54,3 +54,6 @@ def test_build_matrix_remains_platform_controlled() -> None:
     assert {"ubuntu-latest", "windows-latest"} <= matrix_oses, (
         "ci.yml:build-test matrix must retain ubuntu-latest and windows-latest"
     )
+    assert matrix_oses <= {"ubuntu-latest", "windows-latest"}, (
+        "ci.yml:build-test matrix must use only approved GitHub-hosted runners"
+    )
