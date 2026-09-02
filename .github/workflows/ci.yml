@@ -92,6 +92,20 @@ jobs:
             /usr/local/share/powershell || true
           df -h /
 
+      - name: Mount Namespace cache volume
+        id: namespace-cache
+        uses: namespacelabs/nscloud-cache-action@c5f8dab7560444c4bf8dbc64f1b203431873c547
+        with:
+          path: |
+            ~/.bun/install/cache
+            ~/.cargo/bin
+            ~/.cargo/git
+            ~/.cargo/registry
+            ~/.cache/sccache
+            ~/.cache/uv
+            ~/.local/share/uv
+            ${{ github.workspace }}/.ci-tools
+
       - name: Setup Rust
         # Merged shared-actions PR #421 cache-provider revision.
         uses: leynos/shared-actions/.github/actions/setup-rust@5daae0a332441d170d88ca648c9e71f0bbe96cb3
@@ -104,18 +118,6 @@ jobs:
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6  # v2
         with:
           bun-version: '1.2.21'
-
-      - name: Mount Namespace cache volume
-        id: namespace-cache
-        uses: namespacelabs/nscloud-cache-action@c5f8dab7560444c4bf8dbc64f1b203431873c547
-        with:
-          cache: |
-            bun
-            rust
-            uv
-          path: |
-            ~/.cache/sccache
-            ${{ github.workspace }}/.ci-tools
 
       - name: Report Namespace cache status
         if: ${{ always() }}

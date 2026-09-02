@@ -28,18 +28,19 @@ unchanged. The CodeScene and coverage-ratchet conditions identify the Linux
 profile explicitly, so a profile reassignment must update those conditions and
 the workflow contracts together.
 
-The matrix mounts the attached Namespace cache volume after checkout and tool
-setup. It is the sole owner for Cargo, uv, Bun, signed prebuilt CI tools, and
-local sccache state, so the workflow must not reintroduce direct
-`actions/cache` entries for those paths.
-The temporary shared setup-rust revision
+The matrix mounts the attached Namespace cache volume after checkout and before
+tool setup. It explicitly owns Cargo downloads, uv and Bun data, signed
+prebuilt CI tools, and local sccache state, so the workflow must not reintroduce
+direct `actions/cache` entries for those paths.
+The workflow deliberately avoids the cache action's `rust` and `bun` modes:
+the former mounts the disposable Cargo `target` directory, while the latter
+executes Bun during cache planning before every matrix lane provides it. The
+shared setup-rust revision
 `5daae0a332441d170d88ca648c9e71f0bbe96cb3` accepts
 `cache-provider: external` and `use-sccache: 'false'`; the workflow then
 installs the pinned prebuilt `sccache` binary and reports its statistics.
-Replace the temporary action revision with the merged shared-actions revision
-through merged PR #421. The coverage reusable action currently owns its distinct
-coverage-tool and ratchet archives until it provides the same external-cache
-contract.
+is the merged shared-actions PR #421 revision. The coverage reusable action
+uses the same external-cache contract.
 
 Each Namespace job is constrained to at most 4 vCPU and 8 GB memory. CI sets
 `CARGO_BUILD_JOBS=4` and `NEXTEST_TEST_THREADS=4` so build and nextest

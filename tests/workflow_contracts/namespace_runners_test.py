@@ -136,8 +136,16 @@ def test_build_matrix_uses_one_cache_owner_for_workflow_paths() -> None:
         "ci.yml:Namespace cache action must expose its cache-hit output"
     )
     assert cache_step.get("with") == {
-        "cache": "bun\nrust\nuv\n",
-        "path": "~/.cache/sccache\n${{ github.workspace }}/.ci-tools\n",
+        "path": (
+            "~/.bun/install/cache\n"
+            "~/.cargo/bin\n"
+            "~/.cargo/git\n"
+            "~/.cargo/registry\n"
+            "~/.cache/sccache\n"
+            "~/.cache/uv\n"
+            "~/.local/share/uv\n"
+            "${{ github.workspace }}/.ci-tools\n"
+        ),
     }, "ci.yml:Namespace cache action must own the selected cache paths"
     assert not any(
         str(step.get("uses", "")).startswith("actions/cache@") for step in steps
@@ -148,6 +156,12 @@ def test_build_matrix_uses_one_cache_owner_for_workflow_paths() -> None:
     )
     assert checkout_index < cache_index, (
         "ci.yml:Namespace cache wiring must happen after checkout"
+    )
+    setup_index = next(
+        index for index, step in enumerate(steps) if step.get("name") == "Setup Rust"
+    )
+    assert cache_index < setup_index, (
+        "ci.yml:Namespace cache wiring must precede toolchain installation"
     )
 
 
