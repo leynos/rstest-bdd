@@ -153,6 +153,36 @@ jobs:
         with:
           installer-version: ${{ env.WHITAKER_INSTALLER_VERSION }}
 
+      - name: Diagnose Whitaker installation failure
+        if: ${{ failure() && matrix.tools }}
+        shell: bash
+        run: |
+          set +e
+          printf 'PATH=%s\n' "$PATH"
+          printf 'XDG_BIN_HOME=%s\n' "${XDG_BIN_HOME:-<unset>}"
+          printf 'CARGO_HOME=%s\n' "${CARGO_HOME:-<unset>}"
+          getconf GNU_LIBC_VERSION
+          for candidate in \
+            "$HOME/.local/bin/cargo-dylint" \
+            "$HOME/.local/bin/dylint-link" \
+            "$HOME/.cargo/bin/cargo-dylint" \
+            "$HOME/.cargo/bin/dylint-link"; do
+            if [[ ! -e "$candidate" ]]; then
+              printf '%s: missing\n' "$candidate"
+              continue
+            fi
+            ls -l "$candidate"
+            file "$candidate"
+            "$candidate" --version 2>&1
+            printf '%s --version exit=%s\n' "$candidate" "$?"
+            if [[ "$candidate" == */cargo-dylint ]]; then
+              "$candidate" dylint --version 2>&1
+              printf '%s dylint --version exit=%s\n' "$candidate" "$?"
+            fi
+          done
+          cargo dylint --version 2>&1
+          printf 'cargo dylint --version exit=%s\n' "$?"
+
       - name: Nixie
         if: ${{ matrix.tools }}
         run: make nixie
