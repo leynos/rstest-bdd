@@ -175,6 +175,18 @@ fn normalize_conditional_trait_help_removes_stable_wording_difference() {
 }
 
 #[test]
+fn normalize_conditional_trait_help_removes_requirement_connector() {
+    let input = concat!(
+        "       |                 |\n",
+        "       |                 unsatisfied requirement introduced here: `NotDisplay`\n",
+    );
+    assert_eq!(
+        normalize_conditional_trait_help(NormalizerInput::from(input)),
+        "\n"
+    );
+}
+
+#[test]
 fn normalize_fixture_paths_rewrites_relative_fixture_paths() {
     let dollar = '$';
     let input = "Warning:  --> tests/fixtures_macros/example.rs:3:1";

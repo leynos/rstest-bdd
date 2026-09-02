@@ -359,7 +359,7 @@ fn normalized_outputs_match(test_path: &Utf8Path, normalizers: &[Normalizer]) ->
         } else {
             &crate_dir
         };
-        let _ = wip_dir.remove_file(actual_path.as_std_path());
+        wip_dir.remove_file(actual_path.as_std_path())?;
         return Ok(true);
     }
 

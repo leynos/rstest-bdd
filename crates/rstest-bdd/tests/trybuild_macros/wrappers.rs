@@ -138,24 +138,36 @@ pub(crate) fn strip_nightly_macro_backtrace_hint(input: NormalizerInput<'_>) -> 
 /// Normalizes stable compiler wording for conditional trait implementations.
 pub(crate) fn normalize_conditional_trait_help(input: NormalizerInput<'_>) -> String {
     let text = input.as_ref();
-    let mut normalized = text
-        .lines()
-        .filter_map(|line| {
-            if line.contains("unsatisfied requirement introduced here:") {
-                return None;
-            }
-            let line = line.replace(
-                "StepReturnNormalize<Result<T, E>>` is conditionally implemented for",
-                "StepReturnNormalize<Result<T, E>>` is implemented for",
-            );
-            if line.contains("^^^^^^^^") && line.contains("--------") {
-                Some(line.replace('-', "^"))
-            } else {
-                Some(line)
-            }
-        })
-        .collect::<Vec<_>>()
-        .join("\n");
+    let mut lines = text.lines().peekable();
+    let mut normalized = Vec::new();
+    while let Some(line) = lines.next() {
+        let trimmed = line.trim();
+        let is_connector = trimmed
+            .strip_prefix('|')
+            .and_then(|line| line.strip_suffix('|'))
+            .is_some_and(|contents| contents.trim().is_empty());
+        if line.contains("unsatisfied requirement introduced here:") {
+            continue;
+        }
+        if is_connector
+            && matches!(
+                lines.peek(),
+                Some(next) if next.contains("unsatisfied requirement introduced here:")
+            )
+        {
+            continue;
+        }
+        let line = line.replace(
+            "StepReturnNormalize<Result<T, E>>` is conditionally implemented for",
+            "StepReturnNormalize<Result<T, E>>` is implemented for",
+        );
+        if line.contains("^^^^^^^^") && line.contains("--------") {
+            normalized.push(line.replace('-', "^"));
+        } else {
+            normalized.push(line);
+        }
+    }
+    let mut normalized = normalized.join("\n");
     if text.ends_with('\n') {
         normalized.push('\n');
     }
