@@ -5,44 +5,31 @@
 //! definition sources. Indexing results are stored in the shared server state.
 //! After indexing, diagnostics are computed and published via the LSP protocol.
 
+use lsp_types::DidSaveTextDocumentParams;
 use metrics::{counter, describe_counter};
 use tracing::{debug, warn};
 
 use super::{
-    diagnostics::{,
-    FeatureDiagnosticPublication,
-    clear_rust_index_diagnostics,
-    publish_all_feature_diagnostics,
-    publish_feature_diagnostics,
-    publish_rust_index_result_diagnostics,
+    diagnostics::{
+        FeatureDiagnosticPublication,
+        clear_rust_index_diagnostics,
+        publish_all_feature_diagnostics,
+        publish_feature_diagnostics,
+        publish_rust_index_result_diagnostics,
     },
     util::has_extension,
     workspace_metrics::{record_deferred_save_depth, record_workspace_outcome},
 };
 use crate::{
-    indexing::{,
-    FeatureIndexError,
-    RustStepIndexError,
-    index_feature_source,
-    index_rust_source_with_bindings,
-    index_rust_file_with_bindings,
-    RustSourceIndexResult,
-    },
-    lsp::DidSaveTextDocumentParams,
-    server::ServerState,
-};
-
-use lsp_types::DidSaveTextDocumentParams;
-
-//! Text document notification handlers.
-//!
-//! Phase 7 focuses on building language-server foundations. This module
-//! provides the on-save indexing pipeline for `.feature` files and Rust step
-//! definition sources. Indexing results are stored in the shared server state.
-//! After indexing, diagnostics are computed and published via the LSP protocol.
-    diagnostics::{
-};
     indexing::{
+        FeatureIndexError,
+        RustSourceIndexResult,
+        RustStepIndexError,
+        index_feature_source,
+        index_rust_file_with_bindings,
+        index_rust_source_with_bindings,
+    },
+    server::ServerState,
 };
 
 /// Metric name for indexing outcomes.

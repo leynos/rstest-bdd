@@ -1,10 +1,10 @@
-//! Compatibility tests for the deprecated registry lookup projections.
+//! Tests for the field-projection lookup helpers.
 //!
-//! Every deprecated helper must resolve the same registered step and project
-//! the same handler, mode, and metadata that the canonical metadata lookups
-//! return. The handlers registered here finish with a distinctive skipped
-//! outcome, so a projection that returned the wrong function pointer would
-//! fail an assertion instead of quietly returning `Continue`.
+//! Every projection must resolve the same registered step and project the same
+//! handler, mode, and metadata that the canonical metadata pair returns. The
+//! handlers registered here finish with a distinctive skipped outcome, so a
+//! projection that returned the wrong function pointer would fail an assertion
+//! instead of quietly returning `Continue`.
 
 use rstest::rstest;
 use rstest_bdd::{
@@ -18,6 +18,7 @@ use rstest_bdd::{
     StepFn,
     StepFuture,
     StepKeyword,
+    StepLookupError,
     StepText,
     find_step,
     find_step_async,
@@ -124,7 +125,7 @@ step!(
     &[]
 );
 
-/// Which deprecated synchronous projection a case exercises.
+/// Which synchronous projection a case exercises.
 #[derive(Clone, Copy, Debug)]
 enum SyncLookup {
     /// Exact-pattern projection, `lookup_step`.
@@ -137,14 +138,13 @@ enum SyncLookup {
 
 impl SyncLookup {
     /// Resolve the distinctive step through this projection.
-    fn resolve(self) -> Option<StepFn> {
+    fn resolve(self) -> Result<Option<StepFn>, StepLookupError> {
         let keyword = StepKeyword::Given;
         match self {
             Self::Exact => lookup_step(keyword, DISTINCTIVE_STEP.into()),
             Self::Fuzzy => find_step(keyword, DISTINCTIVE_FUZZY_TEXT.into()),
-            Self::MetadataAlias => {
-                find_step_with_mode(keyword, DISTINCTIVE_FUZZY_TEXT.into()).map(|step| step.run)
-            }
+            Self::MetadataAlias => find_step_with_mode(keyword, DISTINCTIVE_FUZZY_TEXT.into())
+                .map(|step| step.map(|found| found.run)),
         }
     }
 }
@@ -172,15 +172,18 @@ fn poll_projection(handler: AsyncStepFn) -> StepExecution {
 #[case::exact(SyncLookup::Exact)]
 #[case::fuzzy(SyncLookup::Fuzzy)]
 #[case::metadata_alias(SyncLookup::MetadataAlias)]
-fn deprecated_sync_lookup_projects_a_distinctive_handler(#[case] lookup: SyncLookup) {
-    let handler = lookup.resolve().expect("step should be found");
+fn sync_lookup_projects_a_distinctive_handler(#[case] lookup: SyncLookup) {
+    let handler = lookup
+        .resolve()
+        .expect("lookup should be unambiguous")
+        .expect("step should be found");
     let mut ctx = StepContext::default();
     let result = handler(&mut ctx, DISTINCTIVE_STEP, None, None)
         .expect("projected sync handler should succeed");
     assert_distinctive_skip(result, SYNC_MARKER);
 }
 
-/// Which deprecated asynchronous projection a case exercises.
+/// Which asynchronous projection a case exercises.
 ///
 /// Only the `*WithMode` variants report an execution mode, so the other
 /// variants carry no mode to assert.
@@ -198,19 +201,18 @@ enum AsyncLookup {
 
 impl AsyncLookup {
     /// Resolve the distinctive step through this projection.
-    fn resolve(self) -> Option<(AsyncStepFn, Option<StepExecutionMode>)> {
+    fn resolve(self) -> Result<Option<(AsyncStepFn, Option<StepExecutionMode>)>, StepLookupError> {
         let keyword = StepKeyword::Given;
         match self {
-            Self::Exact => {
-                lookup_step_async(keyword, DISTINCTIVE_STEP.into()).map(|handler| (handler, None))
-            }
+            Self::Exact => lookup_step_async(keyword, DISTINCTIVE_STEP.into())
+                .map(|handler| handler.map(|found| (found, None))),
             Self::Fuzzy => find_step_async(keyword, DISTINCTIVE_FUZZY_TEXT.into())
-                .map(|handler| (handler, None)),
+                .map(|handler| handler.map(|found| (found, None))),
             Self::ExactWithMode => lookup_step_async_with_mode(keyword, DISTINCTIVE_STEP.into())
-                .map(|(handler, mode)| (handler, Some(mode))),
+                .map(|pair| pair.map(|(handler, mode)| (handler, Some(mode)))),
             Self::FuzzyWithMode => {
                 find_step_async_with_mode(keyword, DISTINCTIVE_FUZZY_TEXT.into())
-                    .map(|(handler, mode)| (handler, Some(mode)))
+                    .map(|pair| pair.map(|(handler, mode)| (handler, Some(mode))))
             }
         }
     }
@@ -221,8 +223,11 @@ impl AsyncLookup {
 #[case::fuzzy(AsyncLookup::Fuzzy)]
 #[case::exact_with_mode(AsyncLookup::ExactWithMode)]
 #[case::fuzzy_with_mode(AsyncLookup::FuzzyWithMode)]
-fn deprecated_async_lookup_projects_a_distinctive_handler(#[case] lookup: AsyncLookup) {
-    let (handler, mode) = lookup.resolve().expect("step should be found");
+fn async_lookup_projects_a_distinctive_handler(#[case] lookup: AsyncLookup) {
+    let (handler, mode) = lookup
+        .resolve()
+        .expect("lookup should be unambiguous")
+        .expect("step should be found");
     if let Some(mode) = mode {
         assert_eq!(mode, StepExecutionMode::Both);
     }
@@ -232,13 +237,15 @@ fn deprecated_async_lookup_projects_a_distinctive_handler(#[case] lookup: AsyncL
 #[rstest]
 #[case::sync("a sync-mode projection step", StepExecutionMode::Sync)]
 #[case::async_mode("an async-mode projection step", StepExecutionMode::Async)]
-fn deprecated_mode_lookup_reports_the_registered_mode(
+fn mode_lookup_reports_the_registered_mode(
     #[case] text: &str,
     #[case] expected: StepExecutionMode,
 ) {
     let exact = lookup_step_async_with_mode(StepKeyword::Given, PatternStr::from(text))
+        .expect("exact lookup should be unambiguous")
         .expect("exact lookup should find the step");
     let fuzzy = find_step_async_with_mode(StepKeyword::Given, StepText::from(text))
+        .expect("fuzzy lookup should be unambiguous")
         .expect("fuzzy lookup should find the step");
 
     assert_eq!(exact.1, expected);
@@ -249,6 +256,7 @@ fn deprecated_mode_lookup_reports_the_registered_mode(
 fn find_step_with_mode_returns_the_registered_step_for_fuzzy_text() {
     let text = "a fuzzy projection step with 42";
     let resolved: &'static Step = find_step_with_mode(StepKeyword::Given, StepText::from(text))
+        .expect("fuzzy lookup should be unambiguous")
         .expect("fuzzy lookup should find the step");
 
     assert_eq!(
@@ -258,6 +266,7 @@ fn find_step_with_mode_returns_the_registered_step_for_fuzzy_text() {
     assert_eq!(resolved.keyword, StepKeyword::Given);
 
     let metadata = find_step_with_metadata(StepKeyword::Given, StepText::from(text))
+        .expect("metadata lookup should be unambiguous")
         .expect("metadata lookup should find the step");
     assert_eq!(
         metadata.as_step().pattern.as_str(),

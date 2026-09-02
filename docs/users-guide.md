@@ -189,8 +189,8 @@ also needs compatibility definitions.
 The public registry API provides metadata lookups for code that needs to
 inspect or invoke a registered step. Use `lookup_step_with_metadata` for an
 exact keyword and pattern match, or `find_step_with_metadata` when matching
-step text against registered patterns. Both functions return an
-`Option<ResolvedStep>`:
+step text against registered patterns. Both functions return
+`Result<Option<ResolvedStep>, StepLookupError>`:
 
 ```rust,no_run
 use rstest_bdd::{find_step_with_metadata, StepKeyword, StepText};
@@ -198,7 +198,9 @@ use rstest_bdd::{find_step_with_metadata, StepKeyword, StepText};
 let step = find_step_with_metadata(
     StepKeyword::Given,
     StepText::from("the balance is 10"),
-).expect("a matching step exists");
+)
+.expect("the scenario's step library is unambiguous")
+.expect("a matching step exists");
 
 let synchronous_handler = step.run;
 let asynchronous_handler = step.run_async;
@@ -212,35 +214,57 @@ method provides the underlying `&'static Step` when an explicit reference is
 required. Constructing a `ResolvedStep` records the step as used for the
 `cargo bdd unused` diagnostic; a lookup that finds no step records nothing.
 
-The older projection functions remain available for compatibility and are
-deprecated. New code should use the metadata pair and project the required
-field, including `execution_mode` when selecting between synchronous and
-asynchronous execution.
+The `Result` reports ambiguity: `StepLookupError` carries every equally
+specific candidate when the scenario's selected libraries cannot decide between
+them. `Ok(None)` is a separate outcome meaning no definition matched. So a step
+with two matches is an error rather than an arbitrary pick, and pattern
+precedence still resolves a genuinely more specific match.
 
-#### Migrating from deprecated lookups (v0.7.0)
+`find_step_with_metadata_in_scope` is the pure query beneath both of them. It
+takes an explicit `StepScope`, returns only `Result<Option<&'static Step>,
+StepLookupError>`, and does not mark a step as used. Scenario execution calls
+it, then marks the step itself, so inspecting a step cannot make it look
+executed.
 
-`find_step_with_metadata` now returns `Option<ResolvedStep>` rather than
-`Option<&'static Step>`. Call `.as_step()` when a `&'static Step` is required.
-In the mapping below, `keyword` is a `StepKeyword`, `pattern` is a
+The projection functions (`find_step`, `find_step_async`,
+`find_step_async_with_mode`, `find_step_with_mode`, `lookup_step`,
+`lookup_step_async`, and `lookup_step_async_with_mode`) remain supported. Each
+one delegates to the metadata pair and projects the field its name promises, so
+it returns `Result<Option<_>, StepLookupError>` for the same reason. New code
+that needs more than one field, or that needs `execution_mode` while choosing
+between synchronous and asynchronous execution, should use the metadata pair
+directly.
+
+#### Migrating registry lookups (v0.7.0)
+
+`find_step_with_metadata` now returns `Result<Option<ResolvedStep>,
+StepLookupError>` rather than `Option<&'static Step>`. Handle the ambiguity
+before the optional result, and call `.as_step()` when a `&'static Step` is
+required. In the mapping below, `keyword` is a `StepKeyword`, `pattern` is a
 `PatternStr`, and `text` is a `StepText`:
 
 ```text
 lookup_step(keyword, pattern)
-    -> lookup_step_with_metadata(keyword, pattern).map(|step| step.run)
+    -> lookup_step_with_metadata(keyword, pattern)
+        .map(|step| step.map(|found| found.run))
 lookup_step_async(keyword, pattern)
-    -> lookup_step_with_metadata(keyword, pattern).map(|step| step.run_async)
+    -> lookup_step_with_metadata(keyword, pattern)
+        .map(|step| step.map(|found| found.run_async))
 lookup_step_async_with_mode(keyword, pattern)
     -> lookup_step_with_metadata(keyword, pattern)
-        .map(|step| (step.run_async, step.execution_mode))
+        .map(|step| step.map(|found| (found.run_async, found.execution_mode)))
 find_step(keyword, text)
-    -> find_step_with_metadata(keyword, text).map(|step| step.run)
+    -> find_step_with_metadata(keyword, text)
+        .map(|step| step.map(|found| found.run))
 find_step_async(keyword, text)
-    -> find_step_with_metadata(keyword, text).map(|step| step.run_async)
+    -> find_step_with_metadata(keyword, text)
+        .map(|step| step.map(|found| found.run_async))
 find_step_async_with_mode(keyword, text)
     -> find_step_with_metadata(keyword, text)
-        .map(|step| (step.run_async, step.execution_mode))
+        .map(|step| step.map(|found| (found.run_async, found.execution_mode)))
 find_step_with_mode(keyword, text)
-    -> find_step_with_metadata(keyword, text).map(|step| step.as_step())
+    -> find_step_with_metadata(keyword, text)
+        .map(|step| step.map(|found| found.as_step()))
 ```
 
 For example, a synchronous lookup that previously used the projection helper
@@ -258,13 +282,13 @@ The metadata lookup replaces it directly:
 use rstest_bdd::{StepKeyword, StepText, find_step_with_metadata};
 
 let handler = find_step_with_metadata(StepKeyword::When, StepText::from("the balance is 10"))
+    .expect("the selected vocabulary is unambiguous")
     .map(|step| step.run);
 ```
 
-Each replacement preserves the usage-tracking behaviour of the deprecated
-helper: the metadata lookup records the step as used when it resolves. The
-[v0.7.0 migration guide][v0-7-0-migration-guide] covers this change and every
-deprecated helper in full.
+Each replacement preserves the usage-tracking behaviour of the helper it
+replaces: the metadata lookup records the step as used when it resolves. The
+[v0.7.0 migration guide][v0-7-0-migration-guide] covers this change in full.
 
 ### Fixtures and implicit injection
 
@@ -2305,6 +2329,35 @@ When `tags` is supplied the macro evaluates the expression against the same
 union of feature, scenario, and example tags described above. Scenarios that do
 not match simply do not generate a test, and outline examples drop unmatched
 rows.
+
+Use `libraries = [path, ...]` to select the step vocabularies for every
+scenario generated by one invocation. The list is closed: only the named
+libraries participate in lookup, and its order does not provide precedence.
+When the argument is omitted, `scenarios!` selects only the built-in
+`rstest_bdd::global` library. Include that path explicitly when a scoped
+invocation also needs unannotated steps.
+
+```rust,no_run
+use rstest_bdd_macros::{given, scenarios, step_library};
+
+#[step_library]
+mod accounts {
+    use super::given;
+
+    #[given("the account is empty")]
+    fn account_is_empty() {}
+}
+
+scenarios!(
+    "tests/features/accounts",
+    libraries = [rstest_bdd::global, accounts],
+);
+```
+
+If two selected libraries contain equally specific definitions, execution and
+preflight validation report an ambiguity instead of choosing the first entry.
+Definitions in an unselected library are not used and are identified in
+missing-step diagnostics when they match the feature text.
 
 ### Fixture injection with `scenarios!`
 

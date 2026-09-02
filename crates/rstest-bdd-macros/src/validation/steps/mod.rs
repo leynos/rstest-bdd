@@ -71,11 +71,11 @@ impl CrateDefs {
             .collect()
     }
 
-    /// Return whether at least one selected library is visible to this macro.
-    fn knows_any_library(&self, libraries: &[Box<str>]) -> bool {
+    /// Return whether every selected library is visible to this macro.
+    fn knows_all_libraries(&self, libraries: &[Box<str>]) -> bool {
         libraries
             .iter()
-            .any(|library| self.scoped_by_kw.keys().any(|(known, _)| known == library))
+            .all(|library| self.scoped_by_kw.keys().any(|(known, _)| known == library))
     }
 
     /// Return matching definitions that exist locally but outside the scope.

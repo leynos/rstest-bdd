@@ -288,11 +288,7 @@ pub(super) fn library_validation_names(libraries: &[syn::Path]) -> Vec<Box<str>>
 
 /// Convert one selected library module path into its generated marker path.
 fn library_marker_path(path: &syn::Path) -> proc_macro2::TokenStream {
-    if path
-        .segments
-        .last()
-        .is_some_and(|segment| segment.ident == "global")
-    {
+    if is_builtin_global_library(path) {
         return quote! { #path::STEP_LIBRARY };
     }
     let mut parent = path.clone();
@@ -306,6 +302,23 @@ fn library_marker_path(path: &syn::Path) -> proc_macro2::TokenStream {
     } else {
         quote! { #parent::#marker }
     }
+}
+
+/// Recognize only the built-in global library for the resolved runtime crate.
+fn is_builtin_global_library(path: &syn::Path) -> bool {
+    let Ok(runtime) = syn::parse2::<syn::Path>(crate::codegen::rstest_bdd_path()) else {
+        return false;
+    };
+    path.segments.len() == runtime.segments.len() + 1
+        && path
+            .segments
+            .iter()
+            .zip(&runtime.segments)
+            .all(|(selected, expected)| selected.ident == expected.ident)
+        && path
+            .segments
+            .last()
+            .is_some_and(|segment| segment.ident == "global")
 }
 
 #[cfg(test)]

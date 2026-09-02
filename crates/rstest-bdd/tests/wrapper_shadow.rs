@@ -7,8 +7,8 @@ use rstest_bdd::{
     StepKeyword,
     assert_step_err,
     assert_step_ok,
-    find_step_with_metadata,
-    lookup_step_with_metadata,
+    find_step,
+    lookup_step,
 };
 use rstest_bdd_macros::given;
 
@@ -31,9 +31,9 @@ fn wrapper_handles_text_capture_without_shadowing() {
     ctx.insert("ctx", &fixture);
 
     let step_text = "message arrives";
-    let step_fn = find_step_with_metadata(StepKeyword::Given, step_text.into())
-        .expect("step should be registered for '{text} arrives'")
-        .run;
+    let step_fn = find_step(StepKeyword::Given, step_text.into())
+        .expect("lookup should be unambiguous")
+        .expect("step should be registered for '{text} arrives'");
     *CAPTURED_TEXT.lock().expect("capture mutex poisoned") = None;
 
     let _ = assert_step_ok!(step_fn(&mut ctx, step_text, None, None));
@@ -48,9 +48,9 @@ fn wrapper_handles_text_capture_without_shadowing() {
 #[test]
 fn placeholder_mismatch_reports_original_step_text() {
     let mut ctx = StepContext::default();
-    let step_fn = lookup_step_with_metadata(StepKeyword::Given, "{text} arrives".into())
-        .expect("step should be registered for '{text} arrives'")
-        .run;
+    let step_fn = lookup_step(StepKeyword::Given, "{text} arrives".into())
+        .expect("lookup should be unambiguous")
+        .expect("step should be registered for '{text} arrives'");
 
     let err = assert_step_err!(step_fn(&mut ctx, "arrives", None, None));
     let display = err.to_string();

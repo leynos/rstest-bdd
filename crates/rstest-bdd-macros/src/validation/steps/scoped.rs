@@ -29,7 +29,7 @@ pub(crate) fn validate_steps_exist_in_scope(
     let Some(defs) = defs_owned.as_ref() else {
         return Ok(());
     };
-    if !defs.knows_any_library(libraries) {
+    if !defs.knows_all_libraries(libraries) {
         return Ok(());
     }
     drop(reg);

@@ -3141,12 +3141,21 @@ Note: `code` values are stable identifiers intended for programmatic use.
 
 Step wrapper functions parse the returned strings and convert them with
 `FromStr` before calling the original step. Scenario execution searches the
-step registry using `find_step_with_metadata`, which falls back to placeholder
-matching when no exact pattern is present. This approach keeps the macros
-lightweight while supporting type‑safe parameters in steps. The parser handles
-escaped braces, nested brace pairs, and treats other backslash escapes
-literally, preventing greedy captures while still requiring well‑formed
-placeholders.
+selected closed library scope with `find_step_with_metadata_in_scope`, which
+falls back to placeholder matching when no exact pattern is present. Equally
+specific matches return `StepLookupError` rather than using registration or
+library order. This approach keeps the macros lightweight while supporting
+type‑safe parameters in steps. The parser handles escaped braces, nested brace
+pairs, and treats other backslash escapes literally, preventing greedy captures
+while still requiring well‑formed placeholders.
+
+Scoped metadata lookup is read-only: it does not mark a definition as used.
+Execution marks the successfully resolved step at its command boundary, so
+usage reports reflect executed steps rather than inspection or preflight
+queries. The unscoped metadata pair, `find_step_with_metadata` and
+`lookup_step_with_metadata`, is the usage-recording counterpart: it wraps the
+resolved `&'static Step` in `ResolvedStep`, whose constructor performs the
+marking.
 
 When available, if a table parameter implements `TryFrom<Vec<Vec<String>>>`,
 the wrapper will run the conversion after materializing the nested vectors. The
@@ -3165,12 +3174,14 @@ sequenceDiagram
     participant StepWrapper
     participant StepFunction
 
-    ScenarioRunner->>StepRegistry: find_step_with_metadata(keyword, text)
+    ScenarioRunner->>StepRegistry: find_step_with_metadata_in_scope(scope, keyword, text)
     alt exact match
-        StepRegistry-->>ScenarioRunner: ResolvedStep (records the step as used)
+        StepRegistry-->>ScenarioRunner: &'static Step
     else placeholder match
         StepRegistry->>StepRegistry: extract_placeholders(pattern, text)
-        StepRegistry-->>ScenarioRunner: ResolvedStep (records the step as used)
+        StepRegistry-->>ScenarioRunner: &'static Step
+    else equally specific matches
+        StepRegistry-->>ScenarioRunner: StepLookupError
     end
     ScenarioRunner->>StepWrapper: call resolved.run(ctx, text, docstring, table)
     StepWrapper->>StepWrapper: extract_placeholders(pattern, text)
@@ -3185,7 +3196,9 @@ sequenceDiagram
 The registry exposes one canonical lookup pair. `lookup_step_with_metadata`
 matches a registered pattern exactly, and `find_step_with_metadata` matches
 step text, falling back to placeholder matching. Both return
-`Option<ResolvedStep>`.
+`Result<Option<ResolvedStep>, StepLookupError>`, because a tie between equally
+specific definitions is a scoped-vocabulary error that must reach the caller
+rather than resolve to one candidate.
 
 `ResolvedStep` is the usage-tracking boundary. Its constructor records the step
 in the process-local used set that `unused_steps()` reads, so a resolved step
@@ -3194,10 +3207,17 @@ and exposes `as_step()` for an explicit `&'static Step`.
 
 The seven projection helpers (`lookup_step`, `find_step`, `lookup_step_async`,
 `find_step_async`, `lookup_step_async_with_mode`, `find_step_async_with_mode`,
-and `find_step_with_mode`) are deprecated compatibility wrappers. Each
-delegates to the metadata pair and projects one field, so it inherits the
-usage-marking behaviour. `find_step_with_mode` keeps its
-`Option<&'static Step>` return type by projecting `as_step()`.
+and `find_step_with_mode`) are the field-projection API. Each delegates to the
+metadata pair, projects one field, and preserves `StepLookupError`, so it
+inherits both the usage-marking behaviour and the ambiguity reporting.
+`find_step_with_mode` returns `Result<Option<&'static Step>, StepLookupError>`
+by projecting `as_step()`.
+
+`find_step_with_metadata_in_scope` is the third lookup: the pure, scoped query
+used by scenario execution. It returns `Result<Option<&'static Step>,
+StepLookupError>` and deliberately does not construct a `ResolvedStep`, so
+execution can inspect the match before deciding to record it. Execution marks
+the step itself at its command boundary.
 
 The ownership boundary and permitted call sites are recorded in the developer's
 guide under "Registry lookup usage-marking invariant", and the decision is
@@ -3293,8 +3313,10 @@ Public APIs are re‑exported from `lib.rs`, so consumers continue to import fro
   - global registry map
   - `lookup_step_with_metadata`
   - `find_step_with_metadata`
+  - `find_step_with_metadata_in_scope`
   - `ResolvedStep`
-  - deprecated projection helpers.
+  - `StepLookupError`
+  - projection helpers.
 
 - `lib.rs` — Public API facade:
   - Re-exports public items

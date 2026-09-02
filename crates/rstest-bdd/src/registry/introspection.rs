@@ -58,8 +58,16 @@ pub fn dump_registry() -> serde_json::Result<String> { super::diagnostics::dump_
 mod tests {
     //! Unit tests for registry introspection queries.
 
-    use super::{all_steps, duplicate_steps, library_for_step, unused_steps};
-    use crate::{StepContext, StepError, StepExecution, StepFuture, StepKeyword, step};
+    use super::{all_steps, duplicate_steps, unused_steps};
+    use crate::{
+        StepContext,
+        StepError,
+        StepExecution,
+        StepFuture,
+        StepKeyword,
+        registry::{Step, StepKey, library_for_step},
+        step,
+    };
 
     const USED_PATTERN: &str = "introspection used step";
     const UNUSED_PATTERN: &str = "introspection unused step";
@@ -87,6 +95,10 @@ mod tests {
         Box::pin(std::future::ready(noop_step(
             context, text, docstring, table,
         )))
+    }
+
+    fn step_key(step: &'static Step) -> StepKey {
+        (library_for_step(step), step.keyword, step.pattern.as_str())
     }
 
     step!(
@@ -124,11 +136,7 @@ mod tests {
             .into_iter()
             .find(|step| step.pattern.as_str() == USED_PATTERN)
             .expect("registered introspection used step should be present");
-        super::super::mark_used((
-            library_for_step(used_step),
-            used_step.keyword,
-            used_step.pattern.as_str(),
-        ));
+        super::super::mark_used(step_key(used_step));
 
         let unused_patterns: Vec<_> = unused_steps()
             .into_iter()
@@ -163,11 +171,7 @@ mod tests {
             .into_iter()
             .find(|step| step.pattern.as_str() == USED_PATTERN)
             .expect("registered introspection used step should be present");
-        super::super::mark_used((
-            library_for_step(used_step),
-            used_step.keyword,
-            used_step.pattern.as_str(),
-        ));
+        super::super::mark_used(step_key(used_step));
 
         let json = super::dump_registry().expect("test setup should succeed");
         let dump: serde_json::Value =

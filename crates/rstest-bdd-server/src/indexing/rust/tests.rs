@@ -205,6 +205,34 @@ fn assigns_steps_to_the_nearest_step_library() {
 }
 
 #[test]
+fn qualified_step_library_attributes_define_scoped_steps() {
+    let source = concat!(
+        "#[rstest_bdd_macros::step_library]\n",
+        "mod accounts {\n",
+        "    #[rstest_bdd_macros::given(\"account step\")]\n",
+        "    fn account_step() {}\n",
+        "}\n",
+    );
+    let index = index_rust_source(PathBuf::from("steps.rs"), source).expect("index Rust source");
+    let account = index
+        .step_definitions
+        .first()
+        .expect("qualified library step");
+    assert_eq!(account.library, "accounts");
+
+    let mut registry = crate::indexing::StepDefinitionRegistry::default();
+    let errors = registry.replace_rust_file(&index);
+    assert!(errors.is_empty(), "patterns should compile: {errors:?}");
+    let selected =
+        registry.steps_for_keyword_in_scope(StepType::Given, &[String::from("accounts")]);
+    assert_eq!(selected.len(), 1);
+    assert_eq!(
+        selected.first().map(|step| step.library.as_str()),
+        Some("accounts")
+    );
+}
+
+#[test]
 fn reports_multiple_step_attributes_without_discarding_valid_steps() {
     let source = concat!(
         "use rstest_bdd_macros::{given, when};\n",

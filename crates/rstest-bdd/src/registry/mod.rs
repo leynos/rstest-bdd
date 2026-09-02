@@ -29,10 +29,6 @@ mod projection_lookup;
 /// Step inventory registration macro implementation.
 mod registration;
 
-#[expect(
-    deprecated,
-    reason = "retain deprecated registry lookup exports until the next breaking release"
-)]
 pub use async_lookup::{
     find_step_async_with_mode,
     find_step_with_mode,
@@ -44,10 +40,6 @@ pub use fixtures::{FixtureRequirement, StepFixtureRequirements, fixture_requirem
 pub use introspection::dump_registry;
 pub use introspection::{duplicate_steps, unused_steps};
 pub use library::{GLOBAL_STEP_LIBRARY, StepLibrary, StepLibraryId, StepScope};
-#[expect(
-    deprecated,
-    reason = "retain deprecated registry lookup exports until the next breaking release"
-)]
 pub use projection_lookup::{find_step, find_step_async, lookup_step, lookup_step_async};
 
 /// Represents a single step definition registered with the framework.
@@ -331,48 +323,61 @@ fn select_most_specific(
 /// Look up a registered step by its exact keyword and pattern with metadata.
 ///
 /// The returned [`ResolvedStep`] records usage when it is constructed; project
-/// a field through [`Deref`] or [`ResolvedStep::as_step`].
+/// a field through [`Deref`] or [`ResolvedStep::as_step`]. This is the only
+/// place a lookup records usage, so every projection below inherits the
+/// behaviour rather than repeating it.
+///
+/// # Errors
+///
+/// Returns [`StepLookupError`] when equally specific definitions match, rather
+/// than silently picking one.
 ///
 /// ```ignore
-/// let step = rstest_bdd::lookup_step_with_metadata(rstest_bdd::StepKeyword::Given, "a value".into());
-/// assert!(step.is_some());
+/// let step = rstest_bdd::lookup_step_with_metadata(
+///     rstest_bdd::StepKeyword::Given,
+///     "a value".into(),
+/// );
+/// assert!(step.expect("unambiguous").is_some());
 /// ```
 #[must_use]
 pub fn lookup_step_with_metadata(
     keyword: StepKeyword,
     pattern: PatternStr<'_>,
-) -> Option<ResolvedStep> {
+) -> Result<Option<ResolvedStep>, StepLookupError> {
     resolve_exact_step(StepScope::global(), keyword, pattern)
-        .ok()
-        .flatten()
-        .map(ResolvedStep::new)
+        .map(|step| step.map(ResolvedStep::new))
 }
 
 /// Find a registered step and return its full metadata.
 ///
-/// Unlike the deprecated [`find_step`] projection, this returns a
-/// [`ResolvedStep`] that dereferences to the full [`Step`] metadata for
-/// validation and diagnostics.
+/// Unlike the projection helpers, this returns a [`ResolvedStep`] that
+/// dereferences to the full [`Step`] metadata for validation and diagnostics.
+///
+/// # Errors
+///
+/// Returns [`StepLookupError`] when equally specific definitions match.
 ///
 /// ```ignore
-/// let step = rstest_bdd::find_step_with_metadata(rstest_bdd::StepKeyword::Given, "a value".into());
-/// assert!(step.is_some());
+/// use rstest_bdd::{find_step_with_metadata, StepKeyword, StepText};
+///
+/// let step = find_step_with_metadata(StepKeyword::Given, StepText::from("a value"))?;
+/// if let Some(step) = step {
+///     println!("Step requires fixtures: {:?}", step.fixtures);
+/// }
+/// # Ok::<(), rstest_bdd::StepLookupError>(())
 /// ```
 #[must_use]
 pub fn find_step_with_metadata(
     keyword: StepKeyword,
     text: StepText<'_>,
-) -> Option<ResolvedStep> {
-    resolve_step(StepScope::global(), keyword, text)
-        .ok()
-        .flatten()
-        .map(ResolvedStep::new)
+) -> Result<Option<ResolvedStep>, StepLookupError> {
+    resolve_step(StepScope::global(), keyword, text).map(|step| step.map(ResolvedStep::new))
 }
 
 /// Find a registered step in `scope`, preserving ambiguity diagnostics.
 ///
-/// This metadata query does not mark the resolved definition as used. Runtime
-/// execution performs that mutation after resolution at its command boundary.
+/// This query does not mark the definition as used; execution does that at
+/// its own boundary, so inspecting a step cannot make it look executed.
 ///
 /// # Errors
 ///
