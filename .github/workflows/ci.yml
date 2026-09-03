@@ -437,15 +437,13 @@ jobs:
       # The single Linux execution. `--all-features` subsumes the former
       # strict-validation lane, because `strict-compile-time-validation`
       # only implies `compile-time-validation` and conflicts with nothing.
-      # `all-features`, `all-targets`, and `doctests` are the inputs added
-      # by shared-actions #428; `doctests` stays unset so the cheap explicit
-      # step below is the only doctest run.
+      # `all-features`, `all-targets`, and `doctests` come from merged
+      # shared-actions PR #428. `doctests` runs `cargo test --doc --workspace`
+      # with the same feature selection after the instrumented run, because
+      # llvm-cov's nextest path cannot execute doc tests.
       - name: Test and Measure Coverage (Linux)
         if: ${{ runner.os == 'Linux' }}
-        # Merged shared-actions PR #421 cache-provider revision.
-        # TODO: repin to the merge commit of leynos/shared-actions#428 before
-        # pushing; that revision adds the all-features and all-targets inputs.
-        uses: leynos/shared-actions/.github/actions/generate-coverage@5daae0a332441d170d88ca648c9e71f0bbe96cb3
+        uses: leynos/shared-actions/.github/actions/generate-coverage@0eceaef0ba362fd6a1e24d14d838d59dc5ac8cea
         env:
           RUN_RUST_CARGO_WAIT_TIMEOUT: '1800'
         with:
@@ -454,6 +452,7 @@ jobs:
           format: cobertura
           all-features: 'true'
           all-targets: 'true'
+          doctests: 'true'
           use-cargo-nextest: 'true'
           # Run the Python coverage suite serially: the whitaker lint-gate
           # integration test shells out to `cargo dylint`, so parallel
@@ -467,8 +466,8 @@ jobs:
       # Windows keeps its two feature lanes and its `cargo test` driver.
       - name: Test and Measure Coverage (Windows, default features)
         if: ${{ runner.os == 'Windows' && matrix.features == '' }}
-        # Merged shared-actions PR #421 cache-provider revision.
-        uses: leynos/shared-actions/.github/actions/generate-coverage@5daae0a332441d170d88ca648c9e71f0bbe96cb3
+        # Merged shared-actions PR #428 whole-workspace coverage revision.
+        uses: leynos/shared-actions/.github/actions/generate-coverage@0eceaef0ba362fd6a1e24d14d838d59dc5ac8cea
         continue-on-error: true
         env:
           # Windows coverage runs (build plus doctests) exceed the shared
@@ -485,8 +484,8 @@ jobs:
 
       - name: Test and Measure Coverage (Windows, strict validation)
         if: ${{ runner.os == 'Windows' && matrix.features != '' }}
-        # Merged shared-actions PR #421 cache-provider revision.
-        uses: leynos/shared-actions/.github/actions/generate-coverage@5daae0a332441d170d88ca648c9e71f0bbe96cb3
+        # Merged shared-actions PR #428 whole-workspace coverage revision.
+        uses: leynos/shared-actions/.github/actions/generate-coverage@0eceaef0ba362fd6a1e24d14d838d59dc5ac8cea
         continue-on-error: true
         env:
           # Windows coverage runs (build plus doctests) exceed the shared
@@ -500,13 +499,6 @@ jobs:
           with-default-features: ${{ matrix.with-default-features }}
           use-cargo-nextest: ${{ matrix.use-nextest }}
           pytest-workers: ''
-
-      # `cargo llvm-cov nextest` never runs doctests, so without this step no
-      # job in the repository would execute them. One lane with every feature
-      # enabled covers the whole workspace once.
-      - name: Run doctests
-        if: ${{ runner.os == 'Linux' }}
-        run: cargo test --doc --workspace --all-features
 
       - name: Verify coverage output exists
         if: ${{ matrix.coverage }}

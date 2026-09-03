@@ -113,10 +113,12 @@ directory, and `make e2e-published-gpui` builds a standalone fixture workspace
 from packaged crates to prove the published surface; neither is reachable from
 `--workspace`.
 
-The coverage action takes `all-features`, `all-targets`, and `doctests` inputs.
-The workflow sets the first two and deliberately leaves `doctests` unset: the
-explicit `cargo test --doc` step is the single doctest execution, and enabling
-both would run them twice.
+The Linux step sets the coverage action's `all-features`, `all-targets`, and
+`doctests` inputs. The action's own documentation gives `doctests` exactly this
+purpose: it runs the uninstrumented doc-test pass with the same feature
+selection so one coverage job can be a repository's only test execution. Passing
+`all-features` together with a `features` list is rejected by the action, so
+the Linux step names neither `features` nor `with-default-features`.
 
 ### Compiler cache
 

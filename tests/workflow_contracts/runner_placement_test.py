@@ -161,21 +161,12 @@ def test_linux_coverage_is_the_only_linux_test_execution() -> None:
     assert inputs.get("with-ratchet") == "true", (
         "the sole Linux lane owns the ratchet baseline"
     )
-    assert "doctests" not in inputs, (
-        "the explicit doctest step is the only doctest run; enabling the "
-        "action's doctests input as well would execute them twice"
+    assert inputs.get("doctests") == "true", (
+        "llvm-cov's nextest path cannot execute doc tests, so the action must "
+        "run them after the instrumented run with the same feature selection"
     )
     assert "features" not in inputs, (
         "an explicit feature list would contradict all-features"
-    )
-    doctests = steps[_step_index(steps, "Run doctests")]
-    assert doctests.get("run") == "cargo test --doc --workspace --all-features", (
-        "cargo llvm-cov nextest skips doctests, so the surviving lane must run "
-        "them explicitly across the whole workspace"
-    )
-    assert doctests.get("if") == "${{ runner.os == 'Linux' }}", (
-        "one lane covers every doctest once, because --all-features already "
-        "enables the strict-validation feature"
     )
     linux_test_steps = [
         step
@@ -183,9 +174,10 @@ def test_linux_coverage_is_the_only_linux_test_execution() -> None:
         if str(step.get("run", "")).startswith(("cargo test", "cargo nextest"))
         or str(step.get("run", "")).strip() == "make test"
     ]
-    assert [step.get("name") for step in linux_test_steps] == ["Run doctests"], (
-        "no uninstrumented workspace test run may sit beside the coverage "
-        f"execution, found {[s.get('name') for s in linux_test_steps]}"
+    assert linux_test_steps == [], (
+        "the coverage action is the only workspace test execution, doc tests "
+        "included, so no bespoke cargo test step may sit beside it; found "
+        f"{[step.get('name') for step in linux_test_steps]}"
     )
 
 

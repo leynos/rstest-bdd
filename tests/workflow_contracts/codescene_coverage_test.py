@@ -46,6 +46,7 @@ EXPECTED_GENERATOR_INPUTS = {
     "format": "cobertura",
     "all-features": "true",
     "all-targets": "true",
+    "doctests": "true",
     "use-cargo-nextest": "true",
     "pytest-workers": "",
     "with-ratchet": "true",

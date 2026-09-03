@@ -255,9 +255,10 @@ coverage build and the publish dry run exactly as it reaches the test build.
 
 The coverage job is the only test execution on Linux. It runs
 `cargo llvm-cov nextest --workspace --all-targets --all-features` under
-`RUSTFLAGS=-D warnings`, plus one `cargo test --doc --workspace --all-features`
-step, because `cargo llvm-cov nextest` skips doctests and nothing in CI ran
-them before. No uninstrumented workspace test run sits beside it.
+`RUSTFLAGS=-D warnings`, then `cargo test --doc --workspace --all-features`
+through the action's `doctests` input, because `cargo llvm-cov nextest` cannot
+execute doc tests and nothing in CI ran them before. No bespoke test step sits
+beside it.
 
 The Linux `strict-compile-time-validation` lane is folded into that run.
 `strict-compile-time-validation` only implies `compile-time-validation` and
