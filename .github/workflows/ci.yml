@@ -41,7 +41,11 @@ jobs:
       WHITAKER_INSTALLER_VERSION: '0.2.7'
       # Named vCPU constants for the two deployed runner shapes. Build and
       # test parallelism is derived from these, never from `-j auto`.
-      UBICLOUD_LINUX_VCPUS: '2'
+      # The Linux lane sits on the recipe's ceiling shape provisionally: the
+      # instrumented all-features build died silently on 2 vCPU / 8 GB. The
+      # memory sampler below supplies the evidence to return to
+      # `ubicloud-standard-2`, whose rate is half this one's.
+      UBICLOUD_LINUX_VCPUS: '4'
       GITHUB_WINDOWS_VCPUS: '4'
       # One explicit workspace directory keeps the compiler cache in a
       # single, cacheable location whose path is identical on both
@@ -57,7 +61,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubicloud-standard-2
+          - os: ubicloud-standard-4
             rust-toolchain: stable
             coverage: true
             features: ''
@@ -117,6 +121,29 @@ jobs:
             /usr/local/share/boost \
             /usr/local/share/powershell || true
           df -h /
+
+      # Sample resident memory so an escalation or a return to a smaller
+      # shape rests on a measurement rather than on a silent job death.
+      - name: Start memory sampler
+        if: ${{ runner.os == 'Linux' }}
+        shell: bash
+        env:
+          MEMORY_SAMPLES: ${{ runner.temp }}/memory-samples.txt
+        run: |
+          set -euo pipefail
+          : > "$MEMORY_SAMPLES"
+          sampler="$RUNNER_TEMP/sample-memory.sh"
+          cat > "$sampler" <<'SAMPLER'
+          #!/usr/bin/env bash
+          set -uo pipefail
+          while :; do
+            free -m | awk '/^Mem:/ { print $3 }' >> "$1"
+            sleep 15
+          done
+          SAMPLER
+          chmod +x "$sampler"
+          nohup "$sampler" "$MEMORY_SAMPLES" >/dev/null 2>&1 &
+          printf 'MEMORY_SAMPLES=%s\n' "$MEMORY_SAMPLES" >> "$GITHUB_ENV"
 
       - name: Configure runner parallelism and compiler cache
         shell: bash
@@ -530,7 +557,7 @@ jobs:
         env:
           CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
         if: >-
-          matrix.os == 'ubicloud-standard-2' &&
+          matrix.os == 'ubicloud-standard-4' &&
           github.event_name == 'pull_request' &&
           env.CS_ACCESS_TOKEN != ''
         uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@794e4801babcf68065c660fdf4781ad62be5d061
@@ -545,7 +572,7 @@ jobs:
         env:
           CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
         if: >-
-          matrix.os == 'ubicloud-standard-2' &&
+          matrix.os == 'ubicloud-standard-4' &&
           github.event_name == 'push' &&
           github.ref == 'refs/heads/main' &&
           env.CS_ACCESS_TOKEN != ''
@@ -628,6 +655,26 @@ jobs:
         with:
           path: ${{ github.workspace }}/.sccache
           key: ${{ env.SCCACHE_CACHE_KEY }}
+
+      - name: Report peak memory
+        if: ${{ always() && runner.os == 'Linux' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          samples="${MEMORY_SAMPLES:-}"
+          if [[ -z "$samples" || ! -s "$samples" ]]; then
+            echo 'No memory samples were recorded.'
+            exit 0
+          fi
+          peak="$(sort -n "$samples" | tail -1)"
+          count="$(wc -l < "$samples")"
+          printf 'peak used memory: %s MiB across %s samples\n' "$peak" "$count"
+          {
+            printf '### Memory\n\n'
+            printf -- '- peak used: %s MiB\n' "$peak"
+            printf -- '- samples: %s at 15 second intervals\n' "$count"
+            printf -- '- shape: %s vCPU\n' "${RUNNER_VCPUS:-unknown}"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Record cache observations
         if: ${{ always() }}

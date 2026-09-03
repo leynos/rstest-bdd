@@ -206,10 +206,14 @@ Contributor-facing setup and maintenance steps are documented in
 
 The repository-owned CI matrix now runs its Linux lanes on Ubicloud managed
 runners and its Windows lanes on GitHub-hosted runners. This deployment changes
-the runner environment, not the four-lane test contract described above:
+the runner environment, and it reduces the lane count from four to three:
 
-- Both Linux lanes use `ubicloud-standard-2`, an Ubuntu 24.04, amd64 shape with
-  2 vCPU and 8 GB. The newer GNU C Library baseline can execute Whitaker's
+- The Linux lane uses `ubicloud-standard-4`, an Ubuntu 24.04, amd64 shape with
+  4 vCPU and 16 GB. This is the recipe's ceiling and is held provisionally: the
+  instrumented all-features build died without a diagnostic on the 2 vCPU
+  shape. Each Linux job samples memory and reports its peak, so the lane can
+  return to `ubicloud-standard-2` once the peak is shown to sit well under 6
+  GB. Either way the Ubuntu 24.04 GNU C Library baseline can execute Whitaker's
   repository-hosted Dylint dependency binaries.
 - CI pins `whitaker-installer` at `0.2.7` and invokes the SHA-pinned
   `leynos/shared-actions/.github/actions/install-whitaker` action. The shared

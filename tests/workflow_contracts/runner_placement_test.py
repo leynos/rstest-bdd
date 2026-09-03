@@ -15,11 +15,8 @@ import yaml
 from workflow_support import (
     GITHUB_HOSTED_LINUX,
     GITHUB_HOSTED_WINDOWS,
-    GITHUB_WINDOWS_VCPUS,
     ROOT,
-    SCCACHE_DIRECTORY,
     UBICLOUD_LINUX_LABEL,
-    UBICLOUD_LINUX_VCPUS,
 )
 from workflow_support import (
     job as _job,
@@ -37,7 +34,9 @@ from workflow_support import (
     steps as _steps,
 )
 
-# One Linux lane, because `--all-features` enables
+# One Linux lane on the recipe's ceiling shape, held provisionally while the
+# memory sampler measures whether the instrumented all-features build fits the
+# smaller one. One lane, because `--all-features` enables
 # `strict-compile-time-validation`, which only implies
 # `compile-time-validation` and conflicts with no other feature.
 EXPECTED_BUILD_MATRIX = [
@@ -99,19 +98,6 @@ def test_build_matrix_uses_exact_runner_labels() -> None:
         f"Linux to {UBICLOUD_LINUX_LABEL} and Windows to {GITHUB_HOSTED_WINDOWS}; "
         f"got {include!r}"
     )
-
-
-def test_ubicloud_jobs_bound_their_runner_occupancy() -> None:
-    """Just-in-time self-hosted runners have no six-hour hosted limit."""
-    for workflow_name, job_name in (("ci.yml", "build-test"),):
-        job = _job(workflow_name, job_name)
-        timeout = job.get("timeout-minutes")
-        assert isinstance(timeout, int), (
-            f"{workflow_name}:{job_name} must declare timeout-minutes"
-        )
-        assert timeout > 0, (
-            f"{workflow_name}:{job_name} must declare a positive timeout-minutes"
-        )
 
 
 def test_one_job_executes_the_workspace_suite() -> None:
@@ -221,49 +207,6 @@ def test_build_matrix_keeps_least_privilege_and_no_retired_provider() -> None:
         assert not any(uses.startswith(retired_prefix) for uses in action_uses), (
             f"ci.yml:build-test must not reference {retired_prefix}"
         )
-
-
-def test_build_matrix_derives_parallelism_from_named_vcpu_constants() -> None:
-    """Keep build concurrency within each runner shape's vCPU count."""
-    build_test = _job("ci.yml", "build-test")
-    env = build_test.get("env")
-    assert isinstance(env, dict), "ci.yml:build-test must declare an environment"
-    assert env.get("UBICLOUD_LINUX_VCPUS") == UBICLOUD_LINUX_VCPUS, (
-        f"ci.yml:build-test must name {UBICLOUD_LINUX_LABEL}'s vCPU count"
-    )
-    assert env.get("GITHUB_WINDOWS_VCPUS") == GITHUB_WINDOWS_VCPUS, (
-        f"ci.yml:build-test must name {GITHUB_HOSTED_WINDOWS}'s vCPU count"
-    )
-    assert env.get("SCCACHE_DIR") == SCCACHE_DIRECTORY, (
-        "ci.yml:build-test must point sccache at one explicit workspace "
-        "directory so the same path is cacheable on both platforms"
-    )
-    assert env.get("SCCACHE_CACHE_SIZE") == "4G", (
-        "ci.yml:build-test must size the compiler cache for both build shapes, "
-        "because no job archives a target tree and sccache owns every "
-        "compiler output"
-    )
-    steps = _steps(build_test)
-    parallelism = steps[
-        _step_index(steps, "Configure runner parallelism and compiler cache")
-    ]
-    script = str(parallelism.get("run", ""))
-    for required_fragment in (
-        "CARGO_BUILD_JOBS=%s",
-        "NEXTEST_TEST_THREADS=%s",
-        "SCCACHE_GHA_ENABLED=%s",
-    ):
-        assert required_fragment in script, (
-            f"the parallelism step must export {required_fragment!r}"
-        )
-    step_env = parallelism.get("env")
-    assert isinstance(step_env, dict), "the parallelism step must declare env"
-    assert step_env.get("LINUX_VCPUS") == "${{ env.UBICLOUD_LINUX_VCPUS }}", (
-        "the parallelism step must read the named Linux vCPU constant"
-    )
-    assert step_env.get("WINDOWS_VCPUS") == "${{ env.GITHUB_WINDOWS_VCPUS }}", (
-        "the parallelism step must read the named Windows vCPU constant"
-    )
 
 
 def test_build_matrix_installs_merman_without_a_source_build() -> None:

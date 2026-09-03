@@ -14,24 +14,37 @@ this migration targets.
 
 | Workflow label        | Provider      | Operating system | Machine shape | Intended workload                  |
 | --------------------- | ------------- | ---------------- | ------------- | ---------------------------------- |
-| `ubicloud-standard-2` | Ubicloud      | Ubuntu 24.04     | 2 vCPU, 8 GB  | Linux build-and-coverage matrix    |
+| `ubicloud-standard-4` | Ubicloud      | Ubuntu 24.04     | 4 vCPU, 16 GB | Linux build-and-coverage matrix    |
 | `windows-latest`      | GitHub-hosted | Windows Server   | 4 vCPU, 16 GB | Windows build-and-coverage matrix  |
 | `ubuntu-latest`       | GitHub-hosted | Ubuntu           | 2 vCPU, 7 GB  | Delayed comment and API-bound work |
 
 *Table: runner labels used directly by rstest-bdd workflows.*
 
 The `build-test` matrix resolves `runs-on` from `matrix.os`. Both Linux feature
-lanes use `ubicloud-standard-2`; both Windows feature lanes use
+lane uses `ubicloud-standard-4`; both Windows feature lanes use
 `windows-latest`. The feature sets, default-feature policy, coverage behaviour,
 and Windows `use-nextest: false` deadlock mitigation stay unchanged. The
 CodeScene and coverage-ratchet conditions identify the Linux label explicitly,
 so a runner reassignment must update those conditions and the workflow
-contracts together. `ubicloud-standard-2` is the recipe's starting shape;
-escalating to `ubicloud-standard-4` requires recorded evidence from at least
-three warm runs, because the per-minute rate doubles with the vCPU count.
+contracts together.
 
-`ubicloud-standard-2` is registered in `.github/actionlint.yaml` under
-`self-hosted-runner.labels`. GitHub-hosted labels need no registration.
+The Linux lane sits on `ubicloud-standard-4`, the recipe's ceiling shape, and
+that placement is provisional. `ubicloud-standard-2` is the recipe's starting
+shape, and the per-minute rate doubles with the vCPU count, so the larger shape
+must earn its place. It was escalated after the instrumented all-features build
+died on the smaller shape with no diagnostic: the job produced no output for
+fifteen minutes and then ended, well inside its timeout, which matches a lost
+runner rather than a test failure.
+
+Every Linux job therefore samples resident memory every fifteen seconds from
+just after checkout, and reports the peak to the job summary even when the job
+fails. Return the lane to `ubicloud-standard-2`, and the vCPU constant to 2,
+once the peak sits well under 6 GB across at least three runs. Escalating again
+without that measurement is not the answer to a slow lane.
+
+`ubicloud-standard-4` is registered in `.github/actionlint.yaml` under
+`self-hosted-runner.labels`. GitHub-hosted labels need no registration, and the
+contracts require the registered set to match the labels the matrix names.
 
 ### Cache ownership
 
@@ -164,7 +177,7 @@ before any warm-cache measurement is trustworthy.
 ### Parallelism and prerequisites
 
 The workflow declares named vCPU constants for both shapes,
-`UBICLOUD_LINUX_VCPUS` and `GITHUB_WINDOWS_VCPUS`, and derives
+`UBICLOUD_LINUX_VCPUS`, now 4, and `GITHUB_WINDOWS_VCPUS`, and derives
 `CARGO_BUILD_JOBS` and `NEXTEST_TEST_THREADS` from the constant matching the
 current runner. Nothing uses an unconstrained `-j auto`. The Python coverage
 suite remains serial because its Whitaker integration invokes Cargo and would
@@ -218,7 +231,7 @@ normalizes the Cargo home, and invokes the installer by its absolute path. Keep
 this boundary rather than recreating the install script inline: it makes the
 tool location explicit across runner images and preserves the shared failure
 metrics. The current Whitaker dependency releases require the GNU C Library
-baseline supplied by Ubuntu 24.04, which is `ubicloud-standard-2`'s default
+baseline supplied by Ubuntu 24.04, which is `ubicloud-standard-4`'s default
 image. An Ubuntu 22.04 shape cannot execute those release binaries, and adding
 the XDG user binary directory to `PATH` would only make an incompatible binary
 shadow Whitaker's Cargo fallback.

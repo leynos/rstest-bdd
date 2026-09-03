@@ -25,7 +25,7 @@ CODESCENE_COVERAGE_USES_RE = re.compile(
     r"[0-9a-f]{40}$"
 )
 CODESCENE_UPLOAD_GUARD = (
-    "matrix.os == 'ubicloud-standard-2' && "
+    "matrix.os == 'ubicloud-standard-4' && "
     "github.event_name == 'push' && "
     "github.ref == 'refs/heads/main' && "
     "env.CS_ACCESS_TOKEN != ''"
@@ -36,7 +36,7 @@ EXPECTED_CODESCENE_UPLOAD_INPUTS = {
     "installer-checksum": "${{ vars.CODESCENE_CLI_SHA256 }}",
 }
 CODESCENE_GUARD = (
-    "matrix.os == 'ubicloud-standard-2' && "
+    "matrix.os == 'ubicloud-standard-4' && "
     "github.event_name == 'pull_request' && "
     "env.CS_ACCESS_TOKEN != ''"
 )
