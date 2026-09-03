@@ -23,7 +23,7 @@ use crate::staging::trybuild_target_directory;
 pub(crate) fn assert_trybuild_tracking_registered_in_dep_info() {
     let target_directory = workspace_target_directory();
     let staged_feature = target_directory.join("tests/trybuild/rstest-bdd/tracking.feature");
-    let needle = staged_feature.as_str().replace('\\', "/").to_lowercase();
+    let needle = normalize_staged_feature_path(staged_feature.as_str());
     let mut listed = 0;
     collect_dep_info_matches(target_directory.as_std_path(), &needle, &mut listed);
     assert!(
@@ -45,16 +45,39 @@ fn workspace_target_directory() -> Utf8PathBuf {
     )
 }
 
+/// Normalize a staged feature path for matching against dep-info content.
+///
+/// This deliberately does not decode dep-info escapes: the staged path is a
+/// filesystem path, not a dep-info record.
+fn normalize_staged_feature_path(path: &str) -> String {
+    normalize_path_separators(path).to_lowercase()
+}
+
+/// Fold native separators and separator runs into one portable separator.
+///
+/// Dep-info and the staged path can render the same UNC path with different
+/// separator runs. Keeping the normalization shared makes their comparison
+/// independent of that rendering detail.
+fn normalize_path_separators(path: &str) -> String {
+    let mut normalized = String::with_capacity(path.len());
+    let mut previous_was_separator = false;
+
+    for character in path.chars() {
+        let is_separator = matches!(character, '/' | '\\');
+        if !is_separator || !previous_was_separator {
+            normalized.push(if is_separator { '/' } else { character });
+        }
+        previous_was_separator = is_separator;
+    }
+
+    normalized
+}
+
 /// Normalize a dep-info's raw text the same way as the needle — `/`
 /// separators, folded case — so the Windows CI leg (backslash-separated,
 /// drive-letter-cased paths) matches the staged feature path deterministically.
 fn normalize_dep_info_content(content: &str) -> String {
-    content
-        .replace("\\ ", " ")
-        .replace("\\:", ":")
-        .replace('\\', "/")
-        .replace("//", "/")
-        .to_lowercase()
+    normalize_path_separators(&content.replace("\\ ", " ").replace("\\:", ":")).to_lowercase()
 }
 
 /// Recursively count `*.d` files under `dir` whose content contains `needle`.
@@ -90,13 +113,24 @@ fn collect_dep_info_matches(dir: &StdPath, needle: &str, listed: &mut usize) {
 mod tests {
     //! Unit tests for dep-info path normalization.
 
-    use super::normalize_dep_info_content;
+    use super::{normalize_dep_info_content, normalize_staged_feature_path};
 
     #[test]
     fn unescapes_spaces_before_normalizing_separators() {
         assert_eq!(
             normalize_dep_info_content(r"C:\workspace\feature\ file\:name.feature"),
             "c:/workspace/feature file:name.feature"
+        );
+    }
+
+    #[test]
+    fn normalized_dep_info_contains_normalized_unc_staged_feature() {
+        let staged_feature = r"\\server\share\\tests\trybuild\rstest-bdd\tracking.feature";
+        let dep_info = r"fixture: \\server\share\tests\\trybuild\rstest-bdd\tracking.feature";
+
+        assert!(
+            normalize_dep_info_content(dep_info)
+                .contains(&normalize_staged_feature_path(staged_feature))
         );
     }
 }

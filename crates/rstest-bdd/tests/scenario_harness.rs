@@ -164,9 +164,10 @@ fn scenario_passes_correct_metadata_to_harness() {
     let feature = CAPTURED_FEATURE
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
-    assert!(
-        feature.contains("web_search.feature"),
-        "expected feature path to contain 'web_search.feature', got: {feature}"
+    assert_eq!(
+        feature.as_str(),
+        "tests/features/web_search.feature",
+        "expected manifest-relative feature path"
     );
     drop(feature);
 

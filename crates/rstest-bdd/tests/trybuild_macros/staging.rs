@@ -201,9 +201,8 @@ fn target_directory_from_running_test_executable() -> Option<Utf8PathBuf> {
     target_directory_from_test_executable(executable.as_path())
 }
 
-/// Extract Cargo's target root from an integration-test executable path.
-///
-/// This helper serves only the trybuild test-support module. Its callers must
+/// Extract Cargo's target root from an integration-test executable path. This
+/// helper serves only the trybuild test-support module. Its callers must
 /// use the returned root for both staged inputs and inspection artefacts.
 fn target_directory_from_test_executable(executable: &Utf8Path) -> Option<Utf8PathBuf> {
     let dependencies = executable.parent()?;
@@ -220,11 +219,12 @@ fn metadata_target_directory(workspace_root: &Utf8Path) -> Utf8PathBuf {
             // This fallback is only for environments where neither the test
             // executable layout nor Cargo metadata is available, such as a
             // sandbox without a reachable manifest.
-            log::warn!(
-                "trybuild target-directory fallback to `{}` because cargo metadata failed: {error}",
-                workspace_root.join("target")
+            let fallback = workspace_root.join("target");
+            tracing::warn!(
+                workspace_root = %workspace_root, error = %error,
+                "trybuild target-directory fallback to `{fallback}` because cargo metadata failed: {error}"
             );
-            workspace_root.join("target")
+            fallback
         }
     }
 }

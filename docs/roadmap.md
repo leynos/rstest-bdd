@@ -959,19 +959,22 @@ feature-file edits cannot leave users running stale scenarios.
   binary. The `#[scenario]`/`scenarios!` expansion registers each bound feature
   file as a Cargo rebuild dependency without embedding an absolute path into
   the compiled artefact, and a portability-aware regression test proves a
-  `.feature`-only edit forces recompilation and a fresh test failure. The fix
-  is non-breaking: no existing call site changes. Finish line: the regression
-  test fails against the current `std::fs`-read macro and passes after the fix;
-  required `trybuild` compile-pass and compile-fail fixtures pin the emitted
-  binding and the missing-`.feature` diagnostic; a redacted `insta` snapshot
-  with semantic assertions pins any touched diagnostic wording; no absolute
+  `.feature`-only edit forces recompilation and a fresh test failure. The
+  change is non-breaking for existing macro call sites: no existing macro
+  call-site changes are required. Finish line: the regression test fails
+  against the current `std::fs`-read macro and passes after the fix; required
+  `trybuild` compile-pass and compile-fail fixtures pin the emitted binding and
+  the missing-`.feature` diagnostic; a redacted `insta` snapshot with semantic
+  assertions pins any touched diagnostic wording; no absolute
   `CARGO_MANIFEST_DIR` path appears in the artefact; `make test` is green. ADR:
   `docs/adr-010-feature-file-change-detection.md` (see its *Testing strategy*).
-  Design Doc: `docs/rstest-bdd-design.md` §2.7.6.6. Until this requirement
-  lands, a caveat in `docs/v0-6-0-migration-guide.md` alerts adopters that
-  `.feature`-only edits do not trigger a rebuild. The gauss v0.6.0-beta3
-  migration independently reproduced this failure mode and had to falsify a
-  scenario by editing its Rust step file instead.
+  Design Doc: `docs/rstest-bdd-design.md` §2.7.6.6. Before this requirement
+  landed, a caveat in `docs/v0-6-0-migration-guide.md` alerted adopters that
+  `.feature`-only edits did not trigger a rebuild. The
+  [feature-path output and migration guidance](v0-6-0-migration-guide.md#feature-paths-in-diagnostics-and-reports-are-now-manifest-relative)
+  documents the related metadata contract. The gauss v0.6.0-beta3 migration
+  independently reproduced this failure mode and had to falsify a scenario by
+  editing its Rust step file instead.
 - [ ] 10.3.4. Extend tested-example enforcement from the bounded region to the
   whole users' guide. Roadmap 10.3.3 (ExecPlan Decision D2) introduced the
   `<!-- tested-example: id -->` marker and regional enforcement; the guide's 69
