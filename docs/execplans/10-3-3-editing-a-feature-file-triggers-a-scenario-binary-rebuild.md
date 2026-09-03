@@ -490,15 +490,14 @@ implementation.
   clean and registers dep-info. Transcript C (anonymous `const` under
   `#![deny(warnings)]`) is also covered by the reproduction binaries.
 
-- Observation: **`.config/nextest.toml` no longer matches the plan's Risk
-  text.** `#650` (commit `1ed644a`, on main before this branch) already raised
-  `global-timeout` to `"20m"` and introduced `[profile.long]` at `"30m"`. The
-  `cargo-spawning` group still has four members budgeting ~1080 s serialized
-  under a 1200 s cap, so the arithmetic the Risk section worried about closed
-  upstream before this branch started. The plan's Milestone 1 instruction to
-  "decide deliberately" still applies, but the decision this branch must make
-  is whether to add the fifth member and keep it under the cap — not whether to
-  raise the ceiling from an untenable 300 s.
+- Observation: **`.config/nextest.toml` was subsequently expanded to cover
+  this plan's cargo-spawning tests.** The current configuration gives the
+  default profile a `75m` global timeout and serializes six binaries in the
+  `cargo-spawning` group: one 180 s CLI override, four 600 s trybuild
+  overrides, and one binary with three 600 s feature-rebuild scenarios. Their
+  4,380 s (73 m) worst-case budget leaves 120 s of slack. The plan's Milestone
+  1 instruction to decide deliberately is therefore satisfied by the current
+  configuration; no further timeout change is required.
 
 - Observation: **a nested `cargo` child with piped stdout/stderr and a
   `try_wait` poll loop deadlocks on voluminous output.** The harness's first
@@ -2272,3 +2271,10 @@ level.
   slack. The four build-test CI legs, including both Windows legs, pass, as do
   the CodeScene coverage and health checks. No macOS CI leg exists, so the
   portability statement remains limited to Linux and Windows.
+- **2026-09-03, revision 9.** The final scope check against `origin/main` found
+  69 changed files (`+9,975`/`-313`), including 59 non-documentation files
+  (`+7,228`/`-180`, net `+7,048`). This exceeds the plan's 25-file/900-line
+  tolerance and was escalated to and approved by maintainer review: shipped
+  acceptance requires the integrated macro code, two behavioural fixtures, CI
+  and harness support, snapshots, and documentation. The scope adds no public
+  API and no new workspace crate.

@@ -44,8 +44,10 @@ pub(crate) struct ChildEnv {
 
 /// Capture a snapshot of the parent environment, adjusted for the nested
 /// build. Every invocation of the child uses this exact snapshot.
-pub(crate) fn build_child_env() -> ChildEnv {
-    let mut vars: Vec<(std::ffi::OsString, std::ffi::OsString)> = std::env::vars_os().collect();
+pub(crate) fn build_child_env() -> ChildEnv { child_env_from_vars(std::env::vars_os().collect()) }
+
+/// Filter one environment snapshot into the deterministic nested-Cargo environment.
+fn child_env_from_vars(mut vars: Vec<(std::ffi::OsString, std::ffi::OsString)>) -> ChildEnv {
     vars.retain(|(key, _)| {
         let key = key.to_string_lossy();
         key != "CARGO_MAKEFLAGS"
@@ -68,7 +70,10 @@ pub(crate) fn build_child_env() -> ChildEnv {
 
     // Redirect nested coverage output away from the parent's gated profile so
     // the child's `.profraw` never merges into the parent's pattern.
-    if std::env::var_os("LLVM_PROFILE_FILE").is_some() {
+    if vars
+        .iter()
+        .any(|(key, _)| key.to_string_lossy() == "LLVM_PROFILE_FILE")
+    {
         let coverage_dir = super::fixtures::scratch_root().join("coverage");
         if let Err(err) = std::fs::create_dir_all(&coverage_dir) {
             panic!(
@@ -236,32 +241,28 @@ mod tests {
     use super::*;
 
     #[test]
-    #[serial_test::serial(child_environment)]
     fn child_environment_strips_llvm_cov_control_variables() {
-        temp_env::with_vars(
-            [
-                ("CARGO_LLVM_COV", Some("1")),
-                (
-                    "CARGO_LLVM_COV_TARGET_DIR",
-                    Some("/temporary/coverage-target"),
-                ),
-                (
-                    "CARGO_LLVM_COV_BUILD_DIR",
-                    Some("/temporary/coverage-build"),
-                ),
-                ("RSTEST_BDD_NESTED_CARGO_SENTINEL", Some("kept")),
-            ],
-            || {
-                let env = build_child_env();
-                assert!(
-                    env.vars
-                        .iter()
-                        .all(|(key, _)| !key.to_string_lossy().starts_with("CARGO_LLVM_COV"))
-                );
-                assert!(env.vars.iter().any(|(key, value)| {
-                    key == "RSTEST_BDD_NESTED_CARGO_SENTINEL" && value == "kept"
-                }));
-            },
+        let env = child_env_from_vars(vec![
+            ("CARGO_LLVM_COV".into(), "1".into()),
+            (
+                "CARGO_LLVM_COV_TARGET_DIR".into(),
+                "/temporary/coverage-target".into(),
+            ),
+            (
+                "CARGO_LLVM_COV_BUILD_DIR".into(),
+                "/temporary/coverage-build".into(),
+            ),
+            ("RSTEST_BDD_NESTED_CARGO_SENTINEL".into(), "kept".into()),
+        ]);
+        assert!(
+            env.vars
+                .iter()
+                .all(|(key, _)| !key.to_string_lossy().starts_with("CARGO_LLVM_COV"))
+        );
+        assert!(
+            env.vars.iter().any(|(key, value)| {
+                key == "RSTEST_BDD_NESTED_CARGO_SENTINEL" && value == "kept"
+            })
         );
     }
 }

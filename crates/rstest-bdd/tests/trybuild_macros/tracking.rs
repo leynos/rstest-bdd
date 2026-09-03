@@ -2,7 +2,7 @@
 //!
 //! After the trybuild run has compiled the compile-pass fixtures, this module
 //! proves at least one dep-info under the trybuild build tree lists the staged
-//! `basic.feature`. It is the cheap mid-tier signal that catches a future
+//! `tracking.feature`. It is the cheap mid-tier signal that catches a future
 //! codegen refactor silently dropping the binding, without depending on the
 //! expensive nested-cargo regression test (`ExecPlan` Milestone 4).
 
@@ -14,7 +14,7 @@ use crate::staging::trybuild_target_directory;
 
 /// Assert that the staged compile-pass fixtures registered the tracking
 /// binding: at least one dep-info under the trybuild build tree lists the
-/// staged `basic.feature`.
+/// staged `tracking.feature`.
 ///
 /// This is the cheap mid-tier signal that catches a future codegen refactor
 /// silently dropping the binding, without depending on the expensive
@@ -22,7 +22,7 @@ use crate::staging::trybuild_target_directory;
 /// the run we have already paid for (see the `ExecPlan` Milestone 4 section).
 pub(crate) fn assert_trybuild_tracking_registered_in_dep_info() {
     let target_directory = workspace_target_directory();
-    let staged_feature = target_directory.join("tests/trybuild/rstest-bdd/basic.feature");
+    let staged_feature = target_directory.join("tests/trybuild/rstest-bdd/tracking.feature");
     let needle = staged_feature.as_str().replace('\\', "/").to_lowercase();
     let mut listed = 0;
     collect_dep_info_matches(target_directory.as_std_path(), &needle, &mut listed);

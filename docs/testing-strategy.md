@@ -130,8 +130,7 @@ with other tests on the same thread pool.
 Roadmap 10.3.3 introduced a distinct class of test: a fixture crate is copied
 into the shared workspace `target/`, its manifest's relative path dependencies
 are rewritten to absolute paths, and a nested `cargo` invocation is driven
-against it with a controlled child environment. The strategy guarantees that
-apply:
+against it with a controlled child environment. The following guarantees apply:
 
 - The checked-in fixture is never mutated; all edits happen in the scratch
   copy, so a killed test is recovered by deleting the scratch directory.
@@ -161,7 +160,7 @@ invalidation section is the first such example and is executed end-to-end: it
 is written into a fixture crate's `build.rs` and a behavioural test proves a
 newly added `.feature` file is run. The rule of thumb: prose that must not rot
 when executed — recipes, configs, commands — should be marked and consumed by a
-test rather than duplicated. <!-- [type:grammar] -->
+test rather than duplicated.
 
 ## Assertion posture
 

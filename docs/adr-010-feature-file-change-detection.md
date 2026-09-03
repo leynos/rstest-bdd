@@ -254,16 +254,15 @@ addition to the binding constraint that invalidation is a tested contract:
    guaranteed-later timestamp, or tick a second), run serialized in its own
    process with an isolated `target`/temp directory so nextest's
    process-per-test parallelism cannot race on a shared workspace `target`, and
-   — for the `include_str!` path — assert no absolute `CARGO_MANIFEST_DIR` path
-   is embedded in the artefact (inspect expanded output or the compiled `.d`
-   dep-info).
+   — for the emitted `include_bytes!` binding — assert no absolute
+   `CARGO_MANIFEST_DIR` path is embedded in the artefact (inspect expanded
+   output or the compiled `.d` dep-info).
 2. **Trybuild compile-time test (required).** Because the mechanism is emitted
    by the `#[scenario]`/`scenarios!` proc-macros, compile-time behaviour is
    part of the contract and must be pinned by `trybuild` fixtures, not left to
    the runtime regression test alone:
-   - a **compile-pass** fixture proving the emitted `include_str!` (or
-     build-script wiring) compiles cleanly for a representative `.feature`
-     binding; and
+   - a **compile-pass** fixture proving the emitted `include_bytes!` binding
+     compiles cleanly for a representative `.feature` binding; and
    - a **compile-fail** fixture proving a `#[scenario(path = …)]` pointing at a
      missing `.feature` file still fails at compile time with a clear
      diagnostic, so the invalidation change does not regress the existing

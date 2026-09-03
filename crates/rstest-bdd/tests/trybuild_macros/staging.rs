@@ -249,9 +249,10 @@ impl Drop for TargetRootSnapshotGuard {
         };
         for (path, contents) in &self.originals {
             if let Err(error) = crate_dir.write(path.as_std_path(), contents.as_bytes()) {
-                log::warn!(
-                    "cannot restore trybuild snapshot `{}`: {error}",
-                    path.as_str()
+                tracing::warn!(
+                    path = %path,
+                    error = %error,
+                    "cannot restore trybuild snapshot `{path}`: {error}"
                 );
             }
         }

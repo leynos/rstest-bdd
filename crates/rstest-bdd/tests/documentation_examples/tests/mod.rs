@@ -145,24 +145,52 @@ fn empty_id_is_an_error() {
 
 #[test]
 fn fence_without_language_is_an_error() {
-    let err = parse_fenced_example(&lines("```\na\n```"), 0, ExampleId("no-lang".to_owned()));
+    let text = lines("```\na\n```");
+    let err = parse_fenced_example(&text, 0, text.len(), ExampleId("no-lang".to_owned()));
     assert!(err.is_err());
 }
 
 #[test]
 fn unterminated_fence_is_an_error() {
-    let err = parse_fenced_example(&lines("```rust\na\n"), 0, ExampleId("broken".to_owned()));
+    let text = lines("```rust\na\n");
+    let err = parse_fenced_example(&text, 0, text.len(), ExampleId("broken".to_owned()));
     assert!(err.is_err());
 }
 
 #[rstest]
 #[case::mismatched_delimiter("```rust\na\n~~~\n", "mismatched")]
 #[case::shorter_closing_fence("````rust\na\n```\n", "short")]
+#[case::closing_fence_with_info_string("```rust\na\n```rust\n", "info-string")]
 fn incompatible_closing_fence_is_unterminated(#[case] source: &str, #[case] id: &str) {
-    let result = parse_fenced_example(&lines(source), 0, ExampleId(id.to_owned()));
+    let text = lines(source);
+    let result = parse_fenced_example(&text, 0, text.len(), ExampleId(id.to_owned()));
     let error = result
         .err()
         .expect("incompatible closing fences must be unterminated");
+    assert!(format!("{error:?}").contains("unterminated"));
+}
+
+#[test]
+fn indented_fence_is_not_recognized() {
+    let text = lines("    ```rust\na\n```\n");
+    let error = parse_fenced_example(&text, 0, text.len(), ExampleId("indented".to_owned()))
+        .err()
+        .expect("Markdown fences may have at most three leading spaces");
+    assert!(format!("{error:?}").contains("fence line is invalid"));
+}
+
+#[test]
+fn fence_cannot_close_outside_its_region() {
+    let text = lines("### Region\n<!-- tested-example: bounded -->\n```rust\na\n```\n");
+    let region = ScanRegion {
+        lines: &text,
+        start: 0,
+        // The closing fence is deliberately beyond the region boundary.
+        end: 4,
+        document: DocumentPath("docs.md"),
+    };
+    let error = scan_region(&region, &mut ScanState::default())
+        .expect_err("a fence must not consume the next enforced region");
     assert!(format!("{error:?}").contains("unterminated"));
 }
 

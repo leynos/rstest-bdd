@@ -94,7 +94,7 @@ fn collect_fenced_example(
             region.document.as_str(),
         )
     })?;
-    let (example, consumed) = parse_fenced_example(region.lines, idx, id)?;
+    let (example, consumed) = parse_fenced_example(region.lines, idx, region.end, id)?;
     validate_example_identifier(&example, region, idx)?;
     register_example(state, example, region)?;
     Ok(consumed)

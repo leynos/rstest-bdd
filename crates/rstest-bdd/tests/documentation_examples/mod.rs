@@ -197,13 +197,20 @@ fn find_region_bounds(lines: &[&str], section: SectionHeading) -> Result<(usize,
     Ok((start, end))
 }
 
-/// Whether a line opens a Markdown fence (an optional run of spaces then
-/// three or more backticks or tildes).
+/// Whether a line opens a Markdown fence (up to three spaces, then three or
+/// more backticks or tildes).
 fn is_fence(line: &str) -> bool { fence_delimiter(line).is_some() }
 
 /// Return a Markdown fence's delimiter character and run length.
 fn fence_delimiter(line: &str) -> Option<(char, usize)> {
-    let trimmed = line.trim_start();
+    let indentation = line
+        .chars()
+        .take_while(|character| *character == ' ')
+        .count();
+    if indentation > 3 {
+        return None;
+    }
+    let trimmed = line.get(indentation..)?;
     let delimiter = trimmed.chars().next()?;
     if !matches!(delimiter, '`' | '~') {
         return None;
@@ -231,14 +238,16 @@ fn extract_marker_id(line: &str) -> Option<ExampleId> {
 fn parse_fenced_example(
     lines: &[&str],
     fence_idx: usize,
+    end: usize,
     id: ExampleId,
 ) -> Result<(DocumentedExample, usize)> {
     let opening = lines
         .get(fence_idx)
-        .ok_or_else(|| eyre::eyre!("tested-example `{}` fence line is missing", id.as_str()))?
-        .trim_start();
+        .filter(|_| fence_idx < end)
+        .ok_or_else(|| eyre::eyre!("tested-example `{}` fence line is missing", id.as_str()))?;
     let (opening_delimiter, opening_length) = fence_delimiter(opening)
         .ok_or_else(|| eyre::eyre!("tested-example `{}` fence line is invalid", id.as_str()))?;
+    let opening = opening.trim_start_matches(' ');
     let language = opening
         .char_indices()
         .nth(opening_length)
@@ -253,17 +262,18 @@ fn parse_fenced_example(
     }
     let mut body_lines = Vec::new();
     let mut cursor = fence_idx + 1;
-    loop {
+    while cursor < end {
         let Some(line) = lines.get(cursor) else {
             bail!("tested-example `{}` fence is unterminated", id.as_str());
         };
-        if fence_delimiter(line).is_some_and(|(delimiter, length)| {
-            delimiter == opening_delimiter && length >= opening_length
-        }) {
+        if is_closing_fence(line, opening_delimiter, opening_length) {
             break;
         }
         body_lines.push(*line);
         cursor += 1;
+    }
+    if cursor == end {
+        bail!("tested-example `{}` fence is unterminated", id.as_str());
     }
     let mut body = body_lines.join("\n");
     body.push('\n');
@@ -275,6 +285,22 @@ fn parse_fenced_example(
         },
         cursor - fence_idx + 1,
     ))
+}
+
+/// Whether `line` closes a fence opened with `delimiter` and `minimum_length`.
+fn is_closing_fence(line: &str, delimiter: char, minimum_length: usize) -> bool {
+    let Some((closing_delimiter, length)) = fence_delimiter(line) else {
+        return false;
+    };
+    if closing_delimiter != delimiter || length < minimum_length {
+        return false;
+    }
+    let indentation = line
+        .chars()
+        .take_while(|character| *character == ' ')
+        .count();
+    line.get(indentation + length..)
+        .is_some_and(|remainder| remainder.trim().is_empty())
 }
 
 #[cfg(test)]

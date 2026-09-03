@@ -30,13 +30,13 @@ fn action() {}
 #[then("a result is produced")]
 fn result() {}
 
-// First binding of `basic.feature`.
-#[scenario(path = "basic.feature")]
+// First binding of `tracking.feature`.
+#[scenario(path = "tracking.feature")]
 fn first_binding() {}
 
 // Second binding of the same file: the anonymous tracking `const` must not
 // collide across scenarios sharing the file.
-#[scenario(path = "basic.feature")]
+#[scenario(path = "tracking.feature")]
 fn second_binding() {}
 
 // Directory autodiscovery through `scenarios!`: each discovered file emits
