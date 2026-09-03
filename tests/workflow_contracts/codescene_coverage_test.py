@@ -24,6 +24,18 @@ CODESCENE_COVERAGE_USES_RE = re.compile(
     r"^leynos/shared-actions/\.github/actions/upload-codescene-coverage@"
     r"[0-9a-f]{40}$"
 )
+CODESCENE_UPLOAD_GUARD = (
+    "matrix.os == 'ubicloud-standard-2' && "
+    "matrix.features == '' && "
+    "github.event_name == 'push' && "
+    "github.ref == 'refs/heads/main' && "
+    "env.CS_ACCESS_TOKEN != ''"
+)
+EXPECTED_CODESCENE_UPLOAD_INPUTS = {
+    "format": "cobertura",
+    "access-token": "${{ env.CS_ACCESS_TOKEN }}",
+    "installer-checksum": "${{ vars.CODESCENE_CLI_SHA256 }}",
+}
 CODESCENE_GUARD = (
     "matrix.os == 'ubicloud-standard-2' && "
     "matrix.features == '' && "
@@ -43,8 +55,8 @@ EXPECTED_GENERATOR_INPUTS = {
     "use-cargo-nextest": "${{ matrix.use-nextest }}",
     "pytest-workers": "",
     "with-ratchet": (
-        "${{ (matrix.os == 'ubicloud-standard-2' && matrix.features == '' "
-        "&& github.event_name == 'pull_request') && 'true' || 'false' }}"
+        "${{ (matrix.os == 'ubicloud-standard-2' && matrix.features == '') "
+        "&& 'true' || 'false' }}"
     ),
 }
 EXPECTED_CODESCENE_INPUTS = {
@@ -172,18 +184,26 @@ def test_codescene_gate_follows_report_verification_before_publish(
     )
 
 
-def test_codescene_pr_report_has_one_check_and_no_upload(
-    build_test_steps: list[dict[str, object]],
-) -> None:
-    """The PR workflow checks one report and never uploads branch coverage."""
+def test_codescene_reports_split_by_event_in_one_lane() -> None:
+    """One lane checks pull requests and uploads the analysed trunk branch."""
+    steps = _steps(_build_test_job(_load()))
     codescene_steps = [
         step
-        for step in build_test_steps
+        for step in steps
         if CODESCENE_COVERAGE_USES_RE.match(str(step.get("uses") or ""))
     ]
-    assert len(codescene_steps) == 1, (
-        f"expected one CodeScene coverage step, found {len(codescene_steps)}"
+    assert len(codescene_steps) == 2, (
+        "expected a pull-request check and a trunk upload, found "
+        f"{len(codescene_steps)} CodeScene steps"
     )
-    assert codescene_steps[0].get("with") == EXPECTED_CODESCENE_INPUTS, (
-        "the sole PR CodeScene step must use mode: check, never upload"
+    check, upload = codescene_steps
+    assert check.get("with") == EXPECTED_CODESCENE_INPUTS, (
+        "the pull-request step must use mode: check"
+    )
+    assert upload.get("with") == EXPECTED_CODESCENE_UPLOAD_INPUTS, (
+        "CodeScene accepts an upload only for an analysed branch, so the trunk "
+        "step must omit mode and project-url"
+    )
+    assert upload.get("if") == CODESCENE_UPLOAD_GUARD, (
+        "the upload must run only on the report-producing lane on trunk"
     )

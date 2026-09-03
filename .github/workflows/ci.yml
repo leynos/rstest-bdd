@@ -489,11 +489,18 @@ jobs:
           # xdist workers race on the cargo package-cache lock. This is an
           # explicit worker count, never `-n auto`.
           pytest-workers: ''
-          # Ratchet only the default-features Linux pull-request leg: the
-          # two Linux coverage legs would otherwise collide on the per-run
-          # baseline cache key, and coverage-main.yml owns the trunk
-          # baseline that these runs compare against.
-          with-ratchet: ${{ (matrix.os == 'ubicloud-standard-2' && matrix.features == '' && github.event_name == 'pull_request') && 'true' || 'false' }}
+          # Ratchet only the default-features Linux leg: the two Linux
+          # coverage legs would otherwise collide on the per-run baseline
+          # cache key. This leg writes the trunk baseline that every
+          # pull-request run compares against.
+          with-ratchet: ${{ (matrix.os == 'ubicloud-standard-2' && matrix.features == '') && 'true' || 'false' }}
+
+      # `cargo llvm-cov nextest` never runs doctests, so without this step no
+      # job in the repository would execute them. One lane with every feature
+      # enabled covers the whole workspace once.
+      - name: Run doctests
+        if: ${{ matrix.tools && matrix.features == '' }}
+        run: cargo test --doc --workspace --all-features
 
       - name: Verify coverage output exists
         if: ${{ matrix.coverage }}
@@ -515,6 +522,21 @@ jobs:
           format: cobertura
           mode: check
           project-url: https://api.codescene.io/v2/projects/69391
+          access-token: ${{ env.CS_ACCESS_TOKEN }}
+          installer-checksum: ${{ vars.CODESCENE_CLI_SHA256 }}
+
+      - name: Upload coverage data to CodeScene
+        env:
+          CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
+        if: >-
+          matrix.os == 'ubicloud-standard-2' &&
+          matrix.features == '' &&
+          github.event_name == 'push' &&
+          github.ref == 'refs/heads/main' &&
+          env.CS_ACCESS_TOKEN != ''
+        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@794e4801babcf68065c660fdf4781ad62be5d061
+        with:
+          format: cobertura
           access-token: ${{ env.CS_ACCESS_TOKEN }}
           installer-checksum: ${{ vars.CODESCENE_CLI_SHA256 }}
 

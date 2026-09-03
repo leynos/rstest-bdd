@@ -253,6 +253,18 @@ actions are therefore called with `cache-provider: external` in every workflow,
 which disables their own `target` archives, and `RUSTC_WRAPPER` reaches the
 coverage build and the publish dry run exactly as it reaches the test build.
 
+No job runs a test suite that another job already runs on the same platform
+with the same features. Every Rust test execution goes through `cargo llvm-cov`
+inside the shared coverage action, so there was no test-only lane to retire;
+the duplicate was a second coverage workflow whose platform, feature set, and
+driver matched the Linux default lane once `ci.yml` gained its `push` trigger.
+That workflow is removed and its ratchet write and CodeScene upload moved into
+the surviving lane. The two strict-validation lanes and the two Windows lanes
+differ in feature set or platform and all remain. Because
+`cargo llvm-cov nextest` skips doctests, the surviving lane runs
+`cargo test --doc --workspace --all-features` explicitly; nothing in CI ran
+doctests before.
+
 The Linux lanes use `sccache`'s GitHub Actions cache backend. Its objects reach
 Ubicloud storage when the `sccache` process holds the Actions cache
 credentials, which the Cuprum cache listing confirmed on 2026-09-03. A plain

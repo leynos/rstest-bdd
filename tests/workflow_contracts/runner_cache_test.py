@@ -40,10 +40,8 @@ from workflow_support import (
 
 GITHUB_SCRIPT_REF = "@ed597411d8f924073f98dfc5c65a23a2325f34cd"
 SCCACHE_LOCAL_VARIABLE = "vars.RSTEST_BDD_SCCACHE_LOCAL"
-CACHING_JOBS = (
-    ("ci.yml", "build-test"),
-    ("coverage-main.yml", "coverage-upload"),
-)
+# One job executes the workspace suite, so one job owns the caches.
+CACHING_JOBS = (("ci.yml", "build-test"),)
 TRUNK_SAVE_GUARD_FRAGMENTS = (
     "github.event_name == 'push'",
     "github.ref == 'refs/heads/main'",
@@ -274,25 +272,6 @@ def test_shared_actions_leave_cache_ownership_to_the_caller() -> None:
         assert not inputs.get("pytest-workers"), (
             "the Python coverage suite must use an explicit worker count, "
             "never an unconstrained -n auto"
-        )
-
-
-def test_coverage_baseline_job_restores_without_competing_for_a_key() -> None:
-    """ci.yml's trunk lane is the single writer for both shared keys."""
-    steps = _steps(_job("coverage-main.yml", "coverage-upload"))
-    cache_steps = [step for step in steps if _is_cache_step(step)]
-    assert cache_steps, "coverage-main.yml must restore the shared generation"
-    for step in cache_steps:
-        assert str(step.get("uses")).endswith(f"restore{CACHE_ACTION_REF}"), (
-            f"coverage-main.yml:{step.get('name')!r} must restore only; ci.yml's "
-            "build-test lane on main owns every key it reads"
-        )
-    install = steps[_step_index(steps, "Install prebuilt sccache")]
-    install_command = str(install.get("run"))
-    for required_fragment in ("RUSTC_WRAPPER", "--zero-stats", "--only-signed"):
-        assert required_fragment in install_command, (
-            "the coverage build must reach sccache exactly as the test build "
-            f"does; the installer omits {required_fragment!r}"
         )
 
 

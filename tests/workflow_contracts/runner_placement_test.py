@@ -30,6 +30,9 @@ from workflow_support import (
 from workflow_support import (
     steps as _steps,
 )
+from workflow_support import (
+    workflow as _workflow,
+)
 
 EXPECTED_BUILD_MATRIX = [
     {
@@ -103,10 +106,7 @@ def test_build_matrix_uses_exact_runner_labels() -> None:
 
 def test_ubicloud_jobs_bound_their_runner_occupancy() -> None:
     """Just-in-time self-hosted runners have no six-hour hosted limit."""
-    for workflow_name, job_name in (
-        ("ci.yml", "build-test"),
-        ("coverage-main.yml", "coverage-upload"),
-    ):
+    for workflow_name, job_name in (("ci.yml", "build-test"),):
         job = _job(workflow_name, job_name)
         timeout = job.get("timeout-minutes")
         assert isinstance(timeout, int), (
@@ -117,37 +117,64 @@ def test_ubicloud_jobs_bound_their_runner_occupancy() -> None:
         )
 
 
-def test_coverage_baseline_writer_shares_its_readers_runner_provider() -> None:
-    """Ubicloud caches are not shared with GitHub-hosted runners."""
-    job = _job("coverage-main.yml", "coverage-upload")
-    assert job.get("runs-on") == UBICLOUD_LINUX_LABEL, (
-        "coverage-main.yml:coverage-upload writes the ratchet baseline that "
-        f"pull-request lanes read, so it must run on {UBICLOUD_LINUX_LABEL}"
+def test_one_job_executes_the_workspace_suite() -> None:
+    """No job may duplicate the executed set of the coverage lane."""
+    workflow_directory = ROOT / ".github" / "workflows"
+    coverage_callers: list[str] = []
+    for workflow_path in sorted(workflow_directory.glob("*.yml")):
+        document = _workflow(workflow_path.name)
+        jobs = document.get("jobs")
+        assert isinstance(jobs, dict), f"{workflow_path.name} must declare jobs"
+        for job_name, job_document in jobs.items():
+            if "steps" not in job_document:
+                continue
+            for step in _steps(job_document):
+                uses = str(step.get("uses", ""))
+                if uses.startswith(
+                    "leynos/shared-actions/.github/actions/generate-coverage@"
+                ):
+                    coverage_callers.append(f"{workflow_path.name}:{job_name}")
+                    break
+    assert coverage_callers == ["ci.yml:build-test"], (
+        "only ci.yml:build-test may run the coverage driver; a second job with "
+        f"the same platform and features would execute nothing new, got "
+        f"{coverage_callers}"
     )
-    env = job.get("env")
-    assert isinstance(env, dict), "coverage-main.yml:coverage-upload must set env"
-    for name in ("CARGO_BUILD_JOBS", "NEXTEST_TEST_THREADS"):
-        assert env.get(name) == UBICLOUD_LINUX_VCPUS, (
-            f"coverage-main.yml:coverage-upload must bound {name} by "
-            f"{UBICLOUD_LINUX_VCPUS}, the vCPU count of {UBICLOUD_LINUX_LABEL}"
-        )
-    assert env.get("SCCACHE_DIR") == SCCACHE_DIRECTORY, (
-        "coverage-main.yml:coverage-upload must share ci.yml's compiler-cache "
-        "directory, because no job archives a target tree"
+
+
+def test_coverage_lane_executes_the_full_workspace_suite() -> None:
+    """The surviving lane must run the whole workspace, doctests included."""
+    steps = _steps(_job("ci.yml", "build-test"))
+    generator = steps[_step_index(steps, "Test and Measure Coverage (no features)")]
+    inputs = generator.get("with")
+    assert isinstance(inputs, dict), "the coverage step must declare inputs"
+    assert inputs.get("with-default-features") == (
+        "${{ matrix.with-default-features }}"
+    ), "the default-features lane must keep the crate's default feature set"
+    assert inputs.get("features") == (
+        "rstest-bdd/diagnostics rstest-bdd-macros/compile-time-validation "
+        "rstest-bdd-server/test-support"
+    ), "the coverage lane must keep the canonical feature set it gates on"
+    assert inputs.get("use-cargo-nextest") == "${{ matrix.use-nextest }}", (
+        "the coverage driver selection must stay a matrix decision"
     )
-    assert env.get("SCCACHE_CACHE_SIZE") == "4G", (
-        "coverage-main.yml:coverage-upload must size the compiler cache for "
-        "both build shapes"
+    doctests = steps[_step_index(steps, "Run doctests")]
+    assert doctests.get("run") == "cargo test --doc --workspace --all-features", (
+        "cargo llvm-cov nextest skips doctests, so the surviving lane must run "
+        "them explicitly across the whole workspace"
+    )
+    assert doctests.get("if") == "${{ matrix.tools && matrix.features == '' }}", (
+        "one lane covers every doctest once, because --all-features already "
+        "enables the strict-validation feature"
     )
 
 
 def test_shared_cache_keys_name_the_pinned_default_toolchain() -> None:
-    """coverage-main.yml hard-codes the toolchain that its keys must match."""
+    """The Linux lanes request the toolchain that rust-toolchain.toml pins."""
     toolchain = (ROOT / "rust-toolchain.toml").read_text(encoding="utf-8")
     assert 'channel = "stable"' in toolchain, (
-        "coverage-main.yml computes its cache keys with the literal toolchain "
-        "'stable'; that only matches ci.yml's Linux lanes while "
-        "rust-toolchain.toml pins the stable channel"
+        "the Linux lanes request 'stable' explicitly; the cache keys and the "
+        "pinned channel must not disagree"
     )
 
 
