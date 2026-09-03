@@ -164,11 +164,21 @@ the workspace tool directory. Cargo Binstall's quick-install mirror does not
 publish a signature for that archive, so a signed-only Binstall command cannot
 provide it without falling back to a forbidden source build.
 
+The Ubicloud GitHub App is granted for every repository in the account, so no
+per-repository provisioning step precedes a migration. The Ubicloud console
+lists only repositories that have already run a job, so an absent entry means
+this repository has not run one yet, not that the grant is missing. Do not
+treat a missing entry as a configuration fault.
+
 The job log header of an Ubicloud run prints `Ubicloud Managed Runner`, the
 label, the image release, and the console URL, which is the admission evidence.
 Correlate it with the GitHub jobs API for queue and execution timing, and with
 the Ubicloud cache-entries listing to prove that an archive reached Ubicloud
-storage rather than GitHub's.
+storage rather than GitHub's. If a job on a `ubicloud-*` label has still not
+picked up a runner after about five minutes, stop and investigate rather than
+retrying: check the label spelling, the repository's self-hosted runner
+settings, and the project's concurrency quota, because an over-quota job waits
+silently and looks like an ordinary GitHub queue.
 
 The mutation-testing and Dependabot auto-merge jobs call SHA-pinned reusable
 workflows in `leynos/shared-actions`. Their callees continue to own runner
