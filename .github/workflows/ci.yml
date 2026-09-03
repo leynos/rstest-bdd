@@ -125,11 +125,15 @@ jobs:
             /usr/local/share/powershell || true
           df -h /
 
-      - name: Configure runner parallelism
+      - name: Configure runner parallelism and compiler cache
         shell: bash
         env:
           LINUX_VCPUS: ${{ env.UBICLOUD_LINUX_VCPUS }}
           WINDOWS_VCPUS: ${{ env.GITHUB_WINDOWS_VCPUS }}
+          # One workflow variable selects the documented local-directory
+          # fallback. Leave it unset to use the GitHub Actions cache backend
+          # on the Ubicloud lanes.
+          SCCACHE_LOCAL_MODE: ${{ vars.RSTEST_BDD_SCCACHE_LOCAL }}
         run: |
           set -euo pipefail
           if [[ "$RUNNER_OS" == 'Windows' ]]; then
@@ -142,7 +146,16 @@ jobs:
             printf 'CARGO_BUILD_JOBS=%s\n' "$vcpus"
             printf 'NEXTEST_TEST_THREADS=%s\n' "$vcpus"
           } >> "$GITHUB_ENV"
-          printf 'runner=%s vcpus=%s\n' "$RUNNER_OS" "$vcpus"
+          # The shared Rust setup is called with `use-sccache: false`, so no
+          # action wires a compiler-cache backend on Windows. That lane
+          # therefore uses the local directory, which the cache step owns.
+          gha_enabled=false
+          if [[ "$RUNNER_OS" != 'Windows' && "$SCCACHE_LOCAL_MODE" != 'true' ]]; then
+            gha_enabled=true
+          fi
+          printf 'SCCACHE_GHA_ENABLED=%s\n' "$gha_enabled" >> "$GITHUB_ENV"
+          printf 'runner=%s vcpus=%s sccache-gha=%s\n' \
+            "$RUNNER_OS" "$vcpus" "$gha_enabled"
 
       - name: Compute cache keys
         shell: bash
@@ -230,13 +243,17 @@ jobs:
           path: ~/.local/share/whitaker
           key: ${{ env.WHITAKER_CACHE_KEY }}
 
-      # sccache runs in local-directory mode on every lane. Its GitHub
-      # Actions backend writes to GitHub's cache rather than Ubicloud's,
-      # which the 2026-09-03 console listing confirmed, so the workspace
-      # directory plus this cache owner is the only design that keeps
-      # compiler outputs near the Linux runners.
+      # The Ubicloud lanes use sccache's GitHub Actions cache backend, whose
+      # objects reach Ubicloud storage when the sccache process holds the
+      # Actions cache credentials; the Cuprum cache listing on 2026-09-03
+      # confirmed that. The Windows lane has no such backend, because the
+      # shared Rust setup is called with `use-sccache: false`, so it uses the
+      # local directory. Setting RSTEST_BDD_SCCACHE_LOCAL moves the Linux
+      # lanes onto the same local directory.
       - name: Restore compiler cache
         id: sccache
+        if: >-
+          runner.os == 'Windows' || vars.RSTEST_BDD_SCCACHE_LOCAL == 'true'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ${{ github.workspace }}/.sccache
@@ -250,6 +267,25 @@ jobs:
           toolchain: ${{ matrix.rust-toolchain }}
           cache-provider: external
           use-sccache: 'false'
+
+      # A plain `run:` step never sees the Actions cache credentials; the
+      # runner exposes them to JavaScript actions only. This job installs its
+      # own checksum-verified sccache rather than using the shared action's
+      # wiring, so it must re-export them itself.
+      - name: Export Actions cache credentials
+        if: >-
+          runner.os == 'Linux' && vars.RSTEST_BDD_SCCACHE_LOCAL != 'true'
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd  # v8
+        with:
+          script: |
+            for (const name of ['ACTIONS_RESULTS_URL', 'ACTIONS_RUNTIME_TOKEN']) {
+              const value = process.env[name];
+              if (!value) {
+                core.setFailed(`${name} is unavailable; sccache cannot use the GitHub Actions cache backend`);
+                return;
+              }
+              core.exportVariable(name, value);
+            }
 
       - name: Install prebuilt sccache
         shell: bash
@@ -543,9 +579,11 @@ jobs:
           key: ${{ env.WHITAKER_CACHE_KEY }}
 
       # The compiler cache always changes within a run, so save it on trunk
-      # whenever the primary key is not already present.
+      # whenever the primary key is not already present. It exists only on
+      # the lanes that use the local directory.
       - name: Save compiler cache
         if: >-
+          (runner.os == 'Windows' || vars.RSTEST_BDD_SCCACHE_LOCAL == 'true') &&
           github.event_name == 'push' && github.ref == 'refs/heads/main' &&
           matrix.features == '' &&
           steps.sccache.outputs.cache-hit != 'true'
@@ -578,8 +616,9 @@ jobs:
               "${CI_TOOLS_CACHE_KEY:-unset}" "${CI_TOOLS_CACHE_HIT:-skipped}"
             printf -- '- whitaker key: %s hit: %s\n' \
               "${WHITAKER_CACHE_KEY:-unset}" "${WHITAKER_CACHE_HIT:-skipped}"
-            printf -- '- sccache key: %s hit: %s\n' \
-              "${SCCACHE_CACHE_KEY:-unset}" "${SCCACHE_CACHE_HIT:-skipped}"
+            printf -- '- sccache key: %s hit: %s gha-backend: %s\n' \
+              "${SCCACHE_CACHE_KEY:-unset}" "${SCCACHE_CACHE_HIT:-skipped}" \
+              "${SCCACHE_GHA_ENABLED:-unset}"
             printf -- '- target archives: none; sccache owns every build shape\n'
           } >> "$GITHUB_STEP_SUMMARY"
 

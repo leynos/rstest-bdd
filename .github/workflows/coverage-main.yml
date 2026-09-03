@@ -33,9 +33,12 @@ jobs:
       SCCACHE_VERSION: '0.12.0'
       # No job archives a `target` tree. sccache owns every compiler
       # output, so the instrumented coverage objects share one store with
-      # ci.yml's test build.
+      # ci.yml's test build. This lane is Linux only, so the backend
+      # follows the same workflow variable without a computing step.
       SCCACHE_DIR: ${{ github.workspace }}/.sccache
       SCCACHE_CACHE_SIZE: 4G
+      SCCACHE_GHA_ENABLED: >-
+        ${{ vars.RSTEST_BDD_SCCACHE_LOCAL == 'true' && 'false' || 'true' }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v5
@@ -75,8 +78,11 @@ jobs:
           key: ${{ env.CARGO_CACHE_KEY }}
           restore-keys: ${{ env.CARGO_CACHE_RESTORE_PREFIX }}
 
+      # Only the local-directory fallback needs a cache owner; the GitHub
+      # Actions backend keeps its objects in Ubicloud's store directly.
       - name: Restore compiler cache
         id: sccache
+        if: ${{ vars.RSTEST_BDD_SCCACHE_LOCAL == 'true' }}
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ${{ github.workspace }}/.sccache
@@ -89,6 +95,22 @@ jobs:
         with:
           cache-provider: external
           use-sccache: 'false'
+
+      # A plain `run:` step never sees the Actions cache credentials; the
+      # runner exposes them to JavaScript actions only.
+      - name: Export Actions cache credentials
+        if: ${{ vars.RSTEST_BDD_SCCACHE_LOCAL != 'true' }}
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd  # v8
+        with:
+          script: |
+            for (const name of ['ACTIONS_RESULTS_URL', 'ACTIONS_RUNTIME_TOKEN']) {
+              const value = process.env[name];
+              if (!value) {
+                core.setFailed(`${name} is unavailable; sccache cannot use the GitHub Actions cache backend`);
+                return;
+              }
+              core.exportVariable(name, value);
+            }
 
       - name: Install prebuilt sccache
         shell: bash
@@ -169,8 +191,9 @@ jobs:
             printf '### sccache\n\n'
             printf -- '- registry key: %s hit: %s\n' \
               "${CARGO_CACHE_KEY:-unset}" "${CARGO_CACHE_HIT:-skipped}"
-            printf -- '- sccache key: %s hit: %s\n' \
-              "${SCCACHE_CACHE_KEY:-unset}" "${SCCACHE_CACHE_HIT:-skipped}"
+            printf -- '- sccache key: %s hit: %s gha-backend: %s\n' \
+              "${SCCACHE_CACHE_KEY:-unset}" "${SCCACHE_CACHE_HIT:-skipped}" \
+              "${SCCACHE_GHA_ENABLED:-unset}"
             printf -- '- target archives: none; sccache owns every build shape\n'
             printf '```text\n'
             cat sccache-stats.txt

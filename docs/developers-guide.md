@@ -54,8 +54,7 @@ v6.1.0. Ubicloud's transparent cache intercepts that revision: the Ubicloud
 cache listing on 2026-09-03 showed Linux keys from it reaching Ubicloud
 storage, while v4.3.0 left nothing there and Windows keys land on GitHub as
 expected. The deprecated `ubicloud/cache` fork is therefore unused, and one
-action with one pin serves both providers. Verify the first `main` run against
-the Ubicloud listing before trusting the warm-cache numbers.
+action with one pin serves both providers.
 
 uv reports a tool as installed from its environment store alone, so the
 download store, the environment store, and the shim directory are restored
@@ -105,18 +104,36 @@ use it.
 
 `sccache` writes to `SCCACHE_DIR`, which every workflow pins to
 `${{ github.workspace }}/.sccache`, because the default location differs per
-platform and is awkward to cache. It runs in local-directory mode on every
-lane, restored and saved by the cache action with a `restore-keys` prefix. Its
-GitHub Actions backend is not used: on Ubicloud that backend writes to GitHub's
-cache rather than Ubicloud's, which the 2026-09-03 console listing confirmed by
-showing thousands of small `sccache/...` entries on GitHub's side and none on
-Ubicloud's.
+platform and is awkward to cache.
+
+The Linux lanes use `sccache`'s GitHub Actions cache backend. Its objects reach
+Ubicloud storage when the `sccache` process holds the Actions cache
+credentials, verified from the Cuprum cache listing on 2026-09-03. A plain
+`run:` step never sees those credentials, because the runner exposes them to
+JavaScript actions only, so a pinned `actions/github-script` step re-exports
+`ACTIONS_RESULTS_URL` and `ACTIONS_RUNTIME_TOKEN` before the workflow's own
+checksum-verified `sccache` binary starts. The re-export must precede the
+installation step, which starts the `sccache` server when it zeroes the
+counters.
+
+The Windows lane has no such backend, because the shared Rust setup is called
+with `use-sccache: false` and nothing else wires one. It uses the workspace
+directory, restored and saved by the cache action with a `restore-keys` prefix.
+Setting the `RSTEST_BDD_SCCACHE_LOCAL` repository variable moves the Linux
+lanes onto that same local directory, which is the documented fallback if the
+backend ever stops reaching Ubicloud. The compiler-cache step is guarded so
+that exactly one mechanism owns the directory on any given lane.
 
 `SCCACHE_CACHE_SIZE` is 4 GB, sized for two build shapes while leaving room in
 Ubicloud's 30 GB weekly per-repository quota for the registry, the tool
 directory, and the Whitaker suite. Each lane zeroes the counters immediately
 after installing `sccache`, and the final step publishes `sccache --show-stats`
-in text and JSON to the job summary alongside every cache key and hit result.
+in text and JSON to the job summary alongside every cache key, hit result, and
+the backend in use.
+
+Check the first `main` run with `ubi gh leynos/rstest-bdd list-cache-entries`.
+It must show the archive keys and the `sccache` objects on Ubicloud's side
+before any warm-cache measurement is trustworthy.
 
 ### Parallelism and prerequisites
 

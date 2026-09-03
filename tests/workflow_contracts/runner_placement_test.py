@@ -199,9 +199,15 @@ def test_build_matrix_derives_parallelism_from_named_vcpu_constants() -> None:
         "compiler output"
     )
     steps = _steps(build_test)
-    parallelism = steps[_step_index(steps, "Configure runner parallelism")]
+    parallelism = steps[
+        _step_index(steps, "Configure runner parallelism and compiler cache")
+    ]
     script = str(parallelism.get("run", ""))
-    for required_fragment in ("CARGO_BUILD_JOBS=%s", "NEXTEST_TEST_THREADS=%s"):
+    for required_fragment in (
+        "CARGO_BUILD_JOBS=%s",
+        "NEXTEST_TEST_THREADS=%s",
+        "SCCACHE_GHA_ENABLED=%s",
+    ):
         assert required_fragment in script, (
             f"the parallelism step must export {required_fragment!r}"
         )

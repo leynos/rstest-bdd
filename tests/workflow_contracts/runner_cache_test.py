@@ -38,6 +38,8 @@ from workflow_support import (
     workflow as _workflow,
 )
 
+GITHUB_SCRIPT_REF = "@ed597411d8f924073f98dfc5c65a23a2325f34cd"
+SCCACHE_LOCAL_VARIABLE = "vars.RSTEST_BDD_SCCACHE_LOCAL"
 CACHING_JOBS = (
     ("ci.yml", "build-test"),
     ("coverage-main.yml", "coverage-upload"),
@@ -291,4 +293,37 @@ def test_coverage_baseline_job_restores_without_competing_for_a_key() -> None:
         assert required_fragment in install_command, (
             "the coverage build must reach sccache exactly as the test build "
             f"does; the installer omits {required_fragment!r}"
+        )
+
+
+def test_compiler_cache_backend_has_credentials_and_one_fallback() -> None:
+    """The GitHub Actions backend needs credentials a run step cannot see."""
+    for workflow_name, job_name in CACHING_JOBS:
+        job_steps = _steps(_job(workflow_name, job_name))
+        export = job_steps[_step_index(job_steps, "Export Actions cache credentials")]
+        assert str(export.get("uses", "")).endswith(GITHUB_SCRIPT_REF), (
+            f"{workflow_name} must pin the credential re-export action"
+        )
+        export_inputs = export.get("with")
+        assert isinstance(export_inputs, dict), (
+            f"{workflow_name} credential re-export must declare a script"
+        )
+        script = str(export_inputs.get("script", ""))
+        for variable in ("ACTIONS_RESULTS_URL", "ACTIONS_RUNTIME_TOKEN"):
+            assert variable in script, (
+                f"{workflow_name} must re-export {variable} before sccache starts"
+            )
+        assert f"{SCCACHE_LOCAL_VARIABLE} != 'true'" in str(export.get("if", "")), (
+            f"{workflow_name} must skip the re-export in local-directory mode"
+        )
+        install_index = _step_index(job_steps, "Install prebuilt sccache")
+        export_index = _step_index(job_steps, "Export Actions cache credentials")
+        assert export_index < install_index, (
+            f"{workflow_name} must re-export the credentials before the sccache "
+            "server starts, because --zero-stats starts it"
+        )
+        sccache_cache = job_steps[_step_index(job_steps, "Restore compiler cache")]
+        assert f"{SCCACHE_LOCAL_VARIABLE} == 'true'" in str(sccache_cache.get("if")), (
+            f"{workflow_name} must own the compiler directory only on the lanes "
+            "that use it, so the backend and the archive never both claim it"
         )

@@ -67,6 +67,7 @@ def test_runner_addendum_records_the_current_runner_contract() -> None:
         "2026-09-03",
         "push` to `main",
         "No job archives a `target` tree",
+        "list-cache-entries",
         "cache-provider: external",
         "RUSTC_WRAPPER",
         "runner_placement_test.py",

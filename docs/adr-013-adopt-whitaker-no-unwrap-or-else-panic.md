@@ -252,11 +252,21 @@ report no non-cacheable compilations. The shared Rust setup and coverage
 actions are therefore called with `cache-provider: external` in every workflow,
 which disables their own `target` archives, and `RUSTC_WRAPPER` reaches the
 coverage build and the publish dry run exactly as it reaches the test build.
-`sccache` runs in local-directory mode everywhere: its GitHub Actions backend
-writes to GitHub's cache rather than Ubicloud's, which the 2026-09-03 console
-listing confirmed. The runner assignments, cache ownership, save policy, and
-prerequisite ordering are enforced by
-`tests/workflow_contracts/runner_placement_test.py` and
+
+The Linux lanes use `sccache`'s GitHub Actions cache backend. Its objects reach
+Ubicloud storage when the `sccache` process holds the Actions cache
+credentials, which the Cuprum cache listing confirmed on 2026-09-03. A plain
+`run:` step never sees those credentials, so a pinned `actions/github-script`
+step re-exports `ACTIONS_RESULTS_URL` and `ACTIONS_RUNTIME_TOKEN` before the
+workflow's own checksum-verified `sccache` binary starts. The Windows lane has
+no such backend, because the shared Rust setup is called with
+`use-sccache: false`, so it uses the workspace directory that the cache step
+owns. Setting the `RSTEST_BDD_SCCACHE_LOCAL` repository variable moves the
+Linux lanes onto that same local directory as a documented fallback. Check the
+first `main` run with `ubi gh leynos/rstest-bdd list-cache-entries` to confirm
+that the keys and the `sccache` objects landed on Ubicloud. The runner
+assignments, cache ownership, save policy, and prerequisite ordering are
+enforced by `tests/workflow_contracts/runner_placement_test.py` and
 `tests/workflow_contracts/runner_cache_test.py`.
 
 ### Validation (2026-09-03)
