@@ -1,8 +1,8 @@
-"""Protect the historical Whitaker update from Namespace migration drift.
+"""Protect the historical Whitaker update from runner-migration drift.
 
 Run with:
 
-    pytest tests/workflow_contracts/namespace_adr_test.py
+    pytest tests/workflow_contracts/runner_adr_test.py
 """
 
 from pathlib import Path
@@ -15,7 +15,7 @@ HISTORICAL_BASELINE_PATH = (
     Path(__file__).resolve().parent / "data" / "adr-013-historical-update.md"
 )
 HISTORICAL_UPDATE_HEADING = "## Update (2026-07-20): current compatibility contract"
-NAMESPACE_ADDENDUM_HEADING = "## Addendum (2026-09-02): Namespace CI runner migration"
+RUNNER_ADDENDUM_HEADING = "## Addendum (2026-09-03): Ubicloud CI runner migration"
 
 
 def _section_before(document: str, start_heading: str, end_heading: str) -> str:
@@ -33,40 +33,49 @@ def test_historical_whitaker_update_matches_its_checked_in_baseline() -> None:
     historical_update = _section_before(
         document,
         HISTORICAL_UPDATE_HEADING,
-        NAMESPACE_ADDENDUM_HEADING,
+        RUNNER_ADDENDUM_HEADING,
     )
     baseline = HISTORICAL_BASELINE_PATH.read_text(encoding="utf-8")
     assert historical_update == baseline, (
         "the 2026-07-20 compatibility record is a historical document; it must "
         f"stay byte-for-byte identical to {HISTORICAL_BASELINE_PATH.name}. "
-        "Record current facts in the dated Namespace addendum instead."
+        "Record current facts in the dated runner-migration addendum instead."
     )
 
 
-def test_namespace_addendum_records_the_current_runner_contract() -> None:
-    """Keep current Namespace facts in the dated addendum."""
+def test_runner_addendum_records_the_current_runner_contract() -> None:
+    """Keep current runner-placement facts in the dated addendum."""
     document = ADR_PATH.read_text(encoding="utf-8")
-    namespace_addendum = _section_before(
+    addendum = _section_before(
         document,
-        NAMESPACE_ADDENDUM_HEADING,
+        RUNNER_ADDENDUM_HEADING,
         "## Known limitations",
     )
 
     for expected_contract in (
-        "namespace-profile-rust-linux-ci",
-        "namespace-profile-rust-windows-ci",
+        "ubicloud-standard-2",
+        "windows-latest",
         "Ubuntu 24.04",
-        "4 vCPU and 8 GB",
+        "2 vCPU and 8 GB",
         "`whitaker-installer` at `0.2.7`",
         "install-whitaker",
         "GITHUB_PATH",
         "GNU Make",
         "contents: read",
-        "make test-workflow-contracts",
-        "all four `build-test` matrix lanes",
+        "ubicloud/cache/restore",
+        "actions/cache/restore",
+        "push` to `main",
+        "runner_placement_test.py",
+    ):
+        assert expected_contract in addendum, (
+            f"the runner-migration ADR addendum must record {expected_contract!r}"
+        )
+
+    for retired_contract in (
+        "namespace-profile-",
         "nscloud-cache-action",
         "allow_commit_from_branch",
     ):
-        assert expected_contract in namespace_addendum, (
-            f"Namespace ADR addendum must record {expected_contract!r}"
+        assert retired_contract not in addendum, (
+            f"the runner-migration ADR addendum must not retain {retired_contract!r}"
         )

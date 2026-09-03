@@ -92,6 +92,9 @@ extend-ignore = [
 [tool.ruff.lint.per-file-ignores]
 "scripts/tests/test_*.py" = ["S101", "PLR0913", "PLR0917", "PLR2004", "PLR6301"]
 "tests/workflow_contracts/*_test.py" = ["S101", "PLR0913", "PLR0917", "PLR2004", "PLR6301"]
+# Shared loaders for the workflow contracts; they assert the same shape
+# invariants as the test modules that import them.
+"tests/workflow_contracts/workflow_support.py" = ["S101"]
 
 [tool.ruff.lint.flake8-import-conventions]
 banned-from = [

@@ -14,7 +14,11 @@ on:
 
 jobs:
   coverage-upload:
-    runs-on: ubuntu-latest
+    # This job writes the ratchet baseline that ci.yml's pull-request lanes
+    # read. Ubicloud caches are not shared with GitHub-hosted runners, so the
+    # baseline writer must run on the same runner provider as its readers.
+    runs-on: ubicloud-standard-2
+    timeout-minutes: 90
     permissions:
       contents: read
     env:
@@ -23,6 +27,9 @@ jobs:
       CODESCENE_CLI_SHA256: ${{ vars.CODESCENE_CLI_SHA256 }}
       RUSTFLAGS: -D warnings
       RUSTDOCFLAGS: -D warnings
+      # Match the 2 vCPU shape of ubicloud-standard-2.
+      CARGO_BUILD_JOBS: '2'
+      NEXTEST_TEST_THREADS: '2'
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v5

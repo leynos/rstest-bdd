@@ -3,11 +3,25 @@ name: CI
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  # The cache writer runs on trunk. Without this trigger no run is ever
+  # allowed to publish a trusted cache generation, so every pull-request
+  # lane restores nothing and recompiles the workspace from cold.
+  push:
+    branches: [main]
   workflow_dispatch:
+
+# Serialize per ref so a superseded pull-request run releases its runners.
+# Trunk runs are the cache writers and must never be cancelled.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build-test:
     runs-on: ${{ matrix.os }}
+    # Ubicloud runners register as just-in-time self-hosted runners, so the
+    # six-hour hosted limit does not apply. Bound the job explicitly.
+    timeout-minutes: 90
     permissions:
       contents: read
     env:
@@ -17,40 +31,45 @@ jobs:
       RUSTFLAGS: -D warnings
       RUSTDOCFLAGS: -D warnings
       LADING_REF: e0a8d43fa3d6d7598cad0d4c25883e7ea625feb9
+      BUN_VERSION: '1.2.21'
+      MERMAID_CLI_VERSION: '11.9.0'
       MERMAN_CLI_VERSION: '0.7.0'
+      NIXIE_CLI_VERSION: '1.1.0'
       RUFF_VERSION: '0.16.4'
+      SCCACHE_VERSION: '0.12.0'
       TY_VERSION: '0.0.74'
       WHITAKER_INSTALLER_VERSION: '0.2.7'
-      CARGO_BUILD_JOBS: '4'
-      NEXTEST_TEST_THREADS: '4'
-      # sccache's per-platform default directory is outside the Namespace
-      # volume on Windows, and Namespace mounts Windows cache paths as
-      # junctions. One explicit workspace directory therefore gives both
-      # platforms the same mounted compiler cache.
+      # Named vCPU constants for the two deployed runner shapes. Build and
+      # test parallelism is derived from these, never from `-j auto`.
+      UBICLOUD_LINUX_VCPUS: '2'
+      GITHUB_WINDOWS_VCPUS: '4'
+      # One explicit workspace directory keeps the compiler cache in a
+      # single, cacheable location whose path is identical on both
+      # platforms; sccache's per-platform default lies outside it.
       SCCACHE_DIR: ${{ github.workspace }}/.sccache
-      # The profile volume is 20 GB and also holds the Cargo registry, Git
-      # checkouts, and the verified tool directory. Bound the compiler cache
-      # so it cannot evict those cheaper-to-restore layers.
-      SCCACHE_CACHE_SIZE: 6G
+      # Archive-based caches share a 30 GB weekly Ubicloud quota with the
+      # Cargo registry, the tool directory, and the Whitaker suite. Bound
+      # the compiler cache so a local-mode archive cannot crowd them out.
+      SCCACHE_CACHE_SIZE: 2G
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: namespace-profile-rust-linux-ci
+          - os: ubicloud-standard-2
             rust-toolchain: stable
             coverage: true
             features: ''
             with-default-features: true
             tools: true
             use-nextest: true
-          - os: namespace-profile-rust-linux-ci
+          - os: ubicloud-standard-2
             rust-toolchain: stable
             coverage: true
             features: strict-compile-time-validation
             with-default-features: false
             tools: true
             use-nextest: true
-          - os: namespace-profile-rust-windows-ci
+          - os: windows-latest
             rust-toolchain: stable-x86_64-pc-windows-msvc
             coverage: true
             features: ''
@@ -59,7 +78,7 @@ jobs:
             # Avoid Windows nested Cargo/nextest hangs; see
             # rust-lang/cargo#15744 and nextest-rs/nextest#2463.
             use-nextest: false
-          - os: namespace-profile-rust-windows-ci
+          - os: windows-latest
             rust-toolchain: stable-x86_64-pc-windows-msvc
             coverage: true
             features: strict-compile-time-validation
@@ -69,13 +88,12 @@ jobs:
             # rust-lang/cargo#15744 and nextest-rs/nextest#2463.
             use-nextest: false
     steps:
-      - name: Verify and install Windows runner tools
+      # GitHub-hosted Windows images ship Git, Git Bash, and Chocolatey but
+      # not GNU Make, which `make publish-check` needs on every lane.
+      - name: Install GNU Make
         if: ${{ runner.os == 'Windows' }}
         shell: pwsh
         run: |
-          Get-Command git | Out-Null
-          Get-Command bash | Out-Null
-          Get-Command choco | Out-Null
           choco install make --yes --no-progress
           Get-Command make | Out-Null
 
@@ -105,20 +123,148 @@ jobs:
             /usr/local/share/powershell || true
           df -h /
 
-      - name: Mount Namespace cache volume
-        id: namespace-cache
-        uses: namespacelabs/nscloud-cache-action@c5f8dab7560444c4bf8dbc64f1b203431873c547
+      - name: Configure runner parallelism and compiler cache
+        shell: bash
+        env:
+          LINUX_VCPUS: ${{ env.UBICLOUD_LINUX_VCPUS }}
+          WINDOWS_VCPUS: ${{ env.GITHUB_WINDOWS_VCPUS }}
+          # One workflow variable selects the documented local-directory
+          # fallback for sccache. Leave it unset to use the GitHub Actions
+          # cache backend on Linux.
+          SCCACHE_LOCAL_MODE: ${{ vars.RSTEST_BDD_SCCACHE_LOCAL }}
+        run: |
+          set -euo pipefail
+          if [[ "$RUNNER_OS" == 'Windows' ]]; then
+            vcpus="$WINDOWS_VCPUS"
+          else
+            vcpus="$LINUX_VCPUS"
+          fi
+          {
+            printf 'RUNNER_VCPUS=%s\n' "$vcpus"
+            printf 'CARGO_BUILD_JOBS=%s\n' "$vcpus"
+            printf 'NEXTEST_TEST_THREADS=%s\n' "$vcpus"
+          } >> "$GITHUB_ENV"
+          # Windows always uses the local directory so its compiler cache
+          # has exactly one owner: the `actions/cache` step below.
+          gha_enabled=false
+          if [[ "$RUNNER_OS" != 'Windows' && "$SCCACHE_LOCAL_MODE" != 'true' ]]; then
+            gha_enabled=true
+          fi
+          printf 'SCCACHE_GHA_ENABLED=%s\n' "$gha_enabled" >> "$GITHUB_ENV"
+          printf 'runner=%s vcpus=%s sccache-gha=%s\n' \
+            "$RUNNER_OS" "$vcpus" "$gha_enabled"
+
+      - name: Compute cache keys
+        shell: bash
+        env:
+          LOCKFILE_HASH: ${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+          DYLINT_HASH: ${{ hashFiles('dylint.toml') }}
+          TOOLCHAIN: ${{ matrix.rust-toolchain }}
+          RUNNER_ENVIRONMENT_NAME: ${{ runner.environment }}
+        run: |
+          set -euo pipefail
+          # Every key carries an explicit `v1` schema generation so the whole
+          # family can be invalidated deliberately, and `runner.environment`
+          # so a self-hosted Ubicloud archive is never restored onto a
+          # GitHub-hosted image with a different glibc baseline.
+          scope="${RUNNER_OS}-${RUNNER_ARCH}-${RUNNER_ENVIRONMENT_NAME}"
+          tool_pins="bun${BUN_VERSION}-mermaid${MERMAID_CLI_VERSION}"
+          tool_pins="${tool_pins}-merman${MERMAN_CLI_VERSION}"
+          tool_pins="${tool_pins}-nixie${NIXIE_CLI_VERSION}"
+          tool_pins="${tool_pins}-sccache${SCCACHE_VERSION}"
+          tool_pins="${tool_pins}-whitaker${WHITAKER_INSTALLER_VERSION}"
+          {
+            printf 'CARGO_CACHE_KEY=cargo-v1-%s-%s-%s\n' \
+              "$scope" "$TOOLCHAIN" "$LOCKFILE_HASH"
+            printf 'CARGO_CACHE_RESTORE_PREFIX=cargo-v1-%s-%s-\n' \
+              "$scope" "$TOOLCHAIN"
+            printf 'CI_TOOLS_CACHE_KEY=ci-tools-v1-%s-%s\n' "$scope" "$tool_pins"
+            printf 'WHITAKER_CACHE_KEY=whitaker-v1-%s-%s-%s\n' \
+              "$scope" "$WHITAKER_INSTALLER_VERSION" "$DYLINT_HASH"
+            printf 'SCCACHE_CACHE_KEY=sccache-v1-%s-%s-debug-%s\n' \
+              "$scope" "$TOOLCHAIN" "$LOCKFILE_HASH"
+            printf 'SCCACHE_CACHE_RESTORE_PREFIX=sccache-v1-%s-%s-debug-\n' \
+              "$scope" "$TOOLCHAIN"
+          } >> "$GITHUB_ENV"
+
+      - name: Restore Cargo registry (Ubicloud)
+        id: cargo-registry-linux
+        if: ${{ runner.os == 'Linux' }}
+        uses: ubicloud/cache/restore@92361f338d82d2c58a98875f1b5c95cd14cd6b2a  # v4.1.2
         with:
           path: |
-            ~/.bun/install/cache
-            ~/.cache/uv
-            ~/.cargo/bin
-            ~/.cargo/git
             ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ env.CARGO_CACHE_KEY }}
+          restore-keys: ${{ env.CARGO_CACHE_RESTORE_PREFIX }}
+
+      - name: Restore Cargo registry (GitHub-hosted)
+        id: cargo-registry-windows
+        if: ${{ runner.os == 'Windows' }}
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ env.CARGO_CACHE_KEY }}
+          restore-keys: ${{ env.CARGO_CACHE_RESTORE_PREFIX }}
+
+      # uv reports a tool as installed from its environment store alone, so
+      # the download store, the environment store, and the shim directory
+      # must be restored together by a single owner.
+      - name: Restore CI tool binaries (Ubicloud)
+        id: ci-tools-linux
+        if: ${{ runner.os == 'Linux' }}
+        uses: ubicloud/cache/restore@92361f338d82d2c58a98875f1b5c95cd14cd6b2a  # v4.1.2
+        with:
+          path: |
+            ~/.cargo/bin
             ~/.local/bin
+            ~/.cache/uv
             ~/.local/share/uv
+            ~/.bun/install/cache
+            ~/.bun/install/global
+            ~/.cache/puppeteer
             ${{ github.workspace }}/.ci-tools
-            ${{ github.workspace }}/.sccache
+          key: ${{ env.CI_TOOLS_CACHE_KEY }}
+
+      - name: Restore CI tool binaries (GitHub-hosted)
+        id: ci-tools-windows
+        if: ${{ runner.os == 'Windows' }}
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.cargo/bin
+            ${{ github.workspace }}/.ci-tools
+          key: ${{ env.CI_TOOLS_CACHE_KEY }}
+
+      # Mount only the installer-managed suite directory. The installer
+      # binary itself lives in `~/.cargo/bin`, which the tool cache owns.
+      - name: Restore Whitaker suite
+        id: whitaker-suite
+        if: ${{ runner.os == 'Linux' && matrix.tools }}
+        uses: ubicloud/cache/restore@92361f338d82d2c58a98875f1b5c95cd14cd6b2a  # v4.1.2
+        with:
+          path: ~/.local/share/whitaker
+          key: ${{ env.WHITAKER_CACHE_KEY }}
+
+      - name: Restore compiler cache (GitHub-hosted)
+        id: sccache-windows
+        if: ${{ runner.os == 'Windows' }}
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ${{ github.workspace }}/.sccache
+          key: ${{ env.SCCACHE_CACHE_KEY }}
+          restore-keys: ${{ env.SCCACHE_CACHE_RESTORE_PREFIX }}
+
+      - name: Restore compiler cache (Ubicloud local mode)
+        id: sccache-linux
+        if: ${{ runner.os == 'Linux' && vars.RSTEST_BDD_SCCACHE_LOCAL == 'true' }}
+        uses: ubicloud/cache/restore@92361f338d82d2c58a98875f1b5c95cd14cd6b2a  # v4.1.2
+        with:
+          path: ${{ github.workspace }}/.sccache
+          key: ${{ env.SCCACHE_CACHE_KEY }}
+          restore-keys: ${{ env.SCCACHE_CACHE_RESTORE_PREFIX }}
 
       - name: Setup Rust
         # Merged shared-actions PR #421 cache-provider revision.
@@ -128,20 +274,62 @@ jobs:
           cache-provider: external
           use-sccache: 'false'
 
+      # The runner exposes the Actions cache credentials to JavaScript
+      # actions only. sccache's GitHub Actions backend needs them, and this
+      # job installs its own checksum-verified sccache instead of using the
+      # shared action's sccache wiring.
+      - name: Export Actions cache credentials
+        if: ${{ runner.os == 'Linux' && vars.RSTEST_BDD_SCCACHE_LOCAL != 'true' }}
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd  # v8
+        with:
+          script: |
+            for (const name of ['ACTIONS_RESULTS_URL', 'ACTIONS_RUNTIME_TOKEN']) {
+              const value = process.env[name];
+              if (!value) {
+                core.setFailed(`${name} is unavailable; sccache cannot use the GitHub Actions cache backend`);
+                return;
+              }
+              core.exportVariable(name, value);
+            }
+
+      - name: Install prebuilt sccache
+        shell: bash
+        run: |
+          set -euo pipefail
+          tool_dir="$GITHUB_WORKSPACE/.ci-tools"
+          mkdir -p "$tool_dir"
+          # Binstall writes `sccache.exe` on Windows; resolve the real file so
+          # the wrapper and the counter reset both name an executable.
+          sccache_bin="$tool_dir/sccache"
+          if [[ ! -x "$sccache_bin" ]]; then
+            sccache_bin="$tool_dir/sccache.exe"
+          fi
+          expected_version="sccache ${SCCACHE_VERSION}"
+          installed_version=""
+          if [[ -x "$sccache_bin" ]]; then
+            installed_version="$("$sccache_bin" --version | tr -d '\r')"
+          fi
+          if [[ "$installed_version" != "$expected_version" ]]; then
+            cargo binstall --no-confirm --only-signed --disable-strategies compile \
+              --install-path "$tool_dir" "sccache@${SCCACHE_VERSION}"
+            sccache_bin="$tool_dir/sccache"
+            if [[ ! -x "$sccache_bin" ]]; then
+              sccache_bin="$tool_dir/sccache.exe"
+            fi
+          fi
+          test -x "$sccache_bin"
+          "$sccache_bin" --version | grep -Fx "$expected_version"
+          printf '%s\n' "$tool_dir" >> "$GITHUB_PATH"
+          printf 'RUSTC_WRAPPER=%s\n' "$sccache_bin" >> "$GITHUB_ENV"
+          # Zero the counters before the first compilation so the reported
+          # statistics describe this job's builds rather than installer noise.
+          "$sccache_bin" --zero-stats
+
       - name: Install bun
         if: ${{ matrix.tools }}
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6  # v2
         with:
-          bun-version: '1.2.21'
-
-      - name: Report Namespace cache status
-        if: ${{ always() }}
-        shell: bash
-        env:
-          NAMESPACE_CACHE_HIT: ${{ steps.namespace-cache.outputs.cache-hit }}
-        run: |
-          set -euo pipefail
-          printf 'namespace-cache.hit=%s\n' "$NAMESPACE_CACHE_HIT" >> "$GITHUB_STEP_SUMMARY"
+          bun-version: ${{ env.BUN_VERSION }}
 
       # `.rustfmt.toml` uses unstable options, so `make check-fmt` shells out
       # to the pinned nightly rustfmt named by the Makefile's FMT_TOOLCHAIN.
@@ -182,44 +370,27 @@ jobs:
           fi
           "$tool_dir/merman-cli" --version | grep -Fx "$expected_version"
 
-      - name: Install prebuilt sccache
-        shell: bash
-        run: |
-          set -euo pipefail
-          tool_dir="$GITHUB_WORKSPACE/.ci-tools"
-          mkdir -p "$tool_dir"
-          cargo binstall --no-confirm --only-signed --disable-strategies compile \
-            --install-path "$tool_dir" 'sccache@0.12.0'
-          # Binstall writes `sccache.exe` on Windows; resolve the real file so
-          # the wrapper and the counter reset both name an executable.
-          sccache_bin="$tool_dir/sccache"
-          if [[ ! -x "$sccache_bin" ]]; then
-            sccache_bin="$tool_dir/sccache.exe"
-          fi
-          test -x "$sccache_bin"
-          printf '%s\n' "$tool_dir" >> "$GITHUB_PATH"
-          printf 'RUSTC_WRAPPER=%s\n' "$sccache_bin" >> "$GITHUB_ENV"
-          # Zero the counters before the first compilation so the reported
-          # statistics describe this job's builds rather than installer noise.
-          "$sccache_bin" --zero-stats
-
       - name: Install Mermaid CLI
         if: ${{ matrix.tools }}
         run: |
           set -euxo pipefail
-          bun install --no-progress --global @mermaid-js/mermaid-cli@11.9.0
+          bun install --no-progress --global "@mermaid-js/mermaid-cli@${MERMAID_CLI_VERSION}"
           bun x @puppeteer/browsers browsers install chrome-headless-shell
           mmdc --version
 
       - name: Install Nixie
         if: ${{ matrix.tools }}
-        run: uv tool install nixie-cli==1.1.0
+        run: uv tool install "nixie-cli==${NIXIE_CLI_VERSION}"
 
       - name: Install Whitaker
         if: ${{ matrix.tools }}
+        # TODO: repin to the merge commit of leynos/shared-actions#422 before
+        # pushing; that revision adds `cache-provider` and installs the
+        # official release archive with a pinned digest.
         uses: leynos/shared-actions/.github/actions/install-whitaker@794e4801babcf68065c660fdf4781ad62be5d061
         with:
           installer-version: ${{ env.WHITAKER_INSTALLER_VERSION }}
+          cache-provider: external
 
       - name: Nixie
         if: ${{ matrix.tools }}
@@ -293,7 +464,8 @@ jobs:
           use-cargo-nextest: ${{ matrix.use-nextest }}
           # Run the Python coverage suite serially: the whitaker lint-gate
           # integration test shells out to `cargo dylint`, so parallel
-          # xdist workers race on the cargo package-cache lock.
+          # xdist workers race on the cargo package-cache lock. This is an
+          # explicit worker count, never `-n auto`.
           pytest-workers: ''
 
       - name: Test and Measure Coverage (no features)
@@ -305,7 +477,7 @@ jobs:
         # legs stay best-effort as before. Selected by matrix values rather
         # than a dedicated key so the job name (a required check context)
         # is unchanged.
-        continue-on-error: ${{ !(matrix.os == 'namespace-profile-rust-linux-ci' && matrix.features == '') }}
+        continue-on-error: ${{ !(matrix.os == 'ubicloud-standard-2' && matrix.features == '') }}
         env:
           # Windows coverage runs (build plus doctests) exceed the shared
           # action's 600s per-invocation default; give them headroom.
@@ -319,12 +491,14 @@ jobs:
           use-cargo-nextest: ${{ matrix.use-nextest }}
           # Run the Python coverage suite serially: the whitaker lint-gate
           # integration test shells out to `cargo dylint`, so parallel
-          # xdist workers race on the cargo package-cache lock.
+          # xdist workers race on the cargo package-cache lock. This is an
+          # explicit worker count, never `-n auto`.
           pytest-workers: ''
-          # Ratchet only the default-features Linux leg: the two Linux
-          # coverage legs would otherwise collide on the per-run baseline
-          # cache key.
-          with-ratchet: ${{ (matrix.os == 'namespace-profile-rust-linux-ci' && matrix.features == '') && 'true' || 'false' }}
+          # Ratchet only the default-features Linux pull-request leg: the
+          # two Linux coverage legs would otherwise collide on the per-run
+          # baseline cache key, and coverage-main.yml owns the trunk
+          # baseline that these runs compare against.
+          with-ratchet: ${{ (matrix.os == 'ubicloud-standard-2' && matrix.features == '' && github.event_name == 'pull_request') && 'true' || 'false' }}
 
       - name: Verify coverage output exists
         if: ${{ matrix.coverage }}
@@ -337,7 +511,7 @@ jobs:
         env:
           CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
         if: >-
-          matrix.os == 'namespace-profile-rust-linux-ci' &&
+          matrix.os == 'ubicloud-standard-2' &&
           matrix.features == '' &&
           github.event_name == 'pull_request' &&
           env.CS_ACCESS_TOKEN != ''
@@ -352,13 +526,140 @@ jobs:
       - name: Publish dry run
         run: make publish-check
 
-      - name: Report sccache statistics
+      # Exactly one writer per key: the default-features lane on trunk.
+      # Pull-request runs read the trusted generation and never compete for
+      # a reservation, so `Unable to reserve cache` cannot appear.
+      - name: Save Cargo registry (Ubicloud)
+        if: >-
+          runner.os == 'Linux' && github.event_name == 'push' &&
+          github.ref == 'refs/heads/main' && matrix.features == '' &&
+          steps.cargo-registry-linux.outputs.cache-hit != 'true'
+        uses: ubicloud/cache/save@92361f338d82d2c58a98875f1b5c95cd14cd6b2a  # v4.1.2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ env.CARGO_CACHE_KEY }}
+
+      - name: Save Cargo registry (GitHub-hosted)
+        if: >-
+          runner.os == 'Windows' && github.event_name == 'push' &&
+          github.ref == 'refs/heads/main' && matrix.features == '' &&
+          steps.cargo-registry-windows.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ env.CARGO_CACHE_KEY }}
+
+      - name: Save CI tool binaries (Ubicloud)
+        if: >-
+          runner.os == 'Linux' && github.event_name == 'push' &&
+          github.ref == 'refs/heads/main' && matrix.features == '' &&
+          steps.ci-tools-linux.outputs.cache-hit != 'true'
+        uses: ubicloud/cache/save@92361f338d82d2c58a98875f1b5c95cd14cd6b2a  # v4.1.2
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.local/bin
+            ~/.cache/uv
+            ~/.local/share/uv
+            ~/.bun/install/cache
+            ~/.bun/install/global
+            ~/.cache/puppeteer
+            ${{ github.workspace }}/.ci-tools
+          key: ${{ env.CI_TOOLS_CACHE_KEY }}
+
+      - name: Save CI tool binaries (GitHub-hosted)
+        if: >-
+          runner.os == 'Windows' && github.event_name == 'push' &&
+          github.ref == 'refs/heads/main' && matrix.features == '' &&
+          steps.ci-tools-windows.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.cargo/bin
+            ${{ github.workspace }}/.ci-tools
+          key: ${{ env.CI_TOOLS_CACHE_KEY }}
+
+      - name: Save Whitaker suite
+        if: >-
+          runner.os == 'Linux' && matrix.tools &&
+          github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+          matrix.features == '' &&
+          steps.whitaker-suite.outputs.cache-hit != 'true'
+        uses: ubicloud/cache/save@92361f338d82d2c58a98875f1b5c95cd14cd6b2a  # v4.1.2
+        with:
+          path: ~/.local/share/whitaker
+          key: ${{ env.WHITAKER_CACHE_KEY }}
+
+      - name: Save compiler cache (GitHub-hosted)
+        if: >-
+          runner.os == 'Windows' && github.event_name == 'push' &&
+          github.ref == 'refs/heads/main' && matrix.features == '' &&
+          steps.sccache-windows.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ${{ github.workspace }}/.sccache
+          key: ${{ env.SCCACHE_CACHE_KEY }}
+
+      - name: Save compiler cache (Ubicloud local mode)
+        if: >-
+          runner.os == 'Linux' && vars.RSTEST_BDD_SCCACHE_LOCAL == 'true' &&
+          github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+          matrix.features == '' &&
+          steps.sccache-linux.outputs.cache-hit != 'true'
+        uses: ubicloud/cache/save@92361f338d82d2c58a98875f1b5c95cd14cd6b2a  # v4.1.2
+        with:
+          path: ${{ github.workspace }}/.sccache
+          key: ${{ env.SCCACHE_CACHE_KEY }}
+
+      - name: Record cache observations
+        if: ${{ always() }}
+        shell: bash
+        env:
+          CARGO_CACHE_HIT: >-
+            ${{ steps.cargo-registry-linux.outputs.cache-hit }}${{ steps.cargo-registry-windows.outputs.cache-hit }}
+          CI_TOOLS_CACHE_HIT: >-
+            ${{ steps.ci-tools-linux.outputs.cache-hit }}${{ steps.ci-tools-windows.outputs.cache-hit }}
+          WHITAKER_CACHE_HIT: ${{ steps.whitaker-suite.outputs.cache-hit }}
+          RUNNER_LABEL: ${{ matrix.os }}
+          RUNNER_ENVIRONMENT_NAME: ${{ runner.environment }}
+          SCCACHE_CACHE_HIT: >-
+            ${{ steps.sccache-linux.outputs.cache-hit }}${{ steps.sccache-windows.outputs.cache-hit }}
+        run: |
+          set -euo pipefail
+          {
+            printf '### Cache observations\n\n'
+            printf -- '- runner: %s os: %s arch: %s environment: %s\n' \
+              "$RUNNER_LABEL" "$RUNNER_OS" "$RUNNER_ARCH" \
+              "$RUNNER_ENVIRONMENT_NAME"
+            printf -- '- registry key: %s hit: %s\n' \
+              "${CARGO_CACHE_KEY:-unset}" "${CARGO_CACHE_HIT:-skipped}"
+            printf -- '- tool key: %s hit: %s\n' \
+              "${CI_TOOLS_CACHE_KEY:-unset}" "${CI_TOOLS_CACHE_HIT:-skipped}"
+            printf -- '- whitaker key: %s hit: %s\n' \
+              "${WHITAKER_CACHE_KEY:-unset}" "${WHITAKER_CACHE_HIT:-skipped}"
+            printf -- '- sccache key: %s hit: %s gha-backend: %s\n' \
+              "${SCCACHE_CACHE_KEY:-unset}" "${SCCACHE_CACHE_HIT:-skipped}" \
+              "${SCCACHE_GHA_ENABLED:-unset}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Report compiler-cache effectiveness
         if: ${{ always() }}
         shell: bash
         run: |
           set -euo pipefail
-          if command -v sccache >/dev/null 2>&1; then
-            sccache --show-stats
-          else
+          if ! command -v sccache >/dev/null 2>&1; then
             echo 'sccache was unavailable before its prebuilt installation completed.'
+            exit 0
           fi
+          sccache --show-stats | tee sccache-stats.txt
+          sccache --show-stats --stats-format json > sccache-stats.json
+          {
+            printf '### sccache\n\n'
+            printf '```text\n'
+            cat sccache-stats.txt
+            printf '```\n'
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -4,117 +4,154 @@ For engineers and contributors working on the rstest-bdd codebase.  This guide
 covers workspace tooling, test infrastructure, macro internals, and the
 patterns used across crates — it is not a user-facing tutorial.
 
-## GitHub Actions runner profiles
+## GitHub Actions runner placement
 
-Repository-owned build-matrix jobs use deployed Namespace runner profiles.
-Profile tags and workflow labels are an external contract: create and verify a
-profile in the Namespace workspace connected to this repository before merging
-a workflow that names it. The delayed-comment workflow stays on
-`ubuntu-latest`: it waits and calls GitHub's API, so a build runner and cache
-provide no benefit.
+Repository-owned Linux build-matrix jobs run on Ubicloud managed runners.
+Windows jobs, the delayed-comment workflow, and every scheduled or
+administrative job stay on GitHub-hosted runners. Ubicloud offers Linux runners
+only, and the GitHub-hosted Windows queue has not been the contention problem
+this migration targets.
 
-| Profile tag       | Workflow label                      | Operating system    | Machine shape | Namespace cache volume | Intended workload                 |
-| ----------------- | ----------------------------------- | ------------------- | ------------- | ---------------------- | --------------------------------- |
-| `rust-linux-ci`   | `namespace-profile-rust-linux-ci`   | Ubuntu 24.04        | 4 vCPU, 8 GB  | Attached               | Linux build-and-coverage matrix   |
-| `rust-windows-ci` | `namespace-profile-rust-windows-ci` | Windows Server 2022 | 4 vCPU, 8 GB  | Attached               | Windows build-and-coverage matrix |
+| Workflow label        | Provider      | Operating system | Machine shape | Intended workload                  |
+| --------------------- | ------------- | ---------------- | ------------- | ---------------------------------- |
+| `ubicloud-standard-2` | Ubicloud      | Ubuntu 24.04     | 2 vCPU, 8 GB  | Linux build-and-coverage matrix    |
+| `windows-latest`      | GitHub-hosted | Windows Server   | 4 vCPU, 16 GB | Windows build-and-coverage matrix  |
+| `ubuntu-latest`       | GitHub-hosted | Ubuntu           | 2 vCPU, 7 GB  | Delayed comment and API-bound work |
 
-*Table: Namespace runner profiles used directly by rstest-bdd workflows.*
+*Table: runner labels used directly by rstest-bdd workflows.*
 
 The `build-test` matrix resolves `runs-on` from `matrix.os`. Both Linux feature
-lanes use `namespace-profile-rust-linux-ci`; both Windows feature lanes use
-`namespace-profile-rust-windows-ci`. The feature sets, default-feature policy,
-coverage behaviour, and Windows `use-nextest: false` deadlock mitigation stay
-unchanged. The CodeScene and coverage-ratchet conditions identify the Linux
-profile explicitly, so a profile reassignment must update those conditions and
-the workflow contracts together.
+lanes use `ubicloud-standard-2`; both Windows feature lanes use
+`windows-latest`. The feature sets, default-feature policy, coverage behaviour,
+and Windows `use-nextest: false` deadlock mitigation stay unchanged. The
+CodeScene and coverage-ratchet conditions identify the Linux label explicitly,
+so a runner reassignment must update those conditions and the workflow
+contracts together. `ubicloud-standard-2` is the recipe's starting shape;
+escalating to `ubicloud-standard-4` requires recorded evidence from at least
+three warm runs, because the per-minute rate doubles with the vCPU count.
 
-The matrix mounts the attached Namespace cache volume after checkout and before
-tool setup. It explicitly owns Cargo downloads, uv download, environment, and
-shim directories, Bun data, signed prebuilt CI tools, and local sccache state,
-so the workflow must not reintroduce direct `actions/cache` entries for those
-paths. The workflow deliberately avoids the cache action's `rust` and `bun`
-modes: the former mounts the disposable Cargo `target` directory, while the
-latter executes Bun during cache planning before every matrix lane provides it.
-The shared setup-rust revision `5daae0a332441d170d88ca648c9e71f0bbe96cb3` is
-the merged shared-actions PR #421 revision, and it accepts
-`cache-provider: external` and `use-sccache: 'false'`. The workflow then
-installs the pinned prebuilt `sccache` binary and reports its statistics. The
-coverage reusable action uses the same external-cache contract.
+`ubicloud-standard-2` is registered in `.github/actionlint.yaml` under
+`self-hosted-runner.labels`. GitHub-hosted labels need no registration.
+
+### Cache ownership
+
+Ubicloud destroys each runner's disk at the end of the job, so there is no
+persistent volume and every cache is an archive. Each mutable path therefore
+has exactly one owner and one explainable key. Every key carries a `v1` schema
+generation plus the operating system, architecture, and `runner.environment`,
+so a self-hosted Ubicloud archive can never be restored onto a GitHub-hosted
+image with a different GNU C Library baseline.
+
+| Cache            | Paths                                                                                                             | Key inputs                       |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| Cargo registry   | `~/.cargo/registry`, `~/.cargo/git`                                                                               | toolchain, `Cargo.lock`, scope   |
+| CI tool binaries | `~/.cargo/bin`, `~/.local/bin`, `~/.cache/uv`, `~/.local/share/uv`, Bun stores, `~/.cache/puppeteer`, `.ci-tools` | every tool version pin, scope    |
+| Whitaker suite   | `~/.local/share/whitaker`                                                                                         | installer version, `dylint.toml` |
+| Compiler cache   | `.sccache`                                                                                                        | toolchain, `Cargo.lock`, scope   |
+
+Linux lanes use `ubicloud/cache/restore` and `ubicloud/cache/save`; the Windows
+lane uses `actions/cache/restore` and `actions/cache/save`, because the
+Ubicloud action reads runtime variables that only an Ubicloud virtual machine
+supplies. uv reports a tool as installed from its environment store alone, so
+the download store, the environment store, and the shim directory are restored
+together by one owner rather than as three independent caches. The Whitaker
+cache mounts only the installer-managed suite directory; the installer binary
+itself lives in `~/.cargo/bin`, which the tool cache owns, and the tool key
+includes the installer version so the two cannot disagree.
+
+Caches are restored on every run. They are saved only by the default-features
+lane on a `push` to `main`, and only when the restore missed. That gives each
+key exactly one writer, so `Unable to reserve cache` stampedes cannot occur and
+pull-request runs waste no time uploading archives they are not allowed to
+publish. `ci.yml` triggers on `push` to `main` for this reason: while it ran
+only on pull requests and manual dispatch, nothing could ever populate a
+trusted generation, so every lane was legitimately cold.
+
+The shared `setup-rust` and `generate-coverage` actions are called with
+`cache-provider: external` and `use-sccache: 'false'` so the workflow remains
+the single cache owner, and the workflow must not reintroduce competing cache
+entries for the paths above.
+
+`coverage-main.yml` also runs on `ubicloud-standard-2`. It writes the coverage
+ratchet baseline that pull-request lanes read, and Ubicloud caches are not
+shared with GitHub-hosted runners, so the baseline writer must sit on the same
+provider as its readers.
+
+### Compiler cache
 
 `sccache` writes to `SCCACHE_DIR`, which the workflow pins to
-`${{ github.workspace }}/.sccache` on both platforms. The default location
-differs per platform and falls outside the mounted volume on Windows, where
-Namespace implements cache mounts as junctions, so one explicit workspace
-directory keeps the compiler cache mounted everywhere. `SCCACHE_CACHE_SIZE` is
-capped below the 20 GB volume so the compiler cache cannot evict the Cargo
-registry, Git checkouts, or the verified tool directory. Each lane zeroes the
-counters immediately after installing `sccache`, so the reported statistics
-describe that job's compilation rather than installer activity.
+`${{ github.workspace }}/.sccache` on both platforms, because the default
+location differs per platform and is awkward to cache. The Linux lanes use the
+GitHub Actions cache backend (`SCCACHE_GHA_ENABLED`); the Windows lane always
+uses that local directory under `actions/cache`, so its compiler cache has one
+owner. Setting the `RSTEST_BDD_SCCACHE_LOCAL` repository variable to `true`
+switches the Linux lanes to the same local-directory mode with an
+`ubicloud/cache` owner. Use it if a cold-writer run reports sccache write
+errors above roughly two percent of requests, which would mean the backend is
+competing for GitHub's per-repository cache limits rather than reaching
+Ubicloud storage.
 
-Both profiles restrict cache-generation commits to `main`. Pull-request runs
-therefore read the trusted generation but never publish one, and `ci.yml` runs
-only on `pull_request` and `workflow_dispatch`. A trusted generation appears
-only after `ci.yml` is dispatched on `main`. Until that happens, every
-pull-request lane is legitimately cold, and a low `sccache` hit rate reflects
-the missing generation rather than broken wiring. Compare warm behaviour only
-against runs that follow a `main` dispatch.
+The runner exposes the Actions cache credentials to JavaScript actions only, so
+a pinned `actions/github-script` step re-exports `ACTIONS_RESULTS_URL` and
+`ACTIONS_RUNTIME_TOKEN` before the workflow's own checksum-verified `sccache`
+binary starts. Without that step the backend would silently fall back to local
+disk. `SCCACHE_CACHE_SIZE` is capped at 2 GB so a local-mode archive cannot
+crowd the Cargo registry, tool directory, and Whitaker suite out of Ubicloud's
+30 GB weekly per-repository quota. Each lane zeroes the counters immediately
+after installing `sccache`, and the final step publishes `sccache --show-stats`
+in text and JSON to the job summary alongside every cache key and hit result.
 
-Each Namespace job is constrained to at most 4 vCPU and 8 GB memory. CI sets
-`CARGO_BUILD_JOBS=4` and `NEXTEST_TEST_THREADS=4` so build and nextest
-parallelism cannot exceed that runner shape. The Python coverage suite remains
-serial because its Whitaker integration invokes Cargo and would otherwise
-contend on Cargo's package-cache lock. Namespace-managed runners already carry
-service authentication, so the matrix does not use `nscloud-setup` and keeps
-its token scope at `contents: read`.
+### Parallelism and prerequisites
 
-Namespace images have a smaller tool contract than GitHub-hosted images. The
-Linux runner supplies Bash, `sudo`, and `apt`; pinned setup actions install
-Rust, `uv`, and Bun, while the published-GPUI step installs its development
-libraries explicitly. The Windows runner must expose Git, Git Bash, and
-Chocolatey before repository code runs. Its first matrix step verifies those
-commands, installs GNU Make through Chocolatey, and verifies `make` before
-checkout. The matrix pins `stable-x86_64-pc-windows-msvc`; relying on the
-runner's default Rust host can select the GNU toolchain, whose distribution
-lacks the profiler runtime required by coverage. Git Bash is required by the
-shared Rust and coverage composite actions and by the root Makefile's
-`SHELL := bash` contract.
+The workflow declares named vCPU constants for both shapes,
+`UBICLOUD_LINUX_VCPUS` and `GITHUB_WINDOWS_VCPUS`, and derives
+`CARGO_BUILD_JOBS` and `NEXTEST_TEST_THREADS` from the constant matching the
+current runner. Nothing uses an unconstrained `-j auto`. The Python coverage
+suite remains serial because its Whitaker integration invokes Cargo and would
+otherwise contend on Cargo's package-cache lock. Ubicloud jobs declare
+`timeout-minutes` because they register as just-in-time self-hosted runners, to
+which GitHub's six-hour hosted limit does not apply.
+
+Both runner images derive from GitHub's `actions/runner-images` templates, so
+the tool inventory is close to identical, but neither ships `uv`, `sccache`,
+`cargo-binstall`, or Bun. The pinned setup actions install Rust, `uv`, and
+`cargo-binstall`; the workflow installs Bun and its own checksum-verified
+`sccache`; and the published-GPUI step installs its development libraries
+explicitly. The GitHub-hosted Windows image ships Git, Git Bash, and Chocolatey
+but not GNU Make, which `make publish-check` needs on every lane, so the
+Windows lane installs it before anything else. The matrix pins
+`stable-x86_64-pc-windows-msvc`; relying on the runner's default Rust host can
+select the GNU toolchain, whose distribution lacks the profiler runtime
+required by coverage.
 
 The Linux tools lanes install Merman 0.7.0 from its upstream release archive,
 verify the pinned SHA-256 before extraction, and retain the verified binary in
-the Namespace tool directory. Cargo Binstall's quick-install mirror does not
+the workspace tool directory. Cargo Binstall's quick-install mirror does not
 publish a signature for that archive, so a signed-only Binstall command cannot
 provide it without falling back to a forbidden source build.
 
-The pinned shared Rust and coverage actions currently reach nested cache,
-sccache, and artefact actions as well as Node 24 checkout and `setup-uv`
-runtimes. Namespace can promote an older nested Node runtime. Keep the
-workflow-wide `ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION` compatibility switch
-unset; if an exact-head Windows run shows a promotion-specific crash, update
-the nested action chain upstream or document and scope a temporary switch to
-the affected Windows job only.
-
-Use `nsc github profile list -o json` and
-`nsc github profile describe --profile_id ID -o json` to verify the deployed
-profile specification. After workflow changes, correlate GitHub jobs with
-`nsc github job list` and `nsc github job describe` to prove admission, native
-platform, runner provisioning, and execution timing.
+The job log header of an Ubicloud run prints `Ubicloud Managed Runner`, the
+label, the image release, and the console URL, which is the admission evidence.
+Correlate it with the GitHub jobs API for queue and execution timing, and with
+the Ubicloud cache-entries listing to prove that an archive reached Ubicloud
+storage rather than GitHub's.
 
 The mutation-testing and Dependabot auto-merge jobs call SHA-pinned reusable
 workflows in `leynos/shared-actions`. Their callees continue to own runner
 selection; callers must not add `runs-on`. The workflow contract suite protects
-that ownership boundary alongside the matrix assignments and prerequisite
-ordering.
+that ownership boundary alongside the matrix assignments, cache ownership, and
+prerequisite ordering.
 
 The Linux tools lanes also call the SHA-pinned shared `install-whitaker`
-action. That action owns installer caching, validates and normalizes the Cargo
-home, and invokes the installer by its absolute path. Keep this boundary rather
-than recreating the install script inline: it makes the tool location explicit
-across GitHub-hosted and Namespace runner images and preserves the shared
-failure metrics. The current Whitaker dependency releases require the GNU C
-Library baseline supplied by Ubuntu 24.04. Keep the Linux matrix on
-`rust-linux-ci`: an Ubuntu 22.04 profile cannot execute those release binaries,
-and adding the XDG user binary directory to `PATH` would only make an
-incompatible binary shadow Whitaker's Cargo fallback.
+action. That action owns installer download and verification, validates and
+normalizes the Cargo home, and invokes the installer by its absolute path. Keep
+this boundary rather than recreating the install script inline: it makes the
+tool location explicit across runner images and preserves the shared failure
+metrics. The current Whitaker dependency releases require the GNU C Library
+baseline supplied by Ubuntu 24.04, which is `ubicloud-standard-2`'s default
+image. An Ubuntu 22.04 shape cannot execute those release binaries, and adding
+the XDG user binary directory to `PATH` would only make an incompatible binary
+shadow Whitaker's Cargo fallback.
 
 ## Workspace dependency policy
 

@@ -25,7 +25,7 @@ CODESCENE_COVERAGE_USES_RE = re.compile(
     r"[0-9a-f]{40}$"
 )
 CODESCENE_GUARD = (
-    "matrix.os == 'namespace-profile-rust-linux-ci' && "
+    "matrix.os == 'ubicloud-standard-2' && "
     "matrix.features == '' && "
     "github.event_name == 'pull_request' && "
     "env.CS_ACCESS_TOKEN != ''"
@@ -43,8 +43,8 @@ EXPECTED_GENERATOR_INPUTS = {
     "use-cargo-nextest": "${{ matrix.use-nextest }}",
     "pytest-workers": "",
     "with-ratchet": (
-        "${{ (matrix.os == 'namespace-profile-rust-linux-ci' && matrix.features == '') "
-        "&& 'true' || 'false' }}"
+        "${{ (matrix.os == 'ubicloud-standard-2' && matrix.features == '' "
+        "&& github.event_name == 'pull_request') && 'true' || 'false' }}"
     ),
 }
 EXPECTED_CODESCENE_INPUTS = {

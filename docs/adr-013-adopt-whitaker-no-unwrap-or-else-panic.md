@@ -202,54 +202,53 @@ environment:
 Contributor-facing setup and maintenance steps are documented in
 `docs/developers-guide.md` under "Whitaker Dylint suite lint gate (ADR-013)".
 
-## Addendum (2026-09-02): Namespace CI runner migration
+## Addendum (2026-09-03): Ubicloud CI runner migration
 
-The repository-owned CI matrix now runs on cache-enabled Namespace profiles.
-This deployment changes the runner environment, not the four-lane test contract
-described above:
+The repository-owned CI matrix now runs its Linux lanes on Ubicloud managed
+runners and its Windows lanes on GitHub-hosted runners. This deployment changes
+the runner environment, not the four-lane test contract described above:
 
-- Both Linux lanes use `namespace-profile-rust-linux-ci`, an Ubuntu 24.04,
-  amd64 profile with 4 vCPU and 8 GB. The newer GNU C Library baseline can
-  execute Whitaker's repository-hosted Dylint dependency binaries.
+- Both Linux lanes use `ubicloud-standard-2`, an Ubuntu 24.04, amd64 shape with
+  2 vCPU and 8 GB. The newer GNU C Library baseline can execute Whitaker's
+  repository-hosted Dylint dependency binaries.
 - CI pins `whitaker-installer` at `0.2.7` and invokes the SHA-pinned
   `leynos/shared-actions/.github/actions/install-whitaker` action. The shared
   action normalizes Cargo home and executes the installer by absolute path.
-- The earlier shared Rust setup publishes
-  `${CARGO_HOME:-$HOME/.cargo}/bin` through `GITHUB_PATH`, and the pinned
-  `setup-uv` action publishes `$HOME/.local/bin` before Whitaker installation.
-  Those existing setup actions provide user binary-directory discovery; the
-  repository does not add another `PATH` override.
-- Both Windows lanes use `namespace-profile-rust-windows-ci`, a Windows Server
-  2022, amd64 profile with 4 vCPU and 8 GB. Before checkout, the workflow
-  verifies Git, Git Bash, and Chocolatey, installs GNU Make through Chocolatey,
-  and verifies `make`.
+- The shared Rust setup publishes `${CARGO_HOME:-$HOME/.cargo}/bin` through
+  `GITHUB_PATH`, and the pinned `setup-uv` action publishes `$HOME/.local/bin`
+  before Whitaker installation. Those existing setup actions provide user
+  binary-directory discovery; the repository does not add another `PATH`
+  override.
+- Both Windows lanes use the GitHub-hosted `windows-latest` label. Ubicloud
+  offers Linux runners only, and GitHub-hosted Windows capacity has not been
+  the contention problem. The lane stays lean: it installs GNU Make, which the
+  image does not ship, and runs the platform build, coverage, and publish
+  checks rather than the full Linux gate.
 - The migration preserves the two default-feature and two strict-validation
   lanes, `contents: read` permissions, coverage and ratchet semantics, and all
   action SHA pins. Reusable workflow calls remain free of `runs-on`, so their
   external callees continue to own runner selection.
 
-Each profile attaches a 20 GB cache volume whose `allow_commit_from_branch`
-list contains only `main`. The matrix therefore mounts that volume with
-`namespacelabs/nscloud-cache-action` after checkout and before toolchain
-setup, and the Namespace volume is the single owner of the mounted Cargo, uv,
-Bun, verified-tool, and `sccache` paths. Pull-request runs read the trusted
-generation but cannot publish one, so `ci.yml` must be dispatched on `main`
-before warm-cache measurements are meaningful. CI adds no runner
-authentication because managed profile runners already provide it. The runner
-assignments, cache ownership, and prerequisite ordering are enforced by
-`tests/workflow_contracts/namespace_runners_test.py`.
+Every runner is a fresh virtual machine with no persistent volume, so caching
+is archive-based. Each mutable path has exactly one owner and an explainable
+key carrying an explicit `v1` schema generation together with the operating
+system, architecture, and `runner.environment`. Linux lanes use
+`ubicloud/cache/restore` and `ubicloud/cache/save`; the Windows lane uses
+`actions/cache/restore` and `actions/cache/save`. Caches are restored on every
+run and saved only by the default-features lane on a `push` to `main`, so
+pull-request runs read the trusted generation without competing for a
+reservation. `ci.yml` therefore triggers on `push` to `main` as well as on pull
+requests; before that trigger existed no run could ever publish a generation.
+The runner assignments, cache ownership, save policy, and prerequisite ordering
+are enforced by `tests/workflow_contracts/runner_placement_test.py`.
 
-### Validation (2026-09-02)
+### Validation (2026-09-03)
 
-The focused `make test-workflow-contracts` gate passes all 46 contracts,
-including the byte-for-byte baseline that separates this addendum from the
-historical update. The complete deterministic repository gate also passed
-locally. In PR #710, [CI run 33640986488][adr-013-ci-run] passed
-all four `build-test` matrix lanes: Linux default, Linux strict, Windows
-default, and Windows strict. `nsc github job describe` confirmed that the
-Linux jobs used `rust-linux-ci` and the Windows jobs used `rust-windows-ci`.
-
-[adr-013-ci-run]: https://github.com/leynos/rstest-bdd/actions/runs/33640986488
+The focused `make test-workflow-contracts` gate passes, including the
+byte-for-byte baseline that separates this addendum from the historical update.
+The complete deterministic repository gate also passed locally. Exact-head CI
+evidence on the migrated runners is recorded in PR #710 once the shared-actions
+installer revision it depends on is merged and the branch is pushed.
 
 ## Known limitations
 

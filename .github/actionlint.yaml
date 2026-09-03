@@ -1,4 +1,3 @@
 self-hosted-runner:
   labels:
-    - namespace-profile-rust-linux-ci
-    - namespace-profile-rust-windows-ci
+    - ubicloud-standard-2
