@@ -6,7 +6,6 @@
 #![cfg(feature = "native-gpui-tests")]
 
 use std::{
-    fmt,
     panic::{AssertUnwindSafe, catch_unwind, panic_any},
     process::Command,
     sync::{Arc, Mutex},
@@ -23,12 +22,11 @@ use rstest_bdd_harness::{
 };
 use rstest_bdd_harness_gpui::GpuiHarness;
 use serial_test::serial;
-use tracing::{
-    Event,
-    Subscriber,
-    field::{Field, Visit},
-};
-use tracing_subscriber::{Layer, Registry, layer::Context, prelude::*};
+use tracing_subscriber::{Registry, prelude::*};
+
+mod support;
+
+use support::{RecordingLayer, configured_snapshot_settings};
 const FEATURE_PATH: &str = "tests/features/scenario_name_in_logs.feature";
 const FAILING_SCENARIO: &str = "Step panics with augmented diagnostic";
 const SCENARIO_LINE: u32 = 7;
@@ -141,6 +139,13 @@ fn run_child_assertion(
         .arg("--exact")
         .arg("--nocapture")
         .env(child_env, "1")
+        // The child's stderr is snapshotted, and the panic hook prints either
+        // a backtrace or the "run with RUST_BACKTRACE=1" note depending on the
+        // ambient environment. Coverage runs retain debuginfo and some runners
+        // export RUST_BACKTRACE, so pin it here to keep the captured stderr
+        // identical across lanes. `configured_snapshot_settings` normalizes the
+        // other direction, should a caller override this.
+        .env("RUST_BACKTRACE", "0")
         .output()
     else {
         panic!("child test process should run");
@@ -211,29 +216,6 @@ fn failing_scenario_request() -> ScenarioRunRequest<'static, gpui::TestAppContex
             panic!("{STEP_PANIC}");
         }),
     )
-}
-
-/// Returns [`insta::Settings`] with redactions for nondeterministic data only.
-///
-/// Snapshot bodies must pin the exact feature path, scenario name, and feature
-/// line so that regressions in the scenario-name diagnostic are caught.  The
-/// only redactions applied here cover values that genuinely vary across runs:
-/// thread IDs in panic headers, the Rust source file line and column of the
-/// panic site, and the `TypeId` hex emitted for opaque payloads.
-fn configured_snapshot_settings() -> insta::Settings {
-    let mut settings = insta::Settings::clone_current();
-    for (pattern, replacement) in &[
-        // Anchor the thread-id redaction to the Rust panic-header form
-        // `thread '<name>' (<id>) panicked at ...` so unrelated
-        // parenthesized integers in panic payloads (e.g. struct variants)
-        // are preserved in snapshots.
-        (r"(thread '[^']*') \(\d+\)", "$1 ([TID])"),
-        (r"\.rs:\d+:\d+", ".rs:[LINE]:[COL]"),
-        (r"TypeId\(0x[0-9a-f]+\)", "TypeId([TYPEID])"),
-    ] {
-        settings.add_filter(pattern, *replacement);
-    }
-    settings
 }
 
 // ---------------------------------------------------------------------------
@@ -363,38 +345,4 @@ fn teardown_panic_does_not_suppress_original_diagnostic() {
         }),
     );
     let _message = catch_scenario_panic(request);
-}
-
-struct RecordingLayer {
-    events: Arc<Mutex<Vec<String>>>,
-}
-
-impl<S> Layer<S> for RecordingLayer
-where
-    S: Subscriber,
-{
-    /// Visits every tracing event, serializes its fields, and appends the
-    /// result to the shared event buffer for later inspection.
-    fn on_event(&self, event: &Event<'_>, _context: Context<'_, S>) {
-        let mut visitor = EventVisitor::default();
-        event.record(&mut visitor);
-        let mut events = match self.events.lock() {
-            Ok(events) => events,
-            Err(error) => panic!("captured tracing events should not be poisoned: {error}"),
-        };
-        events.push(visitor.fields.join(" "));
-    }
-}
-
-#[derive(Default)]
-struct EventVisitor {
-    fields: Vec<String>,
-}
-
-impl Visit for EventVisitor {
-    /// Records the debug representation of a tracing field into the
-    /// accumulated field list.
-    fn record_debug(&mut self, field: &Field, value: &dyn fmt::Debug) {
-        self.fields.push(format!("{}={value:?}", field.name()));
-    }
 }
