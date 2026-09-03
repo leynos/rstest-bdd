@@ -29,6 +29,9 @@ from workflow_support import (
     job as _job,
 )
 from workflow_support import (
+    path_components as _path_components,
+)
+from workflow_support import (
     step_index as _step_index,
 )
 from workflow_support import (
@@ -91,9 +94,10 @@ def test_no_job_archives_a_target_tree() -> None:
             if not _is_cache_step(step):
                 continue
             for path in _cache_paths(step):
-                assert not PurePosixPath(path).name.startswith("target"), (
+                assert "target" not in _path_components(path), (
                     f"{workflow_name}:{step.get('name')!r} must not archive "
-                    f"{path!r}; sccache owns the debug, cranelift, and "
+                    f"{path!r}; a target component at any depth is a build "
+                    "tree, and sccache owns the debug, cranelift, and "
                     "instrumented objects in one store keyed by flags"
                 )
 
@@ -288,10 +292,19 @@ def test_compiler_cache_backend_has_credentials_and_one_fallback() -> None:
             f"{workflow_name} credential re-export must declare a script"
         )
         script = str(export_inputs.get("script", ""))
-        for variable in ("ACTIONS_RESULTS_URL", "ACTIONS_RUNTIME_TOKEN"):
+        for variable in ("ACTIONS_CACHE_URL", "ACTIONS_RUNTIME_TOKEN"):
             assert variable in script, (
                 f"{workflow_name} must re-export {variable} before sccache starts"
             )
+        assert "ACTIONS_CACHE_SERVICE_V2', ''" in script, (
+            f"{workflow_name} must clear ACTIONS_CACHE_SERVICE_V2 so sccache "
+            "uses the v1 API that Ubicloud's cache proxy serves"
+        )
+        assert "ACTIONS_RESULTS_URL" not in script, (
+            f"{workflow_name} must not export ACTIONS_RESULTS_URL: it addresses "
+            "GitHub's results service, which the proxy does not serve, and "
+            "every sccache write failed against it"
+        )
         assert f"{SCCACHE_LOCAL_VARIABLE} != 'true'" in str(export.get("if", "")), (
             f"{workflow_name} must skip the re-export in local-directory mode"
         )

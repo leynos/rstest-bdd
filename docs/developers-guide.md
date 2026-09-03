@@ -126,15 +126,21 @@ the Linux step names neither `features` nor `with-default-features`.
 `${{ github.workspace }}/.sccache`, because the default location differs per
 platform and is awkward to cache.
 
-The Linux lanes use `sccache`'s GitHub Actions cache backend. Its objects reach
-Ubicloud storage when the `sccache` process holds the Actions cache
-credentials, verified from the Cuprum cache listing on 2026-09-03. A plain
-`run:` step never sees those credentials, because the runner exposes them to
-JavaScript actions only, so a pinned `actions/github-script` step re-exports
-`ACTIONS_RESULTS_URL` and `ACTIONS_RUNTIME_TOKEN` before the workflow's own
-checksum-verified `sccache` binary starts. The re-export must precede the
-installation step, which starts the `sccache` server when it zeroes the
-counters.
+The Linux lanes use `sccache`'s GitHub Actions cache backend, pointed at
+Ubicloud's runner-local cache proxy. A plain `run:` step never sees the Actions
+cache credentials, because the runner exposes them to JavaScript actions only,
+so a pinned `actions/github-script` step re-exports `ACTIONS_CACHE_URL` and
+`ACTIONS_RUNTIME_TOKEN` and clears `ACTIONS_CACHE_SERVICE_V2` before the
+workflow's own checksum-verified `sccache` binary starts. The re-export must
+precede the installation step, which starts the `sccache` server when it zeroes
+the counters.
+
+Exporting `ACTIONS_RESULTS_URL` instead does not work, and the workflow must
+not: that variable addresses GitHub's own results service rather than the
+proxy, and every `sccache` write failed against it. Clearing
+`ACTIONS_CACHE_SERVICE_V2` selects the v1 API that the proxy serves. The proof
+that this reaches Ubicloud is `sccache/*` entries under the branch scope in
+`ubi gh leynos/rstest-bdd list-cache-entries`.
 
 The Windows lane has no such backend, because the shared Rust setup is called
 with `use-sccache: false` and nothing else wires one. It uses the workspace

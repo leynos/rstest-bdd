@@ -265,20 +265,27 @@ jobs:
       # runner exposes them to JavaScript actions only. This job installs its
       # own checksum-verified sccache rather than using the shared action's
       # wiring, so it must re-export them itself.
+      #
+      # Export `ACTIONS_CACHE_URL`, which on an Ubicloud runner addresses the
+      # local cache proxy, and clear `ACTIONS_CACHE_SERVICE_V2` so sccache
+      # uses the v1 API that proxy serves. `ACTIONS_RESULTS_URL` is
+      # deliberately not exported: it addresses GitHub's own results service,
+      # and every sccache write failed while it was the configured endpoint.
       - name: Export Actions cache credentials
         if: >-
           runner.os == 'Linux' && vars.RSTEST_BDD_SCCACHE_LOCAL != 'true'
         uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd  # v8
         with:
           script: |
-            for (const name of ['ACTIONS_RESULTS_URL', 'ACTIONS_RUNTIME_TOKEN']) {
+            for (const name of ['ACTIONS_CACHE_URL', 'ACTIONS_RUNTIME_TOKEN']) {
               const value = process.env[name];
               if (!value) {
-                core.setFailed(`${name} is unavailable; sccache cannot use the GitHub Actions cache backend`);
+                core.setFailed(`${name} is unavailable; sccache cannot reach the Ubicloud cache proxy`);
                 return;
               }
               core.exportVariable(name, value);
             }
+            core.exportVariable('ACTIONS_CACHE_SERVICE_V2', '');
 
       - name: Install prebuilt sccache
         shell: bash
@@ -372,9 +379,10 @@ jobs:
 
       - name: Install Whitaker
         if: ${{ matrix.tools }}
-        # Merged shared-actions PR #422: installs the official release
-        # archive against a pinned digest manifest with no source fallback.
-        uses: leynos/shared-actions/.github/actions/install-whitaker@7d46a399558914f5a05074e55a560fec0269fd0d
+        # Merged shared-actions PR #432: installs the official release
+        # archive against a pinned digest manifest, hashing the archive from
+        # stdin so Git Bash on Windows cannot mangle the file name.
+        uses: leynos/shared-actions/.github/actions/install-whitaker@f6d4d5f549655c118f86f371b8d55c200d3efa50
         with:
           installer-version: ${{ env.WHITAKER_INSTALLER_VERSION }}
           cache-provider: external
@@ -442,7 +450,7 @@ jobs:
       # llvm-cov's nextest path cannot execute doc tests.
       - name: Test and Measure Coverage (Linux)
         if: ${{ runner.os == 'Linux' }}
-        uses: leynos/shared-actions/.github/actions/generate-coverage@7d46a399558914f5a05074e55a560fec0269fd0d
+        uses: leynos/shared-actions/.github/actions/generate-coverage@f6d4d5f549655c118f86f371b8d55c200d3efa50
         env:
           RUN_RUST_CARGO_WAIT_TIMEOUT: '1800'
           # Tests that snapshot a child process's stderr must see the same
@@ -471,7 +479,7 @@ jobs:
       - name: Test and Measure Coverage (Windows, default features)
         if: ${{ runner.os == 'Windows' && matrix.features == '' }}
         # Merged shared-actions whole-workspace coverage revision.
-        uses: leynos/shared-actions/.github/actions/generate-coverage@7d46a399558914f5a05074e55a560fec0269fd0d
+        uses: leynos/shared-actions/.github/actions/generate-coverage@f6d4d5f549655c118f86f371b8d55c200d3efa50
         continue-on-error: true
         env:
           # Windows coverage runs (build plus doctests) exceed the shared
@@ -491,7 +499,7 @@ jobs:
       - name: Test and Measure Coverage (Windows, strict validation)
         if: ${{ runner.os == 'Windows' && matrix.features != '' }}
         # Merged shared-actions whole-workspace coverage revision.
-        uses: leynos/shared-actions/.github/actions/generate-coverage@7d46a399558914f5a05074e55a560fec0269fd0d
+        uses: leynos/shared-actions/.github/actions/generate-coverage@f6d4d5f549655c118f86f371b8d55c200d3efa50
         continue-on-error: true
         env:
           # Windows coverage runs (build plus doctests) exceed the shared
@@ -508,8 +516,11 @@ jobs:
           use-cargo-nextest: ${{ matrix.use-nextest }}
           pytest-workers: ''
 
+      # Only the Linux lane's coverage is mandatory; the Windows steps carry
+      # `continue-on-error`, so verifying their output would red the lane that
+      # the best-effort marking exists to keep green.
       - name: Verify coverage output exists
-        if: ${{ matrix.coverage }}
+        if: ${{ runner.os == 'Linux' }}
         shell: bash
         run: |
           set -euo pipefail

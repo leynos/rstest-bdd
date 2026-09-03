@@ -25,13 +25,16 @@ from workflow_support import (
     job as _job,
 )
 from workflow_support import (
+    jobs as _jobs,
+)
+from workflow_support import (
+    runs_workspace_tests as _runs_workspace_tests,
+)
+from workflow_support import (
     step_index as _step_index,
 )
 from workflow_support import (
     steps as _steps,
-)
-from workflow_support import (
-    workflow as _workflow,
 )
 
 # One Linux lane, because `--all-features` enables
@@ -115,24 +118,32 @@ def test_one_job_executes_the_workspace_suite() -> None:
     """No job may duplicate the executed set of the coverage lane."""
     workflow_directory = ROOT / ".github" / "workflows"
     coverage_callers: list[str] = []
+    direct_runners: list[str] = []
     for workflow_path in sorted(workflow_directory.glob("*.yml")):
-        document = _workflow(workflow_path.name)
-        jobs = document.get("jobs")
-        assert isinstance(jobs, dict), f"{workflow_path.name} must declare jobs"
-        for job_name, job_document in jobs.items():
+        for job_name, job_document in _jobs(workflow_path.name).items():
             if "steps" not in job_document:
                 continue
             for step in _steps(job_document):
-                uses = str(step.get("uses", ""))
-                if uses.startswith(
-                    "leynos/shared-actions/.github/actions/generate-coverage@"
+                location = f"{workflow_path.name}:{job_name}:{step.get('name')!r}"
+                caller = f"{workflow_path.name}:{job_name}"
+                if (
+                    str(step.get("uses", "")).startswith(
+                        "leynos/shared-actions/.github/actions/generate-coverage@"
+                    )
+                    and caller not in coverage_callers
                 ):
-                    coverage_callers.append(f"{workflow_path.name}:{job_name}")
-                    break
+                    coverage_callers.append(caller)
+                if _runs_workspace_tests(step):
+                    direct_runners.append(location)
     assert coverage_callers == ["ci.yml:build-test"], (
         "only ci.yml:build-test may run the coverage driver; a second job with "
         f"the same platform and features would execute nothing new, got "
         f"{coverage_callers}"
+    )
+    assert not direct_runners, (
+        "the coverage action is the only workspace test execution, doc tests "
+        "included, so no step may invoke cargo test, cargo nextest, or make "
+        f"test directly; found {direct_runners}"
     )
 
 
@@ -168,16 +179,11 @@ def test_linux_coverage_is_the_only_linux_test_execution() -> None:
     assert "features" not in inputs, (
         "an explicit feature list would contradict all-features"
     )
-    linux_test_steps = [
-        step
-        for step in steps
-        if str(step.get("run", "")).startswith(("cargo test", "cargo nextest"))
-        or str(step.get("run", "")).strip() == "make test"
-    ]
-    assert linux_test_steps == [], (
+    direct_runners = [step.get("name") for step in steps if _runs_workspace_tests(step)]
+    assert not direct_runners, (
         "the coverage action is the only workspace test execution, doc tests "
-        "included, so no bespoke cargo test step may sit beside it; found "
-        f"{[step.get('name') for step in linux_test_steps]}"
+        f"included, so no bespoke test step may sit beside it; found "
+        f"{direct_runners}"
     )
 
 

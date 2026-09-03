@@ -273,8 +273,11 @@ The Linux lanes use `sccache`'s GitHub Actions cache backend. Its objects reach
 Ubicloud storage when the `sccache` process holds the Actions cache
 credentials, which the Cuprum cache listing confirmed on 2026-09-03. A plain
 `run:` step never sees those credentials, so a pinned `actions/github-script`
-step re-exports `ACTIONS_RESULTS_URL` and `ACTIONS_RUNTIME_TOKEN` before the
-workflow's own checksum-verified `sccache` binary starts. The Windows lane has
+step re-exports `ACTIONS_CACHE_URL` and `ACTIONS_RUNTIME_TOKEN`, and clears
+`ACTIONS_CACHE_SERVICE_V2` to select the v1 API that Ubicloud's runner-local
+cache proxy serves, before the workflow's own checksum-verified `sccache`
+binary starts. `ACTIONS_RESULTS_URL` addresses GitHub's own results service
+rather than that proxy, and every write failed against it. The Windows lane has
 no such backend, because the shared Rust setup is called with
 `use-sccache: false`, so it uses the workspace directory that the cache step
 owns. Setting the `RSTEST_BDD_SCCACHE_LOCAL` repository variable moves the
