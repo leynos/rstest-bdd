@@ -14,10 +14,11 @@ ROOT = Path(__file__).resolve().parents[2]
 GITHUB_HOSTED_LINUX = "ubuntu-latest"
 UBICLOUD_LINUX_LABEL = "ubicloud-standard-2"
 GITHUB_HOSTED_WINDOWS = "windows-latest"
-UBICLOUD_CACHE_PREFIX = "ubicloud/cache/"
-GITHUB_CACHE_PREFIX = "actions/cache/"
-UBICLOUD_CACHE_REF = "@92361f338d82d2c58a98875f1b5c95cd14cd6b2a"
-GITHUB_CACHE_REF = "@55cc8345863c7cc4c66a329aec7e433d2d1c52a9"
+# Ubicloud's transparent cache intercepts actions/cache v6.1.0 on Linux and
+# GitHub serves it on Windows, verified against the Ubicloud cache listing on
+# 2026-09-03. One action and one pin therefore serve every lane.
+CACHE_ACTION_PREFIX = "actions/cache/"
+CACHE_ACTION_REF = "@55cc8345863c7cc4c66a329aec7e433d2d1c52a9"
 SHARED_SETUP_RUST_CACHE_PROVIDER_HEAD = "5daae0a332441d170d88ca648c9e71f0bbe96cb3"
 # The named vCPU constants for the two deployed shapes. Build and test
 # parallelism is derived from these and must never exceed them.
@@ -98,8 +99,7 @@ def is_cache_step(step: dict[str, object]) -> bool:
     bool
         True when the step uses an approved cache action.
     """
-    uses = str(step.get("uses", ""))
-    return uses.startswith((UBICLOUD_CACHE_PREFIX, GITHUB_CACHE_PREFIX))
+    return str(step.get("uses", "")).startswith(CACHE_ACTION_PREFIX)
 
 
 def cache_paths(step: dict[str, object]) -> list[str]:
@@ -121,9 +121,8 @@ def cache_owner(step: dict[str, object]) -> str:
     """Return the logical owner name of a cache step.
 
     Restore and save steps for the same paths share an owner, and so do the
-    Ubicloud and GitHub-hosted variants of one owner: their ``runner.os``
-    guards make them mutually exclusive, which
-    ``test_cache_actions_are_pinned_per_runner_provider`` enforces.
+    Linux and Windows variants of one owner: their ``runner.os`` guards make
+    them mutually exclusive.
 
     Returns
     -------

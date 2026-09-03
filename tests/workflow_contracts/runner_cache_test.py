@@ -12,10 +12,9 @@ import itertools
 from pathlib import PurePosixPath
 
 from workflow_support import (
-    GITHUB_CACHE_REF,
+    CACHE_ACTION_REF,
+    ROOT,
     SHARED_SETUP_RUST_CACHE_PROVIDER_HEAD,
-    UBICLOUD_CACHE_PREFIX,
-    UBICLOUD_CACHE_REF,
 )
 from workflow_support import (
     cache_owner as _cache_owner,
@@ -39,6 +38,10 @@ from workflow_support import (
     workflow as _workflow,
 )
 
+CACHING_JOBS = (
+    ("ci.yml", "build-test"),
+    ("coverage-main.yml", "coverage-upload"),
+)
 TRUNK_SAVE_GUARD_FRAGMENTS = (
     "github.event_name == 'push'",
     "github.ref == 'refs/heads/main'",
@@ -59,30 +62,69 @@ def test_ci_publishes_a_trusted_cache_generation_from_trunk() -> None:
     assert "pull_request" in triggers, "ci.yml must still gate pull requests"
 
 
-def test_cache_actions_are_pinned_per_runner_provider() -> None:
-    """Ubicloud lanes use ubicloud/cache; GitHub-hosted lanes use actions/cache."""
-    steps = _steps(_job("ci.yml", "build-test"))
-    cache_steps = [step for step in steps if _is_cache_step(step)]
-    assert cache_steps, "ci.yml:build-test must declare cache steps"
-    for step in cache_steps:
-        uses = str(step.get("uses"))
-        guard = str(step.get("if", ""))
-        if uses.startswith(UBICLOUD_CACHE_PREFIX):
-            assert uses.endswith(UBICLOUD_CACHE_REF), (
-                f"{step.get('name')!r} must pin the reviewed ubicloud/cache commit"
+def test_one_pinned_cache_action_serves_every_lane() -> None:
+    """Ubicloud's transparent cache intercepts this actions/cache revision."""
+    for workflow_name, job_name in CACHING_JOBS:
+        cache_steps = [
+            step
+            for step in _steps(_job(workflow_name, job_name))
+            if _is_cache_step(step)
+        ]
+        assert cache_steps, f"{workflow_name}:{job_name} must declare cache steps"
+        for step in cache_steps:
+            uses = str(step.get("uses"))
+            assert uses.endswith(CACHE_ACTION_REF), (
+                f"{step.get('name')!r} must pin actions/cache v6.1.0, the "
+                "revision whose Linux keys were observed in the Ubicloud cache "
+                "listing on 2026-09-03"
             )
-            assert "runner.os == 'Linux'" in guard, (
-                f"{step.get('name')!r} must be restricted to Ubicloud Linux lanes: "
-                "the action needs runtime variables only an Ubicloud VM supplies"
-            )
-        else:
-            assert uses.endswith(GITHUB_CACHE_REF), (
-                f"{step.get('name')!r} must pin the repository-approved "
-                "actions/cache commit"
-            )
-            assert "runner.os == 'Windows'" in guard, (
-                f"{step.get('name')!r} must be restricted to the GitHub-hosted lane"
-            )
+        assert not any(
+            "ubicloud/cache" in str(step.get("uses", ""))
+            for step in _steps(_job(workflow_name, job_name))
+        ), f"{workflow_name}:{job_name} must not use the deprecated ubicloud fork"
+
+
+def test_no_job_archives_a_target_tree() -> None:
+    """One compiler cache owns every compiler output and build shape."""
+    for workflow_name, job_name in CACHING_JOBS:
+        for step in _steps(_job(workflow_name, job_name)):
+            if not _is_cache_step(step):
+                continue
+            for path in _cache_paths(step):
+                assert not PurePosixPath(path).name.startswith("target"), (
+                    f"{workflow_name}:{step.get('name')!r} must not archive "
+                    f"{path!r}; sccache owns the debug, cranelift, and "
+                    "instrumented objects in one store keyed by flags"
+                )
+
+
+def test_shared_actions_never_own_a_second_cache() -> None:
+    """The caller owns caching in every workflow that calls a shared action."""
+    workflow_directory = ROOT / ".github" / "workflows"
+    for workflow_path in sorted(workflow_directory.glob("*.yml")):
+        document = _workflow(workflow_path.name)
+        jobs = document.get("jobs")
+        assert isinstance(jobs, dict), f"{workflow_path.name} must declare jobs"
+        for job_name, job_document in jobs.items():
+            if "steps" not in job_document:
+                continue
+            for step in _steps(job_document):
+                uses = str(step.get("uses", ""))
+                if not any(
+                    uses.startswith(f"leynos/shared-actions/.github/actions/{name}@")
+                    for name in ("setup-rust", "generate-coverage")
+                ):
+                    continue
+                inputs = step.get("with")
+                assert isinstance(inputs, dict), (
+                    f"{workflow_path.name}:{job_name}:{step.get('name')!r} must "
+                    "declare inputs so it cedes cache ownership"
+                )
+                assert inputs.get("cache-provider") == "external", (
+                    f"{workflow_path.name}:{job_name}:{step.get('name')!r} must "
+                    "set cache-provider: external so the action's own Cargo and "
+                    "target archives stay disabled"
+                )
 
 
 def test_every_cached_path_has_exactly_one_owner() -> None:
@@ -118,10 +160,7 @@ def test_cache_restores_precede_every_install_and_build() -> None:
         index
         for index, step in enumerate(steps)
         if _is_cache_step(step)
-        and str(step.get("uses")).endswith((
-            f"restore{UBICLOUD_CACHE_REF}",
-            f"restore{GITHUB_CACHE_REF}",
-        ))
+        and str(step.get("uses")).endswith(f"restore{CACHE_ACTION_REF}")
     ]
     assert restore_indices, "ci.yml:build-test must restore its caches"
     assert min(restore_indices) > checkout_index, (
@@ -139,10 +178,7 @@ def test_cache_saves_are_restricted_to_one_writer_on_trunk() -> None:
         step
         for step in steps
         if _is_cache_step(step)
-        and str(step.get("uses")).endswith((
-            f"save{UBICLOUD_CACHE_REF}",
-            f"save{GITHUB_CACHE_REF}",
-        ))
+        and str(step.get("uses")).endswith(f"save{CACHE_ACTION_REF}")
     ]
     assert save_steps, "ci.yml:build-test must save its caches from trunk"
     for step in save_steps:
@@ -236,4 +272,23 @@ def test_shared_actions_leave_cache_ownership_to_the_caller() -> None:
         assert not inputs.get("pytest-workers"), (
             "the Python coverage suite must use an explicit worker count, "
             "never an unconstrained -n auto"
+        )
+
+
+def test_coverage_baseline_job_restores_without_competing_for_a_key() -> None:
+    """ci.yml's trunk lane is the single writer for both shared keys."""
+    steps = _steps(_job("coverage-main.yml", "coverage-upload"))
+    cache_steps = [step for step in steps if _is_cache_step(step)]
+    assert cache_steps, "coverage-main.yml must restore the shared generation"
+    for step in cache_steps:
+        assert str(step.get("uses")).endswith(f"restore{CACHE_ACTION_REF}"), (
+            f"coverage-main.yml:{step.get('name')!r} must restore only; ci.yml's "
+            "build-test lane on main owns every key it reads"
+        )
+    install = steps[_step_index(steps, "Install prebuilt sccache")]
+    install_command = str(install.get("run"))
+    for required_fragment in ("RUSTC_WRAPPER", "--zero-stats", "--only-signed"):
+        assert required_fragment in install_command, (
+            "the coverage build must reach sccache exactly as the test build "
+            f"does; the installer omits {required_fragment!r}"
         )

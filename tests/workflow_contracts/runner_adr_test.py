@@ -62,10 +62,15 @@ def test_runner_addendum_records_the_current_runner_contract() -> None:
         "GITHUB_PATH",
         "GNU Make",
         "contents: read",
-        "ubicloud/cache/restore",
         "actions/cache/restore",
+        "v6.1.0",
+        "2026-09-03",
         "push` to `main",
+        "No job archives a `target` tree",
+        "cache-provider: external",
+        "RUSTC_WRAPPER",
         "runner_placement_test.py",
+        "runner_cache_test.py",
     ):
         assert expected_contract in addendum, (
             f"the runner-migration ADR addendum must record {expected_contract!r}"

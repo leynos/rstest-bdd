@@ -30,13 +30,85 @@ jobs:
       # Match the 2 vCPU shape of ubicloud-standard-2.
       CARGO_BUILD_JOBS: '2'
       NEXTEST_TEST_THREADS: '2'
+      SCCACHE_VERSION: '0.12.0'
+      # No job archives a `target` tree. sccache owns every compiler
+      # output, so the instrumented coverage objects share one store with
+      # ci.yml's test build.
+      SCCACHE_DIR: ${{ github.workspace }}/.sccache
+      SCCACHE_CACHE_SIZE: 4G
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v5
 
+      # Keys match ci.yml's Linux lanes so this job reads the generation
+      # that the build-test writer publishes. `rust-toolchain.toml` pins
+      # `stable`, which is the toolchain those lanes name explicitly.
+      - name: Compute cache keys
+        shell: bash
+        env:
+          LOCKFILE_HASH: ${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+          RUNNER_ENVIRONMENT_NAME: ${{ runner.environment }}
+          TOOLCHAIN: stable
+        run: |
+          set -euo pipefail
+          scope="${RUNNER_OS}-${RUNNER_ARCH}-${RUNNER_ENVIRONMENT_NAME}"
+          {
+            printf 'CARGO_CACHE_KEY=cargo-v1-%s-%s-%s\n' \
+              "$scope" "$TOOLCHAIN" "$LOCKFILE_HASH"
+            printf 'CARGO_CACHE_RESTORE_PREFIX=cargo-v1-%s-%s-\n' \
+              "$scope" "$TOOLCHAIN"
+            printf 'SCCACHE_CACHE_KEY=sccache-v1-%s-%s-debug-%s\n' \
+              "$scope" "$TOOLCHAIN" "$LOCKFILE_HASH"
+            printf 'SCCACHE_CACHE_RESTORE_PREFIX=sccache-v1-%s-%s-debug-\n' \
+              "$scope" "$TOOLCHAIN"
+          } >> "$GITHUB_ENV"
+
+      # Restore only. ci.yml's build-test lane on main is the single writer
+      # for both keys, so this job cannot race it for a reservation.
+      - name: Restore Cargo registry
+        id: cargo-registry
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ env.CARGO_CACHE_KEY }}
+          restore-keys: ${{ env.CARGO_CACHE_RESTORE_PREFIX }}
+
+      - name: Restore compiler cache
+        id: sccache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ${{ github.workspace }}/.sccache
+          key: ${{ env.SCCACHE_CACHE_KEY }}
+          restore-keys: ${{ env.SCCACHE_CACHE_RESTORE_PREFIX }}
+
       - name: Setup Rust
         # Merged shared-actions PR #421 cache-provider revision.
         uses: leynos/shared-actions/.github/actions/setup-rust@5daae0a332441d170d88ca648c9e71f0bbe96cb3
+        with:
+          cache-provider: external
+          use-sccache: 'false'
+
+      - name: Install prebuilt sccache
+        shell: bash
+        run: |
+          set -euo pipefail
+          tool_dir="$GITHUB_WORKSPACE/.ci-tools"
+          mkdir -p "$tool_dir"
+          expected_version="sccache ${SCCACHE_VERSION}"
+          installed_version=""
+          if [[ -x "$tool_dir/sccache" ]]; then
+            installed_version="$("$tool_dir/sccache" --version | tr -d '\r')"
+          fi
+          if [[ "$installed_version" != "$expected_version" ]]; then
+            cargo binstall --no-confirm --only-signed --disable-strategies compile \
+              --install-path "$tool_dir" "sccache@${SCCACHE_VERSION}"
+          fi
+          "$tool_dir/sccache" --version | grep -Fx "$expected_version"
+          printf '%s\n' "$tool_dir" >> "$GITHUB_PATH"
+          printf 'RUSTC_WRAPPER=%s\n' "$tool_dir/sccache" >> "$GITHUB_ENV"
+          "$tool_dir/sccache" --zero-stats
 
       - name: Install bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6  # v2
@@ -56,6 +128,7 @@ jobs:
           # Match the per-invocation coverage timeout used in ci.yml.
           RUN_RUST_CARGO_WAIT_TIMEOUT: '1800'
         with:
+          cache-provider: external
           output-path: coverage.xml
           format: cobertura
           features: rstest-bdd/diagnostics rstest-bdd-macros/compile-time-validation rstest-bdd-server/test-support
@@ -80,3 +153,29 @@ jobs:
           format: cobertura
           access-token: ${{ env.CS_ACCESS_TOKEN }}
           installer-checksum: ${{ vars.CODESCENE_CLI_SHA256 }}
+
+      - name: Report compiler-cache effectiveness
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v sccache >/dev/null 2>&1; then
+            echo 'sccache was unavailable before its prebuilt installation completed.'
+            exit 0
+          fi
+          sccache --show-stats | tee sccache-stats.txt
+          sccache --show-stats --stats-format json > sccache-stats.json
+          {
+            printf '### sccache\n\n'
+            printf -- '- registry key: %s hit: %s\n' \
+              "${CARGO_CACHE_KEY:-unset}" "${CARGO_CACHE_HIT:-skipped}"
+            printf -- '- sccache key: %s hit: %s\n' \
+              "${SCCACHE_CACHE_KEY:-unset}" "${SCCACHE_CACHE_HIT:-skipped}"
+            printf -- '- target archives: none; sccache owns every build shape\n'
+            printf '```text\n'
+            cat sccache-stats.txt
+            printf '```\n'
+          } >> "$GITHUB_STEP_SUMMARY"
+        env:
+          CARGO_CACHE_HIT: ${{ steps.cargo-registry.outputs.cache-hit }}
+          SCCACHE_CACHE_HIT: ${{ steps.sccache.outputs.cache-hit }}

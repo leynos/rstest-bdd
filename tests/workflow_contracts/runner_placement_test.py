@@ -131,6 +131,24 @@ def test_coverage_baseline_writer_shares_its_readers_runner_provider() -> None:
             f"coverage-main.yml:coverage-upload must bound {name} by "
             f"{UBICLOUD_LINUX_VCPUS}, the vCPU count of {UBICLOUD_LINUX_LABEL}"
         )
+    assert env.get("SCCACHE_DIR") == SCCACHE_DIRECTORY, (
+        "coverage-main.yml:coverage-upload must share ci.yml's compiler-cache "
+        "directory, because no job archives a target tree"
+    )
+    assert env.get("SCCACHE_CACHE_SIZE") == "4G", (
+        "coverage-main.yml:coverage-upload must size the compiler cache for "
+        "both build shapes"
+    )
+
+
+def test_shared_cache_keys_name_the_pinned_default_toolchain() -> None:
+    """coverage-main.yml hard-codes the toolchain that its keys must match."""
+    toolchain = (ROOT / "rust-toolchain.toml").read_text(encoding="utf-8")
+    assert 'channel = "stable"' in toolchain, (
+        "coverage-main.yml computes its cache keys with the literal toolchain "
+        "'stable'; that only matches ci.yml's Linux lanes while "
+        "rust-toolchain.toml pins the stable channel"
+    )
 
 
 def test_registered_self_hosted_labels_match_the_matrix() -> None:
@@ -175,20 +193,15 @@ def test_build_matrix_derives_parallelism_from_named_vcpu_constants() -> None:
         "ci.yml:build-test must point sccache at one explicit workspace "
         "directory so the same path is cacheable on both platforms"
     )
-    assert env.get("SCCACHE_CACHE_SIZE") == "2G", (
-        "ci.yml:build-test must bound the compiler cache well below Ubicloud's "
-        "30 GB weekly quota, which it shares with the Cargo and tool caches"
+    assert env.get("SCCACHE_CACHE_SIZE") == "4G", (
+        "ci.yml:build-test must size the compiler cache for both build shapes, "
+        "because no job archives a target tree and sccache owns every "
+        "compiler output"
     )
     steps = _steps(build_test)
-    parallelism = steps[
-        _step_index(steps, "Configure runner parallelism and compiler cache")
-    ]
+    parallelism = steps[_step_index(steps, "Configure runner parallelism")]
     script = str(parallelism.get("run", ""))
-    for required_fragment in (
-        "CARGO_BUILD_JOBS=%s",
-        "NEXTEST_TEST_THREADS=%s",
-        "SCCACHE_GHA_ENABLED=%s",
-    ):
+    for required_fragment in ("CARGO_BUILD_JOBS=%s", "NEXTEST_TEST_THREADS=%s"):
         assert required_fragment in script, (
             f"the parallelism step must export {required_fragment!r}"
         )

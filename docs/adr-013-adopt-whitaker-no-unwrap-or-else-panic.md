@@ -232,15 +232,32 @@ the runner environment, not the four-lane test contract described above:
 Every runner is a fresh virtual machine with no persistent volume, so caching
 is archive-based. Each mutable path has exactly one owner and an explainable
 key carrying an explicit `v1` schema generation together with the operating
-system, architecture, and `runner.environment`. Linux lanes use
-`ubicloud/cache/restore` and `ubicloud/cache/save`; the Windows lane uses
-`actions/cache/restore` and `actions/cache/save`. Caches are restored on every
-run and saved only by the default-features lane on a `push` to `main`, so
+system, architecture, and `runner.environment`. Every lane, Ubicloud and
+GitHub-hosted alike, uses `actions/cache/restore` and `actions/cache/save` at
+v6.1.0: the Ubicloud cache listing on 2026-09-03 showed Linux keys from that
+revision reaching Ubicloud storage, while v4.3.0 left nothing there. The
+deprecated `ubicloud/cache` fork is not used. Caches are restored on every run
+and saved only by the default-features lane on a `push` to `main`, so
 pull-request runs read the trusted generation without competing for a
 reservation. `ci.yml` therefore triggers on `push` to `main` as well as on pull
 requests; before that trigger existed no run could ever publish a generation.
-The runner assignments, cache ownership, save policy, and prerequisite ordering
-are enforced by `tests/workflow_contracts/runner_placement_test.py`.
+The first `main` run must be checked against the Ubicloud cache listing to
+confirm the keys landed there.
+
+No job archives a `target` tree, on any lane or platform. `sccache` is the
+single owner of every compiler output, and one store holds the LLVM debug
+objects of the test build alongside the instrumented objects of the coverage
+build, because `sccache` keys its entries by compiler flags and both shapes
+report no non-cacheable compilations. The shared Rust setup and coverage
+actions are therefore called with `cache-provider: external` in every workflow,
+which disables their own `target` archives, and `RUSTC_WRAPPER` reaches the
+coverage build and the publish dry run exactly as it reaches the test build.
+`sccache` runs in local-directory mode everywhere: its GitHub Actions backend
+writes to GitHub's cache rather than Ubicloud's, which the 2026-09-03 console
+listing confirmed. The runner assignments, cache ownership, save policy, and
+prerequisite ordering are enforced by
+`tests/workflow_contracts/runner_placement_test.py` and
+`tests/workflow_contracts/runner_cache_test.py`.
 
 ### Validation (2026-09-03)
 

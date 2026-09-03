@@ -49,55 +49,72 @@ image with a different GNU C Library baseline.
 | Whitaker suite   | `~/.local/share/whitaker`                                                                                         | installer version, `dylint.toml` |
 | Compiler cache   | `.sccache`                                                                                                        | toolchain, `Cargo.lock`, scope   |
 
-Linux lanes use `ubicloud/cache/restore` and `ubicloud/cache/save`; the Windows
-lane uses `actions/cache/restore` and `actions/cache/save`, because the
-Ubicloud action reads runtime variables that only an Ubicloud virtual machine
-supplies. uv reports a tool as installed from its environment store alone, so
-the download store, the environment store, and the shim directory are restored
+Every lane uses `actions/cache/restore` and `actions/cache/save` pinned to
+v6.1.0. Ubicloud's transparent cache intercepts that revision: the Ubicloud
+cache listing on 2026-09-03 showed Linux keys from it reaching Ubicloud
+storage, while v4.3.0 left nothing there and Windows keys land on GitHub as
+expected. The deprecated `ubicloud/cache` fork is therefore unused, and one
+action with one pin serves both providers. Verify the first `main` run against
+the Ubicloud listing before trusting the warm-cache numbers.
+
+uv reports a tool as installed from its environment store alone, so the
+download store, the environment store, and the shim directory are restored
 together by one owner rather than as three independent caches. The Whitaker
 cache mounts only the installer-managed suite directory; the installer binary
 itself lives in `~/.cargo/bin`, which the tool cache owns, and the tool key
 includes the installer version so the two cannot disagree.
 
 Caches are restored on every run. They are saved only by the default-features
-lane on a `push` to `main`, and only when the restore missed. That gives each
-key exactly one writer, so `Unable to reserve cache` stampedes cannot occur and
-pull-request runs waste no time uploading archives they are not allowed to
-publish. `ci.yml` triggers on `push` to `main` for this reason: while it ran
-only on pull requests and manual dispatch, nothing could ever populate a
-trusted generation, so every lane was legitimately cold.
+lane on a `push` to `main`, and only when the restore missed. Every key carries
+`runner.os`, so that gives one writer per key: the Linux build-test lane owns
+the Linux keys and the Windows lane owns the Windows keys. Pull-request runs
+therefore waste no time uploading archives they are not allowed to publish, and
+`Unable to reserve cache` stampedes cannot occur. `ci.yml` triggers on `push` to
+`main` for this reason: while it ran only on pull requests and manual
+dispatch, nothing could ever populate a trusted generation, so every lane was
+legitimately cold.
 
-The shared `setup-rust` and `generate-coverage` actions are called with
-`cache-provider: external` and `use-sccache: 'false'` so the workflow remains
-the single cache owner, and the workflow must not reintroduce competing cache
-entries for the paths above.
+`coverage-main.yml` runs on `ubicloud-standard-2` and restores the Cargo
+registry and compiler cache under the same keys, but never saves. It writes the
+coverage ratchet baseline that pull-request lanes read, and Ubicloud caches are
+not shared with GitHub-hosted runners, so the baseline writer must sit on the
+same provider as its readers. Its keys name the literal toolchain `stable`,
+which is what `rust-toolchain.toml` pins and what the Linux lanes request
+explicitly.
 
-`coverage-main.yml` also runs on `ubicloud-standard-2`. It writes the coverage
-ratchet baseline that pull-request lanes read, and Ubicloud caches are not
-shared with GitHub-hosted runners, so the baseline writer must sit on the same
-provider as its readers.
+### No target archives
+
+No job archives a `target` tree, on any lane or platform, and none should be
+added. The repository builds the workspace in more than one shape: an ordinary
+debug build for lint and test, and an instrumented build under `llvm-cov` for
+coverage. A `target` archive can hold only one of those shapes, is invalidated
+by almost every change, and grows without bound.
+
+`sccache` is the single owner of every compiler output instead. One store holds
+both shapes because `sccache` keys entries by compiler flags, and measurements
+across the estate show instrumented and cranelift-built objects reporting no
+non-cacheable compilations. Consequently the shared `setup-rust` and
+`generate-coverage` actions are called with `cache-provider: external` in every
+workflow, which disables their own Cargo and `target` archives, and
+`RUSTC_WRAPPER` is exported before the coverage build and `make publish-check`
+exactly as it is before the test build. Codegen selection stays a per-job
+decision; cranelift has no `-C instrument-coverage`, so a coverage lane cannot
+use it.
 
 ### Compiler cache
 
-`sccache` writes to `SCCACHE_DIR`, which the workflow pins to
-`${{ github.workspace }}/.sccache` on both platforms, because the default
-location differs per platform and is awkward to cache. The Linux lanes use the
-GitHub Actions cache backend (`SCCACHE_GHA_ENABLED`); the Windows lane always
-uses that local directory under `actions/cache`, so its compiler cache has one
-owner. Setting the `RSTEST_BDD_SCCACHE_LOCAL` repository variable to `true`
-switches the Linux lanes to the same local-directory mode with an
-`ubicloud/cache` owner. Use it if a cold-writer run reports sccache write
-errors above roughly two percent of requests, which would mean the backend is
-competing for GitHub's per-repository cache limits rather than reaching
-Ubicloud storage.
+`sccache` writes to `SCCACHE_DIR`, which every workflow pins to
+`${{ github.workspace }}/.sccache`, because the default location differs per
+platform and is awkward to cache. It runs in local-directory mode on every
+lane, restored and saved by the cache action with a `restore-keys` prefix. Its
+GitHub Actions backend is not used: on Ubicloud that backend writes to GitHub's
+cache rather than Ubicloud's, which the 2026-09-03 console listing confirmed by
+showing thousands of small `sccache/...` entries on GitHub's side and none on
+Ubicloud's.
 
-The runner exposes the Actions cache credentials to JavaScript actions only, so
-a pinned `actions/github-script` step re-exports `ACTIONS_RESULTS_URL` and
-`ACTIONS_RUNTIME_TOKEN` before the workflow's own checksum-verified `sccache`
-binary starts. Without that step the backend would silently fall back to local
-disk. `SCCACHE_CACHE_SIZE` is capped at 2 GB so a local-mode archive cannot
-crowd the Cargo registry, tool directory, and Whitaker suite out of Ubicloud's
-30 GB weekly per-repository quota. Each lane zeroes the counters immediately
+`SCCACHE_CACHE_SIZE` is 4 GB, sized for two build shapes while leaving room in
+Ubicloud's 30 GB weekly per-repository quota for the registry, the tool
+directory, and the Whitaker suite. Each lane zeroes the counters immediately
 after installing `sccache`, and the final step publishes `sccache --show-stats`
 in text and JSON to the job summary alongside every cache key and hit result.
 
