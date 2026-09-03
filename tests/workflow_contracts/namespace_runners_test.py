@@ -22,6 +22,10 @@ NAMESPACE_CACHE_ACTION = (
     "namespacelabs/nscloud-cache-action@c5f8dab7560444c4bf8dbc64f1b203431873c547"
 )
 SHARED_SETUP_RUST_CACHE_PROVIDER_HEAD = "5daae0a332441d170d88ca648c9e71f0bbe96cb3"
+# Both live profiles are configured at 4 vCPU and 8 GB. Build and test
+# parallelism must not exceed that configured vCPU count.
+PROFILE_VCPU_COUNT = "4"
+SCCACHE_DIRECTORY = "${{ github.workspace }}/.sccache"
 EXPECTED_BUILD_MATRIX = [
     {
         "os": LINUX_PROFILE,
@@ -142,13 +146,16 @@ def test_build_matrix_uses_one_cache_owner_for_workflow_paths() -> None:
     assert cache_step.get("with") == {
         "path": (
             "~/.bun/install/cache\n"
+            "~/.cache/uv\n"
             "~/.cargo/bin\n"
             "~/.cargo/git\n"
             "~/.cargo/registry\n"
-            "~/.cache/sccache\n"
-            "~/.cache/uv\n"
+            # uv reports a tool as installed from its environment store alone,
+            # so the shim directory must be restored with it.
+            "~/.local/bin\n"
             "~/.local/share/uv\n"
             "${{ github.workspace }}/.ci-tools\n"
+            "${{ github.workspace }}/.sccache\n"
         ),
     }, "ci.yml:Namespace cache action must own the selected cache paths"
     assert not any(
@@ -174,11 +181,23 @@ def test_build_matrix_configures_external_cache_and_bounded_parallelism() -> Non
     build_test = _job("ci.yml", "build-test")
     env = build_test.get("env")
     assert isinstance(env, dict), "ci.yml:build-test must declare an environment"
-    assert env.get("CARGO_BUILD_JOBS") == "4", (
-        "ci.yml:build-test must cap Cargo builds at the four-vCPU runner limit"
+    assert env.get("CARGO_BUILD_JOBS") == PROFILE_VCPU_COUNT, (
+        "ci.yml:build-test must set CARGO_BUILD_JOBS to "
+        f"{PROFILE_VCPU_COUNT}, the vCPU count of {LINUX_PROFILE} and "
+        f"{WINDOWS_PROFILE}"
     )
-    assert env.get("NEXTEST_TEST_THREADS") == "4", (
-        "ci.yml:build-test must cap nextest at the four-vCPU runner limit"
+    assert env.get("NEXTEST_TEST_THREADS") == PROFILE_VCPU_COUNT, (
+        "ci.yml:build-test must set NEXTEST_TEST_THREADS to "
+        f"{PROFILE_VCPU_COUNT}, the vCPU count of {LINUX_PROFILE} and "
+        f"{WINDOWS_PROFILE}"
+    )
+    assert env.get("SCCACHE_DIR") == SCCACHE_DIRECTORY, (
+        "ci.yml:build-test must point sccache at the mounted workspace "
+        "directory so Windows junctions and Linux bind mounts agree"
+    )
+    assert env.get("SCCACHE_CACHE_SIZE") == "6G", (
+        "ci.yml:build-test must bound the compiler cache below the 20 GB "
+        "profile volume it shares with the Cargo and tool caches"
     )
     setup_step = next(
         step for step in _steps(build_test) if step.get("name") == "Setup Rust"
@@ -215,6 +234,7 @@ def test_build_matrix_reports_cache_and_sccache_state() -> None:
         "--disable-strategies compile",
         "--only-signed",
         "RUSTC_WRAPPER",
+        "--zero-stats",
     }
     missing_fragments = sorted(
         fragment
@@ -330,3 +350,26 @@ def test_external_reusable_workflows_keep_callee_owned_runners() -> None:
         assert "runs-on" not in job, (
             f"{workflow_name}:{job_name} must leave runner selection to its callee"
         )
+
+
+def test_workflows_never_fall_back_to_a_source_build() -> None:
+    """Fail closed when a trusted prebuilt binary is unavailable."""
+    workflow_directory = ROOT / ".github" / "workflows"
+    for workflow_path in sorted(workflow_directory.glob("*.yml")):
+        text = workflow_path.read_text(encoding="utf-8")
+        assert "cargo install" not in text, (
+            f"{workflow_path.name} must not compile a tool from source; install "
+            "a checksum-verified or signed prebuilt binary instead"
+        )
+        assert "taiki-e/install-action" not in text, (
+            f"{workflow_path.name} must not use taiki-e/install-action without a "
+            "reviewed 'fallback: none' exception"
+        )
+        if "cargo binstall" in text:
+            assert "--disable-strategies compile" in text, (
+                f"{workflow_path.name} must disable Binstall's compile strategy "
+                "so a missing binary fails the job"
+            )
+            assert "--only-signed" in text, (
+                f"{workflow_path.name} must require a signed Binstall artefact"
+            )

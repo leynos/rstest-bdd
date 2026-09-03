@@ -23,6 +23,15 @@ jobs:
       WHITAKER_INSTALLER_VERSION: '0.2.7'
       CARGO_BUILD_JOBS: '4'
       NEXTEST_TEST_THREADS: '4'
+      # sccache's per-platform default directory is outside the Namespace
+      # volume on Windows, and Namespace mounts Windows cache paths as
+      # junctions. One explicit workspace directory therefore gives both
+      # platforms the same mounted compiler cache.
+      SCCACHE_DIR: ${{ github.workspace }}/.sccache
+      # The profile volume is 20 GB and also holds the Cargo registry, Git
+      # checkouts, and the verified tool directory. Bound the compiler cache
+      # so it cannot evict those cheaper-to-restore layers.
+      SCCACHE_CACHE_SIZE: 6G
     strategy:
       fail-fast: false
       matrix:
@@ -102,13 +111,14 @@ jobs:
         with:
           path: |
             ~/.bun/install/cache
+            ~/.cache/uv
             ~/.cargo/bin
             ~/.cargo/git
             ~/.cargo/registry
-            ~/.cache/sccache
-            ~/.cache/uv
+            ~/.local/bin
             ~/.local/share/uv
             ${{ github.workspace }}/.ci-tools
+            ${{ github.workspace }}/.sccache
 
       - name: Setup Rust
         # Merged shared-actions PR #421 cache-provider revision.
@@ -180,8 +190,18 @@ jobs:
           mkdir -p "$tool_dir"
           cargo binstall --no-confirm --only-signed --disable-strategies compile \
             --install-path "$tool_dir" 'sccache@0.12.0'
+          # Binstall writes `sccache.exe` on Windows; resolve the real file so
+          # the wrapper and the counter reset both name an executable.
+          sccache_bin="$tool_dir/sccache"
+          if [[ ! -x "$sccache_bin" ]]; then
+            sccache_bin="$tool_dir/sccache.exe"
+          fi
+          test -x "$sccache_bin"
           printf '%s\n' "$tool_dir" >> "$GITHUB_PATH"
-          printf 'RUSTC_WRAPPER=%s/sccache\n' "$tool_dir" >> "$GITHUB_ENV"
+          printf 'RUSTC_WRAPPER=%s\n' "$sccache_bin" >> "$GITHUB_ENV"
+          # Zero the counters before the first compilation so the reported
+          # statistics describe this job's builds rather than installer noise.
+          "$sccache_bin" --zero-stats
 
       - name: Install Mermaid CLI
         if: ${{ matrix.tools }}

@@ -29,17 +29,35 @@ profile explicitly, so a profile reassignment must update those conditions and
 the workflow contracts together.
 
 The matrix mounts the attached Namespace cache volume after checkout and before
-tool setup. It explicitly owns Cargo downloads, uv and Bun data, signed
-prebuilt CI tools, and local sccache state, so the workflow must not
-reintroduce direct `actions/cache` entries for those paths. The workflow
-deliberately avoids the cache action's `rust` and `bun` modes: the former
-mounts the disposable Cargo `target` directory, while the latter executes Bun
-during cache planning before every matrix lane provides it. The shared
-setup-rust revision `5daae0a332441d170d88ca648c9e71f0bbe96cb3` accepts
-`cache-provider: external` and `use-sccache: 'false'`; the workflow then
-installs the pinned prebuilt `sccache` binary and reports its statistics. is
-the merged shared-actions PR #421 revision. The coverage reusable action uses
-the same external-cache contract.
+tool setup. It explicitly owns Cargo downloads, uv download, environment, and
+shim directories, Bun data, signed prebuilt CI tools, and local sccache state,
+so the workflow must not reintroduce direct `actions/cache` entries for those
+paths. The workflow deliberately avoids the cache action's `rust` and `bun`
+modes: the former mounts the disposable Cargo `target` directory, while the
+latter executes Bun during cache planning before every matrix lane provides it.
+The shared setup-rust revision `5daae0a332441d170d88ca648c9e71f0bbe96cb3` is
+the merged shared-actions PR #421 revision, and it accepts
+`cache-provider: external` and `use-sccache: 'false'`. The workflow then
+installs the pinned prebuilt `sccache` binary and reports its statistics. The
+coverage reusable action uses the same external-cache contract.
+
+`sccache` writes to `SCCACHE_DIR`, which the workflow pins to
+`${{ github.workspace }}/.sccache` on both platforms. The default location
+differs per platform and falls outside the mounted volume on Windows, where
+Namespace implements cache mounts as junctions, so one explicit workspace
+directory keeps the compiler cache mounted everywhere. `SCCACHE_CACHE_SIZE` is
+capped below the 20 GB volume so the compiler cache cannot evict the Cargo
+registry, Git checkouts, or the verified tool directory. Each lane zeroes the
+counters immediately after installing `sccache`, so the reported statistics
+describe that job's compilation rather than installer activity.
+
+Both profiles restrict cache-generation commits to `main`. Pull-request runs
+therefore read the trusted generation but never publish one, and `ci.yml` runs
+only on `pull_request` and `workflow_dispatch`. A trusted generation appears
+only after `ci.yml` is dispatched on `main`. Until that happens, every
+pull-request lane is legitimately cold, and a low `sccache` hit rate reflects
+the missing generation rather than broken wiring. Compare warm behaviour only
+against runs that follow a `main` dispatch.
 
 Each Namespace job is constrained to at most 4 vCPU and 8 GB memory. CI sets
 `CARGO_BUILD_JOBS=4` and `NEXTEST_TEST_THREADS=4` so build and nextest
