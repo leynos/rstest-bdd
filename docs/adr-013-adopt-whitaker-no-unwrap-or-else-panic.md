@@ -253,17 +253,20 @@ actions are therefore called with `cache-provider: external` in every workflow,
 which disables their own `target` archives, and `RUSTC_WRAPPER` reaches the
 coverage build and the publish dry run exactly as it reaches the test build.
 
-No job runs a test suite that another job already runs on the same platform
-with the same features. Every Rust test execution goes through `cargo llvm-cov`
-inside the shared coverage action, so there was no test-only lane to retire;
-the duplicate was a second coverage workflow whose platform, feature set, and
-driver matched the Linux default lane once `ci.yml` gained its `push` trigger.
-That workflow is removed and its ratchet write and CodeScene upload moved into
-the surviving lane. The two strict-validation lanes and the two Windows lanes
-differ in feature set or platform and all remain. Because
-`cargo llvm-cov nextest` skips doctests, the surviving lane runs
-`cargo test --doc --workspace --all-features` explicitly; nothing in CI ran
-doctests before.
+The coverage job is the only test execution on Linux. It runs
+`cargo llvm-cov nextest --workspace --all-targets --all-features` under
+`RUSTFLAGS=-D warnings`, plus one `cargo test --doc --workspace --all-features`
+step, because `cargo llvm-cov nextest` skips doctests and nothing in CI ran
+them before. No uninstrumented workspace test run sits beside it.
+
+The Linux `strict-compile-time-validation` lane is folded into that run.
+`strict-compile-time-validation` only implies `compile-time-validation` and
+conflicts with no other feature, so `--all-features` already enables it and the
+separate lane executed nothing new. The two Windows lanes keep their feature
+split because Windows uses a different test driver and the Linux run does not
+cover it. A former `coverage-main.yml` duplicated the Linux lane exactly once
+`ci.yml` gained its `push` trigger; it is removed and its ratchet write and
+CodeScene upload moved into the surviving lane.
 
 The Linux lanes use `sccache`'s GitHub Actions cache backend. Its objects reach
 Ubicloud storage when the `sccache` process holds the Actions cache

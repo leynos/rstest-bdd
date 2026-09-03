@@ -73,58 +73,50 @@ therefore waste no time uploading archives they are not allowed to publish, and
 dispatch, nothing could ever populate a trusted generation, so every lane was
 legitimately cold.
 
-### One job per executed set
+### One test execution per platform
 
-No job runs a test suite that another job already runs on the same platform
-with the same features. Every Rust test execution in this repository goes
-through `cargo llvm-cov` inside the shared coverage action, so there is no
-separate test-only lane to remove; what did duplicate was a second coverage
-workflow.
+The coverage job is the only test execution on Linux. It runs
+`cargo llvm-cov nextest --workspace --all-targets --all-features` under
+`RUSTFLAGS=-D warnings`, followed by one cheap
+`cargo test --doc --workspace --all-features` step, because
+`cargo llvm-cov nextest` does not run doctests and nothing else in CI did.
+There is no uninstrumented workspace test run beside it, and a contract rejects
+one.
 
-| Lane                        | Platform | Executed set                                                                                                                                   |
-| --------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| build-test, Linux default   | Linux    | `llvm-cov nextest --workspace`, default features plus the diagnostics set; Python suite; workflow contracts; doctests; published-GPUI scenario |
-| build-test, Linux strict    | Linux    | same driver, `--no-default-features --features strict-compile-time-validation`                                                                 |
-| build-test, Windows default | Windows  | `llvm-cov` without nextest, default features                                                                                                   |
-| build-test, Windows strict  | Windows  | same driver, strict feature set                                                                                                                |
+| Lane                        | Platform | Executed set                                                                                                                     |
+| --------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| build-test, Linux           | Linux    | `llvm-cov nextest --workspace --all-targets --all-features`; doctests; Python suite; workflow contracts; published-GPUI scenario |
+| build-test, Windows default | Windows  | `llvm-cov` without nextest, default features plus the diagnostics set                                                            |
+| build-test, Windows strict  | Windows  | `llvm-cov` without nextest, `--no-default-features` plus strict validation                                                       |
 
 *Table: what each surviving lane executes.*
 
-The strict lanes change the feature set and the Windows lanes change the
-platform and the test driver, so none of them is a subset of another and all
-four stay. A former `coverage-main.yml` ran a fifth coverage job whose
-platform, feature set, and driver were identical to the Linux default lane. Once
-`ci.yml` gained its `push` trigger the two executed the same suite on every
-merge, so that workflow is gone and its two distinct behaviours moved into the
-surviving lane: it writes the ratchet baseline on every run, and it uploads to
-CodeScene on trunk while pull requests run the changed-line check. CodeScene
-accepts an upload only for an analysed branch, which is why the two modes are
-separate steps rather than one.
+There is no longer a Linux `strict-compile-time-validation` lane.
+`strict-compile-time-validation = ["compile-time-validation"]` is purely
+additive: it implies `compile-time-validation` and makes macro-expansion
+warnings hard errors. It conflicts with no other feature, so `--all-features`
+already enables it and a separate Linux lane executed nothing new. The Windows
+lanes keep their split, because Windows uses a different driver and is not
+covered by the Linux run.
 
-`cargo llvm-cov nextest` does not run doctests, so before this consolidation no
-job in CI ran them at all. The surviving Linux default lane now runs
-`cargo test --doc --workspace --all-features` once. One lane suffices, because
-`--all-features` already enables the strict-validation feature that the other
-lanes isolate.
+A former `coverage-main.yml` ran a fifth job whose platform, feature set, and
+driver matched the Linux lane. Once `ci.yml` gained its `push` trigger the two
+executed the same suite on every merge, so that workflow is gone and its two
+distinct behaviours moved into the surviving lane: it writes the ratchet
+baseline on every run, and it uploads to CodeScene on trunk while pull requests
+run the changed-line check. CodeScene accepts an upload only for an analysed
+branch, which is why the two modes are separate steps.
 
-### No target archives
+Two Linux steps look like test runs but are not part of the workspace suite and
+stay. `make test-workflow-contracts` exercises the Python contracts in this
+directory, and `make e2e-published-gpui` builds a standalone fixture workspace
+from packaged crates to prove the published surface; neither is reachable from
+`--workspace`.
 
-No job archives a `target` tree, on any lane or platform, and none should be
-added. The repository builds the workspace in more than one shape: an ordinary
-debug build for lint and test, and an instrumented build under `llvm-cov` for
-coverage. A `target` archive can hold only one of those shapes, is invalidated
-by almost every change, and grows without bound.
-
-`sccache` is the single owner of every compiler output instead. One store holds
-both shapes because `sccache` keys entries by compiler flags, and measurements
-across the estate show instrumented and cranelift-built objects reporting no
-non-cacheable compilations. Consequently the shared `setup-rust` and
-`generate-coverage` actions are called with `cache-provider: external` in every
-workflow, which disables their own Cargo and `target` archives, and
-`RUSTC_WRAPPER` is exported before the coverage build and `make publish-check`
-exactly as it is before the test build. Codegen selection stays a per-job
-decision; cranelift has no `-C instrument-coverage`, so a coverage lane cannot
-use it.
+The coverage action takes `all-features`, `all-targets`, and `doctests` inputs.
+The workflow sets the first two and deliberately leaves `doctests` unset: the
+explicit `cargo test --doc` step is the single doctest execution, and enabling
+both would run them twice.
 
 ### Compiler cache
 

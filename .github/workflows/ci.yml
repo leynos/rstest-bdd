@@ -64,13 +64,6 @@ jobs:
             with-default-features: true
             tools: true
             use-nextest: true
-          - os: ubicloud-standard-2
-            rust-toolchain: stable
-            coverage: true
-            features: strict-compile-time-validation
-            with-default-features: false
-            tools: true
-            use-nextest: true
           - os: windows-latest
             rust-toolchain: stable-x86_64-pc-windows-msvc
             coverage: true
@@ -406,7 +399,7 @@ jobs:
         run: make lint
 
       - name: Workflow contract tests
-        if: ${{ matrix.tools && matrix.features == '' }}
+        if: ${{ matrix.tools }}
         run: make test-workflow-contracts
 
       - name: Ensure async-trait is absent
@@ -441,8 +434,57 @@ jobs:
           rustup toolchain install nightly-2026-08-07 --profile minimal
           make e2e-published-gpui
 
-      - name: Test and Measure Coverage (with features)
-        if: ${{ matrix.coverage && matrix.features != '' }}
+      # The single Linux execution. `--all-features` subsumes the former
+      # strict-validation lane, because `strict-compile-time-validation`
+      # only implies `compile-time-validation` and conflicts with nothing.
+      # `all-features`, `all-targets`, and `doctests` are the inputs added
+      # by shared-actions #428; `doctests` stays unset so the cheap explicit
+      # step below is the only doctest run.
+      - name: Test and Measure Coverage (Linux)
+        if: ${{ runner.os == 'Linux' }}
+        # Merged shared-actions PR #421 cache-provider revision.
+        # TODO: repin to the merge commit of leynos/shared-actions#428 before
+        # pushing; that revision adds the all-features and all-targets inputs.
+        uses: leynos/shared-actions/.github/actions/generate-coverage@5daae0a332441d170d88ca648c9e71f0bbe96cb3
+        env:
+          RUN_RUST_CARGO_WAIT_TIMEOUT: '1800'
+        with:
+          cache-provider: external
+          output-path: coverage.xml
+          format: cobertura
+          all-features: 'true'
+          all-targets: 'true'
+          use-cargo-nextest: 'true'
+          # Run the Python coverage suite serially: the whitaker lint-gate
+          # integration test shells out to `cargo dylint`, so parallel
+          # xdist workers race on the cargo package-cache lock. This is an
+          # explicit worker count, never `-n auto`.
+          pytest-workers: ''
+          # The sole Linux lane writes the trunk baseline that every
+          # pull-request run compares against.
+          with-ratchet: 'true'
+
+      # Windows keeps its two feature lanes and its `cargo test` driver.
+      - name: Test and Measure Coverage (Windows, default features)
+        if: ${{ runner.os == 'Windows' && matrix.features == '' }}
+        # Merged shared-actions PR #421 cache-provider revision.
+        uses: leynos/shared-actions/.github/actions/generate-coverage@5daae0a332441d170d88ca648c9e71f0bbe96cb3
+        continue-on-error: true
+        env:
+          # Windows coverage runs (build plus doctests) exceed the shared
+          # action's 600s per-invocation default; give them headroom.
+          RUN_RUST_CARGO_WAIT_TIMEOUT: '1800'
+        with:
+          cache-provider: external
+          output-path: coverage.xml
+          format: cobertura
+          features: rstest-bdd/diagnostics rstest-bdd-macros/compile-time-validation rstest-bdd-server/test-support
+          with-default-features: ${{ matrix.with-default-features }}
+          use-cargo-nextest: ${{ matrix.use-nextest }}
+          pytest-workers: ''
+
+      - name: Test and Measure Coverage (Windows, strict validation)
+        if: ${{ runner.os == 'Windows' && matrix.features != '' }}
         # Merged shared-actions PR #421 cache-provider revision.
         uses: leynos/shared-actions/.github/actions/generate-coverage@5daae0a332441d170d88ca648c9e71f0bbe96cb3
         continue-on-error: true
@@ -457,49 +499,13 @@ jobs:
           features: rstest-bdd/diagnostics rstest-bdd-server/test-support ${{ matrix.features }}
           with-default-features: ${{ matrix.with-default-features }}
           use-cargo-nextest: ${{ matrix.use-nextest }}
-          # Run the Python coverage suite serially: the whitaker lint-gate
-          # integration test shells out to `cargo dylint`, so parallel
-          # xdist workers race on the cargo package-cache lock. This is an
-          # explicit worker count, never `-n auto`.
           pytest-workers: ''
-
-      - name: Test and Measure Coverage (no features)
-        if: ${{ matrix.coverage && matrix.features == '' }}
-        # Merged shared-actions PR #421 cache-provider revision.
-        uses: leynos/shared-actions/.github/actions/generate-coverage@5daae0a332441d170d88ca648c9e71f0bbe96cb3
-        # The CodeScene leg (the default-features Linux leg) gates on the
-        # ratchet, so a coverage failure must fail the build there; other
-        # legs stay best-effort as before. Selected by matrix values rather
-        # than a dedicated key so the job name (a required check context)
-        # is unchanged.
-        continue-on-error: ${{ !(matrix.os == 'ubicloud-standard-2' && matrix.features == '') }}
-        env:
-          # Windows coverage runs (build plus doctests) exceed the shared
-          # action's 600s per-invocation default; give them headroom.
-          RUN_RUST_CARGO_WAIT_TIMEOUT: '1800'
-        with:
-          cache-provider: external
-          output-path: coverage.xml
-          format: cobertura
-          features: rstest-bdd/diagnostics rstest-bdd-macros/compile-time-validation rstest-bdd-server/test-support
-          with-default-features: ${{ matrix.with-default-features }}
-          use-cargo-nextest: ${{ matrix.use-nextest }}
-          # Run the Python coverage suite serially: the whitaker lint-gate
-          # integration test shells out to `cargo dylint`, so parallel
-          # xdist workers race on the cargo package-cache lock. This is an
-          # explicit worker count, never `-n auto`.
-          pytest-workers: ''
-          # Ratchet only the default-features Linux leg: the two Linux
-          # coverage legs would otherwise collide on the per-run baseline
-          # cache key. This leg writes the trunk baseline that every
-          # pull-request run compares against.
-          with-ratchet: ${{ (matrix.os == 'ubicloud-standard-2' && matrix.features == '') && 'true' || 'false' }}
 
       # `cargo llvm-cov nextest` never runs doctests, so without this step no
       # job in the repository would execute them. One lane with every feature
       # enabled covers the whole workspace once.
       - name: Run doctests
-        if: ${{ matrix.tools && matrix.features == '' }}
+        if: ${{ runner.os == 'Linux' }}
         run: cargo test --doc --workspace --all-features
 
       - name: Verify coverage output exists
@@ -514,7 +520,6 @@ jobs:
           CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
         if: >-
           matrix.os == 'ubicloud-standard-2' &&
-          matrix.features == '' &&
           github.event_name == 'pull_request' &&
           env.CS_ACCESS_TOKEN != ''
         uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@794e4801babcf68065c660fdf4781ad62be5d061
@@ -530,7 +535,6 @@ jobs:
           CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
         if: >-
           matrix.os == 'ubicloud-standard-2' &&
-          matrix.features == '' &&
           github.event_name == 'push' &&
           github.ref == 'refs/heads/main' &&
           env.CS_ACCESS_TOKEN != ''

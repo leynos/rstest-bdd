@@ -34,6 +34,9 @@ from workflow_support import (
     workflow as _workflow,
 )
 
+# One Linux lane, because `--all-features` enables
+# `strict-compile-time-validation`, which only implies
+# `compile-time-validation` and conflicts with no other feature.
 EXPECTED_BUILD_MATRIX = [
     {
         "os": UBICLOUD_LINUX_LABEL,
@@ -41,15 +44,6 @@ EXPECTED_BUILD_MATRIX = [
         "coverage": True,
         "features": "",
         "with-default-features": True,
-        "tools": True,
-        "use-nextest": True,
-    },
-    {
-        "os": UBICLOUD_LINUX_LABEL,
-        "rust-toolchain": "stable",
-        "coverage": True,
-        "features": "strict-compile-time-validation",
-        "with-default-features": False,
         "tools": True,
         "use-nextest": True,
     },
@@ -98,7 +92,7 @@ def test_build_matrix_uses_exact_runner_labels() -> None:
     include = matrix.get("include")
     assert isinstance(include, list), "ci.yml:build-test matrix must declare include"
     assert include == EXPECTED_BUILD_MATRIX, (
-        "ci.yml:build-test must preserve its four feature lanes while assigning "
+        "ci.yml:build-test must keep one Linux lane and two Windows lanes while "
         f"Linux to {UBICLOUD_LINUX_LABEL} and Windows to {GITHUB_HOSTED_WINDOWS}; "
         f"got {include!r}"
     )
@@ -142,30 +136,56 @@ def test_one_job_executes_the_workspace_suite() -> None:
     )
 
 
-def test_coverage_lane_executes_the_full_workspace_suite() -> None:
-    """The surviving lane must run the whole workspace, doctests included."""
+def test_linux_coverage_is_the_only_linux_test_execution() -> None:
+    """One instrumented run covers the whole workspace and every feature."""
     steps = _steps(_job("ci.yml", "build-test"))
-    generator = steps[_step_index(steps, "Test and Measure Coverage (no features)")]
+    generator = steps[_step_index(steps, "Test and Measure Coverage (Linux)")]
+    assert generator.get("if") == "${{ runner.os == 'Linux' }}", (
+        "the Linux coverage step must own every Linux lane"
+    )
+    assert "continue-on-error" not in generator, (
+        "the sole Linux test execution must fail the build"
+    )
     inputs = generator.get("with")
     assert isinstance(inputs, dict), "the coverage step must declare inputs"
-    assert inputs.get("with-default-features") == (
-        "${{ matrix.with-default-features }}"
-    ), "the default-features lane must keep the crate's default feature set"
-    assert inputs.get("features") == (
-        "rstest-bdd/diagnostics rstest-bdd-macros/compile-time-validation "
-        "rstest-bdd-server/test-support"
-    ), "the coverage lane must keep the canonical feature set it gates on"
-    assert inputs.get("use-cargo-nextest") == "${{ matrix.use-nextest }}", (
-        "the coverage driver selection must stay a matrix decision"
+    assert inputs.get("all-features") == "true", (
+        "the single execution must enable every feature, which is what makes "
+        "a separate strict-compile-time-validation lane redundant"
+    )
+    assert inputs.get("all-targets") == "true", (
+        "the single execution must build every target"
+    )
+    assert inputs.get("use-cargo-nextest") == "true", (
+        "the Linux lane runs nextest under llvm-cov"
+    )
+    assert inputs.get("with-ratchet") == "true", (
+        "the sole Linux lane owns the ratchet baseline"
+    )
+    assert "doctests" not in inputs, (
+        "the explicit doctest step is the only doctest run; enabling the "
+        "action's doctests input as well would execute them twice"
+    )
+    assert "features" not in inputs, (
+        "an explicit feature list would contradict all-features"
     )
     doctests = steps[_step_index(steps, "Run doctests")]
     assert doctests.get("run") == "cargo test --doc --workspace --all-features", (
         "cargo llvm-cov nextest skips doctests, so the surviving lane must run "
         "them explicitly across the whole workspace"
     )
-    assert doctests.get("if") == "${{ matrix.tools && matrix.features == '' }}", (
+    assert doctests.get("if") == "${{ runner.os == 'Linux' }}", (
         "one lane covers every doctest once, because --all-features already "
         "enables the strict-validation feature"
+    )
+    linux_test_steps = [
+        step
+        for step in steps
+        if str(step.get("run", "")).startswith(("cargo test", "cargo nextest"))
+        or str(step.get("run", "")).strip() == "make test"
+    ]
+    assert [step.get("name") for step in linux_test_steps] == ["Run doctests"], (
+        "no uninstrumented workspace test run may sit beside the coverage "
+        f"execution, found {[s.get('name') for s in linux_test_steps]}"
     )
 
 
