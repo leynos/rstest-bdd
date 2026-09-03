@@ -10,5 +10,7 @@
     },
     "MD029": { "style": "ordered" }
   },
-  "ignores": ["**/.venv/**", ".node_modules/**", "**/node_modules/**", "**/.uv-cache/**", "**/.vtcode/**", "**/target/**"]
+  // `tests/workflow_contracts/data` holds byte-for-byte documentation
+  // baselines; linting them would force edits that break the contract.
+  "ignores": ["**/.venv/**", ".node_modules/**", "**/node_modules/**", "**/.uv-cache/**", "**/.vtcode/**", "**/target/**", "tests/workflow_contracts/data/**"]
 }
