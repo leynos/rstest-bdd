@@ -372,10 +372,9 @@ jobs:
 
       - name: Install Whitaker
         if: ${{ matrix.tools }}
-        # TODO: repin to the merge commit of leynos/shared-actions#422 before
-        # pushing; that revision adds `cache-provider` and installs the
-        # official release archive with a pinned digest.
-        uses: leynos/shared-actions/.github/actions/install-whitaker@794e4801babcf68065c660fdf4781ad62be5d061
+        # Merged shared-actions PR #422: installs the official release
+        # archive against a pinned digest manifest with no source fallback.
+        uses: leynos/shared-actions/.github/actions/install-whitaker@7d46a399558914f5a05074e55a560fec0269fd0d
         with:
           installer-version: ${{ env.WHITAKER_INSTALLER_VERSION }}
           cache-provider: external
@@ -438,12 +437,12 @@ jobs:
       # strict-validation lane, because `strict-compile-time-validation`
       # only implies `compile-time-validation` and conflicts with nothing.
       # `all-features`, `all-targets`, and `doctests` come from merged
-      # shared-actions PR #428. `doctests` runs `cargo test --doc --workspace`
+      # shared-actions PR #428, contained in this pin. `doctests` runs `cargo test --doc --workspace`
       # with the same feature selection after the instrumented run, because
       # llvm-cov's nextest path cannot execute doc tests.
       - name: Test and Measure Coverage (Linux)
         if: ${{ runner.os == 'Linux' }}
-        uses: leynos/shared-actions/.github/actions/generate-coverage@0eceaef0ba362fd6a1e24d14d838d59dc5ac8cea
+        uses: leynos/shared-actions/.github/actions/generate-coverage@7d46a399558914f5a05074e55a560fec0269fd0d
         env:
           RUN_RUST_CARGO_WAIT_TIMEOUT: '1800'
         with:
@@ -466,8 +465,8 @@ jobs:
       # Windows keeps its two feature lanes and its `cargo test` driver.
       - name: Test and Measure Coverage (Windows, default features)
         if: ${{ runner.os == 'Windows' && matrix.features == '' }}
-        # Merged shared-actions PR #428 whole-workspace coverage revision.
-        uses: leynos/shared-actions/.github/actions/generate-coverage@0eceaef0ba362fd6a1e24d14d838d59dc5ac8cea
+        # Merged shared-actions whole-workspace coverage revision.
+        uses: leynos/shared-actions/.github/actions/generate-coverage@7d46a399558914f5a05074e55a560fec0269fd0d
         continue-on-error: true
         env:
           # Windows coverage runs (build plus doctests) exceed the shared
@@ -484,8 +483,8 @@ jobs:
 
       - name: Test and Measure Coverage (Windows, strict validation)
         if: ${{ runner.os == 'Windows' && matrix.features != '' }}
-        # Merged shared-actions PR #428 whole-workspace coverage revision.
-        uses: leynos/shared-actions/.github/actions/generate-coverage@0eceaef0ba362fd6a1e24d14d838d59dc5ac8cea
+        # Merged shared-actions whole-workspace coverage revision.
+        uses: leynos/shared-actions/.github/actions/generate-coverage@7d46a399558914f5a05074e55a560fec0269fd0d
         continue-on-error: true
         env:
           # Windows coverage runs (build plus doctests) exceed the shared
