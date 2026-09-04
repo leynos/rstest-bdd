@@ -291,8 +291,8 @@ listing held 385 `sccache/*` objects under this branch's scope, verified on
 2026-09-03 at 23:15 UTC with `ubi gh leynos/rstest-bdd list-cache-entries`.
 
 The shared Rust setup is called with `use-sccache: false` on every lane, and on
-Linux that is the decision, not an omission: the action's `sccache` wiring re-exports
-`ACTIONS_CACHE_SERVICE_V2=on` with GitHub's results URL and token to
+Linux that is the decision, not an omission: the action's `sccache` wiring
+re-exports `ACTIONS_CACHE_SERVICE_V2=on` with GitHub's results URL and token to
 `GITHUB_ENV` as its last act, clobbering the re-export for later steps and
 sending every write to the wrong service. The Windows lane has no backend of
 that kind at all, so it uses the workspace directory that the cache step

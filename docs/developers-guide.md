@@ -201,9 +201,9 @@ of the job is what makes the backend reach Ubicloud. Do not set
 `use-sccache: true` here on the assumption that the workflow's own installer
 is merely a duplicate.
 
-The Windows lane has no backend of that kind, because nothing else wires
-one. It uses the workspace
-directory, restored and saved by the cache action with a `restore-keys` prefix.
+The Windows lane has no backend of that kind because nothing else wires one. It
+uses the workspace directory, restored and saved by the cache action with a
+`restore-keys` prefix.
 Setting the `RSTEST_BDD_SCCACHE_LOCAL` repository variable moves the Linux
 lanes onto that same local directory, which is the documented fallback if the
 backend ever stops reaching Ubicloud. The compiler-cache step is guarded so
