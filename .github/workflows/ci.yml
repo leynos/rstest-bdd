@@ -284,6 +284,14 @@ jobs:
 
       - name: Setup Rust
         # Merged shared-actions PR #421 cache-provider revision.
+        #
+        # `use-sccache: 'false'` is load-bearing on the Linux lanes, not a
+        # duplicate of the installer below. The action's sccache wiring
+        # re-exports ACTIONS_CACHE_SERVICE_V2=on with GitHub's results URL and
+        # token to GITHUB_ENV as its last act, which clobbers the credential
+        # re-export for every later step; the server then addresses GitHub's
+        # results service and every write fails. Measured on
+        # ubicloud-standard-2. Do not set this to 'true'.
         uses: leynos/shared-actions/.github/actions/setup-rust@5daae0a332441d170d88ca648c9e71f0bbe96cb3
         with:
           toolchain: ${{ matrix.rust-toolchain }}

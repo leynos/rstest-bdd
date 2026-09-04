@@ -56,6 +56,26 @@ free disk to both the job log and the job summary, even when the job fails.
 Escalate to `ubicloud-standard-4`, and set the vCPU constant to 4, only if the
 sampler shows the reclaimed shape still peaking within 5 GB of a full disk.
 
+The reclaimed lane has never come close to that. Five consecutive runs on
+2026-09-04, three on the pull request and two dispatched on trunk, measured:
+
+| Run | Peak used disk | Least free disk | Peak memory |
+| --- | --- | --- | --- |
+| 33853939331 | 60,315 MiB | 12,995 MiB | 1,911 MiB |
+| 33862077644 | 60,312 MiB | 12,998 MiB | 1,789 MiB |
+| 33866984348 | 60,244 MiB | 13,066 MiB | 2,007 MiB |
+| 33884577115 | 60,875 MiB | 12,435 MiB | 1,932 MiB |
+| 33888769029 | 60,875 MiB | 12,435 MiB | 1,975 MiB |
+
+*Table: sampler peaks on `ubicloud-standard-2` after the discard step landed.*
+
+Each of those runs reclaimed about 10 GB, taking the root filesystem from
+83 percent to 69 percent full immediately before the publish build. The trees
+measured 5.7 GB for the instrumented coverage tree, 1.9 GB for the
+published-GPUI end-to-end fixture, 1.6 GB for `target/debug`, and 993 MB for
+the 0.2.2 fixture. Discarding the coverage tree alone would have left most of
+the pressure in place.
+
 `ubicloud-standard-2` is registered in `.github/actionlint.yaml` under
 `self-hosted-runner.labels`. GitHub-hosted labels need no registration, and the
 contracts require the registered set to match the labels the matrix names.
@@ -169,8 +189,20 @@ proxy, and every `sccache` write failed against it. Clearing
 that this reaches Ubicloud is `sccache/*` entries under the branch scope in
 `ubi gh leynos/rstest-bdd list-cache-entries`.
 
-The Windows lane has no such backend, because the shared Rust setup is called
-with `use-sccache: false` and nothing else wires one. It uses the workspace
+The shared Rust setup is called with `use-sccache: false` on every lane, and
+on the Linux lanes that is load-bearing rather than incidental. Measured on
+`ubicloud-standard-2`, a later `run:` step does see the credentials the
+re-export publishes; what breaks the backend is the shared action's own
+`sccache` wiring. Its last act re-exports `ACTIONS_CACHE_SERVICE_V2=on`
+together with GitHub's results URL and token to `GITHUB_ENV`, which clobbers
+the re-export for every step that follows, so the `sccache` server then
+addresses GitHub's results service and its writes fail. Keeping that step out
+of the job is what makes the backend reach Ubicloud. Do not set
+`use-sccache: true` here on the assumption that the workflow's own installer
+is merely a duplicate.
+
+The Windows lane has no backend of that kind, because nothing else wires
+one. It uses the workspace
 directory, restored and saved by the cache action with a `restore-keys` prefix.
 Setting the `RSTEST_BDD_SCCACHE_LOCAL` repository variable moves the Linux
 lanes onto that same local directory, which is the documented fallback if the
