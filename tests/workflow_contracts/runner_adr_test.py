@@ -53,11 +53,11 @@ def test_runner_addendum_records_the_current_runner_contract() -> None:
     )
 
     for expected_contract in (
-        "ubicloud-standard-4",
+        "ubicloud-standard-2",
         "windows-latest",
         "Ubuntu 24.04",
-        "4 vCPU and 16 GB",
-        "samples memory",
+        "2 vCPU and 8 GB",
+        "sampling memory",
         "`whitaker-installer` at `0.2.7`",
         "install-whitaker",
         "GITHUB_PATH",

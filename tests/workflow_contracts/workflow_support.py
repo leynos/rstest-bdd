@@ -16,7 +16,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 GITHUB_HOSTED_LINUX = "ubuntu-latest"
-UBICLOUD_LINUX_LABEL = "ubicloud-standard-4"
+UBICLOUD_LINUX_LABEL = "ubicloud-standard-2"
 GITHUB_HOSTED_WINDOWS = "windows-latest"
 # Ubicloud's transparent cache intercepts actions/cache v6.1.0 on Linux and
 # GitHub serves it on Windows, verified against the Ubicloud cache listing on
@@ -26,7 +26,7 @@ CACHE_ACTION_REF = "@55cc8345863c7cc4c66a329aec7e433d2d1c52a9"
 SHARED_SETUP_RUST_CACHE_PROVIDER_HEAD = "5daae0a332441d170d88ca648c9e71f0bbe96cb3"
 # The named vCPU constants for the two deployed shapes. Build and test
 # parallelism is derived from these and must never exceed them.
-UBICLOUD_LINUX_VCPUS = "4"
+UBICLOUD_LINUX_VCPUS = "2"
 GITHUB_WINDOWS_VCPUS = "4"
 SCCACHE_DIRECTORY = "${{ github.workspace }}/.sccache"
 # Commands that execute the Rust workspace suite. `make test-workflow-contracts`

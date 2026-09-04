@@ -208,13 +208,15 @@ The repository-owned CI matrix now runs its Linux lanes on Ubicloud managed
 runners and its Windows lanes on GitHub-hosted runners. This deployment changes
 the runner environment, and it reduces the lane count from four to three:
 
-- The Linux lane uses `ubicloud-standard-4`, an Ubuntu 24.04, amd64 shape with
-  4 vCPU and 16 GB. This is the recipe's ceiling and is held provisionally: the
-  instrumented all-features build died without a diagnostic on the 2 vCPU
-  shape. Each Linux job samples memory and reports its peak, so the lane can
-  return to `ubicloud-standard-2` once the peak is shown to sit well under 6
-  GB. Either way the Ubuntu 24.04 GNU C Library baseline can execute Whitaker's
-  repository-hosted Dylint dependency binaries.
+- The Linux lane uses `ubicloud-standard-2`, an Ubuntu 24.04, amd64 shape with
+  2 vCPU and 8 GB, the recipe's starting shape. The ceiling shape was tried
+  once, after the instrumented all-features build died without a diagnostic,
+  and returned: the sampler measured a 3,294 MiB peak, so memory was never the
+  constraint. Broken `sccache` routing was, and fixing it let the same workload
+  pass on the smaller shape. Each Linux job keeps sampling memory and reporting
+  its peak, so any future escalation rests on a measurement. The Ubuntu 24.04
+  GNU C Library baseline can execute Whitaker's repository-hosted Dylint
+  dependency binaries.
 - CI pins `whitaker-installer` at `0.2.7` and invokes the SHA-pinned
   `leynos/shared-actions/.github/actions/install-whitaker` action. The shared
   action normalizes Cargo home and executes the installer by absolute path.
@@ -281,8 +283,12 @@ step re-exports `ACTIONS_CACHE_URL` and `ACTIONS_RUNTIME_TOKEN`, and clears
 `ACTIONS_CACHE_SERVICE_V2` to select the v1 API that Ubicloud's runner-local
 cache proxy serves, before the workflow's own checksum-verified `sccache`
 binary starts. `ACTIONS_RESULTS_URL` addresses GitHub's own results service
-rather than that proxy, and every write failed against it. The Windows lane has
-no such backend, because the shared Rust setup is called with
+rather than that proxy, and every write failed against it: 6,934 of 6,934 on
+the last run that used it. After the change the same workload reported 2,372
+hits, a 34 percent hit rate, and 5 write errors in 4,601, and the Ubicloud
+listing held 385 `sccache/*` objects under this branch's scope, verified on
+2026-09-03 at 23:15 UTC with `ubi gh leynos/rstest-bdd list-cache-entries`. The
+Windows lane has no such backend, because the shared Rust setup is called with
 `use-sccache: false`, so it uses the workspace directory that the cache step
 owns. Setting the `RSTEST_BDD_SCCACHE_LOCAL` repository variable moves the
 Linux lanes onto that same local directory as a documented fallback. Check the

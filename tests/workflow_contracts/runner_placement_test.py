@@ -12,6 +12,9 @@ Run with:
 import re
 
 import yaml
+from workflow_queries import coverage_calling_jobs as _coverage_calling_jobs
+from workflow_queries import direct_workspace_test_steps as _direct_workspace_test_steps
+from workflow_queries import workflow_names as _workflow_names
 from workflow_support import (
     GITHUB_HOSTED_LINUX,
     GITHUB_HOSTED_WINDOWS,
@@ -22,21 +25,15 @@ from workflow_support import (
     job as _job,
 )
 from workflow_support import (
-    jobs as _jobs,
-)
-from workflow_support import (
-    runs_workspace_tests as _runs_workspace_tests,
-)
-from workflow_support import (
     step_index as _step_index,
 )
 from workflow_support import (
     steps as _steps,
 )
 
-# One Linux lane on the recipe's ceiling shape, held provisionally while the
-# memory sampler measures whether the instrumented all-features build fits the
-# smaller one. One lane, because `--all-features` enables
+# One Linux lane on the recipe's starting shape, retained because the sampler
+# measured a peak far below the smaller shape's memory. One lane, because
+# `--all-features` enables
 # `strict-compile-time-validation`, which only implies
 # `compile-time-validation` and conflicts with no other feature.
 EXPECTED_BUILD_MATRIX = [
@@ -102,25 +99,8 @@ def test_build_matrix_uses_exact_runner_labels() -> None:
 
 def test_one_job_executes_the_workspace_suite() -> None:
     """No job may duplicate the executed set of the coverage lane."""
-    workflow_directory = ROOT / ".github" / "workflows"
-    coverage_callers: list[str] = []
-    direct_runners: list[str] = []
-    for workflow_path in sorted(workflow_directory.glob("*.yml")):
-        for job_name, job_document in _jobs(workflow_path.name).items():
-            if "steps" not in job_document:
-                continue
-            for step in _steps(job_document):
-                location = f"{workflow_path.name}:{job_name}:{step.get('name')!r}"
-                caller = f"{workflow_path.name}:{job_name}"
-                if (
-                    str(step.get("uses", "")).startswith(
-                        "leynos/shared-actions/.github/actions/generate-coverage@"
-                    )
-                    and caller not in coverage_callers
-                ):
-                    coverage_callers.append(caller)
-                if _runs_workspace_tests(step):
-                    direct_runners.append(location)
+    coverage_callers = _coverage_calling_jobs()
+    direct_runners = _direct_workspace_test_steps()
     assert coverage_callers == ["ci.yml:build-test"], (
         "only ci.yml:build-test may run the coverage driver; a second job with "
         f"the same platform and features would execute nothing new, got "
@@ -165,7 +145,7 @@ def test_linux_coverage_is_the_only_linux_test_execution() -> None:
     assert "features" not in inputs, (
         "an explicit feature list would contradict all-features"
     )
-    direct_runners = [step.get("name") for step in steps if _runs_workspace_tests(step)]
+    direct_runners = _direct_workspace_test_steps()
     assert not direct_runners, (
         "the coverage action is the only workspace test execution, doc tests "
         f"included, so no bespoke test step may sit beside it; found "
@@ -308,7 +288,8 @@ def test_scheduled_and_administrative_jobs_stay_github_hosted() -> None:
 def test_workflows_never_fall_back_to_a_source_build() -> None:
     """Fail closed when a trusted prebuilt binary is unavailable."""
     workflow_directory = ROOT / ".github" / "workflows"
-    for workflow_path in sorted(workflow_directory.glob("*.yml")):
+    for name in _workflow_names():
+        workflow_path = workflow_directory / name
         text = workflow_path.read_text(encoding="utf-8")
         assert "cargo install" not in text, (
             f"{workflow_path.name} must not compile a tool from source; install "

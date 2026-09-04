@@ -14,35 +14,41 @@ this migration targets.
 
 | Workflow label        | Provider      | Operating system | Machine shape | Intended workload                  |
 | --------------------- | ------------- | ---------------- | ------------- | ---------------------------------- |
-| `ubicloud-standard-4` | Ubicloud      | Ubuntu 24.04     | 4 vCPU, 16 GB | Linux build-and-coverage matrix    |
+| `ubicloud-standard-2` | Ubicloud      | Ubuntu 24.04     | 2 vCPU, 8 GB  | Linux build-and-coverage matrix    |
 | `windows-latest`      | GitHub-hosted | Windows Server   | 4 vCPU, 16 GB | Windows build-and-coverage matrix  |
 | `ubuntu-latest`       | GitHub-hosted | Ubuntu           | 2 vCPU, 7 GB  | Delayed comment and API-bound work |
 
 *Table: runner labels used directly by rstest-bdd workflows.*
 
 The `build-test` matrix resolves `runs-on` from `matrix.os`. Both Linux feature
-lane uses `ubicloud-standard-4`; both Windows feature lanes use
+lane uses `ubicloud-standard-2`; both Windows feature lanes use
 `windows-latest`. The feature sets, default-feature policy, coverage behaviour,
 and Windows `use-nextest: false` deadlock mitigation stay unchanged. The
 CodeScene and coverage-ratchet conditions identify the Linux label explicitly,
 so a runner reassignment must update those conditions and the workflow
 contracts together.
 
-The Linux lane sits on `ubicloud-standard-4`, the recipe's ceiling shape, and
-that placement is provisional. `ubicloud-standard-2` is the recipe's starting
-shape, and the per-minute rate doubles with the vCPU count, so the larger shape
-must earn its place. It was escalated after the instrumented all-features build
+The Linux lane sits on `ubicloud-standard-2`, the recipe's starting shape.
+`ubicloud-standard-4` was tried once, after the instrumented all-features build
 died on the smaller shape with no diagnostic: the job produced no output for
 fifteen minutes and then ended, well inside its timeout, which matches a lost
 runner rather than a test failure.
 
-Every Linux job therefore samples resident memory every fifteen seconds from
-just after checkout, and reports the peak to the job summary even when the job
-fails. Return the lane to `ubicloud-standard-2`, and the vCPU constant to 2,
-once the peak sits well under 6 GB across at least three runs. Escalating again
-without that measurement is not the answer to a slow lane.
+The escalation was returned rather than kept. The memory sampler measured a
+peak of 3,294 MiB across 197 samples on the larger shape, far below the 8 GB
+the smaller one offers, so memory was never the constraint. The same push also
+fixed `sccache` routing, and that is what explains the survival:
+`make publish-check` recompiles the workspace a second time and now draws cache
+hits instead of rebuilding while every write fails. Two variables moved
+together, and the measurement exonerates the one that costs twice as much per
+minute.
 
-`ubicloud-standard-4` is registered in `.github/actionlint.yaml` under
+Every Linux job therefore keeps sampling resident memory every fifteen seconds
+from just after checkout and reporting the peak to the job summary, even when
+the job fails. Escalate to `ubicloud-standard-4` only with a measured peak
+approaching 6 GB across at least three runs, and set the vCPU constant to match.
+
+`ubicloud-standard-2` is registered in `.github/actionlint.yaml` under
 `self-hosted-runner.labels`. GitHub-hosted labels need no registration, and the
 contracts require the registered set to match the labels the matrix names.
 
@@ -170,14 +176,18 @@ after installing `sccache`, and the final step publishes `sccache --show-stats`
 in text and JSON to the job summary alongside every cache key, hit result, and
 the backend in use.
 
-Check the first `main` run with `ubi gh leynos/rstest-bdd list-cache-entries`.
-It must show the archive keys and the `sccache` objects on Ubicloud's side
-before any warm-cache measurement is trustworthy.
+Check each `main` run with `ubi gh leynos/rstest-bdd list-cache-entries`. It
+must show the archive keys and the `sccache` objects on Ubicloud's side before
+any warm-cache measurement is trustworthy. That was verified on 2026-09-03 at
+23:15 UTC: 385 `sccache/*` objects sat under this branch's scope, and the same
+run reported 2,372 hits, a 34 percent hit rate, and 5 write errors in 4,601.
+The preceding run, which exported `ACTIONS_RESULTS_URL`, had failed all 6,934
+of its writes and left nothing in either store.
 
 ### Parallelism and prerequisites
 
 The workflow declares named vCPU constants for both shapes,
-`UBICLOUD_LINUX_VCPUS`, now 4, and `GITHUB_WINDOWS_VCPUS`, and derives
+`UBICLOUD_LINUX_VCPUS` and `GITHUB_WINDOWS_VCPUS`, and derives
 `CARGO_BUILD_JOBS` and `NEXTEST_TEST_THREADS` from the constant matching the
 current runner. Nothing uses an unconstrained `-j auto`. The Python coverage
 suite remains serial because its Whitaker integration invokes Cargo and would
@@ -231,7 +241,7 @@ normalizes the Cargo home, and invokes the installer by its absolute path. Keep
 this boundary rather than recreating the install script inline: it makes the
 tool location explicit across runner images and preserves the shared failure
 metrics. The current Whitaker dependency releases require the GNU C Library
-baseline supplied by Ubuntu 24.04, which is `ubicloud-standard-4`'s default
+baseline supplied by Ubuntu 24.04, which is `ubicloud-standard-2`'s default
 image. An Ubuntu 22.04 shape cannot execute those release binaries, and adding
 the XDG user binary directory to `PATH` would only make an incompatible binary
 shadow Whitaker's Cargo fallback.

@@ -41,11 +41,10 @@ jobs:
       WHITAKER_INSTALLER_VERSION: '0.2.7'
       # Named vCPU constants for the two deployed runner shapes. Build and
       # test parallelism is derived from these, never from `-j auto`.
-      # The Linux lane sits on the recipe's ceiling shape provisionally: the
-      # instrumented all-features build died silently on 2 vCPU / 8 GB. The
-      # memory sampler below supplies the evidence to return to
-      # `ubicloud-standard-2`, whose rate is half this one's.
-      UBICLOUD_LINUX_VCPUS: '4'
+      # The recipe's starting shape. The ceiling shape was tried once and
+      # returned: the sampler measured a 3,294 MiB peak, so memory never
+      # explained the earlier silent job death. Broken sccache routing did.
+      UBICLOUD_LINUX_VCPUS: '2'
       GITHUB_WINDOWS_VCPUS: '4'
       # One explicit workspace directory keeps the compiler cache in a
       # single, cacheable location whose path is identical on both
@@ -61,7 +60,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubicloud-standard-4
+          - os: ubicloud-standard-2
             rust-toolchain: stable
             coverage: true
             features: ''
@@ -557,7 +556,7 @@ jobs:
         env:
           CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
         if: >-
-          matrix.os == 'ubicloud-standard-4' &&
+          matrix.os == 'ubicloud-standard-2' &&
           github.event_name == 'pull_request' &&
           env.CS_ACCESS_TOKEN != ''
         uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@794e4801babcf68065c660fdf4781ad62be5d061
@@ -572,7 +571,7 @@ jobs:
         env:
           CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
         if: >-
-          matrix.os == 'ubicloud-standard-4' &&
+          matrix.os == 'ubicloud-standard-2' &&
           github.event_name == 'push' &&
           github.ref == 'refs/heads/main' &&
           env.CS_ACCESS_TOKEN != ''

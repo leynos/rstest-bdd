@@ -9,37 +9,23 @@ Run with:
 """
 
 import itertools
+import re
 from pathlib import PurePosixPath
 
-from workflow_support import (
-    CACHE_ACTION_REF,
-    ROOT,
-    SHARED_SETUP_RUST_CACHE_PROVIDER_HEAD,
+from workflow_queries import archived_target_paths as _archived_target_paths
+from workflow_queries import cache_steps as _cache_steps
+from workflow_queries import (
+    external_provider_violations as _external_provider_violations,
 )
-from workflow_support import (
-    cache_owner as _cache_owner,
-)
-from workflow_support import (
-    cache_paths as _cache_paths,
-)
-from workflow_support import (
-    is_cache_step as _is_cache_step,
-)
-from workflow_support import (
-    job as _job,
-)
-from workflow_support import (
-    path_components as _path_components,
-)
-from workflow_support import (
-    step_index as _step_index,
-)
-from workflow_support import (
-    steps as _steps,
-)
-from workflow_support import (
-    workflow as _workflow,
-)
+from workflow_queries import iter_steps as _iter_steps
+from workflow_queries import owned_paths as _owned_paths
+from workflow_queries import shared_cache_owning_steps as _shared_cache_owning_steps
+from workflow_support import CACHE_ACTION_REF, SHARED_SETUP_RUST_CACHE_PROVIDER_HEAD
+from workflow_support import is_cache_step as _is_cache_step
+from workflow_support import job as _job
+from workflow_support import step_index as _step_index
+from workflow_support import steps as _steps
+from workflow_support import workflow as _workflow
 
 GITHUB_SCRIPT_REF = "@ed597411d8f924073f98dfc5c65a23a2325f34cd"
 SCCACHE_LOCAL_VARIABLE = "vars.RSTEST_BDD_SCCACHE_LOCAL"
@@ -68,91 +54,67 @@ def test_ci_publishes_a_trusted_cache_generation_from_trunk() -> None:
 def test_one_pinned_cache_action_serves_every_lane() -> None:
     """Ubicloud's transparent cache intercepts this actions/cache revision."""
     for workflow_name, job_name in CACHING_JOBS:
-        cache_steps = [
-            step
-            for step in _steps(_job(workflow_name, job_name))
-            if _is_cache_step(step)
+        refs = _cache_steps(workflow_name, job_name)
+        assert refs, f"{workflow_name}:{job_name} must declare cache steps"
+        unpinned = [str(ref) for ref in refs if not ref.uses.endswith(CACHE_ACTION_REF)]
+        assert not unpinned, (
+            f"{unpinned} must pin actions/cache v6.1.0, the revision whose "
+            "Linux keys were observed in the Ubicloud cache listing on "
+            "2026-09-03"
+        )
+        forked = [
+            str(ref)
+            for ref in _iter_steps(workflow_name)
+            if ref.job == job_name and "ubicloud/cache" in ref.uses
         ]
-        assert cache_steps, f"{workflow_name}:{job_name} must declare cache steps"
-        for step in cache_steps:
-            uses = str(step.get("uses"))
-            assert uses.endswith(CACHE_ACTION_REF), (
-                f"{step.get('name')!r} must pin actions/cache v6.1.0, the "
-                "revision whose Linux keys were observed in the Ubicloud cache "
-                "listing on 2026-09-03"
-            )
-        assert not any(
-            "ubicloud/cache" in str(step.get("uses", ""))
-            for step in _steps(_job(workflow_name, job_name))
-        ), f"{workflow_name}:{job_name} must not use the deprecated ubicloud fork"
+        assert not forked, f"{forked} must not use the deprecated ubicloud fork"
 
 
 def test_no_job_archives_a_target_tree() -> None:
     """One compiler cache owns every compiler output and build shape."""
-    for workflow_name, job_name in CACHING_JOBS:
-        for step in _steps(_job(workflow_name, job_name)):
-            if not _is_cache_step(step):
-                continue
-            for path in _cache_paths(step):
-                assert "target" not in _path_components(path), (
-                    f"{workflow_name}:{step.get('name')!r} must not archive "
-                    f"{path!r}; a target component at any depth is a build "
-                    "tree, and sccache owns the debug, cranelift, and "
-                    "instrumented objects in one store keyed by flags"
-                )
+    archived = [
+        f"{ref} archives {path!r}"
+        for workflow_name, job_name in CACHING_JOBS
+        for ref, path in _archived_target_paths(workflow_name, job_name)
+    ]
+    assert not archived, (
+        f"{archived}: a target component at any depth is a build tree, and "
+        "sccache owns the debug, cranelift, and instrumented objects in one "
+        "store keyed by flags"
+    )
 
 
 def test_shared_actions_never_own_a_second_cache() -> None:
     """The caller owns caching in every workflow that calls a shared action."""
-    workflow_directory = ROOT / ".github" / "workflows"
-    for workflow_path in sorted(workflow_directory.glob("*.yml")):
-        document = _workflow(workflow_path.name)
-        jobs = document.get("jobs")
-        assert isinstance(jobs, dict), f"{workflow_path.name} must declare jobs"
-        for job_name, job_document in jobs.items():
-            if "steps" not in job_document:
-                continue
-            for step in _steps(job_document):
-                uses = str(step.get("uses", ""))
-                if not any(
-                    uses.startswith(f"leynos/shared-actions/.github/actions/{name}@")
-                    for name in ("setup-rust", "generate-coverage")
-                ):
-                    continue
-                inputs = step.get("with")
-                assert isinstance(inputs, dict), (
-                    f"{workflow_path.name}:{job_name}:{step.get('name')!r} must "
-                    "declare inputs so it cedes cache ownership"
-                )
-                assert inputs.get("cache-provider") == "external", (
-                    f"{workflow_path.name}:{job_name}:{step.get('name')!r} must "
-                    "set cache-provider: external so the action's own Cargo and "
-                    "target archives stay disabled"
-                )
+    assert _shared_cache_owning_steps(), (
+        "the workflows must still call the shared Rust and coverage actions"
+    )
+    violations = _external_provider_violations()
+    assert not violations, (
+        f"{violations} must set cache-provider: external so the action's own "
+        "Cargo and target archives stay disabled"
+    )
+
+
+def _paths_collide(left: str, right: str) -> bool:
+    """Report whether one cached path is the other, or contains it."""
+    first, second = PurePosixPath(left), PurePosixPath(right)
+    return first == second or first in second.parents or second in first.parents
 
 
 def test_every_cached_path_has_exactly_one_owner() -> None:
     """Two cache steps must never contend for the same directory."""
-    steps = _steps(_job("ci.yml", "build-test"))
-    owners: dict[str, set[str]] = {}
-    for step in steps:
-        if not _is_cache_step(step):
-            continue
-        owners.setdefault(_cache_owner(step), set()).update(_cache_paths(step))
+    owners = _owned_paths("ci.yml", "build-test")
     assert owners, "ci.yml:build-test must declare cache owners"
-    for (left_name, left), (right_name, right) in itertools.combinations(
-        owners.items(), 2
-    ):
-        for left_path, right_path in itertools.product(sorted(left), sorted(right)):
-            first = PurePosixPath(left_path)
-            second = PurePosixPath(right_path)
-            contention = (
-                f"cache owners {left_name!r} and {right_name!r} both claim "
-                f"{left_path!r} and {right_path!r}; each path needs one owner"
-            )
-            assert first != second, contention
-            assert first not in second.parents, contention
-            assert second not in first.parents, contention
+    contentions = [
+        f"{left_name!r} and {right_name!r} both claim {left_path!r} and {right_path!r}"
+        for (left_name, left), (right_name, right) in itertools.combinations(
+            owners.items(), 2
+        )
+        for left_path, right_path in itertools.product(sorted(left), sorted(right))
+        if _paths_collide(left_path, right_path)
+    ]
+    assert not contentions, f"each cached path needs one owner; {contentions}"
 
 
 def test_cache_restores_precede_every_install_and_build() -> None:
@@ -292,11 +254,18 @@ def test_compiler_cache_backend_has_credentials_and_one_fallback() -> None:
             f"{workflow_name} credential re-export must declare a script"
         )
         script = str(export_inputs.get("script", ""))
+        # Naming a variable is not exporting it: assert the call that carries
+        # it into the environment sccache reads.
+        exported = re.findall(r"core\.exportVariable\(\s*([^,)]+)", script)
+        assert "name" in exported, (
+            f"{workflow_name} must call core.exportVariable for each name it "
+            f"iterates; found {exported}"
+        )
         for variable in ("ACTIONS_CACHE_URL", "ACTIONS_RUNTIME_TOKEN"):
-            assert variable in script, (
+            assert f"'{variable}'" in script, (
                 f"{workflow_name} must re-export {variable} before sccache starts"
             )
-        assert "ACTIONS_CACHE_SERVICE_V2', ''" in script, (
+        assert "core.exportVariable('ACTIONS_CACHE_SERVICE_V2', '')" in script, (
             f"{workflow_name} must clear ACTIONS_CACHE_SERVICE_V2 so sccache "
             "uses the v1 API that Ubicloud's cache proxy serves"
         )
