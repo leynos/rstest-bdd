@@ -288,9 +288,14 @@ rather than that proxy, and every write failed against it: 6,934 of 6,934 on
 the last run that used it. After the change the same workload reported 2,372
 hits, a 34 percent hit rate, and 5 write errors in 4,601, and the Ubicloud
 listing held 385 `sccache/*` objects under this branch's scope, verified on
-2026-09-03 at 23:15 UTC with `ubi gh leynos/rstest-bdd list-cache-entries`. The
-Windows lane has no such backend, because the shared Rust setup is called with
-`use-sccache: false`, so it uses the workspace directory that the cache step
+2026-09-03 at 23:15 UTC with `ubi gh leynos/rstest-bdd list-cache-entries`.
+
+The shared Rust setup is called with `use-sccache: false` on every lane, and on
+Linux that is the decision, not an omission: the action's `sccache` wiring
+re-exports `ACTIONS_CACHE_SERVICE_V2=on` with GitHub's results URL and token to
+`GITHUB_ENV` as its last act, clobbering the re-export for later steps and
+sending every write to the wrong service. The Windows lane has no backend of
+that kind at all, so it uses the workspace directory that the cache step
 owns. Setting the `RSTEST_BDD_SCCACHE_LOCAL` repository variable moves the
 Linux lanes onto that same local directory as a documented fallback. Check the
 first `main` run with `ubi gh leynos/rstest-bdd list-cache-entries` to confirm
