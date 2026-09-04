@@ -7,6 +7,12 @@ Run with:
 
 from pathlib import Path
 
+from workflow_support import (
+    GITHUB_HOSTED_WINDOWS,
+    UBICLOUD_LINUX_LABEL,
+    UBICLOUD_LINUX_VCPUS,
+)
+
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 ADR_PATH = (
     REPOSITORY_ROOT / "docs" / "adr-013-adopt-whitaker-no-unwrap-or-else-panic.md"
@@ -53,10 +59,10 @@ def test_runner_addendum_records_the_current_runner_contract() -> None:
     )
 
     for expected_contract in (
-        "ubicloud-standard-2",
-        "windows-latest",
+        UBICLOUD_LINUX_LABEL,
+        GITHUB_HOSTED_WINDOWS,
         "Ubuntu 24.04",
-        "2 vCPU, 8 GB, and a 72 GB disk",
+        f"{UBICLOUD_LINUX_VCPUS} vCPU, 8 GB, and a 72 GB disk",
         "samples disk as well as memory",
         "`whitaker-installer` at `0.2.7`",
         "install-whitaker",
