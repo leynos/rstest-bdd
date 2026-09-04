@@ -23,3 +23,7 @@ proptest-regressions/
 .claude/
 *.swp
 *.swo
+
+# CI-only working directories mounted by the Namespace cache volume
+.ci-tools/
+.sccache/

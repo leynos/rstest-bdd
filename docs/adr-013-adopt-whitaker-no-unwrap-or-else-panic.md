@@ -202,6 +202,111 @@ environment:
 Contributor-facing setup and maintenance steps are documented in
 `docs/developers-guide.md` under "Whitaker Dylint suite lint gate (ADR-013)".
 
+## Addendum (2026-09-03): Ubicloud CI runner migration
+
+The repository-owned CI matrix now runs its Linux lanes on Ubicloud managed
+runners and its Windows lanes on GitHub-hosted runners. This deployment changes
+the runner environment, and it reduces the lane count from four to three:
+
+- The Linux lane uses `ubicloud-standard-2`, an Ubuntu 24.04, amd64 shape with
+  2 vCPU, 8 GB, and a 72 GB disk. Disk is the binding constraint, not memory:
+  `ubicloud-standard-4` offers 145 GB, and two silent deaths in the publish
+  step occurred only on the smaller shape, with peak memory of 2,841 MiB and
+  3,294 MiB against the 8 GB available. The lane now discards every spent
+  build tree, the lint tree, the two GPUI fixture trees and the instrumented
+  coverage tree, before the publish build compiles the workspace again, and
+  samples disk as well as memory. Escalate only if the reclaimed shape still
+  peaks within 5 GB of a full disk. The Ubuntu 24.04 GNU C Library baseline can
+  execute Whitaker's repository-hosted Dylint dependency binaries.
+- CI pins `whitaker-installer` at `0.2.7` and invokes the SHA-pinned
+  `leynos/shared-actions/.github/actions/install-whitaker` action. The shared
+  action normalizes Cargo home and executes the installer by absolute path.
+- The shared Rust setup publishes `${CARGO_HOME:-$HOME/.cargo}/bin` through
+  `GITHUB_PATH`, and the pinned `setup-uv` action publishes `$HOME/.local/bin`
+  before Whitaker installation. Those existing setup actions provide user
+  binary-directory discovery; the repository does not add another `PATH`
+  override.
+- Both Windows lanes use the GitHub-hosted `windows-latest` label. Ubicloud
+  offers Linux runners only, and GitHub-hosted Windows capacity has not been
+  the contention problem. The lane stays lean: it installs GNU Make, which the
+  image does not ship, and runs the platform build, coverage, and publish
+  checks rather than the full Linux gate.
+- The migration preserves the two default-feature and two strict-validation
+  lanes, `contents: read` permissions, coverage and ratchet semantics, and all
+  action SHA pins. Reusable workflow calls remain free of `runs-on`, so their
+  external callees continue to own runner selection.
+
+Every runner is a fresh virtual machine with no persistent volume, so caching
+is archive-based. Each mutable path has exactly one owner and an explainable
+key carrying an explicit `v1` schema generation together with the operating
+system, architecture, and `runner.environment`. Every lane, Ubicloud and
+GitHub-hosted alike, uses `actions/cache/restore` and `actions/cache/save` at
+v6.1.0: the Ubicloud cache listing on 2026-09-03 showed Linux keys from that
+revision reaching Ubicloud storage, while v4.3.0 left nothing there. The
+deprecated `ubicloud/cache` fork is not used. Caches are restored on every run
+and saved only by the default-features lane on a `push` to `main`, so
+pull-request runs read the trusted generation without competing for a
+reservation. `ci.yml` therefore triggers on `push` to `main` as well as on pull
+requests; before that trigger existed no run could ever publish a generation.
+The first `main` run must be checked against the Ubicloud cache listing to
+confirm the keys landed there.
+
+No job archives a `target` tree, on any lane or platform. `sccache` is the
+single owner of every compiler output, and one store holds the LLVM debug
+objects of the test build alongside the instrumented objects of the coverage
+build, because `sccache` keys its entries by compiler flags and both shapes
+report no non-cacheable compilations. The shared Rust setup and coverage
+actions are therefore called with `cache-provider: external` in every workflow,
+which disables their own `target` archives, and `RUSTC_WRAPPER` reaches the
+coverage build and the publish dry run exactly as it reaches the test build.
+
+The coverage job is the only test execution on Linux. It runs
+`cargo llvm-cov nextest --workspace --all-targets --all-features` under
+`RUSTFLAGS=-D warnings`, then `cargo test --doc --workspace --all-features`
+through the action's `doctests` input, because `cargo llvm-cov nextest` cannot
+execute doc tests and nothing in CI ran them before. No bespoke test step sits
+beside it.
+
+The Linux `strict-compile-time-validation` lane is folded into that run.
+`strict-compile-time-validation` only implies `compile-time-validation` and
+conflicts with no other feature, so `--all-features` already enables it and the
+separate lane executed nothing new. The two Windows lanes keep their feature
+split because Windows uses a different test driver and the Linux run does not
+cover it. A former `coverage-main.yml` duplicated the Linux lane exactly once
+`ci.yml` gained its `push` trigger; it is removed and its ratchet write and
+CodeScene upload moved into the surviving lane.
+
+The Linux lanes use `sccache`'s GitHub Actions cache backend. Its objects reach
+Ubicloud storage when the `sccache` process holds the Actions cache
+credentials, which the Cuprum cache listing confirmed on 2026-09-03. A plain
+`run:` step never sees those credentials, so a pinned `actions/github-script`
+step re-exports `ACTIONS_CACHE_URL` and `ACTIONS_RUNTIME_TOKEN`, and clears
+`ACTIONS_CACHE_SERVICE_V2` to select the v1 API that Ubicloud's runner-local
+cache proxy serves, before the workflow's own checksum-verified `sccache`
+binary starts. `ACTIONS_RESULTS_URL` addresses GitHub's own results service
+rather than that proxy, and every write failed against it: 6,934 of 6,934 on
+the last run that used it. After the change the same workload reported 2,372
+hits, a 34 percent hit rate, and 5 write errors in 4,601, and the Ubicloud
+listing held 385 `sccache/*` objects under this branch's scope, verified on
+2026-09-03 at 23:15 UTC with `ubi gh leynos/rstest-bdd list-cache-entries`. The
+Windows lane has no such backend, because the shared Rust setup is called with
+`use-sccache: false`, so it uses the workspace directory that the cache step
+owns. Setting the `RSTEST_BDD_SCCACHE_LOCAL` repository variable moves the
+Linux lanes onto that same local directory as a documented fallback. Check the
+first `main` run with `ubi gh leynos/rstest-bdd list-cache-entries` to confirm
+that the keys and the `sccache` objects landed on Ubicloud. The runner
+assignments, cache ownership, save policy, and prerequisite ordering are
+enforced by `tests/workflow_contracts/runner_placement_test.py` and
+`tests/workflow_contracts/runner_cache_test.py`.
+
+### Validation (2026-09-03)
+
+The focused `make test-workflow-contracts` gate passes, including the
+byte-for-byte baseline that separates this addendum from the historical update.
+The complete deterministic repository gate also passed locally. Exact-head CI
+evidence on the migrated runners is recorded in PR #710 once the shared-actions
+installer revision it depends on is merged and the branch is pushed.
+
 ## Known limitations
 
 The adopted lint does not replace Clippy. `clippy::shadow_reuse`,

@@ -24,7 +24,12 @@ jobs:
           persist-credentials: true
 
       - name: Setup Rust
-        uses: leynos/shared-actions/.github/actions/setup-rust@794e4801babcf68065c660fdf4781ad62be5d061
+        # Merged shared-actions PR #421 cache-provider revision. No job in
+        # this repository archives a `target` tree, so the shared action's
+        # Cargo and target cache stays disabled here too.
+        uses: leynos/shared-actions/.github/actions/setup-rust@5daae0a332441d170d88ca648c9e71f0bbe96cb3
+        with:
+          cache-provider: external
 
       - name: Refresh published GPUI fixture lockfiles
         run: |

@@ -4,19 +4,255 @@ For engineers and contributors working on the rstest-bdd codebase.  This guide
 covers workspace tooling, test infrastructure, macro internals, and the
 patterns used across crates — it is not a user-facing tutorial.
 
-## GitHub Actions runner profiles
+## GitHub Actions runner placement
 
-The delayed pull-request comment job uses the shared uncached
-`namespace-profile-default` runner (Ubuntu 22.04, amd64, 4 vCPU, and 16 GB).
-Its cache volume is disabled, so the initial adoption slice introduces no new
-cache ownership or cache-write policy.
+Repository-owned Linux build-matrix jobs run on Ubicloud managed runners.
+Windows jobs, the delayed-comment workflow, and every scheduled or
+administrative job stay on GitHub-hosted runners. Ubicloud offers Linux runners
+only, and the GitHub-hosted Windows queue has not been the contention problem
+this migration targets.
 
-The main build-and-coverage matrix remains on GitHub-hosted Linux and Windows
-runners. Its Linux legs combine workspace compilation, broad coverage, and
-tooling setup; migrate them only after an equivalent 8-vCPU shared Linux
-profile is available and measured. Windows remains GitHub-hosted because this
-pilot has no shared Windows Namespace profile. Externally owned reusable
-workflows retain their own runner selection.
+| Workflow label        | Provider      | Operating system | Machine shape | Intended workload                  |
+| --------------------- | ------------- | ---------------- | ------------- | ---------------------------------- |
+| `ubicloud-standard-2` | Ubicloud      | Ubuntu 24.04     | 2 vCPU, 8 GB  | Linux build-and-coverage matrix    |
+| `windows-latest`      | GitHub-hosted | Windows Server   | 4 vCPU, 16 GB | Windows build-and-coverage matrix  |
+| `ubuntu-latest`       | GitHub-hosted | Ubuntu           | 2 vCPU, 7 GB  | Delayed comment and API-bound work |
+
+*Table: runner labels used directly by rstest-bdd workflows.*
+
+The `build-test` matrix resolves `runs-on` from `matrix.os`. Both Linux feature
+lane uses `ubicloud-standard-2`; both Windows feature lanes use
+`windows-latest`. The feature sets, default-feature policy, coverage behaviour,
+and Windows `use-nextest: false` deadlock mitigation stay unchanged. The
+CodeScene and coverage-ratchet conditions identify the Linux label explicitly,
+so a runner reassignment must update those conditions and the workflow
+contracts together.
+
+The Linux lane sits on `ubicloud-standard-2`, the recipe's starting shape. The
+constraint that shape imposes is disk, not memory or vCPUs: it offers 72 GB
+against 145 GB on `ubicloud-standard-4`, and after the runner image and the
+reclaim step about 31 GB remains against 104 GB.
+
+Two silent job deaths were traced to that limit. `Publish dry run` produced no
+output for roughly fifteen minutes and the step then failed with no error text
+and no annotation, twice, both times on `ubicloud-standard-2`. The same
+workload passed on `ubicloud-standard-4`. Three runs separate the variables:
+the smaller shape failed both with sccache broken and with it working at a 94
+percent hit rate, and the larger shape passed. Peak memory was 2,841 MiB and
+3,294 MiB, so memory was never close to pressure on either.
+
+The cause is several full build trees held at once. The lint step leaves a
+debug tree, the two published-GPUI fixtures leave one each, the coverage run
+builds an instrumented tree, and `make publish-check` then compiles the
+workspace again into `target/package`. None of the first four has a consumer
+once the coverage report exists, so the lane discards all of them before the
+publish build starts, printing the disk before and after so the saving is
+measured. sccache holds every object the publish build could have reused from
+them, so nothing is recompiled that would not have been.
+
+Every Linux job samples memory and disk every fifteen seconds from just after
+checkout and reports the peak used memory, the peak used disk, and the least
+free disk to both the job log and the job summary, even when the job fails.
+Escalate to `ubicloud-standard-4`, and set the vCPU constant to 4, only if the
+sampler shows the reclaimed shape still peaking within 5 GB of a full disk.
+
+`ubicloud-standard-2` is registered in `.github/actionlint.yaml` under
+`self-hosted-runner.labels`. GitHub-hosted labels need no registration, and the
+contracts require the registered set to match the labels the matrix names.
+
+### Cache ownership
+
+Ubicloud destroys each runner's disk at the end of the job, so there is no
+persistent volume and every cache is an archive. Each mutable path therefore
+has exactly one owner and one explainable key. Every key carries a `v1` schema
+generation plus the operating system, architecture, and `runner.environment`,
+so a self-hosted Ubicloud archive can never be restored onto a GitHub-hosted
+image with a different GNU C Library baseline.
+
+| Cache            | Paths                                                                                                             | Key inputs                       |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| Cargo registry   | `~/.cargo/registry`, `~/.cargo/git`                                                                               | toolchain, `Cargo.lock`, scope   |
+| CI tool binaries | `~/.cargo/bin`, `~/.local/bin`, `~/.cache/uv`, `~/.local/share/uv`, Bun stores, `~/.cache/puppeteer`, `.ci-tools` | every tool version pin, scope    |
+| Whitaker suite   | `~/.local/share/whitaker`                                                                                         | installer version, `dylint.toml` |
+| Compiler cache   | `.sccache`                                                                                                        | toolchain, `Cargo.lock`, scope   |
+
+Every lane uses `actions/cache/restore` and `actions/cache/save` pinned to
+v6.1.0. Ubicloud's transparent cache intercepts that revision: the Ubicloud
+cache listing on 2026-09-03 showed Linux keys from it reaching Ubicloud
+storage, while v4.3.0 left nothing there and Windows keys land on GitHub as
+expected. The deprecated `ubicloud/cache` fork is therefore unused, and one
+action with one pin serves both providers.
+
+uv reports a tool as installed from its environment store alone, so the
+download store, the environment store, and the shim directory are restored
+together by one owner rather than as three independent caches. The Whitaker
+cache mounts only the installer-managed suite directory; the installer binary
+itself lives in `~/.cargo/bin`, which the tool cache owns, and the tool key
+includes the installer version so the two cannot disagree.
+
+Caches are restored on every run. They are saved only by the default-features
+lane on a `push` to `main`, and only when the restore missed. Every key carries
+`runner.os`, so that gives one writer per key: the Linux build-test lane owns
+the Linux keys and the Windows lane owns the Windows keys. Pull-request runs
+therefore waste no time uploading archives they are not allowed to publish, and
+`Unable to reserve cache` stampedes cannot occur. `ci.yml` triggers on `push` to
+`main` for this reason: while it ran only on pull requests and manual
+dispatch, nothing could ever populate a trusted generation, so every lane was
+legitimately cold.
+
+### One test execution per platform
+
+The coverage job is the only test execution on Linux. It runs
+`cargo llvm-cov nextest --workspace --all-targets --all-features` under
+`RUSTFLAGS=-D warnings`, followed by one cheap
+`cargo test --doc --workspace --all-features` step, because
+`cargo llvm-cov nextest` does not run doctests and nothing else in CI did.
+There is no uninstrumented workspace test run beside it, and a contract rejects
+one.
+
+| Lane                        | Platform | Executed set                                                                                                                     |
+| --------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| build-test, Linux           | Linux    | `llvm-cov nextest --workspace --all-targets --all-features`; doctests; Python suite; workflow contracts; published-GPUI scenario |
+| build-test, Windows default | Windows  | `llvm-cov` without nextest, default features plus the diagnostics set                                                            |
+| build-test, Windows strict  | Windows  | `llvm-cov` without nextest, `--no-default-features` plus strict validation                                                       |
+
+*Table: what each surviving lane executes.*
+
+There is no longer a Linux `strict-compile-time-validation` lane.
+`strict-compile-time-validation = ["compile-time-validation"]` is purely
+additive: it implies `compile-time-validation` and makes macro-expansion
+warnings hard errors. It conflicts with no other feature, so `--all-features`
+already enables it and a separate Linux lane executed nothing new. The Windows
+lanes keep their split, because Windows uses a different driver and is not
+covered by the Linux run.
+
+A former `coverage-main.yml` ran a fifth job whose platform, feature set, and
+driver matched the Linux lane. Once `ci.yml` gained its `push` trigger the two
+executed the same suite on every merge, so that workflow is gone and its two
+distinct behaviours moved into the surviving lane: it writes the ratchet
+baseline on every run, and it uploads to CodeScene on trunk while pull requests
+run the changed-line check. CodeScene accepts an upload only for an analysed
+branch, which is why the two modes are separate steps.
+
+Two Linux steps look like test runs but are not part of the workspace suite and
+stay. `make test-workflow-contracts` exercises the Python contracts in this
+directory, and `make e2e-published-gpui` builds a standalone fixture workspace
+from packaged crates to prove the published surface; neither is reachable from
+`--workspace`.
+
+The Linux step sets the coverage action's `all-features`, `all-targets`, and
+`doctests` inputs. The action's own documentation gives `doctests` exactly this
+purpose: it runs the uninstrumented doc-test pass with the same feature
+selection so one coverage job can be a repository's only test execution. Passing
+`all-features` together with a `features` list is rejected by the action, so
+the Linux step names neither `features` nor `with-default-features`.
+
+### Compiler cache
+
+`sccache` writes to `SCCACHE_DIR`, which every workflow pins to
+`${{ github.workspace }}/.sccache`, because the default location differs per
+platform and is awkward to cache.
+
+The Linux lanes use `sccache`'s GitHub Actions cache backend, pointed at
+Ubicloud's runner-local cache proxy. A plain `run:` step never sees the Actions
+cache credentials, because the runner exposes them to JavaScript actions only,
+so a pinned `actions/github-script` step re-exports `ACTIONS_CACHE_URL` and
+`ACTIONS_RUNTIME_TOKEN` and clears `ACTIONS_CACHE_SERVICE_V2` before the
+workflow's own checksum-verified `sccache` binary starts. The re-export must
+precede the installation step, which starts the `sccache` server when it zeroes
+the counters.
+
+Exporting `ACTIONS_RESULTS_URL` instead does not work, and the workflow must
+not: that variable addresses GitHub's own results service rather than the
+proxy, and every `sccache` write failed against it. Clearing
+`ACTIONS_CACHE_SERVICE_V2` selects the v1 API that the proxy serves. The proof
+that this reaches Ubicloud is `sccache/*` entries under the branch scope in
+`ubi gh leynos/rstest-bdd list-cache-entries`.
+
+The Windows lane has no such backend, because the shared Rust setup is called
+with `use-sccache: false` and nothing else wires one. It uses the workspace
+directory, restored and saved by the cache action with a `restore-keys` prefix.
+Setting the `RSTEST_BDD_SCCACHE_LOCAL` repository variable moves the Linux
+lanes onto that same local directory, which is the documented fallback if the
+backend ever stops reaching Ubicloud. The compiler-cache step is guarded so
+that exactly one mechanism owns the directory on any given lane.
+
+`SCCACHE_CACHE_SIZE` is 4 GB, sized for two build shapes while leaving room in
+Ubicloud's 30 GB weekly per-repository quota for the registry, the tool
+directory, and the Whitaker suite. Each lane zeroes the counters immediately
+after installing `sccache`, and the final step publishes `sccache --show-stats`
+in text and JSON to the job summary alongside every cache key, hit result, and
+the backend in use.
+
+Check each `main` run with `ubi gh leynos/rstest-bdd list-cache-entries`. It
+must show the archive keys and the `sccache` objects on Ubicloud's side before
+any warm-cache measurement is trustworthy. That was verified on 2026-09-03 at
+23:15 UTC: 385 `sccache/*` objects sat under this branch's scope, and the same
+run reported 2,372 hits, a 34 percent hit rate, and 5 write errors in 4,601.
+The preceding run, which exported `ACTIONS_RESULTS_URL`, had failed all 6,934
+of its writes and left nothing in either store.
+
+### Parallelism and prerequisites
+
+The workflow declares named vCPU constants for both shapes,
+`UBICLOUD_LINUX_VCPUS` and `GITHUB_WINDOWS_VCPUS`, and derives
+`CARGO_BUILD_JOBS` and `NEXTEST_TEST_THREADS` from the constant matching the
+current runner. Nothing uses an unconstrained `-j auto`. The Python coverage
+suite remains serial because its Whitaker integration invokes Cargo and would
+otherwise contend on Cargo's package-cache lock. Ubicloud jobs declare
+`timeout-minutes` because they register as just-in-time self-hosted runners, to
+which GitHub's six-hour hosted limit does not apply.
+
+Both runner images derive from GitHub's `actions/runner-images` templates, so
+the tool inventory is close to identical, but neither ships `uv`, `sccache`,
+`cargo-binstall`, or Bun. The pinned setup actions install Rust, `uv`, and
+`cargo-binstall`; the workflow installs Bun and its own checksum-verified
+`sccache`; and the published-GPUI step installs its development libraries
+explicitly. The GitHub-hosted Windows image ships Git, Git Bash, and Chocolatey
+but not GNU Make, which `make publish-check` needs on every lane, so the
+Windows lane installs it before anything else. The matrix pins
+`stable-x86_64-pc-windows-msvc`; relying on the runner's default Rust host can
+select the GNU toolchain, whose distribution lacks the profiler runtime
+required by coverage.
+
+The Linux tools lanes install Merman 0.7.0 from its upstream release archive,
+verify the pinned SHA-256 before extraction, and retain the verified binary in
+the workspace tool directory. Cargo Binstall's quick-install mirror does not
+publish a signature for that archive, so a signed-only Binstall command cannot
+provide it without falling back to a forbidden source build.
+
+The Ubicloud GitHub App is granted for every repository in the account, so no
+per-repository provisioning step precedes a migration. The Ubicloud console
+lists only repositories that have already run a job, so an absent entry means
+this repository has not run one yet, not that the grant is missing. Do not
+treat a missing entry as a configuration fault.
+
+The job log header of an Ubicloud run prints `Ubicloud Managed Runner`, the
+label, the image release, and the console URL, which is the admission evidence.
+Correlate it with the GitHub jobs API for queue and execution timing, and with
+the Ubicloud cache-entries listing to prove that an archive reached Ubicloud
+storage rather than GitHub's. If a job on a `ubicloud-*` label has still not
+picked up a runner after about five minutes, stop and investigate rather than
+retrying: check the label spelling, the repository's self-hosted runner
+settings, and the project's concurrency quota, because an over-quota job waits
+silently and looks like an ordinary GitHub queue.
+
+The mutation-testing and Dependabot auto-merge jobs call SHA-pinned reusable
+workflows in `leynos/shared-actions`. Their callees continue to own runner
+selection; callers must not add `runs-on`. The workflow contract suite protects
+that ownership boundary alongside the matrix assignments, cache ownership, and
+prerequisite ordering.
+
+The Linux tools lanes also call the SHA-pinned shared `install-whitaker`
+action. That action owns installer download and verification, validates and
+normalizes the Cargo home, and invokes the installer by its absolute path. Keep
+this boundary rather than recreating the install script inline: it makes the
+tool location explicit across runner images and preserves the shared failure
+metrics. The current Whitaker dependency releases require the GNU C Library
+baseline supplied by Ubuntu 24.04, which is `ubicloud-standard-2`'s default
+image. An Ubuntu 22.04 shape cannot execute those release binaries, and adding
+the XDG user binary directory to `PATH` would only make an incompatible binary
+shadow Whitaker's Cargo fallback.
 
 ## Workspace dependency policy
 
@@ -648,7 +884,7 @@ the test fails until a human edits the pinned constant to match. That defeats
 the purpose of automated dependency updates and turns a routine bump into a
 manual chore.
 
-Contract tests may still verify the _shape_ of a reusable-workflow caller. They
+Contract tests may still verify the *shape* of a reusable-workflow caller. They
 must not verify the specific SHA value.
 
 - Do assert the workflow references the correct reusable workflow path.
@@ -1246,7 +1482,7 @@ StepRef {
 Fields: `keyword: &'a str`, `text: &'a str`, `function_name: &'a str`,
 `handler_error: &'a str`.
 
-#### `BypassedStepQuery<'a>` _(requires `diagnostics` feature)_
+#### `BypassedStepQuery<'a>` *(requires `diagnostics` feature)*
 
 Bundles the four fields needed to look up a bypassed-step record in the
 diagnostics registry dump.
@@ -1283,7 +1519,7 @@ directional marks) and asserts it matches a regex covering the step keyword,
 step text, function name, handler error, feature path suffix, and scenario
 name. Panics on regex compile failure or mismatch.
 
-#### `assert_bypassed_step_recorded(BypassedStepQuery)` _(requires `diagnostics` feature)_
+#### `assert_bypassed_step_recorded(BypassedStepQuery)` *(requires `diagnostics` feature)*
 
 Dumps the diagnostics registry, parses it as JSON, and asserts that
 `bypassed_steps` contains an entry matching all four fields of the query.
@@ -1790,8 +2026,8 @@ not ship and was superseded by ADR-012 before implementation:
   would not import the harness.
 - The proposal required reset before assignment and `Drop` cleanup on success,
   assertion failure, and skip, covered by unit, property-based (`proptest`), and
-  `serial_test`-guarded thread-isolation tests — see the ADR's _Testing
-  strategy_.
+  `serial_test`-guarded thread-isolation tests — see the ADR's *Testing
+  strategy*.
 
 Roadmap items 10.3.1 and 10.3.2 retain this proposal as an explicitly
 superseded historical record; design coverage is in `rstest-bdd-design.md`
@@ -1820,7 +2056,7 @@ should preserve these contracts:
   thread-local reset protocol is historical.
 - Borrow-state invariants are the highest-risk part of the surface and must be
   covered by generated-wrapper, property-based (`proptest`), and lifecycle
-  tests — see the ADR's _Testing strategy_.
+  tests — see the ADR's *Testing strategy*.
 
 Tracked by roadmap items 12.1.1–12.1.3; design coverage is in
 `rstest-bdd-design.md` §2.7.6.5.
@@ -1842,10 +2078,10 @@ foot-gun: `#[scenario(path = …)]` and `scenarios!` read `.feature` files with
   artefact.
 - The unstable `proc_macro::tracked_path` API is the long-term answer, usable
   behind a `nightly` feature gate once stabilized.
-- Invalidation must be a _tested contract_: a portability-aware rebuild
+- Invalidation must be a *tested contract*: a portability-aware rebuild
   regression test, a `trybuild` compile-time test for the emitted binding, and
   redacted `insta` snapshots for any touched diagnostic — see the ADR's
-  _Testing strategy_. This is distinct from the OUT_DIR AST _caching_
+  *Testing strategy*. This is distinct from the OUT_DIR AST *caching*
   performance idea in `rstest-bdd-design.md` §3.2.2.
 
 Tracked by roadmap item 10.3.3 (pulled forward to v0.6.0 final); design
@@ -1864,7 +2100,7 @@ Local setup installs the `whitaker` wrapper and its pinned Dylint driver
 toolchain via the installer:
 
 ```bash
-cargo install --locked whitaker-installer --version 0.2.6
+cargo install --locked whitaker-installer --version 0.2.7
 whitaker-installer
 ```
 
@@ -1902,7 +2138,8 @@ scoped mechanism if another macro expansion needs one.
 When maintaining the pin:
 
 1. Update `WHITAKER_INSTALLER_VERSION` in `.github/workflows/ci.yml`; the
-   suite itself is rolling and updated by rerunning `whitaker-installer`.
+   SHA-pinned shared `install-whitaker` action consumes that value. The suite
+   itself is rolling and updated by rerunning `whitaker-installer`.
 2. Re-run `make lint-whitaker`, then the full `make lint` gate.
 3. Update ADR-013 only if the mechanism or adopted lint set changes.
 

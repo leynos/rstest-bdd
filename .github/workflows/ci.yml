@@ -3,11 +3,25 @@ name: CI
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  # The cache writer runs on trunk. Without this trigger no run is ever
+  # allowed to publish a trusted cache generation, so every pull-request
+  # lane restores nothing and recompiles the workspace from cold.
+  push:
+    branches: [main]
   workflow_dispatch:
+
+# Serialize per ref so a superseded pull-request run releases its runners.
+# Trunk runs are the cache writers and must never be cancelled.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build-test:
     runs-on: ${{ matrix.os }}
+    # Ubicloud runners register as just-in-time self-hosted runners, so the
+    # six-hour hosted limit does not apply. Bound the job explicitly.
+    timeout-minutes: 90
     permissions:
       contents: read
     env:
@@ -17,27 +31,44 @@ jobs:
       RUSTFLAGS: -D warnings
       RUSTDOCFLAGS: -D warnings
       LADING_REF: e0a8d43fa3d6d7598cad0d4c25883e7ea625feb9
+      BUN_VERSION: '1.2.21'
+      MERMAID_CLI_VERSION: '11.9.0'
       MERMAN_CLI_VERSION: '0.7.0'
+      NIXIE_CLI_VERSION: '1.1.0'
       RUFF_VERSION: '0.16.4'
+      SCCACHE_VERSION: '0.12.0'
       TY_VERSION: '0.0.74'
-      WHITAKER_INSTALLER_VERSION: '0.2.6'
+      WHITAKER_INSTALLER_VERSION: '0.2.7'
+      # Named vCPU constants for the two deployed runner shapes. Build and
+      # test parallelism is derived from these, never from `-j auto`.
+      # The recipe's starting shape. The ceiling shape was tried once and
+      # returned: the sampler measured a 3,294 MiB peak, so memory never
+      # explained the earlier silent job death. Broken sccache routing did.
+      UBICLOUD_LINUX_VCPUS: '2'
+      GITHUB_WINDOWS_VCPUS: '4'
+      # One explicit workspace directory keeps the compiler cache in a
+      # single, cacheable location whose path is identical on both
+      # platforms; sccache's per-platform default lies outside it.
+      SCCACHE_DIR: ${{ github.workspace }}/.sccache
+      # No job archives a `target` tree. sccache is the single owner of
+      # every compiler output, so one store holds the LLVM debug objects
+      # for the test build and the instrumented objects for the coverage
+      # build. Size the store for both shapes while leaving room in the
+      # 30 GB weekly Ubicloud quota for the registry, tools, and Whitaker.
+      SCCACHE_CACHE_SIZE: 4G
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubicloud-standard-2
+            rust-toolchain: stable
             coverage: true
             features: ''
             with-default-features: true
             tools: true
             use-nextest: true
-          - os: ubuntu-latest
-            coverage: true
-            features: strict-compile-time-validation
-            with-default-features: false
-            tools: true
-            use-nextest: true
           - os: windows-latest
+            rust-toolchain: stable-x86_64-pc-windows-msvc
             coverage: true
             features: ''
             with-default-features: true
@@ -46,6 +77,7 @@ jobs:
             # rust-lang/cargo#15744 and nextest-rs/nextest#2463.
             use-nextest: false
           - os: windows-latest
+            rust-toolchain: stable-x86_64-pc-windows-msvc
             coverage: true
             features: strict-compile-time-validation
             with-default-features: false
@@ -54,6 +86,15 @@ jobs:
             # rust-lang/cargo#15744 and nextest-rs/nextest#2463.
             use-nextest: false
     steps:
+      # GitHub-hosted Windows images ship Git, Git Bash, and Chocolatey but
+      # not GNU Make, which `make publish-check` needs on every lane.
+      - name: Install GNU Make
+        if: ${{ runner.os == 'Windows' }}
+        shell: pwsh
+        run: |
+          choco install make --yes --no-progress
+          Get-Command make | Out-Null
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v5
         with:
@@ -80,19 +121,239 @@ jobs:
             /usr/local/share/powershell || true
           df -h /
 
+      # Sample memory and disk so a shape decision rests on a measurement.
+      # The earlier silent deaths in `Publish dry run` were disk exhaustion,
+      # which memory sampling alone could never have shown.
+      - name: Start resource sampler
+        if: ${{ runner.os == 'Linux' }}
+        shell: bash
+        env:
+          RESOURCE_SAMPLES: ${{ runner.temp }}/resource-samples.txt
+        run: |
+          set -euo pipefail
+          : > "$RESOURCE_SAMPLES"
+          sampler="$RUNNER_TEMP/sample-resources.sh"
+          cat > "$sampler" <<'SAMPLER'
+          #!/usr/bin/env bash
+          set -uo pipefail
+          while :; do
+            mem_used="$(free -m | awk '/^Mem:/ { print $3 }')"
+            disk="$(df -m --output=used,avail / | tail -1)"
+            printf '%s %s\n' "$mem_used" "$disk" >> "$1"
+            sleep 15
+          done
+          SAMPLER
+          chmod +x "$sampler"
+          nohup "$sampler" "$RESOURCE_SAMPLES" >/dev/null 2>&1 &
+          printf 'RESOURCE_SAMPLES=%s\n' "$RESOURCE_SAMPLES" >> "$GITHUB_ENV"
+
+      - name: Configure runner parallelism and compiler cache
+        shell: bash
+        env:
+          LINUX_VCPUS: ${{ env.UBICLOUD_LINUX_VCPUS }}
+          WINDOWS_VCPUS: ${{ env.GITHUB_WINDOWS_VCPUS }}
+          # One workflow variable selects the documented local-directory
+          # fallback. Leave it unset to use the GitHub Actions cache backend
+          # on the Ubicloud lanes.
+          SCCACHE_LOCAL_MODE: ${{ vars.RSTEST_BDD_SCCACHE_LOCAL }}
+        run: |
+          set -euo pipefail
+          if [[ "$RUNNER_OS" == 'Windows' ]]; then
+            vcpus="$WINDOWS_VCPUS"
+          else
+            vcpus="$LINUX_VCPUS"
+          fi
+          {
+            printf 'RUNNER_VCPUS=%s\n' "$vcpus"
+            printf 'CARGO_BUILD_JOBS=%s\n' "$vcpus"
+            printf 'NEXTEST_TEST_THREADS=%s\n' "$vcpus"
+          } >> "$GITHUB_ENV"
+          # The shared Rust setup is called with `use-sccache: false`, so no
+          # action wires a compiler-cache backend on Windows. That lane
+          # therefore uses the local directory, which the cache step owns.
+          gha_enabled=false
+          if [[ "$RUNNER_OS" != 'Windows' && "$SCCACHE_LOCAL_MODE" != 'true' ]]; then
+            gha_enabled=true
+          fi
+          printf 'SCCACHE_GHA_ENABLED=%s\n' "$gha_enabled" >> "$GITHUB_ENV"
+          printf 'runner=%s vcpus=%s sccache-gha=%s\n' \
+            "$RUNNER_OS" "$vcpus" "$gha_enabled"
+
+      - name: Compute cache keys
+        shell: bash
+        env:
+          LOCKFILE_HASH: ${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+          DYLINT_HASH: ${{ hashFiles('dylint.toml') }}
+          TOOLCHAIN: ${{ matrix.rust-toolchain }}
+          RUNNER_ENVIRONMENT_NAME: ${{ runner.environment }}
+        run: |
+          set -euo pipefail
+          # Every key carries an explicit `v1` schema generation so the whole
+          # family can be invalidated deliberately, and `runner.environment`
+          # so a self-hosted Ubicloud archive is never restored onto a
+          # GitHub-hosted image with a different glibc baseline.
+          scope="${RUNNER_OS}-${RUNNER_ARCH}-${RUNNER_ENVIRONMENT_NAME}"
+          tool_pins="bun${BUN_VERSION}-mermaid${MERMAID_CLI_VERSION}"
+          tool_pins="${tool_pins}-merman${MERMAN_CLI_VERSION}"
+          tool_pins="${tool_pins}-nixie${NIXIE_CLI_VERSION}"
+          tool_pins="${tool_pins}-sccache${SCCACHE_VERSION}"
+          tool_pins="${tool_pins}-whitaker${WHITAKER_INSTALLER_VERSION}"
+          {
+            printf 'CARGO_CACHE_KEY=cargo-v1-%s-%s-%s\n' \
+              "$scope" "$TOOLCHAIN" "$LOCKFILE_HASH"
+            printf 'CARGO_CACHE_RESTORE_PREFIX=cargo-v1-%s-%s-\n' \
+              "$scope" "$TOOLCHAIN"
+            printf 'CI_TOOLS_CACHE_KEY=ci-tools-v1-%s-%s\n' "$scope" "$tool_pins"
+            printf 'WHITAKER_CACHE_KEY=whitaker-v1-%s-%s-%s\n' \
+              "$scope" "$WHITAKER_INSTALLER_VERSION" "$DYLINT_HASH"
+            printf 'SCCACHE_CACHE_KEY=sccache-v1-%s-%s-debug-%s\n' \
+              "$scope" "$TOOLCHAIN" "$LOCKFILE_HASH"
+            printf 'SCCACHE_CACHE_RESTORE_PREFIX=sccache-v1-%s-%s-debug-\n' \
+              "$scope" "$TOOLCHAIN"
+          } >> "$GITHUB_ENV"
+
+      # Ubicloud's transparent cache intercepts `actions/cache` v6.1.0, so
+      # one action and one pin serve both runner providers. Verified against
+      # the Ubicloud cache listing on 2026-09-03; the deprecated
+      # `ubicloud/cache` fork is not used.
+      - name: Restore Cargo registry
+        id: cargo-registry
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ env.CARGO_CACHE_KEY }}
+          restore-keys: ${{ env.CARGO_CACHE_RESTORE_PREFIX }}
+
+      # uv reports a tool as installed from its environment store alone, so
+      # the download store, the environment store, and the shim directory
+      # must be restored together by a single owner.
+      - name: Restore CI tool binaries (Linux)
+        id: ci-tools-linux
+        if: ${{ runner.os == 'Linux' }}
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.local/bin
+            ~/.cache/uv
+            ~/.local/share/uv
+            ~/.bun/install/cache
+            ~/.bun/install/global
+            ~/.cache/puppeteer
+            ${{ github.workspace }}/.ci-tools
+          key: ${{ env.CI_TOOLS_CACHE_KEY }}
+
+      - name: Restore CI tool binaries (Windows)
+        id: ci-tools-windows
+        if: ${{ runner.os == 'Windows' }}
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.cargo/bin
+            ${{ github.workspace }}/.ci-tools
+          key: ${{ env.CI_TOOLS_CACHE_KEY }}
+
+      # Mount only the installer-managed suite directory. The installer
+      # binary itself lives in `~/.cargo/bin`, which the tool cache owns.
+      - name: Restore Whitaker suite
+        id: whitaker-suite
+        if: ${{ runner.os == 'Linux' && matrix.tools }}
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.local/share/whitaker
+          key: ${{ env.WHITAKER_CACHE_KEY }}
+
+      # The Ubicloud lanes use sccache's GitHub Actions cache backend, whose
+      # objects reach Ubicloud storage when the sccache process holds the
+      # Actions cache credentials; the Cuprum cache listing on 2026-09-03
+      # confirmed that. The Windows lane has no such backend, because the
+      # shared Rust setup is called with `use-sccache: false`, so it uses the
+      # local directory. Setting RSTEST_BDD_SCCACHE_LOCAL moves the Linux
+      # lanes onto the same local directory.
+      - name: Restore compiler cache
+        id: sccache
+        if: >-
+          runner.os == 'Windows' || vars.RSTEST_BDD_SCCACHE_LOCAL == 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ${{ github.workspace }}/.sccache
+          key: ${{ env.SCCACHE_CACHE_KEY }}
+          restore-keys: ${{ env.SCCACHE_CACHE_RESTORE_PREFIX }}
+
       - name: Setup Rust
-        uses: leynos/shared-actions/.github/actions/setup-rust@794e4801babcf68065c660fdf4781ad62be5d061
+        # Merged shared-actions PR #421 cache-provider revision.
+        uses: leynos/shared-actions/.github/actions/setup-rust@5daae0a332441d170d88ca648c9e71f0bbe96cb3
+        with:
+          toolchain: ${{ matrix.rust-toolchain }}
+          cache-provider: external
+          use-sccache: 'false'
+
+      # A plain `run:` step never sees the Actions cache credentials; the
+      # runner exposes them to JavaScript actions only. This job installs its
+      # own checksum-verified sccache rather than using the shared action's
+      # wiring, so it must re-export them itself.
+      #
+      # Export `ACTIONS_CACHE_URL`, which on an Ubicloud runner addresses the
+      # local cache proxy, and clear `ACTIONS_CACHE_SERVICE_V2` so sccache
+      # uses the v1 API that proxy serves. `ACTIONS_RESULTS_URL` is
+      # deliberately not exported: it addresses GitHub's own results service,
+      # and every sccache write failed while it was the configured endpoint.
+      - name: Export Actions cache credentials
+        if: >-
+          runner.os == 'Linux' && vars.RSTEST_BDD_SCCACHE_LOCAL != 'true'
+        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd  # v8
+        with:
+          script: |
+            for (const name of ['ACTIONS_CACHE_URL', 'ACTIONS_RUNTIME_TOKEN']) {
+              const value = process.env[name];
+              if (!value) {
+                core.setFailed(`${name} is unavailable; sccache cannot reach the Ubicloud cache proxy`);
+                return;
+              }
+              core.exportVariable(name, value);
+            }
+            core.exportVariable('ACTIONS_CACHE_SERVICE_V2', '');
+
+      - name: Install prebuilt sccache
+        shell: bash
+        run: |
+          set -euo pipefail
+          tool_dir="$GITHUB_WORKSPACE/.ci-tools"
+          mkdir -p "$tool_dir"
+          # Binstall writes `sccache.exe` on Windows; resolve the real file so
+          # the wrapper and the counter reset both name an executable.
+          sccache_bin="$tool_dir/sccache"
+          if [[ ! -x "$sccache_bin" ]]; then
+            sccache_bin="$tool_dir/sccache.exe"
+          fi
+          expected_version="sccache ${SCCACHE_VERSION}"
+          installed_version=""
+          if [[ -x "$sccache_bin" ]]; then
+            installed_version="$("$sccache_bin" --version | tr -d '\r')"
+          fi
+          if [[ "$installed_version" != "$expected_version" ]]; then
+            cargo binstall --no-confirm --only-signed --disable-strategies compile \
+              --install-path "$tool_dir" "sccache@${SCCACHE_VERSION}"
+            sccache_bin="$tool_dir/sccache"
+            if [[ ! -x "$sccache_bin" ]]; then
+              sccache_bin="$tool_dir/sccache.exe"
+            fi
+          fi
+          test -x "$sccache_bin"
+          "$sccache_bin" --version | grep -Fx "$expected_version"
+          printf '%s\n' "$tool_dir" >> "$GITHUB_PATH"
+          printf 'RUSTC_WRAPPER=%s\n' "$sccache_bin" >> "$GITHUB_ENV"
+          # Zero the counters before the first compilation so the reported
+          # statistics describe this job's builds rather than installer noise.
+          "$sccache_bin" --zero-stats
 
       - name: Install bun
         if: ${{ matrix.tools }}
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6  # v2
         with:
-          bun-version: '1.2.21'
-
-      - name: Setup uv
-        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
-        with:
-          version: '0.11.8'
+          bun-version: ${{ env.BUN_VERSION }}
 
       # `.rustfmt.toml` uses unstable options, so `make check-fmt` shells out
       # to the pinned nightly rustfmt named by the Makefile's FMT_TOOLCHAIN.
@@ -104,55 +365,56 @@ jobs:
         if: ${{ matrix.tools }}
         run: make check-fmt
 
-      - name: Set up isolated Rust for Merman
+      - name: Install prebuilt Merman CLI
         if: ${{ matrix.tools }}
-        run: rustup toolchain install 1.95.0
-
-      - name: Cache Merman CLI
-        if: ${{ matrix.tools }}
-        id: cache-merman-cli
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
-        with:
-          path: ~/.cargo/bin/merman-cli
-          key: merman-cli-${{ runner.os }}-${{ runner.arch }}-${{ env.MERMAN_CLI_VERSION }}
-
-      - name: Install Merman CLI
-        if: ${{ matrix.tools && steps.cache-merman-cli.outputs.cache-hit != 'true' }}
-        run: cargo +1.95.0 install merman-cli --version "=${MERMAN_CLI_VERSION}" --locked
+        shell: bash
+        run: |
+          set -euo pipefail
+          tool_dir="$GITHUB_WORKSPACE/.ci-tools"
+          mkdir -p "$tool_dir"
+          expected_version="merman-cli ${MERMAN_CLI_VERSION}"
+          installed_version=""
+          if [[ -x "$tool_dir/merman-cli" ]]; then
+            installed_version="$("$tool_dir/merman-cli" --version | tr -d '\r')"
+          fi
+          if [[ "$installed_version" != "$expected_version" ]]; then
+            archive="merman-cli-x86_64-unknown-linux-gnu.tar.xz"
+            archive_url="https://github.com/Latias94/merman/releases/download/v${MERMAN_CLI_VERSION}/${archive}"
+            expected_sha256="dfdc2a978a884aa5a2ad5b85285fb5175cb435e82cf96efa860a550749e09d99"
+            install_directory="$(mktemp -d)"
+            trap 'find "$install_directory" -depth -delete' EXIT
+            curl --fail --location --silent --show-error \
+              --output "$install_directory/$archive" "$archive_url"
+            printf '%s  %s\n' "$expected_sha256" "$install_directory/$archive" \
+              | sha256sum --check
+            tar -xJf "$install_directory/$archive" -C "$install_directory"
+            install -m 0755 \
+              "$install_directory/merman-cli-x86_64-unknown-linux-gnu/merman-cli" \
+              "$tool_dir/merman-cli"
+          fi
+          "$tool_dir/merman-cli" --version | grep -Fx "$expected_version"
 
       - name: Install Mermaid CLI
         if: ${{ matrix.tools }}
         run: |
           set -euxo pipefail
-          bun install --no-progress --global @mermaid-js/mermaid-cli@11.9.0
+          bun install --no-progress --global "@mermaid-js/mermaid-cli@${MERMAID_CLI_VERSION}"
           bun x @puppeteer/browsers browsers install chrome-headless-shell
           mmdc --version
 
       - name: Install Nixie
         if: ${{ matrix.tools }}
-        run: uv tool install nixie-cli==1.1.0
-
-      - name: Cache Whitaker installer
-        if: ${{ matrix.tools }}
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
-        with:
-          path: |
-            ~/.cargo/bin/whitaker-installer
-            ~/.cache/cargo-binstall
-          key: whitaker-installer-${{ runner.os }}-${{ runner.arch }}-${{ env.WHITAKER_INSTALLER_VERSION }}
+        run: uv tool install "nixie-cli==${NIXIE_CLI_VERSION}"
 
       - name: Install Whitaker
         if: ${{ matrix.tools }}
-        run: |
-          if ! command -v whitaker-installer >/dev/null 2>&1; then
-            if cargo binstall --version >/dev/null 2>&1; then
-              cargo binstall --no-confirm --locked "whitaker-installer@${WHITAKER_INSTALLER_VERSION}"
-            else
-              echo "cargo-binstall unavailable; building whitaker-installer from crates.io"
-              cargo install --locked whitaker-installer --version "${WHITAKER_INSTALLER_VERSION}"
-            fi
-          fi
-          whitaker-installer
+        # Merged shared-actions PR #432: installs the official release
+        # archive against a pinned digest manifest, hashing the archive from
+        # stdin so Git Bash on Windows cannot mangle the file name.
+        uses: leynos/shared-actions/.github/actions/install-whitaker@f6d4d5f549655c118f86f371b8d55c200d3efa50
+        with:
+          installer-version: ${{ env.WHITAKER_INSTALLER_VERSION }}
+          cache-provider: external
 
       - name: Nixie
         if: ${{ matrix.tools }}
@@ -173,7 +435,7 @@ jobs:
         run: make lint
 
       - name: Workflow contract tests
-        if: ${{ matrix.tools && matrix.features == '' }}
+        if: ${{ matrix.tools }}
         run: make test-workflow-contracts
 
       - name: Ensure async-trait is absent
@@ -208,55 +470,86 @@ jobs:
           rustup toolchain install nightly-2026-08-07 --profile minimal
           make e2e-published-gpui
 
-      - name: Test and Measure Coverage (with features)
-        if: ${{ matrix.coverage && matrix.features != '' }}
-        uses: leynos/shared-actions/.github/actions/generate-coverage@794e4801babcf68065c660fdf4781ad62be5d061
+      # The single Linux execution. `--all-features` subsumes the former
+      # strict-validation lane, because `strict-compile-time-validation`
+      # only implies `compile-time-validation` and conflicts with nothing.
+      # `all-features`, `all-targets`, and `doctests` come from merged
+      # shared-actions PR #428, contained in this pin. `doctests` runs `cargo test --doc --workspace`
+      # with the same feature selection after the instrumented run, because
+      # llvm-cov's nextest path cannot execute doc tests.
+      - name: Test and Measure Coverage (Linux)
+        if: ${{ runner.os == 'Linux' }}
+        uses: leynos/shared-actions/.github/actions/generate-coverage@f6d4d5f549655c118f86f371b8d55c200d3efa50
+        env:
+          RUN_RUST_CARGO_WAIT_TIMEOUT: '1800'
+          # Tests that snapshot a child process's stderr must see the same
+          # panic-hook output on every lane. An instrumented build retains
+          # debuginfo, so a backtrace would otherwise appear here and not on
+          # the Windows lanes.
+          RUST_BACKTRACE: '0'
+        with:
+          cache-provider: external
+          output-path: coverage.xml
+          format: cobertura
+          all-features: 'true'
+          all-targets: 'true'
+          doctests: 'true'
+          use-cargo-nextest: 'true'
+          # Run the Python coverage suite serially: the whitaker lint-gate
+          # integration test shells out to `cargo dylint`, so parallel
+          # xdist workers race on the cargo package-cache lock. This is an
+          # explicit worker count, never `-n auto`.
+          pytest-workers: ''
+          # The sole Linux lane writes the trunk baseline that every
+          # pull-request run compares against.
+          with-ratchet: 'true'
+
+      # Windows keeps its two feature lanes and its `cargo test` driver.
+      - name: Test and Measure Coverage (Windows, default features)
+        if: ${{ runner.os == 'Windows' && matrix.features == '' }}
+        # Merged shared-actions whole-workspace coverage revision.
+        uses: leynos/shared-actions/.github/actions/generate-coverage@f6d4d5f549655c118f86f371b8d55c200d3efa50
         continue-on-error: true
         env:
           # Windows coverage runs (build plus doctests) exceed the shared
           # action's 600s per-invocation default; give them headroom.
           RUN_RUST_CARGO_WAIT_TIMEOUT: '1800'
+          # Match the Linux lane so stderr snapshots stay deterministic.
+          RUST_BACKTRACE: '0'
         with:
-          output-path: coverage.xml
-          format: cobertura
-          features: rstest-bdd/diagnostics rstest-bdd-server/test-support ${{ matrix.features }}
-          with-default-features: ${{ matrix.with-default-features }}
-          use-cargo-nextest: ${{ matrix.use-nextest }}
-          # Run the Python coverage suite serially: the whitaker lint-gate
-          # integration test shells out to `cargo dylint`, so parallel
-          # xdist workers race on the cargo package-cache lock.
-          pytest-workers: ''
-
-      - name: Test and Measure Coverage (no features)
-        if: ${{ matrix.coverage && matrix.features == '' }}
-        uses: leynos/shared-actions/.github/actions/generate-coverage@794e4801babcf68065c660fdf4781ad62be5d061
-        # The CodeScene leg (the default-features Linux leg) gates on the
-        # ratchet, so a coverage failure must fail the build there; other
-        # legs stay best-effort as before. Selected by matrix values rather
-        # than a dedicated key so the job name (a required check context)
-        # is unchanged.
-        continue-on-error: ${{ !(matrix.os == 'ubuntu-latest' && matrix.features == '') }}
-        env:
-          # Windows coverage runs (build plus doctests) exceed the shared
-          # action's 600s per-invocation default; give them headroom.
-          RUN_RUST_CARGO_WAIT_TIMEOUT: '1800'
-        with:
+          cache-provider: external
           output-path: coverage.xml
           format: cobertura
           features: rstest-bdd/diagnostics rstest-bdd-macros/compile-time-validation rstest-bdd-server/test-support
           with-default-features: ${{ matrix.with-default-features }}
           use-cargo-nextest: ${{ matrix.use-nextest }}
-          # Run the Python coverage suite serially: the whitaker lint-gate
-          # integration test shells out to `cargo dylint`, so parallel
-          # xdist workers race on the cargo package-cache lock.
           pytest-workers: ''
-          # Ratchet only the default-features Linux leg: the two Linux
-          # coverage legs would otherwise collide on the per-run baseline
-          # cache key.
-          with-ratchet: ${{ (matrix.os == 'ubuntu-latest' && matrix.features == '') && 'true' || 'false' }}
 
+      - name: Test and Measure Coverage (Windows, strict validation)
+        if: ${{ runner.os == 'Windows' && matrix.features != '' }}
+        # Merged shared-actions whole-workspace coverage revision.
+        uses: leynos/shared-actions/.github/actions/generate-coverage@f6d4d5f549655c118f86f371b8d55c200d3efa50
+        continue-on-error: true
+        env:
+          # Windows coverage runs (build plus doctests) exceed the shared
+          # action's 600s per-invocation default; give them headroom.
+          RUN_RUST_CARGO_WAIT_TIMEOUT: '1800'
+          # Match the Linux lane so stderr snapshots stay deterministic.
+          RUST_BACKTRACE: '0'
+        with:
+          cache-provider: external
+          output-path: coverage.xml
+          format: cobertura
+          features: rstest-bdd/diagnostics rstest-bdd-server/test-support ${{ matrix.features }}
+          with-default-features: ${{ matrix.with-default-features }}
+          use-cargo-nextest: ${{ matrix.use-nextest }}
+          pytest-workers: ''
+
+      # Only the Linux lane's coverage is mandatory; the Windows steps carry
+      # `continue-on-error`, so verifying their output would red the lane that
+      # the best-effort marking exists to keep green.
       - name: Verify coverage output exists
-        if: ${{ matrix.coverage }}
+        if: ${{ runner.os == 'Linux' }}
         shell: bash
         run: |
           set -euo pipefail
@@ -266,8 +559,7 @@ jobs:
         env:
           CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
         if: >-
-          matrix.os == 'ubuntu-latest' &&
-          matrix.features == '' &&
+          matrix.os == 'ubicloud-standard-2' &&
           github.event_name == 'pull_request' &&
           env.CS_ACCESS_TOKEN != ''
         uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@794e4801babcf68065c660fdf4781ad62be5d061
@@ -278,5 +570,197 @@ jobs:
           access-token: ${{ env.CS_ACCESS_TOKEN }}
           installer-checksum: ${{ vars.CODESCENE_CLI_SHA256 }}
 
+      - name: Upload coverage data to CodeScene
+        env:
+          CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
+        if: >-
+          matrix.os == 'ubicloud-standard-2' &&
+          github.event_name == 'push' &&
+          github.ref == 'refs/heads/main' &&
+          env.CS_ACCESS_TOKEN != ''
+        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@794e4801babcf68065c660fdf4781ad62be5d061
+        with:
+          format: cobertura
+          access-token: ${{ env.CS_ACCESS_TOKEN }}
+          installer-checksum: ${{ vars.CODESCENE_CLI_SHA256 }}
+
+      # `make publish-check` compiles the workspace a second time, into
+      # `target/package`. By this point the lint tree, the two GPUI fixture
+      # trees and the instrumented coverage tree have no consumer left, and
+      # sccache holds every object the publish build could have reused from
+      # them, so discard them rather than pay for every tree at once on a
+      # 72 GB disk. Mirrors the scratch-discard rule Whitaker landed in its
+      # PR #394.
+      - name: Discard spent build trees
+        if: ${{ runner.os == 'Linux' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'Disk before discarding the spent build trees:'
+          df -h /
+          for tree in \
+            target/llvm-cov-target \
+            target/llvm-cov \
+            target/debug \
+            tests/fixtures/published-gpui-0-2-2/target \
+            tests/fixtures/published-gpui-e2e/target
+          do
+            if [[ -d "$tree" ]]; then
+              du -sh "$tree"
+              rm -rf "$tree"
+            fi
+          done
+          echo 'Disk after discarding the spent build trees:'
+          df -h /
+
+      # No `shell:` and no workflow default, so this runs under PowerShell on
+      # the Windows lanes. Keep it to the one portable command; the disk the
+      # publish build starts with is the reading the discard step prints last.
       - name: Publish dry run
         run: make publish-check
+
+      # Exactly one writer per key: the default-features lane on trunk, per
+      # runner operating system, because every key carries `runner.os`.
+      # Pull-request runs read the trusted generation and never compete for
+      # a reservation, so `Unable to reserve cache` cannot appear.
+      - name: Save Cargo registry
+        if: >-
+          github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+          matrix.features == '' &&
+          steps.cargo-registry.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ env.CARGO_CACHE_KEY }}
+
+      - name: Save CI tool binaries (Linux)
+        if: >-
+          runner.os == 'Linux' && github.event_name == 'push' &&
+          github.ref == 'refs/heads/main' && matrix.features == '' &&
+          steps.ci-tools-linux.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.local/bin
+            ~/.cache/uv
+            ~/.local/share/uv
+            ~/.bun/install/cache
+            ~/.bun/install/global
+            ~/.cache/puppeteer
+            ${{ github.workspace }}/.ci-tools
+          key: ${{ env.CI_TOOLS_CACHE_KEY }}
+
+      - name: Save CI tool binaries (Windows)
+        if: >-
+          runner.os == 'Windows' && github.event_name == 'push' &&
+          github.ref == 'refs/heads/main' && matrix.features == '' &&
+          steps.ci-tools-windows.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.cargo/bin
+            ${{ github.workspace }}/.ci-tools
+          key: ${{ env.CI_TOOLS_CACHE_KEY }}
+
+      - name: Save Whitaker suite
+        if: >-
+          runner.os == 'Linux' && matrix.tools &&
+          github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+          matrix.features == '' &&
+          steps.whitaker-suite.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.local/share/whitaker
+          key: ${{ env.WHITAKER_CACHE_KEY }}
+
+      # The compiler cache always changes within a run, so save it on trunk
+      # whenever the primary key is not already present. It exists only on
+      # the lanes that use the local directory.
+      - name: Save compiler cache
+        if: >-
+          (runner.os == 'Windows' || vars.RSTEST_BDD_SCCACHE_LOCAL == 'true') &&
+          github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+          matrix.features == '' &&
+          steps.sccache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ${{ github.workspace }}/.sccache
+          key: ${{ env.SCCACHE_CACHE_KEY }}
+
+      - name: Report peak resource use
+        if: ${{ always() && runner.os == 'Linux' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          samples="${RESOURCE_SAMPLES:-}"
+          if [[ -z "$samples" || ! -s "$samples" ]]; then
+            echo 'No resource samples were recorded.'
+            exit 0
+          fi
+          peak_memory="$(awk '{ print $1 }' "$samples" | sort -n | tail -1)"
+          peak_disk="$(awk '{ print $2 }' "$samples" | sort -n | tail -1)"
+          least_free="$(awk '{ print $3 }' "$samples" | sort -n | head -1)"
+          count="$(wc -l < "$samples")"
+          printf 'peak used memory: %s MiB\n' "$peak_memory"
+          printf 'peak used disk: %s MiB\n' "$peak_disk"
+          printf 'least free disk: %s MiB\n' "$least_free"
+          printf 'samples: %s at 15 second intervals\n' "$count"
+          {
+            printf '### Resources\n\n'
+            printf -- '- peak used memory: %s MiB\n' "$peak_memory"
+            printf -- '- peak used disk: %s MiB\n' "$peak_disk"
+            printf -- '- least free disk: %s MiB\n' "$least_free"
+            printf -- '- samples: %s at 15 second intervals\n' "$count"
+            printf -- '- shape: %s vCPU\n' "${RUNNER_VCPUS:-unknown}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Record cache observations
+        if: ${{ always() }}
+        shell: bash
+        env:
+          CARGO_CACHE_HIT: ${{ steps.cargo-registry.outputs.cache-hit }}
+          CI_TOOLS_CACHE_HIT: >-
+            ${{ steps.ci-tools-linux.outputs.cache-hit }}${{ steps.ci-tools-windows.outputs.cache-hit }}
+          WHITAKER_CACHE_HIT: ${{ steps.whitaker-suite.outputs.cache-hit }}
+          RUNNER_LABEL: ${{ matrix.os }}
+          RUNNER_ENVIRONMENT_NAME: ${{ runner.environment }}
+          SCCACHE_CACHE_HIT: ${{ steps.sccache.outputs.cache-hit }}
+        run: |
+          set -euo pipefail
+          {
+            printf '### Cache observations\n\n'
+            printf -- '- runner: %s os: %s arch: %s environment: %s\n' \
+              "$RUNNER_LABEL" "$RUNNER_OS" "$RUNNER_ARCH" \
+              "$RUNNER_ENVIRONMENT_NAME"
+            printf -- '- registry key: %s hit: %s\n' \
+              "${CARGO_CACHE_KEY:-unset}" "${CARGO_CACHE_HIT:-skipped}"
+            printf -- '- tool key: %s hit: %s\n' \
+              "${CI_TOOLS_CACHE_KEY:-unset}" "${CI_TOOLS_CACHE_HIT:-skipped}"
+            printf -- '- whitaker key: %s hit: %s\n' \
+              "${WHITAKER_CACHE_KEY:-unset}" "${WHITAKER_CACHE_HIT:-skipped}"
+            printf -- '- sccache key: %s hit: %s gha-backend: %s\n' \
+              "${SCCACHE_CACHE_KEY:-unset}" "${SCCACHE_CACHE_HIT:-skipped}" \
+              "${SCCACHE_GHA_ENABLED:-unset}"
+            printf -- '- target archives: none; sccache owns every build shape\n'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Report compiler-cache effectiveness
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v sccache >/dev/null 2>&1; then
+            echo 'sccache was unavailable before its prebuilt installation completed.'
+            exit 0
+          fi
+          sccache --show-stats | tee sccache-stats.txt
+          sccache --show-stats --stats-format json > sccache-stats.json
+          {
+            printf '### sccache\n\n'
+            printf '```text\n'
+            cat sccache-stats.txt
+            printf '```\n'
+          } >> "$GITHUB_STEP_SUMMARY"
