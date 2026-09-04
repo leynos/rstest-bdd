@@ -106,13 +106,17 @@ fn workspace_root() -> Result<PathBuf, io::Error> {
     Ok(workspace_root.to_path_buf())
 }
 
-fn default_global_timeout(configuration: &Value) -> Result<&str, io::Error> {
+fn default_profile_key<'a>(configuration: &'a Value, key: &str) -> Option<&'a Value> {
     configuration
         .get("profile")
         .and_then(Value::as_table)
         .and_then(|profiles| profiles.get("default"))
         .and_then(Value::as_table)
-        .and_then(|default_profile| default_profile.get("global-timeout"))
+        .and_then(|default_profile| default_profile.get(key))
+}
+
+fn default_global_timeout(configuration: &Value) -> Result<&str, io::Error> {
+    default_profile_key(configuration, "global-timeout")
         .and_then(Value::as_str)
         .ok_or_else(|| {
             io::Error::other("nextest configuration must set profile.default.global-timeout")
@@ -144,12 +148,7 @@ fn duration_seconds(duration: &str) -> Result<u64, io::Error> {
 }
 
 fn default_overrides(configuration: &Value) -> Result<&[Value], io::Error> {
-    let overrides = configuration
-        .get("profile")
-        .and_then(Value::as_table)
-        .and_then(|profiles| profiles.get("default"))
-        .and_then(Value::as_table)
-        .and_then(|default_profile| default_profile.get("overrides"))
+    let overrides = default_profile_key(configuration, "overrides")
         .and_then(Value::as_array)
         .ok_or_else(|| {
             io::Error::other("nextest configuration must contain profile.default.overrides")
