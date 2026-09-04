@@ -290,10 +290,16 @@ addition to the binding constraint that invalidation is a tested contract:
 ## Consequences
 
 - The rebuild-invalidation foot-gun is closed once 10.3.3 lands.
-- Consumers of `#[scenario]` gain invisible rebuild tracking with no
-  `build.rs` obligation (Option A path).
-- Consumers of `scenarios!` gain rebuild tracking with an opt-in `build.rs`
-  helper (Option B path).
+- Both `#[scenario]` and `scenarios!` provide automatic edit tracking for
+  bound `.feature` files with no `build.rs` obligation.
+- The tested `build.rs` recipe is only required to detect `.feature` files
+  newly added to a bound directory.
+
+> Amended 2026-08-17: the original consequences above predate the implementing
+> ExecPlan. Both macros now emit per-file tracking bindings automatically; the
+> `build.rs` recipe applies only to the file-addition gap. The original wording
+> is preserved in the *Options considered* section below.
+
 - `§2.7.6.6` of the design document documents the foot-gun and this decision.
 - `§3.2.2` of the design document is tightened to distinguish
   *invalidation* (this ADR) from *caching* (performance, a separate concern).

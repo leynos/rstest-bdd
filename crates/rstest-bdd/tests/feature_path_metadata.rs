@@ -103,16 +103,12 @@ impl HarnessAdapter for ScenarioMetadataCaptureHarness {
     path = "tests/features/reporting.feature",
     harness = ScenarioMetadataCaptureHarness,
 )]
+// The `#[scenario]` route records the manifest-relative feature path in the
+// reporting collector when the generated test executes. The assertions run
+// inside `ScenarioMetadataCaptureHarness`, which the generated test delegates
+// to; the runner's own scheduling of this test is the execution that produces
+// the runtime record.
 fn scenario_records_manifest_relative_path() {}
-
-/// The `#[scenario]` route records the manifest-relative feature path in the
-/// reporting collector when the generated test executes.
-///
-/// The assertions run inside `ScenarioMetadataCaptureHarness`, which the
-/// generated test delegates to; the runner's own scheduling of this test is
-/// the execution that produces the runtime record.
-#[test]
-fn scenario_macro_records_manifest_relative_feature_path() {}
 
 // ---------------------------------------------------------------------------
 // Route 2: `scenarios!` binds a crate-local feature directory.
@@ -145,18 +141,13 @@ scenarios!(
     tags = "@fast",
     harness = ScenariosMetadataCaptureHarness,
 );
-
-/// The `scenarios!` route records the manifest-relative feature path when a
-/// generated test executes.
-///
-/// The `tags = "@fast"` filter generates tests only for the `@fast` scenarios
-/// in the bound directory; the `@slow` scenarios generate none, which is
-/// exactly the case a body-scoped tracking binding would miss. The executable
-/// regression tests are the `scenarios!`-generated tests in
-/// `filtered_scenarios` (`fast_fast_macro_scenario` and
-/// `mixed_outline_example::case_1`): each delegates to
-/// `ScenariosMetadataCaptureHarness`, which reads the `ScenarioRecord` the
-/// executed generated code recorded and asserts the exact manifest-relative
-/// path with `/` separators.
-#[test]
-fn scenarios_macro_records_manifest_relative_feature_path() {}
+// The `scenarios!` route records the manifest-relative feature path when a
+// generated test executes. The `tags = "@fast"` filter generates tests only
+// for the `@fast` scenarios in the bound directory; the `@slow` scenarios
+// generate none, which is exactly the case a body-scoped tracking binding
+// would miss. The executable regression tests are the `scenarios!`-generated
+// tests in `filtered_scenarios` (`fast_fast_macro_scenario` and
+// `mixed_outline_example::case_1`): each delegates to
+// `ScenariosMetadataCaptureHarness`, which reads the `ScenarioRecord` the
+// executed generated code recorded and asserts the exact manifest-relative
+// path with `/` separators.
