@@ -241,23 +241,35 @@ def test_shared_actions_leave_cache_ownership_to_the_caller() -> None:
         )
 
 
-def _iterated_credential_names(script: str) -> frozenset[str]:
-    """Return the names the credential re-export loop actually iterates.
+_CREDENTIAL_LOOP = re.compile(
+    r"for\s*\(\s*const\s+(?P<variable>\w+)\s+of\s*\[(?P<names>[^\]]*)\]\s*\)\s*\{"
+)
+_QUOTED = re.compile(r"""['"]([^'"]+)['"]""")
 
-    Only names inside the loop's array literal count. A credential mentioned
-    in a comment or in code the loop never reaches is never exported, so
-    searching the whole script would accept a script that exports nothing.
 
-    Returns
-    -------
-    frozenset[str]
-        The quoted names in the loop's array literal, empty when the script
-        has no such loop.
-    """
-    literal = re.search(r"for\s*\(\s*const\s+\w+\s+of\s*\[([^\]]*)\]", script)
-    if literal is None:
-        return frozenset()
-    return frozenset(re.findall(r"""['"]([^'"]+)['"]""", literal.group(1)))
+def _braced_body(script: str, opening: int) -> str:
+    """Return the block that starts at the opening brace at ``opening``."""
+    depth = 0
+    for index in range(opening, len(script)):
+        match script[index]:
+            case "{":
+                depth += 1
+            case "}":
+                depth -= 1
+                if depth == 0:
+                    return script[opening + 1 : index]
+    return script[opening + 1 :]
+
+
+def _exported_credential_names(script: str) -> frozenset[str]:
+    """Return the names a loop both iterates and exports from its own body."""
+    exported: set[str] = set()
+    for loop in _CREDENTIAL_LOOP.finditer(script):
+        body = _braced_body(script, loop.end() - 1)
+        if f"core.exportVariable({loop['variable']}" not in body:
+            continue
+        exported.update(_QUOTED.findall(loop["names"]))
+    return frozenset(exported)
 
 
 def test_compiler_cache_backend_has_credentials_and_one_fallback() -> None:
@@ -273,19 +285,16 @@ def test_compiler_cache_backend_has_credentials_and_one_fallback() -> None:
             f"{workflow_name} credential re-export must declare a script"
         )
         script = str(export_inputs.get("script", ""))
-        # Naming a variable is not exporting it: assert the call that carries
-        # it into the environment sccache reads.
-        exported = re.findall(r"core\.exportVariable\(\s*([^,)]+)", script)
-        assert "name" in exported, (
-            f"{workflow_name} must call core.exportVariable for each name it "
-            f"iterates; found {exported}"
-        )
-        iterated = _iterated_credential_names(script)
+        # Naming a variable is not exporting it, and exporting something
+        # elsewhere in the script does not export these: require one loop
+        # that iterates both names and exports its own loop variable.
+        exported = _exported_credential_names(script)
         for variable in ("ACTIONS_CACHE_URL", "ACTIONS_RUNTIME_TOKEN"):
-            assert variable in iterated, (
+            assert variable in exported, (
                 f"{workflow_name} must re-export {variable} before sccache "
-                f"starts; the loop iterates {sorted(iterated)}. Naming it in a "
-                "comment or in unreachable code exports nothing"
+                f"starts; the exporting loops carry {sorted(exported)}. A name "
+                "in a comment, in unreachable code, or in a loop whose body "
+                "never calls core.exportVariable reaches sccache as nothing"
             )
         assert "core.exportVariable('ACTIONS_CACHE_SERVICE_V2', '')" in script, (
             f"{workflow_name} must clear ACTIONS_CACHE_SERVICE_V2 so sccache "
