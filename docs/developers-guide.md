@@ -2293,7 +2293,7 @@ pattern in `crates/rstest-bdd/tests/feature_rebuild_invalidation/`:
   populated by CI.
 - The test copies the fixture into `target/tests/<name>/` under the shared
   workspace `target/`, rewrites the copied manifest's relative `path = "…"`
-  values to absolute paths (resolving against the _source_ directory, whose
+  values to absolute paths (resolving against the *source* directory, whose
   depth the `..` counts match), and mutates only the copy.
 - A versioned stamp file (a hash of the source tree, written last) makes the
   copy idempotent; stale scratch trees are always re-copied.
@@ -2329,7 +2329,7 @@ path plumbing in `macros/scenario/paths.rs` or
 
 The repository's first adoption of `googletest` (ExecPlan Decision D1). Use
 `assert_that!` / `expect_that!` and matchers (`eq`, `is_true`,
-`contains_substring`, …) where an assertion expresses a _property_ rather than
+`contains_substring`, …) where an assertion expresses a *property* rather than
 raw equality, and `pretty_assertions` for the structural-equality diffs. Inside
 `#[scenario]`-generated bodies there is no `#[gtest]` test context, so step
 functions must use the panic-mode `assert_that!`; `expect_that!` and its
