@@ -209,14 +209,15 @@ runners and its Windows lanes on GitHub-hosted runners. This deployment changes
 the runner environment, and it reduces the lane count from four to three:
 
 - The Linux lane uses `ubicloud-standard-2`, an Ubuntu 24.04, amd64 shape with
-  2 vCPU and 8 GB, the recipe's starting shape. The ceiling shape was tried
-  once, after the instrumented all-features build died without a diagnostic,
-  and returned: the sampler measured a 3,294 MiB peak, so memory was never the
-  constraint. Broken `sccache` routing was, and fixing it let the same workload
-  pass on the smaller shape. Each Linux job keeps sampling memory and reporting
-  its peak, so any future escalation rests on a measurement. The Ubuntu 24.04
-  GNU C Library baseline can execute Whitaker's repository-hosted Dylint
-  dependency binaries.
+  2 vCPU, 8 GB, and a 72 GB disk. Disk is the binding constraint, not memory:
+  `ubicloud-standard-4` offers 145 GB, and two silent deaths in the publish
+  step occurred only on the smaller shape, with peak memory of 2,841 MiB and
+  3,294 MiB against the 8 GB available. The lane now discards every spent
+  build tree, the lint tree, the two GPUI fixture trees and the instrumented
+  coverage tree, before the publish build compiles the workspace again, and
+  samples disk as well as memory. Escalate only if the reclaimed shape still
+  peaks within 5 GB of a full disk. The Ubuntu 24.04 GNU C Library baseline can
+  execute Whitaker's repository-hosted Dylint dependency binaries.
 - CI pins `whitaker-installer` at `0.2.7` and invokes the SHA-pinned
   `leynos/shared-actions/.github/actions/install-whitaker` action. The shared
   action normalizes Cargo home and executes the installer by absolute path.

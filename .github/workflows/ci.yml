@@ -121,28 +121,31 @@ jobs:
             /usr/local/share/powershell || true
           df -h /
 
-      # Sample resident memory so an escalation or a return to a smaller
-      # shape rests on a measurement rather than on a silent job death.
-      - name: Start memory sampler
+      # Sample memory and disk so a shape decision rests on a measurement.
+      # The earlier silent deaths in `Publish dry run` were disk exhaustion,
+      # which memory sampling alone could never have shown.
+      - name: Start resource sampler
         if: ${{ runner.os == 'Linux' }}
         shell: bash
         env:
-          MEMORY_SAMPLES: ${{ runner.temp }}/memory-samples.txt
+          RESOURCE_SAMPLES: ${{ runner.temp }}/resource-samples.txt
         run: |
           set -euo pipefail
-          : > "$MEMORY_SAMPLES"
-          sampler="$RUNNER_TEMP/sample-memory.sh"
+          : > "$RESOURCE_SAMPLES"
+          sampler="$RUNNER_TEMP/sample-resources.sh"
           cat > "$sampler" <<'SAMPLER'
           #!/usr/bin/env bash
           set -uo pipefail
           while :; do
-            free -m | awk '/^Mem:/ { print $3 }' >> "$1"
+            mem_used="$(free -m | awk '/^Mem:/ { print $3 }')"
+            disk="$(df -m --output=used,avail / | tail -1)"
+            printf '%s %s\n' "$mem_used" "$disk" >> "$1"
             sleep 15
           done
           SAMPLER
           chmod +x "$sampler"
-          nohup "$sampler" "$MEMORY_SAMPLES" >/dev/null 2>&1 &
-          printf 'MEMORY_SAMPLES=%s\n' "$MEMORY_SAMPLES" >> "$GITHUB_ENV"
+          nohup "$sampler" "$RESOURCE_SAMPLES" >/dev/null 2>&1 &
+          printf 'RESOURCE_SAMPLES=%s\n' "$RESOURCE_SAMPLES" >> "$GITHUB_ENV"
 
       - name: Configure runner parallelism and compiler cache
         shell: bash
@@ -581,6 +584,38 @@ jobs:
           access-token: ${{ env.CS_ACCESS_TOKEN }}
           installer-checksum: ${{ vars.CODESCENE_CLI_SHA256 }}
 
+      # `make publish-check` compiles the workspace a second time, into
+      # `target/package`. By this point the lint tree, the two GPUI fixture
+      # trees and the instrumented coverage tree have no consumer left, and
+      # sccache holds every object the publish build could have reused from
+      # them, so discard them rather than pay for every tree at once on a
+      # 72 GB disk. Mirrors the scratch-discard rule Whitaker landed in its
+      # PR #394.
+      - name: Discard spent build trees
+        if: ${{ runner.os == 'Linux' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'Disk before discarding the spent build trees:'
+          df -h /
+          for tree in \
+            target/llvm-cov-target \
+            target/llvm-cov \
+            target/debug \
+            tests/fixtures/published-gpui-0-2-2/target \
+            tests/fixtures/published-gpui-e2e/target
+          do
+            if [[ -d "$tree" ]]; then
+              du -sh "$tree"
+              rm -rf "$tree"
+            fi
+          done
+          echo 'Disk after discarding the spent build trees:'
+          df -h /
+
+      # No `shell:` and no workflow default, so this runs under PowerShell on
+      # the Windows lanes. Keep it to the one portable command; the disk the
+      # publish build starts with is the reading the discard step prints last.
       - name: Publish dry run
         run: make publish-check
 
@@ -655,22 +690,29 @@ jobs:
           path: ${{ github.workspace }}/.sccache
           key: ${{ env.SCCACHE_CACHE_KEY }}
 
-      - name: Report peak memory
+      - name: Report peak resource use
         if: ${{ always() && runner.os == 'Linux' }}
         shell: bash
         run: |
           set -euo pipefail
-          samples="${MEMORY_SAMPLES:-}"
+          samples="${RESOURCE_SAMPLES:-}"
           if [[ -z "$samples" || ! -s "$samples" ]]; then
-            echo 'No memory samples were recorded.'
+            echo 'No resource samples were recorded.'
             exit 0
           fi
-          peak="$(sort -n "$samples" | tail -1)"
+          peak_memory="$(awk '{ print $1 }' "$samples" | sort -n | tail -1)"
+          peak_disk="$(awk '{ print $2 }' "$samples" | sort -n | tail -1)"
+          least_free="$(awk '{ print $3 }' "$samples" | sort -n | head -1)"
           count="$(wc -l < "$samples")"
-          printf 'peak used memory: %s MiB across %s samples\n' "$peak" "$count"
+          printf 'peak used memory: %s MiB\n' "$peak_memory"
+          printf 'peak used disk: %s MiB\n' "$peak_disk"
+          printf 'least free disk: %s MiB\n' "$least_free"
+          printf 'samples: %s at 15 second intervals\n' "$count"
           {
-            printf '### Memory\n\n'
-            printf -- '- peak used: %s MiB\n' "$peak"
+            printf '### Resources\n\n'
+            printf -- '- peak used memory: %s MiB\n' "$peak_memory"
+            printf -- '- peak used disk: %s MiB\n' "$peak_disk"
+            printf -- '- least free disk: %s MiB\n' "$least_free"
             printf -- '- samples: %s at 15 second intervals\n' "$count"
             printf -- '- shape: %s vCPU\n' "${RUNNER_VCPUS:-unknown}"
           } >> "$GITHUB_STEP_SUMMARY"

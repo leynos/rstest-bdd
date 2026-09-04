@@ -76,29 +76,77 @@ def test_build_matrix_derives_parallelism_from_named_vcpu_constants() -> None:
     )
 
 
-def test_linux_lane_measures_its_own_memory_footprint() -> None:
-    """An escalation or a return to a smaller shape needs a measurement."""
+def test_linux_lane_measures_memory_and_disk() -> None:
+    """A shape decision needs the resource that actually constrains the job."""
     steps = _steps(_job("ci.yml", "build-test"))
-    sampler = steps[_step_index(steps, "Start memory sampler")]
+    sampler = steps[_step_index(steps, "Start resource sampler")]
     assert sampler.get("if") == "${{ runner.os == 'Linux' }}", (
-        "the sampler reads /proc through free, so it is Linux only"
+        "the sampler reads /proc and df, so it is Linux only"
     )
     sampler_script = str(sampler.get("run"))
-    for fragment in ("free -m", "sleep 15", "MEMORY_SAMPLES"):
+    for fragment in ("free -m", "df -m --output=used,avail", "sleep 15"):
         assert fragment in sampler_script, (
-            f"the memory sampler must contain {fragment!r}"
+            f"the resource sampler must contain {fragment!r}; memory alone "
+            "cannot show the disk exhaustion that killed the publish step"
         )
-    checkout_index = _step_index(steps, "Checkout")
-    assert _step_index(steps, "Start memory sampler") > checkout_index, (
-        "the sampler starts after checkout so it covers the build and tests"
-    )
-    report = steps[_step_index(steps, "Report peak memory")]
+    assert _step_index(steps, "Start resource sampler") > _step_index(
+        steps, "Checkout"
+    ), "the sampler starts after checkout so it covers the build and tests"
+
+    report = steps[_step_index(steps, "Report peak resource use")]
     assert report.get("if") == "${{ always() && runner.os == 'Linux' }}", (
-        "the peak must be reported even when the job fails, which is the case "
-        "the escalation exists to diagnose"
+        "the peaks must be reported even when the job dies, which is the case "
+        "they exist to diagnose"
     )
     report_script = str(report.get("run"))
-    for fragment in ("peak used", "GITHUB_STEP_SUMMARY"):
+    for fragment in (
+        "peak used memory",
+        "peak used disk",
+        "least free disk",
+        "GITHUB_STEP_SUMMARY",
+    ):
         assert fragment in report_script, (
-            f"the peak-memory report must contain {fragment!r}"
+            f"the resource report must contain {fragment!r}"
         )
+    printed = report_script[: report_script.index("GITHUB_STEP_SUMMARY")]
+    assert "printf 'peak used disk" in printed, (
+        "the peaks must reach the job log, not only the step summary, so a "
+        "failed run can be diagnosed from the log alone"
+    )
+
+
+def test_publish_check_runs_without_the_spent_build_trees() -> None:
+    """Several full workspace trees do not fit the shape's 72 GB disk."""
+    steps = _steps(_job("ci.yml", "build-test"))
+    discard_index = _step_index(steps, "Discard spent build trees")
+    publish_index = _step_index(steps, "Publish dry run")
+    assert discard_index < publish_index, (
+        "the spent trees must go before the publish build creates its own"
+    )
+    coverage_index = _step_index(steps, "Test and Measure Coverage (Linux)")
+    assert coverage_index < discard_index, (
+        "the report must exist before its scratch tree is discarded"
+    )
+    discard = steps[discard_index]
+    assert discard.get("if") == "${{ runner.os == 'Linux' }}", (
+        "the discard uses df and rm, so it is Linux only"
+    )
+    script = str(discard.get("run"))
+    for tree in (
+        "target/llvm-cov-target",
+        "target/debug",
+        "tests/fixtures/published-gpui-0-2-2/target",
+        "tests/fixtures/published-gpui-e2e/target",
+    ):
+        assert tree in script, (
+            f"{tree!r} has no consumer past the coverage report, so the "
+            "publish build must not have to share the disk with it"
+        )
+    assert script.count("df -h") >= 2, (
+        "record the disk before and after the discard so the saving is measured"
+    )
+    assert publish_index == discard_index + 1, (
+        "nothing may run between them, so the discard's closing reading is the "
+        "disk the publish build starts with; the publish step itself cannot "
+        "print one because it also runs under PowerShell on Windows"
+    )

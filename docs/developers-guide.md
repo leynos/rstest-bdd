@@ -28,25 +28,33 @@ CodeScene and coverage-ratchet conditions identify the Linux label explicitly,
 so a runner reassignment must update those conditions and the workflow
 contracts together.
 
-The Linux lane sits on `ubicloud-standard-2`, the recipe's starting shape.
-`ubicloud-standard-4` was tried once, after the instrumented all-features build
-died on the smaller shape with no diagnostic: the job produced no output for
-fifteen minutes and then ended, well inside its timeout, which matches a lost
-runner rather than a test failure.
+The Linux lane sits on `ubicloud-standard-2`, the recipe's starting shape. The
+constraint that shape imposes is disk, not memory or vCPUs: it offers 72 GB
+against 145 GB on `ubicloud-standard-4`, and after the runner image and the
+reclaim step about 31 GB remains against 104 GB.
 
-The escalation was returned rather than kept. The memory sampler measured a
-peak of 3,294 MiB across 197 samples on the larger shape, far below the 8 GB
-the smaller one offers, so memory was never the constraint. The same push also
-fixed `sccache` routing, and that is what explains the survival:
-`make publish-check` recompiles the workspace a second time and now draws cache
-hits instead of rebuilding while every write fails. Two variables moved
-together, and the measurement exonerates the one that costs twice as much per
-minute.
+Two silent job deaths were traced to that limit. `Publish dry run` produced no
+output for roughly fifteen minutes and the step then failed with no error text
+and no annotation, twice, both times on `ubicloud-standard-2`. The same
+workload passed on `ubicloud-standard-4`. Three runs separate the variables:
+the smaller shape failed both with sccache broken and with it working at a 94
+percent hit rate, and the larger shape passed. Peak memory was 2,841 MiB and
+3,294 MiB, so memory was never close to pressure on either.
 
-Every Linux job therefore keeps sampling resident memory every fifteen seconds
-from just after checkout and reporting the peak to the job summary, even when
-the job fails. Escalate to `ubicloud-standard-4` only with a measured peak
-approaching 6 GB across at least three runs, and set the vCPU constant to match.
+The cause is several full build trees held at once. The lint step leaves a
+debug tree, the two published-GPUI fixtures leave one each, the coverage run
+builds an instrumented tree, and `make publish-check` then compiles the
+workspace again into `target/package`. None of the first four has a consumer
+once the coverage report exists, so the lane discards all of them before the
+publish build starts, printing the disk before and after so the saving is
+measured. sccache holds every object the publish build could have reused from
+them, so nothing is recompiled that would not have been.
+
+Every Linux job samples memory and disk every fifteen seconds from just after
+checkout and reports the peak used memory, the peak used disk, and the least
+free disk to both the job log and the job summary, even when the job fails.
+Escalate to `ubicloud-standard-4`, and set the vCPU constant to 4, only if the
+sampler shows the reclaimed shape still peaking within 5 GB of a full disk.
 
 `ubicloud-standard-2` is registered in `.github/actionlint.yaml` under
 `self-hosted-runner.labels`. GitHub-hosted labels need no registration, and the
