@@ -201,7 +201,8 @@ fn duration_seconds(duration: &str) -> Result<u64, io::Error> {
 }
 
 fn default_overrides(configuration: &Value) -> Result<&[Value], io::Error> {
-
+    let overrides = default_profile(configuration)?
+        .get("overrides")
         .and_then(Value::as_array)
         .ok_or_else(|| {
             io::Error::other("nextest configuration must contain profile.default.overrides")
