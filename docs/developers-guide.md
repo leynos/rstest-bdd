@@ -498,20 +498,28 @@ workspace root; this is the only nextest configuration file the runner loads.
 The file sets the timeout policy for the test suite:
 
 - The default profile kills any test that runs past a 60 s `slow-timeout`
-  (`terminate-after = 1`, 5 s grace period) and applies a 20 m `global-timeout`
+  (`terminate-after = 1`, 5 s grace period) and applies a 40 m `global-timeout`
   to the whole run. This allows the cargo-spawning group to run its bounded
-  tests one at a time without exhausting the whole-suite budget.
+  tests one at a time without exhausting the whole-suite budget. The global
+  timeout must stay above the largest per-test budget below, or the run is
+  killed before the test that budget exists for can finish;
+  `trybuild_nextest_override_preserves_timeout_contract` enforces the
+  ordering.
 - A `[[profile.default.overrides]]` entry raises the `slow-timeout` to 180 s
   for `cargo-bdd::cli`, whose smoke tests spawn `cargo` to build fixture crates
   and can legitimately exceed 60 s on cold caches.
-- A second override raises the `slow-timeout` further, to 10 minutes, for the
+- A second override raises the `slow-timeout` further, to 20 minutes, for the
   trybuild-based compile-test binaries:
   `rstest-bdd-harness-tokio::macro_compile`,
   `rstest-bdd-harness-gpui::macro_compile`, `rstest-bdd::trybuild_macros`, and
   `rstest-bdd-server::workspace_discovery_compile`. These tests invoke
-  `cargo build` against a large dependency tree. The 10-minute allowance
-  permits the full fixture set to rebuild on a cold cache without treating
-  slow, healthy compiler work as a hung test. The strict 60 s default remains
+  `cargo build` against a large dependency tree, so their runtime tracks
+  compiler-cache warmth rather than anything about the tests. Measured on
+  `ubicloud-standard-2`, `step_macros_compile` exceeded the former 10-minute
+  allowance with nothing in `sccache`, took 386.8 s with a partial cache, and
+  about 190 s against a full one. The 20-minute allowance permits the full
+  fixture set to rebuild on a cold cache without treating slow, healthy
+  compiler work as a hung test. The strict 60 s default remains
   in force elsewhere, and these tests stay in the `cargo-spawning` group so all
   four run serially.
 - Both overrides also place their binaries in a `cargo-spawning` test group
@@ -571,7 +579,7 @@ Mitigation:
 - `.config/nextest.toml` raises the `slow-timeout` for the trybuild
   compile-test binaries (including both `macro_compile` binaries,
   `rstest-bdd::trybuild_macros`, and
-  `rstest-bdd-server::workspace_discovery_compile`) to 10 minutes as a
+  `rstest-bdd-server::workspace_discovery_compile`) to 20 minutes as a
   local-development safety net. This does not fix the deadlock; it only delays
   termination to allow the build to complete on fast machines.
 - `.config/nextest.toml` also places the `cargo-bdd::cli` and trybuild

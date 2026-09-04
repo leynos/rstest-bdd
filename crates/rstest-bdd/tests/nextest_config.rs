@@ -45,10 +45,22 @@ fn trybuild_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn 
         .and_then(Value::as_table)
         .expect("trybuild nextest override must contain a slow-timeout table");
 
+    let period = slow_timeout
+        .get("period")
+        .and_then(Value::as_str)
+        .ok_or_else(|| io::Error::other("trybuild nextest override must name a period"))?;
     assert_eq!(
-        slow_timeout.get("period").and_then(Value::as_str),
-        Some("10m"),
-        "trybuild nextest override must allow a 10-minute slow timeout",
+        period, "20m",
+        "trybuild nextest override must allow a 20-minute slow timeout, which is what a cold \
+         compiler cache costs this fixture tree",
+    );
+
+    let global_timeout = default_global_timeout(&configuration)?;
+    assert!(
+        duration_seconds(global_timeout)? > duration_seconds(period)?,
+        "the default profile's global timeout ({global_timeout}) must exceed the trybuild slow \
+         timeout ({period}); otherwise nextest kills the run before the test the budget exists \
+         for can finish, and raising the budget alone rescues nothing",
     );
     assert_eq!(
         slow_timeout
@@ -94,13 +106,49 @@ fn workspace_root() -> Result<PathBuf, io::Error> {
     Ok(workspace_root.to_path_buf())
 }
 
-fn default_overrides(configuration: &Value) -> Result<&[Value], io::Error> {
-    let overrides = configuration
+fn default_profile_key<'a>(configuration: &'a Value, key: &str) -> Option<&'a Value> {
+    configuration
         .get("profile")
         .and_then(Value::as_table)
         .and_then(|profiles| profiles.get("default"))
         .and_then(Value::as_table)
-        .and_then(|default_profile| default_profile.get("overrides"))
+        .and_then(|default_profile| default_profile.get(key))
+}
+
+fn default_global_timeout(configuration: &Value) -> Result<&str, io::Error> {
+    default_profile_key(configuration, "global-timeout")
+        .and_then(Value::as_str)
+        .ok_or_else(|| {
+            io::Error::other("nextest configuration must set profile.default.global-timeout")
+        })
+}
+
+fn duration_seconds(duration: &str) -> Result<u64, io::Error> {
+    let unit_start = duration
+        .find(|character: char| !character.is_ascii_digit())
+        .ok_or_else(|| io::Error::other(format!("duration {duration} names no unit")))?;
+    let (value, unit) = duration.split_at(unit_start);
+    let value: u64 = value
+        .parse()
+        .map_err(|_| io::Error::other(format!("duration {duration} names no count")))?;
+    let multiplier = match unit {
+        "s" => 1,
+        "m" => 60,
+        "h" => 3_600,
+        _ => {
+            return Err(io::Error::other(format!(
+                "duration {duration} uses unit {unit}"
+            )));
+        }
+    };
+
+    value
+        .checked_mul(multiplier)
+        .ok_or_else(|| io::Error::other(format!("duration {duration} overflows")))
+}
+
+fn default_overrides(configuration: &Value) -> Result<&[Value], io::Error> {
+    let overrides = default_profile_key(configuration, "overrides")
         .and_then(Value::as_array)
         .ok_or_else(|| {
             io::Error::other("nextest configuration must contain profile.default.overrides")

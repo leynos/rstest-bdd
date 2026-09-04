@@ -2,8 +2,13 @@
 # Kill any test once it crosses 60s.
 slow-timeout = { period = "60s", terminate-after = 1, grace-period = "5s" }
 
-# Accommodate cargo-spawning tests that deliberately run one at a time.
-global-timeout = "20m"
+# Accommodate cargo-spawning tests that deliberately run one at a time. This
+# must exceed the largest per-test budget below, or the run dies before the
+# test it was raised for can finish: a 20 minute compile budget under a
+# 20 minute global timeout rescues nothing. The cold run that motivated the
+# larger budget finished its whole suite in 813 s with the slow test at 387 s,
+# so a worst-case cold compile puts the suite near 27 minutes.
+global-timeout = "40m"
 
 [test-groups.cargo-spawning]
 # Tests that shell out to `cargo` contend for the package-cache lock and for
@@ -23,8 +28,17 @@ test-group = "cargo-spawning"
 # tree; on cold caches this can legitimately exceed the default 60 s limit.
 # Allow the full fixture set to rebuild without treating slow, healthy compiler
 # work as a hung test.
+#
+# The budget is sized for a genuinely cold compiler cache, which is what a
+# trunk run meets after a cache eviction or a key change. Measured on
+# `ubicloud-standard-2` for `rstest-bdd::trybuild_macros step_macros_compile`:
+# it exceeded the former 10 minute budget on run 33871787845's first attempt
+# with nothing in sccache, took 386.8 s on the rerun with 297 objects in
+# scope, and 200.5 s and 186.1 s on runs 33884577115 and 33888769029 against
+# a full generation. A passing test never spends the budget, so the larger
+# figure costs nothing except on the run it rescues.
 filter = "binary_id(rstest-bdd-harness-tokio::macro_compile) | binary_id(rstest-bdd-harness-gpui::macro_compile) | binary_id(rstest-bdd::trybuild_macros) | binary_id(rstest-bdd-server::workspace_discovery_compile)"
-slow-timeout = { period = "10m", terminate-after = 1, grace-period = "5s" }
+slow-timeout = { period = "20m", terminate-after = 1, grace-period = "5s" }
 test-group = "cargo-spawning"
 
 [profile.long]
