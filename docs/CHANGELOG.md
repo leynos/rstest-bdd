@@ -3,11 +3,11 @@
 ## Unreleased
 
 - Raised the nextest compile budget for the trybuild-based tests from ten to
-  twenty minutes, and the default profile's global timeout from twenty to
-  forty minutes so the larger per-test budget can be spent. A CI run with a
-  cold compiler cache exceeded the old budget while healthily compiling the
-  fixture dependency tree; the same test takes about three minutes once the
-  cache is warm. A passing test never spends the budget.
+  twenty minutes, and the default profile's global timeout from twenty to forty
+  minutes so the larger per-test budget can be spent. A CI run with a cold
+  compiler cache exceeded the old budget while healthily compiling the fixture
+  dependency tree; the same test takes about three minutes once the cache is
+  warm. A passing test never spends the budget.
 
 - Scenarios that previously passed may now correctly fail: unhinted steps that
   return a local alias of `Result<T, E>` now propagate `Err` rather than boxing
