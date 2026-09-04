@@ -23,7 +23,7 @@ python-tools = [
     "pyyaml",
     "ruff==0.16.4",
     "stilyagi",
-    "ty==0.0.74",
+    "ty==0.0.75",
 ]
 
 [tool.ruff]
