@@ -1,9 +1,4 @@
-//! Text document notification handlers.
-//!
-//! Phase 7 focuses on building language-server foundations. This module
-//! provides the on-save indexing pipeline for `.feature` files and Rust step
-//! definition sources. Indexing results are stored in the shared server state.
-//! After indexing, diagnostics are computed and published via the LSP protocol.
+//! Text document notification handlers update shared state before publishing diagnostics via LSP.
 
 use lsp_types::DidSaveTextDocumentParams;
 use metrics::{counter, describe_counter};
@@ -192,8 +187,16 @@ pub(super) fn apply_rust_source_index_result(
     diagnostic_publication: FeatureDiagnosticPublication,
 ) {
     let step_result = index_result.map(|result| {
-        state.upsert_rust_scenario_bindings(path, result.scenario_bindings);
-        result.steps
+        let RustSourceIndexResult {
+            steps,
+            scenario_bindings,
+            scenario_binding_diagnostics,
+        } = result;
+        state.upsert_rust_scenario_bindings(path, scenario_bindings);
+        for diagnostic in scenario_binding_diagnostics {
+            diagnostic.emit_warning();
+        }
+        steps
     });
     apply_rust_index_result(state, path, step_result, diagnostic_publication);
 }

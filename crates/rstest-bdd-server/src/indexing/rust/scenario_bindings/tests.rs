@@ -11,7 +11,7 @@ fn indexes_scenario_and_scenarios_library_scopes() {
     ))
     .expect("Rust source");
 
-    let bindings = index_scenario_bindings(&file);
+    let bindings = index_scenario_bindings(&file, Path::new("steps.rs")).bindings;
 
     assert_eq!(bindings.len(), 2);
     let account_binding = bindings.first().expect("account scenario binding");
@@ -35,7 +35,7 @@ fn defaults_unscoped_scenarios_to_the_global_library() {
     let file =
         syn::parse_file("#[scenario(\"test.feature\")]\nfn test() {}\n").expect("Rust source");
 
-    let bindings = index_scenario_bindings(&file);
+    let bindings = index_scenario_bindings(&file, Path::new("steps.rs")).bindings;
 
     assert_eq!(
         bindings.first().expect("global scenario binding").libraries,
@@ -48,6 +48,7 @@ fn resolves_library_paths_from_the_enclosing_module() {
     let file = syn::parse_file(concat!(
         "mod outer {\n",
         "  mod nested {\n",
+        "    mod steps {}\n",
         "    #[scenario(path = \"test.feature\", libraries = [self::accounts, ",
         "super::shared, crate::root, rstest_bdd::global, steps::global])]\n",
         "    fn test() {}\n",
@@ -56,7 +57,7 @@ fn resolves_library_paths_from_the_enclosing_module() {
     ))
     .expect("Rust source");
 
-    let bindings = index_scenario_bindings(&file);
+    let bindings = index_scenario_bindings(&file, Path::new("steps.rs")).bindings;
 
     assert_eq!(
         bindings.first().expect("nested scenario binding").libraries,
@@ -67,6 +68,47 @@ fn resolves_library_paths_from_the_enclosing_module() {
             "rstest_bdd::global",
             "outer::nested::steps::global",
         ]
+    );
+}
+
+#[test]
+fn preserves_external_library_paths_without_a_module_prefix() {
+    let file = syn::parse_file(concat!(
+        "mod outer {\n",
+        "  mod nested {\n",
+        "    #[scenario(path = \"test.feature\", libraries = [shared_steps::accounts])]\n",
+        "    fn test() {}\n",
+        "  }\n",
+        "}\n",
+    ))
+    .expect("Rust source");
+
+    let bindings = index_scenario_bindings(&file, Path::new("steps.rs")).bindings;
+
+    assert_eq!(
+        bindings
+            .first()
+            .expect("external scenario binding")
+            .libraries,
+        ["shared_steps::accounts"]
+    );
+}
+
+#[test]
+fn retains_source_path_in_ignored_binding_diagnostics() {
+    let file = syn::parse_file("#[scenario(libraries = [accounts])]\nfn test() {}\n")
+        .expect("Rust source");
+    let index = index_scenario_bindings(&file, Path::new("src/scenarios.rs"));
+
+    assert!(index.bindings.is_empty());
+    assert_eq!(index.diagnostics.len(), 1);
+    assert_eq!(
+        index
+            .diagnostics
+            .first()
+            .expect("binding diagnostic")
+            .source_path,
+        PathBuf::from("src/scenarios.rs")
     );
 }
 
