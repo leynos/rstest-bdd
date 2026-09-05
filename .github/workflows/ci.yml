@@ -454,6 +454,16 @@ jobs:
         if: ${{ matrix.tools }}
         run: make typecheck
 
+      # Every standalone fixture lockfile must resolve against its manifest.
+      # The gate runs after the Rust setup and workspace build have populated
+      # the Cargo cache, and it never passes --offline: a lockfile that only
+      # resolves from a partial cache would hide the drift this step exists to
+      # catch. The rebuild-invalidation experiment keeps its own --offline
+      # runs because that test verifies reproducible nested-Cargo behaviour.
+      - name: Check standalone fixture lockfiles
+        if: ${{ matrix.tools }}
+        run: make check-fixture-lockfiles
+
       - name: Check published GPUI documentation fixture
         if: ${{ matrix.tools && matrix.with-default-features }}
         run: make check-published-gpui

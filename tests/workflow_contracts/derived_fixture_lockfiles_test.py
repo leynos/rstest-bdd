@@ -1,11 +1,13 @@
 """Contract tests for the Dependabot fixture-lockfile refresh workflow.
 
 The workflow has permission to write only because Cargo manifests changed by
-Dependabot can alter the dependency resolution of the two independent
-published-GPUI fixtures.  These tests constrain that authority to Dependabot
-pull requests, the checked-out pull request head and the two generated
-lockfiles.  They also keep the workflow limited to its lock-refresh targets;
-the ordinary CI workflow continues to build and exercise the fixtures.
+Dependabot can alter the dependency resolution of the standalone fixture
+crates.  These tests constrain that authority to Dependabot pull requests, the
+checked-out pull request head, and the lockfiles regenerated through the
+authoritative ``make update-fixture-lockfiles`` target.  They also keep the
+workflow limited to its lock-refresh targets; the ordinary CI workflow
+continues to build and exercise the fixtures, and the shared
+``make check-fixture-lockfiles`` gate validates the refreshed set.
 
 Run via ``make test-workflow-contracts``.
 """
@@ -18,10 +20,6 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_PATH = ROOT / ".github" / "workflows" / "refresh-derived-fixture-lockfiles.yml"
 CI_WORKFLOW_PATH = ROOT / ".github" / "workflows" / "ci.yml"
-LOCKFILES = [
-    "tests/fixtures/published-gpui-0-2-2/Cargo.lock",
-    "tests/fixtures/published-gpui-e2e/Cargo.lock",
-]
 MANIFEST_PATHS = [
     "Cargo.toml",
     "crates/**/Cargo.toml",
@@ -154,10 +152,10 @@ def test_refresh_commit_and_push_touch_only_generated_lockfiles(
     refresh_job: dict[str, object],
 ) -> None:
     """The job runs only refresh targets then commits and pushes their output."""
-    refresh = _named_step(refresh_job, "Refresh published GPUI fixture lockfiles")
-    assert refresh.get("run") == (
-        "make update-published-gpui-0-2-2-lock\nmake update-published-gpui-e2e-lock\n"
-    ), "the refresh step must update both published fixture lockfiles"
+    refresh = _named_step(refresh_job, "Refresh standalone fixture lockfiles")
+    assert refresh.get("run") == ("make update-fixture-lockfiles\n"), (
+        "the refresh step must regenerate every standalone fixture lockfile"
+    )
 
     author = _named_step(refresh_job, "Configure Git author")
     assert author.get("run") == (
@@ -169,16 +167,12 @@ def test_refresh_commit_and_push_touch_only_generated_lockfiles(
     commit = _named_step(refresh_job, "Commit refreshed lockfiles")
     commit_script = commit.get("run")
     expected_commit_script = (
-        "if git diff --quiet -- \\\n"
-        "  tests/fixtures/published-gpui-0-2-2/Cargo.lock \\\n"
-        "  tests/fixtures/published-gpui-e2e/Cargo.lock; then\n"
+        "if git diff --exit-code -- '**/Cargo.lock'; then\n"
         "  echo 'changed=false' >> \"$GITHUB_OUTPUT\"\n"
         "  exit 0\n"
         "fi\n"
-        "git add -- \\\n"
-        "  tests/fixtures/published-gpui-0-2-2/Cargo.lock \\\n"
-        "  tests/fixtures/published-gpui-e2e/Cargo.lock\n"
-        "git commit -m 'chore(deps): refresh published GPUI fixture lockfiles'\n"
+        "git add -- '**/Cargo.lock'\n"
+        "git commit -m 'chore(deps): refresh standalone fixture lockfiles'\n"
         "echo 'changed=true' >> \"$GITHUB_OUTPUT\"\n"
     )
     assert commit_script == expected_commit_script, (
@@ -193,3 +187,16 @@ def test_refresh_commit_and_push_touch_only_generated_lockfiles(
         push.get("run")
         == "git push origin HEAD:${{ github.event.pull_request.head.ref }}"
     ), "the push step must push the refreshed lockfiles to the pull-request head"
+
+
+def test_validation_runs_when_refresh_changes_nothing(
+    refresh_job: dict[str, object],
+) -> None:
+    """A no-op refresh still proves the committed lockfiles resolve."""
+    validate = _named_step(refresh_job, "Validate refreshed fixture lockfiles")
+    assert validate.get("if") == "${{ steps.commit.outputs.changed != 'true' }}", (
+        "validation must run exactly when the refresh step changed nothing"
+    )
+    assert validate.get("run") == "make check-fixture-lockfiles", (
+        "validation must use the shared standalone-fixture lockfile gate"
+    )

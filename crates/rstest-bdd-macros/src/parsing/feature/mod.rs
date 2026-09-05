@@ -159,12 +159,11 @@ pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro2
     let feature = Feature::parse_path(&feature_path, GherkinEnv::default()).map_err(|err| {
         #[cfg(feature = "compile-time-validation")]
         {
-            if let Ok(text) = std::fs::read_to_string(&feature_path) {
-                if let Err(validation_err) =
+            if let Ok(text) = std::fs::read_to_string(&feature_path)
+                && let Err(validation_err) =
                     validate_examples_in_feature_text(FeatureText::new(&text))
-                {
-                    return validation_err;
-                }
+            {
+                return validation_err;
             }
         }
         let msg = format!("failed to parse feature file: {err}");

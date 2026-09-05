@@ -18,10 +18,10 @@ mod fixture_write;
 mod wip_paths;
 
 fn write_fixture_file(crate_dir: &Dir, path: &Utf8Path, bytes: &[u8], label: &str) {
-    if let Some(parent) = path.parent() {
-        if let Err(error) = crate_dir.create_dir_all(parent.as_std_path()) {
-            panic!("failed to create directory for {label}: {error}");
-        }
+    if let Some(parent) = path.parent()
+        && let Err(error) = crate_dir.create_dir_all(parent.as_std_path())
+    {
+        panic!("failed to create directory for {label}: {error}");
     }
     if let Err(error) = crate_dir.write(path.as_std_path(), bytes) {
         panic!("failed to write {label}: {error}");
