@@ -1,8 +1,6 @@
 //! Unit tests for scenario test generation helpers.
 
-use std::collections::HashSet;
-#[cfg(windows)]
-use std::path::Path;
+use std::{collections::HashSet, path::Path};
 
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
@@ -15,17 +13,16 @@ use super::{
         RuntimeMode,
         runtime_compatibility_alias,
     },
+    ScenarioTestContext,
     build_fixture_params,
     build_lint_attributes,
     build_test_signature,
     dedupe_name,
+    generate_scenario_test,
     resolve_effective_runtime,
     resolve_fixture_error_type,
     resolve_harness_path,
 };
-#[cfg(windows)]
-use super::{ScenarioTestContext, generate_scenario_test};
-#[cfg(windows)]
 use crate::{codegen::SharedAdapterResolutions, parsing::feature::ScenarioData};
 
 #[test]
@@ -37,23 +34,25 @@ fn deduplicates_duplicate_titles() {
     assert_eq!(second, "dup_same_name_1");
 }
 
-#[cfg(windows)]
 #[test]
 fn generated_scenario_metadata_uses_portable_feature_separators() {
-    let rel_path = Path::new(r"tests\x.feature");
+    let rel_path = Path::new("tests").join("x.feature");
+    let scope = quote!(::rstest_bdd::StepScope::global());
     let resolutions = SharedAdapterResolutions {
         harness: None,
         attributes: None,
     };
     let ctx = ScenarioTestContext {
         feature_stem: "x",
-        rel_path,
+        rel_path: &rel_path,
         tag_filter: None,
         fixtures: &[],
         runtime: RuntimeMode::Sync,
         harness: None,
         attributes: None,
         effective_harness: None,
+        scope: &scope,
+        library_validation_names: None,
         resolutions: &resolutions,
     };
     let data = ScenarioData {
