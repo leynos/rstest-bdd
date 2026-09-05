@@ -120,6 +120,11 @@ def global_timeout(nextest_config: str) -> float:
     must be matched to the profile it belongs to and the file declares
     more than one profile.
 
+    Parameters
+    ----------
+    nextest_config : str
+        The nextest configuration file's text.
+
     Returns
     -------
     float
@@ -142,6 +147,11 @@ def global_timeout(nextest_config: str) -> float:
 @pytest.fixture(scope="module")
 def largest_slow_timeout(nextest_config: str) -> float:
     """Return the longest single-test allowance in seconds.
+
+    Parameters
+    ----------
+    nextest_config : str
+        The nextest configuration file's text.
 
     Returns
     -------
@@ -215,6 +225,11 @@ def lanes(ci_workflow: dict[str, typ.Any]) -> tuple[CoverageLane, ...]:
     tightest in the file: an unrelated job's budget has nothing to say
     about this one, and comparing them would either fail an
     honestly-sized job or force unrelated budgets to move together.
+
+    Parameters
+    ----------
+    ci_workflow : dict[str, typ.Any]
+        The parsed CI workflow.
 
     Returns
     -------
