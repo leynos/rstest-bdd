@@ -489,7 +489,10 @@ jobs:
         if: ${{ runner.os == 'Linux' }}
         uses: leynos/shared-actions/.github/actions/generate-coverage@f6d4d5f549655c118f86f371b8d55c200d3efa50
         env:
-          RUN_RUST_CARGO_WAIT_TIMEOUT: '1800'
+          # Cold instrumented builds plus the doctest pass can exceed the
+          # action's 1800s budget; stay explicit so a future default cannot
+          # quietly shorten this lane.
+          RUN_RUST_CARGO_WAIT_TIMEOUT: '4500'
           # Tests that snapshot a child process's stderr must see the same
           # panic-hook output on every lane. An instrumented build retains
           # debuginfo, so a backtrace would otherwise appear here and not on
@@ -519,9 +522,13 @@ jobs:
         uses: leynos/shared-actions/.github/actions/generate-coverage@f6d4d5f549655c118f86f371b8d55c200d3efa50
         continue-on-error: true
         env:
-          # Windows coverage runs (build plus doctests) exceed the shared
-          # action's 600s per-invocation default; give them headroom.
-          RUN_RUST_CARGO_WAIT_TIMEOUT: '1800'
+          # Windows coverage runs (build plus doctests) outgrew the shared
+          # action's 1800s default: a cold instrumented build spends most of
+          # that budget compiling before the doctest pass starts. 4500 gives
+          # the cold path headroom while the watchdog still catches a hang,
+          # and stays explicit so a future default cannot quietly change
+          # these lanes.
+          RUN_RUST_CARGO_WAIT_TIMEOUT: '4500'
           # Match the Linux lane so stderr snapshots stay deterministic.
           RUST_BACKTRACE: '0'
         with:
@@ -539,9 +546,13 @@ jobs:
         uses: leynos/shared-actions/.github/actions/generate-coverage@f6d4d5f549655c118f86f371b8d55c200d3efa50
         continue-on-error: true
         env:
-          # Windows coverage runs (build plus doctests) exceed the shared
-          # action's 600s per-invocation default; give them headroom.
-          RUN_RUST_CARGO_WAIT_TIMEOUT: '1800'
+          # Windows coverage runs (build plus doctests) outgrew the shared
+          # action's 1800s default: a cold instrumented build spends most of
+          # that budget compiling before the doctest pass starts. 4500 gives
+          # the cold path headroom while the watchdog still catches a hang,
+          # and stays explicit so a future default cannot quietly change
+          # these lanes.
+          RUN_RUST_CARGO_WAIT_TIMEOUT: '4500'
           # Match the Linux lane so stderr snapshots stay deterministic.
           RUST_BACKTRACE: '0'
         with:
