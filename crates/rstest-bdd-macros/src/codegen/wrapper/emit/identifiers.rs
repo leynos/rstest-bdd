@@ -138,7 +138,7 @@ pub(super) fn next_wrapper_id() -> usize { COUNTER.fetch_add(1, Ordering::Relaxe
 
 #[cfg(test)]
 mod tests {
-    //! Serialised tests for the process-wide wrapper-ID counter.
+    //! Serialized tests for the process-wide wrapper-ID counter.
     //!
     //! `COUNTER` is process-wide state, so allocation and reset must never
     //! overlap other tests that touch it. Every test here is `#[serial]`,
