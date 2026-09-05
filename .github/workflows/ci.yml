@@ -487,7 +487,7 @@ jobs:
       # llvm-cov's nextest path cannot execute doc tests.
       - name: Test and Measure Coverage (Linux)
         if: ${{ runner.os == 'Linux' }}
-        uses: leynos/shared-actions/.github/actions/generate-coverage@f6d4d5f549655c118f86f371b8d55c200d3efa50
+        uses: leynos/shared-actions/.github/actions/generate-coverage@77ea10341249024e22ec5d9069e3caa7596e0d4f
         env:
           RUN_RUST_CARGO_WAIT_TIMEOUT: '1800'
           # Tests that snapshot a child process's stderr must see the same
@@ -516,11 +516,13 @@ jobs:
       - name: Test and Measure Coverage (Windows, default features)
         if: ${{ runner.os == 'Windows' && matrix.features == '' }}
         # Merged shared-actions whole-workspace coverage revision.
-        uses: leynos/shared-actions/.github/actions/generate-coverage@f6d4d5f549655c118f86f371b8d55c200d3efa50
+        uses: leynos/shared-actions/.github/actions/generate-coverage@77ea10341249024e22ec5d9069e3caa7596e0d4f
         continue-on-error: true
         env:
-          # Windows coverage runs (build plus doctests) exceed the shared
-          # action's 600s per-invocation default; give them headroom.
+          # Windows coverage runs (build plus doctests) needed headroom over
+          # the shared action's old 600s default. From this pin 1800 is that
+          # default, so this now restates it rather than raising it; it stays
+          # explicit so a future default cannot quietly shorten these lanes.
           RUN_RUST_CARGO_WAIT_TIMEOUT: '1800'
           # Match the Linux lane so stderr snapshots stay deterministic.
           RUST_BACKTRACE: '0'
@@ -536,11 +538,13 @@ jobs:
       - name: Test and Measure Coverage (Windows, strict validation)
         if: ${{ runner.os == 'Windows' && matrix.features != '' }}
         # Merged shared-actions whole-workspace coverage revision.
-        uses: leynos/shared-actions/.github/actions/generate-coverage@f6d4d5f549655c118f86f371b8d55c200d3efa50
+        uses: leynos/shared-actions/.github/actions/generate-coverage@77ea10341249024e22ec5d9069e3caa7596e0d4f
         continue-on-error: true
         env:
-          # Windows coverage runs (build plus doctests) exceed the shared
-          # action's 600s per-invocation default; give them headroom.
+          # Windows coverage runs (build plus doctests) needed headroom over
+          # the shared action's old 600s default. From this pin 1800 is that
+          # default, so this now restates it rather than raising it; it stays
+          # explicit so a future default cannot quietly shorten these lanes.
           RUN_RUST_CARGO_WAIT_TIMEOUT: '1800'
           # Match the Linux lane so stderr snapshots stay deterministic.
           RUST_BACKTRACE: '0'
