@@ -34,14 +34,13 @@ use poll_step_future_support::poll_step_future;
 // ----------------------------------------------------------------------------
 
 /// Verify that an async step wrapper lookup succeeds and can be polled to completion.
-#[expect(clippy::expect_used, reason = "test helper validates lookup succeeds")]
 fn assert_async_wrapper_works(
     lookup_fn: impl FnOnce() -> Result<Option<AsyncStepFn>, StepLookupError>,
     test_text: &str,
-) {
-    let async_fn = lookup_fn()
-        .expect("lookup should be unambiguous")
-        .expect("step should be found");
+) -> Result<(), StepLookupError> {
+    let Some(async_fn) = lookup_fn()? else {
+        panic!("step should be found");
+    };
     let mut ctx = StepContext::default();
     let future = async_fn(&mut ctx, test_text, None, None);
     let result = poll_step_future(future);
@@ -49,6 +48,7 @@ fn assert_async_wrapper_works(
         matches!(result, StepExecution::Continue { .. }),
         "unexpected result: {result:?}"
     );
+    Ok(())
 }
 
 /// Verify that a step is marked as used after being looked up.
@@ -131,19 +131,21 @@ fn step_struct_has_run_async_field() {
 }
 
 #[test]
-fn find_step_async_returns_async_wrapper() {
+fn find_step_async_returns_async_wrapper() -> Result<(), StepLookupError> {
     assert_async_wrapper_works(
         || find_step_async(StepKeyword::Given, "an async registry test step".into()),
         "an async registry test step",
-    );
+    )?;
+    Ok(())
 }
 
 #[test]
-fn lookup_step_async_returns_async_wrapper() {
+fn lookup_step_async_returns_async_wrapper() -> Result<(), StepLookupError> {
     assert_async_wrapper_works(
         || lookup_step_async(StepKeyword::Given, "an async registry test step".into()),
         "an async registry test step",
-    );
+    )?;
+    Ok(())
 }
 
 // ----------------------------------------------------------------------------

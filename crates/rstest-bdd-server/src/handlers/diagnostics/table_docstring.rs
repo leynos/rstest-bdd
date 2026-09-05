@@ -13,12 +13,22 @@ use super::{
     CODE_TABLE_EXPECTED,
     CODE_TABLE_NOT_EXPECTED,
     compute::{DiagnosticSpec, FeatureStepDiagnosticKind, build_step_diagnostic},
+    CODE_AMBIGUOUS_STEP,
 };
 use crate::{
     handlers::util::gherkin_span_to_lsp_range,
     indexing::{CompiledStepDefinition, FeatureFileIndex, IndexedStep},
     lsp::Diagnostic,
     server::ServerState,
+};
+
+use lsp_types::Diagnostic;
+
+//! Table and docstring expectation validation diagnostics.
+//!
+//! This module validates that feature steps have tables and docstrings that
+//! match what the corresponding Rust implementation expects.
+};
 };
 
 /// Compute diagnostics for table/docstring expectation mismatches.
@@ -71,9 +81,20 @@ fn check_table_docstring_mismatches(
 
     // Find the best matching implementation
     let matching_impl = find_best_matching_implementation(state, feature_index, step);
-    let Some(impl_def) = matching_impl else {
-        // No implementation found - handled by unimplemented step diagnostic
-        return diagnostics;
+    let impl_def = match matching_impl {
+        Some(BestMatchingImplementation::Unique(implementation)) => implementation,
+        Some(BestMatchingImplementation::Ambiguous(candidates)) => {
+            diagnostics.push(build_ambiguous_step_diagnostic(
+                feature_index,
+                step,
+                &candidates,
+            ));
+            return diagnostics;
+        }
+        None => {
+            // No implementation found - handled by unimplemented step diagnostic
+            return diagnostics;
+        }
     };
 
     if let Some(diag) = StepArgumentKind::Table.check_expectation(feature_index, step, &impl_def) {
@@ -176,16 +197,19 @@ impl FeatureStepDiagnosticKind {
     }
 }
 
-/// Find the best matching Rust implementation for a feature step.
-///
-/// Returns the implementation with the highest specificity score if multiple
-/// match. Uses the same scoring algorithm as the runtime registry to ensure
-/// diagnostics are consistent with actual execution.
+/// Highest-specificity resolution outcome for a feature step.
+enum BestMatchingImplementation {
+    /// One highest-specificity matching definition.
+    Unique(Arc<CompiledStepDefinition>),
+    /// Every definition tied at the highest specificity.
+    Ambiguous(Vec<Arc<CompiledStepDefinition>>),
+}
+/// Find every highest-specificity Rust implementation for a feature step.
 fn find_best_matching_implementation(
     state: &ServerState,
     feature_index: &FeatureFileIndex,
     step: &IndexedStep,
-) -> Option<Arc<CompiledStepDefinition>> {
+) -> Option<BestMatchingImplementation> {
     let candidates = match state.steps_for_feature_keyword(&feature_index.path, step.step_type) {
         Ok(candidates) => candidates,
         Err(error) => {
@@ -193,15 +217,47 @@ fn find_best_matching_implementation(
             return None;
         }
     };
-    candidates
+    let matches: Vec<_> = candidates
         .into_iter()
         .filter(|compiled| compiled.regex.is_match(&step.text))
-        .max_by(|a, b| {
-            // Use SpecificityScore for consistent ordering with runtime resolution.
-            // Patterns that fail to parse (shouldn't happen for compiled defs) sort last.
-            let score_a = SpecificityScore::calculate(&a.pattern).ok();
-            let score_b = SpecificityScore::calculate(&b.pattern).ok();
-            score_a.cmp(&score_b)
-        })
         .cloned()
+        .collect();
+    let top_specificity = matches
+        .iter()
+        .filter_map(|candidate| SpecificityScore::calculate(&candidate.pattern).ok())
+        .max()?;
+    let candidates: Vec<_> = matches
+        .into_iter()
+        .filter(|candidate| {
+            SpecificityScore::calculate(&candidate.pattern).ok() == Some(top_specificity)
+        })
+        .collect();
+    match candidates.as_slice() {
+        [implementation] => Some(BestMatchingImplementation::Unique(implementation.clone())),
+        _ => Some(BestMatchingImplementation::Ambiguous(candidates)),
+    }
+}
+
+/// Build a diagnostic for definitions tied at the highest specificity.
+fn build_ambiguous_step_diagnostic(
+    feature_index: &FeatureFileIndex,
+    step: &IndexedStep,
+    candidates: &[Arc<CompiledStepDefinition>],
+) -> Diagnostic {
+    let definitions = candidates
+        .iter()
+        .map(|candidate| format!("{} `{}`", candidate.library, candidate.pattern))
+        .collect::<Vec<_>>()
+        .join(", ");
+    build_step_diagnostic(
+        feature_index,
+        step,
+        DiagnosticSpec {
+            code: CODE_AMBIGUOUS_STEP,
+            message: format!(
+                "Ambiguous step implementation: equally specific definitions in {definitions}"
+            ),
+            custom_range: None,
+        },
+    )
 }

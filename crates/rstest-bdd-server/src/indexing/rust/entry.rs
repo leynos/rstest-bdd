@@ -2,7 +2,10 @@
 
 use std::path::{Path, PathBuf};
 
-use super::super::{IndexedScenarioBinding, RustStepIndexError, RustStepIndexResult};
+use super::{
+    super::{IndexedScenarioBinding, RustStepIndexError, RustStepIndexResult},
+    scenario_bindings::ScenarioBindingIndexDiagnostic,
+};
 
 /// Rust step and scenario-binding indexes produced by one source traversal.
 pub(crate) struct RustSourceIndexResult {
@@ -10,6 +13,8 @@ pub(crate) struct RustSourceIndexResult {
     pub(crate) steps: RustStepIndexResult,
     /// Internal scenario bindings used by language-server lookups.
     pub(crate) scenario_bindings: Vec<IndexedScenarioBinding>,
+    /// Recoverable diagnostics emitted while indexing scenario bindings.
+    pub(crate) scenario_binding_diagnostics: Vec<ScenarioBindingIndexDiagnostic>,
 }
 
 /// Parse and index a Rust source file from disk.
