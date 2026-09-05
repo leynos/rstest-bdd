@@ -34,7 +34,6 @@ import yaml
 from workflow_support import ROOT
 
 if typ.TYPE_CHECKING:
-    import collections.abc as cabc
     from pathlib import Path
 
 NEXTEST_CONFIG: typ.Final[Path] = ROOT / ".config" / "nextest.toml"
@@ -154,64 +153,93 @@ def largest_slow_timeout(nextest_config: str) -> float:
     return max(_seconds(period) for period in periods)
 
 
-def _coverage_steps(
-    workflow: dict[str, typ.Any],
-) -> cabc.Iterator[tuple[str, dict[str, typ.Any]]]:
-    """Yield every step that invokes the shared coverage action.
+class CoverageLane(typ.NamedTuple):
+    """One coverage step, with the job budget that encloses it.
 
-    Yields
-    ------
-    tuple[str, dict[str, typ.Any]]
-        The step's name and the step itself.
+    Attributes
+    ----------
+    job : str
+        The job the step belongs to.
+    step : str
+        The step's declared name.
+    watchdog : float | None
+        The step's watchdog budget in seconds, or ``None`` when it sets
+        none and so inherits the action's default.
+    job_timeout : float | None
+        The enclosing job's ``timeout-minutes`` in seconds, or ``None``
+        when the job declares none.
     """
-    for job_name, job in workflow["jobs"].items():
+
+    job: str
+    step: str
+    watchdog: float | None
+    job_timeout: float | None
+
+    def __str__(self) -> str:
+        """Return a location suitable for a failure message.
+
+        Returns
+        -------
+        str
+            ``job:step`` for this lane.
+        """
+        return f"{self.job}:{self.step!r}"
+
+
+def _optional_seconds(value: object) -> float | None:
+    """Return a ``timeout-minutes`` value in seconds, or None.
+
+    Parameters
+    ----------
+    value : object
+        The declared value, or ``None`` when the job declares none.
+
+    Returns
+    -------
+    float | None
+        The budget in seconds.
+    """
+    return None if value is None else float(str(value)) * 60.0
+
+
+@pytest.fixture(scope="module")
+def lanes(ci_workflow: dict[str, typ.Any]) -> tuple[CoverageLane, ...]:
+    """Return every coverage lane, each with its own job's ceiling.
+
+    Every coverage step is included, not only those that set the
+    watchdog, so a step that loses its override is visible as ``None``
+    rather than absent. An absent entry would make the ordering tests
+    skip it silently and restore the default that caused the regression.
+
+    The job ceiling travels with the lane rather than being taken as the
+    tightest in the file: an unrelated job's budget has nothing to say
+    about this one, and comparing them would either fail an
+    honestly-sized job or force unrelated budgets to move together.
+
+    Returns
+    -------
+    tuple[CoverageLane, ...]
+        One entry per coverage step.
+    """
+    lanes: list[CoverageLane] = []
+    for job_name, job in ci_workflow["jobs"].items():
         for step in job.get("steps", []):
-            if COVERAGE_ACTION in str(step.get("uses", "")):
-                yield str(step.get("name", "")) or job_name, step
-
-
-@pytest.fixture(scope="module")
-def watchdog_budgets(ci_workflow: dict[str, typ.Any]) -> dict[str, float | None]:
-    """Return each coverage step's watchdog budget, by step name.
-
-    Keyed on every coverage step, not only the ones that set the
-    variable, so a step that loses its override is visible as ``None``
-    rather than absent. An absent key would make the ordering tests skip
-    it silently and restore the default that caused the regression.
-
-    Returns
-    -------
-    dict[str, float | None]
-        Step name to budget in seconds, or ``None`` where the step sets
-        no budget.
-    """
-    budgets: dict[str, float | None] = {}
-    for name, step in _coverage_steps(ci_workflow):
-        raw = (step.get("env") or {}).get(WATCHDOG_VARIABLE)
-        budgets[name] = None if raw is None else float(str(raw))
-    return budgets
-
-
-@pytest.fixture(scope="module")
-def job_timeout(ci_workflow: dict[str, typ.Any]) -> float:
-    """Return the tightest job ``timeout-minutes`` in seconds.
-
-    Returns
-    -------
-    float
-        The tightest job budget, since that is the one that binds.
-    """
-    minutes = [
-        float(job["timeout-minutes"])
-        for job in ci_workflow["jobs"].values()
-        if "timeout-minutes" in job
-    ]
-    assert minutes, "ci.yml must bound its jobs with timeout-minutes"
-    return min(minutes) * 60.0
+            if COVERAGE_ACTION not in str(step.get("uses", "")):
+                continue
+            raw = (step.get("env") or {}).get(WATCHDOG_VARIABLE)
+            lanes.append(
+                CoverageLane(
+                    job=str(job_name),
+                    step=str(step.get("name", "")) or str(job_name),
+                    watchdog=None if raw is None else float(str(raw)),
+                    job_timeout=_optional_seconds(job.get("timeout-minutes")),
+                )
+            )
+    return tuple(lanes)
 
 
 def test_every_coverage_step_declares_a_watchdog_budget(
-    watchdog_budgets: dict[str, float | None],
+    lanes: tuple[CoverageLane, ...],
 ) -> None:
     """The default is invisible, so every step must write it down.
 
@@ -220,13 +248,11 @@ def test_every_coverage_step_declares_a_watchdog_budget(
     were merely cold. Checking that some step sets it would not do;
     one step losing its override is enough to bring the fault back.
     """
-    assert watchdog_budgets, (
+    assert lanes, (
         f"ci.yml must invoke {COVERAGE_ACTION}; this contract has nothing to "
         f"assert against otherwise"
     )
-    missing = sorted(
-        name for name, budget in watchdog_budgets.items() if budget is None
-    )
+    missing = [str(lane) for lane in lanes if lane.watchdog is None]
     assert not missing, (
         f"these coverage steps do not set {WATCHDOG_VARIABLE} and so inherit "
         f"the action's undocumented 1,800 s default: {missing}"
@@ -234,7 +260,7 @@ def test_every_coverage_step_declares_a_watchdog_budget(
 
 
 def test_the_watchdog_covers_the_nextest_budget_and_the_build(
-    watchdog_budgets: dict[str, float | None],
+    lanes: tuple[CoverageLane, ...],
     global_timeout: float,
 ) -> None:
     """Tier three must not pre-empt tier two.
@@ -246,10 +272,10 @@ def test_the_watchdog_covers_the_nextest_budget_and_the_build(
     difference, so the build allowance is part of the comparison.
     """
     required = global_timeout + COLD_BUILD_ALLOWANCE_SECONDS
-    for name, budget in sorted(watchdog_budgets.items()):
-        assert budget is not None, name
-        assert budget >= required, (
-            f"{name} sets {WATCHDOG_VARIABLE}={budget:.0f}s, below the "
+    for lane in lanes:
+        assert lane.watchdog is not None, str(lane)
+        assert lane.watchdog >= required, (
+            f"{lane} sets {WATCHDOG_VARIABLE}={lane.watchdog:.0f}s, below the "
             f"{required:.0f}s needed to cover the {global_timeout:.0f}s nextest "
             f"budget plus {COLD_BUILD_ALLOWANCE_SECONDS:.0f}s of cold build; a "
             f"cold run would be killed before nextest's own budget expired"
@@ -273,8 +299,7 @@ def test_the_nextest_global_timeout_sits_above_the_largest_slow_timeout(
 
 
 def test_the_job_timeout_covers_the_watchdog_and_the_rest_of_the_job(
-    watchdog_budgets: dict[str, float | None],
-    job_timeout: float,
+    lanes: tuple[CoverageLane, ...],
 ) -> None:
     """Tier four must not pre-empt tier three.
 
@@ -285,12 +310,16 @@ def test_the_job_timeout_covers_the_watchdog_and_the_rest_of_the_job(
     the watchdog can report it, and a cancellation discards the log that
     would have explained the overrun.
     """
-    for name, budget in sorted(watchdog_budgets.items()):
-        assert budget is not None, name
-        required = budget + NON_COVERAGE_ALLOWANCE_SECONDS
-        assert job_timeout >= required, (
-            f"the job timeout of {job_timeout:.0f}s is below the "
-            f"{required:.0f}s needed to cover {name}'s {budget:.0f}s watchdog "
+    for lane in lanes:
+        assert lane.watchdog is not None, str(lane)
+        assert lane.job_timeout is not None, (
+            f"{lane} runs cargo under a {lane.watchdog:.0f}s watchdog in a job "
+            f"with no timeout-minutes; the outermost tier is missing"
+        )
+        required = lane.watchdog + NON_COVERAGE_ALLOWANCE_SECONDS
+        assert lane.job_timeout >= required, (
+            f"{lane} has a job timeout of {lane.job_timeout:.0f}s, below the "
+            f"{required:.0f}s needed to cover its {lane.watchdog:.0f}s watchdog "
             f"plus {NON_COVERAGE_ALLOWANCE_SECONDS:.0f}s of measured work "
             f"outside it; an overrun would be cancelled rather than reported"
         )

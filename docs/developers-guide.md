@@ -634,7 +634,9 @@ decided by a few seconds of job setup.
 
 `timeout_ordering_test.py` asserts the ordering by value, including the two
 allowances above, so a change to any one tier that inverts it fails on the pull
-request rather than in a run three weeks later. It also requires every step that
+request rather than in a run three weeks later. The job ceiling is compared per
+job rather than against the tightest budget in the file, because an unrelated
+job's ceiling has nothing to say about this one. It also requires every step that
 invokes the shared coverage action to set the watchdog explicitly: a step that
 loses its override inherits the action's 1,800 s default, which is how this went
 wrong in the first place.
