@@ -1,6 +1,8 @@
 //! Unit tests for scenario test generation helpers.
 
 use std::collections::HashSet;
+#[cfg(windows)]
+use std::path::Path;
 
 use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
@@ -21,6 +23,10 @@ use super::{
     resolve_fixture_error_type,
     resolve_harness_path,
 };
+#[cfg(windows)]
+use super::{ScenarioTestContext, generate_scenario_test};
+#[cfg(windows)]
+use crate::{codegen::SharedAdapterResolutions, parsing::feature::ScenarioData};
 
 #[test]
 fn deduplicates_duplicate_titles() {
@@ -29,6 +35,38 @@ fn deduplicates_duplicate_titles() {
     let second = dedupe_name("dup_same_name", &mut used);
     assert_eq!(first, "dup_same_name");
     assert_eq!(second, "dup_same_name_1");
+}
+
+#[cfg(windows)]
+#[test]
+fn generated_scenario_metadata_uses_portable_feature_separators() {
+    let rel_path = Path::new(r"tests\x.feature");
+    let resolutions = SharedAdapterResolutions {
+        harness: None,
+        attributes: None,
+    };
+    let ctx = ScenarioTestContext {
+        feature_stem: "x",
+        rel_path,
+        tag_filter: None,
+        fixtures: &[],
+        runtime: RuntimeMode::Sync,
+        harness: None,
+        attributes: None,
+        effective_harness: None,
+        resolutions: &resolutions,
+    };
+    let data = ScenarioData {
+        name: "scenario".to_owned(),
+        steps: vec![],
+        examples: None,
+        tags: vec![],
+        line: 1,
+    };
+
+    let generated = generate_scenario_test(&ctx, &mut HashSet::new(), data).to_string();
+    assert!(generated.contains("tests/x.feature"), "{generated}");
+    assert!(!generated.contains(r"tests\x.feature"), "{generated}");
 }
 
 /// Build a `FixtureSpec` from string literals.

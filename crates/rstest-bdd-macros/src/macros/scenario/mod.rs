@@ -21,7 +21,7 @@
 //! ```
 
 mod args;
-mod paths;
+pub(super) mod paths;
 mod return_kind;
 mod selection;
 
@@ -40,7 +40,7 @@ use crate::parsing::feature::{
 };
 use self::{
     args::ScenarioArgs,
-    paths::canonical_feature_path,
+    paths::manifest_relative_feature_path,
     return_kind::classify_scenario_return,
     selection::{ensure_feature_not_empty, resolve_candidate_indices, select_scenario},
 };
@@ -126,7 +126,9 @@ fn try_scenario(
         &path_lit,
     )?;
 
-    let feature_path_str = canonical_feature_path(&path);
+    // Decision D3: the embedded feature path is manifest-relative within the
+    // crate, absolute otherwise (see `manifest_relative_feature_path`).
+    let feature_path_str = manifest_relative_feature_path(&path);
     let ScenarioData {
         name: scenario_name,
         steps,
@@ -194,13 +196,25 @@ fn try_scenario(
         fallback_diagnostics: Some(&fallback_diagnostics),
     };
 
-    Ok(generate_scenario_code(
+    let generated = generate_scenario_code(
         &config,
         ctx_prelude.into_iter(),
         ctx_inserts.into_iter(),
         ctx_postlude.into_iter(),
-    )
-    .into())
+    );
+
+    // Emit the Cargo rebuild-dependency tracking item as a sibling of the
+    // generated test function, at item scope (Decision D0 in the 10.3.3
+    // ExecPlan): once per bound feature file, independent of scenario codegen,
+    // so a `tags =` filter or a harness-replaced body cannot leave the file
+    // untracked. Milestone 1 scaffold: emits nothing yet (see
+    // `codegen::tracking`).
+    let tracking = crate::codegen::tracking::feature_tracking_item(&path, path_lit.span());
+
+    Ok(proc_macro::TokenStream::from(quote::quote! {
+        #tracking
+        #generated
+    }))
 }
 
 /// Provides the internal `parse_tag_filter` operation.

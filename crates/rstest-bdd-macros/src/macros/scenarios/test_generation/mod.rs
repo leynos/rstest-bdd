@@ -26,6 +26,7 @@ use crate::{
             generate_scenario_code,
         },
     },
+    macros::scenario::paths::render_feature_path,
     parsing::{examples::ExampleTable, feature::ScenarioData, tags::TagExpression},
     return_classifier::{ReturnKind, classify_return_type},
     utils::{
@@ -41,9 +42,9 @@ use crate::{
 pub(super) struct ScenarioTestContext<'a> {
     /// Sanitized stem of the feature file used in test function names.
     pub(super) feature_stem: &'a str,
-    /// Cargo manifest directory for constructing absolute feature paths.
-    pub(super) manifest_dir: &'a Path,
-    /// Relative path from `manifest_dir` to the feature file.
+    /// Path of the feature file relative to the crate's manifest directory,
+    /// or absolute when the file lies outside it (Decision D3: the embedded
+    /// feature path stays relative within the crate).
     pub(super) rel_path: &'a Path,
     /// Optional tag expression to filter scenarios before test generation.
     pub(super) tag_filter: Option<&'a TagExpression>,
@@ -320,7 +321,12 @@ pub(super) fn generate_scenario_test(
     let return_kind =
         resolve_scenario_return_kind(&mut sig, fixture_setup.has_result_fixtures, ctx.fixtures);
 
-    let feature_path = ctx.manifest_dir.join(ctx.rel_path).display().to_string();
+    // Decision D3: the embedded feature path is manifest-relative within the
+    // crate and absolute otherwise. `rel_path` already has exactly that shape
+    // — `strip_prefix` output when relative, the absolute path on fallback —
+    // so re-joining it with `manifest_dir` (its old absolutization) is
+    // removed here.
+    let feature_path = render_feature_path(ctx.rel_path);
     let vis = syn::Visibility::Inherited;
     let block: syn::Block = if return_kind.is_fallible() {
         syn::parse_quote!({ Ok(()) })

@@ -18,6 +18,11 @@ that need a new testing practice to be useful.
 - Custom implementations of the unreleased `HarnessAdapter` development API
   must return `HarnessResult<T>` from `run`. This affects projects that adopted
   the harness API from the `v0.6.0` development branch before the final release.
+
+- Feature paths in diagnostics and reports are now manifest-relative
+  (`ScenarioMetadata::feature_path`, the JSON reporter, the JUnit `classname`
+  attribute and `cargo bdd --dump-steps`). A feature file outside the crate's
+  manifest directory keeps its absolute path.
 - `StepContext::insert_value` now returns `InsertOutcome` instead of
   `Option<Box<dyn Any>>`. Only code that calls `insert_value` directly is
   affected; generated scenario code is updated by the macros.
@@ -738,6 +743,67 @@ receives a fresh one, so `UiWorld` still keeps only the durable `Entity<T>` and
 `AnyWindowHandle` and rebuilds the visual context per step, as
 [Rebuild `VisualTestContext` per step](#migrate-a-stateful-gpui-test) requires.
 
+### Feature paths in diagnostics and reports are now manifest-relative
+
+`ScenarioMetadata::feature_path` and every surface that displays it — the JSON
+reporter's `feature_path` field, the JUnit `classname` attribute, and
+`cargo bdd --dump-steps` output — now carry the path of the feature file
+*relative to the consuming crate's manifest directory* when the file lies
+within it, and the absolute path otherwise. Previously the value was always an
+absolute path.
+
+Before:
+
+```json
+{ "feature_path": "/home/alice/project/tests/features/login.feature" }
+```
+
+After:
+
+```json
+{ "feature_path": "tests/features/login.feature" }
+```
+
+This brings the implementation into line with the JSON contract already
+documented at `docs/roadmap.md:316`. Four surfaces are affected:
+`ScenarioMetadata::feature_path`, the JSON reporter, the JUnit `classname`
+attribute, and `cargo bdd --dump-steps` output.
+
+Two consequences to plan for:
+
+- **JUnit-consumers key test history, ownership rules and quarantine lists
+  on `classname` + `name`.** The `classname` discontinuity above is a
+  *one-time* break on upgrade: no action prevents it, and no action is needed,
+  because the previous value was an absolute build-machine path that already
+  differed between a developer's machine and Continuous Integration (CI). The
+  trade is a single discontinuity for a value that is stable thereafter.
+- **Workspace-wide uniqueness is lost.** When several crates in one workspace
+  use the same conventional feature layout, merged `cargo bdd` output (and
+  `format_location`) now collides on the identical relative path. Qualify
+  entries by package name in your reporting layer if you merge dumps.
+
+### Feature-file rebuild invalidation
+
+Since v0.6.0, `#[scenario]` and `scenarios!` register every bound `.feature`
+file as a Cargo rebuild dependency, so editing only a `.feature` file
+recompiles the scenario binary and the tests reflect the new text immediately.
+The previous caveat that "editing only a `.feature` file does not trigger a
+rebuild" is removed; no `touch` workaround is needed.
+
+One compile-time error may appear after upgrading. A feature-file path that
+shares **no filesystem root** with its crate's manifest directory — a different
+Windows drive, a UNC prefix, a non-UTF-8 path, or an empty path — cannot be
+registered as a rebuild dependency and now fails to compile with a clear
+`compile_error!` naming the file. This is a deliberate, overwhelmingly rare
+exception (such a path is non-portable anyway). Remedy: use a manifest-relative
+path, or a path on the same filesystem root.
+
+**Hermetic build systems** — Bazel, Buck2, Nix sandboxes — parse dep-info and
+require every listed input to be declared. They will need `.feature` files
+added to their declared input sets; that is correct behaviour and the point of
+the change, but it surfaces as an "undeclared dependency" failure until the
+input set is updated.
+
 ## Migration checklist
 
 - [ ] Review scenario and step parameters that start with `_`; add explicit
@@ -768,6 +834,12 @@ receives a fresh one, so `UiWorld` still keeps only the durable `Entity<T>` and
 - [ ] Replace direct `record_bypassed_steps` and
   `record_bypassed_steps_with_tags` calls with the `BypassedScenario`
   descriptor form.
+- [ ] Re-baseline JUnit history, ownership and quarantine rules after the
+  one-time `classname` discontinuity (feature paths are now manifest-relative).
+- [ ] Replace any feature-file path with a manifest-relative path when the
+  file is inside the crate, or an absolute path on the same filesystem root
+  when the file is external; the D4 `compile_error!` names an offending file.
+- [ ] Update hermetic build inputs to declare the bound `.feature` files.
 - [ ] Run feature-gated downstream tests before assuming v0.6.0 broke the API:
   use `cargo test --workspace --all-features`, or the project's Continuous
   Integration (CI)-equivalent gate such as `make test` when a Make-based gate
@@ -912,35 +984,6 @@ the playbook redirect instead.
   in this guide.
 - [Stateful GPUI scenarios with durable handles][users-guide-playbook] is the
   user-guide playbook.
-
-### Feature-file edits do not trigger a rebuild
-
-> **This caveat applies until roadmap item 10.3.3 lands.** Once the
-> rebuild-invalidation fix ships, this section can be removed.
-
-`#[scenario(path = "...")]` and `scenarios!` read `.feature` files with
-ordinary filesystem I/O at macro-expansion time. Cargo does not track those
-reads, so editing only a `.feature` file does not cause Cargo to recompile the
-scenario binary. The stale binary and all its compiled expectations are reused
-from the build cache until an unrelated `.rs` file in the crate changes.
-
-**Symptom:** a corrupted or changed expectation in a `.feature` file appears to
-pass after the edit, as if the change were not picked up.
-
-**Fix:** force a rebuild by touching a `.rs` file in the same crate, or run:
-
-```bash
-cargo clean -p <your-crate-name>
-```
-
-before re-running tests whenever you edit a `.feature` file without also
-editing any `.rs` file.
-
-**Root cause and roadmap:** see design-document
-[§2.7.6.6](rstest-bdd-design.md#2766-feature-file-rebuild-invalidation) and
-[ADR-010](adr-010-feature-file-change-detection.md) for the analysis and the
-chosen fix mechanism. Roadmap item 10.3.3 tracks the implementation, approved
-for v0.6.0 final.
 
 ## Further reading
 

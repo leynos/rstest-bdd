@@ -16,6 +16,7 @@ const EXPECTED_TRYBUILD_BINARIES: [&str; 4] = [
     "rstest-bdd::trybuild_macros",
     "rstest-bdd-server::workspace_discovery_compile",
 ];
+const FEATURE_REBUILD_BINARY: &str = "rstest-bdd::feature_rebuild_invalidation";
 
 #[test]
 fn trybuild_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn Error>> {
@@ -83,6 +84,58 @@ fn trybuild_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn 
     Ok(())
 }
 
+#[test]
+fn feature_rebuild_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn Error>> {
+    let configuration = nextest_configuration()?;
+    let default_profile = default_profile(&configuration)?;
+    assert_eq!(
+        default_profile
+            .get("global-timeout")
+            .and_then(Value::as_str),
+        Some("75m"),
+        "the default nextest profile must retain the measured 75-minute global timeout",
+    );
+
+    let overrides = default_overrides(&configuration)?;
+    let filter = format!("binary_id({FEATURE_REBUILD_BINARY})");
+    let matching = overrides
+        .iter()
+        .filter(|override_value| {
+            override_value.get("filter").and_then(Value::as_str) == Some(filter.as_str())
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        matching.len(),
+        1,
+        "the feature-rebuild test must have exactly one exact nextest override",
+    );
+    let override_value = matching
+        .first()
+        .expect("the asserted single feature-rebuild override must be present");
+    let slow_timeout = override_value
+        .get("slow-timeout")
+        .and_then(Value::as_table)
+        .expect("feature-rebuild override must contain a slow-timeout table");
+    assert_eq!(
+        slow_timeout.get("period").and_then(Value::as_str),
+        Some("600s")
+    );
+    assert_eq!(
+        slow_timeout
+            .get("terminate-after")
+            .and_then(Value::as_integer),
+        Some(1)
+    );
+    assert_eq!(
+        slow_timeout.get("grace-period").and_then(Value::as_str),
+        Some("5s")
+    );
+    assert_eq!(
+        override_value.get("test-group").and_then(Value::as_str),
+        Some("cargo-spawning")
+    );
+    Ok(())
+}
 fn nextest_configuration() -> Result<Value, Box<dyn Error>> {
     let configuration_directory = workspace_root()?.join(".config");
     let configuration_directory =
@@ -148,7 +201,8 @@ fn duration_seconds(duration: &str) -> Result<u64, io::Error> {
 }
 
 fn default_overrides(configuration: &Value) -> Result<&[Value], io::Error> {
-    let overrides = default_profile_key(configuration, "overrides")
+    let overrides = default_profile(configuration)?
+        .get("overrides")
         .and_then(Value::as_array)
         .ok_or_else(|| {
             io::Error::other("nextest configuration must contain profile.default.overrides")
@@ -157,6 +211,14 @@ fn default_overrides(configuration: &Value) -> Result<&[Value], io::Error> {
     Ok(overrides)
 }
 
+fn default_profile(configuration: &Value) -> Result<&toml::value::Table, io::Error> {
+    configuration
+        .get("profile")
+        .and_then(Value::as_table)
+        .and_then(|profiles| profiles.get("default"))
+        .and_then(Value::as_table)
+        .ok_or_else(|| io::Error::other("nextest configuration must contain profile.default"))
+}
 fn trybuild_override_candidates(overrides: &[Value]) -> Vec<usize> {
     overrides
         .iter()

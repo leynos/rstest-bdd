@@ -6,6 +6,7 @@ VALE ?= vale
 .PHONY: spelling-helper-test nixie publish-check
 .PHONY: check-published-gpui stage-published-gpui-e2e e2e-published-gpui
 .PHONY: forbid-async-trait vale update-ui-lints-lock update-published-gpui-0-2-2-lock update-published-gpui-e2e-lock
+.PHONY: update-feature-rebuild-fixtures-lock
 .PHONY: test-workflow-contracts
 
 SHELL := bash
@@ -238,6 +239,15 @@ update-published-gpui-0-2-2-lock: ## Refresh the published GPUI 0.2.2 fixture lo
 
 update-published-gpui-e2e-lock: stage-published-gpui-e2e ## Refresh the published GPUI E2E fixture lockfile
 	cd $(PUBLISHED_GPUI_E2E_DIR) && $(CARGO) generate-lockfile
+
+# Seed these locks from the established minimal fixture so their offline CI
+# runs reuse its dependency resolution. Cargo then adds only each fixture's
+# root package and the extra `rstest` closure required by `#[scenario]`.
+update-feature-rebuild-fixtures-lock: ## Refresh nested feature-rebuild fixture lockfiles
+	cp crates/cargo-bdd/tests/fixtures/minimal/Cargo.lock crates/rstest-bdd/tests/fixtures/rebuild_invalidation/Cargo.lock
+	$(CARGO) metadata --manifest-path crates/rstest-bdd/tests/fixtures/rebuild_invalidation/Cargo.toml --format-version 1 >/dev/null
+	cp crates/cargo-bdd/tests/fixtures/minimal/Cargo.lock crates/rstest-bdd/tests/fixtures/feature_addition/Cargo.lock
+	$(CARGO) metadata --manifest-path crates/rstest-bdd/tests/fixtures/feature_addition/Cargo.toml --format-version 1 >/dev/null
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | \

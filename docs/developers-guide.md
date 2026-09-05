@@ -498,7 +498,7 @@ workspace root; this is the only nextest configuration file the runner loads.
 The file sets the timeout policy for the test suite:
 
 - The default profile kills any test that runs past a 60 s `slow-timeout`
-  (`terminate-after = 1`, 5 s grace period) and applies a 40 m `global-timeout`
+  (`terminate-after = 1`, 5 s grace period) and applies a 75 m `global-timeout`
   to the whole run. This allows the cargo-spawning group to run its bounded
   tests one at a time without exhausting the whole-suite budget. The global
   timeout must stay above the largest per-test budget below, or the run is
@@ -520,11 +520,23 @@ The file sets the timeout policy for the test suite:
   about 190 s against a full one. The 20-minute allowance permits the full
   fixture set to rebuild on a cold cache without treating slow, healthy
   compiler work as a hung test. The strict 60 s default remains
-  in force elsewhere, and these tests stay in the `cargo-spawning` group so all
-  four run serially.
-- Both overrides also place their binaries in a `cargo-spawning` test group
-  (`max-threads = 1`), so `cargo-bdd::cli` and the four trybuild binaries run
-  one at a time instead of contending for CPU with concurrent `cargo` builds.
+  in force elsewhere.
+- A third override raises the `slow-timeout` to 600 s for
+  `rstest-bdd::feature_rebuild_invalidation`, whose three scenarios run nested
+  `cargo` commands for dependency tracking, rebuilding, and file addition.
+- All three overrides also place their binaries in a `cargo-spawning` test
+  group (`max-threads = 1`), so `cargo-bdd::cli`, the four trybuild binaries,
+  and `rstest-bdd::feature_rebuild_invalidation` run one at a time instead of
+  contending for CPU with concurrent `cargo` builds. Their worst-case serial
+  budget is 180 s + (20 m × 4) + (600 s × 3) = 6,180 s (103 m), which is why
+  the global timeout above it is set at the run level rather than the group
+  level; the group bound only serializes execution, it does not cap it.
+
+The feature-rebuild fixture-manifest rewriter is the sole owner of TOML
+basic-string encoding for its rewritten absolute dependency paths. It must
+escape backslashes and double quotes so the copied fixture remains valid on
+Windows; use a TOML serializer for any broader configuration-writing need.
+
 - A `long` profile (`--profile long`) relaxes the limits further (180 s
   `slow-timeout`, 30 m `global-timeout`) for deliberately slow local runs.
 
@@ -2039,12 +2051,12 @@ bookkeeping exactly once and applies the caller's projection to the resolved
 
 ## Internal APIs and tooling (ADR-010 to ADR-013)
 
-ADR-010 remains proposed build-tooling work. ADR-011 records historical
-scenario-state work that did not ship. ADR-012 is accepted and implemented in
-v0.7.0, while ADR-013 is accepted and governs the current Whitaker lint gate.
-They are summarized here so the decisions are discoverable from the developer
-guide; the ADRs remain the authoritative source, and the planning rationale
-lives in
+ADR-010 is accepted and implemented build-tooling work. ADR-011 records
+historical scenario-state work that did not ship. ADR-012 is accepted and
+implemented in v0.7.0, while ADR-013 is accepted and governs the current
+Whitaker lint gate. They are summarized here so the decisions are discoverable
+from the developer guide; the ADRs remain the authoritative source, and the
+planning rationale lives in
 [`docs/execplans/adopt-v0-6-0-beta2-feedback.md`](execplans/adopt-v0-6-0-beta2-feedback.md).
 
 ### Historical scenario-state helper proposal (ADR-011)
@@ -2106,28 +2118,27 @@ Tracked by roadmap items 12.1.1–12.1.3; design coverage is in
 [ADR-010](adr-010-feature-file-change-detection.md) closes a build-tooling
 foot-gun: `#[scenario(path = …)]` and `scenarios!` read `.feature` files with
 `std::fs` at macro-expansion time, so Cargo never sees them as inputs and a
-`.feature`-only edit does not trigger a rebuild. The decision:
+`.feature`-only edit would otherwise leave a stale binary. The implemented
+mechanism emits an item-scope anonymous binding for every bound feature file:
 
-- For single-file `#[scenario]` binding, prefer emitting a **relative-path**
-  `include_str!` so rustc registers the file in dep-info automatically. An
-  absolute `CARGO_MANIFEST_DIR`-rooted path is **rejected** because it breaks
-  reproducible builds (Nix sandboxes, `sccache`, Windows/POSIX separators).
-- For `scenarios!` directory-glob binding, prefer a build-script helper
-  emitting `cargo::rerun-if-changed` for the features directory and each
-  discovered file (the `theoremc` pattern), which embeds nothing in the
-  artefact.
-- The unstable `proc_macro::tracked_path` API is the long-term answer, usable
-  behind a `nightly` feature gate once stabilized.
-- Invalidation must be a *tested contract*: a portability-aware rebuild
-  regression test, a `trybuild` compile-time test for the emitted binding, and
-  redacted `insta` snapshots for any touched diagnostic — see the ADR's
-  *Testing strategy*. This is distinct from the OUT_DIR AST *caching*
-  performance idea in `rstest-bdd-design.md` §3.2.2.
+```rust
+const _: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/", REL));
+```
 
-Tracked by roadmap item 10.3.3 (pulled forward to v0.6.0 final); design
-coverage is in `rstest-bdd-design.md` §2.7.6.6. Until it lands,
-`v0-6-0-migration-guide.md` carries a caveat that `.feature`-only edits do not
-trigger a rebuild.
+The deferred manifest-relative path lets rustc register the file in dep-info
+without retaining either the feature contents or an absolute build path in the
+artefact. `scenarios!` emits one sibling binding for every discovered file,
+including a file from which a `tags =` filter generates no test. The documented
+`build.rs` recipe remains responsible for detecting feature files added after
+macro expansion.
+
+`proc_macro::tracked_path` remains unstable and is not enabled behind a
+`nightly` feature because the repository's all-features gates must stay stable.
+The implementation and its compile-time and nested-Cargo regressions are
+described in [Feature-file rebuild invalidation conventions]
+(#feature-file-rebuild-invalidation-conventions-roadmap-1033). Design coverage
+is in `rstest-bdd-design.md` §2.7.6.6 and migration guidance is in
+`v0-6-0-migration-guide.md`.
 
 ### Whitaker Dylint suite lint gate (ADR-013)
 
@@ -2259,6 +2270,97 @@ no extension.
 Invariants (ASCII-case insensitivity, rejection of differing extensions, and
 behaviour for missing, repeated, and trailing dots) are pinned by the property
 suite in `crates/rstest-bdd-server/tests/has_extension_props.rs`.
+
+## Feature-file rebuild invalidation conventions (roadmap 10.3.3)
+
+Four internal conventions from the 10.3.3 rebuild-invalidation work, so the
+next person does not rediscover them.
+
+### The cargo-spawning fixture-crate pattern
+
+Tests that shell out to `cargo` against a copy of a fixture crate follow the
+pattern in `crates/rstest-bdd/tests/feature_rebuild_invalidation/`:
+
+- The checked-in fixture (for example
+  `tests/fixtures/rebuild_invalidation/`) is a non-workspace crate with a
+  trailing `[workspace]` stanza, a committed `Cargo.lock`, and dependencies
+  byte-identical to `tests/fixtures/minimal/`'s, so the two fixtures share
+  compiled units.
+- Refresh the two feature-rebuild fixture lockfiles together with
+  `make update-feature-rebuild-fixtures-lock`. The target seeds both locks from
+  `tests/fixtures/minimal/Cargo.lock` before Cargo resolves the
+  fixture-specific root and `rstest 0.26.1` closure required by `#[scenario]`.
+  This keeps nested `--offline` runs on the dependency resolution already
+  populated by CI.
+- The test copies the fixture into `target/tests/<name>/` under the shared
+  workspace `target/`, rewrites the copied manifest's relative `path = "…"`
+  values to absolute paths (resolving against the *source* directory, whose
+  depth the `..` counts match), and mutates only the copy.
+- A versioned stamp file (a hash of the source tree, written last) makes the
+  copy idempotent; stale scratch trees are always re-copied.
+- Every nested `cargo` invocation uses a controlled child environment:
+  `.env_clear()` plus a captured snapshot of the parent, with `CARGO_MAKEFLAGS`,
+  `CARGO_PKG_*`, and `CARGO_LLVM_COV*` stripped, `CARGO_TARGET_DIR` inherited
+  or defaulted to the workspace `target/`, and `LLVM_PROFILE_FILE` redirected
+  under the scratch so nested coverage never merges into the parent's gated
+  profile.
+- The child runs under the harness's own wall-clock bound via
+  `env!("CARGO")`, and its stdout/stderr pipes are drained by reader threads
+  while the run polls for exit — a voluminous `--message-format=json` build
+  would otherwise deadlock on the pipe buffer.
+- The binary is registered in the `cargo-spawning` nextest group
+  (`max-threads = 1`); when adding another such test, update the worst-case
+  arithmetic comment in `.config/nextest.toml`.
+
+### Macro-emitted token streams carry no absolute path literal
+
+The `#[scenario]` and `scenarios!` expansions must not embed an absolute
+`CARGO_MANIFEST_DIR` path as a literal. The tracking binding (an anonymous
+`include_bytes!` const, one per bound file, emitted at item scope) constructs
+its path with `concat!(env!("CARGO_MANIFEST_DIR"), "/", <relative literal>)`,
+and the embedded `__RSTEST_BDD_FEATURE_PATH` constant is manifest-relative
+(absolute only when the file lies outside the manifest directory). The property
+is pinned by the token-shape tests in
+`crates/rstest-bdd-macros/src/codegen/tracking/` and the metadata-literal test
+in `codegen/scenario/runtime/tests/` — keep those in mind before touching the
+path plumbing in `macros/scenario/paths.rs` or
+`macros/scenarios/test_generation/`.
+
+### `googletest` and `pretty_assertions` house style
+
+The repository's first adoption of `googletest` (ExecPlan Decision D1). Use
+`assert_that!` / `expect_that!` and matchers (`eq`, `is_true`,
+`contains_substring`, …) where an assertion expresses a *property* rather than
+raw equality, and `pretty_assertions` for the structural-equality diffs. Inside
+`#[scenario]`-generated bodies there is no `#[gtest]` test context, so step
+functions must use the panic-mode `assert_that!`; `expect_that!` and its
+deferred multi-failure reporting require the `#[gtest]` attribute, which plain
+(non-scenario) tests attach as `#[rstest]` then `#[gtest]` — both attribute
+orders work, and a `-> Result<()>` body's assertion results are panics, not
+errors to propagate.
+
+### Tested living documentation
+
+`docs/users-guide.md` (and any future user-facing document) can carry fenced
+examples that the test suite executes. Each executed example is introduced by
+an HTML-comment marker that must immediately precede the fence, ignoring blank
+lines:
+
+```text
+<!-- tested-example: scenarios-build-script -->
+```
+
+The extractor lives in `crates/rstest-bdd/tests/documentation_examples/` and
+enforces the rules regionally — the regions under enforcement are a small
+explicit list of `(document, section-heading)` pairs, currently only the
+guide's "Feature file rebuild invalidation" section. Inside an enforced region
+every fence must be marked; duplicate or empty identifiers and language-less or
+unterminated fences are hard errors. The `scenarios-build-script` example is
+the recipe currently executed: the suite writes it into a fixture crate's
+`build.rs`, adds the `build` key, and proves a newly added `.feature` file is
+compiled and run by the next `cargo test`. To add a new executable example, add
+the marker + fence in an enforced region and consume it with
+`documented_example("id")` from a test.
 
 ### Rust indexing results and recoverable diagnostics
 

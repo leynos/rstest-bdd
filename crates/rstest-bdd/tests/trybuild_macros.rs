@@ -28,6 +28,11 @@ use wrappers::{
 
 #[path = "trybuild_macros/staging.rs"]
 mod staging;
+
+#[path = "trybuild_macros/runner.rs"]
+mod runner;
+#[path = "trybuild_macros/tracking.rs"]
+mod tracking;
 #[path = "trybuild_macros/whitaker.rs"]
 mod whitaker;
 #[path = "trybuild_macros/wip.rs"]
@@ -47,44 +52,6 @@ fn ui_fixture(case: impl Into<UiFixtureCase>) -> Utf8PathBuf {
     let case = case.into();
     let case_str: &str = case.as_ref();
     staging::ui_fixture(case_str)
-}
-
-#[test]
-fn step_macros_compile() -> io::Result<()> {
-    // This test spawns `cargo` (through `trybuild` and `cargo clippy`). On
-    // Windows, nextest wraps test binaries in Job Objects and those child
-    // processes inherit the write end of nextest's capture pipe, which never
-    // closes; see "nextest on Windows: trybuild deadlock" in
-    // `docs/developers-guide.md`. Skip only on that platform combination so
-    // the fixtures still run under nextest everywhere else. The
-    // `rstest-bdd::trybuild_macros` test group in `.config/nextest.toml`
-    // keeps this binary from running alongside other cargo-spawning tests.
-    if cfg!(windows) && env::var_os("NEXTEST_RUN_ID").is_some() {
-        return Ok(());
-    }
-    // Prevent RUST_BACKTRACE from contaminating compiler diagnostic output.
-    // Trybuild snapshots are compared verbatim; CI's `RUST_BACKTRACE=short`
-    // injects backtrace fragments on Windows MSVC that diverge from the
-    // Linux-generated snapshots. Trybuild tests are about structured
-    // diagnostics, not runtime backtraces.
-    //
-    // Rust 2024 makes `std::env::remove_var` unsafe; Rust 1.85.0 is the first
-    // release supporting that edition. This workspace forbids unsafe code, so
-    // `temp_env` provides the same scoped mutation without weakening that lint.
-    temp_env::with_var_unset("RUST_BACKTRACE", || {
-        let t = trybuild::TestCases::new();
-
-        run_passing_macro_tests(&t);
-        run_failing_macro_tests(&t);
-        run_failing_ui_tests(&t)?;
-        run_lint_ui_tests()?;
-        t.compile_fail(
-            macros_fixture(MacroFixtureCase::from("scenarios_missing_dir.rs")).as_std_path(),
-        );
-        run_conditional_ordering_tests(&t)?;
-        run_conditional_ambiguous_step_test(&t);
-        Ok(())
-    })
 }
 
 fn run_passing_macro_tests(t: &trybuild::TestCases) {
@@ -112,6 +79,12 @@ fn run_passing_macro_tests(t: &trybuild::TestCases) {
     ] {
         t.pass(macros_fixture(case).as_std_path());
     }
+}
+
+/// Queue the tracking fixture last so its dep-info remains available for the
+/// post-trybuild assertion.
+fn run_feature_tracking_test(t: &trybuild::TestCases) {
+    t.pass(macros_fixture(MacroFixtureCase::from("scenario_feature_tracking.rs")).as_std_path());
 }
 
 fn run_failing_macro_tests(t: &trybuild::TestCases) {

@@ -6,7 +6,7 @@
 
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     sync::{LazyLock, RwLock},
 };
 
@@ -113,6 +113,17 @@ fn canonicalize_with_cap_std(path: &Path) -> Option<PathBuf> {
 /// let path = PathBuf::from("features/example.feature");
 /// let _ = canonical_feature_path(&path);
 /// ```
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "retained per the 10.3.3 ExecPlan Milestone 6: the manifest-relative work must \
+                  not repurpose this memoized absolute form's cache key, and compile-time \
+                  diagnostics may still need the canonical absolute path (the missing-file path \
+                  currently canonicalizes inside `parse_and_load_feature` if `CARGO_MANIFEST_DIR` \
+                  is joined)"
+    )
+)]
 pub(super) fn canonical_feature_path(path: &Path) -> String {
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").ok().map(PathBuf::from);
     // Scope cache keys by manifest dir to avoid cross-crate collisions.
@@ -148,6 +159,70 @@ pub(super) fn canonical_feature_path(path: &Path) -> String {
     entry.clone()
 }
 
+/// Renders diagnostic and reporting metadata, not a path for filesystem access.
+pub(in crate::macros) fn render_feature_path(path: &Path) -> String {
+    #[cfg(windows)]
+    {
+        path.display().to_string().replace('\\', "/")
+    }
+
+    #[cfg(not(windows))]
+    {
+        path.display().to_string()
+    }
+}
+
+/// The feature path embedded in generated code, in the Decision D3 form:
+/// *relative to the consuming crate's manifest directory when the feature
+/// file lies within it; otherwise absolute.*
+///
+/// This is the value that flows into `__RSTEST_BDD_FEATURE_PATH` and from
+/// there into `ScenarioMetadata::feature_path`, the JSON reporter, the
+/// `JUnit` `classname` and `cargo bdd --dump-steps` (see the `ExecPlan`
+/// Milestone 6 and the v0.6.0 migration guide's breaking-change note). It
+/// deliberately does
+/// **not** reuse `canonical_feature_path`: that function keeps resolving
+/// symlinks through `cap-std` for compile-time diagnostics and its
+/// memoization cache is keyed on the absolute form — repurposing it would
+/// silently change what the cache keys describe.
+pub(super) fn manifest_relative_feature_path(path: &Path) -> String {
+    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_default();
+    let absolute_path = path.is_absolute().then(|| path.to_path_buf());
+    let resolved = lexical_normalize(&manifest_dir.join(path));
+    let manifest_dir = lexical_normalize(&manifest_dir);
+
+    resolved.strip_prefix(&manifest_dir).map_or_else(
+        |_| {
+            absolute_path.map_or_else(
+                || render_feature_path(&resolved),
+                |path| render_feature_path(&path),
+            )
+        },
+        render_feature_path,
+    )
+}
+
+/// Resolve `.` and `..` lexically for metadata containment checks only.
+///
+/// This deliberately does not touch the filesystem: feature loading retains
+/// its existing symlink semantics, while metadata needs to distinguish a
+/// crate-local spelling from one that escapes the manifest directory.
+fn lexical_normalize(path: &Path) -> PathBuf {
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::ParentDir if normalized.file_name().is_some() => {
+                normalized.pop();
+            }
+            Component::ParentDir if !path.has_root() => normalized.push(".."),
+            Component::CurDir | Component::ParentDir => {}
+            component => normalized.push(component.as_os_str()),
+        }
+    }
+    normalized
+}
 #[cfg(test)]
 fn clear_feature_path_cache() {
     FEATURE_PATH_CACHE
@@ -160,10 +235,7 @@ fn clear_feature_path_cache() {
 mod tests {
     //! Unit tests for canonical feature path handling.
 
-    use std::{
-        env,
-        path::{Path, PathBuf},
-    };
+    use std::path::{Path, PathBuf};
 
     use rstest::{fixture, rstest};
     use serial_test::serial;
@@ -234,28 +306,32 @@ mod tests {
         dir.remove_file(&target)
     }
 
-    #[serial]
+    #[serial(cargo_manifest_dir)]
     #[rstest]
     fn canonicalizes_with_manifest_dir(_cache_cleared: ()) {
-        let manifest = PathBuf::from(
-            env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is required for tests"),
+        let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        temp_env::with_var(
+            "CARGO_MANIFEST_DIR",
+            Some(env!("CARGO_MANIFEST_DIR")),
+            || {
+                let path = Path::new("Cargo.toml");
+                let expected = canonicalize_with_cap_std(&manifest.join(path))
+                    .expect("canonical path")
+                    .display()
+                    .to_string();
+                assert_eq!(canonical_feature_path(path), expected);
+            },
         );
-        let path = Path::new("Cargo.toml");
-        let expected = canonicalize_with_cap_std(&manifest.join(path))
-            .expect("canonical path")
-            .display()
-            .to_string();
-        assert_eq!(canonical_feature_path(path), expected);
     }
 
-    #[serial]
+    #[serial(cargo_manifest_dir)]
     #[rstest]
     fn falls_back_on_missing_path(_cache_cleared: ()) {
         let path = Path::new("does-not-exist.feature");
         assert_eq!(canonical_feature_path(path), path.display().to_string());
     }
 
-    #[serial]
+    #[serial(cargo_manifest_dir)]
     #[rstest]
     fn equivalent_relatives_map_to_same_result(_cache_cleared: ()) {
         let a = Path::new("./features/../features/example.feature");
@@ -263,7 +339,7 @@ mod tests {
         assert_eq!(canonical_feature_path(a), canonical_feature_path(b));
     }
 
-    #[serial]
+    #[serial(cargo_manifest_dir)]
     #[rstest]
     fn caches_paths_between_calls(_cache_cleared: ()) {
         use std::time::{SystemTime, UNIX_EPOCH};
@@ -273,21 +349,29 @@ mod tests {
             .unwrap_or_default()
             .as_nanos();
         let file_name = format!("cache_{unique}.feature");
-        let manifest = PathBuf::from(
-            env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is required for tests"),
+        let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        temp_env::with_var(
+            "CARGO_MANIFEST_DIR",
+            Some(env!("CARGO_MANIFEST_DIR")),
+            || {
+                let tmp_dir = manifest.join("target/canonical-path-cache-tests");
+                create_dir_all_cap(&tmp_dir).expect("create tmp dir");
+                let file_path = tmp_dir.join(&file_name);
+                write_file_cap(&file_path, b"").expect("create temp feature file");
+
+                let rel_path = format!("target/canonical-path-cache-tests/{file_name}");
+                let path = Path::new(&rel_path);
+                let first = canonical_feature_path(path);
+
+                remove_file_cap(&file_path).expect("remove temp feature file");
+                let second = canonical_feature_path(path);
+
+                assert_eq!(first, second);
+            },
         );
-        let tmp_dir = manifest.join("target/canonical-path-cache-tests");
-        create_dir_all_cap(&tmp_dir).expect("create tmp dir");
-        let file_path = tmp_dir.join(&file_name);
-        write_file_cap(&file_path, b"").expect("create temp feature file");
-
-        let rel_path = format!("target/canonical-path-cache-tests/{file_name}");
-        let path = Path::new(&rel_path);
-        let first = canonical_feature_path(path);
-
-        remove_file_cap(&file_path).expect("remove temp feature file");
-        let second = canonical_feature_path(path);
-
-        assert_eq!(first, second);
     }
 }
+
+#[cfg(test)]
+#[path = "paths/manifest_relative_tests.rs"]
+mod manifest_relative_tests;

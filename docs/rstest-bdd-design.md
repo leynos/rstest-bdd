@@ -2213,45 +2213,52 @@ The release strategy is therefore split by compatibility risk:
 
 ##### 2.7.6.6 Feature-file rebuild invalidation
 
-`#[scenario(path = "...")]` and `scenarios!` read `.feature` files via
-`std::fs` at macro-expansion time. Cargo does not track these reads; only files
-referenced through `include_str!`, `include_bytes!`, `include!`, or build-script
-`cargo::rerun-if-changed` directives appear in the dep-info file that Cargo
-consults to decide whether to re-run the compiler.
+Since v0.6.0, `#[scenario]` and `scenarios!` register every bound `.feature`
+file as a Cargo rebuild dependency. Cargo decides whether to recompile from
+dep-info, and rustc only records a file there when it was pulled in through
+`include_str!`, `include_bytes!`, `include!`, or a build-script
+`cargo::rerun-if-changed` directive; a procedural macro that opens a file with
+ordinary filesystem calls is invisible to that machinery.
 
-The consequence is a silent foot-gun: editing only a `.feature` file does not
-trigger a rebuild, so a corrupted expectation can appear to pass from the stale
-build cache until an unrelated `.rs` file changes and forces recompilation.
-This is especially hazardous in a *testing* framework, where the correctness of
-test expectations is the whole point.
+The shipping mechanism (ADR-010, accepted) is the **tracking binding**: each
+macro emits, once per bound feature file and at item scope, an anonymous
+`const` whose value is
+`include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/", <relative literal>))`.
+Item scope matters because `scenarios!` can parse a file and generate zero
+tests from it under a `tags =` filter, and because the harness-led path
+replaces the generated function body entirely — a binding inside the generated
+body would track nothing for a filtered-out file. The deferred path
+construction keeps the emitted token stream free of absolute paths; rustc
+registers the file in dep-info; and the unused `const` is elided, so neither
+the path nor the file contents land in a binary (the `rlib` retains them in
+metadata, which is why the no-absolute-path guarantee is scoped to binary and
+test targets). `include_bytes!` rather than `include_str!` because the former
+does not hard-error on a non-UTF-8 `.feature` file yet registers dep-info
+identically. The relative literal follows the normalization table in the
+ExecPlan: `.` segments are dropped, `..` segments are retained (collapsing them
+could name a different file through a symlink), the backslash rule is
+Windows-only, and an absolute path outside `CARGO_MANIFEST_DIR`'s subtree
+becomes a component-wise `..` offset. Only a genuinely unrelatable root — a
+different Windows drive, a UNC prefix, a non-UTF-8 path, an empty path —
+hard-errors with a `compile_error!` naming the file.
 
-Two mechanisms close the gap (evaluated in detail by
-[ADR-010](adr-010-feature-file-change-detection.md)):
+The embedded `__RSTEST_BDD_FEATURE_PATH` constant is manifest-relative to the
+consuming crate when the file lies within its manifest directory and absolute
+otherwise (ExecPlan Decision D3); the change is a breaking one for JUnit
+`classname` and the JSON/DumpSteps `feature_path` value, documented in the
+v0.6.0 migration guide.
 
-1. **Macro-emitted `include_str!` (preferred for `#[scenario]`).** The
-   macro emits an `include_str!` expression discarded into a hidden item, so
-   rustc registers the feature file in dep-info automatically. The path must be
-   resolved *relative to the invoking source file* from the call-site `Span`;
-   embedding an absolute `CARGO_MANIFEST_DIR`-rooted path is **rejected**
-   because it breaks reproducible builds (Nix sandboxes, `sccache`,
-   Windows/POSIX path divergence).
-2. **Build-script helper (preferred for `scenarios!` directory-glob
-   binding).** A helper emits `cargo::rerun-if-changed` for the features
-   directory and for each discovered `.feature` file (the
-   [`theoremc`](https://github.com/leynos/theoremc) pattern). This avoids
-   embedding any file content or absolute path into the artefact and handles
-   the case where the file set is not known at macro-expansion time.
-
-The unstable `proc_macro::tracked_path` API is the right long-term answer and
-is usable behind a `nightly` feature gate pending stabilization.
+Per-file tracking covers *edits* to files that existed when the macro ran. It
+cannot see a file *added* afterwards, because nothing references a file that
+did not exist at expansion time. That residual gap is closed by a tested
+`build.rs` recipe — a single `cargo::rerun-if-changed` directory line, which
+Cargo scans recursively (rust-lang/cargo#8973) — carried as *executed* living
+documentation in the users' guide (ExecPlan Decision D2): the test suite
+extracts the recipe and proves a newly added `.feature` file is compiled and
+run.
 
 OUT_DIR AST caching (noted in `§3.2.2` below) is a *performance* optimization,
 not an invalidation mechanism; it does not close this gap.
-
-Until roadmap item 10.3.3 lands, a caveat in the adoption guide notes that
-`.feature`-only edits do not trigger a rebuild, and users should `touch` an
-affected `.rs` file or `cargo clean` when an updated expectation is not picked
-up.
 
 ##### 2.7.6.7 Test-runner parallelism and scenario state
 

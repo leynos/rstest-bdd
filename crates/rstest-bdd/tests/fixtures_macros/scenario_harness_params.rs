@@ -30,7 +30,4 @@ fn with_harness_only() {}
 )]
 fn with_attributes_only() {}
 
-// Compile-time guard: fail fast if the feature path changes.
-const _: &str = include_str!("basic.feature");
-
 fn main() {}

@@ -1,0 +1,30 @@
+[package]
+name = "rstest-bdd-feature-addition-fixture"
+version = "0.1.0"
+edition = "2024"
+build = "build.rs"
+
+# Dependencies are byte-identical to `crates/cargo-bdd/tests/fixtures/minimal`,
+# including `features = ["diagnostics", "test-support"]` on `rstest-bdd`, and
+# the committed lockfile resolves every shared crate to the same versions.
+# Cargo hashes the resolved feature set into `-C metadata`, so a divergent set
+# would give this fixture its own compiled units instead of sharing them —
+# doubling the cold-build cost on CI.
+#
+# One deliberate addition, recorded in the 10.3.3 execplan Decision Log: the
+# minimal fixture never uses `#[scenario]`, whereas this fixture's whole point
+# is a `#[scenario]`-bound test, and the `#[scenario]` expansion unconditionally
+# emits `#[rstest::rstest]`. `rstest 0.26.1` is therefore added to
+# `[dev-dependencies]`; it is already a workspace dependency at the same
+# version, so the resolved rstest-bdd graph (the `-C metadata` that matters) is
+# unchanged and every compiled unit is still shared.
+[dependencies]
+inventory = "0.3"
+serial_test = "2"
+rstest-bdd = { path = "../../../../../crates/rstest-bdd", features = ["diagnostics", "test-support"] }
+
+[dev-dependencies]
+rstest = "0.26.1"
+rstest-bdd-macros = { path = "../../../../../crates/rstest-bdd-macros" }
+
+[workspace]

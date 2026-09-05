@@ -2,10 +2,10 @@
 
 use rstest::rstest;
 
-use super::generators::{
-    generate_async_step_executor,
-    generate_skip_extractor,
-    generate_step_executor,
+use super::{
+    ScenarioLiteralsInput,
+    create_scenario_literals,
+    generators::{generate_async_step_executor, generate_skip_extractor, generate_step_executor},
 };
 use crate::codegen::scenario::ScenarioReturnKind;
 
@@ -248,5 +248,47 @@ fn skip_handler_returns_ok_for_fallible_scenarios() {
         "expected skip handler to include a return for fallible scenarios",
         |ret| ret.expr.as_ref().is_some_and(|expr| is_ok_unit_expr(expr)),
         "fallible skip handler should only return Ok(())",
+    );
+}
+
+#[test]
+fn feature_path_literal_is_manifest_relative_in_the_generated_metadata() {
+    // ExecPlan Milestone 6: the value embedded in `__RSTEST_BDD_FEATURE_PATH`
+    // flows in through `ScenarioConfig.feature_path` → `create_scenario_literals`
+    // → `feature_literal`. A whole-scenario `to_string()` cannot be produced
+    // in unit tests (the codegen entry returns `proc_macro::TokenStream`,
+    // which panics outside the bridge), so the contract is pinned at its two
+    // TokenStream2 producers instead: the feature-path value the call sites
+    // compute (unit-tested in `paths`) and the literal this factory builds
+    // from it. Together with the tracking binding's token-shape tests they
+    // cover every token the macro emits.
+    let feature_path = crate::codegen::scenario::FeaturePath::new(
+        "tests/features/whole_expansion.feature".to_owned(),
+    );
+    let scenario_name = crate::codegen::scenario::ScenarioName::new("whole expansion".to_owned());
+    let input = ScenarioLiteralsInput {
+        feature_path: &feature_path,
+        scenario_name: &scenario_name,
+        scenario_line: 1,
+        allow_skipped: false,
+        tags: &[],
+    };
+    let literals = create_scenario_literals(input);
+    assert_eq!(
+        literals.feature_literal.value(),
+        "tests/features/whole_expansion.feature",
+        "the embedded feature path must stay manifest-relative"
+    );
+    let absolute_path =
+        crate::codegen::scenario::FeaturePath::new("/elsewhere/x.feature".to_owned());
+    let absolute = ScenarioLiteralsInput {
+        feature_path: &absolute_path,
+        ..input
+    };
+    let absolute_literals = create_scenario_literals(absolute);
+    assert_eq!(
+        absolute_literals.feature_literal.value(),
+        "/elsewhere/x.feature",
+        "a path outside the manifest stays absolute per Decision D3"
     );
 }

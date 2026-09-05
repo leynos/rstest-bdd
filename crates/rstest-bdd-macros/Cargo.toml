@@ -46,13 +46,14 @@ thiserror.workspace = true
 [build-dependencies]
 rustc_version = "0.4"
 [dev-dependencies]
-insta.workspace = true
+insta = { workspace = true, features = ["filters"] }
 googletest.workspace = true
 pretty_assertions.workspace = true
 proptest.workspace = true
 rstest.workspace = true
 rstest-bdd-test-macros.workspace = true
 serial_test.workspace = true
+temp-env.workspace = true
 tempfile.workspace = true
 
 [package.metadata.docs.rs]

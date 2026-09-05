@@ -18,6 +18,7 @@ struct CrateSpec {
 }
 mod adapter_fallback;
 pub(crate) mod scenario;
+pub(crate) mod tracking;
 pub(crate) mod wrapper;
 pub(crate) use adapter_fallback::SharedAdapterResolutions;
 use adapter_fallback::{AdapterFallback, fallback_candidate};

@@ -2,11 +2,16 @@
 
 ## Status
 
-Proposed
+Accepted (2026-08-17): the implementing ExecPlan (roadmap item 10.3.3) chose a
+macro-emitted `include_bytes!` tracking binding at item scope (one anonymous
+`const` per bound `.feature` file, path deferred through
+`concat!(env!("CARGO_MANIFEST_DIR"), "/", <relative literal>)`), plus a tested
+`build.rs` recipe for the file-addition gap. The amendments below record the
+measurements that corrected the original rejection rationale.
 
 ## Date
 
-2026-06-10
+2026-06-10; amended 2026-08-17.
 
 ## Context and problem statement
 
@@ -91,6 +96,24 @@ is rejected because:
 
 This option variant is therefore not a valid implementation of Option A.
 
+**Amendment adopted 2026-08-17: the rejection above applies to a proc macro
+that writes an absolute *string literal* into the token stream — not to the
+`concat!(env!("CARGO_MANIFEST_DIR"), "/", REL)` deferred form.** The variant
+measured in the implementing ExecPlan (transcripts A and B) emits
+`env!("CARGO_MANIFEST_DIR")` and lets rustc construct the path at expansion
+time, so no absolute path appears in the emitted token stream, and the unused
+anonymous `const` is elided: control binaries and binaries carrying the binding
+showed the same absolute-path presence in dev profile (from debug info; release
+binaries clean in both) and no feature text in either, so the mechanism adds
+neither the path nor the file contents to a compiled binary. The `rlib` retains
+source paths and constant values in metadata regardless, so the ADR's
+binary-size and path claims are scoped to binary and test targets. The shipping
+form therefore uses `include_bytes!` (which, unlike `include_str!`, does not
+hard-error on a non-UTF-8 `.feature` file yet registers dep-info identically)
+and an anonymous `const _` — naming the constant would make the file contents
+reachable and retained, the cost this ADR feared. See the ExecPlan Decision
+D0/D0a.
+
 ### Option B: build-script helper emitting `cargo::rerun-if-changed`
 
 Provide an `rstest-bdd-build` helper crate (or a function in `rstest-bdd`) that
@@ -131,6 +154,16 @@ Cons:
   even when absent (Cargo ignores directives for non-existent paths), and scan
   recursively.
 
+**Amendment adopted 2026-08-17: the allow-list concern above is over-cautious
+for the directory form.** Cargo scans a `rerun-if-changed` **directory**
+recursively (rust-lang/cargo#8973), so a single directory line covers newly
+added files and subdirectories without per-file emission — a hand-maintained
+per-file list is the more fragile option, because it can silently omit a new
+subdirectory. The ExecPlan ships exactly that one-line recipe as *tested living
+documentation*: a test extracts it from the users' guide, writes it into a
+fixture crate, and proves a newly added `.feature` file is picked up by the next
+`cargo test` (Decision D2).
+
 ### Option C: `proc_macro::tracked_path` (unstable)
 
 Use the unstable `proc_macro::tracked_path::path()` API, which is the primitive
@@ -166,7 +199,7 @@ foot-gun. Recorded here to keep the analysis complete; addressed separately in
 | Axis                | A (relative `include_str!`) | B (build script)      | C (`tracked_path`) | D (OUT_DIR cache) |
 | ------------------- | --------------------------- | --------------------- | ------------------ | ----------------- |
 | Consumer-invisible  | High                        | Low                   | High               | Low               |
-| Binary-size cost    | Medium                      | None                  | None               | None              |
+| Binary-size cost    | Low                         | None                  | None               | None              |
 | Absolute-path risk  | None (relative only)        | None                  | None               | None              |
 | `scenarios!` fit    | Medium (one per file)       | High (directory scan) | High               | None              |
 | Reproducible builds | High                        | High                  | High               | N/A               |
@@ -176,10 +209,11 @@ foot-gun. Recorded here to keep the analysis complete; addressed separately in
 
 ## Decision outcome
 
-Neither option is unambiguously superior across all axes. This ADR records the
-trade-offs and establishes the binding constraints; the choice of mechanism is
-deferred to the implementing ExecPlan (roadmap item 10.3.3), which has access
-to the actual call-site span data and the `scenarios!` implementation.
+`include_bytes!` is the accepted mechanism for registering bound feature files
+as Cargo rebuild dependencies. The macros emit an item-scope anonymous binding
+for each file, using a manifest-relative path where possible; the tested
+`build.rs` recipe remains necessary for files added after macro expansion. This
+ADR records the trade-offs and the binding constraints that shaped that choice.
 
 Binding constraints for the implementing ExecPlan:
 
@@ -192,17 +226,18 @@ Binding constraints for the implementing ExecPlan:
    `tests/build_discovery_bdd.rs`. The test must tolerate coarse filesystem
    `mtime` granularity and must be serialized so nextest's process-per-test
    parallelism cannot race on the workspace `target` directory.
-3. **Option B (build script) is the preferred default** for
-   `scenarios!` directory-glob binding. It avoids binary-size overhead and
-   cleanly handles the case where the set of feature files is not known at
-   macro-expansion time.
-4. **Option A (relative-path `include_str!`) is preferred for
-   `#[scenario]`** single-file binding, if the call-site span can yield a
-   reliable relative path that rustc resolves correctly. This is the path of
-   zero consumer friction.
+3. **`include_bytes!` is used for both macros.** `#[scenario]` emits one
+   binding for its bound file, while `scenarios!` emits one for each discovered
+   file, including files excluded by a tag filter.
+4. **The `build.rs` recipe supplements per-file bindings.** It watches the
+   bound directory recursively so `scenarios!` also notices files added after
+   macro expansion.
 5. **Option C (`tracked_path`)** is recorded as the right long-term answer.
-   Usable behind a `nightly` feature gate; stabilization should be monitored
-   and adopted when available.
+   Not adoptable behind a `nightly` feature gate while the workspace's own
+   gates run `--all-features` on a stable toolchain (which would enable it and
+   break them); revisit on stabilization. It also buys nothing over
+   `include_bytes!` here — both register paths in dep-info, and neither closes
+   the directory-addition gap.
 6. **Option D (OUT_DIR cache)** is out of scope for this ADR. It addresses
    compile performance, not invalidation correctness; `§3.2.2` tracks it
    separately.
@@ -219,16 +254,15 @@ addition to the binding constraint that invalidation is a tested contract:
    guaranteed-later timestamp, or tick a second), run serialized in its own
    process with an isolated `target`/temp directory so nextest's
    process-per-test parallelism cannot race on a shared workspace `target`, and
-   — for the `include_str!` path — assert no absolute `CARGO_MANIFEST_DIR` path
-   is embedded in the artefact (inspect expanded output or the compiled `.d`
-   dep-info).
+   — for the emitted `include_bytes!` binding — assert no absolute
+   `CARGO_MANIFEST_DIR` path is embedded in the artefact (inspect expanded
+   output or the compiled `.d` dep-info).
 2. **Trybuild compile-time test (required).** Because the mechanism is emitted
    by the `#[scenario]`/`scenarios!` proc-macros, compile-time behaviour is
    part of the contract and must be pinned by `trybuild` fixtures, not left to
    the runtime regression test alone:
-   - a **compile-pass** fixture proving the emitted `include_str!` (or
-     build-script wiring) compiles cleanly for a representative `.feature`
-     binding; and
+   - a **compile-pass** fixture proving the emitted `include_bytes!` binding
+     compiles cleanly for a representative `.feature` binding; and
    - a **compile-fail** fixture proving a `#[scenario(path = …)]` pointing at a
      missing `.feature` file still fails at compile time with a clear
      diagnostic, so the invalidation change does not regress the existing
@@ -256,10 +290,16 @@ addition to the binding constraint that invalidation is a tested contract:
 ## Consequences
 
 - The rebuild-invalidation foot-gun is closed once 10.3.3 lands.
-- Consumers of `#[scenario]` gain invisible rebuild tracking with no
-  `build.rs` obligation (Option A path).
-- Consumers of `scenarios!` gain rebuild tracking with an opt-in `build.rs`
-  helper (Option B path).
+- Both `#[scenario]` and `scenarios!` provide automatic edit tracking for
+  bound `.feature` files with no `build.rs` obligation.
+- The tested `build.rs` recipe is only required to detect `.feature` files
+  newly added to a bound directory.
+
+> Amended 2026-08-17: the original consequences above predate the implementing
+> ExecPlan. Both macros now emit per-file tracking bindings automatically; the
+> `build.rs` recipe applies only to the file-addition gap. The original wording
+> is preserved in the *Options considered* section below.
+
 - `§2.7.6.6` of the design document documents the foot-gun and this decision.
 - `§3.2.2` of the design document is tightened to distinguish
   *invalidation* (this ADR) from *caching* (performance, a separate concern).

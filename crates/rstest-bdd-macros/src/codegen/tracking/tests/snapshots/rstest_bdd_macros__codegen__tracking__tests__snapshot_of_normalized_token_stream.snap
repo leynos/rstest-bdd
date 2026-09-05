@@ -1,0 +1,6 @@
+---
+source: crates/rstest-bdd-macros/src/codegen/tracking/tests/mod.rs
+assertion_line: 63
+expression: "feature_tracking_item(std::path::Path::new(\"tests/features/invalidation.feature\"),\nproc_macro2::Span::call_site(),).to_string()"
+---
+# [doc = "Registers the bound `.feature` file as a Cargo rebuild dependency (ADR-010). Deleting this makes `.feature`-only edits silently skip recompilation; see rstest-bdd::feature_rebuild_invalidation."] const _ : & [u8] = include_bytes ! (concat ! (env ! ("CARGO_MANIFEST_DIR") , "/" , "tests/features/invalidation.feature")) ;

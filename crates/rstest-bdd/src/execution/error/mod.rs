@@ -206,6 +206,9 @@ pub struct MissingFixturesDetails {
     /// Whether this missing fixture set should show harness-context guidance.
     pub has_suggestion: bool,
     /// Path to the feature file.
+    ///
+    /// Manifest-relative within the consuming crate's manifest directory;
+    /// absolute otherwise (`ExecPlan` 10.3.3 Decision D3).
     pub feature_path: String,
     /// Name of the scenario.
     pub scenario_name: String,

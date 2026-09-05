@@ -38,6 +38,7 @@ tokio.workspace = true
 anyhow = "1.0.104"
 camino.workspace = true
 cap-std.workspace = true
+cargo_metadata.workspace = true
 insta.workspace = true
 rstest.workspace = true
 rstest-bdd-test-macros.workspace = true
@@ -47,10 +48,14 @@ rustversion.workspace = true
 trybuild.workspace = true
 proptest.workspace = true
 serial_test.workspace = true
+googletest.workspace = true
+pretty_assertions.workspace = true
+eyre.workspace = true
 temp-env.workspace = true
 the-newtype = "0.1.1"
 tempfile.workspace = true
 toml = "0.9"
+tracing.workspace = true
 
 [features]
 default = ["diagnostics"]

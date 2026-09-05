@@ -955,23 +955,42 @@ feature-file edits cannot leave users running stale scenarios.
   pins across success, assertion failure, and skip. ADR:
   `docs/adr-011-first-party-scenario-state-and-cleanup.md`. Design Doc:
   `docs/rstest-bdd-design.md` §2.7.6.4. (Doggylump)
-- [ ] 10.3.3. Editing only a `.feature` file triggers a rebuild of the scenario
+- [x] 10.3.3. Editing only a `.feature` file triggers a rebuild of the scenario
   binary. The `#[scenario]`/`scenarios!` expansion registers each bound feature
   file as a Cargo rebuild dependency without embedding an absolute path into
   the compiled artefact, and a portability-aware regression test proves a
-  `.feature`-only edit forces recompilation and a fresh test failure. The fix
-  is non-breaking: no existing call site changes. Finish line: the regression
-  test fails against the current `std::fs`-read macro and passes after the fix;
-  required `trybuild` compile-pass and compile-fail fixtures pin the emitted
-  binding and the missing-`.feature` diagnostic; a redacted `insta` snapshot
-  with semantic assertions pins any touched diagnostic wording; no absolute
+  `.feature`-only edit forces recompilation and a fresh test failure. The
+  change is non-breaking for existing macro call sites: no existing macro
+  call-site changes are required. Finish line: the regression test fails
+  against the current `std::fs`-read macro and passes after the fix; required
+  `trybuild` compile-pass and compile-fail fixtures pin the emitted binding and
+  the missing-`.feature` diagnostic; a redacted `insta` snapshot with semantic
+  assertions pins any touched diagnostic wording; no absolute
   `CARGO_MANIFEST_DIR` path appears in the artefact; `make test` is green. ADR:
   `docs/adr-010-feature-file-change-detection.md` (see its *Testing strategy*).
-  Design Doc: `docs/rstest-bdd-design.md` §2.7.6.6. Until this requirement
-  lands, a caveat in `docs/v0-6-0-migration-guide.md` alerts adopters that
-  `.feature`-only edits do not trigger a rebuild. The gauss v0.6.0-beta3
-  migration independently reproduced this failure mode and had to falsify a
-  scenario by editing its Rust step file instead.
+  Design Doc: `docs/rstest-bdd-design.md` §2.7.6.6. Before this requirement
+  landed, a caveat in `docs/v0-6-0-migration-guide.md` alerted adopters that
+  `.feature`-only edits did not trigger a rebuild. The
+  [feature-path output and migration guidance](v0-6-0-migration-guide.md#feature-paths-in-diagnostics-and-reports-are-now-manifest-relative)
+  documents the related metadata contract. The gauss v0.6.0-beta3 migration
+  independently reproduced this failure mode and had to falsify a scenario by
+  editing its Rust step file instead.
+- [ ] 10.3.4. Extend tested-example enforcement from the bounded region to the
+  whole users' guide. Roadmap 10.3.3 (ExecPlan Decision D2) introduced the
+  `<!-- tested-example: id -->` marker and regional enforcement; the guide's 69
+  fenced blocks have only one enforced section. Sweep the remaining fences and
+  make enforcement document-wide so the documentation cannot quietly acquire
+  untested examples.
+- [ ] 10.3.5. Replace the latent no-op `emit_runtime_deprecation_warning`
+  (in `crates/rstest-bdd-macros/src/macros/scenarios/mod.rs`). The crate's
+  warning macro is nightly-only and silently ignored on stable (the finding
+  behind ExecPlan Decision D4), so the deprecation notice for
+  `runtime = "tokio-current-thread"` never reaches users. Emit the warning
+  through the platform mechanism that actually works on stable.
+- [ ] 10.3.6. Migrate the existing suite's assertions to `googletest` and
+  `pretty_assertions` now that ExecPlan Decision D1 established the precedent.
+  The 10.3.3 tests are the first adopters; the house style is recorded in
+  `docs/developers-guide.md`.
 
 ## 11. Early life support: v0.6.1 additive hardening
 
