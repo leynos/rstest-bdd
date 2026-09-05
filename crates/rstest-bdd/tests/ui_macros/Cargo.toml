@@ -3,7 +3,7 @@ name = "rstest-bdd-macros-ui"
 version = "0.0.0"
 edition = "2024"
 publish = false
-rust-version = "1.85"
+rust-version = "1.88"
 
 [dependencies]
 rstest-bdd = { path = "../../../rstest-bdd" }

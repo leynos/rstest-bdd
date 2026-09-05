@@ -86,14 +86,14 @@ where
         let (lower, _) = rows_iter.size_hint();
         let mut parsed_rows = Vec::with_capacity(lower);
         for (index, row) in rows_iter.enumerate() {
-            if let Some(ref header) = header {
-                if row.len() != header.len() {
-                    return Err(DataTableError::UnevenRow {
-                        row_number: row_number + index,
-                        expected: header.len(),
-                        actual: row.len(),
-                    });
-                }
+            if let Some(ref header) = header
+                && row.len() != header.len()
+            {
+                return Err(DataTableError::UnevenRow {
+                    row_number: row_number + index,
+                    expected: header.len(),
+                    actual: row.len(),
+                });
             }
             let spec = RowSpec::new(header.as_ref(), row_number + index, index, row);
             let parsed = T::parse_row(spec)?;

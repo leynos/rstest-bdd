@@ -167,10 +167,10 @@ impl ReminderService {
         for PendingReminder { task, .. } in pending {
             // Spawn the task and await it
             let handle = tokio::task::spawn_local(task);
-            if let Err(source) = handle.await {
-                if first_error.is_none() {
-                    first_error = Some(ReminderServiceError::Join { source });
-                }
+            if let Err(source) = handle.await
+                && first_error.is_none()
+            {
+                first_error = Some(ReminderServiceError::Join { source });
             }
         }
 
