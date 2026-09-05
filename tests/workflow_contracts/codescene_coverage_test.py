@@ -58,6 +58,7 @@ EXPECTED_CODESCENE_INPUTS = {
     "access-token": "${{ env.CS_ACCESS_TOKEN }}",
     "installer-checksum": "${{ vars.CODESCENE_CLI_SHA256 }}",
 }
+EXPECTED_CARGO_WAIT_TIMEOUT = "4500"
 
 
 def _load() -> dict[str, object]:
@@ -125,6 +126,29 @@ def test_linux_generator_emits_the_canonical_report(
     )
     assert generator.get("with") == EXPECTED_GENERATOR_INPUTS, (
         "the Linux generator must preserve its canonical report and ratchet inputs"
+    )
+
+
+@pytest.mark.parametrize(
+    ("step_name", "lane"),
+    [
+        ("Test and Measure Coverage (Linux)", "Linux"),
+        ("Test and Measure Coverage (Windows, default features)", "Windows"),
+        ("Test and Measure Coverage (Windows, strict validation)", "Windows"),
+    ],
+)
+def test_coverage_steps_budget_a_cold_instrumented_build(
+    build_test_steps: list[dict[str, object]],
+    step_name: str,
+    lane: str,
+) -> None:
+    """Each coverage lane must budget the watchdog for a cold instrumented build."""
+    step = _named_step(build_test_steps, step_name)
+    env = step.get("env")
+    assert isinstance(env, dict), f"the {lane} coverage step must declare env"
+    assert env.get("RUN_RUST_CARGO_WAIT_TIMEOUT") == EXPECTED_CARGO_WAIT_TIMEOUT, (
+        f"the {lane} coverage step must size the cargo watchdog for a cold "
+        "sccache store; the watchdog exists to catch a hang, not a cold build"
     )
 
 
