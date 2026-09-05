@@ -37,7 +37,8 @@ use crate::{
 };
 
 fn write_feature(contents: &str) -> std::io::Result<(TempDir, std::path::PathBuf)> {
-    let temp = tempfile::tempdir()?;
+    // Rebuild tracking requires the feature and manifest to share a drive.
+    let temp = tempfile::tempdir_in(env!("CARGO_MANIFEST_DIR"))?;
     let path = temp.path().join("example.feature");
     fs::write(&path, contents)?;
     Ok((temp, path))
@@ -105,7 +106,15 @@ fn expand_scenarios_generates_module_for_valid_features() -> Result<(), String> 
         &LitStr::new("the system works", Span::call_site()),
     );
     let tokens = expand_scenarios_tokens(scenarios_args(temp.path())).to_string();
-    let expected_feature_path = LitStr::new(&feature_path.display().to_string(), Span::call_site());
+    let relative_path = feature_path
+        .strip_prefix(env!("CARGO_MANIFEST_DIR"))
+        .map_err(|error| error.to_string())?;
+    let portable_path = relative_path
+        .iter()
+        .map(|segment| segment.to_string_lossy())
+        .collect::<Vec<_>>()
+        .join("/");
+    let expected_feature_path = LitStr::new(&portable_path, Span::call_site());
     let expected_feature_path_tokens = quote!(#expected_feature_path).to_string();
 
     assert!(tokens.contains("mod "), "{tokens}");
