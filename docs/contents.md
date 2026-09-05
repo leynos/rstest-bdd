@@ -108,6 +108,10 @@
 - [ADR 020: consolidate on the `tracing` logging facade][adr-020] records the
   decision to emit every workspace diagnostic through `tracing`, keeping `log`
   only to detect an installed `log` listener.
+- [ADR 021: validate derived fixture lockfiles in every pull request][adr-021]
+  records the centralized standalone-fixture lockfile registry, the
+  `cargo metadata --locked` gate, and the unchanged Dependabot-only repair
+  boundary.
 
 ## Execution plans
 
@@ -129,6 +133,7 @@
 [adr-018]: adr-018-parser-neutral-scenario-execution.md
 [adr-019]: adr-019-type-directed-step-return-classification.md
 [adr-020]: adr-020-consolidate-on-the-tracing-logging-facade.md
+[adr-021]: adr-021-derived-fixture-lockfile-validation.md
 [complexity-guide]: complexity-antipatterns-and-refactoring-strategies.md
 [cucumber-async]: cucumber-rs-migration-and-async-patterns.md
 [dependency-injection]: reliable-testing-in-rust-via-dependency-injection.md
