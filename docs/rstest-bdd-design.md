@@ -3110,6 +3110,10 @@ converts it into an owned `String` before invoking the step function. The
 sequence below summarizes how the runner locates and executes steps when
 placeholders are present:
 
+For screen readers: The diagram shows `ScenarioRunner` asking `StepRegistry`
+for an exact match, then a placeholder match; equally specific matches return
+`StepLookupError` before the wrapper runs.
+
 ```mermaid
 sequenceDiagram
     participant ScenarioRunner

@@ -1,17 +1,25 @@
 //! Indexes closed step-library scopes selected by Rust scenario bindings.
 
-use std::path::PathBuf;
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+};
 
 use syn::{
     LitStr,
     parse::{Parse, ParseStream},
     punctuated::Punctuated,
-    spanned::Spanned,
     token::Comma,
 };
-use tracing::warn;
 
 use super::super::{IndexedScenarioBinding, ScenarioBindingTarget};
+
+mod diagnostics;
+#[cfg(test)]
+mod tests;
+
+use diagnostics::BindingIndexFailure;
+pub(crate) use diagnostics::ScenarioBindingIndexDiagnostic;
 
 /// Binding kind determines whether the path names one feature or a directory.
 #[derive(Clone, Copy)]
@@ -41,12 +49,12 @@ enum BindingArgument {
     Ignored,
 }
 
-/// Why one scenario binding could not contribute a library scope.
-enum BindingIndexFailure {
-    /// The macro arguments did not match the supported binding grammar.
-    Malformed(String),
-    /// The binding did not include a feature file or directory.
-    MissingPath,
+/// Pure scenario-binding indexing output for one Rust source file.
+pub(super) struct ScenarioBindingIndex {
+    /// Successfully indexed bindings.
+    pub(super) bindings: Vec<IndexedScenarioBinding>,
+    /// Recoverable indexing diagnostics.
+    pub(super) diagnostics: Vec<ScenarioBindingIndexDiagnostic>,
 }
 
 /// Validated binding arguments required by scope indexing.
@@ -118,22 +126,74 @@ impl Parse for BindingArguments {
 }
 
 /// Collect scenario bindings from one parsed Rust file.
-pub(super) fn index_scenario_bindings(file: &syn::File) -> Vec<IndexedScenarioBinding> {
+pub(super) fn index_scenario_bindings(
+    file: &syn::File,
+    source_path: &Path,
+) -> ScenarioBindingIndex {
+    let module_paths = collect_module_paths(&file.items);
     let mut bindings = Vec::new();
-    collect_bindings(&file.items, &[], &mut bindings);
-    bindings
+    let mut diagnostics = Vec::new();
+    collect_bindings(
+        &file.items,
+        &[],
+        &module_paths,
+        source_path,
+        &mut bindings,
+        &mut diagnostics,
+    );
+    ScenarioBindingIndex {
+        bindings,
+        diagnostics,
+    }
+}
+
+/// Collect paths of inline modules available to binding path resolution.
+fn collect_module_paths(items: &[syn::Item]) -> HashSet<Vec<String>> {
+    let mut paths = HashSet::new();
+    collect_module_paths_inner(items, &mut Vec::new(), &mut paths);
+    paths
+}
+
+/// Recursively record all inline module paths.
+fn collect_module_paths_inner(
+    items: &[syn::Item],
+    module_path: &mut Vec<String>,
+    paths: &mut HashSet<Vec<String>>,
+) {
+    for item in items {
+        let syn::Item::Mod(module) = item else {
+            continue;
+        };
+        let Some((_, nested)) = &module.content else {
+            continue;
+        };
+        module_path.push(module.ident.to_string());
+        paths.insert(module_path.clone());
+        collect_module_paths_inner(nested, module_path, paths);
+        module_path.pop();
+    }
 }
 
 /// Traverse inline Rust modules and collect scenario attributes and macros.
 fn collect_bindings(
     items: &[syn::Item],
     module_path: &[String],
+    module_paths: &HashSet<Vec<String>>,
+    source_path: &Path,
     bindings: &mut Vec<IndexedScenarioBinding>,
+    diagnostics: &mut Vec<ScenarioBindingIndexDiagnostic>,
 ) {
     for item in items {
         match item {
             syn::Item::Fn(function) => {
-                collect_scenario_attribute(function, module_path, bindings);
+                collect_scenario_attribute(
+                    function,
+                    module_path,
+                    module_paths,
+                    source_path,
+                    bindings,
+                    diagnostics,
+                );
             }
             syn::Item::Macro(item_macro)
                 if macro_name(&item_macro.mac).as_deref() == Some("scenarios") =>
@@ -142,14 +202,24 @@ fn collect_bindings(
                     &item_macro.mac.tokens,
                     BindingKind::Directory,
                     module_path,
+                    module_paths,
+                    source_path,
                     bindings,
+                    diagnostics,
                 );
             }
             syn::Item::Mod(module) => {
                 if let Some((_, nested)) = &module.content {
                     let mut nested_path = module_path.to_vec();
                     nested_path.push(module.ident.to_string());
-                    collect_bindings(nested, &nested_path, bindings);
+                    collect_bindings(
+                        nested,
+                        &nested_path,
+                        module_paths,
+                        source_path,
+                        bindings,
+                        diagnostics,
+                    );
                 }
             }
             _ => {}
@@ -161,7 +231,10 @@ fn collect_bindings(
 fn collect_scenario_attribute(
     function: &syn::ItemFn,
     module_path: &[String],
+    module_paths: &HashSet<Vec<String>>,
+    source_path: &Path,
     bindings: &mut Vec<IndexedScenarioBinding>,
+    diagnostics: &mut Vec<ScenarioBindingIndexDiagnostic>,
 ) {
     for attribute in &function.attrs {
         if attribute
@@ -171,7 +244,15 @@ fn collect_scenario_attribute(
             .is_some_and(|segment| segment.ident == "scenario")
         {
             if let syn::Meta::List(list) = &attribute.meta {
-                collect_binding(&list.tokens, BindingKind::Feature, module_path, bindings);
+                collect_binding(
+                    &list.tokens,
+                    BindingKind::Feature,
+                    module_path,
+                    module_paths,
+                    source_path,
+                    bindings,
+                    diagnostics,
+                );
             }
         }
     }
@@ -191,12 +272,19 @@ fn collect_binding(
     tokens: &proc_macro2::TokenStream,
     kind: BindingKind,
     module_path: &[String],
+    module_paths: &HashSet<Vec<String>>,
+    source_path: &Path,
     bindings: &mut Vec<IndexedScenarioBinding>,
+    diagnostics: &mut Vec<ScenarioBindingIndexDiagnostic>,
 ) {
     let arguments = match parse_binding_arguments(tokens) {
         Ok(arguments) => arguments,
         Err(failure) => {
-            warn_ignored_binding(tokens, &failure);
+            diagnostics.push(ScenarioBindingIndexDiagnostic::new(
+                source_path,
+                tokens,
+                failure,
+            ));
             return;
         }
     };
@@ -210,7 +298,7 @@ fn collect_binding(
         |paths| {
             paths
                 .iter()
-                .map(|path| resolve_library_path(path, module_path))
+                .map(|path| resolve_library_path(path, module_path, module_paths))
                 .collect()
         },
     );
@@ -230,49 +318,53 @@ fn parse_binding_arguments(
     })
 }
 
-/// Emit a bounded structured warning for a binding that falls back to global scope.
-fn warn_ignored_binding(tokens: &proc_macro2::TokenStream, failure: &BindingIndexFailure) {
-    let start = tokens.span().start();
-    let (failure_category, error) = match failure {
-        BindingIndexFailure::Malformed(error) => ("malformed-arguments", error.as_str()),
-        BindingIndexFailure::MissingPath => ("missing-path", "binding has no feature target"),
-    };
-    warn!(
-        operation = "index-scenario-binding",
-        source_line = start.line,
-        source_column = start.column,
-        failure_category,
-        fallback_state = "global-library",
-        error,
-        "ignored scenario binding while indexing its closed step-library scope"
-    );
-}
-
 /// Resolve a selected library as an ordinary path from its enclosing module.
-fn resolve_library_path(path: &syn::Path, module_path: &[String]) -> String {
+fn resolve_library_path(
+    path: &syn::Path,
+    module_path: &[String],
+    module_paths: &HashSet<Vec<String>>,
+) -> String {
     let segments: Vec<_> = path
         .segments
         .iter()
         .map(|segment| segment.ident.to_string())
         .collect();
-    let mut resolved = path_prefix(path, &segments, module_path);
+    let mut resolved = path_prefix(path, &segments, module_path, module_paths);
     resolved.extend(path_suffix(&segments));
     resolved.join("::")
 }
 
 /// Select the lexical base for a Rust library path.
-fn path_prefix(path: &syn::Path, segments: &[String], module_path: &[String]) -> Vec<String> {
+fn path_prefix(
+    path: &syn::Path,
+    segments: &[String],
+    module_path: &[String],
+    module_paths: &HashSet<Vec<String>>,
+) -> Vec<String> {
     if path.leading_colon.is_some() || segments.first().is_some_and(|segment| segment == "crate") {
         return Vec::new();
     }
     if is_builtin_global_path(segments) {
         return Vec::new();
     }
-    let mut prefix = module_path.to_vec();
-    for _ in segments.iter().take_while(|segment| *segment == "super") {
-        prefix.pop();
+    if segments.first().is_some_and(|segment| segment == "self") {
+        return module_path.to_vec();
     }
-    prefix
+    if segments.first().is_some_and(|segment| segment == "super") {
+        let mut prefix = module_path.to_vec();
+        for _ in segments.iter().take_while(|segment| *segment == "super") {
+            prefix.pop();
+        }
+        return prefix;
+    }
+    let mut local_candidate = module_path.to_vec();
+    if let Some(segment) = segments.first() {
+        local_candidate.push(segment.clone());
+    }
+    if module_paths.contains(&local_candidate) {
+        return module_path.to_vec();
+    }
+    Vec::new()
 }
 
 /// Return path segments after leading Rust-relative qualifiers.
@@ -287,6 +379,3 @@ fn path_suffix(segments: &[String]) -> impl Iterator<Item = String> + '_ {
 fn is_builtin_global_path(segments: &[String]) -> bool {
     matches!(segments, [runtime, global] if runtime == "rstest_bdd" && global == "global")
 }
-
-#[cfg(test)]
-mod tests;

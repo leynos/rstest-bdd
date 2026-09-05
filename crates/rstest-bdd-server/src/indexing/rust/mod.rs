@@ -51,7 +51,7 @@ fn parse_rust_source_with_bindings(
     source: &str,
 ) -> Result<RustSourceIndexResult, RustStepIndexError> {
     let file = syn::parse_file(source)?;
-    let scenario_bindings = index_scenario_bindings(&file);
+    let scenario_binding_index = index_scenario_bindings(&file, &path);
     let mut collector = StepDefinitionCollector {
         source,
         module_path: Vec::new(),
@@ -74,7 +74,8 @@ fn parse_rust_source_with_bindings(
             },
             diagnostics,
         },
-        scenario_bindings,
+        scenario_bindings: scenario_binding_index.bindings,
+        scenario_binding_diagnostics: scenario_binding_index.diagnostics,
     })
 }
 

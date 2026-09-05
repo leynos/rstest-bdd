@@ -148,6 +148,7 @@ mod tests {
 
     use gherkin::Span;
     use lsp_types::{DidSaveTextDocumentParams, TextDocumentIdentifier};
+    use rstest::{fixture, rstest};
     use tempfile::TempDir;
 
     use super::*;
@@ -156,6 +157,27 @@ mod tests {
         discovery::WorkspaceInfo,
         handlers::handle_did_save_text_document,
     };
+
+    /// Shared temporary workspace and configured server state for lookup tests.
+    struct ImplementationWorkspace {
+        /// Root directory retained for the test lifetime.
+        directory: TempDir,
+        /// Server state configured to index files below the root directory.
+        state: ServerState,
+    }
+
+    /// Create a workspace whose server can index test feature and Rust sources.
+    #[rstest_bdd_test_macros::allow_fixture_expansion_lints]
+    #[fixture]
+    fn implementation_workspace() -> Result<ImplementationWorkspace, Box<dyn std::error::Error>> {
+        let directory = TempDir::new()?;
+        let mut state = ServerState::new(ServerConfig::default());
+        state.set_workspace_info(WorkspaceInfo {
+            root: directory.path().to_path_buf(),
+            packages: Vec::new(),
+        })?;
+        Ok(ImplementationWorkspace { directory, state })
+    }
 
     #[test]
     fn find_step_at_position_returns_none_for_empty_index() {
@@ -199,12 +221,17 @@ mod tests {
         assert_eq!(step.expect("step").text, "a step");
     }
 
-    #[test]
-    fn find_matching_rust_locations_matches_by_keyword_and_pattern() {
-        let dir = TempDir::new().expect("temp dir");
+    #[rstest]
+    fn find_matching_rust_locations_matches_by_keyword_and_pattern(
+        implementation_workspace: Result<ImplementationWorkspace, Box<dyn std::error::Error>>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let ImplementationWorkspace {
+            directory,
+            mut state,
+        } = implementation_workspace?;
 
         // Create feature file
-        let feature_path = dir.path().join("test.feature");
+        let feature_path = directory.path().join("test.feature");
         std::fs::write(
             &feature_path,
             concat!(
@@ -213,11 +240,10 @@ mod tests {
                 "    Given a step\n",
                 "    When a step\n",
             ),
-        )
-        .expect("write feature file");
+        )?;
 
         // Create Rust file with Given step
-        let rust_path = dir.path().join("steps.rs");
+        let rust_path = directory.path().join("steps.rs");
         std::fs::write(
             &rust_path,
             concat!(
@@ -226,16 +252,7 @@ mod tests {
                 "#[given(\"a step\")]\n",
                 "fn a_step() {}\n",
             ),
-        )
-        .expect("write rust file");
-
-        let mut state = ServerState::new(ServerConfig::default());
-        state
-            .set_workspace_info(WorkspaceInfo {
-                root: dir.path().to_path_buf(),
-                packages: Vec::new(),
-            })
-            .expect("configure workspace root");
+        )?;
 
         // Index both files
         let feature_uri = Url::from_file_path(&feature_path).expect("feature URI");
@@ -276,18 +293,23 @@ mod tests {
         assert_eq!(loc.range.start.character, 0);
         assert_eq!(loc.range.end.line, 4);
         assert_eq!(loc.range.end.character, 0);
+        Ok(())
     }
 
-    #[test]
-    fn find_matching_rust_locations_respects_selected_libraries() {
-        let dir = TempDir::new().expect("temp dir");
-        let feature_path = dir.path().join("test.feature");
+    #[rstest]
+    fn find_matching_rust_locations_respects_selected_libraries(
+        implementation_workspace: Result<ImplementationWorkspace, Box<dyn std::error::Error>>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let ImplementationWorkspace {
+            directory,
+            mut state,
+        } = implementation_workspace?;
+        let feature_path = directory.path().join("test.feature");
         std::fs::write(
             &feature_path,
             "Feature: test\n  Scenario: s\n    Given the domain is empty\n",
-        )
-        .expect("write feature file");
-        let rust_path = dir.path().join("steps.rs");
+        )?;
+        let rust_path = directory.path().join("steps.rs");
         std::fs::write(
             &rust_path,
             concat!(
@@ -304,16 +326,7 @@ mod tests {
                 "#[scenario(path = \"test.feature\", libraries = [accounts])]\n",
                 "fn bind() {}\n",
             ),
-        )
-        .expect("write Rust file");
-
-        let mut state = ServerState::new(ServerConfig::default());
-        state
-            .set_workspace_info(WorkspaceInfo {
-                root: dir.path().to_path_buf(),
-                packages: Vec::new(),
-            })
-            .expect("configure workspace root");
+        )?;
         for path in [&feature_path, &rust_path] {
             let uri = Url::from_file_path(path).expect("file URI");
             handle_did_save_text_document(
@@ -339,5 +352,6 @@ mod tests {
                 .line,
             3
         );
+        Ok(())
     }
 }

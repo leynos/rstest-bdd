@@ -161,9 +161,11 @@ fn resolve_exact_step(
     keyword: StepKeyword,
     pattern: PatternStr<'_>,
 ) -> Result<Option<&'static Step>, StepLookupError> {
+    let mut seen_libraries = HashSet::new();
     let matches = scope
         .libraries()
         .iter()
+        .filter(|library| seen_libraries.insert(**library))
         .filter_map(|library| {
             STEP_MAP
                 .get(&(*library, keyword, pattern.as_str()))
@@ -185,9 +187,11 @@ fn resolve_step(
     }
 
     // Find the most specific matching step directly via iterator
+    let mut seen_libraries = HashSet::new();
     let matches = scope
         .libraries()
         .iter()
+        .filter(|library| seen_libraries.insert(**library))
         .flat_map(|library| STEPS_BY_LIBRARY.get(library).into_iter().flatten().copied())
         .filter(|step| step.keyword == keyword && extract_placeholders(step.pattern, text).is_ok())
         .collect();

@@ -2881,15 +2881,17 @@ Examples
 
 The tool inspects the runtime step registry and offers four commands:
 
-- `cargo bdd steps` prints every registered step with its source location and
-  appends any skipped scenario outcomes using lowercase status labels whilst
-  preserving long messages.
+- `cargo bdd steps` prints every registered step with its library and source
+  location, then appends any skipped scenario outcomes using lowercase status
+  labels whilst preserving long messages.
 - `cargo bdd steps --skipped` limits the listing to step definitions that were
   bypassed after a scenario requested a skip, preserving the scenario context.
 - `cargo bdd unused` lists steps that were never executed in the current
   process.
-- `cargo bdd duplicates` groups step definitions that share the same keyword
-  and pattern, helping to identify accidental copies.
+- `cargo bdd duplicates` groups step definitions that share the same library,
+  keyword, and pattern, helping to identify accidental copies without treating
+  the same phrase in separate libraries as a duplicate. Groups are ordered
+  deterministically by library, keyword, and pattern.
 - `cargo bdd skipped` lists skipped scenarios and supports `--reasons` to show
   file and line numbers alongside the explanatory message.
 
@@ -2907,10 +2909,18 @@ fallback result to the command output. Other execution failures still return an
 error, so a broken test binary is not silently hidden.
 
 `steps --skipped` and `skipped` accept `--json` and emit objects that always
-include `feature`, `scenario`, `line`, `tags`, and `reason` fields. The former
-adds an embedded `step` object describing each bypassed definition (keyword,
-pattern, file, and line) to help trace which definitions were sidelined by a
-runtime skip.
+include `feature`, `scenario`, `line`, `tags`, `libraries`, and `reason`
+fields. The former adds an embedded `step` object describing each bypassed
+definition (library, keyword, pattern, file, and line) to help trace which
+definitions were sidelined by a runtime skip. The scenario-level `libraries`
+array records the closed vocabulary selected by the scenario, while
+`step.library` identifies the library that owns the bypassed definition.
+
+The runtime registry dump consumed by `cargo bdd` uses the same identities:
+each step and bypassed-step entry has a `library` field, and each scenario and
+bypassed-step entry has a `libraries` array. When these fields are absent from
+an older dump, the CLI treats the entry as belonging to
+`rstest_bdd::global`.
 
 ### Scenario report writers
 

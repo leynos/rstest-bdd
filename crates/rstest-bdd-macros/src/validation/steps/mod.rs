@@ -316,7 +316,10 @@ pub(crate) fn validate_steps_exist(steps: &[ParsedStep], strict: bool) -> Result
 /// Render the source coordinates available from the proc-macro span.
 fn format_span_location(span: proc_macro2::Span) -> String {
     let location = span.start();
-    format!("line {}, column {}", location.line, location.column)
+    match (location.line, location.column) {
+        (0, 0) => String::new(),
+        _ => format!("line {}, column {}", location.line, location.column),
+    }
 }
 
 /// Convert missing-step results into strict errors or non-strict warnings.

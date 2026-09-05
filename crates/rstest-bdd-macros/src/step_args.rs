@@ -180,7 +180,7 @@ fn generate_field_parsing<'a>(
             let name = &info.source_name;
             let parse = scalar_parser_expression(
                 &info.conversion,
-                quote! { raw.value.as_str() },
+                quote! { __rstest_bdd_raw.value.as_str() },
                 ty,
                 runtime,
             );
@@ -188,7 +188,7 @@ fn generate_field_parsing<'a>(
                 quote! {
                     #runtime::step_args::StepArgsError::custom_parse_failure(
                         stringify!(#ident),
-                        &raw.value,
+                        &__rstest_bdd_raw.value,
                         _error,
                     )
                 }
@@ -196,12 +196,12 @@ fn generate_field_parsing<'a>(
                 quote! {
                     #runtime::step_args::StepArgsError::parse_failure(
                         stringify!(#ident),
-                        &raw.value,
+                        &__rstest_bdd_raw.value,
                     )
                 }
             };
             quote! {
-                let raw = captures
+                let __rstest_bdd_raw = __rstest_bdd_captures
                     .iter()
                     .find(|capture| capture.name == #name)
                     .ok_or_else(|| #runtime::step_args::StepArgsError::missing_field(
@@ -273,32 +273,32 @@ fn generate_trait_impl(ctx: TraitImplParams<'_>) -> TokenStream2 {
                         values.len(),
                     ));
                 }
-                let captures = Self::FIELD_NAMES
+                let __rstest_bdd_captures = Self::FIELD_NAMES
                     .iter()
                     .copied()
                     .zip(values)
                     .map(|(name, value)| #runtime::step_args::StepCapture { name, value })
                     .collect();
-                Self::from_named_captures(captures)
+                Self::from_named_captures(__rstest_bdd_captures)
             }
 
             fn from_named_captures(
-                captures: Vec<#runtime::step_args::StepCapture>,
+                __rstest_bdd_captures: Vec<#runtime::step_args::StepCapture>,
             ) -> Result<Self, #runtime::step_args::StepArgsError> {
-                if captures.len() != Self::FIELD_COUNT {
+                if __rstest_bdd_captures.len() != Self::FIELD_COUNT {
                     return Err(#runtime::step_args::StepArgsError::count_mismatch(
                         Self::FIELD_COUNT,
-                        captures.len(),
+                        __rstest_bdd_captures.len(),
                     ));
                 }
-                if let Some(capture) = captures
+                if let Some(capture) = __rstest_bdd_captures
                     .iter()
                     .find(|capture| !Self::FIELD_NAMES.contains(&capture.name))
                 {
                     return Err(#runtime::step_args::StepArgsError::unconsumed_capture(capture.name));
                 }
-                if let Some(capture) = captures.iter().enumerate().find_map(|(index, capture)| {
-                    captures
+                if let Some(capture) = __rstest_bdd_captures.iter().enumerate().find_map(|(index, capture)| {
+                    __rstest_bdd_captures
                         .iter()
                         .take(index)
                         .any(|earlier| earlier.name == capture.name)

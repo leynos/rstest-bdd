@@ -33,6 +33,7 @@ rust-embed.workspace = true
 fluent.workspace = true
 unic-langid.workspace = true
 tokio.workspace = true
+tracing.workspace = true
 
 [dev-dependencies]
 anyhow = "1.0.104"
@@ -55,7 +56,6 @@ temp-env.workspace = true
 the-newtype = "0.1.1"
 tempfile.workspace = true
 toml = "0.9"
-tracing.workspace = true
 
 [features]
 default = ["diagnostics"]

@@ -2056,6 +2056,24 @@ parameterized lookup visits only the selected library buckets. Never add a
 first-match or declaration-order fallback: equally specific candidates must
 return `StepLookupError` with the scope and source locations intact.
 
+## Named textual-field binding
+
+The macro crate keeps named `StepArgs` captures and named `DataTableRow` fields
+on one internal metadata boundary in `named_fields.rs`. `NamedFieldSpec`
+records the Rust field identifier, source name, target type, shared
+`ScalarConversion`, and a source-specific `MissingValuePolicy`. Its
+`scalar_parser_expression` helper emits the common trim, `parse_with`,
+`String`, truthy, and `FromStr` conversion path.
+
+The step-capture and data-table adapters remain responsible for their own
+lookup and missing-value rules. Step captures require a closed, complete set of
+placeholder names; data tables retain optional, default, and truthy policies
+and row/column context. The shared layer is macro-internal and consumes
+borrowed source expressions, so it does not impose an owned map or a runtime
+parser registry on either path. New named textual sources should reuse the
+field specification and scalar conversion boundary while supplying their own
+source context and missing-value policy.
+
 ## Internal APIs and tooling (ADR-010 to ADR-013)
 
 ADR-010 is accepted and implemented build-tooling work. ADR-011 records
@@ -2278,6 +2296,24 @@ Invariants (ASCII-case insensitivity, rejection of differing extensions, and
 behaviour for missing, repeated, and trailing dots) are pinned by the property
 suite in `crates/rstest-bdd-server/tests/has_extension_props.rs`.
 
+### Scoped language-server lookup
+
+Rust indexing returns the public step index plus internal scenario-binding
+metadata. `scenario_bindings.rs` records each `#[scenario]` or `scenarios!`
+feature target and its closed library list, resolving `crate::`, `self::`, and
+`super::` library paths from the enclosing module. Malformed bindings or
+bindings without a feature target are ignored with structured warnings that
+identify the operation, source location, failure category, and fallback state.
+`ScenarioScopeRegistry` resolves valid targets against the Rust source path,
+normalizes order-equivalent library lists, and returns `ScenarioScopeConflict`
+when distinct closed scopes target one feature. Handlers then use no candidates
+and emit the structured warning rather than merging scopes. Feature handlers
+obtain candidates through `ServerState::steps_for_feature_keyword`, and
+Rust-to-feature checks use `ServerState::feature_selects_library`. This keeps
+language-server completion, navigation, and diagnostics aligned with runtime
+vocabulary: omitted libraries select only `rstest_bdd::global`, while an
+explicit list does not add global definitions or precedence by list order.
+
 ## Feature-file rebuild invalidation conventions (roadmap 10.3.3)
 
 Four internal conventions from the 10.3.3 rebuild-invalidation work, so the
@@ -2382,42 +2418,6 @@ valid neighbouring definitions and reports `MultipleStepAttributes` or
 `InvalidStepAttributeArguments` for the affected function. The save handler
 stores the valid index, publishes those diagnostics, and republishes feature
 diagnostics so a partially valid Rust file remains useful for navigation.
-
-### Named textual-field binding
-
-The macro crate keeps named `StepArgs` captures and named `DataTableRow` fields
-on one internal metadata boundary in `named_fields.rs`. `NamedFieldSpec`
-records the Rust field identifier, source name, target type, shared
-`ScalarConversion`, and a source-specific `MissingValuePolicy`. Its
-`scalar_parser_expression` helper emits the common trim, `parse_with`,
-`String`, truthy, and `FromStr` conversion path.
-
-The step-capture and data-table adapters remain responsible for their own
-lookup and missing-value rules. Step captures require a closed, complete set of
-placeholder names; data tables retain optional, default, and truthy policies
-and row/column context. The shared layer is macro-internal and consumes
-borrowed source expressions, so it does not impose an owned map or a runtime
-parser registry on either path. New named textual sources should reuse the
-field specification and scalar conversion boundary while supplying their own
-source context and missing-value policy.
-
-### Scoped language-server lookup
-
-Rust indexing returns the public step index plus internal scenario-binding
-metadata. `scenario_bindings.rs` records each `#[scenario]` or `scenarios!`
-feature target and its closed library list, resolving `crate::`, `self::`, and
-`super::` library paths from the enclosing module. Malformed bindings or
-bindings without a feature target are ignored with structured warnings that
-identify the operation, source location, failure category, and fallback state.
-`ScenarioScopeRegistry` resolves valid targets against the Rust source path,
-normalizes order-equivalent library lists, and returns `ScenarioScopeConflict`
-when distinct closed scopes target one feature. Handlers then use no candidates
-and emit the structured warning rather than merging scopes. Feature handlers
-obtain candidates through `ServerState::steps_for_feature_keyword`, and
-Rust-to-feature checks use `ServerState::feature_selects_library`. This keeps
-language-server completion, navigation, and diagnostics aligned with runtime
-vocabulary: omitted libraries select only `rstest_bdd::global`, while an
-explicit list does not add global definitions or precedence by list order.
 
 ### Workspace-root capability and feature-source boundary
 
