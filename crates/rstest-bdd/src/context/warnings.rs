@@ -24,8 +24,8 @@ pub(super) fn emit_visible_warning(message: &str) {
 /// `tracing` delivers such an event by one of two routes:
 ///
 /// - to the active `tracing` subscriber, when one is installed; or
-/// - as a `log` record through the compatibility bridge enabled by tracing's
-///   `log` feature, which fires only while no subscriber has ever been set.
+/// - as a `log` record through the compatibility bridge enabled by tracing's `log` feature, which
+///   fires only while no subscriber has ever been set.
 ///
 /// Both routes are probed, so the mirrored `eprintln!` fires only when neither
 /// has a listener. A consumer whose subscriber filters `WARN` out has asked for
