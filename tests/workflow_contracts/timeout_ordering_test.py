@@ -26,19 +26,16 @@ See "Test timeouts: four tiers, outermost last" in
 ``docs/developers-guide.md``.
 """
 
-from __future__ import annotations
-
 import re
 import typing as typ
-from pathlib import Path
 
 import pytest
 import yaml
-
 from workflow_support import ROOT
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
+    from pathlib import Path
 
 NEXTEST_CONFIG: typ.Final[Path] = ROOT / ".config" / "nextest.toml"
 CI_WORKFLOW: typ.Final[Path] = ROOT / ".github" / "workflows" / "ci.yml"
@@ -94,13 +91,25 @@ def _seconds(duration: str) -> float:
 
 @pytest.fixture(scope="module")
 def nextest_config() -> str:
-    """Return the nextest configuration file's text."""
+    """Return the nextest configuration file's text.
+
+    Returns
+    -------
+    str
+        The file's contents.
+    """
     return NEXTEST_CONFIG.read_text(encoding="utf-8")
 
 
 @pytest.fixture(scope="module")
 def ci_workflow() -> dict[str, typ.Any]:
-    """Return the parsed CI workflow."""
+    """Return the parsed CI workflow.
+
+    Returns
+    -------
+    dict[str, typ.Any]
+        The parsed workflow document.
+    """
     return yaml.safe_load(CI_WORKFLOW.read_text(encoding="utf-8"))
 
 
@@ -111,6 +120,11 @@ def global_timeout(nextest_config: str) -> float:
     Read textually rather than through a TOML parser, because the value
     must be matched to the profile it belongs to and the file declares
     more than one profile.
+
+    Returns
+    -------
+    float
+        The default profile's whole-run budget, in seconds.
     """
     blocks = re.split(r"^\[profile\.", nextest_config, flags=re.MULTILINE)
     default = next((block for block in blocks if block.startswith("default]")), None)
@@ -128,7 +142,13 @@ def global_timeout(nextest_config: str) -> float:
 
 @pytest.fixture(scope="module")
 def largest_slow_timeout(nextest_config: str) -> float:
-    """Return the longest single-test allowance in seconds."""
+    """Return the longest single-test allowance in seconds.
+
+    Returns
+    -------
+    float
+        The longest per-test budget.
+    """
     periods = re.findall(r'period\s*=\s*"([^"]+)"', nextest_config)
     assert periods, "nextest.toml must set at least one slow-timeout period"
     return max(_seconds(period) for period in periods)
@@ -137,7 +157,13 @@ def largest_slow_timeout(nextest_config: str) -> float:
 def _coverage_steps(
     workflow: dict[str, typ.Any],
 ) -> cabc.Iterator[tuple[str, dict[str, typ.Any]]]:
-    """Yield every step that invokes the shared coverage action."""
+    """Yield every step that invokes the shared coverage action.
+
+    Yields
+    ------
+    tuple[str, dict[str, typ.Any]]
+        The step's name and the step itself.
+    """
     for job_name, job in workflow["jobs"].items():
         for step in job.get("steps", []):
             if COVERAGE_ACTION in str(step.get("uses", "")):
@@ -152,6 +178,12 @@ def watchdog_budgets(ci_workflow: dict[str, typ.Any]) -> dict[str, float | None]
     variable, so a step that loses its override is visible as ``None``
     rather than absent. An absent key would make the ordering tests skip
     it silently and restore the default that caused the regression.
+
+    Returns
+    -------
+    dict[str, float | None]
+        Step name to budget in seconds, or ``None`` where the step sets
+        no budget.
     """
     budgets: dict[str, float | None] = {}
     for name, step in _coverage_steps(ci_workflow):
@@ -162,7 +194,13 @@ def watchdog_budgets(ci_workflow: dict[str, typ.Any]) -> dict[str, float | None]
 
 @pytest.fixture(scope="module")
 def job_timeout(ci_workflow: dict[str, typ.Any]) -> float:
-    """Return the tightest job ``timeout-minutes`` in seconds."""
+    """Return the tightest job ``timeout-minutes`` in seconds.
+
+    Returns
+    -------
+    float
+        The tightest job budget, since that is the one that binds.
+    """
     minutes = [
         float(job["timeout-minutes"])
         for job in ci_workflow["jobs"].values()

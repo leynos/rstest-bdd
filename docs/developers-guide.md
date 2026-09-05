@@ -574,7 +574,7 @@ infrastructure problem rather than a slow test.
 
 ### The clocks do not start together
 
-Comparing the configured numbers is not enough, because two of the four timers
+Comparing the configured numbers is not enough because two of the four timers
 start at different moments and cover different work.
 
 The watchdog starts when `cargo` starts, so it covers the build as well as the
