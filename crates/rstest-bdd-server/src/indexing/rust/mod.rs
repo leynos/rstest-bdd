@@ -209,8 +209,9 @@ fn index_step_function(
     let expects_table = parameters.iter().any(|param| param.is_datatable);
     let expects_docstring = parameters.iter().any(|param| param.is_docstring);
 
-    // Extract span from the step attribute (syn uses 1-based line numbers).
-    // Line/column numbers in practice will never exceed u32::MAX, so truncation is safe.
+    // Extract the span from the step attribute. `syn` reports 1-based line
+    // numbers; the conversion below turns them into zero-based `u32` values,
+    // and any conversion overflow saturates at `u32::MAX`.
     let attribute_span = extract_attribute_span(step_attribute.attr, &item_fn.sig, source);
 
     Ok(Some(IndexedStepDefinition {
