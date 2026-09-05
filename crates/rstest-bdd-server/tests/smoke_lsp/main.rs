@@ -164,6 +164,7 @@ impl ServerHandle {
 struct TestFiles {
     feature_path: PathBuf,
     rust_path: PathBuf,
+    feature_uri: lsp_types::Url,
     rust_uri: lsp_types::Url,
 }
 
@@ -196,26 +197,23 @@ fn create_test_files(dir: &Path) -> TestFiles {
     )
     .expect("write rust steps");
 
+    let feature_uri = lsp_types::Url::from_file_path(&feature_path).expect("feature URI");
     let rust_uri = lsp_types::Url::from_file_path(&rust_path).expect("rust URI");
 
     TestFiles {
         feature_path,
         rust_path,
+        feature_uri,
         rust_uri,
     }
 }
 
-/// Send `didSave` for both files and wait for a `publishDiagnostics`
-/// notification confirming that indexing has completed.
+/// Wait until indexing has published diagnostics for one saved document.
 #[expect(
     clippy::expect_used,
     reason = "missing diagnostics notification is a test-fatal condition"
 )]
-fn index_and_wait(stdin: &mut ChildStdin, receiver: &MessageReceiver, files: &TestFiles) {
-    did_save(stdin, &files.feature_path);
-    did_save(stdin, &files.rust_path);
-
-    let expected_uri = files.rust_uri.as_str();
+fn wait_for_indexed_document(receiver: &MessageReceiver, expected_uri: &str) {
     receiver
         .recv_notification_matching(
             |msg| {
@@ -230,6 +228,19 @@ fn index_and_wait(stdin: &mut ChildStdin, receiver: &MessageReceiver, files: &Te
             MAX_RECV_MESSAGES,
         )
         .expect("expected a publishDiagnostics notification after indexing");
+}
+
+/// Index the feature and Rust files in dependency order before navigation.
+///
+/// The feature diagnostic confirms that its step locations are available before
+/// the Rust save builds the matching step registry entry. Each wait matches the
+/// saved document URI, so unrelated diagnostics cannot satisfy the boundary.
+fn index_and_wait(stdin: &mut ChildStdin, receiver: &MessageReceiver, files: &TestFiles) {
+    did_save(stdin, &files.feature_path);
+    wait_for_indexed_document(receiver, files.feature_uri.as_str());
+
+    did_save(stdin, &files.rust_path);
+    wait_for_indexed_document(receiver, files.rust_uri.as_str());
 }
 
 /// Assert that `def_response` contains a non-empty array of locations

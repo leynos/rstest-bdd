@@ -150,9 +150,16 @@ A former `coverage-main.yml` ran a fifth job whose platform, feature set, and
 driver matched the Linux lane. Once `ci.yml` gained its `push` trigger the two
 executed the same suite on every merge, so that workflow is gone and its two
 distinct behaviours moved into the surviving lane: it writes the ratchet
-baseline on every run, and it uploads to CodeScene on trunk while pull requests
-run the changed-line check. CodeScene accepts an upload only for an analysed
-branch, which is why the two modes are separate steps.
+baseline, and it uploads to CodeScene on trunk while pull requests run the
+changed-line check. CodeScene accepts an upload only for an analysed branch,
+which is why the two modes are separate steps.
+
+The baseline is written only on a push to `main`. Every run restores it and
+measures against it, but a pull request, and a manual dispatch, publish
+nothing. That guard lives in the pinned shared action rather than in this
+workflow. Before it, each pull request advanced the baseline it was then
+measured against, which a green run cannot show: a ratchet comparing a branch
+against itself passes while coverage falls.
 
 Two Linux steps look like test runs but are not part of the workspace suite and
 stay. `make test-workflow-contracts` exercises the Python contracts in this
@@ -1936,6 +1943,38 @@ which `prepare_publish`-only tests cannot observe:
   exercised end-to-end against a live server by the `smoke_lsp` integration
   suite: an unimplemented/unused step yields a non-empty `publishDiagnostics`,
   and resolving it re-publishes an empty array for the same URI.
+
+## Smoke LSP definition indexing sequence
+
+The definition-location smoke test must complete workspace indexing before it
+sends `textDocument/definition`. `index_and_wait` saves the feature file, then
+waits for a `textDocument/publishDiagnostics` notification whose URI matches the
+feature document just saved. It then saves the Rust step file and waits for a
+second notification whose URI matches that Rust document. These ordered,
+URI-specific acknowledgements establish that both indexing phases have
+completed; the client then matches the resulting JSON-RPC response by request
+identifier.
+
+For screen readers: The smoke test initializes the language server, waits for
+the feature and Rust step files to be indexed, requests a definition, and
+receives the matching definition response through the JSON-RPC client.
+
+```mermaid
+sequenceDiagram
+    participant Test as SmokeTest
+    participant Server as LanguageServer
+    participant Client as JSONRPCClient
+
+    Test->>Server: initialize
+    Test->>Server: index_and_wait(feature_file, rust_step_file)
+    Server-->>Client: textDocument/publishDiagnostics(feature_file_uri)
+    Server-->>Client: textDocument/publishDiagnostics(rust_file_uri)
+    Test->>Server: textDocument/definition
+    Server-->>Client: definition response(JSONRPC_id)
+    Client-->>Test: Match response by JSONRPC_id
+```
+
+*Figure 1: Definition-location smoke-test indexing and response sequence.*
 
 ## Bypassed-step recording contract
 

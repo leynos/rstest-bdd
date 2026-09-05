@@ -48,6 +48,27 @@ like these:
 - For cleanup assertions, use lightweight RAII probes with `Drop` side effects
   rather than internal implementation hooks.
 
+### LSP smoke-test synchronization
+
+The language-server smoke tests exercise an asynchronous JSON-RPC process, so a
+response can be interleaved with indexing notifications. A definition request
+is valid only after the workspace index contains both the feature step and its
+Rust implementation. Maintain this sequence in definition-navigation tests:
+
+1. Complete the `initialize` handshake.
+2. Save the feature file and wait for `textDocument/publishDiagnostics` for
+   its exact URI.
+3. Save the Rust step file and wait for `textDocument/publishDiagnostics` for
+   its exact URI. Together, the two URI-matched acknowledgements establish
+   that the feature index and step registry are ready for navigation.
+4. Send `textDocument/definition` and receive its response by JSON-RPC id, so
+   buffered notifications cannot be mistaken for the response.
+
+The completion boundary is a protocol invariant, not a timing hint. Do not use
+sleeps, assumed scheduling delays, or platform-specific branches to make these
+tests pass. Setting `--debounce-ms 0` can remove an intentional debounce, but
+cannot replace the indexing-completion wait.
+
 ## Good and fragile assertions
 
 Good semantic assertions:

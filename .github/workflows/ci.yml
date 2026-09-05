@@ -487,7 +487,7 @@ jobs:
       # llvm-cov's nextest path cannot execute doc tests.
       - name: Test and Measure Coverage (Linux)
         if: ${{ runner.os == 'Linux' }}
-        uses: leynos/shared-actions/.github/actions/generate-coverage@f6d4d5f549655c118f86f371b8d55c200d3efa50
+        uses: leynos/shared-actions/.github/actions/generate-coverage@77ea10341249024e22ec5d9069e3caa7596e0d4f
         env:
           # Cold instrumented builds plus the doctest pass can exceed the
           # action's 1800s budget; stay explicit so a future default cannot
@@ -519,7 +519,7 @@ jobs:
       - name: Test and Measure Coverage (Windows, default features)
         if: ${{ runner.os == 'Windows' && matrix.features == '' }}
         # Merged shared-actions whole-workspace coverage revision.
-        uses: leynos/shared-actions/.github/actions/generate-coverage@f6d4d5f549655c118f86f371b8d55c200d3efa50
+        uses: leynos/shared-actions/.github/actions/generate-coverage@77ea10341249024e22ec5d9069e3caa7596e0d4f
         continue-on-error: true
         env:
           # Windows coverage runs (build plus doctests) outgrew the shared
@@ -543,7 +543,7 @@ jobs:
       - name: Test and Measure Coverage (Windows, strict validation)
         if: ${{ runner.os == 'Windows' && matrix.features != '' }}
         # Merged shared-actions whole-workspace coverage revision.
-        uses: leynos/shared-actions/.github/actions/generate-coverage@f6d4d5f549655c118f86f371b8d55c200d3efa50
+        uses: leynos/shared-actions/.github/actions/generate-coverage@77ea10341249024e22ec5d9069e3caa7596e0d4f
         continue-on-error: true
         env:
           # Windows coverage runs (build plus doctests) outgrew the shared
