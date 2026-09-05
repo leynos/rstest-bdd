@@ -46,7 +46,6 @@ const GPUI_HARNESS: CrateSpec = CrateSpec {
 /// Return a token stream pointing to the `rstest_bdd` crate or its renamed form.
 #[cfg(not(test))]
 pub(crate) fn rstest_bdd_path() -> TokenStream2 { resolve_crate_path(&RSTEST_BDD) }
-
 #[cfg(test)]
 pub(crate) fn rstest_bdd_path() -> TokenStream2 { quote!(::rstest_bdd) }
 /// Return a token stream pointing to the `rstest_bdd_harness` crate or its
