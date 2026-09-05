@@ -1799,7 +1799,7 @@ dependencies = [
  "rstest-bdd-test-macros",
  "rustc_version",
  "serial_test 2.0.0",
- "syn 2.0.119",
+ "syn 3.0.4",
  "temp-env",
  "tempfile",
  "thiserror 2.0.20",
@@ -1846,7 +1846,7 @@ dependencies = [
  "rstest-bdd-test-macros",
  "serde",
  "serde_json",
- "syn 2.0.119",
+ "syn 3.0.4",
  "tempfile",
  "thiserror 2.0.20",
  "tokio",
@@ -1863,7 +1863,7 @@ version = "0.6.0-beta4"
 dependencies = [
  "quote",
  "rstest",
- "syn 2.0.119",
+ "syn 3.0.4",
 ]
 
 [[package]]
