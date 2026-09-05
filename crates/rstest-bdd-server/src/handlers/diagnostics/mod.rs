@@ -26,6 +26,8 @@ const DIAGNOSTIC_SOURCE: &str = "rstest-bdd";
 
 /// Diagnostic code for unimplemented feature steps.
 const CODE_UNIMPLEMENTED_STEP: &str = "unimplemented-step";
+/// Stable diagnostic code for equally specific scoped definitions.
+const CODE_AMBIGUOUS_STEP: &str = "ambiguous-step";
 
 /// Diagnostic code for unused step definitions.
 const CODE_UNUSED_STEP_DEFINITION: &str = "unused-step-definition";

@@ -71,22 +71,32 @@ where
     I: IntoIterator<Item = (StepKeyword, &'a str)>,
 {
     for (keyword, text) in steps {
-        if let Ok(Some(step)) = resolve_step(scenario.scope, keyword, text.into()) {
-            let record = BypassedStepRecord {
-                key: (library_for_step(step), step.keyword, step.pattern.as_str()),
-                feature_path: scenario.feature_path.to_owned(),
-                scenario_name: scenario.scenario_name.to_owned(),
-                scenario_line: scenario.scenario_line,
-                tags: scenario.tags.to_owned(),
-                libraries: scenario
-                    .scope
-                    .libraries()
-                    .iter()
-                    .map(|library| library.as_str())
-                    .collect(),
-                reason: scenario.reason.map(str::to_owned),
-            };
-            mark_bypassed(record);
+        match resolve_step(scenario.scope, keyword, text.into()) {
+            Ok(Some(step)) => {
+                let record = BypassedStepRecord {
+                    key: (library_for_step(step), step.keyword, step.pattern.as_str()),
+                    feature_path: scenario.feature_path.to_owned(),
+                    scenario_name: scenario.scenario_name.to_owned(),
+                    scenario_line: scenario.scenario_line,
+                    tags: scenario.tags.to_owned(),
+                    libraries: scenario
+                        .scope
+                        .libraries()
+                        .iter()
+                        .map(|library| library.as_str())
+                        .collect(),
+                    reason: scenario.reason.map(str::to_owned),
+                };
+                mark_bypassed(record);
+            }
+            Ok(None) => {}
+            Err(error) => tracing::warn!(
+                ?error,
+                keyword = keyword.as_str(),
+                step_text = text,
+                libraries = ?scenario.scope.libraries(),
+                "could not resolve bypassed step in scenario scope"
+            ),
         }
     }
 }

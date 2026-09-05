@@ -1,6 +1,7 @@
 //! Usage-tracking boundary tests for scoped registry queries and execution.
 
 use rstest_bdd::{
+    GLOBAL_STEP_LIBRARY,
     StepContext,
     StepKeyword,
     StepScope,
@@ -47,4 +48,14 @@ fn scoped_query_is_pure_but_execution_marks_the_step_used() {
     execute_step(&request, &mut StepContext::default()).expect("step execution should succeed");
 
     assert!(!is_unused(), "execution must mark the resolved step used");
+}
+
+#[test]
+fn repeated_library_id_does_not_create_a_false_ambiguity() {
+    let scope = StepScope::new(&[GLOBAL_STEP_LIBRARY, GLOBAL_STEP_LIBRARY]);
+
+    let step = find_step_with_metadata_in_scope(scope, StepKeyword::Given, StepText::from(PATTERN))
+        .expect("repeated library identities should still resolve one definition");
+
+    assert!(step.is_some(), "the global definition should resolve once");
 }

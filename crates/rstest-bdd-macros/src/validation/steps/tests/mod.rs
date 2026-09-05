@@ -1,6 +1,5 @@
-//! Tests for step-definition validation: missing/single/ambiguous outcomes and registry behaviour.
-// Intentionally left without file-wide lint suppressions; add per-function #[expect(...)] where
-// needed.
+//! Tests for missing, single, and ambiguous step-definition validation outcomes.
+//! Add per-function `#[expect(...)]` entries rather than file-wide lint suppressions.
 use camino::Utf8PathBuf;
 use rstest::rstest;
 use serial_test::serial;
@@ -166,9 +165,10 @@ fn scoped_validation_error(definitions: &[(&str, &str)], selected_libraries: &[&
         .map(|library| Box::<str>::from(*library))
         .collect::<Vec<_>>();
 
-    validate_steps_exist_in_scope(&steps, &libraries, true)
-        .expect_err("scoped validation fixture must produce an error")
-        .to_string()
+    let Err(error) = validate_steps_exist_in_scope(&steps, &libraries, true) else {
+        return String::from("scoped validation fixture unexpectedly succeeded");
+    };
+    error.to_string()
 }
 
 #[test]

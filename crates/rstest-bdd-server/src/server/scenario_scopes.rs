@@ -2,7 +2,7 @@
 
 use std::{
     collections::{BTreeSet, HashMap},
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     sync::Arc,
 };
 
@@ -156,11 +156,29 @@ fn binding_matches_feature(
 
 /// Resolve an absolute target directly or a relative target below `base`.
 fn resolve_target(base: &Path, target: &Path) -> PathBuf {
-    if target.is_absolute() {
+    let resolved = if target.is_absolute() {
         target.to_path_buf()
     } else {
         base.join(target)
+    };
+    normalize_path(&resolved)
+}
+
+/// Normalize lexical path components for comparison with indexed feature paths.
+fn normalize_path(path: &Path) -> PathBuf {
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                normalized.pop();
+            }
+            Component::Prefix(_) | Component::RootDir | Component::Normal(_) => {
+                normalized.push(component.as_os_str());
+            }
+        }
     }
+    normalized
 }
 
 #[cfg(test)]
@@ -261,6 +279,33 @@ mod tests {
         assert_eq!(
             scopes.libraries_for_feature(feature_path),
             Ok(Some(vec![String::from("accounts"), String::from("common")]))
+        );
+    }
+
+    #[test]
+    fn resolves_parent_components_in_feature_and_directory_bindings() {
+        let mut scopes = ScenarioScopeRegistry::default();
+        scopes.replace_rust_file(
+            Path::new("/workspace/crate/src/nested/steps.rs"),
+            vec![
+                IndexedScenarioBinding {
+                    target: ScenarioBindingTarget::Feature(PathBuf::from("../shared.feature")),
+                    libraries: vec![String::from("accounts")],
+                },
+                IndexedScenarioBinding {
+                    target: ScenarioBindingTarget::Directory(PathBuf::from("../features")),
+                    libraries: vec![String::from("filesystem")],
+                },
+            ],
+        );
+
+        assert_eq!(
+            scopes.libraries_for_feature(Path::new("/workspace/crate/src/shared.feature")),
+            Ok(Some(vec![String::from("accounts")]))
+        );
+        assert_eq!(
+            scopes.libraries_for_feature(Path::new("/workspace/crate/src/features/write.feature")),
+            Ok(Some(vec![String::from("filesystem")]))
         );
     }
 }

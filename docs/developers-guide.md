@@ -2702,7 +2702,7 @@ valid neighbouring definitions and reports `MultipleStepAttributes` or
 stores the valid index, publishes those diagnostics, and republishes feature
 diagnostics so a partially valid Rust file remains useful for navigation.
 
-### Named textual-field binding
+## Named textual-field binding
 
 The macro crate keeps named `StepArgs` captures and named `DataTableRow` fields
 on one internal metadata boundary in `named_fields.rs`. `NamedFieldSpec`
