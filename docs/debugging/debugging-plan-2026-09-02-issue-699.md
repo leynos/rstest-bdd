@@ -1,4 +1,4 @@
-# Debugging Plan: Synchronize the LSP Definition Smoke Test
+# Debugging plan: Synchronize the LSP definition smoke test
 
 **Generated**: 2026-09-02
 **Issue ID**: #699
@@ -8,7 +8,7 @@
 Falsification must be executed by the named sub-agent, not by the planning
 agent.
 
-## Problem Statement
+## Problem statement
 
 The Windows smoke test sends a definition request after `index_and_wait`, but
 the server sometimes returns `null` rather than a location array. The helper
@@ -17,7 +17,7 @@ sends saves for the feature and Rust files together, then waits only for a Rust
 strengthened with a deterministic protocol that establishes that both indexes
 are available before the definition request is sent.
 
-## Context Summary
+## Context summary
 
 | Aspect | Details |
 | --- | --- |
@@ -26,14 +26,14 @@ are available before the definition request is sent.
 | Affected components | `smoke_lsp` synchronization and deferred save replay |
 | Recent changes | The helper was restored, but it sent both saves before waiting |
 
-### Error Artefacts
+### Error artefacts
 
 ```plaintext
 smoke_definition_request_returns_locations ... FAILED
 expected array of locations, got: null
 ```
 
-### Information Gaps
+### Information gaps
 
 - The CI runner's internal scheduling is not observable from the failed log.
 - The exact transport-to-router interleaving requires a deterministic local
@@ -57,7 +57,7 @@ preparation and deferred replay.
 sent, and the Rust save is then acknowledged, the definition response is
 always a location array.
 
-#### H1 Falsification Plan
+#### H1 falsification plan
 
 | Step | Action | Expected Negative Result |
 | --- | --- | --- |
@@ -83,7 +83,7 @@ an empty `publishDiagnostics` notification.
 **Prediction**: A failed Rust index can produce the exact notification that the
 helper currently accepts while `handle_definition` has no step definition.
 
-#### H2 Falsification Plan
+#### H2 falsification plan
 
 | Step | Action | Expected Negative Result |
 | --- | --- | --- |
@@ -107,7 +107,7 @@ the helper intentionally ignores all other notifications.
 **Prediction**: A required readiness signal occurs before the accepted Rust
 notification and cannot be recovered by the test harness.
 
-#### H3 Falsification Plan
+#### H3 falsification plan
 
 | Step | Action | Expected Negative Result |
 | --- | --- | --- |
@@ -120,20 +120,20 @@ harness, but not server scheduling.
 
 ______________________________________________________________________
 
-## Recommended Execution Order
+## Recommended execution order
 
 1. **H1** — directly tests the most likely cross-platform race.
 2. **H2** — cheaply rules out a false-positive readiness signal.
 3. **H3** — confirms whether the receiver constrains the replacement protocol.
 
-## Termination Criteria
+## Termination criteria
 
 - **Root cause identified**: One hypothesis survives its falsification attempt
   and yields a deterministic replacement protocol.
 - **Escalation trigger**: All hypotheses are falsified; revise this plan using
   the experiment outputs and the failed Windows log.
 
-## Falsification Results
+## Falsification results
 
 - **H1 falsified**: Direct and deferred save handling preserve the feature then
   Rust order. The original helper nevertheless left a single, ambiguous
@@ -144,7 +144,7 @@ ______________________________________________________________________
   messages. The replacement must therefore wait for each URI before sending
   the next dependent save.
 
-## Notes for Executing Agent
+## Notes for executing agent
 
 Run only the supplied minimal experiment. Do not run repository-wide gates,
 modify tracked files, or use sleeps. Report a verdict for each hypothesis with

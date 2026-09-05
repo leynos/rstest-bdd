@@ -1940,9 +1940,13 @@ which `prepare_publish`-only tests cannot observe:
 ## Smoke LSP definition indexing sequence
 
 The definition-location smoke test must complete workspace indexing before it
-sends `textDocument/definition`. `index_and_wait` saves the fixture documents
-and waits for the indexing diagnostics notification, while the client matches
-the resulting JSON-RPC response by request identifier.
+sends `textDocument/definition`. `index_and_wait` saves the feature file, then
+waits for a `textDocument/publishDiagnostics` notification whose URI matches the
+feature document just saved. It then saves the Rust step file and waits for a
+second notification whose URI matches that Rust document. These ordered,
+URI-specific acknowledgements establish that both indexing phases have
+completed; the client then matches the resulting JSON-RPC response by request
+identifier.
 
 For screen readers: The smoke test initializes the language server, waits for
 the feature and Rust step files to be indexed, requests a definition, and
@@ -1956,6 +1960,7 @@ sequenceDiagram
 
     Test->>Server: initialize
     Test->>Server: index_and_wait(feature_file, rust_step_file)
+    Server-->>Client: textDocument/publishDiagnostics(feature_file_uri)
     Server-->>Client: textDocument/publishDiagnostics(rust_file_uri)
     Test->>Server: textDocument/definition
     Server-->>Client: definition response(JSONRPC_id)
