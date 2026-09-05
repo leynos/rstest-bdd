@@ -31,5 +31,5 @@ proptest.workspace = true
 rstest.workspace = true
 rstest-bdd-test-macros.workspace = true
 rstest-bdd-harness.workspace = true
-serial_test = "2"
+serial_test = "3"
 tempfile.workspace = true
