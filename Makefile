@@ -5,8 +5,8 @@ VALE ?= vale
 .PHONY: spelling-config spelling-config-write spelling-phrase-check
 .PHONY: spelling-helper-test nixie publish-check
 .PHONY: check-published-gpui stage-published-gpui-e2e e2e-published-gpui
-.PHONY: forbid-async-trait vale update-ui-lints-lock update-published-gpui-0-2-2-lock update-published-gpui-e2e-lock
-.PHONY: update-feature-rebuild-fixtures-lock
+.PHONY: forbid-async-trait vale
+.PHONY: check-derived-lockfiles update-derived-lockfiles derived-lockfile-paths
 .PHONY: test-workflow-contracts
 
 SHELL := bash
@@ -134,6 +134,44 @@ PUBLISHED_GPUI_E2E_PACKAGES := \
 PUBLISHED_GPUI_E2E_PACKAGE_PATCHES := $(foreach package,$(PUBLISHED_GPUI_E2E_PACKAGES),\
 	--config 'patch.crates-io.$(package).path="$(CURDIR)/crates/$(package)"')
 
+# Standalone Cargo workspaces — each has its own `[workspace]` stanza and a
+# committed `Cargo.lock` outside the root workspace's resolution. A change to
+# any dependency input, including a path dependency inside this repository,
+# stales such a lockfile; `cargo metadata --locked` detects that without
+# compiling the fixture, so `make check-derived-lockfiles` can fail fast
+# instead of the fixture's next `--locked` build failing on CI. Registering a
+# new standalone fixture here is part of adding it; the workflow-contract
+# tests fail when a tracked standalone lockfile is missing from this list.
+DERIVED_LOCKFILE_MANIFESTS := \
+	crates/cargo-bdd/tests/fixtures/minimal/Cargo.toml \
+	crates/rstest-bdd/tests/fixtures/feature_addition/Cargo.toml \
+	crates/rstest-bdd/tests/fixtures/rebuild_invalidation/Cargo.toml \
+	crates/rstest-bdd/tests/ui_lints/Cargo.toml \
+	tests/fixtures/published-gpui-0-2-2/Cargo.toml \
+	tests/fixtures/published-gpui-e2e/Cargo.toml
+
+# These manifests resolve generated local package paths that only exist once
+# `stage-published-gpui-e2e` has unpacked the packaged first-party crates, so
+# their lockfiles can be validated or refreshed only after that staging has
+# run. Fixtures referencing plain in-repository paths need no staging.
+STAGED_DERIVED_LOCKFILE_MANIFESTS := \
+	tests/fixtures/published-gpui-e2e/Cargo.toml
+
+# The feature-rebuild fixtures copy the minimal fixture's committed lockfile
+# before resolving so the three share one dependency resolution and therefore
+# compiled units on CI. Keep the seed source ahead of the seeded manifests in
+# `DERIVED_LOCKFILE_MANIFESTS` so a full refresh updates the seed first.
+SEEDED_DERIVED_LOCKFILE_MANIFESTS := \
+	crates/rstest-bdd/tests/fixtures/feature_addition/Cargo.toml \
+	crates/rstest-bdd/tests/fixtures/rebuild_invalidation/Cargo.toml
+SEEDED_DERIVED_LOCKFILE_SOURCE := crates/cargo-bdd/tests/fixtures/minimal/Cargo.lock
+UNSEEDED_DERIVED_LOCKFILE_MANIFESTS := $(filter-out $(SEEDED_DERIVED_LOCKFILE_MANIFESTS),$(DERIVED_LOCKFILE_MANIFESTS))
+DERIVED_LOCKFILE_PATHS := $(patsubst %Cargo.toml,%Cargo.lock,$(DERIVED_LOCKFILE_MANIFESTS))
+
+ifneq ($(strip $(STAGED_DERIVED_LOCKFILE_MANIFESTS)),)
+DERIVED_LOCKFILE_STAGING_PREREQUISITE := stage-published-gpui-e2e
+endif
+
 check-published-gpui: ## Compile the published gpui 0.2.2 documentation fixture
 	# This nested workspace bypasses the root workspace's vendored gpui path.
 	# CI exports RUSTFLAGS=-D warnings job-wide; set it here too so an unused
@@ -231,23 +269,46 @@ publish-check: build-python stage-published-gpui-e2e ## Package crates in releas
 test-workflow-contracts: ## Validate the mutation-testing caller contract
 	$(UV_ENV) $(UV) run --with 'pytest>=8' --with 'pyyaml>=6' pytest tests/workflow_contracts -q
 
-update-ui-lints-lock: ## Refresh ui_lints trybuild lockfile for `--locked` CI
-	$(CARGO) generate-lockfile --manifest-path crates/rstest-bdd/tests/ui_lints/Cargo.toml
+check-derived-lockfiles: $(DERIVED_LOCKFILE_STAGING_PREREQUISITE) ## Fail when a standalone fixture's committed Cargo.lock is stale
+	# A dependency change anywhere in a standalone fixture's resolution — a
+	# workspace member's manifest, a registry requirement in the fixture, or a
+	# path dependency — invalidates the committed lockfile. `cargo metadata
+	# --locked` accepts nothing less than a lock that matches every input, so
+	# this fails with the stale manifest instead of leaving the failure to a
+	# later `--locked` build. Refresh with `make update-derived-lockfiles`.
+	@set -e; \
+	for manifest in $(DERIVED_LOCKFILE_MANIFESTS); do \
+		printf 'Validating %s\n' "$$manifest"; \
+		if ! $(CARGO) metadata --locked --manifest-path "$$manifest" \
+			--format-version 1 >/dev/null; then \
+			printf 'error: %s has a stale Cargo.lock; run "make update-derived-lockfiles" and commit the refreshed lockfile\n' "$$manifest" >&2; \
+			exit 1; \
+		fi; \
+	done
+	@printf 'All derived lockfiles are fresh.\n'
 
-update-published-gpui-0-2-2-lock: ## Refresh the published GPUI 0.2.2 fixture lockfile
-	$(CARGO) generate-lockfile --manifest-path $(PUBLISHED_GPUI_MANIFEST)
+update-derived-lockfiles: $(DERIVED_LOCKFILE_STAGING_PREREQUISITE) ## Regenerate every registered standalone fixture lockfile
+	# `cargo metadata` without `--locked` keeps every compatible pin and
+	# refreshes only what the manifests now require. Run `cargo update`
+	# inside a fixture workspace when a deliberate version bump across its
+	# whole closure is wanted; that remains a reviewed, committed change.
+	@set -e; \
+	for manifest in $(UNSEEDED_DERIVED_LOCKFILE_MANIFESTS); do \
+		printf 'Refreshing %s\n' "$$manifest"; \
+		$(CARGO) metadata --manifest-path "$$manifest" \
+			--format-version 1 >/dev/null; \
+	done
+	@set -e; \
+	for manifest in $(SEEDED_DERIVED_LOCKFILE_MANIFESTS); do \
+		printf 'Seeding %s from %s\n' "$$manifest" "$(SEEDED_DERIVED_LOCKFILE_SOURCE)"; \
+		cp "$(SEEDED_DERIVED_LOCKFILE_SOURCE)" "$${manifest%Cargo.toml}Cargo.lock"; \
+		$(CARGO) metadata --manifest-path "$$manifest" \
+			--format-version 1 >/dev/null; \
+	done
+	@$(MAKE) --no-print-directory check-derived-lockfiles
 
-update-published-gpui-e2e-lock: stage-published-gpui-e2e ## Refresh the published GPUI E2E fixture lockfile
-	cd $(PUBLISHED_GPUI_E2E_DIR) && $(CARGO) generate-lockfile
-
-# Seed these locks from the established minimal fixture so their offline CI
-# runs reuse its dependency resolution. Cargo then adds only each fixture's
-# root package and the extra `rstest` closure required by `#[scenario]`.
-update-feature-rebuild-fixtures-lock: ## Refresh nested feature-rebuild fixture lockfiles
-	cp crates/cargo-bdd/tests/fixtures/minimal/Cargo.lock crates/rstest-bdd/tests/fixtures/rebuild_invalidation/Cargo.lock
-	$(CARGO) metadata --manifest-path crates/rstest-bdd/tests/fixtures/rebuild_invalidation/Cargo.toml --format-version 1 >/dev/null
-	cp crates/cargo-bdd/tests/fixtures/minimal/Cargo.lock crates/rstest-bdd/tests/fixtures/feature_addition/Cargo.lock
-	$(CARGO) metadata --manifest-path crates/rstest-bdd/tests/fixtures/feature_addition/Cargo.toml --format-version 1 >/dev/null
+derived-lockfile-paths: ## Print the registered standalone fixture lockfiles
+	@printf '%s\n' $(DERIVED_LOCKFILE_PATHS)
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | \

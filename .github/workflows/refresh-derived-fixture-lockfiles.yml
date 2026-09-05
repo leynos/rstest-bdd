@@ -31,10 +31,9 @@ jobs:
         with:
           cache-provider: external
 
-      - name: Refresh published GPUI fixture lockfiles
+      - name: Refresh derived fixture lockfiles
         run: |
-          make update-published-gpui-0-2-2-lock
-          make update-published-gpui-e2e-lock
+          make update-derived-lockfiles
 
       - name: Configure Git author
         run: |
@@ -44,16 +43,19 @@ jobs:
       - name: Commit refreshed lockfiles
         id: commit
         run: |
+          # `make update-derived-lockfiles` owns the registered lockfile set;
+          # derive the commit surface from the same registry instead of
+          # restating the list here, so the workflow cannot drift from the
+          # Makefile.
+          lockfiles="$(make --no-print-directory derived-lockfile-paths)"
           if git diff --quiet -- \
-            tests/fixtures/published-gpui-0-2-2/Cargo.lock \
-            tests/fixtures/published-gpui-e2e/Cargo.lock; then
+            $lockfiles; then
             echo 'changed=false' >> "$GITHUB_OUTPUT"
             exit 0
           fi
           git add -- \
-            tests/fixtures/published-gpui-0-2-2/Cargo.lock \
-            tests/fixtures/published-gpui-e2e/Cargo.lock
-          git commit -m 'chore(deps): refresh published GPUI fixture lockfiles'
+            $lockfiles
+          git commit -m 'chore(deps): refresh derived fixture lockfiles'
           echo 'changed=true' >> "$GITHUB_OUTPUT"
 
       - name: Push refreshed lockfiles

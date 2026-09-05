@@ -454,6 +454,17 @@ jobs:
         if: ${{ matrix.tools }}
         run: make typecheck
 
+      # Every standalone fixture workspace commits its own Cargo.lock. A
+      # dependency change elsewhere in the pull request can stale one of those
+      # locks, and the failure must surface here — before the fixture's own
+      # `--locked` steps run — with a message that names the refresh target.
+      # The Dependabot-only refresh workflow repairs its own PRs; this step
+      # gives every other contributor PR the same signal without granting it
+      # any write permission.
+      - name: Check derived fixture lockfiles
+        if: ${{ matrix.tools && runner.os == 'Linux' }}
+        run: make check-derived-lockfiles
+
       - name: Check published GPUI documentation fixture
         if: ${{ matrix.tools && matrix.with-default-features }}
         run: make check-published-gpui

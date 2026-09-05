@@ -882,6 +882,58 @@ standalone step in `.github/workflows/ci.yml`:
 Consequently it does not run in a plain local `make lint`; developers touching
 the published snippets should run it by hand.
 
+
+## Derived fixture lockfiles (`make check-derived-lockfiles`)
+
+Six standalone Cargo workspaces live inside this repository and commit their
+own `Cargo.lock` outside the root workspace's resolution: the cargo-bdd minimal
+fixture, the two feature-rebuild fixtures, the trybuild `ui_lints` harness, and
+the two published-GPUI fixtures. Each declares its own `[workspace]` stanza, so
+its lockfile resolves independently of the root one.
+
+The contract: a change to any dependency input of a standalone fixture — a
+workspace member's manifest, a registry requirement in the fixture, or a path
+dependency inside this repository — requires the fixture's committed lockfile
+to remain valid. Because the fixtures resolve independently, the root
+workspace's lockfile does not cover them, and a change to a shared crate (for
+example, adding a dependency edge to `rstest-bdd`) silently stales their locks.
+The next `--locked` build of the fixture then fails on CI, far from the commit
+that caused it.
+
+`DERIVED_LOCKFILE_MANIFESTS` in the `Makefile` is the single registry of these
+standalone workspaces. From it, three targets derive their behaviour:
+
+- `make check-derived-lockfiles` runs `cargo metadata --locked` for each
+  registered manifest. `--locked` accepts nothing less than a lock that matches
+  every input, so the check detects staleness without compiling any fixture.
+- `make update-derived-lockfiles` refreshes every registered lockfile. The
+  two feature-rebuild fixtures are seeded from the minimal fixture's lockfile
+  first so their offline runs keep sharing its dependency resolution and
+  compiled units.
+- `make derived-lockfile-paths` prints the registered lockfiles; the
+  Dependabot-only refresh workflow derives its commit surface from it, so the
+  workflow cannot drift from the registry.
+
+Fixtures whose manifests reference generated local package paths — today the
+published-GPUI end-to-end fixture's `[patch.crates-io]` entries — can be
+resolved only after `make stage-published-gpui-e2e` has unpacked the packaged
+first-party crates, so both check and refresh declare that staging as a
+prerequisite for exactly the registered manifests that need it.
+
+Normal pull requests fail early: CI runs `make check-derived-lockfiles` on the
+Linux tools lane before any `--locked` fixture step, with a message naming the
+refresh target. The write-enabled refresh workflow remains restricted to
+Dependabot pull requests — it repairs Dependabot's own PRs automatically, but
+no contributor PR grants it or any other automation a branch write. See
+[ADR 021](adr-021-derived-fixture-lockfile-validation.md) for the decision
+record.
+
+Registering a new standalone fixture workspace is part of adding it: commit its
+`Cargo.lock`, add its manifest to `DERIVED_LOCKFILE_MANIFESTS`, and list it in
+the workflow's `paths:` trigger only if Dependabot maintains that directory.
+The workflow-contract tests fail when a tracked standalone lockfile is missing
+from the registry.
+
 ## Published GPUI end-to-end scenario (`make e2e-published-gpui`)
 
 `tests/fixtures/published-gpui-e2e/` executes the two scenarios from the
