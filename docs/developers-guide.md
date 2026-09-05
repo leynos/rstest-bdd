@@ -535,9 +535,12 @@ The file sets the timeout policy for the test suite:
   group (`max-threads = 1`), so `cargo-bdd::cli`, the four trybuild binaries,
   and `rstest-bdd::feature_rebuild_invalidation` run one at a time instead of
   contending for CPU with concurrent `cargo` builds. Their worst-case serial
-  budget is 180 s + (20 m × 4) + (600 s × 3) = 6,180 s (103 m), which is why
-  the global timeout above it is set at the run level rather than the group
-  level; the group bound only serializes execution, it does not cap it.
+  budget is 180 s + (20 m × 4) + (600 s × 3) = 6,180 s (103 m). That figure is
+  a bound, not an expectation: it assumes every member of the group exhausts
+  its own allowance in the same run, which has never happened. The 75 m
+  `global-timeout` is deliberately below it, because a run that genuinely took
+  103 minutes would be a fault worth failing rather than waiting out. The group
+  bound only serializes execution; it does not cap it.
 
 The feature-rebuild fixture-manifest rewriter is the sole owner of TOML
 basic-string encoding for its rewritten absolute dependency paths. It must
@@ -550,6 +553,93 @@ Windows; use a TOML serializer for any broader configuration-writing need.
 When adding a test binary that shells out to `cargo`, extend the relevant
 override's `filter` expression rather than raising the default `slow-timeout`:
 the tight default is what surfaces genuinely hung tests quickly.
+
+## Test timeouts: four tiers, outermost last
+
+Four independent timers can end a test run, and they are set in four different
+places. A run that dies without an obvious cause is nearly always one of them,
+so it is worth knowing which is which and in what order they can fire.
+
+| Tier | What it bounds | Where it is set | Current value |
+| --- | --- | --- | --- |
+| Per-test `slow-timeout` | one test | `.config/nextest.toml` | 60 s default, 20 m for the trybuild binaries |
+| nextest `global-timeout` | the whole test run | `.config/nextest.toml` | 75 m |
+| Cargo watchdog | one `cargo` invocation, wall clock | `RUN_RUST_CARGO_WAIT_TIMEOUT` on the coverage steps in `ci.yml` | 5,400 s (90 m) |
+| Job `timeout-minutes` | the whole job | `ci.yml`, job level | 150 m |
+
+Each tier must sit above the one before it. If the watchdog sits below the
+nextest global timeout, as it did until this was written, the run is killed
+before the budget nextest was given can be used, and the failure looks like an
+infrastructure problem rather than a slow test.
+
+### The clocks do not start together
+
+Comparing the configured numbers is not enough because two of the four timers
+start at different moments and cover different work.
+
+The watchdog starts when `cargo` starts, so it covers the build as well as the
+test run. nextest's global timeout starts only once tests begin. A watchdog
+merely larger than the global timeout is still pre-empting it whenever the build
+takes longer than the difference between them. The watchdog is therefore sized
+as the global timeout plus a cold-build allowance: 75 m + 15 m = 90 m. The
+build phase inside `cargo` measured 3 m 31 s on run 33966769942 with a nearly
+cold cache, so the 15 minutes is generous on purpose.
+
+The job timer starts when the job starts, long before coverage and long after it
+finishes. On the Linux lane, formatting, linting, type checking and the
+published-GPUI end-to-end scenario run first, and the publish dry run follows.
+Measured on run 33971821695: 14 m 03 s before coverage and 36 m 41 s after, so
+just under 51 minutes of the job lies outside the watchdog's window. The job
+ceiling is therefore 90 m + 55 m = 145 m, rounded to 150. A job ceiling merely
+above the watchdog would cancel the run before the watchdog could report it, and
+a cancellation discards the log that would have explained the overrun.
+
+### The cargo watchdog is the tier nobody expects
+
+The first three tiers are nextest's and the repository's. The watchdog belongs
+to the shared `generate-coverage` action, which wraps the `cargo` invocation and
+kills it after a wall-clock budget. It defaults to 1,800 s and it is easy to
+forget, because nothing in `.config/nextest.toml` mentions it.
+
+When it fires the step prints:
+
+```text
+::error::cargo did not exit within 5400s; killing. This is a budget, not a
+detected hang: raise the cargo-wait-timeout input, or
+RUN_RUST_CARGO_WAIT_TIMEOUT, if the build is legitimately slower. A cold
+sccache store makes the first run on a branch compile everything inside this
+budget.
+```
+
+The message is worth taking at its word. Nothing was detected as hung. A budget
+expired, and on a cold compiler cache that is the expected outcome rather than a
+symptom.
+
+### What the current values are sized against
+
+The Linux coverage step was measured on `ubicloud-standard-2`:
+
+| Run | Step duration | Cache |
+| --- | --- | --- |
+| 33966133264 | 11 m 20 s | warm |
+| 33975538044 | 22 m 16 s | typical |
+| 33971821695 | 30 m 33 s | cold |
+
+A dependabot bump to `syn` on 2026-09-05 served 9 % of Rust compile requests
+from the cache and was killed by the watchdog at 1,800 s with 1,894 of 1,897
+tests complete. The run immediately before it took 1,833 s and passed, because
+the watchdog times `cargo` rather than the step. At 1,800 s the lane was not
+close to its budget, it was straddling it, and whether a run survived was
+decided by a few seconds of job setup.
+
+`timeout_ordering_test.py` asserts the ordering by value, including the two
+allowances above, so a change to any one tier that inverts it fails on the pull
+request rather than in a run three weeks later. The job ceiling is compared per
+job rather than against the tightest budget in the file, because an unrelated
+job's ceiling has nothing to say about this one. It also requires every step that
+invokes the shared coverage action to set the watchdog explicitly: a step that
+loses its override inherits the action's 1,800 s default, which is how this went
+wrong in the first place.
 
 ## `#[serial]`, `#[file_serial]`, and nextest test-groups
 
