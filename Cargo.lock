@@ -824,6 +824,7 @@ name = "gpui-counter"
 version = "0.6.0-beta4"
 dependencies = [
  "gpui",
+ "proptest",
  "rstest",
  "rstest-bdd",
  "rstest-bdd-harness-gpui",
