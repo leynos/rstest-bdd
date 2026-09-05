@@ -564,13 +564,35 @@ so it is worth knowing which is which and in what order they can fire.
 | --- | --- | --- | --- |
 | Per-test `slow-timeout` | one test | `.config/nextest.toml` | 60 s default, 20 m for the trybuild binaries |
 | nextest `global-timeout` | the whole test run | `.config/nextest.toml` | 75 m |
-| Cargo watchdog | one `cargo` invocation, wall clock | `RUN_RUST_CARGO_WAIT_TIMEOUT` on the coverage step in `ci.yml` | 5,400 s (90 m) |
-| Job `timeout-minutes` | the whole job | `ci.yml`, job level | 100 m |
+| Cargo watchdog | one `cargo` invocation, wall clock | `RUN_RUST_CARGO_WAIT_TIMEOUT` on the coverage steps in `ci.yml` | 5,400 s (90 m) |
+| Job `timeout-minutes` | the whole job | `ci.yml`, job level | 150 m |
 
 Each tier must sit above the one before it. If the watchdog sits below the
 nextest global timeout, as it did until this was written, the run is killed
 before the budget nextest was given can be used, and the failure looks like an
 infrastructure problem rather than a slow test.
+
+### The clocks do not start together
+
+Comparing the configured numbers is not enough, because two of the four timers
+start at different moments and cover different work.
+
+The watchdog starts when `cargo` starts, so it covers the build as well as the
+test run. nextest's global timeout starts only once tests begin. A watchdog
+merely larger than the global timeout is still pre-empting it whenever the build
+takes longer than the difference between them. The watchdog is therefore sized
+as the global timeout plus a cold-build allowance: 75 m + 15 m = 90 m. The
+build phase inside `cargo` measured 3 m 31 s on run 33966769942 with a nearly
+cold cache, so the 15 minutes is generous on purpose.
+
+The job timer starts when the job starts, long before coverage and long after it
+finishes. On the Linux lane, formatting, linting, type checking and the
+published-GPUI end-to-end scenario run first, and the publish dry run follows.
+Measured on run 33971821695: 14 m 03 s before coverage and 36 m 41 s after, so
+just under 51 minutes of the job lies outside the watchdog's window. The job
+ceiling is therefore 90 m + 55 m = 145 m, rounded to 150. A job ceiling merely
+above the watchdog would cancel the run before the watchdog could report it, and
+a cancellation discards the log that would have explained the overrun.
 
 ### The cargo watchdog is the tier nobody expects
 
@@ -610,10 +632,12 @@ the watchdog times `cargo` rather than the step. At 1,800 s the lane was not
 close to its budget, it was straddling it, and whether a run survived was
 decided by a few seconds of job setup.
 
-The watchdog is therefore set above the nextest global timeout it must not
-pre-empt, and the job timeout above that. `timeout_ordering_test.py` asserts the
-ordering by value, so a change to any one tier that inverts it fails on the pull
-request rather than in a run three weeks later.
+`timeout_ordering_test.py` asserts the ordering by value, including the two
+allowances above, so a change to any one tier that inverts it fails on the pull
+request rather than in a run three weeks later. It also requires every step that
+invokes the shared coverage action to set the watchdog explicitly: a step that
+loses its override inherits the action's 1,800 s default, which is how this went
+wrong in the first place.
 
 ## `#[serial]`, `#[file_serial]`, and nextest test-groups
 

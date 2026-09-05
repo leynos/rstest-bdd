@@ -21,7 +21,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     # Ubicloud runners register as just-in-time self-hosted runners, so the
     # six-hour hosted limit does not apply. Bound the job explicitly.
-    timeout-minutes: 100
+    timeout-minutes: 150
     permissions:
       contents: read
     env:
