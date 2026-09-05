@@ -24,7 +24,7 @@ use syn::{Expr, GenericArgument, Path, PathArguments, ReturnType, Type, TypePara
 pub(super) fn render_type(ty: &Type) -> String {
     match ty {
         Type::Path(type_path) => render_path(&type_path.path),
-        Type::BareFn(bare_fn) => render_bare_fn(bare_fn),
+        Type::FnPtr(fn_ptr) => render_fn_ptr(fn_ptr),
         Type::Reference(type_ref) => render_reference(type_ref),
         Type::Tuple(tuple) => render_tuple(tuple),
         Type::Slice(slice) => format!("[{}]", render_type(&slice.elem)),
@@ -36,11 +36,13 @@ pub(super) fn render_type(ty: &Type) -> String {
         Type::Group(group) => render_type(&group.elem),
         Type::Ptr(ptr) => {
             let mut rendered = String::from("*");
-            rendered.push_str(if ptr.mutability.is_some() {
-                "mut "
-            } else {
-                "const "
-            });
+            rendered.push_str(
+                if matches!(ptr.mutability, syn::PointerMutability::Mut(_)) {
+                    "mut "
+                } else {
+                    "const "
+                },
+            );
             rendered.push_str(&render_type(&ptr.elem));
             rendered
         }
@@ -103,7 +105,7 @@ fn render_fn_prefix(unsafety: Option<&syn::token::Unsafe>, abi: Option<&syn::Abi
 }
 
 /// Render variadic parameters suffix if present.
-fn render_variadic(variadic: Option<&syn::BareVariadic>, has_inputs: bool) -> String {
+fn render_variadic(variadic: Option<&syn::FnPtrVariadic>, has_inputs: bool) -> String {
     if variadic.is_some() {
         if has_inputs {
             ", ...".to_owned()
@@ -115,14 +117,14 @@ fn render_variadic(variadic: Option<&syn::BareVariadic>, has_inputs: bool) -> St
     }
 }
 
-/// Render a bare function type (`fn(..) -> ..`).
+/// Render a function pointer type (`fn(..) -> ..`).
 ///
 /// This composes the unsafety and ABI prefix (`unsafe`, `extern "..."`), the
 /// input parameter list (including variadics), and the return type.
-fn render_bare_fn(bare_fn: &syn::TypeBareFn) -> String {
-    let mut rendered = render_fn_prefix(bare_fn.unsafety.as_ref(), bare_fn.abi.as_ref());
+fn render_fn_ptr(fn_ptr: &syn::TypeFnPtr) -> String {
+    let mut rendered = render_fn_prefix(fn_ptr.unsafety.as_ref(), fn_ptr.abi.as_ref());
     rendered.push_str("fn(");
-    let inputs = bare_fn
+    let inputs = fn_ptr
         .inputs
         .iter()
         .map(|arg| render_type(&arg.ty))
@@ -130,14 +132,14 @@ fn render_bare_fn(bare_fn: &syn::TypeBareFn) -> String {
         .join(", ");
     rendered.push_str(&inputs);
     rendered.push_str(&render_variadic(
-        bare_fn.variadic.as_ref(),
-        !bare_fn.inputs.is_empty(),
+        fn_ptr.variadic.as_ref(),
+        !fn_ptr.inputs.is_empty(),
     ));
     rendered.push(')');
 
-    if let ReturnType::Type(_, ty) = &bare_fn.output {
+    if let ReturnType::Type(_, ty) = &fn_ptr.output {
         rendered.push_str(" -> ");
-        rendered.push_str(&render_type(ty));
+        rendered.push_str(&render_type(ty.as_ref()));
     }
 
     rendered
@@ -151,7 +153,7 @@ fn render_trait_object(trait_object: &syn::TypeTraitObject) -> String {
         .map(|bound| match bound {
             TypeParamBound::Trait(trait_bound) => {
                 let mut rendered = String::new();
-                if let syn::TraitBoundModifier::Maybe(_) = trait_bound.modifier {
+                if trait_bound.maybe.is_some() {
                     rendered.push('?');
                 }
                 rendered.push_str(&render_path(&trait_bound.path));
@@ -208,12 +210,12 @@ fn render_path_arguments(arguments: &PathArguments) -> String {
             let inputs = parenthesized
                 .inputs
                 .iter()
-                .map(render_type)
+                .map(|arg| render_type(&arg.ty))
                 .collect::<Vec<_>>()
                 .join(", ");
             let output = match &parenthesized.output {
                 ReturnType::Default => String::new(),
-                ReturnType::Type(_, ty) => format!(" -> {}", render_type(ty)),
+                ReturnType::Type(_, ty) => format!(" -> {}", render_type(ty.as_ref())),
             };
             format!("({inputs}){output}")
         }
@@ -317,13 +319,20 @@ mod tests {
             &parse_quote!(dyn std::fmt::Debug + Send + 'static),
             "dyn std::fmt::Debug + Send + 'static",
         );
+        // `Fn(u8) -> u16` reaches the renderer as parenthesized generic
+        // arguments on a trait-object bound (a bare `Fn(..)` type does not
+        // parse).
+        assert_renders(
+            &parse_quote!(Box<dyn Fn(u8) -> u16>),
+            "Box<dyn Fn(u8) -> u16>",
+        );
     }
 
     #[test]
     fn renders_trait_object_maybe_modifier() {
         let mut ty: syn::TypeTraitObject = parse_quote!(dyn Sized);
         let mut bound: syn::TraitBound = parse_quote!(Sized);
-        bound.modifier = syn::TraitBoundModifier::Maybe(syn::token::Question::default());
+        bound.maybe = Some(syn::token::Question::default());
         ty.bounds = std::iter::once(syn::TypeParamBound::Trait(bound)).collect();
         assert_eq!(render_trait_object(&ty), "dyn ?Sized");
     }
@@ -331,6 +340,7 @@ mod tests {
     #[test]
     fn renders_trait_object_with_no_bounds_as_placeholder() {
         let ty = syn::TypeTraitObject {
+            attrs: Vec::new(),
             dyn_token: Option::default(),
             bounds: syn::punctuated::Punctuated::default(),
         };
