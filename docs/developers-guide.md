@@ -1937,7 +1937,6 @@ which `prepare_publish`-only tests cannot observe:
   suite: an unimplemented/unused step yields a non-empty `publishDiagnostics`,
   and resolving it re-publishes an empty array for the same URI.
 
-
 ## Smoke LSP definition indexing sequence
 
 The definition-location smoke test must complete workspace indexing before it
@@ -1963,7 +1962,7 @@ sequenceDiagram
     Client-->>Test: Match response by JSONRPC_id
 ```
 
-_Figure 1: Definition-location smoke-test indexing and response sequence._
+*Figure 1: Definition-location smoke-test indexing and response sequence.*
 
 ## Bypassed-step recording contract
 

@@ -48,7 +48,6 @@ like these:
 - For cleanup assertions, use lightweight RAII probes with `Drop` side effects
   rather than internal implementation hooks.
 
-
 ### LSP smoke-test synchronization
 
 The language-server smoke tests exercise an asynchronous JSON-RPC process, so a
