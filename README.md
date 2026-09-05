@@ -42,6 +42,9 @@ ______________________________________________________________________
 
 ## Installation
 
+`rstest-bdd` requires Rust 1.88 or newer; the `gherkin 0.16` parser dependency
+sets the workspace's minimum supported Rust version.
+
 Add the crates to your **dev‑dependencies**:
 
 ```toml

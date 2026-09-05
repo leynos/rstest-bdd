@@ -1087,7 +1087,7 @@ version, Dependabot updates that dependency across every scanned directory in a
 single pull request.
 
 Each standalone fixture manifest must declare the workspace MSRV with
-`rust-version = "1.85"`. Keep these declarations synchronized with
+`rust-version = "1.88"`. Keep these declarations synchronized with
 `workspace.package.rust-version` when the repository MSRV changes; otherwise,
 the fixture resolvers can accept different dependency versions and split a
 cross-directory update.
@@ -2438,6 +2438,16 @@ pattern in `crates/rstest-bdd/tests/feature_rebuild_invalidation/`:
   fixture-specific root and `rstest 0.26.1` closure required by `#[scenario]`.
   This keeps nested `--offline` runs on the dependency resolution already
   populated by CI.
+- Validate the whole standalone-fixture set with
+  `make check-fixture-lockfiles`. The gate runs
+  `scripts/check_fixture_lockfiles.py`, which discovers every workspace
+  opt-out manifest that uses local `path` dependencies and commits a
+  `Cargo.lock`, then proves each lockfile still resolves with
+  `cargo metadata --locked`. CI runs the same target after the workspace
+  build, and the Dependabot refresh workflow regenerates the set with
+  `make update-fixture-lockfiles`, so the check and the refresh path always
+  agree on which fixtures are authoritative. A stale lockfile therefore fails
+  before the behavioural nested-Cargo tests can mask the drift.
 - The test copies the fixture into `target/tests/<name>/` under the shared
   workspace `target/`, rewrites the copied manifest's relative `path = "…"`
   values to absolute paths (resolving against the *source* directory, whose

@@ -23,8 +23,8 @@ owner, the developer, and the tester.
 
 ## Toolchain requirements
 
-`rstest-bdd` targets Rust 1.85 or newer across every crate in the workspace.
-Each `Cargo.toml` declares `rust-version = "1.85"`, so `cargo` will refuse to
+`rstest-bdd` targets Rust 1.88 or newer across every crate in the workspace.
+Each `Cargo.toml` declares `rust-version = "1.88"`, so `cargo` will refuse to
 compile the project on older compilers. The workspace uses the Rust 2024
 edition.
 

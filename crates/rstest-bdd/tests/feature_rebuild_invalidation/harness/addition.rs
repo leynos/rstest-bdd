@@ -165,13 +165,13 @@ fn preflight_manifest_lockfile_consistency(env: &process::ChildEnv) -> Result<()
 /// Remove a leftover added file so every run observes the same baseline.
 fn reset_added_file() {
     let path = added_file_path();
-    if path.exists() {
-        if let Err(err) = std::fs::remove_file(&path) {
-            panic!(
-                "cannot remove leftover added file {}: {err}",
-                path.display()
-            );
-        }
+    if path.exists()
+        && let Err(err) = std::fs::remove_file(&path)
+    {
+        panic!(
+            "cannot remove leftover added file {}: {err}",
+            path.display()
+        );
     }
 }
 

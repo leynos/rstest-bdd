@@ -29,20 +29,20 @@ pub(crate) fn option_inner_type(ty: &Type) -> syn::Result<(bool, Type)> {
 
 /// Provides the internal `is_string_type` operation.
 pub(crate) fn is_string_type(ty: &Type) -> bool {
-    if let Type::Path(path) = ty {
-        if let Some(segment) = path.path.segments.last() {
-            return segment.ident == "String" && matches!(segment.arguments, PathArguments::None);
-        }
+    if let Type::Path(path) = ty
+        && let Some(segment) = path.path.segments.last()
+    {
+        return segment.ident == "String" && matches!(segment.arguments, PathArguments::None);
     }
     false
 }
 
 /// Provides the internal `is_bool_type` operation.
 pub(crate) fn is_bool_type(ty: &Type) -> bool {
-    if let Type::Path(path) = ty {
-        if let Some(segment) = path.path.segments.last() {
-            return segment.ident == "bool" && matches!(segment.arguments, PathArguments::None);
-        }
+    if let Type::Path(path) = ty
+        && let Some(segment) = path.path.segments.last()
+    {
+        return segment.ident == "bool" && matches!(segment.arguments, PathArguments::None);
     }
     false
 }

@@ -369,7 +369,7 @@ fn collect_feature_files(
             .ok_or_else(|| {
                 io::Error::new(
                     io::ErrorKind::InvalidData,
-                    format!("file name is not valid UTF-8: {:?}", entry.file_name()),
+                    format!("not valid UTF-8: {}", entry.file_name().display()),
                 )
             })?
             .to_owned();
