@@ -1,11 +1,20 @@
 //! Tests for step context and fixture management.
 
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
+
+use tracing::{
+    Event,
+    Level,
+    Metadata,
+    Subscriber,
+    span::{Attributes, Id, Record},
+    subscriber::DefaultGuard,
+};
+
 use crate::context::*;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use tracing::span::{Attributes, Id, Record};
-use tracing::subscriber::DefaultGuard;
-use tracing::{Event, Level, Metadata, Subscriber};
 
 mod guard_borrowing;
 
@@ -21,21 +30,15 @@ pub(super) struct CountingSubscriber {
 }
 
 impl Subscriber for CountingSubscriber {
-    fn enabled(&self, metadata: &Metadata<'_>) -> bool {
-        *metadata.level() <= self.max_level
-    }
+    fn enabled(&self, metadata: &Metadata<'_>) -> bool { *metadata.level() <= self.max_level }
 
-    fn new_span(&self, _: &Attributes<'_>) -> Id {
-        Id::from_u64(1)
-    }
+    fn new_span(&self, _: &Attributes<'_>) -> Id { Id::from_u64(1) }
 
     fn record(&self, _: &Id, _: &Record<'_>) {}
 
     fn record_follows_from(&self, _: &Id, _: &Id) {}
 
-    fn event(&self, _: &Event<'_>) {
-        self.events.fetch_add(1, Ordering::Relaxed);
-    }
+    fn event(&self, _: &Event<'_>) { self.events.fetch_add(1, Ordering::Relaxed); }
 
     fn enter(&self, _: &Id) {}
 
