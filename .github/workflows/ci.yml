@@ -21,7 +21,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     # Ubicloud runners register as just-in-time self-hosted runners, so the
     # six-hour hosted limit does not apply. Bound the job explicitly.
-    timeout-minutes: 90
+    timeout-minutes: 100
     permissions:
       contents: read
     env:
@@ -489,7 +489,12 @@ jobs:
         if: ${{ runner.os == 'Linux' }}
         uses: leynos/shared-actions/.github/actions/generate-coverage@77ea10341249024e22ec5d9069e3caa7596e0d4f
         env:
-          RUN_RUST_CARGO_WAIT_TIMEOUT: '1800'
+          # The cargo watchdog, one of four tiers that can end a run. It must
+          # stay above the 75 m nextest global-timeout in .config/nextest.toml,
+          # or a run is killed before the budget nextest was given can be used.
+          # See "Test timeouts: four tiers, outermost last" in
+          # docs/developers-guide.md for the ordering and the measurements.
+          RUN_RUST_CARGO_WAIT_TIMEOUT: '5400'
           # Tests that snapshot a child process's stderr must see the same
           # panic-hook output on every lane. An instrumented build retains
           # debuginfo, so a backtrace would otherwise appear here and not on
@@ -523,7 +528,12 @@ jobs:
           # the shared action's old 600s default. From this pin 1800 is that
           # default, so this now restates it rather than raising it; it stays
           # explicit so a future default cannot quietly shorten these lanes.
-          RUN_RUST_CARGO_WAIT_TIMEOUT: '1800'
+          # The cargo watchdog, one of four tiers that can end a run. It must
+          # stay above the 75 m nextest global-timeout in .config/nextest.toml,
+          # or a run is killed before the budget nextest was given can be used.
+          # See "Test timeouts: four tiers, outermost last" in
+          # docs/developers-guide.md for the ordering and the measurements.
+          RUN_RUST_CARGO_WAIT_TIMEOUT: '5400'
           # Match the Linux lane so stderr snapshots stay deterministic.
           RUST_BACKTRACE: '0'
         with:
@@ -545,7 +555,12 @@ jobs:
           # the shared action's old 600s default. From this pin 1800 is that
           # default, so this now restates it rather than raising it; it stays
           # explicit so a future default cannot quietly shorten these lanes.
-          RUN_RUST_CARGO_WAIT_TIMEOUT: '1800'
+          # The cargo watchdog, one of four tiers that can end a run. It must
+          # stay above the 75 m nextest global-timeout in .config/nextest.toml,
+          # or a run is killed before the budget nextest was given can be used.
+          # See "Test timeouts: four tiers, outermost last" in
+          # docs/developers-guide.md for the ordering and the measurements.
+          RUN_RUST_CARGO_WAIT_TIMEOUT: '5400'
           # Match the Linux lane so stderr snapshots stay deterministic.
           RUST_BACKTRACE: '0'
         with:
