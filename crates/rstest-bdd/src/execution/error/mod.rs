@@ -164,6 +164,11 @@ pub enum ExecutionError {
         /// Name of the scenario.
         scenario_name: String,
     },
+    /// More than one equally-specific step matched the selected libraries.
+    StepAmbiguous {
+        /// Fully contextual ambiguity diagnostic.
+        message: String,
+    },
     /// Required fixtures missing from context.
     ///
     /// The details are wrapped in `Arc` to reduce the size of `Result<T, ExecutionError>`.

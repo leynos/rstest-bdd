@@ -1,6 +1,6 @@
 //! Functions for recording bypassed steps during scenario skips.
 
-use crate::types::StepKeyword;
+use crate::{registry::StepScope, types::StepKeyword};
 
 /// Identifies the scenario whose remaining steps were bypassed by a skip.
 ///
@@ -18,6 +18,8 @@ pub struct BypassedScenario<'a> {
     pub tags: &'a [String],
     /// Message supplied with the skip request, when present.
     pub reason: Option<&'a str>,
+    /// Closed library vocabulary selected by the scenario.
+    pub scope: StepScope,
 }
 
 impl<'a> BypassedScenario<'a> {
@@ -39,6 +41,7 @@ impl<'a> BypassedScenario<'a> {
             scenario_line,
             tags: &[],
             reason: None,
+            scope: StepScope::global(),
         }
     }
 
@@ -72,6 +75,23 @@ impl<'a> BypassedScenario<'a> {
     #[must_use]
     pub const fn with_reason(mut self, reason: Option<&'a str>) -> Self {
         self.reason = reason;
+        self
+    }
+
+    /// Attaches the scenario's closed step-library vocabulary.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use rstest_bdd::{BypassedScenario, StepScope};
+    ///
+    /// let scope = StepScope::global();
+    /// let scenario = BypassedScenario::new("f.feature", "s", 1).with_scope(scope);
+    /// assert_eq!(scenario.scope, scope);
+    /// ```
+    #[must_use]
+    pub const fn with_scope(mut self, scope: StepScope) -> Self {
+        self.scope = scope;
         self
     }
 }

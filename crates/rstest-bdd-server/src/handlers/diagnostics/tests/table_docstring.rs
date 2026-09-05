@@ -121,6 +121,62 @@ fn table_docstring_validation(
     }
 }
 
+#[rstest]
+fn table_validation_uses_only_the_selected_library(scenario_builder: ScenarioBuilder) {
+    let scenario = scenario_builder.with_single_file_pair(
+        "Feature: test\n  Scenario: s\n    Given a step\n",
+        concat!(
+            "#[step_library]\n",
+            "mod accounts {\n",
+            "    #[given(\"a step\")]\n",
+            "    fn a_step(datatable: DataTable) {}\n",
+            "}\n",
+            "#[step_library]\n",
+            "mod filesystem {\n",
+            "    #[given(\"a step\")]\n",
+            "    fn a_step() {}\n",
+            "}\n",
+            "#[scenario(path = \"test.feature\", libraries = [accounts])]\n",
+            "fn bind() {}\n",
+        ),
+    );
+
+    let diagnostics =
+        compute_table_docstring_diagnostics_for_path(&scenario.state, &scenario.feature_path)
+            .expect("table diagnostics");
+
+    assert_single_diagnostic_with_code(&diagnostics, CODE_TABLE_EXPECTED);
+}
+
+#[rstest]
+fn equal_specificity_definitions_report_ambiguity_before_attachment_checks(
+    scenario_builder: ScenarioBuilder,
+) {
+    let scenario = scenario_builder.with_single_file_pair(
+        "Feature: test\n  Scenario: s\n    Given a step\n",
+        concat!(
+            "#[step_library]\n",
+            "mod accounts {\n",
+            "    #[given(\"a {value}\")]\n",
+            "    fn account(value: String) {}\n",
+            "}\n",
+            "#[step_library]\n",
+            "mod filesystem {\n",
+            "    #[given(\"a {name}\")]\n",
+            "    fn filesystem(name: String) {}\n",
+            "}\n",
+            "#[scenario(path = \"test.feature\", libraries = [accounts, filesystem])]\n",
+            "fn bind() {}\n",
+        ),
+    );
+
+    let diagnostics =
+        compute_table_docstring_diagnostics_for_path(&scenario.state, &scenario.feature_path)
+            .expect("table diagnostics");
+
+    assert_single_diagnostic_with_code(&diagnostics, CODE_AMBIGUOUS_STEP);
+}
+
 // ========================================================================
 // Scenario outline column validation tests
 // ========================================================================

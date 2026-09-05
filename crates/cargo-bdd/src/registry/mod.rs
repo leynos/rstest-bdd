@@ -15,6 +15,9 @@ use tracing::warn;
 /// Registry step entry including location metadata and execution status.
 #[derive(Debug, Deserialize, Clone)]
 pub(crate) struct Step {
+    #[serde(default = "default_global_library")]
+    /// Stable library identity that owns the step.
+    pub library: String,
     /// Gherkin keyword for the step.
     pub keyword: String,
     /// Registered step pattern.
@@ -30,6 +33,9 @@ pub(crate) struct Step {
 /// Step definition that was bypassed when a scenario requested a skip.
 #[derive(Debug, Deserialize, Clone)]
 pub(crate) struct BypassedStep {
+    #[serde(default = "default_global_library")]
+    /// Stable library identity that owns the bypassed step.
+    pub library: String,
     /// Gherkin keyword for the step.
     pub keyword: String,
     /// Registered step pattern.
@@ -48,6 +54,9 @@ pub(crate) struct BypassedStep {
     #[serde(default)]
     /// Tags attached to the skipped scenario.
     pub tags: Vec<String>,
+    #[serde(default = "default_global_libraries")]
+    /// Closed library identities selected by the skipped scenario.
+    pub libraries: Vec<String>,
     /// Optional reason recorded for the skip.
     pub reason: Option<String>,
 }
@@ -84,6 +93,9 @@ pub(crate) struct Scenario {
     #[serde(default)]
     /// Tags attached to the scenario.
     pub tags: Vec<String>,
+    #[serde(default = "default_global_libraries")]
+    /// Closed library identities selected by the scenario.
+    pub libraries: Vec<String>,
 }
 
 /// Aggregated registry export holding every collected step and scenario from a
@@ -343,3 +355,12 @@ pub(crate) fn extract_test_executable(msg: &Message) -> Option<PathBuf> {
 
 #[cfg(test)]
 mod tests;
+
+/// Stable identity assigned to steps from legacy unscoped suites.
+const GLOBAL_LIBRARY: &str = "rstest_bdd::global";
+
+/// Supply the global identity when reading an older step dump.
+fn default_global_library() -> String { GLOBAL_LIBRARY.to_owned() }
+
+/// Supply the global scope when reading older scenario and bypass dumps.
+fn default_global_libraries() -> Vec<String> { vec![default_global_library()] }

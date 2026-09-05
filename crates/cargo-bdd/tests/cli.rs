@@ -10,6 +10,7 @@ use serial_test::serial;
 
 #[derive(Debug, Deserialize)]
 struct SkippedDefinition {
+    library: String,
     keyword: String,
     pattern: String,
     file: String,
@@ -22,6 +23,8 @@ struct SkipReport {
     scenario: String,
     line: u32,
     tags: Vec<String>,
+    #[serde(default)]
+    libraries: Vec<String>,
     #[serde(default)]
     reason: Option<String>,
     #[serde(default)]
@@ -193,6 +196,11 @@ fn skipped_subcommand_emits_json() {
         vec!["@allow_skipped".to_owned()],
         "expected fixture skipped scenario tags to be preserved"
     );
+    assert_eq!(
+        fixture_entry.libraries,
+        vec!["rstest_bdd::global".to_owned()],
+        "unscoped scenarios should report the global library"
+    );
 }
 
 #[test]
@@ -224,6 +232,7 @@ fn steps_skipped_emits_json() {
         unreachable!("assertion above ensures step is present");
     };
     assert_eq!(step.keyword, "Then");
+    assert_eq!(step.library, "rstest_bdd::global");
     assert_eq!(step.pattern, "fixture forced bypass");
     assert!(
         step.file.contains("diagnostics_fixture.rs"),
@@ -233,6 +242,11 @@ fn steps_skipped_emits_json() {
     assert!(
         step.line > 0,
         "expected bypassed step to include a line number"
+    );
+    assert_eq!(
+        forced_entry.libraries,
+        vec!["rstest_bdd::global".to_owned()],
+        "bypassed steps should retain the scenario library scope"
     );
 }
 

@@ -102,6 +102,7 @@ mod tests {
 
         // Build a minimal Step-like value; only keyword/pattern are inspected.
         let step = Step {
+            module_path: module_path!(),
             keyword: StepKeyword::When,
             pattern: &MISSING_PATTERN,
             run: noop_step,
@@ -122,6 +123,7 @@ mod tests {
     #[test]
     fn fixture_requirements_for_step_returns_requirements_when_sidecar_present() {
         let step = Step {
+            module_path: module_path!(),
             keyword: StepKeyword::Given,
             pattern: &UNIT_TEST_PATTERN,
             run: noop_step,

@@ -6,7 +6,7 @@
 
 use hashbrown::HashMap;
 
-use super::{Step, StepKey, USED_STEPS, all_steps};
+use super::{Step, StepKey, USED_STEPS, all_steps, library_for_step};
 
 /// Return registered steps that were never executed.
 #[must_use]
@@ -16,7 +16,7 @@ pub fn unused_steps() -> Vec<&'static Step> {
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     all_steps()
         .into_iter()
-        .filter(|s| !used.contains(&(s.keyword, s.pattern)))
+        .filter(|s| !used.contains(&(library_for_step(s), s.keyword, s.pattern.as_str())))
         .collect()
 }
 
@@ -26,7 +26,7 @@ pub fn duplicate_steps() -> Vec<Vec<&'static Step>> {
     let mut groups: HashMap<StepKey, Vec<&'static Step>> = HashMap::new();
     for step in all_steps() {
         groups
-            .entry((step.keyword, step.pattern))
+            .entry((library_for_step(step), step.keyword, step.pattern.as_str()))
             .or_default()
             .push(step);
     }
@@ -59,7 +59,15 @@ mod tests {
     //! Unit tests for registry introspection queries.
 
     use super::{all_steps, duplicate_steps, unused_steps};
-    use crate::{StepContext, StepError, StepExecution, StepFuture, StepKeyword, step};
+    use crate::{
+        StepContext,
+        StepError,
+        StepExecution,
+        StepFuture,
+        StepKeyword,
+        registry::{Step, StepKey, library_for_step},
+        step,
+    };
 
     const USED_PATTERN: &str = "introspection used step";
     const UNUSED_PATTERN: &str = "introspection unused step";
@@ -87,6 +95,10 @@ mod tests {
         Box::pin(std::future::ready(noop_step(
             context, text, docstring, table,
         )))
+    }
+
+    fn step_key(step: &'static Step) -> StepKey {
+        (library_for_step(step), step.keyword, step.pattern.as_str())
     }
 
     step!(
@@ -124,7 +136,7 @@ mod tests {
             .into_iter()
             .find(|step| step.pattern.as_str() == USED_PATTERN)
             .expect("registered introspection used step should be present");
-        super::super::mark_used((used_step.keyword, used_step.pattern));
+        super::super::mark_used(step_key(used_step));
 
         let unused_patterns: Vec<_> = unused_steps()
             .into_iter()
@@ -159,7 +171,7 @@ mod tests {
             .into_iter()
             .find(|step| step.pattern.as_str() == USED_PATTERN)
             .expect("registered introspection used step should be present");
-        super::super::mark_used((used_step.keyword, used_step.pattern));
+        super::super::mark_used(step_key(used_step));
 
         let json = super::dump_registry().expect("test setup should succeed");
         let dump: serde_json::Value =

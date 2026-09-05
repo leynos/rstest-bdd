@@ -67,6 +67,50 @@ fn unused_step_definition_produces_diagnostic(scenario_builder: ScenarioBuilder)
 }
 
 #[rstest]
+fn selected_library_scope_controls_missing_and_unused_diagnostics(
+    scenario_builder: ScenarioBuilder,
+) {
+    let scenario = scenario_builder.with_single_file_pair(
+        "Feature: test\n  Scenario: s\n    Given the domain is empty\n",
+        concat!(
+            "#[step_library]\n",
+            "mod filesystem {\n",
+            "    #[given(\"the domain is empty\")]\n",
+            "    fn empty() {}\n",
+            "}\n",
+            "#[scenario(path = \"test.feature\", libraries = [accounts])]\n",
+            "fn bind() {}\n",
+        ),
+    );
+
+    let feature_index = scenario
+        .state
+        .feature_index(&scenario.feature_path)
+        .expect("feature index");
+    let feature_diagnostics =
+        compute_unimplemented_step_diagnostics(&scenario.state, feature_index);
+    let rust_diagnostics = compute_unused_step_diagnostics(&scenario.state, &scenario.rust_path);
+
+    assert_eq!(feature_diagnostics.len(), 1);
+    assert_eq!(
+        feature_diagnostics
+            .first()
+            .expect("feature diagnostic")
+            .code,
+        Some(lsp_types::NumberOrString::String(
+            CODE_UNIMPLEMENTED_STEP.to_owned()
+        ))
+    );
+    assert_eq!(rust_diagnostics.len(), 1);
+    assert_eq!(
+        rust_diagnostics.first().expect("Rust diagnostic").code,
+        Some(lsp_types::NumberOrString::String(
+            CODE_UNUSED_STEP_DEFINITION.to_owned()
+        ))
+    );
+}
+
+#[rstest]
 #[case::implemented_step_no_feature_diagnostic(
     "Feature: test\n  Scenario: s\n    Given a step\n",
     concat!(

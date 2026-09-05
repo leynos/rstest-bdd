@@ -1,10 +1,7 @@
 //! Step registration, lookup, and placeholder matching.
 //! Defines `Step`, the `step!` registration macro, and the global registry.
 
-use std::{
-    hash::{BuildHasher, Hash, Hasher},
-    sync::{LazyLock, Mutex},
-};
+use std::sync::{LazyLock, Mutex};
 
 use hashbrown::{HashMap, HashSet};
 use inventory::iter;
@@ -23,6 +20,10 @@ pub(crate) mod diagnostics;
 /// Typed fixture requirement metadata for registered BDD steps.
 mod fixtures;
 mod introspection;
+/// Stable library identities and closed scenario scopes.
+mod library;
+/// Step inventory registration macro implementation.
+mod registration;
 
 pub use async_lookup::{
     find_step_async_with_mode,
@@ -34,10 +35,13 @@ pub use fixtures::{FixtureRequirement, StepFixtureRequirements, fixture_requirem
 #[cfg(feature = "diagnostics")]
 pub use introspection::dump_registry;
 pub use introspection::{duplicate_steps, unused_steps};
+pub use library::{GLOBAL_STEP_LIBRARY, StepLibrary, StepLibraryId, StepScope};
 
 /// Represents a single step definition registered with the framework.
 #[derive(Debug)]
 pub struct Step {
+    /// Rust module path of the definition, used to assign its library.
+    pub module_path: &'static str,
     /// The step keyword, e.g. `Given` or `When`.
     pub keyword: StepKeyword,
     /// Pattern text used to match a Gherkin step.
@@ -59,167 +63,31 @@ pub struct Step {
     pub line: u32,
 }
 
-/// Register a step definition with the global registry.
-///
-/// This macro accepts both sync and async handler function pointers. The async
-/// handler wraps the sync result in an immediately-ready future for sync step
-/// definitions, enabling unified execution in async scenarios.
-///
-/// # Forms
-///
-/// The macro supports two forms:
-///
-/// ## 5-argument form (explicit async handler)
-///
-/// ```ignore
-/// step!(keyword, pattern, sync_handler, async_handler, fixtures);
-/// // With explicit execution mode:
-/// step!(
-///     keyword, pattern, sync_handler, async_handler, fixtures,
-///     mode = StepExecutionMode::Async
-/// );
-/// ```
-///
-/// ## 4-argument form (auto-generated async handler)
-///
-/// ```ignore
-/// step!(keyword, pattern, sync_handler, &fixtures);
-/// // With explicit execution mode:
-/// step!(
-///     keyword, pattern, sync_handler, &fixtures,
-///     mode = StepExecutionMode::Sync
-/// );
-/// ```
-///
-/// The 4-argument form automatically generates an async wrapper that delegates
-/// to the sync handler via an immediately-ready future. This provides backward
-/// compatibility for call sites that only define sync handlers.
-///
-/// When the `mode` parameter is omitted, both forms default to
-/// [`StepExecutionMode::Both`].
-#[macro_export]
-macro_rules! step {
-    // Internal arm: 5 arguments with pre-compiled pattern reference
-    (
-        @pattern
-        $keyword:expr,
-        $pattern:expr,
-        $handler:path,
-        $async_handler:path,
-        $fixtures:expr,
-        $mode:expr
-    ) => {
-        const _: () = {
-            $crate::submit! {
-                $crate::Step {
-                    keyword: $keyword,
-                    pattern: $pattern,
-                    run: $handler,
-                    run_async: $async_handler,
-                    execution_mode: $mode,
-                    fixtures: $fixtures,
-                    file: file!(),
-                    line: line!(),
-                }
-            }
-        };
-    };
-    // Internal arm: 4 arguments with pre-compiled pattern reference (auto-generate async)
-    (@pattern $keyword:expr, $pattern:expr, $handler:path, $fixtures:expr, $mode:expr) => {
-        const _: () = {
-            fn __rstest_bdd_auto_async<'ctx, 'fixtures>(
-                ctx: &'ctx mut $crate::StepContext<'fixtures>,
-                text: &'ctx str,
-                docstring: ::core::option::Option<&'ctx str>,
-                table: ::core::option::Option<&'ctx [&'ctx [&'ctx str]]>,
-            ) -> $crate::StepFuture<'ctx> {
-                ::std::boxed::Box::pin(::std::future::ready($handler(ctx, text, docstring, table)))
-            }
-
-            $crate::submit! {
-                $crate::Step {
-                    keyword: $keyword,
-                    pattern: $pattern,
-                    run: $handler,
-                    run_async: __rstest_bdd_auto_async,
-                    execution_mode: $mode,
-                    fixtures: $fixtures,
-                    file: file!(),
-                    line: line!(),
-                }
-            }
-        };
-    };
-    // Public arm: 4 arguments (auto-generate async handler for backward compatibility)
-    // This arm MUST come before the 5-argument arm because Rust macro matching
-    // is greedy and would otherwise try to parse fixtures as an async_handler path.
-    ($keyword:expr, $pattern:expr, $handler:path, & $fixtures:expr,mode = $mode:expr $(,)?) => {
-        const _: () = {
-            static PATTERN: $crate::StepPattern = $crate::StepPattern::new($pattern);
-            $crate::step!(
-                @pattern $keyword,
-                &PATTERN,
-                $handler,
-                &$fixtures,
-                $mode
-            );
-        };
-    };
-    // Public arm: 4 arguments defaulting to Both.
-    ($keyword:expr, $pattern:expr, $handler:path, & $fixtures:expr) => {
-        const _: () = {
-            static PATTERN: $crate::StepPattern = $crate::StepPattern::new($pattern);
-            $crate::step!(
-                @pattern $keyword,
-                &PATTERN,
-                $handler,
-                &$fixtures,
-                $crate::StepExecutionMode::Both
-            );
-        };
-    };
-    // Public arm: 5 arguments (explicit async handler)
-    (
-        $keyword:expr,
-        $pattern:expr,
-        $handler:path,
-        $async_handler:path,
-        $fixtures:expr,mode =
-        $mode:expr $(,)?
-    ) => {
-        const _: () = {
-            static PATTERN: $crate::StepPattern = $crate::StepPattern::new($pattern);
-            $crate::step!(
-                @pattern $keyword,
-                &PATTERN,
-                $handler,
-                $async_handler,
-                $fixtures,
-                $mode
-            );
-        };
-    };
-    // Public arm: 5 arguments defaulting to Both.
-    ($keyword:expr, $pattern:expr, $handler:path, $async_handler:path, $fixtures:expr) => {
-        const _: () = {
-            static PATTERN: $crate::StepPattern = $crate::StepPattern::new($pattern);
-            $crate::step!(
-                @pattern $keyword,
-                &PATTERN,
-                $handler,
-                $async_handler,
-                $fixtures,
-                $crate::StepExecutionMode::Both
-            );
-        };
-    };
-}
-
 inventory::collect!(Step);
+inventory::collect!(StepLibrary);
 inventory::collect!(StepFixtureRequirements);
 
 /// Stable key used to identify a registered step.
-type StepKey = (StepKeyword, &'static StepPattern);
+type StepKey = (StepLibraryId, StepKeyword, &'static str);
+
+/// Resolve module paths to declared library identities.
+static LIBRARIES: LazyLock<Vec<StepLibrary>> =
+    LazyLock::new(|| iter::<StepLibrary>.into_iter().copied().collect());
+
+/// Assign a step to its nearest declared library, or to the global library.
+pub(super) fn library_for_step(step: &Step) -> StepLibraryId {
+    LIBRARIES
+        .iter()
+        .filter(|library| {
+            step.module_path == library.id.as_str()
+                || step
+                    .module_path
+                    .strip_prefix(library.id.as_str())
+                    .is_some_and(|suffix| suffix.starts_with("::"))
+        })
+        .max_by_key(|library| library.id.as_str().len())
+        .map_or(GLOBAL_STEP_LIBRARY, |library| library.id)
+}
 
 /// Lazily built map of registered steps by keyword and pattern.
 static STEP_MAP: LazyLock<HashMap<StepKey, &'static Step>> = LazyLock::new(|| {
@@ -234,10 +102,11 @@ static STEP_MAP: LazyLock<HashMap<StepKey, &'static Step>> = LazyLock::new(|| {
                 step.line
             );
         }
-        let key = (step.keyword, step.pattern);
+        let key = (library_for_step(step), step.keyword, step.pattern.as_str());
         assert!(
             !map.contains_key(&key),
-            "duplicate step for '{}' + '{}' defined at {}:{}",
+            "duplicate step for library '{}' + '{}' + '{}' defined at {}:{}",
+            key.0.as_str(),
             step.keyword.as_str(),
             step.pattern.as_str(),
             step.file,
@@ -247,6 +116,19 @@ static STEP_MAP: LazyLock<HashMap<StepKey, &'static Step>> = LazyLock::new(|| {
     }
     map
 });
+
+/// Per-library index used by parameterized lookups.
+static STEPS_BY_LIBRARY: LazyLock<HashMap<StepLibraryId, Vec<&'static Step>>> =
+    LazyLock::new(|| {
+        let mut index = HashMap::new();
+        for step in iter::<Step> {
+            index
+                .entry(library_for_step(step))
+                .or_insert_with(Vec::new)
+                .push(step);
+        }
+        index
+    });
 
 // Tracks step invocations for the lifetime of the current process only. The
 // data is not persisted across binaries, keeping usage bookkeeping lightweight
@@ -262,6 +144,11 @@ fn mark_used(key: StepKey) {
         .insert(key);
 }
 
+/// Record a resolved step as used by an execution boundary.
+pub(crate) fn mark_step_used(step: &'static Step) {
+    mark_used((library_for_step(step), step.keyword, step.pattern.as_str()));
+}
+
 /// Collect all steps submitted through `inventory`.
 fn all_steps() -> Vec<&'static Step> { iter::<Step>.into_iter().collect() }
 
@@ -269,39 +156,46 @@ fn all_steps() -> Vec<&'static Step> { iter::<Step>.into_iter().collect() }
 fn step_by_key(key: StepKey) -> Option<&'static Step> { STEP_MAP.get(&key).copied() }
 
 /// Resolve a step whose registered pattern text exactly matches the input.
-fn resolve_exact_step(keyword: StepKeyword, pattern: PatternStr<'_>) -> Option<&'static Step> {
-    // Compute the hash as if the key were (keyword, pattern.as_str()) because
-    // StepPattern hashing is by its inner text.
-    let build = STEP_MAP.hasher();
-    let mut state = build.build_hasher();
-    keyword.hash(&mut state);
-    pattern.as_str().hash(&mut state);
-    let hash = state.finish();
-
-    STEP_MAP
-        .raw_entry()
-        .from_hash(hash, |(kw, pat)| {
-            *kw == keyword && pat.as_str() == pattern.as_str()
+fn resolve_exact_step(
+    scope: StepScope,
+    keyword: StepKeyword,
+    pattern: PatternStr<'_>,
+) -> Result<Option<&'static Step>, StepLookupError> {
+    let mut seen_libraries = HashSet::new();
+    let matches = scope
+        .libraries()
+        .iter()
+        .filter(|library| seen_libraries.insert(**library))
+        .filter_map(|library| {
+            STEP_MAP
+                .get(&(*library, keyword, pattern.as_str()))
+                .copied()
         })
-        .map(|(_, step)| *step)
+        .collect();
+    select_most_specific(scope, keyword, pattern.as_str(), matches)
 }
 
 /// Resolve the most specific registered step matching the supplied text.
-fn resolve_step(keyword: StepKeyword, text: StepText<'_>) -> Option<&'static Step> {
+fn resolve_step(
+    scope: StepScope,
+    keyword: StepKeyword,
+    text: StepText<'_>,
+) -> Result<Option<&'static Step>, StepLookupError> {
     // Fast path: exact pattern match
-    if let Some(step) = resolve_exact_step(keyword, text.as_str().into()) {
-        return Some(step);
+    if let Some(step) = resolve_exact_step(scope, keyword, text.as_str().into())? {
+        return Ok(Some(step));
     }
 
     // Find the most specific matching step directly via iterator
-    iter::<Step>
-        .into_iter()
+    let mut seen_libraries = HashSet::new();
+    let matches = scope
+        .libraries()
+        .iter()
+        .filter(|library| seen_libraries.insert(**library))
+        .flat_map(|library| STEPS_BY_LIBRARY.get(library).into_iter().flatten().copied())
         .filter(|step| step.keyword == keyword && extract_placeholders(step.pattern, text).is_ok())
-        .max_by(|a, b| {
-            let a_spec = step_specificity(a);
-            let b_spec = step_specificity(b);
-            a_spec.cmp(&b_spec)
-        })
+        .collect();
+    select_most_specific(scope, keyword, text.as_str(), matches)
 }
 
 /// Compute the specificity score for a step, logging any errors.
@@ -315,54 +209,146 @@ fn step_specificity(step: &Step) -> SpecificityScore {
     })
 }
 
+/// Ambiguity found while resolving a scoped step.
+#[derive(Clone, Debug)]
+pub struct StepLookupError {
+    /// Keyword used by the scenario step.
+    pub keyword: StepKeyword,
+    /// Scenario step text.
+    pub text: String,
+    /// Closed library list used for resolution.
+    pub scope: StepScope,
+    /// Equally specific matching definitions.
+    pub candidates: Vec<&'static Step>,
+}
+
+impl std::fmt::Display for StepLookupError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let selected = self
+            .scope
+            .libraries()
+            .iter()
+            .map(|library| library.as_str())
+            .collect::<Vec<_>>()
+            .join(", ");
+        let candidates = self
+            .candidates
+            .iter()
+            .map(|step| {
+                format!(
+                    "{} '{}' at {}:{}",
+                    library_for_step(step).as_str(),
+                    step.pattern.as_str(),
+                    step.file,
+                    step.line
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("; ");
+        write!(
+            formatter,
+            "ambiguous {} '{}'; selected libraries: [{}]; candidates: {}",
+            self.keyword.as_str(),
+            self.text,
+            selected,
+            candidates
+        )
+    }
+}
+
+impl std::error::Error for StepLookupError {}
+
+/// Select the unique most-specific candidate, or report the tied candidates.
+fn select_most_specific(
+    scope: StepScope,
+    keyword: StepKeyword,
+    text: &str,
+    matches: Vec<&'static Step>,
+) -> Result<Option<&'static Step>, StepLookupError> {
+    let Some(top_specificity) = matches.iter().map(|step| step_specificity(step)).max() else {
+        return Ok(None);
+    };
+    let candidates: Vec<_> = matches
+        .into_iter()
+        .filter(|step| step_specificity(step) == top_specificity)
+        .collect();
+    if candidates.len() == 1 {
+        Ok(candidates.into_iter().next())
+    } else {
+        Err(StepLookupError {
+            keyword,
+            text: text.to_owned(),
+            scope,
+            candidates,
+        })
+    }
+}
+
 /// Mark a resolved step as used and apply a projection to it.
 ///
-/// This is the canonical post-resolution path shared by every public lookup
-/// function: the `mark_used` call lives here exactly once, so any lookup
-/// variant that returns `Some` is guaranteed to record the step for
-/// unused-step diagnostics. New lookup variants must resolve a step and pass
-/// it through this helper rather than calling `mark_used` directly; see the
-/// developers' guide for the invariant.
+/// This is the canonical post-resolution path for lookup operations whose
+/// contract records usage. The scoped metadata query remains side-effect free;
+/// execution records its resolved step explicitly at the command boundary.
 fn mark_and_project<T>(
     step: Option<&'static Step>,
     project: impl FnOnce(&'static Step) -> T,
 ) -> Option<T> {
     step.map(|found| {
-        mark_used((found.keyword, found.pattern));
+        mark_step_used(found);
         project(found)
     })
 }
 
 /// Look up a registered step by keyword and pattern.
-#[must_use]
-pub fn lookup_step(keyword: StepKeyword, pattern: PatternStr<'_>) -> Option<StepFn> {
-    mark_and_project(resolve_exact_step(keyword, pattern), |step| step.run)
+///
+/// # Errors
+///
+/// Returns [`StepLookupError`] when equally specific definitions match.
+pub fn lookup_step(
+    keyword: StepKeyword,
+    pattern: PatternStr<'_>,
+) -> Result<Option<StepFn>, StepLookupError> {
+    resolve_exact_step(StepScope::global(), keyword, pattern)
+        .map(|step| mark_and_project(step, |found| found.run))
 }
 
 /// Find a registered step whose pattern matches the provided text.
-#[must_use]
-pub fn find_step(keyword: StepKeyword, text: StepText<'_>) -> Option<StepFn> {
-    mark_and_project(resolve_step(keyword, text), |step| step.run)
+///
+/// # Errors
+///
+/// Returns [`StepLookupError`] when equally specific definitions match.
+pub fn find_step(
+    keyword: StepKeyword,
+    text: StepText<'_>,
+) -> Result<Option<StepFn>, StepLookupError> {
+    resolve_step(StepScope::global(), keyword, text)
+        .map(|step| mark_and_project(step, |found| found.run))
 }
 
 /// Look up a registered async step by keyword and pattern.
 ///
-/// Returns the async step function pointer for use in async scenario execution.
-/// The async wrapper returns an immediately-ready future for sync step
-/// definitions.
-#[must_use]
-pub fn lookup_step_async(keyword: StepKeyword, pattern: PatternStr<'_>) -> Option<AsyncStepFn> {
-    mark_and_project(resolve_exact_step(keyword, pattern), |step| step.run_async)
+/// # Errors
+///
+/// Returns [`StepLookupError`] when equally specific definitions match.
+pub fn lookup_step_async(
+    keyword: StepKeyword,
+    pattern: PatternStr<'_>,
+) -> Result<Option<AsyncStepFn>, StepLookupError> {
+    resolve_exact_step(StepScope::global(), keyword, pattern)
+        .map(|step| mark_and_project(step, |found| found.run_async))
 }
 
 /// Find a registered async step whose pattern matches the provided text.
 ///
-/// Returns the async step function pointer for use in async scenario execution.
-/// The async wrapper returns an immediately-ready future for sync step
-/// definitions.
-#[must_use]
-pub fn find_step_async(keyword: StepKeyword, text: StepText<'_>) -> Option<AsyncStepFn> {
-    mark_and_project(resolve_step(keyword, text), |step| step.run_async)
+/// # Errors
+///
+/// Returns [`StepLookupError`] when equally specific definitions match.
+pub fn find_step_async(
+    keyword: StepKeyword,
+    text: StepText<'_>,
+) -> Result<Option<AsyncStepFn>, StepLookupError> {
+    resolve_step(StepScope::global(), keyword, text)
+        .map(|step| mark_and_project(step, |found| found.run_async))
 }
 
 /// Find a registered step and return its full metadata.
@@ -376,13 +362,38 @@ pub fn find_step_async(keyword: StepKeyword, text: StepText<'_>) -> Option<Async
 /// ```ignore
 /// use rstest_bdd::{find_step_with_metadata, StepKeyword, StepText};
 ///
-/// if let Some(step) = find_step_with_metadata(StepKeyword::Given, StepText::from("a value")) {
+/// if let Some(step) = find_step_with_metadata(StepKeyword::Given, StepText::from("a value"))? {
 ///     println!("Step requires fixtures: {:?}", step.fixtures);
 ///     // Invoke the step function
 ///     let result = (step.run)(&mut ctx, text, None, None);
 /// }
+/// # Ok::<(), rstest_bdd::StepLookupError>(())
 /// ```
-#[must_use]
-pub fn find_step_with_metadata(keyword: StepKeyword, text: StepText<'_>) -> Option<&'static Step> {
-    mark_and_project(resolve_step(keyword, text), |step| step)
+///
+/// # Errors
+///
+/// Returns [`StepLookupError`] when equally specific definitions match.
+pub fn find_step_with_metadata(
+    keyword: StepKeyword,
+    text: StepText<'_>,
+) -> Result<Option<&'static Step>, StepLookupError> {
+    resolve_step(StepScope::global(), keyword, text)
+        .map(|step| mark_and_project(step, |found| found))
+}
+
+/// Find a registered step in `scope`, preserving ambiguity diagnostics.
+///
+/// This metadata query does not mark the resolved definition as used. Runtime
+/// execution performs that mutation after resolution at its command boundary.
+///
+/// # Errors
+///
+/// Returns [`StepLookupError`] when multiple selected definitions are equally
+/// specific matches for the step text.
+pub fn find_step_with_metadata_in_scope(
+    scope: StepScope,
+    keyword: StepKeyword,
+    text: StepText<'_>,
+) -> Result<Option<&'static Step>, StepLookupError> {
+    resolve_step(scope, keyword, text)
 }

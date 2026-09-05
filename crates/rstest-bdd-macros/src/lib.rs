@@ -11,12 +11,15 @@
 mod codegen;
 mod datatable;
 mod macros;
+mod named_fields;
 mod parsing;
 mod pattern;
 mod return_classifier;
 mod scenario_state;
 mod step_args;
 mod step_keyword;
+#[path = "macros/step_library.rs"]
+mod step_library;
 mod utils;
 mod validation;
 use std::panic::UnwindSafe;
@@ -121,6 +124,16 @@ pub fn then(attr: TokenStream, item: TokenStream) -> TokenStream {
     run_with_macro_errors(|| macros::then(attr, item))
 }
 
+/// Declare a module whose steps form one explicitly selectable library.
+///
+/// The generated marker follows the module's visibility, so selecting a
+/// private library outside its parent module fails through normal Rust privacy
+/// checking.
+#[proc_macro_attribute]
+pub fn step_library(attr: TokenStream, item: TokenStream) -> TokenStream {
+    run_with_macro_errors(|| step_library::step_library(attr, item))
+}
+
 /// Attribute macro binding a test function to a single Gherkin scenario.
 ///
 /// Selector semantics:
@@ -168,7 +181,7 @@ pub fn derive_scenario_state(input: TokenStream) -> TokenStream { scenario_state
 /// [`rstest_bdd::StepArgs`](https://docs.rs/rstest-bdd/latest/rstest_bdd/trait.StepArgs.html)
 /// for a struct whose fields map to pattern placeholders.
 #[proc_macro_error]
-#[proc_macro_derive(StepArgs)]
+#[proc_macro_derive(StepArgs, attributes(step_args))]
 pub fn derive_step_args(input: TokenStream) -> TokenStream { step_args::derive(input) }
 
 /// Discover all `.feature` files under the given directory and generate one

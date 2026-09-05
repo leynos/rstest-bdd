@@ -39,7 +39,7 @@ use crate::parsing::feature::{
     parse_and_load_feature, ScenarioData,
 };
 use self::{
-    args::ScenarioArgs,
+    args::{ScenarioArgs, library_scope_tokens, library_validation_names},
     paths::manifest_relative_feature_path,
     return_kind::classify_scenario_return,
     selection::{ensure_feature_not_empty, resolve_candidate_indices, select_scenario},
@@ -92,10 +92,12 @@ fn try_scenario(
         tag_filter,
         harness,
         attributes,
+        libraries,
     }: ScenarioArgs,
     mut item_fn: syn::ItemFn,
 ) -> std::result::Result<TokenStream, TokenStream> {
     let path_lit = path;
+    let scope = library_scope_tokens(libraries.as_deref());
     let path = PathBuf::from(path_lit.value());
     let attrs = &item_fn.attrs;
     let vis = &item_fn.vis;
@@ -144,7 +146,11 @@ fn try_scenario(
             .map_err(|e| proc_macro::TokenStream::from(e.into_compile_error()))?;
     }
 
-    if let Some(err) = validate_steps_compile_time(&steps) {
+    if let Some(libraries) = libraries.as_deref() {
+        if let Some(err) = validate_steps_compile_time_in_scope(&steps, libraries) {
+            return Err(err);
+        }
+    } else if let Some(err) = validate_steps_compile_time(&steps) {
         return Err(err);
     }
 
@@ -194,6 +200,7 @@ fn try_scenario(
         attributes: attributes.as_ref(),
         resolutions: Some(&resolutions),
         fallback_diagnostics: Some(&fallback_diagnostics),
+        scope,
     };
 
     let generated = generate_scenario_code(
@@ -257,4 +264,26 @@ fn validate_steps_compile_time(
     };
     res.err()
         .map(|e| proc_macro::TokenStream::from(e.into_compile_error()))
+}
+
+/// Validate steps against the explicit closed library list, when locally known.
+fn validate_steps_compile_time_in_scope(
+    steps: &[crate::parsing::feature::ParsedStep],
+    libraries: &[syn::Path],
+) -> Option<TokenStream> {
+    let libraries = library_validation_names(libraries);
+    let res: Result<(), syn::Error> = {
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "strict-compile-time-validation")] {
+                crate::validation::steps::validate_steps_exist_in_scope(steps, &libraries, true)
+            } else if #[cfg(feature = "compile-time-validation")] {
+                crate::validation::steps::validate_steps_exist_in_scope(steps, &libraries, false)
+            } else {
+                let _ = (steps, libraries);
+                Ok(())
+            }
+        }
+    };
+    res.err()
+        .map(|error| proc_macro::TokenStream::from(error.into_compile_error()))
 }
