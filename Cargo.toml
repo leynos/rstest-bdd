@@ -38,7 +38,7 @@ regex = "1.12.2"
 thiserror = "2.0"
 derive_more = { version = "2.1", features = ["deref", "from", "into_iterator"] }
 quote = "1"
-syn = { version = "2", features = ["full", "extra-traits"] }
+syn = { version = "3", features = ["full", "extra-traits"] }
 cfg-if = "^1.0.4"
 convert_case = "0.6"
 rstest = "0.26.1"
