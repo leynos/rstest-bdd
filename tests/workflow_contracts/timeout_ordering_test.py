@@ -22,6 +22,12 @@ coverage and long before the work that follows it. Comparing the
 configured numbers alone would call an inverted lane correct, so the
 allowances below are measured rather than assumed.
 
+Hitting the global timeout does not stop the run instantly either. On
+Unix nextest signals the process group and waits
+``slow-timeout.grace-period``, five seconds here, before killing it; on
+Windows termination is immediate and the grace period is ignored for
+timeouts. That allowance is seconds, not minutes.
+
 See "Test timeouts: four tiers, outermost last" in
 ``docs/developers-guide.md``.
 """
@@ -50,6 +56,14 @@ COVERAGE_ACTION: typ.Final[str] = "shared-actions/.github/actions/generate-cover
 #: Measured at 3 m 31 s on run 33966769942 with a nearly cold compiler
 #: cache; 15 minutes is that with room to spare.
 COLD_BUILD_ALLOWANCE_SECONDS: typ.Final[float] = 15 * 60.0
+
+#: Hitting the global timeout starts nextest's termination procedure
+#: rather than stopping the run. On Unix it signals the process group and
+#: waits ``slow-timeout.grace-period``, five seconds in this repository,
+#: before killing it; on Windows termination is immediate and the grace
+#: period is ignored for timeouts. Sixty seconds covers that with room,
+#: and is far too small to hide a real overrun.
+TERMINATION_ALLOWANCE_SECONDS: typ.Final[float] = 60.0
 
 #: Everything in the job that is not the coverage step. The job timer
 #: covers it; the watchdog does not. Taken from the worst of several
@@ -280,7 +294,6 @@ def test_every_coverage_step_declares_a_watchdog_budget(
 def test_the_watchdog_covers_the_nextest_budget_and_the_build(
     lanes: tuple[CoverageLane, ...],
     global_timeout: float,
-    largest_slow_timeout: float,
 ) -> None:
     """Tier three must not pre-empt tier two.
 
@@ -290,21 +303,23 @@ def test_the_watchdog_covers_the_nextest_budget_and_the_build(
     still pre-empting it whenever the build takes longer than the
     difference, so the build allowance is part of the comparison.
 
-    The far end matters too. A test already running when the global
-    timeout expires is allowed to finish, so the run can outlast that
-    budget by the longest per-test allowance. Whether that tail is ever
-    reached or not, allowing for it costs nothing: the watchdog only
-    fires on an overrun.
+    The far end matters too, though less than it first appears. Hitting
+    the global timeout starts nextest's termination procedure rather than
+    stopping the run: on Unix it signals the process group and waits a
+    grace period before killing it. Seconds, not minutes, but not zero.
     """
-    required = global_timeout + largest_slow_timeout + COLD_BUILD_ALLOWANCE_SECONDS
+    required = (
+        global_timeout + TERMINATION_ALLOWANCE_SECONDS + COLD_BUILD_ALLOWANCE_SECONDS
+    )
     for lane in lanes:
         assert lane.watchdog is not None, str(lane)
         assert lane.watchdog >= required, (
             f"{lane} sets {WATCHDOG_VARIABLE}={lane.watchdog:.0f}s, below the "
             f"{required:.0f}s needed to cover the {global_timeout:.0f}s nextest "
-            f"budget, the {largest_slow_timeout:.0f}s a test already running may "
-            f"still take, and {COLD_BUILD_ALLOWANCE_SECONDS:.0f}s of cold build; "
-            f"a cold run would be killed before nextest's own budget expired"
+            f"budget, {TERMINATION_ALLOWANCE_SECONDS:.0f}s for nextest to "
+            f"terminate the run, and {COLD_BUILD_ALLOWANCE_SECONDS:.0f}s of cold "
+            f"build; a cold run would be killed before nextest's own budget "
+            f"expired"
         )
 
 
