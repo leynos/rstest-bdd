@@ -585,9 +585,11 @@ takes longer than the difference between them.
 The far end matters as well, though less than it first appears. Hitting the
 global timeout does not stop the run instantly: nextest follows its ordinary
 termination procedure, signalling the process group on Unix and waiting
-`slow-timeout.grace-period`, five seconds here, before killing it. On Windows
-termination is immediate and the grace period is ignored for timeouts. So the
-allowance is seconds rather than minutes, but it is not zero.
+`slow-timeout.grace-period`, five seconds here, before killing it. On Windows,
+termination is immediate, and the grace period is ignored for timeouts. So the
+allowance is seconds rather than minutes, but it is not zero, and the contract
+reads it from the configuration so a profile that raises it raises the
+requirement too.
 
 The watchdog is therefore sized as the global timeout, plus a termination
 allowance of one minute, plus a cold-build allowance: 75 m + 1 m + 15 m, taken
