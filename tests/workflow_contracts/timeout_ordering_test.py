@@ -22,14 +22,21 @@ coverage and long before the work that follows it. Comparing the
 configured numbers alone would call an inverted lane correct, so the
 allowances below are measured rather than assumed.
 
+Hitting the global timeout does not stop the run instantly either. On
+Unix nextest signals the process group and waits
+``slow-timeout.grace-period``, five seconds here, before killing it. On
+Windows, termination is immediate, and the grace period is ignored for
+timeouts. That allowance is seconds, not minutes, and it is read from the
+configuration so a profile that raises it raises the requirement too.
+
 See "Test timeouts: four tiers, outermost last" in
 ``docs/developers-guide.md``.
 """
 
-import re
 import typing as typ
 
 import pytest
+import timeout_budgets as budgets
 import yaml
 from workflow_support import ROOT
 
@@ -60,36 +67,6 @@ COLD_BUILD_ALLOWANCE_SECONDS: typ.Final[float] = 15 * 60.0
 #: three minutes each. 75 minutes covers the worse pair with room.
 NON_COVERAGE_ALLOWANCE_SECONDS: typ.Final[float] = 75 * 60.0
 
-#: ``30s``, ``5m``, ``20 m``: the durations nextest accepts here.
-_DURATION: typ.Final[re.Pattern[str]] = re.compile(
-    r"^\s*(?P<value>\d+(?:\.\d+)?)\s*(?P<unit>ms|s|m|h)\s*$"
-)
-
-_UNIT_SECONDS: typ.Final[dict[str, float]] = {
-    "ms": 0.001,
-    "s": 1.0,
-    "m": 60.0,
-    "h": 3600.0,
-}
-
-
-def _seconds(duration: str) -> float:
-    """Convert a nextest duration to seconds.
-
-    Parameters
-    ----------
-    duration : str
-        A duration as nextest spells it, such as ``"75m"``.
-
-    Returns
-    -------
-    float
-        The duration in seconds.
-    """
-    match = _DURATION.match(duration)
-    assert match is not None, f"unrecognized nextest duration {duration!r}"
-    return float(match["value"]) * _UNIT_SECONDS[match["unit"]]
-
 
 @pytest.fixture(scope="module")
 def nextest_config() -> str:
@@ -115,55 +92,54 @@ def ci_workflow() -> dict[str, typ.Any]:
     return yaml.safe_load(CI_WORKFLOW.read_text(encoding="utf-8"))
 
 
-@pytest.fixture(scope="module")
-def global_timeout(nextest_config: str) -> float:
-    """Return the default profile's ``global-timeout`` in seconds.
+class NextestBudgets(typ.NamedTuple):
+    """The three budgets read out of ``.config/nextest.toml``.
 
-    Read textually rather than through a TOML parser, because the value
-    must be matched to the profile it belongs to and the file declares
-    more than one profile.
+    They arrive as one value rather than three fixtures because three
+    fixtures that each read the same file and delegate one call differ
+    only in which call they make.
 
-    Parameters
+    Attributes
     ----------
-    nextest_config : str
-        The nextest configuration file's text.
-
-    Returns
-    -------
-    float
+    global_timeout : float
         The default profile's whole-run budget, in seconds.
-    """
-    blocks = re.split(r"^\[profile\.", nextest_config, flags=re.MULTILINE)
-    default = next((block for block in blocks if block.startswith("default]")), None)
-    assert default is not None, (
-        "nextest.toml must declare a [profile.default] section; the ordering "
-        "contract has nothing to compare against without one"
-    )
-    match = re.search(r'^global-timeout\s*=\s*"([^"]+)"', default, re.MULTILINE)
-    assert match is not None, (
-        "[profile.default] must set global-timeout; without it the whole-run "
-        "budget is unbounded and the watchdog becomes the only limit"
-    )
-    return _seconds(match[1])
-
-
-@pytest.fixture(scope="module")
-def largest_slow_timeout(nextest_config: str) -> float:
-    """Return the longest single-test allowance in seconds.
-
-    Parameters
-    ----------
-    nextest_config : str
-        The nextest configuration file's text.
-
-    Returns
-    -------
-    float
+    termination_allowance : float
+        The time nextest may take to stop a run that spends it. Read from
+        the configuration rather than fixed, because a profile that
+        raised its grace period past a hard-coded allowance would drift
+        out of the requirement this contract exists to hold.
+    largest_slow_timeout : float
         The longest per-test budget.
     """
-    periods = re.findall(r'period\s*=\s*"([^"]+)"', nextest_config)
-    assert periods, "nextest.toml must set at least one slow-timeout period"
-    return max(_seconds(period) for period in periods)
+
+    global_timeout: float
+    termination_allowance: float
+    largest_slow_timeout: float
+
+
+@pytest.fixture(scope="module")
+def nextest_budgets(nextest_config: str) -> NextestBudgets:
+    """Return the budgets the configuration sets.
+
+    The derivations themselves live in :mod:`timeout_budgets`, and their
+    behaviour away from this repository's own five-second grace periods
+    is covered by :mod:`timeout_budgets_test`.
+
+    Parameters
+    ----------
+    nextest_config : str
+        The nextest configuration file's text.
+
+    Returns
+    -------
+    NextestBudgets
+        The three budgets, in seconds.
+    """
+    return NextestBudgets(
+        global_timeout=budgets.global_timeout(nextest_config),
+        termination_allowance=budgets.termination_allowance(nextest_config),
+        largest_slow_timeout=budgets.largest_slow_timeout(nextest_config),
+    )
 
 
 class CoverageLane(typ.NamedTuple):
@@ -279,8 +255,7 @@ def test_every_coverage_step_declares_a_watchdog_budget(
 
 def test_the_watchdog_covers_the_nextest_budget_and_the_build(
     lanes: tuple[CoverageLane, ...],
-    global_timeout: float,
-    largest_slow_timeout: float,
+    nextest_budgets: NextestBudgets,
 ) -> None:
     """Tier three must not pre-empt tier two.
 
@@ -290,33 +265,39 @@ def test_the_watchdog_covers_the_nextest_budget_and_the_build(
     still pre-empting it whenever the build takes longer than the
     difference, so the build allowance is part of the comparison.
 
-    The far end matters too. A test already running when the global
-    timeout expires is allowed to finish, so the run can outlast that
-    budget by the longest per-test allowance. Whether that tail is ever
-    reached or not, allowing for it costs nothing: the watchdog only
-    fires on an overrun.
+    The far end matters too, though less than it first appears. Hitting
+    the global timeout starts nextest's termination procedure rather than
+    stopping the run: on Unix it signals the process group and waits a
+    grace period before killing it. Seconds, not minutes, but not zero.
     """
-    required = global_timeout + largest_slow_timeout + COLD_BUILD_ALLOWANCE_SECONDS
+    global_timeout = nextest_budgets.global_timeout
+    termination_allowance = nextest_budgets.termination_allowance
+    required = budgets.watchdog_requirement(
+        global_timeout, termination_allowance, COLD_BUILD_ALLOWANCE_SECONDS
+    )
     for lane in lanes:
         assert lane.watchdog is not None, str(lane)
-        assert lane.watchdog >= required, (
-            f"{lane} sets {WATCHDOG_VARIABLE}={lane.watchdog:.0f}s, below the "
-            f"{required:.0f}s needed to cover the {global_timeout:.0f}s nextest "
-            f"budget, the {largest_slow_timeout:.0f}s a test already running may "
-            f"still take, and {COLD_BUILD_ALLOWANCE_SECONDS:.0f}s of cold build; "
-            f"a cold run would be killed before nextest's own budget expired"
+        shortfall = budgets.watchdog_shortfall(lane.watchdog, required)
+        assert not shortfall, (
+            f"{lane} sets {WATCHDOG_VARIABLE}={lane.watchdog:.0f}s, {shortfall:.0f}s "
+            f"below the {required:.0f}s needed to cover the {global_timeout:.0f}s "
+            f"nextest budget, {termination_allowance:.0f}s for nextest to terminate "
+            f"the run, and {COLD_BUILD_ALLOWANCE_SECONDS:.0f}s of cold build; a cold "
+            f"run would be killed before nextest's budget and termination "
+            f"procedure had completed"
         )
 
 
 def test_the_nextest_global_timeout_sits_above_the_largest_slow_timeout(
-    global_timeout: float,
-    largest_slow_timeout: float,
+    nextest_budgets: NextestBudgets,
 ) -> None:
     """Tier two must not pre-empt tier one.
 
     A global timeout below the longest per-test allowance kills the run
     before the test that allowance exists for can finish.
     """
+    global_timeout = nextest_budgets.global_timeout
+    largest_slow_timeout = nextest_budgets.largest_slow_timeout
     assert global_timeout > largest_slow_timeout, (
         f"the {global_timeout:.0f}s global-timeout is not above the "
         f"{largest_slow_timeout:.0f}s largest per-test slow-timeout; the run "

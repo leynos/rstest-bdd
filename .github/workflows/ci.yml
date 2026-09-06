@@ -491,11 +491,12 @@ jobs:
         env:
           # The cargo watchdog, one of four tiers that can end a run. It
           # must cover the 75 m nextest global-timeout in
-          # .config/nextest.toml, the 20 m a test already running may
-          # still take when that expires, and the build inside the same
-          # cargo invocation. Below that, a cold run is killed before
-          # nextest can use the budget it was given. See "Test timeouts:
-          # four tiers, outermost last" in docs/developers-guide.md.
+          # .config/nextest.toml, the grace period nextest takes to
+          # terminate the run once that expires, and the build inside the
+          # same cargo invocation. Below that, a cold run is killed
+          # before nextest can use the budget it was given. See "Test
+          # timeouts: four tiers, outermost last" in
+          # docs/developers-guide.md.
           RUN_RUST_CARGO_WAIT_TIMEOUT: '6600'
           # Tests that snapshot a child process's stderr must see the same
           # panic-hook output on every lane. An instrumented build retains
