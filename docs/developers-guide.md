@@ -223,6 +223,30 @@ after installing `sccache`, and the final step publishes `sccache --show-stats`
 in text and JSON to the job summary alongside every cache key, hit result, and
 the backend in use.
 
+#### Attributing the publish step's share
+
+The end-of-job report is job-wide, so it cannot say what any one step spent.
+That matters most for the publish dry run, which is the longest step in the
+lane and, until lading v0.3.0, said nothing at all about its compiler cache.
+
+Setting `LADING_SCCACHE_STATS_JSON` on that step makes lading read `sccache`
+around each packaged build and write the results to a file, uploaded as the
+`sccache-publish-*` artefact. The figures are differenced around each
+invocation rather than obtained by zeroing the counters, so the end-of-job
+report keeps its meaning; a tool that zeroed them would silently make every
+later reading a partial one.
+
+The variable is set on the workflow step rather than in the Makefile, so a
+local `make publish-check` stays quiet and the file lands where the upload step
+expects it. `lading_pin_test.py` asserts that the step still asks for the
+statistics and that the file is uploaded, because a file written into the
+runner's temporary directory and never collected is discarded with the runner.
+
+lading is pinned twice, in `ci.yml` and in the Makefile, so that CI and a local
+run resolve the same tool. The same contract asserts the two agree and that the
+pin is a commit rather than a tag. Drift there would be quiet: both sides keep
+working while validating publish readiness against different versions.
+
 Check each `main` run with `ubi gh leynos/rstest-bdd list-cache-entries`. It
 must show the archive keys and the `sccache` objects on Ubicloud's side before
 any warm-cache measurement is trustworthy. That was verified on 2026-09-03 at
