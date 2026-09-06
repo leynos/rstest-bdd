@@ -2,16 +2,12 @@
 """Validate and refresh the standalone fixture lockfiles.
 
 Standalone fixture crates opt out of the workspace with a ``[workspace]``
-stanza, depend on first-party crates through ``path =`` dependencies, and
-commit their own ``Cargo.lock`` so nested ``--locked`` Cargo invocations stay
-hermetic. A dependency bump that changes the workspace resolution therefore
-stales those lockfiles and the nested runs fail.
-
-This script is the single authority for that fixture set: it discovers every
-tracked manifest matching that shape, so the check and the refresh targets stay
-in step as fixtures are added. For every selected manifest it runs
-``cargo metadata --locked --format-version 1 --manifest-path <manifest>`` and
-fails with the manifest path and Cargo output when the lockfile is stale.
+stanza, use local ``path =`` dependencies, and commit their own ``Cargo.lock``
+so nested ``--locked`` invocations stay hermetic; a dependency bump therefore
+stales them. This script discovers every tracked manifest matching that shape,
+so the check and refresh targets stay in step as fixtures are added, then runs
+``cargo metadata --locked`` per manifest and fails with the manifest path and
+Cargo output when the lockfile is stale.
 
 Usage: ``python3 scripts/check_fixture_lockfiles.py [--refresh] [--list]``.
 
@@ -245,6 +241,40 @@ def cargo_metadata_command(manifest: Path) -> list[str]:
     ]
 
 
+def cargo_refresh_command(manifest: Path) -> list[str]:
+    """Build the ``cargo generate-lockfile`` command for *manifest*."""
+    return [CARGO, "generate-lockfile", "--manifest-path", str(manifest)]
+
+
+def run_cargo_command(
+    command: list[str], manifest: Path
+) -> subprocess.CompletedProcess[str]:
+    """Run a Cargo command for *manifest* and return the captured result.
+
+    Every gate invocation uses the same plumbing: a fixed argv (no shell),
+    captured output, and a non-raising return code so stale lockfiles are
+    reported per fixture instead of aborting the whole run.
+
+    Returns
+    -------
+    subprocess.CompletedProcess[str]
+        The completed invocation with captured output.
+
+    Raises
+    ------
+    FixtureLockfileError
+        Cargo could not be started; the message names it and *manifest*.
+    """
+    try:
+        return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - argv carries a fixed command plus the manifest path; no shell.
+            command, capture_output=True, text=True, check=False
+        )
+    except OSError as error:
+        raise FixtureLockfileError(
+            FixtureLockfileError.cargo_unavailable_message(CARGO, manifest, error)
+        ) from error
+
+
 def run_cargo_metadata(manifest: Path) -> subprocess.CompletedProcess[str]:
     """Run locked ``cargo metadata`` for *manifest* and return the result.
 
@@ -252,32 +282,12 @@ def run_cargo_metadata(manifest: Path) -> subprocess.CompletedProcess[str]:
     re-resolves the manifest against the committed lockfile and fails when the
     two disagree, which is exactly the staleness this gate exists to catch.
 
-    Parameters
-    ----------
-    manifest : Path
-        The standalone fixture manifest to resolve.
-
     Returns
     -------
     subprocess.CompletedProcess[str]
-        The completed Cargo invocation with captured output.
-
-    Raises
-    ------
-    FixtureLockfileError
-        The Cargo executable could not be started at all.
+        The completed invocation; errors per :func:`run_cargo_command`.
     """
-    try:
-        return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - argv carries a fixed command plus the manifest path; no shell.
-            cargo_metadata_command(manifest),
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    except OSError as error:
-        raise FixtureLockfileError(
-            FixtureLockfileError.cargo_unavailable_message(CARGO, manifest, error)
-        ) from error
+    return run_cargo_command(cargo_metadata_command(manifest), manifest)
 
 
 def refresh_lockfile(manifest: Path) -> subprocess.CompletedProcess[str]:
@@ -286,49 +296,59 @@ def refresh_lockfile(manifest: Path) -> subprocess.CompletedProcess[str]:
     Cargo's own lockfile writer produces the committed artefact; the script
     never hand-edits package records or checksums.
 
-    Parameters
-    ----------
-    manifest : Path
-        The standalone fixture manifest whose lockfile should be regenerated.
-
     Returns
     -------
     subprocess.CompletedProcess[str]
-        The completed Cargo invocation with captured output.
-
-    Raises
-    ------
-    FixtureLockfileError
-        The Cargo executable could not be started at all.
+        The completed invocation; errors per :func:`run_cargo_command`.
     """
-    try:
-        return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - argv carries a fixed command plus the manifest path; no shell.
-            [CARGO, "generate-lockfile", "--manifest-path", str(manifest)],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-    except OSError as error:
-        raise FixtureLockfileError(
-            FixtureLockfileError.cargo_unavailable_message(CARGO, manifest, error)
-        ) from error
+    return run_cargo_command(cargo_refresh_command(manifest), manifest)
+
+
+def collect_fixture_results(
+    root: Path,
+    manifests: list[Path],
+    prepare: cabc.Callable[[Path], object] | None = None,
+) -> list[tuple[Path, subprocess.CompletedProcess[str]]]:
+    """Return the failing locked-metadata results for *manifests*.
+
+    Each manifest is optionally prepared (refresh mode regenerates its lockfile
+    first), then validated with locked ``cargo metadata``; the loop never
+    stops at the first failure so one gate run reports every stale fixture.
+
+    Parameters
+    ----------
+    root : Path
+    manifests : list[Path]
+    prepare : cabc.Callable[[Path], object] | None, optional
+        Operation run per manifest before validation, or None. Check mode
+        passes nothing; refresh mode passes :func:`refresh_lockfile`.
+
+    Returns
+    -------
+    list[tuple[Path, subprocess.CompletedProcess[str]]]
+        Every ``(manifest, result)`` pair whose lockfile failed to resolve.
+    """
+    failures: list[tuple[Path, subprocess.CompletedProcess[str]]] = []
+    for manifest in manifests:
+        if prepare is not None:
+            prepare(manifest)
+        result = run_cargo_metadata(manifest)
+        if result.returncode != 0:
+            failures.append((manifest, result))
+    return failures
 
 
 def check_fixtures(root: Path, manifests: list[Path]) -> int:
     """Validate every fixture lockfile, returning the process exit code."""
-    failures: list[str] = []
-    for manifest in manifests:
-        display = manifest.relative_to(root)
-        result = run_cargo_metadata(manifest)
-        if result.returncode != 0:
-            failures.append(
-                stale_failure_message(
-                    display,
-                    cargo_metadata_command(manifest),
-                    result.stdout,
-                    result.stderr,
-                )
-            )
+    failures = [
+        stale_failure_message(
+            manifest.relative_to(root),
+            cargo_metadata_command(manifest),
+            result.stdout,
+            result.stderr,
+        )
+        for manifest, result in collect_fixture_results(root, manifests)
+    ]
     if failures:
         print_failures(failures)
         print_check_summary(len(manifests), len(failures))
@@ -339,20 +359,16 @@ def check_fixtures(root: Path, manifests: list[Path]) -> int:
 
 def refresh_fixtures(root: Path, manifests: list[Path]) -> int:
     """Regenerate every fixture lockfile, returning the process exit code."""
-    failures: list[str] = []
-    for manifest in manifests:
-        display = manifest.relative_to(root)
-        refresh_lockfile(manifest)
-        result = run_cargo_metadata(manifest)
-        if result.returncode != 0:
-            failures.append(
-                refresh_failure_message(
-                    display,
-                    cargo_metadata_command(manifest),
-                    result.stdout,
-                    result.stderr,
-                )
-            )
+    results = collect_fixture_results(root, manifests, prepare=refresh_lockfile)
+    failures = [
+        refresh_failure_message(
+            manifest.relative_to(root),
+            cargo_metadata_command(manifest),
+            result.stdout,
+            result.stderr,
+        )
+        for manifest, result in results
+    ]
     if failures:
         print_failures(failures)
         print_refresh_summary(len(manifests), len(failures))
