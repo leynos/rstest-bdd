@@ -582,15 +582,26 @@ test run. nextest's global timeout starts only once tests begin. A watchdog
 merely larger than the global timeout is still pre-empting it whenever the build
 takes longer than the difference between them.
 
-The far end matters as well. A test already running when the global timeout
-expires is allowed to finish, so a run can outlast that budget by the longest
-per-test allowance, 20 minutes here. Whether that tail is ever reached or not,
-allowing for it costs nothing, because the watchdog only fires on an overrun.
+The far end matters as well, though less than it first appears. Hitting the
+global timeout does not stop the run instantly: nextest follows its ordinary
+termination procedure, signalling the process group on Unix and waiting
+`slow-timeout.grace-period`, five seconds here, before killing it. On Windows
+termination is immediate and the grace period is ignored for timeouts. So the
+allowance is seconds rather than minutes, but it is not zero.
 
-The watchdog is therefore sized as the global timeout, plus the running-test
-tail, plus a cold-build allowance: 75 m + 20 m + 15 m = 110 m. The build phase
-inside `cargo` measured 3 m 31 s on run 33966769942 with a nearly cold cache, so
-the 15 minutes is generous on purpose.
+The watchdog is therefore sized as the global timeout, plus a termination
+allowance of one minute, plus a cold-build allowance: 75 m + 1 m + 15 m, taken
+up to 110 m. The build phase inside `cargo` measured 3 m 31 s on run
+33966769942 with a nearly cold cache, so the 15 minutes is generous on purpose,
+and the extra minutes of rounding cost nothing because the watchdog only fires
+on an overrun.
+
+This paragraph previously claimed that a test already running when the global
+timeout expires is allowed to finish, and sized the middle term at the 20 minute
+trybuild allowance. That was wrong, and it is recorded here rather than quietly
+replaced because the other repositories adopting this contract copy this
+section. The numbers did not change: the value chosen from the wrong premise is
+larger than the corrected rule requires.
 
 The job timer starts when the job starts, long before coverage and long after it
 finishes. On the Linux lane, formatting, linting, type checking and the
