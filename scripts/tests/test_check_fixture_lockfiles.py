@@ -12,6 +12,7 @@ import subprocess  # ruff: ignore[suspicious-subprocess-import] - tests build st
 from pathlib import Path
 from unittest import mock
 
+import check_fixture_lockfiles
 import pytest
 from check_fixture_lockfiles import (
     FixtureLockfileError,
@@ -20,6 +21,7 @@ from check_fixture_lockfiles import (
     discover_fixture_manifests,
     is_staged_fixture,
     is_workspace_root,
+    refresh_fixtures,
     run_cargo_metadata,
 )
 
@@ -124,6 +126,47 @@ def test_check_gate_fails_before_nested_cargo_tests_run() -> None:
     assert exit_code == 1, "a stale fixture lockfile must fail the gate"
     assert metadata.call_count == len(manifests), (
         "the gate must check every discovered fixture, not stop at the first"
+    )
+
+
+def test_refresh_mode_regenerates_before_validating() -> None:
+    """Refresh mode regenerates each lockfile before locked-metadata validation."""
+    manifests = discover_fixture_manifests(REPO_ROOT)
+    events: list[str] = []
+    observed: list[Path] = []
+    successful = subprocess.CompletedProcess(
+        args=cargo_metadata_command(manifests[0]),
+        returncode=0,
+        stdout="",
+        stderr="",
+    )
+
+    def record_refresh(manifest: Path) -> None:
+        """Record a refresh event in the shared call-order log."""
+        events.append("refresh")
+        observed.append(manifest)
+
+    def record_metadata(manifest: Path) -> subprocess.CompletedProcess[str]:
+        """Record a validation event in the shared call-order log."""
+        events.append("metadata")
+        observed.append(manifest)
+        return successful
+
+    with (
+        mock.patch.object(
+            check_fixture_lockfiles, "refresh_lockfile", side_effect=record_refresh
+        ),
+        mock.patch.object(
+            check_fixture_lockfiles, "run_cargo_metadata", side_effect=record_metadata
+        ),
+    ):
+        exit_code = refresh_fixtures(REPO_ROOT, manifests)
+    assert exit_code == 0, "valid refreshed fixtures must pass the gate"
+    assert events == ["refresh", "metadata"] * len(manifests), (
+        "each fixture must be regenerated before its locked-metadata validation"
+    )
+    assert observed == [m for m in manifests for _ in range(2)], (
+        "every discovered fixture must be visited in order"
     )
 
 
