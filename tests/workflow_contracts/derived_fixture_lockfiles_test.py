@@ -1,15 +1,19 @@
-"""Contract tests for the Dependabot fixture-lockfile refresh workflow.
+"""Contract tests for the derived fixture-lockfile workflow.
 
 The workflow has permission to write only because Cargo manifests changed by
-Dependabot can alter the dependency resolution of the two independent
-published-GPUI fixtures.  These tests constrain that authority to Dependabot
-pull requests, the checked-out pull request head and the two generated
-lockfiles.  They also keep the workflow limited to its lock-refresh targets;
-the ordinary CI workflow continues to build and exercise the fixtures.
+Dependabot can alter the dependency resolution of the standalone fixture
+workspaces registered in the Makefile's ``DERIVED_LOCKFILE_MANIFESTS``.  These
+tests constrain that authority to Dependabot pull requests, the checked-out
+pull request head and the registered generated lockfiles.  They also keep the
+workflow limited to the centralized lock-refresh target and prevent the
+registry from drifting away from the lockfiles actually tracked in the
+repository; the ordinary CI workflow continues to build and exercise the
+fixtures and now fails early on stale locks for every contributor.
 
 Run via ``make test-workflow-contracts``.
 """
 
+import re
 from pathlib import Path
 
 import pytest
@@ -18,10 +22,6 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_PATH = ROOT / ".github" / "workflows" / "refresh-derived-fixture-lockfiles.yml"
 CI_WORKFLOW_PATH = ROOT / ".github" / "workflows" / "ci.yml"
-LOCKFILES = [
-    "tests/fixtures/published-gpui-0-2-2/Cargo.lock",
-    "tests/fixtures/published-gpui-e2e/Cargo.lock",
-]
 MANIFEST_PATHS = [
     "Cargo.toml",
     "crates/**/Cargo.toml",
@@ -77,6 +77,61 @@ def _ci_setup_rust_uses(workflow: dict[str, object]) -> str:
     uses = setup.get("uses")
     assert isinstance(uses, str), "CI's Setup Rust step must use an action"
     return uses
+
+
+def _makefile_registry() -> list[str]:
+    """Return the standalone fixture manifests registered in the Makefile.
+
+    Returns
+    -------
+    list[str]
+        Manifest paths exactly as ``make derived-lockfile-paths`` prints them.
+
+    The registry lives in ``DERIVED_LOCKFILE_MANIFESTS`` so the check, the
+    refresh targets and the workflow's commit surface share one list.  Parse
+    the variable block so the contract holds without executing Make.
+    """
+    makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
+    block = re.search(
+        r"^DERIVED_LOCKFILE_MANIFESTS :?= \\\n((?:\t.*\\\n)+)\t(\S+)\n",
+        makefile,
+        re.MULTILINE,
+    )
+    assert block, "Makefile must declare DERIVED_LOCKFILE_MANIFESTS"
+    entries = [
+        line.strip().rstrip("\\").strip() for line in block.group(1).splitlines()
+    ]
+    entries.append(block.group(2))
+    manifests = [entry for entry in entries if entry]
+    assert manifests, "the derived-lockfile registry must not be empty"
+    return manifests
+
+
+def _tracked_standalone_lockfiles() -> set[Path]:
+    """Return tracked Cargo.lock files outside the root workspace lock.
+
+    Returns
+    -------
+    set[Path]
+        Tracked lockfiles whose manifest declares its own ``[workspace]``.
+
+    A standalone fixture workspace is a manifest declaring its own empty
+    ``[workspace]`` stanza; the root lockfile belongs to the workspace the
+    repository's ``Cargo.toml`` defines and is never part of the registry.
+    """
+    lockfiles: set[Path] = set()
+    for path in ROOT.rglob("Cargo.lock"):
+        relative = path.relative_to(ROOT)
+        if relative == Path("Cargo.lock"):
+            continue
+        top_level = relative.parts[0]
+        if not path.is_file() or top_level in {"target", ".vtcode"}:
+            continue
+        manifest = path.with_name("Cargo.toml")
+        manifest_text = manifest.read_text(encoding="utf-8")
+        if re.search(r"^\[workspace\]\s*$", manifest_text, re.MULTILINE):
+            lockfiles.add(relative)
+    return lockfiles
 
 
 @pytest.fixture(scope="module")
@@ -154,10 +209,10 @@ def test_refresh_commit_and_push_touch_only_generated_lockfiles(
     refresh_job: dict[str, object],
 ) -> None:
     """The job runs only refresh targets then commits and pushes their output."""
-    refresh = _named_step(refresh_job, "Refresh published GPUI fixture lockfiles")
-    assert refresh.get("run") == (
-        "make update-published-gpui-0-2-2-lock\nmake update-published-gpui-e2e-lock\n"
-    ), "the refresh step must update both published fixture lockfiles"
+    refresh = _named_step(refresh_job, "Refresh derived fixture lockfiles")
+    assert refresh.get("run") == ("make update-derived-lockfiles\n"), (
+        "the refresh step must run the centralized derived-lockfile target"
+    )
 
     author = _named_step(refresh_job, "Configure Git author")
     assert author.get("run") == (
@@ -169,16 +224,19 @@ def test_refresh_commit_and_push_touch_only_generated_lockfiles(
     commit = _named_step(refresh_job, "Commit refreshed lockfiles")
     commit_script = commit.get("run")
     expected_commit_script = (
+        "# `make update-derived-lockfiles` owns the registered lockfile set;\n"
+        "# derive the commit surface from the same registry instead of\n"
+        "# restating the list here, so the workflow cannot drift from the\n"
+        "# Makefile.\n"
+        'lockfiles="$(make --no-print-directory derived-lockfile-paths)"\n'
         "if git diff --quiet -- \\\n"
-        "  tests/fixtures/published-gpui-0-2-2/Cargo.lock \\\n"
-        "  tests/fixtures/published-gpui-e2e/Cargo.lock; then\n"
+        "  $lockfiles; then\n"
         "  echo 'changed=false' >> \"$GITHUB_OUTPUT\"\n"
         "  exit 0\n"
         "fi\n"
         "git add -- \\\n"
-        "  tests/fixtures/published-gpui-0-2-2/Cargo.lock \\\n"
-        "  tests/fixtures/published-gpui-e2e/Cargo.lock\n"
-        "git commit -m 'chore(deps): refresh published GPUI fixture lockfiles'\n"
+        "  $lockfiles\n"
+        "git commit -m 'chore(deps): refresh derived fixture lockfiles'\n"
         "echo 'changed=true' >> \"$GITHUB_OUTPUT\"\n"
     )
     assert commit_script == expected_commit_script, (
@@ -193,3 +251,41 @@ def test_refresh_commit_and_push_touch_only_generated_lockfiles(
         push.get("run")
         == "git push origin HEAD:${{ github.event.pull_request.head.ref }}"
     ), "the push step must push the refreshed lockfiles to the pull-request head"
+
+
+def test_registry_covers_every_tracked_standalone_lockfile() -> None:
+    """The Makefile registry must list every tracked standalone fixture lock.
+
+    A standalone Cargo workspace whose ``Cargo.lock`` is committed has to be
+    validated by ``make check-derived-lockfiles``; if it is missing from
+    ``DERIVED_LOCKFILE_MANIFESTS``, a dependency change elsewhere in the
+    repository can stale its lockfile and only the fixture's next ``--locked``
+    build would notice.
+    """
+    registered = {Path(manifest) for manifest in _makefile_registry()}
+    registered_lockfiles = {manifest.with_name("Cargo.lock") for manifest in registered}
+    assert registered_lockfiles == _tracked_standalone_lockfiles(), (
+        "DERIVED_LOCKFILE_MANIFESTS must match the tracked standalone fixture"
+        " workspaces exactly; register new fixtures in the Makefile registry"
+    )
+
+
+def test_ci_fails_early_on_stale_derived_lockfiles() -> None:
+    """Normal contributor PRs must get the stale-lockfile signal from CI.
+
+    The check runs before the fixture-specific ``--locked`` steps so the
+    failure names the refresh target, and it needs no write permission: the
+    Dependabot-only repair workflow keeps its restricted scope.
+    """
+    ci = _load(CI_WORKFLOW_PATH)
+    jobs = ci.get("jobs")
+    assert isinstance(jobs, dict), "CI must declare jobs"
+    build_test = jobs.get("build-test")
+    assert isinstance(build_test, dict), "CI must declare jobs.build-test"
+    check = _named_step(build_test, "Check derived fixture lockfiles")
+    assert check.get("run") == "make check-derived-lockfiles", (
+        "CI must run the centralized derived-lockfile check"
+    )
+    assert check.get("if") == "${{ matrix.tools && runner.os == 'Linux' }}", (
+        "the check must run once, on the Linux tools lane, without write access"
+    )

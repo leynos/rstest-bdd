@@ -9,9 +9,13 @@ graph satisfied.
 
 After bumping workspace versions:
 
-- Run `make update-ui-lints-lock` and commit the updated
-  `crates/rstest-bdd/tests/ui_lints/Cargo.lock` to capture any new transitive
-  dependencies introduced since the last release.
+- Run `make update-derived-lockfiles` and commit the refreshed standalone
+  fixture lockfiles to capture any new transitive dependencies introduced
+  since the last release. `make check-derived-lockfiles` then confirms every
+  registered fixture lock still matches its dependency inputs.
+- Run `make update-derived-lockfiles` and commit the updated standalone
+  fixture lockfiles; `make check-derived-lockfiles` confirms every registered
+  fixture lock still matches its dependency inputs.
 - Run `make e2e-published-gpui` to execute the isolated, nightly-pinned
   crates.io GPUI stateful scenario. This validates the packaged
   `rstest-bdd-harness-gpui` surface separately from the stable workspace test
