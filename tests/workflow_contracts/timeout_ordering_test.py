@@ -52,10 +52,13 @@ COVERAGE_ACTION: typ.Final[str] = "shared-actions/.github/actions/generate-cover
 COLD_BUILD_ALLOWANCE_SECONDS: typ.Final[float] = 15 * 60.0
 
 #: Everything in the job that is not the coverage step. The job timer
-#: covers it; the watchdog does not. Measured at 14 m 03 s before and
-#: 36 m 41 s after on run 33971821695, the latter almost entirely the
-#: publish dry run.
-NON_COVERAGE_ALLOWANCE_SECONDS: typ.Final[float] = 55 * 60.0
+#: covers it; the watchdog does not. Taken from the worst of several
+#: runs rather than one: 14 m 03 s before and 36 m 41 s after on run
+#: 33971821695, against 37 m 34 s before and 30 m 59 s after on this
+#: branch's own cold run, where the published-GPUI fixture check and
+#: end-to-end scenario ran at 8 m 19 s and 13 m 07 s rather than about
+#: three minutes each. 75 minutes covers the worse pair with room.
+NON_COVERAGE_ALLOWANCE_SECONDS: typ.Final[float] = 75 * 60.0
 
 #: ``30s``, ``5m``, ``20 m``: the durations nextest accepts here.
 _DURATION: typ.Final[re.Pattern[str]] = re.compile(

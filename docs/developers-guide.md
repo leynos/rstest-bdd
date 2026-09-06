@@ -565,7 +565,7 @@ so it is worth knowing which is which and in what order they can fire.
 | Per-test `slow-timeout` | one test | `.config/nextest.toml` | 60 s default, 20 m for the trybuild binaries |
 | nextest `global-timeout` | the whole test run | `.config/nextest.toml` | 75 m |
 | Cargo watchdog | one `cargo` invocation, wall clock | `RUN_RUST_CARGO_WAIT_TIMEOUT` on the coverage steps in `ci.yml` | 6,600 s (110 m) |
-| Job `timeout-minutes` | the whole job | `ci.yml`, job level | 170 m |
+| Job `timeout-minutes` | the whole job | `ci.yml`, job level | 190 m |
 
 Each tier must sit above the one before it. If the watchdog sits below the
 nextest global timeout, as it did until this was written, the run is killed
@@ -595,9 +595,12 @@ the 15 minutes is generous on purpose.
 The job timer starts when the job starts, long before coverage and long after it
 finishes. On the Linux lane, formatting, linting, type checking and the
 published-GPUI end-to-end scenario run first, and the publish dry run follows.
-Measured on run 33971821695: 14 m 03 s before coverage and 36 m 41 s after, so
-just under 51 minutes of the job lies outside the watchdog's window. The job
-ceiling is therefore 110 m + 55 m = 165 m, rounded to 170. A job ceiling merely
+Measured across runs rather than one: 14 m 03 s before coverage and 36 m 41 s
+after on run 33971821695, against 37 m 34 s before and 30 m 59 s after on the
+cold run that carried this change, where the published-GPUI fixture check and
+end-to-end scenario took 8 m 19 s and 13 m 07 s rather than about three minutes
+each. Just over 68 minutes of that job lay outside the watchdog's window. The
+ceiling is therefore 110 m + 75 m = 185 m, rounded to 190. A job ceiling merely
 above the watchdog would cancel the run before the watchdog could report it, and
 a cancellation discards the log that would have explained the overrun.
 
@@ -631,6 +634,13 @@ The Linux coverage step was measured on `ubicloud-standard-2`:
 | 33966133264 | 11 m 20 s | warm |
 | 33975538044 | 22 m 16 s | typical |
 | 33971821695 | 30 m 33 s | cold |
+| this change's own run | 42 m 02 s | cold |
+
+That last row is why the earlier numbers were not enough. Each of the first
+three was the coldest run available when it was taken, and each was beaten. At
+1,800 s this run would have been killed with twelve minutes of work left; the
+job itself took 1 h 50 m, so the former 90 minute ceiling would have cancelled
+it even with a larger watchdog in place.
 
 A dependabot bump to `syn` on 2026-09-05 served 9 % of Rust compile requests
 from the cache and was killed by the watchdog at 1,800 s with 1,894 of 1,897
