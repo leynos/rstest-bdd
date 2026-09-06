@@ -1,6 +1,5 @@
 //! Behavioural test covering struct-based step arguments.
 
-use proptest::prelude::*;
 use rstest::{fixture, rstest};
 use rstest_bdd::Slot;
 use rstest_bdd_macros::{ScenarioState, StepArgs, given, scenario, then, when};
@@ -260,37 +259,6 @@ fn named_capture_order_does_not_change_step_args_binding(
             amount: 42,
         },
     );
-}
-
-proptest! {
-    #[test]
-    fn generated_named_capture_binding_is_order_independent(
-        order in prop::sample::select(vec![
-            [0_usize, 1, 2], [0, 2, 1], [1, 0, 2], [1, 2, 0], [2, 0, 1], [2, 1, 0],
-        ]),
-    ) {
-        let captures = order.into_iter().map(|index| {
-            let (name, value) = match index {
-                0 => ("sender", "Alice"),
-                1 => ("amount", "42"),
-                2 => ("recipient", "Bob"),
-                _ => unreachable!("the permutation strategy produces only capture indexes"),
-            };
-            rstest_bdd::StepCapture { name, value: String::from(value) }
-        }).collect();
-
-        let transfer = <ReorderedTransfer as rstest_bdd::StepArgs>::from_named_captures(captures)
-            .expect("every generated permutation should populate the transfer");
-
-        prop_assert_eq!(
-            transfer,
-            ReorderedTransfer {
-                recipient: String::from("Bob"),
-                from: String::from("Alice"),
-                amount: 42,
-            },
-        );
-    }
 }
 
 #[test]
