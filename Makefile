@@ -52,7 +52,7 @@ SPELLING_HELPER_PYTEST = PYTHONPATH=scripts $(UV_ENV) $(UV) run --no-project \
 	--with pytest-cov==7.0.0 python -m pytest
 # Shared Markdown file list used by markdownlint and the spelling gate.
 MD_FILES_FIND = find . -type f -name '*.md' -not -path '*/target/*' -not -path '*/node_modules/*' -not -path './.vtcode/*' -print0
-LADING_REF ?= e0a8d43fa3d6d7598cad0d4c25883e7ea625feb9
+LADING_REF ?= c3740ef48da4c89752fcb98fff4f1c27284e5f12
 LADING_SPEC ?= lading @ git+https://github.com/leynos/lading@$(LADING_REF)
 PYTHON_TARGETS ?= $(filter-out $(SPELLING_PY_SRCS),$(shell find scripts tests/workflow_contracts -type f -name "*.py" -print | sort))
 PYLINT_PYTHON ?= pypy

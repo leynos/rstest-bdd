@@ -30,7 +30,7 @@ jobs:
       CODESCENE_CLI_SHA256: ${{ vars.CODESCENE_CLI_SHA256 }}
       RUSTFLAGS: -D warnings
       RUSTDOCFLAGS: -D warnings
-      LADING_REF: e0a8d43fa3d6d7598cad0d4c25883e7ea625feb9
+      LADING_REF: c3740ef48da4c89752fcb98fff4f1c27284e5f12
       BUN_VERSION: '1.2.21'
       MERMAID_CLI_VERSION: '11.9.0'
       MERMAN_CLI_VERSION: '0.7.0'
@@ -640,7 +640,63 @@ jobs:
       # the Windows lanes. Keep it to the one portable command; the disk the
       # publish build starts with is the reading the discard step prints last.
       - name: Publish dry run
+        env:
+          # lading v0.3.0 can report the compiler cache around each
+          # packaged build. Set here rather than in the Makefile so a
+          # local `make publish-check` stays quiet and the file lands
+          # where the upload step below can find it. The statistics are
+          # differenced around each invocation rather than zeroed, so the
+          # end-of-job sccache report keeps its meaning (rstest-bdd#720,
+          # leynos/shared-actions#459).
+          LADING_SCCACHE_STATS_JSON: ${{ runner.temp }}/sccache-publish.json
         run: make publish-check
+
+      # Runs whatever the publish step did, so an absent or malformed
+      # report is reported rather than inferred from an empty artefact.
+      # It never fails the job: the report is evidence about a build, not
+      # the build, and a publish that failed before lading wrote anything
+      # has already failed the job on its own account.
+      # Runs whatever the publish step did, so an absent or malformed
+      # report is reported rather than inferred from an empty artefact.
+      # It never fails the job: the report is evidence about a build, not
+      # the build, and a publish that failed before lading wrote anything
+      # has already failed the job on its own account.
+      - name: Verify publish-step compiler-cache statistics
+        if: ${{ always() && runner.os == 'Linux' }}
+        shell: bash
+        env:
+          STATS_PATH: ${{ runner.temp }}/sccache-publish.json
+        run: |
+          set -uo pipefail
+          warn() {
+            echo "::warning title=publish-statistics::$1"
+          }
+          if [[ ! -f "${STATS_PATH}" ]]; then
+            warn "lading wrote no compiler-cache report to ${STATS_PATH}; either the publish step failed before lading ran, or the resolved lading predates LADING_SCCACHE_STATS_JSON. This run's publish cost is unattributable."
+            exit 0
+          fi
+          if [[ ! -s "${STATS_PATH}" ]]; then
+            warn "${STATS_PATH} is empty; lading created it but wrote no report."
+            exit 0
+          fi
+          if ! python3 -c 'import json, os; json.load(open(os.environ["STATS_PATH"]))'; then
+            warn "${STATS_PATH} is not valid JSON, so the publish step's compiler-cache report cannot be read."
+            exit 0
+          fi
+          echo 'Publish-step compiler-cache report:'
+          cat "${STATS_PATH}"
+
+      - name: Upload publish-step compiler-cache statistics
+        if: ${{ always() && runner.os == 'Linux' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: sccache-publish-${{ matrix.os }}-${{ strategy.job-index }}
+          path: ${{ runner.temp }}/sccache-publish.json
+          # `warn`, not `ignore`: the verification step above says why the
+          # file is missing, and a silent upload of nothing looks the same
+          # as an upload of a report nobody read.
+          if-no-files-found: warn
+          retention-days: 7
 
       # Exactly one writer per key: the default-features lane on trunk, per
       # runner operating system, because every key carries `runner.os`.

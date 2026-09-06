@@ -223,6 +223,59 @@ after installing `sccache`, and the final step publishes `sccache --show-stats`
 in text and JSON to the job summary alongside every cache key, hit result, and
 the backend in use.
 
+#### Attributing the publish step's share
+
+The end-of-job report is job-wide, so it cannot say what any one step spent.
+That matters most for the publish dry run, which is the longest step in the
+lane and, until lading v0.3.0, said nothing at all about its compiler cache.
+
+Setting `LADING_SCCACHE_STATS_JSON` on that step makes lading read `sccache`
+around each packaged build and write the results to a file, uploaded as the
+`sccache-publish-*` artefact. The figures are differenced around each
+invocation rather than obtained by zeroing the counters, so the end-of-job
+report keeps its meaning; a tool that zeroed them would silently make every
+later reading a partial one.
+
+The variable is set on the workflow step rather than in the Makefile, so a
+local `make publish-check` stays quiet and the file lands where the upload step
+expects it. `lading_pin_test.py` asserts that the step still asks for the
+statistics and that the file is uploaded, because a file written into the
+runner's temporary directory and never collected is discarded with the runner.
+
+A verification step sits between the two. It reads the report the publish step
+wrote, parses it, and prints it to the log, and where the file is absent, empty
+or unparsable it says which and why. That distinction is the point: an absent
+report and a report nobody opened look identical in the artefact list, so a
+lading that stopped writing the file would read as an uneventful run. The step
+never fails the job, because the report is evidence about a build rather than
+the build itself, and a publish that failed before lading ran has already
+failed on its own account. Both it and the upload carry
+`${{ always() && runner.os == 'Linux' }}`: without `always()` the run whose
+cost is most worth reading, the failed one, would upload nothing, and without
+the Linux guard the Windows lanes, which never write the file, would report a
+missing one every time. The upload's `if-no-files-found` is `warn` rather than
+`ignore` for the same reason.
+
+`make publish-check` depends on `stage-published-gpui-e2e`, which extracts
+packaged crates from `target/package/`. That path, and five others in the
+Makefile including the `target/%/$(APP)` build rules, name the target directory
+literally, so none of them work under a `CARGO_TARGET_DIR` that points outside
+the tree. Run these targets without such an override. Making them read the
+directory from `cargo metadata` would be a Makefile-wide change rather than a
+fix to one recipe, and is worth doing only if the shared-cache layout is wanted
+here.
+
+lading is pinned three times: in `ci.yml`, in the Makefile, and in
+`pyproject.toml`'s `python-tools` group for a bare `uv run lading`. The same
+contract asserts all three agree and that the pin is a commit rather than a tag.
+Drift there would be quiet: every side keeps working while validating publish
+readiness against different versions.
+
+The project group is the easiest of the three to forget, because the Makefile's
+`--with` overlay masks it. `make publish-check` resolves the Makefile's pin
+whatever the group holds, so the group can sit generations behind without any
+command failing, which is exactly where it was found.
+
 Check each `main` run with `ubi gh leynos/rstest-bdd list-cache-entries`. It
 must show the archive keys and the `sccache` objects on Ubicloud's side before
 any warm-cache measurement is trustworthy. That was verified on 2026-09-03 at
