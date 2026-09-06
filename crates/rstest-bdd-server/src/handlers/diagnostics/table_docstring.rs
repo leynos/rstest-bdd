@@ -236,11 +236,12 @@ fn build_ambiguous_step_diagnostic(
     step: &IndexedStep,
     candidates: &[Arc<CompiledStepDefinition>],
 ) -> Diagnostic {
-    let definitions = candidates
+    let mut definitions = candidates
         .iter()
         .map(|candidate| format!("{} `{}`", candidate.library, candidate.pattern))
-        .collect::<Vec<_>>()
-        .join(", ");
+        .collect::<Vec<_>>();
+    definitions.sort_unstable();
+    let definitions = definitions.join(", ");
     build_step_diagnostic(
         feature_index,
         step,

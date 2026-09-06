@@ -1,5 +1,4 @@
 //! Text document notification handlers update shared state before publishing diagnostics via LSP.
-
 use lsp_types::DidSaveTextDocumentParams;
 use metrics::{counter, describe_counter};
 use tracing::{debug, warn};
@@ -26,10 +25,8 @@ use crate::{
     },
     server::ServerState,
 };
-
 /// Metric name for indexing outcomes.
 const INDEXING_COUNTER: &str = "rstest_bdd_server_indexing_total";
-
 /// Record one indexing operation outcome.
 fn record_indexing_outcome(operation: &'static str, outcome: &'static str) {
     describe_counter!(
@@ -38,7 +35,6 @@ fn record_indexing_outcome(operation: &'static str, outcome: &'static str) {
     );
     counter!(INDEXING_COUNTER, "operation" => operation, "outcome" => outcome).increment(1);
 }
-
 /// Convert a feature indexing error to its fixed metric outcome.
 fn feature_indexing_outcome(error: &FeatureIndexError) -> &'static str {
     match error {
@@ -50,7 +46,6 @@ fn feature_indexing_outcome(error: &FeatureIndexError) -> &'static str {
         FeatureIndexError::DocstringSpanNotFound(_) => "docstring-span-failure",
     }
 }
-
 /// Convert a Rust indexing error to its fixed metric outcome.
 fn rust_indexing_outcome(error: &RustStepIndexError) -> &'static str {
     match error {
@@ -58,7 +53,6 @@ fn rust_indexing_outcome(error: &RustStepIndexError) -> &'static str {
         RustStepIndexError::Parse(_) => "parse-failure",
     }
 }
-
 /// Handle `textDocument/didSave` notifications.
 ///
 /// When a saved document is a `.feature` file or a Rust source file, the
@@ -186,18 +180,25 @@ pub(super) fn apply_rust_source_index_result(
     index_result: Result<RustSourceIndexResult, RustStepIndexError>,
     diagnostic_publication: FeatureDiagnosticPublication,
 ) {
-    let step_result = index_result.map(|result| {
-        let RustSourceIndexResult {
-            steps,
-            scenario_bindings,
-            scenario_binding_diagnostics,
-        } = result;
-        state.upsert_rust_scenario_bindings(path, scenario_bindings);
-        for diagnostic in scenario_binding_diagnostics {
-            diagnostic.emit_warning();
+    let step_result = match index_result {
+        Ok(result) => {
+            let RustSourceIndexResult {
+                steps,
+                scenario_bindings,
+                scenario_binding_diagnostics,
+            } = result;
+            state.upsert_rust_scenario_bindings(path, scenario_bindings);
+            for diagnostic in scenario_binding_diagnostics {
+                record_indexing_outcome("scenario-binding", diagnostic.failure_category());
+                diagnostic.emit_warning();
+            }
+            Ok(steps)
         }
-        steps
-    });
+        Err(error) => {
+            state.upsert_rust_scenario_bindings(path, Vec::new());
+            Err(error)
+        }
+    };
     apply_rust_index_result(state, path, step_result, diagnostic_publication);
 }
 

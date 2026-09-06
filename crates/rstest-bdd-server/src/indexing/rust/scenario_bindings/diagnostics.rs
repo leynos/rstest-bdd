@@ -7,7 +7,7 @@ use syn::spanned::Spanned;
 /// Why one scenario binding could not contribute a library scope.
 pub(super) enum BindingIndexFailure {
     /// The macro arguments did not match the supported binding grammar.
-    Malformed(String),
+    Malformed,
     /// The binding did not include a feature file or directory.
     MissingPath,
 }
@@ -40,20 +40,23 @@ impl ScenarioBindingIndexDiagnostic {
         }
     }
 
+    /// Return the fixed category used for bounded indexing metrics.
+    pub(crate) fn failure_category(&self) -> &'static str {
+        match &self.failure {
+            BindingIndexFailure::Malformed => "malformed-arguments",
+            BindingIndexFailure::MissingPath => "missing-path",
+        }
+    }
+
     /// Emit the deferred warning at the language-server application boundary.
     pub(crate) fn emit_warning(&self) {
-        let (failure_category, error) = match &self.failure {
-            BindingIndexFailure::Malformed(error) => ("malformed-arguments", error.as_str()),
-            BindingIndexFailure::MissingPath => ("missing-path", "binding has no feature target"),
-        };
         tracing::warn!(
             operation = "index-scenario-binding",
             source_path = %self.source_path.display(),
             source_line = self.source_line,
             source_column = self.source_column,
-            failure_category,
+            failure_category = self.failure_category(),
             fallback_state = "global-library",
-            error,
             "ignored scenario binding while indexing its closed step-library scope"
         );
     }

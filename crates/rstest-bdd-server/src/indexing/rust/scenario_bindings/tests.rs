@@ -125,6 +125,6 @@ fn classifies_ignored_binding_failures() {
     ));
     assert!(matches!(
         parse_binding_arguments(&malformed_path),
-        Err(BindingIndexFailure::Malformed(_))
+        Err(BindingIndexFailure::Malformed)
     ));
 }

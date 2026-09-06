@@ -3094,6 +3094,22 @@ binary via Zed's `settings.json`:
 
 Diagnostics and navigation require saving files to trigger indexing.
 
+### Language-server step-library scopes
+
+The language server reads the library selection from Rust bindings that use
+`#[scenario]` or `scenarios!`. When `libraries = [...]` is omitted, the
+binding selects only `rstest_bdd::global`. An explicit list is closed, so
+completion, navigation, and feature-step diagnostics consider definitions
+only from the listed libraries; definitions in other libraries do not satisfy
+a missing step.
+
+The selection is associated with the feature binding rather than inferred
+from the order of library entries. Equally specific definitions in selected
+libraries produce an ambiguity diagnostic, while a matching definition in an
+unselected library remains outside the active vocabulary. If bindings for the
+same feature select different library sets, the server reports the conflicting
+scopes and does not guess which vocabulary should apply.
+
 ### Current capabilities
 
 The language server provides the following capabilities:
