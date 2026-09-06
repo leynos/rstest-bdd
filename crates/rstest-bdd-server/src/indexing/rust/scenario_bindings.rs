@@ -310,7 +310,7 @@ fn parse_binding_arguments(
     tokens: &proc_macro2::TokenStream,
 ) -> Result<ParsedBindingArguments, BindingIndexFailure> {
     let arguments = syn::parse2::<BindingArguments>(tokens.clone())
-        .map_err(|error| BindingIndexFailure::Malformed(error.to_string()))?;
+        .map_err(|_| BindingIndexFailure::Malformed)?;
     let path = arguments.path.ok_or(BindingIndexFailure::MissingPath)?;
     Ok(ParsedBindingArguments {
         path,

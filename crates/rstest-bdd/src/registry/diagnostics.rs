@@ -91,10 +91,11 @@ where
             }
             Ok(None) => {}
             Err(error) => tracing::warn!(
-                ?error,
+                operation = "record-bypassed-step",
                 keyword = keyword.as_str(),
-                step_text = text,
-                libraries = ?scenario.scope.libraries(),
+                failure_category = "ambiguous-step",
+                selected_library_count = scenario.scope.libraries().len(),
+                candidate_count = error.candidates.len(),
                 "could not resolve bypassed step in scenario scope"
             ),
         }
