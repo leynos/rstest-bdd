@@ -33,10 +33,10 @@ See "Test timeouts: four tiers, outermost last" in
 ``docs/developers-guide.md``.
 """
 
-import re
 import typing as typ
 
 import pytest
+import timeout_budgets as budgets
 import yaml
 from workflow_support import ROOT
 
@@ -58,11 +58,6 @@ COVERAGE_ACTION: typ.Final[str] = "shared-actions/.github/actions/generate-cover
 #: cache; 15 minutes is that with room to spare.
 COLD_BUILD_ALLOWANCE_SECONDS: typ.Final[float] = 15 * 60.0
 
-#: Floor for the termination allowance, used when the configuration sets
-#: no grace period. Generous against nextest's ten-second default and far
-#: too small to hide a real overrun.
-MINIMUM_TERMINATION_ALLOWANCE_SECONDS: typ.Final[float] = 60.0
-
 #: Everything in the job that is not the coverage step. The job timer
 #: covers it; the watchdog does not. Taken from the worst of several
 #: runs rather than one: 14 m 03 s before and 36 m 41 s after on run
@@ -71,36 +66,6 @@ MINIMUM_TERMINATION_ALLOWANCE_SECONDS: typ.Final[float] = 60.0
 #: end-to-end scenario ran at 8 m 19 s and 13 m 07 s rather than about
 #: three minutes each. 75 minutes covers the worse pair with room.
 NON_COVERAGE_ALLOWANCE_SECONDS: typ.Final[float] = 75 * 60.0
-
-#: ``30s``, ``5m``, ``20 m``: the durations nextest accepts here.
-_DURATION: typ.Final[re.Pattern[str]] = re.compile(
-    r"^\s*(?P<value>\d+(?:\.\d+)?)\s*(?P<unit>ms|s|m|h)\s*$"
-)
-
-_UNIT_SECONDS: typ.Final[dict[str, float]] = {
-    "ms": 0.001,
-    "s": 1.0,
-    "m": 60.0,
-    "h": 3600.0,
-}
-
-
-def _seconds(duration: str) -> float:
-    """Convert a nextest duration to seconds.
-
-    Parameters
-    ----------
-    duration : str
-        A duration as nextest spells it, such as ``"75m"``.
-
-    Returns
-    -------
-    float
-        The duration in seconds.
-    """
-    match = _DURATION.match(duration)
-    assert match is not None, f"unrecognized nextest duration {duration!r}"
-    return float(match["value"]) * _UNIT_SECONDS[match["unit"]]
 
 
 @pytest.fixture(scope="module")
@@ -131,10 +96,6 @@ def ci_workflow() -> dict[str, typ.Any]:
 def global_timeout(nextest_config: str) -> float:
     """Return the default profile's ``global-timeout`` in seconds.
 
-    Read textually rather than through a TOML parser, because the value
-    must be matched to the profile it belongs to and the file declares
-    more than one profile.
-
     Parameters
     ----------
     nextest_config : str
@@ -145,33 +106,19 @@ def global_timeout(nextest_config: str) -> float:
     float
         The default profile's whole-run budget, in seconds.
     """
-    blocks = re.split(r"^\[profile\.", nextest_config, flags=re.MULTILINE)
-    default = next((block for block in blocks if block.startswith("default]")), None)
-    assert default is not None, (
-        "nextest.toml must declare a [profile.default] section; the ordering "
-        "contract has nothing to compare against without one"
-    )
-    match = re.search(r'^global-timeout\s*=\s*"([^"]+)"', default, re.MULTILINE)
-    assert match is not None, (
-        "[profile.default] must set global-timeout; without it the whole-run "
-        "budget is unbounded and the watchdog becomes the only limit"
-    )
-    return _seconds(match[1])
+    return budgets.global_timeout(nextest_config)
 
 
 @pytest.fixture(scope="module")
 def termination_allowance(nextest_config: str) -> float:
     """Return the time nextest may take to stop the run, in seconds.
 
-    Hitting the global timeout starts nextest's ordinary termination
-    procedure rather than stopping the run: on Unix it signals the
-    process group and waits ``slow-timeout.grace-period`` before killing
-    it; on Windows termination is immediate and the grace period is
-    ignored for timeouts.
-
     Read from the configuration rather than fixed, because a profile that
-    raised its grace period past a hard-coded allowance would drift out
-    of the requirement this contract exists to hold.
+    raised its grace period past a hard-coded allowance would drift out of
+    the requirement this contract exists to hold. See
+    :func:`timeout_budgets.termination_allowance`, whose behaviour away
+    from this repository's own five-second grace periods is covered by
+    :mod:`timeout_budgets_test`.
 
     Parameters
     ----------
@@ -184,9 +131,7 @@ def termination_allowance(nextest_config: str) -> float:
         The largest configured grace period, or the floor when that is
         smaller or absent.
     """
-    periods = re.findall(r'grace-period\s*=\s*"([^"]+)"', nextest_config)
-    largest = max((_seconds(period) for period in periods), default=0.0)
-    return max(largest, MINIMUM_TERMINATION_ALLOWANCE_SECONDS)
+    return budgets.termination_allowance(nextest_config)
 
 
 @pytest.fixture(scope="module")
@@ -203,9 +148,7 @@ def largest_slow_timeout(nextest_config: str) -> float:
     float
         The longest per-test budget.
     """
-    periods = re.findall(r'period\s*=\s*"([^"]+)"', nextest_config)
-    assert periods, "nextest.toml must set at least one slow-timeout period"
-    return max(_seconds(period) for period in periods)
+    return budgets.largest_slow_timeout(nextest_config)
 
 
 class CoverageLane(typ.NamedTuple):
@@ -337,14 +280,17 @@ def test_the_watchdog_covers_the_nextest_budget_and_the_build(
     stopping the run: on Unix it signals the process group and waits a
     grace period before killing it. Seconds, not minutes, but not zero.
     """
-    required = global_timeout + termination_allowance + COLD_BUILD_ALLOWANCE_SECONDS
+    required = budgets.watchdog_requirement(
+        global_timeout, termination_allowance, COLD_BUILD_ALLOWANCE_SECONDS
+    )
     for lane in lanes:
         assert lane.watchdog is not None, str(lane)
-        assert lane.watchdog >= required, (
-            f"{lane} sets {WATCHDOG_VARIABLE}={lane.watchdog:.0f}s, below the "
-            f"{required:.0f}s needed to cover the {global_timeout:.0f}s nextest "
-            f"budget, {termination_allowance:.0f}s for nextest to terminate the "
-            f"run, and {COLD_BUILD_ALLOWANCE_SECONDS:.0f}s of cold build; a cold "
+        shortfall = budgets.watchdog_shortfall(lane.watchdog, required)
+        assert not shortfall, (
+            f"{lane} sets {WATCHDOG_VARIABLE}={lane.watchdog:.0f}s, {shortfall:.0f}s "
+            f"below the {required:.0f}s needed to cover the {global_timeout:.0f}s "
+            f"nextest budget, {termination_allowance:.0f}s for nextest to terminate "
+            f"the run, and {COLD_BUILD_ALLOWANCE_SECONDS:.0f}s of cold build; a cold "
             f"run would be killed before nextest's budget and termination "
             f"procedure had completed"
         )
