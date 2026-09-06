@@ -242,6 +242,15 @@ expects it. `lading_pin_test.py` asserts that the step still asks for the
 statistics and that the file is uploaded, because a file written into the
 runner's temporary directory and never collected is discarded with the runner.
 
+`make publish-check` depends on `stage-published-gpui-e2e`, which extracts
+packaged crates from `target/package/`. That path, and five others in the
+Makefile including the `target/%/$(APP)` build rules, name the target directory
+literally, so none of them work under a `CARGO_TARGET_DIR` that points outside
+the tree. Run these targets without such an override. Making them read the
+directory from `cargo metadata` would be a Makefile-wide change rather than a
+fix to one recipe, and is worth doing only if the shared-cache layout is wanted
+here.
+
 lading is pinned twice, in `ci.yml` and in the Makefile, so that CI and a local
 run resolve the same tool. The same contract asserts the two agree and that the
 pin is a commit rather than a tag. Drift there would be quiet: both sides keep
