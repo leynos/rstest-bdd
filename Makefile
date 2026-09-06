@@ -7,6 +7,7 @@ VALE ?= vale
 .PHONY: check-published-gpui stage-published-gpui-e2e e2e-published-gpui
 .PHONY: forbid-async-trait vale update-ui-lints-lock update-published-gpui-0-2-2-lock update-published-gpui-e2e-lock
 .PHONY: update-feature-rebuild-fixtures-lock
+.PHONY: check-fixture-lockfiles update-fixture-lockfiles
 .PHONY: test-workflow-contracts
 
 SHELL := bash
@@ -248,6 +249,15 @@ update-feature-rebuild-fixtures-lock: ## Refresh nested feature-rebuild fixture 
 	$(CARGO) metadata --manifest-path crates/rstest-bdd/tests/fixtures/rebuild_invalidation/Cargo.toml --format-version 1 >/dev/null
 	cp crates/cargo-bdd/tests/fixtures/minimal/Cargo.lock crates/rstest-bdd/tests/fixtures/feature_addition/Cargo.lock
 	$(CARGO) metadata --manifest-path crates/rstest-bdd/tests/fixtures/feature_addition/Cargo.toml --format-version 1 >/dev/null
+
+# The authoritative standalone-fixture gate: the script discovers every
+# workspace opt-out manifest with local path dependencies and a committed
+# lockfile, so CI and this refresh path always agree on the fixture set.
+check-fixture-lockfiles: ## Validate every standalone fixture lockfile with cargo metadata --locked
+	$(PROJECT_PYTHON) scripts/check_fixture_lockfiles.py
+
+update-fixture-lockfiles: ## Regenerate every standalone fixture lockfile via cargo generate-lockfile
+	$(PROJECT_PYTHON) scripts/check_fixture_lockfiles.py --refresh
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | \

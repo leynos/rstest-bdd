@@ -118,11 +118,11 @@ fn normalize_fixture_path_line(line: FixturePathLine<'_>) -> String {
     rebuilt.push('$');
     rebuilt.push_str("DIR/");
     rebuilt.push_str(file_name);
-    if let Some(rest) = suffix {
-        if !rest.is_empty() {
-            rebuilt.push(':');
-            rebuilt.push_str(rest);
-        }
+    if let Some(rest) = suffix
+        && !rest.is_empty()
+    {
+        rebuilt.push(':');
+        rebuilt.push_str(rest);
     }
     rebuilt
 }

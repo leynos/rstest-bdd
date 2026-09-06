@@ -52,10 +52,10 @@ fn should_skip_creation(path: &Utf8Path) -> bool {
 }
 
 fn ensure_parent_exists(path: &Utf8Path) -> std::io::Result<()> {
-    if let Some(parent) = path.parent() {
-        if parent != path {
-            create_dir_all_cap(parent)?;
-        }
+    if let Some(parent) = path.parent()
+        && parent != path
+    {
+        create_dir_all_cap(parent)?;
     }
 
     Ok(())

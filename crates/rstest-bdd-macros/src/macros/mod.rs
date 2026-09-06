@@ -86,15 +86,15 @@ fn extract_step_args_or_abort(
         Err(err) => {
             let err_message = err.to_string();
             let help = signature_error_help(&err_message, keyword);
-            if err_message.contains("unsupported parameter pattern") {
-                if let Some(pattern) = first_non_identifier_pattern(func) {
-                    proc_macro_error3::abort!(
-                        pattern,
-                        "invalid step function signature: {}",
-                        err;
-                        help = help
-                    );
-                }
+            if err_message.contains("unsupported parameter pattern")
+                && let Some(pattern) = first_non_identifier_pattern(func)
+            {
+                proc_macro_error3::abort!(
+                    pattern,
+                    "invalid step function signature: {}",
+                    err;
+                    help = help
+                );
             }
             proc_macro_error3::abort!(
                 err.span(),
