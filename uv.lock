@@ -157,8 +157,8 @@ wheels = [
 
 [[package]]
 name = "lading"
-version = "0.1.0"
-source = { git = "https://github.com/leynos/lading?rev=d3217a599ea34adad6a6e3845845fff2fe923758#d3217a599ea34adad6a6e3845845fff2fe923758" }
+version = "0.3.0"
+source = { git = "https://github.com/leynos/lading?rev=c3740ef48da4c89752fcb98fff4f1c27284e5f12#c3740ef48da4c89752fcb98fff4f1c27284e5f12" }
 dependencies = [
     { name = "cuprum" },
     { name = "cyclopts" },
@@ -377,7 +377,7 @@ python-tools = [
 python-tools = [
     { name = "df12-python-lints", git = "https://github.com/leynos/df12-python-lints.git?rev=v0.3.0" },
     { name = "hypothesis" },
-    { name = "lading", git = "https://github.com/leynos/lading?rev=d3217a599ea34adad6a6e3845845fff2fe923758" },
+    { name = "lading", git = "https://github.com/leynos/lading?rev=c3740ef48da4c89752fcb98fff4f1c27284e5f12" },
     { name = "pathspec", specifier = "==1.1.1" },
     { name = "pylint" },
     { name = "pytest" },

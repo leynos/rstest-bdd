@@ -1,11 +1,17 @@
 """Contract tests for the lading pin and its compiler-cache reporting.
 
-lading runs the publish dry run, and it is pinned twice: `ci.yml` sets
-`LADING_REF` for the job, and the Makefile sets it again so a local
-`make publish-check` resolves the same tool. Two pins for one tool drift,
-and the failure is quiet: CI validates publish readiness with one version
-while a developer validates it with another, and each believes the other
-agrees.
+lading runs the publish dry run, and it is pinned three times: `ci.yml`
+sets `LADING_REF` for the job, the Makefile sets it again so a local
+`make publish-check` resolves the same tool, and `pyproject.toml` pins it
+in the `python-tools` group for a bare `uv run lading`. Three pins for one
+tool drift, and the failure is quiet: CI validates publish readiness with
+one version while a developer validates it with another, and each
+believes the other agrees.
+
+The third is the easiest to miss, because the Makefile's `--with` overlay
+masks it: `make publish-check` resolves the Makefile's pin regardless of
+what the project group holds, so the group can sit generations behind
+without any command failing.
 
 The version itself is not asserted. A bump should need one paired change,
 not three. What is asserted is that the two agree, and that the workflow
@@ -23,6 +29,7 @@ import yaml
 
 REPOSITORY_ROOT: typ.Final[Path] = Path(__file__).resolve().parents[2]
 MAKEFILE_PATH: typ.Final[Path] = REPOSITORY_ROOT / "Makefile"
+PYPROJECT_PATH: typ.Final[Path] = REPOSITORY_ROOT / "pyproject.toml"
 WORKFLOW_PATH: typ.Final[Path] = REPOSITORY_ROOT / ".github" / "workflows" / "ci.yml"
 
 #: The step that runs the publish dry run.
@@ -30,6 +37,9 @@ DRY_RUN_STEP: typ.Final[str] = "Publish dry run"
 
 #: The environment variable lading reads for its statistics file.
 STATS_VARIABLE: typ.Final[str] = "LADING_SCCACHE_STATS_JSON"
+
+#: The action that collects the statistics file.
+UPLOAD_ACTION: typ.Final[str] = "actions/upload-artifact@"
 
 _FULL_SHA: typ.Final[re.Pattern[str]] = re.compile(r"^[0-9a-f]{40}$")
 
@@ -45,6 +55,23 @@ def _makefile_lading_ref() -> str:
     makefile = MAKEFILE_PATH.read_text(encoding="utf-8")
     match = re.search(r"^LADING_REF \?= (?P<ref>\S+)$", makefile, re.MULTILINE)
     assert match is not None, "the Makefile must define LADING_REF"
+    return match["ref"]
+
+
+def _pyproject_lading_ref() -> str:
+    """Return the project group's lading pin.
+
+    Returns
+    -------
+    str
+        The commit `uv` resolves lading from for a bare `uv run`.
+    """
+    pyproject = PYPROJECT_PATH.read_text(encoding="utf-8")
+    match = re.search(
+        r"lading @ git\+https://github\.com/leynos/lading@(?P<ref>[0-9a-f]{40})",
+        pyproject,
+    )
+    assert match is not None, "pyproject.toml must pin lading by commit"
     return match["ref"]
 
 
@@ -88,19 +115,23 @@ def _dry_run_steps() -> list[dict[str, typ.Any]]:
     ]
 
 
-def test_the_two_lading_pins_agree() -> None:
-    """CI and the Makefile must resolve the same lading.
+def test_every_lading_pin_agrees() -> None:
+    """All three places must resolve the same lading.
 
-    Drift here is quiet rather than loud: both sides keep working, and
+    Drift here is quiet rather than loud: every side keeps working, and
     each validates publish readiness against a different tool while
-    believing the other agrees.
+    believing the others agree. The project group is the easiest to
+    forget, because the Makefile's `--with` overlay hides it.
     """
-    workflow_ref = _build_test_env().get("LADING_REF")
-    makefile_ref = _makefile_lading_ref()
+    pins = {
+        "ci.yml": _build_test_env().get("LADING_REF"),
+        "Makefile": _makefile_lading_ref(),
+        "pyproject.toml": _pyproject_lading_ref(),
+    }
 
-    assert workflow_ref == makefile_ref, (
-        f"ci.yml pins lading at {workflow_ref!r} and the Makefile at "
-        f"{makefile_ref!r}; a bump must move both"
+    assert len(set(pins.values())) == 1, (
+        f"every lading pin must name the same commit; a bump must move all "
+        f"of them: {pins}"
     )
 
 
@@ -136,25 +167,61 @@ def test_the_dry_run_asks_for_compiler_cache_statistics() -> None:
         )
 
 
-def test_the_statistics_file_is_uploaded() -> None:
-    """A file written into RUNNER_TEMP and never uploaded is not evidence."""
-    workflow = _workflow()
-    stats_paths = {
-        str((step.get("env") or {}).get(STATS_VARIABLE))
-        for job in workflow["jobs"].values()
-        for step in job.get("steps", [])
-        if (step.get("env") or {}).get(STATS_VARIABLE)
-    }
-    uploads = [
-        step
-        for job in workflow["jobs"].values()
-        for step in job.get("steps", [])
-        if "actions/upload-artifact@" in str(step.get("uses", ""))
-        and str((step.get("with") or {}).get("path", "")) in stats_paths
+def _workflow_steps() -> list[dict[str, typ.Any]]:
+    """Return every step of every job in the workflow.
+
+    Returns
+    -------
+    list[dict[str, typ.Any]]
+        The steps, in document order.
+    """
+    return [
+        step for job in _workflow()["jobs"].values() for step in job.get("steps", [])
     ]
 
-    assert uploads, (
+
+def _statistics_paths() -> set[str]:
+    """Return every path the workflow tells lading to write statistics to.
+
+    Returns
+    -------
+    set[str]
+        The configured file paths.
+    """
+    return {
+        str(value)
+        for step in _workflow_steps()
+        if (value := (step.get("env") or {}).get(STATS_VARIABLE))
+    }
+
+
+def _uploads_of(paths: set[str]) -> list[dict[str, typ.Any]]:
+    """Return the upload steps that collect one of ``paths``.
+
+    Parameters
+    ----------
+    paths : set[str]
+        Paths the workflow writes statistics to.
+
+    Returns
+    -------
+    list[dict[str, typ.Any]]
+        The matching upload steps.
+    """
+    return [
+        step
+        for step in _workflow_steps()
+        if UPLOAD_ACTION in str(step.get("uses", ""))
+        and str((step.get("with") or {}).get("path", "")) in paths
+    ]
+
+
+def test_the_statistics_file_is_uploaded() -> None:
+    """A file written into RUNNER_TEMP and never uploaded is not evidence."""
+    paths = _statistics_paths()
+
+    assert _uploads_of(paths), (
         f"the file named by {STATS_VARIABLE} must be uploaded as an artefact; "
         f"written into the runner's temporary directory and left there, it is "
-        f"discarded with the runner"
+        f"discarded with the runner. Configured paths: {sorted(paths)}"
     )
