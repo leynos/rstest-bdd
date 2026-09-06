@@ -292,7 +292,7 @@ jobs:
         # re-export for every later step; the server then addresses GitHub's
         # results service and every write fails. Measured on
         # ubicloud-standard-2. Do not set this to 'true'.
-        uses: leynos/shared-actions/.github/actions/setup-rust@5daae0a332441d170d88ca648c9e71f0bbe96cb3
+        uses: leynos/shared-actions/.github/actions/setup-rust@2055f0a7aba1a9d439dd7aba1f3559416b0a08ce
         with:
           toolchain: ${{ matrix.rust-toolchain }}
           cache-provider: external
@@ -311,7 +311,7 @@ jobs:
       - name: Export Actions cache credentials
         if: >-
           runner.os == 'Linux' && vars.RSTEST_BDD_SCCACHE_LOCAL != 'true'
-        uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd  # v8
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3  # v9.0.0
         with:
           script: |
             for (const name of ['ACTIONS_CACHE_URL', 'ACTIONS_RUNTIME_TOKEN']) {
@@ -419,7 +419,7 @@ jobs:
         # Merged shared-actions PR #432: installs the official release
         # archive against a pinned digest manifest, hashing the archive from
         # stdin so Git Bash on Windows cannot mangle the file name.
-        uses: leynos/shared-actions/.github/actions/install-whitaker@f6d4d5f549655c118f86f371b8d55c200d3efa50
+        uses: leynos/shared-actions/.github/actions/install-whitaker@2055f0a7aba1a9d439dd7aba1f3559416b0a08ce
         with:
           installer-version: ${{ env.WHITAKER_INSTALLER_VERSION }}
           cache-provider: external
@@ -487,7 +487,7 @@ jobs:
       # llvm-cov's nextest path cannot execute doc tests.
       - name: Test and Measure Coverage (Linux)
         if: ${{ runner.os == 'Linux' }}
-        uses: leynos/shared-actions/.github/actions/generate-coverage@77ea10341249024e22ec5d9069e3caa7596e0d4f
+        uses: leynos/shared-actions/.github/actions/generate-coverage@2055f0a7aba1a9d439dd7aba1f3559416b0a08ce
         env:
           # The cargo watchdog, one of four tiers that can end a run. It
           # must cover the 75 m nextest global-timeout in
@@ -523,7 +523,7 @@ jobs:
       - name: Test and Measure Coverage (Windows, default features)
         if: ${{ runner.os == 'Windows' && matrix.features == '' }}
         # Merged shared-actions whole-workspace coverage revision.
-        uses: leynos/shared-actions/.github/actions/generate-coverage@77ea10341249024e22ec5d9069e3caa7596e0d4f
+        uses: leynos/shared-actions/.github/actions/generate-coverage@2055f0a7aba1a9d439dd7aba1f3559416b0a08ce
         continue-on-error: true
         env:
           # Windows coverage runs (build plus doctests) needed headroom
@@ -547,7 +547,7 @@ jobs:
       - name: Test and Measure Coverage (Windows, strict validation)
         if: ${{ runner.os == 'Windows' && matrix.features != '' }}
         # Merged shared-actions whole-workspace coverage revision.
-        uses: leynos/shared-actions/.github/actions/generate-coverage@77ea10341249024e22ec5d9069e3caa7596e0d4f
+        uses: leynos/shared-actions/.github/actions/generate-coverage@2055f0a7aba1a9d439dd7aba1f3559416b0a08ce
         continue-on-error: true
         env:
           # Windows coverage runs (build plus doctests) needed headroom
@@ -585,7 +585,7 @@ jobs:
           matrix.os == 'ubicloud-standard-2' &&
           github.event_name == 'pull_request' &&
           env.CS_ACCESS_TOKEN != ''
-        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@794e4801babcf68065c660fdf4781ad62be5d061
+        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@2055f0a7aba1a9d439dd7aba1f3559416b0a08ce
         with:
           format: cobertura
           mode: check
@@ -601,7 +601,7 @@ jobs:
           github.event_name == 'push' &&
           github.ref == 'refs/heads/main' &&
           env.CS_ACCESS_TOKEN != ''
-        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@794e4801babcf68065c660fdf4781ad62be5d061
+        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@2055f0a7aba1a9d439dd7aba1f3559416b0a08ce
         with:
           format: cobertura
           access-token: ${{ env.CS_ACCESS_TOKEN }}
