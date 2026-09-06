@@ -882,7 +882,6 @@ standalone step in `.github/workflows/ci.yml`:
 Consequently it does not run in a plain local `make lint`; developers touching
 the published snippets should run it by hand.
 
-
 ## Derived fixture lockfiles (`make check-derived-lockfiles`)
 
 Six standalone Cargo workspaces live inside this repository and commit their
