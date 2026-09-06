@@ -242,6 +242,20 @@ expects it. `lading_pin_test.py` asserts that the step still asks for the
 statistics and that the file is uploaded, because a file written into the
 runner's temporary directory and never collected is discarded with the runner.
 
+A verification step sits between the two. It reads the report the publish step
+wrote, parses it, and prints it to the log, and where the file is absent, empty
+or unparsable it says which and why. That distinction is the point: an absent
+report and a report nobody opened look identical in the artefact list, so a
+lading that stopped writing the file would read as an uneventful run. The step
+never fails the job, because the report is evidence about a build rather than
+the build itself, and a publish that failed before lading ran has already
+failed on its own account. Both it and the upload carry
+`${{ always() && runner.os == 'Linux' }}`: without `always()` the run whose
+cost is most worth reading, the failed one, would upload nothing, and without
+the Linux guard the Windows lanes, which never write the file, would report a
+missing one every time. The upload's `if-no-files-found` is `warn` rather than
+`ignore` for the same reason.
+
 `make publish-check` depends on `stage-published-gpui-e2e`, which extracts
 packaged crates from `target/package/`. That path, and five others in the
 Makefile including the `target/%/$(APP)` build rules, name the target directory

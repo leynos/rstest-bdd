@@ -77,6 +77,13 @@ class CacheStepPathsError(WorkflowShapeError):
         super().__init__("a cache step must declare its paths")
 
 
+class MissingRepositoryFileError(WorkflowShapeError):
+    """A file the contracts read is not in the repository."""
+
+    def __init__(self, subject: str) -> None:
+        super().__init__(f"{subject} must exist in the repository")
+
+
 class AmbiguousStepError(WorkflowShapeError):
     """A step name did not match exactly one step in a job."""
 
@@ -107,6 +114,35 @@ def workflow(workflow_name: str) -> dict[str, object]:
     if not isinstance(document, dict):
         raise NotAMappingError(workflow_name)
     return document
+
+
+def repository_file(*parts: str) -> str:
+    """Return the text of one file in the repository.
+
+    The single reading boundary for contracts that assert on files other
+    than workflows. Contracts that opened paths themselves each grew
+    their own root, encoding and error handling, and a contract with its
+    own file access has no boundary to test at.
+
+    Parameters
+    ----------
+    *parts : str
+        Path components below the repository root.
+
+    Returns
+    -------
+    str
+        The file's contents.
+
+    Raises
+    ------
+    MissingRepositoryFileError
+        If no such file exists.
+    """
+    path = ROOT.joinpath(*parts)
+    if not path.is_file():
+        raise MissingRepositoryFileError("/".join(parts))
+    return path.read_text(encoding="utf-8")
 
 
 def jobs(workflow_name: str) -> dict[str, dict[str, object]]:
