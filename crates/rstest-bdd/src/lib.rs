@@ -42,6 +42,12 @@ pub mod state;
 pub mod step_args;
 mod types;
 
+pub mod global {
+    //! Built-in compatibility library selected by unscoped scenarios.
+
+    /// Identity selected by compatibility scenarios.
+    pub const STEP_LIBRARY: crate::StepLibraryId = crate::GLOBAL_STEP_LIBRARY;
+}
 #[cfg(feature = "test-support")]
 pub mod test_support;
 
@@ -67,13 +73,19 @@ pub use registry::dump_registry;
 pub use registry::{
     BypassedScenario,
     FixtureRequirement,
+    GLOBAL_STEP_LIBRARY,
     Step,
     StepFixtureRequirements,
+    StepLibrary,
+    StepLibraryId,
+    StepLookupError,
+    StepScope,
     duplicate_steps,
     find_step,
     find_step_async,
     find_step_async_with_mode,
     find_step_with_metadata,
+    find_step_with_metadata_in_scope,
     find_step_with_mode,
     lookup_step,
     lookup_step_async,
@@ -109,7 +121,7 @@ pub use skip_helpers::{
     __rstest_bdd_unwrap_step_skipped,
 };
 pub use state::{ScenarioState, Slot};
-pub use step_args::{StepArgs, StepArgsError};
+pub use step_args::{StepArgs, StepArgsError, StepCapture};
 /// Generated asynchronous step wrappers use this Tokio bridge; downstream
 /// code must not call it directly.
 #[doc(hidden)]

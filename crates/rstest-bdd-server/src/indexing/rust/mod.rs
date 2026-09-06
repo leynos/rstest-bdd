@@ -15,7 +15,7 @@
 //! - A doc string is expected when a parameter is named `docstring` and its type resolves to
 //!   `String` (either `String` or `std::string::String`).
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use gherkin::StepType;
 use syn::spanned::Spanned;
@@ -31,78 +31,31 @@ use super::{
     RustStepIndexResult,
 };
 
+mod entry;
 mod params;
+mod scenario_bindings;
 mod type_render;
 
+pub(crate) use entry::{
+    RustSourceIndexResult,
+    index_rust_file_with_bindings,
+    index_rust_source_with_bindings,
+};
+pub use entry::{index_rust_file, index_rust_source};
 use params::parse_function_parameters;
+use scenario_bindings::index_scenario_bindings;
 
-/// Parse and index a Rust source file from disk.
-///
-/// # Errors
-///
-/// Returns an error when the file cannot be read or parsed as Rust source.
-///
-/// # Examples
-///
-/// ```
-/// use rstest_bdd_server::indexing::index_rust_file;
-///
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// let path = std::env::temp_dir().join(format!(
-///     "rstest-bdd-server-index-rust-file-{}-{}.rs",
-///     std::process::id(),
-///     std::time::SystemTime::now()
-///         .duration_since(std::time::UNIX_EPOCH)?
-///         .as_nanos(),
-/// ));
-/// std::fs::write(&path, "#[given(\"a message\")]\nfn a_message() {}\n")?;
-///
-/// let index = index_rust_file(&path)?;
-/// assert_eq!(index.index.path, path);
-///
-/// # std::fs::remove_file(&index.index.path).ok();
-/// # Ok(())
-/// # }
-/// ```
-pub fn index_rust_file(path: &Path) -> Result<RustStepIndexResult, RustStepIndexError> {
-    let source = std::fs::read_to_string(path)?;
-    index_rust_source(path.to_path_buf(), &source)
-}
-
-/// Parse and index Rust step definitions from source text.
-///
-/// This is intended for language-server integrations that receive saved text
-/// from the client and want to avoid a race with filesystem writes.
-///
-/// # Errors
-///
-/// Returns an error when the source cannot be parsed by `syn`.
-///
-/// # Examples
-///
-/// ```
-/// use std::path::PathBuf;
-///
-/// use rstest_bdd_server::indexing::index_rust_source;
-///
-/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// let source = "#[when]\nfn do_the_thing() {}\n";
-/// let index = index_rust_source(PathBuf::from("steps.rs"), source)?;
-/// assert_eq!(index.index.step_definitions.len(), 1);
-///
-/// let step = index.index.step_definitions.first().expect("indexed step");
-/// assert_eq!(step.pattern, "do the thing");
-/// # Ok(())
-/// # }
-/// ```
-pub fn index_rust_source(
+/// Build public step metadata and internal scenario scopes in one syntax-tree traversal.
+fn parse_rust_source_with_bindings(
     path: PathBuf,
     source: &str,
-) -> Result<RustStepIndexResult, RustStepIndexError> {
+) -> Result<RustSourceIndexResult, RustStepIndexError> {
     let file = syn::parse_file(source)?;
+    let scenario_binding_index = index_scenario_bindings(&file, &path);
     let mut collector = StepDefinitionCollector {
         source,
         module_path: Vec::new(),
+        library_path: None,
         step_definitions: Vec::new(),
         diagnostics: Vec::new(),
     };
@@ -113,12 +66,16 @@ pub fn index_rust_source(
         ..
     } = collector;
 
-    Ok(RustStepIndexResult {
-        index: RustStepFileIndex {
-            path,
-            step_definitions,
+    Ok(RustSourceIndexResult {
+        steps: RustStepIndexResult {
+            index: RustStepFileIndex {
+                path,
+                step_definitions,
+            },
+            diagnostics,
         },
-        diagnostics,
+        scenario_bindings: scenario_binding_index.bindings,
+        scenario_binding_diagnostics: scenario_binding_index.diagnostics,
     })
 }
 
@@ -128,6 +85,8 @@ struct StepDefinitionCollector<'a> {
     source: &'a str,
     /// Module path of the item currently being traversed.
     module_path: Vec<String>,
+    /// Nearest `#[step_library]` module enclosing the current item.
+    library_path: Option<Vec<String>>,
     /// Step definitions discovered in the source.
     step_definitions: Vec<IndexedStepDefinition>,
     /// Recoverable diagnostics discovered during indexing.
@@ -140,7 +99,12 @@ impl StepDefinitionCollector<'_> {
         for item in items {
             match item {
                 syn::Item::Fn(item_fn) => {
-                    match index_step_function(item_fn, self.source, &self.module_path) {
+                    match index_step_function(
+                        item_fn,
+                        self.source,
+                        &self.module_path,
+                        self.library_path.as_deref(),
+                    ) {
                         Ok(Some(step)) => self.step_definitions.push(step),
                         Ok(None) => {}
                         Err(diagnostic) => self.diagnostics.push(diagnostic),
@@ -151,7 +115,12 @@ impl StepDefinitionCollector<'_> {
                         continue;
                     };
                     self.module_path.push(item_mod.ident.to_string());
+                    let previous_library = self.library_path.clone();
+                    if is_step_library(item_mod) {
+                        self.library_path = Some(self.module_path.clone());
+                    }
                     self.collect_step_definitions(items);
+                    self.library_path = previous_library;
                     self.module_path.pop();
                 }
                 _ => {}
@@ -160,6 +129,16 @@ impl StepDefinitionCollector<'_> {
     }
 }
 
+/// Return whether a module establishes a lexical step-library boundary.
+fn is_step_library(item_mod: &syn::ItemMod) -> bool {
+    item_mod.attrs.iter().any(|attribute| {
+        attribute
+            .path()
+            .segments
+            .last()
+            .is_some_and(|segment| segment.ident == "step_library")
+    })
+}
 /// Find and validate the step attribute on a function.
 ///
 /// Returns `None` if no step attribute is found, or `Some(StepAttribute)` if
@@ -194,6 +173,7 @@ fn index_step_function(
     item_fn: &syn::ItemFn,
     source: &str,
     module_path: &[String],
+    library_path: Option<&[String]>,
 ) -> Result<Option<IndexedStepDefinition>, RustStepIndexDiagnostic> {
     let Some(step_attribute) = find_step_attribute(item_fn)? else {
         return Ok(None);
@@ -214,6 +194,10 @@ fn index_step_function(
     let attribute_span = extract_attribute_span(step_attribute.attr, &item_fn.sig, source);
 
     Ok(Some(IndexedStepDefinition {
+        library: library_path.map_or_else(
+            || String::from("rstest_bdd::global"),
+            |path| path.join("::"),
+        ),
         keyword: step_attribute.keyword,
         pattern,
         pattern_inferred,

@@ -7,10 +7,13 @@
 use proc_macro2::{Ident, Span};
 use syn::{Attribute, ExprPath, Field, Fields, LitStr, Token, Type, spanned::Spanned};
 
-use crate::datatable::{
-    config::{Accessor, DefaultValue, FieldConfig, FieldSpec, StructConfig},
-    rename::RenameRule,
-    validation::{is_bool_type, option_inner_type},
+use crate::{
+    datatable::{
+        config::{Accessor, DefaultValue, FieldConfig, FieldSpec, StructConfig},
+        rename::RenameRule,
+        validation::{is_bool_type, option_inner_type},
+    },
+    named_fields::{MissingValuePolicy, NamedFieldSpec},
 };
 
 /// Provides the internal `parse_struct_config` operation.
@@ -104,11 +107,35 @@ fn build_field_spec(
     let config = parse_field_attributes(&field.attrs, base_accessor)?;
     let (is_option, inner_ty) = option_inner_type(&field.ty)?;
     validate_field_config(&config, is_option, &inner_ty, field.span())?;
+    let named = named_field_spec(ident.as_ref(), &field.ty, &config);
     Ok(FieldSpec {
         ident,
         ty: field.ty.clone(),
         inner_ty,
         config,
+        named,
+    })
+}
+
+/// Build the shared named-field metadata while preserving tuple row semantics.
+fn named_field_spec(
+    ident: Option<&Ident>,
+    ty: &Type,
+    config: &FieldConfig,
+) -> Option<NamedFieldSpec> {
+    let ident = ident?.clone();
+    let Accessor::Column { name } = &config.accessor else {
+        return None;
+    };
+    Some(NamedFieldSpec {
+        rust_field: ident,
+        source_name: LitStr::new(name, Span::call_site()),
+        target_type: ty.clone(),
+        conversion: config.conversion.clone(),
+        missing: MissingValuePolicy::DataTable {
+            optional: config.optional,
+            has_default: config.default.is_some(),
+        },
     })
 }
 
@@ -163,8 +190,8 @@ fn process_flag_attribute(
     }
     match ident {
         "optional" => config.optional = true,
-        "truthy" => config.truthy = true,
-        "trim" => config.trim = true,
+        "truthy" => config.conversion.truthy = true,
+        "trim" => config.conversion.trim = true,
         _ => unreachable!("handled in caller match"),
     }
     Ok(())
@@ -205,7 +232,7 @@ fn process_parse_with_attribute(
     config: &mut FieldConfig,
 ) -> syn::Result<()> {
     let path: ExprPath = meta.value()?.parse()?;
-    if config.parse_with.replace(path).is_some() {
+    if config.conversion.parse_with.replace(path).is_some() {
         Err(meta.error("duplicate parse_with attribute"))
     } else {
         Ok(())
@@ -225,7 +252,7 @@ fn validate_field_config(
         "optional fields already default to None; remove the `default` attribute",
     )?;
     ensure_when(
-        config.truthy && config.parse_with.is_some(),
+        config.conversion.truthy && config.conversion.parse_with.is_some(),
         span,
         "truthy and parse_with are mutually exclusive",
     )?;
@@ -240,7 +267,7 @@ fn validate_field_config(
         "Option<T> fields cannot define a default value",
     )?;
     ensure_when(
-        config.truthy && !is_bool_type(inner_ty),
+        config.conversion.truthy && !is_bool_type(inner_ty),
         span,
         "#[datatable(truthy)] requires a bool field",
     )?;
@@ -289,8 +316,8 @@ mod tests {
         let config =
             parse_field_attributes(&field.attrs, base).expect("failed to parse field attributes");
         assert!(config.optional);
-        assert!(config.truthy);
-        assert!(config.trim);
+        assert!(config.conversion.truthy);
+        assert!(config.conversion.trim);
     }
 
     #[test]

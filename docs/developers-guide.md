@@ -2171,29 +2171,54 @@ the `KEYWORDS` const table consumed by `StepKeyword::from_str`
 - Entries store the canonical title-case rendering used in generated output
   and diagnostics.
 
-## Registry lookup usage-marking invariant
+## Registry lookup and usage-marking invariants
 
-Every public step-lookup function in `crates/rstest-bdd/src/registry/`
-(`lookup_step`, `find_step`, `lookup_step_async`, `find_step_async`,
-`lookup_step_async_with_mode`, `find_step_async_with_mode`, and
-`find_step_with_metadata`) funnels through the canonical private helper
-`mark_and_project` in `registry/mod.rs`. The helper performs the `mark_used`
-bookkeeping exactly once and applies the caller's projection to the resolved
-`Step`.
+Every public registry lookup in `crates/rstest-bdd/src/registry/` preserves
+ambiguity as `Result<Option<_>, StepLookupError>`. This includes `lookup_step`,
+`find_step`, their async and execution-mode variants, and the metadata
+wrappers. Callers must handle `StepLookupError` before interpreting the
+optional result; converting the result to an `Option` with `.ok()` erases the
+diagnostic that explains equally specific candidates.
 
-- **Invariant:** every lookup that returns `Some` marks exactly the resolved
-  step as used (feeding the unused-step diagnostics behind `cargo bdd`); a
-  lookup that returns `None` marks nothing.
-- **Permitted call-sites:** the public lookup wrappers in `registry/mod.rs`
-  and `registry/async_lookup.rs`. New lookup variants must resolve a step (via
-  `resolve_exact_step` / `resolve_step`) and pass it through
-  `mark_and_project`; calling `mark_used` directly from a lookup is a bug.
-- The invariant is pinned across all variants by the property suite in
-  `crates/rstest-bdd/tests/registry_mark_used_props.rs`. A `kani` harness was
-  considered and omitted: the registry is backed by link-time `inventory`
-  registration and a lazily built hash map, which a bounded harness cannot
-  model cheaply, and the property suite already exercises every variant against
-  hit and miss lookups.
+Pure scoped metadata lookup, exposed by `find_step_with_metadata_in_scope`,
+does not mutate usage tracking. The execution boundary resolves the step in its
+`StepScope`, then calls `mark_step_used` only after successful resolution. This
+keeps inspection, language-server queries, and preflight checks from making a
+step appear executed, while `cargo bdd unused` still reflects steps that ran.
+
+The usage invariant is pinned by the property suite in
+`crates/rstest-bdd/tests/registry_mark_used_props.rs`. A `kani` harness was
+considered and omitted: the registry is backed by link-time `inventory`
+registration and a lazily built hash map, which a bounded harness cannot model
+cheaply, and the property suite exercises every usage-marking execution path.
+
+## Step-library lookup invariant
+
+`StepScope` is a closed, scenario-owned list of `StepLibraryId` values.
+`#[step_library]` submits module metadata; the registry assigns a definition to
+the nearest declared module prefix and otherwise assigns it to
+`rstest_bdd::global`. Exact lookup is indexed by library, keyword, and pattern;
+parameterized lookup visits only the selected library buckets. Never add a
+first-match or declaration-order fallback: equally specific candidates must
+return `StepLookupError` with the scope and source locations intact.
+
+## Named textual-field binding
+
+The macro crate keeps named `StepArgs` captures and named `DataTableRow` fields
+on one internal metadata boundary in `named_fields.rs`. `NamedFieldSpec`
+records the Rust field identifier, source name, target type, shared
+`ScalarConversion`, and a source-specific `MissingValuePolicy`. Its
+`scalar_parser_expression` helper emits the common trim, `parse_with`,
+`String`, truthy, and `FromStr` conversion path.
+
+The step-capture and data-table adapters remain responsible for their own
+lookup and missing-value rules. Step captures require a closed, complete set of
+placeholder names; data tables retain optional, default, and truthy policies
+and row/column context. The shared layer is macro-internal and consumes
+borrowed source expressions, so it does not impose an owned map or a runtime
+parser registry on either path. New named textual sources should reuse the
+field specification and scalar conversion boundary while supplying their own
+source context and missing-value policy.
 
 ## Internal APIs and tooling (ADR-010 to ADR-013)
 
@@ -2416,6 +2441,24 @@ no extension.
 Invariants (ASCII-case insensitivity, rejection of differing extensions, and
 behaviour for missing, repeated, and trailing dots) are pinned by the property
 suite in `crates/rstest-bdd-server/tests/has_extension_props.rs`.
+
+### Scoped language-server lookup
+
+Rust indexing returns the public step index plus internal scenario-binding
+metadata. `scenario_bindings.rs` records each `#[scenario]` or `scenarios!`
+feature target and its closed library list, resolving `crate::`, `self::`, and
+`super::` library paths from the enclosing module. Malformed bindings or
+bindings without a feature target are ignored with structured warnings that
+identify the operation, source location, failure category, and fallback state.
+`ScenarioScopeRegistry` resolves valid targets against the Rust source path,
+normalizes order-equivalent library lists, and returns `ScenarioScopeConflict`
+when distinct closed scopes target one feature. Handlers then use no candidates
+and emit the structured warning rather than merging scopes. Feature handlers
+obtain candidates through `ServerState::steps_for_feature_keyword`, and
+Rust-to-feature checks use `ServerState::feature_selects_library`. This keeps
+language-server completion, navigation, and diagnostics aligned with runtime
+vocabulary: omitted libraries select only `rstest_bdd::global`, while an
+explicit list does not add global definitions or precedence by list order.
 
 ## Feature-file rebuild invalidation conventions (roadmap 10.3.3)
 

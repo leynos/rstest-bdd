@@ -9,6 +9,7 @@
 
 mod feature_discovery;
 mod macro_args;
+mod module_emission;
 mod path_resolution;
 mod test_generation;
 
@@ -19,7 +20,6 @@ use std::{
 
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
-use quote::{format_ident, quote};
 
 pub(crate) use self::macro_args::{
     RuntimeMode as ScenariosRuntimeMode,
@@ -27,7 +27,15 @@ pub(crate) use self::macro_args::{
 };
 use self::{
     feature_discovery::collect_feature_files,
-    macro_args::{FixtureSpec, RuntimeMode, ScenariosArgs, runtime_compatibility_alias},
+    macro_args::{
+        FixtureSpec,
+        RuntimeMode,
+        ScenariosArgs,
+        library_scope_tokens,
+        library_validation_names,
+        runtime_compatibility_alias,
+    },
+    module_emission::generate_scenarios_module,
     test_generation::{ScenarioTestContext, generate_scenario_test, resolve_harness_path},
 };
 use crate::{
@@ -71,12 +79,16 @@ struct FeatureProcessingContext<'a> {
     /// compatibility alias. Resolved once so every scenario agrees with the
     /// single diagnostic emitted at the expansion boundary.
     effective_harness: Option<&'a syn::Path>,
+    /// Closed step-library scope used by every generated scenario.
+    scope: &'a TokenStream2,
+    /// Locally visible identities for compile-time step validation.
+    library_validation_names: Option<&'a [Box<str>]>,
     /// Adapter API paths resolved once for the whole `scenarios!` expansion.
     resolutions: &'a crate::codegen::SharedAdapterResolutions,
 }
 
 /// Provides the internal `resolve_manifest_directory` operation.
-fn resolve_manifest_directory() -> Result<PathBuf, TokenStream> {
+fn resolve_manifest_directory() -> Result<PathBuf, TokenStream2> {
     std::env::var("CARGO_MANIFEST_DIR")
         .map(PathBuf::from)
         .map_err(|_| {
@@ -84,7 +96,7 @@ fn resolve_manifest_directory() -> Result<PathBuf, TokenStream> {
                 Span::call_site(),
                 "CARGO_MANIFEST_DIR is not set. This macro must run within Cargo.",
             );
-            error_to_tokens(&err).into()
+            error_to_tokens(&err)
         })
 }
 
@@ -97,23 +109,58 @@ fn process_scenarios(
     let mut tests = Vec::new();
     let mut errors = Vec::new();
 
-    for idx in 0..feature.scenarios.len() {
-        match extract_scenario_steps(feature, Some(idx)) {
-            Ok(mut data) => {
-                if ctx
-                    .tag_filter
-                    .is_none_or(|filter| data.filter_by_tags(filter))
-                {
-                    tests.push(generate_scenario_test(ctx, used_names, data));
-                }
-            }
-            Err(err) => errors.push(err),
+    for index in 0..feature.scenarios.len() {
+        match process_scenario(feature, index, ctx, used_names) {
+            Ok(Some(test)) => tests.push(test),
+            Ok(None) => {}
+            Err(error) => errors.push(error),
         }
     }
 
     (tests, errors)
 }
 
+/// Process one scenario while preserving generation and validation ordering.
+fn process_scenario(
+    feature: &gherkin::Feature,
+    index: usize,
+    ctx: &ScenarioTestContext<'_>,
+    used_names: &mut HashSet<String>,
+) -> Result<Option<TokenStream2>, TokenStream2> {
+    let mut data = extract_scenario_steps(feature, Some(index))?;
+    if !ctx
+        .tag_filter
+        .is_none_or(|filter| data.filter_by_tags(filter))
+    {
+        return Ok(None);
+    }
+    validate_steps_compile_time(&data.steps, ctx.library_validation_names)
+        .map_err(|error| error_to_tokens(&error))?;
+
+    Ok(Some(generate_scenario_test(ctx, used_names, data)))
+}
+/// Validate generated scenarios with the same scope semantics as `#[scenario]`.
+fn validate_steps_compile_time(
+    steps: &[crate::parsing::feature::ParsedStep],
+    libraries: Option<&[Box<str>]>,
+) -> Result<(), syn::Error> {
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "strict-compile-time-validation")] {
+            libraries.map_or_else(
+                || crate::validation::steps::validate_steps_exist(steps, true),
+                |libraries| crate::validation::steps::validate_steps_exist_in_scope(steps, libraries, true),
+            )
+        } else if #[cfg(feature = "compile-time-validation")] {
+            libraries.map_or_else(
+                || crate::validation::steps::validate_steps_exist(steps, false),
+                |libraries| crate::validation::steps::validate_steps_exist_in_scope(steps, libraries, false),
+            )
+        } else {
+            let _ = (steps, libraries);
+            Ok(())
+        }
+    }
+}
 /// Provides the internal `process_feature_file` operation.
 fn process_feature_file(
     abs_path: &Path,
@@ -144,6 +191,8 @@ fn process_feature_file(
         harness: ctx.harness,
         attributes: ctx.attributes,
         effective_harness: ctx.effective_harness,
+        scope: ctx.scope,
+        library_validation_names: ctx.library_validation_names,
         resolutions: ctx.resolutions,
     };
 
@@ -169,7 +218,7 @@ fn generate_tests_from_features(
 }
 
 /// Provides the internal `parse_tag_filter` operation.
-fn parse_tag_filter(tag_lit: Option<syn::LitStr>) -> Result<Option<TagFilter>, TokenStream> {
+fn parse_tag_filter(tag_lit: Option<syn::LitStr>) -> Result<Option<TagFilter>, TokenStream2> {
     tag_lit.map_or_else(
         || Ok(None),
         |lit| match TagExpression::parse(&lit.value()) {
@@ -180,7 +229,7 @@ fn parse_tag_filter(tag_lit: Option<syn::LitStr>) -> Result<Option<TagFilter>, T
             })),
             Err(err) => {
                 let syn_err = syn::Error::new(lit.span(), err.to_string());
-                Err(error_to_tokens(&syn_err).into())
+                Err(error_to_tokens(&syn_err))
             }
         },
     )
@@ -233,69 +282,32 @@ fn emit_runtime_deprecation_warning(runtime: RuntimeMode, harness: Option<&syn::
     }
 }
 
-/// Inputs required to emit the items produced by a `scenarios!` expansion.
-struct ScenariosModuleEmission<'a> {
-    /// Parsed directory, retained to preserve the existing module-name derivation.
-    dir: &'a Path,
-    /// Directory literal that supplies the generated module's name, docs, and
-    /// tracking-item span.
-    dir_lit: &'a syn::LitStr,
-    /// Every discovered feature file, including files excluded by a tag filter.
-    feature_paths: &'a [PathBuf],
-    /// Diagnostics emitted before generated tests within the module.
-    fallback_diagnostics: TokenStream2,
-    /// Generated scenario-test items.
-    tests: Vec<TokenStream2>,
-    /// Generated error items.
-    errors: Vec<TokenStream2>,
-}
-
-/// Emits tracking items and the generated scenario module in source order.
-fn emit_scenarios_module(emission: ScenariosModuleEmission<'_>) -> TokenStream {
-    let ScenariosModuleEmission {
-        dir,
-        dir_lit,
-        feature_paths,
-        fallback_diagnostics,
-        tests,
-        errors,
-    } = emission;
-
-    // Emit one Cargo rebuild-dependency tracking item per **discovered**
-    // file, as a sibling of the generated scenario module, independent of
-    // whether any test is generated for that file. A `tags =` filter that
-    // matches nothing in a particular file still parses it, and that file
-    // must remain tracked — a body-scoped or per-test binding would leave it
-    // untracked and reopen the foot-gun in exactly the macro that is the
-    // harder case (Decision D0 / ExecPlan Milestone 3).
-    let tracking_items = feature_paths
-        .iter()
-        .map(|path| crate::codegen::tracking::feature_tracking_item(path, dir_lit.span()))
-        .collect::<Vec<_>>();
-
-    let module_ident = {
-        let base = dir
-            .file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or("scenarios");
-        format_ident!("{}_scenarios", sanitize_ident(base))
-    };
-    let module_doc = format!("Scenarios auto-generated from `{}`.", dir_lit.value());
-
-    TokenStream::from(quote! {
-        #(#tracking_items)*
-        #[doc = #module_doc]
-        mod #module_ident {
-            use super::*;
-            #fallback_diagnostics
-            #(#tests)*
-            #(#errors)*
-        }
-    })
-}
-
 /// Provides the internal `scenarios` operation.
 pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
+    let args = syn::parse_macro_input!(input as ScenariosArgs);
+    expand_scenarios(args)
+}
+
+/// Expand parsed `scenarios!` arguments into the generated feature module.
+fn expand_scenarios(args: ScenariosArgs) -> TokenStream { expand_scenarios_tokens(args).into() }
+
+/// Owns the values emitted in a generated scenarios module.
+struct GeneratedScenariosModule {
+    /// Source feature directory used to derive the module identifier.
+    dir: PathBuf,
+    /// Literal source directory used in the module documentation.
+    dir_lit: syn::LitStr,
+    /// Every discovered feature file, including files excluded by a tag filter.
+    feature_paths: Vec<PathBuf>,
+    /// Adapter diagnostics emitted inside the generated module.
+    fallback_diagnostics: TokenStream2,
+    /// Generated scenario test functions in source order.
+    tests: Vec<TokenStream2>,
+    /// Generation errors emitted after scenario test functions.
+    errors: Vec<TokenStream2>,
+}
+/// Expand parsed arguments into testable proc-macro tokens.
+fn expand_scenarios_tokens(args: ScenariosArgs) -> TokenStream2 {
     let ScenariosArgs {
         dir: dir_lit,
         tag_filter: tag_lit,
@@ -303,7 +315,8 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
         runtime,
         harness,
         attributes,
-    } = syn::parse_macro_input!(input as ScenariosArgs);
+        libraries,
+    } = args;
     let dir = PathBuf::from(dir_lit.value());
 
     emit_runtime_deprecation_warning(runtime, harness.as_ref());
@@ -324,7 +337,7 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
         Err(err) => {
             let msg = normalized_dir_read_error(&search_dir, &err);
             let err = syn::Error::new(Span::call_site(), msg);
-            return error_to_tokens(&err).into();
+            return error_to_tokens(&err);
         }
     };
 
@@ -338,6 +351,8 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
         effective_harness.as_ref(),
         attributes.as_ref(),
     );
+    let scope = library_scope_tokens(libraries.as_deref());
+    let library_validation_names = libraries.as_deref().map(library_validation_names);
     let fallback_diagnostics = resolutions.emit_diagnostics();
 
     let ctx = FeatureProcessingContext {
@@ -348,22 +363,27 @@ pub(crate) fn scenarios(input: TokenStream) -> TokenStream {
         harness: harness.as_ref(),
         attributes: attributes.as_ref(),
         effective_harness: effective_harness.as_ref(),
+        scope: &scope,
+        library_validation_names: library_validation_names.as_deref(),
         resolutions: &resolutions,
     };
     let (tests, mut errors) = generate_tests_from_features(&feature_paths, &ctx);
 
     check_empty_results(&tests, &mut errors, tag_filter.as_ref());
 
-    emit_scenarios_module(ScenariosModuleEmission {
-        dir: &dir,
-        dir_lit: &dir_lit,
-        feature_paths: &feature_paths,
+    generate_scenarios_module(GeneratedScenariosModule {
+        dir,
+        dir_lit,
+        feature_paths,
         fallback_diagnostics,
         tests,
         errors,
     })
 }
-
 #[cfg(test)]
 #[path = "tests/mod.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "tests.rs"]
+mod expansion_tests;
