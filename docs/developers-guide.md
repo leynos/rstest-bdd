@@ -251,10 +251,16 @@ directory from `cargo metadata` would be a Makefile-wide change rather than a
 fix to one recipe, and is worth doing only if the shared-cache layout is wanted
 here.
 
-lading is pinned twice, in `ci.yml` and in the Makefile, so that CI and a local
-run resolve the same tool. The same contract asserts the two agree and that the
-pin is a commit rather than a tag. Drift there would be quiet: both sides keep
-working while validating publish readiness against different versions.
+lading is pinned three times: in `ci.yml`, in the Makefile, and in
+`pyproject.toml`'s `python-tools` group for a bare `uv run lading`. The same
+contract asserts all three agree and that the pin is a commit rather than a tag.
+Drift there would be quiet: every side keeps working while validating publish
+readiness against different versions.
+
+The project group is the easiest of the three to forget, because the Makefile's
+`--with` overlay masks it. `make publish-check` resolves the Makefile's pin
+whatever the group holds, so the group can sit generations behind without any
+command failing, which is exactly where it was found.
 
 Check each `main` run with `ubi gh leynos/rstest-bdd list-cache-entries`. It
 must show the archive keys and the `sccache` objects on Ubicloud's side before
