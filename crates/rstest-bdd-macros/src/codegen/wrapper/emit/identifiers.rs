@@ -3,7 +3,13 @@
 //! Generates the internal wrapper, pattern, and fixture identifiers used by
 //! emitted step wrappers. The identifiers are sanitized to ASCII to avoid
 //! generating invalid symbols when step function names contain Unicode.
-//! A global counter ensures uniqueness across all generated wrappers.
+//!
+//! [`COUNTER`] owns global wrapper-ID uniqueness across all generated
+//! wrappers in the process. Allocation through [`next_wrapper_id`] and the
+//! test-only reset through [`reset_wrapper_counter_for_tests`] share the same
+//! narrow, test-aware mechanism: the reset exists solely for tests, is
+//! compiled out of production builds, and callers must run under
+//! `#[serial]` so parallel tests cannot race on the process-wide state.
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -12,7 +18,11 @@ use quote::format_ident;
 
 use crate::utils::ident::sanitize_ident;
 
-/// Internal shared state used by the macros implementation.
+/// Process-wide source of wrapper-ID uniqueness.
+///
+/// Every emitted wrapper suffix is allocated from this counter, so the value
+/// it hands out must be unique for the lifetime of the process. The
+/// test-only reset below is the sole writer other than [`next_wrapper_id`].
 static COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 /// Identifiers for sync and async wrapper components.
@@ -30,35 +40,16 @@ pub(in crate::codegen::wrapper::emit) struct WrapperIdents {
     pub(in crate::codegen::wrapper::emit) pattern_ident: proc_macro2::Ident,
 }
 
-/// Resets the wrapper identifier counter to zero.
+/// Resets the wrapper identifier counter to zero for a test.
 ///
-/// This function is intended **only for test code** to ensure deterministic
-/// identifier generation across test runs. Production code must never call
-/// this function.
+/// This function exists **only for test code** so tests observe a
+/// deterministic identifier sequence. Production code must never call it.
 ///
 /// # Thread Safety
 ///
-/// Rust tests run in parallel by default. Tests that call this function must
-/// be serialized to avoid non-deterministic identifier generation. Use one of:
-///
-/// - The `#[serial]` attribute from the `serial_test` crate
-/// - The `--test-threads=1` flag when running tests
-/// - A shared mutex guard to coordinate access
-///
-/// # Example
-///
-/// ```ignore
-/// use serial_test::serial;
-///
-/// #[test]
-/// #[serial]
-/// fn wrapper_identifiers_are_deterministic() {
-///     reset_wrapper_counter_for_tests();
-///     // First call returns 0, second returns 1, etc.
-///     assert_eq!(next_wrapper_id(), 0);
-///     assert_eq!(next_wrapper_id(), 1);
-/// }
-/// ```
+/// Rust tests run in parallel by default, and the counter is process-wide.
+/// Every caller must run under `#[serial]` (see the tests in this module and
+/// the codegen equivalence tests) so allocation and reset never race.
 #[cfg(test)]
 pub(crate) fn reset_wrapper_counter_for_tests() {
     // Use SeqCst ordering (rather than Relaxed used in production) to ensure
@@ -144,3 +135,36 @@ pub(in crate::codegen::wrapper::emit) fn generate_wrapper_signature(
 /// assert_eq!(second, first + 1);
 /// ```
 pub(super) fn next_wrapper_id() -> usize { COUNTER.fetch_add(1, Ordering::Relaxed) }
+
+#[cfg(test)]
+mod tests {
+    //! Serialized tests for the process-wide wrapper-ID counter.
+    //!
+    //! `COUNTER` is process-wide state, so allocation and reset must never
+    //! overlap other tests that touch it. Every test here is `#[serial]`,
+    //! matching the protocol used by the codegen equivalence tests.
+
+    use serial_test::serial;
+
+    use super::{next_wrapper_id, reset_wrapper_counter_for_tests};
+
+    /// Resetting yields a deterministic sequence starting from zero.
+    #[test]
+    #[serial]
+    fn reset_wrapper_counter_restart_ids_from_zero() {
+        reset_wrapper_counter_for_tests();
+        assert_eq!(next_wrapper_id(), 0);
+        assert_eq!(next_wrapper_id(), 1);
+        assert_eq!(next_wrapper_id(), 2);
+    }
+
+    /// A later reset restarts the sequence rather than resuming it.
+    #[test]
+    #[serial]
+    fn reset_wrapper_counter_can_be_reapplied() {
+        reset_wrapper_counter_for_tests();
+        assert_eq!(next_wrapper_id(), 0);
+        reset_wrapper_counter_for_tests();
+        assert_eq!(next_wrapper_id(), 0);
+    }
+}
