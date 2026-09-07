@@ -154,16 +154,20 @@ def mapping_at(owner: object, key: str, subject: str) -> dict[str, typ.Any]:
         If the owner is not a mapping, or the key holds something that
         is neither a mapping nor absent.
     """
-    if not isinstance(owner, dict):
-        message = f"{subject} must be a mapping, got {owner!r}"
-        raise PublishReportShapeError(message)
-    value = owner.get(key)
-    if value is None:
-        return {}
-    if not isinstance(value, dict):
-        message = f"{subject}'s {key!r} must be a mapping, got {value!r}"
-        raise PublishReportShapeError(message)
-    return value
+    match owner:
+        case dict():
+            pass
+        case _:
+            message = f"{subject} must be a mapping, got {owner!r}"
+            raise PublishReportShapeError(message)
+    match owner.get(key):
+        case None:
+            return {}
+        case dict() as value:
+            return value
+        case value:
+            message = f"{subject}'s {key!r} must be a mapping, got {value!r}"
+            raise PublishReportShapeError(message)
 
 
 def build_test_env(build_test_job: dict[str, typ.Any]) -> dict[str, typ.Any]:
@@ -266,13 +270,15 @@ def statistics_path(build_test_job: dict[str, typ.Any]) -> str:
     """
     step = step_named(build_test_job, DRY_RUN_STEP)
     environment = mapping_at(step, "env", f"the {DRY_RUN_STEP!r} step")
-    path = environment.get(STATS_VARIABLE)
-    if not isinstance(path, str):
-        message = (
-            f"the {DRY_RUN_STEP!r} step must set {STATS_VARIABLE} to a path, "
-            f"got {path!r}"
-        )
-        raise PublishReportShapeError(message)
+    match environment.get(STATS_VARIABLE):
+        case str() as path:
+            pass
+        case path:
+            message = (
+                f"the {DRY_RUN_STEP!r} step must set {STATS_VARIABLE} to a "
+                f"path, got {path!r}"
+            )
+            raise PublishReportShapeError(message)
     _require(path, f"the {DRY_RUN_STEP!r} step must set {STATS_VARIABLE}")
     return path
 
@@ -296,10 +302,12 @@ def verification_script(build_test_job: dict[str, typ.Any]) -> str:
         If the verification step declares no run script, or an empty
         one.
     """
-    script = step_named(build_test_job, VERIFY_STEP).get("run")
-    if not isinstance(script, str):
-        message = f"{VERIFY_STEP!r} must declare a run script, got {script!r}"
-        raise PublishReportShapeError(message)
+    match step_named(build_test_job, VERIFY_STEP).get("run"):
+        case str() as script:
+            pass
+        case script:
+            message = f"{VERIFY_STEP!r} must declare a run script, got {script!r}"
+            raise PublishReportShapeError(message)
     _require(script.strip(), f"{VERIFY_STEP!r}'s run script is empty")
     return script
 

@@ -43,6 +43,12 @@ def lockfile_lading_ref() -> str:
     only through an incomplete bump, and the failure is silent, because
     the lock file wins.
 
+    A lock file recording no Lading revision, or resolving Lading to
+    more than one, raises :class:`PublishReportShapeError` through
+    :func:`_require`: either way the lock file cannot say what a bare
+    ``uv run`` installs. The lint refuses a ``Raises`` section for an
+    exception a function does not raise directly, so it is stated here.
+
     Returns
     -------
     str
