@@ -1049,11 +1049,10 @@ URI. It then saves the Rust step file and waits for the same notification with
 the Rust file URI. The two phase-specific acknowledgements ensure that the
 feature index is present before the step registry is built. The test then sends
 `textDocument/definition` and receives the response by its `JSON-RPC` id,
-because indexing notifications may still be buffered on the wire.
-Tests must not replace this protocol with sleeps, timing assumptions, or
-platform-specific branches. `--debounce-ms 0` avoids an intentional debounce in
-the smoke-test process, but does not prove that asynchronous indexing has
-completed.
+because indexing notifications may still be buffered on the wire. Tests must
+not replace this protocol with sleeps, timing assumptions, or platform-specific
+branches. `--debounce-ms 0` avoids an intentional debounce in the smoke-test
+process, but does not prove that asynchronous indexing has completed.
 
 These tests run as part of the standard CI pipeline (`make test`).
 

@@ -1,12 +1,9 @@
 # Debugging Plan: Windows `smoke_lsp` pre-flight failure
 
-**Generated**: 2026-08-30
-**Issue ID**: PR #648 Windows CI
-**Severity**: Blocking CI failure
-**Falsification sub-agent**: alchemist
-**Planning agent boundary**: This document was prepared by the planning agent.
-Falsification must be executed by the named sub-agent, not by the planning
-agent.
+**Generated**: 2026-08-30 **Issue ID**: PR #648 Windows CI **Severity**:
+Blocking CI failure **Falsification sub-agent**: alchemist **Planning agent
+boundary**: This document was prepared by the planning agent. Falsification
+must be executed by the named sub-agent, not by the planning agent.
 
 ## Problem Statement
 
@@ -18,12 +15,12 @@ identify and correct the actual platform-specific failure.
 
 ## Context Summary
 
-| Aspect | Details |
-| --- | --- |
-| First observed | PR #648 Windows CI run 33332323095 |
-| Reproduction rate | Reproducible on Windows CI; native Windows unavailable locally |
+| Aspect              | Details                                                        |
+| ------------------- | -------------------------------------------------------------- |
+| First observed      | PR #648 Windows CI run 33332323095                             |
+| Reproduction rate   | Reproducible on Windows CI; native Windows unavailable locally |
 | Affected components | Lading Cargo pre-flight and `rstest-bdd-server` smoke LSP test |
-| Recent changes | Dev-fast configuration and workspace lint remediation |
+| Recent changes      | Dev-fast configuration and workspace lint remediation          |
 
 ### Error Artefacts
 
@@ -56,10 +53,10 @@ an error that names and includes each stream exactly once.
 
 #### H1 Falsification Plan
 
-| Step | Action | Expected Negative Result |
-| --- | --- | --- |
-| 1 | Add a unit test with failed test output and warnings. | The error lacks either labelled stream. |
-| 2 | Run the focused Lading tests. | The dual-stream assertion fails. |
+| Step | Action                                                | Expected Negative Result                |
+| ---- | ----------------------------------------------------- | --------------------------------------- |
+| 1    | Add a unit test with failed test output and warnings. | The error lacks either labelled stream. |
+| 2    | Run the focused Lading tests.                         | The dual-stream assertion fails.        |
 
 **Tooling**: Focused `pytest` unit tests for Cargo pre-flight reporting.
 
@@ -79,10 +76,10 @@ will surface that marker in the smoke harness failure diagnostic.
 
 #### H2 Falsification Plan
 
-| Step | Action | Expected Negative Result |
-| --- | --- | --- |
-| 1 | Capture child stderr without changing JSON-RPC stdout. | The marker is absent from the failure message. |
-| 2 | Run the smoke LSP test target. | Existing cleanup or protocol assertions regress. |
+| Step | Action                                                 | Expected Negative Result                         |
+| ---- | ------------------------------------------------------ | ------------------------------------------------ |
+| 1    | Capture child stderr without changing JSON-RPC stdout. | The marker is absent from the failure message.   |
+| 2    | Run the smoke LSP test target.                         | Existing cleanup or protocol assertions regress. |
 
 **Tooling**: Focused Rust integration test with a controlled child process.
 
@@ -103,10 +100,10 @@ assertion, without an ambiguous pre-flight wrapper.
 
 #### H3 Falsification Plan
 
-| Step | Action | Expected Negative Result |
-| --- | --- | --- |
-| 1 | Pin rstest-bdd to the repaired Lading revision and run Windows CI. | No precise smoke test or assertion is reported. |
-| 2 | Run the reported test on Windows after a minimal fix. | The same assertion still fails. |
+| Step | Action                                                             | Expected Negative Result                        |
+| ---- | ------------------------------------------------------------------ | ----------------------------------------------- |
+| 1    | Pin rstest-bdd to the repaired Lading revision and run Windows CI. | No precise smoke test or assertion is reported. |
+| 2    | Run the reported test on Windows after a minimal fix.              | The same assertion still fails.                 |
 
 **Tooling**: GitHub Actions Windows runner and separate captured command
 streams.

@@ -1,12 +1,9 @@
 # Debugging plan: Synchronize the LSP definition smoke test
 
-**Generated**: 2026-09-02
-**Issue ID**: #699
-**Severity**: CI-blocking test failure
-**Falsification sub-agent**: alchemist
-**Planning agent boundary**: This document was prepared by the planning agent.
-Falsification must be executed by the named sub-agent, not by the planning
-agent.
+**Generated**: 2026-09-02 **Issue ID**: #699 **Severity**: CI-blocking test
+failure **Falsification sub-agent**: alchemist **Planning agent boundary**:
+This document was prepared by the planning agent. Falsification must be
+executed by the named sub-agent, not by the planning agent.
 
 ## Problem statement
 
@@ -19,12 +16,12 @@ are available before the definition request is sent.
 
 ## Context summary
 
-| Aspect | Details |
-| --- | --- |
-| First observed | Windows CI run 33584006657 on PR #706 |
-| Reproduction rate | Intermittent; Linux passed, Windows failed |
-| Affected components | `smoke_lsp` synchronization and deferred save replay |
-| Recent changes | The helper was restored, but it sent both saves before waiting |
+| Aspect              | Details                                                        |
+| ------------------- | -------------------------------------------------------------- |
+| First observed      | Windows CI run 33584006657 on PR #706                          |
+| Reproduction rate   | Intermittent; Linux passed, Windows failed                     |
+| Affected components | `smoke_lsp` synchronization and deferred save replay           |
+| Recent changes      | The helper was restored, but it sent both saves before waiting |
 
 ### Error artefacts
 
@@ -54,15 +51,15 @@ per-document acknowledgement, while the server starts asynchronous workspace
 preparation and deferred replay.
 
 **Prediction**: If the feature save is acknowledged before the Rust save is
-sent, and the Rust save is then acknowledged, the definition response is
-always a location array.
+sent, and the Rust save is then acknowledged, the definition response is always
+a location array.
 
 #### H1 falsification plan
 
-| Step | Action | Expected Negative Result |
-| --- | --- | --- |
-| 1 | Inspect the save and deferred-replay paths for a serialization guarantee from the first notification to the second. | A proved ordering guarantee falsifies H1. |
-| 2 | Run the smallest smoke test variant that waits for the feature diagnostic before sending the Rust save. | A `null` response despite both phase acknowledgements falsifies H1. |
+| Step | Action                                                                                                              | Expected Negative Result                                            |
+| ---- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| 1    | Inspect the save and deferred-replay paths for a serialization guarantee from the first notification to the second. | A proved ordering guarantee falsifies H1.                           |
+| 2    | Run the smallest smoke test variant that waits for the feature diagnostic before sending the Rust save.             | A `null` response despite both phase acknowledgements falsifies H1. |
 
 **Tooling**: Focused source inspection and the single `smoke_lsp` test target.
 
@@ -85,9 +82,9 @@ helper currently accepts while `handle_definition` has no step definition.
 
 #### H2 falsification plan
 
-| Step | Action | Expected Negative Result |
-| --- | --- | --- |
-| 1 | Inspect the smoke fixture's Rust source and the Rust indexing result path. | A successful index is guaranteed before the accepted notification, falsifying H2. |
+| Step | Action                                                                     | Expected Negative Result                                                          |
+| ---- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| 1    | Inspect the smoke fixture's Rust source and the Rust indexing result path. | A successful index is guaranteed before the accepted notification, falsifying H2. |
 
 **Tooling**: Focused source inspection only; no production edits.
 
@@ -109,9 +106,9 @@ notification and cannot be recovered by the test harness.
 
 #### H3 falsification plan
 
-| Step | Action | Expected Negative Result |
-| --- | --- | --- |
-| 1 | Inspect receiver semantics and emitted diagnostic order for the two saves. | No required signal is discarded, falsifying H3. |
+| Step | Action                                                                     | Expected Negative Result                        |
+| ---- | -------------------------------------------------------------------------- | ----------------------------------------------- |
+| 1    | Inspect receiver semantics and emitted diagnostic order for the two saves. | No required signal is discarded, falsifying H3. |
 
 **Tooling**: Focused source inspection only; no production edits.
 
@@ -141,8 +138,8 @@ ______________________________________________________________________
 - **H2 falsified for this fixture**: Its Rust source indexes successfully,
   although an unrelated fatal index failure can publish empty diagnostics.
 - **H3 not falsified**: `recv_notification_matching` discards non-matching
-  messages. The replacement must therefore wait for each URI before sending
-  the next dependent save.
+  messages. The replacement must therefore wait for each URI before sending the
+  next dependent save.
 
 ## Notes for executing agent
 

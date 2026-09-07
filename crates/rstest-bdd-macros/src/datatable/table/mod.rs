@@ -79,12 +79,10 @@ fn expand_inner(input: &DeriveInput) -> syn::Result<TokenStream2> {
 
 /// Provides the internal `extract_single_field` operation.
 fn extract_single_field(fields: &Fields) -> syn::Result<&Field> {
-    if let Fields::Unnamed(unnamed) = fields {
-        if unnamed.unnamed.len() == 1 {
-            if let Some(field) = unnamed.unnamed.first() {
-                return Ok(field);
-            }
-        }
+    if let Fields::Unnamed(unnamed) = fields
+        && let Some(field) = unnamed.unnamed.iter().next()
+    {
+        return Ok(field);
     }
     Err(syn::Error::new(
         fields.span(),

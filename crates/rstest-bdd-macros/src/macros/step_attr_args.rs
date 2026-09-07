@@ -23,10 +23,10 @@ impl Parse for StepAttrArgs {
             });
         }
 
-        if input.peek(syn::Ident) {
-            if let Some(result) = try_parse_expr_syntax(input)? {
-                return Ok(result);
-            }
+        if input.peek(syn::Ident)
+            && let Some(result) = try_parse_expr_syntax(input)?
+        {
+            return Ok(result);
         }
 
         if input.peek(syn::LitStr) {

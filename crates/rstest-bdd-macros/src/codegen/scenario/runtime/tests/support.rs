@@ -101,15 +101,14 @@ impl<'ast> Visit<'ast> for CallFinder<'ast> {
         if self.found.is_some() {
             return;
         }
-        if let syn::Expr::Path(expr_path) = node.func.as_ref() {
-            if path_last_ident(&expr_path.path)
+        if let syn::Expr::Path(expr_path) = node.func.as_ref()
+            && path_last_ident(&expr_path.path)
                 .map(syn::Ident::to_string)
                 .as_deref()
                 == Some(self.name.as_str())
-            {
-                self.found = Some(node);
-                return;
-            }
+        {
+            self.found = Some(node);
+            return;
         }
         syn::visit::visit_expr_call(self, node);
     }

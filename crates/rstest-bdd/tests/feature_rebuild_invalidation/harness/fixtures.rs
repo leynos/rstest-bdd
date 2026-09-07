@@ -165,10 +165,10 @@ fn copy_fixture(source: &Path, scratch: &Path, scratch_root: &Path) {
     if scratch_is_current(scratch, &stamp_path, &stamp) {
         return;
     }
-    if scratch.exists() {
-        if let Err(err) = fs::remove_dir_all(scratch) {
-            panic!("remove stale scratch fixture {}: {err}", scratch.display());
-        }
+    if scratch.exists()
+        && let Err(err) = fs::remove_dir_all(scratch)
+    {
+        panic!("remove stale scratch fixture {}: {err}", scratch.display());
     }
     if let Err(err) = copy_dir_recursive(source, scratch) {
         panic!(

@@ -52,6 +52,10 @@ that need a new testing practice to be useful.
   `Result<Vec<PathBuf>, ServerError>`. Callers must propagate the result and
   handle `ServerError::Io`; do not turn discovery failures into empty or
   partial feature lists.
+- The minimum supported Rust version (MSRV) is now 1.88. The `gherkin 0.16`
+  parser dependency requires Rust 1.88, so `workspace.package.rust-version` and
+  every standalone fixture manifest declare `rust-version = "1.88"`; `cargo`
+  refuses to compile the workspace on older compilers.
 
 ### Update underscore-prefixed implicit fixtures
 

@@ -41,10 +41,10 @@ fn find_matching_parameter<'a>(
 
 /// Adds rstest's `case` attribute to an argument when needed.
 fn add_case_attribute_if_missing(arg: &mut syn::FnArg) {
-    if let syn::FnArg::Typed(p) = arg {
-        if !has_case_attribute(p) {
-            p.attrs.push(syn::parse_quote!(#[case]));
-        }
+    if let syn::FnArg::Typed(p) = arg
+        && !has_case_attribute(p)
+    {
+        p.attrs.push(syn::parse_quote!(#[case]));
     }
 }
 

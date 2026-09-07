@@ -212,12 +212,12 @@ the runner environment, and it reduces the lane count from four to three:
   2 vCPU, 8 GB, and a 72 GB disk. Disk is the binding constraint, not memory:
   `ubicloud-standard-4` offers 145 GB, and two silent deaths in the publish
   step occurred only on the smaller shape, with peak memory of 2,841 MiB and
-  3,294 MiB against the 8 GB available. The lane now discards every spent
-  build tree, the lint tree, the two GPUI fixture trees and the instrumented
-  coverage tree, before the publish build compiles the workspace again, and
-  samples disk as well as memory. Escalate only if the reclaimed shape still
-  peaks within 5 GB of a full disk. The Ubuntu 24.04 GNU C Library baseline can
-  execute Whitaker's repository-hosted Dylint dependency binaries.
+  3,294 MiB against the 8 GB available. The lane now discards every spent build
+  tree, the lint tree, the two GPUI fixture trees and the instrumented coverage
+  tree, before the publish build compiles the workspace again, and samples disk
+  as well as memory. Escalate only if the reclaimed shape still peaks within 5
+  GB of a full disk. The Ubuntu 24.04 GNU C Library baseline can execute
+  Whitaker's repository-hosted Dylint dependency binaries.
 - CI pins `whitaker-installer` at `0.2.7` and invokes the SHA-pinned
   `leynos/shared-actions/.github/actions/install-whitaker` action. The shared
   action normalizes Cargo home and executes the installer by absolute path.
@@ -295,13 +295,13 @@ Linux that is the decision, not an omission: the action's `sccache` wiring
 re-exports `ACTIONS_CACHE_SERVICE_V2=on` with GitHub's results URL and token to
 `GITHUB_ENV` as its last act, clobbering the re-export for later steps and
 sending every write to the wrong service. The Windows lane has no backend of
-that kind at all, so it uses the workspace directory that the cache step
-owns. Setting the `RSTEST_BDD_SCCACHE_LOCAL` repository variable moves the
-Linux lanes onto that same local directory as a documented fallback. Check the
-first `main` run with `ubi gh leynos/rstest-bdd list-cache-entries` to confirm
-that the keys and the `sccache` objects landed on Ubicloud. The runner
-assignments, cache ownership, save policy, and prerequisite ordering are
-enforced by `tests/workflow_contracts/runner_placement_test.py` and
+that kind at all, so it uses the workspace directory that the cache step owns.
+Setting the `RSTEST_BDD_SCCACHE_LOCAL` repository variable moves the Linux
+lanes onto that same local directory as a documented fallback. Check the first
+`main` run with `ubi gh leynos/rstest-bdd list-cache-entries` to confirm that
+the keys and the `sccache` objects landed on Ubicloud. The runner assignments,
+cache ownership, save policy, and prerequisite ordering are enforced by
+`tests/workflow_contracts/runner_placement_test.py` and
 `tests/workflow_contracts/runner_cache_test.py`.
 
 ### Validation (2026-09-03)

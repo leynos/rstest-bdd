@@ -192,14 +192,13 @@ fn check_empty_results(
     errors: &mut Vec<TokenStream2>,
     tag_filter: Option<&TagFilter>,
 ) {
-    if tests.is_empty() && errors.is_empty() {
-        if let Some(filter) = tag_filter {
-            let err = syn::Error::new(
-                filter.span,
-                format!("no scenarios matched tag expression `{}`", filter.raw),
-            );
-            errors.push(error_to_tokens(&err));
-        }
+    let is_nothing_emitted = tests.is_empty() && errors.is_empty();
+    if is_nothing_emitted && let Some(filter) = tag_filter {
+        let err = syn::Error::new(
+            filter.span,
+            format!("no scenarios matched tag expression `{}`", filter.raw),
+        );
+        errors.push(error_to_tokens(&err));
     }
 }
 

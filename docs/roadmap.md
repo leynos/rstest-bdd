@@ -1025,11 +1025,11 @@ remove the existing `StepContext`, harness, or macro surfaces.
   Examples use the readable marker, and generated code keeps the reserved
   fixture key internally. Finish line: macro tests cover both marker forms and
   examples compile using `#[harness_context]`. Design Doc:
-  `docs/rstest-bdd-design.md` §2.7.6.4. (Dinolump). Completed 2026-08-17:
-  the marker desugars to the shared `rstest_bdd_policy::HARNESS_CONTEXT_FIXTURE`
-  key (runtime re-export unchanged), all three spellings produce
-  byte-identical generated wrapper code (unit, property, and wrapper-equivalence
-  tests), misuse yields targeted diagnostics via six trybuild fixtures, and the
+  `docs/rstest-bdd-design.md` §2.7.6.4. (Dinolump). Completed 2026-08-17: the
+  marker desugars to the shared `rstest_bdd_policy::HARNESS_CONTEXT_FIXTURE`
+  key (runtime re-export unchanged), all three spellings produce byte-identical
+  generated wrapper code (unit, property, and wrapper-equivalence tests),
+  misuse yields targeted diagnostics via six trybuild fixtures, and the
   `examples/tokio-reminders` and `examples/gpui-counter` crates compile and
   pass using the marker while crate-level tests keep proving the legacy
   spelling still works. See ExecPlan
