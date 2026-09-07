@@ -295,7 +295,6 @@ fn library_marker_path(path: &syn::Path) -> proc_macro2::TokenStream {
     let Some(last) = parent.segments.pop() else {
         return quote! { compile_error!("step library path cannot be empty") };
     };
-    let last = last.into_value();
     let marker = format_ident!("__RSTEST_BDD_STEP_LIBRARY_{}", last.ident);
     if parent.segments.is_empty() {
         quote! { #marker }
