@@ -77,7 +77,23 @@ class CacheStepPathsError(WorkflowShapeError):
 
 
 class MissingRepositoryFileError(WorkflowShapeError):
-    """A file the contracts read is not in the repository."""
+    """A file a contract reads is not in the repository.
+
+    Raised by :func:`repository_file` rather than letting an
+    ``OSError`` escape, so a contract that names a file which has moved
+    fails as a shape violation with the path in the message, the same
+    way a malformed workflow does.
+
+    Parameters
+    ----------
+    subject : str
+        The path, relative to the repository root, that was not found.
+        Rendered natively, so a Windows reader sees a Windows path.
+
+    See Also
+    --------
+    repository_file : The reading boundary that raises this.
+    """
 
     def __init__(self, subject: str) -> None:
         super().__init__(f"{subject} must exist in the repository")
@@ -140,7 +156,7 @@ def repository_file(*parts: str) -> str:
     """
     path = ROOT.joinpath(*parts)
     if not path.is_file():
-        raise MissingRepositoryFileError("/".join(parts))
+        raise MissingRepositoryFileError(str(Path(*parts)))
     return path.read_text(encoding="utf-8")
 
 
