@@ -17,6 +17,7 @@ use tracing::{
 use crate::context::*;
 
 mod guard_borrowing;
+mod warning_delivery;
 
 /// Subscriber that counts recorded events and answers `enabled` from a fixed
 /// maximum level.

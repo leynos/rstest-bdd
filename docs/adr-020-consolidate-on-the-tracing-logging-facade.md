@@ -59,8 +59,9 @@ consumer running `env_logger` or a similar logger keeps receiving warnings
 unchanged.
 
 Warning delivery for step-context diagnostics is owned by the private
-`context::warnings` module. It emits the event and decides whether to mirror
-the message to stderr, probing both delivery routes:
+`context::warnings` module. It emits the event under the established
+`rstest_bdd::context` target and decides whether to mirror the message to
+stderr, selecting the delivery route the way tracing's own `log` bridge does:
 
 Table: Warning delivery routes and the stderr fallback
 
@@ -71,8 +72,11 @@ Table: Warning delivery routes and the stderr fallback
 | Filters `WARN` out   | None         | Nothing                  | Yes           |
 | None ever installed  | None         | Nothing                  | Yes           |
 
-The probe and the emitting macro are colocated so both resolve the same
-`module_path!()` target and are subject to identical filtering.
+The probe and the emitting macro are colocated and share an explicit target
+constant, so both are subject to identical filtering. The target is spelled
+out rather than taken from `module_path!()` because the helper module's own
+path (`rstest_bdd::context::warnings`) is not the target consumers already
+capture or filter.
 
 ## Rationale
 
@@ -92,8 +96,11 @@ Retaining a direct `log` dependency in `rstest-bdd` is deliberate and narrow.
 It is not used to emit anything; it answers one question — whether a `log`
 listener exists — which the stderr fallback must know to avoid either printing
 a duplicate or swallowing the warning. Tracing's bridge fires only while no
-subscriber has ever been set, and that condition is not observable through
-`tracing` alone.
+dispatcher has ever been set. That condition is observable through
+`tracing::dispatcher::has_been_set`, so the fallback selects its route the
+same way the bridge does: an enabled `log` logger counts as a listener only
+while no dispatcher exists, and never on the dispatcher route, where tracing
+would drop the event before the bridge could forward it.
 
 The stderr mirror fires when a subscriber filters `WARN` out and no `log`
 logger is present. Preferring a redundant line to a silently dropped

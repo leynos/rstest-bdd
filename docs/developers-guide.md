@@ -2002,7 +2002,8 @@ consumer running `env_logger` still receives warnings while no `tracing`
 subscriber is set.
 
 Warnings raised from `StepContext` go through the private `context::warnings`
-module, which mirrors the message to stderr when neither delivery route has a
+module, which emits under the established `rstest_bdd::context` target and
+mirrors the message to stderr when the selected delivery route has no
 listener. That mirror is what keeps a diagnostic visible in the common case of
 a test binary with no logging configured at all, so new step-context warnings
 should use it rather than calling `tracing::warn!` directly.
