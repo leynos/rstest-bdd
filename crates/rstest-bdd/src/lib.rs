@@ -135,7 +135,7 @@ pub use types::{
 };
 
 #[cfg(feature = "diagnostics")]
-#[ctor]
+/// Emit diagnostics data before libtest parses the binary arguments.
 fn dump_steps() {
     // Only activate when explicitly enabled by the diagnostics runner.
     if std::env::var_os("RSTEST_BDD_DUMP_STEPS").is_some()
@@ -156,6 +156,21 @@ fn dump_steps() {
         std::process::exit(0);
     }
 }
+
+#[cfg(all(
+    feature = "diagnostics",
+    any(target_os = "android", target_os = "linux")
+))]
+// This runs after inventory's unprioritized `.init_array` registrations.
+#[ctor(unsafe, link_section = ".init_array.99999")]
+fn dump_steps_after_inventory_registration() { dump_steps(); }
+
+#[cfg(all(
+    feature = "diagnostics",
+    not(any(target_os = "android", target_os = "linux"))
+))]
+#[ctor(unsafe)]
+fn dump_steps_after_inventory_registration() { dump_steps(); }
 
 pub use panic_support::panic_message;
 

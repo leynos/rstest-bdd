@@ -54,7 +54,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 cargo_metadata = "0.23"
 eyre = "0.6"
-ctor = "0.4"
+ctor = "1.0.13"
 newt-hype = "0.2.0"
 proptest = { version = "1.9.0", default-features = false, features = ["std"] }
 rstest-bdd = { version = "0.6.0-beta4", path = "crates/rstest-bdd" }
@@ -109,7 +109,11 @@ missing_panics_doc = "deny"
 missing_docs_in_private_items = "deny"
 
 [workspace.lints.rust]
-unsafe_code = "forbid"
+# Workspace-authored unsafe code remains denied. `deny`, rather than `forbid`,
+# lets the audited `ctor` macro scope its linker-level unsafe implementation
+# with `#[allow(unsafe_code)]`; the diagnostics binary protocol requires this
+# constructor to handle `--dump-steps` before libtest starts.
+unsafe_code = "deny"
 missing_docs = "deny"
 
 [workspace.lints.rustdoc]

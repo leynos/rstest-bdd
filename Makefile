@@ -104,6 +104,7 @@ lint: ## Run Clippy and the Whitaker Dylint suite with warnings denied
 	$(MAKE) lint-whitaker
 	$(MAKE) lint-python
 	$(PROJECT_PYTHON) scripts/check_rs_file_lengths.py
+	$(PROJECT_PYTHON) scripts/check_unsafe_code_allows.py
 	$(PROJECT_PYTHON) scripts/check_users_guide_links.py
 	$(PROJECT_PYTHON) scripts/check_gpui_mapping_table.py
 	$(PROJECT_PYTHON) scripts/check_serial_nextest_matrix.py
