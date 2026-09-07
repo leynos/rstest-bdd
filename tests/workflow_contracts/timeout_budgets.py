@@ -54,14 +54,44 @@ _GRACE_PERIOD: typ.Final[re.Pattern[str]] = re.compile(r'grace-period\s*=\s*"([^
 
 
 class UnrecognizedDurationError(WorkflowShapeError):
-    """A duration string was not one nextest would accept."""
+    """A duration string was not one nextest would accept.
+
+    Raised by :func:`seconds` rather than guessing a magnitude. A
+    duration nobody can read is a configuration error, and putting an
+    arbitrary number into a budget comparison would hide it behind an
+    ordering assertion that then passes or fails for the wrong reason.
+
+    Parameters
+    ----------
+    duration : str
+        The string that could not be read, quoted into the message so
+        the failure names the value rather than only the file.
+
+    See Also
+    --------
+    seconds : The conversion that raises this.
+    """
 
     def __init__(self, duration: str) -> None:
         super().__init__(f"unrecognized nextest duration {duration!r}")
 
 
 class MissingDefaultProfileError(WorkflowShapeError):
-    """The nextest configuration declared no default profile."""
+    """The nextest configuration declared no ``[profile.default]``.
+
+    Raised by :func:`global_timeout`. The whole-run budget has to be
+    matched to the profile it belongs to, and the default profile is the
+    one the coverage lane runs under, so a file without it leaves the
+    ordering contract nothing to compare against rather than something
+    to compare loosely.
+
+    Takes no parameters: the file is fixed and naming it in the message
+    is enough to locate the fault.
+
+    See Also
+    --------
+    global_timeout : The reading that raises this.
+    """
 
     def __init__(self) -> None:
         super().__init__(
@@ -71,7 +101,20 @@ class MissingDefaultProfileError(WorkflowShapeError):
 
 
 class MissingGlobalTimeoutError(WorkflowShapeError):
-    """The default profile set no whole-run budget."""
+    """The default profile set no ``global-timeout``.
+
+    Raised by :func:`global_timeout` when the section exists but the key
+    does not. Without it the whole run is unbounded, so the cargo
+    watchdog becomes the only limit and a hung run is reported against
+    ``cargo`` rather than against the test that hung.
+
+    Takes no parameters, for the same reason as
+    :class:`MissingDefaultProfileError`.
+
+    See Also
+    --------
+    global_timeout : The reading that raises this.
+    """
 
     def __init__(self) -> None:
         super().__init__(
@@ -82,7 +125,20 @@ class MissingGlobalTimeoutError(WorkflowShapeError):
 
 
 class MissingSlowTimeoutError(WorkflowShapeError):
-    """The configuration set no per-test budget."""
+    """The configuration set no per-test budget anywhere.
+
+    Raised by :func:`largest_slow_timeout`. Nothing bounds a single test
+    without one, so this is a configuration error rather than a default
+    to fall back on: the tier-one comparison would otherwise be made
+    against a number nobody chose.
+
+    Takes no parameters, for the same reason as
+    :class:`MissingDefaultProfileError`.
+
+    See Also
+    --------
+    largest_slow_timeout : The reading that raises this.
+    """
 
     def __init__(self) -> None:
         super().__init__("nextest.toml must set at least one slow-timeout period")
