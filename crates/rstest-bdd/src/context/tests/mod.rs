@@ -98,17 +98,6 @@ fn borrow_mut_returns_none_for_shared_fixture() {
     assert!(ctx.borrow_mut::<i32>("number").is_none());
 }
 
-/// Describes which `insert_value` scenario to test.
-#[derive(Debug, Clone, Copy)]
-enum InsertValueScenario {
-    /// One u32 fixture; two inserts report the initial and displaced outcomes.
-    UniqueOverride,
-    /// Two u32 fixtures; `insert_value` reports an ambiguous type.
-    AmbiguousType,
-    /// One &str fixture; `insert_value` reports that the u32 type is missing.
-    MissingType,
-}
-
 /// Assert that a unique fixture override can be replaced twice.
 /// The first call returns None; the second returns the previous, correct value.
 ///
@@ -167,80 +156,100 @@ fn get_ignores_step_return_override() {
     drop(guard);
     assert_eq!(ctx.get::<u32>("number"), Some(&1));
 }
+
+/// Assert a step return can override a uniquely matching fixture twice.
+///
+/// The first insert records the override with no previous value; the second
+/// displaces it and reports the displaced override. No warning can fire
+/// because a single matching fixture never reaches the ambiguity path, so no
+/// warning listener is needed.
+#[test]
+fn insert_value_overrides_a_unique_fixture() {
+    // Storage for fixtures must outlive the context
+    let fixture: u32 = 1;
+
+    let mut ctx = StepContext::default();
+    ctx.insert("number", &fixture);
+    assert_unique_fixture_can_be_overridden_twice!(ctx);
+}
+
+/// Assert an ambiguous fixture type drops the step return and warns.
+///
+/// Two fixtures of the returned type make the override ambiguous; the value
+/// is dropped, both fixtures stay untouched, and the ambiguity warning fires.
+/// The listener fixture keeps the mirrored `eprintln!` out of test output.
 #[rstest::rstest]
-#[case::unique_override(InsertValueScenario::UniqueOverride)]
-#[case::ambiguous_type(InsertValueScenario::AmbiguousType)]
-#[case::missing_type(InsertValueScenario::MissingType)]
 #[expect(
     clippy::used_underscore_binding,
     reason = "rstest fixture injection requires the parameter"
 )]
-fn insert_value_behaviour(_warning_listener: DefaultGuard, #[case] scenario: InsertValueScenario) {
+fn insert_value_reports_an_ambiguous_fixture_type(_warning_listener: DefaultGuard) {
     // Storage for fixtures must outlive the context
     let fixture_one: u32 = 1;
     let fixture_two: u32 = 2;
+
+    let mut ctx = StepContext::default();
+    ctx.insert("one", &fixture_one);
+    ctx.insert("two", &fixture_two);
+
+    let result = ctx.insert_value(Box::new(5u32));
+    assert!(
+        matches!(&result, InsertOutcome::AmbiguousIgnored),
+        "ambiguous overrides must be reported as AmbiguousIgnored"
+    );
+    assert!(
+        !result.is_inserted(),
+        "a dropped value must not report is_inserted"
+    );
+    assert!(
+        result.into_previous().is_none(),
+        "a dropped value must not yield a previous override"
+    );
+    let Ok(one) = ctx.try_borrow::<u32>("one") else {
+        panic!("first fixture should remain borrowable");
+    };
+    let Ok(two) = ctx.try_borrow::<u32>("two") else {
+        panic!("second fixture should remain borrowable");
+    };
+    assert_eq!(*one, 1);
+    assert_eq!(*two, 2);
+}
+
+/// Assert a step return with no matching fixture type is dropped silently.
+///
+/// No fixture matches the returned type, so the value is dropped without a
+/// warning and the mismatched fixture stays readable under its own type. The
+/// `NoMatch` path returns before the warning site, so no listener is needed.
+#[test]
+fn insert_value_reports_a_missing_fixture_type() {
+    // Storage for fixtures must outlive the context
     let fixture_text: &str = "fixture";
 
     let mut ctx = StepContext::default();
+    ctx.insert("text", &fixture_text);
 
-    match scenario {
-        InsertValueScenario::UniqueOverride => {
-            ctx.insert("number", &fixture_one);
-            assert_unique_fixture_can_be_overridden_twice!(ctx);
+    let result = ctx.insert_value(Box::new(5u32));
+    assert!(
+        matches!(&result, InsertOutcome::NoMatch),
+        "missing fixture type must be reported as NoMatch"
+    );
+    assert!(
+        !result.is_inserted(),
+        "a dropped value must not report is_inserted"
+    );
+    assert!(
+        result.into_previous().is_none(),
+        "a dropped value must not yield a previous override"
+    );
+    let Err(mismatch) = ctx.try_borrow::<u32>("text") else {
+        panic!("borrowing the fixture as u32 should report a type mismatch");
+    };
+    assert_eq!(
+        mismatch,
+        FixtureBorrowError::TypeMismatch {
+            name: "text".into()
         }
-        InsertValueScenario::AmbiguousType => {
-            ctx.insert("one", &fixture_one);
-            ctx.insert("two", &fixture_two);
-
-            let result = ctx.insert_value(Box::new(5u32));
-            assert!(
-                matches!(&result, InsertOutcome::AmbiguousIgnored),
-                "ambiguous overrides must be reported as AmbiguousIgnored"
-            );
-            assert!(
-                !result.is_inserted(),
-                "a dropped value must not report is_inserted"
-            );
-            assert!(
-                result.into_previous().is_none(),
-                "a dropped value must not yield a previous override"
-            );
-            let Ok(one) = ctx.try_borrow::<u32>("one") else {
-                panic!("first fixture should remain borrowable");
-            };
-            let Ok(two) = ctx.try_borrow::<u32>("two") else {
-                panic!("second fixture should remain borrowable");
-            };
-            assert_eq!(*one, 1);
-            assert_eq!(*two, 2);
-        }
-        InsertValueScenario::MissingType => {
-            ctx.insert("text", &fixture_text);
-
-            let result = ctx.insert_value(Box::new(5u32));
-            assert!(
-                matches!(&result, InsertOutcome::NoMatch),
-                "missing fixture type must be reported as NoMatch"
-            );
-            assert!(
-                !result.is_inserted(),
-                "a dropped value must not report is_inserted"
-            );
-            assert!(
-                result.into_previous().is_none(),
-                "a dropped value must not yield a previous override"
-            );
-            let Err(mismatch) = ctx.try_borrow::<u32>("text") else {
-                panic!("borrowing the fixture as u32 should report a type mismatch");
-            };
-            assert_eq!(
-                mismatch,
-                FixtureBorrowError::TypeMismatch {
-                    name: "text".into()
-                }
-            );
-        }
-    }
+    );
 }
 
 /// Describes which `available_fixtures` scenario to test.

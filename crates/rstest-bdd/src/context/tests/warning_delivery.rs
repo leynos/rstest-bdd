@@ -1,10 +1,13 @@
 //! Warning-delivery route tests for the stderr fallback decision.
 
-use std::sync::{
-    Arc,
-    Mutex,
-    Once,
-    atomic::{AtomicBool, Ordering},
+use std::{
+    process::{Command, Stdio},
+    sync::{
+        Arc,
+        Mutex,
+        Once,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 use serial_test::serial;
@@ -21,6 +24,21 @@ use super::{super::warnings, scoped_subscriber};
 /// Target the warning event and its fallback probe use; consumers that filter
 /// or capture this exact target must keep seeing the warning.
 const WARNING_TARGET: &str = "rstest_bdd::context";
+
+/// Environment variable marking a re-executed probe child process.
+///
+/// The body of the targeted probe emits the mirror only when this variable is
+/// set, so a normal run of the registered test stays a quiet no-op.
+const CHILD_ENV: &str = "RSTEST_BDD_WARNING_PROBE_CHILD";
+
+/// Full test path of the probe body, passed to `--exact` on re-execution.
+///
+/// The `--exact` form avoids libtest's substring filter matching helper
+/// functions that share the probe body's name as a prefix.
+const TARGETED_TEST_ARG: &str = concat!(
+    "context::tests::warning_delivery::",
+    "run_filtering_subscriber_probe"
+);
 
 /// Logger that answers `enabled` only for the established warning target.
 ///
@@ -167,14 +185,106 @@ fn warning_reaches_a_tracing_subscriber_despite_a_log_logger() {
     );
 }
 
-/// Assert a `tracing` subscriber that filters `WARN` out is not a listener.
+/// Message emitted and matched by the subprocess fallback test; a unique
+/// constant keeps a concurrent unrelated run's stderr from matching.
+const FALLBACK_PROBE_MESSAGE: &str =
+    "rstest-bdd fallback probe: filtering subscriber must mirror to stderr";
+
+/// Child-mode body of the subprocess fallback test, registered as a test.
+///
+/// The parent test re-executes this binary with `--exact` and this test's
+/// path, so the function must stay `#[test]`-registered or the child would
+/// run zero tests. In a normal run the child marker is absent and the body
+/// returns immediately; in the child it installs the probe setup — the
+/// toggleable log logger, `AcceptWarn`, and a scoped `ERROR`-only subscriber
+/// — emits the probe message, and asserts the subscriber stayed out of the
+/// delivery route. The mirror then reaches this process's stderr, which the
+/// parent captures.
+#[test]
+#[serial]
+fn run_filtering_subscriber_probe() {
+    if std::env::var_os(CHILD_ENV).is_none() {
+        return;
+    }
+    toggleable_logger();
+    let _accept = AcceptWarn::enable();
+    let (events, _guard) = scoped_subscriber(Level::ERROR);
+
+    warnings::emit_visible_warning(FALLBACK_PROBE_MESSAGE);
+
+    // The subscriber must stay out of the delivery route; assert it directly
+    // rather than leaving the probe's behaviour unobserved.
+    assert_eq!(
+        events.load(Ordering::Relaxed),
+        0,
+        "a filtering subscriber must not record the event"
+    );
+}
+
+/// Re-execute the running test binary for exactly one test, returning its
+/// captured stderr and success flag.
+///
+/// The env marker plus `--exact` keeps the child from running any other test,
+/// so only the child's own stderr (including the mirrored probe message)
+/// reaches the parent's capture.
+fn run_child_probe() -> (String, bool) {
+    let Ok(executable) = std::env::current_exe() else {
+        return (
+            String::from("could not resolve the current test binary path"),
+            false,
+        );
+    };
+    let Ok(output) = Command::new(executable)
+        .env(CHILD_ENV, "1")
+        .args([
+            "--exact",
+            TARGETED_TEST_ARG,
+            "--nocapture",
+            "--test-threads=1",
+        ])
+        .stderr(Stdio::piped())
+        .stdout(Stdio::null())
+        .stdin(Stdio::null())
+        .output()
+    else {
+        return (
+            String::from("could not spawn the re-executed test binary"),
+            false,
+        );
+    };
+    (
+        String::from_utf8_lossy(&output.stderr).into_owned(),
+        output.status.success(),
+    )
+}
+
+/// Assert a `tracing` subscriber that filters `WARN` out still mirrors the
+/// warning to stderr.
 ///
 /// This is the false-negative the route gate exists to fix: with a dispatcher
 /// present, tracing's `log` bridge never forwards, so an enabled `log` logger
-/// must not mask the missing delivery. The mirror has to fire here.
+/// must not mask the missing delivery. The mirror is verified directly in a
+/// subprocess so the process-global logger stays isolated from parallel
+/// unit tests; the sibling in-process test keeps the predicate assertion.
+#[test]
+fn filtering_subscriber_with_log_logger_still_mirrors_to_stderr() {
+    let (stderr, child_success) = run_child_probe();
+    assert!(child_success, "child probe must pass; stderr: {stderr}");
+    assert!(
+        stderr.contains(FALLBACK_PROBE_MESSAGE),
+        "the stderr mirror must carry the probe message"
+    );
+}
+
+/// Assert the in-process predicate behind the stderr mirror still reports no
+/// listener under a WARN-filtering dispatcher.
+///
+/// Direct stderr capture requires a subprocess because the global `log`
+/// logger cannot be replaced, so this process-local companion test retains
+/// the predicate assertion the child body depends on.
 #[test]
 #[serial]
-fn filtering_subscriber_with_log_logger_still_mirrors_to_stderr() {
+fn filtering_subscriber_leaves_no_delivery_route() {
     toggleable_logger();
     let _accept = AcceptWarn::enable();
     let (events, _guard) = scoped_subscriber(Level::ERROR);
