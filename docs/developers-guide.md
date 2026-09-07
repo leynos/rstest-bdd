@@ -904,6 +904,10 @@ standalone workspaces. From it, three targets derive their behaviour:
 - `make check-derived-lockfiles` runs `cargo metadata --locked` for each
   registered manifest. `--locked` accepts nothing less than a lock that matches
   every input, so the check detects staleness without compiling any fixture.
+  The check is read-only and never stages or writes; manifests whose patches
+  point at generated package paths are validated last, and if their inputs are
+  missing the error names `make stage-published-gpui-e2e` instead of claiming
+  the lockfile is stale.
 - `make update-derived-lockfiles` refreshes every registered lockfile. The
   two feature-rebuild fixtures are seeded from the minimal fixture's lockfile
   first so their offline runs keep sharing its dependency resolution and
@@ -915,12 +919,14 @@ standalone workspaces. From it, three targets derive their behaviour:
 Fixtures whose manifests reference generated local package paths — today the
 published-GPUI end-to-end fixture's `[patch.crates-io]` entries — can be
 resolved only after `make stage-published-gpui-e2e` has unpacked the packaged
-first-party crates, so both check and refresh declare that staging as a
-prerequisite for exactly the registered manifests that need it.
+first-party crates, so the refresh target declares that staging as a
+prerequisite. The read-only check requires the caller (or the CI lane) to
+stage first and fails with an explicit missing-input message otherwise.
 
-Normal pull requests fail early: CI runs `make check-derived-lockfiles` on the
-Linux tools lane before any `--locked` fixture step, with a message naming the
-refresh target. The write-enabled refresh workflow remains restricted to
+Normal pull requests fail early: CI stages the generated patch paths and runs
+`make check-derived-lockfiles` on the Linux tools lane before any `--locked`
+fixture step, with a message naming the refresh target. The write-enabled
+refresh workflow remains restricted to
 Dependabot pull requests — it repairs Dependabot's own PRs automatically, but
 no contributor PR grants it or any other automation a branch write. See
 [ADR 021](adr-021-derived-fixture-lockfile-validation.md) for the decision

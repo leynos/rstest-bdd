@@ -312,6 +312,14 @@ three results a bare `Option` previously conflated:
   type, so the value was dropped to avoid an ambiguous override (a warning is
   emitted).
 
+The warning is emitted as a `tracing::warn!` event under the target
+`rstest_bdd::context`. A `tracing` subscriber receives it when it accepts
+`WARN`; otherwise, if no `tracing` dispatcher was ever installed and a `log`
+logger (such as `env_logger`) accepts `WARN` for that target, the warning is
+delivered through `tracing`'s log bridge. If neither route has a listener, the
+message is mirrored to stderr so it remains visible in a test binary with no
+logging configured.
+
 `InsertOutcome` is `#[must_use]`, so the compiler warns when a direct caller
 implicitly discards it and might miss a dropped step return; an explicit
 `let _ = ctx.insert_value(…)` still suppresses that warning, as the generated
