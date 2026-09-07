@@ -21,6 +21,7 @@ use super::{
     generate_scenarios_module,
     macro_args::ScenariosArgs,
     process_scenario,
+    resolve_manifest_directory,
 };
 #[cfg(feature = "compile-time-validation")]
 use crate::{
@@ -106,15 +107,14 @@ fn expand_scenarios_generates_module_for_valid_features() -> Result<(), String> 
         &LitStr::new("the system works", Span::call_site()),
     );
     let tokens = expand_scenarios_tokens(scenarios_args(temp.path())).to_string();
-    let relative_path = feature_path
-        .strip_prefix(env!("CARGO_MANIFEST_DIR"))
-        .map_err(|error| error.to_string())?;
-    let portable_path = relative_path
-        .iter()
-        .map(|segment| segment.to_string_lossy())
-        .collect::<Vec<_>>()
-        .join("/");
-    let expected_feature_path = LitStr::new(&portable_path, Span::call_site());
+    let manifest_dir = resolve_manifest_directory().map_err(|error| error.to_string())?;
+    let generated_path = feature_path
+        .strip_prefix(manifest_dir)
+        .map_or_else(|_| feature_path.clone(), Path::to_path_buf);
+    let expected_feature_path = LitStr::new(
+        &crate::macros::scenario::paths::render_feature_path(&generated_path),
+        Span::call_site(),
+    );
     let expected_feature_path_tokens = quote!(#expected_feature_path).to_string();
 
     assert!(tokens.contains("mod "), "{tokens}");

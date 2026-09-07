@@ -1,6 +1,31 @@
 //! Unit tests for Rust scenario-binding indexing.
 
+use rstest::rstest;
+
 use super::*;
+
+#[rstest]
+#[case("accounts", "outer::nested::accounts")]
+#[case("crate::root", "root")]
+#[case("self::accounts", "outer::nested::accounts")]
+#[case("super::shared", "outer::shared")]
+#[case("::external_steps::accounts", "external_steps::accounts")]
+#[case("shared_steps::accounts", "shared_steps::accounts")]
+#[case("rstest_bdd::global", "rstest_bdd::global")]
+fn resolves_library_path_prefixes(#[case] source: &str, #[case] expected: &str) {
+    let path = syn::parse_str(source).expect("library path");
+    let module_path = [String::from("outer"), String::from("nested")];
+    let module_paths = HashSet::from([vec![
+        String::from("outer"),
+        String::from("nested"),
+        String::from("accounts"),
+    ]]);
+
+    assert_eq!(
+        resolve_library_path(&path, &module_path, &module_paths),
+        expected
+    );
+}
 
 #[test]
 fn indexes_scenario_and_scenarios_library_scopes() {
