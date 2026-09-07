@@ -33,6 +33,11 @@ def _section_before(document: str, start_heading: str, end_heading: str) -> str:
     return document[start:end]
 
 
+def _normalize_whitespace(text: str) -> str:
+    """Collapse every run of whitespace, so soft wraps stop hiding prose."""
+    return " ".join(text.split())
+
+
 def test_historical_whitaker_update_matches_its_checked_in_baseline() -> None:
     """Hold the historical compatibility record byte-for-byte."""
     document = ADR_PATH.read_text(encoding="utf-8")
@@ -57,6 +62,7 @@ def test_runner_addendum_records_the_current_runner_contract() -> None:
         RUNNER_ADDENDUM_HEADING,
         "## Known limitations",
     )
+    addendum = _normalize_whitespace(addendum)
 
     for expected_contract in (
         UBICLOUD_LINUX_LABEL,
@@ -92,3 +98,11 @@ def test_runner_addendum_records_the_current_runner_contract() -> None:
         assert retired_contract not in addendum, (
             f"the runner-migration ADR addendum must not retain {retired_contract!r}"
         )
+
+
+def test_normalize_whitespace_collapses_markdown_soft_line_wraps() -> None:
+    """Soft-wrapped prose must still match a single-line expected contract."""
+    wrapped = "the sampler samples disk\nas well as memory."
+    assert _normalize_whitespace(wrapped) == (
+        "the sampler samples disk as well as memory."
+    ), "soft line wraps must collapse so wrapped prose still matches"
