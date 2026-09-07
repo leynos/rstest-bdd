@@ -1,6 +1,5 @@
 """Unit tests for the standalone fixture-lockfile gate.
 
-The gate validates committed fixture lockfiles with ``cargo metadata --locked``.
 These tests pin the discovery contract and the failure behaviour without
 mutating any repository fixture during parallel runs.
 """
@@ -9,7 +8,6 @@ import subprocess  # ruff: ignore[suspicious-subprocess-import] - tests build st
 from pathlib import Path
 from unittest import mock
 
-import check_fixture_lockfiles
 import pytest
 from check_fixture_lockfiles import (
     FixtureLockfileError,
@@ -23,6 +21,13 @@ from check_fixture_lockfiles import (
     refresh_lockfile,
     run_cargo_command,
     run_cargo_metadata,
+)
+from fixture_lockfile_reporting import (
+    GateMode,
+    print_check_summary,
+    print_refresh_summary,
+    refresh_failure_message,
+    stale_failure_message,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -84,9 +89,7 @@ def test_every_discovered_manifest_matches_its_lockfile() -> None:
 
 def test_stale_lockfile_fails_with_manifest_path_and_cargo_output() -> None:
     """A failing cargo metadata surfaces the manifest path and Cargo output."""
-    manifest = (
-        REPO_ROOT / "crates/rstest-bdd/tests/fixtures/feature_addition/Cargo.toml"
-    )
+    manifest = REPO_ROOT / "crates/rstest-bdd/tests/ui_lints/Cargo.toml"
     failing = subprocess.CompletedProcess(
         args=cargo_metadata_command(manifest),
         returncode=101,
@@ -104,9 +107,8 @@ def test_check_gate_fails_before_nested_cargo_tests_run() -> None:
     The nested rebuild-invalidation experiments only pass when every fixture
     lockfile resolves. A failing ``cargo metadata`` therefore reds the gate
     itself, and the behavioural suites never reach a nested-Cargo assertion
-    that could mask the drift. The gate's failure path is asserted without
-    mutating any repository fixture: the stubbed Cargo output stands in for a
-    stale lockfile, which keeps the test safe under parallel execution.
+    that could mask the drift. The stubbed Cargo output stands in for a stale
+    lockfile, keeping the test safe under parallel execution.
     """
     manifests = discover_fixture_manifests(REPO_ROOT)
     failing = subprocess.CompletedProcess(
@@ -153,11 +155,11 @@ def test_refresh_mode_regenerates_before_validating() -> None:
         return successful
 
     with (
-        mock.patch.object(
-            check_fixture_lockfiles, "refresh_lockfile", side_effect=record_refresh
+        mock.patch(
+            "check_fixture_lockfiles.refresh_lockfile", side_effect=record_refresh
         ),
-        mock.patch.object(
-            check_fixture_lockfiles, "run_cargo_metadata", side_effect=record_metadata
+        mock.patch(
+            "check_fixture_lockfiles.run_cargo_metadata", side_effect=record_metadata
         ),
     ):
         exit_code = refresh_fixtures(REPO_ROOT, manifests)
@@ -227,9 +229,7 @@ def test_run_cargo_command_reports_a_missing_cargo_executable() -> None:
 
 def test_thin_wrappers_delegate_to_the_shared_runner() -> None:
     """Both public entry points build their argv and hand it to one runner."""
-    manifest = (
-        REPO_ROOT / "crates/rstest-bdd/tests/fixtures/feature_addition/Cargo.toml"
-    )
+    manifest = REPO_ROOT / "crates/rstest-bdd/tests/ui_lints/Cargo.toml"
     with mock.patch("check_fixture_lockfiles.run_cargo_command") as runner:
         run_cargo_metadata(manifest)
         refresh_lockfile(manifest)
@@ -241,7 +241,7 @@ def test_thin_wrappers_delegate_to_the_shared_runner() -> None:
     assert metadata_argv == cargo_metadata_command(manifest), (
         "validation must always use the locked metadata argv"
     )
-    assert metadata_manifest == manifest, "validation must name the manifest it checked"
+    assert metadata_manifest == manifest, "validation must name the manifest"
     assert refresh_argv == [
         "cargo",
         "generate-lockfile",
@@ -253,9 +253,7 @@ def test_thin_wrappers_delegate_to_the_shared_runner() -> None:
 
 def test_check_failure_output_carries_manifest_command_and_cargo_streams() -> None:
     """The check failure report names the fixture, command, stdout, and stderr."""
-    manifest = (
-        REPO_ROOT / "crates/rstest-bdd/tests/fixtures/feature_addition/Cargo.toml"
-    )
+    manifest = REPO_ROOT / "crates/rstest-bdd/tests/ui_lints/Cargo.toml"
     failing = subprocess.CompletedProcess(
         args=cargo_metadata_command(manifest),
         returncode=101,
@@ -269,29 +267,14 @@ def test_check_failure_output_carries_manifest_command_and_cargo_streams() -> No
         exit_code = check_fixtures(REPO_ROOT, [manifest])
     assert exit_code == 1, "a stale lockfile must fail the gate"
     report = emit_failures.call_args.args[0][0]
-    assert "feature_addition" in report, "the report must name the stale fixture"
-    assert "cargo metadata --locked" in report, "the report must give the command"
-
-
-def test_check_failure_report_carries_both_cargo_streams() -> None:
-    """The check failure report relays Cargo stdout and stderr verbatim."""
-    manifest = (
-        REPO_ROOT / "crates/rstest-bdd/tests/fixtures/feature_addition/Cargo.toml"
-    )
-    failing = subprocess.CompletedProcess(
-        args=cargo_metadata_command(manifest),
-        returncode=101,
-        stdout="partial resolution output",
-        stderr=STALE_OUTPUT,
-    )
-    with (
-        mock.patch("check_fixture_lockfiles.run_cargo_metadata", return_value=failing),
-        mock.patch("check_fixture_lockfiles.print_failures") as emit_failures,
-    ):
-        check_fixtures(REPO_ROOT, [manifest])
-    report = emit_failures.call_args.args[0][0]
-    assert STALE_OUTPUT in report, "the report must carry Cargo stderr"
-    assert "partial resolution output" in report, "the report must carry stdout"
+    assert report == (
+        "stale or unusable fixture lockfile: "
+        "crates/rstest-bdd/tests/ui_lints/Cargo.toml\n"
+        f"command: {' '.join(cargo_metadata_command(manifest))}\n"
+        "cargo output:\n"
+        "partial resolution output"
+        f"{STALE_OUTPUT}"
+    ), "the report must name the fixture, command, stdout, and stderr"
 
 
 def test_refresh_failure_report_uses_the_refresh_wording() -> None:
@@ -304,7 +287,7 @@ def test_refresh_failure_report_uses_the_refresh_wording() -> None:
         stderr=STALE_OUTPUT,
     )
     with (
-        mock.patch("check_fixture_lockfiles.refresh_lockfile", return_value=failing),
+        mock.patch("check_fixture_lockfiles.refresh_lockfile"),
         mock.patch("check_fixture_lockfiles.run_cargo_metadata", return_value=failing),
         mock.patch("check_fixture_lockfiles.print_failures") as emit_failures,
     ):
@@ -316,6 +299,25 @@ def test_refresh_failure_report_uses_the_refresh_wording() -> None:
     )
     assert "ui_lints" in report, "the report must name the stale fixture"
     assert STALE_OUTPUT in report, "the report must carry Cargo stderr"
+
+
+def test_gate_wrappers_delegate_to_the_shared_reporter() -> None:
+    """Each entry point delegates with its formatter, summary, and prep."""
+    cases = [
+        (check_fixtures, GateMode(stale_failure_message, print_check_summary)),
+        (
+            refresh_fixtures,
+            GateMode(refresh_failure_message, print_refresh_summary, refresh_lockfile),
+        ),
+    ]
+    for entry_point, mode in cases:
+        manifests = [REPO_ROOT / "crates/rstest-bdd/tests/ui_lints/Cargo.toml"]
+        with mock.patch(
+            "check_fixture_lockfiles._report_fixture_operation", return_value=0
+        ) as delegate:
+            exit_code = entry_point(REPO_ROOT, manifests)
+        assert exit_code == 0, "the wrapper must return the helper's exit code"
+        delegate.assert_called_once_with(REPO_ROOT, manifests, mode)
 
 
 def test_refresh_failure_summary_streams_to_stderr(
@@ -388,8 +390,7 @@ def test_main_refresh_flag_routes_to_refresh_fixtures(
             "check_fixture_lockfiles.run_cargo_metadata", return_value=successful
         ),
         mock.patch(
-            "check_fixture_lockfiles.discover_fixture_manifests",
-            return_value=manifests,
+            "check_fixture_lockfiles.discover_fixture_manifests", return_value=manifests
         ),
     ):
         exit_code = main(["--refresh"])

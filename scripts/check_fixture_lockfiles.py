@@ -24,6 +24,7 @@ import typing as typ
 from pathlib import Path
 
 from fixture_lockfile_reporting import (
+    GateMode,
     print_check_summary,
     print_failures,
     print_refresh_summary,
@@ -315,14 +316,6 @@ def collect_fixture_results(
     first), then validated with locked ``cargo metadata``; the loop never
     stops at the first failure so one gate run reports every stale fixture.
 
-    Parameters
-    ----------
-    root : Path
-    manifests : list[Path]
-    prepare : cabc.Callable[[Path], object] | None, optional
-        Operation run per manifest before validation, or None. Check mode
-        passes nothing; refresh mode passes :func:`refresh_lockfile`.
-
     Returns
     -------
     list[tuple[Path, subprocess.CompletedProcess[str]]]
@@ -338,30 +331,15 @@ def collect_fixture_results(
     return failures
 
 
-def check_fixtures(root: Path, manifests: list[Path]) -> int:
-    """Validate every fixture lockfile, returning the process exit code."""
+def _report_fixture_operation(
+    root: Path,
+    manifests: list[Path],
+    mode: GateMode,
+) -> int:
+    """Collect, report, and summarize one gate operation over *manifests*."""
+    results = collect_fixture_results(root, manifests, prepare=mode.prepare)
     failures = [
-        stale_failure_message(
-            manifest.relative_to(root),
-            cargo_metadata_command(manifest),
-            result.stdout,
-            result.stderr,
-        )
-        for manifest, result in collect_fixture_results(root, manifests)
-    ]
-    if failures:
-        print_failures(failures)
-        print_check_summary(len(manifests), len(failures))
-        return 1
-    print_check_summary(len(manifests), 0)
-    return 0
-
-
-def refresh_fixtures(root: Path, manifests: list[Path]) -> int:
-    """Regenerate every fixture lockfile, returning the process exit code."""
-    results = collect_fixture_results(root, manifests, prepare=refresh_lockfile)
-    failures = [
-        refresh_failure_message(
+        mode.failure_message(
             manifest.relative_to(root),
             cargo_metadata_command(manifest),
             result.stdout,
@@ -371,10 +349,26 @@ def refresh_fixtures(root: Path, manifests: list[Path]) -> int:
     ]
     if failures:
         print_failures(failures)
-        print_refresh_summary(len(manifests), len(failures))
-        return 1
-    print_refresh_summary(len(manifests), 0)
-    return 0
+    mode.print_summary(len(manifests), len(failures))
+    return 1 if failures else 0
+
+
+def check_fixtures(root: Path, manifests: list[Path]) -> int:
+    """Validate every fixture lockfile, returning the process exit code."""
+    return _report_fixture_operation(
+        root,
+        manifests,
+        GateMode(stale_failure_message, print_check_summary),
+    )
+
+
+def refresh_fixtures(root: Path, manifests: list[Path]) -> int:
+    """Regenerate every fixture lockfile, returning the process exit code."""
+    return _report_fixture_operation(
+        root,
+        manifests,
+        GateMode(refresh_failure_message, print_refresh_summary, refresh_lockfile),
+    )
 
 
 def main(argv: list[str] | None = None) -> int:

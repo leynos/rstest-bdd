@@ -6,10 +6,12 @@ script stay under the 400-line budget while the wording of a stale-lockfile
 failure stays testable in one place.
 """
 
+import dataclasses
 import sys
 import typing as typ
 
 if typ.TYPE_CHECKING:
+    import collections.abc as cabc
     from pathlib import Path
 
 #: Suggested remediation printed when a lockfile no longer resolves.
@@ -122,3 +124,25 @@ def print_refresh_summary(total: int, failed: int) -> None:
         print(f"{failed} of {total} fixture lockfile(s) still stale", file=sys.stderr)
     else:
         print(f"refreshed {total} fixture lockfile(s)")
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class GateMode:
+    """Bundle the callables that distinguish one fixture-gate operation.
+
+    Bundling keeps :func:`check_fixtures` and :func:`refresh_fixtures` in the
+    gate script to three call arguments, inside the ``max-args`` lint budget.
+
+    Parameters
+    ----------
+    failure_message : cabc.Callable[[Path, list[str], str, str], str]
+        Render one failing manifest and Cargo output as report text.
+    print_summary : cabc.Callable[[int, int], None]
+        Close the run with the total and failed counts.
+    prepare : cabc.Callable[[Path], object] | None
+        Optional per-manifest operation before validation, or None.
+    """
+
+    failure_message: cabc.Callable[[Path, list[str], str, str], str]
+    print_summary: cabc.Callable[[int, int], None]
+    prepare: cabc.Callable[[Path], object] | None = None
