@@ -9,21 +9,46 @@ use proptest::prelude::*;
 
 use super::saturate_to_i32;
 
+/// Independent reference for the saturation invariant.
+///
+/// Deliberately uses explicit boundary comparisons rather than restating the
+/// production `TryFrom`-based expression, so the property tests the documented
+/// behaviour instead of a second copy of the implementation.
+fn reference_clamp(value: i64) -> i32 {
+    if value > i64::from(i32::MAX) {
+        i32::MAX
+    } else if value < i64::from(i32::MIN) {
+        i32::MIN
+    } else {
+        // The boundary branches above handled every out-of-range value, so
+        // the conversion cannot fail here.
+        let Ok(converted) = i32::try_from(value) else {
+            unreachable!("value is within the i32 range")
+        };
+        converted
+    }
+}
+
+/// The exact `i32` boundaries convert to themselves.
+#[test]
+fn i32_boundaries_convert_unchanged() {
+    assert_eq!(saturate_to_i32(i64::from(i32::MAX)), i32::MAX);
+    assert_eq!(saturate_to_i32(i64::from(i32::MIN)), i32::MIN);
+}
+
+/// One step beyond either boundary saturates deterministically.
+#[test]
+fn values_beyond_i32_boundaries_saturate() {
+    assert_eq!(saturate_to_i32(i64::from(i32::MAX) + 1), i32::MAX);
+    assert_eq!(saturate_to_i32(i64::from(i32::MIN) - 1), i32::MIN);
+}
+
 proptest! {
     /// Any `i64` input must clamp exactly like an independent boundary
     /// reference, and the result must remain a valid `i32`.
     #[test]
     fn clamps_to_i32_range(value in any::<i64>()) {
-        // Independent reference: explicit boundary checks instead of
-        // restating the production `TryFrom`-based expression.
-        let expected = if value > i64::from(i32::MAX) {
-            i32::MAX
-        } else if value < i64::from(i32::MIN) {
-            i32::MIN
-        } else {
-            // In range, so the conversion cannot fail.
-            i32::try_from(value).expect("value is within i32 range")
-        };
+        let expected = reference_clamp(value);
 
         let result = saturate_to_i32(value);
 

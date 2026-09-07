@@ -1226,6 +1226,25 @@ product are unnecessary because repeated combinations reach the same branches,
 while randomized `syn` syntax adds no semantic states or useful shrinking
 oracle.
 
+### Property tests in the gpui-counter example
+
+The gpui-counter example checks its delta arithmetic with property tests in
+`examples/gpui-counter/src/prop_tests.rs`, a `#[cfg(test)]` module declared
+from `examples/gpui-counter/src/lib.rs`. The crate requires the workspace
+`proptest` development dependency (`proptest.workspace = true` under
+`[dev-dependencies]` in `examples/gpui-counter/Cargo.toml`). The tests run
+with `cargo test -p gpui-counter` and execute as part of the normal workspace
+test suite; `.config/nextest.toml` has no gpui-counter override, so they run
+under the default 60 s slow-timeout with no configuration needed.
+
+The property tests verify the `i64` -> `i32` saturation invariant of
+`saturate_to_i32`: values above `i32::MAX` saturate to `i32::MAX`, values
+below `i32::MIN` saturate to `i32::MIN`, in-range values convert unchanged,
+and every result stays inside the `i32` range. The boundary strategies start
+above `i32::MAX` and end below `i32::MIN`, so the saturation regions are
+exercised densely without relying on random draws landing there; the exact
+boundary values are pinned by deterministic cases added in the same change.
+
 ### Bulk-migration cookbook reference suite
 
 The user guide's "Bulk-migration cookbook" subsection is backed by a
