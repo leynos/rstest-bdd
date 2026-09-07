@@ -1310,3 +1310,21 @@ boundary without importing Trymark's syntax or reporting model into
     supplied locations, and proves no Rust test crate is generated or compiled.
   - See `docs/adr-018-parser-neutral-scenario-execution.md` (Extension
     boundary and Compatibility and migration).
+
+## 14. Engineering hygiene
+
+This phase tracks repository-level hardening and tooling work that does not
+belong to a feature phase.
+
+- [x] 14.1.1. Clear the actionlint script-injection finding on the
+  Dependabot lockfile refresh workflow. Finish line:
+  `.github/workflows/refresh-derived-fixture-lockfiles.yml` no longer
+  interpolates `github.event.pull_request.head.ref` in an inline shell
+  script; the push step binds the expression to a `PR_HEAD_REF` environment
+  variable and expands it quoted, preserving the existing dispatch
+  semantics. Delivered 2026-09-07: the push step now reads
+  `git push origin "HEAD:$PR_HEAD_REF"` and the workflow contract test locks
+  in both the env mapping and the command. Validation:
+  `actionlint -config-file .github/actionlint.yaml
+  .github/workflows/refresh-derived-fixture-lockfiles.yml` and `make
+  test-workflow-contracts` passed.
