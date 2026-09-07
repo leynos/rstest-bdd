@@ -21,13 +21,13 @@ Run via ``make test-workflow-contracts``.
 
 import typing as typ
 
-from publish_report_support import FULL_SHA as _FULL_SHA
-from publish_report_support import (
-    build_test_env,
+from lading_pins import (
     lockfile_lading_ref,
     makefile_lading_ref,
     pyproject_lading_ref,
 )
+from publish_report_support import FULL_SHA as _FULL_SHA
+from publish_report_support import build_test_env
 
 
 def test_every_lading_pin_agrees(build_test_job: dict[str, typ.Any]) -> None:

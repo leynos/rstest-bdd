@@ -18,7 +18,7 @@ import typing as typ
 if typ.TYPE_CHECKING:
     from pathlib import Path
 
-from workflow_support import WorkflowShapeError, job, repository_file, steps
+from workflow_support import WorkflowShapeError, job, steps
 
 #: The workflow these assertions read, loaded through
 #: :func:`workflow_support.job` so file access and YAML parsing happen at
@@ -99,68 +99,6 @@ def _require(condition: object, message: str) -> None:
         raise PublishReportShapeError(message)
 
 
-def makefile_lading_ref() -> str:
-    """Return the Makefile's lading pin.
-
-    Returns
-    -------
-    str
-        The commit the Makefile resolves lading from.
-    """
-    makefile = repository_file("Makefile")
-    match = re.search(r"^LADING_REF \?= (?P<ref>\S+)$", makefile, re.MULTILINE)
-    if match is None:
-        raise PublishReportShapeError("the Makefile must define LADING_REF")
-    return match["ref"]
-
-
-def lockfile_lading_ref() -> str:
-    """Return the commit `uv.lock` resolves Lading to.
-
-    The fourth place the pin lives, and the one that decides what a bare
-    ``uv run`` actually installs: the project group states a commit and
-    the lock file records the one resolution chose. They can disagree
-    only through an incomplete bump, and the failure is silent, because
-    the lock file wins.
-
-    Returns
-    -------
-    str
-        The commit recorded in the lock file.
-    """
-    lockfile = repository_file("uv.lock")
-    matches = set(
-        re.findall(
-            r"github\.com/leynos/lading\?rev=([0-9a-f]{40})",
-            lockfile,
-        )
-    )
-    _require(matches, "uv.lock must record a lading git revision")
-    _require(
-        len(matches) == 1,
-        f"uv.lock must resolve lading to one commit, found {sorted(matches)}",
-    )
-    return matches.pop()
-
-
-def pyproject_lading_ref() -> str:
-    """Return the project group's lading pin.
-
-    Returns
-    -------
-    str
-        The commit `uv` resolves lading from for a bare `uv run`.
-    """
-    pyproject = repository_file("pyproject.toml")
-    match = re.search(
-        r"lading @ git\+https://github\.com/leynos/lading@(?P<ref>[0-9a-f]{40})",
-        pyproject,
-    )
-    if match is None:
-        raise PublishReportShapeError("pyproject.toml must pin lading by commit")
-    return match["ref"]
-
-
 def build_test_job_document() -> dict[str, typ.Any]:
     """Return the packaging job, parsed from the workflow.
 
@@ -209,16 +147,22 @@ def mapping_at(owner: object, key: str, subject: str) -> dict[str, typ.Any]:
     -------
     dict[str, typ.Any]
         The mapping, or an empty one when the key is absent.
+
+    Raises
+    ------
+    PublishReportShapeError
+        If the owner is not a mapping, or the key holds something that
+        is neither a mapping nor absent.
     """
     if not isinstance(owner, dict):
-        raise PublishReportShapeError(f"{subject} must be a mapping, got {owner!r}")
+        message = f"{subject} must be a mapping, got {owner!r}"
+        raise PublishReportShapeError(message)
     value = owner.get(key)
     if value is None:
         return {}
     if not isinstance(value, dict):
-        raise PublishReportShapeError(
-            f"{subject}'s {key!r} must be a mapping, got {value!r}"
-        )
+        message = f"{subject}'s {key!r} must be a mapping, got {value!r}"
+        raise PublishReportShapeError(message)
     return value
 
 
@@ -313,15 +257,22 @@ def statistics_path(build_test_job: dict[str, typ.Any]) -> str:
     -------
     str
         The configured file path.
+
+    Raises
+    ------
+    PublishReportShapeError
+        If the step sets no report path, or sets one that is not a
+        string.
     """
     step = step_named(build_test_job, DRY_RUN_STEP)
     environment = mapping_at(step, "env", f"the {DRY_RUN_STEP!r} step")
     path = environment.get(STATS_VARIABLE)
     if not isinstance(path, str):
-        raise PublishReportShapeError(
+        message = (
             f"the {DRY_RUN_STEP!r} step must set {STATS_VARIABLE} to a path, "
             f"got {path!r}"
         )
+        raise PublishReportShapeError(message)
     _require(path, f"the {DRY_RUN_STEP!r} step must set {STATS_VARIABLE}")
     return path
 
@@ -338,12 +289,17 @@ def verification_script(build_test_job: dict[str, typ.Any]) -> str:
     -------
     str
         The script the runner executes.
+
+    Raises
+    ------
+    PublishReportShapeError
+        If the verification step declares no run script, or an empty
+        one.
     """
     script = step_named(build_test_job, VERIFY_STEP).get("run")
     if not isinstance(script, str):
-        raise PublishReportShapeError(
-            f"{VERIFY_STEP!r} must declare a run script, got {script!r}"
-        )
+        message = f"{VERIFY_STEP!r} must declare a run script, got {script!r}"
+        raise PublishReportShapeError(message)
     _require(script.strip(), f"{VERIFY_STEP!r}'s run script is empty")
     return script
 
