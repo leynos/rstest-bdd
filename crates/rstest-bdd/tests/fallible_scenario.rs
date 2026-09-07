@@ -101,7 +101,7 @@ fn fallible_success_records_pass() {
 async fn fallible_async_success_records_pass() {
     async fn assert_fallible_async_success_records_pass() {
         let join = tokio::task::spawn_blocking(|| {
-            serial_test::local_serial_core_with_return("", || {
+            serial_test::local_serial_core_with_return(vec![""], None, || {
                 let _ = drain_reports();
                 let result = crate::fallible_scenario_async_success();
                 assert_fallible_success_records_pass(result, "async fallible");
