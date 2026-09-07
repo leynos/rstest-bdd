@@ -59,18 +59,18 @@ sampler shows the reclaimed shape still peaking within 5 GB of a full disk.
 The reclaimed lane has never come close to that. Five consecutive runs on
 2026-09-04, three on the pull request and two dispatched on trunk, measured:
 
-| Run | Peak used disk | Least free disk | Peak memory |
-| --- | --- | --- | --- |
-| 33853939331 | 60,315 MiB | 12,995 MiB | 1,911 MiB |
-| 33862077644 | 60,312 MiB | 12,998 MiB | 1,789 MiB |
-| 33866984348 | 60,244 MiB | 13,066 MiB | 2,007 MiB |
-| 33884577115 | 60,875 MiB | 12,435 MiB | 1,932 MiB |
-| 33888769029 | 60,875 MiB | 12,435 MiB | 1,975 MiB |
+| Run         | Peak used disk | Least free disk | Peak memory |
+| ----------- | -------------- | --------------- | ----------- |
+| 33853939331 | 60,315 MiB     | 12,995 MiB      | 1,911 MiB   |
+| 33862077644 | 60,312 MiB     | 12,998 MiB      | 1,789 MiB   |
+| 33866984348 | 60,244 MiB     | 13,066 MiB      | 2,007 MiB   |
+| 33884577115 | 60,875 MiB     | 12,435 MiB      | 1,932 MiB   |
+| 33888769029 | 60,875 MiB     | 12,435 MiB      | 1,975 MiB   |
 
 *Table: sampler peaks on `ubicloud-standard-2` after the discard step landed.*
 
-Each of those runs reclaimed about 10 GB, taking the root filesystem from
-83 percent to 69 percent full immediately before the publish build. The trees
+Each of those runs reclaimed about 10 GB, taking the root filesystem from 83
+percent to 69 percent full immediately before the publish build. The trees
 measured 5.7 GB for the instrumented coverage tree, 1.9 GB for the
 published-GPUI end-to-end fixture, 1.6 GB for `target/debug`, and 993 MB for
 the 0.2.2 fixture. Discarding the coverage tree alone would have left most of
@@ -196,8 +196,8 @@ proxy, and every `sccache` write failed against it. Clearing
 that this reaches Ubicloud is `sccache/*` entries under the branch scope in
 `ubi gh leynos/rstest-bdd list-cache-entries`.
 
-The shared Rust setup is called with `use-sccache: false` on every lane, and
-on the Linux lanes that is load-bearing rather than incidental. Measured on
+The shared Rust setup is called with `use-sccache: false` on every lane, and on
+the Linux lanes that is load-bearing rather than incidental. Measured on
 `ubicloud-standard-2`, a later `run:` step does see the credentials the
 re-export publishes; what breaks the backend is the shared action's own
 `sccache` wiring. Its last act re-exports `ACTIONS_CACHE_SERVICE_V2=on`
@@ -205,16 +205,16 @@ together with GitHub's results URL and token to `GITHUB_ENV`, which clobbers
 the re-export for every step that follows, so the `sccache` server then
 addresses GitHub's results service and its writes fail. Keeping that step out
 of the job is what makes the backend reach Ubicloud. Do not set
-`use-sccache: true` here on the assumption that the workflow's own installer
-is merely a duplicate.
+`use-sccache: true` here on the assumption that the workflow's own installer is
+merely a duplicate.
 
 The Windows lane has no backend of that kind because nothing else wires one. It
 uses the workspace directory, restored and saved by the cache action with a
-`restore-keys` prefix.
-Setting the `RSTEST_BDD_SCCACHE_LOCAL` repository variable moves the Linux
-lanes onto that same local directory, which is the documented fallback if the
-backend ever stops reaching Ubicloud. The compiler-cache step is guarded so
-that exactly one mechanism owns the directory on any given lane.
+`restore-keys` prefix. Setting the `RSTEST_BDD_SCCACHE_LOCAL` repository
+variable moves the Linux lanes onto that same local directory, which is the
+documented fallback if the backend ever stops reaching Ubicloud. The
+compiler-cache step is guarded so that exactly one mechanism owns the directory
+on any given lane.
 
 `SCCACHE_CACHE_SIZE` is 4 GB, sized for two build shapes while leaving room in
 Ubicloud's 30 GB weekly per-repository quota for the registry, the tool
@@ -510,8 +510,7 @@ The file sets the timeout policy for the test suite:
   tests one at a time without exhausting the whole-suite budget. The global
   timeout must stay above the largest per-test budget below, or the run is
   killed before the test that budget exists for can finish;
-  `trybuild_nextest_override_preserves_timeout_contract` enforces the
-  ordering.
+  `trybuild_nextest_override_preserves_timeout_contract` enforces the ordering.
 - A `[[profile.default.overrides]]` entry raises the `slow-timeout` to 180 s
   for `cargo-bdd::cli`, whose smoke tests spawn `cargo` to build fixture crates
   and can legitimately exceed 60 s on cold caches.
@@ -526,8 +525,8 @@ The file sets the timeout policy for the test suite:
   allowance with nothing in `sccache`, took 386.8 s with a partial cache, and
   about 190 s against a full one. The 20-minute allowance permits the full
   fixture set to rebuild on a cold cache without treating slow, healthy
-  compiler work as a hung test. The strict 60 s default remains
-  in force elsewhere.
+  compiler work as a hung test. The strict 60 s default remains in force
+  elsewhere.
 - A third override raises the `slow-timeout` to 600 s for
   `rstest-bdd::feature_rebuild_invalidation`, whose three scenarios run nested
   `cargo` commands for dependency tracking, rebuilding, and file addition.
@@ -560,12 +559,12 @@ Four independent timers can end a test run, and they are set in four different
 places. A run that dies without an obvious cause is nearly always one of them,
 so it is worth knowing which is which and in what order they can fire.
 
-| Tier | What it bounds | Where it is set | Current value |
-| --- | --- | --- | --- |
-| Per-test `slow-timeout` | one test | `.config/nextest.toml` | 60 s default, 20 m for the trybuild binaries |
-| nextest `global-timeout` | the whole test run | `.config/nextest.toml` | 75 m |
-| Cargo watchdog | one `cargo` invocation, wall clock | `RUN_RUST_CARGO_WAIT_TIMEOUT` on the coverage steps in `ci.yml` | 6,600 s (110 m) |
-| Job `timeout-minutes` | the whole job | `ci.yml`, job level | 190 m |
+| Tier                     | What it bounds                     | Where it is set                                                 | Current value                                |
+| ------------------------ | ---------------------------------- | --------------------------------------------------------------- | -------------------------------------------- |
+| Per-test `slow-timeout`  | one test                           | `.config/nextest.toml`                                          | 60 s default, 20 m for the trybuild binaries |
+| nextest `global-timeout` | the whole test run                 | `.config/nextest.toml`                                          | 75 m                                         |
+| Cargo watchdog           | one `cargo` invocation, wall clock | `RUN_RUST_CARGO_WAIT_TIMEOUT` on the coverage steps in `ci.yml` | 6,600 s (110 m)                              |
+| Job `timeout-minutes`    | the whole job                      | `ci.yml`, job level                                             | 190 m                                        |
 
 Each tier must sit above the one before it. If the watchdog sits below the
 nextest global timeout, as it did until this was written, the run is killed
@@ -579,8 +578,8 @@ start at different moments and cover different work.
 
 The watchdog starts when `cargo` starts, so it covers the build as well as the
 test run. nextest's global timeout starts only once tests begin. A watchdog
-merely larger than the global timeout is still pre-empting it whenever the build
-takes longer than the difference between them.
+merely larger than the global timeout is still pre-empting it whenever the
+build takes longer than the difference between them.
 
 The far end matters as well. A test already running when the global timeout
 expires is allowed to finish, so a run can outlast that budget by the longest
@@ -589,11 +588,11 @@ allowing for it costs nothing, because the watchdog only fires on an overrun.
 
 The watchdog is therefore sized as the global timeout, plus the running-test
 tail, plus a cold-build allowance: 75 m + 20 m + 15 m = 110 m. The build phase
-inside `cargo` measured 3 m 31 s on run 33966769942 with a nearly cold cache, so
-the 15 minutes is generous on purpose.
+inside `cargo` measured 3 m 31 s on run 33966769942 with a nearly cold cache,
+so the 15 minutes is generous on purpose.
 
-The job timer starts when the job starts, long before coverage and long after it
-finishes. On the Linux lane, formatting, linting, type checking and the
+The job timer starts when the job starts, long before coverage and long after
+it finishes. On the Linux lane, formatting, linting, type checking and the
 published-GPUI end-to-end scenario run first, and the publish dry run follows.
 Measured across runs rather than one: 14 m 03 s before coverage and 36 m 41 s
 after on run 33971821695, against 37 m 34 s before and 30 m 59 s after on the
@@ -601,15 +600,15 @@ cold run that carried this change, where the published-GPUI fixture check and
 end-to-end scenario took 8 m 19 s and 13 m 07 s rather than about three minutes
 each. Just over 68 minutes of that job lay outside the watchdog's window. The
 ceiling is therefore 110 m + 75 m = 185 m, rounded to 190. A job ceiling merely
-above the watchdog would cancel the run before the watchdog could report it, and
-a cancellation discards the log that would have explained the overrun.
+above the watchdog would cancel the run before the watchdog could report it,
+and a cancellation discards the log that would have explained the overrun.
 
 ### The cargo watchdog is the tier nobody expects
 
 The first three tiers are nextest's and the repository's. The watchdog belongs
-to the shared `generate-coverage` action, which wraps the `cargo` invocation and
-kills it after a wall-clock budget. It defaults to 1,800 s and it is easy to
-forget, because nothing in `.config/nextest.toml` mentions it.
+to the shared `generate-coverage` action, which wraps the `cargo` invocation
+and kills it after a wall-clock budget. It defaults to 1,800 s and it is easy
+to forget, because nothing in `.config/nextest.toml` mentions it.
 
 When it fires the step prints:
 
@@ -622,19 +621,19 @@ budget.
 ```
 
 The message is worth taking at its word. Nothing was detected as hung. A budget
-expired, and on a cold compiler cache that is the expected outcome rather than a
-symptom.
+expired, and on a cold compiler cache that is the expected outcome rather than
+a symptom.
 
 ### What the current values are sized against
 
 The Linux coverage step was measured on `ubicloud-standard-2`:
 
-| Run | Step duration | Cache |
-| --- | --- | --- |
-| 33966133264 | 11 m 20 s | warm |
-| 33975538044 | 22 m 16 s | typical |
-| 33971821695 | 30 m 33 s | cold |
-| this change's own run | 42 m 02 s | cold |
+| Run                   | Step duration | Cache   |
+| --------------------- | ------------- | ------- |
+| 33966133264           | 11 m 20 s     | warm    |
+| 33975538044           | 22 m 16 s     | typical |
+| 33971821695           | 30 m 33 s     | cold    |
+| this change's own run | 42 m 02 s     | cold    |
 
 That last row is why the earlier numbers were not enough. Each of the first
 three was the coldest run available when it was taken, and each was beaten. At
@@ -655,8 +654,8 @@ request rather than in a run three weeks later. The job ceiling is compared per
 job rather than against the tightest budget in the file because an unrelated
 job's ceiling has nothing to say about this one. It also requires every step
 that invokes the shared coverage action to set the watchdog explicitly: a step
-that loses its override inherits the action's 1,800 s default, which is how this
-went wrong in the first place.
+that loses its override inherits the action's 1,800 s default, which is how
+this went wrong in the first place.
 
 ## `#[serial]`, `#[file_serial]`, and nextest test-groups
 
@@ -2055,9 +2054,9 @@ which `prepare_publish`-only tests cannot observe:
 
 The definition-location smoke test must complete workspace indexing before it
 sends `textDocument/definition`. `index_and_wait` saves the feature file, then
-waits for a `textDocument/publishDiagnostics` notification whose URI matches the
-feature document just saved. It then saves the Rust step file and waits for a
-second notification whose URI matches that Rust document. These ordered,
+waits for a `textDocument/publishDiagnostics` notification whose URI matches
+the feature document just saved. It then saves the Rust step file and waits for
+a second notification whose URI matches that Rust document. These ordered,
 URI-specific acknowledgements establish that both indexing phases have
 completed; the client then matches the resulting JSON-RPC response by request
 identifier.
@@ -2440,14 +2439,14 @@ pattern in `crates/rstest-bdd/tests/feature_rebuild_invalidation/`:
   populated by CI.
 - Validate the whole standalone-fixture set with
   `make check-fixture-lockfiles`. The gate runs
-  `scripts/check_fixture_lockfiles.py`, which discovers every workspace
-  opt-out manifest that uses local `path` dependencies and commits a
-  `Cargo.lock`, then proves each lockfile still resolves with
-  `cargo metadata --locked`. CI runs the same target after the workspace
-  build, and the Dependabot refresh workflow regenerates the set with
-  `make update-fixture-lockfiles`, so the check and the refresh path always
-  agree on which fixtures are authoritative. A stale lockfile therefore fails
-  before the behavioural nested-Cargo tests can mask the drift.
+  `scripts/check_fixture_lockfiles.py`, which discovers every workspace opt-out
+  manifest that uses local `path` dependencies and commits a `Cargo.lock`, then
+  proves each lockfile still resolves with `cargo metadata --locked`. CI runs
+  the same target after the workspace build, and the Dependabot refresh
+  workflow regenerates the set with `make update-fixture-lockfiles`, so the
+  check and the refresh path always agree on which fixtures are authoritative.
+  A stale lockfile therefore fails before the behavioural nested-Cargo tests
+  can mask the drift.
 - The test copies the fixture into `target/tests/<name>/` under the shared
   workspace `target/`, rewrites the copied manifest's relative `path = "…"`
   values to absolute paths (resolving against the *source* directory, whose

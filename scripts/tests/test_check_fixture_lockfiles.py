@@ -1,11 +1,8 @@
 """Unit tests for the standalone fixture-lockfile gate.
 
-The gate discovers every workspace opt-out manifest that carries local ``path``
-dependencies and a committed lockfile, then validates each with
-``cargo metadata --locked``. These tests pin the discovery contract (so a new
-fixture is picked up automatically) and the failure behaviour (a stale lockfile
-must fail before any behavioural nested-Cargo test can run), without mutating
-any repository fixture during parallel runs.
+The gate validates committed fixture lockfiles with ``cargo metadata --locked``.
+These tests pin the discovery contract and the failure behaviour without
+mutating any repository fixture during parallel runs.
 """
 
 import subprocess  # ruff: ignore[suspicious-subprocess-import] - tests build stand-in CompletedProcess values without running anything.
@@ -21,7 +18,10 @@ from check_fixture_lockfiles import (
     discover_fixture_manifests,
     is_staged_fixture,
     is_workspace_root,
+    main,
     refresh_fixtures,
+    refresh_lockfile,
+    run_cargo_command,
     run_cargo_metadata,
 )
 
@@ -198,3 +198,202 @@ def test_discovery_error_names_the_missing_contract() -> None:
         pytest.raises(FixtureLockfileError, match="no standalone fixture"),
     ):
         discover_fixture_manifests(REPO_ROOT)
+
+
+def test_run_cargo_command_reports_a_missing_cargo_executable() -> None:
+    """A Cargo that cannot start raises the gate's own error, named per fixture."""
+    manifest = REPO_ROOT / "crates/rstest-bdd/tests/ui_lints/Cargo.toml"
+    oserror = OSError(2, "No such file or directory")
+    with (
+        mock.patch(
+            "check_fixture_lockfiles.subprocess.run", side_effect=oserror
+        ) as spawn,
+        pytest.raises(FixtureLockfileError, match="cannot run cargo") as excinfo,
+    ):
+        run_cargo_command(cargo_metadata_command(manifest), manifest)
+    assert spawn.call_args.kwargs["capture_output"] is True, (
+        "the runner must capture Cargo output so failures can name it"
+    )
+    assert spawn.call_args.kwargs["text"] is True, (
+        "Cargo output must be decoded as text"
+    )
+    assert spawn.call_args.kwargs["check"] is False, (
+        "a non-zero exit must return the result so every fixture is reported"
+    )
+    assert isinstance(excinfo.value.__cause__, OSError), (
+        "the original launch failure must stay chained for debugging"
+    )
+
+
+def test_thin_wrappers_delegate_to_the_shared_runner() -> None:
+    """Both public entry points build their argv and hand it to one runner."""
+    manifest = (
+        REPO_ROOT / "crates/rstest-bdd/tests/fixtures/feature_addition/Cargo.toml"
+    )
+    with mock.patch("check_fixture_lockfiles.run_cargo_command") as runner:
+        run_cargo_metadata(manifest)
+        refresh_lockfile(manifest)
+    assert runner.call_count == 2, (
+        "each wrapper must route through the shared Cargo runner exactly once"
+    )
+    metadata_argv, metadata_manifest = runner.call_args_list[0].args
+    refresh_argv, refresh_manifest = runner.call_args_list[1].args
+    assert metadata_argv == cargo_metadata_command(manifest), (
+        "validation must always use the locked metadata argv"
+    )
+    assert metadata_manifest == manifest, "validation must name the manifest it checked"
+    assert refresh_argv == [
+        "cargo",
+        "generate-lockfile",
+        "--manifest-path",
+        str(manifest),
+    ], "the refresh argv must stay cargo generate-lockfile --manifest-path"
+    assert refresh_manifest == manifest, "refresh must name the manifest it regenerated"
+
+
+def test_check_failure_output_carries_manifest_command_and_cargo_streams() -> None:
+    """The check failure report names the fixture, command, stdout, and stderr."""
+    manifest = (
+        REPO_ROOT / "crates/rstest-bdd/tests/fixtures/feature_addition/Cargo.toml"
+    )
+    failing = subprocess.CompletedProcess(
+        args=cargo_metadata_command(manifest),
+        returncode=101,
+        stdout="partial resolution output",
+        stderr=STALE_OUTPUT,
+    )
+    with (
+        mock.patch("check_fixture_lockfiles.run_cargo_metadata", return_value=failing),
+        mock.patch("check_fixture_lockfiles.print_failures") as emit_failures,
+    ):
+        exit_code = check_fixtures(REPO_ROOT, [manifest])
+    assert exit_code == 1, "a stale lockfile must fail the gate"
+    report = emit_failures.call_args.args[0][0]
+    assert "feature_addition" in report, "the report must name the stale fixture"
+    assert "cargo metadata --locked" in report, "the report must give the command"
+
+
+def test_check_failure_report_carries_both_cargo_streams() -> None:
+    """The check failure report relays Cargo stdout and stderr verbatim."""
+    manifest = (
+        REPO_ROOT / "crates/rstest-bdd/tests/fixtures/feature_addition/Cargo.toml"
+    )
+    failing = subprocess.CompletedProcess(
+        args=cargo_metadata_command(manifest),
+        returncode=101,
+        stdout="partial resolution output",
+        stderr=STALE_OUTPUT,
+    )
+    with (
+        mock.patch("check_fixture_lockfiles.run_cargo_metadata", return_value=failing),
+        mock.patch("check_fixture_lockfiles.print_failures") as emit_failures,
+    ):
+        check_fixtures(REPO_ROOT, [manifest])
+    report = emit_failures.call_args.args[0][0]
+    assert STALE_OUTPUT in report, "the report must carry Cargo stderr"
+    assert "partial resolution output" in report, "the report must carry stdout"
+
+
+def test_refresh_failure_report_uses_the_refresh_wording() -> None:
+    """Refresh failures keep the refresh-specific report and summary."""
+    manifest = REPO_ROOT / "crates/rstest-bdd/tests/ui_lints/Cargo.toml"
+    failing = subprocess.CompletedProcess(
+        args=cargo_metadata_command(manifest),
+        returncode=101,
+        stdout="",
+        stderr=STALE_OUTPUT,
+    )
+    with (
+        mock.patch("check_fixture_lockfiles.refresh_lockfile", return_value=failing),
+        mock.patch("check_fixture_lockfiles.run_cargo_metadata", return_value=failing),
+        mock.patch("check_fixture_lockfiles.print_failures") as emit_failures,
+    ):
+        exit_code = refresh_fixtures(REPO_ROOT, [manifest])
+    assert exit_code == 1, "a lockfile still stale after refresh must fail"
+    report = emit_failures.call_args.args[0][0]
+    assert report.startswith("refresh failed for "), (
+        "refresh mode must keep its own failure wording"
+    )
+    assert "ui_lints" in report, "the report must name the stale fixture"
+    assert STALE_OUTPUT in report, "the report must carry Cargo stderr"
+
+
+def test_refresh_failure_summary_streams_to_stderr(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A failed refresh surfaces its summary on standard error, exit code 1."""
+    manifest = REPO_ROOT / "crates/rstest-bdd/tests/ui_lints/Cargo.toml"
+    failing = subprocess.CompletedProcess(
+        args=cargo_metadata_command(manifest),
+        returncode=101,
+        stdout="",
+        stderr=STALE_OUTPUT,
+    )
+    with (
+        mock.patch("check_fixture_lockfiles.refresh_lockfile"),
+        mock.patch("check_fixture_lockfiles.run_cargo_metadata", return_value=failing),
+    ):
+        exit_code = refresh_fixtures(REPO_ROOT, [manifest])
+    assert exit_code == 1, "a lockfile still stale after refresh must fail"
+    captured = capsys.readouterr()
+    assert "1 of 1 fixture lockfile(s) still stale" in captured.err, (
+        "the refresh summary must report the still-stale count"
+    )
+
+
+def test_main_lists_manifests_without_running_the_gate(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """--list prints the discovered set and exits 0 before any Cargo run."""
+    manifests = discover_fixture_manifests(REPO_ROOT)
+    with mock.patch("check_fixture_lockfiles.run_cargo_command") as runner:
+        exit_code = main(["--list"])
+    assert exit_code == 0, "listing must exit successfully"
+    assert runner.assert_not_called() is None, "listing must not invoke Cargo"
+    printed = capsys.readouterr().out.splitlines()
+    assert printed == [m.relative_to(REPO_ROOT).as_posix() for m in manifests], (
+        "--list must print every discovered manifest path"
+    )
+
+
+def test_main_reports_discovery_failure_as_exit_one(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An empty fixture set is an error the caller can see, not a crash."""
+    with mock.patch(
+        "check_fixture_lockfiles.discover_fixture_manifests",
+        side_effect=FixtureLockfileError(FixtureLockfileError.no_manifests_message()),
+    ):
+        exit_code = main([])
+    assert exit_code == 1, "a broken discovery contract must fail the run"
+    assert "no standalone fixture manifests found" in capsys.readouterr().err, (
+        "discovery failure must name the missing contract"
+    )
+
+
+def test_main_refresh_flag_routes_to_refresh_fixtures(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """--refresh regenerates lockfiles instead of only validating them."""
+    manifests = discover_fixture_manifests(REPO_ROOT)
+    successful = subprocess.CompletedProcess(
+        args=cargo_metadata_command(manifests[0]),
+        returncode=0,
+        stdout="",
+        stderr="",
+    )
+    with (
+        mock.patch("check_fixture_lockfiles.refresh_lockfile", return_value=successful),
+        mock.patch(
+            "check_fixture_lockfiles.run_cargo_metadata", return_value=successful
+        ),
+        mock.patch(
+            "check_fixture_lockfiles.discover_fixture_manifests",
+            return_value=manifests,
+        ),
+    ):
+        exit_code = main(["--refresh"])
+    assert exit_code == 0, "a clean refresh must exit zero"
+    assert "refreshed" in capsys.readouterr().out, (
+        "the refresh summary must confirm the run"
+    )

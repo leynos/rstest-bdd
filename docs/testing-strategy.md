@@ -59,8 +59,8 @@ Rust implementation. Maintain this sequence in definition-navigation tests:
 2. Save the feature file and wait for `textDocument/publishDiagnostics` for
    its exact URI.
 3. Save the Rust step file and wait for `textDocument/publishDiagnostics` for
-   its exact URI. Together, the two URI-matched acknowledgements establish
-   that the feature index and step registry are ready for navigation.
+   its exact URI. Together, the two URI-matched acknowledgements establish that
+   the feature index and step registry are ready for navigation.
 4. Send `textDocument/definition` and receive its response by JSON-RPC id, so
    buffered notifications cannot be mistaken for the response.
 

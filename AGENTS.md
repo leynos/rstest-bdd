@@ -416,11 +416,11 @@ collaboration.
 
 ## Fast development builds
 
-`make dev-build` and `make dev-test` compile with the opt-in Cranelift
-backend and the mold linker configured in `tools/dev-fast/config.toml`.
-They require a nightly toolchain with the
-`rustc-codegen-cranelift-preview` component and, on Linux, a `mold` binary
-on the `PATH`. Install the selected toolchain and component with:
+`make dev-build` and `make dev-test` compile with the opt-in Cranelift backend
+and the mold linker configured in `tools/dev-fast/config.toml`. They require a
+nightly toolchain with the `rustc-codegen-cranelift-preview` component and, on
+Linux, a `mold` binary on the `PATH`. Install the selected toolchain and
+component with:
 
 ```sh
 rustup toolchain install nightly-2026-08-16 \
