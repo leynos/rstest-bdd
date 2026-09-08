@@ -672,19 +672,26 @@ this went wrong in the first place.
 
 The arithmetic behind those assertions lives in `timeout_budgets.py`, beside
 the contract: reading nextest's duration strings, picking the default
-profile's budget, taking the largest configured grace period against the
-one-minute floor, and the watchdog rule itself. It owns that reading for the
-workflow contracts and nothing else, and it takes text rather than paths so a
+profile's budget, adding the largest configured grace period to the
+teardown margin, and the watchdog rule itself. It owns that reading for the
+workflow contracts and nothing else, and it takes text rather than paths, so a
 test stays in charge of what it is asserting about. A new tier belongs there
 beside the others rather than inline in a contract module.
 
 It is separated because the contract alone cannot exercise it. Every
-`grace-period` in `.config/nextest.toml` is five seconds, so the termination
-allowance always lands on its floor, and a contract that only ever sees the
-floor would pass with the term deleted. `timeout_budgets_test.py` drives the
-derivations with controlled configurations instead: a grace period above the
-floor, one below it, none at all, several profiles disagreeing, and a watchdog
-sized the way the superseded two-term rule would have sized it.
+`grace-period` in `.config/nextest.toml` is five seconds, so the contract sees
+one value and would pass with the reading replaced by that constant.
+`timeout_budgets_test.py` drives the derivations with controlled configurations
+instead: a grace period above the margin, one below it, one equal to it, none
+at all, several profiles disagreeing, and a watchdog sized the way the
+superseded two-term rule would have sized it.
+
+The termination allowance is itself two terms added, not a floor over them:
+the largest configured grace period, or nextest's ten-second default when none
+is named, plus a sixty-second margin for the teardown and report writing that
+follow. A floor absorbs every grace period below it, so raising this file's
+five seconds to thirty would demand nothing more of the watchdog above it, and
+the saving would look free until the run it cancelled.
 
 ## `#[serial]`, `#[file_serial]`, and nextest test-groups
 

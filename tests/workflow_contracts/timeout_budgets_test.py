@@ -34,44 +34,52 @@ global-timeout = "75m"
 @pytest.mark.parametrize(
     ("config_text", "expected"),
     [
-        pytest.param("[profile.default]\n", 60.0, id="no-grace-period-at-all"),
+        pytest.param(
+            "[profile.default]\n",
+            10.0 + 60.0,
+            id="no-grace-period-falls-back-to-nextest-s-default",
+        ),
         pytest.param(
             '[profile.default]\ngrace-period = "5s"\n',
-            60.0,
-            id="grace-period-below-the-floor",
+            5.0 + 60.0,
+            id="a-grace-period-below-the-margin-still-counts",
         ),
         pytest.param(
             '[profile.default]\ngrace-period = "60s"\n',
-            60.0,
-            id="grace-period-at-the-floor",
+            60.0 + 60.0,
+            id="a-grace-period-equal-to-the-margin",
         ),
         pytest.param(
             '[profile.default]\ngrace-period = "90s"\n',
-            90.0,
-            id="grace-period-above-the-floor",
+            90.0 + 60.0,
+            id="a-grace-period-above-the-margin",
         ),
         pytest.param(
             '[profile.default]\ngrace-period = "3m"\n',
-            180.0,
-            id="grace-period-in-minutes",
+            180.0 + 60.0,
+            id="a-grace-period-in-minutes",
         ),
         pytest.param(
             '[profile.default]\ngrace-period = "5s"\n'
             '[profile.long]\ngrace-period = "2m"\n',
-            120.0,
-            id="largest-of-several-profiles",
+            120.0 + 60.0,
+            id="the-largest-of-several-profiles",
         ),
     ],
 )
 def test_the_termination_allowance_follows_the_configured_grace_period(
     config_text: str, expected: float
 ) -> None:
-    """A raised grace period raises the allowance; the floor catches the rest.
+    """The allowance is the grace period plus the margin, always both.
 
-    This is the whole point of reading the value rather than fixing it. A
-    profile that gives nextest three minutes to stop the run needs three
-    minutes of watchdog to cover it, and a hard-coded 60 s would silently
-    stop covering the case it exists for.
+    Two terms added, never a maximum over them. This is what makes a
+    raised grace period visible in the requirement: under the floor this
+    replaces, every value below sixty seconds produced the same answer,
+    so raising this file's five seconds to thirty would have demanded
+    nothing more of the watchdog above it.
+
+    A profile that gives nextest three minutes to stop the run needs
+    those three minutes of watchdog and the teardown margin besides.
     """
     assert budgets.termination_allowance(config_text) == pytest.approx(expected), (
         f"{config_text!r} must yield a {expected:.0f}s termination allowance; a "
@@ -87,7 +95,7 @@ def test_the_termination_allowance_ignores_the_per_test_period() -> None:
     over-sizing this correction removes.
     """
     config_text = '[profile.default]\nslow-timeout = { period = "20m" }\n'
-    assert budgets.termination_allowance(config_text) == pytest.approx(60.0), (
+    assert budgets.termination_allowance(config_text) == pytest.approx(70.0), (
         "the termination allowance read a 20m per-test period as a grace "
         "period; only grace-period bounds how long nextest takes to stop"
     )

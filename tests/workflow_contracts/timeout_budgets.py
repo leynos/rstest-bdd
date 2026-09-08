@@ -28,10 +28,16 @@ import typing as typ
 
 from workflow_support import WorkflowShapeError
 
-#: Floor for the termination allowance, used when the configuration sets
-#: no grace period. Generous against nextest's ten-second default and far
-#: too small to hide a real overrun.
-MINIMUM_TERMINATION_ALLOWANCE_SECONDS: typ.Final[float] = 60.0
+#: What nextest allows a test between ``SIGTERM`` and ``SIGKILL`` when
+#: the configuration names no grace period of its own.
+NEXTEST_DEFAULT_GRACE_PERIOD_SECONDS: typ.Final[float] = 10.0
+
+#: Added to that grace period to cover the teardown and report writing
+#: that follow it. A separate term rather than a floor over the two: a
+#: floor absorbs every grace period below it, so raising this file's
+#: five seconds to thirty would demand nothing more of the watchdog
+#: above it, and the saving would look free until the run it cancelled.
+TERMINATION_SAFETY_MARGIN_SECONDS: typ.Final[float] = 60.0
 
 #: ``30s``, ``5m``, ``20 m``: the durations nextest accepts here.
 _DURATION: typ.Final[re.Pattern[str]] = re.compile(
@@ -250,11 +256,20 @@ def termination_allowance(config_text: str) -> float:
     Windows termination is immediate and the grace period is ignored for
     timeouts.
 
-    Read from the configuration rather than fixed, because a profile that
-    raised its grace period past a hard-coded allowance would drift out of
-    the requirement this contract exists to hold. The floor covers the
-    case of a configuration that names no grace period at all, where
-    nextest's own ten-second default applies.
+    Two terms, added rather than maximized over, because they answer
+    different questions. The first is what nextest promises the test:
+    on Unix it signals the process group and waits
+    ``slow-timeout.grace-period`` before killing it, read from the
+    configuration so a profile that raised it raises the requirement
+    too, with nextest's own ten-second default when none is named. The
+    second is a fixed margin for the teardown and report writing that
+    follow.
+
+    A single floor over the two, which is what this read before, absorbs
+    every grace period below the margin. Raising this file's five
+    seconds to thirty would have demanded nothing more of the watchdog
+    above it, and the saving would have looked free until the run it
+    cancelled.
 
     Parameters
     ----------
@@ -264,19 +279,22 @@ def termination_allowance(config_text: str) -> float:
     Returns
     -------
     float
-        The largest configured grace period, or the floor when that is
-        smaller or absent.
+        The largest configured grace period, or nextest's default, plus
+        the safety margin.
 
     Examples
     --------
     >>> termination_allowance('grace-period = "5s"')
-    60.0
+    65.0
     >>> termination_allowance('grace-period = "3m"')
-    180.0
+    240.0
     """
     periods = _GRACE_PERIOD.findall(config_text)
-    largest = max((seconds(period) for period in periods), default=0.0)
-    return max(largest, MINIMUM_TERMINATION_ALLOWANCE_SECONDS)
+    largest = max(
+        (seconds(period) for period in periods),
+        default=NEXTEST_DEFAULT_GRACE_PERIOD_SECONDS,
+    )
+    return largest + TERMINATION_SAFETY_MARGIN_SECONDS
 
 
 def watchdog_requirement(
