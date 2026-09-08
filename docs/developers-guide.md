@@ -240,10 +240,12 @@ later reading a partial one.
 
 The variable is set on the workflow step rather than in the Makefile, so a
 local `make publish-check` stays quiet and the file lands where the upload
-step expects it. `lading_pin_test.py` asserts that the step still asks for
-the statistics and that the file is uploaded, because a file written into the
-runner's temporary directory and never collected is discarded with the
-runner.
+step expects it. That the publish step asks for the statistics, that the
+upload collects the same path the publish step writes, that reading and
+collecting follow the writing, and that the report steps still run on a
+failed Linux run, is asserted by `publish_report_shape_test.py`, because a
+file written into the runner's temporary directory and never collected is
+discarded with the runner.
 
 A verification step sits between the two. It reads the report the publish
 step wrote, parses it, and prints it to the log, and where the file is
@@ -257,8 +259,21 @@ carry
 `${{ always() && runner.os == 'Linux' }}`: without `always()` the run whose
 cost is most worth reading, the failed one, would upload nothing, and without
 the Linux guard the Windows lanes, which never write the file, would report a
-missing one every time. The upload's `if-no-files-found` is `warn` rather than
-`ignore` for the same reason.
+missing one every time. `publish_report_shape_test.py` asserts both
+conditions, and that the upload's `if-no-files-found` is `warn` rather than
+`ignore`, so an absent report is surfaced rather than swallowed.
+
+`publish_verification_script_test.py` runs that script rather than reading
+it for substrings. It extracts the Bash fragment the workflow's `Verify
+publish-step compiler-cache statistics` step declares, writes it to a file,
+and runs it as `bash <file>`, the way a runner executes a step. Four cases
+run against it in turn — a missing report, an empty one, malformed JSON,
+and a valid one — and each must exit successfully, the valid report
+printing without `::warning`. The cases are driven by
+`publish_report_support.run_verification`, which puts the report outside
+the script's working directory and sets `STATS_PATH` to that report, so a
+script that resolved the report relative to the working directory instead
+of through `STATS_PATH` fails the contract here rather than on the runner.
 
 `make publish-check` depends on `stage-published-gpui-e2e`, which extracts
 packaged crates from `target/package/`. That path, and five others in the
@@ -269,16 +284,21 @@ directory from `cargo metadata` would be a Makefile-wide change rather than a
 fix to one recipe, and is worth doing only if the shared-cache layout is wanted
 here.
 
-lading is pinned three times: in `ci.yml`, in the Makefile, and in
-`pyproject.toml`'s `python-tools` group for a bare `uv run lading`. The same
-contract asserts all three agree and that the pin is a commit rather than a tag.
-Drift there would be quiet: every side keeps working while validating publish
-readiness against different versions.
+lading is pinned four times: in `ci.yml`, in the Makefile's `LADING_REF`,
+in `pyproject.toml`'s `python-tools` dependency group for a bare
+`uv run lading`, and in `uv.lock`. `lading_pin_test.py` asserts that all
+four agree and that the pin is a commit rather than a tag. Drift would be
+quiet: every side keeps working while validating publish readiness against
+different versions.
 
-The project group is the easiest of the three to forget, because the Makefile's
-`--with` overlay masks it. `make publish-check` resolves the Makefile's pin
-whatever the group holds, so the group can sit generations behind without any
-command failing, which is exactly where it was found.
+The project group is the easiest of the four to forget. `make publish-check`
+runs lading through a `--with "$(LADING_SPEC)"` overlay built from the
+Makefile's own `LADING_REF`, so it resolves the Makefile's pin whatever the
+group holds, and the group can sit generations behind without any command
+failing, which is exactly where it was found. `uv.lock` determines what a
+bare `uv run` installs: the group states a commit and the lock records the
+one resolution chose, so the two can disagree only through an incomplete
+bump, and the failure is silent because the lock file wins.
 
 Check each `main` run with `ubi gh leynos/rstest-bdd list-cache-entries`. It
 must show the archive keys and the `sccache` objects on Ubicloud's side before
