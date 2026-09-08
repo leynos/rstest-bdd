@@ -899,16 +899,17 @@ For migrations from a cucumber `World`, map the concepts as follows:
 ## Binding tests to scenarios
 
 The `#[scenario]` macro is the entry point that ties a Rust test function to a
-scenario defined in a `.feature` file. It accepts six arguments:
+scenario defined in a `.feature` file. It accepts seven arguments:
 
-| Argument           | Purpose                                                                | Status                                                                                                  |
-| ------------------ | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `path: &str`       | Relative path to the feature file (required).                          | **Implemented**: resolved and parsed at macro-expansion time.                                           |
-| `index: usize`     | Optional zero-based scenario index (defaults to `0`).                  | **Implemented**: selects the scenario by position.                                                      |
-| `name: &str`       | Optional scenario title; resolves when unique.                         | **Implemented**: errors when missing and directs duplicates to `index`.                                 |
-| `tags: &str`       | Optional tag-expression filter applied at expansion.                   | **Implemented**: filters scenarios and outline example rows; errors when nothing matches.               |
-| `harness: Path`    | Optional harness adapter type implementing `HarnessAdapter + Default`. | **Implemented**: emits trait-bound assertions and delegates execution when specified.                   |
-| `attributes: Path` | Optional attribute policy type implementing `AttributePolicy`.         | **Implemented**: emits a compile-time trait-bound assertion and resolves policy-backed test attributes. |
+| Argument                 | Purpose                                                                    | Status                                                                                                  |
+| ------------------------ | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `path: &str`             | Relative path to the feature file (required).                              | **Implemented**: resolved and parsed at macro-expansion time.                                           |
+| `index: usize`           | Optional zero-based scenario index (defaults to `0`).                      | **Implemented**: selects the scenario by position.                                                      |
+| `name: &str`             | Optional scenario title; resolves when unique.                             | **Implemented**: errors when missing and directs duplicates to `index`.                                 |
+| `tags: &str`             | Optional tag-expression filter applied at expansion.                       | **Implemented**: filters scenarios and outline example rows; errors when nothing matches.               |
+| `harness: Path`          | Optional harness adapter type implementing `HarnessAdapter + Default`.     | **Implemented**: emits trait-bound assertions and delegates execution when specified.                   |
+| `attributes: Path`       | Optional attribute policy type implementing `AttributePolicy`.             | **Implemented**: emits a compile-time trait-bound assertion and resolves policy-backed test attributes. |
+| `libraries: [path, ...]` | Optional list of step-library module paths to search for step definitions. | **Implemented**: adds the listed libraries to the scenario's resolution scope.                          |
 
 Tag filters run at macro-expansion time against the union of tags on the
 feature, the matched scenario, and—when dealing with `Scenario Outline`—the
@@ -2927,8 +2928,7 @@ array records the closed vocabulary selected by the scenario, while
 The runtime registry dump consumed by `cargo bdd` uses the same identities:
 each step and bypassed-step entry has a `library` field, and each scenario and
 bypassed-step entry has a `libraries` array. When these fields are absent from
-an older dump, the CLI treats the entry as belonging to
-`rstest_bdd::global`.
+an older dump, the CLI treats the entry as belonging to `rstest_bdd::global`.
 
 ### Scenario report writers
 
@@ -3105,14 +3105,13 @@ Diagnostics and navigation require saving files to trigger indexing.
 ### Language-server step-library scopes
 
 The language server reads the library selection from Rust bindings that use
-`#[scenario]` or `scenarios!`. When `libraries = [...]` is omitted, the
-binding selects only `rstest_bdd::global`. An explicit list is closed, so
-completion, navigation, and feature-step diagnostics consider definitions
-only from the listed libraries; definitions in other libraries do not satisfy
-a missing step.
+`#[scenario]` or `scenarios!`. When `libraries = [...]` is omitted, the binding
+selects only `rstest_bdd::global`. An explicit list is closed, so completion,
+navigation, and feature-step diagnostics consider definitions only from the
+listed libraries; definitions in other libraries do not satisfy a missing step.
 
-The selection is associated with the feature binding rather than inferred
-from the order of library entries. Equally specific definitions in selected
+The selection is associated with the feature binding rather than inferred from
+the order of library entries. Equally specific definitions in selected
 libraries produce an ambiguity diagnostic, while a matching definition in an
 unselected library remains outside the active vocabulary. If bindings for the
 same feature select different library sets, the server reports the conflicting

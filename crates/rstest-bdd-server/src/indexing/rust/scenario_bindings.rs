@@ -233,9 +233,7 @@ impl BindingCollector<'_> {
                 .segments
                 .last()
                 .is_some_and(|segment| segment.ident == "scenario");
-            if is_scenario
-                && let syn::Meta::List(list) = &attribute.meta
-            {
+            if is_scenario && let syn::Meta::List(list) = &attribute.meta {
                 self.collect_binding(&list.tokens, BindingKind::Feature, module_path);
             }
         }
