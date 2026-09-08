@@ -20,14 +20,17 @@ from workflow_queries import (
 from workflow_queries import iter_steps as _iter_steps
 from workflow_queries import owned_paths as _owned_paths
 from workflow_queries import shared_cache_owning_steps as _shared_cache_owning_steps
-from workflow_support import CACHE_ACTION_REF, SHARED_SETUP_RUST_CACHE_PROVIDER_HEAD
+from workflow_support import CACHE_ACTION_REF
 from workflow_support import is_cache_step as _is_cache_step
 from workflow_support import job as _job
 from workflow_support import step_index as _step_index
 from workflow_support import steps as _steps
 from workflow_support import workflow as _workflow
 
-GITHUB_SCRIPT_REF = "@ed597411d8f924073f98dfc5c65a23a2325f34cd"
+SETUP_RUST_USES_RE = re.compile(
+    r"^leynos/shared-actions/\.github/actions/setup-rust@[0-9a-f]{40}$"
+)
+GITHUB_SCRIPT_USES_RE = re.compile(r"^actions/github-script@[0-9a-f]{40}$")
 SCCACHE_LOCAL_VARIABLE = "vars.RSTEST_BDD_SCCACHE_LOCAL"
 # One job executes the workspace suite, so one job owns the caches.
 CACHING_JOBS = (("ci.yml", "build-test"),)
@@ -212,10 +215,10 @@ def test_shared_actions_leave_cache_ownership_to_the_caller() -> None:
     build_test = _job("ci.yml", "build-test")
     steps = _steps(build_test)
     setup_step = steps[_step_index(steps, "Setup Rust")]
-    assert setup_step.get("uses") == (
-        "leynos/shared-actions/.github/actions/setup-rust@"
-        f"{SHARED_SETUP_RUST_CACHE_PROVIDER_HEAD}"
-    ), "ci.yml:Setup Rust must use the external-cache provider revision"
+    assert SETUP_RUST_USES_RE.fullmatch(str(setup_step.get("uses") or "")), (
+        "ci.yml:Setup Rust must use setup-rust pinned to a full lowercase "
+        "40-character SHA"
+    )
     assert setup_step.get("with") == {
         "toolchain": "${{ matrix.rust-toolchain }}",
         "cache-provider": "external",
@@ -277,8 +280,9 @@ def test_compiler_cache_backend_has_credentials_and_one_fallback() -> None:
     for workflow_name, job_name in CACHING_JOBS:
         job_steps = _steps(_job(workflow_name, job_name))
         export = job_steps[_step_index(job_steps, "Export Actions cache credentials")]
-        assert str(export.get("uses", "")).endswith(GITHUB_SCRIPT_REF), (
-            f"{workflow_name} must pin the credential re-export action"
+        assert GITHUB_SCRIPT_USES_RE.fullmatch(str(export.get("uses") or "")), (
+            f"{workflow_name} must use actions/github-script pinned to a full "
+            "lowercase 40-character SHA"
         )
         export_inputs = export.get("with")
         assert isinstance(export_inputs, dict), (
