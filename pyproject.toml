@@ -93,8 +93,6 @@ extend-ignore = [
 "scripts/tests/test_*.py" = ["S101", "PLR0913", "PLR0917", "PLR2004", "PLR6301"]
 "tests/workflow_contracts/*_test.py" = [
     "S101",
-    "S404",
-    "S603",
     "PLR0913",
     "PLR0917",
     "PLR2004",
