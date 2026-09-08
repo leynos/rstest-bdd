@@ -228,15 +228,15 @@ impl BindingCollector<'_> {
     /// Collect a `#[scenario(...)]` attribute from one function.
     fn collect_scenario_attribute(&mut self, function: &syn::ItemFn, module_path: &[String]) {
         for attribute in &function.attrs {
-            if attribute
+            let is_scenario = attribute
                 .path()
                 .segments
                 .last()
-                .is_some_and(|segment| segment.ident == "scenario")
+                .is_some_and(|segment| segment.ident == "scenario");
+            if is_scenario
+                && let syn::Meta::List(list) = &attribute.meta
             {
-                if let syn::Meta::List(list) = &attribute.meta {
-                    self.collect_binding(&list.tokens, BindingKind::Feature, module_path);
-                }
+                self.collect_binding(&list.tokens, BindingKind::Feature, module_path);
             }
         }
     }

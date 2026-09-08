@@ -385,6 +385,3 @@ mod tests;
 #[cfg(test)]
 #[path = "tests.rs"]
 mod expansion_tests;
-#[cfg(test)]
-#[path = "tests.rs"]
-mod expansion_tests;
