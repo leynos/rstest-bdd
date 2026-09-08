@@ -92,6 +92,7 @@ test: build-python ## Run tests with warnings treated as errors
 		RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) test $(CARGO_FLAGS) $(BUILD_JOBS); \
 	fi
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) test --doc --workspace --all-features $(BUILD_JOBS)
+	$(MAKE) check-fixture-lockfiles
 	# Exercise the Python documentation helpers alongside the Rust suite.
 	$(UV_ENV) $(UV) run pytest scripts/tests
 

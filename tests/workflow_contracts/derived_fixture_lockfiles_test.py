@@ -5,9 +5,9 @@ Dependabot can alter the dependency resolution of the standalone fixture
 crates.  These tests constrain that authority to Dependabot pull requests, the
 checked-out pull request head, and the lockfiles regenerated through the
 authoritative ``make update-fixture-lockfiles`` target.  They also keep the
-workflow limited to its lock-refresh targets; the ordinary CI workflow
-continues to build and exercise the fixtures, and the shared
-``make check-fixture-lockfiles`` gate validates the refreshed set.  The push
+workflow limited to its lock-refresh targets. The standard ``make test``
+target and a named CI step both use the shared ``make check-fixture-lockfiles``
+gate, so local and hosted test runs validate the refreshed set.  The push
 target is a caller-controlled ref name, so it reaches the shell through the
 environment as quoted data rather than as interpolated script text.  Running
 that fragment, rather than reading it, is
@@ -32,6 +32,7 @@ from lockfile_refresh_support import (
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_PATH = ROOT / ".github" / "workflows" / "refresh-derived-fixture-lockfiles.yml"
 CI_WORKFLOW_PATH = ROOT / ".github" / "workflows" / "ci.yml"
+MAKEFILE_PATH = ROOT / "Makefile"
 MANIFEST_PATHS = [
     "Cargo.toml",
     "crates/**/Cargo.toml",
@@ -305,4 +306,16 @@ def test_validation_runs_when_refresh_changes_nothing(
     )
     assert validate.get("run") == "make check-fixture-lockfiles", (
         "validation must use the shared standalone-fixture lockfile gate"
+    )
+
+
+def test_standard_test_target_validates_fixture_lockfiles() -> None:
+    """The local test target rejects stale standalone fixture lockfiles."""
+    makefile = MAKEFILE_PATH.read_text(encoding="utf-8")
+    test_target_start = makefile.index("test: build-python")
+    next_target_start = makefile.index("\ntarget/%", test_target_start)
+    test_target = makefile[test_target_start:next_target_start]
+
+    assert "\t$(MAKE) check-fixture-lockfiles\n" in test_target, (
+        "make test must validate standalone fixture lockfiles"
     )
