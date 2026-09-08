@@ -23,7 +23,6 @@ GITHUB_HOSTED_WINDOWS = "windows-latest"
 # 2026-09-03. One action and one pin therefore serve every lane.
 CACHE_ACTION_PREFIX = "actions/cache/"
 CACHE_ACTION_REF = "@55cc8345863c7cc4c66a329aec7e433d2d1c52a9"
-SHARED_SETUP_RUST_CACHE_PROVIDER_HEAD = "5daae0a332441d170d88ca648c9e71f0bbe96cb3"
 # The named vCPU constants for the two deployed shapes. Build and test
 # parallelism is derived from these and must never exceed them.
 UBICLOUD_LINUX_VCPUS = "2"
