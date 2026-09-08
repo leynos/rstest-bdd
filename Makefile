@@ -5,6 +5,7 @@ VALE ?= vale
 .PHONY: spelling-config spelling-config-write spelling-phrase-check
 .PHONY: spelling-helper-test nixie publish-check
 .PHONY: check-published-gpui stage-published-gpui-e2e e2e-published-gpui
+.PHONY: check-published-gpui-e2e-lock
 .PHONY: forbid-async-trait vale update-ui-lints-lock update-published-gpui-0-2-2-lock update-published-gpui-e2e-lock
 .PHONY: update-feature-rebuild-fixtures-lock
 .PHONY: check-fixture-lockfiles update-fixture-lockfiles
@@ -243,6 +244,12 @@ update-published-gpui-0-2-2-lock: ## Refresh the published GPUI 0.2.2 fixture lo
 update-published-gpui-e2e-lock: stage-published-gpui-e2e ## Refresh the published GPUI E2E fixture lockfile
 	cd $(PUBLISHED_GPUI_E2E_DIR) && $(CARGO) generate-lockfile
 
+check-published-gpui-e2e-lock: stage-published-gpui-e2e ## Validate the published GPUI E2E lockfile with cargo metadata --locked
+	# The staged manifest patches crates.io names onto target/ artefacts, so
+	# discovery-based `check-fixture-lockfiles` cannot see this fixture; this
+	# target is its authoritative lockfile gate and e2e-published-gpui reuses it.
+	cd $(PUBLISHED_GPUI_E2E_DIR) && $(CARGO) metadata --locked --format-version 1 >/dev/null
+
 # Seed these locks from the established minimal fixture so their offline CI
 # runs reuse its dependency resolution. Cargo then adds only each fixture's
 # root package and the extra `rstest` closure required by `#[scenario]`.
@@ -252,13 +259,17 @@ update-feature-rebuild-fixtures-lock: ## Refresh nested feature-rebuild fixture 
 	cp crates/cargo-bdd/tests/fixtures/minimal/Cargo.lock crates/rstest-bdd/tests/fixtures/feature_addition/Cargo.lock
 	$(CARGO) metadata --manifest-path crates/rstest-bdd/tests/fixtures/feature_addition/Cargo.toml --format-version 1 >/dev/null
 
-# The authoritative standalone-fixture gate: the script discovers every
+# The authoritative fixture-lockfile gate: the script discovers every
 # workspace opt-out manifest with local path dependencies and a committed
-# lockfile, so CI and this refresh path always agree on the fixture set.
-check-fixture-lockfiles: ## Validate every standalone fixture lockfile with cargo metadata --locked
+# lockfile, and the staged published-GPUI E2E fixture has its own target so
+# CI and this refresh path always agree on the fixture set.
+check-fixture-lockfiles: check-published-gpui-e2e-lock ## Validate every fixture lockfile with cargo metadata --locked
 	$(PROJECT_PYTHON) scripts/check_fixture_lockfiles.py
 
-update-fixture-lockfiles: ## Regenerate every standalone fixture lockfile via cargo generate-lockfile
+# Refresh must stay the mirror of the check target: the staged published-GPUI
+# E2E fixture is regenerated through its dedicated target so a dependency bump
+# cannot stale it out from under `cargo test --locked`.
+update-fixture-lockfiles: update-published-gpui-e2e-lock ## Regenerate every fixture lockfile via cargo generate-lockfile
 	$(PROJECT_PYTHON) scripts/check_fixture_lockfiles.py --refresh
 
 help: ## Show available targets
