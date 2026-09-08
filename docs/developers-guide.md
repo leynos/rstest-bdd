@@ -228,7 +228,8 @@ the backend in use.
 
 The end-of-job report is job-wide, so it cannot say what any one step spent.
 That matters most for the publish dry run, which is the longest step in the
-lane and, until lading v0.3.0, said nothing at all about its compiler cache.
+lane and, until lading v0.3.0, attributed nothing at all to its compiler
+cache.
 
 Setting `LADING_SCCACHE_STATS_JSON` on that step makes lading read `sccache`
 around each packaged build and write the results to a file, uploaded as the
@@ -238,19 +239,21 @@ report keeps its meaning; a tool that zeroed them would silently make every
 later reading a partial one.
 
 The variable is set on the workflow step rather than in the Makefile, so a
-local `make publish-check` stays quiet and the file lands where the upload step
-expects it. `lading_pin_test.py` asserts that the step still asks for the
-statistics and that the file is uploaded, because a file written into the
-runner's temporary directory and never collected is discarded with the runner.
+local `make publish-check` stays quiet and the file lands where the upload
+step expects it. `lading_pin_test.py` asserts that the step still asks for
+the statistics and that the file is uploaded, because a file written into the
+runner's temporary directory and never collected is discarded with the
+runner.
 
-A verification step sits between the two. It reads the report the publish step
-wrote, parses it, and prints it to the log, and where the file is absent, empty
-or unparsable it says which and why. That distinction is the point: an absent
-report and a report nobody opened look identical in the artefact list, so a
-lading that stopped writing the file would read as an uneventful run. The step
-never fails the job, because the report is evidence about a build rather than
-the build itself, and a publish that failed before lading ran has already
-failed on its own account. Both it and the upload carry
+A verification step sits between the two. It reads the report the publish
+step wrote, parses it, and prints it to the log, and where the file is
+absent, empty or unparsable it says which and why. That distinction is the
+point: an absent report and a report nobody opened look identical in the
+artefact list, so a lading that stopped writing the file would read as an
+uneventful run. The step never fails the job, because the report is evidence
+about a build rather than the build itself, and a publish that failed before
+lading ran has already failed on its own account. Both it and the upload
+carry
 `${{ always() && runner.os == 'Linux' }}`: without `always()` the run whose
 cost is most worth reading, the failed one, would upload nothing, and without
 the Linux guard the Windows lanes, which never write the file, would report a

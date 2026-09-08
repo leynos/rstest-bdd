@@ -323,12 +323,23 @@ def run_verification(
     form measures something the runner never does; runners execute
     fragments from a file.
 
+    The report is deliberately placed outside the working directory
+    the script runs in. The runner resolves the report through
+    ``$STATS_PATH`` from the step's environment, not through the
+    working directory, so a script that read the bare file name would
+    pass a harness that put both in one directory and fail on the
+    runner, where no such file exists next to the fragment. The
+    harness mirrors that geometry so the contract catches the mistake
+    before CI does.
+
     Parameters
     ----------
     build_test_job : dict[str, typ.Any]
         The parsed job.
     tmp_path : Path
-        A directory to hold the script and the report.
+        A directory to hold the script's working directory and the
+        report's, kept separate so the report is not reachable from the
+        script's working directory.
     contents : bytes or None
         What to write to the report path, or None to leave it absent.
 
@@ -337,9 +348,14 @@ def run_verification(
     subprocess.CompletedProcess[str]
         The finished process, with output captured.
     """
-    script_path = tmp_path / "verify.sh"
+    working_dir = tmp_path / "workdir"
+    report_dir = tmp_path / "report"
+    working_dir.mkdir()
+    report_dir.mkdir()
+
+    script_path = working_dir / "verify.sh"
     script_path.write_text(verification_script(build_test_job), encoding="utf-8")
-    stats_path = tmp_path / "sccache-publish.json"
+    stats_path = report_dir / "sccache-publish.json"
     if contents is not None:
         stats_path.write_bytes(contents)
     return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - the script is this repository's own.
@@ -348,5 +364,5 @@ def run_verification(
         capture_output=True,
         text=True,
         env={**os.environ, "STATS_PATH": str(stats_path)},
-        cwd=tmp_path,
+        cwd=working_dir,
     )
