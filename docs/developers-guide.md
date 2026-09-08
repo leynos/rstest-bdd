@@ -223,7 +223,6 @@ after installing `sccache`, and the final step publishes `sccache --show-stats`
 in text and JSON to the job summary alongside every cache key, hit result, and
 the backend in use.
 
-
 #### Attributing the publish step's share
 
 The end-of-job report is job-wide, so it cannot say what any one step spent.
