@@ -671,11 +671,12 @@ that loses its override inherits the action's 1,800 s default, which is how
 this went wrong in the first place.
 
 The arithmetic behind those assertions lives in `timeout_budgets.py`, beside
-the contract: reading nextest's duration strings, picking the default
-profile's budget, adding the largest configured grace period to the
-teardown margin, and the watchdog rule itself. It owns that reading for the
-workflow contracts and nothing else, and it takes text rather than paths, so a
-test stays in charge of what it is asserting about. A new tier belongs there
+the contract: reading nextest's duration strings, adding the largest configured
+grace period to the teardown margin, and the watchdog rule itself. The
+configuration reading it works from lives in `nextest_config.py`. Between them
+they own that reading for the workflow contracts and nothing else, and both
+take text rather than paths, so a test stays in charge of what it is asserting
+about. A new tier belongs there
 beside the others rather than inline in a contract module.
 
 It is separated because the contract alone cannot exercise it. Every
@@ -685,6 +686,26 @@ one value and would pass with the reading replaced by that constant.
 instead: a grace period above the margin, one below it, one equal to it, none
 at all, several profiles disagreeing, and a watchdog sized the way the
 superseded two-term rule would have sized it.
+
+The configuration is parsed with `tomllib` rather than matched as text. A text
+match finds a key inside a comment, inside a `filter` string, or in a table
+nextest never consults, and reports a budget the runner does not use. The
+commented-out `global-timeout` is the case that matters most, because the
+contract requires that tier to be present: a scraping reader would go on
+reporting a budget somebody had switched off. Parsing also keeps a profile's
+own table apart from its overrides, which is what lets the base allowance be
+asserted on its own: an override bounds the tests its filter matches, and a
+profile whose only `terminate-after` sat in one would leave every unmatched
+test with no bound at all while the largest budget still read comfortable.
+
+`terminate-after` is optional, and nextest treats its absence as no
+termination: the test is reported slow, once per period, and runs on. The
+reading refuses that form rather than counting it as one period. It also counts
+the multiplier, which it did not before: the budget is `period` multiplied by
+`terminate-after`, and every multiplier here is one, so the old reading agreed
+with a correct one against this file and would have been wrong the moment
+somebody raised one. `nextest_config_test.py` drives all of it with
+configurations this repository does not have.
 
 The termination allowance is itself two terms added, not a floor over them:
 the largest configured grace period, or nextest's ten-second default when none

@@ -54,9 +54,6 @@ _UNIT_SECONDS: typ.Final[dict[str, float]] = {
 #: ``period`` as its own key. The lookbehind is what keeps
 #: ``grace-period`` out: the two keys sit in the same inline table and a
 #: substring match would read a termination allowance as a per-test budget.
-_PERIOD: typ.Final[re.Pattern[str]] = re.compile(r'(?<![\w-])period\s*=\s*"([^"]+)"')
-
-_GRACE_PERIOD: typ.Final[re.Pattern[str]] = re.compile(r'grace-period\s*=\s*"([^"]+)"')
 
 
 class UnrecognizedDurationError(WorkflowShapeError):
@@ -150,6 +147,56 @@ class MissingSlowTimeoutError(WorkflowShapeError):
         super().__init__("nextest.toml must set at least one slow-timeout period")
 
 
+class UnparsableConfigurationError(WorkflowShapeError):
+    """The nextest configuration was not valid TOML.
+
+    Raised by the reading below rather than allowed to surface as a
+    parser error several frames away. A file nextest cannot parse has no
+    budgets to compare, which is a different fault from budgets in the
+    wrong order and needs a different remedy.
+
+    Parameters
+    ----------
+    detail : str
+        What the TOML parser objected to.
+
+    See Also
+    --------
+    largest_slow_timeout : One of the readings that raises this.
+    """
+
+    def __init__(self, detail: str) -> None:
+        super().__init__(f"nextest.toml is not valid TOML: {detail}")
+
+
+class UnboundedTestError(WorkflowShapeError):
+    """A ``slow-timeout`` named no ``terminate-after``.
+
+    ``terminate-after`` is optional, and nextest treats its absence as no
+    termination at all: the test is reported slow, once per period, and
+    runs on. Reading that as a single period would put a number on the
+    tier that is missing, and every comparison above it would pass
+    against a budget nextest never applies.
+
+    Parameters
+    ----------
+    where : str
+        The dotted path of the table at fault, so the failure names the
+        profile or override rather than only the file.
+
+    See Also
+    --------
+    largest_slow_timeout : The reading that raises this.
+    """
+
+    def __init__(self, where: str) -> None:
+        super().__init__(
+            f"{where}.slow-timeout sets no terminate-after, so nextest reports "
+            f"the test as slow once per period and never stops it; there is no "
+            f"per-test tier to compare against"
+        )
+
+
 def seconds(duration: str) -> float:
     """Convert a nextest duration to seconds.
 
@@ -177,124 +224,6 @@ def seconds(duration: str) -> float:
     if match is None:
         raise UnrecognizedDurationError(duration)
     return float(match["value"]) * _UNIT_SECONDS[match["unit"]]
-
-
-def global_timeout(config_text: str) -> float:
-    r"""Return the default profile's ``global-timeout`` in seconds.
-
-    Read textually rather than through a TOML parser, because the value
-    must be matched to the profile it belongs to and the file declares
-    more than one profile.
-
-    Parameters
-    ----------
-    config_text : str
-        A nextest configuration file's text.
-
-    Returns
-    -------
-    float
-        The default profile's whole-run budget, in seconds.
-
-    Raises
-    ------
-    MissingDefaultProfileError
-        If no ``[profile.default]`` section is present.
-    MissingGlobalTimeoutError
-        If that section sets no ``global-timeout``.
-
-    Examples
-    --------
-    >>> global_timeout('[profile.default]\nglobal-timeout = "75m"\n')
-    4500.0
-    """
-    blocks = re.split(r"^\[profile\.", config_text, flags=re.MULTILINE)
-    default = next((block for block in blocks if block.startswith("default]")), None)
-    if default is None:
-        raise MissingDefaultProfileError
-    match = re.search(r'^global-timeout\s*=\s*"([^"]+)"', default, re.MULTILINE)
-    if match is None:
-        raise MissingGlobalTimeoutError
-    return seconds(match[1])
-
-
-def largest_slow_timeout(config_text: str) -> float:
-    """Return the longest single-test allowance in seconds.
-
-    Parameters
-    ----------
-    config_text : str
-        A nextest configuration file's text.
-
-    Returns
-    -------
-    float
-        The longest per-test budget.
-
-    Raises
-    ------
-    MissingSlowTimeoutError
-        If the configuration declares no per-test budget.
-
-    Examples
-    --------
-    >>> largest_slow_timeout('slow-timeout = { period = "20m" }')
-    1200.0
-    """
-    periods = _PERIOD.findall(config_text)
-    if not periods:
-        raise MissingSlowTimeoutError
-    return max(seconds(period) for period in periods)
-
-
-def termination_allowance(config_text: str) -> float:
-    """Return the time nextest may take to stop the run, in seconds.
-
-    Hitting the global timeout starts nextest's ordinary termination
-    procedure rather than stopping the run: on Unix it signals the process
-    group and waits ``slow-timeout.grace-period`` before killing it; on
-    Windows termination is immediate and the grace period is ignored for
-    timeouts.
-
-    Two terms, added rather than maximized over, because they answer
-    different questions. The first is what nextest promises the test:
-    on Unix it signals the process group and waits
-    ``slow-timeout.grace-period`` before killing it, read from the
-    configuration so a profile that raised it raises the requirement
-    too, with nextest's own ten-second default when none is named. The
-    second is a fixed margin for the teardown and report writing that
-    follow.
-
-    A single floor over the two, which is what this read before, absorbs
-    every grace period below the margin. Raising this file's five
-    seconds to thirty would have demanded nothing more of the watchdog
-    above it, and the saving would have looked free until the run it
-    cancelled.
-
-    Parameters
-    ----------
-    config_text : str
-        A nextest configuration file's text.
-
-    Returns
-    -------
-    float
-        The largest configured grace period, or nextest's default, plus
-        the safety margin.
-
-    Examples
-    --------
-    >>> termination_allowance('grace-period = "5s"')
-    65.0
-    >>> termination_allowance('grace-period = "3m"')
-    240.0
-    """
-    periods = _GRACE_PERIOD.findall(config_text)
-    largest = max(
-        (seconds(period) for period in periods),
-        default=NEXTEST_DEFAULT_GRACE_PERIOD_SECONDS,
-    )
-    return largest + TERMINATION_SAFETY_MARGIN_SECONDS
 
 
 def watchdog_requirement(

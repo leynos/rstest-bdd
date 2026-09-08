@@ -35,6 +35,7 @@ See "Test timeouts: four tiers, outermost last" in
 
 import typing as typ
 
+import nextest_config as reading
 import pytest
 import timeout_budgets as budgets
 import yaml
@@ -136,9 +137,9 @@ def nextest_budgets(nextest_config: str) -> NextestBudgets:
         The three budgets, in seconds.
     """
     return NextestBudgets(
-        global_timeout=budgets.global_timeout(nextest_config),
-        termination_allowance=budgets.termination_allowance(nextest_config),
-        largest_slow_timeout=budgets.largest_slow_timeout(nextest_config),
+        global_timeout=reading.global_timeout(nextest_config),
+        termination_allowance=reading.termination_allowance(nextest_config),
+        largest_slow_timeout=reading.largest_slow_timeout(nextest_config),
     )
 
 

@@ -19,6 +19,7 @@ See "Test timeouts: four tiers, outermost last" in
 
 import typing as typ
 
+import nextest_config as reading
 import pytest
 import timeout_budgets as budgets
 
@@ -40,28 +41,40 @@ global-timeout = "75m"
             id="no-grace-period-falls-back-to-nextest-s-default",
         ),
         pytest.param(
-            '[profile.default]\ngrace-period = "5s"\n',
+            "[profile.default]\n"
+            'slow-timeout = { period = "60s", terminate-after = 1, '
+            'grace-period = "5s" }\n',
             5.0 + 60.0,
             id="a-grace-period-below-the-margin-still-counts",
         ),
         pytest.param(
-            '[profile.default]\ngrace-period = "60s"\n',
+            "[profile.default]\n"
+            'slow-timeout = { period = "60s", terminate-after = 1, '
+            'grace-period = "60s" }\n',
             60.0 + 60.0,
             id="a-grace-period-equal-to-the-margin",
         ),
         pytest.param(
-            '[profile.default]\ngrace-period = "90s"\n',
+            "[profile.default]\n"
+            'slow-timeout = { period = "60s", terminate-after = 1, '
+            'grace-period = "90s" }\n',
             90.0 + 60.0,
             id="a-grace-period-above-the-margin",
         ),
         pytest.param(
-            '[profile.default]\ngrace-period = "3m"\n',
+            "[profile.default]\n"
+            'slow-timeout = { period = "60s", terminate-after = 1, '
+            'grace-period = "3m" }\n',
             180.0 + 60.0,
             id="a-grace-period-in-minutes",
         ),
         pytest.param(
-            '[profile.default]\ngrace-period = "5s"\n'
-            '[profile.long]\ngrace-period = "2m"\n',
+            "[profile.default]\n"
+            'slow-timeout = { period = "60s", terminate-after = 1, '
+            'grace-period = "5s" }\n'
+            "\n[profile.long]\n"
+            'slow-timeout = { period = "60s", terminate-after = 1, '
+            'grace-period = "2m" }\n',
             120.0 + 60.0,
             id="the-largest-of-several-profiles",
         ),
@@ -81,7 +94,7 @@ def test_the_termination_allowance_follows_the_configured_grace_period(
     A profile that gives nextest three minutes to stop the run needs
     those three minutes of watchdog and the teardown margin besides.
     """
-    assert budgets.termination_allowance(config_text) == pytest.approx(expected), (
+    assert reading.termination_allowance(config_text) == pytest.approx(expected), (
         f"{config_text!r} must yield a {expected:.0f}s termination allowance; a "
         f"watchdog sized from a smaller one would kill the run mid-termination"
     )
@@ -94,8 +107,10 @@ def test_the_termination_allowance_ignores_the_per_test_period() -> None:
     a five-second termination belongs, restoring by accident the very
     over-sizing this correction removes.
     """
-    config_text = '[profile.default]\nslow-timeout = { period = "20m" }\n'
-    assert budgets.termination_allowance(config_text) == pytest.approx(70.0), (
+    config_text = (
+        '[profile.default]\nslow-timeout = { period = "20m", terminate-after = 1 }\n'
+    )
+    assert reading.termination_allowance(config_text) == pytest.approx(70.0), (
         "the termination allowance read a 20m per-test period as a grace "
         "period; only grace-period bounds how long nextest takes to stop"
     )
@@ -108,9 +123,11 @@ def test_the_largest_slow_timeout_ignores_the_grace_period() -> None:
     is larger. Here the grace period is deliberately the larger.
     """
     config_text = (
-        '[profile.default]\nslow-timeout = { period = "60s", grace-period = "30m" }\n'
+        "[profile.default]\n"
+        'slow-timeout = { period = "60s", terminate-after = 1, '
+        'grace-period = "30m" }\n'
     )
-    assert budgets.largest_slow_timeout(config_text) == pytest.approx(60.0), (
+    assert reading.largest_slow_timeout(config_text) == pytest.approx(60.0), (
         "the per-test ceiling read a 30m grace period as a slow-timeout; the "
         "global timeout would then be held to a budget no test can spend"
     )
@@ -119,9 +136,12 @@ def test_the_largest_slow_timeout_ignores_the_grace_period() -> None:
 def test_the_largest_slow_timeout_takes_the_longest_of_several() -> None:
     """Overrides raise the per-test ceiling the global timeout must clear."""
     config_text = _DEFAULT_PROFILE + (
-        'slow-timeout = { period = "20m", grace-period = "5s" }\n'
+        "\n[[profile.default.overrides]]\n"
+        "filter = 'binary(slow)'\n"
+        'slow-timeout = { period = "20m", terminate-after = 1, '
+        'grace-period = "5s" }\n'
     )
-    assert budgets.largest_slow_timeout(config_text) == pytest.approx(20 * 60.0), (
+    assert reading.largest_slow_timeout(config_text) == pytest.approx(20 * 60.0), (
         "the longest override, not the default profile's period, is the "
         "ceiling the global timeout has to clear"
     )
@@ -130,7 +150,7 @@ def test_the_largest_slow_timeout_takes_the_longest_of_several() -> None:
 def test_a_configuration_with_no_per_test_budget_is_rejected() -> None:
     """Nothing bounds a single test without one, so this is not a default."""
     with pytest.raises(budgets.MissingSlowTimeoutError):
-        budgets.largest_slow_timeout("[profile.default]\n")
+        reading.largest_slow_timeout("[profile.default]\n")
 
 
 def test_the_global_timeout_comes_from_the_default_profile() -> None:
@@ -141,7 +161,7 @@ def test_the_global_timeout_comes_from_the_default_profile() -> None:
     no CI job uses.
     """
     config_text = _DEFAULT_PROFILE + '[profile.long]\nglobal-timeout = "30m"\n'
-    assert budgets.global_timeout(config_text) == pytest.approx(75 * 60.0), (
+    assert reading.global_timeout(config_text) == pytest.approx(75 * 60.0), (
         "the whole-run budget must come from [profile.default]; [profile.long] "
         "sets 30m here and no coverage lane runs under it"
     )
@@ -150,13 +170,13 @@ def test_the_global_timeout_comes_from_the_default_profile() -> None:
 def test_a_configuration_with_no_default_profile_is_rejected() -> None:
     """The contract has nothing to compare against without one."""
     with pytest.raises(budgets.MissingDefaultProfileError):
-        budgets.global_timeout('[profile.long]\nglobal-timeout = "30m"\n')
+        reading.global_timeout('[profile.long]\nglobal-timeout = "30m"\n')
 
 
 def test_a_default_profile_with_no_global_timeout_is_rejected() -> None:
     """An unbounded run leaves the watchdog as the only limit."""
     with pytest.raises(budgets.MissingGlobalTimeoutError):
-        budgets.global_timeout("[profile.default]\nslow-timeout = { }\n")
+        reading.global_timeout("[profile.default]\nslow-timeout = { }\n")
 
 
 @pytest.mark.parametrize(
