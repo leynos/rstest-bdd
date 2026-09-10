@@ -242,6 +242,11 @@ def step_named(build_test_job: dict[str, typ.Any], name: str) -> dict[str, typ.A
 def dry_run_steps(build_test_job: dict[str, typ.Any]) -> list[dict[str, typ.Any]]:
     """Return every publish dry-run step in the packaging job.
 
+    Parameters
+    ----------
+    build_test_job : dict[str, typ.Any]
+        The parsed job.
+
     Returns
     -------
     list[dict[str, typ.Any]]
@@ -256,6 +261,11 @@ def dry_run_steps(build_test_job: dict[str, typ.Any]) -> list[dict[str, typ.Any]
 
 def statistics_path(build_test_job: dict[str, typ.Any]) -> str:
     """Return the one path the workflow tells lading to write to.
+
+    Parameters
+    ----------
+    build_test_job : dict[str, typ.Any]
+        The parsed job.
 
     Returns
     -------
