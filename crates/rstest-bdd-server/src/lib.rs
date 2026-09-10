@@ -36,6 +36,7 @@ pub mod error;
 pub mod handlers;
 pub mod indexing;
 pub mod logging;
+pub mod lsp;
 pub mod server;
 pub mod util;
 

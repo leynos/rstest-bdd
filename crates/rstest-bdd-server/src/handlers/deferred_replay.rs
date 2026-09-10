@@ -7,7 +7,6 @@
 use std::path::PathBuf;
 
 use async_lsp::ClientSocket;
-use lsp_types::DidSaveTextDocumentParams;
 use tracing::{Instrument, debug, info_span, warn};
 
 use super::{
@@ -28,6 +27,7 @@ use crate::{
         index_rust_file,
         index_rust_source,
     },
+    lsp::DidSaveTextDocumentParams,
     server::ServerState,
 };
 

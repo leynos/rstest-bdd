@@ -2,12 +2,12 @@
 
 use std::path::Path;
 
-use lsp_types::{DidSaveTextDocumentParams, TextDocumentIdentifier, Url};
 use rstest::{fixture, rstest};
 use rstest_bdd_server::{
     config::ServerConfig,
     discovery::WorkspaceInfo,
     handlers::handle_did_save_text_document,
+    lsp::{DidSaveTextDocumentParams, TextDocumentIdentifier, Url},
     server::ServerState,
 };
 use tempfile::TempDir;

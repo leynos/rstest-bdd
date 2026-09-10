@@ -9,7 +9,6 @@
 
 use std::path::Path;
 
-use async_lsp::lsp_types::{Diagnostic, PublishDiagnosticsParams, Url, notification};
 use tracing::{debug, warn};
 
 use super::{
@@ -21,7 +20,11 @@ use super::{
     scenario_outline::compute_scenario_outline_column_diagnostics,
     table_docstring::compute_table_docstring_mismatch_diagnostics,
 };
-use crate::{indexing::RustStepIndexDiagnostic, server::ServerState};
+use crate::{
+    indexing::RustStepIndexDiagnostic,
+    lsp::{Diagnostic, PublishDiagnosticsParams, Url, notification},
+    server::ServerState,
+};
 
 /// Compute all diagnostics for a feature file, or `None` when the file has
 /// no feature index (in which case nothing is published, preserving any
@@ -73,9 +76,9 @@ pub(super) fn build_rust_index_diagnostic(diagnostic: &RustStepIndexDiagnostic) 
     };
 
     Diagnostic {
-        range: lsp_types::Range::default(),
-        severity: Some(lsp_types::DiagnosticSeverity::WARNING),
-        code: Some(lsp_types::NumberOrString::String(code.to_owned())),
+        range: crate::lsp::Range::default(),
+        severity: Some(crate::lsp::DiagnosticSeverity::WARNING),
+        code: Some(crate::lsp::NumberOrString::String(code.to_owned())),
         code_description: None,
         source: Some(DIAGNOSTIC_SOURCE.to_owned()),
         message: diagnostic.to_string(),
@@ -187,13 +190,13 @@ pub fn publish_all_feature_diagnostics(state: &ServerState) {
 mod tests {
     //! Snapshot and property tests for diagnostic publication payloads.
 
-    use lsp_types::{DiagnosticSeverity, Position, Range};
     use proptest::prelude::*;
     use rstest::{fixture, rstest};
 
     use super::*;
     use crate::{
         config::ServerConfig,
+        lsp::{DiagnosticSeverity, Position, Range},
         test_support::{ScenarioBuilder, SingleFilePairScenario},
     };
 
@@ -303,10 +306,11 @@ mod tests {
     /// capture.
     #[tokio::test]
     async fn missing_feature_index_emits_no_notification_through_client() {
-        use async_lsp::{MainLoop, lsp_types::notification::LogMessage, router::Router};
-        use lsp_types::{LogMessageParams, MessageType};
+        use async_lsp::{MainLoop, router::Router};
         use tokio::io::AsyncReadExt;
         use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
+
+        use crate::lsp::{LogMessageParams, MessageType, notification::LogMessage};
 
         let (mainloop, client) = MainLoop::new_server(|_client| Router::new(()));
 

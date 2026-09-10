@@ -5,7 +5,6 @@
 //! definition sources. Indexing results are stored in the shared server state.
 //! After indexing, diagnostics are computed and published via the LSP protocol.
 
-use lsp_types::DidSaveTextDocumentParams;
 use metrics::{counter, describe_counter};
 use tracing::{debug, warn};
 
@@ -28,6 +27,7 @@ use crate::{
         index_rust_file,
         index_rust_source,
     },
+    lsp::DidSaveTextDocumentParams,
     server::ServerState,
 };
 
@@ -236,11 +236,15 @@ mod tests {
         Unit,
         with_local_recorder,
     };
-    use lsp_types::{TextDocumentIdentifier, Url};
     use tempfile::TempDir;
 
     use super::*;
-    use crate::{config::ServerConfig, discovery::WorkspaceInfo, server::ServerState};
+    use crate::{
+        config::ServerConfig,
+        discovery::WorkspaceInfo,
+        lsp::{TextDocumentIdentifier, Url},
+        server::ServerState,
+    };
 
     #[derive(Default)]
     struct IndexingRecorder {

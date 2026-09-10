@@ -5,7 +5,6 @@
 
 use std::sync::Arc;
 
-use lsp_types::Diagnostic;
 use rstest_bdd_patterns::SpecificityScore;
 
 use super::{
@@ -18,6 +17,7 @@ use super::{
 use crate::{
     handlers::util::gherkin_span_to_lsp_range,
     indexing::{CompiledStepDefinition, FeatureFileIndex, IndexedStep},
+    lsp::Diagnostic,
     server::ServerState,
 };
 

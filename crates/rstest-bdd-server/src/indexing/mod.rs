@@ -225,13 +225,13 @@ impl RustAttributeSpan {
     /// start position is inclusive and the end position is exclusive, following
     /// LSP semantics.
     #[must_use]
-    pub fn to_lsp_range(&self) -> lsp_types::Range {
-        lsp_types::Range {
-            start: lsp_types::Position {
+    pub fn to_lsp_range(&self) -> crate::lsp::Range {
+        crate::lsp::Range {
+            start: crate::lsp::Position {
                 line: self.start_line,
                 character: self.start_column,
             },
-            end: lsp_types::Position {
+            end: crate::lsp::Position {
                 line: self.end_line,
                 character: self.end_column,
             },

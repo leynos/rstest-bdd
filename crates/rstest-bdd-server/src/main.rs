@@ -14,7 +14,6 @@ use async_lsp::{
     tracing::TracingLayer,
 };
 use clap::Parser;
-use lsp_types::{notification, request};
 use rstest_bdd_server::{
     config::{LogLevel, ServerConfig},
     error::ServerError,
@@ -32,6 +31,7 @@ use rstest_bdd_server::{
         launch_workspace_preparation,
     },
     logging::init_logging,
+    lsp::{notification, request},
     server::ServerState,
 };
 use tower::ServiceBuilder;

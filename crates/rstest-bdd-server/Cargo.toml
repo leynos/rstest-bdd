@@ -27,7 +27,6 @@ test-support = ["dep:tempfile"]
 async-lsp.workspace = true
 camino.workspace = true
 cap-std.workspace = true
-lsp-types.workspace = true
 metrics.workspace = true
 tokio.workspace = true
 tracing.workspace = true

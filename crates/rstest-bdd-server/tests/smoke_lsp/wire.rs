@@ -226,7 +226,7 @@ pub fn initialize(stdin: &mut impl Write, receiver: &MessageReceiver, root_uri: 
     reason = "file URI construction failure is a test-fatal path error"
 )]
 pub fn did_save(stdin: &mut impl Write, file_path: &Path) {
-    let uri = lsp_types::Url::from_file_path(file_path).expect("file URI");
+    let uri = rstest_bdd_server::lsp::Url::from_file_path(file_path).expect("file URI");
     let notification = json!({
         "jsonrpc": "2.0",
         "method": "textDocument/didSave",

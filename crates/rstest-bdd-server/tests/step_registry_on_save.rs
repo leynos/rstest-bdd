@@ -1,10 +1,10 @@
 //! Behavioural tests for compiled step registry updates on save.
 
 use gherkin::StepType;
-use lsp_types::{DidSaveTextDocumentParams, TextDocumentIdentifier, Url};
 use rstest_bdd_server::{
     config::ServerConfig,
     handlers::handle_did_save_text_document,
+    lsp::{DidSaveTextDocumentParams, TextDocumentIdentifier, Url},
     server::ServerState,
 };
 use tempfile::TempDir;

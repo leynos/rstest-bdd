@@ -33,7 +33,7 @@ fn compute_feature_diagnostics(
     state: &ServerState,
     dir: &TempDir,
     filename: impl AsRef<str>,
-) -> Vec<lsp_types::Diagnostic> {
+) -> Vec<rstest_bdd_server::lsp::Diagnostic> {
     let path = dir.path().join(filename.as_ref());
     let feature_index = state.feature_index(&path).expect("feature index");
     compute_unimplemented_step_diagnostics(state, feature_index)
@@ -44,7 +44,7 @@ fn compute_rust_diagnostics(
     state: &ServerState,
     dir: &TempDir,
     filename: impl AsRef<str>,
-) -> Vec<lsp_types::Diagnostic> {
+) -> Vec<rstest_bdd_server::lsp::Diagnostic> {
     let path = dir.path().join(filename.as_ref());
     compute_unused_step_diagnostics(state, &path)
 }
@@ -52,7 +52,7 @@ fn compute_rust_diagnostics(
 /// Helper to assert a single diagnostic with an expected message substring.
 #[expect(clippy::expect_used, reason = "test helper uses expect for clarity")]
 fn assert_single_diagnostic_contains(
-    diagnostics: &[lsp_types::Diagnostic],
+    diagnostics: &[rstest_bdd_server::lsp::Diagnostic],
     expected_substring: &str,
 ) {
     assert_eq!(diagnostics.len(), 1, "expected exactly one diagnostic");

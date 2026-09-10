@@ -51,13 +51,13 @@ pub(crate) fn clear_rust_index_diagnostics(state: &ServerState, rust_path: &Path
 mod tests {
     //! Tests for recoverable Rust-index diagnostic conversion.
 
-    use lsp_types::{DiagnosticSeverity, NumberOrString, Position, Range};
     use rstest::rstest;
 
     use super::{
         super::{DIAGNOSTIC_SOURCE, publish::build_rust_index_diagnostic},
         *,
     };
+    use crate::lsp::{DiagnosticSeverity, NumberOrString, Position, Range};
 
     #[test]
     fn maps_invalid_step_attribute_arguments_to_a_warning() {

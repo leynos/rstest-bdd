@@ -11,13 +11,13 @@ use std::{
     sync::LazyLock,
 };
 
-use lsp_types::{Diagnostic, DiagnosticSeverity};
 use regex::Regex;
 
 use super::{CODE_EXAMPLE_COLUMN_MISSING, CODE_EXAMPLE_COLUMN_SURPLUS, DIAGNOSTIC_SOURCE};
 use crate::{
     handlers::util::gherkin_span_to_lsp_range,
     indexing::{FeatureFileIndex, IndexedExamplesTable, IndexedScenarioOutline, IndexedStep},
+    lsp::{Diagnostic, DiagnosticSeverity},
 };
 
 /// Regex for extracting `<placeholder>` tokens from scenario outline step text.
@@ -264,7 +264,7 @@ fn build_missing_column_diagnostic(
     Some(Diagnostic {
         range,
         severity: Some(DiagnosticSeverity::WARNING),
-        code: Some(lsp_types::NumberOrString::String(
+        code: Some(crate::lsp::NumberOrString::String(
             CODE_EXAMPLE_COLUMN_MISSING.to_owned(),
         )),
         code_description: None,
@@ -291,7 +291,7 @@ fn build_surplus_column_diagnostic(
     Diagnostic {
         range,
         severity: Some(DiagnosticSeverity::WARNING),
-        code: Some(lsp_types::NumberOrString::String(
+        code: Some(crate::lsp::NumberOrString::String(
             CODE_EXAMPLE_COLUMN_SURPLUS.to_owned(),
         )),
         code_description: None,

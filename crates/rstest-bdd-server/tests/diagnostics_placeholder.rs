@@ -24,7 +24,7 @@ fn compute_placeholder_diagnostics(
     state: &ServerState,
     dir: &TempDir,
     filename: impl AsRef<str>,
-) -> Vec<lsp_types::Diagnostic> {
+) -> Vec<rstest_bdd_server::lsp::Diagnostic> {
     let path = dir.path().join(filename.as_ref());
     compute_signature_mismatch_diagnostics(state, &path)
 }

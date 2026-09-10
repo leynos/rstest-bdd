@@ -8,18 +8,18 @@
 use std::sync::Arc;
 
 use async_lsp::ResponseError;
-use lsp_types::{
-    Location,
-    Position,
-    Range,
-    Url,
-    request::{GotoImplementationParams, GotoImplementationResponse},
-};
 use tracing::debug;
 
 use super::util::{has_extension, lsp_position_to_byte_offset};
 use crate::{
     indexing::{CompiledStepDefinition, FeatureFileIndex, IndexedStep},
+    lsp::{
+        Location,
+        Position,
+        Range,
+        Url,
+        request::{GotoImplementationParams, GotoImplementationResponse},
+    },
     server::ServerState,
 };
 
@@ -138,7 +138,6 @@ mod tests {
     use std::path::PathBuf;
 
     use gherkin::Span;
-    use lsp_types::{DidSaveTextDocumentParams, TextDocumentIdentifier};
     use tempfile::TempDir;
 
     use super::*;
@@ -146,6 +145,7 @@ mod tests {
         config::ServerConfig,
         discovery::WorkspaceInfo,
         handlers::handle_did_save_text_document,
+        lsp::{DidSaveTextDocumentParams, TextDocumentIdentifier},
     };
 
     #[test]

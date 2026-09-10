@@ -1,6 +1,6 @@
 //! Regression coverage for did-save work deferred during workspace preparation.
 
-use lsp_types::{DidSaveTextDocumentParams, TextDocumentIdentifier, Url};
+use rstest_bdd_server::lsp::{DidSaveTextDocumentParams, TextDocumentIdentifier, Url};
 
 use super::{
     super::{WorkspaceReadyEvent, handle_workspace_ready, prepare_workspace},

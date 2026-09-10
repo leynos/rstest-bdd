@@ -788,6 +788,8 @@ The initial implementation delivers the foundational server infrastructure:
   `RSTEST_BDD_LSP_DEBOUNCE_MS`) with typed configuration struct
 - `error` - Unified error types using `thiserror` for LSP operations
 - `logging` - Tracing subscriber setup with configurable log levels
+- `lsp` - LSP protocol type facade; re-exports the `lsp-types` revision that
+  `async-lsp` provides, so the server speaks one LSP model type family
 - `discovery` - Workspace discovery via `cargo metadata`, feature file
   enumeration
 - `server` - Server state management and capability declarations
@@ -799,7 +801,8 @@ The initial implementation delivers the foundational server infrastructure:
 - **async-lsp** for the LSP protocol implementation with Tower service layers
 - **tracing/tracing-subscriber** for structured logging to stderr
 - **cargo_metadata** for workspace introspection
-- **lsp-types** for LSP type definitions
+- **lsp-types** for LSP type definitions, reached through the `async-lsp`
+  re-export rather than a direct dependency
 
 **Capabilities declared:**
 
@@ -874,7 +877,7 @@ feature step locations.
 
 **Span conversion:**
 
-The handler converts `gherkin::Span` (byte offsets) to `lsp_types::Range`
+The handler converts `gherkin::Span` (byte offsets) to `lsp::Range`
 (0-based line/column) by scanning the source text. A utility module
 (`handlers/util.rs`) provides `gherkin_span_to_lsp_range()` for this purpose.
 The inverse function `lsp_position_to_byte_offset()` converts LSP positions

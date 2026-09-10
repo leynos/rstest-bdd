@@ -5,7 +5,7 @@
 
 use std::collections::VecDeque;
 
-use lsp_types::DidSaveTextDocumentParams;
+use crate::lsp::DidSaveTextDocumentParams;
 
 /// Maximum number of document saves retained during workspace preparation.
 const MAX_DEFERRED_DOCUMENT_SAVES: usize = 128;
@@ -116,10 +116,10 @@ fn save_byte_count(params: &DidSaveTextDocumentParams) -> usize {
 mod tests {
     //! Tests for bounded, coalescing deferred did-save storage.
 
-    use lsp_types::{TextDocumentIdentifier, Url};
     use proptest::prelude::*;
 
     use super::*;
+    use crate::lsp::{TextDocumentIdentifier, Url};
 
     const DEFERRED_SAVE_URI_ALPHABET: usize = 130;
     const TEST_MAXIMUM_DOCUMENTS: usize = 8;

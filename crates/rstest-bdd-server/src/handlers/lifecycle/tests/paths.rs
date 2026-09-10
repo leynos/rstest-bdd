@@ -2,8 +2,8 @@
 
 use std::{path::PathBuf, str::FromStr};
 
-use lsp_types::Url;
 use rstest::rstest;
+use rstest_bdd_server::lsp::Url;
 
 use super::{super::workspace_path::url_to_path, platform_test_path};
 

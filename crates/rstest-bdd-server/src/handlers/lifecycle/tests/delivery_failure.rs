@@ -1,8 +1,8 @@
 //! Regression coverage for stopped-router workspace event delivery.
 
 use async_lsp::ClientSocket;
-use lsp_types::{DidSaveTextDocumentParams, TextDocumentIdentifier, Url};
 use metrics::with_local_recorder;
+use rstest_bdd_server::lsp::{DidSaveTextDocumentParams, TextDocumentIdentifier, Url};
 
 use super::{
     super::{WorkspaceReadyEvent, emit_workspace_ready, prepare_workspace},
