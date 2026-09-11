@@ -13,7 +13,11 @@ use std::{
 };
 
 use rstest_bdd_harness::nested_cargo::{
-    CapturedOutput, cargo_command, describe_env, env_from_vars, filtered_command,
+    CapturedOutput,
+    cargo_command,
+    describe_env,
+    env_from_vars,
+    filtered_command,
     run_bounded_with_timeout,
 };
 
