@@ -28,7 +28,7 @@ fn compute_outline_column_diagnostics(
     state: &ServerState,
     dir: &TempDir,
     filename: impl AsRef<str>,
-) -> Vec<lsp_types::Diagnostic> {
+) -> Vec<rstest_bdd_server::lsp::Diagnostic> {
     let path = dir.path().join(filename.as_ref());
     let feature_index = state.feature_index(&path).expect("feature index");
     compute_scenario_outline_column_diagnostics(feature_index)
@@ -38,7 +38,7 @@ fn compute_outline_column_diagnostics(
 fn setup_and_compute_diagnostics(
     scenario_builder: ScenarioBuilder,
     feature_content: &str,
-) -> Vec<lsp_types::Diagnostic> {
+) -> Vec<rstest_bdd_server::lsp::Diagnostic> {
     let TestScenario { dir, state } = scenario_builder
         .with_feature("test.feature", feature_content)
         .with_rust_steps("steps.rs", "// no step definitions\n")

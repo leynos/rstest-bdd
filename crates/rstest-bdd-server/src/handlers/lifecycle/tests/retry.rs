@@ -1,13 +1,13 @@
 //! Regression coverage for retrying workspace preparation with pending saves.
 
-use lsp_types::{
+use metrics::with_local_recorder;
+use rstest_bdd_server::lsp::{
     DidSaveTextDocumentParams,
     InitializeParams,
     TextDocumentIdentifier,
     Url,
     WorkspaceFolder,
 };
-use metrics::with_local_recorder;
 
 use super::{
     super::{WorkspaceReadyEvent, handle_initialise, handle_workspace_ready, prepare_workspace},

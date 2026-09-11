@@ -177,7 +177,8 @@ fn scenario_outline_column_validation(
     }
 
     for expected_diagnostic in expected_diagnostics {
-        let expected_code = lsp_types::NumberOrString::String(expected_diagnostic.code.to_owned());
+        let expected_code =
+            rstest_bdd_server::lsp::NumberOrString::String(expected_diagnostic.code.to_owned());
         let Some(diagnostic) = diagnostics
             .iter()
             .find(|diagnostic| diagnostic.code.as_ref() == Some(&expected_code))

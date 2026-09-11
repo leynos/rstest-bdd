@@ -30,7 +30,7 @@ fn unimplemented_step_produces_diagnostic(scenario_builder: ScenarioBuilder) {
     assert!(diag.message.contains("an unimplemented step"));
     assert_eq!(
         diag.code,
-        Some(lsp_types::NumberOrString::String(
+        Some(rstest_bdd_server::lsp::NumberOrString::String(
             CODE_UNIMPLEMENTED_STEP.to_owned()
         ))
     );
@@ -60,7 +60,7 @@ fn unused_step_definition_produces_diagnostic(scenario_builder: ScenarioBuilder)
     assert!(diag.message.contains("unused step"));
     assert_eq!(
         diag.code,
-        Some(lsp_types::NumberOrString::String(
+        Some(rstest_bdd_server::lsp::NumberOrString::String(
             CODE_UNUSED_STEP_DEFINITION.to_owned()
         ))
     );

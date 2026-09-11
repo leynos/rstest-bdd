@@ -3,20 +3,20 @@
 //! These tests verify end-to-end navigation from Rust step functions to
 //! matching feature steps in `.feature` files.
 
-use lsp_types::{
-    DidSaveTextDocumentParams,
-    GotoDefinitionParams,
-    PartialResultParams,
-    Position,
-    TextDocumentIdentifier,
-    TextDocumentPositionParams,
-    Url,
-    WorkDoneProgressParams,
-};
 use rstest_bdd_server::{
     config::ServerConfig,
     discovery::WorkspaceInfo,
     handlers::{handle_definition, handle_did_save_text_document},
+    lsp::{
+        DidSaveTextDocumentParams,
+        GotoDefinitionParams,
+        PartialResultParams,
+        Position,
+        TextDocumentIdentifier,
+        TextDocumentPositionParams,
+        Url,
+        WorkDoneProgressParams,
+    },
     server::ServerState,
     test_support::write_workspace_file,
 };
@@ -120,7 +120,7 @@ fn get_definition_locations(
     rust_path: &std::path::Path,
     line: u32,
     character: u32,
-) -> Option<Vec<lsp_types::Location>> {
+) -> Option<Vec<rstest_bdd_server::lsp::Location>> {
     let Ok(rust_uri) = Url::from_file_path(rust_path) else {
         panic!("Rust path must convert to URI: {}", rust_path.display());
     };
@@ -131,7 +131,7 @@ fn get_definition_locations(
     };
 
     response.map(|resp| match resp {
-        lsp_types::GotoDefinitionResponse::Array(locs) => locs,
+        rstest_bdd_server::lsp::GotoDefinitionResponse::Array(locs) => locs,
         other => panic!("expected array response, got {other:?}"),
     })
 }

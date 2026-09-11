@@ -10,13 +10,13 @@ use std::path::Path;
 
 use camino::Utf8Path;
 use cap_std::{ambient_authority, fs_utf8::Dir};
-use lsp_types::{DidSaveTextDocumentParams, TextDocumentIdentifier, Url};
 use tempfile::TempDir;
 
 use crate::{
     config::ServerConfig,
     discovery::WorkspaceInfo,
     handlers::handle_did_save_text_document,
+    lsp::{DidSaveTextDocumentParams, TextDocumentIdentifier, Url},
     server::ServerState,
 };
 

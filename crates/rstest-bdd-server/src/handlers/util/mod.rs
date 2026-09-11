@@ -11,11 +11,13 @@
 use std::path::Path;
 
 use gherkin::Span;
-use lsp_types::{Position, Range};
 
 // Re-export for backwards compatibility
 pub use crate::util::byte_col_to_utf16_col;
-use crate::util::utf16_code_units;
+use crate::{
+    lsp::{Position, Range},
+    util::utf16_code_units,
+};
 
 /// Check whether `path` has the file extension `ext`, ignoring ASCII case.
 ///
@@ -48,7 +50,7 @@ pub fn has_extension(path: &Path, ext: &str) -> bool {
         .is_some_and(|actual| actual.eq_ignore_ascii_case(ext))
 }
 
-/// Convert a `gherkin::Span` (byte offsets) to an `lsp_types::Range` (0-based line/col).
+/// Convert a `gherkin::Span` (byte offsets) to an `lsp::Range` (0-based line/col).
 ///
 /// The `gherkin` crate uses byte offsets for spans, while the LSP protocol uses
 /// 0-based line and character (column) positions. This function computes the
@@ -135,8 +137,7 @@ fn clamp_final_offset(
 /// # Examples
 ///
 /// ```
-/// use lsp_types::Position;
-/// use rstest_bdd_server::handlers::util::lsp_position_to_byte_offset;
+/// use rstest_bdd_server::{handlers::util::lsp_position_to_byte_offset, lsp::Position};
 ///
 /// let source = "Feature: demo\n  Scenario: s\n    Given a step\n";
 /// // Line 2, column 4 is where "Given" starts

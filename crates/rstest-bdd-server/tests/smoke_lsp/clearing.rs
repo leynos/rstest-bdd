@@ -37,7 +37,8 @@ fn smoke_feature_diagnostics_cleared_once_step_implemented(mut server: ServerHan
         ),
     )
     .expect("write feature");
-    let feature_uri = lsp_types::Url::from_file_path(&feature_path).expect("feature URI");
+    let feature_uri =
+        rstest_bdd_server::lsp::Url::from_file_path(&feature_path).expect("feature URI");
     let feature_uri = feature_uri.as_str().to_owned();
 
     // Saving the feature publishes a non-empty diagnostic for the
@@ -114,7 +115,7 @@ fn smoke_rust_diagnostics_cleared_once_step_referenced(mut server: ServerHandle)
         ),
     )
     .expect("write rust steps");
-    let rust_uri = lsp_types::Url::from_file_path(&rust_path).expect("rust URI");
+    let rust_uri = rstest_bdd_server::lsp::Url::from_file_path(&rust_path).expect("rust URI");
     let rust_uri = rust_uri.as_str().to_owned();
 
     // Saving the Rust file with no feature referencing the step publishes a

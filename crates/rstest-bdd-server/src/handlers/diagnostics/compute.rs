@@ -9,12 +9,11 @@
 
 use std::{path::Path, sync::Arc};
 
-use lsp_types::{Diagnostic, DiagnosticSeverity, Range};
-
 use super::{CODE_UNIMPLEMENTED_STEP, CODE_UNUSED_STEP_DEFINITION, DIAGNOSTIC_SOURCE};
 use crate::{
     handlers::util::gherkin_span_to_lsp_range,
     indexing::{CompiledStepDefinition, FeatureFileIndex, IndexedStep},
+    lsp::{Diagnostic, DiagnosticSeverity, Range},
     server::ServerState,
 };
 
@@ -69,7 +68,7 @@ pub(super) fn build_step_diagnostic(
     Diagnostic {
         range,
         severity: Some(DiagnosticSeverity::WARNING),
-        code: Some(lsp_types::NumberOrString::String(spec.code.to_owned())),
+        code: Some(crate::lsp::NumberOrString::String(spec.code.to_owned())),
         code_description: None,
         source: Some(DIAGNOSTIC_SOURCE.to_owned()),
         message: spec.message,
@@ -164,7 +163,7 @@ fn build_unused_step_diagnostic(step_def: &Arc<CompiledStepDefinition>) -> Diagn
     Diagnostic {
         range,
         severity: Some(DiagnosticSeverity::WARNING),
-        code: Some(lsp_types::NumberOrString::String(
+        code: Some(crate::lsp::NumberOrString::String(
             CODE_UNUSED_STEP_DEFINITION.to_owned(),
         )),
         code_description: None,

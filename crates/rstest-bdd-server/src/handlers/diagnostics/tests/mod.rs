@@ -2,8 +2,8 @@
 
 use std::path::Path;
 
-use lsp_types::{Diagnostic, DiagnosticSeverity};
 use rstest::{fixture, rstest};
+use rstest_bdd_server::lsp::{Diagnostic, DiagnosticSeverity};
 
 use super::{compute::step_type_to_attribute, *};
 use crate::{
@@ -55,7 +55,9 @@ fn assert_single_diagnostic_with_code<'a>(
     };
     assert_eq!(
         diag.code,
-        Some(lsp_types::NumberOrString::String(expected_code.to_owned())),
+        Some(rstest_bdd_server::lsp::NumberOrString::String(
+            expected_code.to_owned()
+        )),
         "expected diagnostic code '{expected_code}'"
     );
     diag

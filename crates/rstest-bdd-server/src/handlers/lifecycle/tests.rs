@@ -8,13 +8,6 @@ mod retry;
 use std::ops::ControlFlow;
 
 use async_lsp::{MainLoop, router::Router};
-use lsp_types::{
-    ClientCapabilities,
-    DidSaveTextDocumentParams,
-    TextDocumentIdentifier,
-    Url,
-    WorkspaceFolder,
-};
 use rstest::{fixture, rstest};
 use tempfile::TempDir;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
@@ -26,6 +19,13 @@ use crate::{
         DeferredDocumentSavesIndexed,
         handle_deferred_document_saves_indexed,
         handle_did_save_text_document,
+    },
+    lsp::{
+        ClientCapabilities,
+        DidSaveTextDocumentParams,
+        TextDocumentIdentifier,
+        Url,
+        WorkspaceFolder,
     },
 };
 

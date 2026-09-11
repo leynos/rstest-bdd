@@ -8,11 +8,14 @@
 use std::{path::Path, sync::Arc};
 
 use async_lsp::ResponseError;
-use lsp_types::{GotoDefinitionParams, GotoDefinitionResponse, Location, Url};
 use tracing::debug;
 
 use super::util::{gherkin_span_to_lsp_range, has_extension};
-use crate::{indexing::CompiledStepDefinition, server::ServerState};
+use crate::{
+    indexing::CompiledStepDefinition,
+    lsp::{GotoDefinitionParams, GotoDefinitionResponse, Location, Url},
+    server::ServerState,
+};
 
 /// Handle `textDocument/definition` requests.
 ///
@@ -92,7 +95,7 @@ fn position_in_span(
 fn find_step_at_position(
     state: &ServerState,
     path: &Path,
-    position: lsp_types::Position,
+    position: crate::lsp::Position,
 ) -> Option<Arc<CompiledStepDefinition>> {
     let steps = state.step_registry().steps_for_file(path);
     let target_line = position.line;
@@ -173,7 +176,6 @@ mod tests {
 
     use std::path::PathBuf;
 
-    use lsp_types::{DidSaveTextDocumentParams, Position, TextDocumentIdentifier};
     use rstest::{fixture, rstest};
     use tempfile::TempDir;
 
@@ -182,6 +184,7 @@ mod tests {
         config::ServerConfig,
         discovery::WorkspaceInfo,
         handlers::handle_did_save_text_document,
+        lsp::{DidSaveTextDocumentParams, Position, TextDocumentIdentifier},
     };
 
     #[rstest_bdd_test_macros::allow_fixture_expansion_lints]

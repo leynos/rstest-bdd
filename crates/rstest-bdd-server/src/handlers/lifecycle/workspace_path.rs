@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use lsp_types::{Url, WorkspaceFolder};
+use crate::lsp::{Url, WorkspaceFolder};
 
 /// Extract a workspace path from the first workspace folder.
 ///

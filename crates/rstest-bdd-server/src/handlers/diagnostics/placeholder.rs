@@ -6,12 +6,12 @@
 
 use std::{collections::HashSet, path::Path, sync::Arc};
 
-use lsp_types::{Diagnostic, DiagnosticSeverity};
 use rstest_bdd_patterns::pattern::lexer::{Token, lex_pattern};
 
 use super::{CODE_PLACEHOLDER_COUNT_MISMATCH, DIAGNOSTIC_SOURCE, compute::step_type_to_attribute};
 use crate::{
     indexing::{CompiledStepDefinition, IndexedStepParameter},
+    lsp::{Diagnostic, DiagnosticSeverity},
     server::ServerState,
 };
 
@@ -161,7 +161,7 @@ fn build_placeholder_mismatch_diagnostic(
     Diagnostic {
         range,
         severity: Some(DiagnosticSeverity::WARNING),
-        code: Some(lsp_types::NumberOrString::String(
+        code: Some(crate::lsp::NumberOrString::String(
             CODE_PLACEHOLDER_COUNT_MISMATCH.to_owned(),
         )),
         code_description: None,

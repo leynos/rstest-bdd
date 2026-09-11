@@ -3,20 +3,20 @@
 //! These tests verify end-to-end navigation from feature steps in `.feature`
 //! files to matching Rust step implementations.
 
-use lsp_types::{
-    DidSaveTextDocumentParams,
-    PartialResultParams,
-    Position,
-    TextDocumentIdentifier,
-    TextDocumentPositionParams,
-    Url,
-    WorkDoneProgressParams,
-    request::{GotoImplementationParams, GotoImplementationResponse},
-};
 use rstest_bdd_server::{
     config::ServerConfig,
     discovery::WorkspaceInfo,
     handlers::{handle_did_save_text_document, handle_implementation},
+    lsp::{
+        DidSaveTextDocumentParams,
+        PartialResultParams,
+        Position,
+        TextDocumentIdentifier,
+        TextDocumentPositionParams,
+        Url,
+        WorkDoneProgressParams,
+        request::{GotoImplementationParams, GotoImplementationResponse},
+    },
     server::ServerState,
     test_support::write_workspace_file,
 };
@@ -103,7 +103,7 @@ fn get_implementation_locations(
     feature_path: &std::path::Path,
     line: u32,
     character: u32,
-) -> Option<Vec<lsp_types::Location>> {
+) -> Option<Vec<rstest_bdd_server::lsp::Location>> {
     let Ok(feature_uri) = Url::from_file_path(feature_path) else {
         panic!(
             "feature path must convert to URI: {}",

@@ -9,7 +9,6 @@ use std::{
 };
 
 use async_lsp::{ClientSocket, ResponseError};
-use lsp_types::{InitializeParams, InitializeResult, InitializedParams, ServerInfo};
 use tracing::{Instrument, debug, info, warn};
 
 use super::{
@@ -24,6 +23,7 @@ use crate::{
     discovery::{WorkspaceInfo, discover_workspace},
     error::ServerError,
     indexing::WorkspaceRoot,
+    lsp::{InitializeParams, InitializeResult, InitializedParams, ServerInfo},
     server::{ServerState, build_server_capabilities},
 };
 

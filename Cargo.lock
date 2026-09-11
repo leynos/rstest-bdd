@@ -1811,7 +1811,6 @@ dependencies = [
  "clap",
  "gherkin",
  "insta",
- "lsp-types",
  "metrics",
  "proc-macro2",
  "proptest",

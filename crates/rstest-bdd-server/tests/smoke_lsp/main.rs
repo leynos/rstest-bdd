@@ -64,7 +64,8 @@ fn new_temp_dir() -> TempDir { TempDir::new().expect("temp dir") }
     reason = "server setup failures are test-fatal conditions"
 )]
 fn init_server_handle(temp_dir: TempDir) -> ServerHandle {
-    let root_uri = lsp_types::Url::from_directory_path(temp_dir.path()).expect("dir URI");
+    let root_uri =
+        rstest_bdd_server::lsp::Url::from_directory_path(temp_dir.path()).expect("dir URI");
 
     let mut child = spawn_server(&[]);
     let mut stdin = child.stdin.take().expect("stdin");
@@ -164,8 +165,8 @@ impl ServerHandle {
 struct TestFiles {
     feature_path: PathBuf,
     rust_path: PathBuf,
-    feature_uri: lsp_types::Url,
-    rust_uri: lsp_types::Url,
+    feature_uri: rstest_bdd_server::lsp::Url,
+    rust_uri: rstest_bdd_server::lsp::Url,
 }
 
 /// Create a minimal feature file and a matching Rust step file inside `dir`.
@@ -197,8 +198,9 @@ fn create_test_files(dir: &Path) -> TestFiles {
     )
     .expect("write rust steps");
 
-    let feature_uri = lsp_types::Url::from_file_path(&feature_path).expect("feature URI");
-    let rust_uri = lsp_types::Url::from_file_path(&rust_path).expect("rust URI");
+    let feature_uri =
+        rstest_bdd_server::lsp::Url::from_file_path(&feature_path).expect("feature URI");
+    let rust_uri = rstest_bdd_server::lsp::Url::from_file_path(&rust_path).expect("rust URI");
 
     TestFiles {
         feature_path,
