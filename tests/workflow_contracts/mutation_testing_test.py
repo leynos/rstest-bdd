@@ -36,7 +36,9 @@ USES_RE = re.compile(
 
 #: The exact caller configuration: workspace source under crates/;
 #: example applications, standalone test-fixture crates, and test-support
-#: modules excluded as noise; feature-gated tests enabled to match `make test`.
+#: modules excluded as noise; feature-gated tests enabled to match
+#: `make test`; and the prefetch that lets the nested fixture harnesses
+#: resolve their lockfiles offline.
 EXPECTED_WITH = {
     "paths": "crates/",
     "exclude-globs": (
@@ -54,6 +56,7 @@ EXPECTED_WITH = {
         "crates/rstest-bdd-harness/src/trybuild_staging/**"
     ),
     "extra-args": "--all-features --test-workspace=true",
+    "setup-commands": "make prefetch-fixture-deps",
 }
 
 
