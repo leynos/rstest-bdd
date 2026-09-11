@@ -11,6 +11,7 @@ mod feature_discovery;
 mod macro_args;
 mod module_emission;
 mod path_resolution;
+mod step_validation;
 mod test_generation;
 
 use std::{
@@ -36,6 +37,7 @@ use self::{
         runtime_compatibility_alias,
     },
     module_emission::generate_scenarios_module,
+    step_validation::validate_steps_compile_time,
     test_generation::{ScenarioTestContext, generate_scenario_test, resolve_harness_path},
 };
 use crate::{
@@ -138,28 +140,6 @@ fn process_scenario(
         .map_err(|error| error_to_tokens(&error))?;
 
     Ok(Some(generate_scenario_test(ctx, used_names, data)))
-}
-/// Validate generated scenarios with the same scope semantics as `#[scenario]`.
-fn validate_steps_compile_time(
-    steps: &[crate::parsing::feature::ParsedStep],
-    libraries: Option<&[Box<str>]>,
-) -> Result<(), syn::Error> {
-    cfg_if::cfg_if! {
-        if #[cfg(feature = "strict-compile-time-validation")] {
-            libraries.map_or_else(
-                || crate::validation::steps::validate_steps_exist(steps, true),
-                |libraries| crate::validation::steps::validate_steps_exist_in_scope(steps, libraries, true),
-            )
-        } else if #[cfg(feature = "compile-time-validation")] {
-            libraries.map_or_else(
-                || crate::validation::steps::validate_steps_exist(steps, false),
-                |libraries| crate::validation::steps::validate_steps_exist_in_scope(steps, libraries, false),
-            )
-        } else {
-            let _ = (steps, libraries);
-            Ok(())
-        }
-    }
 }
 /// Provides the internal `process_feature_file` operation.
 fn process_feature_file(
