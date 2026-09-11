@@ -97,14 +97,14 @@ fn selected_library_scope_controls_missing_and_unused_diagnostics(
             .first()
             .expect("feature diagnostic")
             .code,
-        Some(lsp_types::NumberOrString::String(
+        Some(crate::lsp::NumberOrString::String(
             CODE_UNIMPLEMENTED_STEP.to_owned()
         ))
     );
     assert_eq!(rust_diagnostics.len(), 1);
     assert_eq!(
         rust_diagnostics.first().expect("Rust diagnostic").code,
-        Some(lsp_types::NumberOrString::String(
+        Some(crate::lsp::NumberOrString::String(
             CODE_UNUSED_STEP_DEFINITION.to_owned()
         ))
     );

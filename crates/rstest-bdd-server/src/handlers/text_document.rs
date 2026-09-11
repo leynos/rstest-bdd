@@ -1,6 +1,7 @@
 //! Text document notification handlers update shared state before publishing diagnostics via LSP.
-use crate::lsp::DidSaveTextDocumentParams;
 use tracing::{debug, warn};
+
+use crate::lsp::DidSaveTextDocumentParams;
 
 mod indexing_metrics;
 
@@ -238,11 +239,15 @@ mod tests {
         Unit,
         with_local_recorder,
     };
-    use crate::lsp::{TextDocumentIdentifier, Url};
     use tempfile::TempDir;
 
     use super::{indexing_metrics::INDEXING_COUNTER, *};
-    use crate::{config::ServerConfig, discovery::WorkspaceInfo, server::ServerState};
+    use crate::{
+        config::ServerConfig,
+        discovery::WorkspaceInfo,
+        lsp::{TextDocumentIdentifier, Url},
+        server::ServerState,
+    };
 
     #[derive(Default)]
     struct IndexingRecorder {
