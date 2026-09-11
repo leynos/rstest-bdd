@@ -9,6 +9,7 @@ use syn::{
     LitStr,
     parse::{Parse, ParseStream},
     punctuated::Punctuated,
+    spanned::Spanned,
     token::Comma,
 };
 
@@ -108,10 +109,11 @@ impl Parse for BindingArgument {
                 let _: syn::Path = input.parse()?;
                 Ok(Self::Ignored)
             }
-            _ => {
-                let _: syn::Expr = input.parse()?;
-                Ok(Self::Ignored)
-            }
+            _ => Err(syn::Error::new(
+                name.span(),
+                "unknown scenario-binding argument; expected `path`, `dir`, `libraries`, \
+                 `fixtures`, `index`, `name`, `tags`, `runtime`, `harness`, or `attributes`",
+            )),
         }
     }
 }
@@ -130,8 +132,26 @@ impl Parse for BindingArguments {
         let mut parsed = Self::default();
         for argument in arguments {
             match argument {
-                BindingArgument::Path(path) => parsed.path = Some(path),
-                BindingArgument::Libraries(libraries) => parsed.libraries = Some(libraries),
+                BindingArgument::Path(path) => {
+                    if parsed.path.is_some() {
+                        return Err(syn::Error::new(
+                            path.span(),
+                            "duplicate `path` argument; the feature file must be specified once",
+                        ));
+                    }
+                    parsed.path = Some(path);
+                }
+                BindingArgument::Libraries(libraries) => {
+                    if parsed.libraries.is_some() {
+                        return Err(syn::Error::new(
+                            libraries
+                                .first()
+                                .map_or_else(|| input.span(), syn::Path::span),
+                            "duplicate `libraries` argument; select the step-library scope once",
+                        ));
+                    }
+                    parsed.libraries = Some(libraries);
+                }
                 BindingArgument::Ignored => {}
             }
         }

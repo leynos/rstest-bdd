@@ -85,9 +85,7 @@ mod filesystem {
     name = "Account vocabulary",
     libraries = [accounts]
 )]
-fn account_vocabulary() {
-    assert!(ACCOUNT_MATCHED.load(Ordering::SeqCst));
-}
+fn account_vocabulary() {}
 
 #[scenario(
     path = "tests/features/step_libraries.feature",
@@ -120,9 +118,7 @@ fn reversed_ambiguous_vocabulary() {}
     libraries = [accounts]
 )]
 #[tokio::test(flavor = "current_thread")]
-async fn async_scoped_vocabulary() {
-    assert!(ASYNC_ACCOUNT_MATCHED.load(Ordering::SeqCst));
-}
+async fn async_scoped_vocabulary() {}
 
 #[scenario(
     path = "tests/features/step_libraries.feature",
@@ -130,8 +126,36 @@ async fn async_scoped_vocabulary() {
     libraries = [accounts],
     harness = rstest_bdd_harness::StdHarness,
 )]
-fn harness_scoped_vocabulary() {
+fn harness_scoped_vocabulary() {}
+
+/// Serialize the per-invocation flag wrappers that share process-wide state.
+///
+/// Each wrapper resets its scenario's flag, invokes the generated scenario
+/// function, and asserts that this invocation alone set the flag. Resetting
+/// here (not inside the `#[scenario]` body) keeps the proof self-contained:
+/// the assertion can only pass if the scenario's own steps stored the flag.
+#[test]
+#[serial]
+fn account_vocabulary_scenario_sets_its_flag() {
+    ACCOUNT_MATCHED.store(false, Ordering::SeqCst);
+    account_vocabulary();
+    assert!(ACCOUNT_MATCHED.load(Ordering::SeqCst));
+}
+
+#[test]
+#[serial]
+fn harness_scoped_vocabulary_scenario_sets_its_flag() {
+    HARNESSED_ACCOUNT_MATCHED.store(false, Ordering::SeqCst);
+    harness_scoped_vocabulary();
     assert!(HARNESSED_ACCOUNT_MATCHED.load(Ordering::SeqCst));
+}
+
+#[test]
+#[serial]
+fn async_scoped_vocabulary_scenario_sets_its_flag() {
+    ASYNC_ACCOUNT_MATCHED.store(false, Ordering::SeqCst);
+    async_scoped_vocabulary();
+    assert!(ASYNC_ACCOUNT_MATCHED.load(Ordering::SeqCst));
 }
 
 #[scenario(
