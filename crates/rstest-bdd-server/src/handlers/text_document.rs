@@ -73,7 +73,9 @@ fn rust_indexing_outcome(error: &RustStepIndexError) -> &'static str {
 /// When a saved document is a `.feature` file or a Rust source file, the
 /// server parses and indexes it. After successful indexing, diagnostics are
 /// computed and published. Parse failures are logged but do not produce
-/// diagnostics (the file remains in its previously indexed state).
+/// diagnostics. A failed Rust save is one coherent transition: the file's
+/// scenario bindings, step index, and compiled steps are all discarded so no
+/// feature resolves against a half-updated index.
 pub fn handle_did_save_text_document(state: &mut ServerState, params: DidSaveTextDocumentParams) {
     if state.workspace_preparation_pending() {
         match state.defer_document_save(params) {
@@ -249,6 +251,7 @@ pub(super) fn apply_rust_index_result(
         }
         Err(err) => {
             record_indexing_outcome("rust", rust_indexing_outcome(&err));
+            state.remove_rust_step_index(path);
             clear_rust_index_diagnostics(state, path);
             warn!(path = %path.display(), error = %err, "failed to index rust step file");
         }
