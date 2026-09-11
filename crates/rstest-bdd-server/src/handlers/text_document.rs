@@ -1,73 +1,33 @@
 //! Text document notification handlers update shared state before publishing diagnostics via LSP.
-
-use metrics::{counter, describe_counter};
+use crate::lsp::DidSaveTextDocumentParams;
 use tracing::{debug, warn};
 
+mod indexing_metrics;
+
+use indexing_metrics::{feature_indexing_outcome, record_indexing_outcome, rust_indexing_outcome};
+
 use super::{
-    diagnostics::{,
-    FeatureDiagnosticPublication,
-    clear_rust_index_diagnostics,
-    publish_all_feature_diagnostics,
-    publish_feature_diagnostics,
-    publish_rust_index_result_diagnostics,
+    diagnostics::{
+        FeatureDiagnosticPublication,
+        clear_rust_index_diagnostics,
+        publish_all_feature_diagnostics,
+        publish_feature_diagnostics,
+        publish_rust_index_result_diagnostics,
     },
     util::has_extension,
     workspace_metrics::{record_deferred_save_depth, record_workspace_outcome},
 };
 use crate::{
-    indexing::{,
-    FeatureIndexError,
-    RustStepIndexError,
-    index_feature_source,
-    index_rust_source_with_bindings,
-    index_rust_file_with_bindings,
-    RustSourceIndexResult,
+    indexing::{
+        FeatureIndexError,
+        RustSourceIndexResult,
+        RustStepIndexError,
+        index_feature_source,
+        index_rust_file_with_bindings,
+        index_rust_source_with_bindings,
     },
-    lsp::DidSaveTextDocumentParams,
     server::ServerState,
 };
-
-use lsp_types::DidSaveTextDocumentParams;
-
-//! Text document notification handlers.
-//!
-//! Phase 7 focuses on building language-server foundations. This module
-//! provides the on-save indexing pipeline for `.feature` files and Rust step
-//! definition sources. Indexing results are stored in the shared server state.
-//! After indexing, diagnostics are computed and published via the LSP protocol.
-    diagnostics::{
-};
-    indexing::{
-};
-
-/// Metric name for indexing outcomes.
-const INDEXING_COUNTER: &str = "rstest_bdd_server_indexing_total";
-/// Record one indexing operation outcome.
-fn record_indexing_outcome(operation: &'static str, outcome: &'static str) {
-    describe_counter!(
-        INDEXING_COUNTER,
-        "Language-server indexing outcomes, labelled by operation and outcome"
-    );
-    counter!(INDEXING_COUNTER, "operation" => operation, "outcome" => outcome).increment(1);
-}
-/// Convert a feature indexing error to its fixed metric outcome.
-fn feature_indexing_outcome(error: &FeatureIndexError) -> &'static str {
-    match error {
-        FeatureIndexError::WorkspaceRootUnavailable => "workspace-root-unavailable",
-        FeatureIndexError::OutsideWorkspaceRoot { .. } => "workspace-boundary-failure",
-        FeatureIndexError::NonUtf8Path { .. } => "non-utf8-path",
-        FeatureIndexError::Read(_) => "read-failure",
-        FeatureIndexError::Parse(_) => "parse-failure",
-        FeatureIndexError::DocstringSpanNotFound(_) => "docstring-span-failure",
-    }
-}
-/// Convert a Rust indexing error to its fixed metric outcome.
-fn rust_indexing_outcome(error: &RustStepIndexError) -> &'static str {
-    match error {
-        RustStepIndexError::Read(_) => "read-failure",
-        RustStepIndexError::Parse(_) => "parse-failure",
-    }
-}
 /// Handle `textDocument/didSave` notifications.
 ///
 /// When a saved document is a `.feature` file or a Rust source file, the
@@ -218,6 +178,7 @@ pub(super) fn apply_rust_source_index_result(
     };
     apply_rust_index_result(state, path, step_result, diagnostic_publication);
 }
+
 /// Apply a Rust indexing result and publish its diagnostics.
 pub(super) fn apply_rust_index_result(
     state: &mut ServerState,
@@ -277,15 +238,11 @@ mod tests {
         Unit,
         with_local_recorder,
     };
+    use crate::lsp::{TextDocumentIdentifier, Url};
     use tempfile::TempDir;
 
-    use super::*;
-    use crate::{
-        config::ServerConfig,
-        discovery::WorkspaceInfo,
-        lsp::{TextDocumentIdentifier, Url},
-        server::ServerState,
-    };
+    use super::{indexing_metrics::INDEXING_COUNTER, *};
+    use crate::{config::ServerConfig, discovery::WorkspaceInfo, server::ServerState};
 
     #[derive(Default)]
     struct IndexingRecorder {
