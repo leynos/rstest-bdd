@@ -22,6 +22,7 @@ proptest-regressions/
 .vtcode/
 memories/
 .claude/
+memories/
 *.swp
 *.swo
 
