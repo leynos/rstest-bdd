@@ -7,11 +7,14 @@ checked-out pull request head, and the lockfiles regenerated through the
 authoritative ``make update-fixture-lockfiles`` target.  They also keep the
 workflow limited to its lock-refresh targets; the ordinary CI workflow
 continues to build and exercise the fixtures, and the shared
-``make check-fixture-lockfiles`` gate validates the refreshed set.
+``make check-fixture-lockfiles`` gate validates the refreshed set.  The push
+target is a caller-controlled ref name, so it reaches the shell through the
+environment as quoted data rather than as interpolated script text.
 
 Run via ``make test-workflow-contracts``.
 """
 
+import re
 from pathlib import Path
 
 import pytest
@@ -183,10 +186,38 @@ def test_refresh_commit_and_push_touch_only_generated_lockfiles(
     assert push.get("if") == "${{ steps.commit.outputs.changed == 'true' }}", (
         "the push step must run only when lockfiles changed"
     )
-    assert (
-        push.get("run")
-        == "git push origin HEAD:${{ github.event.pull_request.head.ref }}"
-    ), "the push step must push the refreshed lockfiles to the pull-request head"
+    assert push.get("env") == {
+        "HEAD_REF": "${{ github.event.pull_request.head.ref }}",
+    }, (
+        "the push step must bind the pull-request head ref in the environment "
+        "so the shell receives it as data"
+    )
+    assert push.get("run") == 'git push origin "HEAD:$HEAD_REF"', (
+        "the push step must push the refreshed lockfiles to the pull-request "
+        "head branch named by HEAD_REF"
+    )
+
+
+# Context values the shell must never parse as script.  The trailing ``\b``
+# keeps ``github.event_name``, a fixed event label, out of the match.
+_UNTRUSTED_INLINE_EXPRESSION = re.compile(
+    r"\$\{\{[^}]*github\.(?:event\b|head_ref\b)[^}]*\}\}"
+)
+
+
+def test_push_step_never_interpolates_untrusted_refs_inline(
+    refresh_job: dict[str, object],
+) -> None:
+    """A caller-controlled ref name must not reach the shell as script text."""
+    push = _named_step(refresh_job, "Push refreshed lockfiles")
+    script = push.get("run")
+    assert isinstance(script, str), "the push step must declare a shell script"
+    offending = _UNTRUSTED_INLINE_EXPRESSION.findall(script)
+    assert not offending, (
+        f"the push step script must not interpolate {offending} inline: bind "
+        'each untrusted value in env: and reference it as "$VAR" so the shell '
+        "parses it as quoted data instead of as script"
+    )
 
 
 def test_validation_runs_when_refresh_changes_nothing(
