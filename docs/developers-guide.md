@@ -227,8 +227,7 @@ the backend in use.
 
 The end-of-job report is job-wide, so it cannot say what any one step spent.
 That matters most for the publish dry run, which is the longest step in the
-lane and, until lading v0.3.0, attributed nothing at all to its compiler
-cache.
+lane and, until lading v0.3.0, attributed nothing at all to its compiler cache.
 
 Setting `LADING_SCCACHE_STATS_JSON` on that step makes lading read `sccache`
 around each packaged build and write the results to a file, uploaded as the
@@ -237,42 +236,40 @@ invocation rather than obtained by zeroing the counters, so the end-of-job
 report keeps its meaning; a tool that zeroed them would silently make every
 later reading a partial one.
 
-The variable is set on the workflow step rather than in the Makefile, so a
-local `make publish-check` stays quiet and the file lands where the upload
-step expects it. That the publish step asks for the statistics, that the
-upload collects the same path the publish step writes, that reading and
-collecting follow the writing, and that the report steps still run on a
-failed Linux run, is asserted by `publish_report_shape_test.py`, because a
-file written into the runner's temporary directory and never collected is
-discarded with the runner.
+The variable is set on the workflow step rather than in the Makefile, so a local
+`make publish-check` stays quiet and the file lands where the upload step
+expects it. That the publish step asks for the statistics, that the upload
+collects the same path the publish step writes, that reading and collecting
+follow the writing, and that the report steps still run on a failed Linux run,
+is asserted by `publish_report_shape_test.py`, because a file written into the
+runner's temporary directory and never collected is discarded with the runner.
 
-A verification step sits between the two. It reads the report the publish
-step wrote, parses it, and prints it to the log, and where the file is
-absent, empty or unparsable it says which and why. That distinction is the
-point: an absent report and a report nobody opened look identical in the
-artefact list, so a lading that stopped writing the file would read as an
-uneventful run. The step never fails the job, because the report is evidence
-about a build rather than the build itself, and a publish that failed before
-lading ran has already failed on its own account. Both it and the upload
-carry
+A verification step sits between the two. It reads the report the publish step
+wrote, parses it, and prints it to the log, and where the file is absent, empty
+or unparsable it says which and why. That distinction is the point: an absent
+report and a report nobody opened look identical in the artefact list, so a
+lading that stopped writing the file would read as an uneventful run. The step
+never fails the job, because the report is evidence about a build rather than
+the build itself, and a publish that failed before lading ran has already
+failed on its own account. Both it and the upload carry
 `${{ always() && runner.os == 'Linux' }}`: without `always()` the run whose
 cost is most worth reading, the failed one, would upload nothing, and without
 the Linux guard the Windows lanes, which never write the file, would report a
-missing one every time. `publish_report_shape_test.py` asserts both
-conditions, and that the upload's `if-no-files-found` is `warn` rather than
-`ignore`, so an absent report is surfaced rather than swallowed.
+missing one every time. `publish_report_shape_test.py` asserts both conditions,
+and that the upload's `if-no-files-found` is `warn` rather than `ignore`, so an
+absent report is surfaced rather than swallowed.
 
-`publish_verification_script_test.py` runs that script rather than reading
-it for substrings. It extracts the Bash fragment the workflow's `Verify
-publish-step compiler-cache statistics` step declares, writes it to a file,
-and runs it as `bash <file>`, the way a runner executes a step. Four cases
-run against it in turn — a missing report, an empty one, malformed JSON,
-and a valid one — and each must exit successfully, the valid report
-printing without `::warning`. The cases are driven by
-`publish_report_support.run_verification`, which puts the report outside
-the script's working directory and sets `STATS_PATH` to that report, so a
-script that resolved the report relative to the working directory instead
-of through `STATS_PATH` fails the contract here rather than on the runner.
+`publish_verification_script_test.py` runs that script rather than reading it
+for substrings. It extracts the Bash fragment the workflow's
+`Verify publish-step compiler-cache statistics` step declares, writes it to a
+file, and runs it as `bash <file>`, the way a runner executes a step. Four
+cases run against it in turn — a missing report, an empty one, malformed JSON,
+and a valid one — and each must exit successfully, the valid report printing
+without `::warning`. The cases are driven by
+`publish_report_support.run_verification`, which puts the report outside the
+script's working directory and sets `STATS_PATH` to that report, so a script
+that resolved the report relative to the working directory instead of through
+`STATS_PATH` fails the contract here rather than on the runner.
 
 `make publish-check` depends on `stage-published-gpui-e2e`, which extracts
 packaged crates from `target/package/`. That path, and five others in the
@@ -283,21 +280,20 @@ directory from `cargo metadata` would be a Makefile-wide change rather than a
 fix to one recipe, and is worth doing only if the shared-cache layout is wanted
 here.
 
-lading is pinned four times: in `ci.yml`, in the Makefile's `LADING_REF`,
-in `pyproject.toml`'s `python-tools` dependency group for a bare
-`uv run lading`, and in `uv.lock`. `lading_pin_test.py` asserts that all
-four agree and that the pin is a commit rather than a tag. Drift would be
-quiet: every side keeps working while validating publish readiness against
-different versions.
+lading is pinned four times: in `ci.yml`, in the Makefile's `LADING_REF`, in
+`pyproject.toml`'s `python-tools` dependency group for a bare `uv run lading`,
+and in `uv.lock`. `lading_pin_test.py` asserts that all four agree and that the
+pin is a commit rather than a tag. Drift would be quiet: every side keeps
+working while validating publish readiness against different versions.
 
 The project group is the easiest of the four to forget. `make publish-check`
 runs lading through a `--with "$(LADING_SPEC)"` overlay built from the
 Makefile's own `LADING_REF`, so it resolves the Makefile's pin whatever the
 group holds, and the group can sit generations behind without any command
-failing, which is exactly where it was found. `uv.lock` determines what a
-bare `uv run` installs: the group states a commit and the lock records the
-one resolution chose, so the two can disagree only through an incomplete
-bump, and the failure is silent because the lock file wins.
+failing, which is exactly where it was found. `uv.lock` determines what a bare
+`uv run` installs: the group states a commit and the lock records the one
+resolution chose, so the two can disagree only through an incomplete bump, and
+the failure is silent because the lock file wins.
 
 Check each `main` run with `ubi gh leynos/rstest-bdd list-cache-entries`. It
 must show the archive keys and the `sccache` objects on Ubicloud's side before
@@ -1304,21 +1300,21 @@ oracle.
 ### Property tests in the gpui-counter example
 
 The gpui-counter example checks its delta arithmetic with property tests in
-`examples/gpui-counter/src/prop_tests.rs`, a `#[cfg(test)]` module declared
-from `examples/gpui-counter/src/lib.rs`. The crate requires the workspace
+`examples/gpui-counter/src/prop_tests.rs`, a `#[cfg(test)]` module declared from
+`examples/gpui-counter/src/lib.rs`. The crate requires the workspace
 `proptest` development dependency (`proptest.workspace = true` under
-`[dev-dependencies]` in `examples/gpui-counter/Cargo.toml`). The tests run
-with `cargo test -p gpui-counter` and execute as part of the normal workspace
-test suite; `.config/nextest.toml` has no gpui-counter override, so they run
-under the default 60 s slow-timeout with no configuration needed.
+`[dev-dependencies]` in `examples/gpui-counter/Cargo.toml`). The tests run with
+`cargo test -p gpui-counter` and execute as part of the normal workspace test
+suite; `.config/nextest.toml` has no gpui-counter override, so they run under
+the default 60 s slow-timeout with no configuration needed.
 
 The property tests verify the `i64` -> `i32` saturation invariant of
-`saturate_to_i32`: values above `i32::MAX` saturate to `i32::MAX`, values
-below `i32::MIN` saturate to `i32::MIN`, in-range values convert unchanged,
-and every result stays inside the `i32` range. The boundary strategies start
-above `i32::MAX` and end below `i32::MIN`, so the saturation regions are
-exercised densely without relying on random draws landing there; the exact
-boundary values are pinned by deterministic cases added in the same change.
+`saturate_to_i32`: values above `i32::MAX` saturate to `i32::MAX`, values below
+`i32::MIN` saturate to `i32::MIN`, in-range values convert unchanged, and every
+result stays inside the `i32` range. The boundary strategies start above
+`i32::MAX` and end below `i32::MIN`, so the saturation regions are exercised
+densely without relying on random draws landing there; the exact boundary
+values are pinned by deterministic cases added in the same change.
 
 ### Bulk-migration cookbook reference suite
 
@@ -2028,10 +2024,10 @@ subscriber is set.
 
 Warnings raised from `StepContext` go through the private `context::warnings`
 module, which emits under the established `rstest_bdd::context` target and
-mirrors the message to stderr when the selected delivery route has no
-listener. That mirror is what keeps a diagnostic visible in the common case of
-a test binary with no logging configured at all, so new step-context warnings
-should use it rather than calling `tracing::warn!` directly.
+mirrors the message to stderr when the selected delivery route has no listener.
+That mirror is what keeps a diagnostic visible in the common case of a test
+binary with no logging configured at all, so new step-context warnings should
+use it rather than calling `tracing::warn!` directly.
 
 Harness implementations should emit a `tracing::error!` event before returning
 `Err` from `HarnessAdapter::run`. Use structured fields so downstream test

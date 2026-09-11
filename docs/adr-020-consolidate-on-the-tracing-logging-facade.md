@@ -48,10 +48,9 @@ neither facade disappears from a build whichever way the decision goes.
 
 ## Decision outcome
 
-`rstest-bdd` emits warnings through `tracing::warn!`. The two former `log`
-call sites — the ambiguous step-return override in `StepContext::insert_value`
-and the specificity-calculation failure in the step registry — now use
-`tracing`.
+`rstest-bdd` emits warnings through `tracing::warn!`. The two former `log` call
+sites — the ambiguous step-return override in `StepContext::insert_value` and
+the specificity-calculation failure in the step registry — now use `tracing`.
 
 `rstest-bdd` enables tracing's `log` feature. When no `tracing` subscriber has
 ever been installed, tracing's macros emit a `log` record instead, so a
@@ -65,18 +64,18 @@ stderr, selecting the delivery route the way tracing's own `log` bridge does:
 
 Table: Warning delivery routes and the stderr fallback
 
-| `tracing` subscriber | `log` logger | Warning delivered by     | Stderr mirror |
-| -------------------- | ------------ | ------------------------ | ------------- |
-| Records `WARN`       | Any          | The subscriber           | No            |
-| None ever installed  | Installed    | Tracing's `log` bridge   | No            |
-| Filters `WARN` out   | None         | Nothing                  | Yes           |
-| None ever installed  | None         | Nothing                  | Yes           |
+| `tracing` subscriber | `log` logger | Warning delivered by   | Stderr mirror |
+| -------------------- | ------------ | ---------------------- | ------------- |
+| Records `WARN`       | Any          | The subscriber         | No            |
+| None ever installed  | Installed    | Tracing's `log` bridge | No            |
+| Filters `WARN` out   | None         | Nothing                | Yes           |
+| None ever installed  | None         | Nothing                | Yes           |
 
 The probe and the emitting macro are colocated and share an explicit target
-constant, so both are subject to identical filtering. The target is spelled
-out rather than taken from `module_path!()` because the helper module's own
-path (`rstest_bdd::context::warnings`) is not the target consumers already
-capture or filter.
+constant, so both are subject to identical filtering. The target is spelled out
+rather than taken from `module_path!()` because the helper module's own path
+(`rstest_bdd::context::warnings`) is not the target consumers already capture
+or filter.
 
 ## Rationale
 
@@ -97,10 +96,10 @@ It is not used to emit anything; it answers one question — whether a `log`
 listener exists — which the stderr fallback must know to avoid either printing
 a duplicate or swallowing the warning. Tracing's bridge fires only while no
 dispatcher has ever been set. That condition is observable through
-`tracing::dispatcher::has_been_set`, so the fallback selects its route the
-same way the bridge does: an enabled `log` logger counts as a listener only
-while no dispatcher exists, and never on the dispatcher route, where tracing
-would drop the event before the bridge could forward it.
+`tracing::dispatcher::has_been_set`, so the fallback selects its route the same
+way the bridge does: an enabled `log` logger counts as a listener only while no
+dispatcher exists, and never on the dispatcher route, where tracing would drop
+the event before the bridge could forward it.
 
 The stderr mirror fires when a subscriber filters `WARN` out and no `log`
 logger is present. Preferring a redundant line to a silently dropped
