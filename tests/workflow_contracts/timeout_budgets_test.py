@@ -2,16 +2,16 @@
 
 The ordering contract in :mod:`timeout_ordering_test` reads this
 repository's own configuration, where every ``grace-period`` is five
-seconds. The termination allowance therefore always lands on its 60 s
-floor, and a contract that only ever sees the floor cannot tell the
-corrected rule from the one it replaced: deleting the term entirely would
-leave the watchdog at 6,600 s and every assertion passing.
+seconds. The termination allowance therefore always lands on 65 s there,
+and a contract that only ever sees one number cannot tell the corrected
+rule from the one it replaced: deleting the term entirely would leave the
+watchdog at 6,600 s and every assertion passing.
 
 These tests drive the derivations with controlled configurations, so each
 branch is exercised where the repository's own numbers never reach: a
-grace period above the floor, one below it, none at all, and several
-profiles disagreeing. The watchdog rule is then checked term by term, and
-against a budget sized the old way.
+grace period above the sixty-second margin, one below it, one equal to it,
+none named at all, and several profiles disagreeing. The watchdog rule is
+then checked term by term, and against a budget sized the old way.
 
 See "Test timeouts: four tiers, outermost last" in
 ``docs/developers-guide.md``.
@@ -77,6 +77,16 @@ global-timeout = "75m"
             'grace-period = "2m" }\n',
             120.0 + 60.0,
             id="the-largest-of-several-profiles",
+        ),
+        pytest.param(
+            "[profile.default]\n"
+            'slow-timeout = { period = "60s", terminate-after = 1, '
+            'grace-period = "5s" }\n'
+            "\n[[profile.default.overrides]]\n"
+            "filter = 'binary(slow)'\n"
+            'slow-timeout = { period = "20m", terminate-after = 1 }\n',
+            10.0 + 60.0,
+            id="an-override-naming-none-takes-nextest-s-default",
         ),
     ],
 )

@@ -12,8 +12,13 @@ consults. The commented-out `global-timeout` is the case that matters
 most, because the contract requires that tier to be present.
 """
 
+import typing as typ
+
 import nextest_config as reading
 import pytest
+
+if typ.TYPE_CHECKING:
+    import collections.abc as cabc
 
 _DEFAULT_PROFILE = (
     "[profile.default]\n"
@@ -74,8 +79,10 @@ def test_a_filter_naming_a_timeout_key_is_not_a_budget() -> None:
     assert reading.global_timeout(config_text) == pytest.approx(4500.0), (
         "the filter naming global_timeout_probe was read as a whole-run budget"
     )
-    assert reading.termination_allowance(config_text) == pytest.approx(65.0), (
-        "the filter naming grace_period_probe was read as a grace period"
+    assert reading.termination_allowance(config_text) == pytest.approx(70.0), (
+        "the filter naming grace_period_probe was read as a grace period; the "
+        "ten seconds here is the override's own table naming none, which "
+        "nextest defaults rather than inheriting the profile's five"
     )
 
 
@@ -114,6 +121,157 @@ def test_a_slow_timeout_that_terminates_nothing_is_refused(config_text: str) -> 
     """
     with pytest.raises(reading.UnboundedTestError, match=r"terminate-after"):
         reading.largest_slow_timeout(config_text)
+
+
+def test_a_scalar_slow_timeout_is_read_as_the_unbounded_form() -> None:
+    """The scalar shorthand sets a period and nothing else.
+
+    ``slow-timeout = "60s"`` sets ``period`` and leaves
+    ``terminate-after`` unset, so the test is reported slow once per
+    period and runs on, exactly as the table form does without the key.
+    Skipping the scalar would leave the tier invisible, and the largest
+    budget reading as whatever the table forms beside it happened to
+    say.
+    """
+    config_text = '[profile.default]\nslow-timeout = "60s"\n'
+    with pytest.raises(reading.UnboundedTestError, match=r"terminate-after"):
+        reading.largest_slow_timeout(config_text)
+
+
+def test_a_scalar_slow_timeout_set_to_nothing_is_not_a_budget() -> None:
+    """An empty string leaves the key unset rather than zero-length.
+
+    nextest's deserializer returns nothing for an empty string, so the
+    profile is left with no per-test budget at all. Reading it as one
+    would fail a configuration nextest loads.
+    """
+    with pytest.raises(reading.MissingSlowTimeoutError):
+        reading.largest_slow_timeout('[profile.default]\nslow-timeout = ""\n')
+
+
+@pytest.mark.parametrize(
+    "reads",
+    [
+        pytest.param(reading.global_timeout, id="global-timeout"),
+        pytest.param(reading.largest_slow_timeout, id="largest-slow-timeout"),
+        pytest.param(reading.termination_allowance, id="termination-allowance"),
+        pytest.param(reading.bounds_a_single_test, id="bounds-a-single-test"),
+    ],
+)
+def test_every_reading_reports_malformed_toml_as_a_configuration_fault(
+    reads: cabc.Callable[[str], object],
+) -> None:
+    """`tomllib` raises `TOMLDecodeError`, a bare `ValueError`.
+
+    Every reading parses the file, so every reading has to report a file
+    nextest cannot parse as the configuration fault it is rather than as
+    an unhandled parser error several frames below the caller. One
+    reader plus the shared parser path would leave the next reader free
+    to bypass `_parsed` and grow the same leak again.
+    """
+    with pytest.raises(reading.UnparsableConfigurationError, match=r"not valid TOML"):
+        reads("[profile.default\n")
+
+
+@pytest.mark.parametrize(
+    "config_text",
+    [
+        pytest.param(
+            "[profile.default]\n"
+            'slow-timeout = { period = "60s", terminate-after = 0 }\n',
+            id="zero-periods",
+        ),
+        pytest.param(
+            "[profile.default]\n"
+            'slow-timeout = { period = "60s", terminate-after = -1 }\n',
+            id="a-negative-number",
+        ),
+        pytest.param(
+            "[profile.default]\n"
+            'slow-timeout = { period = "60s", terminate-after = 1.5 }\n',
+            id="a-fraction",
+        ),
+        pytest.param(
+            "[profile.default]\n"
+            'slow-timeout = { period = "60s", terminate-after = "2" }\n',
+            id="a-string",
+        ),
+        pytest.param(
+            "[profile.default]\n"
+            'slow-timeout = { period = "60s", terminate-after = true }\n',
+            id="a-boolean",
+        ),
+    ],
+)
+def test_a_terminate_after_nextest_would_refuse_is_a_shape_error(
+    config_text: str,
+) -> None:
+    """The key is typed as a whole number of periods above zero.
+
+    Reading any of these as a number would put a budget on the tier the
+    runner never applies, and the string form raised a bare `ValueError`
+    from the conversion rather than a shape error naming the file. Every
+    fault here is a `WorkflowShapeError`, so a malformed configuration
+    fails the same way whether or not assertions are enabled.
+    """
+    with pytest.raises(reading.MalformedTerminateAfterError, match=r"terminate-after"):
+        reading.largest_slow_timeout(config_text)
+
+
+@pytest.mark.parametrize(
+    "config_text",
+    [
+        pytest.param(
+            "[profile.default]\nslow-timeout = { terminate-after = 1 }\n",
+            id="no-period-at-all",
+        ),
+        pytest.param(
+            "[profile.default]\nslow-timeout = { period = 60, terminate-after = 1 }\n",
+            id="a-bare-number",
+        ),
+    ],
+)
+def test_a_period_nextest_could_not_read_is_a_shape_error(config_text: str) -> None:
+    """The table form requires a ``period`` nextest can read.
+
+    Skipping the entry instead would leave the file naming a tier the
+    runner will not load, and the reading would report it as absent
+    rather than as the configuration error it is.
+    """
+    with pytest.raises(reading.MalformedSlowTimeoutPeriodError, match=r"no period"):
+        reading.largest_slow_timeout(config_text)
+
+
+@pytest.mark.parametrize(
+    "config_text",
+    [
+        pytest.param(
+            "[profile.default]\n"
+            'slow-timeout = { period = "60s", terminate-after = 1, '
+            "grace-period = 5 }\n",
+            id="a-bare-number",
+        ),
+        pytest.param(
+            "[profile.default]\n"
+            'slow-timeout = { period = "60s", terminate-after = 1, '
+            "grace-period = true }\n",
+            id="a-boolean",
+        ),
+    ],
+)
+def test_a_grace_period_nextest_could_not_read_is_a_shape_error(
+    config_text: str,
+) -> None:
+    """The key is typed as a duration string.
+
+    nextest defaults it when it is absent, so absence is not a fault. A
+    value that is present and unreadable is: falling back to the default
+    would size the termination allowance against a number the file does
+    not set, and the watchdog above it against a run nextest will not
+    start.
+    """
+    with pytest.raises(reading.MalformedGracePeriodError, match=r"grace-period"):
+        reading.termination_allowance(config_text)
 
 
 def test_the_per_test_budget_is_a_product_not_a_period() -> None:

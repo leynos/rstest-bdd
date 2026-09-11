@@ -591,11 +591,13 @@ reads it from the configuration so a profile that raises it raises the
 requirement too.
 
 The watchdog is therefore sized as the global timeout, plus a termination
-allowance of one minute, plus a cold-build allowance: 75 m + 1 m + 15 m, taken
-up to 110 m. The build phase inside `cargo` measured 3 m 31 s on run
-33966769942 with a nearly cold cache, so the 15 minutes is generous on purpose,
-and the extra minutes of rounding cost nothing because the watchdog only fires
-on an overrun.
+allowance, plus a cold-build allowance: 75 m + 65 s + 15 m, taken up to 110 m.
+The termination allowance is derived, not fixed: the largest configured grace
+period, five seconds here, or nextest's ten-second default when none is named,
+plus a sixty-second margin for the teardown and report writing that follow. The
+build phase inside `cargo` measured 3 m 31 s on run 33966769942 with a nearly
+cold cache, so the 15 minutes is generous on purpose, and the extra minutes of
+rounding cost nothing because the watchdog only fires on an overrun.
 
 This paragraph previously claimed that a test already running when the global
 timeout expires is allowed to finish, and sized the middle term at the 20 minute
@@ -671,13 +673,13 @@ that loses its override inherits the action's 1,800 s default, which is how
 this went wrong in the first place.
 
 The arithmetic behind those assertions lives in `timeout_budgets.py`, beside
-the contract: reading nextest's duration strings, adding the largest configured
-grace period to the teardown margin, and the watchdog rule itself. The
-configuration reading it works from lives in `nextest_config.py`. Between them
-they own that reading for the workflow contracts and nothing else, and both
-take text rather than paths, so a test stays in charge of what it is asserting
-about. A new tier belongs there
-beside the others rather than inline in a contract module.
+the contract: nextest's duration strings and the watchdog rule itself. The
+configuration reading it works from lives in `nextest_config.py`, which
+derives the termination allowance from the largest configured grace period.
+Between them, they own that reading for the workflow contracts and nothing
+else, and both take text rather than paths, so a test stays in charge of what
+it is asserting about. A new tier belongs there beside the others rather than
+inline in a contract module.
 
 It is separated because the contract alone cannot exercise it. Every
 `grace-period` in `.config/nextest.toml` is five seconds, so the contract sees

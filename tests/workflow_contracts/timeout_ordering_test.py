@@ -122,9 +122,10 @@ class NextestBudgets(typ.NamedTuple):
 def nextest_budgets(nextest_config: str) -> NextestBudgets:
     """Return the budgets the configuration sets.
 
-    The derivations themselves live in :mod:`timeout_budgets`, and their
-    behaviour away from this repository's own five-second grace periods
-    is covered by :mod:`timeout_budgets_test`.
+    The three readings are :mod:`nextest_config`'s, and what each of them
+    counts as configuration is covered by :mod:`nextest_config_test`. What
+    this contract does with the numbers afterwards, the watchdog
+    arithmetic, is :mod:`timeout_budgets`'.
 
     Parameters
     ----------

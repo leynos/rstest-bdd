@@ -7,8 +7,10 @@ where controlled configurations can drive it.
 
 This repository's own configuration reaches only one of the outcomes these
 helpers can produce: every ``grace-period`` in it is five seconds, so the
-termination allowance always lands on its floor. A contract that sees only
-the floor cannot tell the corrected rule from the one it replaced.
+termination allowance always lands on the same sixty-five seconds. A
+contract that only ever sees one number cannot tell the corrected rule from
+the one it replaced, and dropping the term outright would leave the
+watchdog at 6,600 s with every assertion still passing.
 
 Scope and re-use: these helpers own the reading of nextest duration strings
 and the watchdog rule they feed. They serve the workflow contracts under
@@ -51,10 +53,6 @@ _UNIT_SECONDS: typ.Final[dict[str, float]] = {
     "h": 3600.0,
 }
 
-#: ``period`` as its own key. The lookbehind is what keeps
-#: ``grace-period`` out: the two keys sit in the same inline table and a
-#: substring match would read a termination allowance as a per-test budget.
-
 
 class UnrecognizedDurationError(WorkflowShapeError):
     """A duration string was not one nextest would accept.
@@ -93,7 +91,7 @@ class MissingDefaultProfileError(WorkflowShapeError):
 
     See Also
     --------
-    global_timeout : The reading that raises this.
+    nextest_config.global_timeout : The reading that raises this.
     """
 
     def __init__(self) -> None:
@@ -116,7 +114,7 @@ class MissingGlobalTimeoutError(WorkflowShapeError):
 
     See Also
     --------
-    global_timeout : The reading that raises this.
+    nextest_config.global_timeout : The reading that raises this.
     """
 
     def __init__(self) -> None:
@@ -140,7 +138,7 @@ class MissingSlowTimeoutError(WorkflowShapeError):
 
     See Also
     --------
-    largest_slow_timeout : The reading that raises this.
+    nextest_config.largest_slow_timeout : The reading that raises this.
     """
 
     def __init__(self) -> None:
@@ -162,7 +160,8 @@ class UnparsableConfigurationError(WorkflowShapeError):
 
     See Also
     --------
-    largest_slow_timeout : One of the readings that raises this.
+    nextest_config.largest_slow_timeout : One of the readings that
+        raises this.
     """
 
     def __init__(self, detail: str) -> None:
@@ -186,7 +185,7 @@ class UnboundedTestError(WorkflowShapeError):
 
     See Also
     --------
-    largest_slow_timeout : The reading that raises this.
+    nextest_config.largest_slow_timeout : The reading that raises this.
     """
 
     def __init__(self, where: str) -> None:
@@ -194,6 +193,98 @@ class UnboundedTestError(WorkflowShapeError):
             f"{where}.slow-timeout sets no terminate-after, so nextest reports "
             f"the test as slow once per period and never stops it; there is no "
             f"per-test tier to compare against"
+        )
+
+
+class MalformedSlowTimeoutPeriodError(WorkflowShapeError):
+    """A ``slow-timeout`` named no ``period`` nextest could read.
+
+    Raised by :func:`nextest_config.largest_slow_timeout` when the key is
+    absent, or is not a duration string. nextest requires it in the table
+    form and refuses a table without one, so reading the entry as absent
+    would report a missing tier where the file in fact names one nextest
+    will not load.
+
+    Parameters
+    ----------
+    where : str
+        The dotted path of the table at fault, so the failure names the
+        profile or override rather than only the file.
+    value : object
+        What the key held, quoted into the message so an unusable value
+        is named rather than only its absence reported.
+
+    See Also
+    --------
+    nextest_config.largest_slow_timeout : The reading that raises this.
+    """
+
+    def __init__(self, where: str, value: object) -> None:
+        super().__init__(
+            f"{where}.slow-timeout sets no period nextest can read "
+            f"({value!r}); nextest requires a duration string"
+        )
+
+
+class MalformedTerminateAfterError(WorkflowShapeError):
+    """A ``slow-timeout`` set a ``terminate-after`` nextest would refuse.
+
+    Raised by :func:`nextest_config.largest_slow_timeout`. nextest types
+    the key as a whole number of periods greater than zero, so zero, a
+    negative, a fraction and a boolean all fail to load the
+    configuration. Reading one anyway would put a budget on the tier the
+    runner never applies, and a string raised a bare ``ValueError`` from
+    the conversion rather than a shape error naming the file.
+
+    Parameters
+    ----------
+    where : str
+        The dotted path of the table at fault.
+    value : object
+        What the key held, quoted into the message so the failure names
+        the value rather than only the file.
+
+    See Also
+    --------
+    nextest_config.largest_slow_timeout : The reading that raises this.
+    UnboundedTestError : Raised instead when the key is absent, which
+        nextest reads as no termination at all rather than as a bad value.
+    """
+
+    def __init__(self, where: str, value: object) -> None:
+        super().__init__(
+            f"{where}.slow-timeout sets terminate-after = {value!r}; nextest "
+            f"requires a whole number of periods greater than zero"
+        )
+
+
+class MalformedGracePeriodError(WorkflowShapeError):
+    """A ``slow-timeout`` set a ``grace-period`` nextest would refuse.
+
+    Raised by :func:`nextest_config.termination_allowance`. nextest types
+    the key as a duration string and defaults it to ten seconds when it
+    is absent, so absence is not a fault. A value that is present and
+    unreadable is: falling back to the default there would size the
+    termination allowance against a number the file does not set, and
+    the watchdog above it against a run nextest will not start.
+
+    Parameters
+    ----------
+    where : str
+        The dotted path of the table at fault.
+    value : object
+        What the key held, quoted into the message so the failure names
+        the value rather than only the file.
+
+    See Also
+    --------
+    nextest_config.termination_allowance : The reading that raises this.
+    """
+
+    def __init__(self, where: str, value: object) -> None:
+        super().__init__(
+            f"{where}.slow-timeout sets grace-period = {value!r}; nextest "
+            f"requires a duration string"
         )
 
 
