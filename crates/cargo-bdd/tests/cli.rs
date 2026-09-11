@@ -1,10 +1,13 @@
 //! Basic smoke tests for the cargo-bdd subcommand.
 
-use std::{env, fs, path::PathBuf, process::ExitStatus, str};
+use std::{env, path::PathBuf, process::ExitStatus, str};
 
 use assert_cmd::Command;
 use eyre::{Context, Result};
-use rstest_bdd_harness::binary_test_support::{BinaryName, locate_or_build_binary};
+use rstest_bdd_harness::{
+    binary_test_support::{BinaryName, locate_or_build_binary},
+    nested_cargo,
+};
 use serde::Deserialize;
 use serial_test::serial;
 
@@ -31,21 +34,22 @@ struct SkipReport {
 /// Execute cargo-bdd with the given arguments and return the raw output.
 fn run_cargo_bdd_raw(args: &[&str]) -> Result<std::process::Output> {
     let fixture_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/minimal");
-    // Reuse the workspace target directory so path dependencies (rstest-bdd and
-    // rstest-bdd-macros) are already compiled before invoking `cargo bdd`.
-    //
-    // This avoids slow first-run compiles within the fixture directory causing
-    // nextest's per-test slow-timeout to terminate CLI smoke tests.
-    let target_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target");
-    fs::create_dir_all(&target_dir)
-        .with_context(|| format!("failed to create {}", target_dir.display()))?;
-    let mut cmd =
-        locate_or_build_cargo_bdd_command().wrap_err("failed to locate cargo-bdd binary")?;
-    cmd.current_dir(fixture_dir)
-        .env("CARGO_TARGET_DIR", &target_dir)
-        .args(args)
-        .output()
-        .wrap_err("failed to execute `cargo bdd`")
+    // Preserve the caller's target directory (cargo llvm-cov's
+    // `target/llvm-cov-target` when coverage is running) so the fixture build
+    // stays warm; the filtered environment stops `cargo-bdd` and its nested
+    // `cargo` children from inheriting stale jobserver or coverage control
+    // variables that hang or corrupt a coverage run.
+    let fallback_target_dir =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/cargo-bdd-cli");
+    let child_env = nested_cargo::build_child_env(&fallback_target_dir);
+    let program = locate_or_build_cargo_bdd_command()?;
+    let mut cmd = nested_cargo::filtered_command(
+        std::path::Path::new(program.get_program()),
+        &child_env,
+        &fixture_dir,
+    );
+    cmd.args(args);
+    Ok(cmd.output()?)
 }
 
 fn locate_or_build_cargo_bdd_command() -> Result<Command> {

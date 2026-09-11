@@ -17,6 +17,7 @@ workspace = true
 
 [features]
 testing = []
+test-support = []
 
 [dependencies]
 cargo_metadata.workspace = true
