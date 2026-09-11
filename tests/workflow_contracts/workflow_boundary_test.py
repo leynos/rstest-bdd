@@ -30,34 +30,40 @@ def test_missing_file_raises_missing_repository_file_error() -> None:
     assert "definitely-absent.yml" in message, message
 
 
-def test_permission_error_is_wrapped() -> None:
-    """Permission failures surface as RepositoryReadError, not OSError."""
-    with (
-        mock.patch(
-            "pathlib.Path.read_text",
-            side_effect=PermissionError(13, "Permission denied"),
+@pytest.mark.parametrize(
+    ("read_failure", "parts", "category_fragment", "path_fragment"),
+    [
+        pytest.param(
+            PermissionError(13, "Permission denied"),
+            (".github", "workflows", "ci.yml"),
+            "permission",
+            "ci.yml",
+            id="permission-error",
         ),
+        pytest.param(
+            OSError(5, "Input/output error"),
+            ("Makefile",),
+            "unreadable",
+            "Makefile",
+            id="other-os-error",
+        ),
+    ],
+)
+def test_read_failure_is_wrapped(
+    read_failure: Exception,
+    parts: tuple[str, ...],
+    category_fragment: str,
+    path_fragment: str,
+) -> None:
+    """Filesystem read failures surface as RepositoryReadError, not OSError."""
+    with (
+        mock.patch("pathlib.Path.read_text", side_effect=read_failure),
         pytest.raises(RepositoryReadError) as excinfo,
     ):
-        repository_file(".github", "workflows", "ci.yml")
+        repository_file(*parts)
     message = str(excinfo.value)
-    assert "permission" in message, message
-    assert "ci.yml" in message, message
-
-
-def test_other_os_error_is_wrapped() -> None:
-    """Non-permission read failures surface as RepositoryReadError."""
-    with (
-        mock.patch(
-            "pathlib.Path.read_text",
-            side_effect=OSError(5, "Input/output error"),
-        ),
-        pytest.raises(RepositoryReadError) as excinfo,
-    ):
-        repository_file("Makefile")
-    message = str(excinfo.value)
-    assert "unreadable" in message, message
-    assert "Makefile" in message, message
+    assert category_fragment in message, message
+    assert path_fragment in message, message
 
 
 def test_unicode_decode_error_is_wrapped() -> None:
