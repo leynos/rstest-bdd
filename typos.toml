@@ -63,6 +63,7 @@ extend-ignore-re = [
     "\\{color\\}",
     "`[^`\\n]+`",
     "`mold`",
+    "actions/upload-artifact",
     "expected current_thread flavor in output",
     "flavor = \"current_thread\"",
     "flavor = \\\\\"current_thread\\\\\"",
