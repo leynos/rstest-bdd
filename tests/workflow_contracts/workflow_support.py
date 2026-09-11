@@ -48,6 +48,28 @@ class NotAMappingError(WorkflowShapeError):
         super().__init__(f"{subject} must parse to a mapping")
 
 
+class UnparsableWorkflowError(WorkflowShapeError):
+    """A workflow document is not parsable YAML.
+
+    Raised by :func:`parse_workflow` when ``yaml.safe_load`` raises, so
+    a malformed workflow fails as a shape violation with the same
+    treatment as any other contract failure rather than as a raw parser
+    fault.
+
+    Parameters
+    ----------
+    subject : str
+        What was being parsed, named in the error message.
+
+    See Also
+    --------
+    parse_workflow : The parsing boundary that raises this.
+    """
+
+    def __init__(self, subject: str) -> None:
+        super().__init__(f"{subject} is not parsable YAML")
+
+
 class MissingKeyError(WorkflowShapeError):
     """A document did not declare a structure the contracts require."""
 
@@ -99,6 +121,32 @@ class MissingRepositoryFileError(WorkflowShapeError):
         super().__init__(f"{subject} must exist in the repository")
 
 
+class RepositoryReadError(WorkflowShapeError):
+    """A repository file exists but could not be read as UTF-8 text.
+
+    The single reading boundary (:func:`repository_file`) turns every
+    other failure of the filesystem or the decoder into this one shape
+    violation, so a contract that names an unreadable file fails with
+    the path and the failure category instead of a raw ``OSError``.
+
+    Parameters
+    ----------
+    subject : str
+        The path, relative to the repository root, that was unreadable.
+        Rendered natively, so a Windows reader sees a Windows path.
+    category : str
+        Human-readable failure category, e.g. ``permission denied``.
+
+    See Also
+    --------
+    repository_file : The reading boundary that raises this.
+    """
+
+    def __init__(self, subject: str, category: str) -> None:
+        self.category = category
+        super().__init__(f"{subject} could not be read: {category}")
+
+
 class AmbiguousStepError(WorkflowShapeError):
     """A step name did not match exactly one step in a job."""
 
@@ -119,16 +167,76 @@ def workflow(workflow_name: str) -> dict[str, object]:
     dict[str, object]
         The parsed workflow mapping.
 
+    Any failure is a :class:`workflow_support.WorkflowShapeError` raised
+    by :func:`repository_file` (absent or unreadable file) or by
+    :func:`parse_workflow` (non-mapping document).
+    """
+    return parse_workflow(repository_file(".github", "workflows", workflow_name))
+
+
+def parse_workflow(workflow_text: str) -> dict[str, object]:
+    """Parse one workflow document from its YAML text.
+
+    A pure function: no repository access. The reader half of the split
+    is :func:`workflow`, which reads the file through
+    :func:`repository_file` and hands the text here.
+
+    Parameters
+    ----------
+    workflow_text : str
+        The raw YAML text of one workflow.
+
+    Returns
+    -------
+    dict[str, object]
+        The parsed workflow mapping.
+
     Raises
     ------
+    UnparsableWorkflowError
+        If the document is not parsable YAML.
     NotAMappingError
         If the document does not parse to a mapping.
     """
-    workflow_path = ROOT / ".github" / "workflows" / workflow_name
-    document = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    try:
+        document = yaml.safe_load(workflow_text)
+    except yaml.YAMLError:
+        raise UnparsableWorkflowError("workflow") from None
     if not isinstance(document, dict):
-        raise NotAMappingError(workflow_name)
+        raise NotAMappingError("workflow")
     return document
+
+
+def job_from_document(document: dict[str, object], job_name: str) -> dict[str, object]:
+    """Extract one named job from a parsed workflow mapping.
+
+    A pure function: no repository access. The repository-backed form
+    is :func:`job`.
+
+    Parameters
+    ----------
+    document : dict[str, object]
+        The parsed workflow mapping, as returned by :func:`parse_workflow`.
+    job_name : str
+        Key of the job within the workflow's ``jobs`` mapping.
+
+    Returns
+    -------
+    dict[str, object]
+        The parsed job mapping.
+
+    Raises
+    ------
+    MissingKeyError
+        If the workflow does not declare the named job.
+    """
+    declared = document.get("jobs")
+    if not isinstance(declared, dict):
+        raise MissingKeyError("workflow", "jobs")
+    selected = declared.get(job_name)
+    if not isinstance(selected, dict):
+        raise MissingKeyError("workflow", job_name)
+    return selected
 
 
 def repository_file(*parts: str) -> str:
@@ -138,6 +246,12 @@ def repository_file(*parts: str) -> str:
     than workflows. Contracts that opened paths themselves each grew
     their own root, encoding and error handling, and a contract with its
     own file access has no boundary to test at.
+
+    Every failure is reported as a :class:`WorkflowShapeError`: an
+    absent file raises :class:`MissingRepositoryFileError`, and every
+    other filesystem or decoding failure raises
+    :class:`RepositoryReadError` carrying the failure category, so no
+    raw ``OSError`` or ``UnicodeDecodeError`` escapes this helper API.
 
     Parameters
     ----------
@@ -153,11 +267,21 @@ def repository_file(*parts: str) -> str:
     ------
     MissingRepositoryFileError
         If no such file exists.
+    RepositoryReadError
+        If the file exists but cannot be read as UTF-8 text.
     """
     path = ROOT.joinpath(*parts)
-    if not path.is_file():
-        raise MissingRepositoryFileError(str(Path(*parts)))
-    return path.read_text(encoding="utf-8")
+    subject = str(Path(*parts))
+    try:
+        return path.read_text(encoding="utf-8")
+    except FileNotFoundError, IsADirectoryError, NotADirectoryError:
+        raise MissingRepositoryFileError(subject) from None
+    except PermissionError:
+        raise RepositoryReadError(subject, "permission denied") from None
+    except UnicodeDecodeError:
+        raise RepositoryReadError(subject, "not valid UTF-8 text") from None
+    except OSError as read_error:
+        raise RepositoryReadError(subject, f"unreadable ({read_error})") from None
 
 
 def jobs(workflow_name: str) -> dict[str, dict[str, object]]:
@@ -200,15 +324,10 @@ def job(workflow_name: str, job_name: str) -> dict[str, object]:
     dict[str, object]
         The parsed job mapping.
 
-    Raises
-    ------
-    MissingKeyError
-        If the workflow does not declare the named job.
+    Fails with :class:`workflow_support.MissingKeyError` if the workflow
+    does not declare the named job.
     """
-    selected = jobs(workflow_name).get(job_name)
-    if not isinstance(selected, dict):
-        raise MissingKeyError(workflow_name, job_name)
-    return selected
+    return job_from_document(workflow(workflow_name), job_name)
 
 
 def steps(job_document: dict[str, object]) -> list[dict[str, object]]:

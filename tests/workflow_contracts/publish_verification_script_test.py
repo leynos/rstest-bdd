@@ -15,7 +15,7 @@ Run via ``make test-workflow-contracts``.
 
 import typing as typ
 
-from publish_report_support import run_verification
+from workflow_queries import run_verification
 
 if typ.TYPE_CHECKING:
     from pathlib import Path
