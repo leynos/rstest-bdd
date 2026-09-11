@@ -11,8 +11,11 @@ from unittest import mock
 
 import pytest
 from check_fixture_lockfiles import (
+    cargo_fetch_command,
     cargo_metadata_command,
     check_fixtures,
+    fetch_fixture_dependencies,
+    fetch_fixtures,
     main,
     refresh_fixtures,
     refresh_lockfile,
@@ -23,7 +26,9 @@ from fixture_lockfile_discovery import discover_fixture_manifests
 from fixture_lockfile_reporting import (
     FixtureLockfileError,
     GateMode,
+    fetch_failure_message,
     print_check_summary,
+    print_fetch_summary,
     print_refresh_summary,
     refresh_failure_message,
     stale_failure_message,
@@ -157,16 +162,18 @@ def test_run_cargo_command_reports_a_missing_cargo_executable() -> None:
 
 
 def test_thin_wrappers_delegate_to_the_shared_runner() -> None:
-    """Both public entry points build their argv and hand it to one runner."""
+    """Every public entry point builds its argv and hands it to one runner."""
     manifest = REPO_ROOT / "crates/rstest-bdd/tests/ui_lints/Cargo.toml"
     with mock.patch("check_fixture_lockfiles.run_cargo_command") as runner:
         run_cargo_metadata(manifest)
         refresh_lockfile(manifest)
-    assert runner.call_count == 2, (
+        fetch_fixture_dependencies(manifest)
+    assert runner.call_count == 3, (
         "each wrapper must route through the shared Cargo runner exactly once"
     )
     metadata_argv, metadata_manifest = runner.call_args_list[0].args
     refresh_argv, refresh_manifest = runner.call_args_list[1].args
+    fetch_argv, fetch_manifest = runner.call_args_list[2].args
     assert metadata_argv == cargo_metadata_command(manifest), (
         "validation must always use the locked metadata argv"
     )
@@ -178,6 +185,10 @@ def test_thin_wrappers_delegate_to_the_shared_runner() -> None:
         str(manifest),
     ], "the refresh argv must stay cargo generate-lockfile --manifest-path"
     assert refresh_manifest == manifest, "refresh must name the manifest it regenerated"
+    assert fetch_argv == cargo_fetch_command(manifest), (
+        "the prefetch must use the locked fetch argv"
+    )
+    assert fetch_manifest == manifest, "the prefetch must name the manifest it warmed"
 
 
 def test_check_failure_output_carries_manifest_command_and_cargo_streams() -> None:
@@ -250,6 +261,15 @@ def test_gate_wrappers_delegate_to_the_shared_reporter() -> None:
                 cargo_metadata_command,
                 run_cargo_metadata,
                 refresh_lockfile,
+            ),
+        ),
+        (
+            fetch_fixtures,
+            GateMode(
+                fetch_failure_message,
+                print_fetch_summary,
+                cargo_fetch_command,
+                fetch_fixture_dependencies,
             ),
         ),
     ]

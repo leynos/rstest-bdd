@@ -8,7 +8,7 @@ VALE ?= vale
 .PHONY: check-published-gpui-e2e-lock
 .PHONY: forbid-async-trait vale update-ui-lints-lock update-published-gpui-0-2-2-lock update-published-gpui-e2e-lock
 .PHONY: update-feature-rebuild-fixtures-lock
-.PHONY: check-fixture-lockfiles update-fixture-lockfiles
+.PHONY: check-fixture-lockfiles update-fixture-lockfiles prefetch-fixture-deps
 .PHONY: test-workflow-contracts
 
 SHELL := bash
@@ -271,6 +271,14 @@ check-fixture-lockfiles: check-published-gpui-e2e-lock ## Validate every fixture
 # cannot stale it out from under `cargo test --locked`.
 update-fixture-lockfiles: update-published-gpui-e2e-lock ## Regenerate every fixture lockfile via cargo generate-lockfile
 	$(PROJECT_PYTHON) scripts/check_fixture_lockfiles.py --refresh
+
+# Warm ~/.cargo/registry from every committed fixture lockfile. The nested
+# cargo-spawning harnesses build their fixtures with `--locked --offline`, and
+# the mutation lane, unlike the ordinary CI lane, runs no outer online
+# workspace build that would have resolved those lockfiles already, so this
+# prefetch has to finish before cargo-mutants starts.
+prefetch-fixture-deps: ## Warm the Cargo cache for the mutation lane's offline fixture builds
+	$(PROJECT_PYTHON) scripts/check_fixture_lockfiles.py --fetch
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?##' $(MAKEFILE_LIST) | \

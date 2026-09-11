@@ -1,20 +1,23 @@
 #!/usr/bin/env python3
-"""Validate and refresh the standalone fixture lockfiles.
+"""Validate, refresh, and prefetch the standalone fixture lockfiles.
 
 Standalone fixture crates opt out of the workspace with a ``[workspace]``
 stanza, use local ``path =`` dependencies, and commit their own ``Cargo.lock``
 so nested ``--locked`` invocations stay hermetic; a dependency bump therefore
 stales them. This script discovers every tracked manifest matching that shape,
-so the check and refresh targets stay in step as fixtures are added, then runs
-``cargo metadata --locked`` per manifest and fails with the manifest path and
-Cargo output when the lockfile is stale.
+so the check, refresh, and prefetch targets stay in step as fixtures are added,
+then runs ``cargo metadata --locked`` per manifest and fails with the manifest
+path and Cargo output when the lockfile is stale. The prefetch mode instead runs
+``cargo fetch --locked`` per manifest, warming ``~/.cargo/registry`` so a later
+``--offline`` build of the same lockfile resolves without a network.
 
-Usage: ``python3 scripts/check_fixture_lockfiles.py [--refresh] [--list]``.
+Usage: ``python3 scripts/check_fixture_lockfiles.py [--refresh|--fetch] [--list]``.
 
-Exit codes: 0 when every committed fixture lockfile resolves; 1 when a lockfile
-is stale or no fixture was discovered. The published-GPUI fixtures resolve
-against staged or crates.io artefacts, so they are validated by their own
-``make check-published-gpui`` and ``make e2e-published-gpui`` targets.
+Exit codes: 0 when every committed fixture lockfile resolves and every prefetch
+succeeds; 1 when a lockfile is stale, a prefetch fails, or no fixture was
+discovered. The published-GPUI fixtures resolve against staged or crates.io
+artefacts, so they are validated by their own ``make check-published-gpui`` and
+``make e2e-published-gpui`` targets.
 """
 
 import argparse
@@ -27,8 +30,10 @@ from fixture_lockfile_discovery import discover_fixture_manifests
 from fixture_lockfile_reporting import (
     FixtureLockfileError,
     GateMode,
+    fetch_failure_message,
     print_check_summary,
     print_failures,
+    print_fetch_summary,
     print_refresh_summary,
     refresh_failure_message,
     stale_failure_message,
@@ -44,10 +49,19 @@ METADATA_FORMAT_VERSION = "1"
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
         "--refresh",
         action="store_true",
         help="regenerate each discovered lockfile instead of only validating it",
+    )
+    mode.add_argument(
+        "--fetch",
+        action="store_true",
+        help=(
+            "download each discovered lockfile's dependencies into the local "
+            "Cargo registry cache instead of validating the lockfile"
+        ),
     )
     parser.add_argument("--list", action="store_true", help="list the manifests")
     return parser.parse_args(argv)
@@ -69,6 +83,11 @@ def cargo_metadata_command(manifest: Path) -> list[str]:
 def cargo_refresh_command(manifest: Path) -> list[str]:
     """Build the ``cargo generate-lockfile`` command for *manifest*."""
     return [CARGO, "generate-lockfile", "--manifest-path", str(manifest)]
+
+
+def cargo_fetch_command(manifest: Path) -> list[str]:
+    """Build the locked ``cargo fetch`` command for *manifest*."""
+    return [CARGO, "fetch", "--locked", "--manifest-path", str(manifest)]
 
 
 def run_cargo_command(
@@ -129,6 +148,23 @@ def refresh_lockfile(manifest: Path) -> subprocess.CompletedProcess[str]:
     return run_cargo_command(cargo_refresh_command(manifest), manifest)
 
 
+def fetch_fixture_dependencies(manifest: Path) -> subprocess.CompletedProcess[str]:
+    """Download the locked dependencies of *manifest* into the Cargo cache.
+
+    ``cargo fetch --locked`` fills ``~/.cargo/registry`` from the committed
+    lockfile without building anything, so a later ``--offline`` invocation of
+    the same lockfile resolves from the cache. The mutation lane runs this mode
+    because it has no outer online workspace build to warm that cache before its
+    nested fixture tests run.
+
+    Returns
+    -------
+    subprocess.CompletedProcess[str]
+        The completed invocation; errors per :func:`run_cargo_command`.
+    """
+    return run_cargo_command(cargo_fetch_command(manifest), manifest)
+
+
 def collect_fixture_results(
     manifests: list[Path],
     operation: cabc.Callable[[Path], subprocess.CompletedProcess[str]],
@@ -137,9 +173,9 @@ def collect_fixture_results(
     """Return the failing results of *operation* over *manifests*.
 
     Each manifest is optionally prepared (refresh mode regenerates its lockfile
-    first), then run through *operation*, the locked ``cargo metadata``
-    validation both modes share. The loop never stops at the first failure so
-    one gate run reports every fixture.
+    first), then run through *operation*: locked ``cargo metadata`` for the
+    check and refresh modes, locked ``cargo fetch`` for the prefetch mode. The
+    loop never stops at the first failure so one gate run reports every fixture.
 
     Returns
     -------
@@ -207,6 +243,20 @@ def refresh_fixtures(root: Path, manifests: list[Path]) -> int:
     )
 
 
+def fetch_fixtures(root: Path, manifests: list[Path]) -> int:
+    """Prefetch every fixture's locked dependencies, returning the exit code."""
+    return _report_fixture_operation(
+        root,
+        manifests,
+        GateMode(
+            fetch_failure_message,
+            print_fetch_summary,
+            cargo_fetch_command,
+            fetch_fixture_dependencies,
+        ),
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run the fixture-lockfile gate."""
     args = parse_args(argv)
@@ -220,6 +270,8 @@ def main(argv: list[str] | None = None) -> int:
         for manifest in manifests:
             print(manifest.relative_to(root))
         return 0
+    if args.fetch:
+        return fetch_fixtures(root, manifests)
     if args.refresh:
         return refresh_fixtures(root, manifests)
     return check_fixtures(root, manifests)

@@ -3,7 +3,7 @@
 
 Keeping the message formatting and the shared error type apart from the Cargo
 plumbing lets the gate script stay under the 400-line budget while the wording
-of a stale-lockfile failure stays testable in one place.
+of a stale-lockfile or failed-prefetch failure stays testable in one place.
 """
 
 import dataclasses
@@ -99,6 +99,35 @@ def refresh_failure_message(
     )
 
 
+def fetch_failure_message(
+    manifest: Path, command: list[str], result_stdout: str, result_stderr: str
+) -> str:
+    """
+    Return the failure text for a fixture whose dependencies did not download.
+
+    Parameters
+    ----------
+    manifest : Path
+        The fixture whose locked dependencies could not be fetched.
+    command : list[str]
+        The Cargo command that failed, for reproduction.
+    result_stdout : str
+        Captured standard output from the failed Cargo run.
+    result_stderr : str
+        Captured standard error from the failed Cargo run.
+
+    Returns
+    -------
+    str
+        The multi-line failure report.
+    """
+    return (
+        f"failed to prefetch fixture dependencies: {manifest}\n"
+        f"command: {' '.join(command)}\n"
+        f"cargo output:\n{result_stdout}{result_stderr}"
+    )
+
+
 def print_failures(failures: list[str]) -> None:
     """
     Print every failure report to standard error.
@@ -149,12 +178,33 @@ def print_refresh_summary(total: int, failed: int) -> None:
         print(f"refreshed {total} fixture lockfile(s)")
 
 
+def print_fetch_summary(total: int, failed: int) -> None:
+    """
+    Print the dependency-prefetch outcome to standard output.
+
+    Parameters
+    ----------
+    total : int
+        The number of fixtures the prefetch visited.
+    failed : int
+        The number of fixtures whose dependencies could not be fetched.
+    """
+    if failed:
+        print(
+            f"{failed} of {total} fixture dependency prefetch(es) failed",
+            file=sys.stderr,
+        )
+    else:
+        print(f"prefetched dependencies for {total} fixture(s)")
+
+
 @dataclasses.dataclass(frozen=True, slots=True)
 class GateMode:
     """Bundle the callables that distinguish one fixture-gate operation.
 
-    Bundling keeps the gate script's entry points to three call arguments,
-    inside the ``max-args`` lint budget.
+    Bundling keeps :func:`check_fixtures`, :func:`refresh_fixtures`, and
+    :func:`fetch_fixtures` in the gate script to three call arguments, inside
+    the ``max-args`` lint budget.
 
     Parameters
     ----------
