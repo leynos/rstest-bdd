@@ -8,27 +8,18 @@ use std::sync::Arc;
 use rstest_bdd_patterns::SpecificityScore;
 
 use super::{
+    CODE_AMBIGUOUS_STEP,
     CODE_DOCSTRING_EXPECTED,
     CODE_DOCSTRING_NOT_EXPECTED,
     CODE_TABLE_EXPECTED,
     CODE_TABLE_NOT_EXPECTED,
     compute::{DiagnosticSpec, FeatureStepDiagnosticKind, build_step_diagnostic},
-    CODE_AMBIGUOUS_STEP,
 };
 use crate::{
     handlers::util::gherkin_span_to_lsp_range,
     indexing::{CompiledStepDefinition, FeatureFileIndex, IndexedStep},
     lsp::Diagnostic,
     server::ServerState,
-};
-
-use lsp_types::Diagnostic;
-
-//! Table and docstring expectation validation diagnostics.
-//!
-//! This module validates that feature steps have tables and docstrings that
-//! match what the corresponding Rust implementation expects.
-};
 };
 
 /// Compute diagnostics for table/docstring expectation mismatches.
