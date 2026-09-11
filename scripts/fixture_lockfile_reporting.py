@@ -41,6 +41,44 @@ class FixtureLockfileError(RuntimeError):
         return f"cannot run {cargo} for {manifest}: {error}"
 
 
+# ruff: ignore[too-many-arguments, too-many-positional-arguments] - five report parts.
+# pylint: disable-next=too-many-arguments,too-many-positional-arguments
+def _failure_message(
+    heading: str,
+    manifest: Path,
+    command: list[str],
+    result_stdout: str,
+    result_stderr: str,
+) -> str:
+    """
+    Render the shared Cargo failure report under an operation-specific heading.
+
+    Parameters
+    ----------
+    heading : str
+        The opening clause naming the failed operation, carrying whatever
+        punctuation that operation's established wording uses.
+    manifest : Path
+        The fixture the failed Cargo run belongs to.
+    command : list[str]
+        The Cargo command that failed, for reproduction.
+    result_stdout : str
+        Captured standard output from the failed Cargo run.
+    result_stderr : str
+        Captured standard error from the failed Cargo run.
+
+    Returns
+    -------
+    str
+        The multi-line failure report.
+    """
+    return (
+        f"{heading} {manifest}\n"
+        f"command: {' '.join(command)}\n"
+        f"cargo output:\n{result_stdout}{result_stderr}"
+    )
+
+
 def stale_failure_message(
     manifest: Path, command: list[str], result_stdout: str, result_stderr: str
 ) -> str:
@@ -63,10 +101,12 @@ def stale_failure_message(
     str
         The multi-line failure report.
     """
-    return (
-        f"stale or unusable fixture lockfile: {manifest}\n"
-        f"command: {' '.join(command)}\n"
-        f"cargo output:\n{result_stdout}{result_stderr}"
+    return _failure_message(
+        "stale or unusable fixture lockfile:",
+        manifest,
+        command,
+        result_stdout,
+        result_stderr,
     )
 
 
@@ -92,10 +132,12 @@ def refresh_failure_message(
     str
         The multi-line failure report.
     """
-    return (
-        f"refresh failed for {manifest}\n"
-        f"command: {' '.join(command)}\n"
-        f"cargo output:\n{result_stdout}{result_stderr}"
+    return _failure_message(
+        "refresh failed for",
+        manifest,
+        command,
+        result_stdout,
+        result_stderr,
     )
 
 
@@ -121,10 +163,12 @@ def fetch_failure_message(
     str
         The multi-line failure report.
     """
-    return (
-        f"failed to prefetch fixture dependencies: {manifest}\n"
-        f"command: {' '.join(command)}\n"
-        f"cargo output:\n{result_stdout}{result_stderr}"
+    return _failure_message(
+        "failed to prefetch fixture dependencies:",
+        manifest,
+        command,
+        result_stdout,
+        result_stderr,
     )
 
 

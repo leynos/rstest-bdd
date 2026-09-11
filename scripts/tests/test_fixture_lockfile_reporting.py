@@ -1,12 +1,28 @@
 """Unit tests for the fixture-lockfile reporting helpers."""
 
 import typing as typ
+from pathlib import Path
 
 import fixture_lockfile_reporting
-from fixture_lockfile_reporting import print_failures
+from fixture_lockfile_reporting import (
+    fetch_failure_message,
+    print_failures,
+    refresh_failure_message,
+    stale_failure_message,
+)
 
 if typ.TYPE_CHECKING:
     import pytest
+
+#: A manifest path the tests never touch: they pin pure report formatting.
+MANIFEST = Path("/repo/crates/rstest-bdd/tests/ui_lints/Cargo.toml")
+
+#: The validation command and the prefetch command the gate passes in.
+METADATA_COMMAND = ["cargo", "metadata", "--locked", "--manifest-path", str(MANIFEST)]
+FETCH_COMMAND = ["cargo", "fetch", "--locked", "--manifest-path", str(MANIFEST)]
+
+STDOUT = "resolving dependencies\n"
+STDERR = "error: failed to update\n"
 
 
 def test_print_failures_writes_each_report_to_stderr(
@@ -55,3 +71,39 @@ def test_refresh_summary_reports_both_outcomes(
     assert refreshed.out == "refreshed 5 fixture lockfile(s)\n", (
         "the success line must confirm the refreshed count"
     )
+
+
+def test_stale_failure_message_reports_the_manifest_command_and_output() -> None:
+    """The stale report spells out the heading, the command, and both streams."""
+    assert stale_failure_message(MANIFEST, METADATA_COMMAND, STDOUT, STDERR) == (
+        "stale or unusable fixture lockfile: "
+        f"{MANIFEST}\n"
+        f"command: {' '.join(METADATA_COMMAND)}\n"
+        "cargo output:\n"
+        f"{STDOUT}"
+        f"{STDERR}"
+    ), "the stale report must keep the gate's established wording"
+
+
+def test_refresh_failure_message_reports_the_manifest_command_and_output() -> None:
+    """The refresh report keeps its own colon-free opening clause."""
+    assert refresh_failure_message(MANIFEST, METADATA_COMMAND, STDOUT, STDERR) == (
+        "refresh failed for "
+        f"{MANIFEST}\n"
+        f"command: {' '.join(METADATA_COMMAND)}\n"
+        "cargo output:\n"
+        f"{STDOUT}"
+        f"{STDERR}"
+    ), "the refresh report must not gain punctuation the gate never printed"
+
+
+def test_fetch_failure_message_reports_the_manifest_command_and_output() -> None:
+    """The prefetch report quotes the fetch command and Cargo's output."""
+    assert fetch_failure_message(MANIFEST, FETCH_COMMAND, STDOUT, STDERR) == (
+        "failed to prefetch fixture dependencies: "
+        f"{MANIFEST}\n"
+        f"command: {' '.join(FETCH_COMMAND)}\n"
+        "cargo output:\n"
+        f"{STDOUT}"
+        f"{STDERR}"
+    ), "the prefetch report must name the fixture, command, and Cargo output"
