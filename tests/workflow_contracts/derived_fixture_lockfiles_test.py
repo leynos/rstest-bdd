@@ -9,20 +9,25 @@ workflow limited to its lock-refresh targets; the ordinary CI workflow
 continues to build and exercise the fixtures, and the shared
 ``make check-fixture-lockfiles`` gate validates the refreshed set.  The push
 target is a caller-controlled ref name, so it reaches the shell through the
-environment as quoted data rather than as interpolated script text.
+environment as quoted data rather than as interpolated script text.  Running
+that fragment, rather than reading it, is
+:mod:`lockfile_refresh_support`; this module owns the assertions.
 
 Run via ``make test-workflow-contracts``.
 """
 
-import os
 import re
-import shutil
-import stat
-import subprocess  # ruff: ignore[suspicious-subprocess-import] - runs a script this repository declares.
 from pathlib import Path
 
 import pytest
 import yaml
+from lockfile_refresh_support import (
+    HOSTILE_HEAD_REF,
+    INJECTION_ARTEFACT,
+    INVOCATION_LOG_NAME,
+    resolve_fragment,
+    run_fragment,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_PATH = ROOT / ".github" / "workflows" / "refresh-derived-fixture-lockfiles.yml"
@@ -227,72 +232,15 @@ def test_push_step_never_interpolates_untrusted_refs_inline(
     )
 
 
-#: The shell the runner starts for a `run:` fragment, resolved to an absolute
-#: path so the harness uses the same interpreter the runner does rather than
-#: whichever `bash` a contributor's PATH offers first.
-BASH = shutil.which("bash") or "/bin/bash"
-#: A ref name that runs a command when a shell parses it rather than quotes
-#: it.  Git permits `$`, `(`, `)`, `;` and `/` in a ref name, so a push target
-#: built by interpolation is reachable from the pull request supplying the ref.
-HOSTILE_HEAD_REF = "issue/$(touch pwned);ref"
-#: The file the hostile ref creates only when the shell parses it as syntax.
-INJECTION_ARTEFACT = "pwned"
-#: The expression the runner substitutes with the pull request's head ref.
-HEAD_REF_EXPRESSION = re.compile(
-    r"\$\{\{\s*github\.event\.pull_request\.head\.ref\s*\}\}"
-)
-
-
-def _write_recording_git(directory: Path, log_name: str) -> Path:
-    """Put a git stand-in on PATH that records each argument vector it gets.
-
-    Parameters
-    ----------
-    directory : pathlib.Path
-        The directory to write the stand-in into, which the caller also
-        prepends to PATH.
-    log_name : str
-        The environment variable holding the log to append to.
-
-    Returns
-    -------
-    pathlib.Path
-        The log file the stand-in appends one NUL-separated argv per line to.
-    """
-    invocation_log = directory / "git-invocations.log"
-    recording_git = directory / "git"
-    recording_git.write_text(
-        "\n".join([
-            "#!/usr/bin/env sh",
-            "",
-            'for argument in "$@"; do',
-            f'    printf "\\0%s" "$argument" >> "${log_name}"',
-            "done",
-            f'printf "\\n" >> "${log_name}"',
-            "",
-        ]),
-        encoding="utf-8",
-    )
-    recording_git.chmod(recording_git.stat().st_mode | stat.S_IXUSR)
-    return invocation_log
-
-
 def _push_fragment(
     push: dict[str, object], head_ref: str
 ) -> tuple[str, dict[str, str]]:
     """Return the push step's script and environment as the runner resolves them.
 
-    GitHub substitutes every ``${{ ... }}`` in the script text and in the
-    environment before the shell starts, so the harness does the same rather
-    than inventing a configuration.  That is what lets it tell the two forms
-    apart: a step that names the ref inline receives the hostile value as
-    *script text*, while one that reads it from the environment receives it as
-    data.
-
     A step that declares no environment is run as it stands, so the injection
-    this test exists to catch still happens and is reported as an executed
-    command rather than as a shape complaint.  The env binding itself is
-    pinned exactly by the sibling contract tests.
+    the hostile-ref contract exists to catch still happens and is reported as
+    an executed command rather than as a shape complaint.  The env binding
+    itself is pinned exactly by the sibling shape contracts.
 
     Parameters
     ----------
@@ -313,36 +261,7 @@ def _push_fragment(
             assert isinstance(script, str), "the push step must declare a shell script"
     declared = push.get("env", {})
     assert isinstance(declared, dict), "the push step's environment must be a mapping"
-    return (
-        _substituted(HEAD_REF_EXPRESSION, head_ref, script),
-        {
-            str(name): _substituted(HEAD_REF_EXPRESSION, head_ref, str(value))
-            for name, value in declared.items()
-        },
-    )
-
-
-def _substituted(expression: re.Pattern[str], value: str, text: str) -> str:
-    """Return *text* with every *expression* replaced by *value*.
-
-    The value is inserted literally, so one carrying backslashes or group
-    references reaches the script as the runner would write it.
-
-    Parameters
-    ----------
-    expression : re.Pattern[str]
-        The expression to replace.
-    value : str
-        What the runner substitutes for it.
-    text : str
-        The script text or environment value to rewrite.
-
-    Returns
-    -------
-    str
-        The rewritten text.
-    """
-    return expression.sub(lambda _match: value, text)
+    return resolve_fragment(script, declared, head_ref)
 
 
 def test_push_step_delivers_a_hostile_head_ref_as_one_inert_argument(
@@ -354,29 +273,9 @@ def test_push_step_delivers_a_hostile_head_ref_as_one_inert_argument(
 
     working_dir = tmp_path / "workdir"
     working_dir.mkdir()
-    # The fragment goes to a file and runs as `bash <file>`, which is the form
-    # the runner uses; a `bash -c` harness would execute something the runner
-    # never does.
-    script_path = working_dir / "push.sh"
-    script_path.write_text(script, encoding="utf-8")
-    log_name = "GIT_INVOCATIONS"
-    invocation_log = _write_recording_git(working_dir, log_name)
+    result = run_fragment(script, environment, working_dir)
 
-    result = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - the script is this repository's own.
-        [BASH, str(script_path)],
-        check=False,
-        capture_output=True,
-        text=True,
-        env={
-            **os.environ,
-            **environment,
-            "PATH": f"{working_dir}{os.pathsep}{os.environ['PATH']}",
-            log_name: str(invocation_log),
-        },
-        cwd=working_dir,
-        timeout=30,
-    )
-
+    invocation_log = working_dir / INVOCATION_LOG_NAME
     recorded = [
         line.split("\0")[1:]
         for line in invocation_log.read_text(encoding="utf-8").splitlines()
