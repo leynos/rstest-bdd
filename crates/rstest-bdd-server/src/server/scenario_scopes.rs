@@ -17,6 +17,8 @@ use crate::indexing::{CompiledStepDefinition, IndexedScenarioBinding, ScenarioBi
 pub(super) struct ScenarioScopeRegistry {
     /// Bindings replaced atomically when one Rust file is re-indexed.
     bindings_by_file: HashMap<PathBuf, Vec<IndexedScenarioBinding>>,
+    /// Memoised scope resolutions, cleared whenever any bindings change.
+    resolved_scopes: HashMap<PathBuf, Result<Option<Vec<String>>, ScenarioScopeConflict>>,
 }
 
 /// Conflicting closed scopes selected by bindings for one feature file.
@@ -46,11 +48,16 @@ impl ScenarioScopeConflict {
 impl ScenarioScopeRegistry {
     /// Replace every scenario binding originating from one Rust source file.
     pub(super) fn replace_rust_file(&mut self, path: &Path, bindings: Vec<IndexedScenarioBinding>) {
+        let previous = self.bindings_by_file.get(path);
+        if previous.is_some_and(|previous| previous == &bindings) {
+            return;
+        }
         if bindings.is_empty() {
             self.bindings_by_file.remove(path);
         } else {
             self.bindings_by_file.insert(path.to_path_buf(), bindings);
         }
+        self.resolved_scopes.clear();
     }
 
     /// Return the single closed scope selected for one feature file.
@@ -58,17 +65,24 @@ impl ScenarioScopeRegistry {
         &self,
         feature_path: &Path,
     ) -> Result<Option<Vec<String>>, ScenarioScopeConflict> {
+        if let Some(cached) = self.resolved_scopes.get(feature_path) {
+            return cached.clone();
+        }
         let scopes: BTreeSet<_> = self
             .matching_bindings(feature_path)
             .map(|binding| normalized_scope(&binding.libraries))
             .collect();
-        if scopes.len() > 1 {
-            return Err(ScenarioScopeConflict {
+        let resolved = if scopes.len() > 1 {
+            Err(ScenarioScopeConflict {
                 feature_path: feature_path.to_path_buf(),
                 scopes: scopes.into_iter().collect(),
-            });
-        }
-        Ok(scopes.into_iter().next())
+            })
+        } else {
+            Ok(scopes.into_iter().next())
+        };
+        self.resolved_scopes
+            .insert(feature_path.to_path_buf(), resolved.clone());
+        resolved
     }
 
     /// Iterate over bindings whose target contains one feature file.

@@ -365,6 +365,18 @@ impl ServerState {
             }
         }
     }
+
+    /// Drop the cached index and compiled steps for one Rust source file.
+    ///
+    /// Called when the file no longer parses: the scenario-scope registry has
+    /// already discarded the file's bindings, so the previous step index and
+    /// its compiled entries must be removed as part of the same failure
+    /// transition. Retaining them would leave features resolving against a
+    /// stale index after the scope that selected it disappeared.
+    pub fn remove_rust_step_index(&mut self, path: &Path) {
+        self.rust_step_indices.remove(path);
+        self.step_registry.invalidate_file(path);
+    }
 }
 
 /// Build the server capabilities to advertise to the client.
