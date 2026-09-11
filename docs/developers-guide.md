@@ -2646,6 +2646,29 @@ pattern in `crates/rstest-bdd/tests/feature_rebuild_invalidation/`:
   run through `make test-workflow-contracts` — enforce this contract, including
   a Hypothesis test that executes the push step against generated hostile ref
   names.
+- The mutation lane pre-fetches standalone fixture dependencies with
+  `make prefetch-fixture-deps`, which runs
+  `scripts/check_fixture_lockfiles.py --fetch`: that mode runs `cargo fetch
+  --locked --manifest-path <fixture>/Cargo.toml` for every discovered fixture,
+  filling `~/.cargo/registry` from the committed lockfile without building
+  anything. Discovery is shared with the gate, so the prefetch covers exactly
+  the fixtures the gate validates.
+- It is needed because the nested-cargo harnesses
+  (`crates/rstest-bdd/tests/feature_rebuild_invalidation.rs` and its
+  `harness/addition.rs` module) build their fixtures with `--locked --offline`,
+  and the mutation lane runs no outer online workspace build to warm that
+  cache: `.github/workflows/mutation-testing.yml` passes the target as the
+  reusable workflow's `setup-commands`, which runs in each mutants job before
+  cargo-mutants starts. Without it the baseline fails, because nothing has
+  downloaded the crates the fixture lockfiles pin (`proc-macro-error-attr3` was
+  the crate that surfaced it).
+- Keep the two mechanisms apart: `make check-fixture-lockfiles` proves a
+  lockfile still resolves against a full, online registry view and never passes
+  `--offline` (a lockfile that only resolves from a partial cache would hide
+  the drift it exists to catch), while the rebuild-invalidation experiment
+  keeps its own `--offline` runs because it verifies reproducible nested-Cargo
+  behaviour. The prefetch only makes those offline runs resolvable; it never
+  stands in for the gate.
 - Every nested `cargo` invocation uses a controlled child environment:
   `.env_clear()` plus a captured snapshot of the parent, with `CARGO_MAKEFLAGS`,
   `CARGO_PKG_*`, and `CARGO_LLVM_COV*` stripped, and `CARGO_TARGET_DIR`
