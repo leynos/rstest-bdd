@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Failure and success reporting for the fixture-lockfile gate.
 
-Keeping the message formatting apart from the Cargo plumbing lets the gate
-script stay under the 400-line budget while the wording of a stale-lockfile
-failure stays testable in one place.
+Keeping the message formatting and the shared error type apart from the Cargo
+plumbing lets the gate script stay under the 400-line budget while the wording
+of a stale-lockfile failure stays testable in one place.
 """
 
 import dataclasses
@@ -12,10 +12,33 @@ import typing as typ
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
+    import subprocess
     from pathlib import Path
 
 #: Suggested remediation printed when a lockfile no longer resolves.
 REFRESH_HINT = "run 'make update-fixture-lockfiles' to refresh them"
+
+
+class FixtureLockfileError(RuntimeError):
+    """A fixture lockfile is stale, or no fixture manifest was discovered.
+
+    Lives with the reporting helpers rather than the gate script so the
+    discovery module and the gate can both raise it without importing each
+    other.
+    """
+
+    @staticmethod
+    def no_manifests_message() -> str:
+        """Return the message for an empty discovery result."""
+        return (
+            "no standalone fixture manifests found; the discovery contract "
+            "expects at least one committed fixture lockfile"
+        )
+
+    @staticmethod
+    def cargo_unavailable_message(cargo: str, manifest: Path, error: OSError) -> str:
+        """Return the message for a Cargo executable that could not run."""
+        return f"cannot run {cargo} for {manifest}: {error}"
 
 
 def stale_failure_message(
@@ -130,8 +153,8 @@ def print_refresh_summary(total: int, failed: int) -> None:
 class GateMode:
     """Bundle the callables that distinguish one fixture-gate operation.
 
-    Bundling keeps :func:`check_fixtures` and :func:`refresh_fixtures` in the
-    gate script to three call arguments, inside the ``max-args`` lint budget.
+    Bundling keeps the gate script's entry points to three call arguments,
+    inside the ``max-args`` lint budget.
 
     Parameters
     ----------
@@ -139,10 +162,16 @@ class GateMode:
         Render one failing manifest and Cargo output as report text.
     print_summary : cabc.Callable[[int, int], None]
         Close the run with the total and failed counts.
+    command : cabc.Callable[[Path], list[str]]
+        Build the Cargo argv the failure report quotes for reproduction.
+    operation : cabc.Callable[[Path], subprocess.CompletedProcess[str]]
+        Run that argv for one manifest; a non-zero exit is a failure.
     prepare : cabc.Callable[[Path], object] | None
-        Optional per-manifest operation before validation, or None.
+        Optional per-manifest step before the operation, or None.
     """
 
     failure_message: cabc.Callable[[Path, list[str], str, str], str]
     print_summary: cabc.Callable[[int, int], None]
+    command: cabc.Callable[[Path], list[str]]
+    operation: cabc.Callable[[Path], subprocess.CompletedProcess[str]]
     prepare: cabc.Callable[[Path], object] | None = None
