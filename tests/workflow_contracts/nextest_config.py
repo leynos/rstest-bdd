@@ -2,12 +2,10 @@
 
 Separated from ``timeout_budgets`` so the configuration reading and the
 watchdog arithmetic stay legible apart, and so neither module outgrows
-the 400-line limit ``AGENTS.md`` sets.
-
-The configuration is parsed with ``tomllib`` rather than matched as
-text. A text match finds a key inside a comment, inside a ``filter``
-string, or in a table nextest never consults, and reports a budget the
-runner does not use.
+the 400-line limit ``AGENTS.md`` sets. The configuration is parsed with
+``tomllib`` rather than matched as text: a text match finds a key inside
+a comment, inside a ``filter`` string, or in a table nextest never
+consults, and reports a budget the runner does not use.
 """
 
 import tomllib
@@ -31,9 +29,8 @@ def _parsed(config_text: str) -> dict[str, object]:
     """Return the configuration as TOML.
 
     Parsed rather than matched as text, for the reasons the module
-    docstring gives: the commented-out ``global-timeout`` it names is the
-    case that matters most here, because the contract requires that tier
-    to be present.
+    docstring gives. A commented-out ``global-timeout`` is the case that
+    matters most here, because the contract requires that tier present.
 
     Parameters
     ----------
@@ -75,9 +72,8 @@ def _table(value: object) -> dict[str, object]:
 def _budget_tables(config_text: str) -> list[tuple[str, dict[str, object]]]:
     """Return every table nextest reads a per-test budget from.
 
-    Each profile's own table and each of its ``[[overrides]]`` entries,
-    with the dotted path naming it so a failure can say which is at
-    fault.
+    Each profile's own table and each of its ``[[overrides]]`` entries, with
+    the dotted path naming it so a failure can say which is at fault.
 
     Parameters
     ----------
@@ -107,7 +103,9 @@ def _slow_timeouts(config_text: str) -> list[tuple[str, dict[str, object]]]:
 
     Both of nextest's spellings are read. The table form is used as
     written; the scalar shorthand is folded into ``{ period = ... }``
-    before it is returned.
+    before it is returned, and a present value that is neither is refused
+    rather than skipped: nextest loads no such file, and skipping one
+    leaves the readers reporting another entry's budget.
 
     Parameters
     ----------
@@ -119,14 +117,24 @@ def _slow_timeouts(config_text: str) -> list[tuple[str, dict[str, object]]]:
     list of tuple
         The dotted path of the declaring table and the ``slow-timeout``
         it holds, with neither spelling lost.
+
+    Raises
+    ------
+    MalformedSlowTimeoutPeriodError
+        If a declared value is neither a non-empty string nor a table.
     """
     declared: list[tuple[str, dict[str, object]]] = []
     for path, table in _budget_tables(config_text):
         match table.get("slow-timeout"):
-            case str() as period if period:
+            case None | "":
+                # Absent, and the empty string nextest reads as absent.
+                continue
+            case str() as period:
                 declared.append((path, _table({"period": period})))
             case dict() as written:
                 declared.append((path, _table(written)))
+            case value:
+                raise MalformedSlowTimeoutPeriodError(path, value)
     return declared
 
 
@@ -166,9 +174,7 @@ def _terminate_after(table: dict[str, object], where: str) -> int:
 
     nextest types ``terminate-after`` as a whole number of periods
     greater than zero and refuses anything else. Reading one anyway
-    would put a budget on the tier the runner never applies, and a string
-    used to raise a bare ``ValueError`` rather than a shape error naming
-    it.
+    would put a budget on the tier the runner never applies.
 
     Parameters
     ----------
@@ -185,8 +191,7 @@ def _terminate_after(table: dict[str, object], where: str) -> int:
     Raises
     ------
     UnboundedTestError
-        If the key is absent, which nextest reads as no termination at
-        all rather than as a malformed value.
+        If the key is absent, which nextest reads as no termination at all.
     MalformedTerminateAfterError
         If the key holds anything but a whole number above zero.
     """
@@ -236,10 +241,9 @@ def _grace_period(table: dict[str, object], where: str) -> float:
 def global_timeout(config_text: str) -> float:
     r"""Return the default profile's ``global-timeout`` in seconds.
 
-    Read from ``[profile.default]``'s own table. nextest's other
-    profiles inherit it unless they override it, and an ``[[overrides]]``
-    entry cannot carry one, so a value found elsewhere is not the budget
-    in force.
+    Read from ``[profile.default]``'s own table. nextest's other profiles
+    inherit it unless they override it, and an ``[[overrides]]`` entry cannot
+    carry one, so a value found elsewhere is not the budget in force.
 
     Parameters
     ----------
@@ -277,9 +281,8 @@ def bounds_a_single_test(config_text: str, profile: str = "default") -> bool:
 
     An override bounds the tests its filter matches; the profile's own
     bounds the rest. A profile whose only ``terminate-after`` sits in an
-    override leaves every unmatched test running with no bound at all
-    while :func:`largest_slow_timeout` still reports a comfortable
-    number, so the two are read apart.
+    override leaves unmatched tests unbounded while
+    :func:`largest_slow_timeout` still reports a comfortable number.
 
     Parameters
     ----------
@@ -317,10 +320,6 @@ def largest_slow_timeout(config_text: str) -> float:
     The scalar shorthand is read as well, and is unbounded: nextest reads
     ``slow-timeout = "60s"`` as a period with no termination policy,
     exactly as if the table form had left ``terminate-after`` out.
-
-    A ``slow-timeout`` nextest could not read is refused where it is
-    read, and one that terminates nothing is refused rather than counted
-    as a single period.
 
     Parameters
     ----------

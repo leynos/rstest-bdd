@@ -41,9 +41,11 @@ NEXTEST_DEFAULT_GRACE_PERIOD_SECONDS: typ.Final[float] = 10.0
 #: above it, and the saving would look free until the run it cancelled.
 TERMINATION_SAFETY_MARGIN_SECONDS: typ.Final[float] = 60.0
 
-#: ``30s``, ``5m``, ``20 m``: the durations nextest accepts here.
+#: ``30s``, ``5m``, ``20 m``, ``1d``: the unit letters the readers model.
+#: nextest reads longer and compound spellings too (``1day``, ``1h 30m``);
+#: an unmodelled one raises rather than converting to a guess.
 _DURATION: typ.Final[re.Pattern[str]] = re.compile(
-    r"^\s*(?P<value>\d+(?:\.\d+)?)\s*(?P<unit>ms|s|m|h)\s*$"
+    r"^\s*(?P<value>\d+(?:\.\d+)?)\s*(?P<unit>ms|s|m|h|d)\s*$"
 )
 
 _UNIT_SECONDS: typ.Final[dict[str, float]] = {
@@ -51,11 +53,12 @@ _UNIT_SECONDS: typ.Final[dict[str, float]] = {
     "s": 1.0,
     "m": 60.0,
     "h": 3600.0,
+    "d": 86400.0,
 }
 
 
 class UnrecognizedDurationError(WorkflowShapeError):
-    """A duration string was not one nextest would accept.
+    """A duration string outside the units the readers convert.
 
     Raised by :func:`seconds` rather than guessing a magnitude. A
     duration nobody can read is a configuration error, and putting an
@@ -304,7 +307,7 @@ def seconds(duration: str) -> float:
     Raises
     ------
     UnrecognizedDurationError
-        If the string is not a duration nextest would accept.
+        If the string is not a duration the readers convert.
 
     Examples
     --------

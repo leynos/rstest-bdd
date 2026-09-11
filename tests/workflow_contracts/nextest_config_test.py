@@ -245,6 +245,32 @@ def test_a_period_nextest_could_not_read_is_a_shape_error(config_text: str) -> N
 @pytest.mark.parametrize(
     "config_text",
     [
+        pytest.param("[profile.default]\nslow-timeout = 60\n", id="a-bare-number"),
+        pytest.param("[profile.default]\nslow-timeout = true\n", id="a-boolean"),
+        pytest.param("[profile.default]\nslow-timeout = 1.5\n", id="a-float"),
+        pytest.param('[profile.default]\nslow-timeout = ["60s"]\n', id="a-list"),
+    ],
+)
+def test_a_scalar_slow_timeout_nextest_would_refuse_is_a_shape_error(
+    config_text: str,
+) -> None:
+    """The key is a duration string or a table, and nextest reads nothing else.
+
+    Its own refusal is ``invalid type: integer `60`, expected a table
+    ({ period = "60s", terminate-after = 2 }) or a string ("60s")``. Both
+    readings that consume the key are checked, because skipping the value
+    would leave one reporting another entry's budget and the other
+    reporting a tier the file never set.
+    """
+    with pytest.raises(reading.MalformedSlowTimeoutPeriodError, match=r"no period"):
+        reading.largest_slow_timeout(config_text)
+    with pytest.raises(reading.MalformedSlowTimeoutPeriodError, match=r"no period"):
+        reading.termination_allowance(config_text)
+
+
+@pytest.mark.parametrize(
+    "config_text",
+    [
         pytest.param(
             "[profile.default]\n"
             'slow-timeout = { period = "60s", terminate-after = 1, '

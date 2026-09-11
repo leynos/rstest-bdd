@@ -197,11 +197,10 @@ def test_a_default_profile_with_no_global_timeout_is_rejected() -> None:
         pytest.param("20 m", 1200.0, id="minutes-with-a-space"),
         pytest.param("1h", 3600.0, id="hours"),
         pytest.param("1.5m", 90.0, id="fractional"),
+        pytest.param("1d", 86400.0, id="days"),
     ],
 )
-def test_every_duration_unit_nextest_accepts_converts(
-    duration: str, expected: float
-) -> None:
+def test_every_modelled_duration_unit_converts(duration: str, expected: float) -> None:
     """Each unit is a term in the comparison, so each must convert.
 
     A unit read as seconds when it means minutes understates a budget by
