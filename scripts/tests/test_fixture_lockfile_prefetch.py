@@ -7,19 +7,27 @@ validating anything itself.
 """
 
 import subprocess  # ruff: ignore[suspicious-subprocess-import] - tests build stand-in CompletedProcess values without running anything.
+import typing as typ
 from pathlib import Path
 from unittest import mock
 
-import pytest
 from check_fixture_lockfiles import (
     cargo_fetch_command,
-    fetch_fixture_dependencies,
     fetch_fixtures,
     main,
 )
 from fixture_lockfile_discovery import discover_fixture_manifests
 
+if typ.TYPE_CHECKING:
+    import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
+
+#: A discovered standalone fixture. The prefetch tests stand in for Cargo's
+#: output, so any real fixture manifest serves as the one under test.
+FIXTURE_MANIFEST = (
+    REPO_ROOT / "crates/rstest-bdd/tests/fixtures/rebuild_invalidation/Cargo.toml"
+)
 
 FETCH_FAILURE = "error: failed to download `proc-macro-error-attr3 v3.1.0`"
 
@@ -42,7 +50,7 @@ def test_prefetch_fetches_every_discovered_fixture() -> None:
 
 def test_prefetch_failure_report_names_the_fixture_and_cargo_output() -> None:
     """A failed fetch names the fixture, the command, and Cargo's output."""
-    manifest = REPO_ROOT / "crates/rstest-bdd/tests/fixtures/rebuild_invalidation/Cargo.toml"
+    manifest = FIXTURE_MANIFEST
     failing = subprocess.CompletedProcess(
         args=cargo_fetch_command(manifest),
         returncode=101,
@@ -61,7 +69,7 @@ def test_prefetch_failure_report_names_the_fixture_and_cargo_output() -> None:
     assert report.startswith("failed to prefetch fixture dependencies: "), (
         "the prefetch must keep its own failure wording"
     )
-    assert "crates/rstest-bdd/tests/fixtures/rebuild_invalidation/Cargo.toml" in report, (
+    assert FIXTURE_MANIFEST.relative_to(REPO_ROOT).as_posix() in report, (
         "the report must name the fixture whose dependencies did not download"
     )
     assert f"command: {' '.join(cargo_fetch_command(manifest))}" in report, (
@@ -74,7 +82,7 @@ def test_prefetch_failure_summary_streams_to_stderr(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A failed prefetch surfaces its summary on standard error, exit code 1."""
-    manifest = REPO_ROOT / "crates/rstest-bdd/tests/fixtures/rebuild_invalidation/Cargo.toml"
+    manifest = FIXTURE_MANIFEST
     failing = subprocess.CompletedProcess(
         args=cargo_fetch_command(manifest),
         returncode=101,
@@ -105,7 +113,8 @@ def test_main_fetch_flag_routes_to_prefetch_without_validating(
             "check_fixture_lockfiles.discover_fixture_manifests", return_value=manifests
         ),
         mock.patch(
-            "check_fixture_lockfiles.fetch_fixture_dependencies", return_value=successful
+            "check_fixture_lockfiles.fetch_fixture_dependencies",
+            return_value=successful,
         ),
         mock.patch("check_fixture_lockfiles.run_cargo_metadata") as metadata,
     ):
