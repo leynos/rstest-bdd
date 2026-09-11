@@ -19,16 +19,16 @@ pub fn build_server_capabilities() -> ServerCapabilities {
             TextDocumentSyncOptions {
                 open_close: Some(true),
                 change: Some(TextDocumentSyncKind::INCREMENTAL),
-                save: Some(lsp_types::TextDocumentSyncSaveOptions::SaveOptions(
-                    lsp_types::SaveOptions {
+                save: Some(crate::lsp::TextDocumentSyncSaveOptions::SaveOptions(
+                    crate::lsp::SaveOptions {
                         include_text: Some(true),
                     },
                 )),
                 ..Default::default()
             },
         )),
-        definition_provider: Some(lsp_types::OneOf::Left(true)),
-        implementation_provider: Some(lsp_types::ImplementationProviderCapability::Simple(true)),
+        definition_provider: Some(crate::lsp::OneOf::Left(true)),
+        implementation_provider: Some(crate::lsp::ImplementationProviderCapability::Simple(true)),
         ..ServerCapabilities::default()
     }
 }

@@ -934,11 +934,11 @@ feature step locations.
 
 **Span conversion:**
 
-The handler converts `gherkin::Span` (byte offsets) to `lsp::Range`
-(0-based line/column) by scanning the source text. A utility module
-(`handlers/util.rs`) provides `gherkin_span_to_lsp_range()` for this purpose.
-The inverse function `lsp_position_to_byte_offset()` converts LSP positions
-back to byte offsets for feature file position matching.
+The handler converts `gherkin::Span` (byte offsets) to `lsp::Range` (0-based
+line/column) by scanning the source text. A utility module (`handlers/util.rs`)
+provides `gherkin_span_to_lsp_range()` for this purpose. The inverse function
+`lsp_position_to_byte_offset()` converts LSP positions back to byte offsets for
+feature file position matching.
 
 **Testing:**
 
