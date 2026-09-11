@@ -153,3 +153,68 @@ fn classifies_ignored_binding_failures() {
         Err(BindingIndexFailure::Malformed)
     ));
 }
+
+#[test]
+fn rejects_unknown_binding_arguments() {
+    let tokens = r#"path = "test.feature", libraries = [accounts], vocab = "nonsense""#
+        .parse()
+        .expect("valid binding tokens");
+
+    assert!(matches!(
+        parse_binding_arguments(&tokens),
+        Err(BindingIndexFailure::Malformed)
+    ));
+}
+
+#[test]
+fn rejects_repeated_path_binding_arguments() {
+    let tokens = r#"path = "one.feature", path = "two.feature""#
+        .parse()
+        .expect("valid binding tokens");
+
+    assert!(matches!(
+        parse_binding_arguments(&tokens),
+        Err(BindingIndexFailure::Malformed)
+    ));
+}
+
+#[test]
+fn rejects_repeated_libraries_binding_arguments() {
+    let tokens = r#"path = "test.feature", libraries = [accounts], libraries = [filesystem]"#
+        .parse()
+        .expect("valid binding tokens");
+
+    assert!(matches!(
+        parse_binding_arguments(&tokens),
+        Err(BindingIndexFailure::Malformed)
+    ));
+}
+
+#[test]
+fn duplicate_binding_arguments_produce_one_diagnostic_without_indexing() {
+    for duplicate in [
+        r#"path = "one.feature", path = "two.feature""#,
+        r#"path = "test.feature", libraries = [accounts], libraries = [filesystem]"#,
+    ] {
+        let source = format!("#[scenario({duplicate})]\nfn test() {{}}\n");
+        let file = syn::parse_file(&source).expect("Rust source");
+
+        let index = index_scenario_bindings(&file, Path::new("steps.rs"));
+
+        assert!(
+            index.bindings.is_empty(),
+            "duplicate arguments must not install a binding"
+        );
+        assert_eq!(
+            index.diagnostics.len(),
+            1,
+            "duplicate arguments must yield exactly one diagnostic"
+        );
+        assert!(matches!(
+            index.diagnostics.first().map(
+                super::diagnostics::ScenarioBindingIndexDiagnostic::failure_category,
+            ),
+            Some("malformed-arguments")
+        ));
+    }
+}
