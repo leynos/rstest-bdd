@@ -9,6 +9,7 @@ pub mod binary_test_support;
 mod error;
 #[doc(hidden)]
 pub mod macrotest_support;
+pub mod nested_cargo;
 mod policy;
 pub mod policy_conformance;
 mod runner;

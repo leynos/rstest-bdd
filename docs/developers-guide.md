@@ -1077,6 +1077,17 @@ runtime coverage. Continuous Integration installs the same nightly plus the
 Wayland, X11, and xkbcommon development libraries only for the explicitly named
 end-to-end step.
 
+Its committed `Cargo.lock` is refreshed with `make
+update-published-gpui-e2e-lock`, which stages the artefacts first and then lets
+Cargo regenerate the lockfile. Because the fixture patches crates.io names onto
+`target/` artefacts, the discovery-based fixture gate cannot see it; the
+aggregate `make check-fixture-lockfiles` and `make update-fixture-lockfiles`
+targets therefore depend on the dedicated
+`check-published-gpui-e2e-lock` and `update-published-gpui-e2e-lock` targets,
+keeping the staged lockfile inside both the validation and the Dependabot
+refresh sets. A dependency bump that stales the fixture fails `cargo metadata
+--locked` in the check target before any behavioural suite can mask it.
+
 ## `#[serial]`/nextest matrix validation (`scripts/check_serial_nextest_matrix.py`)
 
 The runner matrix for `#[serial]`, cargo-nextest, `#[file_serial]`, and nextest
@@ -2605,12 +2616,16 @@ pattern in `crates/rstest-bdd/tests/feature_rebuild_invalidation/`:
   `make check-fixture-lockfiles`. The gate runs
   `scripts/check_fixture_lockfiles.py`, which discovers every workspace opt-out
   manifest that uses local `path` dependencies and commits a `Cargo.lock`, then
-  proves each lockfile still resolves with `cargo metadata --locked`. CI runs
-  the same target after the workspace build, and the Dependabot refresh
-  workflow regenerates the set with `make update-fixture-lockfiles`, so the
-  check and the refresh path always agree on which fixtures are authoritative.
-  A stale lockfile therefore fails before the behavioural nested-Cargo tests
-  can mask the drift.
+  proves each lockfile still resolves with `cargo metadata --locked`. The
+  target depends on `check-published-gpui-e2e-lock` because the staged
+  published-GPUI end-to-end fixture patches crates.io names onto `target/`
+  artefacts and is invisible to the script's discovery. CI runs the same
+  target after the workspace build, and the Dependabot refresh workflow
+  regenerates the set with `make update-fixture-lockfiles`, which mirrors the
+  same two halves through its `update-published-gpui-e2e-lock` prerequisite,
+  so the check and the refresh path always agree on which fixtures are
+  authoritative. A stale lockfile therefore fails before the behavioural
+  nested-Cargo tests can mask the drift.
 - The test copies the fixture into `target/tests/<name>/` under the shared
   workspace `target/`, rewrites the copied manifest's relative `path = "…"`
   values to absolute paths (resolving against the *source* directory, whose
@@ -2619,10 +2634,15 @@ pattern in `crates/rstest-bdd/tests/feature_rebuild_invalidation/`:
   copy idempotent; stale scratch trees are always re-copied.
 - Every nested `cargo` invocation uses a controlled child environment:
   `.env_clear()` plus a captured snapshot of the parent, with `CARGO_MAKEFLAGS`,
-  `CARGO_PKG_*`, and `CARGO_LLVM_COV*` stripped, `CARGO_TARGET_DIR` inherited
-  or defaulted to the workspace `target/`, and `LLVM_PROFILE_FILE` redirected
-  under the scratch so nested coverage never merges into the parent's gated
-  profile.
+  `CARGO_PKG_*`, and `CARGO_LLVM_COV*` stripped, and `CARGO_TARGET_DIR`
+  inherited or defaulted to the workspace `target/`. The caller names the
+  coverage destination: `ProfileDestination::ChildScratch` redirects an
+  inherited `LLVM_PROFILE_FILE` under the scratch so nested coverage never
+  merges into the parent's gated profile, while `ProfileDestination::Caller`
+  keeps the inherited pattern for the process under test. Only the latter
+  measures anything — `cargo llvm-cov` merges just the `.profraw` files named
+  by the pattern it exported, so a redirected process reports as untested code
+  rather than as a missing profile.
 - The child runs under the harness's own wall-clock bound via
   `env!("CARGO")`, and its stdout/stderr pipes are drained by reader threads
   while the run polls for exit — a voluminous `--message-format=json` build

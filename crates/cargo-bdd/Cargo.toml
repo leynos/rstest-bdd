@@ -23,6 +23,7 @@ serde.workspace = true
 serde_json.workspace = true
 eyre.workspace = true
 tracing.workspace = true
+rstest-bdd-harness.workspace = true
 
 [dev-dependencies]
 assert_cmd = "2"

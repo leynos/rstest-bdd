@@ -9,6 +9,7 @@ use std::{
 
 use cargo_metadata::{Message, Package, PackageId, Target, TargetKind};
 use eyre::{Context, Result, bail, eyre};
+use rstest_bdd_harness::nested_cargo;
 use serde::Deserialize;
 use tracing::warn;
 
@@ -140,7 +141,7 @@ fn build_test_binaries(metadata: &cargo_metadata::Metadata) -> Result<Vec<PathBu
     let mut bins = Vec::new();
     let mut seen = HashSet::new();
     for package in workspace_packages(&metadata.packages, &workspace) {
-        collect_package_binaries(package, &mut bins, &mut seen)?;
+        collect_package_binaries(metadata, package, &mut bins, &mut seen)?;
     }
     bins.sort_by(|a, b| a.as_os_str().cmp(b.as_os_str()));
     Ok(bins)
@@ -148,12 +149,13 @@ fn build_test_binaries(metadata: &cargo_metadata::Metadata) -> Result<Vec<PathBu
 
 /// Build all test binaries for one workspace package.
 fn collect_package_binaries(
+    metadata: &cargo_metadata::Metadata,
     package: &Package,
     bins: &mut Vec<PathBuf>,
     seen: &mut HashSet<PathBuf>,
 ) -> Result<()> {
     for target in test_targets(&package.targets) {
-        let extracted = build_test_target(package, target)?;
+        let extracted = build_test_target(metadata, package, target)?;
         for bin in extracted {
             if seen.contains(&bin) {
                 continue;
@@ -220,8 +222,24 @@ fn handle_build_failure(package_name: &str, target_name: &str) -> Result<()> {
 }
 
 /// Build one test target and extract its executable path.
-fn build_test_target(package: &Package, target: &Target) -> Result<Vec<PathBuf>> {
-    let mut cmd = Command::new("cargo");
+fn build_test_target(
+    metadata: &cargo_metadata::Metadata,
+    package: &Package,
+    target: &Target,
+) -> Result<Vec<PathBuf>> {
+    // Isolate the nested build from the parent's Cargo control variables:
+    // under `cargo llvm-cov` the inherited `CARGO_MAKEFLAGS` jobserver and
+    // `CARGO_LLVM_COV*` redirections either hang the child or corrupt the
+    // coverage profile. The filtered environment also stops `cargo-bdd` from
+    // building into a stale or foreign target directory. The build's own
+    // coverage is incidental to the run that spawned it, so it is redirected
+    // out of the caller's profile rather than merged into it.
+    let fallback_target_dir = PathBuf::from(&metadata.target_directory);
+    let env = nested_cargo::build_child_env(
+        &fallback_target_dir,
+        nested_cargo::ProfileDestination::ChildScratch,
+    );
+    let mut cmd = nested_cargo::cargo_command(&env, Path::new("."));
     cmd.args([
         "test",
         "--no-run",
