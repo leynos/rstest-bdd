@@ -281,16 +281,73 @@ select = [
 ]
 ```
 
-## 10) One‑page policy for repositories
+## 10) Documenting raises: the function's own, and the helper's
+
+A `Raises` section describes what the documented function itself raises, so a
+raise written in its own body is documented there:
+
+```python
+def read_pin(text: str) -> str:
+    """Return the commit an environment pin declares.
+
+    Returns
+    -------
+    str
+        The commit the pin names.
+
+    Raises
+    ------
+    PinMissingError
+        If the text names no commit.
+    """
+    match = PIN.search(text)
+    if match is None:
+        message = "the pin must name a commit"
+        raise PinMissingError(message)
+    return match["ref"]
+```
+
+A raise delegated to a shared guard is different. When a module funnels its
+shape checks through one helper — `_require(condition, message)` — the
+documented function's body holds no `raise` statement of its own, and a
+`Raises` section naming that exception is refused
+(`docstring-extraneous-exception`). The analysis is syntactic: it cannot see
+through the call.
+
+Describe the delegated failure in the docstring's prose instead, naming the
+causes, so a caller still learns what can fail and why:
+
+```python
+def read_lockfile(text: str) -> str:
+    """Return the commit a lock file resolves the dependency to.
+
+    Text naming no revision, or resolving the dependency to more than one,
+    raises :class:`PinMissingError` through :func:`_require`: either way the
+    lock file cannot say what a bare ``uv run`` installs.
+
+    Returns
+    -------
+    str
+        The commit the lock file records.
+    """
+```
+
+Neither form is a suppression, and neither is second best: choose the one the
+raise's location calls for. Do not keep a `Raises` section by silencing the
+lint, and do not hide a direct raise in prose to match a neighbour.
+
+## 11) One‑page policy for repositories
 
 > **Exceptions are part of the public API.** Define a small hierarchy with a
 > package base and `*Error` suffix; raise specific types; wrap external
 > failures with `raise … from …`; catch only what can be handled; use `else`
 > for the happy path; avoid `try/except` in hot loops; never format log
-> messages directly; log exceptions once at a boundary via `logger.exception`.
+> messages directly; log exceptions once at a boundary via `logger.exception`;
+> document a `Raises` section only for the exceptions a function raises itself,
+> describing a raise delegated to a helper in prose.
 > Enforce with Ruff (TRY/BLE/EM/LOG/N818/PERF203/B017).
 
-## 11) References
+## 12) References
 
 - Ruff rules: Tryceratops (TRY), Blind Except (BLE001), flake8‑errmsg
   (EM101/EM102), flake8‑logging (LOG004/LOG007/LOG009/LOG014/LOG015), N818,
