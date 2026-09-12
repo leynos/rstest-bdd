@@ -653,15 +653,30 @@ test run. nextest's global timeout starts only once tests begin. A watchdog
 merely larger than the global timeout is still pre-empting it whenever the
 build takes longer than the difference between them.
 
-The far end matters as well. A test already running when the global timeout
-expires is allowed to finish, so a run can outlast that budget by the longest
-per-test allowance, 20 minutes here. Whether that tail is ever reached or not,
-allowing for it costs nothing, because the watchdog only fires on an overrun.
+The far end matters as well, though less than it first appears. Hitting the
+global timeout does not stop the run instantly: nextest follows its ordinary
+termination procedure, signalling the process group on Unix and waiting
+`slow-timeout.grace-period`, five seconds here, before killing it. On Windows,
+termination is immediate, and the grace period is ignored for timeouts. So the
+allowance is seconds rather than minutes, but it is not zero, and the contract
+reads it from the configuration so a profile that raises it raises the
+requirement too.
 
-The watchdog is therefore sized as the global timeout, plus the running-test
-tail, plus a cold-build allowance: 75 m + 20 m + 15 m = 110 m. The build phase
-inside `cargo` measured 3 m 31 s on run 33966769942 with a nearly cold cache,
-so the 15 minutes is generous on purpose.
+The watchdog is therefore sized as the global timeout, plus a termination
+allowance, plus a cold-build allowance: 75 m + 65 s + 15 m, taken up to 110 m.
+The termination allowance is derived, not fixed: the largest configured grace
+period, five seconds here, or nextest's ten-second default when none is named,
+plus a sixty-second margin for the teardown and report writing that follow. The
+build phase inside `cargo` measured 3 m 31 s on run 33966769942 with a nearly
+cold cache, so the 15 minutes is generous on purpose, and the extra minutes of
+rounding cost nothing because the watchdog only fires on an overrun.
+
+This paragraph previously claimed that a test already running when the global
+timeout expires is allowed to finish, and sized the middle term at the 20 minute
+trybuild allowance. That was wrong, and it is recorded here rather than quietly
+replaced because the other repositories adopting this contract copy this
+section. The numbers did not change: the value chosen from the wrong premise is
+larger than the corrected rule requires.
 
 The job timer starts when the job starts, long before coverage and long after
 it finishes. On the Linux lane, formatting, linting, type checking and the
@@ -728,6 +743,50 @@ job's ceiling has nothing to say about this one. It also requires every step
 that invokes the shared coverage action to set the watchdog explicitly: a step
 that loses its override inherits the action's 1,800 s default, which is how
 this went wrong in the first place.
+
+The arithmetic behind those assertions lives in `timeout_budgets.py`, beside
+the contract: nextest's duration strings and the watchdog rule itself. The
+configuration reading it works from lives in `nextest_config.py`, which
+derives the termination allowance from the largest configured grace period.
+Between them, they own that reading for the workflow contracts and nothing
+else, and both take text rather than paths, so a test stays in charge of what
+it is asserting about. A new tier belongs there beside the others rather than
+inline in a contract module.
+
+It is separated because the contract alone cannot exercise it. Every
+`grace-period` in `.config/nextest.toml` is five seconds, so the contract sees
+one value and would pass with the reading replaced by that constant.
+`timeout_budgets_test.py` drives the derivations with controlled configurations
+instead: a grace period above the margin, one below it, one equal to it, none
+at all, several profiles disagreeing, and a watchdog sized the way the
+superseded two-term rule would have sized it.
+
+The configuration is parsed with `tomllib` rather than matched as text. A text
+match finds a key inside a comment, inside a `filter` string, or in a table
+nextest never consults, and reports a budget the runner does not use. The
+commented-out `global-timeout` is the case that matters most, because the
+contract requires that tier to be present: a scraping reader would go on
+reporting a budget somebody had switched off. Parsing also keeps a profile's
+own table apart from its overrides, which is what lets the base allowance be
+asserted on its own: an override bounds the tests its filter matches, and a
+profile whose only `terminate-after` sat in one would leave every unmatched
+test with no bound at all while the largest budget still read comfortable.
+
+`terminate-after` is optional, and nextest treats its absence as no
+termination: the test is reported slow, once per period, and runs on. The
+reading refuses that form rather than counting it as one period. It also counts
+the multiplier, which it did not before: the budget is `period` multiplied by
+`terminate-after`, and every multiplier here is one, so the old reading agreed
+with a correct one against this file and would have been wrong the moment
+somebody raised one. `nextest_config_test.py` drives all of it with
+configurations this repository does not have.
+
+The termination allowance is itself two terms added, not a floor over them:
+the largest configured grace period, or nextest's ten-second default when none
+is named, plus a sixty-second margin for the teardown and report writing that
+follow. A floor absorbs every grace period below it, so raising this file's
+five seconds to thirty would demand nothing more of the watchdog above it, and
+the saving would look free until the run it cancelled.
 
 ## `#[serial]`, `#[file_serial]`, and nextest test-groups
 
