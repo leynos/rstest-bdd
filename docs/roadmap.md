@@ -1320,11 +1320,11 @@ belong to a feature phase.
   Dependabot lockfile refresh workflow. Finish line:
   `.github/workflows/refresh-derived-fixture-lockfiles.yml` no longer
   interpolates `github.event.pull_request.head.ref` in an inline shell
-  script; the push step binds the expression to a `PR_HEAD_REF` environment
+  script; the push step binds the expression to a `HEAD_REF` environment
   variable and expands it quoted, preserving the existing dispatch
   semantics. Delivered 2026-09-07: the push step now reads
-  `git push origin "HEAD:$PR_HEAD_REF"` and the workflow contract test locks
-  in both the env mapping and the command. Validation:
+  `git push origin "HEAD:$HEAD_REF"` and the workflow contract test locks in
+  both the env mapping and the command. Validation:
   `actionlint -config-file .github/actionlint.yaml
   .github/workflows/refresh-derived-fixture-lockfiles.yml` and `make
   test-workflow-contracts` passed.
