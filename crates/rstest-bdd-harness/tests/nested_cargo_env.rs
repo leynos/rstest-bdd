@@ -51,16 +51,10 @@ fn strips_makeflags_pkg_and_llvm_cov_variables() {
         ]),
         Some(&fallback()),
     );
-    assert!(!env.contains_key("CARGO_MAKEFLAGS"));
-    assert!(!env.contains_key("CARGO_PKG_NAME"));
-    assert!(!env.contains_key("CARGO_LLVM_COV"));
-    assert!(!env.contains_key("CARGO_LLVM_COV_TARGET_DIR"));
-    assert!(!env.contains_key("CARGO_LLVM_COV_SHOW_MISSING"));
     assert_eq!(
-        env.get("CARGO_TARGET_DIR"),
-        Some(OsStr::new("/shared-target"))
+        describe_env(&env),
+        "CARGO_TARGET_DIR=/shared-target\nPATH=/usr/bin"
     );
-    assert_eq!(env.get("PATH"), Some(OsStr::new("/usr/bin")));
 }
 
 #[test]
