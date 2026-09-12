@@ -2626,12 +2626,26 @@ pattern in `crates/rstest-bdd/tests/feature_rebuild_invalidation/`:
   so the check and the refresh path always agree on which fixtures are
   authoritative. A stale lockfile therefore fails before the behavioural
   nested-Cargo tests can mask the drift.
-- The test copies the fixture into `target/tests/<name>/` under the shared
-  workspace `target/`, rewrites the copied manifest's relative `path = "…"`
-  values to absolute paths (resolving against the *source* directory, whose
-  depth the `..` counts match), and mutates only the copy.
-- A versioned stamp file (a hash of the source tree, written last) makes the
-  copy idempotent; stale scratch trees are always re-copied.
+- The Dependabot lockfile refresh runs in
+  `.github/workflows/refresh-derived-fixture-lockfiles.yml`, which triggers
+  only on `pull_request_target` events from Dependabot (`dependabot[bot]`) that
+  touch the configured Cargo manifest paths (the workspace root, `crates/**`,
+  and the two published-GPUI fixtures). The job checks out the pull request
+  head SHA, refreshes every standalone fixture lockfile with
+  `make update-fixture-lockfiles`, commits only `**/Cargo.lock` paths, and —
+  when nothing changed — validates the no-op refresh with
+  `make check-fixture-lockfiles`.
+  The workflow's push step is a shell-safety invariant:
+  `github.event.pull_request.head.ref` is untrusted input, so the step assigns
+  it only through the step-level `HEAD_REF` environment variable, and the push
+  command must remain `git push origin "HEAD:$HEAD_REF"`. Do not interpolate
+  `github.event.pull_request.head.ref` directly into a `run:` block: a ref
+  name may carry shell metacharacters, and inline substitution would hand the
+  shell executable script instead of quoted data. The property and shape
+  contracts in `tests/workflow_contracts/derived_fixture_lockfiles_test.py` —
+  run through `make test-workflow-contracts` — enforce this contract, including
+  a Hypothesis test that executes the push step against generated hostile ref
+  names.
 - Every nested `cargo` invocation uses a controlled child environment:
   `.env_clear()` plus a captured snapshot of the parent, with `CARGO_MAKEFLAGS`,
   `CARGO_PKG_*`, and `CARGO_LLVM_COV*` stripped, and `CARGO_TARGET_DIR`
