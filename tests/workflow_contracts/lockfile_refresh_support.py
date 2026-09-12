@@ -21,6 +21,8 @@ if typ.TYPE_CHECKING:
     import collections.abc as cabc
     from pathlib import Path
 
+from hypothesis import strategies as st
+
 #: The shell the runner starts for a `run:` fragment, resolved to an absolute
 #: path so the harness uses the same interpreter the runner does rather than
 #: whichever `bash` a contributor's PATH offers first.
@@ -43,6 +45,26 @@ HEAD_REF_EXPRESSION: typ.Final[re.Pattern[str]] = re.compile(
 INVOCATION_LOG_VARIABLE: typ.Final[str] = "GIT_INVOCATIONS"
 #: The file the recording ``git`` appends its argument vectors to.
 INVOCATION_LOG_NAME: typ.Final[str] = "git-invocations.log"
+# Ref fragments a hostile caller could reach a git ref name through, alongside
+# ordinary ref-like text.  Metacharacters probe quoting, expansion, command
+# substitution, globs, escapes, and field splitting, so the property fails for
+# any parsing the shell does rather than only for the one scripted value.
+_REF_METACHARACTERS = "'\";|&$()`*?[]\\ \t\n"
+HOSTILE_HEAD_REF_STRATEGY: typ.Final = st.one_of(
+    st.text(
+        alphabet=st.characters(min_codepoint=33, max_codepoint=0x10FFFF),
+        min_size=1,
+        max_size=48,
+    ),
+    st.lists(st.sampled_from(_REF_METACHARACTERS), min_size=1, max_size=16).map(
+        "".join
+    ),
+).filter(
+    # An embedded newline ends the runner's script file, so the shell could
+    # only ever see a prefix of the value; git cannot express such a ref
+    # either, so the property skips the unrepresentable case.
+    lambda ref: "\n" not in ref
+)
 
 
 def read_invocation_log(invocation_log: Path) -> list[list[str]]:

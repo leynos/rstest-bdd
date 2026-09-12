@@ -23,9 +23,9 @@ from pathlib import Path
 import hypothesis
 import pytest
 import yaml
-from hypothesis import strategies as st
 from lockfile_refresh_support import (
     HOSTILE_HEAD_REF,
+    HOSTILE_HEAD_REF_STRATEGY,
     INJECTION_ARTEFACT,
     INVOCATION_LOG_NAME,
     read_invocation_log,
@@ -289,33 +289,12 @@ def _example_working_dir(tmp_path: Path, example_index: int) -> Path:
     return working_dir
 
 
-# Ref fragments a hostile caller could reach a git ref name through, alongside
-# ordinary ref-like text.  Metacharacters probe quoting, expansion, command
-# substitution, globs, escapes, and field splitting, so the property fails for
-# any parsing the shell does rather than only for the one scripted value.
-_REF_METACHARACTERS = "'\";|&$()`*?[]\\ \t\n"
-_hostile_head_ref = st.one_of(
-    st.text(
-        alphabet=st.characters(min_codepoint=33, max_codepoint=0x10FFFF),
-        min_size=1,
-        max_size=48,
-    ),
-    st.lists(st.sampled_from(_REF_METACHARACTERS), min_size=1, max_size=16).map(
-        "".join
-    ),
-).filter(
-    # An embedded newline ends the runner's script file, so the shell could
-    # only ever see a prefix of the value; git cannot express such a ref
-    # either, so the property skips the unrepresentable case.
-    lambda ref: "\n" not in ref
-)
-
 # Counts the property test's invocations so each generated example gets a
 # fresh scratch directory inside the one function-scoped ``tmp_path``.
 _EXAMPLE_SEQUENCE = 0
 
 
-@hypothesis.given(head_ref=_hostile_head_ref)
+@hypothesis.given(head_ref=HOSTILE_HEAD_REF_STRATEGY)
 @hypothesis.settings(
     max_examples=25,
     deadline=dt.timedelta(seconds=5),
