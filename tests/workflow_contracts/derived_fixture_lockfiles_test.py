@@ -7,15 +7,27 @@ checked-out pull request head, and the lockfiles regenerated through the
 authoritative ``make update-fixture-lockfiles`` target.  They also keep the
 workflow limited to its lock-refresh targets; the ordinary CI workflow
 continues to build and exercise the fixtures, and the shared
-``make check-fixture-lockfiles`` gate validates the refreshed set.
+``make check-fixture-lockfiles`` gate validates the refreshed set.  The push
+target is a caller-controlled ref name, so it reaches the shell through the
+environment as quoted data rather than as interpolated script text.  Running
+that fragment, rather than reading it, is
+:mod:`lockfile_refresh_support`; this module owns the assertions.
 
 Run via ``make test-workflow-contracts``.
 """
 
+import re
 from pathlib import Path
 
 import pytest
 import yaml
+from lockfile_refresh_support import (
+    HOSTILE_HEAD_REF,
+    INJECTION_ARTEFACT,
+    INVOCATION_LOG_NAME,
+    resolve_fragment,
+    run_fragment,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW_PATH = ROOT / ".github" / "workflows" / "refresh-derived-fixture-lockfiles.yml"
@@ -183,10 +195,104 @@ def test_refresh_commit_and_push_touch_only_generated_lockfiles(
     assert push.get("if") == "${{ steps.commit.outputs.changed == 'true' }}", (
         "the push step must run only when lockfiles changed"
     )
-    assert (
-        push.get("run")
-        == "git push origin HEAD:${{ github.event.pull_request.head.ref }}"
-    ), "the push step must push the refreshed lockfiles to the pull-request head"
+    assert push.get("env") == {
+        "HEAD_REF": "${{ github.event.pull_request.head.ref }}",
+    }, (
+        "the push step must bind the pull-request head ref in the environment "
+        "so the shell receives it as data"
+    )
+    assert push.get("run") == 'git push origin "HEAD:$HEAD_REF"', (
+        "the push step must push the refreshed lockfiles to the pull-request "
+        "head branch named by HEAD_REF"
+    )
+
+
+# Context values the shell must never parse as script.  The trailing ``\b``
+# keeps ``github.event_name``, a fixed event label, out of the match.
+_UNTRUSTED_INLINE_EXPRESSION = re.compile(
+    r"\$\{\{[^}]*github\.(?:event\b|head_ref\b)[^}]*\}\}"
+)
+
+
+def test_push_step_never_interpolates_untrusted_refs_inline(
+    refresh_job: dict[str, object],
+) -> None:
+    """A caller-controlled ref name must not reach the shell as script text."""
+    push = _named_step(refresh_job, "Push refreshed lockfiles")
+    match push.get("run"):
+        case str() as script:
+            pass
+        case script:
+            assert isinstance(script, str), "the push step must declare a shell script"
+    offending = _UNTRUSTED_INLINE_EXPRESSION.findall(script)
+    assert not offending, (
+        f"the push step script must not interpolate {offending} inline: bind "
+        'each untrusted value in env: and reference it as "$VAR" so the shell '
+        "parses it as quoted data instead of as script"
+    )
+
+
+def _push_fragment(
+    push: dict[str, object], head_ref: str
+) -> tuple[str, dict[str, str]]:
+    """Return the push step's script and environment as the runner resolves them.
+
+    A step that declares no environment is run as it stands, so the injection
+    the hostile-ref contract exists to catch still happens and is reported as
+    an executed command rather than as a shape complaint.  The env binding
+    itself is pinned exactly by the sibling shape contracts.
+
+    Parameters
+    ----------
+    push : dict[str, object]
+        The parsed push step.
+    head_ref : str
+        The ref name to stand in for the one a pull request supplies.
+
+    Returns
+    -------
+    tuple[str, dict[str, str]]
+        The resolved script, and the environment to run it with.
+    """
+    match push.get("run"):
+        case str() as script:
+            pass
+        case script:
+            assert isinstance(script, str), "the push step must declare a shell script"
+    declared = push.get("env", {})
+    assert isinstance(declared, dict), "the push step's environment must be a mapping"
+    return resolve_fragment(script, declared, head_ref)
+
+
+def test_push_step_delivers_a_hostile_head_ref_as_one_inert_argument(
+    refresh_job: dict[str, object], tmp_path: Path
+) -> None:
+    """A ref the runner supplies reaches git whole and never reaches a shell."""
+    push = _named_step(refresh_job, "Push refreshed lockfiles")
+    script, environment = _push_fragment(push, HOSTILE_HEAD_REF)
+
+    working_dir = tmp_path / "workdir"
+    working_dir.mkdir()
+    result = run_fragment(script, environment, working_dir)
+
+    invocation_log = working_dir / INVOCATION_LOG_NAME
+    recorded = [
+        line.split("\0")[1:]
+        for line in invocation_log.read_text(encoding="utf-8").splitlines()
+    ]
+    assert recorded == [["push", "origin", f"HEAD:{HOSTILE_HEAD_REF}"]], (
+        "the push step must hand git the whole ref as one argument, got "
+        f"{recorded}: a ref the shell parsed would arrive split, substituted, "
+        "or run"
+    )
+    assert not (working_dir / INJECTION_ARTEFACT).exists(), (
+        "the head ref must reach the shell as data: the hostile ref created "
+        f"{INJECTION_ARTEFACT!r}, so the shell parsed it as syntax"
+    )
+    assert result.returncode == 0, (
+        "the push step must survive a ref name carrying shell metacharacters, "
+        f"exit {result.returncode}, stderr {result.stderr!r}"
+    )
 
 
 def test_validation_runs_when_refresh_changes_nothing(

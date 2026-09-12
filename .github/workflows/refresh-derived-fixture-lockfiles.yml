@@ -53,7 +53,12 @@ jobs:
 
       - name: Push refreshed lockfiles
         if: ${{ steps.commit.outputs.changed == 'true' }}
-        run: git push origin HEAD:${{ github.event.pull_request.head.ref }}
+        # The head ref reaches the shell as quoted data, never as script text.
+        # Git ref names may contain shell metacharacters, and the Dependabot
+        # guard narrows who can trigger this job, not what the ref may hold.
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: git push origin "HEAD:$HEAD_REF"
 
       - name: Validate refreshed fixture lockfiles
         if: ${{ steps.commit.outputs.changed != 'true' }}
