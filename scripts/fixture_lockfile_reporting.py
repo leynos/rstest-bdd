@@ -9,6 +9,7 @@ of a stale-lockfile or failed-prefetch failure stays testable in one place.
 import dataclasses
 import sys
 import typing as typ
+from functools import partial
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
@@ -79,97 +80,21 @@ def _failure_message(
     )
 
 
-def stale_failure_message(
-    manifest: Path, command: list[str], result_stdout: str, result_stderr: str
-) -> str:
-    """
-    Return the failure text naming the stale manifest with Cargo's output.
-
-    Parameters
-    ----------
-    manifest : Path
-        The fixture whose lockfile failed to resolve.
-    command : list[str]
-        The Cargo command that failed, for reproduction.
-    result_stdout : str
-        Captured standard output from the failed Cargo run.
-    result_stderr : str
-        Captured standard error from the failed Cargo run.
-
-    Returns
-    -------
-    str
-        The multi-line failure report.
-    """
-    return _failure_message(
-        "stale or unusable fixture lockfile:",
-        manifest,
-        command,
-        result_stdout,
-        result_stderr,
-    )
-
-
-def refresh_failure_message(
-    manifest: Path, command: list[str], result_stdout: str, result_stderr: str
-) -> str:
-    """
-    Return the failure text for a lockfile that is stale after a refresh.
-
-    Parameters
-    ----------
-    manifest : Path
-        The fixture whose lockfile still fails to resolve after refreshing.
-    command : list[str]
-        The verification command that failed, for reproduction.
-    result_stdout : str
-        Captured standard output from the failed verification run.
-    result_stderr : str
-        Captured standard error from the failed verification run.
-
-    Returns
-    -------
-    str
-        The multi-line failure report.
-    """
-    return _failure_message(
-        "refresh failed for",
-        manifest,
-        command,
-        result_stdout,
-        result_stderr,
-    )
-
-
-def fetch_failure_message(
-    manifest: Path, command: list[str], result_stdout: str, result_stderr: str
-) -> str:
-    """
-    Return the failure text for a fixture whose dependencies did not download.
-
-    Parameters
-    ----------
-    manifest : Path
-        The fixture whose locked dependencies could not be fetched.
-    command : list[str]
-        The Cargo command that failed, for reproduction.
-    result_stdout : str
-        Captured standard output from the failed Cargo run.
-    result_stderr : str
-        Captured standard error from the failed Cargo run.
-
-    Returns
-    -------
-    str
-        The multi-line failure report.
-    """
-    return _failure_message(
-        "failed to prefetch fixture dependencies:",
-        manifest,
-        command,
-        result_stdout,
-        result_stderr,
-    )
+# The three gate messages share one report body and differ only by the heading
+# that opens it. Each heading keeps the punctuation of the wording it has always
+# produced — including the colon-free refresh heading — so no report changes.
+stale_failure_message = partial(
+    _failure_message,
+    "stale or unusable fixture lockfile:",
+)
+refresh_failure_message = partial(
+    _failure_message,
+    "refresh failed for",
+)
+fetch_failure_message = partial(
+    _failure_message,
+    "failed to prefetch fixture dependencies:",
+)
 
 
 def print_failures(failures: list[str]) -> None:
