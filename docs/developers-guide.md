@@ -2343,6 +2343,15 @@ wrappers. Callers must handle `StepLookupError` before interpreting the
 optional result; converting the result to an `Option` with `.ok()` erases the
 diagnostic that explains equally specific candidates.
 
+Every lookup that records usage funnels through the canonical private helper
+`mark_and_project` in `registry/mod.rs`. The helper performs the `mark_used`
+bookkeeping exactly once and applies the caller's projection to the resolved
+`Step`. The permitted call-sites are the public lookup wrappers in
+`registry/mod.rs` and `registry/async_lookup.rs`: new lookup variants must
+resolve a step (via `resolve_exact_step` / `resolve_step`) and pass it through
+`mark_and_project`. The one sanctioned direct `mark_step_used` call lives at
+the execution command boundary in `src/execution/mod.rs`.
+
 Pure scoped metadata lookup, exposed by `find_step_with_metadata_in_scope`,
 does not mutate usage tracking. The execution boundary resolves the step in its
 `StepScope`, then calls `mark_step_used` only after successful resolution. This
