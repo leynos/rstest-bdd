@@ -44,6 +44,56 @@
 - **Use Ruff for formatting**. Let Ruff handle whitespace and formatting
   entirely—don't fight it.
 
+## Suppressing a Diagnostic
+
+- **Fix the code first.** Suppress a diagnostic only when an external
+  constraint makes it wrong, never to quiet a rule the code could satisfy.
+- **Keep the scope to the site.** One directive, on the offending line or the
+  one definition it covers.
+- **Name the rules, not their codes.** Under the pinned Ruff, `# noqa: S404`
+  is refused (`noqa-comments`) and so is `# ruff: ignore[S404]`
+  (`rule-codes-in-suppression-comments`); `unused-noqa` refuses an entry that
+  suppresses nothing, and `invalid-suppression-comment` refuses a directive
+  that names no rule at all. Name only the rules that fire.
+- **State the external constraint** after a dash, as in the example below.
+- **Use the same shape for the other linters.** A pylint suppression goes on
+  the definition that needs it, as
+  `# pylint: disable-next=too-many-arguments`, never in a module-level
+  `disable`.
+
+```python
+import subprocess  # ruff: ignore[suspicious-subprocess-import] - runs the script this repository declares.
+```
+
+Arity is the usual reason a correct signature needs a directive: the project
+sets Ruff's `max-args` budget to four, so a helper that renders one report from
+five parts carries the directive on that one definition, with its reason, and
+leaves every other definition unannotated.
+
+## Shared Helpers and Sibling Functions
+
+- **Find the shared body.** When sibling functions differ only in one fixed
+  argument, keep that body in a single private helper and keep one entry point
+  per operation.
+- **Don't bundle parts to meet a budget.** A tuple or a purpose-built dataclass
+  that exists only to lower an argument count adds a transport type without
+  removing data or control flow, and splits one signature across two
+  definitions. A scoped directive on the helper states the real constraint; see
+  *Suppressing a Diagnostic* above.
+- **Keep the entry points documented.** An explicit function carries its NumPy
+  docstring, its annotations, and its place in the public API. A
+  `functools.partial` binding of the helper carries none of them, because the
+  docstring and annotation rules do not see an assignment. A binding is legal
+  where the entry points have no contract of their own—but the helper then
+  holds the only documentation those operations have.
+- **Preserve tested wording exactly.** Where the message text is a contract,
+  keep each operation's punctuation as it is.
+- **Answer a marker with the design, not with abstraction.** A CodeScene
+  `Code Duplication` or `Excess Number of Function Arguments` marker on such a
+  helper and its siblings is met by this shape; record the rationale in the
+  suppression note at the marker instead of widening a suppression or
+  reshaping the code.
+
 ## Documentation
 
 - **Use docstrings.** Document public functions, classes, and modules using
