@@ -211,9 +211,10 @@ fn duplicate_binding_arguments_produce_one_diagnostic_without_indexing() {
             "duplicate arguments must yield exactly one diagnostic"
         );
         assert!(matches!(
-            index.diagnostics.first().map(
-                super::diagnostics::ScenarioBindingIndexDiagnostic::failure_category,
-            ),
+            index
+                .diagnostics
+                .first()
+                .map(super::diagnostics::ScenarioBindingIndexDiagnostic::failure_category,),
             Some("malformed-arguments")
         ));
     }
