@@ -1,16 +1,16 @@
-"""Shared loading helpers for the workflow runner and cache contracts.
+"""Shared workflow document loaders for the contract modules.
 
-Both :mod:`runner_placement_test` and :mod:`runner_cache_test` read the same
-workflow documents. Keeping the loaders and the deployed runner constants in
-one place stops the two contract modules from drifting apart.
+:mod:`runner_placement_test`, :mod:`runner_cache_test` and the other contracts
+read the same workflow documents. Keeping the loaders and the deployed runner
+constants in one place stops those modules from drifting apart; the cache-step
+anatomy they build on lives in :mod:`cache_step_support`.
 
 The helpers raise subclasses of :class:`WorkflowShapeError` rather than
 asserting, so the module carries no blanket lint suppression and a malformed
 workflow fails the same way whether or not assertions are enabled.
 """
 
-import re
-from pathlib import Path, PurePosixPath, PureWindowsPath
+from pathlib import Path
 
 import yaml
 
@@ -18,19 +18,11 @@ ROOT = Path(__file__).resolve().parents[2]
 GITHUB_HOSTED_LINUX = "ubuntu-latest"
 UBICLOUD_LINUX_LABEL = "ubicloud-standard-2"
 GITHUB_HOSTED_WINDOWS = "windows-latest"
-# Ubicloud's transparent cache intercepts actions/cache v6.1.0 on Linux and
-# GitHub serves it on Windows, verified against the Ubicloud cache listing on
-# 2026-09-03. One action and one pin therefore serve every lane.
-CACHE_ACTION_PREFIX = "actions/cache/"
-CACHE_ACTION_REF = "@55cc8345863c7cc4c66a329aec7e433d2d1c52a9"
 # The named vCPU constants for the two deployed shapes. Build and test
 # parallelism is derived from these and must never exceed them.
 UBICLOUD_LINUX_VCPUS = "2"
 GITHUB_WINDOWS_VCPUS = "4"
 SCCACHE_DIRECTORY = "${{ github.workspace }}/.sccache"
-# Commands that execute the Rust workspace suite. `make test-workflow-contracts`
-# is deliberately excluded: it runs this Python suite, not the workspace.
-WORKSPACE_TEST_COMMANDS = ("cargo test", "cargo nextest", "make test")
 
 
 class WorkflowShapeError(AssertionError):
@@ -387,115 +379,3 @@ def step_index(job_steps: list[dict[str, object]], name: str) -> int:
     if len(matches) != 1:
         raise AmbiguousStepError(name, len(matches))
     return matches[0]
-
-
-def is_cache_step(step: dict[str, object]) -> bool:
-    """Report whether a step invokes one of the approved cache actions.
-
-    Parameters
-    ----------
-    step : dict[str, object]
-        One workflow step.
-
-    Returns
-    -------
-    bool
-        True when the step uses an approved cache action.
-    """
-    return str(step.get("uses", "")).startswith(CACHE_ACTION_PREFIX)
-
-
-def cache_paths(step: dict[str, object]) -> list[str]:
-    """Return the normalized cache paths a cache step owns.
-
-    Parameters
-    ----------
-    step : dict[str, object]
-        A cache step, as identified by :func:`is_cache_step`.
-
-    Returns
-    -------
-    list[str]
-        One entry per declared path, stripped of surrounding whitespace.
-
-    Raises
-    ------
-    CacheStepInputsError
-        If the step declares no inputs.
-    CacheStepPathsError
-        If the step declares no path.
-    """
-    inputs = step.get("with")
-    if not isinstance(inputs, dict):
-        raise CacheStepInputsError
-    raw_path = inputs.get("path")
-    if not isinstance(raw_path, str):
-        raise CacheStepPathsError
-    return [line.strip() for line in raw_path.splitlines() if line.strip()]
-
-
-def path_components(path: str) -> list[str]:
-    """Return every component of a cache path, under either separator.
-
-    A workflow path may use POSIX or Windows separators, and a component such
-    as ``target`` can sit at any depth, so both forms are parsed and merged.
-
-    Parameters
-    ----------
-    path : str
-        One declared cache path, possibly containing an expression.
-
-    Returns
-    -------
-    list[str]
-        Every path component under both separator conventions.
-    """
-    # Expressions such as ${{ github.workspace }} contain no separator of
-    # interest, so they survive as a single component either way.
-    posix = PurePosixPath(path).parts
-    windows = PureWindowsPath(path).parts
-    return [part.strip("/\\") for part in (*posix, *windows) if part.strip("/\\")]
-
-
-def cache_owner(step: dict[str, object]) -> str:
-    """Return the logical owner name of a cache step.
-
-    Restore and save steps for the same paths share an owner, and so do the
-    Linux and Windows variants of one owner: their ``runner.os`` guards make
-    them mutually exclusive.
-
-    Parameters
-    ----------
-    step : dict[str, object]
-        A cache step, as identified by :func:`is_cache_step`.
-
-    Returns
-    -------
-    str
-        The step name without its action verb or its runner-provider suffix.
-    """
-    name = str(step.get("name", ""))
-    name = re.sub(r"^(Restore|Save) ", "", name)
-    return re.sub(r"\s*\([^)]*\)$", "", name)
-
-
-def runs_workspace_tests(step: dict[str, object]) -> bool:
-    """Report whether a step runs the Rust workspace suite directly.
-
-    Parameters
-    ----------
-    step : dict[str, object]
-        One workflow step.
-
-    Returns
-    -------
-    bool
-        True when the step's script invokes a workspace test driver.
-    """
-    script = str(step.get("run", ""))
-    for line in script.splitlines():
-        command = line.strip()
-        for driver in WORKSPACE_TEST_COMMANDS:
-            if command == driver or command.startswith(f"{driver} "):
-                return True
-    return False
