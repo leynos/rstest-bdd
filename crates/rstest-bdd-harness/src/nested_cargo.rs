@@ -17,9 +17,16 @@
 //!   control).
 //! * an existing `CARGO_TARGET_DIR` is preserved so nested builds reuse the outer build cache;
 //! * when absent, the caller's fallback target directory is used;
-//! * an inherited `LLVM_PROFILE_FILE` is replaced with a unique child-only scratch destination so
-//!   nested coverage never merges into the parent's gated profile;
+//! * an inherited `LLVM_PROFILE_FILE` is kept by default, and replaced with a unique child-only
+//!   scratch destination when the caller asks for [`ProfileDestination::ChildScratch`], so nested
+//!   coverage never merges into the parent's gated profile;
 //! * unrelated variables are preserved.
+//!
+//! Keeping the inherited profile is the default because `cargo llvm-cov` merges
+//! the `.profraw` files named by the pattern it exported: replacing that pattern
+//! silently drops the coverage of every process spawned with the result, which
+//! then reads as untested code rather than as an uncollected profile. The
+//! destination itself lives in the private `profile` submodule.
 //!
 //! Commands are built with [`std::process::Command::env_clear`] and resolved
 //! through the `CARGO` compile-time variable so the child never resolves
@@ -33,12 +40,15 @@ use std::{
     env,
     ffi::{OsStr, OsString},
     io,
-    path::{Path, PathBuf},
+    path::Path,
     process::{Child, Command, Output, Stdio},
-    sync::atomic::{AtomicU64, Ordering},
     thread,
     time::{Duration, Instant},
 };
+
+mod profile;
+
+pub use profile::ProfileDestination;
 
 /// Per-invocation wall-clock bound for each nested `cargo` call.
 ///
@@ -53,8 +63,15 @@ const CHILD_TIMEOUT: Duration = Duration::from_secs(300);
 /// Captures the current environment and applies the shared filtering rules;
 /// `fallback_target_dir` is used when the parent has no `CARGO_TARGET_DIR`.
 #[must_use]
-pub fn build_child_env(fallback_target_dir: &Path) -> NestedCargoEnv {
-    env_from_vars(env::vars_os().collect(), Some(fallback_target_dir))
+pub fn build_child_env(
+    fallback_target_dir: &Path,
+    profile_destination: ProfileDestination,
+) -> NestedCargoEnv {
+    env_from_vars(
+        env::vars_os().collect(),
+        Some(fallback_target_dir),
+        profile_destination,
+    )
 }
 
 /// Build a nested-Cargo environment from an explicit variable snapshot.
@@ -72,8 +89,9 @@ pub fn build_child_env(fallback_target_dir: &Path) -> NestedCargoEnv {
 pub fn env_from_vars(
     vars: Vec<(OsString, OsString)>,
     fallback_target_dir: Option<&Path>,
+    profile_destination: ProfileDestination,
 ) -> NestedCargoEnv {
-    NestedCargoEnv::from_vars(vars, fallback_target_dir)
+    NestedCargoEnv::from_vars(vars, fallback_target_dir, profile_destination)
 }
 
 /// The filtered environment applied to every nested `cargo` invocation.
@@ -82,7 +100,11 @@ pub struct NestedCargoEnv(BTreeMap<OsString, OsString>);
 
 impl NestedCargoEnv {
     /// Build the filtered environment from raw variable pairs.
-    fn from_vars(mut vars: Vec<(OsString, OsString)>, fallback_target_dir: Option<&Path>) -> Self {
+    fn from_vars(
+        mut vars: Vec<(OsString, OsString)>,
+        fallback_target_dir: Option<&Path>,
+        profile_destination: ProfileDestination,
+    ) -> Self {
         vars.retain(|(key, _)| {
             let key = key.to_string_lossy();
             key != "CARGO_MAKEFLAGS"
@@ -110,15 +132,19 @@ impl NestedCargoEnv {
         }
 
         // Redirect nested coverage output away from the parent's gated profile
-        // so the child's `.profraw` never merges into the parent's pattern.
-        if vars
-            .iter()
-            .any(|(key, _)| key.to_string_lossy() == "LLVM_PROFILE_FILE")
+        // so the child's `.profraw` never merges into the parent's pattern. The
+        // process under test keeps the inherited pattern instead: its coverage
+        // is the measurement, and a scratch path outside the coverage
+        // directory loses it silently.
+        if profile_destination == ProfileDestination::ChildScratch
+            && vars
+                .iter()
+                .any(|(key, _)| key.to_string_lossy() == "LLVM_PROFILE_FILE")
         {
             vars.retain(|(key, _)| key.to_string_lossy() != "LLVM_PROFILE_FILE");
             vars.push((
                 OsString::from("LLVM_PROFILE_FILE"),
-                unique_profile_path().into_os_string(),
+                profile::unique_profile_path().into_os_string(),
             ));
         }
 
@@ -181,36 +207,6 @@ pub fn describe_env(env: &NestedCargoEnv) -> String {
         .map(|(key, value)| format!("{}={}", key.to_string_lossy(), value.to_string_lossy()))
         .collect::<Vec<_>>()
         .join("\n")
-}
-
-/// Counter for unique redirected coverage file names within this process.
-static PROFILE_SEQ: AtomicU64 = AtomicU64::new(0);
-
-/// Scratch root under the system temporary directory for redirected coverage.
-fn profile_scratch_root() -> PathBuf {
-    env::temp_dir().join(format!(
-        "rstest-bdd-nested-cargo-profile-{}",
-        std::process::id()
-    ))
-}
-
-/// Create a unique child-only scratch destination for `LLVM_PROFILE_FILE`.
-///
-/// The name is unique per call (process id plus a monotonic counter), so
-/// concurrent children never write the same `.profraw`.
-fn unique_profile_path() -> PathBuf {
-    let base = profile_scratch_root();
-    if let Err(err) = std::fs::create_dir_all(&base) {
-        // A missing scratch directory is not fatal: the child then writes next
-        // to its working directory, which is still child-only and never the
-        // parent's gated profile.
-        tracing::warn!(
-            error = %err,
-            "could not create nested-cargo coverage scratch directory"
-        );
-    }
-    let seq = PROFILE_SEQ.fetch_add(1, Ordering::Relaxed);
-    base.join(format!("nested-{seq}-%p.profraw"))
 }
 
 /// Captured output of one bounded nested invocation.

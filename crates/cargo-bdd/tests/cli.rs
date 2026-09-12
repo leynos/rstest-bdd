@@ -39,9 +39,17 @@ fn run_cargo_bdd_raw(args: &[&str]) -> Result<std::process::Output> {
     // stays warm; the filtered environment stops `cargo-bdd` and its nested
     // `cargo` children from inheriting stale jobserver or coverage control
     // variables that hang or corrupt a coverage run.
+    //
+    // `cargo-bdd` is the process under test, so it keeps the inherited
+    // `LLVM_PROFILE_FILE`: `cargo llvm-cov` only merges the `.profraw` files
+    // named by the pattern it exported, and redirecting this one would report
+    // its exercised lines as never executed.
     let fallback_target_dir =
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/cargo-bdd-cli");
-    let child_env = nested_cargo::build_child_env(&fallback_target_dir);
+    let child_env = nested_cargo::build_child_env(
+        &fallback_target_dir,
+        nested_cargo::ProfileDestination::Caller,
+    );
     let program = locate_or_build_cargo_bdd_command()?;
     let mut cmd = nested_cargo::filtered_command(
         std::path::Path::new(program.get_program()),

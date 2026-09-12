@@ -157,8 +157,9 @@ against it with a controlled child environment. The following guarantees apply:
   copy, so a killed test is recovered by deleting the scratch directory.
 - The child environment differs from the parent's only where cross-talk or
   stalls would result (`CARGO_MAKEFLAGS`, `CARGO_PKG_*`, and `CARGO_LLVM_COV*`
-  stripped; `LLVM_PROFILE_FILE` redirected; `CARGO_TARGET_DIR` inherited or
-  defaulted to the workspace target).
+  stripped; `LLVM_PROFILE_FILE` redirected so nested coverage never merges into
+  the parent's gated profile; `CARGO_TARGET_DIR` inherited or defaulted to the
+  workspace target).
 - Every nested `cargo` invocation runs under the harness's own wall-clock
   bound, and the binary is serialized against other cargo-spawning tests
   through the `cargo-spawning` nextest test-group.

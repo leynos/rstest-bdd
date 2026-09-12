@@ -2575,10 +2575,15 @@ pattern in `crates/rstest-bdd/tests/feature_rebuild_invalidation/`:
   copy idempotent; stale scratch trees are always re-copied.
 - Every nested `cargo` invocation uses a controlled child environment:
   `.env_clear()` plus a captured snapshot of the parent, with `CARGO_MAKEFLAGS`,
-  `CARGO_PKG_*`, and `CARGO_LLVM_COV*` stripped, `CARGO_TARGET_DIR` inherited
-  or defaulted to the workspace `target/`, and `LLVM_PROFILE_FILE` redirected
-  under the scratch so nested coverage never merges into the parent's gated
-  profile.
+  `CARGO_PKG_*`, and `CARGO_LLVM_COV*` stripped, and `CARGO_TARGET_DIR`
+  inherited or defaulted to the workspace `target/`. The caller names the
+  coverage destination: `ProfileDestination::ChildScratch` redirects an
+  inherited `LLVM_PROFILE_FILE` under the scratch so nested coverage never
+  merges into the parent's gated profile, while `ProfileDestination::Caller`
+  keeps the inherited pattern for the process under test. Only the latter
+  measures anything — `cargo llvm-cov` merges just the `.profraw` files named
+  by the pattern it exported, so a redirected process reports as untested code
+  rather than as a missing profile.
 - The child runs under the harness's own wall-clock bound via
   `env!("CARGO")`, and its stdout/stderr pipes are drained by reader threads
   while the run polls for exit — a voluminous `--message-format=json` build

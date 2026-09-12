@@ -231,9 +231,14 @@ fn build_test_target(
     // under `cargo llvm-cov` the inherited `CARGO_MAKEFLAGS` jobserver and
     // `CARGO_LLVM_COV*` redirections either hang the child or corrupt the
     // coverage profile. The filtered environment also stops `cargo-bdd` from
-    // building into a stale or foreign target directory.
+    // building into a stale or foreign target directory. The build's own
+    // coverage is incidental to the run that spawned it, so it is redirected
+    // out of the caller's profile rather than merged into it.
     let fallback_target_dir = PathBuf::from(&metadata.target_directory);
-    let env = nested_cargo::build_child_env(&fallback_target_dir);
+    let env = nested_cargo::build_child_env(
+        &fallback_target_dir,
+        nested_cargo::ProfileDestination::ChildScratch,
+    );
     let mut cmd = nested_cargo::cargo_command(&env, Path::new("."));
     cmd.args([
         "test",
