@@ -114,6 +114,11 @@ lint-whitaker: ## Run the Whitaker Dylint suite with warnings denied
 lint-python: build-python ## Run Python linters
 	$(RUFF) check $(PYTHON_TARGETS)
 	$(PYLINT) $(PYLINT_TARGETS)
+	# Managed PyPy lags the CPython 3.14 syntax this project targets, and the
+	# PyPy-backed pass reports nothing at all for a module it cannot parse --
+	# not even too-many-lines. Repeat the line budget from the file bytes so an
+	# over-length module fails whether or not a linter can read it.
+	$(PROJECT_PYTHON) scripts/check_py_file_lengths.py $(PYLINT_TARGETS)
 	$(DF12_PYLINT) $(PYLINT_TARGETS)
 	$(AMBRLEAKS) tests
 

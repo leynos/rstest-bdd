@@ -1,0 +1,7 @@
+# Temporary exemptions while large modules are refactored.
+# Every module listed here must name the tracked refactor that will shrink
+# it below the 400-line budget in scripts/check_py_file_lengths.py.
+#
+# No module is listed today: the Python tree is inside the budget, and this
+# gate measures every module beneath the lint roots regardless of whether a
+# linter can parse it.
