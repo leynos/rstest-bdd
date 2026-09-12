@@ -134,7 +134,7 @@ def test_module_a_lagging_parser_rejects_is_still_reported(
     violations = checker.collect_violations(tmp_path, LINT_ROOTS, set())
 
     assert violations == [(relative, measured)], (
-        f"an unparseable {measured}-line module must still be reported, "
+        f"an over-length module no parser accepts must still be reported, "
         f"got {violations!r}"
     )
 

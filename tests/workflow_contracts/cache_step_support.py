@@ -3,7 +3,7 @@
 :mod:`runner_cache_test`, :mod:`runner_placement_test` and
 :mod:`workflow_queries` each read how a workflow declares its caches, and no
 two of them may see a different answer. The approved cache action, the single
-pinned ref every lane shares, the predicates that recognise a cache step, and
+pinned ref every lane shares, the predicates that recognize a cache step, and
 the guard that keeps a suite-running step out of the cache accounting live
 here, apart from the document loaders in :mod:`workflow_support`, so that
 neither module outgrows the 400-line budget the lint gate enforces.
