@@ -65,8 +65,10 @@ PYLINT_PYTHON ?= 3.14
 PYLINT_TARGETS ?= scripts tests/workflow_contracts
 # One Pylint worker per ten CPUs, and never fewer than two, so the pool keeps
 # a useful width on the smallest runner without spawning a worker per core on
-# a large one.
-PYLINT_JOBS ?= $(shell n=$$(nproc); jobs=$$((n / 10)); [ $$jobs -lt 2 ] && jobs=2; echo $$jobs)
+# a large one. The CPU count is its own variable so the rule can be exercised
+# at a chosen width rather than only at the width of the machine running it.
+PYLINT_CPUS ?= $(shell nproc)
+PYLINT_JOBS ?= $(shell n=$(PYLINT_CPUS); jobs=$$((n / 10)); [ $$jobs -lt 2 ] && jobs=2; echo $$jobs)
 DF12_PYTHON_LINTS_REF ?= v0.3.0
 DF12_PYTHON_LINTS = git+https://github.com/leynos/df12-python-lints.git@$(DF12_PYTHON_LINTS_REF)
 DF12_PYTHON ?= 3.14
