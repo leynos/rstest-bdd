@@ -70,11 +70,11 @@ def scale(values: list[float], factor: float) -> list[float]:
 ```
 
 - **Document exception behaviour at the raising boundary.** A function that
-  raises `PublishReportShapeError` directly documents it in a `Raises` section.
-  A function that raises it through a helper such as `_require` documents the
-  behaviour in the docstring's prose instead, naming the causes; the docstring
-  lint refuses a `Raises` section for an exception the function does not raise
-  itself.
+  raises `PublishReportShapeError` directly documents it in a `Raises` section,
+  including when it also calls a helper such as `_require`. When `_require` is
+  the sole raising path, document the behaviour in the docstring's prose
+  instead, naming the causes; the docstring lint refuses a `Raises` section for
+  an exception the function does not raise itself.
 - **Explain tricky code.** Use inline comments for non-obvious logic or
   decisions.
 - **Colocate documentation.** Keep README.md or `docs/` near reusable packages;
