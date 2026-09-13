@@ -1,12 +1,35 @@
 """Unit tests for the fixture-lockfile reporting helpers."""
 
 import typing as typ
+from pathlib import Path
 
 import fixture_lockfile_reporting
-from fixture_lockfile_reporting import print_failures
+import pytest
+from fixture_lockfile_reporting import (
+    fetch_failure_message,
+    print_failures,
+    refresh_failure_message,
+    stale_failure_message,
+)
 
 if typ.TYPE_CHECKING:
-    import pytest
+    import collections.abc as cabc
+
+#: A manifest path the tests never touch: they pin pure report formatting.
+MANIFEST = Path("/repo/crates/rstest-bdd/tests/ui_lints/Cargo.toml")
+
+#: The validation command and the prefetch command the gate passes in.
+METADATA_COMMAND = ["cargo", "metadata", "--locked", "--manifest-path", str(MANIFEST)]
+FETCH_COMMAND = ["cargo", "fetch", "--locked", "--manifest-path", str(MANIFEST)]
+
+#: Each message's opening clause, carrying its established punctuation. The
+#: refresh heading has never ended in a colon, unlike its two siblings.
+STALE_HEADING = "stale or unusable fixture lockfile:"
+REFRESH_HEADING = "refresh failed for"
+FETCH_HEADING = "failed to prefetch fixture dependencies:"
+
+STDOUT = "resolving dependencies\n"
+STDERR = "error: failed to update\n"
 
 
 def test_print_failures_writes_each_report_to_stderr(
@@ -55,3 +78,27 @@ def test_refresh_summary_reports_both_outcomes(
     assert refreshed.out == "refreshed 5 fixture lockfile(s)\n", (
         "the success line must confirm the refreshed count"
     )
+
+
+@pytest.mark.parametrize(
+    ("formatter", "command", "heading"),
+    [
+        (stale_failure_message, METADATA_COMMAND, STALE_HEADING),
+        (refresh_failure_message, METADATA_COMMAND, REFRESH_HEADING),
+        (fetch_failure_message, FETCH_COMMAND, FETCH_HEADING),
+    ],
+    ids=["stale", "refresh", "fetch"],
+)
+def test_failure_message_reports_the_manifest_the_command_and_the_output(
+    formatter: cabc.Callable[[Path, list[str], str, str], str],
+    command: list[str],
+    heading: str,
+) -> None:
+    """Every report spells out the heading, the command, and both streams."""
+    assert formatter(MANIFEST, command, STDOUT, STDERR) == (
+        f"{heading} {MANIFEST}\n"
+        f"command: {' '.join(command)}\n"
+        "cargo output:\n"
+        f"{STDOUT}"
+        f"{STDERR}"
+    ), f"the {heading!r} report must keep the gate's established wording"
