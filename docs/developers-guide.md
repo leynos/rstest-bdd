@@ -1107,6 +1107,41 @@ Link-checker and table-checker tests run with the Python suite in `make test`.
 Issue #537 tracks generating the users-guide reference block from `BASE_URL` so
 the base lives in exactly one place.
 
+## Python lint gate (Pylint on CPython 3.14)
+
+`make lint` runs the standard Pylint pass over `scripts` and
+`tests/workflow_contracts` on the interpreter those sources are written for:
+
+```make
+PYLINT_PYTHON ?= 3.14
+PYLINT_CPUS ?= $(shell nproc)
+PYLINT_JOBS ?= $(shell n=$(PYLINT_CPUS); jobs=$$((n / 10)); [ $$jobs -lt 2 ] && jobs=2; echo $$jobs)
+PYLINT = $(UV_ENV) $(UV) run --python $(PYLINT_PYTHON) pylint -j $(PYLINT_JOBS)
+```
+
+`PYLINT_PYTHON` is the one place the interpreter is chosen, so a later
+baseline move changes a single variable. The pass previously ran on managed
+PyPy, whose grammar lags the CPython 3.14 syntax these sources use. A module
+it could not parse produced no output at all — no score banner, no
+`syntax-error`, and therefore no `too-many-lines` — so it escaped every
+message, including the budget. Running the pass on CPython 3.14 and moving
+`syntax-error` into the enabled set in `pyproject.toml` closes both gaps: a
+module the pass cannot read is now a failure rather than a silent pass.
+
+The budget itself stays Pylint's: `[tool.pylint.main] max-module-lines = 400`
+with `too-many-lines` enabled, so there is no second length checker to keep
+in step.
+
+The worker pool is one job per ten CPUs with a floor of two, so a large
+runner cannot spawn a worker per core and a small one still gets a pool.
+`PYLINT_CPUS` carries the count the rule is computed from, which lets the
+arithmetic be exercised at a chosen width rather than only at the width of
+the machine running the tests. `tests/workflow_contracts/pylint_gate_test.py`
+runs the configured command over probe modules that break the budget and that
+no parser accepts, and checks the pool rule at both ends of the machine
+range. It runs the pass rather than reading the configured values, because a
+pool pinned to one worker still satisfies every string assertion.
+
 ## Workflow-contract helper modules (`tests/workflow_contracts`)
 
 The contracts in `tests/workflow_contracts` assert against workflow YAML and
