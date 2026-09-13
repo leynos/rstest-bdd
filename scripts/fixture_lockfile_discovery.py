@@ -85,11 +85,15 @@ def _read_manifest(manifest: Path) -> dict[str, object] | None:
 
 def _holds_path_key(value: object) -> bool:
     """Return whether *value* holds a ``path`` key anywhere beneath it."""
-    if isinstance(value, dict):
-        return "path" in value or any(_holds_path_key(item) for item in value.values())
-    if isinstance(value, list):
-        return any(_holds_path_key(item) for item in value)
-    return False
+    match value:
+        case dict():
+            return "path" in value or any(
+                _holds_path_key(item) for item in value.values()
+            )
+        case list():
+            return any(_holds_path_key(item) for item in value)
+        case _:
+            return False
 
 
 def _declares_local_source(table: cabc.Mapping[str, object]) -> bool:
