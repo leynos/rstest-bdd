@@ -19,6 +19,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 PYTHON_VERSION = "3.14"
 PYTHON_REQUIREMENT = f">={PYTHON_VERSION}"
 RUFF_TARGET = "py314"
+MODULE_LINE_BUDGET = 400
 PEP_723_BLOCK = re.compile(
     r"^# /// script\n(?P<body>.*?)^# ///$",
     re.MULTILINE | re.DOTALL,
@@ -114,6 +115,7 @@ def test_python_analysers_target_python_314() -> None:
         "project-python": (
             "PROJECT_PYTHON = $(UV_ENV) $(UV) run --python 3.14 python" in makefile
         ),
+        "pylint-python": "PYLINT_PYTHON ?= 3.14" in makefile,
         "ruff-target-count": makefile.count("--target-version py314"),
         "ty": (
             "$(TY) check --python-version 3.14 "
@@ -125,11 +127,63 @@ def test_python_analysers_target_python_314() -> None:
         "direct-python3": False,
         "obsolete-target": False,
         "project-python": True,
+        "pylint-python": True,
         "ruff-target-count": 2,
         "ty": True,
     }
     assert observed == expected, (
         f"Makefile Python targets must use the 3.14 baseline: {observed!r}"
+    )
+
+
+def test_pylint_measures_every_module_against_the_line_budget() -> None:
+    """Pylint itself enforces the module line budget, on the sources' grammar.
+
+    The budget used to lapse on a module the pass could not parse, because a
+    parser that cannot read a file reports nothing for it at all. Running the
+    pass on the interpreter the sources are written for removes the cause, and
+    reporting syntax errors removes the silence.
+    """
+    configuration = _load_toml(REPOSITORY_ROOT / "pyproject.toml")
+    tool = configuration.get("tool")
+    assert isinstance(tool, dict), "pyproject.toml must define [tool]"
+    pylint = tool.get("pylint")
+    assert isinstance(pylint, dict), "pyproject.toml must configure Pylint"
+    pylint_main = pylint.get("main")
+    assert isinstance(pylint_main, dict), "pyproject.toml must configure Pylint main"
+    messages = pylint.get("messages control")
+    assert isinstance(messages, dict), (
+        "pyproject.toml must configure Pylint's message control"
+    )
+    enable = messages.get("enable")
+    disable = messages.get("disable")
+    assert isinstance(enable, list), "Pylint must declare the messages it enables"
+    assert isinstance(disable, list), "Pylint must declare the messages it disables"
+
+    assert pylint_main.get("max-module-lines") == MODULE_LINE_BUDGET, (
+        f"Pylint must cap a module at {MODULE_LINE_BUDGET} lines; "
+        f"got {pylint_main.get('max-module-lines')!r}"
+    )
+    assert "too-many-lines" in enable, (
+        "the budget must be reported by Pylint's own too-many-lines message"
+    )
+    assert "syntax-error" in enable, (
+        "a module the pass cannot parse must be reported, never skipped in "
+        "silence: it would escape the line budget and every other message"
+    )
+    assert "syntax-error" not in disable, (
+        "syntax-error must not be disabled, or an unreadable module lints clean"
+    )
+
+    makefile = (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")
+    assert "pylint -j $(PYLINT_JOBS)" in makefile, (
+        "the Pylint pass must bound its worker pool through PYLINT_JOBS"
+    )
+    assert "PYLINT_JOBS ?=" in makefile, (
+        "the worker pool must be configured rather than left to Pylint"
+    )
+    assert "check_py_file_lengths" not in makefile, (
+        "the line budget must be Pylint's, not re-implemented beside it"
     )
 
 
