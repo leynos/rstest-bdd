@@ -10,6 +10,7 @@ from unittest import mock
 
 import pytest
 from fixture_lockfile_discovery import (
+    _value_declares_local_source,
     discover_fixture_manifests,
     has_path_dependency,
     is_staged_fixture,
@@ -147,6 +148,43 @@ def test_every_path_dependency_spelling_is_recognized(
     assert has_path_dependency(manifest), (
         f"{manifest_text!r} resolves a dependency from the local filesystem"
     )
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("dependencies", {"helper": {"path": "../helper"}}),
+        ("dev-dependencies", {"helper": {"path": "../helper"}}),
+        ("patch", {"crates-io": {"helper": {"path": "../helper"}}}),
+    ],
+    ids=["dependencies", "dev-dependencies", "patch"],
+)
+def test_dependency_tables_are_searched_whole_for_a_path_source(
+    key: str, value: dict[str, object]
+) -> None:
+    """A dependency or patch table is searched whole for a nested path key."""
+    assert _value_declares_local_source(key, value), (
+        f"a path key nested under {key!r} still names a local source"
+    )
+
+
+def test_wrapper_tables_reach_a_nested_dependency_table() -> None:
+    """A wrapper table such as a target section reaches nested dependencies."""
+    target_table: dict[str, object] = {
+        "cfg(unix)": {"dependencies": {"helper": {"path": "../helper"}}}
+    }
+
+    assert _value_declares_local_source("target", target_table), (
+        "a key that is not itself a dependency table must recurse into the "
+        "dependency table it holds"
+    )
+
+
+def test_registry_only_dependency_table_declares_no_local_source() -> None:
+    """A dependency table with no path key is not a local source."""
+    assert not _value_declares_local_source(
+        "dependencies", {"helper": {"version": "1"}}
+    ), "a registry dependency declares no local source"
 
 
 @pytest.mark.parametrize(

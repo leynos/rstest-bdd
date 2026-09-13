@@ -96,6 +96,13 @@ def _holds_path_key(value: object) -> bool:
             return False
 
 
+def _value_declares_local_source(key: str, value: dict[str, object]) -> bool:
+    """Return whether *value* declares a local source for TOML table *key*."""
+    if key.endswith("dependencies") or key == "patch":
+        return _holds_path_key(value)
+    return _declares_local_source(value)
+
+
 def _declares_local_source(table: cabc.Mapping[str, object]) -> bool:
     """Return whether *table* resolves a dependency from the local filesystem.
 
@@ -111,12 +118,7 @@ def _declares_local_source(table: cabc.Mapping[str, object]) -> bool:
         True when one of those specifications names a local path source.
     """
     for key, value in table.items():
-        if not isinstance(value, dict):
-            continue
-        if key.endswith("dependencies") or key == "patch":
-            if _holds_path_key(value):
-                return True
-        elif _declares_local_source(value):
+        if isinstance(value, dict) and _value_declares_local_source(key, value):
             return True
     return False
 
