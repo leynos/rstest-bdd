@@ -12,6 +12,7 @@ struct HarnessWorld {
 }
 
 #[fixture]
+#[rustfmt::skip]
 fn harness_world() -> HarnessWorld {
     HarnessWorld::default()
 }

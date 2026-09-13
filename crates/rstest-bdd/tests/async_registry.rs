@@ -14,6 +14,7 @@ use rstest_bdd::{
     StepExecution,
     StepFuture,
     StepKeyword,
+    StepLookupError,
     find_step_async,
     iter,
     lookup_step_async,
@@ -33,9 +34,13 @@ use poll_step_future_support::poll_step_future;
 // ----------------------------------------------------------------------------
 
 /// Verify that an async step wrapper lookup succeeds and can be polled to completion.
-#[expect(clippy::expect_used, reason = "test helper validates lookup succeeds")]
-fn assert_async_wrapper_works(lookup_fn: impl FnOnce() -> Option<AsyncStepFn>, test_text: &str) {
-    let async_fn = lookup_fn().expect("step should be found");
+fn assert_async_wrapper_works(
+    lookup_fn: impl FnOnce() -> Result<Option<AsyncStepFn>, StepLookupError>,
+    test_text: &str,
+) -> Result<(), StepLookupError> {
+    let Some(async_fn) = lookup_fn()? else {
+        panic!("step should be found");
+    };
     let mut ctx = StepContext::default();
     let future = async_fn(&mut ctx, test_text, None, None);
     let result = poll_step_future(future);
@@ -43,14 +48,19 @@ fn assert_async_wrapper_works(lookup_fn: impl FnOnce() -> Option<AsyncStepFn>, t
         matches!(result, StepExecution::Continue { .. }),
         "unexpected result: {result:?}"
     );
+    Ok(())
 }
 
 /// Verify that a step is marked as used after being looked up.
+///
+/// # Errors
+///
+/// Returns [`StepLookupError`] when the lookup is ambiguous.
 fn assert_step_marked_as_used(
     pattern: &str,
-    lookup_fn: impl FnOnce() -> Option<AsyncStepFn>,
+    lookup_fn: impl FnOnce() -> Result<Option<AsyncStepFn>, StepLookupError>,
     api_name: &str,
-) {
+) -> Result<(), StepLookupError> {
     // Verify the step is initially in the unused list.
     let unused_before: Vec<_> = unused_steps().iter().map(|s| s.pattern.as_str()).collect();
     assert!(
@@ -59,7 +69,7 @@ fn assert_step_marked_as_used(
     );
 
     // Resolve the step.
-    let result = lookup_fn();
+    let result = lookup_fn()?;
     assert!(result.is_some(), "Step should be found");
 
     // Verify the step is no longer in the unused list.
@@ -68,6 +78,7 @@ fn assert_step_marked_as_used(
         !unused_after.contains(&pattern),
         "Step should no longer appear in unused_steps after {api_name}"
     );
+    Ok(())
 }
 
 // Register a test step for async registry tests.
@@ -120,19 +131,21 @@ fn step_struct_has_run_async_field() {
 }
 
 #[test]
-fn find_step_async_returns_async_wrapper() {
+fn find_step_async_returns_async_wrapper() -> Result<(), StepLookupError> {
     assert_async_wrapper_works(
         || find_step_async(StepKeyword::Given, "an async registry test step".into()),
         "an async registry test step",
-    );
+    )?;
+    Ok(())
 }
 
 #[test]
-fn lookup_step_async_returns_async_wrapper() {
+fn lookup_step_async_returns_async_wrapper() -> Result<(), StepLookupError> {
     assert_async_wrapper_works(
         || lookup_step_async(StepKeyword::Given, "an async registry test step".into()),
         "an async registry test step",
-    );
+    )?;
+    Ok(())
 }
 
 // ----------------------------------------------------------------------------
@@ -192,7 +205,7 @@ fn async_lookup_returns_none_for_invalid_input(
         _ => panic!("unknown API: {api_name}"),
     };
     assert!(
-        result.is_none(),
+        result.expect("lookup should be unambiguous").is_none(),
         "{api_name} should return None {failure_reason}"
     );
 }
@@ -212,12 +225,12 @@ step!(
 );
 
 #[test]
-fn find_step_async_marks_step_as_used() {
+fn find_step_async_marks_step_as_used() -> Result<(), StepLookupError> {
     assert_step_marked_as_used(
         "async unused tracking test step",
         || find_step_async(StepKeyword::Given, "async unused tracking test step".into()),
         "find_step_async",
-    );
+    )
 }
 
 // Register another step for testing lookup_step_async unused tracking.
@@ -230,7 +243,7 @@ step!(
 );
 
 #[test]
-fn lookup_step_async_marks_step_as_used() {
+fn lookup_step_async_marks_step_as_used() -> Result<(), StepLookupError> {
     assert_step_marked_as_used(
         "async lookup unused tracking test step",
         || {
@@ -240,5 +253,5 @@ fn lookup_step_async_marks_step_as_used() {
             )
         },
         "lookup_step_async",
-    );
+    )
 }

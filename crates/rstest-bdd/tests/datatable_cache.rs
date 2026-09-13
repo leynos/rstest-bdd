@@ -104,6 +104,7 @@ fn cached_table_reuses_conversion_for_identical_table_pointer() {
     take_calls();
 
     let step_fn = lookup_step(StepKeyword::Given, "a cached table:".into())
+        .expect("lookup should be unambiguous")
         .expect("cached table step should be registered");
     let mut ctx = StepContext::default();
 
@@ -127,6 +128,7 @@ fn cached_table_cache_separates_distinct_tables() {
     take_calls();
 
     let step_fn = lookup_step(StepKeyword::Given, "a cached table:".into())
+        .expect("lookup should be unambiguous")
         .expect("cached table step should be registered");
     let mut ctx = StepContext::default();
 
@@ -152,8 +154,10 @@ fn cached_table_cache_is_scoped_per_step_wrapper() {
     take_calls();
 
     let first_step_fn = lookup_step(StepKeyword::Given, "a cached table:".into())
+        .expect("lookup should be unambiguous")
         .expect("cached table step should be registered");
     let second_step_fn = lookup_step(StepKeyword::Given, "another cached table:".into())
+        .expect("lookup should be unambiguous")
         .expect("another cached table step should be registered");
     let mut ctx = StepContext::default();
 
@@ -186,6 +190,7 @@ fn datatable_vec_path_clones_per_call_and_preserves_isolation() {
     reset_conversions();
 
     let step_fn = lookup_step(StepKeyword::Given, "a counting table:".into())
+        .expect("lookup should be unambiguous")
         .expect("counting table step should be registered");
     let mut ctx = StepContext::default();
 

@@ -2,6 +2,8 @@
 
 use std::sync::Arc;
 
+use crate::StepScope;
+
 /// Tags applied to a scenario.
 pub type ScenarioTags = Arc<[String]>;
 
@@ -21,6 +23,8 @@ pub struct ScenarioMetadata {
     pub line: u32,
     /// Tags applied to the scenario.
     pub tags: ScenarioTags,
+    /// Closed library vocabulary selected by the scenario.
+    pub scope: StepScope,
 }
 
 impl ScenarioMetadata {
@@ -50,7 +54,15 @@ impl ScenarioMetadata {
             scenario_name: scenario_name.into(),
             line,
             tags: tags.into(),
+            scope: StepScope::global(),
         }
+    }
+
+    /// Attach the closed step-library vocabulary selected for the scenario.
+    #[must_use]
+    pub const fn with_scope(mut self, scope: StepScope) -> Self {
+        self.scope = scope;
+        self
     }
 }
 
@@ -65,6 +77,8 @@ pub struct ScenarioRecord {
     line: u32,
     /// Tags attached to the scenario.
     tags: ScenarioTags,
+    /// Closed library vocabulary selected by the scenario.
+    scope: StepScope,
     /// Outcome of executing the scenario.
     status: ScenarioStatus,
 }
@@ -87,6 +101,7 @@ impl ScenarioRecord {
             scenario_name: metadata.scenario_name,
             line: metadata.line,
             tags: metadata.tags,
+            scope: metadata.scope,
             status,
         }
     }
@@ -145,6 +160,10 @@ impl ScenarioRecord {
     /// ```
     #[must_use]
     pub fn tags(&self) -> &[String] { self.tags.as_ref() }
+
+    /// Access the selected step-library identities in declaration order.
+    #[must_use]
+    pub const fn scope(&self) -> StepScope { self.scope }
 
     /// Access the stored status value.
     ///

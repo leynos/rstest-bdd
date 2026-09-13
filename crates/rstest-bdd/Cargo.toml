@@ -57,8 +57,7 @@ eyre.workspace = true
 temp-env.workspace = true
 the-newtype = "0.1.1"
 tempfile.workspace = true
-toml = "1.1"
-tracing.workspace = true
+toml = "0.9"
 
 [features]
 default = ["diagnostics"]
