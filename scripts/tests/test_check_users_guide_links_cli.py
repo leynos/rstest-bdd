@@ -1,22 +1,33 @@
 """CLI integration tests for the users-guide link checker.
 
 These tests invoke the ``scripts/check_users_guide_links.py`` entry point,
-exercising the ``--root`` option and exit codes rather than the helper
-functions (which have their own unit tests).
+exercising the ``--root`` and ``--fix`` options and the exit codes rather than
+the helper functions (which have their own unit tests).
 """
 
 import typing as typ
 
 import pytest
-from check_users_guide_links import BASE_URL, GUIDE, main
+from check_users_guide_links import main
+from users_guide_links import BASE_URL, GUIDE, REPOSITORY_URL
 
 if typ.TYPE_CHECKING:
     from pathlib import Path
 
+STALE_BRANCH_URL = f"{REPOSITORY_URL}/blob/master/docs/other.md"
+CANONICAL_OTHER = f"{BASE_URL}other.md"
 
-def _run_checker(root: Path) -> int:
+
+def _run_checker(root: Path, *args: str) -> int:
     """Run the link checker entry point against ``root``."""
-    return main(("--root", str(root)))
+    return main(("--root", str(root), *args))
+
+
+def _write_document(root: Path, name: str, markdown: str) -> None:
+    """Write a document beneath a temporary repository root."""
+    document = root / "docs" / name
+    document.parent.mkdir(parents=True, exist_ok=True)
+    document.write_text(markdown, encoding="utf-8")
 
 
 def _write_guide(root: Path, markdown: str) -> None:
@@ -26,6 +37,11 @@ def _write_guide(root: Path, markdown: str) -> None:
     guide.write_text(markdown, encoding="utf-8")
 
 
+def _read_guide(root: Path) -> str:
+    """Return guide content beneath a temporary repository root."""
+    return (root / GUIDE).read_text(encoding="utf-8")
+
+
 class TestMain:
     """End-to-end tests for the script's command-line entry point."""
 
@@ -33,11 +49,8 @@ class TestMain:
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
         """A guide whose repository links all resolve should exit 0."""
-        (tmp_path / "docs" / "other.md").parent.mkdir(parents=True, exist_ok=True)
-        (tmp_path / "docs" / "other.md").write_text(
-            "# Other\n\n## A section\n", encoding="utf-8"
-        )
-        _write_guide(tmp_path, f"[other]: {BASE_URL}other.md#a-section\n")
+        _write_document(tmp_path, "other.md", "# Other\n\n## A section\n")
+        _write_guide(tmp_path, f"[other]: {CANONICAL_OTHER}#a-section\n")
 
         exit_code = _run_checker(tmp_path)
         captured = capsys.readouterr()
@@ -90,6 +103,7 @@ class TestMain:
             f"expected exit 0, got {exc_info.value.code}: {captured.err}"
         )
         assert "--root" in captured.out, f"help should document --root: {captured.out}"
+        assert "--fix" in captured.out, f"help should document --fix: {captured.out}"
 
     def test_default_root_checks_repository_guide(
         self, capsys: pytest.CaptureFixture[str]
@@ -107,4 +121,112 @@ class TestMain:
         assert exit_code == 0, (
             f"default-root run should validate the repository guide, got "
             f"{exit_code}: {captured.err}"
+        )
+
+
+class TestFix:
+    """End-to-end tests for the ``--fix`` regeneration mode."""
+
+    def test_rewrites_a_stale_reference_block(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A block written before the base URL moved is regenerated."""
+        _write_document(tmp_path, "other.md", "# Other\n")
+        _write_guide(tmp_path, f"[other]: {STALE_BRANCH_URL}\n")
+
+        exit_code = _run_checker(tmp_path, "--fix")
+        captured = capsys.readouterr()
+
+        assert exit_code == 0, f"expected exit 0, got {exit_code}: {captured.err}"
+        assert not captured.err, f"expected no stderr, got: {captured.err}"
+        assert "rewrote 1 reference line(s)" in captured.out, (
+            f"stdout should report the rewrite: {captured.out}"
+        )
+        assert _read_guide(tmp_path) == f"[other]: {CANONICAL_OTHER}\n", (
+            f"guide should hold canonical links, got {_read_guide(tmp_path)!r}"
+        )
+
+    def test_reports_when_nothing_needs_rewriting(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """An already canonical block is left alone."""
+        _write_document(tmp_path, "other.md", "# Other\n")
+        _write_guide(tmp_path, f"[other]: {CANONICAL_OTHER}\n")
+
+        exit_code = _run_checker(tmp_path, "--fix")
+        captured = capsys.readouterr()
+
+        assert exit_code == 0, f"expected exit 0, got {exit_code}: {captured.err}"
+        assert "already matches" in captured.out, (
+            f"stdout should report that nothing changed: {captured.out}"
+        )
+        assert _read_guide(tmp_path) == f"[other]: {CANONICAL_OTHER}\n", (
+            f"guide should be untouched, got {_read_guide(tmp_path)!r}"
+        )
+
+    def test_rewrites_only_the_stale_lines(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Prose and third-party definitions survive regeneration verbatim."""
+        _write_document(tmp_path, "other.md", "# Other\n")
+        markdown = (
+            "# Users guide\n\nSee [other][other] and [docs-rs][docs-rs].\n\n"
+            f"[other]: {STALE_BRANCH_URL}\n"
+            "[docs-rs]: https://docs.rs/rstest-bdd/latest/\n"
+            f"[external]: https://example.com/blob/main/docs/other.md\n"
+        )
+        _write_guide(tmp_path, markdown)
+
+        exit_code = _run_checker(tmp_path, "--fix")
+        captured = capsys.readouterr()
+
+        assert exit_code == 0, f"expected exit 0, got {exit_code}: {captured.err}"
+        expected = markdown.replace(STALE_BRANCH_URL, CANONICAL_OTHER)
+        assert _read_guide(tmp_path) == expected, (
+            f"only the stale line should change, got {_read_guide(tmp_path)!r}"
+        )
+
+    def test_still_reports_a_missing_document(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """Regeneration must not mask a canonical link to an absent document."""
+        (tmp_path / "docs").mkdir()
+        markdown = f"[gone]: {BASE_URL}gone.md\n"
+        _write_guide(tmp_path, markdown)
+
+        exit_code = _run_checker(tmp_path, "--fix")
+        captured = capsys.readouterr()
+
+        assert exit_code == 1, f"expected exit 1, got {exit_code}: {captured.err}"
+        assert "missing document" in captured.err, (
+            f"stderr should report the missing document: {captured.err}"
+        )
+        assert _read_guide(tmp_path) == markdown, "the guide should be unchanged"
+
+    def test_reports_a_reference_it_cannot_rewrite(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A repository URL that names no document is reported, not rewritten."""
+        markdown = f"[issue]: {REPOSITORY_URL}/issues/537\n"
+        _write_guide(tmp_path, markdown)
+
+        exit_code = _run_checker(tmp_path, "--fix")
+        captured = capsys.readouterr()
+
+        assert exit_code == 1, f"expected exit 1, got {exit_code}: {captured.err}"
+        assert "does not name a document" in captured.err, (
+            f"stderr should report the unrecognized link: {captured.err}"
+        )
+        assert _read_guide(tmp_path) == markdown, "the guide should be unchanged"
+
+    def test_reports_a_missing_guide(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """An absent guide is reported rather than created."""
+        exit_code = _run_checker(tmp_path, "--fix")
+        captured = capsys.readouterr()
+
+        assert exit_code == 1, f"expected exit 1, got {exit_code}: {captured.err}"
+        assert "could not read" in captured.err, (
+            f"stderr should report the read failure: {captured.err}"
         )
