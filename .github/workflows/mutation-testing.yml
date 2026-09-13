@@ -45,3 +45,8 @@ jobs:
       # dependent crates' trybuild/integration tests, which
       # cargo-mutants' per-package default would miss).
       extra-args: "--all-features --test-workspace=true"
+      # The nested cargo-spawning harnesses build their fixture crates with
+      # `--locked --offline`, and this lane runs no outer workspace build
+      # that would already have resolved those lockfiles, so warm the
+      # registry from each fixture's committed lockfile first.
+      setup-commands: "make prefetch-fixture-deps"
