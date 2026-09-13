@@ -9,6 +9,7 @@ receives, the process exit status, and the two output streams.
 """
 
 import os
+import shutil
 import stat
 import subprocess  # ruff: ignore[suspicious-subprocess-import] - tests build stand-in CompletedProcess values and run the trusted gate script.
 import sys
@@ -164,10 +165,10 @@ def test_makefile_prefetch_target_runs_the_fetch_mode() -> None:
     """`make prefetch-fixture-deps` drives the gate's ``--fetch`` mode."""
     recipe = makefile_recipe("prefetch-fixture-deps")
 
-    assert "scripts/check_fixture_lockfiles.py" in recipe, (
-        "the mutation lane's prefetch must run the fixture-lockfile gate script"
+    assert "scripts/check_fixture_lockfiles.py --fetch" in recipe, (
+        "the mutation lane's prefetch must run the fixture-lockfile gate in "
+        "its fetch mode"
     )
-    assert "--fetch" in recipe, "the prefetch target must select the fetch mode"
 
 
 #: A Cargo stand-in that records each argument vector it receives and fails
@@ -191,8 +192,14 @@ def run_fetch_with_fake_cargo(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     failing: Path | None = None,
+    *,
+    via_make: bool = False,
 ) -> tuple[subprocess.CompletedProcess[str], list[list[str]]]:
     """Run the gate's ``--fetch`` mode against a recording Cargo stand-in.
+
+    The stand-in shadows ``cargo`` on ``PATH``, so the platform's real Cargo
+    never runs. ``via_make`` reaches the same mode the way the mutation lane
+    does: through the ``prefetch-fixture-deps`` target.
 
     Returns
     -------
@@ -202,18 +209,35 @@ def run_fetch_with_fake_cargo(
     """
     if os.name == "nt":
         pytest.skip("the recording Cargo stand-in is a POSIX shell script")
+    if via_make and shutil.which("make") is None:
+        pytest.skip("the make-driven prefetch needs make on PATH")
     cargo_directory = tmp_path / "bin"
     cargo_directory.mkdir()
     fake_cargo = cargo_directory / "cargo"
     fake_cargo.write_text(FAKE_CARGO, encoding="utf-8")
     fake_cargo.chmod(fake_cargo.stat().st_mode | stat.S_IXUSR)
     invocation_log = tmp_path / "cargo-invocations.log"
-    monkeypatch.setenv("PATH", f"{cargo_directory}{os.pathsep}{os.environ['PATH']}")
+    stand_in_path = f"{cargo_directory}{os.pathsep}{os.environ['PATH']}"
+    monkeypatch.setenv("PATH", stand_in_path)
     monkeypatch.setenv("FAKE_CARGO_LOG", str(invocation_log))
     monkeypatch.setenv("FAKE_CARGO_FAIL_MATCH", "" if failing is None else str(failing))
 
+    if via_make:
+        # The Makefile prepends the real Cargo directory to PATH, so the
+        # target's own PATH has to name the stand-in first. PROJECT_PYTHON
+        # stands in for the uv launcher: the recipe the target runs is
+        # otherwise untouched, and the test needs no toolchain of its own.
+        command = [
+            "make",
+            "prefetch-fixture-deps",
+            f"PATH={stand_in_path}",
+            f"PROJECT_PYTHON={sys.executable}",
+        ]
+    else:
+        command = [sys.executable, str(GATE_SCRIPT), "--fetch"]
+
     result = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - the argv is this test's own command.
-        [sys.executable, str(GATE_SCRIPT), "--fetch"],
+        command,
         cwd=REPO_ROOT,
         env=os.environ.copy(),
         text=True,
@@ -277,4 +301,26 @@ def test_fetch_mode_reports_a_failing_fixture_and_exits_nonzero(
     summary = f"1 of {len(manifests)} fixture dependency prefetch(es) failed"
     assert summary in result.stderr, (
         "the summary must count the failed prefetch on standard error"
+    )
+
+
+def test_make_target_runs_the_fetch_mode_and_propagates_a_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The mutation lane's target delegates to the gate and fails with it."""
+    manifests = discover_fixture_manifests(REPO_ROOT)
+
+    result, invocations = run_fetch_with_fake_cargo(
+        tmp_path, monkeypatch, failing=manifests[0], via_make=True
+    )
+
+    assert result.returncode != 0, (
+        "the prefetch target must fail the lane when a fixture does not download"
+    )
+    assert invocations == [
+        ["fetch", "--locked", "--manifest-path", str(manifest)]
+        for manifest in manifests
+    ], "the target must run one locked fetch per discovered fixture, in order"
+    assert "failed to prefetch fixture dependencies" in result.stderr, (
+        "the target must let the gate's failure report reach the lane's log"
     )
