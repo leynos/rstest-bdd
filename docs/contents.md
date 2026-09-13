@@ -108,6 +108,8 @@
 - [ADR 020: consolidate on the `tracing` logging facade][adr-020] records the
   decision to emit every workspace diagnostic through `tracing`, keeping `log`
   only to detect an installed `log` listener.
+- [ADR 021: record the users-guide base URL once][adr-021] records the decision
+  to generate the vendored guide's reference block from one recorded base URL.
 
 ## Execution plans
 
@@ -129,6 +131,7 @@
 [adr-018]: adr-018-parser-neutral-scenario-execution.md
 [adr-019]: adr-019-type-directed-step-return-classification.md
 [adr-020]: adr-020-consolidate-on-the-tracing-logging-facade.md
+[adr-021]: adr-021-single-source-base-url-for-users-guide-links.md
 [complexity-guide]: complexity-antipatterns-and-refactoring-strategies.md
 [cucumber-async]: cucumber-rs-migration-and-async-patterns.md
 [dependency-injection]: reliable-testing-in-rust-via-dependency-injection.md

@@ -6,6 +6,10 @@ Accepted (2026-07-28): Retain `scripts/check_users_guide_links.py`, keep it in
 the `make lint` gate, and retain its unit, property, and CLI tests. Limit its
 scope to absolute repository-reference definitions in `docs/users-guide.md`.
 
+Amended by [ADR-021](adr-021-single-source-base-url-for-users-guide-links.md)
+(2026-09-13): the reference block is now generated from one recorded base URL
+rather than maintained alongside the checker's constant.
+
 ## Date
 
 2026-07-28.
@@ -147,6 +151,18 @@ Cons:
   test split and the Hypothesis/Cuprum tooling rule.
 - Expansion to broader documentation links is deferred, and should be
   reassessed only if a concrete need arises rather than pre-emptively.
+
+## Amendments
+
+### 2026-09-13: the reference block is generated, not maintained by hand
+
+[ADR-021](adr-021-single-source-base-url-for-users-guide-links.md) records the
+change this ADR's first consequence anticipated. "Update that constant and the
+guide's reference block together" no longer describes the workflow: the base
+URL is recorded in `scripts/users_guide_links.py`,
+`make update-users-guide-links` rewrites the block from it, and `make lint`
+fails while the committed block disagrees with the generated one. The decision
+to retain the validator, its scope, and its gate wiring are unchanged.
 
 ## References
 

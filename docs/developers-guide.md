@@ -851,58 +851,94 @@ Mitigation:
 `docs/users-guide.md` is vendored into consumer projects, so its
 cross-references to other documents in this repository use absolute GitHub URLs
 (collected as reference-style definitions at the bottom of the file) rather
-than relative paths. `scripts/check_users_guide_links.py`, run automatically by
-`make lint`, keeps those URLs honest:
+than relative paths. Where those links point is recorded once, in
+`scripts/users_guide_links.py`: the repository URL, the default branch, and the
+documentation root, from which the canonical base URL is derived. The guide's
+reference block is generated from them, so a branch rename, a repository move,
+or a documentation relocation is one constant and one command rather than an
+edit to every definition.
 
-- Every repository reference must start with the canonical base URL recorded
-  in the script's `BASE_URL` constant (currently
-  `https://github.com/leynos/rstest-bdd/blob/main/docs/`). If the repository
-  moves, the default branch is renamed, or the documents relocate, update that
-  one constant and the reference block; the check pinpoints every definition
-  that disagrees.
-- Each link must resolve to an existing file under `docs/`, and any `#`
-  fragment must match a heading anchor in the target document (the script
-  derives anchors with GitHub's slug rules). Prefer heading fragments over
-  `#L<n>` line anchors, which silently break on reflows.
-- The check also fails if the guide contains no repository references at
-  all, so a reformat cannot silently defang it.
+`make update-users-guide-links` rewrites the reference block in place.
+`scripts/check_users_guide_links.py`, run automatically by `make lint` without
+`--fix`, fails while the committed block disagrees with what that command would
+write. The check enforces that each repository link
 
-Non-repository URLs (for example docs.rs links) are ignored. Unit tests live in
-`scripts/tests/test_check_users_guide_links.py` and run with the Python suite in
-`make test`. Issue #537 tracks generating the reference block from `BASE_URL`
-so the base lives in exactly one place.
+- uses the canonical base URL, naming the remedy when it does not;
+- resolves to an existing file under `docs/`; and
+- where a `#` fragment is present, matches a heading anchor in the target
+  document (anchors are derived with GitHub's slug rules; prefer heading
+  fragments over `#L<n>` line anchors, which silently break on reflows).
+
+It also fails if the guide contains no repository references at all, so a
+reformat cannot silently defang it. Non-repository URLs (for example docs.rs
+links) are ignored.
+
+Recovering a block that predates a move is what makes the single constant work.
+A definition shaped like a view URL on the canonical host whose final path
+segment names a file in the documentation tree is repaired whatever base URL it
+was written against, so definitions written before a branch rename are brought
+forward rather than rejected. A definition that already carries the canonical
+base URL is returned as written, which keeps a target that has gone missing
+reportable rather than masked by a rewrite. Definitions under the repository
+prefix that name no document — an issue link, say — are reported rather than
+passed off as a third party's link.
 
 ### Running the checker
 
 Run it directly during development:
 
 ```bash
-python3 scripts/check_users_guide_links.py [--root PATH]
+python3 scripts/check_users_guide_links.py [--root PATH] [--fix]
 ```
 
 Without `--root`, the checker derives the repository root relative to the
 script itself, so it validates this checkout wherever it is invoked from.
 `--root` exists to support the temporary-tree CLI integration tests and to
-validate another checkout locally. `make lint` runs the checker using its
-normal default root, so the gate always covers the working repository.
+validate another checkout locally. `--fix` rewrites the guide in place and then
+reports whatever is still invalid, so regeneration cannot hide a missing
+document. `make lint` runs the checker using its normal default root, so the
+gate always covers the working repository.
+
+### Module split
+
+Each module stays inside the 400-line budget.
+
+- `scripts/users_guide_links.py` records where the links point, and derives
+  from that both the canonical form of a definition and the reference block
+  that generation writes.
+- `scripts/markdown_references.py` holds the Markdown mechanics: GitHub heading
+  anchors and reference-definition parsing.
+- `scripts/check_users_guide_links.py` validates a block against the tree and
+  provides the command-line entry point.
 
 ### Test split
 
-- Unit and Hypothesis property tests live in
-  `scripts/tests/test_check_users_guide_links.py`. Hypothesis exercises the
+- Unit and Hypothesis property tests for link identity, recovery, and
+  generation live in `scripts/tests/test_users_guide_links.py`; slug generation
+  and definition parsing live in
+  `scripts/tests/test_markdown_references.py`. Hypothesis exercises the
   slug-generation invariants (anchors stay lowercase, contain no spaces, use
   only word characters and hyphens, and are idempotent) and fenced-code heading
   handling, where generated headings expose parser edge cases that
-  example-based cases miss.
-- Cuprum subprocess/CLI integration tests live in
-  `scripts/tests/test_check_users_guide_links_cli.py`. They verify
-  process-level behaviour: exit status, stderr content, `--help` output,
-  explicit `--root` against a temporary tree, and default-root execution.
+  example-based cases miss. Generation is held to idempotence and line-count
+  preservation.
+- Checker unit tests live in
+  `scripts/tests/test_check_users_guide_links.py`, one case per violation the
+  checker can report.
+- CLI integration tests live in
+  `scripts/tests/test_check_users_guide_links_cli.py`. They call `main()`
+  in-process against a temporary tree and assert exit status, standard output,
+  and standard error, covering `--fix`, the no-repository-links tripwire, and
+  the default-root fallback.
+- `scripts/tests/test_users_guide_links_makefile_contract.py` pins the Makefile
+  wiring, because the acceptance criterion is a command that regenerates the
+  block plus a gate that notices when it has not been run.
 
 The test-tooling rule for this script, and for scripts like it: use Hypothesis
 for property and invariant coverage wherever generated inputs expose parser or
-normalization edge cases, and use Cuprum for subprocess CLI behaviour rather
-than Python's `subprocess` module.
+normalization edge cases; drive command-line behaviour through the entry point
+rather than re-implementing it in the test; and use Cuprum, not Python's
+`subprocess` module, when a test genuinely needs process-level behaviour.
 
 ### Intentional scope
 
@@ -912,7 +948,10 @@ absolute link can ship downstream undetected; manual review does not give
 deterministic drift detection. Its scope is limited to repository-reference
 link definitions in `docs/users-guide.md`, rather than expanding to every
 documentation cross-reference in the repository. See
-[ADR-014](adr-014-retain-users-guide-link-validator.md) for the decision record.
+[ADR-014](adr-014-retain-users-guide-link-validator.md) for the decision to
+retain it, and
+[ADR-021](adr-021-single-source-base-url-for-users-guide-links.md) for the
+decision to generate the reference block from one recorded base URL.
 
 ## GPUI mapping-table validation (`scripts/check_gpui_mapping_table.py`)
 
@@ -1104,8 +1143,9 @@ and docs.rs references before changing the matrix. Unit tests for the checker
 live in `scripts/tests/test_check_serial_nextest_matrix.py`.
 
 Link-checker and table-checker tests run with the Python suite in `make test`.
-Issue #537 tracks generating the users-guide reference block from `BASE_URL` so
-the base lives in exactly one place.
+The users-guide reference block is generated from one recorded base URL by
+`make update-users-guide-links`; see the users-guide link validation section
+above.
 
 ## Python lint gate (Pylint on CPython 3.14)
 
