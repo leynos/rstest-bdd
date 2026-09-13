@@ -56,15 +56,20 @@ MD_FILES_FIND = find . -type f -name '*.md' -not -path '*/target/*' -not -path '
 LADING_REF ?= c3740ef48da4c89752fcb98fff4f1c27284e5f12
 LADING_SPEC ?= lading @ git+https://github.com/leynos/lading@$(LADING_REF)
 PYTHON_TARGETS ?= $(filter-out $(SPELLING_PY_SRCS),$(shell find scripts tests/workflow_contracts -type f -name "*.py" -print | sort))
-PYLINT_PYTHON ?= pypy
+# Run Pylint on the interpreter whose grammar the lint targets are written in.
+# A managed PyPy lags that syntax and reports nothing at all for a module it
+# cannot parse -- no score banner, no syntax-error, and no too-many-lines --
+# so the 400-line budget would lapse on exactly the modules using it.
+PYLINT_PYTHON ?= 3.14
 PYLINT_TARGETS ?= scripts tests/workflow_contracts
-PYLINT_PYPY_SHIM_REF ?= 726d09f968b4d729ee4b29c71fc732e744854f3b
-PYLINT_PYPY_SHIM = git+https://github.com/leynos/pylint-pypy-shim.git@$(PYLINT_PYPY_SHIM_REF)
+# One Pylint worker per ten CPUs, and never fewer than two, so the pool keeps
+# a useful width on the smallest runner without spawning a worker per core on
+# a large one.
+PYLINT_JOBS ?= $(shell n=$$(nproc); jobs=$$((n / 10)); [ $$jobs -lt 2 ] && jobs=2; echo $$jobs)
 DF12_PYTHON_LINTS_REF ?= v0.3.0
 DF12_PYTHON_LINTS = git+https://github.com/leynos/df12-python-lints.git@$(DF12_PYTHON_LINTS_REF)
 DF12_PYTHON ?= 3.14
-PYLINT = $(UV_ENV) $(UV) tool run --python $(PYLINT_PYTHON) \
-	--from '$(PYLINT_PYPY_SHIM)' pylint-pypy
+PYLINT = $(UV_ENV) $(UV) run --python $(PYLINT_PYTHON) pylint -j $(PYLINT_JOBS)
 DF12_PYLINT_MESSAGES = R9101,C9102,R9103,R9104,C9105,C9106,C9107,R9108,R9109,R9110,R9111,R9112,C9112
 DF12_PYLINT = $(UV_ENV) $(UV) run --python $(DF12_PYTHON) pylint \
 	--py-version=$(DF12_PYTHON) --disable=all --load-plugins=df12_python_lints \
@@ -114,11 +119,6 @@ lint-whitaker: ## Run the Whitaker Dylint suite with warnings denied
 lint-python: build-python ## Run Python linters
 	$(RUFF) check $(PYTHON_TARGETS)
 	$(PYLINT) $(PYLINT_TARGETS)
-	# Managed PyPy lags the CPython 3.14 syntax this project targets, and the
-	# PyPy-backed pass reports nothing at all for a module it cannot parse --
-	# not even too-many-lines. Repeat the line budget from the file bytes so an
-	# over-length module fails whether or not a linter can read it.
-	$(PROJECT_PYTHON) scripts/check_py_file_lengths.py $(PYLINT_TARGETS)
 	$(DF12_PYLINT) $(PYLINT_TARGETS)
 	$(AMBRLEAKS) tests
 
