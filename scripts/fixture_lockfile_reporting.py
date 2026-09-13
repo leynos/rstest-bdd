@@ -9,7 +9,6 @@ of a stale-lockfile or failed-prefetch failure stays testable in one place.
 import dataclasses
 import sys
 import typing as typ
-from functools import partial
 
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
@@ -42,57 +41,49 @@ class FixtureLockfileError(RuntimeError):
         return f"cannot run {cargo} for {manifest}: {error}"
 
 
-# ruff: ignore[too-many-arguments, too-many-positional-arguments] - five report parts.
-# pylint: disable-next=too-many-arguments,too-many-positional-arguments
-def _failure_message(
-    heading: str,
-    manifest: Path,
-    command: list[str],
-    result_stdout: str,
-    result_stderr: str,
-) -> str:
+def _failure_message(heading: str) -> cabc.Callable[[Path, list[str], str, str], str]:
     """
-    Render the shared Cargo failure report under an operation-specific heading.
+    Build the shared Cargo failure-report formatter for *heading*.
+
+    Every gate operation reports a failure the same way and differs only in the
+    clause that opens the report, so one factory serves all three messages. The
+    returned formatter takes the four parts the gate has in hand: the failing
+    manifest, the Cargo command that failed, and the two captured streams.
 
     Parameters
     ----------
     heading : str
         The opening clause naming the failed operation, carrying whatever
         punctuation that operation's established wording uses.
-    manifest : Path
-        The fixture the failed Cargo run belongs to.
-    command : list[str]
-        The Cargo command that failed, for reproduction.
-    result_stdout : str
-        Captured standard output from the failed Cargo run.
-    result_stderr : str
-        Captured standard error from the failed Cargo run.
 
     Returns
     -------
-    str
-        The multi-line failure report.
+    cabc.Callable[[Path, list[str], str, str], str]
+        A formatter rendering one multi-line failure report.
     """
-    return (
-        f"{heading} {manifest}\n"
-        f"command: {' '.join(command)}\n"
-        f"cargo output:\n{result_stdout}{result_stderr}"
-    )
+
+    def report(
+        manifest: Path,
+        command: list[str],
+        result_stdout: str,
+        result_stderr: str,
+    ) -> str:
+        """Render one failure report under the factory's heading."""
+        return (
+            f"{heading} {manifest}\n"
+            f"command: {' '.join(command)}\n"
+            f"cargo output:\n{result_stdout}{result_stderr}"
+        )
+
+    return report
 
 
 # The three gate messages share one report body and differ only by the heading
 # that opens it. Each heading keeps the punctuation of the wording it has always
 # produced — including the colon-free refresh heading — so no report changes.
-stale_failure_message = partial(
-    _failure_message,
-    "stale or unusable fixture lockfile:",
-)
-refresh_failure_message = partial(
-    _failure_message,
-    "refresh failed for",
-)
-fetch_failure_message = partial(
-    _failure_message,
+stale_failure_message = _failure_message("stale or unusable fixture lockfile:")
+refresh_failure_message = _failure_message("refresh failed for")
+fetch_failure_message = _failure_message(
     "failed to prefetch fixture dependencies:",
 )
 
