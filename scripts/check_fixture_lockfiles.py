@@ -9,7 +9,9 @@ so the check, refresh, and prefetch targets stay in step as fixtures are added,
 then runs ``cargo metadata --locked`` per manifest and fails with the manifest
 path and Cargo output when the lockfile is stale. The prefetch mode instead runs
 ``cargo fetch --locked`` per manifest, warming ``~/.cargo/registry`` so a later
-``--offline`` build of the same lockfile resolves without a network.
+``--offline`` build of the same lockfile resolves without a network, and closes
+the run with one bounded machine-readable metrics record on the stream that
+matches the outcome (see :func:`fixture_lockfile_reporting.print_prefetch_metrics`).
 
 Usage: ``python3 scripts/check_fixture_lockfiles.py [--refresh|--fetch] [--list]``.
 
@@ -23,6 +25,7 @@ artefacts, so they are validated by their own ``make check-published-gpui`` and
 import argparse
 import subprocess  # ruff: ignore[suspicious-subprocess-import] - the gate invokes the trusted local cargo executable.
 import sys
+import time
 import typing as typ
 from pathlib import Path
 
@@ -34,6 +37,7 @@ from fixture_lockfile_reporting import (
     print_check_summary,
     print_failures,
     print_fetch_summary,
+    print_prefetch_metrics,
     print_refresh_summary,
     refresh_failure_message,
     stale_failure_message,
@@ -219,8 +223,21 @@ def _report_fixture_operation(
     manifests: list[Path],
     mode: GateMode,
 ) -> int:
-    """Collect, report, and summarize one gate operation over *manifests*."""
+    """Collect, report, and summarize one gate operation over *manifests*.
+
+    The clock runs around the whole operation — every fixture, not the first —
+    so the metrics record a mode asks for describes the complete run. A failing
+    fixture never ends the loop, so the counts it reports are always the full
+    set the run visited.
+
+    Returns
+    -------
+    int
+        The exit code: ``0`` when every fixture passed, otherwise ``1``.
+    """
+    started = time.monotonic()
     results = collect_fixture_results(manifests, mode.operation, prepare=mode.prepare)
+    elapsed_ms = round((time.monotonic() - started) * 1000)
     failures = [
         mode.failure_message(
             manifest.relative_to(root),
@@ -233,6 +250,8 @@ def _report_fixture_operation(
     if failures:
         print_failures(failures)
     mode.print_summary(len(manifests), len(failures))
+    if mode.report_metrics is not None:
+        mode.report_metrics(len(manifests), len(failures), elapsed_ms)
     return 1 if failures else 0
 
 
@@ -268,6 +287,10 @@ def refresh_fixtures(root: Path, manifests: list[Path]) -> int:
 def fetch_fixtures(root: Path, manifests: list[Path]) -> int:
     """Prefetch every fixture's locked dependencies, returning the exit code.
 
+    The run always closes with exactly one machine-readable metrics record,
+    whether every fixture downloaded or some failed, on the stream matching the
+    outcome; the human-readable reports and summaries are unchanged.
+
     Returns
     -------
     int
@@ -288,6 +311,7 @@ def fetch_fixtures(root: Path, manifests: list[Path]) -> int:
             print_fetch_summary,
             cargo_fetch_command,
             fetch_fixture_dependencies,
+            report_metrics=print_prefetch_metrics,
         ),
     )
 

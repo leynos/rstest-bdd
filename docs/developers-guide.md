@@ -2653,6 +2653,23 @@ pattern in `crates/rstest-bdd/tests/feature_rebuild_invalidation/`:
   filling `~/.cargo/registry` from the committed lockfile without building
   anything. Discovery is shared with the gate, so the prefetch covers exactly
   the fixtures the gate validates.
+- Every `--fetch` run closes with exactly one machine-readable metrics record,
+  whether every fixture downloaded or some failed: a single line prefixed
+  `fixture-prefetch-metrics:` whose JSON payload carries `schema_version`
+  (currently `1`), `total`, `succeeded`, `failed`, `elapsed_ms`, `outcome`
+  (`success` or `failure`) and `cache_outcome`. The record holds counts, a
+  duration and the outcome only — never a manifest path, crate name, command
+  line, environment value, URL or Cargo output — so a job log can be
+  aggregated without exposing anything about the machine that produced it.
+  The line rides the stream matching the outcome: standard output beside the
+  success summary, standard error beside the failure reports, so a reader
+  capturing one stream never mistakes a failed prefetch for a clean one. The
+  elapsed time covers the whole operation, every fixture included, not the
+  first fetch. `cache_outcome` is `unknown`, and must stay that way until
+  Cargo offers machine-readable evidence: `cargo fetch` reports a download
+  only as a human-readable progress line and prints nothing when the crate is
+  already cached, so the absence of a download line proves nothing and the
+  record never infers a cache hit from silence.
 - It is needed because the nested-cargo harnesses
   (`crates/rstest-bdd/tests/feature_rebuild_invalidation.rs` and its
   `harness/addition.rs` module) build their fixtures with `--locked --offline`,

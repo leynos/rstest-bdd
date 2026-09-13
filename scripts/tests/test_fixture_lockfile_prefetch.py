@@ -8,6 +8,7 @@ covers the boundary the in-process tests mock out: the argv Cargo really
 receives, the process exit status, and the two output streams.
 """
 
+import json
 import os
 import shutil
 import stat
@@ -23,6 +24,7 @@ from check_fixture_lockfiles import (
     main,
 )
 from fixture_lockfile_discovery import discover_fixture_manifests
+from fixture_lockfile_reporting import PREFETCH_METRICS_PREFIX
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 GATE_SCRIPT = REPO_ROOT / "scripts" / "check_fixture_lockfiles.py"
@@ -253,6 +255,79 @@ def run_fetch_with_fake_cargo(
     return result, [record.rstrip("\0").split("\0") for record in records if record]
 
 
+def metrics_records(text: str) -> list[dict[str, object]]:
+    """Return every prefetch metrics record the *text* of one stream carries."""
+    return [
+        json.loads(line.removeprefix(PREFETCH_METRICS_PREFIX))
+        for line in text.splitlines()
+        if line.startswith(PREFETCH_METRICS_PREFIX)
+    ]
+
+
+def human_lines(text: str) -> list[str]:
+    """Return the wording of *text*: its non-blank, non-metrics lines."""
+    return [
+        line
+        for line in text.splitlines()
+        if line and not line.startswith(PREFETCH_METRICS_PREFIX)
+    ]
+
+
+@pytest.mark.parametrize("failing_index", [None, 0], ids=["clean", "failing"])
+def test_fetch_mode_emits_one_metrics_record_for_the_outcome(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, failing_index: int | None
+) -> None:
+    """The run closes with one record of its counts on the outcome's stream."""
+    manifests = discover_fixture_manifests(REPO_ROOT)
+    failing = None if failing_index is None else manifests[failing_index]
+
+    result, _ = run_fetch_with_fake_cargo(tmp_path, monkeypatch, failing=failing)
+
+    failed = 0 if failing is None else 1
+    assert result.returncode == failed, result.stderr
+    outcome_stream = result.stdout if failing is None else result.stderr
+    (record,) = metrics_records(outcome_stream)
+    # Spelled out, not snapshotted: the field set is the contract under test.
+    expected = {
+        "schema_version": 1,
+        "total": len(manifests),
+        "succeeded": len(manifests) - failed,
+        "failed": failed,
+        "elapsed_ms": record["elapsed_ms"],
+        "outcome": "failure" if failed else "success",
+        "cache_outcome": "unknown",
+    }
+    assert record == expected, "the record must hold the run's counts and outcome"
+    elapsed = record["elapsed_ms"]
+    assert isinstance(elapsed, int), "the duration must be whole milliseconds"
+    assert elapsed >= 0, "the record must carry a non-negative duration"
+    other_stream = result.stderr if failing is None else result.stdout
+    assert not metrics_records(other_stream), (
+        "the record must ride the stream matching the outcome, never both"
+    )
+
+
+def test_metrics_record_carries_no_unbounded_values(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Paths, Cargo diagnostics, and command lines stay out of the record."""
+    manifests = discover_fixture_manifests(REPO_ROOT)
+    result, _ = run_fetch_with_fake_cargo(tmp_path, monkeypatch, failing=manifests[0])
+    (line,) = [
+        line
+        for line in result.stderr.splitlines()
+        if line.startswith(PREFETCH_METRICS_PREFIX)
+    ]
+    candidates = (
+        str(REPO_ROOT),
+        str(manifests[0]),
+        FETCH_FAILURE,
+        "error: failed to download fixture dependency",
+    )
+    leaked = [value for value in candidates if value in line]
+    assert leaked == [], f"the record must carry counts only, never {leaked!r}"
+
+
 def test_fetch_mode_warms_every_fixture_through_the_locked_fetch_argv(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -266,10 +341,9 @@ def test_fetch_mode_warms_every_fixture_through_the_locked_fetch_argv(
         ["fetch", "--locked", "--manifest-path", str(manifest)]
         for manifest in manifests
     ], "the gate must run one locked fetch per discovered fixture, in order"
-    summary = f"prefetched dependencies for {len(manifests)} fixture(s)"
-    assert summary in result.stdout, (
-        "a clean prefetch must confirm its count on standard output"
-    )
+    assert human_lines(result.stdout) == [
+        f"prefetched dependencies for {len(manifests)} fixture(s)"
+    ], "a clean prefetch keeps its exact success summary; the record joins it"
 
 
 def test_fetch_mode_reports_a_failing_fixture_and_exits_nonzero(
@@ -288,19 +362,16 @@ def test_fetch_mode_reports_a_failing_fixture_and_exits_nonzero(
         "one failing fixture must not stop the remaining prefetches"
     )
     relative = failing.relative_to(REPO_ROOT).as_posix()
-    assert f"failed to prefetch fixture dependencies: {relative}" in result.stderr, (
-        "the report must name the fixture whose dependencies did not download"
-    )
-    command = f"command: cargo fetch --locked --manifest-path {failing}"
-    assert command in result.stderr, (
-        "the report must quote the command the gate ran for reproduction"
-    )
-    assert "error: failed to download fixture dependency" in result.stderr, (
-        "the report must carry Cargo's own diagnostics"
-    )
-    summary = f"1 of {len(manifests)} fixture dependency prefetch(es) failed"
-    assert summary in result.stderr, (
-        "the summary must count the failed prefetch on standard error"
+    # The established wording is the contract, so it is written out in full.
+    expected = [
+        f"failed to prefetch fixture dependencies: {relative}",
+        f"command: cargo fetch --locked --manifest-path {failing}",
+        "cargo output:",
+        "error: failed to download fixture dependency",
+        f"1 of {len(manifests)} fixture dependency prefetch(es) failed",
+    ]
+    assert human_lines(result.stderr) == expected, (
+        "the metrics record must not reword the established failure report"
     )
 
 
@@ -324,3 +395,6 @@ def test_make_target_runs_the_fetch_mode_and_propagates_a_failure(
     assert "failed to prefetch fixture dependencies" in result.stderr, (
         "the target must let the gate's failure report reach the lane's log"
     )
+    (record,) = metrics_records(result.stderr)
+    assert record["total"] == len(manifests), "the record must count every fixture"
+    assert record["failed"] == 1, "the record must count the failed fixture"

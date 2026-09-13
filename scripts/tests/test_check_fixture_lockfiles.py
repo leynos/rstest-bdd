@@ -29,6 +29,7 @@ from fixture_lockfile_reporting import (
     fetch_failure_message,
     print_check_summary,
     print_fetch_summary,
+    print_prefetch_metrics,
     print_refresh_summary,
     refresh_failure_message,
     stale_failure_message,
@@ -270,6 +271,7 @@ def test_gate_wrappers_delegate_to_the_shared_reporter() -> None:
                 print_fetch_summary,
                 cargo_fetch_command,
                 fetch_fixture_dependencies,
+                report_metrics=print_prefetch_metrics,
             ),
         ),
     ]

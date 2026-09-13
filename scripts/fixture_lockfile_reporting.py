@@ -3,10 +3,13 @@
 
 Keeping the message formatting and the shared error type apart from the Cargo
 plumbing lets the gate script stay under the 400-line budget while the wording
-of a stale-lockfile or failed-prefetch failure stays testable in one place.
+of a stale-lockfile or failed-prefetch failure stays testable in one place. The
+prefetch mode's machine-readable metrics record lives here too, beside the
+human-readable summary it accompanies.
 """
 
 import dataclasses
+import json
 import sys
 import typing as typ
 
@@ -17,6 +20,22 @@ if typ.TYPE_CHECKING:
 
 #: Suggested remediation printed when a lockfile no longer resolves.
 REFRESH_HINT = "run 'make update-fixture-lockfiles' to refresh them"
+
+#: Prefix marking the prefetch metrics record, so one grep or line filter finds
+#: the record in a job log without parsing the human-readable lines.
+PREFETCH_METRICS_PREFIX = "fixture-prefetch-metrics: "
+
+#: Schema version of the prefetch metrics record; bump it when the field set or
+#: a field's meaning changes, never when a value changes.
+PREFETCH_METRICS_SCHEMA_VERSION = 1
+
+#: Cache outcome recorded when Cargo offers no reliable cache/download
+#: evidence. ``cargo fetch`` reports downloads as human-readable progress lines
+#: and prints nothing when the cache already has a crate, so the absence of a
+#: download line proves nothing and the record never guesses. ``unknown`` is
+#: the only bounded value available today; a machine-readable Cargo signal
+#: would be needed before a record may say more.
+CACHE_OUTCOME_UNKNOWN = "unknown"
 
 
 class FixtureLockfileError(RuntimeError):
@@ -158,6 +177,82 @@ def print_fetch_summary(total: int, failed: int) -> None:
         print(f"prefetched dependencies for {total} fixture(s)")
 
 
+def prefetch_metrics_record(
+    total: int,
+    succeeded: int,
+    failed: int,
+    elapsed_ms: int,
+) -> str:
+    """Render the bounded prefetch metrics record for one ``--fetch`` run.
+
+    The record carries counts, a duration, the outcome, and the cache outcome —
+    never a manifest path, crate name, command line, environment value, URL, or
+    Cargo output — so an aggregating reader can parse it without learning
+    anything about the machine that produced it. Field order is fixed and the
+    JSON is emitted compactly, so the same numbers always render the same line.
+
+    Parameters
+    ----------
+    total : int
+        The number of fixtures the prefetch visited.
+    succeeded : int
+        The number of fixtures whose dependencies are now cached.
+    failed : int
+        The number of fixtures whose ``cargo fetch`` failed.
+    elapsed_ms : int
+        Wall-clock milliseconds the whole prefetch took.
+
+    Returns
+    -------
+    str
+        The prefixed JSON line standing for one prefetch run.
+
+    Examples
+    --------
+    >>> expected = (
+    ...     'fixture-prefetch-metrics: {"schema_version":1,"total":2,'
+    ...     '"succeeded":2,"failed":0,"elapsed_ms":7,"outcome":"success",'
+    ...     '"cache_outcome":"unknown"}'
+    ... )
+    >>> prefetch_metrics_record(2, 2, 0, 7) == expected
+    True
+    """
+    return PREFETCH_METRICS_PREFIX + json.dumps(
+        {
+            "schema_version": PREFETCH_METRICS_SCHEMA_VERSION,
+            "total": total,
+            "succeeded": succeeded,
+            "failed": failed,
+            "elapsed_ms": elapsed_ms,
+            "outcome": "failure" if failed else "success",
+            "cache_outcome": CACHE_OUTCOME_UNKNOWN,
+        },
+        separators=(",", ":"),
+    )
+
+
+def print_prefetch_metrics(total: int, failed: int, elapsed_ms: int) -> None:
+    """
+    Print the prefetch metrics record beside the summary for the same outcome.
+
+    A clean run carries its record on standard output with the success summary;
+    a failed run carries it on standard error with the failure reports, so a
+    reader capturing only one stream never reads a failed prefetch as a clean
+    one.
+
+    Parameters
+    ----------
+    total : int
+        The number of fixtures the prefetch visited.
+    failed : int
+        The number of fixtures whose dependencies could not be fetched.
+    elapsed_ms : int
+        Wall-clock milliseconds the whole prefetch took.
+    """
+    record = prefetch_metrics_record(total, total - failed, failed, elapsed_ms)
+    print(record, file=sys.stderr if failed else sys.stdout)
+
+
 @dataclasses.dataclass(frozen=True, slots=True)
 class GateMode:
     """Bundle the callables that distinguish one fixture-gate operation.
@@ -178,6 +273,10 @@ class GateMode:
         Run that argv for one manifest; a non-zero exit is a failure.
     prepare : cabc.Callable[[Path], object] | None
         Optional per-manifest step before the operation, or None.
+    report_metrics : cabc.Callable[[int, int, int], None] | None
+        Optional machine-readable record of the whole run, taking the fixture
+        total, the failed count, and the elapsed milliseconds; None for a mode
+        that emits no record.
     """
 
     failure_message: cabc.Callable[[Path, list[str], str, str], str]
@@ -185,3 +284,4 @@ class GateMode:
     command: cabc.Callable[[Path], list[str]]
     operation: cabc.Callable[[Path], subprocess.CompletedProcess[str]]
     prepare: cabc.Callable[[Path], object] | None = None
+    report_metrics: cabc.Callable[[int, int, int], None] | None = None
