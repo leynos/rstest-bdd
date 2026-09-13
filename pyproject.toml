@@ -176,10 +176,14 @@ max-bool-expr = 2
 max-locals = 10
 
 [tool.pylint.main]
-# Analyse CPython 3.14 syntax in both the standard PyPy-backed integration and
-# the DF12 pass, which receives the same baseline explicitly.
+# Analyse CPython 3.14 syntax in both the standard integration, which runs on
+# that interpreter, and the DF12 pass, which receives the same baseline
+# explicitly.
 py-version = "3.14"
 recursive = true
+# Enforced by the standard pass over every lint target. It runs on the
+# interpreter whose grammar the sources are written in, so a module is measured
+# whether or not it uses the newest syntax that grammar accepts.
 max-module-lines = 400
 
 [tool.pylint.design]
@@ -191,11 +195,15 @@ max-positional-arguments = 4
 [tool.pylint."messages control"]
 disable = [
     "all",
-    # Managed PyPy can lag the requested CPython syntax; keep the PyPy-backed
-    # pass useful on files it can parse.
-    "syntax-error",
 ]
 enable = [
+    # Parse failures. The pass runs on the interpreter whose grammar the lint
+    # targets are written in, so a module it cannot read is a fault in that
+    # module rather than a limitation of the tool. Reporting the fault stops an
+    # unreadable module from passing lint in silence, which is how it escaped
+    # the line budget and every other enabled message.
+    "syntax-error",
+
     # Logging format safety.
     "logging-format-interpolation",
     "logging-format-truncated",

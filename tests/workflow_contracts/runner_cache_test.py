@@ -12,6 +12,8 @@ import itertools
 import re
 from pathlib import PurePosixPath
 
+from cache_step_support import CACHE_ACTION_REF
+from cache_step_support import is_cache_step as _is_cache_step
 from workflow_queries import archived_target_paths as _archived_target_paths
 from workflow_queries import cache_steps as _cache_steps
 from workflow_queries import (
@@ -20,8 +22,6 @@ from workflow_queries import (
 from workflow_queries import iter_steps as _iter_steps
 from workflow_queries import owned_paths as _owned_paths
 from workflow_queries import shared_cache_owning_steps as _shared_cache_owning_steps
-from workflow_support import CACHE_ACTION_REF
-from workflow_support import is_cache_step as _is_cache_step
 from workflow_support import job as _job
 from workflow_support import step_index as _step_index
 from workflow_support import steps as _steps
