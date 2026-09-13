@@ -15,6 +15,7 @@ from check_fixture_lockfiles import (
     cargo_metadata_command,
     check_fixtures,
     fetch_fixture_dependencies,
+    fetch_fixture_dependencies_or_failure,
     fetch_fixtures,
     main,
     refresh_fixtures,
@@ -270,8 +271,9 @@ def test_gate_wrappers_delegate_to_the_shared_reporter() -> None:
                 fetch_failure_message,
                 print_fetch_summary,
                 cargo_fetch_command,
-                fetch_fixture_dependencies,
+                fetch_fixture_dependencies_or_failure,
                 report_metrics=print_prefetch_metrics,
+                clock=mock.ANY,
             ),
         ),
     ]
@@ -362,4 +364,33 @@ def test_main_refresh_flag_routes_to_refresh_fixtures(
     assert exit_code == 0, "a clean refresh must exit zero"
     assert "refreshed" in capsys.readouterr().out, (
         "the refresh summary must confirm the run"
+    )
+
+
+def test_an_unstartable_cargo_only_stops_the_validating_modes() -> None:
+    """Validation aborts without Cargo; the prefetch fails each fixture."""
+    manifests = discover_fixture_manifests(REPO_ROOT)
+    unstartable = FixtureLockfileError(
+        FixtureLockfileError.cargo_unavailable_message(
+            "cargo", manifests[0], OSError(2, "No such file or directory")
+        )
+    )
+    ticks = iter([100.0, 100.25])
+    with (
+        mock.patch(
+            "check_fixture_lockfiles.run_cargo_command", side_effect=unstartable
+        ) as runner,
+        mock.patch("check_fixture_lockfiles.print_prefetch_metrics") as metrics,
+    ):
+        for validating in (check_fixtures, refresh_fixtures):
+            with pytest.raises(FixtureLockfileError, match="cannot run cargo"):
+                validating(REPO_ROOT, manifests)
+        exited = fetch_fixtures(REPO_ROOT, manifests, clock=lambda: next(ticks))
+    assert exited == 1, "a fixture whose Cargo cannot start must fail the prefetch"
+    assert runner.call_count == 2 + len(manifests), (
+        "the validating modes must abort at the first fixture while the prefetch "
+        "still visits every one"
+    )
+    assert metrics.call_args.args == (len(manifests), len(manifests), 250), (
+        "the record must count every failed fixture and carry the fake clock's span"
     )

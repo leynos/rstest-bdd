@@ -11,6 +11,7 @@ human-readable summary it accompanies.
 import dataclasses
 import json
 import sys
+import time
 import typing as typ
 
 if typ.TYPE_CHECKING:
@@ -277,6 +278,10 @@ class GateMode:
         Optional machine-readable record of the whole run, taking the fixture
         total, the failed count, and the elapsed milliseconds; None for a mode
         that emits no record.
+    clock : cabc.Callable[[], float]
+        The monotonic clock that record is timed with. It is read only by a
+        mode that sets *report_metrics*, so the validating modes never read a
+        clock at all.
     """
 
     failure_message: cabc.Callable[[Path, list[str], str, str], str]
@@ -285,3 +290,4 @@ class GateMode:
     operation: cabc.Callable[[Path], subprocess.CompletedProcess[str]]
     prepare: cabc.Callable[[Path], object] | None = None
     report_metrics: cabc.Callable[[int, int, int], None] | None = None
+    clock: cabc.Callable[[], float] = time.monotonic

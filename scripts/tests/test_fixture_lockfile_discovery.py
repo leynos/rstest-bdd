@@ -19,8 +19,35 @@ from fixture_lockfile_discovery import (
     iter_cargo_manifests,
 )
 from fixture_lockfile_reporting import FixtureLockfileError
+from hypothesis import given
+from hypothesis import strategies as st
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+
+#: Table keys Cargo reads a dependency specification from: a key whose name ends
+#: in ``dependencies``, and the path-override tables the classifier dispatches
+#: on alongside them.
+DEPENDENCY_TABLE_KEYS: st.SearchStrategy[str] = st.sampled_from([
+    "dependencies",
+    "dev-dependencies",
+    "build-dependencies",
+    "patch",
+    "replace",
+])
+
+#: Key names a generated document may use. ``path`` is excluded, so every
+#: document the strategies below build declares no local source at all.
+PATHLESS_KEYS: st.SearchStrategy[str] = st.text(
+    alphabet=st.characters(min_codepoint=0x21, max_codepoint=0x7E),
+    min_size=1,
+    max_size=4,
+).filter(lambda key: key != "path")
+
+#: Leaf values a generated document may hold. A ``path`` key is what makes a
+#: source local, so one spelled as a value must count for nothing.
+LEAF_VALUES: st.SearchStrategy[object] = (
+    st.text(max_size=8) | st.integers() | st.booleans() | st.none()
+)
 
 
 def test_discovery_includes_feature_addition_fixture() -> None:
@@ -128,6 +155,7 @@ def test_classification_ignores_comments_and_string_values(tmp_path: Path) -> No
         '[dev-dependencies.helper]\npath = "../helper"\n',
         '[target."cfg(unix)".dependencies]\nhelper = { path = "../helper" }\n',
         '[patch.crates-io]\nhelper = { path = "../helper" }\n',
+        '[replace]\n"helper:1.0.0" = { path = "../helper" }\n',
     ],
     ids=[
         "inline-table",
@@ -136,6 +164,7 @@ def test_classification_ignores_comments_and_string_values(tmp_path: Path) -> No
         "dev-dependency",
         "target-qualified",
         "patch-override",
+        "replace-override",
     ],
 )
 def test_every_path_dependency_spelling_is_recognized(
@@ -156,8 +185,9 @@ def test_every_path_dependency_spelling_is_recognized(
         ("dependencies", {"helper": {"path": "../helper"}}),
         ("dev-dependencies", {"helper": {"path": "../helper"}}),
         ("patch", {"crates-io": {"helper": {"path": "../helper"}}}),
+        ("replace", {"helper:1.0.0": {"path": "../helper"}}),
     ],
-    ids=["dependencies", "dev-dependencies", "patch"],
+    ids=["dependencies", "dev-dependencies", "patch", "replace"],
 )
 def test_dependency_tables_are_searched_whole_for_a_path_source(
     key: str, value: dict[str, object]
@@ -185,6 +215,46 @@ def test_registry_only_dependency_table_declares_no_local_source() -> None:
     assert not _value_declares_local_source(
         "dependencies", {"helper": {"version": "1"}}
     ), "a registry dependency declares no local source"
+
+
+@given(
+    table=DEPENDENCY_TABLE_KEYS,
+    layers=st.lists(PATHLESS_KEYS, max_size=4),
+    leaf=LEAF_VALUES,
+    listed=st.booleans(),
+)
+def test_a_path_key_at_any_depth_below_a_dependency_table_is_found(
+    table: str, layers: list[str], leaf: object, *, listed: bool
+) -> None:
+    """A path key at any nesting depth below a dependency table is found."""
+    nested: object = {"path": leaf}
+    for layer in layers:
+        nested = {layer: nested}
+    value: dict[str, object] = {"helper": [nested] if listed else nested}
+
+    assert _value_declares_local_source(table, value), (
+        f"a path key {len(layers)} table(s) below {table!r} names a local source"
+    )
+
+
+@given(
+    table=DEPENDENCY_TABLE_KEYS,
+    layers=st.lists(PATHLESS_KEYS, max_size=4),
+    leaf=LEAF_VALUES,
+    listed=st.booleans(),
+)
+def test_a_document_without_a_path_key_is_never_a_local_source(
+    table: str, layers: list[str], leaf: object, *, listed: bool
+) -> None:
+    """A document holding no path key declares no local source, however nested."""
+    nested: object = [leaf] if listed else leaf
+    for layer in layers:
+        nested = {layer: nested}
+    value: dict[str, object] = {"helper": nested}
+
+    assert not _value_declares_local_source(table, value), (
+        f"{value!r} holds no path key and must not count as a local source"
+    )
 
 
 @pytest.mark.parametrize(

@@ -98,7 +98,7 @@ def _holds_path_key(value: object) -> bool:
 
 def _value_declares_local_source(key: str, value: dict[str, object]) -> bool:
     """Return whether *value* declares a local source for TOML table *key*."""
-    if key.endswith("dependencies") or key == "patch":
+    if key.endswith("dependencies") or key in {"patch", "replace"}:
         return _holds_path_key(value)
     return _declares_local_source(value)
 
@@ -109,8 +109,9 @@ def _declares_local_source(table: cabc.Mapping[str, object]) -> bool:
     Cargo reads dependency specifications from the ``dependencies``,
     ``dev-dependencies``, ``build-dependencies``, and ``workspace`` tables —
     including their ``target``-qualified and table-per-dependency spellings —
-    and takes path overrides from the ``patch`` tables. Following every nested
-    table reaches all of those spellings.
+    and takes path overrides from the ``patch`` tables and the deprecated
+    ``replace`` tables. Following every nested table reaches all of those
+    spellings.
 
     Returns
     -------

@@ -191,6 +191,36 @@ def fetch_fixture_dependencies(manifest: Path) -> subprocess.CompletedProcess[st
     return run_cargo_command(cargo_fetch_command(manifest), manifest)
 
 
+def fetch_fixture_dependencies_or_failure(
+    manifest: Path,
+) -> subprocess.CompletedProcess[str]:
+    """Prefetch *manifest*, turning an unstartable Cargo into a failed result.
+
+    ``cargo fetch`` is one fixture's work, so a Cargo that cannot be started
+    must fail that fixture rather than the whole run: the prefetch visits every
+    fixture and closes with exactly one metrics record either way. The launch
+    error therefore becomes a failed synthetic invocation carrying the same
+    message, which the shared report renders like any other prefetch failure.
+    The check and refresh modes keep :func:`run_cargo_command`'s raising
+    contract, because a lockfile cannot be validated without Cargo at all.
+
+    Returns
+    -------
+    subprocess.CompletedProcess[str]
+        The completed invocation, or a failed synthetic one when Cargo could
+        not be started.
+    """
+    try:
+        return fetch_fixture_dependencies(manifest)
+    except FixtureLockfileError as error:
+        return subprocess.CompletedProcess(
+            args=cargo_fetch_command(manifest),
+            returncode=1,
+            stdout="",
+            stderr=f"{error}\n",
+        )
+
+
 def collect_fixture_results(
     manifests: list[Path],
     operation: cabc.Callable[[Path], subprocess.CompletedProcess[str]],
@@ -226,18 +256,19 @@ def _report_fixture_operation(
     """Collect, report, and summarize one gate operation over *manifests*.
 
     The clock runs around the whole operation — every fixture, not the first —
-    so the metrics record a mode asks for describes the complete run. A failing
-    fixture never ends the loop, so the counts it reports are always the full
-    set the run visited.
+    so the metrics record a mode asks for describes the complete run, and only
+    a mode that asks for a record reads the clock at all. A failing fixture
+    never ends the loop, so the counts it reports are always the full set the
+    run visited.
 
     Returns
     -------
     int
         The exit code: ``0`` when every fixture passed, otherwise ``1``.
     """
-    started = time.monotonic()
+    report_metrics = mode.report_metrics
+    started = mode.clock() if report_metrics is not None else None
     results = collect_fixture_results(manifests, mode.operation, prepare=mode.prepare)
-    elapsed_ms = round((time.monotonic() - started) * 1000)
     failures = [
         mode.failure_message(
             manifest.relative_to(root),
@@ -250,8 +281,10 @@ def _report_fixture_operation(
     if failures:
         print_failures(failures)
     mode.print_summary(len(manifests), len(failures))
-    if mode.report_metrics is not None:
-        mode.report_metrics(len(manifests), len(failures), elapsed_ms)
+    if report_metrics is not None and started is not None:
+        report_metrics(
+            len(manifests), len(failures), round((mode.clock() - started) * 1000)
+        )
     return 1 if failures else 0
 
 
@@ -284,12 +317,18 @@ def refresh_fixtures(root: Path, manifests: list[Path]) -> int:
     )
 
 
-def fetch_fixtures(root: Path, manifests: list[Path]) -> int:
+def fetch_fixtures(
+    root: Path,
+    manifests: list[Path],
+    clock: cabc.Callable[[], float] = time.monotonic,
+) -> int:
     """Prefetch every fixture's locked dependencies, returning the exit code.
 
     The run always closes with exactly one machine-readable metrics record,
-    whether every fixture downloaded or some failed, on the stream matching the
-    outcome; the human-readable reports and summaries are unchanged.
+    whether every fixture downloaded, some failed, or Cargo could not be
+    started, on the stream matching the outcome; the human-readable reports and
+    summaries are unchanged. *clock* is the monotonic clock that record's
+    duration is measured with.
 
     Returns
     -------
@@ -310,8 +349,9 @@ def fetch_fixtures(root: Path, manifests: list[Path]) -> int:
             fetch_failure_message,
             print_fetch_summary,
             cargo_fetch_command,
-            fetch_fixture_dependencies,
+            fetch_fixture_dependencies_or_failure,
             report_metrics=print_prefetch_metrics,
+            clock=clock,
         ),
     )
 

@@ -2654,10 +2654,12 @@ pattern in `crates/rstest-bdd/tests/feature_rebuild_invalidation/`:
   anything. Discovery is shared with the gate, so the prefetch covers exactly
   the fixtures the gate validates.
 - Every `--fetch` run closes with exactly one machine-readable metrics record,
-  whether every fixture downloaded or some failed: a single line prefixed
-  `fixture-prefetch-metrics:` whose JSON payload carries `schema_version`
-  (currently `1`), `total`, `succeeded`, `failed`, `elapsed_ms`, `outcome`
-  (`success` or `failure`) and `cache_outcome`. The record holds counts, a
+  whether every fixture downloaded, some failed or Cargo could not be started
+  at all: a single line prefixed `fixture-prefetch-metrics:` whose JSON payload
+  carries `schema_version` (currently `1`), `total`, `succeeded`, `failed`,
+  `elapsed_ms`, `outcome` (`success` or `failure`) and `cache_outcome`. An
+  unstartable Cargo fails each fixture rather than aborting the prefetch run,
+  while the check and refresh modes still fail fast. The record holds counts, a
   duration and the outcome only — never a manifest path, crate name, command
   line, environment value, URL or Cargo output — so a job log can be
   aggregated without exposing anything about the machine that produced it.
