@@ -118,13 +118,46 @@ def _fence_state(
     return None
 
 
+def _unique_anchor(anchor: str, occurrences: dict[str, int]) -> str:
+    """
+    Return *anchor*, numerically suffixed when an earlier heading claimed it.
+
+    GitHub keeps the first heading's slug and appends ``-1``, ``-2``, and so on
+    to later headings that slug identically, testing each candidate against
+    every slug already handed out. The counter is keyed on the base slug, so a
+    heading whose own slug was generated as a suffix is suffixed again rather
+    than taking the next free number.
+
+    Parameters
+    ----------
+    anchor : str
+        The base slug of the heading being anchored.
+    occurrences : dict[str, int]
+        The counters and claimed slugs of the headings read so far, updated in
+        place.
+
+    Returns
+    -------
+    str
+        The unique anchor for this heading.
+    """
+    base = anchor
+    while anchor in occurrences:
+        occurrences[base] = occurrences.get(base, 0) + 1
+        anchor = f"{base}-{occurrences[base]}"
+    occurrences[anchor] = 0
+    return anchor
+
+
 def heading_anchors(markdown: str) -> set[str]:
     r"""
     Collect the GitHub anchor fragments for every heading in a document.
 
     Lines inside fenced code blocks are ignored so that ``#`` comments in
     code samples are not mistaken for headings. Both backtick and tilde fences
-    are recognized, indented by up to three spaces.
+    are recognized, indented by up to three spaces. Headings that slug
+    identically are anchored as GitHub anchors them: the first keeps the slug
+    and the rest take incrementing numeric suffixes.
 
     Parameters
     ----------
@@ -142,8 +175,11 @@ def heading_anchors(markdown: str) -> set[str]:
     ['kept']
     >>> sorted(heading_anchors("~~~\n# Skipped\n~~~\n# Kept\n"))
     ['kept']
+    >>> sorted(heading_anchors("# Setup\n\n## Setup\n"))
+    ['setup', 'setup-1']
     """
     anchors: set[str] = set()
+    occurrences: dict[str, int] = {}
     fence: tuple[str, int] | None = None
     for line in markdown.splitlines():
         if (fence_match := FENCE.match(line)) is not None:
@@ -154,7 +190,10 @@ def heading_anchors(markdown: str) -> set[str]:
         if fence is not None:
             continue
         if (heading := HEADING.match(line)) is not None:
-            anchors.add(github_heading_anchor(heading.group("text")))
+            anchor = _unique_anchor(
+                github_heading_anchor(heading.group("text")), occurrences
+            )
+            anchors.add(anchor)
     return anchors
 
 

@@ -133,6 +133,23 @@ class TestHeadingAnchors:
             f"prose without headings should yield no anchors, got {anchors}"
         )
 
+    def test_repeated_headings_take_incrementing_suffixes(self) -> None:
+        """Repeated headings are anchored in document order, as GitHub does."""
+        markdown = "# Setup\n\n## Setup\n\n### Setup\n"
+        anchors = heading_anchors(markdown)
+        assert anchors == {"setup", "setup-1", "setup-2"}, (
+            f"repeated headings should be suffixed in document order, got {anchors}"
+        )
+
+    def test_generated_suffix_is_suffixed_again(self) -> None:
+        """A slug generated for an earlier heading is claimed and suffixed again."""
+        markdown = "# Setup\n\n## Setup\n\n### Setup 1\n"
+        anchors = heading_anchors(markdown)
+        assert anchors == {"setup", "setup-1", "setup-1-1"}, (
+            f"a generated slug should be suffixed again rather than renumbered, "
+            f"got {anchors}"
+        )
+
 
 class TestReferenceDefinitions:
     """Tests for :func:`markdown_references.reference_definitions`."""

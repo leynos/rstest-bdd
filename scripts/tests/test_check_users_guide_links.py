@@ -46,6 +46,28 @@ class TestCheckRepoLink:
             f"fragment matching a heading should be valid, got {violations}"
         )
 
+    def test_accepts_fragment_of_a_repeated_heading(self, repo: Path) -> None:
+        """A fragment naming a repeated heading's suffixed anchor is valid."""
+        (repo / "docs" / "target.md").write_text(
+            "# Setup\n\n## Setup\n", encoding="utf-8"
+        )
+
+        violations = check_repo_link(repo, "second", f"{BASE_URL}target.md#setup-1")
+
+        assert not violations, f"a suffixed anchor should be valid, got {violations}"
+
+    def test_rejects_a_suffix_no_heading_produced(self, repo: Path) -> None:
+        """A suffix beyond the headings' count should still be reported."""
+        (repo / "docs" / "target.md").write_text(
+            "# Setup\n\n## Setup\n", encoding="utf-8"
+        )
+
+        violations = check_repo_link(repo, "third", f"{BASE_URL}target.md#setup-2")
+
+        assert violations == [
+            "[third] fragment #setup-2 matches no heading in docs/target.md"
+        ], f"an unproduced suffix should be reported, got {violations}"
+
     def test_rejects_non_canonical_base(self, repo: Path) -> None:
         """A URL outside the canonical base should be reported."""
         violations = check_repo_link(repo, "bad-base", STALE_BRANCH_URL)
@@ -128,28 +150,31 @@ class TestCheckGuide:
         guide.parent.mkdir(parents=True, exist_ok=True)
         guide.write_text(markdown, encoding="utf-8")
 
-    def test_passes_for_valid_repository_links(self, tmp_path: Path) -> None:
-        """A guide whose repository links all resolve should pass."""
+    @pytest.mark.parametrize(
+        ("label", "url"),
+        [
+            pytest.param(
+                "docs-rs",
+                "https://docs.rs/rstest-bdd/latest/",
+                id="third-party-service",
+            ),
+            pytest.param(
+                "external",
+                "https://example.com/blob/main/docs/missing.md",
+                id="foreign-github-shaped-url",
+            ),
+        ],
+    )
+    def test_skips_non_repository_links(
+        self, tmp_path: Path, label: str, url: str
+    ) -> None:
+        """External links are skipped, however repository-shaped they look."""
         (tmp_path / "docs").mkdir()
         (tmp_path / "docs" / "other.md").write_text("# Other\n", encoding="utf-8")
-        self.write_guide(
-            tmp_path,
-            f"[other]: {BASE_URL}other.md\n"
-            "[docs-rs]: https://docs.rs/rstest-bdd/latest/\n",
-        )
-        violations = check_guide(tmp_path)
-        assert not violations, f"valid repository links should pass, got {violations}"
+        self.write_guide(tmp_path, f"[other]: {BASE_URL}other.md\n[{label}]: {url}\n")
 
-    def test_skips_non_repository_links(self, tmp_path: Path) -> None:
-        """External links such as docs.rs are not validated."""
-        (tmp_path / "docs").mkdir()
-        (tmp_path / "docs" / "other.md").write_text("# Other\n", encoding="utf-8")
-        self.write_guide(
-            tmp_path,
-            f"[other]: {BASE_URL}other.md\n"
-            "[external]: https://example.com/blob/main/docs/missing.md\n",
-        )
         violations = check_guide(tmp_path)
+
         assert not violations, (
             f"non-repository links should be skipped, got {violations}"
         )
