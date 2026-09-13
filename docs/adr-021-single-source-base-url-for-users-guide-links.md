@@ -165,6 +165,8 @@ a rewrite cannot disturb prose.
 - Issue [#540][issue-540]: evaluate proportionality of the validator.
 - Pull request [#521][pr-521]: add `scripts/check_users_guide_links.py`.
 - Pull request [#541][pr-541]: add CLI and property tests, and ADR-014.
+- Pull request [#747][pr-747]: generate the reference block from one recorded
+  base URL, and record this decision.
 - [ADR-014][adr-014]: retain the users-guide link validator.
 
 [adr-014]: adr-014-retain-users-guide-link-validator.md
@@ -173,3 +175,4 @@ a rewrite cannot disturb prose.
 [issue-540]: https://github.com/leynos/rstest-bdd/issues/540
 [pr-521]: https://github.com/leynos/rstest-bdd/pull/521
 [pr-541]: https://github.com/leynos/rstest-bdd/pull/541
+[pr-747]: https://github.com/leynos/rstest-bdd/pull/747
