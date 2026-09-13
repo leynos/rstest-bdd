@@ -5,6 +5,7 @@ exercising the ``--root`` and ``--fix`` options and the exit codes rather than
 the helper functions (which have their own unit tests).
 """
 
+import os
 import typing as typ
 
 import pytest
@@ -76,6 +77,22 @@ class TestMain:
             f"stderr should name docs/gone.md: {captured.err}"
         )
 
+    def test_rejects_a_stale_base_url(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A definition written against an earlier base URL should exit 1."""
+        _write_document(tmp_path, "other.md", "# Other\n")
+        _write_guide(tmp_path, f"[other]: {STALE_BRANCH_URL}\n")
+
+        exit_code = _run_checker(tmp_path)
+        captured = capsys.readouterr()
+
+        assert exit_code == 1, f"expected exit 1, got {exit_code}: {captured.err}"
+        assert captured.err == (
+            f"[other] does not use the canonical base URL {BASE_URL}: "
+            f"{STALE_BRANCH_URL} (run: make update-users-guide-links)\n"
+        ), f"stderr should pin the diagnostic: {captured.err}"
+
     def test_guide_without_repository_links_exits_one(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -139,7 +156,7 @@ class TestFix:
 
         assert exit_code == 0, f"expected exit 0, got {exit_code}: {captured.err}"
         assert not captured.err, f"expected no stderr, got: {captured.err}"
-        assert "rewrote 1 reference line(s)" in captured.out, (
+        assert captured.out == f"rewrote 1 reference line(s) in {GUIDE}\n", (
             f"stdout should report the rewrite: {captured.out}"
         )
         assert _read_guide(tmp_path) == f"[other]: {CANONICAL_OTHER}\n", (
@@ -157,9 +174,9 @@ class TestFix:
         captured = capsys.readouterr()
 
         assert exit_code == 0, f"expected exit 0, got {exit_code}: {captured.err}"
-        assert "already matches" in captured.out, (
-            f"stdout should report that nothing changed: {captured.out}"
-        )
+        assert captured.out == (
+            f"{GUIDE} already matches the generated reference links\n"
+        ), f"stdout should report that nothing changed: {captured.out}"
         assert _read_guide(tmp_path) == f"[other]: {CANONICAL_OTHER}\n", (
             f"guide should be untouched, got {_read_guide(tmp_path)!r}"
         )
@@ -229,4 +246,41 @@ class TestFix:
         assert exit_code == 1, f"expected exit 1, got {exit_code}: {captured.err}"
         assert "could not read" in captured.err, (
             f"stderr should report the read failure: {captured.err}"
+        )
+
+    def test_reports_a_guide_it_cannot_write(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A failed write should be reported rather than raised."""
+        _write_document(tmp_path, "other.md", "# Other\n")
+        _write_guide(tmp_path, f"[other]: {STALE_BRANCH_URL}\n")
+        guide = tmp_path / GUIDE
+        guide.chmod(0o444)
+        if os.access(guide, os.W_OK):
+            pytest.skip("file modes do not restrict this user")
+
+        exit_code = _run_checker(tmp_path, "--fix")
+        captured = capsys.readouterr()
+
+        assert exit_code == 1, f"expected exit 1, got {exit_code}: {captured.err}"
+        assert captured.err.startswith(f"could not write {GUIDE}: "), (
+            f"stderr should report the write failure: {captured.err}"
+        )
+
+    def test_preserves_crlf_line_endings(
+        self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        """A rewrite must not reflow a CRLF guide into LF."""
+        _write_document(tmp_path, "other.md", "# Other\n")
+        guide = tmp_path / GUIDE
+        guide.parent.mkdir(parents=True, exist_ok=True)
+        guide.write_bytes(f"[other]: {STALE_BRANCH_URL}\r\n".encode())
+
+        exit_code = _run_checker(tmp_path, "--fix")
+        captured = capsys.readouterr()
+
+        assert exit_code == 0, f"expected exit 0, got {exit_code}: {captured.err}"
+        expected = f"[other]: {CANONICAL_OTHER}\r\n".encode()
+        assert guide.read_bytes() == expected, (
+            f"every line ending should survive, got {guide.read_bytes()!r}"
         )

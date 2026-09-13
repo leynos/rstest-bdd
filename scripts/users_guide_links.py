@@ -22,8 +22,6 @@ from urllib.parse import urlparse
 
 from markdown_references import REFERENCE_DEFINITION
 
-GUIDE = Path("docs/users-guide.md")
-
 # The guide's cross-references into this repository are described here and
 # nowhere else: where the repository lives, which branch its documents are
 # rendered from, and where the documentation tree starts. A repository move
@@ -34,6 +32,10 @@ REPOSITORY_URL = "https://github.com/leynos/rstest-bdd"
 DEFAULT_BRANCH = "main"
 DOCS_DIR = "docs"
 BASE_URL = f"{REPOSITORY_URL}/blob/{DEFAULT_BRANCH}/{DOCS_DIR}/"
+
+# The guide the reference block lives in, named from the documentation tree so
+# that relocating the tree moves the guide with it.
+GUIDE = Path(DOCS_DIR) / "users-guide.md"
 
 # Every link into this repository, document or not. A definition under this
 # prefix stays this repository's business even when it cannot be rewritten -- an
@@ -50,7 +52,7 @@ CANONICAL_HOST = urlparse(REPOSITORY_URL).netloc
 
 
 def document_target(root: Path, url: str) -> str | None:
-    """
+    r"""
     Return the documentation target a repository link names, if it names one.
 
     The link is recognized by shape rather than by the base URL it was written
@@ -72,6 +74,17 @@ def document_target(root: Path, url: str) -> str | None:
     str | None
         The documentation-relative target with any fragment, or ``None`` when
         the link names no document in the documentation tree.
+
+    Examples
+    --------
+    >>> import tempfile
+    >>> root = Path(tempfile.mkdtemp())
+    >>> (root / "docs").mkdir()
+    >>> _ = (root / "docs" / "other.md").write_text("# Other\n", encoding="utf-8")
+    >>> document_target(root, f"{BASE_URL}other.md")
+    'other.md'
+    >>> document_target(root, f"{REPOSITORY_URL}/issues/537") is None
+    True
     """
     parsed = urlparse(url)
     if parsed.netloc != CANONICAL_HOST or BLOB_SEGMENT not in parsed.path:
@@ -83,7 +96,7 @@ def document_target(root: Path, url: str) -> str | None:
 
 
 def canonical_link(root: Path, url: str) -> str | None:
-    """
+    r"""
     Return the canonical form of a repository document link.
 
     A link that already carries :data:`BASE_URL` is canonical as written --
@@ -104,6 +117,17 @@ def canonical_link(root: Path, url: str) -> str | None:
     str | None
         The canonical URL, or ``None`` when the link names no document in the
         documentation tree.
+
+    Examples
+    --------
+    >>> import tempfile
+    >>> root = Path(tempfile.mkdtemp())
+    >>> (root / "docs").mkdir()
+    >>> _ = (root / "docs" / "other.md").write_text("# Other\n", encoding="utf-8")
+    >>> canonical_link(root, f"{REPOSITORY_URL}/blob/old/docs/other.md")
+    'https://github.com/leynos/rstest-bdd/blob/main/docs/other.md'
+    >>> canonical_link(root, f"{REPOSITORY_URL}/issues/537") is None
+    True
     """
     if url.startswith(BASE_URL):
         return url
@@ -112,7 +136,7 @@ def canonical_link(root: Path, url: str) -> str | None:
 
 
 def generate_guide(root: Path, markdown: str) -> str:
-    """
+    r"""
     Return *markdown* with every repository document link made canonical.
 
     Only reference definition lines change, and only their URL: labels, order,
@@ -131,6 +155,15 @@ def generate_guide(root: Path, markdown: str) -> str:
     -------
     str
         The guide content with canonical repository document links.
+
+    Examples
+    --------
+    >>> import tempfile
+    >>> root = Path(tempfile.mkdtemp())
+    >>> (root / "docs").mkdir()
+    >>> _ = (root / "docs" / "other.md").write_text("# Other\n", encoding="utf-8")
+    >>> generate_guide(root, f"[other]: {REPOSITORY_URL}/blob/old/docs/other.md\n")
+    '[other]: https://github.com/leynos/rstest-bdd/blob/main/docs/other.md\n'
     """
     lines: list[str] = []
     for line in markdown.splitlines(keepends=True):
@@ -150,7 +183,7 @@ def generate_guide(root: Path, markdown: str) -> str:
 
 
 def count_changed_lines(committed: str, generated: str) -> int:
-    """
+    r"""
     Count the lines that differ between the committed and generated guide.
 
     Generation only rewrites lines that already exist, so the two texts hold
@@ -168,6 +201,11 @@ def count_changed_lines(committed: str, generated: str) -> int:
     -------
     int
         The number of lines that differ.
+
+    Examples
+    --------
+    >>> count_changed_lines("one\ntwo\nthree\n", "one\nTWO\nthree\n")
+    1
     """
     pairs = zip(committed.splitlines(), generated.splitlines(), strict=True)
     return sum(
@@ -198,5 +236,14 @@ def is_repository_link(root: Path, url: str) -> bool:
     -------
     bool
         True when the link belongs to this repository's reference block.
+
+    Examples
+    --------
+    >>> import tempfile
+    >>> root = Path(tempfile.mkdtemp())
+    >>> is_repository_link(root, f"{REPOSITORY_URL}/issues/537")
+    True
+    >>> is_repository_link(root, "https://docs.rs/rstest-bdd")
+    False
     """
     return url.startswith(REPOSITORY_PREFIX) or canonical_link(root, url) is not None

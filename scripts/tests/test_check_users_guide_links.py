@@ -76,6 +76,40 @@ class TestCheckRepoLink:
             f"missing document should be reported, got {violations}"
         )
 
+    @pytest.mark.parametrize("target", ["../README.md", "/etc/passwd"])
+    def test_rejects_targets_outside_the_docs_tree(
+        self, repo: Path, target: str
+    ) -> None:
+        """A target that resolves outside ``docs/`` should be reported."""
+        (repo / "README.md").write_text("# Root\n", encoding="utf-8")
+
+        violations = check_repo_link(repo, "escape", f"{BASE_URL}{target}")
+
+        assert violations == [
+            f"[escape] points outside the docs/ directory: {target}"
+        ], f"an escaping target should be reported, got {violations}"
+
+    def test_accepts_target_in_a_docs_subdirectory(self, repo: Path) -> None:
+        """A canonical target below the documentation root is still valid."""
+        nested = repo / "docs" / "sub"
+        nested.mkdir()
+        (nested / "deep.md").write_text("# Deep\n", encoding="utf-8")
+
+        violations = check_repo_link(repo, "deep", f"{BASE_URL}sub/deep.md")
+
+        assert not violations, f"an in-tree target should be valid, got {violations}"
+
+    def test_rejects_unreadable_document(self, repo: Path) -> None:
+        """A target that cannot be read as a file should be reported."""
+        (repo / "docs" / "adir.md").mkdir()
+
+        violations = check_repo_link(repo, "unreadable", f"{BASE_URL}adir.md")
+
+        assert len(violations) == 1, f"expected exactly one violation, got {violations}"
+        assert "unreadable document" in violations[0], (
+            f"violation should report the read failure, got {violations[0]!r}"
+        )
+
     def test_rejects_unknown_fragment(self, repo: Path) -> None:
         """A fragment matching no heading should be reported."""
         violations = check_repo_link(repo, "frag", f"{BASE_URL}target.md#nope")

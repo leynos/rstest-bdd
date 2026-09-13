@@ -16,11 +16,17 @@ CHECKER = "scripts/check_users_guide_links.py"
 def recipe(target: str) -> list[str]:
     """Return the recipe lines of *target* in the repository Makefile.
 
+    Parameters
+    ----------
+    target : str
+        The Makefile target whose recipe lines are returned.
+
     Returns
     -------
     list[str]
         The tab-indented recipe lines, without their leading tab. An absent or
-        duplicated target fails the assertion above rather than returning.
+        duplicated *target* raises an ``AssertionError`` naming it rather than
+        returning.
     """
     lines = MAKEFILE.read_text(encoding="utf-8").splitlines()
     starts = [

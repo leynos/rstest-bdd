@@ -36,6 +36,14 @@ class TestGithubHeadingAnchor:
             ("Hyphen-ated words", "hyphen-ated-words"),
             ("Trailing punctuation!?", "trailing-punctuation"),
             ("`code` first", "code-first"),
+            ("_Helpful_", "helpful"),
+            ("__Bold__", "bold"),
+            ("**Bold** heading", "bold-heading"),
+            ("_foo_bar_", "foo_bar"),
+            ("foo_bar", "foo_bar"),
+            ("snake_case_", "snake_case_"),
+            ("[Link](https://example.com) text", "link-text"),
+            ("![alt](image.png) text", "alt-text"),
             ("  padded  ", "padded"),
         ],
     )
@@ -70,6 +78,52 @@ class TestHeadingAnchors:
         anchors = heading_anchors(markdown)
         assert anchors == {"after"}, (
             f"headings after a closed fence should resume, got {anchors}"
+        )
+
+    def test_ignores_comments_inside_tilde_fences(self) -> None:
+        """A tilde fence is a code block like any other."""
+        markdown = "# Real\n\n~~~bash\n# not a heading\n~~~\n"
+        anchors = heading_anchors(markdown)
+        assert anchors == {"real"}, (
+            f"tilde-fenced comment should be ignored, got {anchors}"
+        )
+
+    def test_resumes_after_tilde_fence_closes(self) -> None:
+        """Headings after a closed tilde fence should be collected again."""
+        markdown = "~~~\n# inside\n~~~\n# After\n"
+        anchors = heading_anchors(markdown)
+        assert anchors == {"after"}, (
+            f"headings after a closed tilde fence should resume, got {anchors}"
+        )
+
+    def test_differing_fence_character_is_content(self) -> None:
+        """A fence line of the other character does not close the block."""
+        markdown = "~~~\n```\n# inside\n~~~\n# After\n"
+        anchors = heading_anchors(markdown)
+        assert anchors == {"after"}, (
+            f"a backtick line should not close a tilde fence, got {anchors}"
+        )
+
+    def test_shorter_run_does_not_close_a_longer_fence(self) -> None:
+        """A closing fence must be at least as long as the opening run."""
+        markdown = "````\n```\n# inside\n````\n# After\n"
+        anchors = heading_anchors(markdown)
+        assert anchors == {"after"}, f"a shorter run should stay content, got {anchors}"
+
+    def test_info_string_does_not_close_a_fence(self) -> None:
+        """A fence line carrying an info string is content, not a closer."""
+        markdown = "```\n```python\n# inside\n```\n# After\n"
+        anchors = heading_anchors(markdown)
+        assert anchors == {"after"}, (
+            f"an info string should not close a fence, got {anchors}"
+        )
+
+    def test_indented_fence_is_not_a_fence(self) -> None:
+        """Four spaces of indentation make an indented code block, not a fence."""
+        markdown = "    ```\n# heading\n"
+        anchors = heading_anchors(markdown)
+        assert anchors == {"heading"}, (
+            f"an indented run should not open a fence, got {anchors}"
         )
 
     def test_empty_document_yields_no_anchors(self) -> None:
@@ -163,5 +217,12 @@ class TestHeadingAnchorsProperties:
     def test_fenced_heading_is_ignored(self, heading: str) -> None:
         """A heading inside a balanced code fence should be ignored."""
         markdown = f"```\n# {heading}\n```\n"
+        anchors = heading_anchors(markdown)
+        assert anchors == set(), f"expected no anchors, got {anchors}"
+
+    @given(heading=single_line_text)
+    def test_tilde_fenced_heading_is_ignored(self, heading: str) -> None:
+        """A heading inside a balanced tilde fence should be ignored."""
+        markdown = f"~~~\n# {heading}\n~~~\n"
         anchors = heading_anchors(markdown)
         assert anchors == set(), f"expected no anchors, got {anchors}"

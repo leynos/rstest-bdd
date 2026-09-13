@@ -41,7 +41,7 @@ Exit codes
     document, and any fragment matches a heading anchor; or ``--fix`` left the
     guide in that state.
 1
-    Violations found, or the guide itself could not be read.
+    Violations found, or the guide itself could not be read or written.
 """
 
 import argparse
@@ -97,9 +97,44 @@ def check_repo_link(root: Path, label: str, url: str) -> list[str]:
                 "(run: make update-users-guide-links)"
             )
         ]
+    return check_target(root, label, url)
 
+
+def check_target(root: Path, label: str, url: str) -> list[str]:
+    r"""
+    Validate the document a canonical repository link names.
+
+    Parameters
+    ----------
+    root : Path
+        The repository root directory.
+    label : str
+        The reference label, used in violation messages.
+    url : str
+        The reference URL, already known to carry the canonical base URL.
+
+    Returns
+    -------
+    list[str]
+        Human-readable violations; empty when the target is valid.
+
+    Examples
+    --------
+    >>> import tempfile
+    >>> root = Path(tempfile.mkdtemp())
+    >>> (root / "docs").mkdir()
+    >>> document = root / "docs" / "target.md"
+    >>> _ = document.write_text("# Top\n\n## A section\n", encoding="utf-8")
+    >>> check_target(root, "ok", f"{BASE_URL}target.md")
+    []
+    >>> check_target(root, "gone", f"{BASE_URL}gone.md")
+    ['[gone] points at a missing document: docs/gone.md']
+    """
     target, _, fragment = url.removeprefix(BASE_URL).partition("#")
-    document = root / DOCS_DIR / target
+    docs_root = (root / DOCS_DIR).resolve()
+    document = (docs_root / target).resolve()
+    if not document.is_relative_to(docs_root):
+        return [f"[{label}] points outside the {DOCS_DIR}/ directory: {target}"]
     try:
         content = document.read_text(encoding="utf-8")
     except FileNotFoundError:
@@ -190,7 +225,7 @@ def run_fix(root: Path) -> int:
     """
     guide = root / GUIDE
     try:
-        markdown = guide.read_text(encoding="utf-8")
+        markdown = guide.read_text(encoding="utf-8", newline="")
     except OSError as err:
         print(f"could not read {GUIDE}: {err}", file=sys.stderr)
         return 1
@@ -199,7 +234,11 @@ def run_fix(root: Path) -> int:
     if generated == markdown:
         print(f"{GUIDE} already matches the generated reference links")
     else:
-        guide.write_text(generated, encoding="utf-8")
+        try:
+            guide.write_text(generated, encoding="utf-8", newline="")
+        except OSError as err:
+            print(f"could not write {GUIDE}: {err}", file=sys.stderr)
+            return 1
         changed = count_changed_lines(markdown, generated)
         print(f"rewrote {changed} reference line(s) in {GUIDE}")
 
