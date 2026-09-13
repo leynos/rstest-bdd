@@ -1107,6 +1107,34 @@ Link-checker and table-checker tests run with the Python suite in `make test`.
 Issue #537 tracks generating the users-guide reference block from `BASE_URL` so
 the base lives in exactly one place.
 
+## Workflow-contract helper modules (`tests/workflow_contracts`)
+
+The contracts in `tests/workflow_contracts` assert against workflow YAML and
+repository configuration. Every module in the directory is bound by the same
+400-line ceiling as the rest of the Python sources, enforced by PyLint's
+`[tool.pylint.main] max-module-lines` running on the CPython 3.14 interpreter
+the sources are written for. A `*_test.py` module that approaches the ceiling
+moves its shared logic into a sibling module rather than growing past it, which
+is why a layer of `*_support.py` and `*_queries.py` modules sits beside the
+test files.
+
+The helper modules — `workflow_support`, `cache_step_support`,
+`workflow_queries`, `publish_report_support`, `lockfile_refresh_support`,
+`lading_pins`, `timeout_budgets`, and `nextest_config` — are private to the
+directory. They are importable only because pytest puts the test directory on
+`sys.path`, and nothing outside `tests/workflow_contracts` imports them.
+
+`cache_step_support` owns the anatomy of a cache step: the approved action and
+its pinned ref, the predicates that recognize a restore or save step, the guard
+that keeps a suite-running step out of the cache accounting, and `cache_paths`,
+which normalizes a step's declared paths and raises `CacheStepPathsError` when
+the declaration names nothing. Its callers are `runner_cache_test` and
+`workflow_queries`, and its contract test is `cache_step_support_test`. The
+module reads nothing from the repository; it imports only the
+`WorkflowShapeError` family from `workflow_support` and answers questions about
+a step the caller has already parsed, so the cache contracts share one reading
+of what a step owns rather than three independent ones.
+
 ## Mutation-testing workflow contract tests
 
 This repository runs scheduled, informational mutation testing through a thin
