@@ -70,12 +70,9 @@ class TestMain:
         captured = capsys.readouterr()
 
         assert exit_code == 1, f"expected exit 1, got {exit_code}: {captured.err}"
-        assert "missing document" in captured.err, (
-            f"stderr should mention the missing document: {captured.err}"
-        )
-        assert "docs/gone.md" in captured.err, (
-            f"stderr should name docs/gone.md: {captured.err}"
-        )
+        assert captured.err == (
+            "[gone] points at a missing document: docs/gone.md\n"
+        ), f"stderr should pin the missing-document diagnostic: {captured.err}"
 
     def test_rejects_a_stale_base_url(
         self, tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -103,9 +100,10 @@ class TestMain:
         captured = capsys.readouterr()
 
         assert exit_code == 1, f"expected exit 1, got {exit_code}: {captured.err}"
-        assert "no repository reference links" in captured.err, (
-            f"stderr should report the missing-links tripwire: {captured.err}"
-        )
+        assert captured.err == (
+            f"no repository reference links found in {GUIDE}; "
+            "the reference block may have been removed or reformatted\n"
+        ), f"stderr should pin the tripwire diagnostic: {captured.err}"
 
     @pytest.mark.parametrize("flag", ["--help", "-h"])
     def test_help_exits_zero(
@@ -231,9 +229,10 @@ class TestFix:
         captured = capsys.readouterr()
 
         assert exit_code == 1, f"expected exit 1, got {exit_code}: {captured.err}"
-        assert "does not name a document" in captured.err, (
-            f"stderr should report the unrecognized link: {captured.err}"
-        )
+        assert captured.err == (
+            f"[issue] does not name a document under the canonical base URL "
+            f"{BASE_URL}: {REPOSITORY_URL}/issues/537\n"
+        ), f"stderr should pin the unrecognized-link diagnostic: {captured.err}"
         assert _read_guide(tmp_path) == markdown, "the guide should be unchanged"
 
     def test_reports_a_missing_guide(
@@ -244,8 +243,8 @@ class TestFix:
         captured = capsys.readouterr()
 
         assert exit_code == 1, f"expected exit 1, got {exit_code}: {captured.err}"
-        assert "could not read" in captured.err, (
-            f"stderr should report the read failure: {captured.err}"
+        assert captured.err.startswith(f"could not read {GUIDE}: "), (
+            f"stderr should pin the read-failure diagnostic for {GUIDE}: {captured.err}"
         )
 
     def test_reports_a_guide_it_cannot_write(
