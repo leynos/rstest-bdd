@@ -137,7 +137,7 @@ def test_classification_ignores_comments_and_string_values(tmp_path: Path) -> No
         "patch-override",
     ],
 )
-def test_every_path_dependency_spelling_is_recognised(
+def test_every_path_dependency_spelling_is_recognized(
     tmp_path: Path, manifest_text: str
 ) -> None:
     """Each Cargo spelling of a local source counts as a path dependency."""
@@ -154,7 +154,7 @@ def test_every_path_dependency_spelling_is_recognised(
     ["[workspace]\n", "[ workspace ]\n", '["workspace"]\n'],
     ids=["bare", "padded", "quoted"],
 )
-def test_every_workspace_section_spelling_is_recognised(
+def test_every_workspace_section_spelling_is_recognized(
     tmp_path: Path, manifest_text: str
 ) -> None:
     """Each TOML spelling of the workspace table opts the fixture out."""
