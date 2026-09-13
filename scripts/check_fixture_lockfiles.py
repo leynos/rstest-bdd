@@ -86,7 +86,18 @@ def cargo_refresh_command(manifest: Path) -> list[str]:
 
 
 def cargo_fetch_command(manifest: Path) -> list[str]:
-    """Build the locked ``cargo fetch`` command for *manifest*."""
+    """Build the locked ``cargo fetch`` command for *manifest*.
+
+    Returns
+    -------
+    list[str]
+        The locked ``cargo fetch`` argv for *manifest*.
+
+    Examples
+    --------
+    >>> cargo_fetch_command(Path("fixtures/minimal/Cargo.toml"))
+    ['cargo', 'fetch', '--locked', '--manifest-path', 'fixtures/minimal/Cargo.toml']
+    """
     return [CARGO, "fetch", "--locked", "--manifest-path", str(manifest)]
 
 
@@ -161,6 +172,17 @@ def fetch_fixture_dependencies(manifest: Path) -> subprocess.CompletedProcess[st
     -------
     subprocess.CompletedProcess[str]
         The completed invocation; errors per :func:`run_cargo_command`.
+
+    Examples
+    --------
+    Prefetch the dependencies of a single fixture manifest::
+
+        fetch_fixture_dependencies(
+            Path("crates/cargo-bdd/tests/fixtures/minimal/Cargo.toml")
+        )
+
+    The completed invocation carries ``returncode == 0`` once every locked
+    crate is cached; a non-zero code marks that fixture as a failed prefetch.
     """
     return run_cargo_command(cargo_fetch_command(manifest), manifest)
 
@@ -244,7 +266,20 @@ def refresh_fixtures(root: Path, manifests: list[Path]) -> int:
 
 
 def fetch_fixtures(root: Path, manifests: list[Path]) -> int:
-    """Prefetch every fixture's locked dependencies, returning the exit code."""
+    """Prefetch every fixture's locked dependencies, returning the exit code.
+
+    Returns
+    -------
+    int
+        The exit code: ``0`` when every prefetch succeeded, otherwise ``1``.
+
+    Examples
+    --------
+    Prefetch every discovered fixture, as ``--fetch`` does; a clean run
+    returns ``0`` and any failed ``cargo fetch`` returns ``1``::
+
+        fetch_fixtures(root, discover_fixture_manifests(root))
+    """
     return _report_fixture_operation(
         root,
         manifests,
