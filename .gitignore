@@ -20,6 +20,7 @@ proptest-regressions/
 .uv-cache/
 .uv-tools/
 .vtcode/
+memories/
 .claude/
 *.swp
 *.swo
