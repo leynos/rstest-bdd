@@ -64,7 +64,10 @@ def cache_paths(step: dict[str, object]) -> list[str]:
     CacheStepInputsError
         If the step declares no inputs.
     CacheStepPathsError
-        If the step declares no path.
+        If the step declares no path, or one that names nothing once its
+        blank lines are removed. An empty result would let the caller
+        treat the step as owning no paths at all, so every cache contract
+        would pass over it in silence.
     """
     inputs = step.get("with")
     if not isinstance(inputs, dict):
@@ -72,7 +75,10 @@ def cache_paths(step: dict[str, object]) -> list[str]:
     raw_path = inputs.get("path")
     if not isinstance(raw_path, str):
         raise CacheStepPathsError
-    return [line.strip() for line in raw_path.splitlines() if line.strip()]
+    paths = [line.strip() for line in raw_path.splitlines() if line.strip()]
+    if not paths:
+        raise CacheStepPathsError
+    return paths
 
 
 def path_components(path: str) -> list[str]:
