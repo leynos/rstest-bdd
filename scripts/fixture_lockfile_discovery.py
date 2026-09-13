@@ -10,6 +10,7 @@ all resolve one fixture set, and so the gate script stays inside the 400-line
 module budget.
 """
 
+import tomllib
 import typing as typ
 
 from fixture_lockfile_reporting import FixtureLockfileError
@@ -32,7 +33,10 @@ def iter_cargo_manifests(root: Path) -> cabc.Iterator[Path]:
     """Yield every ``Cargo.toml`` beneath *root*, pruning excluded directories.
 
     Walking manually (rather than ``Path.rglob``) keeps build output such as
-    ``target/`` and nested scratch copies out of the discovery set.
+    ``target/`` and nested scratch copies out of the discovery set. The walk
+    descends only into real directories, so a symlink cannot send it back up
+    its own tree and have the same subtree re-walked until the platform's
+    symlink limit is reached.
 
     Yields
     ------
@@ -47,10 +51,70 @@ def iter_cargo_manifests(root: Path) -> cabc.Iterator[Path]:
         except OSError:
             continue
         for entry in entries:
-            if entry.is_dir() and entry.name not in EXCLUDED_DIRECTORIES:
+            if entry.name in EXCLUDED_DIRECTORIES:
+                continue
+            if entry.is_dir(follow_symlinks=False):
                 stack.append(entry)
             elif entry.name == "Cargo.toml" and entry.is_file():
                 yield entry
+
+
+def _read_manifest(manifest: Path) -> dict[str, object] | None:
+    """Parse *manifest* as TOML, or return None when it cannot be read.
+
+    Classification reads the parsed document rather than the raw text so a
+    comment or an unrelated string value can never pass for a declaration.
+
+    Parameters
+    ----------
+    manifest : Path
+        The manifest to parse.
+
+    Returns
+    -------
+    dict[str, object] | None
+        The manifest's tables, or None when the file is unreadable or is not
+        valid TOML.
+    """
+    try:
+        with manifest.open("rb") as handle:
+            return tomllib.load(handle)
+    except OSError, tomllib.TOMLDecodeError:
+        return None
+
+
+def _holds_path_key(value: object) -> bool:
+    """Return whether *value* holds a ``path`` key anywhere beneath it."""
+    if isinstance(value, dict):
+        return "path" in value or any(_holds_path_key(item) for item in value.values())
+    if isinstance(value, list):
+        return any(_holds_path_key(item) for item in value)
+    return False
+
+
+def _declares_local_source(table: cabc.Mapping[str, object]) -> bool:
+    """Return whether *table* resolves a dependency from the local filesystem.
+
+    Cargo reads dependency specifications from the ``dependencies``,
+    ``dev-dependencies``, ``build-dependencies``, and ``workspace`` tables —
+    including their ``target``-qualified and table-per-dependency spellings —
+    and takes path overrides from the ``patch`` tables. Following every nested
+    table reaches all of those spellings.
+
+    Returns
+    -------
+    bool
+        True when one of those specifications names a local path source.
+    """
+    for key, value in table.items():
+        if not isinstance(value, dict):
+            continue
+        if key.endswith("dependencies") or key == "patch":
+            if _holds_path_key(value):
+                return True
+        elif _declares_local_source(value):
+            return True
+    return False
 
 
 def is_standalone_workspace(manifest: Path) -> bool:
@@ -70,15 +134,12 @@ def is_standalone_workspace(manifest: Path) -> bool:
     bool
         True when the manifest declares its own ``[workspace]`` section.
     """
-    try:
-        text = manifest.read_text(encoding="utf-8")
-    except OSError:
-        return False
-    return "[workspace]" in text
+    data = _read_manifest(manifest)
+    return data is not None and "workspace" in data
 
 
 def has_path_dependency(manifest: Path) -> bool:
-    """Return whether *manifest* declares at least one local ``path =`` source.
+    """Return whether *manifest* declares at least one local ``path`` source.
 
     Parameters
     ----------
@@ -90,11 +151,8 @@ def has_path_dependency(manifest: Path) -> bool:
     bool
         True when at least one dependency resolves from the local filesystem.
     """
-    try:
-        text = manifest.read_text(encoding="utf-8")
-    except OSError:
-        return False
-    return "path = " in text
+    data = _read_manifest(manifest)
+    return data is not None and _declares_local_source(data)
 
 
 def is_staged_fixture(manifest: Path, root: Path) -> bool:
