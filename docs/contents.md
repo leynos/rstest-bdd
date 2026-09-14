@@ -41,6 +41,10 @@
   the v0.6.0 release changes.
 - [Releasing crates](releasing-crates.md) documents the release and publication
   process for workspace crates.
+- [Lading user guide](lading-users-guide.md) documents the `lading` release
+  tool, which bumps workspace versions, synchronizes internal dependency
+  requirements, updates version references in Markdown, and plans and executes
+  crate publication.
 
 ## Contributor references
 

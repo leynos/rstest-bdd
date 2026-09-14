@@ -286,22 +286,22 @@ to Rust Analyzer.
   parse on save) may be preferable, with an incremental parser considered once
   the basic functionality is stable.
 
-- **Step Definition Registry (in LSP):** The server will maintain an in-memory
-  registry or mapping that correlates Gherkin step texts/patterns with Rust
-  step functions. Conceptually, this mirrors the runtime registry that the test
-  framework builds via `inventory`[^13], but constructed at analysis time. This
-  registry might be represented by two maps:
+- **Step Definition Registry (in LSP):** The server maintains an in-memory
+  `StepDefinitionRegistry` that indexes Rust step definitions at analysis time,
+  mirroring the runtime registry that the test framework builds via
+  `inventory`[^13]. Its four `HashMap` fields are:
 
-- Map from **Rust step definition** (function identifier or some stable
-  identifier (ID)) to its **pattern string** and source location.
+  - `steps_by_file`, which groups compiled steps by their source file path;
+  - `steps_by_keyword`, which groups compiled steps by Gherkin `StepType`;
+  - `reverse_index`, which maps a file path to its per-keyword entries; and
+  - `keyword_positions`, which maps each keyword to pointer-keyed positions in
+    its compiled-step vector.
 
-- Map from **step text patterns** to one or more **Rust implementations** and
-  **feature occurrences**. This helps answer queries in both directions
-  (feature text to code, and code pattern to feature).
-
-- Additionally, the registry stores any **signature metadata** (like parameter
-  count, whether it expects a data table or docstring, etc.) to assist in
-  diagnostics.
+  Together, `reverse_index` and `keyword_positions` form a pointer-keyed
+  reverse index. They use `Arc::as_ptr(step) as usize` to invalidate and
+  re-index one file efficiently without scanning every keyword bucket. Each
+  entry is a `CompiledStepDefinition` holding signature metadata, including
+  parameter data, `expects_table`, and `expects_docstring`, for diagnostics.
 
 #### Step extraction semantics (implemented)
 
@@ -472,7 +472,8 @@ LSP file events:
   possibly the main src if step definitions could live there) and scan/parse
   for step definitions.
 
-- Populate the internal registry mapping step texts <-> code locations.
+- Populate the file- and keyword-indexed registry with compiled Rust step
+  definitions.
 
 - This initial scan provides the baseline for answering queries immediately.
 
@@ -482,10 +483,10 @@ LSP file events:
 - Re-parse that feature file with the gherkin parser to update its scenarios
   and steps.
 
-- Update the registry: For each step in that file, check if it matches a known
-  step definition. If new steps are added, attempt to match them; if steps were
-  removed or modified, adjust any diagnostics or mark previously implemented
-  steps as possibly unused.
+- Update the feature index: For each step in that file, check whether it
+  matches a known step definition. If new steps are added, attempt to match
+  them; if steps were removed or modified, adjust any diagnostics or mark
+  previously implemented steps as possibly unused.
 
 - Then recalc diagnostics for that feature file (unimplemented steps, etc.) and
   publish them.
@@ -546,14 +547,14 @@ With the registry in place, handling the LSP requests is straightforward:
   in a Rust file. The handler determines whether the symbol under the cursor is
   a step function (possibly restricting this to when the cursor is on the
   attribute or function name of a step definition). If so, the handler
-  retrieves that function's pattern string from the index, then looks up all
-  feature file locations that contain a matching step. Because the index maps
-  patterns to feature locations (possibly precomputed, or via a quick search
-  through parsed feature ASTs), the handler gathers the target locations. The
-  response is one or multiple `Location` objects pointing to the `.feature`
-  file Uniform Resource Identifier (URI) and range of the step text. If the
-  function's pattern is not found in any feature, the response is empty (and
-  this situation would likely also trigger an "unused step" warning separately).
+  retrieves that function's pattern string from the registry, then queries the
+  feature index for locations containing a matching step. The handler gathers
+  the target locations by searching parsed feature Abstract Syntax Trees
+  (ASTs), or a precomputed feature index. The response is one or multiple
+  `Location` objects pointing to the `.feature` file Uniform Resource
+  Identifier (URI) and range of the step text. If the function's pattern is not
+  found in any feature, the response is empty (and this situation would likely
+  also trigger an "unused step" warning separately).
 
 - The search for a matching feature step will use the pattern's regex if it
   contains placeholders. For exact literal patterns (no parameters), a direct
@@ -609,14 +610,13 @@ Diagnostics are produced by cross-referencing the feature and code indices:
   know to write a code function for it or remove it.
 
 - **Unused Step Definition (Code->Feature):** After scanning all feature files,
-  the registry indicates which step patterns are actually used. The analyser
-  then iterates through all registered Rust step definitions and checks if each
-  was matched to at least one feature step. Any that were not matched are
-  marked with a warning diagnostic at the function (e.g. on the `#[given]`
-  attribute line) indicating it appears to be unused. This is analogous to the
-  planned `cargo bdd list-unused` tool[^6], but in real-time. It helps catch
-  situations like a typo in the Gherkin text or in the attribute pattern that
-  prevents the linkage.
+  the analyser iterates through all registered Rust step definitions and checks
+  the feature indices to determine whether each was matched to at least one
+  feature step. Any that were not matched are marked with a warning diagnostic
+  at the function (e.g. on the `#[given]` attribute line) indicating it appears
+  to be unused. This is analogous to the planned `cargo bdd list-unused` tool
+  [^6], but in real-time. It helps catch situations like a typo in the Gherkin
+  text or in the attribute pattern that prevents the linkage.
 
 - **Pattern/Signature Mismatch:** When parsing a Rust step function, the server
   will perform checks similar to the macro's checks:
