@@ -101,3 +101,20 @@ class TestTheVerificationScriptRuns:
         assert "::warning" not in result.stdout, result.stdout
         assert "Publish-step compiler-cache report:" in result.stdout, result.stdout
         assert "compile_requests" in result.stdout, result.stdout
+
+    def test_an_absent_interpreter_warns_rather_than_failing_the_lane(
+        self, build_test_job: dict[str, typ.Any], tmp_path: Path
+    ) -> None:
+        """The fragment's own branch, reached by emptying ``PATH``.
+
+        The step resolves `python3` or `python` because the two runner
+        images name the interpreter differently. Finding neither is one
+        more reason the report cannot be read, not a reason to red a
+        lane whose build already succeeded.
+        """
+        report = b'{"delta": {"hits": 17}}'
+        result = run_verification(build_test_job, tmp_path, report, search_path="")
+
+        assert result.returncode == 0, result.stderr
+        assert "no Python interpreter" in result.stdout, result.stdout
+        assert "Publish-step compiler-cache report:" not in result.stdout, result.stdout

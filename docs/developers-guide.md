@@ -302,25 +302,38 @@ report and a report nobody opened look identical in the artefact list, so a
 lading that stopped writing the file would read as an uneventful run. The step
 never fails the job, because the report is evidence about a build rather than
 the build itself, and a publish that failed before lading ran has already
-failed on its own account. Both it and the upload carry
-`${{ always() && runner.os == 'Linux' }}`: without `always()` the run whose
-cost is most worth reading, the failed one, would upload nothing, and without
-the Linux guard the Windows lanes, which never write the file, would report a
-missing one every time. `publish_report_shape_test.py` asserts both conditions,
-and that the upload's `if-no-files-found` is `warn` rather than `ignore`, so an
-absent report is surfaced rather than swallowed.
+failed on its own account.
 
-`publish_verification_script_test.py` runs that script rather than reading it
+Both it and the upload carry `${{ always() }}`, and nothing narrows them by
+operating system. Without `always()` the run whose cost is most worth reading,
+the failed one, would upload nothing. The earlier Linux guard rested on a
+premise the logs disprove: every lane writes the report, and the Windows lanes
+had been writing one since the first run that set the variable, only for both
+steps to skip there and the file to be discarded with the runner.
+`publish_report_shape_test.py` asserts the condition, and that the upload's
+`if-no-files-found` is `warn` rather than `ignore`, so an absent report is
+surfaced rather than swallowed.
+
+The branching itself lives in `scripts/report_publish_statistics.py`, not in
+the step. The reader takes the report's path from the environment, so the
+backslashed path a Windows runner produces never has to survive shell quoting,
+and its four outcomes are tested directly in `scripts/tests/`. The step keeps
+one decision of its own: the Ubicloud image names the interpreter `python3`
+and the GitHub Windows image names it `python`, so the fragment resolves
+whichever is present and warns, rather than failing the lane, when neither
+is.
+
+`publish_verification_script_test.py` runs that step rather than reading it
 for substrings. It extracts the Bash fragment the workflow's
 `Verify publish-step compiler-cache statistics` step declares, writes it to a
-file, and runs it as `bash <file>`, the way a runner executes a step. Four
-cases run against it in turn — a missing report, an empty one, malformed JSON,
-and a valid one — and each must exit successfully, the valid report printing
-without `::warning`. The cases are driven by
-`publish_report_support.run_verification`, which puts the report outside the
-script's working directory and sets `STATS_PATH` to that report, so a script
-that resolved the report relative to the working directory instead of through
-`STATS_PATH` fails the contract here rather than on the runner.
+file, and runs it as `bash <file>`, the way a runner executes a step. Five
+cases run against it in turn: a missing report, an empty one, malformed JSON,
+a valid one, and a `PATH` with no interpreter on it at all. Each must exit
+successfully, the valid report printing without `::warning`. The cases are
+driven by `workflow_queries.run_verification`, which puts the report outside
+the script's working directory and names both the report and the reader
+absolutely, so a step that resolved either relative to its working directory
+fails the contract here rather than on the runner.
 
 `make publish-check` depends on `stage-published-gpui-e2e`, which extracts
 packaged crates from `target/package/`. That path, and five others in the

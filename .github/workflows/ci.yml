@@ -667,33 +667,38 @@ jobs:
       # It never fails the job: the report is evidence about a build, not
       # the build, and a publish that failed before lading wrote anything
       # has already failed the job on its own account.
+      #
+      # The branching lives in scripts/report_publish_statistics.py rather
+      # than here. It reads the path from the environment, so the
+      # backslashed Windows path needs no shell quoting, and the reader is
+      # tested directly as well as through this fragment.
       - name: Verify publish-step compiler-cache statistics
-        if: ${{ always() && runner.os == 'Linux' }}
+        if: ${{ always() }}
         shell: bash
         env:
           STATS_PATH: ${{ runner.temp }}/sccache-publish.json
+          REPORT_READER: ${{ github.workspace }}/scripts/report_publish_statistics.py
         run: |
           set -uo pipefail
-          warn() {
-            echo "::warning title=publish-statistics::$1"
-          }
-          if [[ ! -f "${STATS_PATH}" ]]; then
-            warn "lading wrote no compiler-cache report to ${STATS_PATH}; either the publish step failed before lading ran, or the resolved lading predates LADING_SCCACHE_STATS_JSON. This run's publish cost is unattributable."
+          # The Ubicloud image names the interpreter `python3` and the
+          # GitHub Windows image names it `python`, so resolve rather than
+          # assume. A missing interpreter warns like any other reason the
+          # report cannot be read; it must not fail the lane.
+          interpreter=''
+          for candidate in python3 python; do
+            if command -v "${candidate}" >/dev/null 2>&1; then
+              interpreter="${candidate}"
+              break
+            fi
+          done
+          if [[ -z "${interpreter}" ]]; then
+            echo "::warning title=publish-statistics::no Python interpreter was found, so ${STATS_PATH} could not be read."
             exit 0
           fi
-          if [[ ! -s "${STATS_PATH}" ]]; then
-            warn "${STATS_PATH} is empty; lading created it but wrote no report."
-            exit 0
-          fi
-          if ! python3 -c 'import json, os; json.load(open(os.environ["STATS_PATH"]))'; then
-            warn "${STATS_PATH} is not valid JSON, so the publish step's compiler-cache report cannot be read."
-            exit 0
-          fi
-          echo 'Publish-step compiler-cache report:'
-          cat "${STATS_PATH}"
+          "${interpreter}" "${REPORT_READER}"
 
       - name: Upload publish-step compiler-cache statistics
-        if: ${{ always() && runner.os == 'Linux' }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: sccache-publish-${{ matrix.os }}-${{ strategy.job-index }}
