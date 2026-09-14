@@ -5,7 +5,7 @@
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use rstest_bdd::{StepContext, StepExecution, StepKeyword, find_step};
+use rstest_bdd::{StepContext, StepExecution, StepKeyword, find_step_with_metadata};
 use rstest_bdd_macros::given;
 use serial_test::serial;
 
@@ -63,7 +63,9 @@ fn assert_step_execution(
     expected_counters: (usize, usize, usize),
     assertion_message: &str,
 ) {
-    let step_fn = find_step(StepKeyword::Given, step_text.into()).expect("step not found");
+    let step_fn = find_step_with_metadata(StepKeyword::Given, step_text.into())
+        .expect("step not found")
+        .run;
 
     let mut ctx = StepContext::default();
     match step_fn(&mut ctx, step_text, None, None) {
@@ -89,7 +91,9 @@ fn assert_typed_step_execution(
     expected_counters: (usize, usize),
     assertion_message: &str,
 ) {
-    let step_fn = find_step(StepKeyword::Given, step_text.into()).expect("step not found");
+    let step_fn = find_step_with_metadata(StepKeyword::Given, step_text.into())
+        .expect("step not found")
+        .run;
 
     let mut ctx = StepContext::default();
     match step_fn(&mut ctx, step_text, None, None) {
