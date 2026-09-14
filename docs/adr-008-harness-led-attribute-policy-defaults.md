@@ -3,8 +3,9 @@
 ## Status
 
 Accepted (2026-09-14): Infer test-attribute defaults from known first-party
-harness type paths in `rstest-bdd-policy`, while requiring explicit attributes
-for unknown harnesses.
+harness type paths in `rstest-bdd-policy`; unknown harnesses receive no
+inferred framework attribute and use the existing runtime fallback, so users
+add a native attribute only when their framework requires one.
 
 ## Date
 
@@ -45,7 +46,7 @@ profile-level selector.
 
 - Reduce repetition in the common first-party harness configuration path.
 - Keep runtime behaviour and generated test attributes aligned by default.
-- Preserve the architectural separation introduced by ADR-005.
+- Preserve the architectural separation introduced by ADR-005a.
 - Retain support for valid `attributes`-only and `harness`-only use cases.
 - Avoid relying on compile-time reflection that Rust procedural macros do not
   provide.
@@ -322,7 +323,7 @@ profile type rather than a bare crate name.
 
 ## Architectural rationale
 
-This direction keeps the clean boundary introduced by ADR-005: runtime
+This direction keeps the clean boundary introduced by ADR-005a: runtime
 delegation and emitted test attributes remain separate responsibilities. It
 improves ergonomics by defaulting the secondary concern from the primary one,
 which is usually what users mean when they choose a harness.

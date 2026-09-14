@@ -48,7 +48,7 @@ Success is observable when:
 ## Constraints
 
 - Implement only roadmap item 9.3.8 from `docs/roadmap.md`.
-- Preserve ADR-005 boundaries: Tokio integration must remain in
+- Preserve ADR-005a boundaries: Tokio integration must remain in
   `rstest-bdd-harness-tokio` and other opt-in crates. The example may depend on
   Tokio and the Tokio harness crate, but core crates must not gain new
   Tokio-specific responsibilities.

@@ -457,7 +457,7 @@ redesigned. For the full architectural decision record, see
 
 ## 9. Harness adapters and attribute plugins
 
-This phase implements ADR-005 by introducing a harness adapter layer and an
+This phase implements ADR-005a by introducing a harness adapter layer and an
 attribute policy plugin interface, so Tokio and GPUI integrations live in
 opt-in crates rather than the core runtime or macros.
 

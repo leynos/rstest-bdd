@@ -79,7 +79,7 @@ Success is observable in three ways:
 - Implement only ADR-008 and roadmap workstream 9.7. Do not fold unrelated
   harness redesign, runtime alias redesign, or new third-party extension
   machinery into this change.
-- Preserve the architectural separation from ADR-005: `HarnessAdapter`
+- Preserve the architectural separation from ADR-005a: `HarnessAdapter`
   remains the runtime delegation boundary and `AttributePolicy` remains the
   emitted-attribute boundary.
 - Preserve the exact ADR-008 precedence order:

@@ -891,7 +891,7 @@ expression.
 The `harness` and `attributes` parameters accept Rust type paths pointing to
 types that implement `HarnessAdapter` and `AttributePolicy` from the
 `rstest-bdd-harness` crate. These enable third-party framework integrations
-(per Architectural Decision Record (ADR-005)) without coupling the core crates
+(per Architectural Decision Record (ADR-005a)) without coupling the core crates
 to any specific runtime.
 
 Use them in this order of preference:
@@ -2325,7 +2325,7 @@ fn async_wrapper_with_aliases<'ctx>(
 
 ## Harness adapter core APIs
 
-Architectural Decision Record (ADR-005) introduces a harness adapter layer, so
+Architectural Decision Record (ADR-005a) introduces a harness adapter layer, so
 framework integrations can live in opt-in crates. Phase 9.1 ships the core
 contracts in `rstest-bdd-harness`.
 

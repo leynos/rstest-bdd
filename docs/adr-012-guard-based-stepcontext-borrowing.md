@@ -120,10 +120,12 @@ The framework — not caller discipline — guarantees scenario-boundary reset:
   scenarios covering the dual-`&mut` and mutable-harness-context-plus-world
   shapes (`crates/rstest-bdd/tests/concurrent_mut_fixtures.rs`).
 
-## References
+## Amendments
 
-- [ADR 011: first-party scenario-state helpers][adr-011] documents the
-  thread-local interim pattern that this borrowing redesign supersedes.
+### 2026-09-14: cross-reference the superseded interim pattern
+
+[ADR 011: first-party scenario-state helpers][adr-011] documents the
+thread-local interim pattern that this borrowing redesign supersedes.
 
 [adr-011]: adr-011-first-party-scenario-state-and-cleanup.md
 [design-2761]: rstest-bdd-design.md

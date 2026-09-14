@@ -49,7 +49,7 @@ Success is observable when:
 - Implement roadmap items 9.3.1, 9.3.2, and 9.3.3 only. Do not implement
   phase 9.4 (GPUI) or alter phase 9.2 behaviour.
 - Keep Tokio out of core crates (`rstest-bdd`, `rstest-bdd-macros`,
-  `rstest-bdd-harness`) per ADR-005. The new crate is the only place Tokio
+  `rstest-bdd-harness`) per ADR-005a. The new crate is the only place Tokio
   appears as a direct dependency.
 - Preserve existing public behaviour. Existing
   `runtime = "tokio-current-thread"` compatibility paths and `#[scenario]`
@@ -77,7 +77,7 @@ Success is observable when:
   behaviour regresses in tests, stop and escalate.
 - Iterations: if the same failing gate (`check-fmt`, `lint`, or `test`) fails
   three times after attempted fixes, stop and escalate with logs.
-- Ambiguity: if ADR-005, the design doc, and the roadmap conflict on interface
+- Ambiguity: if ADR-005a, the design doc, and the roadmap conflict on interface
   shape, stop and request direction.
 
 ## Risks
@@ -151,7 +151,7 @@ Success is observable when:
   rather than using `tokio.workspace = true`. Rationale: the workspace Tokio
   dependency pulls `rt-multi-thread`, `macros`, `io-std`, and `sync`, none of
   which are needed by the harness adapter. A minimal feature set keeps the
-  crate lightweight per ADR-005 goals. Date/Author: 2026-02-21 / plan.
+  crate lightweight per ADR-005a goals. Date/Author: 2026-02-21 / plan.
 
 - Decision: use `LocalSet::block_on` with `yield_now()` after
   `request.run()`. Rationale: a plain `runtime.block_on` does not provide a
@@ -482,6 +482,6 @@ Dependency constraints:
 
 ## Revision note
 
-Initial draft created from roadmap phase 9.3, ADR-005, design document section
+Initial draft created from roadmap phase 9.3, ADR-005a, design document section
 2.7.4, and prior ExecPlans 9-1-1 and 9-2-3. All interface names and file paths
 were verified against the current working tree.

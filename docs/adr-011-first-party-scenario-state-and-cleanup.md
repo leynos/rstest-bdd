@@ -2,9 +2,10 @@
 
 ## Status
 
-Accepted (2026-06-10); superseded by ADR-012 at v0.7.0: Adopt the thread-local
-interim scenario-state and cleanup direction for v0.6.x, before replacing it
-with guard-based `StepContext` borrowing.
+Superseded (2026-06-11): ADR-012 superseded the proposed
+`ScenarioStore<T>`, `GpuiScenarioStore`, and cleanup macro before
+implementation. The v0.6.x thread-local scenario-state and cleanup pattern was
+an interim workaround, rather than adoption of this ADR's proposed decision.
 
 ## Date
 

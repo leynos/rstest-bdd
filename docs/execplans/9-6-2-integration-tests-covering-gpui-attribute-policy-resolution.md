@@ -51,7 +51,7 @@ validation.
   this change.
 - Treat 9.4.3 and 9.4.4 as delivered foundations. This task strengthens
   validation and documentation around GPUI policy resolution; it is not a
-  redesign of ADR-005 or ADR-007.
+  redesign of ADR-005a or ADR-007.
 - Preserve the current trust model documented in `docs/users-guide.md` and
   `docs/rstest-bdd-design.md`: GPUI attribute-policy resolution during macro
   expansion is path-based for first-party policy types.
@@ -121,7 +121,7 @@ validation.
 ## Progress
 
 - [x] (2026-03-26) Reviewed roadmap item 9.6.2 and prerequisite 9.4.3.
-- [x] (2026-03-26) Reviewed ADR-005, the harness chapter added in 9.6.1, and
+- [x] (2026-03-26) Reviewed ADR-005a, the harness chapter added in 9.6.1, and
       current GPUI policy-resolution code paths.
 - [x] (2026-03-26) Reviewed current GPUI unit, trybuild, and integration
       coverage to identify the remaining validation gap.
@@ -292,7 +292,8 @@ Reference documents reviewed while drafting this plan:
 - `docs/rust-doctest-dry-guide.md`
 - `docs/complexity-antipatterns-and-refactoring-strategies.md`
 - `docs/gherkin-syntax.md`
-- `docs/adr-005a-harness-adapter-crates-for-framework-specific-test-integration.md`
+- `docs/adr-005a-harness-adapter-crates-for-framework-specific-test-
+  integration.md`
 - `docs/execplans/9-4-2-create-rstest-bdd-harness-gpui.md`
 - `docs/execplans/9-6-1-update-the-harness-adapter-chapter-in-the-users-guide.md`
 

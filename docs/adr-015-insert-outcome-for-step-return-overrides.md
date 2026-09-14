@@ -129,9 +129,15 @@ the second means the suite needs to disambiguate which fixture is meant.
 - Issue [#514][i514]: `StepContext::insert_value` overloaded `None` return.
 - [ADR 012: guard-based `StepContext` borrowing][adr-012] covers the related
   borrowing redesign for the same type.
-- [ADR 011: first-party scenario-state helpers][adr-011] records the
-  thread-local interim pattern superseded by ADR-012.
 - [v0.6.0 migration guide][migration] records the caller-facing upgrade steps.
+
+## Amendments
+
+### 2026-09-14: cross-reference the superseded interim pattern
+
+[ADR 011: first-party scenario-state helpers][adr-011] records the
+thread-local interim pattern superseded by ADR-012, which provides the
+borrowing redesign related to this ADR's `StepContext` return-value change.
 
 [adr-011]: adr-011-first-party-scenario-state-and-cleanup.md
 [adr-012]: adr-012-guard-based-stepcontext-borrowing.md

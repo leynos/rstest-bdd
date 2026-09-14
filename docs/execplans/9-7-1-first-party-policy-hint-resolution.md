@@ -49,7 +49,7 @@ gates all agree.
 - Keep the scope to roadmap item 9.7.1. Do not fold in roadmap items 9.7.2,
   9.7.3, or 9.7.4 except where a small test is necessary to prove the shared
   resolver contract.
-- Preserve the ADR-005 boundary: `HarnessAdapter` remains the runtime
+- Preserve the ADR-005a boundary: `HarnessAdapter` remains the runtime
   delegation boundary and `AttributePolicy` remains the emitted test-attribute
   boundary.
 - Preserve the ADR-008 precedence order:
