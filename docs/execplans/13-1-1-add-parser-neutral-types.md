@@ -520,7 +520,7 @@ discovery above with the upstream artefacts in `Conformance basis`:
 - If D2 is rejected in favour of deferring hooks, record the partial discharge
   of ADR-018's lifecycle matrix here, in the roadmap entry, and as a follow-up
   item, and set this plan's status appropriately before continuing.
-- If implementation falsifies any axiom AX-1 to AX-7, return to *Verification
+- If implementation falsifies any axiom AXIOM-1 to AXIOM-7, return to *Verification
   plan* before elaborating further.
 
 ## Context and orientation
@@ -685,23 +685,23 @@ invariants below are stated over data, not over control flow.
 
 ### Axioms (assumed, not verified here)
 
-- **AX-1.** `inventory` registers every linked step definition before the first
+- **AXIOM-1.** `inventory` registers every linked step definition before the first
   test runs. The registry is not mutated at run time.
-- **AX-2.** `execute_step` and `execute_step_async` correctly resolve, validate
+- **AXIOM-2.** `execute_step` and `execute_step_async` correctly resolve, validate
   fixtures for, and invoke a single step, and map its result into
   `ExecutionError` as documented. This plan treats them as a contract boundary
   and does not re-verify their internals; it does exercise them for real rather
   than through a mock.
-- **AX-3.** `StepContext::insert_value` implements the unique-type rule
+- **AXIOM-3.** `StepContext::insert_value` implements the unique-type rule
   (ADR-015). The runner is verified for *when* it calls it, not for what it does.
-- **AX-4.** `config::fail_on_skipped()` resolves override, then environment,
+- **AXIOM-4.** `config::fail_on_skipped()` resolves override, then environment,
   then `false`.
-- **AX-5.** `proptest` shrinks failures to minimal counter-examples and honours
+- **AXIOM-5.** `proptest` shrinks failures to minimal counter-examples and honours
   a fixed seed via a checked-in `.proptest-regressions` file.
-- **AX-6.** Dropping a Rust future drops the values it owns, and
+- **AXIOM-6.** Dropping a Rust future drops the values it owns, and
   `std::task::Waker::noop()` (stable, and available at this workspace's MSRV of
   1.88) permits polling a future once without an executor.
-- **AX-7.** `serial_test`'s `#[serial]` serializes in-process, and nextest runs
+- **AXIOM-7.** `serial_test`'s `#[serial]` serializes in-process, and nextest runs
   each test in its own process, so the process-global `fail_on_skipped`
   override cannot leak between tests under `make test`.
 
@@ -925,7 +925,7 @@ are `Ok`. Every other outcome field is a pure function of the plan, the resolved
 async future and its `Drop` performs the synchronous cleanup, cancellation
 cannot skip it.
 
-- Method: this follows from AX-6 plus the by-value signature; it is *witnessed*
+- Method: this follows from AXIOM-6 plus the by-value signature; it is *witnessed*
   by INV-10 rather than proved separately.
 
 ### Why no formal proof or model checker
@@ -1058,7 +1058,10 @@ removes the intermediate level:
 
 ```rust,ignore
 /// A plan that owns its own strings, for frontends that parse at run time.
-pub struct OwnedScenarioPlan { /* name: String, tags: Vec<String>, source, steps: Vec<OwnedStepInvocation>, allow_skipped */ }
+pub struct OwnedScenarioPlan {
+    // name: String, tags: Vec<String>, source: ScenarioSource,
+    // steps: Vec<OwnedStepInvocation>, allow_skipped: bool
+}
 
 impl OwnedScenarioPlan {
     /// Borrow the owned data as an execution view.
