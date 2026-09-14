@@ -5,7 +5,7 @@
 //! part of a metric key.
 
 #[cfg(test)]
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 #[cfg(test)]
@@ -24,6 +24,8 @@ use metrics::{
     Unit,
 };
 use metrics::{counter, describe_counter, describe_gauge, describe_histogram, gauge, histogram};
+#[cfg(test)]
+use rstest_bdd_patterns::MutexExt;
 
 /// Metric name for workspace preparation and deferred-save outcomes.
 const WORKSPACE_COUNTER: &str = "rstest_bdd_server_workspace_preparation_total";
@@ -74,8 +76,7 @@ impl WorkspaceRecorder {
     /// Return the recorded count for one fixed operation/outcome pair.
     pub(crate) fn workspace_outcome_count(&self, operation: &str, outcome: &str) -> u64 {
         self.counters
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
+            .lock_ignoring_poison()
             .iter()
             .filter(|counter| {
                 counter.name == WORKSPACE_COUNTER
@@ -92,8 +93,7 @@ impl WorkspaceRecorder {
     /// Return the latest recorded deferred-save queue depth.
     pub(crate) fn deferred_save_depth(&self) -> Option<f64> {
         self.gauges
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
+            .lock_ignoring_poison()
             .iter()
             .rev()
             .find(|(name, _)| name == DEFERRED_SAVE_GAUGE)
@@ -131,7 +131,7 @@ struct HistogramHandle {
 #[cfg(test)]
 impl CounterFn for CounterHandle {
     fn increment(&self, value: u64) {
-        let mut counters = self.counters.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut counters = self.counters.lock_ignoring_poison();
         if let Some(counter) = counters
             .iter_mut()
             .find(|counter| counter.name == self.name && counter.labels == self.labels)
@@ -141,7 +141,7 @@ impl CounterFn for CounterHandle {
     }
 
     fn absolute(&self, value: u64) {
-        let mut counters = self.counters.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut counters = self.counters.lock_ignoring_poison();
         if let Some(counter) = counters
             .iter_mut()
             .find(|counter| counter.name == self.name && counter.labels == self.labels)
@@ -158,7 +158,7 @@ impl GaugeFn for GaugeHandle {
     fn decrement(&self, _: f64) {}
 
     fn set(&self, value: f64) {
-        let mut gauges = self.gauges.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut gauges = self.gauges.lock_ignoring_poison();
         if let Some((_, gauge)) = gauges.iter_mut().find(|(name, _)| name == &self.name) {
             *gauge = value;
         }
@@ -169,8 +169,7 @@ impl GaugeFn for GaugeHandle {
 impl HistogramFn for HistogramHandle {
     fn record(&self, value: f64) {
         self.histograms
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
+            .lock_ignoring_poison()
             .push((self.name.clone(), value));
     }
 }
@@ -189,7 +188,7 @@ impl Recorder for WorkspaceRecorder {
             .map(|label| (label.key().to_owned(), label.value().to_owned()))
             .collect();
         labels.sort_unstable();
-        let mut counters = self.counters.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut counters = self.counters.lock_ignoring_poison();
         counters.push(RecordedCounter {
             name: key.name().to_owned(),
             labels: labels.clone(),
@@ -204,10 +203,7 @@ impl Recorder for WorkspaceRecorder {
 
     fn register_gauge(&self, key: &Key, _: &Metadata<'_>) -> Gauge {
         let name = key.name().to_owned();
-        self.gauges
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .push((name, 0.0));
+        self.gauges.lock_ignoring_poison().push((name, 0.0));
         Gauge::from_arc(Arc::new(GaugeHandle {
             gauges: Arc::clone(&self.gauges),
             name: key.name().to_owned(),
@@ -241,10 +237,7 @@ mod tests {
             record_workspace_preparation_duration(Duration::from_millis(10));
         });
 
-        let counters = recorder
-            .counters
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner);
+        let counters = recorder.counters.lock_ignoring_poison();
         let [counter] = counters.as_slice() else {
             panic!("expected one workspace counter");
         };
@@ -258,19 +251,11 @@ mod tests {
             ]
         );
         assert_eq!(
-            recorder
-                .gauges
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .as_slice(),
+            recorder.gauges.lock_ignoring_poison().as_slice(),
             [(DEFERRED_SAVE_GAUGE.to_owned(), 2.0)]
         );
         assert_eq!(
-            recorder
-                .histograms
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .as_slice(),
+            recorder.histograms.lock_ignoring_poison().as_slice(),
             [(WORKSPACE_DURATION.to_owned(), 0.01)]
         );
     }

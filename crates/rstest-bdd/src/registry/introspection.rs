@@ -5,15 +5,14 @@
 //! health checks.
 
 use hashbrown::HashMap;
+use rstest_bdd_patterns::MutexExt;
 
 use super::{Step, StepKey, USED_STEPS, all_steps};
 
 /// Return registered steps that were never executed.
 #[must_use]
 pub fn unused_steps() -> Vec<&'static Step> {
-    let used = USED_STEPS
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let used = USED_STEPS.lock_ignoring_poison();
     all_steps()
         .into_iter()
         .filter(|s| !used.contains(&(s.keyword, s.pattern)))

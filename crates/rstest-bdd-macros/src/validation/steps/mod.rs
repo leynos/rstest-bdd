@@ -19,6 +19,7 @@ use std::{
 
 use crate_id::{current_crate_id, normalize_crate_id};
 use messages::{format_ambiguous_step_error, format_missing_step_error};
+use rstest_bdd_patterns::MutexExt;
 
 use crate::{
     StepKeyword,
@@ -71,9 +72,7 @@ fn register_step_inner(keyword: StepKeyword, pattern: &syn::LitStr, crate_id: im
     let _ = stored.regex(pattern.span());
     // Recover from a poisoned lock: entries are inserted atomically, so a
     // panicking macro expansion cannot leave the registry logically invalid.
-    let mut reg = REGISTERED
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut reg = REGISTERED.lock_ignoring_poison();
     let crate_id = normalize_crate_id(crate_id.as_ref());
     let defs = reg.entry(crate_id).or_default();
     defs.by_kw.entry(keyword).or_default().push(stored);
@@ -201,9 +200,7 @@ fn validate_individual_steps(
 pub(crate) fn validate_steps_exist(steps: &[ParsedStep], strict: bool) -> Result<(), syn::Error> {
     // Recover from a poisoned lock: entries are inserted atomically, so a
     // panicking macro expansion cannot leave the registry logically invalid.
-    let reg = REGISTERED
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let reg = REGISTERED.lock_ignoring_poison();
     let current = current_crate_id();
     let defs_owned = reg.get(current).cloned();
     match validate_registry_state(defs_owned.as_ref(), current, strict) {

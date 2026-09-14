@@ -10,6 +10,7 @@ use i18n_embed::{
     I18nEmbedError,
     fluent::{FluentLanguageLoader, fluent_language_loader},
 };
+use rstest_bdd_patterns::RwLockExt;
 use rust_embed::RustEmbed;
 use thiserror::Error;
 use unic_langid::LanguageIdentifier;
@@ -197,9 +198,7 @@ pub(crate) fn with_loader<R>(callback: impl FnOnce(&FluentLanguageLoader) -> R) 
             return callback(loader);
         }
         drop(borrow);
-        let guard = LANGUAGE_LOADER
-            .read()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let guard = LANGUAGE_LOADER.read_ignoring_poison();
         callback(&guard)
     })
 }

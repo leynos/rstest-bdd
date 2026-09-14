@@ -6,6 +6,8 @@
 //! After indexing, diagnostics are computed and published via the LSP protocol.
 
 use metrics::{counter, describe_counter};
+#[cfg(test)]
+use rstest_bdd_patterns::MutexExt;
 use tracing::{debug, warn};
 
 use super::{
@@ -266,10 +268,7 @@ mod tests {
 
     impl CounterFn for RecordedCounter {
         fn increment(&self, value: u64) {
-            let mut outcomes = match self.outcomes.lock() {
-                Ok(outcomes) => outcomes,
-                Err(error) => error.into_inner(),
-            };
+            let mut outcomes = self.outcomes.lock_ignoring_poison();
             let Some((_, _, count)) = outcomes.iter_mut().find(|(operation, outcome, _)| {
                 operation == &self.operation && outcome == &self.outcome
             }) else {
@@ -280,10 +279,7 @@ mod tests {
         }
 
         fn absolute(&self, value: u64) {
-            let mut outcomes = match self.outcomes.lock() {
-                Ok(outcomes) => outcomes,
-                Err(error) => error.into_inner(),
-            };
+            let mut outcomes = self.outcomes.lock_ignoring_poison();
             let Some((_, _, count)) = outcomes.iter_mut().find(|(operation, outcome, _)| {
                 operation == &self.operation && outcome == &self.outcome
             }) else {
@@ -296,10 +292,7 @@ mod tests {
 
     impl IndexingRecorder {
         fn count(&self, operation: &str, outcome: &str) -> u64 {
-            let outcomes = match self.outcomes.lock() {
-                Ok(outcomes) => outcomes,
-                Err(error) => error.into_inner(),
-            };
+            let outcomes = self.outcomes.lock_ignoring_poison();
             outcomes
                 .iter()
                 .find_map(|(recorded_operation, recorded_outcome, count)| {
@@ -310,10 +303,7 @@ mod tests {
         }
 
         fn registered_counters(&self) -> Vec<RegisteredCounter> {
-            let counters = match self.counters.lock() {
-                Ok(counters) => counters,
-                Err(error) => error.into_inner(),
-            };
+            let counters = self.counters.lock_ignoring_poison();
             counters.clone()
         }
     }
@@ -342,10 +332,7 @@ mod tests {
                 .map(|label| (label.key().to_owned(), label.value().to_owned()))
                 .collect();
             labels.sort_unstable();
-            let mut counters = match self.counters.lock() {
-                Ok(counters) => counters,
-                Err(error) => error.into_inner(),
-            };
+            let mut counters = self.counters.lock_ignoring_poison();
             counters.push(RegisteredCounter {
                 name: key.name().to_owned(),
                 labels,

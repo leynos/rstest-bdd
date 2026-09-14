@@ -3,15 +3,13 @@
 use camino::{Utf8Path, Utf8PathBuf};
 use cap_std::{ambient_authority, fs_utf8::Dir};
 use rstest::fixture;
+use rstest_bdd_patterns::MutexExt;
 use tempfile::tempdir;
 
 use super::*;
 
 pub(super) fn clear_registry() {
-    let mut registry = match REGISTERED.lock() {
-        Ok(registry) => registry,
-        Err(poisoned) => poisoned.into_inner(),
-    };
+    let mut registry = REGISTERED.lock_ignoring_poison();
     registry.clear();
 }
 

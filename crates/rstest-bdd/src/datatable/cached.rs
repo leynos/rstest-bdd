@@ -21,6 +21,8 @@ mod diagnostics {
         thread,
     };
 
+    use rstest_bdd_patterns::MutexExt;
+
     /// Return the per-thread cache-miss counter map.
     fn counters() -> &'static Mutex<HashMap<thread::ThreadId, usize>> {
         static COUNTERS: OnceLock<Mutex<HashMap<thread::ThreadId, usize>>> = OnceLock::new();
@@ -29,17 +31,14 @@ mod diagnostics {
 
     /// Increment the current thread's cache-miss count.
     pub(super) fn record_miss() {
-        let mut map = counters()
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut map = counters().lock_ignoring_poison();
         *map.entry(thread::current().id()).or_insert(0) += 1;
     }
 
     /// Read the current thread's cache-miss count.
     pub(super) fn count() -> usize {
         counters()
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .lock_ignoring_poison()
             .get(&thread::current().id())
             .copied()
             .unwrap_or(0)
@@ -48,8 +47,7 @@ mod diagnostics {
     /// Clear the current thread's cache-miss count.
     pub(super) fn reset() {
         counters()
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .lock_ignoring_poison()
             .remove(&thread::current().id());
     }
 }
