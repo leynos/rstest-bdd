@@ -2,7 +2,9 @@
 
 ## Status
 
-Proposed
+Accepted (2026-09-14): Infer test-attribute defaults from known first-party
+harness type paths in `rstest-bdd-policy`, while requiring explicit attributes
+for unknown harnesses.
 
 ## Date
 
@@ -310,8 +312,9 @@ profile type rather than a bare crate name.
 
 ## Outstanding decisions
 
-- Whether harness-to-policy mapping should live in `rstest-bdd-policy` beside
-  policy-path hints, or in a dedicated helper module.
+- Resolved: the harness-to-policy mapping lives in
+  `crates/rstest-bdd-policy/src/lib.rs` beside policy-path hints, through
+  `KNOWN_HARNESS_HINTS` and `resolve_test_attribute_hint_for_harness_path`.
 - Whether future third-party integrations should opt into inference through a
   marker type path, a registration macro, or remain explicit-only.
 - Whether a later “integration profile” syntax is worth adding once the
@@ -330,3 +333,10 @@ types, but it cannot evaluate arbitrary trait methods at expansion time. Known
 first-party harness mappings are therefore a pragmatic middle ground: they
 reduce repetition without pretending that macros can auto-discover semantic
 defaults from arbitrary crates.
+
+## References
+
+- [ADR 005a: harness adapter crates][adr-005a] records the harness abstraction
+  whose first-party adapters supply these defaults.
+
+[adr-005a]: adr-005a-harness-adapter-crates-for-framework-specific-test-integration.md
