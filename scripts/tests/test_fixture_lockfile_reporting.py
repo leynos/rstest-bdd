@@ -1,7 +1,8 @@
 """Unit tests for the fixture-lockfile reporting helpers."""
 
+import pathlib
 import typing as typ
-from pathlib import Path
+from pathlib import Path, PurePath
 
 import fixture_lockfile_reporting
 import pytest
@@ -102,3 +103,34 @@ def test_failure_message_reports_the_manifest_the_command_and_the_output(
         f"{STDOUT}"
         f"{STDERR}"
     ), f"the {heading!r} report must keep the gate's established wording"
+
+
+@pytest.mark.parametrize(
+    "formatter",
+    [stale_failure_message, refresh_failure_message, fetch_failure_message],
+    ids=["stale", "refresh", "fetch"],
+)
+def test_failure_reports_name_one_path_on_every_platform(
+    formatter: cabc.Callable[[PurePath, list[str], str, str], str],
+) -> None:
+    r"""A report read on Windows must name the same path a reader can search for.
+
+    `PureWindowsPath` stands in for the checkout a Windows runner has, so
+    the separator is exercised on any host rather than only where the fault
+    appears. Rendering with the native separator made the same fixture read
+    as `crates\\rstest-bdd\\...` there and `crates/rstest-bdd/...` on Linux,
+    which is what hid four failures behind `continue-on-error`.
+    """
+    windows_manifest = pathlib.PureWindowsPath(
+        "crates/rstest-bdd/tests/ui_lints/Cargo.toml"
+    )
+
+    report = formatter(windows_manifest, METADATA_COMMAND, "", "")
+
+    assert "crates/rstest-bdd/tests/ui_lints/Cargo.toml" in report, (
+        f"the report must name the manifest with POSIX separators, got {report!r}"
+    )
+    assert "\\" not in report.splitlines()[0], (
+        f"the report's first line must carry no native separators, got "
+        f"{report.splitlines()[0]!r}"
+    )
