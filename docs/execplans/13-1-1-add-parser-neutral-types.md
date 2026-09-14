@@ -719,7 +719,7 @@ between them. Raise that before spending the tolerance.
   `LifecycleError` is opaque so the internal `Arc` stays a free implementation
   choice. `ExecutionError` and `MissingFixturesDetails` gain `PartialEq`/`Eq`
   (additive; see Constraint 1) so INV-5 compares whole outcomes rather than a
-  hand-written projection that could itself omit the differing field.
+  handwritten projection that could itself omit the differing field.
   Validated by Spike 4.
   Date/Author: 2026-09-14, planning agent.
 
@@ -1122,7 +1122,7 @@ step definition is registered in `StepExecutionMode::Both`, `run_scenario` and
 - Method: property test running the same generated plan through both runners,
   compared with `pretty_assertions::assert_eq!` on the whole
   `ScenarioOutcome` — which requires the `PartialEq` derives named in
-  Constraint 1, so that a hand-written projection cannot itself omit the
+  Constraint 1, so that a handwritten projection cannot itself omit the
   differing field.
 - Artefact: `crates/rstest-bdd/tests/runner_sequence_props.rs`.
 - **Known gap, recorded rather than glossed:** `Async`-only steps have no sync
