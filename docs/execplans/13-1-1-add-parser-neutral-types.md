@@ -334,6 +334,11 @@ Stop and escalate — do not improvise — when any of these is reached.
 - [x] (2026-09-14) Prior art reviewed: `cucumber-rs`'s `Parser`/`Runner`/`Writer`
   split and the Cucumber Messages status model.
 - [x] (2026-09-14) Draft ExecPlan written.
+- [x] (2026-09-14) Spike 1 run: Decision D3's ownership design compiles with no
+  self-referential type. Transcript in `Artefacts and notes`.
+- [x] (2026-09-14) Spike 2 run: INV-10's cancellation harness observes a
+  cancelled run deterministically with no new dependency. Transcript in
+  `Artefacts and notes`.
 - [ ] Stage A: maintainer approval of Decisions D2 and D3.
 - [ ] EP-M1: plan and source types (prototyping milestone).
 - [ ] EP-M2: synchronous runner and structured outcome.
@@ -388,6 +393,17 @@ Stop and escalate — do not improvise — when any of these is reached.
   the runtime already distinguishes them. `UNDEFINED` and `AMBIGUOUS` map onto
   existing `ExecutionError` variants rather than onto new statuses, so
   `StepStatus` stays at four variants.
+
+- **Observation:** both of the plan's riskiest claims were verified by compiling
+  and running standalone spikes before the plan was submitted, rather than left
+  as assertions.
+  Evidence: the two transcripts in `Artefacts and notes`. Spike 1 shows the D3
+  ownership design compiling with no self-referential type; Spike 2 shows the
+  INV-10 cancellation harness observing a cancelled run deterministically with
+  no executor and no new dependency.
+  Impact: EP-M1's prototype go/no-go criteria are discharged in advance, and the
+  *Self-reference* and *Cancellation* tolerances are very unlikely to trip. The
+  residual EP-M1 question is ergonomic, not feasibility.
 
 - **Observation:** `std::task::Waker::noop()` is stable and available at this
   workspace's MSRV of 1.88, so the cancellation tests need no new dependency.
@@ -1664,6 +1680,59 @@ This worktree shares its stash stack with other checkouts. Do not use bare
 `git stash`; prefer a temporary work-in-progress commit to set work aside.
 
 ## Artefacts and notes
+
+### Pre-approval spikes (already run)
+
+Two of this plan's riskiest claims were compiled and executed as standalone
+`rustc` programs before the plan was submitted for approval, so neither is
+merely asserted.
+
+**Spike 1 — Decision D3 does not produce a self-referential type.** A
+single-file model of `SourceLocation`, `ScenarioSource`, `PlanTable`,
+`StepInvocation`, `ScenarioPlan`, `OwnedScenarioPlan`, and the engine's
+table-adaptation helper was compiled with `rustc --edition 2024` and run. It
+builds a macro-style plan from `'static` data with no table copy, builds a
+dynamic plan from `Vec<Vec<String>>` data via `invocations()` then
+`as_plan(&invocations)`, and adapts both forms into the `&[&[&str]]` shape
+`execute_step` expects. It compiles with only `dead_code` warnings, which are
+an artefact of the spike having no real engine.
+
+```plaintext
+A: static plan built, one Arc shared across 2 steps
+  "static demo" "a table" -> table Some("name|age / ada|36")
+  "static demo" "it holds" -> table None
+  "markdown demo" "I supply a parsed table" -> table Some("name|age / ada|36")
+B/C: dynamic plan built and both forms adapted without self-reference
+```
+
+This discharges EP-M1's prototype go/no-go criterion (a) in advance, and
+criterion (b) is witnessed by the `Arc::ptr_eq` assertion in the same program.
+It does **not** discharge the ergonomic question about the two-call dance,
+which remains open for the EP-M1 compatibility review.
+
+**Spike 2 — INV-10's cancellation harness is sound and needs no dependency.**
+A second single-file program models a scope whose `Drop` performs synchronous
+cleanup, a gate future that returns `Poll::Pending` on its first poll while
+holding a drop probe, and a `run` future that owns the scope. It polls once
+with `Context::from_waker(Waker::noop())`, drops the future, and asserts the
+outcome. `std::task::Waker::noop` is stable from Rust 1.85 and `std::pin::pin!`
+from 1.83, both at or below this workspace's MSRV of 1.88.
+
+```plaintext
+cancel-during-step: step dropped, scope cleaned, after hook did not run
+normal completion: outcome returned, after hook ran exactly once
+INV-10 harness is sound: deterministic, executor-free, no new dependency
+```
+
+The second case is the non-vacuity control named in INV-10: it polls the same
+future to `Poll::Ready` and proves the after hook *can* run, so the first
+case's "after hook did not run" assertion is not passing merely because the
+hook is unreachable.
+
+Both spikes were run with `rustc 1.98.1`. Neither is checked in; they are
+reproduced here because their output is the evidence.
+
+### Evidence still to capture
 
 To be filled in as work proceeds. At minimum, capture:
 
