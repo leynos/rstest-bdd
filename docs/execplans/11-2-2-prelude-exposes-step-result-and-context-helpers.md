@@ -540,8 +540,8 @@ noticing.
 
 The review rejected an `insta` snapshot of the prelude's contents. Rust has no
 reflection over module items, so there is nothing for `insta` to serialize; the
-snapshot would capture a handwritten list, which is precisely the artefact
-that drifts. `cargo insta accept` then makes agreeing with a mistake a single
+snapshot would capture a handwritten list, which is precisely the artefact that
+drifts. `cargo insta accept` then makes agreeing with a mistake a single
 keystroke.
 
 Three layers replace it, each catching what the others miss:
@@ -1533,6 +1533,17 @@ New scripts, both following the shape of
 
 - `scripts/check_prelude_exports.py`
 - `scripts/check_example_imports.py`
+
+**Implementation hazard for `check_prelude_exports.py`.** `.rustfmt.toml` sets
+`imports_granularity = "Crate"` and `imports_layout = "HorizontalVertical"`, so
+rustfmt merges and reflows the `pub use` block: the five statements shown above
+become one `pub use crate::{...}` group plus one
+`pub use rstest_bdd_macros::{...}` group, wrapped across lines. A line-oriented
+parser that assumes one item per `pub use` line will therefore break the first
+time `make fmt` runs. The script must parse the braced, reflowed form —
+collecting leaf names from nested `{...}` groups — and its pytest suite must
+include a rustfmt-formatted sample as a fixture. Verify this by running
+`make fmt` immediately after Milestone 2 and confirming the script still passes.
 
 New tests:
 
