@@ -255,8 +255,34 @@ Run 34795056294 met a cold cache: its 752 seconds of Linux packaging were
 real, 630 of them `rstest-bdd-harness-gpui`, and that cost is inherent to a
 cold store rather than a defect.
 
-`lading.toml` therefore sets `preflight.unit_tests_only`, which narrows the
-pre-flight's `cargo test` to `--lib --bins`. The check keeps `--all-targets`,
+The workflow therefore sets `LADING_SKIP_PREFLIGHT` to `true` on the publish
+step, which lading v0.3.1 added for this (leynos/lading#261). lading reads the
+variable through Cyclopts, so `1`, `true`, `t`, `yes` and `y` all enable the
+skip, case insensitively, and `0`, `false`, `f`, `no` and `n` all disable it;
+anything else, including `on` and the empty string, is refused and fails the
+step rather than being guessed at. The equivalent flags are
+`--skip-preflight` and `--no-skip-preflight`, and precedence runs flag, then
+environment, then the `lading.toml` setting. The skip drops the auxiliary
+builds and the `cargo check` and `cargo test` pair. It does not drop the
+working-tree cleanliness guard or the `Cargo.lock` freshness guard, which cost
+seconds and check things no test run covers.
+
+The variable is set on the step rather than in `lading.toml`, because a
+configuration file cannot tell a CI run from a local one. On a workstation
+nothing has run the suite before `make publish-check`, so the pre-flight is
+the only thing checking that the workspace builds and its unit tests pass
+before packaging, and it still runs there in full. That is also the command
+to reach for when reproducing a CI publish failure: run `make publish-check`
+with the variable unset and the pre-flight comes back.
+
+What makes the skip safe is a property of the workflow rather than a
+convention, and `publish_preflight_scope_test.py` pins all of it: the
+variable's value, the absence of the equivalent `lading.toml` setting, one
+test step per lane with its own selecting condition, and each of those steps
+ahead of the publish step.
+
+For the local case `lading.toml` sets `preflight.unit_tests_only`, which
+narrows the pre-flight's `cargo test` to `--lib --bins`. The check keeps `--all-targets`,
 so every target is still compiled inside the dry run; what stops is a second
 execution of a suite the lane has already run. The lane order is what makes
 that safe, and `publish_preflight_scope_test.py` asserts it: each lane's

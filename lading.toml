@@ -15,7 +15,13 @@ strip_patches = "per-crate"
 [bump]
 exclude = ["gpui", "gpui-macros"]
 
-# `lading publish` always runs a pre-flight before it packages anything:
+# CI sets `LADING_SKIP_PREFLIGHT` on the publish step, so the settings below
+# govern a local `make publish-check`, where nothing has run the tests first.
+# The skip is deliberately not set here: in this file it would apply to a
+# workstation run too, which is the one place the pre-flight still earns its
+# time.
+#
+# `lading publish` runs a pre-flight before it packages anything:
 # `cargo check --workspace --all-targets`, then `cargo test`, both into a
 # throwaway target directory. `unit_tests_only` narrows only the second of
 # those to `--lib --bins`; the check keeps `--all-targets`, so every target in

@@ -18,7 +18,23 @@ Run via ``make test-workflow-contracts``.
 import typing as typ
 
 import pytest
-from publish_report_support import DRY_RUN_STEP, step_index, step_named
+from publish_report_support import DRY_RUN_STEP, mapping_at, step_index, step_named
+
+#: The environment variable that turns lading's pre-flight off, and the
+#: one value this workflow may use to enable it. lading reads it through
+#: Cyclopts, which accepts `1`, `true`, `t`, `yes` and `y` case
+#: insensitively, and the matching negatives. The quiet failure is a
+#: value from the negative set: the step would succeed, the pre-flight
+#: would run in full, and the only evidence would be a step that took
+#: minutes longer than the guide says it should. Equality against one
+#: agreed spelling rules that out, and leaves the accepted set as
+#: documentation rather than as something a contract has to track.
+SKIP_VARIABLE: typ.Final[str] = "LADING_SKIP_PREFLIGHT"
+SKIP_ENABLED: typ.Final[str] = "true"
+
+#: The lading.toml key that would skip the pre-flight everywhere,
+#: including on a workstation. The workflow sets the variable instead.
+SKIP_SETTING: typ.Final[str] = "skip"
 
 #: The steps that execute the workspace's tests, one per lane, with the
 #: condition that selects the lane each one serves. Every step must
@@ -93,4 +109,44 @@ def test_every_lane_is_selected_by_exactly_one_test_step(
     assert declared == condition, (
         f"{step_name!r} runs when {declared!r}, not {condition!r}; the lanes "
         f"the dry run packages on must each be tested by one of these steps"
+    )
+
+
+def test_the_skip_is_enabled_on_the_step_that_packages(
+    build_test_job: dict[str, typ.Any],
+) -> None:
+    """CI skips the pre-flight; the value is pinned, not merely present.
+
+    Presence alone proves nothing, because the negative spellings are
+    accepted too: `LADING_SKIP_PREFLIGHT: 'false'` sets the variable,
+    passes any existence check, and runs the whole pre-flight anyway.
+    That failure is silent, which is what makes it worth a contract; a
+    value outside the accepted set is not, since lading refuses it and
+    the step fails with the reason in the log.
+    """
+    environment = mapping_at(
+        step_named(build_test_job, DRY_RUN_STEP), "env", f"the {DRY_RUN_STEP!r} step"
+    )
+    assert environment.get(SKIP_VARIABLE) == SKIP_ENABLED, (
+        f"the {DRY_RUN_STEP!r} step sets {SKIP_VARIABLE}="
+        f"{environment.get(SKIP_VARIABLE)!r}, not {SKIP_ENABLED!r}"
+    )
+
+
+def test_the_skip_is_not_set_for_local_runs(
+    lading_configuration: dict[str, typ.Any],
+) -> None:
+    """A skip in lading.toml would reach a workstation as well.
+
+    On a workstation nothing has run the suite before `make
+    publish-check`, so the pre-flight is the only thing checking that
+    the workspace builds and its unit tests pass before packaging. The
+    workflow sets the environment variable precisely so the two cases
+    can differ.
+    """
+    preflight = lading_configuration.get("preflight", {})
+    assert SKIP_SETTING not in preflight, (
+        f"lading.toml sets preflight.{SKIP_SETTING}, which skips the "
+        f"pre-flight for local runs too; CI sets {SKIP_VARIABLE} on the "
+        f"publish step instead"
     )

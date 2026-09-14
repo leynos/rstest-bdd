@@ -30,7 +30,7 @@ jobs:
       CODESCENE_CLI_SHA256: ${{ vars.CODESCENE_CLI_SHA256 }}
       RUSTFLAGS: -D warnings
       RUSTDOCFLAGS: -D warnings
-      LADING_REF: c3740ef48da4c89752fcb98fff4f1c27284e5f12
+      LADING_REF: b771852411b428ff6fc779cc3a68b153a8f2439a
       BUN_VERSION: '1.2.21'
       MERMAID_CLI_VERSION: '11.9.0'
       MERMAN_CLI_VERSION: '0.7.0'
@@ -662,6 +662,28 @@ jobs:
           # end-of-job sccache report keeps its meaning (rstest-bdd#720,
           # leynos/shared-actions#459).
           LADING_SCCACHE_STATS_JSON: ${{ runner.temp }}/sccache-publish.json
+          # Skip lading's pre-flight here, and only here. Every lane
+          # reaches this step after its own `Test and Measure Coverage`
+          # step has run the same workspace, and since those steps lost
+          # `continue-on-error` each of them fails its own lane, so the
+          # pre-flight's cargo check and cargo test would be a second
+          # execution of a suite this job has already passed. See
+          # leynos/lading#261.
+          #
+          # Set on the step rather than in lading.toml because a config
+          # file cannot tell a CI run from a local one: `make
+          # publish-check` on a workstation, where nothing has run the
+          # tests first, must still run the full pre-flight.
+          #
+          # The skip drops the auxiliary builds and the cargo check and
+          # test pair. It does not drop the working-tree cleanliness
+          # guard or the Cargo.lock freshness guard, which are cheap and
+          # check things no test run covers.
+          #
+          # `publish_preflight_scope_test.py` pins the premise: one test
+          # step per lane, each selected by its own condition and each
+          # ahead of this step.
+          LADING_SKIP_PREFLIGHT: 'true'
         run: make publish-check
 
       # Runs whatever the publish step did, so an absent or malformed
