@@ -223,6 +223,57 @@ after installing `sccache`, and the final step publishes `sccache --show-stats`
 in text and JSON to the job summary alongside every cache key, hit result, and
 the backend in use.
 
+#### What the release dry run does, and what it costs
+
+`make publish-check` runs `lading publish` against the workspace. Its phases,
+in order, are: validate that every tracked `Cargo.lock` is fresh under
+`--locked`; run a pre-flight of `cargo check --workspace --all-targets` and
+then `cargo test`, both into a throwaway target directory under the system
+temporary directory; copy the workspace to a staging root; run `cargo package`
+for each publishable crate in the `lading.toml` order; and run
+`cargo publish --dry-run` for each. Only the last two prove what the gate
+exists to prove, that each crate packages and would publish.
+
+Until 2026-09-14 the pre-flight was most of the step. The three runs below
+were measured from the step logs, in seconds.
+
+| Run         | Lane             | check | test | stage | package and publish | step |
+| ----------- | ---------------- | ----- | ---- | ----- | ------------------- | ---- |
+| 34771459730 | Ubicloud         | 151   | 937  | 22    | 38                  | 1154 |
+| 34771459730 | Windows, default | 91    | 632  | 140   | 54                  | 946  |
+| 34771459730 | Windows, strict  | 92    | 650  | 145   | 52                  | 965  |
+| 34792361006 | Ubicloud         | 123   | 760  | 15    | 33                  | 936  |
+| 34792361006 | Windows, default | 77    | 583  | 129   | 72                  | 891  |
+| 34792361006 | Windows, strict  | 111   | 665  | 124   | 39                  | 967  |
+| 34795056294 | Ubicloud         | 123   | 968  | 16    | 752                 | 1864 |
+| 34795056294 | Windows, default | 113   | 587  | 135   | 615                 | 1475 |
+| 34795056294 | Windows, strict  | 151   | 769  | 130   | 737                 | 1817 |
+
+On a warm compiler cache the pre-flight was 94 percent of the Linux step and
+74 to 80 percent of each Windows step, against 33 to 72 seconds of packaging.
+Run 34795056294 met a cold cache: its 752 seconds of Linux packaging were
+real, 630 of them `rstest-bdd-harness-gpui`, and that cost is inherent to a
+cold store rather than a defect.
+
+`lading.toml` therefore sets `preflight.unit_tests_only`, which narrows the
+pre-flight's `cargo test` to `--lib --bins`. The check keeps `--all-targets`,
+so every target is still compiled inside the dry run; what stops is a second
+execution of a suite the lane has already run. The lane order is what makes
+that safe, and `publish_preflight_scope_test.py` asserts it: each lane's
+`Test and Measure Coverage` step precedes the dry run, so moving the dry run
+earlier fails the contract rather than the release.
+
+Two consequences are worth stating rather than discovering. The pre-flight's
+plain `cargo test` ran the cargo-spawning tests without the nextest
+test-groups and slow-timeout tiers `.config/nextest.toml` sizes for them, and
+one of its test binaries alone took 630 seconds; narrowing removes the less
+controlled of the two runs, not the controlled one. And the Windows coverage
+steps carry `continue-on-error`, so on those lanes the pre-flight was the only
+thing that failed the job on a failing integration test. That enforcement was
+accidental and undocumented. Restoring it deliberately, by making the Windows
+test step blocking, is a separate decision about how much Windows failure
+should cost, not something the pre-flight should keep doing by accident.
+
 #### Attributing the publish step's share
 
 The end-of-job report is job-wide, so it cannot say what any one step spent.
