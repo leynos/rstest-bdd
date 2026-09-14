@@ -24,7 +24,12 @@ pub(crate) mod diagnostics;
 /// Typed fixture requirement metadata for registered BDD steps.
 mod fixtures;
 mod introspection;
+mod projection_lookup;
 
+#[expect(
+    deprecated,
+    reason = "retain deprecated registry lookup exports until the next breaking release"
+)]
 pub use async_lookup::{
     find_step_async_with_mode,
     find_step_with_mode,
@@ -35,6 +40,11 @@ pub use fixtures::{FixtureRequirement, StepFixtureRequirements, fixture_requirem
 #[cfg(feature = "diagnostics")]
 pub use introspection::dump_registry;
 pub use introspection::{duplicate_steps, unused_steps};
+#[expect(
+    deprecated,
+    reason = "retain deprecated registry lookup exports until the next breaking release"
+)]
+pub use projection_lookup::{find_step, find_step_async, lookup_step, lookup_step_async};
 
 /// Represents a single step definition registered with the framework.
 #[derive(Debug)]
@@ -340,37 +350,6 @@ fn step_specificity(step: &Step) -> SpecificityScore {
     })
 }
 
-/// Look up a registered step by keyword and pattern.
-#[must_use]
-pub fn lookup_step(keyword: StepKeyword, pattern: PatternStr<'_>) -> Option<StepFn> {
-    lookup_step_with_metadata(keyword, pattern).map(|step| step.run)
-}
-
-/// Find a registered step whose pattern matches the provided text.
-#[must_use]
-pub fn find_step(keyword: StepKeyword, text: StepText<'_>) -> Option<StepFn> {
-    find_step_with_metadata(keyword, text).map(|step| step.run)
-}
-
-/// Look up a registered async step by keyword and pattern.
-///
-/// Returns the async step function pointer for use in async scenario execution.
-/// The async wrapper returns an immediately-ready future for sync step
-/// definitions.
-#[must_use]
-pub fn lookup_step_async(keyword: StepKeyword, pattern: PatternStr<'_>) -> Option<AsyncStepFn> {
-    lookup_step_with_metadata(keyword, pattern).map(|step| step.run_async)
-}
-
-/// Find a registered async step whose pattern matches the provided text.
-///
-/// Returns the async step function pointer for use in async scenario execution.
-/// The async wrapper returns an immediately-ready future for sync step
-/// definitions.
-#[must_use]
-pub fn find_step_async(keyword: StepKeyword, text: StepText<'_>) -> Option<AsyncStepFn> {
-    find_step_with_metadata(keyword, text).map(|step| step.run_async)
-}
 /// Look up a registered step by its exact keyword and pattern with metadata.
 ///
 /// ```ignore

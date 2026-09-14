@@ -64,6 +64,10 @@ pub use pattern::StepPattern;
 pub use placeholder::extract_placeholders;
 #[cfg(feature = "diagnostics")]
 pub use registry::dump_registry;
+#[expect(
+    deprecated,
+    reason = "retain deprecated registry lookup exports until the next breaking release"
+)]
 pub use registry::{
     BypassedScenario,
     FixtureRequirement,

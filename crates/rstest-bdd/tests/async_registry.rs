@@ -14,9 +14,9 @@ use rstest_bdd::{
     StepExecution,
     StepFuture,
     StepKeyword,
-    find_step_async,
+    find_step_with_metadata,
     iter,
-    lookup_step_async,
+    lookup_step_with_metadata,
     step,
     unused_steps,
 };
@@ -120,17 +120,23 @@ fn step_struct_has_run_async_field() {
 }
 
 #[test]
-fn find_step_async_returns_async_wrapper() {
+fn find_step_with_metadata_returns_async_wrapper() {
     assert_async_wrapper_works(
-        || find_step_async(StepKeyword::Given, "an async registry test step".into()),
+        || {
+            find_step_with_metadata(StepKeyword::Given, "an async registry test step".into())
+                .map(|step| step.run_async)
+        },
         "an async registry test step",
     );
 }
 
 #[test]
-fn lookup_step_async_returns_async_wrapper() {
+fn lookup_step_with_metadata_returns_async_wrapper() {
     assert_async_wrapper_works(
-        || lookup_step_async(StepKeyword::Given, "an async registry test step".into()),
+        || {
+            lookup_step_with_metadata(StepKeyword::Given, "an async registry test step".into())
+                .map(|step| step.run_async)
+        },
         "an async registry test step",
     );
 }
@@ -145,37 +151,37 @@ fn lookup_step_async_returns_async_wrapper() {
 /// and `lookup_step_async` into a single test with multiple cases.
 #[rstest]
 #[case::find_unknown_pattern(
-    "find_step_async",
+    "find_step_with_metadata",
     StepKeyword::Given,
     "a completely unknown pattern xyz123",
     "for an unknown pattern"
 )]
 #[case::find_mismatched_when(
-    "find_step_async",
+    "find_step_with_metadata",
     StepKeyword::When,
     "an async registry test step",
     "when keyword does not match (When)"
 )]
 #[case::find_mismatched_then(
-    "find_step_async",
+    "find_step_with_metadata",
     StepKeyword::Then,
     "an async registry test step",
     "when keyword does not match (Then)"
 )]
 #[case::lookup_unknown_pattern(
-    "lookup_step_async",
+    "lookup_step_with_metadata",
     StepKeyword::Given,
     "a completely unknown pattern xyz123",
     "for an unknown pattern"
 )]
 #[case::lookup_mismatched_when(
-    "lookup_step_async",
+    "lookup_step_with_metadata",
     StepKeyword::When,
     "an async registry test step",
     "when keyword does not match (When)"
 )]
 #[case::lookup_mismatched_then(
-    "lookup_step_async",
+    "lookup_step_with_metadata",
     StepKeyword::Then,
     "an async registry test step",
     "when keyword does not match (Then)"
@@ -187,8 +193,12 @@ fn async_lookup_returns_none_for_invalid_input(
     #[case] failure_reason: &str,
 ) {
     let result = match api_name {
-        "find_step_async" => find_step_async(keyword, pattern.into()),
-        "lookup_step_async" => lookup_step_async(keyword, pattern.into()),
+        "find_step_with_metadata" => {
+            find_step_with_metadata(keyword, pattern.into()).map(|step| step.run_async)
+        }
+        "lookup_step_with_metadata" => {
+            lookup_step_with_metadata(keyword, pattern.into()).map(|step| step.run_async)
+        }
         _ => panic!("unknown API: {api_name}"),
     };
     assert!(
@@ -212,11 +222,14 @@ step!(
 );
 
 #[test]
-fn find_step_async_marks_step_as_used() {
+fn find_step_with_metadata_marks_step_as_used() {
     assert_step_marked_as_used(
         "async unused tracking test step",
-        || find_step_async(StepKeyword::Given, "async unused tracking test step".into()),
-        "find_step_async",
+        || {
+            find_step_with_metadata(StepKeyword::Given, "async unused tracking test step".into())
+                .map(|step| step.run_async)
+        },
+        "find_step_with_metadata",
     );
 }
 
@@ -230,15 +243,16 @@ step!(
 );
 
 #[test]
-fn lookup_step_async_marks_step_as_used() {
+fn lookup_step_with_metadata_marks_step_as_used() {
     assert_step_marked_as_used(
         "async lookup unused tracking test step",
         || {
-            lookup_step_async(
+            lookup_step_with_metadata(
                 StepKeyword::When,
                 "async lookup unused tracking test step".into(),
             )
+            .map(|step| step.run_async)
         },
-        "lookup_step_async",
+        "lookup_step_with_metadata",
     );
 }
