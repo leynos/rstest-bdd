@@ -535,7 +535,6 @@ jobs:
         if: ${{ runner.os == 'Windows' && matrix.features == '' }}
         # Merged shared-actions whole-workspace coverage revision.
         uses: leynos/shared-actions/.github/actions/generate-coverage@6b5cdc2d4c0bb72cafd5a66d24d248ac25827db9
-        continue-on-error: true
         env:
           # Windows coverage runs (build plus doctests) needed headroom
           # over the shared action's default, and take the same budget as
@@ -559,7 +558,6 @@ jobs:
         if: ${{ runner.os == 'Windows' && matrix.features != '' }}
         # Merged shared-actions whole-workspace coverage revision.
         uses: leynos/shared-actions/.github/actions/generate-coverage@6b5cdc2d4c0bb72cafd5a66d24d248ac25827db9
-        continue-on-error: true
         env:
           # Windows coverage runs (build plus doctests) needed headroom
           # over the shared action's default, and take the same budget as
@@ -579,9 +577,13 @@ jobs:
           use-cargo-nextest: ${{ matrix.use-nextest }}
           pytest-workers: ''
 
-      # Only the Linux lane's coverage is mandatory; the Windows steps carry
-      # `continue-on-error`, so verifying their output would red the lane that
-      # the best-effort marking exists to keep green.
+      # Only the Linux lane's coverage report is consumed: it is what the
+      # CodeScene steps below upload and gate on. The Windows lanes run the
+      # same suite and must pass it, which is why neither carries
+      # `continue-on-error` any more, but nothing reads their report, so
+      # there is nothing here to verify. `workspace_test_gating_test.py`
+      # asserts that no step running the workspace suite is allowed to fail
+      # without failing the job.
       - name: Verify coverage output exists
         if: ${{ runner.os == 'Linux' }}
         shell: bash

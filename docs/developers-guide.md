@@ -263,16 +263,24 @@ that safe, and `publish_preflight_scope_test.py` asserts it: each lane's
 `Test and Measure Coverage` step precedes the dry run, so moving the dry run
 earlier fails the contract rather than the release.
 
-Two consequences are worth stating rather than discovering. The pre-flight's
-plain `cargo test` ran the cargo-spawning tests without the nextest
-test-groups and slow-timeout tiers `.config/nextest.toml` sizes for them, and
-one of its test binaries alone took 630 seconds; narrowing removes the less
-controlled of the two runs, not the controlled one. And the Windows coverage
-steps carry `continue-on-error`, so on those lanes the pre-flight was the only
-thing that failed the job on a failing integration test. That enforcement was
-accidental and undocumented. Restoring it deliberately, by making the Windows
-test step blocking, is a separate decision about how much Windows failure
-should cost, not something the pre-flight should keep doing by accident.
+The pre-flight's plain `cargo test` ran the cargo-spawning tests without the
+nextest test-groups and slow-timeout tiers `.config/nextest.toml` sizes for
+them, and one of its test binaries alone took 630 seconds. Narrowing removes
+the less controlled of the two runs, not the controlled one.
+
+Narrowing it also uncovered something the pre-flight had been hiding. The two
+Windows coverage steps carried `continue-on-error`, so a failing Windows test
+left the job green; what actually failed those lanes was the pre-flight
+running the same tests later in the same job. The enforcement was real but
+accidental, and it came from a step whose purpose is publishing. Both
+markings are gone, so each lane's own test step gates its own lane. That is a
+deliberate reversal of a flag set on purpose: the evidence for it is twenty
+consecutive CI runs in which the Windows coverage steps recorded 32 successes,
+two cancellations and no failures. If one later reds for a tooling reason, the
+seam is the thing to fix. `workspace_test_gating_test.py` asserts that no step
+running the workspace suite, whether through a script or through the coverage
+action, carries `continue-on-error`, and that the workflow still contains such
+steps for it to judge.
 
 #### Attributing the publish step's share
 
