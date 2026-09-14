@@ -17,6 +17,8 @@
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::{Mutex, MutexGuard, OnceLock};
 
+use rstest_bdd_patterns::MutexExt;
+
 mod record;
 pub use record::{ScenarioMetadata, ScenarioRecord, ScenarioStatus, ScenarioTags, SkippedScenario};
 
@@ -57,15 +59,7 @@ fn reports_mutex() -> &'static Mutex<Vec<ScenarioRecord>> {
 
 /// Lock the scenario-record store, recovering records after poisoning.
 fn lock_reports() -> MutexGuard<'static, Vec<ScenarioRecord>> {
-    // Recover from poisoned locks so diagnostics can still flush any
-    // accumulated records when a prior test panicked whilst holding the
-    // mutex. The collector only serves tests and short-lived binaries, so
-    // preserving the captured outcomes aids troubleshooting more than
-    // propagating the panic context.
-    match reports_mutex().lock() {
-        Ok(guard) => guard,
-        Err(poisoned) => poisoned.into_inner(),
-    }
+    reports_mutex().lock_ignoring_poison()
 }
 
 /// Seed executed before emitting diagnostic step dumps.

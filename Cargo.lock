@@ -1734,6 +1734,7 @@ dependencies = [
  "rstest-bdd",
  "rstest-bdd-harness",
  "rstest-bdd-macros",
+ "rstest-bdd-patterns",
  "rstest-bdd-test-macros",
  "rustversion",
  "serial_test",

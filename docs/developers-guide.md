@@ -2536,6 +2536,29 @@ should preserve these contracts:
 Tracked by roadmap items 12.1.1–12.1.3; design coverage is in
 `rstest-bdd-design.md` §2.7.6.5.
 
+## Canonical poison-recovery lock helper
+
+`crates/rstest-bdd-patterns/src/sync.rs` owns `lock_ignoring_poison`,
+`read_ignoring_poison`, `write_ignoring_poison`, and `recover_poison`. It has
+one responsibility: recover synchronization values after poisoning for call
+sites whose work can safely continue after the panic boundary.
+
+- **Ownership:** `rstest-bdd-patterns` is the only permitted location for
+  `PoisonError::into_inner`.
+- **Permitted call-sites:** all workspace mutex and rwlock poison recovery must
+  call this helper. New inline `unwrap_or_else(PoisonError::into_inner)` and
+  match-based recovery are disallowed.
+- **Composition rules:** call the trait methods on `Mutex` and `RwLock`
+  references, and use `recover_poison` for owned `into_inner` results.
+
+These call sites recover rather than propagate poison because they retain
+process-local diagnostics, registries, caches, and test capture state after a
+separate panic. Public `Result`-returning functions in `localization.rs`
+intentionally propagate `LocalizationError::Poisoned` and must not use the
+helper. The unit tests in `sync.rs` pin the recovery behaviour. `docs/contents.md`
+already indexes this guide under `## Starting points`, so no index change is
+needed.
+
 ### Feature-file rebuild invalidation (ADR-010)
 
 [ADR-010](adr-010-feature-file-change-detection.md) closes a build-tooling

@@ -7,6 +7,7 @@ use std::{
 };
 
 use gherkin::{Feature, GherkinEnv, Scenario, Step};
+use rstest_bdd_patterns::RwLockExt;
 
 use crate::{
     parsing::{
@@ -140,9 +141,7 @@ pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro2
     if let Some(feature) = {
         // Recover from a poisoned lock: the cache only holds parsed features,
         // so a writer panicking mid-insert cannot leave it logically invalid.
-        let cache = FEATURE_CACHE
-            .read()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let cache = FEATURE_CACHE.read_ignoring_poison();
         canonical
             .as_ref()
             .into_iter()
@@ -173,9 +172,7 @@ pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro2
     let key = canonical.unwrap_or_else(|| feature_path.clone());
     // Recover from a poisoned lock: the cache only holds parsed features,
     // so a writer panicking mid-insert cannot leave it logically invalid.
-    let mut cache = FEATURE_CACHE
-        .write()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut cache = FEATURE_CACHE.write_ignoring_poison();
     cache.insert(key.clone(), feature.clone());
     if key != feature_path {
         cache.insert(feature_path.clone(), feature.clone());
@@ -187,9 +184,7 @@ pub(crate) fn parse_and_load_feature(path: &Path) -> Result<Feature, proc_macro2
 #[cfg(test)]
 pub(crate) fn clear_feature_cache() {
     // Recover from a poisoned lock: clearing discards the contents anyway.
-    let mut guard = FEATURE_CACHE
-        .write()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut guard = FEATURE_CACHE.write_ignoring_poison();
     guard.clear();
 }
 
