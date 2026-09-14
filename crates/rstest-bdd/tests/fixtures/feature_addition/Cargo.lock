@@ -833,7 +833,7 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd"
-version = "0.6.0-beta4"
+version = "0.6.0"
 dependencies = [
  "ctor",
  "derive_more",
@@ -868,7 +868,7 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd-harness"
-version = "0.6.0-beta4"
+version = "0.6.0"
 dependencies = [
  "cargo_metadata",
  "thiserror 2.0.20",
@@ -877,7 +877,7 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd-macros"
-version = "0.6.0-beta4"
+version = "0.6.0"
 dependencies = [
  "camino",
  "cap-std",
@@ -901,7 +901,7 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd-patterns"
-version = "0.6.0-beta4"
+version = "0.6.0"
 dependencies = [
  "gherkin",
  "regex",
@@ -910,7 +910,7 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd-policy"
-version = "0.6.0-beta4"
+version = "0.6.0"
 
 [[package]]
 name = "rstest_macros"
