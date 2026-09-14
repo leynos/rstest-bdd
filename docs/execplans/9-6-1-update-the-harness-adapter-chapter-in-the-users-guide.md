@@ -218,7 +218,7 @@ Primary documentation targets:
 
 Primary implementation and test references to verify against while editing:
 
-- `docs/adr-005-harness-adapter-crates-for-framework-specific-test-integration.md`
+- `docs/adr-005a-harness-adapter-crates-for-framework-specific-test-integration.md`
 - `docs/adr-007-harness-context-injection.md`
 - `crates/rstest-bdd-harness/src/adapter.rs`
 - `crates/rstest-bdd-harness/src/policy.rs`

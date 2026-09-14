@@ -312,7 +312,7 @@ Primary user-facing documentation:
 
 Primary ADRs:
 
-- `docs/adr-005-harness-adapter-crates-for-framework-specific-test-integration.md`
+- `docs/adr-005a-harness-adapter-crates-for-framework-specific-test-integration.md`
   explains why framework-specific harnesses belong in opt-in crates and names
   Bevy as the future adapter pattern.
 - `docs/adr-007-harness-context-injection.md` defines the associated

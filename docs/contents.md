@@ -117,7 +117,7 @@
   tasks, issue work, and accepted follow-up changes.
 
 [adr-002]: adr-002-stable-step-return-classification.md
-[adr-005a-harness]: adr-005-harness-adapter-crates-for-framework-specific-test-integration.md
+[adr-005a-harness]: adr-005a-harness-adapter-crates-for-framework-specific-test-integration.md
 [adr-008]: adr-008-harness-led-attribute-policy-defaults.md
 [adr-009]: adr-009-consistent-implicit-fixture-name-normalization.md
 [adr-010]: adr-010-feature-file-change-detection.md

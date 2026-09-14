@@ -185,7 +185,7 @@ Current runtime and macro policy logic is split across:
 - `crates/rstest-bdd-macros/src/macros/scenarios/macro_args.rs`
   (`runtime = "tokio-current-thread"` parsing).
 
-`docs/adr-005-harness-adapter-crates-for-framework-specific-test-integration.md`
+`docs/adr-005a-harness-adapter-crates-for-framework-specific-test-integration.md`
 defines the architectural direction: framework integrations move to opt-in
 adapter crates, while a small core harness crate owns shared contracts.
 

@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 005: introduce harness adapter crates for framework-specific test integration
+# Architectural decision record (ADR) 005a: introduce harness adapter crates for framework-specific test integration
 
 ## Status
 

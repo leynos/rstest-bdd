@@ -355,7 +355,7 @@ findings. Roadmap item 9.7.4 is marked done.
 ## Context and orientation
 
 The harness adapter architecture comes from ADR-005 and is documented in
-`docs/adr-005-harness-adapter-crates-for-framework-specific-test-integration.md`.
+`docs/adr-005a-harness-adapter-crates-for-framework-specific-test-integration.md`.
 It keeps framework-specific runtime integration out of the core runtime and
 macro crates. The shared `rstest-bdd-harness` crate defines `HarnessAdapter`,
 `ScenarioRunRequest`, `ScenarioRunner`, `AttributePolicy`, and

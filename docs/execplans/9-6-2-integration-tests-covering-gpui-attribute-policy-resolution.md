@@ -292,7 +292,7 @@ Reference documents reviewed while drafting this plan:
 - `docs/rust-doctest-dry-guide.md`
 - `docs/complexity-antipatterns-and-refactoring-strategies.md`
 - `docs/gherkin-syntax.md`
-- `docs/adr-005-harness-adapter-crates-for-framework-specific-test-integration.md`
+- `docs/adr-005a-harness-adapter-crates-for-framework-specific-test-integration.md`
 - `docs/execplans/9-4-2-create-rstest-bdd-harness-gpui.md`
 - `docs/execplans/9-6-1-update-the-harness-adapter-chapter-in-the-users-guide.md`
 

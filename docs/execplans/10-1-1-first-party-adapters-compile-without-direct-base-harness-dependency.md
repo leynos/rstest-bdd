@@ -131,7 +131,7 @@ Use these repository documents as source material:
   roadmap status update.
 - `docs/rstest-bdd-design.md`, especially sections 2.7.5 and 2.7.6.3, for
   first-party adapter roles and v0.6.0-beta2 quick-win scope.
-- `docs/adr-005-harness-adapter-crates-for-framework-specific-test-integration.md`
+- `docs/adr-005a-harness-adapter-crates-for-framework-specific-test-integration.md`
   for adapter crate boundaries.
 - `docs/adr-007-harness-context-injection.md` for context handoff rules.
 - `docs/adr-008-harness-led-attribute-policy-defaults.md` for attribute
