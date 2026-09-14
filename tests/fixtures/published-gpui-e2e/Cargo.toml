@@ -6,10 +6,10 @@ publish = false
 
 [dependencies]
 gpui = { version = "0.2.2", default-features = false, features = ["test-support"] }
-rstest-bdd = "0.6.0-beta4"
-rstest-bdd-harness = "0.6.0-beta4"
-rstest-bdd-harness-gpui = "0.6.0-beta4"
-rstest-bdd-macros = "0.6.0-beta4"
+rstest-bdd = "0.6.0"
+rstest-bdd-harness = "0.6.0"
+rstest-bdd-harness-gpui = "0.6.0"
+rstest-bdd-macros = "0.6.0"
 
 [dev-dependencies]
 rstest = "0.26.1"
@@ -26,9 +26,9 @@ resolver = "2"
 missing_docs_in_private_items = "deny"
 
 [patch.crates-io]
-rstest-bdd = { path = "../../../target/published-gpui-e2e/rstest-bdd-0.6.0-beta4" }
-rstest-bdd-harness = { path = "../../../target/published-gpui-e2e/rstest-bdd-harness-0.6.0-beta4" }
-rstest-bdd-harness-gpui = { path = "../../../target/published-gpui-e2e/rstest-bdd-harness-gpui-0.6.0-beta4" }
-rstest-bdd-macros = { path = "../../../target/published-gpui-e2e/rstest-bdd-macros-0.6.0-beta4" }
-rstest-bdd-patterns = { path = "../../../target/published-gpui-e2e/rstest-bdd-patterns-0.6.0-beta4" }
-rstest-bdd-policy = { path = "../../../target/published-gpui-e2e/rstest-bdd-policy-0.6.0-beta4" }
+rstest-bdd = { path = "../../../target/published-gpui-e2e/rstest-bdd-0.6.0" }
+rstest-bdd-harness = { path = "../../../target/published-gpui-e2e/rstest-bdd-harness-0.6.0" }
+rstest-bdd-harness-gpui = { path = "../../../target/published-gpui-e2e/rstest-bdd-harness-gpui-0.6.0" }
+rstest-bdd-macros = { path = "../../../target/published-gpui-e2e/rstest-bdd-macros-0.6.0" }
+rstest-bdd-patterns = { path = "../../../target/published-gpui-e2e/rstest-bdd-patterns-0.6.0" }
+rstest-bdd-policy = { path = "../../../target/published-gpui-e2e/rstest-bdd-policy-0.6.0" }

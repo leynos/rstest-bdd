@@ -450,23 +450,24 @@ Recorded during planning; keep appending during implementation.
 
 - DEC-009: **Target v0.6.0.** Land this before the v0.6.0 release rather than
   shipping v0.6.0 with the false green and breaking adopters again at v0.7.0.
-  Rationale: the workspace is at `0.6.0-beta4`, so v0.6.0 is unreleased and
-  this is not a breaking change to any published API — it is a defect fix
-  applied before the release that would otherwise enshrine the defect. The
-  gauss adopter is already on beta3 and hit this in practice; deferring would
-  ask them to change step signatures twice for one defect. It also removes the
-  semver conflict entirely: roadmap §11 states the v0.6.1 line "should stay
-  semver-compatible", and all three behaviour changes here break that promise,
-  so landing in v0.6.0 means no promise needs amending. Consequences for EP-M5:
-  the migration content goes into `docs/v0-6-0-migration-guide.md` under its
-  existing `## Breaking changes` section, framed as a beta-to-final change,
-  **not** under the `(v0.7.0)`-suffixed subsection pattern the repository uses
-  for post-0.6 work (precedent at that guide's lines 466-468 and 567-569). The
-  CHANGELOG entry goes under `## Unreleased` for v0.6.0. The roadmap needs an
-  explicit note that 11.3.1 landed in v0.6.0, because item 11.3 sits physically
-  under the `## 12. Pre-1.0.0 API consolidation: landed v0.7.0` heading despite
-  its `11.` numbering, which would otherwise imply the wrong release line.
-  Date/Author: 2026-08-29, maintainer decision.
+  Rationale: the workspace was still on a v0.6.0 prerelease, so v0.6.0 was
+  unreleased and this was not a breaking change to any published API — it was a
+  defect fix applied before the release that would otherwise enshrine the
+  defect. The gauss adopter is already on beta3 and hit this in practice;
+  deferring would ask them to change step signatures twice for one defect. It
+  also removes the semver conflict entirely: roadmap §11 states the v0.6.1 line
+  "should stay semver-compatible", and all three behaviour changes here break
+  that promise, so landing in v0.6.0 means no promise needs amending.
+  Consequences for EP-M5: the migration content goes into
+  `docs/v0-6-0-migration-guide.md` under its existing `## Breaking changes`
+  section, framed as a beta-to-final change, **not** under the
+  `(v0.7.0)`-suffixed subsection pattern the repository uses for post-0.6 work
+  (precedent at that guide's lines 466-468 and 567-569). The CHANGELOG entry
+  goes under `## Unreleased` for v0.6.0. The roadmap needs an explicit note
+  that 11.3.1 landed in v0.6.0, because item 11.3 sits physically under the
+  `## 12. Pre-1.0.0 API consolidation: landed v0.7.0` heading despite its `11.`
+  numbering, which would otherwise imply the wrong release line. Date/Author:
+  2026-08-29, maintainer decision.
 
 - DEC-010: Write a new ADR-019 and *amend* ADR-002 rather than superseding it.
   Rationale: ADR-002's load-bearing conclusion — reject nightly `auto_traits`/

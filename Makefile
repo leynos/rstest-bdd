@@ -141,7 +141,7 @@ typecheck: build-python ## Run cargo and Python type checks with warnings denied
 PUBLISHED_GPUI_MANIFEST := tests/fixtures/published-gpui-0-2-2/Cargo.toml
 PUBLISHED_GPUI_E2E_DIR := tests/fixtures/published-gpui-e2e
 PUBLISHED_GPUI_E2E_STAGE_DIR := target/published-gpui-e2e
-PUBLISHED_GPUI_E2E_VERSION := 0.6.0-beta4
+PUBLISHED_GPUI_E2E_VERSION := 0.6.0
 PUBLISHED_GPUI_E2E_PACKAGES := \
 	rstest-bdd-patterns \
 	rstest-bdd-policy \
@@ -165,7 +165,7 @@ stage-published-gpui-e2e: ## Package first-party crates for the published GPUI E
 	# Cargo's package manifest removes workspace path overrides, including the
 	# vendored GPUI shim. Extracting the packages makes that published surface
 	# available to the standalone fixture without changing the root workspace.
-	# Temporary patches merely let Cargo package unreleased beta dependencies;
+	# Temporary patches let Cargo package dependencies not yet on crates.io;
 	# they do not appear in the normalized package manifests being extracted.
 	rm -rf $(PUBLISHED_GPUI_E2E_STAGE_DIR)
 	mkdir -p $(PUBLISHED_GPUI_E2E_STAGE_DIR)

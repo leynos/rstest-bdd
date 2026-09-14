@@ -14,6 +14,7 @@ bump can never stale the fixture's `cargo test --locked` run.
 import re
 import shutil
 import subprocess  # ruff: ignore[suspicious-subprocess-import] - the test invokes the trusted local Makefile.
+import tomllib
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -21,6 +22,8 @@ MAKEFILE_PATH = REPO_ROOT / "Makefile"
 E2E_FIXTURE_DIR = "tests/fixtures/published-gpui-e2e"
 PUBLISHED_GPUI_E2E_DIR = "PUBLISHED_GPUI_E2E_DIR"
 E2E_LOCKFILE = REPO_ROOT / E2E_FIXTURE_DIR / "Cargo.lock"
+E2E_MANIFEST = REPO_ROOT / E2E_FIXTURE_DIR / "Cargo.toml"
+ROOT_MANIFEST = REPO_ROOT / "Cargo.toml"
 
 
 def target_text(makefile: str, target: str) -> str:
@@ -45,6 +48,62 @@ def run_staged_fixture_gate() -> subprocess.CompletedProcess[str]:
         text=True,
         check=False,
         timeout=900,
+    )
+
+
+def test_staging_version_matches_the_workspace_version() -> None:
+    """The package extraction target tracks the workspace release version."""
+    workspace = tomllib.loads(ROOT_MANIFEST.read_text(encoding="utf-8"))
+    workspace_version = workspace["workspace"]["package"]["version"]
+
+    assert (
+        f"PUBLISHED_GPUI_E2E_VERSION := {workspace_version}"
+        in MAKEFILE_PATH.read_text(encoding="utf-8")
+    ), "the staged package version must match the root workspace version"
+
+
+def test_fixture_dependencies_match_the_workspace_version() -> None:
+    """The direct rstest-bdd requirements track the workspace release."""
+    workspace = tomllib.loads(ROOT_MANIFEST.read_text(encoding="utf-8"))
+    fixture = tomllib.loads(E2E_MANIFEST.read_text(encoding="utf-8"))
+    workspace_version = workspace["workspace"]["package"]["version"]
+    package_names = (
+        "rstest-bdd",
+        "rstest-bdd-harness",
+        "rstest-bdd-harness-gpui",
+        "rstest-bdd-macros",
+    )
+    actual_versions = {
+        package: fixture["dependencies"][package] for package in package_names
+    }
+
+    assert actual_versions == dict.fromkeys(package_names, workspace_version), (
+        "the fixture's direct rstest-bdd requirements must match the workspace version"
+    )
+
+
+def test_fixture_patch_paths_match_the_workspace_version() -> None:
+    """Every staged crate patch names an artefact from the current release."""
+    workspace = tomllib.loads(ROOT_MANIFEST.read_text(encoding="utf-8"))
+    fixture = tomllib.loads(E2E_MANIFEST.read_text(encoding="utf-8"))
+    workspace_version = workspace["workspace"]["package"]["version"]
+    package_names = (
+        "rstest-bdd",
+        "rstest-bdd-harness",
+        "rstest-bdd-harness-gpui",
+        "rstest-bdd-macros",
+        "rstest-bdd-patterns",
+        "rstest-bdd-policy",
+    )
+    expected_patches = {
+        package: {
+            "path": f"../../../target/published-gpui-e2e/{package}-{workspace_version}"
+        }
+        for package in package_names
+    }
+
+    assert fixture["patch"]["crates-io"] == expected_patches, (
+        "the fixture's patch paths must name staged artefacts for the workspace version"
     )
 
 
