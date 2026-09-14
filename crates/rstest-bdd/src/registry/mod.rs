@@ -3,6 +3,7 @@
 
 use std::{
     hash::{BuildHasher, Hash, Hasher},
+    ops::Deref,
     sync::{LazyLock, Mutex},
 };
 
@@ -57,6 +58,30 @@ pub struct Step {
     pub file: &'static str,
     /// Line number within the source file.
     pub line: u32,
+}
+
+/// A registered step whose construction records usage for diagnostics.
+#[must_use]
+#[derive(Debug)]
+pub struct ResolvedStep(&'static Step);
+impl ResolvedStep {
+    /// Record usage for a resolved step and wrap it for callers.
+    pub(crate) fn new(step: &'static Step) -> Self {
+        mark_used((step.keyword, step.pattern));
+        Self(step)
+    }
+    /// Return the resolved registered step.
+    /// ```ignore
+    /// let resolved = rstest_bdd::find_step_with_metadata(rstest_bdd::StepKeyword::Given, "a step".into())
+    ///     .expect("step is registered");
+    /// assert_eq!(resolved.as_step().keyword, rstest_bdd::StepKeyword::Given);
+    /// ```
+    #[must_use]
+    pub fn as_step(&self) -> &'static Step { self.0 }
+}
+impl Deref for ResolvedStep {
+    type Target = Step;
+    fn deref(&self) -> &Self::Target { self.as_step() }
 }
 
 /// Register a step definition with the global registry.
@@ -315,34 +340,16 @@ fn step_specificity(step: &Step) -> SpecificityScore {
     })
 }
 
-/// Mark a resolved step as used and apply a projection to it.
-///
-/// This is the canonical post-resolution path shared by every public lookup
-/// function: the `mark_used` call lives here exactly once, so any lookup
-/// variant that returns `Some` is guaranteed to record the step for
-/// unused-step diagnostics. New lookup variants must resolve a step and pass
-/// it through this helper rather than calling `mark_used` directly; see the
-/// developers' guide for the invariant.
-fn mark_and_project<T>(
-    step: Option<&'static Step>,
-    project: impl FnOnce(&'static Step) -> T,
-) -> Option<T> {
-    step.map(|found| {
-        mark_used((found.keyword, found.pattern));
-        project(found)
-    })
-}
-
 /// Look up a registered step by keyword and pattern.
 #[must_use]
 pub fn lookup_step(keyword: StepKeyword, pattern: PatternStr<'_>) -> Option<StepFn> {
-    mark_and_project(resolve_exact_step(keyword, pattern), |step| step.run)
+    lookup_step_with_metadata(keyword, pattern).map(|step| step.run)
 }
 
 /// Find a registered step whose pattern matches the provided text.
 #[must_use]
 pub fn find_step(keyword: StepKeyword, text: StepText<'_>) -> Option<StepFn> {
-    mark_and_project(resolve_step(keyword, text), |step| step.run)
+    find_step_with_metadata(keyword, text).map(|step| step.run)
 }
 
 /// Look up a registered async step by keyword and pattern.
@@ -352,7 +359,7 @@ pub fn find_step(keyword: StepKeyword, text: StepText<'_>) -> Option<StepFn> {
 /// definitions.
 #[must_use]
 pub fn lookup_step_async(keyword: StepKeyword, pattern: PatternStr<'_>) -> Option<AsyncStepFn> {
-    mark_and_project(resolve_exact_step(keyword, pattern), |step| step.run_async)
+    lookup_step_with_metadata(keyword, pattern).map(|step| step.run_async)
 }
 
 /// Find a registered async step whose pattern matches the provided text.
@@ -362,27 +369,32 @@ pub fn lookup_step_async(keyword: StepKeyword, pattern: PatternStr<'_>) -> Optio
 /// definitions.
 #[must_use]
 pub fn find_step_async(keyword: StepKeyword, text: StepText<'_>) -> Option<AsyncStepFn> {
-    mark_and_project(resolve_step(keyword, text), |step| step.run_async)
+    find_step_with_metadata(keyword, text).map(|step| step.run_async)
+}
+/// Look up a registered step by its exact keyword and pattern with metadata.
+///
+/// ```ignore
+/// let step = rstest_bdd::lookup_step_with_metadata(rstest_bdd::StepKeyword::Given, "a value".into());
+/// assert!(step.is_some());
+/// ```
+#[must_use]
+pub fn lookup_step_with_metadata(
+    keyword: StepKeyword,
+    pattern: PatternStr<'_>,
+) -> Option<ResolvedStep> {
+    resolve_exact_step(keyword, pattern).map(ResolvedStep::new)
 }
 
 /// Find a registered step and return its full metadata.
 ///
-/// Unlike [`find_step`], this function returns the entire [`Step`] struct,
-/// providing access to the step's required fixtures, source location, and
-/// other metadata. This is useful for fixture validation and error reporting.
-///
-/// # Examples
+/// Unlike [`find_step`], this function returns a [`ResolvedStep`] that
+/// dereferences to the full [`Step`] metadata for validation and diagnostics.
 ///
 /// ```ignore
-/// use rstest_bdd::{find_step_with_metadata, StepKeyword, StepText};
-///
-/// if let Some(step) = find_step_with_metadata(StepKeyword::Given, StepText::from("a value")) {
-///     println!("Step requires fixtures: {:?}", step.fixtures);
-///     // Invoke the step function
-///     let result = (step.run)(&mut ctx, text, None, None);
-/// }
+/// let step = rstest_bdd::find_step_with_metadata(rstest_bdd::StepKeyword::Given, "a value".into());
+/// assert!(step.is_some());
 /// ```
 #[must_use]
-pub fn find_step_with_metadata(keyword: StepKeyword, text: StepText<'_>) -> Option<&'static Step> {
-    mark_and_project(resolve_step(keyword, text), |step| step)
+pub fn find_step_with_metadata(keyword: StepKeyword, text: StepText<'_>) -> Option<ResolvedStep> {
+    resolve_step(keyword, text).map(ResolvedStep::new)
 }

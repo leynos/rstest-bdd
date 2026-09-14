@@ -31,9 +31,8 @@ pub fn lookup_step_async_with_mode(
     keyword: StepKeyword,
     pattern: PatternStr<'_>,
 ) -> Option<(AsyncStepFn, StepExecutionMode)> {
-    super::mark_and_project(super::resolve_exact_step(keyword, pattern), |step| {
-        (step.run_async, step.execution_mode)
-    })
+    super::lookup_step_with_metadata(keyword, pattern)
+        .map(|step| (step.run_async, step.execution_mode))
 }
 
 /// Find a registered async step whose pattern matches the provided text, including its execution
@@ -59,9 +58,7 @@ pub fn find_step_async_with_mode(
     keyword: StepKeyword,
     text: StepText<'_>,
 ) -> Option<(AsyncStepFn, StepExecutionMode)> {
-    super::mark_and_project(super::resolve_step(keyword, text), |step| {
-        (step.run_async, step.execution_mode)
-    })
+    super::find_step_with_metadata(keyword, text).map(|step| (step.run_async, step.execution_mode))
 }
 
 /// Find a registered step and return its full metadata, including execution mode.
@@ -86,5 +83,5 @@ pub fn find_step_async_with_mode(
 /// ```
 #[must_use]
 pub fn find_step_with_mode(keyword: StepKeyword, text: StepText<'_>) -> Option<&'static Step> {
-    super::find_step_with_metadata(keyword, text)
+    super::find_step_with_metadata(keyword, text).map(|step| step.as_step())
 }
