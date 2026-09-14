@@ -115,16 +115,15 @@ fn canonical_missing_destination(destination: &Path) -> io::Result<PathBuf> {
         .ancestors()
         .take_while(|p| !p.as_os_str().is_empty())
     {
-        match fs::canonicalize(ancestor) {
-            Ok(base) => {
-                let tail = destination
-                    .strip_prefix(ancestor)
-                    .unwrap_or_else(|_| Path::new(""));
-                return Ok(apply_missing_tail(base, tail));
-            }
-            Err(err) if err.kind() == io::ErrorKind::NotFound => {}
-            Err(err) => return Err(err),
-        }
+        let base = match fs::canonicalize(ancestor) {
+            Ok(base) => base,
+            Err(err) if err.kind() == io::ErrorKind::NotFound => continue,
+            Err(err) => Err(err)?,
+        };
+        let tail = destination
+            .strip_prefix(ancestor)
+            .unwrap_or_else(|_| Path::new(""));
+        return Ok(apply_missing_tail(base, tail));
     }
 
     // No existing ancestor found; resolve against the current working directory.

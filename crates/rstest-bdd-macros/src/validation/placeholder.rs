@@ -67,7 +67,7 @@ pub fn validate_step_placeholders(
     for step in steps {
         let span = step_span(step);
         validate_step_text(&step.text, headers, span)?;
-        validate_step_docstring(step.docstring.as_ref(), headers, span)?;
+        validate_step_docstring(step.docstring.as_deref(), headers, span)?;
         validate_step_table(step.table.as_ref(), headers, span)?;
     }
     Ok(())
@@ -84,7 +84,7 @@ fn validate_step_text(
 
 /// Validates placeholders in step docstring if present.
 fn validate_step_docstring(
-    docstring: Option<&String>,
+    docstring: Option<&str>,
     headers: ExampleHeaders<'_>,
     span: Span,
 ) -> Result<(), syn::Error> {

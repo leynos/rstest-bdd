@@ -41,8 +41,11 @@ impl std::fmt::Display for BinaryName<'_> {
 /// Captured output from `cargo build --bin` when it exits unsuccessfully.
 #[derive(Debug)]
 pub struct BuildFailureCapture {
+    /// Exit status reported by `cargo build --bin`.
     pub status: ExitStatus,
+    /// Bytes captured from the command's standard output.
     pub stdout: Vec<u8>,
+    /// Bytes captured from the command's standard error.
     pub stderr: Vec<u8>,
 }
 

@@ -16,13 +16,13 @@ pub(crate) struct PlaceholderSpec {
 }
 
 /// Byte value used to identify backslash escapes in placeholder hints.
-const BACKSLASH: u8 = 92;
+const BACKSLASH: u8 = b'\\';
 /// Byte value representing an opening brace in placeholder syntax.
-const OPEN_BRACE: u8 = 123;
+const OPEN_BRACE: u8 = b'{';
 /// Byte value representing a closing brace in placeholder syntax.
-const CLOSE_BRACE: u8 = 125;
+const CLOSE_BRACE: u8 = b'}';
 /// Byte value separating a placeholder name from its type hint.
-const COLON: u8 = 58;
+const COLON: u8 = b':';
 
 /// Scan `bytes` starting at `start` (immediately after `{name` or `{name:hint`) and
 /// return the index of the matching `}` for the placeholder, honouring nested
