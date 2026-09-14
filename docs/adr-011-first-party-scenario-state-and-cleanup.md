@@ -2,7 +2,9 @@
 
 ## Status
 
-Proposed
+Accepted (2026-06-10); superseded by ADR-012 at v0.7.0: Adopt the thread-local
+interim scenario-state and cleanup direction for v0.6.x, before replacing it
+with guard-based `StepContext` borrowing.
 
 ## Date
 
@@ -275,3 +277,13 @@ harness cost of a model checker.
   10.3.3 (the feature-file rebuild fix), while the beta thread-local pattern
   remains supported throughout v0.6.x.
 - Design document: `§2.7.6.4`.
+
+## References
+
+- [ADR 012: guard-based `StepContext` borrowing][adr-012] supersedes this
+  thread-local interim pattern with the v0.7.0 borrowing redesign.
+- [ADR 015: step-return override outcome][adr-015] records the related
+  `StepContext` return-value change.
+
+[adr-012]: adr-012-guard-based-stepcontext-borrowing.md
+[adr-015]: adr-015-insert-outcome-for-step-return-overrides.md
