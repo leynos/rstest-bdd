@@ -91,13 +91,18 @@ def test_refresh_summary_reports_both_outcomes(
     ids=["stale", "refresh", "fetch"],
 )
 def test_failure_message_reports_the_manifest_the_command_and_the_output(
-    formatter: cabc.Callable[[Path, list[str], str, str], str],
+    formatter: cabc.Callable[[PurePath, list[str], str, str], str],
     command: list[str],
     heading: str,
 ) -> None:
-    """Every report spells out the heading, the command, and both streams."""
+    """Every report spells out the heading, the command, and both streams.
+
+    The manifest is expected in its POSIX spelling, which is the one the
+    report renders on every platform; `str(MANIFEST)` would be this same
+    path with backslashes on Windows and pass only there.
+    """
     assert formatter(MANIFEST, command, STDOUT, STDERR) == (
-        f"{heading} {MANIFEST}\n"
+        f"{heading} {MANIFEST.as_posix()}\n"
         f"command: {' '.join(command)}\n"
         "cargo output:\n"
         f"{STDOUT}"
