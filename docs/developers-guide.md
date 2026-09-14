@@ -287,6 +287,37 @@ invocation rather than obtained by zeroing the counters, so the end-of-job
 report keeps its meaning; a tool that zeroed them would silently make every
 later reading a partial one.
 
+##### Reading the report
+
+The artefact holds four things. `baseline` and `final` are whole `sccache
+--show-stats` snapshots taken either side of the publish pipeline, so
+`final` minus `baseline` is what the whole step's packaged builds cost.
+`crates` is a row per crate per subcommand, `package` then `publish`, with
+that crate's wall-clock seconds and its requests, hits and misses. `delta`
+is the pipeline total, and should agree with the difference between the two
+snapshots.
+
+The baseline is taken after the pre-flight, deliberately, so the rows
+describe packaging alone. Reading the artefact without that in mind makes
+the step look nearly free: in run 34771459730 the rows sum to 38 seconds
+against a step of 19 minutes. To attribute the rest, read the step log,
+where lading logs each external command it runs with a timestamp.
+
+A row's `requests` counts the compilations `cargo package` asked for while
+verifying that crate, so a crate whose dependency closure is already in the
+cache shows a small number of hits and under a second of wall clock, and the
+same crate on a cold store shows hundreds of misses and minutes. Run
+34795056294 is the clearest example: `rstest-bdd-harness-gpui` took 630
+seconds with 466 misses, against 0.79 seconds and no requests at all on the
+two warm runs. A row with zero requests has not skipped anything; it means
+`cargo package` found everything it needed already built in the staged
+target directory.
+
+A `hits` figure that stays at zero across every row on a lane where the
+end-of-job report shows hits is the signal worth acting on. It means the
+packaged builds are addressing a different cache from the rest of the job,
+which is what the wrapper and backend wiring above exists to prevent.
+
 The variable is set on the workflow step rather than in the Makefile, so a local
 `make publish-check` stays quiet and the file lands where the upload step
 expects it. That the publish step asks for the statistics, that the upload
