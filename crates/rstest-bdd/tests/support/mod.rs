@@ -1,5 +1,10 @@
 //! Shared helpers for placeholder parsing integration tests.
 
+pub use rstest_bdd::test_support::poll_step_future;
+
+const _: () = {
+    let _ = poll_step_future;
+};
 use rstest_bdd::{PlaceholderSyntaxError, StepPattern, StepPatternError};
 
 /// Compile a placeholder pattern for use in assertions.
@@ -49,3 +54,8 @@ pub fn expect_placeholder_syntax(pat: StepPattern) -> PlaceholderSyntaxError {
         other => panic!("expected PlaceholderSyntax error, got {other:?}"),
     }
 }
+
+const _: () = {
+    let _ = compiled;
+    let _ = expect_placeholder_syntax;
+};
