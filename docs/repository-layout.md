@@ -46,6 +46,10 @@ The [crates](../crates/) directory contains all workspace crates.
   and language-service support code.
 - [crates/cargo-bdd](../crates/cargo-bdd/) contains the command-line interface
   for behaviour-driven test discovery and execution support.
+- [crates/rstest-bdd-test-macros](../crates/rstest-bdd-test-macros/) provides
+  test-only, internal procedural macros for scoped fixture lint allowances. It
+  is unpublished (`publish = false`) and used only by the workspace's own tests
+  and fixtures.
 
 ## Examples
 
