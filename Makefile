@@ -1,6 +1,6 @@
 VALE ?= vale
 
-.PHONY: help all clean test build build-python release lint lint-python
+.PHONY: help all clean test build build-python release lint lint-python update-users-guide-links
 .PHONY: lint-whitaker typecheck fmt check-fmt markdownlint spellcheck spelling
 .PHONY: spelling-config spelling-config-write spelling-phrase-check
 .PHONY: spelling-helper-test nixie publish-check
@@ -126,6 +126,13 @@ lint-python: build-python ## Run Python linters
 	$(PYLINT) $(PYLINT_TARGETS)
 	$(DF12_PYLINT) $(PYLINT_TARGETS)
 	$(AMBRLEAKS) tests
+
+# The write side of the `lint` step that validates the users-guide reference
+# links: it rewrites the block from the one base URL recorded in
+# scripts/users_guide_links.py. `lint` runs the checker without --fix, so the
+# two agree only while the committed block matches what this command writes.
+update-users-guide-links: ## Rewrite the users-guide reference links from the canonical base URL
+	$(PROJECT_PYTHON) scripts/check_users_guide_links.py --fix
 
 typecheck: build-python ## Run cargo and Python type checks with warnings denied
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) check $(CARGO_FLAGS) $(BUILD_JOBS)
