@@ -12,6 +12,8 @@ use syn::{
     token::Comma,
 };
 
+use crate::macros::args::set_once_arg;
+
 /// Internal data used by the macros implementation.
 pub(super) struct ScenarioArgs {
     /// Stores the internal `path` value.
@@ -99,15 +101,15 @@ impl Parse for ScenarioArgs {
 
         for arg in args {
             match arg {
-                ScenarioArg::Path(lit) => set_unique_field(&mut path, lit, "path", input)?,
+                ScenarioArg::Path(lit) => set_once_arg(&mut path, lit, "path", input)?,
                 ScenarioArg::Index(i) => set_selector_index(&mut selector, &i)?,
                 ScenarioArg::Name(lit) => set_selector_name(&mut selector, &lit)?,
-                ScenarioArg::Tags(lit) => set_unique_field(&mut tag_filter, lit, "tags", input)?,
+                ScenarioArg::Tags(lit) => set_once_arg(&mut tag_filter, lit, "tags", input)?,
                 ScenarioArg::Harness(p) => {
-                    set_unique_field(&mut harness, p, "harness", input)?;
+                    set_once_arg(&mut harness, p, "harness", input)?;
                 }
                 ScenarioArg::Attributes(p) => {
-                    set_unique_field(&mut attributes, p, "attributes", input)?;
+                    set_once_arg(&mut attributes, p, "attributes", input)?;
                 }
             }
         }
@@ -122,20 +124,6 @@ impl Parse for ScenarioArgs {
             attributes,
         })
     }
-}
-
-/// Assign `value` to `slot` if empty, or return a duplicate-argument error.
-fn set_unique_field<T>(
-    slot: &mut Option<T>,
-    value: T,
-    label: &str,
-    input: ParseStream<'_>,
-) -> syn::Result<()> {
-    if slot.is_some() {
-        return Err(input.error(format!("duplicate `{label}` argument")));
-    }
-    *slot = Some(value);
-    Ok(())
 }
 
 /// Generic helper to set a selector after checking for conflicts.
