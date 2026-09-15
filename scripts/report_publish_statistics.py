@@ -13,6 +13,10 @@ the build, and a publish that failed before lading ran has already failed on
 its own account. Every outcome exits zero; the failures are announced as
 GitHub workflow warnings.
 
+Reading and announcing are separate. :func:`read_report` decides and returns
+its outcome, and :func:`main` is the only place that writes an annotation, so
+a reason can be asserted as a value rather than scraped from captured output.
+
 The path is read from the environment rather than taken as an argument so the
 same invocation works on both runner families: on Windows it is a backslashed
 path that a shell fragment would have to quote correctly, and here it is only
@@ -27,6 +31,7 @@ Publish-step compiler-cache report:
 ```
 """
 
+import dataclasses
 import json
 import os
 import sys
@@ -38,6 +43,23 @@ STATS_PATH_VARIABLE = "STATS_PATH"
 
 #: The annotation title GitHub groups these warnings under.
 WARNING_TITLE = "publish-statistics"
+
+
+@dataclasses.dataclass(frozen=True, slots=True)
+class Unavailable:
+    """Why the report cannot be had, in the words its warning will carry.
+
+    A distinct type rather than ``None`` because the four ways of having
+    nothing differ only in their reason, and a caller that loses the reason
+    has lost the whole diagnostic.
+
+    Attributes
+    ----------
+    reason : str
+        What was expected, and what was found instead.
+    """
+
+    reason: str
 
 
 def warn(message: str) -> None:
@@ -56,8 +78,8 @@ def warn(message: str) -> None:
     print(f"::warning title={WARNING_TITLE}::{message}")
 
 
-def describe_report(stats_path: Path) -> str | None:
-    """Return the report's text, or ``None`` after warning about its absence.
+def read_report(stats_path: Path) -> str | Unavailable:
+    """Return the report's text, or the reason there is none to return.
 
     Parameters
     ----------
@@ -66,23 +88,22 @@ def describe_report(stats_path: Path) -> str | None:
 
     Returns
     -------
-    str or None
-        The report's text when it is present and parsable, otherwise
-        ``None``, with the reason already announced.
+    str or Unavailable
+        The report's text when it is present, decodable, non-empty and
+        parsable; otherwise the reason it is not, unannounced.
 
     Examples
     --------
-    >>> describe_report(Path("no-such-report.json"))  # doctest: +ELLIPSIS
-    ::warning title=publish-statistics::lading wrote no compiler-cache...
+    >>> read_report(Path("no-such-report.json")).reason  # doctest: +ELLIPSIS
+    "lading wrote no compiler-cache report to no-such-report.json; ..."
     """
     if not stats_path.is_file():
-        warn(
+        return Unavailable(
             f"lading wrote no compiler-cache report to {stats_path}; either the "
             f"publish step failed before lading ran, or the resolved lading "
             f"predates LADING_SCCACHE_STATS_JSON. This run's publish cost is "
             f"unattributable."
         )
-        return None
     try:
         text = stats_path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as error:
@@ -91,19 +112,18 @@ def describe_report(stats_path: Path) -> str | None:
         # made unreadable between the two calls. None of that is a build
         # failure, and the guarantee this module makes is that none of it
         # fails the lane either.
-        warn(f"{stats_path} could not be read: {error}.")
-        return None
+        return Unavailable(f"{stats_path} could not be read: {error}.")
     if not text.strip():
-        warn(f"{stats_path} is empty; lading created it but wrote no report.")
-        return None
+        return Unavailable(
+            f"{stats_path} is empty; lading created it but wrote no report."
+        )
     try:
         json.loads(text)
     except ValueError:
-        warn(
+        return Unavailable(
             f"{stats_path} is not valid JSON, so the publish step's "
             f"compiler-cache report cannot be read."
         )
-        return None
     return text
 
 
@@ -122,11 +142,12 @@ def main() -> int:
             f"compiler-cache report cannot be located."
         )
         return 0
-    text = describe_report(Path(raw_path))
-    if text is None:
+    outcome = read_report(Path(raw_path))
+    if isinstance(outcome, Unavailable):
+        warn(outcome.reason)
         return 0
     print("Publish-step compiler-cache report:")
-    print(text, end="" if text.endswith("\n") else "\n")
+    print(outcome, end="" if outcome.endswith("\n") else "\n")
     return 0
 
 

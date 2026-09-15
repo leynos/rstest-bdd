@@ -202,3 +202,44 @@ def test_an_unset_path_variable_warns_rather_than_raising(
 
     printed = capsys.readouterr().out
     assert reader.STATS_PATH_VARIABLE in printed, printed
+
+
+def test_the_query_returns_its_reason_instead_of_announcing_it(
+    reader: types.ModuleType,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    """Reading decides; only ``main`` announces.
+
+    The reason has to survive as a value, because a query that warned on its
+    own behalf would emit a second annotation whenever a caller wanted to
+    handle the outcome itself, and its reason could then only be asserted by
+    scraping captured output.
+    """
+    absent = tmp_path / "sccache-publish.json"
+
+    outcome = reader.read_report(absent)
+
+    assert isinstance(outcome, reader.Unavailable), outcome
+    assert str(absent) in outcome.reason, outcome.reason
+    announced = capsys.readouterr().out
+    assert not announced, f"the query must announce nothing, got {announced!r}"
+
+
+def test_the_query_returns_the_report_text_unchanged(
+    reader: types.ModuleType,
+    tmp_path: Path,
+) -> None:
+    """A readable report comes back as text, not wrapped in an outcome type.
+
+    The success and failure arms are told apart by type, so the caller needs
+    no sentinel and cannot mistake a report whose contents happen to look
+    like a reason for a failure.
+    """
+    report = tmp_path / "sccache-publish.json"
+    body = json.dumps({"delta": {"hits": 17, "misses": 15}})
+    report.write_text(body, encoding="utf-8")
+
+    assert reader.read_report(report) == body, (
+        "a readable report must come back as its own text"
+    )
