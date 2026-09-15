@@ -2,7 +2,10 @@
 
 ## Status
 
-Proposed.
+Accepted (in part) (2026-09-14): Tokio current-thread mode (Option A) is
+implemented through `TokioHarness` in `rstest-bdd-harness-tokio`, and native
+`async fn` step execution is implemented. Multi-thread (`Send`) mode remains
+unimplemented, with no follow-on ADR.
 
 ## Date
 
@@ -275,3 +278,6 @@ ADR-004 introduces a shared `rstest-bdd-policy` crate to centralize
 `RuntimeMode` and `TestAttributeHint` for both the runtime and macro crates.
 This ADR does not change the async execution direction above; it only removes
 policy duplication between crates.
+
+ADR-005a records the harness-adapter crates, which took over runtime selection.
+ADR-005 records the native async step-function decision.

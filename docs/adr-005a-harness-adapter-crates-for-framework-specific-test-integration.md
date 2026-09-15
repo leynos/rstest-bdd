@@ -1,4 +1,4 @@
-# Architectural decision record (ADR) 005: introduce harness adapter crates for framework-specific test integration
+# Architectural decision record (ADR) 005a: introduce harness adapter crates for framework-specific test integration
 
 ## Status
 
@@ -9,6 +9,10 @@ GPUI out of `rstest-bdd`’s dependency graph by default (lighter SBOM (Software
 Bill of Materials) entries), while enabling Behaviour-Driven Development
 (BDD)-style tests to execute inside external test harnesses. A Bevy harness
 will follow the same pattern.
+
+Amended (2026-09-14): Renumber this record as ADR-005a to distinguish the
+harness-adapter decision from ADR-005's async-step-functions decision; the
+accepted decision content is unchanged.
 
 ## Date
 
@@ -228,3 +232,12 @@ Separating GPUI (and later Bevy) into dedicated harness crates avoids imposing
 UI framework build and platform costs on consumers who are not doing UI
 testing, and provides a clear home for framework-specific fixtures and
 execution semantics.
+
+## Amendments
+
+### 2026-09-14: assign the 005a identifier
+
+This record was renumbered from ADR-005 to ADR-005a because ADR-005 now
+identifies the async-step-functions decision. The harness-adapter decision and
+its accepted content are unchanged; the filename and heading carry the new
+identifier to remove the collision.

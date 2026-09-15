@@ -13,7 +13,7 @@ ExecPlan is the governing plan for this task.
 
 Roadmap item 9.3.4 targets a concrete behaviour gap: macro codegen currently
 ignores the selected attribute policy and always emits only
-`#[rstest::rstest]`. This blocks the ADR-005 plug-in model from fully owning
+`#[rstest::rstest]`. This blocks the ADR-005a plug-in model from fully owning
 framework attributes.
 
 After this change:
@@ -31,7 +31,7 @@ After this change:
 ## Constraints
 
 - Implement roadmap item 9.3.4 only; do not pull in 9.3.5+ scope.
-- Preserve ADR-005 separation: Tokio/GPUI integrations remain opt-in and must
+- Preserve ADR-005a separation: Tokio/GPUI integrations remain opt-in and must
   not be hard-wired into core runtime behaviour.
 - Keep backward compatibility for existing macro call sites and diagnostics.
 - Keep `#[scenario]`/`scenarios!` trait-bound assertions for
@@ -217,7 +217,7 @@ Reference documents reviewed while drafting this plan:
 
 ### Stage A: de-risk and lock policy-emission strategy
 
-Goal: confirm how 9.3.4 will satisfy roadmap intent without violating ADR-005
+Goal: confirm how 9.3.4 will satisfy roadmap intent without violating ADR-005a
 or proc-macro constraints.
 
 Implementation details:

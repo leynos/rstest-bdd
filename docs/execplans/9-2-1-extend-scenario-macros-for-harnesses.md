@@ -76,7 +76,7 @@ Success is observable when:
   weakening tests.
 - Iterations: if the same failing gate (`check-fmt`, `lint`, or `test`) fails
   three times after attempted fixes, stop and escalate with logs.
-- Ambiguity: if ADR-005 and current roadmap text conflict on interface shape,
+- Ambiguity: if ADR-005a and current roadmap text conflict on interface shape,
   stop and request direction before coding further.
 
 ## Risks
@@ -92,7 +92,7 @@ Success is observable when:
 
 - Risk: adding `rstest-bdd-harness` as a dependency of the proc-macro crate
   could introduce unwanted transitive dependencies. Severity: low Likelihood:
-  low Mitigation: `rstest-bdd-harness` is dependency-light by ADR-005 design.
+  low Mitigation: `rstest-bdd-harness` is dependency-light by ADR-005a design.
   Verify with `cargo tree -p rstest-bdd-macros` after wiring.
 
 - Risk: trybuild snapshot files may need updating if error messages change
@@ -158,7 +158,7 @@ Success is observable when:
 - Decision: when `attributes = SomePolicy` is specified, emit only
   `#[rstest::rstest]` and skip the `RuntimeMode`-based `#[tokio::test]`
   generation. Rationale: the attribute policy is the new extension point for
-  controlling test attributes per ADR-005. When a user specifies a policy, they
+  controlling test attributes per ADR-005a. When a user specifies a policy, they
   are opting into the new system and the macro should not second-guess the
   policy by also emitting framework-specific attributes. The user's policy (or
   manual `#[tokio::test]` annotation) is trusted. Date/Author: 2026-02-10 /
@@ -167,7 +167,7 @@ Success is observable when:
 - Decision: add `rstest-bdd-harness` as a compile-time dependency of
   `rstest-bdd-macros` to reference `HarnessAdapter` and `AttributePolicy` trait
   paths in const assertions. Rationale: `rstest-bdd-harness` is
-  dependency-light per ADR-005 and this enables the macro to emit
+  dependency-light per ADR-005a and this enables the macro to emit
   well-qualified trait paths. Date/Author: 2026-02-10 / Codex.
 
 - Decision: both `harness` and `attributes` parameters accept `syn::Path`
@@ -543,7 +543,7 @@ Dependency addition: `rstest-bdd-macros` gains a compile-time dependency on
 
 ## Revision note
 
-Initial draft created from roadmap phase 9.2.1, ADR-005 harness decision, and
+Initial draft created from roadmap phase 9.2.1, ADR-005a harness decision, and
 thorough codebase exploration of macro argument parsing, code generation
 pipeline, and harness crate interfaces.
 

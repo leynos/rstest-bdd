@@ -12,7 +12,7 @@ ExecPlan is the governing plan for roadmap items 9.4.2, 9.4.3, and 9.4.4.
 ## Purpose / big picture
 
 Roadmap phase 9.4 requires the first Graphical Processing User Interface (GPUI)
-harness plugin crate, built on top of ADR-005 and ADR-007. The core objective
+harness plugin crate, built on top of ADR-005a and ADR-007. The core objective
 is to keep GPUI integration out of core crates while allowing scenarios to run
 inside the GPUI test harness and inject GPUI-owned fixtures (for example
 `TestAppContext`) into step execution.
@@ -39,7 +39,7 @@ fixture injection, and the required gates all pass: `make check-fmt`,
 ## Constraints
 
 - Implement only roadmap items 9.4.2, 9.4.3, and 9.4.4 in this change.
-- Preserve ADR-005 boundaries: GPUI dependencies must stay in the new
+- Preserve ADR-005a boundaries: GPUI dependencies must stay in the new
   `rstest-bdd-harness-gpui` crate and not leak into core runtime crates.
 - Preserve ADR-007 contract: harness context must flow through
   `ScenarioRunRequest<'_, C, T>` and be passed via `request.run(context)`.
@@ -97,7 +97,7 @@ fixture injection, and the required gates all pass: `make check-fmt`,
 ## Progress
 
 - [x] (2026-03-04 00:00Z) Reviewed roadmap item 9.4 scope and prerequisites.
-- [x] (2026-03-04 00:00Z) Reviewed ADR-005 and ADR-007 for boundary and context
+- [x] (2026-03-04 00:00Z) Reviewed ADR-005a and ADR-007 for boundary and context
       constraints.
 - [x] (2026-03-04 00:00Z) Drafted this ExecPlan.
 - [x] (2026-03-05 00:00Z) Stage A: baseline and GPUI API reconnaissance.
@@ -185,7 +185,7 @@ Implemented outcomes:
 
 Retrospective:
 
-- The harness/plugin boundaries from ADR-005 and context handoff from ADR-007
+- The harness/plugin boundaries from ADR-005a and context handoff from ADR-007
   held without requiring API changes.
 - Future harness adapters should verify their transitive dependency graphs
   against the stable-only policy before landing framework-specific crates.
@@ -226,7 +226,7 @@ Reference documents reviewed for this plan:
 - `docs/rust-doctest-dry-guide.md`
 - `docs/complexity-antipatterns-and-refactoring-strategies.md`
 - `docs/gherkin-syntax.md`
-- `docs/adr-005-harness-adapter-crates-for-framework-specific-test-integration.md`
+- `docs/adr-005a-harness-adapter-crates-for-framework-specific-test-integration.md`
 - `docs/adr-007-harness-context-injection.md`
 
 ## Plan of work

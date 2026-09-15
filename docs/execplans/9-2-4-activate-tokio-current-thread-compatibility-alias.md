@@ -42,7 +42,7 @@ incidental follow-up.
 
 - Implement roadmap item 9.2.4 only. Do not pull phase 9.3.8 or phase 9.4 work
   into this change.
-- Preserve ADR-005's dependency split: Tokio remains in the opt-in Tokio
+- Preserve ADR-005a's dependency split: Tokio remains in the opt-in Tokio
   harness crate, not in core runtime crates beyond existing macro references to
   the harness path.
 - Keep explicit `harness = ...` authoritative when both `harness` and

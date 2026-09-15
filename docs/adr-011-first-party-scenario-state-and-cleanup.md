@@ -2,7 +2,10 @@
 
 ## Status
 
-Proposed
+Superseded (2026-06-11): ADR-012 superseded the proposed
+`ScenarioStore<T>`, `GpuiScenarioStore`, and cleanup macro before
+implementation. The v0.6.x thread-local scenario-state and cleanup pattern was
+an interim workaround, rather than adoption of this ADR's proposed decision.
 
 ## Date
 
@@ -213,16 +216,15 @@ The ADR fixes the cleanup-ordering contract:
 
 ### Cross-version stance
 
-| Version              | Recommended pattern                      | Support status  |
-| -------------------- | ---------------------------------------- | --------------- |
-| v0.6.0 beta          | Thread-local interim (`§2.7.6.2`)        | Supported       |
-| v0.6.0 final (addl.) | `ScenarioStore<T>` / `GpuiScenarioStore` | Preferred       |
-| v0.7.0 (breaking)    | Guard-based borrow redesign (ADR-012)    | Supersedes both |
+| Version              | Recommended pattern                              | Support status       |
+| -------------------- | ------------------------------------------------ | -------------------- |
+| v0.6.x               | Thread-local scenario-state and cleanup interim  | Shipped interim      |
+| v0.7.0 (breaking)    | Guard-based `StepContext` borrowing (ADR-012)    | Supersedes proposal  |
 
-The beta thread-local interim pattern remains supported throughout v0.6.x.
-`ScenarioStore<T>` is the recommended additive alternative from v0.6.0 final.
-ADR-012's guard-based redesign supersedes both at v0.7.0 and provides a
-migration mapping.
+The v0.6.x release used the thread-local scenario-state and cleanup interim
+pattern. ADR-012 superseded the proposed `ScenarioStore<T>`,
+`GpuiScenarioStore`, and cleanup macro before implementation and provides the
+v0.7.0 migration path to guard-based `StepContext` borrowing.
 
 ## Testing strategy
 
@@ -275,3 +277,13 @@ harness cost of a model checker.
   10.3.3 (the feature-file rebuild fix), while the beta thread-local pattern
   remains supported throughout v0.6.x.
 - Design document: `§2.7.6.4`.
+
+## References
+
+- [ADR 012: guard-based `StepContext` borrowing][adr-012] supersedes this
+  thread-local interim pattern with the v0.7.0 borrowing redesign.
+- [ADR 015: step-return override outcome][adr-015] records the related
+  `StepContext` return-value change.
+
+[adr-012]: adr-012-guard-based-stepcontext-borrowing.md
+[adr-015]: adr-015-insert-outcome-for-step-return-overrides.md

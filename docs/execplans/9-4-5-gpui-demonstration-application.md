@@ -263,7 +263,7 @@ Reference documents reviewed while drafting this plan:
 - `docs/rust-doctest-dry-guide.md`
 - `docs/complexity-antipatterns-and-refactoring-strategies.md`
 - `docs/gherkin-syntax.md`
-- `docs/adr-005-harness-adapter-crates-for-framework-specific-test-integration.md`
+- `docs/adr-005a-harness-adapter-crates-for-framework-specific-test-integration.md`
 - `docs/adr-007-harness-context-injection.md`
 
 ## Plan of work
