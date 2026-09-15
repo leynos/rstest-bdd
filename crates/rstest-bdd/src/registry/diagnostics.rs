@@ -8,6 +8,7 @@
 use std::sync::{LazyLock, Mutex};
 
 use hashbrown::HashSet;
+use rstest_bdd_patterns::MutexExt;
 use serde::Serialize;
 
 use super::{
@@ -46,17 +47,13 @@ static BYPASSED_STEPS: LazyLock<Mutex<HashSet<BypassedStepRecord>>> =
 
 /// Add a bypassed step record to the registry.
 fn mark_bypassed(record: BypassedStepRecord) {
-    BYPASSED_STEPS
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .insert(record);
+    BYPASSED_STEPS.lock_ignoring_poison().insert(record);
 }
 
 /// Snapshot all currently recorded bypassed steps.
 fn bypassed_records() -> Vec<BypassedStepRecord> {
     BYPASSED_STEPS
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .lock_ignoring_poison()
         .iter()
         .cloned()
         .collect()
@@ -156,9 +153,7 @@ struct RegistryDump {
 
 /// Serialize the current step and scenario registry.
 pub(super) fn dump_registry() -> serde_json::Result<String> {
-    let used = USED_STEPS
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let used = USED_STEPS.lock_ignoring_poison();
     let bypassed = bypassed_records();
     let bypassed_keys: HashSet<StepKey> = bypassed.iter().map(|entry| entry.key).collect();
     let steps: Vec<_> = all_steps()

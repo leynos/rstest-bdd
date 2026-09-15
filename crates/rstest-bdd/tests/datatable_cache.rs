@@ -12,6 +12,7 @@ use std::{
 
 use rstest_bdd::{StepContext, StepKeyword, datatable::CachedTable, lookup_step};
 use rstest_bdd_macros::given;
+use rstest_bdd_patterns::MutexExt;
 
 fn cached_calls() -> &'static Mutex<HashMap<thread::ThreadId, Vec<usize>>> {
     static CALLS: OnceLock<Mutex<HashMap<thread::ThreadId, Vec<usize>>>> = OnceLock::new();
@@ -24,16 +25,12 @@ fn cached_values() -> &'static Mutex<HashMap<thread::ThreadId, Vec<String>>> {
 }
 
 fn record_call(ptr: usize) {
-    let mut calls = cached_calls()
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut calls = cached_calls().lock_ignoring_poison();
     calls.entry(thread::current().id()).or_default().push(ptr);
 }
 
 fn record_value(value: String) {
-    let mut values = cached_values()
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut values = cached_values().lock_ignoring_poison();
     values
         .entry(thread::current().id())
         .or_default()
@@ -42,16 +39,14 @@ fn record_value(value: String) {
 
 fn take_calls() -> Vec<usize> {
     cached_calls()
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .lock_ignoring_poison()
         .remove(&thread::current().id())
         .unwrap_or_default()
 }
 
 fn take_values() -> Vec<String> {
     cached_values()
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .lock_ignoring_poison()
         .remove(&thread::current().id())
         .unwrap_or_default()
 }

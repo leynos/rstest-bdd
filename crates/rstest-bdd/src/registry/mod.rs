@@ -8,7 +8,7 @@ use std::{
 
 use hashbrown::{HashMap, HashSet};
 use inventory::iter;
-use rstest_bdd_patterns::SpecificityScore;
+use rstest_bdd_patterns::{MutexExt, SpecificityScore};
 
 use crate::{
     pattern::StepPattern,
@@ -255,12 +255,7 @@ static STEP_MAP: LazyLock<HashMap<StepKey, &'static Step>> = LazyLock::new(|| {
 static USED_STEPS: LazyLock<Mutex<HashSet<StepKey>>> = LazyLock::new(|| Mutex::new(HashSet::new()));
 
 /// Mark a registered step as used.
-fn mark_used(key: StepKey) {
-    USED_STEPS
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .insert(key);
-}
+fn mark_used(key: StepKey) { USED_STEPS.lock_ignoring_poison().insert(key); }
 
 /// Collect all steps submitted through `inventory`.
 fn all_steps() -> Vec<&'static Step> { iter::<Step>.into_iter().collect() }

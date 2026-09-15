@@ -10,6 +10,7 @@ mod hint;
 mod keyword;
 pub mod pattern;
 mod specificity;
+mod sync;
 
 pub use capture::extract_captured_values;
 pub use errors::{PatternError, PlaceholderErrorInfo};
@@ -17,6 +18,7 @@ pub use hint::{get_type_pattern, requires_quote_stripping};
 pub use keyword::{StepKeyword, StepKeywordParseError, UnsupportedStepType};
 pub use pattern::build_regex_from_pattern;
 pub use specificity::SpecificityScore;
+pub use sync::{MutexExt, RwLockExt, recover_poison};
 
 /// Build and compile a `Regex` from a step pattern.
 ///

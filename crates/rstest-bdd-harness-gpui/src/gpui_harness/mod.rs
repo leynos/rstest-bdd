@@ -33,7 +33,7 @@ use std::{
     cell::RefCell,
     io::{self, Write},
     panic::{self, AssertUnwindSafe},
-    sync::{Mutex, PoisonError},
+    sync::Mutex,
 };
 
 use gpui::TestAppContext;
@@ -45,6 +45,7 @@ use rstest_bdd_harness::{
     ScenarioRunRequest,
     ScenarioRunner,
 };
+use rstest_bdd_patterns::{MutexExt, recover_poison};
 
 /// Executes scenario runners inside the GPUI test harness.
 ///
@@ -127,11 +128,7 @@ impl GpuiHarness {
             &[],
             0,
             &mut |dispatcher, _seed| {
-                if output_slot
-                    .lock()
-                    .unwrap_or_else(PoisonError::into_inner)
-                    .is_some()
-                {
+                if output_slot.lock_ignoring_poison().is_some() {
                     return;
                 }
                 tracing::debug!(
@@ -184,10 +181,7 @@ impl GpuiHarness {
         context: TestAppContext,
         scenario_name: &str,
     ) -> T {
-        let runner = runner_slot
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .take();
+        let runner = runner_slot.lock_ignoring_poison().take();
         let Some(runner) = runner else {
             panic!(
                 "rstest-bdd-harness-gpui: scenario runner invoked more than once: {scenario_name}"
@@ -213,7 +207,7 @@ impl GpuiHarness {
 
     /// Stores the scenario result in `output_slot` for later extraction.
     fn store_output<T>(output_slot: &Mutex<Option<T>>, result: T) {
-        *output_slot.lock().unwrap_or_else(PoisonError::into_inner) = Some(result);
+        *output_slot.lock_ignoring_poison() = Some(result);
     }
 
     /// Extracts the scenario result from the output mutex.
@@ -223,7 +217,7 @@ impl GpuiHarness {
     /// Panics if the output slot is still `None`, which indicates the GPUI
     /// test runner never produced a result.
     fn extract_output<T>(output: Mutex<Option<T>>, scenario_name: &str) -> T {
-        let output = output.into_inner().unwrap_or_else(PoisonError::into_inner);
+        let output = recover_poison(output.into_inner());
         let Some(output) = output else {
             panic!(
                 "rstest-bdd-harness-gpui: test harness produced no scenario result: \

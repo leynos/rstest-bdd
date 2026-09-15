@@ -10,6 +10,7 @@ use std::{
     },
 };
 
+use rstest_bdd_patterns::MutexExt;
 use serial_test::serial;
 use tracing::{
     Event,
@@ -120,12 +121,7 @@ impl Subscriber for TargetCapture {
     fn record_follows_from(&self, _: &Id, _: &Id) {}
 
     fn event(&self, event: &Event<'_>) {
-        let mut recorded = self
-            .captured
-            .lock()
-            // Poison recovery keeps the capture working even if a panicking
-            // assertion held the lock; the linter forbids `expect` here.
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut recorded = self.captured.lock_ignoring_poison();
         if recorded.is_none() {
             *recorded = Some(event.metadata().target().to_owned());
         }
@@ -151,10 +147,7 @@ fn warning_event_carries_the_established_context_target() {
 
     warnings::emit_visible_warning("target probe");
 
-    let recorded = captured
-        .lock()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .clone();
+    let recorded = captured.lock_ignoring_poison().clone();
     assert_eq!(
         recorded.as_deref(),
         Some(WARNING_TARGET),
