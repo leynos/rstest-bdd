@@ -17,6 +17,21 @@ After bumping workspace versions:
   `rstest-bdd-harness-gpui` surface separately from the stable workspace test
   matrix.
 
+## Unified release invariant
+
+When a publishable workspace crate adds, removes, or changes a public API that
+another publishable workspace crate consumes, increment the unified workspace
+version and release the dependent crates with internal dependency lower bounds
+matching that version. Publish dependencies before their dependents: for
+example, publish `rstest-bdd-patterns` before `rstest-bdd-macros` when macro
+code uses a new `rstest-bdd-patterns` API.
+
+`make publish-check` is mandatory before merge. It checks every generated
+package `Cargo.toml` in the configured release order and fails when a published
+workspace dependency has a lower bound older than the workspace release. This
+protects package verification, where Cargo removes local `path` dependencies
+and resolves the declared crates.io versions.
+
 `rstest-bdd-macros` generated wrappers reference the hidden
 `rstest_bdd::step_return` bridge. Release compatible macro and runtime versions
 together: a newer macro with an older runtime lacks that bridge, while a newer
