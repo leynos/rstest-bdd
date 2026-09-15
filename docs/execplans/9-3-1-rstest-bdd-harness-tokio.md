@@ -8,7 +8,7 @@ Status: COMPLETE
 
 ## Purpose / big picture
 
-Phase 9 of the roadmap implements Architecture Decision Record (ADR) 005 by
+Phase 9 of the roadmap implements Architecture Decision Record (ADR-005a) by
 introducing a harness adapter layer so framework-specific integrations (Tokio,
 Graphical Processing User Interface (GPUI), Bevy) live in opt-in crates rather
 than the core runtime or macros. Phases 9.1 and 9.2 delivered the core harness

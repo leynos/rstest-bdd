@@ -216,16 +216,15 @@ The ADR fixes the cleanup-ordering contract:
 
 ### Cross-version stance
 
-| Version              | Recommended pattern                      | Support status  |
-| -------------------- | ---------------------------------------- | --------------- |
-| v0.6.0 beta          | Thread-local interim (`§2.7.6.2`)        | Supported       |
-| v0.6.0 final (addl.) | `ScenarioStore<T>` / `GpuiScenarioStore` | Preferred       |
-| v0.7.0 (breaking)    | Guard-based borrow redesign (ADR-012)    | Supersedes both |
+| Version              | Recommended pattern                              | Support status       |
+| -------------------- | ------------------------------------------------ | -------------------- |
+| v0.6.x               | Thread-local scenario-state and cleanup interim  | Shipped interim      |
+| v0.7.0 (breaking)    | Guard-based `StepContext` borrowing (ADR-012)    | Supersedes proposal  |
 
-The beta thread-local interim pattern remains supported throughout v0.6.x.
-`ScenarioStore<T>` is the recommended additive alternative from v0.6.0 final.
-ADR-012's guard-based redesign supersedes both at v0.7.0 and provides a
-migration mapping.
+The v0.6.x release used the thread-local scenario-state and cleanup interim
+pattern. ADR-012 superseded the proposed `ScenarioStore<T>`,
+`GpuiScenarioStore`, and cleanup macro before implementation and provides the
+v0.7.0 migration path to guard-based `StepContext` borrowing.
 
 ## Testing strategy
 
