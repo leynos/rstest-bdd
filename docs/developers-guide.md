@@ -1737,6 +1737,31 @@ make those shapes look identical. The `reject_async_harness` check is applied
 before both paths, so an `async fn` combined with `harness` is rejected for
 regular scenarios and scenario outlines alike.
 
+## Canonical macro-argument parsing: `set_once_arg` and `combined_conflict_error`
+
+Macro argument parsers share `set_once_arg` so duplicate arguments produce one
+consistent diagnostic. Scenario selector conflicts use
+`combined_conflict_error` to preserve both argument spans while presenting the
+new selector before the existing selector.
+
+- **Ownership:** `set_once_arg` lives in
+  `crates/rstest-bdd-macros/src/macros/args.rs` and is the single source of
+  truth for set-once argument parsing. `combined_conflict_error` is private to
+  `crates/rstest-bdd-macros/src/macros/scenario/args.rs`.
+- **Permitted call-sites:**
+  `crates/rstest-bdd-macros/src/macros/scenario/args.rs` and
+  `crates/rstest-bdd-macros/src/macros/scenarios/macro_args/mod.rs` call
+  `set_once_arg`; only `selector_conflict_error` calls
+  `combined_conflict_error`. New callers must delegate rather than reimplement,
+  and must not add wrapper aliases that reintroduce duplication.
+- **Composition rules:** `set_once_arg` derives its span from the `ParseStream`
+  cursor and emits ``"duplicate `{label}` argument"``. Call
+  `combined_conflict_error` once per direction with the new and existing
+  arguments swapped; it must always combine two spans.
+
+Behaviour is pinned by the `scenarios_args_rejects_duplicate_*` unit tests in
+`crates/rstest-bdd-macros/src/macros/scenarios/macro_args/tests/mod.rs`.
+
 ## Assertion vocabulary: `googletest`, `pretty_assertions`, and `insta`
 
 This workspace's test suites use three assertion tools, each for a distinct
