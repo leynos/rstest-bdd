@@ -246,8 +246,8 @@ were measured from the step logs, in seconds.
 | 34792361006 | Windows, default | 77    | 583  | 129   | 72                  | 891  |
 | 34792361006 | Windows, strict  | 111   | 665  | 124   | 39                  | 967  |
 | 34795056294 | Ubicloud         | 123   | 968  | 16    | 752                 | 1864 |
-| 34795056294 | Windows, default | 113   | 587  | 135   | 615                 | 1475 |
-| 34795056294 | Windows, strict  | 151   | 769  | 130   | 737                 | 1817 |
+| 34795056294 | Windows, strict  | 113   | 587  | 135   | 615                 | 1475 |
+| 34795056294 | Windows, default | 151   | 769  | 130   | 737                 | 1817 |
 
 On a warm compiler cache the pre-flight was 94 percent of the Linux step and
 74 to 80 percent of each Windows step, against 33 to 72 seconds of packaging.
@@ -266,6 +266,26 @@ environment, then the `lading.toml` setting. The skip drops the auxiliary
 builds and the `cargo check` and `cargo test` pair. It does not drop the
 working-tree cleanliness guard or the `Cargo.lock` freshness guard, which cost
 seconds and check things no test run covers.
+
+What the skip removes was measured across two warm runs on the same branch,
+[34897826160](https://github.com/leynos/rstest-bdd/actions/runs/34897826160)
+with the narrowed pre-flight and
+[34905225038](https://github.com/leynos/rstest-bdd/actions/runs/34905225038)
+with it skipped, reading the phase boundaries from lading's own timestamped
+`Running external command` lines. Seconds.
+
+| Lane             | check | test | pre-flight | step, before | step, after |
+| ---------------- | ----- | ---- | ---------- | ------------ | ----------- |
+| Ubicloud         | 130   | 117  | 246        | 750          | 486         |
+| Windows, default | 105   | 164  | 269        | 966          | 665         |
+| Windows, strict  | 79    | 112  | 191        | 808          | 783         |
+
+The pre-flight column goes to zero on every lane, which is 706 seconds of
+runner time per run. Whole-step totals move by less, and on the strict Windows
+lane by almost nothing, because staging and packaging vary with the state of
+the compiler cache from run to run: that lane staged in 214 seconds against
+144 and packaged in 553 against 437. Read the phase, not the step total, when
+attributing a change to this setting.
 
 The variable is set on the step rather than in `lading.toml`, because a
 configuration file cannot tell a CI run from a local one. On a workstation
