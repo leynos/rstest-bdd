@@ -53,6 +53,7 @@ extend-ignore-re = [
     "\\b(?:is_initialised|mark_initialised)\\b",
     "\\b--color\\b",
     "\\bCompilerArtifact\\b",
+    "\\bFORCE_COLOR\\b",
     "\\bRuntimeFlavor\\b",
     "\\bTrUe\\b",
     "\\bcaf\\b",

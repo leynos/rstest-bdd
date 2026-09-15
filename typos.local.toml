@@ -22,6 +22,8 @@ ignore = [
   "`mold`",
   # GitHub Actions and Cargo machine interfaces retain upstream spelling.
   '(?m)^\s*CARGO_TERM_COLOR: always$',
+  # The environment variable markdownlint-cli2 honours; `make fmt` clears it.
+  '\bFORCE_COLOR\b',
   '\b--color\b',
   # This equivalent punctuation-delimited form avoids Rust regex look-around.
   '(^|[^[:alnum:]_])--color($|[^[:alnum:]_])',
