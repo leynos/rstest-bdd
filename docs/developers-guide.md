@@ -2555,9 +2555,9 @@ These call sites recover rather than propagate poison because they retain
 process-local diagnostics, registries, caches, and test capture state after a
 separate panic. Public `Result`-returning functions in `localization.rs`
 intentionally propagate `LocalizationError::Poisoned` and must not use the
-helper. The unit tests in `sync.rs` pin the recovery behaviour. `docs/contents.md`
-already indexes this guide under `## Starting points`, so no index change is
-needed.
+helper. The unit tests in `sync.rs` pin the recovery behaviour.
+`docs/contents.md` already indexes this guide under `## Starting points`, so
+no index change is needed.
 
 ### Feature-file rebuild invalidation (ADR-010)
 

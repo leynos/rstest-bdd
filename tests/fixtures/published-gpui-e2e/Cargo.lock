@@ -4958,7 +4958,7 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "ctor 1.0.13",
  "derive_more 2.1.1",
@@ -4982,7 +4982,7 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd-harness"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "cargo_metadata",
  "thiserror 2.0.20",
@@ -4991,7 +4991,7 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd-harness-gpui"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "gpui",
  "rstest-bdd",
@@ -5002,7 +5002,7 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd-macros"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "camino",
  "cap-std",
@@ -5026,7 +5026,7 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd-patterns"
-version = "0.6.0"
+version = "0.6.1"
 dependencies = [
  "gherkin",
  "regex",
@@ -5035,7 +5035,7 @@ dependencies = [
 
 [[package]]
 name = "rstest-bdd-policy"
-version = "0.6.0"
+version = "0.6.1"
 
 [[package]]
 name = "rstest_macros"

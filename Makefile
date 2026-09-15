@@ -3,7 +3,7 @@ VALE ?= vale
 .PHONY: help all clean test build build-python release lint lint-python update-users-guide-links
 .PHONY: lint-whitaker typecheck fmt check-fmt markdownlint spellcheck spelling
 .PHONY: spelling-config spelling-config-write spelling-phrase-check
-.PHONY: spelling-helper-test nixie publish-check
+.PHONY: spelling-helper-test nixie publish-check check-published-workspace-dependencies
 .PHONY: check-published-gpui stage-published-gpui-e2e e2e-published-gpui
 .PHONY: check-published-gpui-e2e-lock
 .PHONY: forbid-async-trait vale update-ui-lints-lock update-published-gpui-0-2-2-lock update-published-gpui-e2e-lock
@@ -141,14 +141,16 @@ typecheck: build-python ## Run cargo and Python type checks with warnings denied
 PUBLISHED_GPUI_MANIFEST := tests/fixtures/published-gpui-0-2-2/Cargo.toml
 PUBLISHED_GPUI_E2E_DIR := tests/fixtures/published-gpui-e2e
 PUBLISHED_GPUI_E2E_STAGE_DIR := target/published-gpui-e2e
-PUBLISHED_GPUI_E2E_VERSION := 0.6.0
+PUBLISHED_GPUI_E2E_VERSION := 0.6.1
 PUBLISHED_GPUI_E2E_PACKAGES := \
 	rstest-bdd-patterns \
 	rstest-bdd-policy \
 	rstest-bdd-harness \
 	rstest-bdd-macros \
 	rstest-bdd \
-	rstest-bdd-harness-gpui
+	rstest-bdd-harness-gpui \
+	rstest-bdd-harness-tokio \
+	cargo-bdd
 PUBLISHED_GPUI_E2E_PACKAGE_PATCHES := $(foreach package,$(PUBLISHED_GPUI_E2E_PACKAGES),\
 	--config 'patch.crates-io.$(package).path="$(CURDIR)/crates/$(package)"')
 
@@ -171,7 +173,7 @@ stage-published-gpui-e2e: ## Package first-party crates for the published GPUI E
 	mkdir -p $(PUBLISHED_GPUI_E2E_STAGE_DIR)
 	set -e; \
 	for package in $(PUBLISHED_GPUI_E2E_PACKAGES); do \
-		$(CARGO) package --allow-dirty --no-verify --package "$$package" \
+		$(CARGO) package --allow-dirty --package "$$package" \
 			$(PUBLISHED_GPUI_E2E_PACKAGE_PATCHES); \
 		tar -xzf "target/package/$$package-$(PUBLISHED_GPUI_E2E_VERSION).crate" \
 			-C $(PUBLISHED_GPUI_E2E_STAGE_DIR); \
@@ -241,9 +243,16 @@ nixie:
 	# environment variable control for this option
 	nixie --no-sandbox
 
+# The staged manifests are Cargo's package projection, so inspect them before
+# Lading's dry run verifies compilation. This catches stale internal lower
+# bounds while their release-compatible package artefacts are available.
+check-published-workspace-dependencies: stage-published-gpui-e2e ## Check internal package dependencies target this release
+	$(PROJECT_PYTHON) scripts/check_published_workspace_dependencies.py \
+		--repository . --staged-dir $(PUBLISHED_GPUI_E2E_STAGE_DIR)
+
 # Lading validates the standalone fixture manifest, whose patch paths require
 # the staged package artefacts during the publish dry run.
-publish-check: build-python stage-published-gpui-e2e ## Package crates in release order to validate publish readiness
+publish-check: build-python check-published-workspace-dependencies ## Package crates in release order to validate publish readiness
 	$(UV_ENV) $(UV) run --with "$(LADING_SPEC)" lading publish --workspace-root . --allow-unpublished-workspace-deps
 
 test-workflow-contracts: ## Validate the mutation-testing caller contract
