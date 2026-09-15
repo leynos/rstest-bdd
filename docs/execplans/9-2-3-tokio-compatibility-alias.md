@@ -13,7 +13,7 @@ ExecPlan is the governing plan for this task.
 
 Phase 8 introduced async scenario execution via
 `runtime = "tokio-current-thread"`, while phase 9 introduces harness adapters
-and attribute policy plug-ins per ADR-005. This task bridges those models:
+and attribute policy plug-ins per ADR-005a. This task bridges those models:
 `runtime = "tokio-current-thread"` should be treated as a compatibility alias
 for the Tokio harness-adapter path, so existing users keep working while the
 new harness-oriented architecture becomes the canonical model.
@@ -40,7 +40,7 @@ After this change:
   `runtime = "tokio-current-thread"` scenarios.
 - Keep Tokio and Graphical Processing User Interface (GPUI) dependencies out
   of core crates (`rstest-bdd`, `rstest-bdd-macros`, `rstest-bdd-harness`) per
-  ADR-005.
+  ADR-005a.
 - Avoid public API breakage in `rstest-bdd`, `rstest-bdd-macros`, and
   `rstest-bdd-harness`.
 - Keep files under 400 lines; split modules/tests when required.
@@ -63,7 +63,7 @@ After this change:
   rather than weakening tests.
 - Iterations: if the same gate (`check-fmt`, `lint`, or `test`) fails three
   times after fixes, stop and escalate with logs.
-- Ambiguity: if alias semantics conflict with ADR-005 or existing docs, stop
+- Ambiguity: if alias semantics conflict with ADR-005a or existing docs, stop
   and request direction before coding further.
 
 ## Risks
@@ -89,7 +89,7 @@ After this change:
 ## Progress
 
 - [x] (2026-02-17 16:47Z) Retrieved repository context and reviewed roadmap,
-      ADR-005, prior phase ExecPlans, and current macro/runtime code paths.
+      ADR-005a, prior phase ExecPlans, and current macro/runtime code paths.
 - [x] (2026-02-17 16:53Z) Drafted this ExecPlan for phase 9.2.3.
 - [x] (2026-02-17) Stage A: confirmed baseline behaviour and added targeted
       parser/codegen tests for runtime alias resolution.
@@ -132,7 +132,7 @@ After this change:
 - Decision: treat alias semantics as an internal canonical form in
   `scenarios!` generation, then keep generated observable behaviour unchanged
   for legacy runtime users. Rationale: users get stability; internals move
-  toward ADR-005 terminology and architecture. Date/Author: 2026-02-17 / Codex.
+  toward ADR-005a terminology and architecture. Date/Author: 2026-02-17 / Codex.
 
 - Decision: require both unit and behavioural coverage for alias changes.
   Rationale: parser-only tests are insufficient; end-user async scenario

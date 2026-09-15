@@ -27,7 +27,16 @@ RUST_FLAGS ?= -D warnings
 RUSTDOC_FLAGS ?= --cfg docsrs -D warnings
 CARGO_FLAGS ?= --workspace --all-targets --all-features
 CLIPPY_FLAGS ?= $(CARGO_FLAGS) -- $(RUST_FLAGS)
-MDLINT ?= $(or $(shell command -v markdownlint-cli2 2>/dev/null),$(HOME)/.bun/bin/markdownlint-cli2)
+MDLINT ?= $(shell command -v markdownlint-cli2 2>/dev/null || printf '%s' "$$HOME/.bun/bin/markdownlint-cli2")
+# `make fmt` and `make check-fmt` call mdtablefix directly. `--git` selects the
+# Markdown files Git tracks and `--include-untracked` adds the untracked files
+# Git does not ignore, so a new document is formatted before it is staged.
+# `--git` skips symbolic links, so CRUSH.md (a link to AGENTS.md) is never
+# rewritten or checked twice. Both modes need mdtablefix 0.6.0 or later; CI
+# pins the version in .github/workflows/ci.yml.
+MDTABLEFIX ?= mdtablefix
+MDTABLEFIX_SELECT = --git --include-untracked
+MDTABLEFIX_RULES = --wrap --renumber --breaks --ellipsis --fences
 ACRONYM_SCRIPT ?= scripts/update_acronym_allowlist.py
 UV ?= $(or $(shell command -v uv 2>/dev/null),$(HOME)/.local/bin/uv)
 UVX ?= $(or $(shell command -v uvx 2>/dev/null),$(HOME)/.local/bin/uvx)
@@ -197,13 +206,15 @@ fmt: build-python ## Format Rust and Markdown sources
 	$(CARGO_FMT) --manifest-path $(PUBLISHED_GPUI_E2E_DIR)/Cargo.toml
 	$(RUFF) format $(PYTHON_TARGETS)
 	$(RUFF) check --select I --fix $(PYTHON_TARGETS)
-	mdformat-all
+	$(MDTABLEFIX) --in-place $(MDTABLEFIX_SELECT) $(MDTABLEFIX_RULES)
+	@unset FORCE_COLOR; $(MDLINT) --fix "**/*.md"
 
 check-fmt: build-python ## Verify formatting
 	$(CARGO_FMT) --all -- --check
 	$(CARGO_FMT) --manifest-path $(PUBLISHED_GPUI_MANIFEST) -- --check
 	$(CARGO_FMT) --manifest-path $(PUBLISHED_GPUI_E2E_DIR)/Cargo.toml -- --check
 	$(RUFF) format --check $(PYTHON_TARGETS)
+	$(MDTABLEFIX) --check $(MDTABLEFIX_SELECT) $(MDTABLEFIX_RULES)
 
 markdownlint: spelling ## Lint Markdown files and enforce en-GB-oxendict spelling
 	$(MD_FILES_FIND) | xargs -0 $(MDLINT)

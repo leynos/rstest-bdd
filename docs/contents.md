@@ -41,6 +41,10 @@
   the v0.6.0 release changes.
 - [Releasing crates](releasing-crates.md) documents the release and publication
   process for workspace crates.
+- [Lading user guide](lading-users-guide.md) documents the `lading` release
+  tool, which bumps workspace versions, synchronizes internal dependency
+  requirements, updates version references in Markdown, and plans and executes
+  crate publication.
 
 ## Contributor references
 
@@ -117,7 +121,7 @@
   tasks, issue work, and accepted follow-up changes.
 
 [adr-002]: adr-002-stable-step-return-classification.md
-[adr-005a-harness]: adr-005-harness-adapter-crates-for-framework-specific-test-integration.md
+[adr-005a-harness]: adr-005a-harness-adapter-crates-for-framework-specific-test-integration.md
 [adr-008]: adr-008-harness-led-attribute-policy-defaults.md
 [adr-009]: adr-009-consistent-implicit-fixture-name-normalization.md
 [adr-010]: adr-010-feature-file-change-detection.md

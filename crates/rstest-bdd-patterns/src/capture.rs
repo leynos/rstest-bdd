@@ -37,7 +37,6 @@ pub fn extract_captured_values(re: &Regex, text: &str) -> Option<Vec<String>> {
     Some(values)
 }
 
-#[doc = "Tests covering the capture helpers behaviour."]
 #[cfg(test)]
 mod tests {
     //! Tests covering the capture helpers behaviour.

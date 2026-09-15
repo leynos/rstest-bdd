@@ -2,7 +2,10 @@
 
 ## Status
 
-Proposed
+Accepted (2026-09-14): Infer test-attribute defaults from known first-party
+harness type paths in `rstest-bdd-policy`; unknown harnesses receive no
+inferred framework attribute and use the existing runtime fallback, so users
+add a native attribute only when their framework requires one.
 
 ## Date
 
@@ -43,7 +46,7 @@ profile-level selector.
 
 - Reduce repetition in the common first-party harness configuration path.
 - Keep runtime behaviour and generated test attributes aligned by default.
-- Preserve the architectural separation introduced by ADR-005.
+- Preserve the architectural separation introduced by ADR-005a.
 - Retain support for valid `attributes`-only and `harness`-only use cases.
 - Avoid relying on compile-time reflection that Rust procedural macros do not
   provide.
@@ -310,8 +313,9 @@ profile type rather than a bare crate name.
 
 ## Outstanding decisions
 
-- Whether harness-to-policy mapping should live in `rstest-bdd-policy` beside
-  policy-path hints, or in a dedicated helper module.
+- Resolved: the harness-to-policy mapping lives in
+  `crates/rstest-bdd-policy/src/lib.rs` beside policy-path hints, through
+  `KNOWN_HARNESS_HINTS` and `resolve_test_attribute_hint_for_harness_path`.
 - Whether future third-party integrations should opt into inference through a
   marker type path, a registration macro, or remain explicit-only.
 - Whether a later “integration profile” syntax is worth adding once the
@@ -319,7 +323,7 @@ profile type rather than a bare crate name.
 
 ## Architectural rationale
 
-This direction keeps the clean boundary introduced by ADR-005: runtime
+This direction keeps the clean boundary introduced by ADR-005a: runtime
 delegation and emitted test attributes remain separate responsibilities. It
 improves ergonomics by defaulting the secondary concern from the primary one,
 which is usually what users mean when they choose a harness.
@@ -330,3 +334,10 @@ types, but it cannot evaluate arbitrary trait methods at expansion time. Known
 first-party harness mappings are therefore a pragmatic middle ground: they
 reduce repetition without pretending that macros can auto-discover semantic
 defaults from arbitrary crates.
+
+## References
+
+- [ADR 005a: harness adapter crates][adr-005a] records the harness abstraction
+  whose first-party adapters supply these defaults.
+
+[adr-005a]: adr-005a-harness-adapter-crates-for-framework-specific-test-integration.md

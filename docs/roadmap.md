@@ -457,7 +457,7 @@ redesigned. For the full architectural decision record, see
 
 ## 9. Harness adapters and attribute plugins
 
-This phase implements ADR-005 by introducing a harness adapter layer and an
+This phase implements ADR-005a by introducing a harness adapter layer and an
 attribute policy plugin interface, so Tokio and GPUI integrations live in
 opt-in crates rather than the core runtime or macros.
 
@@ -633,10 +633,9 @@ opt-in crates rather than the core runtime or macros.
 
 ### 9.7. Harness-led attribute-policy defaults
 
-These items are gated on ADR-008 being accepted. While
-`docs/adr-008-harness-led-attribute-policy-defaults.md` remains in `Proposed`
-status, treat the tasks below as contingent planning items rather than active
-implementation commitments.
+These items were gated on ADR-008 being accepted. They shipped under maintainer
+authorization before ADR-008 was accepted on 2026-09-14; the prerequisite is
+now satisfied.
 
 - [x] 9.7.1. Extend first-party policy hint resolution so known harness paths
   can imply default test-attribute hints when `attributes = ...` is omitted.
@@ -649,10 +648,9 @@ implementation commitments.
   `docs/adr-008-harness-led-attribute-policy-defaults.md`,
   `docs/rstest-bdd-design.md` §2.7.3. Delivered 2026-05-08. The shared policy
   resolver now has regression coverage proving first-party harness paths and
-  their matching attribute-policy paths resolve to the same hints, with exact
-  Delivered under maintainer authorization while ADR-008 remains in Proposed
-  status; the prerequisite will be formally satisfied when ADR-008 is accepted.
-  (Pandalump)
+  their matching attribute-policy paths resolve to the same hints. This shipped
+  under maintainer authorization before ADR-008 was accepted on 2026-09-14; the
+  prerequisite is now satisfied. (Pandalump)
 - [x] 9.7.2. Update `#[scenario]` and `scenarios!` code generation so
   first-party harnesses imply their default attribute policies when
   `attributes = ...` is omitted, while explicit `attributes = ...` remains
@@ -667,9 +665,9 @@ implementation commitments.
   already routed both `#[scenario]` and `scenarios!` through the ADR-008
   resolver; this item adds regression coverage for synchronous Tokio harness
   omission, first-party de-duplication, and harness-only Tokio `scenarios!`
-  expansion with an async step. Delivered under maintainer authorization while
-  ADR-008 remains in Proposed status; the prerequisite will be formally
-  satisfied when ADR-008 is accepted. (Pandalump, Doggylump)
+  expansion with an async step. This shipped under maintainer authorization
+  before ADR-008 was accepted on 2026-09-14; the prerequisite is now satisfied.
+  (Pandalump, Doggylump)
 - [x] 9.7.3. Add unit, trybuild, and behavioural coverage for harness-led
   defaults and explicit overrides across the first-party harnesses. Cover
   harness-only scenarios, explicit override scenarios, attributes-only
@@ -1117,12 +1115,10 @@ an assertion cannot disappear behind macro classification or generated code.
   `docs/rstest-bdd-design.md` §§2.7.2-2.7.4. Origin: `leynos/rstest-bdd#574`
   and the gauss v0.6.0-beta3 validation matrix.
 
-> **Note (ADR-008 follow-up):** roadmap items 9.7.1–9.7.4 shipped the
-> harness-led attribute defaults under maintainer authorization, but
-> `docs/adr-008-harness-led-attribute-policy-defaults.md` remains in
-> `Proposed` status. Advancing it to `Accepted` is orthogonal to the GPUI
-> adopter feedback and requires separate maintainer approval; it is recorded
-> here only so the inconsistency is tracked.
+> **Note (ADR-008 follow-up):** Roadmap items 9.7.1–9.7.4 shipped under
+> maintainer authorization before ADR-008 was accepted on 2026-09-14. The
+> prerequisite is now satisfied, and ADR-008 records the accepted harness-led
+> attribute-defaults decision.
 
 ### 12.1. Redesign state and context borrowing
 
@@ -1319,12 +1315,12 @@ belong to a feature phase.
 - [x] 14.1.1. Clear the actionlint script-injection finding on the
   Dependabot lockfile refresh workflow. Finish line:
   `.github/workflows/refresh-derived-fixture-lockfiles.yml` no longer
-  interpolates `github.event.pull_request.head.ref` in an inline shell
-  script; the push step binds the expression to a `HEAD_REF` environment
-  variable and expands it quoted, preserving the existing dispatch
-  semantics. Delivered 2026-09-07: the push step now reads
-  `git push origin "HEAD:$HEAD_REF"` and the workflow contract test locks in
-  both the env mapping and the command. Validation:
+  interpolates `github.event.pull_request.head.ref` in an inline shell script;
+  the push step binds the expression to a `HEAD_REF` environment variable and
+  expands it quoted, preserving the existing dispatch semantics. Delivered
+  2026-09-07: the push step now reads `git push origin "HEAD:$HEAD_REF"` and
+  the workflow contract test locks in both the env mapping and the command.
+  Validation:
   `actionlint -config-file .github/actionlint.yaml
-  .github/workflows/refresh-derived-fixture-lockfiles.yml` and `make
-  test-workflow-contracts` passed.
+  .github/workflows/refresh-derived-fixture-lockfiles.yml`
+  and `make test-workflow-contracts` passed.

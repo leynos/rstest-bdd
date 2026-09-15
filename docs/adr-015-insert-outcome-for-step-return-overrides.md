@@ -131,6 +131,15 @@ the second means the suite needs to disambiguate which fixture is meant.
   borrowing redesign for the same type.
 - [v0.6.0 migration guide][migration] records the caller-facing upgrade steps.
 
+## Amendments
+
+### 2026-09-14: cross-reference the superseded interim pattern
+
+[ADR 011: first-party scenario-state helpers][adr-011] records the thread-local
+interim pattern superseded by ADR-012, which provides the borrowing redesign
+related to this ADR's `StepContext` return-value change.
+
+[adr-011]: adr-011-first-party-scenario-state-and-cleanup.md
 [adr-012]: adr-012-guard-based-stepcontext-borrowing.md
 [i514]: https://github.com/leynos/rstest-bdd/issues/514
 [migration]: v0-6-0-migration-guide.md

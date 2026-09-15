@@ -12,8 +12,8 @@ ExecPlan is the governing plan for this task.
 ## Purpose / big picture
 
 Phase 9.1 introduces the framework-agnostic harness foundation required by
-Architecture Decision Record 005 (ADR-005). After this work, the codebase will
-have a dedicated `rstest-bdd-harness` crate that defines:
+Architecture Decision Record 005a (ADR-005a). After this work, the codebase
+will have a dedicated `rstest-bdd-harness` crate that defines:
 
 - a harness adapter trait for executing scenario runners,
 - shared runner types used by adapter crates and macro integration,
@@ -31,7 +31,7 @@ roadmap entries `9.1.1`, `9.1.2`, and `9.1.3` are marked complete.
   `9.2+` harness selection in `#[scenario]`/`scenarios!` in this change.
 - Keep Tokio and Graphical Processing User Interface (GPUI) dependencies out
   of core crates (`rstest-bdd`, `rstest-bdd-macros`, `rstest-bdd-harness`) to
-  preserve ADR-005 goals.
+  preserve ADR-005a goals.
 - Preserve existing public behaviour for current users (including
   `runtime = "tokio-current-thread"` compatibility paths) unless a change is
   explicitly documented as preparatory and non-breaking.
@@ -57,7 +57,7 @@ roadmap entries `9.1.1`, `9.1.2`, and `9.1.3` are marked complete.
   escalate instead of weakening tests.
 - Iterations: if the same failing gate (`check-fmt`, `lint`, or `test`) fails
   three times after attempted fixes, stop and escalate with logs.
-- Ambiguity: if ADR-005 and current roadmap text conflict on interface shape,
+- Ambiguity: if ADR-005a and current roadmap text conflict on interface shape,
   stop and request direction before coding further.
 
 ## Risks
@@ -82,7 +82,7 @@ roadmap entries `9.1.1`, `9.1.2`, and `9.1.3` are marked complete.
 
 ## Progress
 
-- [x] (2026-02-07 00:00Z) Collected roadmap and ADR-005 requirements and
+- [x] (2026-02-07 00:00Z) Collected roadmap and ADR-005a requirements and
       drafted this ExecPlan.
 - [x] (2026-02-08 01:24Z) Ran baseline validation to confirm pre-change
       status (`make test` logged in `/tmp/9-1-1-baseline-test.log`).
@@ -185,9 +185,9 @@ Current runtime and macro policy logic is split across:
 - `crates/rstest-bdd-macros/src/macros/scenarios/macro_args.rs`
   (`runtime = "tokio-current-thread"` parsing).
 
-`docs/adr-005-harness-adapter-crates-for-framework-specific-test-integration.md`
-defines the architectural direction: framework integrations move to opt-in
-adapter crates, while a small core harness crate owns shared contracts.
+[ADR-005a][adr-005a] defines the architectural direction: framework
+integrations move to opt-in adapter crates, while a small core harness crate
+owns shared contracts.
 
 Phase 9.1 is the foundational layer for that architecture. It should introduce
 harness and policy contracts now, with macro argument integration to follow in
@@ -244,7 +244,7 @@ Tokio or GPUI attributes.
 
 Where existing code still relies on `RuntimeMode`/`TestAttributeHint`, keep it
 intact for compatibility, but document that policy plugins are the new
-extension point introduced by ADR-005.
+extension point introduced by ADR-005a.
 
 Go/no-go validation for Stage C:
 
@@ -256,7 +256,7 @@ Stage D: Documentation and roadmap completion
 Update docs to reflect final interfaces and user workflows:
 
 - `docs/rstest-bdd-design.md`: document concrete harness trait and policy
-  interfaces in ADR-005 section(s), including rationale for default behaviour.
+  interfaces in ADR-005a section(s), including rationale for default behaviour.
 - `docs/users-guide.md`: add usage guidance for the harness core and attribute
   policy extension points, including minimal examples.
 - `docs/roadmap.md`: mark `9.1.1`, `9.1.2`, and `9.1.3` as done once all
@@ -380,7 +380,9 @@ Dependency constraints:
 
 ## Revision note
 
-Initial draft created from roadmap phase 9.1, ADR-005 harness decision, and
+Initial draft created from roadmap phase 9.1, ADR-005a harness decision, and
 current macro/runtime implementation state. Revised on 2026-02-08 after
 implementation to mark completion, record test evidence, and capture
 integration caveats for phase 9.2.
+
+[adr-005a]: docs/adr-005a-harness-adapter-crates-for-framework-specific-test-integration.md

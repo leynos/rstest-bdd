@@ -57,7 +57,7 @@ repository gates.
   `AttributePolicy::test_attributes()` implementations are not evaluated during
   procedural macro expansion, so unknown third-party harnesses must document
   explicit `attributes = ...` use where custom test attributes are required.
-- Preserve ADR-005 crate boundaries. Tokio and GPUI dependencies must remain
+- Preserve ADR-005a crate boundaries. Tokio and GPUI dependencies must remain
   in opt-in adapter crates, not in `rstest-bdd`, `rstest-bdd-macros`, or
   `rstest-bdd-harness`.
 - Update `docs/v0-6-0-migration-guide.md` for every stage 9.7 change that
@@ -354,12 +354,11 @@ findings. Roadmap item 9.7.4 is marked done.
 
 ## Context and orientation
 
-The harness adapter architecture comes from ADR-005 and is documented in
-`docs/adr-005-harness-adapter-crates-for-framework-specific-test-integration.md`.
-It keeps framework-specific runtime integration out of the core runtime and
-macro crates. The shared `rstest-bdd-harness` crate defines `HarnessAdapter`,
-`ScenarioRunRequest`, `ScenarioRunner`, `AttributePolicy`, and
-`DefaultAttributePolicy`.
+The harness adapter architecture comes from [ADR-005a][adr-005a] and is
+documented in the linked decision record. It keeps framework-specific runtime
+integration out of the core runtime and macro crates. The shared
+`rstest-bdd-harness` crate defines `HarnessAdapter`, `ScenarioRunRequest`,
+`ScenarioRunner`, `AttributePolicy`, and `DefaultAttributePolicy`.
 
 ADR-008 proposes the harness-led default rule for first-party integrations. The
 rule keeps `HarnessAdapter` and `AttributePolicy` separate, but it makes
@@ -653,3 +652,5 @@ Initial draft created on 2026-05-24. It captures the plan approval gate,
 ADR-008 contingency, Wyvern reconnaissance, Firecrawl tooling check, expected
 documentation surfaces, validation commands, CodeRabbit review points, and the
 pull request requirements for the pre-implementation plan branch.
+
+[adr-005a]: docs/adr-005a-harness-adapter-crates-for-framework-specific-test-integration.md

@@ -836,11 +836,11 @@ cold cache, so the 15 minutes is generous on purpose, and the extra minutes of
 rounding cost nothing because the watchdog only fires on an overrun.
 
 This paragraph previously claimed that a test already running when the global
-timeout expires is allowed to finish, and sized the middle term at the 20 minute
-trybuild allowance. That was wrong, and it is recorded here rather than quietly
-replaced because the other repositories adopting this contract copy this
-section. The numbers did not change: the value chosen from the wrong premise is
-larger than the corrected rule requires.
+timeout expires is allowed to finish, and sized the middle term at the 20
+minute trybuild allowance. That was wrong, and it is recorded here rather than
+quietly replaced because the other repositories adopting this contract copy
+this section. The numbers did not change: the value chosen from the wrong
+premise is larger than the corrected rule requires.
 
 The job timer starts when the job starts, long before coverage and long after
 it finishes. On the Linux lane, formatting, linting, type checking and the
@@ -910,12 +910,12 @@ this went wrong in the first place.
 
 The arithmetic behind those assertions lives in `timeout_budgets.py`, beside
 the contract: nextest's duration strings and the watchdog rule itself. The
-configuration reading it works from lives in `nextest_config.py`, which
-derives the termination allowance from the largest configured grace period.
-Between them, they own that reading for the workflow contracts and nothing
-else, and both take text rather than paths, so a test stays in charge of what
-it is asserting about. A new tier belongs there beside the others rather than
-inline in a contract module.
+configuration reading it works from lives in `nextest_config.py`, which derives
+the termination allowance from the largest configured grace period. Between
+them, they own that reading for the workflow contracts and nothing else, and
+both take text rather than paths, so a test stays in charge of what it is
+asserting about. A new tier belongs there beside the others rather than inline
+in a contract module.
 
 It is separated because the contract alone cannot exercise it. Every
 `grace-period` in `.config/nextest.toml` is five seconds, so the contract sees
@@ -945,9 +945,9 @@ with a correct one against this file and would have been wrong the moment
 somebody raised one. `nextest_config_test.py` drives all of it with
 configurations this repository does not have.
 
-The termination allowance is itself two terms added, not a floor over them:
-the largest configured grace period, or nextest's ten-second default when none
-is named, plus a sixty-second margin for the teardown and report writing that
+The termination allowance is itself two terms added, not a floor over them: the
+largest configured grace period, or nextest's ten-second default when none is
+named, plus a sixty-second margin for the teardown and report writing that
 follow. A floor absorbs every grace period below it, so raising this file's
 five seconds to thirty would demand nothing more of the watchdog above it, and
 the saving would look free until the run it cancelled.
@@ -1079,13 +1079,12 @@ Each module stays inside the 400-line budget.
 
 - Unit and Hypothesis property tests for link identity, recovery, and
   generation live in `scripts/tests/test_users_guide_links.py`; slug generation
-  and definition parsing live in
-  `scripts/tests/test_markdown_references.py`. Hypothesis exercises the
-  slug-generation invariants (anchors stay lowercase, contain no spaces, use
-  only word characters and hyphens, and are idempotent) and fenced-code heading
-  handling, where generated headings expose parser edge cases that
-  example-based cases miss. Generation is held to idempotence and line-count
-  preservation.
+  and definition parsing live in `scripts/tests/test_markdown_references.py`.
+  Hypothesis exercises the slug-generation invariants (anchors stay lowercase,
+  contain no spaces, use only word characters and hyphens, and are idempotent)
+  and fenced-code heading handling, where generated headings expose parser edge
+  cases that example-based cases miss. Generation is held to idempotence and
+  line-count preservation.
 - Checker unit tests live in
   `scripts/tests/test_check_users_guide_links.py`, one case per violation the
   checker can report.
@@ -1280,16 +1279,17 @@ runtime coverage. Continuous Integration installs the same nightly plus the
 Wayland, X11, and xkbcommon development libraries only for the explicitly named
 end-to-end step.
 
-Its committed `Cargo.lock` is refreshed with `make
-update-published-gpui-e2e-lock`, which stages the artefacts first and then lets
-Cargo regenerate the lockfile. Because the fixture patches crates.io names onto
-`target/` artefacts, the discovery-based fixture gate cannot see it; the
-aggregate `make check-fixture-lockfiles` and `make update-fixture-lockfiles`
-targets therefore depend on the dedicated
+Its committed `Cargo.lock` is refreshed with
+`make update-published-gpui-e2e-lock`, which stages the artefacts first and
+then lets Cargo regenerate the lockfile. Because the fixture patches crates.io
+names onto `target/` artefacts, the discovery-based fixture gate cannot see it;
+the aggregate `make check-fixture-lockfiles` and
+`make update-fixture-lockfiles` targets therefore depend on the dedicated
 `check-published-gpui-e2e-lock` and `update-published-gpui-e2e-lock` targets,
 keeping the staged lockfile inside both the validation and the Dependabot
-refresh sets. A dependency bump that stales the fixture fails `cargo metadata
---locked` in the check target before any behavioural suite can mask it.
+refresh sets. A dependency bump that stales the fixture fails
+`cargo metadata --locked` in the check target before any behavioural suite can
+mask it.
 
 ## `#[serial]`/nextest matrix validation (`scripts/check_serial_nextest_matrix.py`)
 
@@ -1323,28 +1323,28 @@ PYLINT_JOBS ?= $(shell n=$(PYLINT_CPUS); jobs=$$((n / 10)); [ $$jobs -lt 2 ] && 
 PYLINT = $(UV_ENV) $(UV) run --python $(PYLINT_PYTHON) pylint -j $(PYLINT_JOBS)
 ```
 
-`PYLINT_PYTHON` is the one place the interpreter is chosen, so a later
-baseline move changes a single variable. The pass previously ran on managed
-PyPy, whose grammar lags the CPython 3.14 syntax these sources use. A module
-it could not parse produced no output at all — no score banner, no
-`syntax-error`, and therefore no `too-many-lines` — so it escaped every
-message, including the budget. Running the pass on CPython 3.14 and moving
-`syntax-error` into the enabled set in `pyproject.toml` closes both gaps: a
-module the pass cannot read is now a failure rather than a silent pass.
+`PYLINT_PYTHON` is the one place the interpreter is chosen, so a later baseline
+move changes a single variable. The pass previously ran on managed PyPy, whose
+grammar lags the CPython 3.14 syntax these sources use. A module it could not
+parse produced no output at all — no score banner, no `syntax-error`, and
+therefore no `too-many-lines` — so it escaped every message, including the
+budget. Running the pass on CPython 3.14 and moving `syntax-error` into the
+enabled set in `pyproject.toml` closes both gaps: a module the pass cannot read
+is now a failure rather than a silent pass.
 
 The budget itself stays Pylint's: `[tool.pylint.main] max-module-lines = 400`
-with `too-many-lines` enabled, so there is no second length checker to keep
-in step.
+with `too-many-lines` enabled, so there is no second length checker to keep in
+step.
 
-The worker pool is one job per ten CPUs with a floor of two, so a large
-runner cannot spawn a worker per core and a small one still gets a pool.
-`PYLINT_CPUS` carries the count the rule is computed from, which lets the
-arithmetic be exercised at a chosen width rather than only at the width of
-the machine running the tests. `tests/workflow_contracts/pylint_gate_test.py`
-runs the configured command over probe modules that break the budget and that
-no parser accepts, and checks the pool rule at both ends of the machine
-range. It runs the pass rather than reading the configured values, because a
-pool pinned to one worker still satisfies every string assertion.
+The worker pool is one job per ten CPUs with a floor of two, so a large runner
+cannot spawn a worker per core and a small one still gets a pool. `PYLINT_CPUS`
+carries the count the rule is computed from, which lets the arithmetic be
+exercised at a chosen width rather than only at the width of the machine
+running the tests. `tests/workflow_contracts/pylint_gate_test.py` runs the
+configured command over probe modules that break the budget and that no parser
+accepts, and checks the pool rule at both ends of the machine range. It runs
+the pass rather than reading the configured values, because a pool pinned to
+one worker still satisfies every string assertion.
 
 ## Workflow-contract helper modules (`tests/workflow_contracts`)
 
@@ -2886,13 +2886,13 @@ pattern in `crates/rstest-bdd/tests/feature_rebuild_invalidation/`:
   proves each lockfile still resolves with `cargo metadata --locked`. The
   target depends on `check-published-gpui-e2e-lock` because the staged
   published-GPUI end-to-end fixture patches crates.io names onto `target/`
-  artefacts and is invisible to the script's discovery. CI runs the same
-  target after the workspace build, and the Dependabot refresh workflow
-  regenerates the set with `make update-fixture-lockfiles`, which mirrors the
-  same two halves through its `update-published-gpui-e2e-lock` prerequisite,
-  so the check and the refresh path always agree on which fixtures are
-  authoritative. A stale lockfile therefore fails before the behavioural
-  nested-Cargo tests can mask the drift.
+  artefacts and is invisible to the script's discovery. CI runs the same target
+  after the workspace build, and the Dependabot refresh workflow regenerates
+  the set with `make update-fixture-lockfiles`, which mirrors the same two
+  halves through its `update-published-gpui-e2e-lock` prerequisite, so the
+  check and the refresh path always agree on which fixtures are authoritative.
+  A stale lockfile therefore fails before the behavioural nested-Cargo tests
+  can mask the drift.
 - Manifest paths in this tooling are rendered with forward slashes on every
   platform. `scripts/check_fixture_lockfiles.py --list` and the stale, refresh
   and prefetch failure reports all render a repository manifest through
@@ -2911,25 +2911,25 @@ pattern in `crates/rstest-bdd/tests/feature_rebuild_invalidation/`:
   head SHA, refreshes every standalone fixture lockfile with
   `make update-fixture-lockfiles`, commits only `**/Cargo.lock` paths, and —
   when nothing changed — validates the no-op refresh with
-  `make check-fixture-lockfiles`.
-  The workflow's push step is a shell-safety invariant:
-  `github.event.pull_request.head.ref` is untrusted input, so the step assigns
-  it only through the step-level `HEAD_REF` environment variable, and the push
-  command must remain `git push origin "HEAD:$HEAD_REF"`. Do not interpolate
-  `github.event.pull_request.head.ref` directly into a `run:` block: a ref
-  name may carry shell metacharacters, and inline substitution would hand the
-  shell executable script instead of quoted data. The property and shape
-  contracts in `tests/workflow_contracts/derived_fixture_lockfiles_test.py` —
-  run through `make test-workflow-contracts` — enforce this contract, including
-  a Hypothesis test that executes the push step against generated hostile ref
+  `make check-fixture-lockfiles`. The workflow's push step is a shell-safety
+  invariant: `github.event.pull_request.head.ref` is untrusted input, so the
+  step assigns it only through the step-level `HEAD_REF` environment variable,
+  and the push command must remain `git push origin "HEAD:$HEAD_REF"`. Do not
+  interpolate `github.event.pull_request.head.ref` directly into a `run:`
+  block: a ref name may carry shell metacharacters, and inline substitution
+  would hand the shell executable script instead of quoted data. The property
+  and shape contracts in
+  `tests/workflow_contracts/derived_fixture_lockfiles_test.py` — run through
+  `make test-workflow-contracts` — enforce this contract, including a
+  Hypothesis test that executes the push step against generated hostile ref
   names.
 - The mutation lane pre-fetches standalone fixture dependencies with
   `make prefetch-fixture-deps`, which runs
-  `scripts/check_fixture_lockfiles.py --fetch`: that mode runs `cargo fetch
-  --locked --manifest-path <fixture>/Cargo.toml` for every discovered fixture,
-  filling `~/.cargo/registry` from the committed lockfile without building
-  anything. Discovery is shared with the gate, so the prefetch covers exactly
-  the fixtures the gate validates.
+  `scripts/check_fixture_lockfiles.py --fetch`: that mode runs
+  `cargo fetch --locked --manifest-path <fixture>/Cargo.toml` for every
+  discovered fixture, filling `~/.cargo/registry` from the committed lockfile
+  without building anything. Discovery is shared with the gate, so the prefetch
+  covers exactly the fixtures the gate validates.
 - Every `--fetch` run closes with exactly one machine-readable metrics record,
   whether every fixture downloaded, some failed or Cargo could not be started
   at all: a single line prefixed `fixture-prefetch-metrics:` whose JSON payload
@@ -2938,23 +2938,23 @@ pattern in `crates/rstest-bdd/tests/feature_rebuild_invalidation/`:
   unstartable Cargo fails each fixture rather than aborting the prefetch run,
   while the check and refresh modes still fail fast. The record holds counts, a
   duration and the outcome only — never a manifest path, crate name, command
-  line, environment value, URL or Cargo output — so a job log can be
-  aggregated without exposing anything about the machine that produced it.
-  The line rides the stream matching the outcome: standard output beside the
-  success summary, standard error beside the failure reports, so a reader
-  capturing one stream never mistakes a failed prefetch for a clean one. The
-  elapsed time covers the whole operation, every fixture included, not the
-  first fetch. `cache_outcome` is `unknown`, and must stay that way until
-  Cargo offers machine-readable evidence: `cargo fetch` reports a download
-  only as a human-readable progress line and prints nothing when the crate is
-  already cached, so the absence of a download line proves nothing and the
-  record never infers a cache hit from silence.
+  line, environment value, URL or Cargo output — so a job log can be aggregated
+  without exposing anything about the machine that produced it. The line rides
+  the stream matching the outcome: standard output beside the success summary,
+  standard error beside the failure reports, so a reader capturing one stream
+  never mistakes a failed prefetch for a clean one. The elapsed time covers the
+  whole operation, every fixture included, not the first fetch. `cache_outcome`
+  is `unknown`, and must stay that way until Cargo offers machine-readable
+  evidence: `cargo fetch` reports a download only as a human-readable progress
+  line and prints nothing when the crate is already cached, so the absence of a
+  download line proves nothing and the record never infers a cache hit from
+  silence.
 - It is needed because the nested-cargo harnesses
   (`crates/rstest-bdd/tests/feature_rebuild_invalidation.rs` and its
   `harness/addition.rs` module) build their fixtures with `--locked --offline`,
-  and the mutation lane runs no outer online workspace build to warm that
-  cache: `.github/workflows/mutation-testing.yml` passes the target as the
-  reusable workflow's `setup-commands`, which runs in each mutants job before
+  and the mutation lane runs no outer online workspace build to warm that cache:
+  `.github/workflows/mutation-testing.yml` passes the target as the reusable
+  workflow's `setup-commands`, which runs in each mutants job before
   cargo-mutants starts. Without it the baseline fails, because nothing has
   downloaded the crates the fixture lockfiles pin (`proc-macro-error-attr3` was
   the crate that surfaced it).

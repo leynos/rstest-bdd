@@ -16,7 +16,7 @@ Run it from the repository root with
 import argparse
 import dataclasses as dc
 import re
-import subprocess
+import subprocess  # ruff: ignore[suspicious-subprocess-import] - the gate invokes the trusted local git executable.
 import tomllib
 import typing as typ
 from pathlib import Path
@@ -152,7 +152,7 @@ def load_policy(repository: Path) -> PhrasePolicy:
 
 def _tracked(repository: Path) -> tuple[Path, ...]:
     """Return tracked paths in deterministic order."""
-    raw = subprocess.run(
+    raw = subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - argv carries a fixed git command; no shell.
         ["git", "-C", str(repository), "ls-files", "-z"],
         check=True,
         capture_output=True,
