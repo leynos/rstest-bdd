@@ -369,6 +369,14 @@ jobs:
         if: ${{ matrix.tools }}
         run: rustup toolchain install nightly-2026-08-07 --profile minimal --component rustfmt
 
+      - name: Install mdtablefix
+        # `make check-fmt` runs `mdtablefix --check --git`; 0.6.0 is the
+        # first release with `--check` and `--git`.
+        if: ${{ matrix.tools }}
+        uses: leynos/shared-actions/.github/actions/install-mdtablefix@c5a54701c8603a0fa756a6b34c49bc2af75a6c11
+        with:
+          version: "0.6.0"
+
       - name: Check formatting
         if: ${{ matrix.tools }}
         run: make check-fmt

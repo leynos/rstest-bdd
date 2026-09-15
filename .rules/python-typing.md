@@ -117,14 +117,14 @@ def is_str_list(val: list[object]) -> typing.TypeGuard[list[str]]:
 
 Unlike `isinstance`, this informs the type checker that `val` is now
 `list[str]` when the guard returns true. `TypeIs` (PEP 742) is available on
-this repository's Python 3.14 baseline; use it when narrowing both the true
-and false branches is useful.
+this repository's Python 3.14 baseline; use it when narrowing both the true and
+false branches is useful.
 
 ## Defaults for TypeVars (PEP 696)
 
 TypeVar defaults were introduced after Python 3.12 and are available on this
-repository's Python 3.14 baseline. Use `default=` when it accurately models
-the API; otherwise use an explicit overload, factory, or value default.
+repository's Python 3.14 baseline. Use `default=` when it accurately models the
+API; otherwise use an explicit overload, factory, or value default.
 
 ```python
 T = typing.TypeVar("T")
@@ -170,8 +170,8 @@ type StrDict = dict[str, str]
 
 This replaces `StrDict = TypeAlias = ...` and is preferred in modern Python.
 
-When a documented compatibility contract requires Python < 3.12, keep the
-older `typing.TypeAlias` syntax and use a narrowly scoped
+When a documented compatibility contract requires Python < 3.12, keep the older
+`typing.TypeAlias` syntax and use a narrowly scoped
 `# ruff: ignore[non-pep695-type-alias]` with the compatibility reason. Place
 alias definitions after the import block and group shared aliases in a shared
 types module to avoid duplication.
@@ -179,9 +179,9 @@ types module to avoid duplication.
 ## `from __future__ import annotations`
 
 Python 3.14 evaluates annotations lazily by default, so forward references,
-circular imports, and types imported only under `TYPE_CHECKING` do not generally
-require this import. Retain `from __future__ import annotations` only for
-compatibility with older Python versions or tooling that requires postponed
+circular imports, and types imported only under `TYPE_CHECKING` do not
+generally require this import. Retain `from __future__ import annotations` only
+for compatibility with older Python versions or tooling that requires postponed
 evaluation; it stores annotations as strings.
 
 ```python

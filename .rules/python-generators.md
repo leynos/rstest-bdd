@@ -88,7 +88,7 @@ def iter_even_doubles():
 
 ______________________________________________________________________
 
-**Rule of thumb:** If a `for` loop has multiple branches, mutations, or is
-hard to explain in one sentence, try rewriting it as a generator.
+**Rule of thumb:** If a `for` loop has multiple branches, mutations, or is hard
+to explain in one sentence, try rewriting it as a generator.
 
 Prefer clear, linear data flows over deeply nested conditionals and loop bodies.
