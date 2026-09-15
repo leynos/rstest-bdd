@@ -227,15 +227,15 @@ the backend in use.
 
 `make publish-check` runs `lading publish` against the workspace. Its phases,
 in order, are: validate that every tracked `Cargo.lock` is fresh under
-`--locked`; run a pre-flight of `cargo check --workspace --all-targets` and
-then `cargo test`, both into a throwaway target directory under the system
+`--locked`; run a pre-flight of `cargo check --workspace --all-targets` and then
+`cargo test`, both into a throwaway target directory under the system
 temporary directory; copy the workspace to a staging root; run `cargo package`
 for each publishable crate in the `lading.toml` order; and run
 `cargo publish --dry-run` for each. Only the last two prove what the gate
 exists to prove, that each crate packages and would publish.
 
-Until 2026-09-14 the pre-flight was most of the step. The three runs below
-were measured from the step logs, in seconds.
+Until 2026-09-14 the pre-flight was most of the step. The three runs below were
+measured from the step logs, in seconds.
 
 | Run         | Lane             | check | test | stage | package and publish | step |
 | ----------- | ---------------- | ----- | ---- | ----- | ------------------- | ---- |
@@ -249,23 +249,23 @@ were measured from the step logs, in seconds.
 | 34795056294 | Windows, strict  | 113   | 587  | 135   | 615                 | 1475 |
 | 34795056294 | Windows, default | 151   | 769  | 130   | 737                 | 1817 |
 
-On a warm compiler cache the pre-flight was 94 percent of the Linux step and
-74 to 80 percent of each Windows step, against 33 to 72 seconds of packaging.
-Run 34795056294 met a cold cache: its 752 seconds of Linux packaging were
-real, 630 of them `rstest-bdd-harness-gpui`, and that cost is inherent to a
-cold store rather than a defect.
+On a warm compiler cache the pre-flight was 94 percent of the Linux step and 74
+to 80 percent of each Windows step, against 33 to 72 seconds of packaging. Run
+34795056294 met a cold cache: its 752 seconds of Linux packaging were real, 630
+of them `rstest-bdd-harness-gpui`, and that cost is inherent to a cold store
+rather than a defect.
 
 The workflow therefore sets `LADING_SKIP_PREFLIGHT` to `true` on the publish
 step, which lading v0.3.1 added for this (leynos/lading#261). lading reads the
 variable through Cyclopts, so `1`, `true`, `t`, `yes` and `y` all enable the
 skip, case insensitively, and `0`, `false`, `f`, `no` and `n` all disable it;
 anything else, including `on` and the empty string, is refused and fails the
-step rather than being guessed at. The equivalent flags are
-`--skip-preflight` and `--no-skip-preflight`, and precedence runs flag, then
-environment, then the `lading.toml` setting. The skip drops the auxiliary
-builds and the `cargo check` and `cargo test` pair. It does not drop the
-working-tree cleanliness guard or the `Cargo.lock` freshness guard, which cost
-seconds and check things no test run covers.
+step rather than being guessed at. The equivalent flags are `--skip-preflight`
+and `--no-skip-preflight`, and precedence runs flag, then environment, then the
+`lading.toml` setting. The skip drops the auxiliary builds and the
+`cargo check` and `cargo test` pair. It does not drop the working-tree
+cleanliness guard or the `Cargo.lock` freshness guard, which cost seconds and
+check things no test run covers.
 
 What the skip removes was measured across two warm runs on the same branch,
 [34897826160](https://github.com/leynos/rstest-bdd/actions/runs/34897826160)
@@ -283,14 +283,14 @@ with it skipped, reading the phase boundaries from lading's own timestamped
 The pre-flight column goes to zero on every lane, which is 706 seconds of
 runner time per run. Whole-step totals move by less, and on the strict Windows
 lane by almost nothing, because staging and packaging vary with the state of
-the compiler cache from run to run: that lane staged in 214 seconds against
-144 and packaged in 553 against 437. Read the phase, not the step total, when
+the compiler cache from run to run: that lane staged in 214 seconds against 144
+and packaged in 553 against 437. Read the phase, not the step total, when
 attributing a change to this setting.
 
 What the skip removes is the repeated `cargo check` and `cargo test` pair, and
 what it keeps is per-crate packaging. That distinction is the whole point of
-the gate. `cargo package` builds each crate from its own packaged sources, so
-a symbol a crate uses internally but never exports from its root compiles
+the gate. `cargo package` builds each crate from its own packaged sources, so a
+symbol a crate uses internally but never exports from its root compiles
 throughout a workspace build and fails only here. Run
 [34877820839](https://github.com/leynos/rstest-bdd/actions/runs/34877820839) is
 the case in point: all three lanes failed in the publish dry run alone, on
@@ -304,25 +304,25 @@ command must be `make publish-check`, and that target's recipe must invoke
 
 The variable is set on the step rather than in `lading.toml`, because a
 configuration file cannot tell a CI run from a local one. On a workstation
-nothing has run the suite before `make publish-check`, so the pre-flight is
-the only thing checking that the workspace builds and its unit tests pass
-before packaging, and it still runs there in full. That is also the command
-to reach for when reproducing a CI publish failure: run `make publish-check`
-with the variable unset and the pre-flight comes back.
+nothing has run the suite before `make publish-check`, so the pre-flight is the
+only thing checking that the workspace builds and its unit tests pass before
+packaging, and it still runs there in full. That is also the command to reach
+for when reproducing a CI publish failure: run `make publish-check` with the
+variable unset and the pre-flight comes back.
 
 What makes the skip safe is a property of the workflow rather than a
 convention, and `publish_preflight_scope_test.py` pins all of it: the
-variable's value, the absence of the equivalent `lading.toml` setting, one
-test step per lane with its own selecting condition, and each of those steps
-ahead of the publish step.
+variable's value, the absence of the equivalent `lading.toml` setting, one test
+step per lane with its own selecting condition, and each of those steps ahead
+of the publish step.
 
 For the local case `lading.toml` sets `preflight.unit_tests_only`, which
-narrows the pre-flight's `cargo test` to `--lib --bins`. The check keeps `--all-targets`,
-so every target is still compiled inside the dry run; what stops is a second
-execution of a suite the lane has already run. The lane order is what makes
-that safe, and `publish_preflight_scope_test.py` asserts it: each lane's
-`Test and Measure Coverage` step precedes the dry run, so moving the dry run
-earlier fails the contract rather than the release.
+narrows the pre-flight's `cargo test` to `--lib --bins`. The check keeps
+`--all-targets`, so every target is still compiled inside the dry run; what
+stops is a second execution of a suite the lane has already run. The lane order
+is what makes that safe, and `publish_preflight_scope_test.py` asserts it: each
+lane's `Test and Measure Coverage` step precedes the dry run, so moving the dry
+run earlier fails the contract rather than the release.
 
 The pre-flight's plain `cargo test` ran the cargo-spawning tests without the
 nextest test-groups and slow-timeout tiers `.config/nextest.toml` sizes for
@@ -331,17 +331,17 @@ the less controlled of the two runs, not the controlled one.
 
 Narrowing it also uncovered something the pre-flight had been hiding. The two
 Windows coverage steps carried `continue-on-error`, so a failing Windows test
-left the job green; what actually failed those lanes was the pre-flight
-running the same tests later in the same job. The enforcement was real but
-accidental, and it came from a step whose purpose is publishing. Both
-markings are gone, so each lane's own test step gates its own lane. That is a
-deliberate reversal of a flag set on purpose: the evidence for it is twenty
-consecutive CI runs in which the Windows coverage steps recorded 32 successes,
-two cancellations and no failures. If one later reds for a tooling reason, the
-seam is the thing to fix. `workspace_test_gating_test.py` asserts that no step
-running the workspace suite, whether through a script or through the coverage
-action, carries `continue-on-error`, and that the workflow still contains such
-steps for it to judge.
+left the job green; what actually failed those lanes was the pre-flight running
+the same tests later in the same job. The enforcement was real but accidental,
+and it came from a step whose purpose is publishing. Both markings are gone, so
+each lane's own test step gates its own lane. That is a deliberate reversal of
+a flag set on purpose: the evidence for it is twenty consecutive CI runs in
+which the Windows coverage steps recorded 32 successes, two cancellations and
+no failures. If one later reds for a tooling reason, the seam is the thing to
+fix. `workspace_test_gating_test.py` asserts that no step running the workspace
+suite, whether through a script or through the coverage action, carries
+`continue-on-error`, and that the workflow still contains such steps for it to
+judge.
 
 #### Attributing the publish step's share
 
@@ -358,29 +358,28 @@ later reading a partial one.
 
 ##### Reading the report
 
-The artefact holds four things. `baseline` and `final` are whole `sccache
---show-stats` snapshots taken either side of the publish pipeline, so
+The artefact holds four things. `baseline` and `final` are whole
+`sccache --show-stats` snapshots taken either side of the publish pipeline, so
 `final` minus `baseline` is what the whole step's packaged builds cost.
-`crates` is a row per crate per subcommand, `package` then `publish`, with
-that crate's wall-clock seconds and its requests, hits and misses. `delta`
-is the pipeline total, and should agree with the difference between the two
-snapshots.
+`crates` is a row per crate per subcommand, `package` then `publish`, with that
+crate's wall-clock seconds and its requests, hits and misses. `delta` is the
+pipeline total, and should agree with the difference between the two snapshots.
 
-The baseline is taken after the pre-flight, deliberately, so the rows
-describe packaging alone. Reading the artefact without that in mind makes
-the step look nearly free: in run 34771459730 the rows sum to 38 seconds
-against a step of 19 minutes. To attribute the rest, read the step log,
-where lading logs each external command it runs with a timestamp.
+The baseline is taken after the pre-flight, deliberately, so the rows describe
+packaging alone. Reading the artefact without that in mind makes the step look
+nearly free: in run 34771459730 the rows sum to 38 seconds against a step of 19
+minutes. To attribute the rest, read the step log, where lading logs each
+external command it runs with a timestamp.
 
 A row's `requests` counts the compilations `cargo package` asked for while
 verifying that crate, so a crate whose dependency closure is already in the
 cache shows a small number of hits and under a second of wall clock, and the
 same crate on a cold store shows hundreds of misses and minutes. Run
-34795056294 is the clearest example: `rstest-bdd-harness-gpui` took 630
-seconds with 466 misses, against 0.79 seconds and no requests at all on the
-two warm runs. A row with zero requests has not skipped anything; it means
-`cargo package` found everything it needed already built in the staged
-target directory.
+34795056294 is the clearest example: `rstest-bdd-harness-gpui` took 630 seconds
+with 466 misses, against 0.79 seconds and no requests at all on the two warm
+runs. A row with zero requests has not skipped anything; it means
+`cargo package` found everything it needed already built in the staged target
+directory.
 
 A `hits` figure that stays at zero across every row on a lane where the
 end-of-job report shows hits is the signal worth acting on. It means the
@@ -418,17 +417,16 @@ The branching itself lives in `scripts/report_publish_statistics.py`, not in
 the step. The reader takes the report's path from the environment, so the
 backslashed path a Windows runner produces never has to survive shell quoting,
 and its four outcomes are tested directly in `scripts/tests/`. The step keeps
-one decision of its own: the Ubicloud image names the interpreter `python3`
-and the GitHub Windows image names it `python`, so the fragment resolves
-whichever is present and warns, rather than failing the lane, when neither
-is.
+one decision of its own: the Ubicloud image names the interpreter `python3` and
+the GitHub Windows image names it `python`, so the fragment resolves whichever
+is present and warns, rather than failing the lane, when neither is.
 
-`publish_verification_script_test.py` runs that step rather than reading it
-for substrings. It extracts the Bash fragment the workflow's
+`publish_verification_script_test.py` runs that step rather than reading it for
+substrings. It extracts the Bash fragment the workflow's
 `Verify publish-step compiler-cache statistics` step declares, writes it to a
 file, and runs it as `bash <file>`, the way a runner executes a step. Five
-cases run against it in turn: a missing report, an empty one, malformed JSON,
-a valid one, and a `PATH` with no interpreter on it at all. Each must exit
+cases run against it in turn: a missing report, an empty one, malformed JSON, a
+valid one, and a `PATH` with no interpreter on it at all. Each must exit
 successfully, the valid report printing without `::warning`. The cases are
 driven by `workflow_queries.run_verification`, which puts the report outside
 the script's working directory and names both the report and the reader
