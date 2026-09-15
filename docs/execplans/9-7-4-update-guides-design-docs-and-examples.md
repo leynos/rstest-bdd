@@ -355,11 +355,10 @@ findings. Roadmap item 9.7.4 is marked done.
 ## Context and orientation
 
 The harness adapter architecture comes from [ADR-005a][adr-005a] and is
-documented in the linked decision record.
-It keeps framework-specific runtime integration out of the core runtime and
-macro crates. The shared `rstest-bdd-harness` crate defines `HarnessAdapter`,
-`ScenarioRunRequest`, `ScenarioRunner`, `AttributePolicy`, and
-`DefaultAttributePolicy`.
+documented in the linked decision record. It keeps framework-specific runtime
+integration out of the core runtime and macro crates. The shared
+`rstest-bdd-harness` crate defines `HarnessAdapter`, `ScenarioRunRequest`,
+`ScenarioRunner`, `AttributePolicy`, and `DefaultAttributePolicy`.
 
 ADR-008 proposes the harness-led default rule for first-party integrations. The
 rule keeps `HarnessAdapter` and `AttributePolicy` separate, but it makes

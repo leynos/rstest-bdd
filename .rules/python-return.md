@@ -60,10 +60,11 @@ def func(x):
     return -1
 ```
 
-Don't rely on implicit `None` if the function may return a value elsewhere—always
-return something at the end.
+Don't rely on implicit `None` if the function may return a value
+elsewhere—always return something at the end.
 
-Functions whose only possible result is `None` do not need a final bare `return`:
+Functions whose only possible result is `None` do not need a final bare
+`return`:
 
 ```python
 # GOOD:

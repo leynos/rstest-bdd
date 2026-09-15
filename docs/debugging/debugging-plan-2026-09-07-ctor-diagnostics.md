@@ -1,12 +1,9 @@
 # Debugging Plan: Restore ctor Diagnostics
 
-**Generated**: 2026-09-07
-**Issue ID**: PR #708
-**Severity**: High
-**Falsification sub-agent**: alchemist
-**Planning agent boundary**: This document was prepared by the planning agent.
-Falsification must be executed by the named sub-agent, not by the planning
-agent.
+**Generated**: 2026-09-07 **Issue ID**: PR #708 **Severity**: High
+**Falsification sub-agent**: alchemist **Planning agent boundary**: This
+document was prepared by the planning agent. Falsification must be executed by
+the named sub-agent, not by the planning agent.
 
 ## Problem Statement
 
@@ -120,8 +117,8 @@ constructor before the inventory submission initializer.
 transformations may make entry identification inconclusive.
 
 **Result**: Not falsified. `readelf` and `nm` show the `ctor` callback before
-the fixture's `inventory::submit!` constructors in `.init_array`. On Linux,
-the callback now uses `.init_array.99999`, which runs after the unprioritized
+the fixture's `inventory::submit!` constructors in `.init_array`. On Linux, the
+callback now uses `.init_array.99999`, which runs after the unprioritized
 inventory registrations while still preceding libtest.
 
 ______________________________________________________________________

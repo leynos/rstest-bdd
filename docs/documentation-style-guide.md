@@ -361,10 +361,10 @@ providing a historical record for future maintainers.
 ### Naming convention
 
 Name ADR files using the pattern `adr-NNN-short-description.md`, where `NNN` is
-a zero-padded sequence number (e.g. `adr-001-async-fixtures-and-tests.md`).
-An ADR documenting a sub-decision that shares a number with an earlier record
-may use a letter suffix (e.g. `adr-005a-harness-adapters.md`).
-Place ADRs in the `docs/` directory.
+a zero-padded sequence number (e.g. `adr-001-async-fixtures-and-tests.md`). An
+ADR documenting a sub-decision that shares a number with an earlier record may
+use a letter suffix (e.g. `adr-005a-harness-adapters.md`). Place ADRs in the
+`docs/` directory.
 
 ### Required sections
 

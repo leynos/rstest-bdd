@@ -12,8 +12,8 @@ ExecPlan is the governing plan for this task.
 ## Purpose / big picture
 
 Phase 9.1 introduces the framework-agnostic harness foundation required by
-Architecture Decision Record 005a (ADR-005a). After this work, the codebase will
-have a dedicated `rstest-bdd-harness` crate that defines:
+Architecture Decision Record 005a (ADR-005a). After this work, the codebase
+will have a dedicated `rstest-bdd-harness` crate that defines:
 
 - a harness adapter trait for executing scenario runners,
 - shared runner types used by adapter crates and macro integration,
@@ -186,8 +186,8 @@ Current runtime and macro policy logic is split across:
   (`runtime = "tokio-current-thread"` parsing).
 
 [ADR-005a][adr-005a] defines the architectural direction: framework
-integrations move to opt-in
-adapter crates, while a small core harness crate owns shared contracts.
+integrations move to opt-in adapter crates, while a small core harness crate
+owns shared contracts.
 
 Phase 9.1 is the foundational layer for that architecture. It should introduce
 harness and policy contracts now, with macro argument integration to follow in

@@ -222,8 +222,8 @@ step-authoring path needs it, and record the addition here.
 ## Architectural rationale
 
 Associated context keeps the contract explicit and local, avoids global state,
-and preserves ADR-005a's crate boundary strategy. It provides a minimal core API
-that can host multiple framework integrations without hard-coding framework
+and preserves ADR-005a's crate boundary strategy. It provides a minimal core
+API that can host multiple framework integrations without hard-coding framework
 semantics into the runtime or macro crates.
 
 ## Addendum (2026-08-17): `#[harness_context]` marker and shared key definition

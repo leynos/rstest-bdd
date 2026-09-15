@@ -13,10 +13,9 @@ ExecPlan is the governing plan for roadmap item 9.6.3.
 
 Roadmap item 9.6.3 closes the author-facing documentation gap for third-party
 harness adapters. Architecture Decision Record 005a (ADR-005a) introduced a
-small harness adapter layer so Tokio,
-Graphical Processing User Interface (GPUI), Bevy, and other framework-specific
-integrations can live in opt-in crates
-rather than the core runtime or macros. ADR-007 then added
+small harness adapter layer so Tokio, Graphical Processing User Interface
+(GPUI), Bevy, and other framework-specific integrations can live in opt-in
+crates rather than the core runtime or macros. ADR-007 then added
 `HarnessAdapter::Context` so a harness can pass typed framework state, such as
 a Bevy `World`, into generated scenario execution.
 

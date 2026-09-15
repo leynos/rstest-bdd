@@ -4,9 +4,9 @@
 
 Accepted (2026-09-13): Record the canonical base URL once, in
 `scripts/users_guide_links.py`, and generate the reference block in
-`docs/users-guide.md` from it. `make update-users-guide-links` writes the
-block; `make lint` runs the same script without `--fix` and fails while the
-committed block disagrees with what generation would write.
+`docs/users-guide.md` from it. `make update-users-guide-links` writes the block;
+`make lint` runs the same script without `--fix` and fails while the committed
+block disagrees with what generation would write.
 
 ## Date
 
@@ -67,8 +67,8 @@ Cons:
 
 ### Option B: render the guide from a template
 
-Keep the definitions in a source document and render `docs/users-guide.md`
-from it.
+Keep the definitions in a source document and render `docs/users-guide.md` from
+it.
 
 Pros:
 
