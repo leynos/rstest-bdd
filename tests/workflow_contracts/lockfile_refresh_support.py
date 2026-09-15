@@ -57,9 +57,7 @@ HOSTILE_HEAD_REF_STRATEGY: typ.Final = st.one_of(
         # fails in the harness handing the ref to the shell rather than in
         # the fragment under test, and the runner can never deliver one: the
         # ref it substitutes came from a git ref decoded as UTF-8.
-        alphabet=st.characters(
-            min_codepoint=33, max_codepoint=0x10FFFF, codec="utf-8"
-        ),
+        alphabet=st.characters(min_codepoint=33, max_codepoint=0x10FFFF, codec="utf-8"),
         min_size=1,
         max_size=48,
     ),
