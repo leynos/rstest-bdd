@@ -171,9 +171,9 @@ Success is observable when:
   Date/Author: 2026-02-15 / ExecPlan draft.
 
 - Decision: emit `compile_error!` when `harness` is combined with `async fn`
-  scenario signatures. Rationale: ADR-005a phases async harness support into 9.3
-  with `rstest-bdd-harness-tokio`. Allowing async + harness now would produce
-  code that compiles but behaves incorrectly (calling synchronous
+  scenario signatures. Rationale: ADR-005a phases async harness support into
+  9.3 with `rstest-bdd-harness-tokio`. Allowing async + harness now would
+  produce code that compiles but behaves incorrectly (calling synchronous
   `HarnessAdapter::run` from an async context). A clear compile error is better
   than silent misbehaviour. Date/Author: 2026-02-15 / ExecPlan draft.
 

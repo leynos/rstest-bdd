@@ -135,9 +135,9 @@ the second means the suite needs to disambiguate which fixture is meant.
 
 ### 2026-09-14: cross-reference the superseded interim pattern
 
-[ADR 011: first-party scenario-state helpers][adr-011] records the
-thread-local interim pattern superseded by ADR-012, which provides the
-borrowing redesign related to this ADR's `StepContext` return-value change.
+[ADR 011: first-party scenario-state helpers][adr-011] records the thread-local
+interim pattern superseded by ADR-012, which provides the borrowing redesign
+related to this ADR's `StepContext` return-value change.
 
 [adr-011]: adr-011-first-party-scenario-state-and-cleanup.md
 [adr-012]: adr-012-guard-based-stepcontext-borrowing.md

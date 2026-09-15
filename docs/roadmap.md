@@ -634,8 +634,8 @@ opt-in crates rather than the core runtime or macros.
 ### 9.7. Harness-led attribute-policy defaults
 
 These items were gated on ADR-008 being accepted. They shipped under maintainer
-authorization before ADR-008 was accepted on 2026-09-14; the prerequisite is now
-satisfied.
+authorization before ADR-008 was accepted on 2026-09-14; the prerequisite is
+now satisfied.
 
 - [x] 9.7.1. Extend first-party policy hint resolution so known harness paths
   can imply default test-attribute hints when `attributes = ...` is omitted.
@@ -650,8 +650,7 @@ satisfied.
   resolver now has regression coverage proving first-party harness paths and
   their matching attribute-policy paths resolve to the same hints. This shipped
   under maintainer authorization before ADR-008 was accepted on 2026-09-14; the
-  prerequisite is now satisfied.
-  (Pandalump)
+  prerequisite is now satisfied. (Pandalump)
 - [x] 9.7.2. Update `#[scenario]` and `scenarios!` code generation so
   first-party harnesses imply their default attribute policies when
   `attributes = ...` is omitted, while explicit `attributes = ...` remains

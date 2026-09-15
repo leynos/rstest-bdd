@@ -158,8 +158,8 @@ Success is observable when:
 - Decision: when `attributes = SomePolicy` is specified, emit only
   `#[rstest::rstest]` and skip the `RuntimeMode`-based `#[tokio::test]`
   generation. Rationale: the attribute policy is the new extension point for
-  controlling test attributes per ADR-005a. When a user specifies a policy, they
-  are opting into the new system and the macro should not second-guess the
+  controlling test attributes per ADR-005a. When a user specifies a policy,
+  they are opting into the new system and the macro should not second-guess the
   policy by also emitting framework-specific attributes. The user's policy (or
   manual `#[tokio::test]` annotation) is trusted. Date/Author: 2026-02-10 /
   Codex.

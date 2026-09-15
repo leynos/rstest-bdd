@@ -2,10 +2,10 @@
 
 ## Status
 
-Superseded (2026-06-11): ADR-012 superseded the proposed
-`ScenarioStore<T>`, `GpuiScenarioStore`, and cleanup macro before
-implementation. The v0.6.x thread-local scenario-state and cleanup pattern was
-an interim workaround, rather than adoption of this ADR's proposed decision.
+Superseded (2026-06-11): ADR-012 superseded the proposed `ScenarioStore<T>`,
+`GpuiScenarioStore`, and cleanup macro before implementation. The v0.6.x
+thread-local scenario-state and cleanup pattern was an interim workaround,
+rather than adoption of this ADR's proposed decision.
 
 ## Date
 
@@ -216,10 +216,10 @@ The ADR fixes the cleanup-ordering contract:
 
 ### Cross-version stance
 
-| Version              | Recommended pattern                              | Support status       |
-| -------------------- | ------------------------------------------------ | -------------------- |
-| v0.6.x               | Thread-local scenario-state and cleanup interim  | Shipped interim      |
-| v0.7.0 (breaking)    | Guard-based `StepContext` borrowing (ADR-012)    | Supersedes proposal  |
+| Version           | Recommended pattern                             | Support status      |
+| ----------------- | ----------------------------------------------- | ------------------- |
+| v0.6.x            | Thread-local scenario-state and cleanup interim | Shipped interim     |
+| v0.7.0 (breaking) | Guard-based `StepContext` borrowing (ADR-012)   | Supersedes proposal |
 
 The v0.6.x release used the thread-local scenario-state and cleanup interim
 pattern. ADR-012 superseded the proposed `ScenarioStore<T>`,
