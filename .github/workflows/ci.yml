@@ -30,7 +30,7 @@ jobs:
       CODESCENE_CLI_SHA256: ${{ vars.CODESCENE_CLI_SHA256 }}
       RUSTFLAGS: -D warnings
       RUSTDOCFLAGS: -D warnings
-      LADING_REF: c3740ef48da4c89752fcb98fff4f1c27284e5f12
+      LADING_REF: b771852411b428ff6fc779cc3a68b153a8f2439a
       BUN_VERSION: '1.2.21'
       MERMAID_CLI_VERSION: '11.9.0'
       MERMAN_CLI_VERSION: '0.7.0'
@@ -543,7 +543,6 @@ jobs:
         if: ${{ runner.os == 'Windows' && matrix.features == '' }}
         # Merged shared-actions whole-workspace coverage revision.
         uses: leynos/shared-actions/.github/actions/generate-coverage@6b5cdc2d4c0bb72cafd5a66d24d248ac25827db9
-        continue-on-error: true
         env:
           # Windows coverage runs (build plus doctests) needed headroom
           # over the shared action's default, and take the same budget as
@@ -567,7 +566,6 @@ jobs:
         if: ${{ runner.os == 'Windows' && matrix.features != '' }}
         # Merged shared-actions whole-workspace coverage revision.
         uses: leynos/shared-actions/.github/actions/generate-coverage@6b5cdc2d4c0bb72cafd5a66d24d248ac25827db9
-        continue-on-error: true
         env:
           # Windows coverage runs (build plus doctests) needed headroom
           # over the shared action's default, and take the same budget as
@@ -587,9 +585,13 @@ jobs:
           use-cargo-nextest: ${{ matrix.use-nextest }}
           pytest-workers: ''
 
-      # Only the Linux lane's coverage is mandatory; the Windows steps carry
-      # `continue-on-error`, so verifying their output would red the lane that
-      # the best-effort marking exists to keep green.
+      # Only the Linux lane's coverage report is consumed: it is what the
+      # CodeScene steps below upload and gate on. The Windows lanes run the
+      # same suite and must pass it, which is why neither carries
+      # `continue-on-error` any more, but nothing reads their report, so
+      # there is nothing here to verify. `workspace_test_gating_test.py`
+      # asserts that no step running the workspace suite is allowed to fail
+      # without failing the job.
       - name: Verify coverage output exists
         if: ${{ runner.os == 'Linux' }}
         shell: bash
@@ -668,6 +670,28 @@ jobs:
           # end-of-job sccache report keeps its meaning (rstest-bdd#720,
           # leynos/shared-actions#459).
           LADING_SCCACHE_STATS_JSON: ${{ runner.temp }}/sccache-publish.json
+          # Skip lading's pre-flight here, and only here. Every lane
+          # reaches this step after its own `Test and Measure Coverage`
+          # step has run the same workspace, and since those steps lost
+          # `continue-on-error` each of them fails its own lane, so the
+          # pre-flight's cargo check and cargo test would be a second
+          # execution of a suite this job has already passed. See
+          # leynos/lading#261.
+          #
+          # Set on the step rather than in lading.toml because a config
+          # file cannot tell a CI run from a local one: `make
+          # publish-check` on a workstation, where nothing has run the
+          # tests first, must still run the full pre-flight.
+          #
+          # The skip drops the auxiliary builds and the cargo check and
+          # test pair. It does not drop the working-tree cleanliness
+          # guard or the Cargo.lock freshness guard, which are cheap and
+          # check things no test run covers.
+          #
+          # `publish_preflight_scope_test.py` pins the premise: one test
+          # step per lane, each selected by its own condition and each
+          # ahead of this step.
+          LADING_SKIP_PREFLIGHT: 'true'
         run: make publish-check
 
       # Runs whatever the publish step did, so an absent or malformed
@@ -675,33 +699,38 @@ jobs:
       # It never fails the job: the report is evidence about a build, not
       # the build, and a publish that failed before lading wrote anything
       # has already failed the job on its own account.
+      #
+      # The branching lives in scripts/report_publish_statistics.py rather
+      # than here. It reads the path from the environment, so the
+      # backslashed Windows path needs no shell quoting, and the reader is
+      # tested directly as well as through this fragment.
       - name: Verify publish-step compiler-cache statistics
-        if: ${{ always() && runner.os == 'Linux' }}
+        if: ${{ always() }}
         shell: bash
         env:
           STATS_PATH: ${{ runner.temp }}/sccache-publish.json
+          REPORT_READER: ${{ github.workspace }}/scripts/report_publish_statistics.py
         run: |
           set -uo pipefail
-          warn() {
-            echo "::warning title=publish-statistics::$1"
-          }
-          if [[ ! -f "${STATS_PATH}" ]]; then
-            warn "lading wrote no compiler-cache report to ${STATS_PATH}; either the publish step failed before lading ran, or the resolved lading predates LADING_SCCACHE_STATS_JSON. This run's publish cost is unattributable."
+          # The Ubicloud image names the interpreter `python3` and the
+          # GitHub Windows image names it `python`, so resolve rather than
+          # assume. A missing interpreter warns like any other reason the
+          # report cannot be read; it must not fail the lane.
+          interpreter=''
+          for candidate in python3 python; do
+            if command -v "${candidate}" >/dev/null 2>&1; then
+              interpreter="${candidate}"
+              break
+            fi
+          done
+          if [[ -z "${interpreter}" ]]; then
+            echo "::warning title=publish-statistics::no Python interpreter was found, so ${STATS_PATH} could not be read."
             exit 0
           fi
-          if [[ ! -s "${STATS_PATH}" ]]; then
-            warn "${STATS_PATH} is empty; lading created it but wrote no report."
-            exit 0
-          fi
-          if ! python3 -c 'import json, os; json.load(open(os.environ["STATS_PATH"]))'; then
-            warn "${STATS_PATH} is not valid JSON, so the publish step's compiler-cache report cannot be read."
-            exit 0
-          fi
-          echo 'Publish-step compiler-cache report:'
-          cat "${STATS_PATH}"
+          "${interpreter}" "${REPORT_READER}"
 
       - name: Upload publish-step compiler-cache statistics
-        if: ${{ always() && runner.os == 'Linux' }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: sccache-publish-${{ matrix.os }}-${{ strategy.job-index }}

@@ -367,7 +367,9 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     if args.list:
         for manifest in manifests:
-            print(manifest.relative_to(root))
+            # One spelling per manifest on every platform, so the listing can
+            # be diffed or fed back to a tool that expects repository paths.
+            print(manifest.relative_to(root).as_posix())
         return 0
     if args.fetch:
         return fetch_fixtures(root, manifests)

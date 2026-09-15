@@ -52,6 +52,21 @@ def pyproject_configuration() -> dict[str, typ.Any]:
 
 
 @pytest.fixture(scope="module")
+def lading_configuration() -> dict[str, typ.Any]:
+    """Return the parsed ``lading.toml``, read once for the module.
+
+    Returns
+    -------
+    dict[str, typ.Any]
+        The parsed configuration document.
+
+    Delegates the read to :func:`workflow_support.repository_file`, which
+    documents the raised contract errors.
+    """
+    return tomllib.loads(repository_file("lading.toml"))
+
+
+@pytest.fixture(scope="module")
 def makefile_text() -> str:
     """Return the ``Makefile`` text, read once for the module.
 

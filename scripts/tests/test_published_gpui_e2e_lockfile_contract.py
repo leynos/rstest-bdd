@@ -39,6 +39,37 @@ def target_dependencies(makefile: str, target: str) -> str:
     return rule_line.split(":", 1)[1].strip()
 
 
+#: One `[[package]]` entry for `ctor`, matching its recorded version.
+#: `\r?\n` keeps the pattern working on a CRLF checkout.
+CTOR_ENTRY = re.compile(r'(?m)^name = "ctor"\r?\nversion = "(?P<version>[0-9.]+)"')
+
+#: A version below anything the staged crate can require, and below every
+#: version the lockfile records, so demoting to it is unambiguous drift.
+DEMOTED_VERSION = "0.0.1"
+
+
+def _version_key(version: str) -> tuple[int, ...]:
+    """Return a sortable key for a dotted numeric version.
+
+    Parameters
+    ----------
+    version : str
+        A version such as ``"1.0.13"``.
+
+    Returns
+    -------
+    tuple[int, ...]
+        Its components, so ``"1.0.13"`` sorts above ``"0.4.3"`` rather than
+        below it as a string comparison would have them.
+
+    Examples
+    --------
+    >>> _version_key("1.0.13") > _version_key("0.4.3")
+    True
+    """
+    return tuple(int(part) for part in version.split("."))
+
+
 def run_staged_fixture_gate() -> subprocess.CompletedProcess[str]:
     """Run the staged fixture gate through the local Make executable."""
     return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - the local Make executable is trusted.
@@ -176,22 +207,43 @@ def test_staged_fixture_gate_fails_when_the_lockfile_is_stale() -> None:
     # `make test` reaches any behavioural test. The original bytes are
     # restored in a finally block, keeping the mutation invisible to the rest
     # of the suite.
-    original = E2E_LOCKFILE.read_bytes()
-    stale_text, replacements = re.subn(
-        r'(?m)^(name = "ctor"\nversion = )"[\d.]+"',
-        r"\g<1>\"0.4.3\"",
-        original.decode(encoding="utf-8"),
-        count=1,
+    original_bytes = E2E_LOCKFILE.read_bytes()
+    original = original_bytes.decode(encoding="utf-8")
+    # `\r?\n` because a Windows checkout may hold the lockfile with CRLF
+    # endings, where a pattern spelling the separator `\n` matches nothing.
+    entries = list(CTOR_ENTRY.finditer(original))
+    assert entries, "the lockfile must record a ctor package version"
+    # Exactly one entry, because the lockfile records two `ctor` versions and
+    # demoting both to one value leaves the same package specified twice,
+    # which Cargo rejects as malformed rather than as stale. The highest is
+    # chosen so the demotion is unambiguously downward; measured on this
+    # lockfile, demoting either entry does reach Cargo's locked refusal.
+    highest = max(entries, key=lambda entry: _version_key(entry["version"]))
+    stale_text = (
+        original[: highest.start("version")]
+        + DEMOTED_VERSION
+        + original[highest.end("version") :]
     )
-    assert replacements == 1, "the lockfile must record a ctor package version"
+    assert stale_text != original, (
+        "the demotion must change the lockfile; a rewrite that lands on the "
+        "recorded version leaves the gate validating an unmodified tree"
+    )
     try:
-        E2E_LOCKFILE.write_text(stale_text, encoding="utf-8")
+        E2E_LOCKFILE.write_text(stale_text, encoding="utf-8", newline="")
         gate = run_staged_fixture_gate()
     finally:
-        E2E_LOCKFILE.write_bytes(original)
+        E2E_LOCKFILE.write_bytes(original_bytes)
 
     assert gate.returncode != 0, (
         "a stale staged fixture lockfile must fail the dedicated gate"
+    )
+    # The reason, not just the exit code. Every earlier step can fail
+    # non-zero too, and a lockfile this test corrupted rather than demoted
+    # fails on a parse error while proving nothing about `--locked`. This
+    # phrase appears only in Cargo's refusal to update a locked file.
+    assert "--locked was passed" in gate.stdout + gate.stderr, (
+        f"the gate must fail on Cargo's refusal to update a locked file, not "
+        f"on something earlier; it printed {gate.stdout + gate.stderr!r}"
     )
     gate_recipe_line = target_text(
         MAKEFILE_PATH.read_text(encoding="utf-8"),

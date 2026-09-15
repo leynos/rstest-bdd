@@ -223,6 +223,126 @@ after installing `sccache`, and the final step publishes `sccache --show-stats`
 in text and JSON to the job summary alongside every cache key, hit result, and
 the backend in use.
 
+#### What the release dry run does, and what it costs
+
+`make publish-check` runs `lading publish` against the workspace. Its phases,
+in order, are: validate that every tracked `Cargo.lock` is fresh under
+`--locked`; run a pre-flight of `cargo check --workspace --all-targets` and then
+`cargo test`, both into a throwaway target directory under the system
+temporary directory; copy the workspace to a staging root; run `cargo package`
+for each publishable crate in the `lading.toml` order; and run
+`cargo publish --dry-run` for each. Only the last two prove what the gate
+exists to prove, that each crate packages and would publish.
+
+Until 2026-09-14 the pre-flight was most of the step. The three runs below were
+measured from the step logs, in seconds.
+
+| Run         | Lane             | check | test | stage | package and publish | step |
+| ----------- | ---------------- | ----- | ---- | ----- | ------------------- | ---- |
+| 34771459730 | Ubicloud         | 151   | 937  | 22    | 38                  | 1154 |
+| 34771459730 | Windows, default | 91    | 632  | 140   | 54                  | 946  |
+| 34771459730 | Windows, strict  | 92    | 650  | 145   | 52                  | 965  |
+| 34792361006 | Ubicloud         | 123   | 760  | 15    | 33                  | 936  |
+| 34792361006 | Windows, default | 77    | 583  | 129   | 72                  | 891  |
+| 34792361006 | Windows, strict  | 111   | 665  | 124   | 39                  | 967  |
+| 34795056294 | Ubicloud         | 123   | 968  | 16    | 752                 | 1864 |
+| 34795056294 | Windows, strict  | 113   | 587  | 135   | 615                 | 1475 |
+| 34795056294 | Windows, default | 151   | 769  | 130   | 737                 | 1817 |
+
+On a warm compiler cache the pre-flight was 94 percent of the Linux step and 74
+to 80 percent of each Windows step, against 33 to 72 seconds of packaging. Run
+34795056294 met a cold cache: its 752 seconds of Linux packaging were real, 630
+of them `rstest-bdd-harness-gpui`, and that cost is inherent to a cold store
+rather than a defect.
+
+The workflow therefore sets `LADING_SKIP_PREFLIGHT` to `true` on the publish
+step, which lading v0.3.1 added for this (leynos/lading#261). lading reads the
+variable through Cyclopts, so `1`, `true`, `t`, `yes` and `y` all enable the
+skip, case insensitively, and `0`, `false`, `f`, `no` and `n` all disable it;
+anything else, including `on` and the empty string, is refused and fails the
+step rather than being guessed at. The equivalent flags are `--skip-preflight`
+and `--no-skip-preflight`, and precedence runs flag, then environment, then the
+`lading.toml` setting. The skip drops the auxiliary builds and the
+`cargo check` and `cargo test` pair. It does not drop the working-tree
+cleanliness guard or the `Cargo.lock` freshness guard, which cost seconds and
+check things no test run covers.
+
+What the skip removes was measured across two warm runs on the same branch,
+[34897826160](https://github.com/leynos/rstest-bdd/actions/runs/34897826160)
+with the narrowed pre-flight and
+[34905225038](https://github.com/leynos/rstest-bdd/actions/runs/34905225038)
+with it skipped, reading the phase boundaries from lading's own timestamped
+`Running external command` lines. Seconds.
+
+| Lane             | check | test | pre-flight | step, before | step, after |
+| ---------------- | ----- | ---- | ---------- | ------------ | ----------- |
+| Ubicloud         | 130   | 117  | 246        | 750          | 486         |
+| Windows, default | 105   | 164  | 269        | 966          | 665         |
+| Windows, strict  | 79    | 112  | 191        | 808          | 783         |
+
+The pre-flight column goes to zero on every lane, which is 706 seconds of
+runner time per run. Whole-step totals move by less, and on the strict Windows
+lane by almost nothing, because staging and packaging vary with the state of
+the compiler cache from run to run: that lane staged in 214 seconds against 144
+and packaged in 553 against 437. Read the phase, not the step total, when
+attributing a change to this setting.
+
+What the skip removes is the repeated `cargo check` and `cargo test` pair, and
+what it keeps is per-crate packaging. That distinction is the whole point of
+the gate. `cargo package` builds each crate from its own packaged sources, so a
+symbol a crate uses internally but never exports from its root compiles
+throughout a workspace build and fails only here. Run
+[34877820839](https://github.com/leynos/rstest-bdd/actions/runs/34877820839) is
+the case in point: all three lanes failed in the publish dry run alone, on
+`rstest_bdd_patterns::RwLockExt` missing from the crate root in two dependent
+crates, while `cargo test --workspace` and Clippy passed on the same tree.
+Pruning this step further, or reducing it to a workspace-wide check, would
+remove the only thing in CI that sees what a published crate exports.
+`publish_preflight_scope_test.py` holds that line from both ends: the step's
+command must be `make publish-check`, and that target's recipe must invoke
+`lading publish` rather than any other subcommand.
+
+The variable is set on the step rather than in `lading.toml`, because a
+configuration file cannot tell a CI run from a local one. On a workstation
+nothing has run the suite before `make publish-check`, so the pre-flight is the
+only thing checking that the workspace builds and its unit tests pass before
+packaging, and it still runs there in full. That is also the command to reach
+for when reproducing a CI publish failure: run `make publish-check` with the
+variable unset and the pre-flight comes back.
+
+What makes the skip safe is a property of the workflow rather than a
+convention, and `publish_preflight_scope_test.py` pins all of it: the
+variable's value, the absence of the equivalent `lading.toml` setting, one test
+step per lane with its own selecting condition, and each of those steps ahead
+of the publish step.
+
+For the local case `lading.toml` sets `preflight.unit_tests_only`, which
+narrows the pre-flight's `cargo test` to `--lib --bins`. The check keeps
+`--all-targets`, so every target is still compiled inside the dry run; what
+stops is a second execution of a suite the lane has already run. The lane order
+is what makes that safe, and `publish_preflight_scope_test.py` asserts it: each
+lane's `Test and Measure Coverage` step precedes the dry run, so moving the dry
+run earlier fails the contract rather than the release.
+
+The pre-flight's plain `cargo test` ran the cargo-spawning tests without the
+nextest test-groups and slow-timeout tiers `.config/nextest.toml` sizes for
+them, and one of its test binaries alone took 630 seconds. Narrowing removes
+the less controlled of the two runs, not the controlled one.
+
+Narrowing it also uncovered something the pre-flight had been hiding. The two
+Windows coverage steps carried `continue-on-error`, so a failing Windows test
+left the job green; what actually failed those lanes was the pre-flight running
+the same tests later in the same job. The enforcement was real but accidental,
+and it came from a step whose purpose is publishing. Both markings are gone, so
+each lane's own test step gates its own lane. That is a deliberate reversal of
+a flag set on purpose: the evidence for it is twenty consecutive CI runs in
+which the Windows coverage steps recorded 32 successes, two cancellations and
+no failures. If one later reds for a tooling reason, the seam is the thing to
+fix. `workspace_test_gating_test.py` asserts that no step running the workspace
+suite, whether through a script or through the coverage action, carries
+`continue-on-error`, and that the workflow still contains such steps for it to
+judge.
+
 #### Attributing the publish step's share
 
 The end-of-job report is job-wide, so it cannot say what any one step spent.
@@ -235,6 +355,36 @@ around each packaged build and write the results to a file, uploaded as the
 invocation rather than obtained by zeroing the counters, so the end-of-job
 report keeps its meaning; a tool that zeroed them would silently make every
 later reading a partial one.
+
+##### Reading the report
+
+The artefact holds four things. `baseline` and `final` are whole
+`sccache --show-stats` snapshots taken either side of the publish pipeline, so
+`final` minus `baseline` is what the whole step's packaged builds cost.
+`crates` is a row per crate per subcommand, `package` then `publish`, with that
+crate's wall-clock seconds and its requests, hits and misses. `delta` is the
+pipeline total, and should agree with the difference between the two snapshots.
+
+The baseline is taken after the pre-flight, deliberately, so the rows describe
+packaging alone. Reading the artefact without that in mind makes the step look
+nearly free: in run 34771459730 the rows sum to 38 seconds against a step of 19
+minutes. To attribute the rest, read the step log, where lading logs each
+external command it runs with a timestamp.
+
+A row's `requests` counts the compilations `cargo package` asked for while
+verifying that crate, so a crate whose dependency closure is already in the
+cache shows a small number of hits and under a second of wall clock, and the
+same crate on a cold store shows hundreds of misses and minutes. Run
+34795056294 is the clearest example: `rstest-bdd-harness-gpui` took 630 seconds
+with 466 misses, against 0.79 seconds and no requests at all on the two warm
+runs. A row with zero requests has not skipped anything; it means
+`cargo package` found everything it needed already built in the staged target
+directory.
+
+A `hits` figure that stays at zero across every row on a lane where the
+end-of-job report shows hits is the signal worth acting on. It means the
+packaged builds are addressing a different cache from the rest of the job,
+which is what the wrapper and backend wiring above exists to prevent.
 
 The variable is set on the workflow step rather than in the Makefile, so a local
 `make publish-check` stays quiet and the file lands where the upload step
@@ -251,25 +401,37 @@ report and a report nobody opened look identical in the artefact list, so a
 lading that stopped writing the file would read as an uneventful run. The step
 never fails the job, because the report is evidence about a build rather than
 the build itself, and a publish that failed before lading ran has already
-failed on its own account. Both it and the upload carry
-`${{ always() && runner.os == 'Linux' }}`: without `always()` the run whose
-cost is most worth reading, the failed one, would upload nothing, and without
-the Linux guard the Windows lanes, which never write the file, would report a
-missing one every time. `publish_report_shape_test.py` asserts both conditions,
-and that the upload's `if-no-files-found` is `warn` rather than `ignore`, so an
-absent report is surfaced rather than swallowed.
+failed on its own account.
 
-`publish_verification_script_test.py` runs that script rather than reading it
-for substrings. It extracts the Bash fragment the workflow's
+Both it and the upload carry `${{ always() }}`, and nothing narrows them by
+operating system. Without `always()` the run whose cost is most worth reading,
+the failed one, would upload nothing. The earlier Linux guard rested on a
+premise the logs disprove: every lane writes the report, and the Windows lanes
+had been writing one since the first run that set the variable, only for both
+steps to skip there and the file to be discarded with the runner.
+`publish_report_shape_test.py` asserts the condition, and that the upload's
+`if-no-files-found` is `warn` rather than `ignore`, so an absent report is
+surfaced rather than swallowed.
+
+The branching itself lives in `scripts/report_publish_statistics.py`, not in
+the step. The reader takes the report's path from the environment, so the
+backslashed path a Windows runner produces never has to survive shell quoting,
+and its four outcomes are tested directly in `scripts/tests/`. The step keeps
+one decision of its own: the Ubicloud image names the interpreter `python3` and
+the GitHub Windows image names it `python`, so the fragment resolves whichever
+is present and warns, rather than failing the lane, when neither is.
+
+`publish_verification_script_test.py` runs that step rather than reading it for
+substrings. It extracts the Bash fragment the workflow's
 `Verify publish-step compiler-cache statistics` step declares, writes it to a
-file, and runs it as `bash <file>`, the way a runner executes a step. Four
-cases run against it in turn — a missing report, an empty one, malformed JSON,
-and a valid one — and each must exit successfully, the valid report printing
-without `::warning`. The cases are driven by
-`publish_report_support.run_verification`, which puts the report outside the
-script's working directory and sets `STATS_PATH` to that report, so a script
-that resolved the report relative to the working directory instead of through
-`STATS_PATH` fails the contract here rather than on the runner.
+file, and runs it as `bash <file>`, the way a runner executes a step. Five
+cases run against it in turn: a missing report, an empty one, malformed JSON, a
+valid one, and a `PATH` with no interpreter on it at all. Each must exit
+successfully, the valid report printing without `::warning`. The cases are
+driven by `workflow_queries.run_verification`, which puts the report outside
+the script's working directory and names both the report and the reader
+absolutely, so a step that resolved either relative to its working directory
+fails the contract here rather than on the runner.
 
 `make publish-check` depends on `stage-published-gpui-e2e`, which extracts
 packaged crates from `target/package/`. That path, and five others in the
@@ -2729,6 +2891,16 @@ pattern in `crates/rstest-bdd/tests/feature_rebuild_invalidation/`:
   check and the refresh path always agree on which fixtures are authoritative.
   A stale lockfile therefore fails before the behavioural nested-Cargo tests
   can mask the drift.
+- Manifest paths in this tooling are rendered with forward slashes on every
+  platform. `scripts/check_fixture_lockfiles.py --list` and the stale, refresh
+  and prefetch failure reports all render a repository manifest through
+  `PurePath.as_posix()`, so a fixture reads as `crates/rstest-bdd/...` on
+  Windows as well as on Linux. The reports are read by people and asserted by
+  tests against paths written the repository's way, and the native separator
+  made the same fixture spell itself two ways; three Python tests failed on the
+  Windows lanes and nowhere else before this was settled. `as_posix` is applied
+  where a path becomes text and nowhere else: the filesystem is still addressed
+  through `Path`, so this is a display contract, not a path-handling one.
 - The Dependabot lockfile refresh runs in
   `.github/workflows/refresh-derived-fixture-lockfiles.yml`, which triggers
   only on `pull_request_target` events from Dependabot (`dependabot[bot]`) that

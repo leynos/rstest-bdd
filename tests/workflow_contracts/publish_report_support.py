@@ -44,11 +44,16 @@ VERIFY_STEP: typ.Final[str] = "Verify publish-step compiler-cache statistics"
 #: The step that collects the report.
 UPLOAD_STEP: typ.Final[str] = "Upload publish-step compiler-cache statistics"
 
-#: The condition both steps carry. Written out rather than matched
-#: loosely: `always()` alone would upload from the Windows lanes, which
-#: never write the file, and `runner.os == 'Linux'` alone would skip the
-#: run that failed, which is the run whose cost is worth reading.
-LINUX_ALWAYS: typ.Final[str] = "${{ always() && runner.os == 'Linux' }}"
+#: The condition both steps carry. `always()` is load-bearing: without
+#: it the run whose cost is most worth reading, the failed one, reports
+#: and uploads nothing. It is not narrowed to Linux, because every lane
+#: writes the report; the Windows lanes wrote one from the first run that
+#: set `LADING_SCCACHE_STATS_JSON` and had it discarded with the runner.
+ALWAYS: typ.Final[str] = "${{ always() }}"
+
+#: The environment variable naming the reader the fragment runs. The
+#: branching lives in that script, not in the step.
+READER_VARIABLE: typ.Final[str] = "REPORT_READER"
 
 #: How long the artefact is kept. Asserted because an artefact that
 #: expires before anyone compares two runs is not evidence.
