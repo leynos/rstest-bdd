@@ -15,10 +15,14 @@ release.
 Run via ``make test-workflow-contracts``.
 """
 
+import itertools
+import re
+import shlex
 import typing as typ
 
 import pytest
 from publish_report_support import DRY_RUN_STEP, mapping_at, step_index, step_named
+from workflow_support import repository_file
 
 #: The environment variable that turns lading's pre-flight off, and the
 #: one value this workflow may use to enable it. lading reads it through
@@ -149,4 +153,142 @@ def test_the_skip_is_not_set_for_local_runs(
         f"lading.toml sets preflight.{SKIP_SETTING}, which skips the "
         f"pre-flight for local runs too; CI sets {SKIP_VARIABLE} on the "
         f"publish step instead"
+    )
+
+
+#: The command the publish step must run, as tokens. The step is the only
+#: place packaging is invoked, and the skip above removes the pre-flight
+#: around it, so what remains has to be the packaging itself.
+PACKAGING_COMMAND: typ.Final[tuple[str, ...]] = ("make", "publish-check")
+
+#: The Make target that command names, and the subcommand its recipe must
+#: hand to lading. `lading publish` packages and dry-run publishes each
+#: crate from its own packaged sources; any other subcommand builds the
+#: workspace as a whole and cannot see a symbol missing from a crate root.
+PACKAGING_TARGET: typ.Final[str] = "publish-check"
+PACKAGING_SUBCOMMAND: typ.Final[str] = "publish"
+
+
+def lading_subcommand(makefile: str, target: str) -> str | None:
+    r"""Return the lading subcommand a Make target's recipe invokes.
+
+    Parameters
+    ----------
+    makefile : str
+        The text of a Makefile.
+    target : str
+        The target whose recipe to read.
+
+    Returns
+    -------
+    str or None
+        The first token after ``lading``, or ``None`` when the recipe
+        runs no lading command at all or names no subcommand.
+
+    Examples
+    --------
+    >>> lading_subcommand("publish-check:\n\tuv run lading publish .\n",
+    ...                   "publish-check")
+    'publish'
+    >>> lading_subcommand("publish-check:\n\techo nothing\n",
+    ...                   "publish-check") is None
+    True
+    """
+    for line in recipe_lines(makefile, target):
+        tokens = shlex.split(line, comments=True)
+        if "lading" in tokens:
+            following = tokens[tokens.index("lading") + 1 :]
+            return following[0] if following else None
+    return None
+
+
+def recipe_lines(makefile: str, target: str) -> list[str]:
+    r"""Return the recipe lines of one Make target.
+
+    Parameters
+    ----------
+    makefile : str
+        The text of a Makefile.
+    target : str
+        The target to read.
+
+    Returns
+    -------
+    list of str
+        The target's tab-indented recipe lines, empty when no rule
+        defines that target.
+
+    Examples
+    --------
+    >>> recipe_lines("all:\n\techo hi\n", "all")
+    ['echo hi']
+    >>> recipe_lines("all:\n\techo hi\n", "absent")
+    []
+    """
+    rule = re.compile(rf"^{re.escape(target)}\s*:(?!=)", re.MULTILINE)
+    match = rule.search(makefile)
+    if match is None:
+        return []
+    body = makefile[match.end() :].splitlines()[1:]
+    return [line[1:] for line in itertools.takewhile(is_recipe_line, body)]
+
+
+def is_recipe_line(line: str) -> bool:
+    r"""Report whether a line belongs to the recipe currently being read.
+
+    Parameters
+    ----------
+    line : str
+        A line following a rule's first line.
+
+    Returns
+    -------
+    bool
+        True for a tab-indented line, which Make treats as a recipe line.
+
+    Examples
+    --------
+    >>> is_recipe_line("\techo hi"), is_recipe_line("other:")
+    (True, False)
+    """
+    return line.startswith("\t")
+
+
+def test_the_publish_step_still_runs_the_packaging_command(
+    build_test_job: dict[str, typ.Any],
+) -> None:
+    """The skip must prune the pre-flight without pruning the packaging.
+
+    `cargo package` builds each crate from its own packaged sources, so
+    it is the only thing in CI that sees what a published crate exports.
+    Run 34877820839 failed here alone, on `RwLockExt` missing from
+    `rstest_bdd_patterns`'s root, while the workspace test run and Clippy
+    both passed; a step reduced to a workspace-wide check would have
+    passed it too.
+    """
+    run = str(step_named(build_test_job, DRY_RUN_STEP).get("run", ""))
+    assert tuple(shlex.split(run, comments=True)) == PACKAGING_COMMAND, (
+        f"the {DRY_RUN_STEP!r} step runs {run.strip()!r}, not "
+        f"{' '.join(PACKAGING_COMMAND)!r}; per-crate packaging is what this "
+        f"step exists to prove"
+    )
+
+
+def test_the_packaging_target_invokes_lading_publish() -> None:
+    """Naming the target is only half of it: the target must package.
+
+    A recipe rewritten to a check-only lading subcommand would leave the
+    step's command unchanged and the contract above satisfied, while
+    nothing packaged any crate in isolation.
+    """
+    makefile = repository_file("Makefile")
+    assert recipe_lines(makefile, PACKAGING_TARGET), (
+        f"the Makefile defines no {PACKAGING_TARGET!r} recipe, so the publish "
+        f"step's command packages nothing"
+    )
+    subcommand = lading_subcommand(makefile, PACKAGING_TARGET)
+    assert subcommand == PACKAGING_SUBCOMMAND, (
+        f"the {PACKAGING_TARGET!r} target runs `lading {subcommand}`, not "
+        f"`lading {PACKAGING_SUBCOMMAND}`; only the publish subcommand builds "
+        f"each crate from its own packaged sources"
     )

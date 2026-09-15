@@ -287,6 +287,21 @@ the compiler cache from run to run: that lane staged in 214 seconds against
 144 and packaged in 553 against 437. Read the phase, not the step total, when
 attributing a change to this setting.
 
+What the skip removes is the repeated `cargo check` and `cargo test` pair, and
+what it keeps is per-crate packaging. That distinction is the whole point of
+the gate. `cargo package` builds each crate from its own packaged sources, so
+a symbol a crate uses internally but never exports from its root compiles
+throughout a workspace build and fails only here. Run
+[34877820839](https://github.com/leynos/rstest-bdd/actions/runs/34877820839) is
+the case in point: all three lanes failed in the publish dry run alone, on
+`rstest_bdd_patterns::RwLockExt` missing from the crate root in two dependent
+crates, while `cargo test --workspace` and Clippy passed on the same tree.
+Pruning this step further, or reducing it to a workspace-wide check, would
+remove the only thing in CI that sees what a published crate exports.
+`publish_preflight_scope_test.py` holds that line from both ends: the step's
+command must be `make publish-check`, and that target's recipe must invoke
+`lading publish` rather than any other subcommand.
+
 The variable is set on the step rather than in `lading.toml`, because a
 configuration file cannot tell a CI run from a local one. On a workstation
 nothing has run the suite before `make publish-check`, so the pre-flight is
