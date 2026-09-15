@@ -23,7 +23,9 @@ step!(
 
 #[test]
 fn reports_unused_steps() {
-    let Some(runner) = find_step(StepKeyword::Given, "a used step".into()) else {
+    let Some(runner) =
+        find_step(StepKeyword::Given, "a used step".into()).expect("lookup should be unambiguous")
+    else {
         panic!("step not found");
     };
     let mut ctx = StepContext::default();

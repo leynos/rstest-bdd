@@ -5,10 +5,10 @@
 
 mod config;
 mod parser;
-mod rename;
+pub(crate) mod rename;
 mod row;
 mod table;
-mod validation;
+pub(crate) mod validation;
 
 use proc_macro::TokenStream;
 

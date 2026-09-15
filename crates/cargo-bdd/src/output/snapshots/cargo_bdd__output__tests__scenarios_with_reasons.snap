@@ -1,5 +1,6 @@
 ---
-source: crates/cargo-bdd/src/output.rs
+source: crates/cargo-bdd/src/output/tests.rs
+assertion_line: 104
 expression: output
 ---
-skipped features/checkout.feature:42 :: declined card is rejected [tags: payments, slow] - payment gateway sandbox unavailable
+skipped features/checkout.feature:42 :: declined card is rejected [libraries: rstest_bdd::global] [tags: payments, slow] - payment gateway sandbox unavailable

@@ -755,6 +755,16 @@ registered, producing a spurious "No matching step definition" error. A UI test
 
 ### 2.3 The `inventory` solution: A global step registry
 
+#### Lexical step-library scopes
+
+Named libraries retain inventory registration while partitioning the registry
+by declared Rust module. Scenario code passes a closed `StepScope`; lookup uses
+only that scope and rejects equally specific candidates. Library order and the
+previously matched step are deliberately absent from dispatch, preserving a
+lexical, deterministic specification vocabulary. RFC 0001
+([explicit step-library scopes](rfcs/0001-explicit-step-library-scopes.md))
+defines the public selection contract, ambiguity model, and tooling scope.
+
 The `inventory` crate provides a clean and powerful abstraction over the
 link-time collection mechanism described above. It offers "typed distributed
 plugin registration," allowing different parts of a program to submit items
@@ -3077,11 +3087,18 @@ Note: `code` values are stable identifiers intended for programmatic use.
 
 Step wrapper functions parse the returned strings and convert them with
 `FromStr` before calling the original step. Scenario execution searches the
-step registry using `find_step`, which falls back to placeholder matching when
-no exact pattern is present. This approach keeps the macros lightweight while
-supporting type‑safe parameters in steps. The parser handles escaped braces,
-nested brace pairs, and treats other backslash escapes literally, preventing
-greedy captures while still requiring well‑formed placeholders.
+selected closed library scope with `find_step_with_metadata_in_scope`, which
+falls back to placeholder matching when no exact pattern is present. Equally
+specific matches return `StepLookupError` rather than using registration or
+library order. This approach keeps the macros lightweight while supporting
+type‑safe parameters in steps. The parser handles escaped braces, nested brace
+pairs, and treats other backslash escapes literally, preventing greedy captures
+while still requiring well‑formed placeholders.
+
+Scoped metadata lookup is read-only: it does not mark a definition as used.
+Execution marks the successfully resolved step at its command boundary, so
+usage reports reflect executed steps rather than inspection or preflight
+queries.
 
 When available, if a table parameter implements `TryFrom<Vec<Vec<String>>>`,
 the wrapper will run the conversion after materializing the nested vectors. The
@@ -3093,6 +3110,10 @@ converts it into an owned `String` before invoking the step function. The
 sequence below summarizes how the runner locates and executes steps when
 placeholders are present:
 
+For screen readers: The diagram shows `ScenarioRunner` asking `StepRegistry`
+for an exact match, then a placeholder match; equally specific matches return
+`StepLookupError` before the wrapper runs.
+
 ```mermaid
 sequenceDiagram
     participant ScenarioRunner
@@ -3100,12 +3121,14 @@ sequenceDiagram
     participant StepWrapper
     participant StepFunction
 
-    ScenarioRunner->>StepRegistry: find_step(keyword, text)
+    ScenarioRunner->>StepRegistry: find_step_with_metadata_in_scope(scope, keyword, text)
     alt exact match
-        StepRegistry-->>ScenarioRunner: StepFn
+        StepRegistry-->>ScenarioRunner: Step metadata
     else placeholder match
         StepRegistry->>StepRegistry: extract_placeholders(pattern, text)
-        StepRegistry-->>ScenarioRunner: StepFn
+        StepRegistry-->>ScenarioRunner: Step metadata
+    else equally specific matches
+        StepRegistry-->>ScenarioRunner: StepLookupError
     end
     ScenarioRunner->>StepWrapper: call StepFn(ctx, text, docstring: Option<&str>, table: Option<&[&[&str]]>)
     StepWrapper->>StepWrapper: extract_placeholders(pattern, text)
@@ -3392,7 +3415,10 @@ These macros keep test code succinct while still surfacing detailed diagnostics.
 - Added a `StepArgs` trait plus `StepArgsError` type in the runtime crate.
   The derive macro (`#[derive(StepArgs)]`) implements both the trait and
   `TryFrom<Vec<String>>`, ensuring each field declares the necessary `FromStr`
-  bound.
+  bound. Derived aggregates bind captures by placeholder name rather than field
+  declaration order; RFC 0002
+  ([named step-argument binding](rfcs/0002-named-step-argument-binding.md))
+  defines the mapping, conversion, and migration contract.
 - The wrapper honours a `#[step_args]` marker on exactly one parameter.
   The attribute is required because procedural macros cannot discover whether
   an arbitrary type derives `StepArgs` without extra user input.[^12][^13] The
@@ -3445,7 +3471,7 @@ These macros keep test code succinct while still surfacing detailed diagnostics.
     <https://testautomationu.applitools.com/behaviour-driven-python-with-pytest-bdd/chapter5.html>.
 [^9]: How can developers create parameterized tests in Rust? - Stack Overflow,
     accessed on 20 July 2025,
-    <https://stackoverflow.com/questions/34662713/how-can-i-create-parameterised-tests-in-rust>.
+    <https://stackoverflow.com/questions/34662713/how-can-i-create-parameterized-tests-in-rust>.
 [^10]: pytest-bdd - Read the Docs, accessed on 20 July 2025,
     <https://readthedocs.org/projects/pytest-bdd/downloads/pdf/latest/>.
 [^11]: pytest-bdd - PyPI, accessed on 20 July 2025,

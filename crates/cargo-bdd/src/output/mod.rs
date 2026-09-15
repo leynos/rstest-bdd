@@ -6,20 +6,20 @@ use eyre::{Context, Result};
 
 use crate::registry::{BypassedStep, Scenario, ScenarioOutcome, Step};
 
-/// Write one step-listing line: `Keyword 'pattern' (file:line)`.
+/// Write one step-listing line: `Keyword 'pattern' [library] (file:line)`.
 ///
 /// Emits a trailing newline. Errors carry the step's identity so a failed
 /// write names the offending entry.
 pub(crate) fn write_step(writer: &mut dyn Write, step: &Step) -> Result<()> {
     writeln!(
         writer,
-        "{} '{}' ({}:{})",
-        step.keyword, step.pattern, step.file, step.line
+        "{} '{}' [{}] ({}:{})",
+        step.keyword, step.pattern, step.library, step.file, step.line
     )
     .wrap_err_with(|| {
         format!(
-            "failed to write step {} '{}' at {}:{}",
-            step.keyword, step.pattern, step.file, step.line
+            "failed to write step {} '{}' in {} at {}:{}",
+            step.keyword, step.pattern, step.library, step.file, step.line
         )
     })
 }
@@ -148,7 +148,11 @@ fn format_scenario_line(scenario: &Scenario, options: ScenarioDisplayOptions) ->
         0
     };
     let location = format_location(&scenario.feature_path, rendered_line);
-    let mut line = format!("skipped {location} :: {}", scenario.name);
+    let mut line = format!(
+        "skipped {location} :: {} [libraries: {}]",
+        scenario.name,
+        scenario.libraries.join(", ")
+    );
     append_scenario_annotations(&mut line, scenario);
     if options.include_tags {
         append_tags(&mut line, &scenario.tags);
@@ -210,15 +214,21 @@ pub(crate) fn write_bypassed_steps(writer: &mut dyn Write, steps: &[BypassedStep
     for step in steps {
         let location = format_location(&step.feature_path, step.scenario_line);
         let mut line = format!(
-            "{} '{}' ({}:{}) - skipped in {} :: {}",
-            step.keyword, step.pattern, step.file, step.line, location, step.scenario_name,
+            "{} '{}' [{}] ({}:{}) - skipped in {} :: {}",
+            step.keyword,
+            step.pattern,
+            step.library,
+            step.file,
+            step.line,
+            location,
+            step.scenario_name,
         );
         append_tags(&mut line, &step.tags);
         append_reason(&mut line, step.reason.as_deref());
         writeln!(writer, "{line}").wrap_err_with(|| {
             format!(
-                "failed to write bypassed step {} '{}' at {}:{}",
-                step.keyword, step.pattern, step.file, step.line
+                "failed to write bypassed step {} '{}' in {} at {}:{}",
+                step.keyword, step.pattern, step.library, step.file, step.line
             )
         })?;
     }
