@@ -5,7 +5,8 @@
 ``LADING_SCCACHE_STATS_JSON``; the workflow then runs this to read it before
 the upload collects it. An absent report and a report nobody opened look
 identical in an artefact list, so each way of having nothing gets its own
-message: never written, written empty, or written and unparsable.
+message: never written, written empty, written and unreadable, or
+written and unparsable.
 
 Nothing here fails the job. The report is evidence about a build rather than
 the build, and a publish that failed before lading ran has already failed on
@@ -82,7 +83,16 @@ def describe_report(stats_path: Path) -> str | None:
             f"unattributable."
         )
         return None
-    text = stats_path.read_text(encoding="utf-8")
+    try:
+        text = stats_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as error:
+        # The file passed is_file() a moment ago, so reaching here means the
+        # report is binary, truncated to non-UTF-8 bytes, or was removed or
+        # made unreadable between the two calls. None of that is a build
+        # failure, and the guarantee this module makes is that none of it
+        # fails the lane either.
+        warn(f"{stats_path} could not be read: {error}.")
+        return None
     if not text.strip():
         warn(f"{stats_path} is empty; lading created it but wrote no report.")
         return None

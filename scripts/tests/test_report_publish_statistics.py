@@ -1,9 +1,10 @@
-"""Test the publish report reader's four outcomes and its exit status.
+"""Test the publish report reader's outcomes and its exit status.
 
 Each way of having nothing is a different fault with a different remedy, so
 the messages are asserted apart from one another: a report never written, one
-created empty, one truncated mid-write, and one that is simply there. None of
-them may fail the job, because this reports on a build rather than being one.
+created empty, one holding bytes that are not UTF-8, one truncated mid-write,
+and one that is simply there. None of them may fail the job, because this
+reports on a build rather than being one.
 """
 
 import importlib
@@ -112,6 +113,31 @@ def test_an_empty_report_is_distinguished_from_a_missing_one(
     printed = capsys.readouterr().out
     assert "is empty" in printed, printed
     assert "wrote no compiler-cache report" not in printed, printed
+
+
+def test_a_report_of_undecodable_bytes_warns_rather_than_raising(
+    reader: types.ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    """A report that is not UTF-8 text reaches the read, not the parse.
+
+    ``read_text`` raises before any JSON parsing happens, so the
+    unparsable-report branch cannot cover this. Unguarded, the exception
+    escapes the reader and takes the verification step, and with it the
+    lane, down over a diagnostic the lane does not depend on.
+    """
+    undecodable = tmp_path / "sccache-publish.json"
+    undecodable.write_bytes(b"\xff\xfe{}")
+
+    assert run_main(reader, monkeypatch, undecodable) == 0, (
+        "an unreadable report is a diagnosis, not a build failure"
+    )
+
+    printed = capsys.readouterr().out
+    assert "could not be read" in printed, printed
+    assert f"::warning title={reader.WARNING_TITLE}::" in printed, printed
 
 
 def test_a_truncated_report_is_reported_as_unreadable(
