@@ -2810,6 +2810,29 @@ pattern in `crates/rstest-bdd/tests/feature_rebuild_invalidation/`:
   (`max-threads = 1`); when adding another such test, update the worst-case
   arithmetic comment in `.config/nextest.toml`.
 
+### Shared nested-Cargo process support
+
+`rstest-bdd-harness::nested_cargo` owns nested-Cargo environment filtering,
+command construction, bounded execution and coverage-profile isolation. Any
+workspace crate needing nested-Cargo isolation may call it. Fixture-specific
+harnesses wrap their copy, stamp, manifest and assertion logic around this
+helper; they must not reimplement environment, timeout or pipe-draining logic.
+Use `ProfileDestination::ChildScratch` for incidental nested-build coverage so
+it cannot write to the parent driver's `LLVM_PROFILE_FILE` destination.
+
+### In-crate test-support re-exports
+
+Shared library test support belongs in `src/test_support.rs`, behind a
+`test-support` feature and `#[cfg(any(test, feature = "test-support"))]`.
+The crate owns it; in-crate unit tests and same-crate integration tests may use
+it. Integration tests re-export it from `tests/support/mod.rs`; scenario glue
+stays under `tests/` and composes the support rather than extending it.
+
+`rstest-bdd-macros` is an exception because `proc-macro = true` crates cannot
+export plain items, so their tests retain `#[path]` source inclusion. Keep the
+GPUI `RecordingLayer` local until a second consumer needs it, then promote it
+through this pattern.
+
 ### Macro-emitted token streams carry no absolute path literal
 
 The `#[scenario]` and `scenarios!` expansions must not embed an absolute

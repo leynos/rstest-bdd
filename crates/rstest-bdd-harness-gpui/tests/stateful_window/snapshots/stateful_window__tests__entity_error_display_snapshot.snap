@@ -1,5 +1,6 @@
 ---
-source: crates/rstest-bdd-harness-gpui/tests/stateful_window.rs
+source: crates/rstest-bdd-harness-gpui/tests/stateful_window/tests.rs
+assertion_line: 193
 expression: "format!(\"{error}\")"
 ---
 entity handle 42 did not identify an entity of the expected type
