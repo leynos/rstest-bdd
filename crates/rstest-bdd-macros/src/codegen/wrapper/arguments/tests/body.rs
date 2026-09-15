@@ -1,3 +1,5 @@
+//! Argument-preparation test cases and supporting modules.
+
 mod bindings;
 mod helpers;
 mod prop_tests;

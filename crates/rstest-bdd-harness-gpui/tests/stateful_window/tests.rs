@@ -1,3 +1,5 @@
+//! Stateful GPUI window fixtures, steps, and ownership assertions.
+
 #![cfg(feature = "native-gpui-tests")]
 
 use std::cell::RefCell;

@@ -1,3 +1,5 @@
+//! Save-indexing transport, diagnostic, and recovery assertions.
+
 use std::path::Path;
 
 use rstest_bdd_server::{

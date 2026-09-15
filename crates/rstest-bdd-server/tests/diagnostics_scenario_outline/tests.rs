@@ -1,3 +1,5 @@
+//! Scenario outline column-validation cases and helpers.
+
 #[path = "../support/mod.rs"]
 mod support;
 

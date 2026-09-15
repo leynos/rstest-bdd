@@ -1,3 +1,5 @@
+//! Step-indexing unit and property tests.
+
 use proptest::prelude::*;
 use rstest::rstest;
 
