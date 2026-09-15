@@ -2893,6 +2893,16 @@ pattern in `crates/rstest-bdd/tests/feature_rebuild_invalidation/`:
   so the check and the refresh path always agree on which fixtures are
   authoritative. A stale lockfile therefore fails before the behavioural
   nested-Cargo tests can mask the drift.
+- Manifest paths in this tooling are rendered with forward slashes on every
+  platform. `scripts/check_fixture_lockfiles.py --list` and the stale, refresh
+  and prefetch failure reports all render a repository manifest through
+  `PurePath.as_posix()`, so a fixture reads as `crates/rstest-bdd/...` on
+  Windows as well as on Linux. The reports are read by people and asserted by
+  tests against paths written the repository's way, and the native separator
+  made the same fixture spell itself two ways; three Python tests failed on the
+  Windows lanes and nowhere else before this was settled. `as_posix` is applied
+  where a path becomes text and nowhere else: the filesystem is still addressed
+  through `Path`, so this is a display contract, not a path-handling one.
 - The Dependabot lockfile refresh runs in
   `.github/workflows/refresh-derived-fixture-lockfiles.yml`, which triggers
   only on `pull_request_target` events from Dependabot (`dependabot[bot]`) that
