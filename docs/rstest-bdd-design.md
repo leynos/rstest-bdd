@@ -1881,10 +1881,11 @@ into execution scheduling.
 The harness-side lookup that makes the second precedence level work lives in
 `crates/rstest-bdd-policy/src/lib.rs` as
 `resolve_test_attribute_hint_for_harness_path`. It accepts a `&[&str]` of path
-segments and returns `Option<TestAttributeHint>`, with the canonical mappings
-held in the `KNOWN_HARNESS_HINTS` table: `STD_HARNESS_PATH` (
-`["rstest_bdd_harness", "StdHarness"]`) maps to `TestAttributeHint::RstestOnly`,
-`TOKIO_HARNESS_PATH` (`["rstest_bdd_harness_tokio", "TokioHarness"]`) maps to
+segments and returns `Option<TestAttributeHint>`. The canonical mappings are
+held in the `FIRST_PARTY_ADAPTER_HINTS` table with the matching policy paths:
+`STD_HARNESS_PATH` (`["rstest_bdd_harness", "StdHarness"]`) maps to
+`TestAttributeHint::RstestOnly`; `TOKIO_HARNESS_PATH`
+(`["rstest_bdd_harness_tokio", "TokioHarness"]`) maps to
 `TestAttributeHint::RstestWithTokioCurrentThread`, and `GPUI_HARNESS_PATH` (
 `["rstest_bdd_harness_gpui", "GpuiHarness"]`) maps to
 `TestAttributeHint::RstestWithGpuiTest`. Unknown third-party paths return
