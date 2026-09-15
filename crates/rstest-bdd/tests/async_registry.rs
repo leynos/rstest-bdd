@@ -6,6 +6,11 @@
 //! patterns or keywords do not match, and that async lookups properly mark
 //! steps as used.
 
+#![expect(
+    deprecated,
+    reason = "tests the deprecated registry lookup compatibility boundary"
+)]
+
 use rstest::rstest;
 use rstest_bdd::{
     AsyncStepFn,
@@ -13,10 +18,18 @@ use rstest_bdd::{
     Step,
     StepContext,
     StepExecution,
+    StepExecutionMode,
     StepFuture,
     StepKeyword,
+    find_step,
+    find_step_async,
+    find_step_async_with_mode,
     find_step_with_metadata,
+    find_step_with_mode,
     iter,
+    lookup_step,
+    lookup_step_async,
+    lookup_step_async_with_mode,
     lookup_step_with_metadata,
     step,
     unused_steps,
@@ -148,6 +161,66 @@ fn metadata_lookup_returns_async_wrapper(#[case] should_match_exactly: bool) {
         },
         "an async registry test step",
     );
+}
+
+// ----------------------------------------------------------------------------
+// Deprecated lookup compatibility tests
+// ----------------------------------------------------------------------------
+
+#[rstest]
+#[case::exact(0)]
+#[case::fuzzy(1)]
+#[case::metadata_alias(2)]
+fn deprecated_sync_lookup_projects_an_invocable_handler(#[case] variant: usize) {
+    let handler = match variant {
+        0 => lookup_step(StepKeyword::Given, "an async registry test step".into()),
+        1 => find_step(StepKeyword::Given, "an async registry test step".into()),
+        2 => {
+            let resolved: Option<&'static Step> =
+                find_step_with_mode(StepKeyword::Given, "an async registry test step".into());
+            resolved.map(|step| step.run)
+        }
+        _ => panic!("unknown sync lookup variant: {variant}"),
+    }
+    .expect("step should be found");
+
+    let mut ctx = StepContext::default();
+    let result = handler(&mut ctx, "an async registry test step", None, None);
+    assert!(
+        matches!(result, Ok(StepExecution::Continue { .. })),
+        "unexpected result: {result:?}"
+    );
+}
+
+#[rstest]
+#[case::exact(true)]
+#[case::fuzzy(false)]
+fn deprecated_async_lookup_projects_an_invocable_handler(#[case] should_match_exactly: bool) {
+    assert_async_wrapper_works(
+        || {
+            if should_match_exactly {
+                lookup_step_async(StepKeyword::Given, "an async registry test step".into())
+            } else {
+                find_step_async(StepKeyword::Given, "an async registry test step".into())
+            }
+        },
+        "an async registry test step",
+    );
+}
+
+#[rstest]
+#[case::exact(true)]
+#[case::fuzzy(false)]
+fn deprecated_mode_lookup_projects_an_invocable_handler(#[case] should_match_exactly: bool) {
+    let (handler, mode) = if should_match_exactly {
+        lookup_step_async_with_mode(StepKeyword::Given, "an async registry test step".into())
+    } else {
+        find_step_async_with_mode(StepKeyword::Given, "an async registry test step".into())
+    }
+    .expect("step should be found");
+
+    assert_eq!(mode, StepExecutionMode::Both);
+    assert_async_wrapper_works(|| Some(handler), "an async registry test step");
 }
 
 // ----------------------------------------------------------------------------

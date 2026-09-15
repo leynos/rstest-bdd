@@ -13,7 +13,7 @@ use crate::types::{AsyncStepFn, PatternStr, StepKeyword, StepText};
 /// # Examples
 ///
 /// ```rust,ignore
-/// use rstest_bdd::StepKeyword;
+/// use rstest_bdd::{StepExecutionMode, StepKeyword};
 ///
 /// // Assume a step has been registered for this keyword/pattern.
 /// let step = rstest_bdd::lookup_step_with_metadata(
@@ -46,7 +46,7 @@ pub fn lookup_step_async_with_mode(
 /// # Examples
 ///
 /// ```rust,ignore
-/// use rstest_bdd::{StepKeyword, StepText};
+/// use rstest_bdd::{StepExecutionMode, StepKeyword, StepText};
 ///
 /// // Assume a step has been registered with a pattern that matches the text.
 /// let step = rstest_bdd::find_step_with_metadata(
@@ -96,6 +96,6 @@ pub fn find_step_async_with_mode(
 pub fn find_step_with_mode(
     keyword: StepKeyword,
     text: StepText<'_>,
-) -> Option<super::ResolvedStep> {
-    super::find_step_with_metadata(keyword, text)
+) -> Option<&'static super::Step> {
+    super::find_step_with_metadata(keyword, text).map(|step| step.as_step())
 }
