@@ -247,15 +247,32 @@ def test_the_query_returns_the_report_text_unchanged(
     )
 
 
-#: Root bypasses the permission bits these two cases rely on, so the faults
-#: they provoke cannot be provoked there at all.
-unprivileged_only = pytest.mark.skipif(
-    os.geteuid() == 0,
-    reason="root can read a mode-000 file and traverse a mode-000 directory",
+def permission_bits_bite() -> bool:
+    """Report whether mode bits can actually deny this process a read.
+
+    Two things stop them. On Windows ``chmod`` only toggles a read-only flag,
+    so a mode-000 file stays readable and a mode-000 directory stays
+    traversable. On POSIX, root ignores the bits outright. Where neither
+    holds, the faults these cases provoke cannot be provoked at all.
+
+    Returns
+    -------
+    bool
+        True when a mode-000 path is genuinely unreadable here.
+    """
+    return os.name == "posix" and os.geteuid() != 0
+
+
+#: ``os.geteuid`` does not exist on Windows, so the platform test has to come
+#: first and the whole decision has to be made in a function rather than in a
+#: bare expression evaluated at import time.
+unprivileged_posix_only = pytest.mark.skipif(
+    not permission_bits_bite(),
+    reason="mode bits cannot deny a read to root, or on Windows",
 )
 
 
-@unprivileged_only
+@unprivileged_posix_only
 def test_an_unreadable_report_is_not_reported_as_a_missing_one(
     reader: types.ModuleType,
     monkeypatch: pytest.MonkeyPatch,
@@ -284,7 +301,7 @@ def test_an_unreadable_report_is_not_reported_as_a_missing_one(
     assert "wrote no compiler-cache report" not in printed, printed
 
 
-@unprivileged_only
+@unprivileged_posix_only
 def test_a_report_behind_an_unreachable_directory_is_not_reported_as_missing(
     reader: types.ModuleType,
     tmp_path: Path,
