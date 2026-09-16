@@ -142,12 +142,12 @@ def main() -> int:
             f"compiler-cache report cannot be located."
         )
         return 0
-    outcome = read_report(Path(raw_path))
-    if isinstance(outcome, Unavailable):
-        warn(outcome.reason)
-        return 0
-    print("Publish-step compiler-cache report:")
-    print(outcome, end="" if outcome.endswith("\n") else "\n")
+    match read_report(Path(raw_path)):
+        case Unavailable(reason=reason):
+            warn(reason)
+        case report:
+            print("Publish-step compiler-cache report:")
+            print(report, end="" if report.endswith("\n") else "\n")
     return 0
 
 

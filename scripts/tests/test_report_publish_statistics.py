@@ -218,10 +218,11 @@ def test_the_query_returns_its_reason_instead_of_announcing_it(
     """
     absent = tmp_path / "sccache-publish.json"
 
-    outcome = reader.read_report(absent)
-
-    assert isinstance(outcome, reader.Unavailable), outcome
-    assert str(absent) in outcome.reason, outcome.reason
+    match reader.read_report(absent):
+        case reader.Unavailable(reason=reason):
+            assert str(absent) in reason, reason
+        case unexpected:
+            pytest.fail(f"expected the reason, got the report {unexpected!r}")
     announced = capsys.readouterr().out
     assert not announced, f"the query must announce nothing, got {announced!r}"
 
