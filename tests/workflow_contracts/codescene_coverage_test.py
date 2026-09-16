@@ -24,8 +24,13 @@ CODESCENE_COVERAGE_USES_RE = re.compile(
     r"^leynos/shared-actions/\.github/actions/upload-codescene-coverage@"
     r"[0-9a-f]{40}$"
 )
+# Both guards name the runner operating system rather than the Linux lane's
+# label. That label is now a conditional expression, because a fork's pull
+# request cannot obtain an Ubicloud runner, so a literal-label guard would
+# switch these steps off on the fork arm without failing anything. There is
+# one Linux lane, so the two spellings select the same job.
 CODESCENE_UPLOAD_GUARD = (
-    "matrix.os == 'ubicloud-standard-2' && "
+    "runner.os == 'Linux' && "
     "github.event_name == 'push' && "
     "github.ref == 'refs/heads/main' && "
     "env.CS_ACCESS_TOKEN != ''"
@@ -36,7 +41,7 @@ EXPECTED_CODESCENE_UPLOAD_INPUTS = {
     "installer-checksum": "${{ vars.CODESCENE_CLI_SHA256 }}",
 }
 CODESCENE_GUARD = (
-    "matrix.os == 'ubicloud-standard-2' && "
+    "runner.os == 'Linux' && "
     "github.event_name == 'pull_request' && "
     "env.CS_ACCESS_TOKEN != ''"
 )

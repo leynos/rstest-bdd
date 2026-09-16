@@ -60,7 +60,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubicloud-standard-2
+          # A pull request from a fork cannot obtain an Ubicloud runner,
+          # so the Linux lane falls back to GitHub-hosted compute for
+          # forks only. Keep the continuation at this indent: a deeper
+          # one keeps its line break and puts a newline inside the
+          # expression, which GitHub then evaluates anyway.
+          - os: >-
+              ${{ github.event.pull_request.head.repo.fork
+              && 'ubuntu-latest' || 'ubicloud-standard-2' }}
             rust-toolchain: stable
             coverage: true
             features: ''
@@ -602,8 +609,11 @@ jobs:
       - name: Check coverage against CodeScene gates
         env:
           CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
+        # Keyed on the runner operating system, not the label: the Linux
+        # lane's label is an expression, so a literal-label guard would
+        # switch this step off on the fork arm.
         if: >-
-          matrix.os == 'ubicloud-standard-2' &&
+          runner.os == 'Linux' &&
           github.event_name == 'pull_request' &&
           env.CS_ACCESS_TOKEN != ''
         uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@0e3c4d24e43aa48b511d94f3b902711eb02138df
@@ -617,8 +627,10 @@ jobs:
       - name: Upload coverage data to CodeScene
         env:
           CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
+        # Keyed on the runner operating system for the same reason as the
+        # check step above.
         if: >-
-          matrix.os == 'ubicloud-standard-2' &&
+          runner.os == 'Linux' &&
           github.event_name == 'push' &&
           github.ref == 'refs/heads/main' &&
           env.CS_ACCESS_TOKEN != ''
