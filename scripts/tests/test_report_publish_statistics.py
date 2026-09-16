@@ -9,6 +9,7 @@ reports on a build rather than being one.
 
 import importlib
 import json
+import os
 import typing as typ
 from pathlib import Path
 
@@ -244,3 +245,69 @@ def test_the_query_returns_the_report_text_unchanged(
     assert reader.read_report(report) == body, (
         "a readable report must come back as its own text"
     )
+
+
+#: Root bypasses the permission bits these two cases rely on, so the faults
+#: they provoke cannot be provoked there at all.
+unprivileged_only = pytest.mark.skipif(
+    os.geteuid() == 0,
+    reason="root can read a mode-000 file and traverse a mode-000 directory",
+)
+
+
+@unprivileged_only
+def test_an_unreadable_report_is_not_reported_as_a_missing_one(
+    reader: types.ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    """A report that exists but cannot be read is its own fault.
+
+    Collapsing it into the missing-report message would send a reader looking
+    for a publish failure that did not happen, which is the same confusion the
+    empty-report case exists to prevent. The lane must still survive it.
+    """
+    unreadable = tmp_path / "sccache-publish.json"
+    unreadable.write_text('{"delta": {}}', encoding="utf-8")
+    unreadable.chmod(0o000)
+
+    try:
+        assert run_main(reader, monkeypatch, unreadable) == 0, (
+            "an unreadable report is a diagnosis, not a build failure"
+        )
+    finally:
+        unreadable.chmod(0o600)
+
+    printed = capsys.readouterr().out
+    assert "could not be read" in printed, printed
+    assert "wrote no compiler-cache report" not in printed, printed
+
+
+@unprivileged_only
+def test_a_report_behind_an_unreachable_directory_is_not_reported_as_missing(
+    reader: types.ModuleType,
+    tmp_path: Path,
+) -> None:
+    """The case that motivated dropping the separate existence check.
+
+    ``Path.is_file()`` answers False for a path it cannot reach, so an
+    existence check ahead of the read cannot tell an unreachable report from
+    an absent one, and would announce the wrong cause with full confidence.
+    """
+    parent = tmp_path / "locked"
+    parent.mkdir()
+    hidden = parent / "sccache-publish.json"
+    hidden.write_text('{"delta": {}}', encoding="utf-8")
+    parent.chmod(0o000)
+
+    try:
+        outcome = reader.read_report(hidden)
+    finally:
+        parent.chmod(0o700)
+
+    match outcome:
+        case reader.Unavailable(reason=reason):
+            assert "could not be read" in reason, reason
+        case unexpected:
+            pytest.fail(f"expected the reason, got the report {unexpected!r}")

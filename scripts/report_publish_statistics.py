@@ -97,21 +97,25 @@ def read_report(stats_path: Path) -> str | Unavailable:
     >>> read_report(Path("no-such-report.json")).reason  # doctest: +ELLIPSIS
     "lading wrote no compiler-cache report to no-such-report.json; ..."
     """
-    if not stats_path.is_file():
+    # One attempt, rather than an existence check followed by a read. Two
+    # calls leave a window in which the report can be removed between them,
+    # and `Path.is_file()` answers False for a path it cannot reach at all,
+    # which would report an unreadable report as one that was never written
+    # and send a reader looking for a publish failure that did not happen.
+    try:
+        text = stats_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
         return Unavailable(
             f"lading wrote no compiler-cache report to {stats_path}; either the "
             f"publish step failed before lading ran, or the resolved lading "
             f"predates LADING_SCCACHE_STATS_JSON. This run's publish cost is "
             f"unattributable."
         )
-    try:
-        text = stats_path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as error:
-        # The file passed is_file() a moment ago, so reaching here means the
-        # report is binary, truncated to non-UTF-8 bytes, or was removed or
-        # made unreadable between the two calls. None of that is a build
-        # failure, and the guarantee this module makes is that none of it
-        # fails the lane either.
+        # Everything else the filesystem can raise: the report is binary or
+        # truncated to non-UTF-8 bytes, its directory is not traversable, or
+        # it is not readable. None of that is a build failure, and the
+        # guarantee this module makes is that none of it fails the lane.
         return Unavailable(f"{stats_path} could not be read: {error}.")
     if not text.strip():
         return Unavailable(
