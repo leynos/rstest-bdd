@@ -17,7 +17,7 @@ import typing as typ
 if typ.TYPE_CHECKING:
     import collections.abc as cabc
     import subprocess
-    from pathlib import Path
+    from pathlib import Path, PurePath
 
 #: Suggested remediation printed when a lockfile no longer resolves.
 REFRESH_HINT = "run 'make update-fixture-lockfiles' to refresh them"
@@ -61,7 +61,9 @@ class FixtureLockfileError(RuntimeError):
         return f"cannot run {cargo} for {manifest}: {error}"
 
 
-def _failure_message(heading: str) -> cabc.Callable[[Path, list[str], str, str], str]:
+def _failure_message(
+    heading: str,
+) -> cabc.Callable[[PurePath, list[str], str, str], str]:
     """
     Build the shared Cargo failure-report formatter for *heading*.
 
@@ -78,19 +80,24 @@ def _failure_message(heading: str) -> cabc.Callable[[Path, list[str], str, str],
 
     Returns
     -------
-    cabc.Callable[[Path, list[str], str, str], str]
+    cabc.Callable[[PurePath, list[str], str, str], str]
         A formatter rendering one multi-line failure report.
     """
 
     def report(
-        manifest: Path,
+        manifest: PurePath,
         command: list[str],
         result_stdout: str,
         result_stderr: str,
     ) -> str:
         """Render one failure report under the factory's heading."""
+        # `as_posix`, not `str`: these reports are read by someone comparing a
+        # CI log against a repository path, and on Windows the native
+        # separator renders the same fixture with backslashes, so the two
+        # platforms name one file two ways. `fixture_lockfile_discovery`
+        # already speaks POSIX for the same reason.
         return (
-            f"{heading} {manifest}\n"
+            f"{heading} {manifest.as_posix()}\n"
             f"command: {' '.join(command)}\n"
             f"cargo output:\n{result_stdout}{result_stderr}"
         )
@@ -264,7 +271,7 @@ class GateMode:
 
     Parameters
     ----------
-    failure_message : cabc.Callable[[Path, list[str], str, str], str]
+    failure_message : cabc.Callable[[PurePath, list[str], str, str], str]
         Render one failing manifest and Cargo output as report text.
     print_summary : cabc.Callable[[int, int], None]
         Close the run with the total and failed counts.
@@ -284,7 +291,7 @@ class GateMode:
         clock at all.
     """
 
-    failure_message: cabc.Callable[[Path, list[str], str, str], str]
+    failure_message: cabc.Callable[[PurePath, list[str], str, str], str]
     print_summary: cabc.Callable[[int, int], None]
     command: cabc.Callable[[Path], list[str]]
     operation: cabc.Callable[[Path], subprocess.CompletedProcess[str]]

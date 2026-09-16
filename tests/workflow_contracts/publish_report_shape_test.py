@@ -17,8 +17,9 @@ import typing as typ
 
 import pytest
 from publish_report_support import (
+    ALWAYS,
     DRY_RUN_STEP,
-    LINUX_ALWAYS,
+    READER_VARIABLE,
     RETENTION_DAYS,
     STATS_VARIABLE,
     UPLOAD_ACTION,
@@ -94,21 +95,20 @@ def test_the_upload_follows_the_publishstep_named(
 
 
 @pytest.mark.parametrize("step_name", [VERIFY_STEP, UPLOAD_STEP], ids=str)
-def test_the_report_steps_run_on_a_failed_linux_run(
+def test_the_report_steps_run_on_every_failed_run(
     build_test_job: dict[str, typ.Any], step_name: str
 ) -> None:
     """The run worth reading is often the one that failed.
 
-    Both halves of the condition are load-bearing and each fails a
-    different way. Without ``always()`` a failed publish uploads nothing,
-    which is the run whose cost is worth knowing. Without the Linux
-    guard, the Windows lanes, which never write the file, would report a
-    missing one on every run.
+    ``always()`` is what keeps it readable: without it a failed publish
+    reports and uploads nothing, which is the run whose cost is worth
+    knowing. The condition is also not narrowed by operating system.
+    Every lane writes the report, and the Windows lanes wrote one from
+    the first run that set the variable, only to have it discarded with
+    the runner because these two steps skipped there.
     """
     condition = str(step_named(build_test_job, step_name).get("if", ""))
-    assert condition == LINUX_ALWAYS, (
-        f"{step_name!r} has if: {condition!r}, not {LINUX_ALWAYS!r}"
-    )
+    assert condition == ALWAYS, f"{step_name!r} has if: {condition!r}, not {ALWAYS!r}"
 
 
 def test_the_artefact_is_named_per_lane_and_kept(
@@ -174,13 +174,23 @@ def test_the_verification_step_reads_the_report_it_was_given(
         f"{statistics_path(build_test_job)!r} the publish step writes"
     )
     script = str(verify.get("run", ""))
-    assert "::warning" in script, (
-        f"{VERIFY_STEP!r} must report a missing or unreadable report as a "
-        f"warning; a silent check is the state this replaces"
+    reader = str(environment.get(READER_VARIABLE, ""))
+    assert reader.endswith("report_publish_statistics.py"), (
+        f"{VERIFY_STEP!r} must name the reader in {READER_VARIABLE}, got "
+        f"{reader!r}; the branching belongs in a tested script rather than "
+        f"in the step"
     )
-    assert "json.load" in script, (
-        f"{VERIFY_STEP!r} must parse the report rather than only test that "
-        f"the file exists; an empty or truncated file would pass otherwise"
+    assert reader.startswith("${{ github.workspace }}"), (
+        f"{READER_VARIABLE} is {reader!r}, which resolves against whatever "
+        f"directory the step happens to run in rather than the checkout"
+    )
+    assert "::warning" in script, (
+        f"{VERIFY_STEP!r} must report the one condition it handles itself, "
+        f"an absent interpreter, as a warning rather than in silence"
+    )
+    assert f"${{{READER_VARIABLE}}}" in script, (
+        f"{VERIFY_STEP!r} must run the reader it names; a fragment that "
+        f"ignored {READER_VARIABLE} would read nothing"
     )
     assert "exit 1" not in script, (
         f"{VERIFY_STEP!r} must not fail the job: the report is evidence "

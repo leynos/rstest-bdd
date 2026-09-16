@@ -264,7 +264,11 @@ def direct_workspace_test_steps() -> list[str]:
 
 
 def run_verification(
-    build_test_job: dict[str, typ.Any], tmp_path: Path, contents: bytes | None
+    build_test_job: dict[str, typ.Any],
+    tmp_path: Path,
+    contents: bytes | None,
+    *,
+    search_path: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run the workflow's verification script against one report.
 
@@ -293,6 +297,10 @@ def run_verification(
         script's working directory.
     contents : bytes or None
         What to write to the report path, or None to leave it absent.
+    search_path : str or None, optional
+        Replaces ``PATH`` for the run. An empty string hides every
+        interpreter, which is how the no-interpreter branch is reached
+        without uninstalling anything.
 
     Returns
     -------
@@ -309,11 +317,21 @@ def run_verification(
     stats_path = report_dir / "sccache-publish.json"
     if contents is not None:
         stats_path.write_bytes(contents)
+    # The reader is named absolutely, as `${{ github.workspace }}` makes it
+    # on the runner, so the fragment's own working directory stays
+    # irrelevant to finding either the reader or the report.
+    environment = {
+        **os.environ,
+        "STATS_PATH": str(stats_path),
+        "REPORT_READER": str(ROOT / "scripts" / "report_publish_statistics.py"),
+    }
+    if search_path is not None:
+        environment["PATH"] = search_path
     return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - the script is this repository's own.
         [BASH, str(script_path)],
         check=False,
         capture_output=True,
         text=True,
-        env={**os.environ, "STATS_PATH": str(stats_path)},
+        env=environment,
         cwd=working_dir,
     )

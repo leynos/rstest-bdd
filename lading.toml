@@ -14,3 +14,27 @@ strip_patches = "per-crate"
 
 [bump]
 exclude = ["gpui", "gpui-macros"]
+
+# CI sets `LADING_SKIP_PREFLIGHT` on the publish step, so the settings below
+# govern a local `make publish-check`, where nothing has run the tests first.
+# The skip is deliberately not set here: in this file it would apply to a
+# workstation run too, which is the one place the pre-flight still earns its
+# time.
+#
+# `lading publish` runs a pre-flight before it packages anything:
+# `cargo check --workspace --all-targets`, then `cargo test`, both into a
+# throwaway target directory. `unit_tests_only` narrows only the second of
+# those to `--lib --bins`; the check keeps `--all-targets`, so every target in
+# the workspace is still compiled here.
+#
+# Executing the whole suite a second time is what this removes. Every CI lane
+# reaches `make publish-check` only after its own test step has run the same
+# workspace, and the pre-flight's plain `cargo test` re-runs the
+# cargo-spawning tests without the nextest test-groups and slow-timeout tiers
+# that `.config/nextest.toml` sizes for them. Measured on runs 34771459730 and
+# 34792361006, the pre-flight was 94 percent of the Linux publish step and
+# 74 to 80 percent of each Windows step, against 33 to 72 seconds for the
+# packaging and dry-run publish the step exists to prove. One test binary
+# alone took 630 seconds of it.
+[preflight]
+unit_tests_only = true
