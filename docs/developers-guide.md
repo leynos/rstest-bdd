@@ -1500,29 +1500,30 @@ cross-directory update.
 
 ## Spelling policy
 
-`make spelling` enforces en-GB-oxendict spelling over tracked text with the
-pinned Typos release. `make spellcheck` remains an alias for existing tooling,
-and `make markdownlint` depends on the same gate, so prose checks cannot bypass
-the repository-wide spelling policy.
+`make spelling` enforces en-GB-oxendict spelling over the whole tree with the
+shared `typos-config-builder` gate, which pins the Typos release it runs.
+`make spellcheck` remains an alias for that gate, and `make markdownlint`
+depends on it, so prose checks cannot bypass the repository-wide spelling
+policy.
 
-The shared Markdown discovery used by `make markdownlint` and the spelling gate
-excludes ignored `.vtcode` task metadata, keeping editor task files out of
-project documentation validation.
+The Markdown discovery used by `make markdownlint` excludes ignored `.vtcode`
+task metadata, keeping editor task files out of project documentation
+validation. The spelling gate reads tracked files, so it never sees them.
 
-The checked-in `typos.toml` is generated from the shared dictionary and the
-repository overlay in `typos.local.toml`. Do not edit generated entries by
-hand. Run `make spelling-config-write` after changing the overlay or after the
-shared dictionary is updated, and use `make spelling-config` to verify that the
-checked-in result is current. The builder keeps its downloaded shared base in
-untracked cache files and refreshes the local copy only when the published
-source is newer.
+The tracked `typos.toml` is regenerated on every run from the live shared
+dictionary and the repository overlay in `typos.local.toml`. Do not edit
+generated entries by hand; add narrow repository terminology to the overlay and
+run `make spelling` again. Because the dictionary is live, `typos.toml` must
+never be drift checked in continuous integration. The builder keeps its
+downloaded shared base in untracked cache files and refreshes the local copy
+only when the published source is newer, so a valid cache remains usable when
+the network is unavailable.
 
 Repository exceptions must protect machine interfaces, formal upstream names,
 foreign-language catalogues, or exact serialized fixtures. Use the narrowest
 anchored pattern or path exclusion possible and explain why it is required. Do
-not add broad word-level exceptions for prose. The consumer phrase checker also
-rejects punctuation-sensitive shared corrections that single-token spelling
-scans cannot enforce reliably.
+not add broad word-level exceptions for prose. The gate also enforces the
+shared phrase corrections that single-token spelling scans cannot express.
 
 ## Test organization: harness-owned integration tests
 

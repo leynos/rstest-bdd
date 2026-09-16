@@ -41,10 +41,11 @@ extend-ignore-re = [
     "(^|[^[:alnum:]_])--color($|[^[:alnum:]_])",
     "-fuse-ld=mold",
     "Artifacts and [Nn]otes",
-    "Center \\| Microsoft Learn",
+    "Azure\\s+Architecture\\s+Center\\s*\\|\\s*Microsoft\\s+Learn\\b",
     "Cranelift \\+ mold",
     "Cranelift and mold",
     "Erreur lors de l'exécution de l'étape « p » via la fonction « f » : boom",
+    "GitHub\\s+Flavored\\s+Markdown\\b(?:\\s\\(GFM\\))?",
     "La fixture « n » de type « u32 » est introuvable pour la fonction « s »",
     "Panique dans l'étape « p », fonction « f » : boom",
     "Rust Analyzer",
@@ -799,6 +800,10 @@ extend-ignore-re = [
 "equalizers" = "equalizers"
 "equalizes" = "equalizes"
 "equalizing" = "equalizing"
+"exercize" = "exercise"
+"exercized" = "exercised"
+"exercizes" = "exercises"
+"exercizing" = "exercising"
 "externalisable" = "externalizable"
 "externalisably" = "externalizably"
 "externalisation" = "externalization"
@@ -1744,6 +1749,7 @@ extend-ignore-re = [
 "organizers" = "organizers"
 "organizes" = "organizes"
 "organizing" = "organizing"
+"otherwize" = "otherwise"
 "oxendict" = "oxendict"
 "oxidisable" = "oxidizable"
 "oxidisably" = "oxidizably"
@@ -1925,6 +1931,26 @@ extend-ignore-re = [
 "pluralizers" = "pluralizers"
 "pluralizes" = "pluralizes"
 "pluralizing" = "pluralizing"
+"polymerisable" = "polymerizable"
+"polymerisably" = "polymerizably"
+"polymerisation" = "polymerization"
+"polymerisations" = "polymerizations"
+"polymerise" = "polymerize"
+"polymerised" = "polymerized"
+"polymeriser" = "polymerizer"
+"polymerisers" = "polymerizers"
+"polymerises" = "polymerizes"
+"polymerising" = "polymerizing"
+"polymerizable" = "polymerizable"
+"polymerizably" = "polymerizably"
+"polymerization" = "polymerization"
+"polymerizations" = "polymerizations"
+"polymerize" = "polymerize"
+"polymerized" = "polymerized"
+"polymerizer" = "polymerizer"
+"polymerizers" = "polymerizers"
+"polymerizes" = "polymerizes"
+"polymerizing" = "polymerizing"
 "popularisable" = "popularizable"
 "popularisably" = "popularizably"
 "popularisation" = "popularization"
@@ -2045,6 +2071,10 @@ extend-ignore-re = [
 "quantizers" = "quantizers"
 "quantizes" = "quantizes"
 "quantizing" = "quantizing"
+"raize" = "raise"
+"raized" = "raised"
+"raizes" = "raises"
+"raizing" = "raising"
 "randomisable" = "randomizable"
 "randomisably" = "randomizably"
 "randomisation" = "randomization"

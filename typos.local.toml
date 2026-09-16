@@ -49,7 +49,8 @@ ignore = [
   # Formal upstream names and the ExecPlan template retain their titles.
   'Rust Analyzer',
   'Artifacts and [Nn]otes',
-  'Center \| Microsoft Learn',
+  # Inline code spans are masked; the shared dictionary does not mask them yet.
+  '`[^`\n]+`',
   # Deliberate mixed-case and translated fixture text is asserted verbatim.
   '\bnOt\b',
   '\bTrUe\b',

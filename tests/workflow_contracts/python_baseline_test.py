@@ -89,7 +89,7 @@ def test_python_analysers_target_python_314(
     pyproject_configuration: dict[str, object],
     makefile_text: str,
 ) -> None:
-    """Ruff, Pylint, Ty, and isolated helper linting must target 3.14."""
+    """Ruff, Pylint, and Ty must target 3.14."""
     tool = pyproject_configuration.get("tool")
     assert isinstance(tool, dict), "pyproject.toml must define [tool]"
     ruff = tool.get("ruff")
@@ -117,11 +117,7 @@ def test_python_analysers_target_python_314(
             "PROJECT_PYTHON = $(UV_ENV) $(UV) run --python 3.14 python" in makefile_text
         ),
         "pylint-python": "PYLINT_PYTHON ?= 3.14" in makefile_text,
-        "ruff-target-count": makefile_text.count("--target-version py314"),
-        "ty": (
-            "$(TY) check --python-version 3.14 "
-            "$(PYTHON_TARGETS) $(SPELLING_PY_SRCS)" in makefile_text
-        ),
+        "ty": "$(TY) check --python-version 3.14 $(PYTHON_TARGETS)" in makefile_text,
     }
     expected = {
         "df12": True,
@@ -129,7 +125,6 @@ def test_python_analysers_target_python_314(
         "obsolete-target": False,
         "project-python": True,
         "pylint-python": True,
-        "ruff-target-count": 2,
         "ty": True,
     }
     assert observed == expected, (

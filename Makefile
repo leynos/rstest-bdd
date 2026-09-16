@@ -2,8 +2,7 @@ VALE ?= vale
 
 .PHONY: help all clean test build build-python release lint lint-python update-users-guide-links
 .PHONY: lint-whitaker typecheck fmt check-fmt markdownlint spellcheck spelling
-.PHONY: spelling-config spelling-config-write spelling-phrase-check
-.PHONY: spelling-helper-test nixie publish-check
+.PHONY: nixie publish-check
 .PHONY: check-published-gpui stage-published-gpui-e2e e2e-published-gpui
 .PHONY: check-published-gpui-e2e-lock
 .PHONY: forbid-async-trait vale update-ui-lints-lock update-published-gpui-0-2-2-lock update-published-gpui-e2e-lock
@@ -48,24 +47,15 @@ RUFF_VERSION ?= 0.16.4
 RUFF = $(UV_ENV) $(UV) tool run --python 3.14 ruff@$(RUFF_VERSION) --config pyproject.toml
 TY_VERSION ?= 0.0.74
 TY = $(UV_ENV) $(UV) run --with ty==$(TY_VERSION) ty
-PATHSPEC_VERSION ?= 1.1.1
-TYPOS_VERSION ?= 1.48.0
-TYPOS_CONFIG_BUILDER_COMMIT := d6da92f02240a79a945c835f69bdd08a888da1d0
-TYPOS_CONFIG_BUILDER_SOURCE := git+https://github.com/leynos/typos-config-builder.git@$(TYPOS_CONFIG_BUILDER_COMMIT)
-TYPOS_CONFIG_BUILDER := $(UV_ENV) $(UV) tool run --python 3.14 \
-	--from "$(TYPOS_CONFIG_BUILDER_SOURCE)" typos-config-builder
-SPELLING_PY_SRCS := \
-	scripts/typos_rollout_check.py scripts/tests/test_typos_rollout_check.py
-SPELLING_PY_TESTS := scripts/tests/test_typos_rollout_check.py
-SPELLING_COVERAGE_ARGS := --cov=typos_rollout_check --cov-fail-under=90
-SPELLING_HELPER_PYTEST = PYTHONPATH=scripts $(UV_ENV) $(UV) run --no-project \
-	--python 3.14 --with pathspec==$(PATHSPEC_VERSION) --with pytest==9.0.2 \
-	--with pytest-cov==7.0.0 python -m pytest
+TYPOS_CONFIG_BUILDER_VERSION ?= v0.1.1
+TYPOS_CONFIG_BUILDER = $(UV_ENV) $(UV) tool run --python 3.14 --from \
+	"git+https://github.com/leynos/typos-config-builder.git@$(TYPOS_CONFIG_BUILDER_VERSION)" \
+	typos-config-builder
 # Shared Markdown file list used by markdownlint and the spelling gate.
 MD_FILES_FIND = find . -type f -name '*.md' -not -path '*/target/*' -not -path '*/node_modules/*' -not -path './.vtcode/*' -print0
 LADING_REF ?= b771852411b428ff6fc779cc3a68b153a8f2439a
 LADING_SPEC ?= lading @ git+https://github.com/leynos/lading@$(LADING_REF)
-PYTHON_TARGETS ?= $(filter-out $(SPELLING_PY_SRCS),$(shell find scripts tests/workflow_contracts -type f -name "*.py" -print | sort))
+PYTHON_TARGETS ?= $(shell find scripts tests/workflow_contracts -type f -name "*.py" -print | sort)
 # Run Pylint on the interpreter whose grammar the lint targets are written in.
 # A managed PyPy lags that syntax and reports nothing at all for a module it
 # cannot parse -- no score banner, no syntax-error, and no too-many-lines --
@@ -145,7 +135,7 @@ update-users-guide-links: ## Rewrite the users-guide reference links from the ca
 
 typecheck: build-python ## Run cargo and Python type checks with warnings denied
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) check $(CARGO_FLAGS) $(BUILD_JOBS)
-	$(TY) check --python-version 3.14 $(PYTHON_TARGETS) $(SPELLING_PY_SRCS)
+	$(TY) check --python-version 3.14 $(PYTHON_TARGETS)
 
 PUBLISHED_GPUI_MANIFEST := tests/fixtures/published-gpui-0-2-2/Cargo.toml
 PUBLISHED_GPUI_E2E_DIR := tests/fixtures/published-gpui-e2e
@@ -221,31 +211,8 @@ markdownlint: spelling ## Lint Markdown files and enforce en-GB-oxendict spellin
 
 spellcheck: spelling ## Compatibility alias for the repository spelling gate
 
-spelling: spelling-phrase-check ## Enforce en-GB-oxendict in tracked text
-	@files=(); \
-	while IFS= read -r -d '' path; do \
-		[[ ! -e "$$path" ]] || files+=("$$path"); \
-	done < <(git ls-files -z); \
-	if (( $${#files[@]} > 0 )); then \
-		printf '%s\0' "$${files[@]}" | \
-			xargs -0 env $(UV_ENV) $(UV) tool run typos@$(TYPOS_VERSION) \
-				--config typos.toml --force-exclude --hidden; \
-	fi
-
-spelling-phrase-check: spelling-config ## Reject prohibited spelling phrases
-	@PYTHONPATH=scripts $(UV_ENV) $(UV) run --no-project --python 3.14 scripts/typos_rollout_check.py --repository .
-
-spelling-config: spelling-helper-test ## Verify generated spelling configuration
-	@git ls-files --error-unmatch typos.toml >/dev/null
-	@$(TYPOS_CONFIG_BUILDER) --repository . --check
-
-spelling-config-write: spelling-helper-test ## Generate spelling configuration
-	@$(TYPOS_CONFIG_BUILDER) --repository .
-
-spelling-helper-test: ## Validate the shared spelling-policy integration
-	@$(UV_ENV) $(UV) tool run --python 3.14 ruff@$(RUFF_VERSION) format --isolated --target-version py314 --check $(SPELLING_PY_SRCS)
-	@$(UV_ENV) $(UV) tool run --python 3.14 ruff@$(RUFF_VERSION) check --isolated --target-version py314 $(SPELLING_PY_SRCS)
-	@$(SPELLING_HELPER_PYTEST) $(SPELLING_PY_TESTS) -c /dev/null --rootdir=. -p no:cacheprovider $(SPELLING_COVERAGE_ARGS)
+spelling: ## Enforce en-GB-oxendict in tracked text
+	$(TYPOS_CONFIG_BUILDER) gate --repository . --scope all
 
 nixie:
 	# CI currently requires --no-sandbox; remove once nixie supports
