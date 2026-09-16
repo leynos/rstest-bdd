@@ -312,6 +312,35 @@ The complete deterministic repository gate also passed locally. Exact-head CI
 evidence on the migrated runners is recorded in PR #710 once the shared-actions
 installer revision it depends on is merged and the branch is pushed.
 
+## Addendum (2026-09-16): fork pull requests fall back to GitHub-hosted Linux
+
+A pull request from a fork cannot obtain an Ubicloud runner, so a fixed
+`ubicloud-standard-2` label leaves such a pull request with no lane at all. The
+Linux matrix leg therefore resolves its label from the head repository:
+
+```yaml
+- os: >-
+    ${{ github.event.pull_request.head.repo.fork
+    && 'ubuntu-latest' || 'ubicloud-standard-2' }}
+```
+
+Every other event, `push` to `main` included, leaves the fork field null and so
+reaches Ubicloud unchanged. The continuation sits at the same indent as the
+first line on purpose. A continuation indented one level deeper keeps its line
+break, so the folded scalar parses to a label with a newline inside the
+expression; the document still parses, `actionlint` still passes and GitHub
+evaluates the expression regardless, which makes a green run no evidence at
+all. Only the raw declaration shows the fault, and
+`tests/workflow_contracts/runner_label_shape_test.py` reads every job's
+`runs-on` and every matrix `os` value for exactly that.
+
+Because the label is now an expression, no step may be guarded by the literal
+label it happens to resolve to: such a step switches off on whichever arm it
+did not name, skipping its work without failing anything. The two CodeScene
+coverage steps are keyed on `runner.os == 'Linux'` instead, which selects the
+same single Linux lane on either arm, and the same contract refuses any step
+whose condition tests `matrix.os` against a literal.
+
 ## Known limitations
 
 The adopted lint does not replace Clippy. `clippy::shadow_reuse`,
