@@ -6,20 +6,13 @@
 use std::sync::{LazyLock, Mutex, MutexGuard};
 
 use rstest_bdd_macros::{given, scenario, then, when};
+use rstest_bdd_patterns::MutexExt;
 use serial_test::serial;
 
 /// Tracks the current item count for arithmetic tests.
 static COUNT: LazyLock<Mutex<i32>> = LazyLock::new(|| Mutex::new(0));
 
-fn get_count_guard() -> MutexGuard<'static, i32> {
-    match COUNT.lock() {
-        Ok(g) => g,
-        Err(p) => {
-            // Tests intentionally recover after poisoning to keep isolation between scenarios.
-            p.into_inner()
-        }
-    }
-}
+fn get_count_guard() -> MutexGuard<'static, i32> { COUNT.lock_ignoring_poison() }
 
 fn set_count(value: i32) {
     let mut g = get_count_guard();

@@ -11,6 +11,7 @@ use std::{
 };
 
 use cap_std::{ambient_authority, fs::Dir};
+use rstest_bdd_patterns::RwLockExt;
 
 /// Cache of canonicalized feature paths to avoid repeated filesystem lookups.
 static FEATURE_PATH_CACHE: LazyLock<RwLock<HashMap<PathBuf, String>>> =
@@ -136,9 +137,7 @@ pub(super) fn canonical_feature_path(path: &Path) -> String {
     };
 
     if let Some(cached) = {
-        let cache = FEATURE_PATH_CACHE
-            .read()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let cache = FEATURE_PATH_CACHE.read_ignoring_poison();
         cache.get(&key).cloned()
     } {
         return cached;
@@ -152,9 +151,7 @@ pub(super) fn canonical_feature_path(path: &Path) -> String {
         .display()
         .to_string();
 
-    let mut cache = FEATURE_PATH_CACHE
-        .write()
-        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut cache = FEATURE_PATH_CACHE.write_ignoring_poison();
     let entry = cache.entry(key).or_insert_with(|| canonical.clone());
     entry.clone()
 }
@@ -224,12 +221,7 @@ fn lexical_normalize(path: &Path) -> PathBuf {
     normalized
 }
 #[cfg(test)]
-fn clear_feature_path_cache() {
-    FEATURE_PATH_CACHE
-        .write()
-        .unwrap_or_else(std::sync::PoisonError::into_inner)
-        .clear();
-}
+fn clear_feature_path_cache() { FEATURE_PATH_CACHE.write_ignoring_poison().clear(); }
 
 #[cfg(test)]
 mod tests {
