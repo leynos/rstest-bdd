@@ -40,8 +40,8 @@ instead:
 ```
 
 Every other event, `push` to `main` included, leaves the fork field null and
-reaches Ubicloud exactly as before. Two rules follow from the label being an
-expression, and a green run demonstrates neither of them:
+reaches Ubicloud exactly as before. Three rules follow from the label being an
+expression, and a green run demonstrates none of them:
 
 - Keep the continuation at the same indent as the first line. A continuation
   indented one level deeper keeps its line break, so the folded scalar parses
@@ -54,8 +54,26 @@ expression, and a green run demonstrates neither of them:
   The two CodeScene coverage steps are keyed on `runner.os == 'Linux'`, which
   selects the same single Linux lane on either arm. The coverage-ratchet step
   is keyed the same way.
+- Name the job yourself, from dimensions that carry no behaviour. GitHub
+  derives a matrix job's check name from its matrix values with `os` first, so
+  a derived name changes with the event: a fork pull request would report
+  `build-test (ubuntu-latest, ...)` while branch protection waits for
+  `build-test (ubicloud-standard-2, ...)`. `build-test` declares
+  `build-test (${{ matrix.platform }}, ${{ matrix.feature-set }})`, which
+  renders `build-test (linux, default features)`,
+  `build-test (windows, default features)` and
+  `build-test (windows, strict-compile-time-validation)`. Renaming a lane means
+  editing the required contexts in the `main-required-checks` ruleset, which is
+  a repository-settings change and not something a pull request can make;
+  sequence the two deliberately or every pull request blocks.
 
-`tests/workflow_contracts/runner_label_shape_test.py` holds both rules. It
+`tests/workflow_contracts/job_name_shape_test.py` holds the naming rule in four
+parts: a matrix job declares a name, that name shares no expression reference
+with its own `runs-on`, it embeds no runner label, and its matrix rows render
+distinct names. The last part is what stops two lanes reporting as one context
+and hiding a red leg behind a green one.
+
+`tests/workflow_contracts/runner_label_shape_test.py` holds the other two. It
 reads every job's raw `runs-on` and every matrix `os` value from the parsed
 document, refuses an embedded line break, asserts the guard field and both arms
 after collapsing folding whitespace, and refuses any step whose condition reads

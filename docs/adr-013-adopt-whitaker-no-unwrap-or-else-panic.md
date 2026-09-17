@@ -345,6 +345,24 @@ reference is what is refused, not the comparison: a rule matching
 `'ubicloud-standard-2' == matrix.os`, and each of those skips a step on one arm
 just as silently.
 
+The same reasoning reaches the job's own check name. GitHub derives a matrix
+job's name from its matrix values with `os` first, so a derived name carries
+whichever label the event selected: a fork pull request would report
+`build-test (ubuntu-latest, ...)` while branch protection waits for
+`build-test (ubicloud-standard-2, ...)`, a context that can now never arrive.
+The derived form is also long enough that GitHub truncates it, which is how one
+of this repository's three required contexts came to end in a literal `...`.
+`build-test` therefore declares its own name from two matrix dimensions that
+carry no behaviour, `platform` and `feature-set`, and
+`tests/workflow_contracts/job_name_shape_test.py` holds four rules: a matrix
+job declares a name, that name shares no expression reference with its own
+`runs-on`, it embeds no runner label, and its matrix rows render distinct
+names. The third and fourth matter as much as the first two: a hard-coded label
+is not stable, and a name omitting the dimension that separates two lanes
+collapses two required contexts into one and hides a red lane behind a green
+one. The overlap is asserted against the job's `runs-on` rather than against
+the literal `matrix.os`, so renaming the dimension cannot quietly exempt it.
+
 ## Known limitations
 
 The adopted lint does not replace Clippy. `clippy::shadow_reuse`,

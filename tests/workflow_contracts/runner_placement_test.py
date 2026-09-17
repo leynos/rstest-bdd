@@ -46,9 +46,14 @@ from workflow_support import (
 # against the expression's text. Its guard and arms are asserted separately,
 # and whitespace-tolerantly, in `runner_label_shape_test`; here it is only
 # required to be the one the repository settled on.
+# `platform` and `feature-set` carry no behaviour. They exist so the job's
+# `name` can say which lane a check belongs to without interpolating the
+# runner label, which `job_name_shape_test` holds it to.
 EXPECTED_BUILD_MATRIX = [
     {
         "os": FORK_FALLBACK_LINUX_LABEL,
+        "platform": "linux",
+        "feature-set": "default features",
         "rust-toolchain": "stable",
         "coverage": True,
         "features": "",
@@ -58,6 +63,8 @@ EXPECTED_BUILD_MATRIX = [
     },
     {
         "os": GITHUB_HOSTED_WINDOWS,
+        "platform": "windows",
+        "feature-set": "default features",
         "rust-toolchain": "stable-x86_64-pc-windows-msvc",
         "coverage": True,
         "features": "",
@@ -67,6 +74,8 @@ EXPECTED_BUILD_MATRIX = [
     },
     {
         "os": GITHUB_HOSTED_WINDOWS,
+        "platform": "windows",
+        "feature-set": "strict-compile-time-validation",
         "rust-toolchain": "stable-x86_64-pc-windows-msvc",
         "coverage": True,
         "features": "strict-compile-time-validation",
