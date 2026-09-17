@@ -6,27 +6,65 @@ patterns used across crates — it is not a user-facing tutorial.
 
 ## GitHub Actions runner placement
 
-Repository-owned Linux build-matrix jobs run on Ubicloud managed runners.
-Windows jobs, the delayed-comment workflow, and every scheduled or
-administrative job stay on GitHub-hosted runners. Ubicloud offers Linux runners
-only, and the GitHub-hosted Windows queue has not been the contention problem
-this migration targets.
+Linux build-matrix jobs run on Ubicloud managed runners whenever the pull
+request comes from a branch of this repository. Windows jobs, the
+delayed-comment workflow, and every scheduled or administrative job stay on
+GitHub-hosted runners. Ubicloud offers Linux runners only, and the
+GitHub-hosted Windows queue has not been the contention problem this migration
+targets.
 
-| Workflow label        | Provider      | Operating system | Machine shape | Intended workload                  |
-| --------------------- | ------------- | ---------------- | ------------- | ---------------------------------- |
-| `ubicloud-standard-2` | Ubicloud      | Ubuntu 24.04     | 2 vCPU, 8 GB  | Linux build-and-coverage matrix    |
-| `windows-latest`      | GitHub-hosted | Windows Server   | 4 vCPU, 16 GB | Windows build-and-coverage matrix  |
-| `ubuntu-latest`       | GitHub-hosted | Ubuntu           | 2 vCPU, 7 GB  | Delayed comment and API-bound work |
+| Workflow label        | Provider      | Operating system | Machine shape | Intended workload                              |
+| --------------------- | ------------- | ---------------- | ------------- | ---------------------------------------------- |
+| `ubicloud-standard-2` | Ubicloud      | Ubuntu 24.04     | 2 vCPU, 8 GB  | Linux build-and-coverage matrix                |
+| `windows-latest`      | GitHub-hosted | Windows Server   | 4 vCPU, 16 GB | Windows build-and-coverage matrix              |
+| `ubuntu-latest`       | GitHub-hosted | Ubuntu           | 2 vCPU, 7 GB  | Fork fallback, delayed comment, API-bound work |
 
 *Table: runner labels used directly by rstest-bdd workflows.*
 
-The `build-test` matrix resolves `runs-on` from `matrix.os`. Both Linux feature
-lane uses `ubicloud-standard-2`; both Windows feature lanes use
+The `build-test` matrix resolves `runs-on` from `matrix.os`. The single Linux
+feature lane resolves its own label; both Windows feature lanes use
 `windows-latest`. The feature sets, default-feature policy, coverage behaviour,
-and Windows `use-nextest: false` deadlock mitigation stay unchanged. The
-CodeScene and coverage-ratchet conditions identify the Linux label explicitly,
-so a runner reassignment must update those conditions and the workflow
-contracts together.
+and Windows `use-nextest: false` deadlock mitigation stay unchanged.
+
+### The Linux lane's label is an expression
+
+A pull request from a fork cannot obtain an Ubicloud runner, so a fixed
+`ubicloud-standard-2` label would leave such a pull request with no Linux lane
+at all. The Linux matrix leg resolves its label from the head repository
+instead:
+
+```yaml
+- os: >-
+    ${{ github.event.pull_request.head.repo.fork
+    && 'ubuntu-latest' || 'ubicloud-standard-2' }}
+```
+
+Every other event, `push` to `main` included, leaves the fork field null and
+reaches Ubicloud exactly as before. Two rules follow from the label being an
+expression, and a green run demonstrates neither of them:
+
+- Keep the continuation at the same indent as the first line. A continuation
+  indented one level deeper keeps its line break, so the folded scalar parses
+  to a label with a newline inside the expression. The document still parses,
+  `actionlint` still passes, and GitHub evaluates the newline-bearing
+  expression anyway.
+- Key a conditional step on `runner.os`, never on a runner label. `matrix.os`
+  is now whichever arm the event selected, so a step naming one literal label
+  switches off on the other arm and skips its work without failing anything.
+  The two CodeScene coverage steps are keyed on `runner.os == 'Linux'`, which
+  selects the same single Linux lane on either arm. The coverage-ratchet step
+  is keyed the same way.
+
+`tests/workflow_contracts/runner_label_shape_test.py` holds both rules. It
+reads every job's raw `runs-on` and every matrix `os` value from the parsed
+document, refuses an embedded line break, asserts the guard field and both arms
+after collapsing folding whitespace, and refuses any step whose condition reads
+`matrix.os` or names either label the lane can resolve to. The reference is
+what is refused rather than the comparison, because a rule matching
+`matrix.os ==` admits `matrix.os != 'ubuntu-latest'` and the same comparison
+written the other way round. A runner reassignment must therefore move the
+arms, the `runner.os` guards, and those contracts together. ADR 013's
+2026-09-16 addendum records the same constraint.
 
 The Linux lane sits on `ubicloud-standard-2`, the recipe's starting shape. The
 constraint that shape imposes is disk, not memory or vCPUs: it offers 72 GB
