@@ -10,151 +10,26 @@ required contexts came to end in a literal ``...``.
 
 An explicit ``name`` fixes that only while it stays clear of the runner. These
 contracts hold all four halves of the rule: a matrix job declares a name, the
-name shares no expression reference with ``runs-on``, it embeds no runner
-label, and the names its matrix rows render stay distinct.
+name shares no expression reference with anything that chooses the runner, it
+embeds no runner label, and the names its matrix rows render stay distinct.
+The parsing lives in :mod:`job_name_support`.
 
 Run with:
 
     pytest tests/workflow_contracts/job_name_shape_test.py
 """
 
-import re
 import typing as typ
 
 import pytest
-from runner_label_support import RESOLVED_LINUX_LABELS
-from workflow_queries import workflow_names as _workflow_names
-from workflow_support import GITHUB_HOSTED_WINDOWS
-from workflow_support import jobs as _jobs
-
-#: Every label a job in this repository can run on. A name containing one of
-#: these is keyed on the runner even when it interpolates nothing.
-RUNNER_LABELS = (*RESOLVED_LINUX_LABELS, GITHUB_HOSTED_WINDOWS)
-_EXPRESSION = re.compile(r"\$\{\{(?P<body>.*?)\}\}", re.DOTALL)
-_REFERENCE = re.compile(r"[A-Za-z_][A-Za-z0-9_-]*(?:\.[A-Za-z_][A-Za-z0-9_-]*)+")
-
-
-def _references(text: object) -> set[str]:
-    """Return the context references an expression-bearing value reads.
-
-    Parameters
-    ----------
-    text : object
-        A workflow value, which YAML permits to be anything.
-
-    Returns
-    -------
-    set[str]
-        Dotted references such as ``matrix.os``, empty when the value
-        is not a string or interpolates nothing.
-
-    Examples
-    --------
-    >>> sorted(_references("${{ matrix.os }}"))
-    ['matrix.os']
-    >>> _references("ubuntu-latest")
-    set()
-    """
-    if not isinstance(text, str):
-        return set()
-    found: set[str] = set()
-    for match in _EXPRESSION.finditer(text):
-        found.update(_REFERENCE.findall(match["body"]))
-    return found
-
-
-def _render(name: str, row: dict[str, object]) -> str:
-    """Render a job name against one matrix include row.
-
-    Parameters
-    ----------
-    name : str
-        The job's declared ``name``.
-    row : dict[str, object]
-        One matrix include row.
-
-    Returns
-    -------
-    str
-        The name with every ``matrix.<key>`` the row supplies substituted.
-
-    Examples
-    --------
-    >>> _render("t (${{ matrix.platform }})", {"platform": "linux"})
-    't (linux)'
-    """
-
-    def substitute(match: re.Match[str]) -> str:
-        reference = match["body"].strip()
-        key = reference.removeprefix("matrix.")
-        return str(row[key]) if key in row else match.group(0)
-
-    return _EXPRESSION.sub(substitute, name)
-
-
-def _matrix_rows(job_document: dict[str, object]) -> list[dict[str, object]]:
-    """Return a job's matrix include rows that are mappings.
-
-    Parameters
-    ----------
-    job_document : dict[str, object]
-        A job mapping.
-
-    Returns
-    -------
-    list[dict[str, object]]
-        The include rows, empty when the job declares no matrix.
-    """
-    strategy = job_document.get("strategy")
-    matrix = strategy.get("matrix") if isinstance(strategy, dict) else None
-    include = matrix.get("include") if isinstance(matrix, dict) else None
-    rows = include if isinstance(include, list) else []
-    return [row for row in rows if isinstance(row, dict)]
-
-
-class JobRef(typ.NamedTuple):
-    """One job, with enough context to name it in a failure.
-
-    Attributes
-    ----------
-    workflow : str
-        File name of the declaring workflow.
-    name : str
-        The job key.
-    document : dict[str, object]
-        The job mapping.
-    """
-
-    workflow: str
-    name: str
-    document: dict[str, object]
-
-    @property
-    def where(self) -> str:
-        """A human-readable location for a failure message.
-
-        Returns
-        -------
-        str
-            The workflow and job key.
-        """
-        return f"{self.workflow}:{self.name}"
-
-
-def _matrix_jobs() -> list[JobRef]:
-    """Return every job in the estate that declares a matrix.
-
-    Returns
-    -------
-    list[JobRef]
-        Each matrix job, in workflow and declaration order.
-    """
-    return [
-        JobRef(workflow_name, job_name, job_document)
-        for workflow_name in _workflow_names()
-        for job_name, job_document in _jobs(workflow_name).items()
-        if _matrix_rows(job_document)
-    ]
+from job_name_support import (
+    RUNNER_LABELS,
+    matrix_jobs,
+    matrix_rows,
+    references,
+    render_job_name,
+    runner_references,
+)
 
 
 def test_the_estate_declares_at_least_one_matrix_job() -> None:
@@ -163,7 +38,7 @@ def test_the_estate_declares_at_least_one_matrix_job() -> None:
     Every contract below is a list comprehension over the matrix jobs, so a
     traversal that found none would report success while asserting nothing.
     """
-    assert _matrix_jobs(), (
+    assert matrix_jobs(), (
         "the contracts in this module are vacuous unless the traversal finds "
         "a matrix job; ci.yml:build-test is one"
     )
@@ -178,7 +53,7 @@ def test_every_matrix_job_declares_an_explicit_name() -> None:
     """
     unnamed = [
         job.where
-        for job in _matrix_jobs()
+        for job in matrix_jobs()
         if not isinstance(job.document.get("name"), str)
     ]
     assert not unnamed, (
@@ -188,17 +63,21 @@ def test_every_matrix_job_declares_an_explicit_name() -> None:
 
 
 def test_no_job_name_reads_what_runs_on_reads() -> None:
-    """Keep the check name clear of the runner the job resolved.
+    """Keep the check name clear of everything that chooses the runner.
 
     Asserted against the job's own ``runs-on`` rather than against the literal
-    ``matrix.os``, so renaming the dimension cannot quietly exempt it.
+    ``matrix.os``, so renaming the dimension cannot quietly exempt it, and
+    through the matrix values that ``runs-on`` resolves, so a name reading the
+    ``fork`` field behind the label is refused as well. Those two share no
+    reference with each other, so comparing against ``runs-on`` alone would
+    admit the second.
     """
     shared = [
         f"{job.where} name reads {sorted(overlap)}"
-        for job in _matrix_jobs()
+        for job in matrix_jobs()
         if (
-            overlap := _references(job.document.get("name"))
-            & _references(job.document.get("runs-on"))
+            overlap := references(job.document.get("name"))
+            & runner_references(job.document)
         )
     ]
     assert not shared, (
@@ -216,7 +95,7 @@ def test_no_job_name_embeds_a_runner_label() -> None:
     """
     embedded = [
         f"{job.where} name names {label!r}"
-        for job in _matrix_jobs()
+        for job in matrix_jobs()
         for label in RUNNER_LABELS
         if label in str(job.document.get("name", ""))
     ]
@@ -234,11 +113,11 @@ def test_matrix_rows_render_distinct_job_names() -> None:
     required contexts into one and hides a red lane behind a green one.
     """
     collisions = []
-    for job in _matrix_jobs():
+    for job in matrix_jobs():
         declared = job.document.get("name")
         if not isinstance(declared, str):
             continue
-        rendered = [_render(declared, row) for row in _matrix_rows(job.document)]
+        rendered = [render_job_name(declared, row) for row in matrix_rows(job.document)]
         if len(set(rendered)) != len(rendered):
             collisions.append(f"{job.where} renders {rendered}")
     assert not collisions, (
@@ -267,7 +146,94 @@ def test_overlap_discriminates(name: str, runs_on: str, *, expected: bool) -> No
     pass whether it discriminated or not. The renamed-key case is the one
     that matters: a rule hard-coded to ``matrix.os`` would admit it.
     """
-    assert bool(_references(name) & _references(runs_on)) is expected, (
+    assert bool(references(name) & references(runs_on)) is expected, (
         f"name {name!r} against runs-on {runs_on!r} must "
         f"{'overlap' if expected else 'not overlap'}"
+    )
+
+
+#: A job shaped like `ci.yml:build-test`: the label is resolved from a matrix
+#: key, and the value behind that key branches on the head repository.
+_FORK_LANE_JOB: typ.Final[dict[str, object]] = {
+    "runs-on": "${{ matrix.os }}",
+    "strategy": {
+        "matrix": {
+            "include": [
+                {
+                    "os": (
+                        "${{ github.event.pull_request.head.repo.fork"
+                        " && 'ubuntu-latest' || 'ubicloud-standard-2' }}"
+                    ),
+                },
+                {"os": "windows-latest"},
+            ]
+        }
+    },
+}
+_FORK_FIELD = "github.event.pull_request.head.repo.fork"
+
+
+def test_runner_references_reach_through_the_matrix() -> None:
+    """Follow ``runs-on`` into the matrix value it resolves.
+
+    ``runs-on`` and the fork field share no reference, so a rule comparing the
+    two directly cannot see that the label depends on the head repository.
+    """
+    assert runner_references(_FORK_LANE_JOB) == {"matrix.os", _FORK_FIELD}, (
+        "the references that choose a runner are the ones runs-on reads plus "
+        "the ones the matrix values it resolves read"
+    )
+
+
+def test_runner_references_stop_at_a_literal_matrix_value() -> None:
+    """Do not invent a dependency a literal label does not have.
+
+    A lane whose matrix value is a plain label depends on nothing, and a rule
+    that returned references anyway would refuse names that are perfectly
+    stable.
+    """
+    literal_job: dict[str, object] = {
+        "runs-on": "${{ matrix.os }}",
+        "strategy": {"matrix": {"include": [{"os": "ubuntu-latest"}]}},
+    }
+
+    assert runner_references(literal_job) == {"matrix.os"}, (
+        "a literal matrix label reads no context, so it adds no reference"
+    )
+
+
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        pytest.param("build-test (${{ matrix.platform }})", False, id="platform-word"),
+        pytest.param("build-test (${{ matrix.os }})", True, id="matrix-os"),
+        pytest.param(
+            "build-test (${{ github.event.pull_request.head.repo.fork"
+            " && 'fork' || 'internal' }})",
+            True,
+            id="fork-field-behind-the-label",
+        ),
+        pytest.param(
+            "build-test (${{ github.event.pull_request.head.repo.private"
+            " && 'private' || 'public' }})",
+            False,
+            id="sibling-field-the-label-does-not-read",
+        ),
+    ],
+)
+def test_name_overlap_covers_the_matrix_value(name: str, *, expected: bool) -> None:
+    """Refuse a name reading the field the label branches on.
+
+    The fork case is the one a rule comparing the name with ``runs-on`` alone
+    admits: such a name renders differently on a fork's pull request and on an
+    internal one, which is exactly the instability the explicit name exists to
+    remove. The sibling ``private`` field proves the rule narrow: it reads
+    almost identically and the label does not branch on it, so a name using it
+    is stable and must be admitted.
+    """
+    overlap = references(name) & runner_references(_FORK_LANE_JOB)
+
+    assert bool(overlap) is expected, (
+        f"name {name!r} must {'be refused' if expected else 'be admitted'}; "
+        f"overlap was {sorted(overlap)}"
     )

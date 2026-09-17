@@ -54,10 +54,10 @@ expression, and a green run demonstrates none of them:
   The two CodeScene coverage steps are keyed on `runner.os == 'Linux'`, which
   selects the same single Linux lane on either arm. The coverage-ratchet step
   is keyed the same way.
-- Name the job yourself, from dimensions that carry no behaviour. GitHub
-  derives a matrix job's check name from its matrix values with `os` first, so
-  a derived name changes with the event: a fork pull request would report
-  `build-test (ubuntu-latest, ...)` while branch protection waits for
+- Declare the job name explicitly, from dimensions that carry no behaviour.
+  GitHub derives a matrix job's check name from its matrix values with `os`
+  first, so a derived name changes with the event: a fork pull request would
+  report `build-test (ubuntu-latest, ...)` while branch protection waits for
   `build-test (ubicloud-standard-2, ...)`. `build-test` declares
   `build-test (${{ matrix.platform }}, ${{ matrix.feature-set }})`, which
   renders `build-test (linux, default features)`,
@@ -69,9 +69,18 @@ expression, and a green run demonstrates none of them:
 
 `tests/workflow_contracts/job_name_shape_test.py` holds the naming rule in four
 parts: a matrix job declares a name, that name shares no expression reference
-with its own `runs-on`, it embeds no runner label, and its matrix rows render
-distinct names. The last part is what stops two lanes reporting as one context
-and hiding a red leg behind a green one.
+with anything that chooses the runner, it embeds no runner label, and its
+matrix rows render distinct names. The last part is what stops two lanes
+reporting as one context and hiding a red leg behind a green one.
+
+"Anything that chooses the runner" is wider than `runs-on`. This job's
+`runs-on` reads `matrix.os`, and the value behind that key reads the head
+repository's `fork` field, so a name reading that field directly would render
+differently on a fork's pull request and on an internal one while sharing no
+reference with `runs-on` at all. The contract therefore follows `runs-on` into
+the matrix values it resolves, and is proved narrow against the sibling
+`private` field, which reads almost identically and which the label does not
+branch on.
 
 `tests/workflow_contracts/runner_label_shape_test.py` holds the other two. It
 reads every job's raw `runs-on` and every matrix `os` value from the parsed
@@ -135,6 +144,29 @@ the pressure in place.
 `ubicloud-standard-2` is registered in `.github/actionlint.yaml` under
 `self-hosted-runner.labels`. GitHub-hosted labels need no registration, and the
 contracts require the registered set to match the labels the matrix names.
+
+### Workflow-contract support modules
+
+Two support modules carry the parsing these placement contracts rest on.
+`runner_label_support` reads a declared runner label, raw and parsed, and
+answers whether a step condition is keyed on one. `job_name_support` reads a
+declared job name, renders it against a matrix row, and works out which
+references can choose a job's runner. Their scope and re-use policy:
+
+- **Ownership.** Both belong to the runner-placement contracts. They parse
+  workflow documents that `workflow_support` has already loaded and own no
+  input or output of their own. A contract that only needs a workflow document
+  takes `workflow_support` directly.
+- **Permitted call sites.** `runner_label_shape_test`, `job_name_shape_test`
+  and `runner_placement_test`, which shares the label constants. A new
+  placement contract may use them; anything not about where a job runs should
+  not.
+- **Composition.** Each takes parsed workflow fragments and returns values, so
+  a contract composes them rather than re-parsing. They raise
+  `WorkflowShapeError` subclasses rather than asserting, which is why they
+  carry no blanket lint suppression. They exist as separate modules because
+  `workflow_support` and `workflow_queries` were both already near the
+  repository's 400-line module ceiling.
 
 ### Cache ownership
 
