@@ -6,27 +6,92 @@ patterns used across crates — it is not a user-facing tutorial.
 
 ## GitHub Actions runner placement
 
-Repository-owned Linux build-matrix jobs run on Ubicloud managed runners.
-Windows jobs, the delayed-comment workflow, and every scheduled or
-administrative job stay on GitHub-hosted runners. Ubicloud offers Linux runners
-only, and the GitHub-hosted Windows queue has not been the contention problem
-this migration targets.
+Linux build-matrix jobs run on Ubicloud managed runners whenever the pull
+request comes from a branch of this repository. Windows jobs, the
+delayed-comment workflow, and every scheduled or administrative job stay on
+GitHub-hosted runners. Ubicloud offers Linux runners only, and the
+GitHub-hosted Windows queue has not been the contention problem this migration
+targets.
 
-| Workflow label        | Provider      | Operating system | Machine shape | Intended workload                  |
-| --------------------- | ------------- | ---------------- | ------------- | ---------------------------------- |
-| `ubicloud-standard-2` | Ubicloud      | Ubuntu 24.04     | 2 vCPU, 8 GB  | Linux build-and-coverage matrix    |
-| `windows-latest`      | GitHub-hosted | Windows Server   | 4 vCPU, 16 GB | Windows build-and-coverage matrix  |
-| `ubuntu-latest`       | GitHub-hosted | Ubuntu           | 2 vCPU, 7 GB  | Delayed comment and API-bound work |
+| Workflow label        | Provider      | Operating system | Machine shape | Intended workload                              |
+| --------------------- | ------------- | ---------------- | ------------- | ---------------------------------------------- |
+| `ubicloud-standard-2` | Ubicloud      | Ubuntu 24.04     | 2 vCPU, 8 GB  | Linux build-and-coverage matrix                |
+| `windows-latest`      | GitHub-hosted | Windows Server   | 4 vCPU, 16 GB | Windows build-and-coverage matrix              |
+| `ubuntu-latest`       | GitHub-hosted | Ubuntu           | 2 vCPU, 7 GB  | Fork fallback, delayed comment, API-bound work |
 
 *Table: runner labels used directly by rstest-bdd workflows.*
 
-The `build-test` matrix resolves `runs-on` from `matrix.os`. Both Linux feature
-lane uses `ubicloud-standard-2`; both Windows feature lanes use
+The `build-test` matrix resolves `runs-on` from `matrix.os`. The single Linux
+feature lane resolves its own label; both Windows feature lanes use
 `windows-latest`. The feature sets, default-feature policy, coverage behaviour,
-and Windows `use-nextest: false` deadlock mitigation stay unchanged. The
-CodeScene and coverage-ratchet conditions identify the Linux label explicitly,
-so a runner reassignment must update those conditions and the workflow
-contracts together.
+and Windows `use-nextest: false` deadlock mitigation stay unchanged.
+
+### The Linux lane's label is an expression
+
+A pull request from a fork cannot obtain an Ubicloud runner, so a fixed
+`ubicloud-standard-2` label would leave such a pull request with no Linux lane
+at all. The Linux matrix leg resolves its label from the head repository
+instead:
+
+```yaml
+- os: >-
+    ${{ github.event.pull_request.head.repo.fork
+    && 'ubuntu-latest' || 'ubicloud-standard-2' }}
+```
+
+Every other event, `push` to `main` included, leaves the fork field null and
+reaches Ubicloud exactly as before. Three rules follow from the label being an
+expression, and a green run demonstrates none of them:
+
+- Keep the continuation at the same indent as the first line. A continuation
+  indented one level deeper keeps its line break, so the folded scalar parses
+  to a label with a newline inside the expression. The document still parses,
+  `actionlint` still passes, and GitHub evaluates the newline-bearing
+  expression anyway.
+- Key a conditional step on `runner.os`, never on a runner label. `matrix.os`
+  is now whichever arm the event selected, so a step naming one literal label
+  switches off on the other arm and skips its work without failing anything.
+  The two CodeScene coverage steps are keyed on `runner.os == 'Linux'`, which
+  selects the same single Linux lane on either arm. The coverage-ratchet step
+  is keyed the same way.
+- Declare the job name explicitly, from dimensions that carry no behaviour.
+  GitHub derives a matrix job's check name from its matrix values with `os`
+  first, so a derived name changes with the event: a fork pull request would
+  report `build-test (ubuntu-latest, ...)` while branch protection waits for
+  `build-test (ubicloud-standard-2, ...)`. `build-test` declares
+  `build-test (${{ matrix.platform }}, ${{ matrix.feature-set }})`, which
+  renders `build-test (linux, default features)`,
+  `build-test (windows, default features)` and
+  `build-test (windows, strict-compile-time-validation)`. Renaming a lane means
+  editing the required contexts in the `main-required-checks` ruleset, which is
+  a repository-settings change and not something a pull request can make;
+  sequence the two deliberately or every pull request blocks.
+
+`tests/workflow_contracts/job_name_shape_test.py` holds the naming rule in four
+parts: a matrix job declares a name, that name shares no expression reference
+with anything that chooses the runner, it embeds no runner label, and its
+matrix rows render distinct names. The last part is what stops two lanes
+reporting as one context and hiding a red leg behind a green one.
+
+"Anything that chooses the runner" is wider than `runs-on`. This job's
+`runs-on` reads `matrix.os`, and the value behind that key reads the head
+repository's `fork` field, so a name reading that field directly would render
+differently on a fork's pull request and on an internal one while sharing no
+reference with `runs-on` at all. The contract therefore follows `runs-on` into
+the matrix values it resolves, and is proved narrow against the sibling
+`private` field, which reads almost identically and which the label does not
+branch on.
+
+`tests/workflow_contracts/runner_label_shape_test.py` holds the other two. It
+reads every job's raw `runs-on` and every matrix `os` value from the parsed
+document, refuses an embedded line break, asserts the guard field and both arms
+after collapsing folding whitespace, and refuses any step whose condition reads
+`matrix.os` or names either label the lane can resolve to. The reference is
+what is refused rather than the comparison, because a rule matching
+`matrix.os ==` admits `matrix.os != 'ubuntu-latest'` and the same comparison
+written the other way round. A runner reassignment must therefore move the
+arms, the `runner.os` guards, and those contracts together. ADR 013's
+2026-09-16 addendum records the same constraint.
 
 The Linux lane sits on `ubicloud-standard-2`, the recipe's starting shape. The
 constraint that shape imposes is disk, not memory or vCPUs: it offers 72 GB
@@ -79,6 +144,29 @@ the pressure in place.
 `ubicloud-standard-2` is registered in `.github/actionlint.yaml` under
 `self-hosted-runner.labels`. GitHub-hosted labels need no registration, and the
 contracts require the registered set to match the labels the matrix names.
+
+### Workflow-contract support modules
+
+Two support modules carry the parsing these placement contracts rest on.
+`runner_label_support` reads a declared runner label, raw and parsed, and
+answers whether a step condition is keyed on one. `job_name_support` reads a
+declared job name, renders it against a matrix row, and works out which
+references can choose a job's runner. Their scope and re-use policy:
+
+- **Ownership.** Both belong to the runner-placement contracts. They parse
+  workflow documents that `workflow_support` has already loaded and own no
+  input or output of their own. A contract that only needs a workflow document
+  takes `workflow_support` directly.
+- **Permitted call sites.** `runner_label_shape_test`, `job_name_shape_test`
+  and `runner_placement_test`, which shares the label constants. A new
+  placement contract may use them; anything not about where a job runs should
+  not.
+- **Composition.** Each takes parsed workflow fragments and returns values, so
+  a contract composes them rather than re-parsing. They raise
+  `WorkflowShapeError` subclasses rather than asserting, which is why they
+  carry no blanket lint suppression. They exist as separate modules because
+  `workflow_support` and `workflow_queries` were both already near the
+  repository's 400-line module ceiling.
 
 ### Cache ownership
 

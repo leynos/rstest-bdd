@@ -7,6 +7,7 @@ Run with:
 
 from pathlib import Path
 
+import pytest
 from workflow_support import (
     GITHUB_HOSTED_WINDOWS,
     UBICLOUD_LINUX_LABEL,
@@ -22,6 +23,26 @@ HISTORICAL_BASELINE_PATH = (
 )
 HISTORICAL_UPDATE_HEADING = "## Update (2026-07-20): current compatibility contract"
 RUNNER_ADDENDUM_HEADING = "## Addendum (2026-09-03): Ubicloud CI runner migration"
+FORK_ADDENDUM_HEADING = (
+    "## Addendum (2026-09-16): fork pull requests fall back to GitHub-hosted Linux"
+)
+
+
+@pytest.fixture(name="document", scope="module")
+def _adr_document() -> str:
+    """Read ADR 013 once for the contracts that assert its text.
+
+    Three contracts read the same document. Reading it per test made the path
+    the thing they had in common rather than the document, so a move had to be
+    made in three places and each contract carried a line of setup that says
+    nothing about what it asserts.
+
+    Returns
+    -------
+    str
+        The ADR's full text.
+    """
+    return ADR_PATH.read_text(encoding="utf-8")
 
 
 def _section_before(document: str, start_heading: str, end_heading: str) -> str:
@@ -38,9 +59,10 @@ def _normalize_whitespace(text: str) -> str:
     return " ".join(text.split())
 
 
-def test_historical_whitaker_update_matches_its_checked_in_baseline() -> None:
+def test_historical_whitaker_update_matches_its_checked_in_baseline(
+    document: str,
+) -> None:
     """Hold the historical compatibility record byte-for-byte."""
-    document = ADR_PATH.read_text(encoding="utf-8")
     historical_update = _section_before(
         document,
         HISTORICAL_UPDATE_HEADING,
@@ -54,13 +76,14 @@ def test_historical_whitaker_update_matches_its_checked_in_baseline() -> None:
     )
 
 
-def test_runner_addendum_records_the_current_runner_contract() -> None:
+def test_runner_addendum_records_the_current_runner_contract(
+    document: str,
+) -> None:
     """Keep current runner-placement facts in the dated addendum."""
-    document = ADR_PATH.read_text(encoding="utf-8")
     addendum = _section_before(
         document,
         RUNNER_ADDENDUM_HEADING,
-        "## Known limitations",
+        FORK_ADDENDUM_HEADING,
     )
     addendum = _normalize_whitespace(addendum)
 
@@ -106,3 +129,34 @@ def test_normalize_whitespace_collapses_markdown_soft_line_wraps() -> None:
     assert _normalize_whitespace(wrapped) == (
         "the sampler samples disk as well as memory."
     ), "soft line wraps must collapse so wrapped prose still matches"
+
+
+def test_fork_addendum_records_why_the_linux_label_is_an_expression(
+    document: str,
+) -> None:
+    """Keep the reason for the conditional label with the label itself.
+
+    The two failures the fork fallback introduces are both invisible in a
+    green run: a continuation indented one level deeper still evaluates, and a
+    step keyed on one literal label still succeeds by skipping. A reader who
+    meets the expression without the reason is likely to simplify it back.
+    """
+    addendum = _normalize_whitespace(
+        _section_before(document, FORK_ADDENDUM_HEADING, "## Known limitations")
+    )
+
+    for expected_contract in (
+        "cannot obtain an Ubicloud runner",
+        "github.event.pull_request.head.repo.fork",
+        "&& 'ubuntu-latest' || 'ubicloud-standard-2' }}",
+        "same indent",
+        "keeps its line break",
+        "runner.os == 'Linux'",
+        "names either label it can resolve to",
+        "matrix rows render distinct names",
+        "job_name_shape_test.py",
+        "runner_label_shape_test.py",
+    ):
+        assert expected_contract in addendum, (
+            f"the fork-fallback ADR addendum must record {expected_contract!r}"
+        )

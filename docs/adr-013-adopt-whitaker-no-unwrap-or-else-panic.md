@@ -312,6 +312,57 @@ The complete deterministic repository gate also passed locally. Exact-head CI
 evidence on the migrated runners is recorded in PR #710 once the shared-actions
 installer revision it depends on is merged and the branch is pushed.
 
+## Addendum (2026-09-16): fork pull requests fall back to GitHub-hosted Linux
+
+A pull request from a fork cannot obtain an Ubicloud runner, so a fixed
+`ubicloud-standard-2` label leaves such a pull request with no lane at all. The
+Linux matrix leg therefore resolves its label from the head repository:
+
+```yaml
+- os: >-
+    ${{ github.event.pull_request.head.repo.fork
+    && 'ubuntu-latest' || 'ubicloud-standard-2' }}
+```
+
+Every other event, `push` to `main` included, leaves the fork field null and so
+reaches Ubicloud unchanged. The continuation sits at the same indent as the
+first line on purpose. A continuation indented one level deeper keeps its line
+break, so the folded scalar parses to a label with a newline inside the
+expression; the document still parses, `actionlint` still passes and GitHub
+evaluates the expression regardless, which makes a green run no evidence at
+all. Only the raw declaration shows the fault, and
+`tests/workflow_contracts/runner_label_shape_test.py` reads every job's
+`runs-on` and every matrix `os` value for exactly that.
+
+Because the label is now an expression, no step may be guarded by the literal
+label it happens to resolve to: such a step switches off on whichever arm it
+did not name, skipping its work without failing anything. The two CodeScene
+coverage steps are keyed on `runner.os == 'Linux'` instead, which selects the
+same single Linux lane on either arm, and the same contract refuses any step
+whose condition reads `matrix.os` or names either label it can resolve to. The
+reference is what is refused, not the comparison: a rule matching
+`matrix.os ==` admits `matrix.os != 'ubuntu-latest'` and
+`'ubicloud-standard-2' == matrix.os`, and each of those skips a step on one arm
+just as silently.
+
+The same reasoning reaches the job's own check name. GitHub derives a matrix
+job's name from its matrix values with `os` first, so a derived name carries
+whichever label the event selected: a fork pull request would report
+`build-test (ubuntu-latest, ...)` while branch protection waits for
+`build-test (ubicloud-standard-2, ...)`, a context that can now never arrive.
+The derived form is also long enough that GitHub truncates it, which is how one
+of this repository's three required contexts came to end in a literal `...`.
+`build-test` therefore declares its own name from two matrix dimensions that
+carry no behaviour, `platform` and `feature-set`, and
+`tests/workflow_contracts/job_name_shape_test.py` holds four rules: a matrix
+job declares a name, that name shares no expression reference with its own
+`runs-on`, it embeds no runner label, and its matrix rows render distinct
+names. The third and fourth matter as much as the first two: a hard-coded label
+is not stable, and a name omitting the dimension that separates two lanes
+collapses two required contexts into one and hides a red lane behind a green
+one. The overlap is asserted against the job's `runs-on` rather than against
+the literal `matrix.os`, so renaming the dimension cannot quietly exempt it.
+
 ## Known limitations
 
 The adopted lint does not replace Clippy. `clippy::shadow_reuse`,

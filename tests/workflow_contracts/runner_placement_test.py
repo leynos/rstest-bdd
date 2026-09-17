@@ -12,6 +12,12 @@ Run with:
 import re
 
 import yaml
+from runner_label_support import (
+    FORK_FALLBACK_LINUX_LABEL,
+)
+from runner_label_support import (
+    collapse_label_whitespace as _collapse_label_whitespace,
+)
 from workflow_queries import coverage_calling_jobs as _coverage_calling_jobs
 from workflow_queries import direct_workspace_test_steps as _direct_workspace_test_steps
 from workflow_queries import workflow_names as _workflow_names
@@ -36,9 +42,18 @@ from workflow_support import (
 # `--all-features` enables
 # `strict-compile-time-validation`, which only implies
 # `compile-time-validation` and conflicts with no other feature.
+# The Linux lane's label is a conditional expression, so this comparison is
+# against the expression's text. Its guard and arms are asserted separately,
+# and whitespace-tolerantly, in `runner_label_shape_test`; here it is only
+# required to be the one the repository settled on.
+# `platform` and `feature-set` carry no behaviour. They exist so the job's
+# `name` can say which lane a check belongs to without interpolating the
+# runner label, which `job_name_shape_test` holds it to.
 EXPECTED_BUILD_MATRIX = [
     {
-        "os": UBICLOUD_LINUX_LABEL,
+        "os": FORK_FALLBACK_LINUX_LABEL,
+        "platform": "linux",
+        "feature-set": "default features",
         "rust-toolchain": "stable",
         "coverage": True,
         "features": "",
@@ -48,6 +63,8 @@ EXPECTED_BUILD_MATRIX = [
     },
     {
         "os": GITHUB_HOSTED_WINDOWS,
+        "platform": "windows",
+        "feature-set": "default features",
         "rust-toolchain": "stable-x86_64-pc-windows-msvc",
         "coverage": True,
         "features": "",
@@ -57,6 +74,8 @@ EXPECTED_BUILD_MATRIX = [
     },
     {
         "os": GITHUB_HOSTED_WINDOWS,
+        "platform": "windows",
+        "feature-set": "strict-compile-time-validation",
         "rust-toolchain": "stable-x86_64-pc-windows-msvc",
         "coverage": True,
         "features": "strict-compile-time-validation",
@@ -90,10 +109,18 @@ def test_build_matrix_uses_exact_runner_labels() -> None:
     assert isinstance(matrix, dict), "ci.yml:build-test must declare a matrix"
     include = matrix.get("include")
     assert isinstance(include, list), "ci.yml:build-test matrix must declare include"
-    assert include == EXPECTED_BUILD_MATRIX, (
+    # Read through the same collapsing the label parser uses: how the label
+    # was written is `runner_label_shape_test`'s contract, not this one's.
+    normalized = [
+        {**row, "os": _collapse_label_whitespace(row["os"])}
+        if isinstance(row, dict) and isinstance(row.get("os"), str)
+        else row
+        for row in include
+    ]
+    assert normalized == EXPECTED_BUILD_MATRIX, (
         "ci.yml:build-test must keep one Linux lane and two Windows lanes while "
-        f"Linux to {UBICLOUD_LINUX_LABEL} and Windows to {GITHUB_HOSTED_WINDOWS}; "
-        f"got {include!r}"
+        f"routing Linux to {UBICLOUD_LINUX_LABEL} (or {GITHUB_HOSTED_LINUX} for "
+        f"a fork) and Windows to {GITHUB_HOSTED_WINDOWS}; got {include!r}"
     )
 
 
