@@ -1,7 +1,7 @@
 //! Behavioural tests for inferred step patterns.
 
 use rstest::rstest;
-use rstest_bdd::{StepContext, StepKeyword, find_step};
+use rstest_bdd::{StepContext, StepKeyword, find_step_with_metadata};
 use rstest_bdd_macros::{given, then, when};
 
 #[given]
@@ -45,7 +45,9 @@ fn r#match_logs_in() {}
 #[case(StepKeyword::When, "match logs in")]
 fn steps_with_inferred_patterns_execute(#[case] kw: StepKeyword, #[case] pattern: &str) {
     let mut ctx = StepContext::default();
-    let step_fn = find_step(kw, pattern.into()).expect("step not found");
+    let step_fn = find_step_with_metadata(kw, pattern.into())
+        .expect("step not found")
+        .run;
     if let Err(e) = step_fn(&mut ctx, pattern, None, None) {
         panic!("step failed: {e:?}");
     }
@@ -54,5 +56,5 @@ fn steps_with_inferred_patterns_execute(#[case] kw: StepKeyword, #[case] pattern
 /// Returns `None` when no step matches the pattern.
 #[test]
 fn find_step_returns_none_for_unknown_pattern() {
-    assert!(find_step(StepKeyword::When, "user signs out".into()).is_none());
+    assert!(find_step_with_metadata(StepKeyword::When, "user signs out".into()).is_none());
 }
