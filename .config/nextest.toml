@@ -7,7 +7,8 @@ slow-timeout = { period = "60s", terminate-after = 1, grace-period = "5s" }
 # whole run is the sum of the group members' slow-timeouts: 180 s (cargo-bdd
 # cli) + 600 s x 4 (trybuild/macro_compile binaries) + 600 s x 3
 # (rstest-bdd::feature_rebuild_invalidation's dep-info, rebuild and
-# file-addition scenarios) = 4380 s. 75 m covers that bound with 120 s of
+# file-addition scenarios) + 600 s (rstest-bdd-harness::nested_cargo_env) =
+# 4980 s. 75 m covers that bound with 120 s of
 # slack; the per-test enforcement is the harness's own 300 s nested-cargo
 # wall clock, and this ceiling only lets a genuinely hung run fail loudly at
 # the run level (see the 10.3.3 ExecPlan's timeout-arithmetic decisions).
@@ -24,6 +25,13 @@ max-threads = 1
 # legitimately exceed the default 60s slow-timeout on cold caches.
 filter = "binary_id(cargo-bdd::cli)"
 slow-timeout = { period = "180s", terminate-after = 1, grace-period = "5s" }
+test-group = "cargo-spawning"
+
+[[profile.default.overrides]]
+# The nested-Cargo environment contract spawns bounded child commands and
+# must not contend with other fixture-crate builds for Cargo's package cache.
+filter = "binary_id(rstest-bdd-harness::nested_cargo_env)"
+slow-timeout = { period = "600s", terminate-after = 1, grace-period = "5s" }
 test-group = "cargo-spawning"
 
 [[profile.default.overrides]]
