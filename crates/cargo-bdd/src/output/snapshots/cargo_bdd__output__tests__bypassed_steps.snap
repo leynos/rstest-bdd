@@ -1,5 +1,6 @@
 ---
-source: crates/cargo-bdd/src/output.rs
+source: crates/cargo-bdd/src/output/tests.rs
+assertion_line: 125
 expression: output
 ---
-Given 'a declined card' (tests/steps.rs:7) - skipped in features/checkout.feature:42 :: declined card is rejected [tags: payments] - sandbox unavailable
+Given 'a declined card' [rstest_bdd::global] (tests/steps.rs:7) - skipped in features/checkout.feature:42 :: declined card is rejected [tags: payments] - sandbox unavailable

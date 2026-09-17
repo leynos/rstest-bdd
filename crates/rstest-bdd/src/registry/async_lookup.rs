@@ -20,20 +20,23 @@ use crate::types::{AsyncStepFn, PatternStr, StepKeyword, StepText};
 ///     StepKeyword::Given,
 ///     "some step pattern".into(),
 /// )
+/// .expect("lookup is unambiguous")
 /// .expect("step is registered");
 ///
 /// // `handler` is the async wrapper, and `mode` tells the runtime whether the
 /// // step has a native sync body, native async body, or both.
 /// assert!(matches!(mode, StepExecutionMode::Sync | StepExecutionMode::Async | StepExecutionMode::Both));
 /// ```
-#[must_use]
+///
+/// # Errors
+///
+/// Returns [`super::StepLookupError`] when equally specific definitions match.
 pub fn lookup_step_async_with_mode(
     keyword: StepKeyword,
     pattern: PatternStr<'_>,
-) -> Option<(AsyncStepFn, StepExecutionMode)> {
-    super::mark_and_project(super::resolve_exact_step(keyword, pattern), |step| {
-        (step.run_async, step.execution_mode)
-    })
+) -> Result<Option<(AsyncStepFn, StepExecutionMode)>, super::StepLookupError> {
+    super::resolve_exact_step(super::StepScope::global(), keyword, pattern)
+        .map(|step| super::mark_and_project(step, |found| (found.run_async, found.execution_mode)))
 }
 
 /// Find a registered async step whose pattern matches the provided text, including its execution
@@ -49,19 +52,22 @@ pub fn lookup_step_async_with_mode(
 ///     StepKeyword::When,
 ///     StepText::from("some matching step text"),
 /// )
+/// .expect("lookup is unambiguous")
 /// .expect("a matching step exists");
 ///
 /// assert!(matches!(mode, StepExecutionMode::Sync | StepExecutionMode::Async | StepExecutionMode::Both));
 /// let _future = handler(&mut rstest_bdd::StepContext::default(), "some matching step text", None, None);
 /// ```
-#[must_use]
+///
+/// # Errors
+///
+/// Returns [`super::StepLookupError`] when equally specific definitions match.
 pub fn find_step_async_with_mode(
     keyword: StepKeyword,
     text: StepText<'_>,
-) -> Option<(AsyncStepFn, StepExecutionMode)> {
-    super::mark_and_project(super::resolve_step(keyword, text), |step| {
-        (step.run_async, step.execution_mode)
-    })
+) -> Result<Option<(AsyncStepFn, StepExecutionMode)>, super::StepLookupError> {
+    super::resolve_step(super::StepScope::global(), keyword, text)
+        .map(|step| super::mark_and_project(step, |found| (found.run_async, found.execution_mode)))
 }
 
 /// Find a registered step and return its full metadata, including execution mode.
@@ -79,12 +85,19 @@ pub fn find_step_async_with_mode(
 ///     StepKeyword::Then,
 ///     StepText::from("some matching step text"),
 /// )
+/// .expect("lookup is unambiguous")
 /// .expect("a matching step exists");
 ///
 /// // `step.execution_mode` can be used to choose the most efficient execution path.
 /// let _mode = step.execution_mode;
 /// ```
-#[must_use]
-pub fn find_step_with_mode(keyword: StepKeyword, text: StepText<'_>) -> Option<&'static Step> {
+///
+/// # Errors
+///
+/// Returns [`super::StepLookupError`] when equally specific definitions match.
+pub fn find_step_with_mode(
+    keyword: StepKeyword,
+    text: StepText<'_>,
+) -> Result<Option<&'static Step>, super::StepLookupError> {
     super::find_step_with_metadata(keyword, text)
 }

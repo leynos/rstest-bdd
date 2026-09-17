@@ -20,6 +20,7 @@ enum ExpectedExecutionError {
 // Uses index=0, feature_path="test.feature", scenario_name="Test Scenario".
 fn make_request(index: usize, keyword: StepKeyword, text: &str) -> StepExecutionRequest<'_> {
     StepExecutionRequest {
+        scope: rstest_bdd::StepScope::global(),
         index,
         keyword,
         text,
