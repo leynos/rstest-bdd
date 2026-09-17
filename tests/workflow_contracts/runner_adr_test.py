@@ -131,6 +131,7 @@ def test_fork_addendum_records_why_the_linux_label_is_an_expression() -> None:
         "same indent",
         "keeps its line break",
         "runner.os == 'Linux'",
+        "names either label it can resolve to",
         "runner_label_shape_test.py",
     ):
         assert expected_contract in addendum, (

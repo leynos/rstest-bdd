@@ -45,6 +45,14 @@ _RUNNER_EXPRESSION = re.compile(
     r"\$\{\{ *(?P<guard>.+?) *&& *'(?P<when_true>[^']*)'"
     r" *\|\| *'(?P<when_false>[^']*)' *\}\}"
 )
+#: The labels the Linux lane can resolve to. A step condition that names
+#: either of them is keyed on the label and not on the runner, whichever way
+#: round the comparison is written.
+RESOLVED_LINUX_LABELS = (GITHUB_HOSTED_LINUX, UBICLOUD_LINUX_LABEL)
+#: Any reference to the resolved label, not just a comparison against one.
+#: `matrix.os` is the expression's result, so a condition reading it at all
+#: has already stopped meaning what it says on one arm.
+_MATRIX_OS_REFERENCE = re.compile(r"\bmatrix\.os\b")
 
 
 class NotARunnerExpressionError(WorkflowShapeError):
@@ -174,6 +182,47 @@ def runner_label_expression(raw: str) -> RunnerLabel:
         when_true=match["when_true"],
         when_false=match["when_false"],
     )
+
+
+def literal_label_guard(condition: str) -> str | None:
+    """Say why a step condition is keyed on a runner label, if it is.
+
+    The Linux lane's label is an expression, so ``matrix.os`` is whichever
+    arm the event selected. A condition that reads it, or that names either
+    label it can resolve to, switches the step off on the arm it did not
+    name and fails nothing while doing so. Matching the operator would miss
+    ``matrix.os != 'ubuntu-latest'`` and ``'ubicloud-standard-2' ==
+    matrix.os``, both of which skip a step on one arm, so the reference
+    itself is what is refused.
+
+    Parameters
+    ----------
+    condition : str
+        A step's ``if`` expression, empty when it declares none.
+
+    Returns
+    -------
+    str | None
+        A phrase naming what the condition is keyed on, or None when it is
+        keyed on neither the resolved label nor a label literal.
+
+    Examples
+    --------
+    >>> literal_label_guard("${{ matrix.os == 'ubicloud-standard-2' }}")
+    'reads matrix.os'
+    >>> literal_label_guard("${{ matrix.os != 'ubuntu-latest' }}")
+    'reads matrix.os'
+    >>> literal_label_guard("${{ contains(runs.labels, 'ubuntu-latest') }}")
+    "names 'ubuntu-latest'"
+    >>> literal_label_guard("${{ runner.os == 'Linux' }}") is None
+    True
+    """
+    if _MATRIX_OS_REFERENCE.search(condition):
+        return "reads matrix.os"
+    named = [label for label in RESOLVED_LINUX_LABELS if label in condition]
+    if named:
+        return "names " + ", ".join(repr(label) for label in named)
+    return None
 
 
 @dataclasses.dataclass(frozen=True, slots=True)

@@ -339,7 +339,11 @@ label it happens to resolve to: such a step switches off on whichever arm it
 did not name, skipping its work without failing anything. The two CodeScene
 coverage steps are keyed on `runner.os == 'Linux'` instead, which selects the
 same single Linux lane on either arm, and the same contract refuses any step
-whose condition tests `matrix.os` against a literal.
+whose condition reads `matrix.os` or names either label it can resolve to. The
+reference is what is refused, not the comparison: a rule matching
+`matrix.os ==` admits `matrix.os != 'ubuntu-latest'` and
+`'ubicloud-standard-2' == matrix.os`, and each of those skips a step on one arm
+just as silently.
 
 ## Known limitations
 

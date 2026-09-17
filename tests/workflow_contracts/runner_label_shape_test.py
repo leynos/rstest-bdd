@@ -15,7 +15,11 @@ Run with:
     pytest tests/workflow_contracts/runner_label_shape_test.py
 """
 
+import pytest
 from runner_label_support import FORK_FIELD
+from runner_label_support import (
+    literal_label_guard as _literal_label_guard,
+)
 from runner_label_support import (
     runner_label_expression as _runner_label_expression,
 )
@@ -92,12 +96,70 @@ def test_no_step_is_keyed_on_the_literal_runner_label() -> None:
     failing anything.
     """
     keyed = [
-        f"{step.get('name', '<unnamed>')!r} guards on {str(step.get('if')).strip()!r}"
+        f"{step.get('name', '<unnamed>')!r} {reason} in {str(step.get('if')).strip()!r}"
         for step in _steps(_job("ci.yml", "build-test"))
-        if "matrix.os ==" in str(step.get("if", ""))
+        if (reason := _literal_label_guard(str(step.get("if", "")))) is not None
     ]
     assert not keyed, (
         "a step in a lane whose label is an expression must key on "
         "runner.os, not on the literal label it happened to resolve to; "
         f"found {keyed}"
+    )
+
+
+@pytest.mark.parametrize(
+    "condition",
+    [
+        pytest.param("${{ matrix.os == 'ubicloud-standard-2' }}", id="equality"),
+        pytest.param("${{ matrix.os != 'ubuntu-latest' }}", id="inequality"),
+        pytest.param("${{ 'ubicloud-standard-2' == matrix.os }}", id="reversed"),
+        pytest.param(
+            "${{ contains(matrix.os, 'ubicloud') }}", id="containment-on-matrix-os"
+        ),
+        pytest.param(
+            "${{ runner.environment == 'self-hosted' && "
+            "github.workflow != 'ubuntu-latest' }}",
+            id="label-named-without-matrix-os",
+        ),
+    ],
+)
+def test_literal_label_guard_refuses_every_spelling(condition: str) -> None:
+    """Refuse a label-keyed condition whichever way it is written.
+
+    ``ci.yml`` contains none of these, so reading the rule off the workflow
+    would pass whether it discriminated or not. The rule is driven directly
+    instead. An operator-matching rule accepted the last four
+    of these while each one still skips a step on one arm of the lane.
+    """
+    assert _literal_label_guard(condition) is not None, (
+        f"{condition!r} keys a step on the resolved runner label and must be "
+        "refused however the comparison is spelled"
+    )
+
+
+@pytest.mark.parametrize(
+    "condition",
+    [
+        pytest.param("", id="unconditional"),
+        pytest.param("${{ runner.os == 'Linux' }}", id="runner-os-linux"),
+        pytest.param(
+            "${{ runner.os == 'Linux' && github.event_name == 'pull_request' }}",
+            id="runner-os-composed",
+        ),
+        pytest.param(
+            "${{ runner.os == 'Windows' && matrix.features == '' }}",
+            id="matrix-sibling",
+        ),
+        pytest.param("${{ matrix.tools }}", id="matrix-tools"),
+    ],
+)
+def test_literal_label_guard_admits_runner_keyed_conditions(condition: str) -> None:
+    """Admit the conditions the lane actually needs.
+
+    A rule that refused every condition would satisfy the contract above
+    while making the workflow unwritable, so the admitted cases are asserted
+    too: ``runner.os``, a sibling matrix value, and no condition at all.
+    """
+    assert _literal_label_guard(condition) is None, (
+        f"{condition!r} is keyed on the runner, not on a label, and must be admitted"
     )
