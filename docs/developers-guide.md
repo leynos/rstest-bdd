@@ -2246,6 +2246,23 @@ with `io::ErrorKind::InvalidInput`.
 The `rstest-bdd-policy` crate exposes path constants and two resolver functions
 that map a type-path to a `TestAttributeHint`.
 
+#### Canonical lookup pattern
+
+`FIRST_PARTY_ADAPTER_HINTS` in `crates/rstest-bdd-policy/src/lib.rs` is the
+single source of truth for first-party adapter hints. The `rstest-bdd-policy`
+crate owns that triple table and its generic resolver.
+
+External call-sites may use only `resolve_test_attribute_hint_for_policy_path`
+and `resolve_test_attribute_hint_for_harness_path`. The triple table and
+generic resolver remain private to `rstest-bdd-policy`.
+
+Add a first-party adapter by adding exactly one
+`(harness path, policy path, hint)` triple row. Do not add a parallel table in
+a consuming crate, because that would reintroduce the drift risk addressed by
+ADR-004. The removed drift-guard test is unnecessary because both lookups agree
+by construction; `resolves_attribute_policy_paths` and `resolves_harness_paths`
+pin the public resolver behaviour.
+
 #### Path constants
 
 The following `&[&str]` constants identify the known first-party harness and
@@ -2270,10 +2287,10 @@ truth and may be updated in future releases.
 
 Table: Resolver functions mapping a type path to a `TestAttributeHint`
 
-| Function                                                                                   | Use                                                                                                                                                                                                                                          |
-| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `resolve_test_attribute_hint_for_policy_path(path: &[&str]) -> Option<TestAttributeHint>`  | Returns the hint for a known first-party attribute-policy type path. Returns `None` for any path that is not an exact match for a known first-party policy path. Do not use this function for harness paths.                                 |
-| `resolve_test_attribute_hint_for_harness_path(path: &[&str]) -> Option<TestAttributeHint>` | Returns the hint for a known first-party harness type path, delegating to the policy-path resolver for the corresponding attribute-policy type. Returns `None` for any path that is not an exact match for a known first-party harness path. |
+| Function                                                                                   | Use                                                                                                                                                                                                          |
+| ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `resolve_test_attribute_hint_for_policy_path(path: &[&str]) -> Option<TestAttributeHint>`  | Returns the hint for a known first-party attribute-policy type path. Returns `None` for any path that is not an exact match for a known first-party policy path. Do not use this function for harness paths. |
+| `resolve_test_attribute_hint_for_harness_path(path: &[&str]) -> Option<TestAttributeHint>` | Returns the hint for a known first-party harness type path. Returns `None` for any path that is not an exact match for a known first-party harness path.                                                     |
 
 Both functions require exact matches against first-party paths. Paths with
 wrong prefixes, extra segments, or partial matches all return `None`. Use
