@@ -388,12 +388,19 @@ jobs:
           test -s coverage.xml
 
       - name: Upload coverage data to CodeScene
-        # The only CodeScene contact in this repository, and it is reachable
-        # only from a push to `main` or a dispatch. `installer-checksum` is
-        # deliberately absent: from shared-actions f68e8e2e the action
-        # rejects a non-empty value and pins `cs-coverage` through its own
-        # manifest instead, which is what fixed the cobertura parse break.
-        if: ${{ env.CS_ACCESS_TOKEN != '' }}
+        # The only CodeScene contact in this repository. The ref guard is
+        # load-bearing: `workflow_dispatch` can select any branch or tag, and
+        # without it a dispatch from a feature branch would publish that
+        # branch's coverage through the main-owned upload. The trigger alone
+        # does not restrict the ref; only this does. The shared action's own
+        # `publish-baseline: auto` already holds the ratchet baseline to a
+        # push to `refs/heads/main`, so this brings the CodeScene report under
+        # the same rule.
+        #
+        # `installer-checksum` is deliberately absent: from shared-actions
+        # f68e8e2e the action rejects a non-empty value and pins `cs-coverage`
+        # through its own manifest, which is what fixed the parse break.
+        if: ${{ github.ref == 'refs/heads/main' && env.CS_ACCESS_TOKEN != '' }}
         uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@a5765019912a8ab6882b12db049c7cde635f3a85
         with:
           path: coverage.xml

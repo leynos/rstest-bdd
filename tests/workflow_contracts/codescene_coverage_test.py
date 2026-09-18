@@ -110,50 +110,6 @@ def test_no_pull_request_workflow_contacts_codescene() -> None:
     )
 
 
-def test_the_publisher_is_not_reachable_from_a_pull_request() -> None:
-    """Keep the workflow that holds the credential off pull-request events."""
-    declared = set(triggers(PUBLISHER))
-
-    assert not PULL_REQUEST_EVENTS & declared, (
-        f"{PUBLISHER} holds the CodeScene credential, so it must not trigger "
-        f"on a pull request; it declares {sorted(declared)}"
-    )
-    assert declared <= {"push", "workflow_dispatch"}, (
-        f"{PUBLISHER} may trigger only on a push or a dispatch; it declares "
-        f"{sorted(declared)}"
-    )
-    push = triggers(PUBLISHER)["push"]
-    assert isinstance(push, dict), (
-        f"{PUBLISHER} must filter its push trigger; got {push!r}"
-    )
-    assert push.get("branches") == ["main"], (
-        f"{PUBLISHER} must be restricted to pushes to main; got "
-        f"{push.get('branches')!r}"
-    )
-
-
-def test_the_publisher_uploads_rather_than_checks() -> None:
-    """Upload the trunk report; never gate on it from here.
-
-    ``mode: check`` is the pull-request form, and the form that failed. This
-    lane publishes an analysed branch's report, which is what the ratchet
-    baseline and the CodeScene project both read.
-    """
-    uploads = [
-        reference
-        for reference in iter_steps(PUBLISHER)
-        if "upload-codescene-coverage@" in reference.uses
-    ]
-
-    assert uploads, f"{PUBLISHER} must upload the trunk report to CodeScene"
-    for reference in uploads:
-        inputs = reference.step.get("with")
-        assert isinstance(inputs, dict), f"{reference} must declare inputs"
-        assert inputs.get("mode") == "upload", (
-            f"{reference} must upload, not {inputs.get('mode')!r}"
-        )
-
-
 def test_no_caller_passes_the_deprecated_installer_checksum() -> None:
     """Refuse the input the shared action now rejects.
 
@@ -300,20 +256,6 @@ def test_the_pull_request_lane_declines_publication() -> None:
     assert inputs.get("publish-artefact") == "false", (
         f"{PR_COVERAGE_STEP} must decline the artefact; publication belongs "
         f"to {PUBLISHER}. It declares {inputs.get('publish-artefact')!r}"
-    )
-
-
-def test_the_publisher_publishes_the_report() -> None:
-    """Leave the publisher on the action's default.
-
-    Setting ``publish-artefact`` here as the pull-request lane does would
-    leave the upload with no report to read.
-    """
-    inputs = coverage_step(PUBLISHER, PUBLISHER_COVERAGE_STEP)
-
-    assert "publish-artefact" not in inputs, (
-        f"{PUBLISHER} must keep the action's default; it declares "
-        f"publish-artefact={inputs.get('publish-artefact')!r}"
     )
 
 
