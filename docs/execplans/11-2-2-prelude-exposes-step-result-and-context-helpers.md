@@ -302,6 +302,18 @@ be wrong, so read the rationale before changing any of it.
 
 Two surfaces, not one.
 
+A reasonable reader will ask why, if the crate root gains the macros, the
+prelude module is needed at all — `cucumber` ships the root re-export and no
+prelude. There is a concrete answer beyond the roadmap's wording, and it is the
+strongest argument for the module: **Clippy's `wildcard_imports` lint matches
+on a path segment named `prelude`.** A downstream crate running
+`#![warn(clippy::pedantic)]` can write `use rstest_bdd::prelude::*;` without a
+finding, and cannot glob a crate root without one. `clippy.toml` does not set
+`warn-on-all-wildcard-imports`, whose default is `false`, so the exemption
+holds under this workspace's configuration too. A prelude therefore buys one
+thing a root re-export cannot: a supported glob for users on pedantic Clippy.
+EP-M0 re-probes this before any work depends on it.
+
 **The crate root gains the macros.** `crates/rstest-bdd/src/lib.rs` re-exports
 `given`, `when`, `then`, `scenario`, `scenarios`, and the derive macros from
 `rstest-bdd-macros`. This is the load-bearing half of the change: it is what
@@ -340,8 +352,13 @@ exists in dev position, so the graph shape is proven. `lading.toml:4-12`
 already lists `rstest-bdd-macros` before `rstest-bdd` in the publish order, so
 no release-process change is needed.
 
-The review's first instinct was a default-on `macros` feature, copying serde's
-`derive`. That was rejected for four independent reasons, each of which is
+The review's first instinct was a default-on `macros` feature, reaching for
+serde's `derive` as precedent. That citation does not survive contact with
+serde: its `derive` feature is **opt-in**, as this repository's own
+`serde = { version = "1.0", features = ["derive"], optional = true }`
+(`crates/rstest-bdd/Cargo.toml:26`) demonstrates. serde is therefore precedent
+for a default-*off* feature, not a default-on one, and it was withdrawn. The
+gating idea was rejected on its own merits, for four independent reasons, each
 sufficient on its own:
 
 1. **It would break `make lint` on the first run.** Annotating a gated
@@ -443,8 +460,15 @@ The whole datatable story is deferred rather than shipped in half.
   "custom step-execution plumbing outside the usual macros". Generic name,
   named by users approximately never.
 - The reporting and skip-assertion macros (`skip!`, `assert_step_ok!`,
-  `assert_step_skipped!`, and the `reporting` module). These are diagnostics
-  surfaces, not step-authoring surfaces.
+  `assert_step_err!`, the two skip assertions, and the `reporting` module).
+  These are diagnostics surfaces, not step-authoring surfaces, and no example
+  uses them. There is also a mechanical trap worth recording so that a later
+  contributor does not assume they arrive for free: `#[macro_export]` places a
+  macro at the **crate root** regardless of the module it is written in — the
+  module documentation at `crates/rstest-bdd/src/macros.rs:4` says so in as
+  many words — so a glob of `rstest_bdd::prelude` does not pick them up. Adding
+  them later means an explicit `pub use crate::skip;` in `prelude.rs`, not a
+  reorganization.
 - Harness traits (`HarnessAdapter`, `AttributePolicy`, `ScenarioRunRequest`).
   These live in `rstest-bdd-harness`, which adapter authors must depend on
   directly — `docs/users-guide.md:942` already states that rule. Re-exporting
@@ -666,6 +690,15 @@ Hard invariants. Violating one requires escalation, not a workaround.
   acyclic (DG-DEP, `docs/developers-guide.md:378-385`). The new edge points the
   other way and is legal; the reverse remains forbidden and this plan adds a
   test asserting it.
+- **`diagnostics` must remain in `default`.**
+  `crates/rstest-bdd/Cargo.toml:63-71` already declares `[features]` with
+  `default = ["diagnostics"]`, and `[[test]] dump_registry` at lines 73-76
+  carries `required-features = ["diagnostics"]`. Any edit to that manifest must
+  leave the default set intact. This is called out as a hard constraint because
+  **no gate would catch its removal**: `Makefile:28` sets
+  `CARGO_FLAGS ?= --workspace --all-targets --all-features`, so every workspace
+  gate turns `diagnostics` on regardless of what `default` says, and a
+  semver-visible regression would ship silently.
 - **No `doc(cfg)`.** `Makefile:27` sets
   `RUSTDOC_FLAGS ?= --cfg docsrs -D warnings` unconditionally and
   `rust-toolchain.toml` pins `channel = "stable"`. The `doc_cfg` feature is
@@ -829,6 +862,26 @@ Stop and escalate — do not improvise — when any of these is reached.
   the import. Mitigation: the written admission bar, the changelog requirement,
   and the subset invariant. No `prelude::v1`; see "The admission bar" for why.
 
+- **R-11 — `rstest` is required under exactly that name, unchecked.**
+  Severity: low. Likelihood: low, but the prelude increases the population
+  exposed to it. `DefaultAttributePolicy` renders the test attribute from a
+  bare string literal: `crates/rstest-bdd-harness/src/policy.rs:89` declares
+  `const DEFAULT_TEST_ATTRIBUTES: [TestAttribute; 1] = [TestAttribute::new("rstest::rstest")];`
+  and the harness crate does not use `proc_macro_crate` anywhere. Unlike every
+  first-party path, this one is never resolved against the consumer's manifest.
+  So `rstest-bdd` carries an unwritten, unchecked requirement that the consumer
+  declare a compatible `rstest` under exactly that name: a renamed dependency
+  breaks with a bare `unresolved import rstest` from generated code the user
+  never wrote. This predates the plan, but a prelude that tells users "one
+  import is enough" makes it likelier they arrive here confused. Mitigation:
+  EP-M6 states the supported `rstest` range in the users guide and in ADR-022's
+  Known Risks, and EP-M4's fixture derives its `rstest` requirement from
+  `[workspace.dependencies]` rather than duplicating a literal version.
+  Resolving the path through `proc_macro_crate` so that a renamed or missing
+  `rstest` yields an actionable diagnostic is the right fix and is filed as
+  follow-up 8; it is behavioural change in the harness crate and does not
+  belong in a v0.6.1 additive item.
+
 - **R-10 — The examples become the only prelude consumers, losing coverage of
   the direct-import path.** Severity: low. Likelihood: medium. After Milestone
   4 every example imports through the facade, so no user-vantage crate exercises
@@ -938,6 +991,15 @@ item resolves.**
   green and the property silently gone. The compiler catches use without
   declaration; the script catches declaration without use.
 - Artefact: `scripts/check_example_imports.py`, wired into `make lint`.
+- Scope: the import allowlist applies to example source files containing at
+  least one `#[scenario]`, `#[given]`, `#[when]`, or `#[then]` attribute.
+  `examples/todo-cli/tests/cli.rs` is deliberately outside it: that file is an
+  `assert_cmd` end-to-end driver with no BDD steps, and its
+  `rstest_bdd_harness::binary_test_support` import is test-runner plumbing.
+  Forcing it through the prelude would drag a binary locator into the
+  framework's ergonomic surface for no user benefit. The manifest half of the
+  check is unconditional — `rstest-bdd-macros` may appear in no example
+  manifest at all.
 - Evidence: fails if `rstest-bdd-macros` reappears in any
   `examples/*/Cargo.toml` or if any `examples/**/*.rs` names
   `rstest_bdd_macros`.
@@ -961,10 +1023,21 @@ Assumed without verification, as third-party contracts:
   `Decision log` DL-5.
 - Rust resolves a trait and a same-named macro in separate namespaces, and a
   single glob import delivers both. Relied on by the `ScenarioState` and
-  `StepArgs` pairs. This is language behaviour, corroborated by `serde`'s
-  shipped `Serialize` trait plus derive and by `bevy_ecs`'s `Component`. V-3
-  exercises it directly, so a mistaken belief here fails the build rather than
-  escaping.
+  `StepArgs` pairs. **No longer an assumption:** a parallel review settled it
+  empirically against the real crates, with a probe module re-exporting
+  `rstest_bdd::{ScenarioState, Slot, StepContext, StepError, StepResult}` beside
+  `rstest_bdd_macros::{ScenarioState, given, scenario, then, when}` and
+  glob-importing it from a consumer; it compiled clean with
+  `#[derive(ScenarioState)]`, a `T: ScenarioState` bound, `Slot`, `StepResult`,
+  and `#[given]` all resolving. V-3 exercises it again, so a mistaken belief
+  fails the build rather than escaping. EP-M2 should state this as fact and
+  carry no contingency prose about renaming the derive.
+- Clippy's `wildcard_imports` does not fire on a glob from a module named
+  `prelude`. **Also settled empirically** by that review: a probe under
+  `#![warn(clippy::pedantic)]` with `-D warnings` produced `dead_code` and
+  `doc_markdown` findings but no `wildcard_imports`. EP-M0 re-runs the probe
+  against this workspace before anything depends on it, because the design's
+  ergonomic case for shipping a prelude module at all rests on it.
 - Cargo feature unification is additive within one resolution. Relied on by R-3.
 
 ### What is deliberately not verified
@@ -1004,6 +1077,24 @@ env -u RUSTC_WRAPPER CARGO_TARGET_DIR=$(mktemp -d) \
 
 Record both in `Progress`. They are the numbers the build-cost tolerance is
 measured against.
+
+The `-e normal` is load-bearing, not decoration. `cargo tree` walks
+dev-dependency edges by default, so on the unmodified tree
+`cargo tree -p rstest-bdd -i rstest-bdd-macros` already prints the package via
+`[dev-dependencies]`, which would make a before-and-after comparison
+meaningless. With `-e normal` the same query reports "nothing to print" until
+EP-M1 lands. Any edge or acyclicity check written with `cargo tree` and without
+`-e normal` is vacuous; that is why V-1 parses the manifest directly instead.
+
+Then settle the assumption the whole ergonomic case rests on. Temporarily add
+`pub mod prelude { pub use crate::StepResult; }` to
+`crates/rstest-bdd/src/lib.rs` and `use rstest_bdd::prelude::*;` to an existing
+integration test, run `make lint`, observe it pass, and revert both. If
+`make lint` reports `clippy::wildcard_imports` on that glob, **stop and
+escalate**: the choice between setting `warn-on-all-wildcard-imports`
+explicitly, adding a scoped `#[expect]`, and abandoning glob imports in favour
+of named prelude imports belongs to the approver, not the implementer. Confirm
+the working tree is clean again before proceeding.
 
 **Acceptance evidence:** `make check-fmt && make lint && make test` all green
 on an unmodified tree, with the log written to
@@ -1311,6 +1402,13 @@ should be filed rather than forgotten:
    a default feature after this change even though `macros` does not exist.
 7. **Enforce ADR number uniqueness.** `005` is duplicated because nothing
    checks.
+8. **Resolve the `rstest` attribute path through `proc_macro_crate`.**
+   `crates/rstest-bdd-harness/src/policy.rs:89` hard-codes `"rstest::rstest"`,
+   so a consumer who renames the dependency gets a bare
+   `unresolved import rstest` from code they never wrote, and a consumer who
+   omits it gets no actionable hint. Resolving it the way first-party paths are
+   resolved would fix both. This is behavioural change in the harness crate and
+   does not belong in a v0.6.1 additive item. See R-11.
 
 ## Decision log
 
@@ -1366,7 +1464,26 @@ should be filed rather than forgotten:
   (`codegen/scenario/test_attrs.rs:160`), so `rstest` is a de facto public
   dependency already; formalizing it would widen, not describe, the exposure.
   "Without hiding the underlying crates" reads naturally as licensing exactly
-  this. Date/Author: 2026-09-14, planning agent.
+  this. A parallel review supplied the argument this entry was missing, and it
+  is the decisive one: **a dependency on `rstest` would put the consumer's
+  `rstest` version under `rstest-bdd`'s control**, gating every consumer's
+  rstest upgrade on an rstest-bdd release. Since generated code emits
+  `#[rstest::rstest]` resolved against the consumer's own dependency, the
+  consumer must own that version. That is the trade to write into ADR-022. The
+  same review rejected as overstated the claim that two `rstest` copies would
+  "silently mismatch" — two rstest majors produce a hard compile error on the
+  fixture-resolution protocol, not silent misbehaviour — so this plan does not
+  lean on it either. That review also considered rewriting the examples'
+  `use rstest::fixture;` into fully-qualified `#[rstest::fixture]`, which would
+  leave each example importing literally nothing but the prelude, and then
+  argued against it. This plan adopts that conclusion. The rewrite is cheap
+  only because the examples are toys: a real suite with ten fixtures would pay
+  ten attribute rewrites to save one `use` line, and the examples would be
+  modelling a style no user should copy. Worse, after such a migration the
+  examples would name `rstest` nowhere while all four manifests still require
+  it, which *hides* the underlying crate and inverts the roadmap's stated goal.
+  The examples keep `use rstest::fixture;`. Date/Author: 2026-09-14, planning
+  agent; extended 2026-09-18 after reconciling with PR #772.
 
 - **DL-4 — `#[harness_context]` is not promoted to a `proc_macro_attribute`.**
   Rationale: the Rust Reference restricts attribute macros to items, items in
@@ -1392,7 +1509,23 @@ should be filed rather than forgotten:
   truth. Elegant, and it would make the snapshot meaningful — but it obscures
   the prelude's most important property, that it is a plainly readable list,
   and it still cannot see the users guide. Rejected on those grounds, not on
-  cost. Date/Author: 2026-09-14, planning agent.
+  cost. A parallel review reached the opposite conclusion and deserves a direct
+  answer, because its reasoning is sound as far as it goes. It proposed that
+  the export-identity test emit an `insta` snapshot and that the parity gate
+  read *that* rather than parse `prelude.rs`, on the grounds that
+  `.rustfmt.toml`'s `imports_granularity = "Crate"` reflows the `pub use` block
+  and would defeat a line-oriented parser at precisely the moment the gate must
+  be right. The reflow hazard is real, and this plan now records it explicitly
+  under `Interfaces and dependencies`. The snapshot does not fix it, though. A
+  snapshot emitted by a test that names each item by hand is derived from that
+  handwritten list, so an item added to `prelude.rs` without touching the test
+  changes neither the snapshot nor the guide, and the gate stays green. The
+  snapshot catches removals and renames — which is exactly what the V-3 doctest
+  already catches for free. Only reading `prelude.rs` itself catches additions,
+  and additions are the direction the finish line cares about. The answer to
+  the reflow hazard is a brace-aware parser plus a rustfmt-formatted test
+  fixture, not a different source of truth. Date/Author: 2026-09-14, planning
+  agent; extended 2026-09-18 after reconciling with PR #772.
 
 - **DL-6 — `RSTEST_BDD_HARNESS_CONTEXT_FIXTURE` is excluded from the prelude.**
   Rationale: roadmap 11.2.1 shipped `#[harness_context]` specifically so users
@@ -1531,6 +1664,57 @@ Recorded during planning, before any implementation.
   a reminder that finish lines should be checked against the tree when written,
   not when claimed.
 
+- **Observation:** a second ExecPlan for this item was written concurrently and
+  independently, and reached most of the same conclusions by different routes.
+  **Evidence:** PR #772, branch
+  `11-2-2-prelude-exposes-step-result-and-context-helpers`, 2,041 lines. Two
+  Lody sessions were given the task without either being told about the other.
+  **Impact:** its findings are folded into this plan and credited inline as "a
+  parallel review". The two plans agree on every substantive decision except
+  the drift-gate mechanism (see DL-5) and the `macros` feature (that plan gates
+  it default-on; this one does not gate it at all, on the `doc(cfg)` evidence
+  in DL-2). Where they agreed by different reasoning, the stronger argument has
+  been adopted.
+
+- **Observation:** `cargo tree` walks dev-dependency edges by default, which
+  makes the obvious acyclicity check vacuous. **Evidence:** on the unmodified
+  tree `cargo tree -p rstest-bdd -i rstest-bdd-macros` already prints the
+  package via `[dev-dependencies]`; adding `-e normal` reports "nothing to
+  print". **Impact:** every measurement in EP-M0 carries `-e normal`, and V-1
+  parses the manifest directly rather than shelling out to `cargo tree`.
+
+- **Observation:** dropping `diagnostics` from `default` would be invisible to
+  every gate. **Evidence:** `crates/rstest-bdd/Cargo.toml:63-71` declares
+  `default = ["diagnostics"]` and lines 73-76 gate the `dump_registry` test on
+  `required-features = ["diagnostics"]`, while `Makefile:28` runs every gate
+  with `--all-features`. **Impact:** a hard constraint, because the original
+  draft of the parallel plan instructed the implementer to "add a `[features]`
+  section (the crate has none today)", which would have silently shipped a
+  semver-visible regression. Four of its six reviewers caught it independently.
+
+- **Observation:** `#[macro_export]` macros are not reachable through a glob of
+  a module. **Evidence:** `crates/rstest-bdd/src/macros.rs:4` states that the
+  crate's assertion macros "remain available at the crate root via
+  `#[macro_export]`". **Impact:** the assertion macros are excluded from the
+  prelude on merit, but had they been wanted, a glob would not have delivered
+  them; they would need an explicit `pub use crate::skip;`.
+
+- **Observation:** the `rstest` attribute path is a bare, un-renameable string
+  literal. **Evidence:** `crates/rstest-bdd-harness/src/policy.rs:89` declares
+  `const DEFAULT_TEST_ATTRIBUTES: [TestAttribute; 1] = [TestAttribute::new("rstest::rstest")];`
+  and a search for `proc_macro_crate` across `crates/rstest-bdd-harness/src/`
+  returns nothing. Unlike every first-party path, this one is never resolved
+  against the consumer's manifest. **Impact:** R-11, and follow-up 8.
+
+- **Observation:** Clippy's `wildcard_imports` exempts paths containing
+  `prelude`, and this workspace does not override that. **Evidence:**
+  `clippy.toml` does not set `warn-on-all-wildcard-imports`, whose default is
+  `false`; a parallel review confirmed the behaviour with a probe crate under
+  `#![warn(clippy::pedantic)]`. **Impact:** this is the concrete reason the
+  prelude module earns its place beside the crate-root re-export rather than
+  being redundant with it, and EP-M0 now re-probes it before anything depends
+  on it.
+
 ## Outcomes & retrospective
 
 Not yet started. To be completed at EP-M7.
@@ -1615,6 +1799,21 @@ New tests:
   `rstest::fixture` was dropped as ineffective rather than merely costly
   (DL-3), and the `insta` snapshot was replaced by a Python comparator (DL-5).
   The plan was `BLOCKED` on DL-9, the finish-line amendment.
+
+- 2026-09-18, reconciled with PR #772. A second ExecPlan for this item was
+  written concurrently and independently; its findings are folded in here and
+  credited inline as "a parallel review". Six discoveries were adopted: the
+  `cargo tree` dev-edge trap, the `diagnostics`-in-`default` hazard that no
+  gate would catch, the `#[macro_export]` reachability fact, the un-renameable
+  `"rstest::rstest"` literal (now R-11 and follow-up 8), Clippy's `prelude`
+  exemption for `wildcard_imports` (now the stated reason the prelude module
+  earns its place, and an EP-M0 probe), and the import-allowlist scoping that
+  keeps `examples/todo-cli/tests/cli.rs` out. Two arguments were corrected:
+  serde's `derive` is opt-in and is therefore no precedent for a default-on
+  feature, and the "two rstest copies silently mismatch" claim is overstated.
+  Two disagreements are recorded rather than resolved away: the drift-gate
+  mechanism (DL-5) and whether the macro re-export should be feature-gated
+  (DL-2). No milestone was added or removed.
 
 - 2026-09-18, DL-9 accepted. The maintainer approved amending RM-11.2.2's
   finish line, so the plan is no longer blocked and is `DRAFT` awaiting
