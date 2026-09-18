@@ -26,8 +26,6 @@ jobs:
       contents: read
     env:
       CARGO_TERM_COLOR: always
-      CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
-      CODESCENE_CLI_SHA256: ${{ vars.CODESCENE_CLI_SHA256 }}
       RUSTFLAGS: -D warnings
       RUSTDOCFLAGS: -D warnings
       LADING_REF: b771852411b428ff6fc779cc3a68b153a8f2439a
@@ -98,8 +96,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v5
         with:
-          # CodeScene's `cs-coverage check` diffs the pull request against
-          # its merge base, so the full history must be reachable.
+          # `make publish-check` and the coverage action both read the
+          # history, so the full depth must be reachable.
           fetch-depth: 0
           persist-credentials: false
 
@@ -504,8 +502,15 @@ jobs:
       # with the same feature selection after the instrumented run, because
       # llvm-cov's nextest path cannot execute doc tests.
       - name: Test and Measure Coverage (Linux)
-        if: ${{ runner.os == 'Linux' }}
-        uses: leynos/shared-actions/.github/actions/generate-coverage@0e3c4d24e43aa48b511d94f3b902711eb02138df
+        # Pull requests only. On the trunk `coverage-main.yml` runs this
+        # workload over the same commit and owns both persistent outputs, the
+        # CodeScene report and the ratchet baseline. Generating here as well
+        # would leave two lanes racing to publish one baseline, and would run
+        # the suite on the trunk twice over.
+        if: >-
+          ${{ runner.os == 'Linux'
+          && github.event_name == 'pull_request' }}
+        uses: leynos/shared-actions/.github/actions/generate-coverage@a5765019912a8ab6882b12db049c7cde635f3a85
         env:
           # The cargo watchdog, one of four tiers that can end a run. It
           # must cover the 75 m nextest global-timeout in
@@ -534,15 +539,26 @@ jobs:
           # xdist workers race on the cargo package-cache lock. This is an
           # explicit worker count, never `-n auto`.
           pytest-workers: ''
-          # The sole Linux lane writes the trunk baseline that every
-          # pull-request run compares against.
+          # Compare changed-line coverage against the baseline that
+          # `coverage-main.yml` writes on the trunk.
           with-ratchet: 'true'
+          # This lane measures and compares; it does not publish. The action
+          # archives the report it generated under a step of its own, which
+          # no scanner over this file's steps can see, so declining that
+          # archive is the only way the boundary is observable here.
+          publish-artefact: 'false'
 
       # Windows keeps its two feature lanes and its `cargo test` driver.
       - name: Test and Measure Coverage (Windows, default features)
-        if: ${{ runner.os == 'Windows' && matrix.features == '' }}
+        # Pull requests only, for the reason the Linux lane is: on the trunk
+        # the workspace suite runs once, in coverage-main.yml. This lane still
+        # runs on a push for the publish dry run and to write its caches; it
+        # simply does not execute the suite a second time.
+        if: >-
+          ${{ runner.os == 'Windows' && matrix.features == ''
+          && github.event_name == 'pull_request' }}
         # Merged shared-actions whole-workspace coverage revision.
-        uses: leynos/shared-actions/.github/actions/generate-coverage@0e3c4d24e43aa48b511d94f3b902711eb02138df
+        uses: leynos/shared-actions/.github/actions/generate-coverage@a5765019912a8ab6882b12db049c7cde635f3a85
         env:
           # Windows coverage runs (build plus doctests) needed headroom
           # over the shared action's default, and take the same budget as
@@ -563,9 +579,12 @@ jobs:
           pytest-workers: ''
 
       - name: Test and Measure Coverage (Windows, strict validation)
-        if: ${{ runner.os == 'Windows' && matrix.features != '' }}
+        # Pull requests only, as above.
+        if: >-
+          ${{ runner.os == 'Windows' && matrix.features != ''
+          && github.event_name == 'pull_request' }}
         # Merged shared-actions whole-workspace coverage revision.
-        uses: leynos/shared-actions/.github/actions/generate-coverage@0e3c4d24e43aa48b511d94f3b902711eb02138df
+        uses: leynos/shared-actions/.github/actions/generate-coverage@a5765019912a8ab6882b12db049c7cde635f3a85
         env:
           # Windows coverage runs (build plus doctests) needed headroom
           # over the shared action's default, and take the same budget as
@@ -585,48 +604,18 @@ jobs:
           use-cargo-nextest: ${{ matrix.use-nextest }}
           pytest-workers: ''
 
-      # Only the Linux lane's coverage report is consumed: it is what the
-      # CodeScene steps below upload and gate on. The Windows lanes run the
-      # same suite and must pass it, which is why neither carries
-      # `continue-on-error` any more, but nothing reads their report, so
-      # there is nothing here to verify. `workspace_test_gating_test.py`
-      # asserts that no step running the workspace suite is allowed to fail
-      # without failing the job.
+      # Only the Linux lane's coverage report is consumed: the ratchet
+      # reads it. The Windows lanes run the same suite and must pass it,
+      # which is why neither carries `continue-on-error` any more, but
+      # nothing reads their report, so there is nothing here to verify.
+      # `workspace_test_gating_test.py` asserts that no step running the
+      # workspace suite is allowed to fail without failing the job.
       - name: Verify coverage output exists
-        if: ${{ runner.os == 'Linux' }}
+        if: ${{ runner.os == 'Linux' && github.event_name == 'pull_request' }}
         shell: bash
         run: |
           set -euo pipefail
           test -s coverage.xml
-
-      - name: Check coverage against CodeScene gates
-        env:
-          CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
-        if: >-
-          matrix.os == 'ubicloud-standard-2' &&
-          github.event_name == 'pull_request' &&
-          env.CS_ACCESS_TOKEN != ''
-        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@0e3c4d24e43aa48b511d94f3b902711eb02138df
-        with:
-          format: cobertura
-          mode: check
-          project-url: https://api.codescene.io/v2/projects/69391
-          access-token: ${{ env.CS_ACCESS_TOKEN }}
-          installer-checksum: ${{ vars.CODESCENE_CLI_SHA256 }}
-
-      - name: Upload coverage data to CodeScene
-        env:
-          CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
-        if: >-
-          matrix.os == 'ubicloud-standard-2' &&
-          github.event_name == 'push' &&
-          github.ref == 'refs/heads/main' &&
-          env.CS_ACCESS_TOKEN != ''
-        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@0e3c4d24e43aa48b511d94f3b902711eb02138df
-        with:
-          format: cobertura
-          access-token: ${{ env.CS_ACCESS_TOKEN }}
-          installer-checksum: ${{ vars.CODESCENE_CLI_SHA256 }}
 
       # `make publish-check` compiles the workspace a second time, into
       # `target/package`. By this point the lint tree, the two GPUI fixture

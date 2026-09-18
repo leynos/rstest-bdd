@@ -24,9 +24,10 @@ The `build-test` matrix resolves `runs-on` from `matrix.os`. Both Linux feature
 lane uses `ubicloud-standard-2`; both Windows feature lanes use
 `windows-latest`. The feature sets, default-feature policy, coverage behaviour,
 and Windows `use-nextest: false` deadlock mitigation stay unchanged. The
-CodeScene and coverage-ratchet conditions identify the Linux label explicitly,
-so a runner reassignment must update those conditions and the workflow
-contracts together.
+coverage-ratchet condition identifies the Linux label explicitly, so a runner
+reassignment must update that condition and the workflow contracts together.
+CodeScene is no longer named in `ci.yml` at all; see "CodeScene publication
+belongs to main".
 
 The Linux lane sits on `ubicloud-standard-2`, the recipe's starting shape. The
 constraint that shape imposes is disk, not memory or vCPUs: it offers 72 GB
@@ -146,20 +147,62 @@ already enables it and a separate Linux lane executed nothing new. The Windows
 lanes keep their split, because Windows uses a different driver and is not
 covered by the Linux run.
 
-A former `coverage-main.yml` ran a fifth job whose platform, feature set, and
-driver matched the Linux lane. Once `ci.yml` gained its `push` trigger the two
-executed the same suite on every merge, so that workflow is gone and its two
-distinct behaviours moved into the surviving lane: it writes the ratchet
-baseline, and it uploads to CodeScene on trunk while pull requests run the
-changed-line check. CodeScene accepts an upload only for an analysed branch,
-which is why the two modes are separate steps.
+### CodeScene publication belongs to main
+
+`coverage-main.yml` owns both persistent coverage outputs: the CodeScene upload
+and the ratchet baseline. `ci.yml` generates coverage on a pull request only,
+for its own ratchet check, and carries no CodeScene action, no `cs-coverage`
+command and no `CS_ACCESS_TOKEN` at all. That is the estate rule CV-005.
+
+This reverses an earlier decision recorded here, and the reason is worth
+keeping. `coverage-main.yml` was removed once because it duplicated the Linux
+lane's executed set on every merge. That objection is answered rather than
+accepted: every coverage step in `ci.yml` now runs on a pull request only, so
+the trunk executes the workspace suite exactly once, here. The merge gate still
+runs on a push for its other gates, the publish dry run and its cache saves; it
+simply does not test the same commit a second time.
+
+What the earlier reasoning did not price was the cost of putting a third-party
+service inside the merge gate. Between 2026-09-16 and 2026-09-18 an unpinned
+`cs-coverage` could not parse its own cobertura output, and because the check
+ran as a step of the required `build-test` job, every pull request in this
+repository was blocked on a failure that had nothing to say about the change
+under review, and that no pull request could fix. A lane that cannot contact
+CodeScene cannot be stopped by CodeScene.
+
+One consequence to state plainly: the trunk no longer executes the Windows
+lanes' suite at all, because this publisher is Linux. Windows is tested on
+every pull request, against the same content that merges, so what is lost is
+detection of a Windows-only failure introduced by a semantic merge conflict.
+The alternative was to leave the Windows legs testing on a push, which is the
+duplicate run the rule exists to remove.
+
+Both lanes must measure the same thing, or the baseline the trunk writes is not
+the baseline a pull request should be compared against.
+`tests/workflow_contracts/codescene_coverage_test.py` holds their
+`generate-coverage` inputs equal field by field, and holds the list of compared
+fields equal to the set both lanes declare, so an input added to both and not
+to the list cannot drift unnoticed.
+
+The upload passes no `installer-checksum`. From shared-actions `f68e8e2e` the
+shared action pins `cs-coverage` through its own manifest and rejects a
+non-empty value for that input; `archive-checksum` replaces it. That pin is
+what fixed the parse break, and a repin without the input change is a red lane.
+
+One residual: CV-005 as published also requires every `generate-coverage` step
+in a pull-request workflow to set `with-ratchet`, and the two Windows lanes do
+not. They are the Windows test execution rather than a baseline reader, and
+ratcheting them against a baseline the Linux lane wrote would compare two
+platforms' coverage. The exception is deliberate and is recorded here rather
+than worked around.
 
 The baseline is written only on a push to `main`. Every run restores it and
 measures against it, but a pull request, and a manual dispatch, publish
-nothing. That guard lives in the pinned shared action rather than in this
-workflow. Before it, each pull request advanced the baseline it was then
-measured against, which a green run cannot show: a ratchet comparing a branch
-against itself passes while coverage falls.
+nothing. That guard lives in the pinned shared action rather than in a
+workflow, which is why `coverage-main.yml`'s `workflow_dispatch` trigger can
+measure this lane without moving the baseline. Before it, each pull request
+advanced the baseline it was then measured against, which a green run cannot
+show: a ratchet comparing a branch against itself passes while coverage falls.
 
 Two Linux steps look like test runs but are not part of the workspace suite and
 stay. `make test-workflow-contracts` exercises the Python contracts in this

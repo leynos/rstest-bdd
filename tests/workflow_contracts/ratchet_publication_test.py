@@ -8,6 +8,12 @@ the workflow supplies the events that the local caller contract requires.
 Dependabot owns the shared-action revision. This test verifies the local
 invocation shape and cross-lane consistency without making a claim about the
 implementation of any particular remote action revision.
+
+Scoped to ``ci.yml``. Since CV-005 the trunk generation and the CodeScene
+upload live in ``coverage-main.yml``, and the rules spanning the two
+workflows, including that they call one action revision and select the same
+work, are in :mod:`codescene_coverage_test`. Restating them here would leave
+two modules able to disagree.
 """
 
 import re
