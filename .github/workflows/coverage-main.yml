@@ -1,0 +1,436 @@
+---
+name: Coverage (main)
+
+# Main owns both persistent coverage outputs: the CodeScene upload and the
+# ratchet baseline. Pull requests generate coverage for their own ratchet
+# check and nothing else; they neither publish the report nor contact
+# CodeScene, and no pull-request workflow carries a CodeScene action, a
+# `cs-coverage` command or `CS_ACCESS_TOKEN`. That separation is the estate
+# rule CV-005, and it is what keeps a CodeScene outage or a report-format
+# change out of the merge gate: between 2026-09-16 and 2026-09-18 an
+# unpinned `cs-coverage` could not parse its own cobertura output, and every
+# pull request in this repository was blocked on a step that has nothing to
+# say about the change under review.
+#
+# This lane is the trunk generation. It runs the same instrumented workload
+# as the pull-request lane, over the same feature and target selection, so
+# the baseline it writes is comparable with what the ratchet checks against;
+# `tests/workflow_contracts/codescene_coverage_test.py` holds the two sets
+# equal rather than trusting that they were copied correctly.
+
+on:
+  push:
+    branches: [main]
+  # A dispatch measures this lane without merging anything. It reads every
+  # cache and, because the shared action's `publish-baseline` default saves
+  # only on a push to `refs/heads/main`, writes no baseline.
+  workflow_dispatch:
+
+# Never cancel a trunk generation: it is the only writer of the baseline and
+# of the CodeScene report.
+concurrency:
+  group: coverage-main-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  coverage-upload:
+    # The same shape as the pull-request lane's Linux leg, because it runs
+    # the same instrumented workload.
+    runs-on: ubicloud-standard-2
+    # Ubicloud runners register as just-in-time self-hosted runners, so the
+    # six-hour hosted limit does not apply. Bound the job explicitly, at the
+    # pull-request lane's figure.
+    timeout-minutes: 190
+    permissions:
+      contents: read
+    env:
+      CARGO_TERM_COLOR: always
+      CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
+      RUSTFLAGS: -D warnings
+      RUSTDOCFLAGS: -D warnings
+      LADING_REF: b771852411b428ff6fc779cc3a68b153a8f2439a
+      BUN_VERSION: '1.2.21'
+      MERMAID_CLI_VERSION: '11.9.0'
+      MERMAN_CLI_VERSION: '0.7.0'
+      NIXIE_CLI_VERSION: '1.1.0'
+      RUFF_VERSION: '0.16.4'
+      SCCACHE_VERSION: '0.12.0'
+      TY_VERSION: '0.0.74'
+      WHITAKER_INSTALLER_VERSION: '0.2.7'
+      # Named vCPU constants for the two deployed runner shapes. Build and
+      # test parallelism is derived from these, never from `-j auto`.
+      # The recipe's starting shape. The ceiling shape was tried once and
+      # returned: the sampler measured a 3,294 MiB peak, so memory never
+      # explained the earlier silent job death. Broken sccache routing did.
+      UBICLOUD_LINUX_VCPUS: '2'
+      GITHUB_WINDOWS_VCPUS: '4'
+      # One explicit workspace directory keeps the compiler cache in a
+      # single, cacheable location whose path is identical on both
+      # platforms; sccache's per-platform default lies outside it.
+      SCCACHE_DIR: ${{ github.workspace }}/.sccache
+      # No job archives a `target` tree. sccache is the single owner of
+      # every compiler output, so one store holds the LLVM debug objects
+      # for the test build and the instrumented objects for the coverage
+      # build. Size the store for both shapes while leaving room in the
+      # 30 GB weekly Ubicloud quota for the registry, tools, and Whitaker.
+      SCCACHE_CACHE_SIZE: 4G
+      # The pull-request lane takes this from its matrix. Stated once here,
+      # and held equal to the matrix value by the contract, so the two lanes
+      # cannot restore different Cargo generations.
+      RUST_TOOLCHAIN: stable
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v5
+        with:
+          # The ratchet compares against a stored baseline rather than a
+          # merge base, but the coverage action reads the history to attach
+          # the report to a commit, so keep the full depth the gate uses.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Free disk space
+        shell: bash
+        run: |
+          set -uo pipefail
+          # The instrumented build carries debuginfo for the whole
+          # workspace and is the largest tree this lane writes. Reclaim the
+          # same space the merge gate does, so a trunk generation cannot
+          # fail on disk where a pull request passed.
+          sudo rm -rf \
+            /usr/share/dotnet \
+            /usr/local/lib/android \
+            /opt/ghc \
+            /opt/hostedtoolcache/CodeQL \
+            /usr/local/share/boost \
+            /usr/local/share/powershell || true
+          df -h /
+
+      # Sample memory and disk so a shape decision rests on a measurement.
+      # The earlier silent deaths in `Publish dry run` were disk exhaustion,
+      # which memory sampling alone could never have shown.
+      - name: Start resource sampler
+        shell: bash
+        env:
+          RESOURCE_SAMPLES: ${{ runner.temp }}/resource-samples.txt
+        run: |
+          set -euo pipefail
+          : > "$RESOURCE_SAMPLES"
+          sampler="$RUNNER_TEMP/sample-resources.sh"
+          cat > "$sampler" <<'SAMPLER'
+          #!/usr/bin/env bash
+          set -uo pipefail
+          while :; do
+            mem_used="$(free -m | awk '/^Mem:/ { print $3 }')"
+            disk="$(df -m --output=used,avail / | tail -1)"
+            printf '%s %s\n' "$mem_used" "$disk" >> "$1"
+            sleep 15
+          done
+          SAMPLER
+          chmod +x "$sampler"
+          nohup "$sampler" "$RESOURCE_SAMPLES" >/dev/null 2>&1 &
+          printf 'RESOURCE_SAMPLES=%s\n' "$RESOURCE_SAMPLES" >> "$GITHUB_ENV"
+
+      - name: Configure runner parallelism and compiler cache
+        shell: bash
+        env:
+          LINUX_VCPUS: ${{ env.UBICLOUD_LINUX_VCPUS }}
+          WINDOWS_VCPUS: ${{ env.GITHUB_WINDOWS_VCPUS }}
+          # One workflow variable selects the documented local-directory
+          # fallback. Leave it unset to use the GitHub Actions cache backend
+          # on the Ubicloud lanes.
+          SCCACHE_LOCAL_MODE: ${{ vars.RSTEST_BDD_SCCACHE_LOCAL }}
+        run: |
+          set -euo pipefail
+          if [[ "$RUNNER_OS" == 'Windows' ]]; then
+            vcpus="$WINDOWS_VCPUS"
+          else
+            vcpus="$LINUX_VCPUS"
+          fi
+          {
+            printf 'RUNNER_VCPUS=%s\n' "$vcpus"
+            printf 'CARGO_BUILD_JOBS=%s\n' "$vcpus"
+            printf 'NEXTEST_TEST_THREADS=%s\n' "$vcpus"
+          } >> "$GITHUB_ENV"
+          # The shared Rust setup is called with `use-sccache: false`, so no
+          # action wires a compiler-cache backend on Windows. That lane
+          # therefore uses the local directory, which the cache step owns.
+          gha_enabled=false
+          if [[ "$RUNNER_OS" != 'Windows' && "$SCCACHE_LOCAL_MODE" != 'true' ]]; then
+            gha_enabled=true
+          fi
+          printf 'SCCACHE_GHA_ENABLED=%s\n' "$gha_enabled" >> "$GITHUB_ENV"
+          printf 'runner=%s vcpus=%s sccache-gha=%s\n' \
+            "$RUNNER_OS" "$vcpus" "$gha_enabled"
+
+      - name: Compute cache keys
+        shell: bash
+        env:
+          LOCKFILE_HASH: ${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+          DYLINT_HASH: ${{ hashFiles('dylint.toml') }}
+          TOOLCHAIN: ${{ env.RUST_TOOLCHAIN }}
+          RUNNER_ENVIRONMENT_NAME: ${{ runner.environment }}
+        run: |
+          set -euo pipefail
+          # Every key carries an explicit `v1` schema generation so the whole
+          # family can be invalidated deliberately, and `runner.environment`
+          # so a self-hosted Ubicloud archive is never restored onto a
+          # GitHub-hosted image with a different glibc baseline.
+          scope="${RUNNER_OS}-${RUNNER_ARCH}-${RUNNER_ENVIRONMENT_NAME}"
+          tool_pins="bun${BUN_VERSION}-mermaid${MERMAID_CLI_VERSION}"
+          tool_pins="${tool_pins}-merman${MERMAN_CLI_VERSION}"
+          tool_pins="${tool_pins}-nixie${NIXIE_CLI_VERSION}"
+          tool_pins="${tool_pins}-sccache${SCCACHE_VERSION}"
+          tool_pins="${tool_pins}-whitaker${WHITAKER_INSTALLER_VERSION}"
+          {
+            printf 'CARGO_CACHE_KEY=cargo-v1-%s-%s-%s\n' \
+              "$scope" "$TOOLCHAIN" "$LOCKFILE_HASH"
+            printf 'CARGO_CACHE_RESTORE_PREFIX=cargo-v1-%s-%s-\n' \
+              "$scope" "$TOOLCHAIN"
+            printf 'CI_TOOLS_CACHE_KEY=ci-tools-v1-%s-%s\n' "$scope" "$tool_pins"
+            printf 'WHITAKER_CACHE_KEY=whitaker-v1-%s-%s-%s\n' \
+              "$scope" "$WHITAKER_INSTALLER_VERSION" "$DYLINT_HASH"
+            printf 'SCCACHE_CACHE_KEY=sccache-v1-%s-%s-debug-%s\n' \
+              "$scope" "$TOOLCHAIN" "$LOCKFILE_HASH"
+            printf 'SCCACHE_CACHE_RESTORE_PREFIX=sccache-v1-%s-%s-debug-\n' \
+              "$scope" "$TOOLCHAIN"
+          } >> "$GITHUB_ENV"
+
+      # Ubicloud's transparent cache intercepts `actions/cache` v6.1.0, so
+      # one action and one pin serve both runner providers. Verified against
+      # the Ubicloud cache listing on 2026-09-03; the deprecated
+      # `ubicloud/cache` fork is not used.
+      - name: Restore Cargo registry
+        id: cargo-registry
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ env.CARGO_CACHE_KEY }}
+          restore-keys: ${{ env.CARGO_CACHE_RESTORE_PREFIX }}
+
+      # uv reports a tool as installed from its environment store alone, so
+      # the download store, the environment store, and the shim directory
+      # must be restored together by a single owner.
+      - name: Restore CI tool binaries
+        id: ci-tools-linux
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.local/bin
+            ~/.cache/uv
+            ~/.local/share/uv
+            ~/.bun/install/cache
+            ~/.bun/install/global
+            ~/.cache/puppeteer
+            ${{ github.workspace }}/.ci-tools
+          key: ${{ env.CI_TOOLS_CACHE_KEY }}
+
+      # Mount only the installer-managed suite directory. The installer
+      # binary itself lives in `~/.cargo/bin`, which the tool cache owns.
+      - name: Restore Whitaker suite
+        id: whitaker-suite
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.local/share/whitaker
+          key: ${{ env.WHITAKER_CACHE_KEY }}
+
+      # The Ubicloud lanes use sccache's GitHub Actions cache backend, whose
+      # objects reach Ubicloud storage when the sccache process holds the
+      # Actions cache credentials; the Cuprum cache listing on 2026-09-03
+      # confirmed that. The Windows lane has no such backend, because the
+      # shared Rust setup is called with `use-sccache: false`, so it uses the
+      # local directory. Setting RSTEST_BDD_SCCACHE_LOCAL moves the Linux
+      # lanes onto the same local directory.
+      - name: Restore compiler cache
+        id: sccache
+        if: ${{ vars.RSTEST_BDD_SCCACHE_LOCAL == 'true' }}
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ${{ github.workspace }}/.sccache
+          key: ${{ env.SCCACHE_CACHE_KEY }}
+          restore-keys: ${{ env.SCCACHE_CACHE_RESTORE_PREFIX }}
+
+      - name: Setup Rust
+        # Merged shared-actions PR #421 cache-provider revision.
+        #
+        # `use-sccache: 'false'` is load-bearing on the Linux lanes, not a
+        # duplicate of the installer below. The action's sccache wiring
+        # re-exports ACTIONS_CACHE_SERVICE_V2=on with GitHub's results URL and
+        # token to GITHUB_ENV as its last act, which clobbers the credential
+        # re-export for every later step; the server then addresses GitHub's
+        # results service and every write fails. Measured on
+        # ubicloud-standard-2. Do not set this to 'true'.
+        uses: leynos/shared-actions/.github/actions/setup-rust@0e3c4d24e43aa48b511d94f3b902711eb02138df
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          cache-provider: external
+          use-sccache: 'false'
+
+      # A plain `run:` step never sees the Actions cache credentials; the
+      # runner exposes them to JavaScript actions only. This job installs its
+      # own checksum-verified sccache rather than using the shared action's
+      # wiring, so it must re-export them itself.
+      #
+      # Export `ACTIONS_CACHE_URL`, which on an Ubicloud runner addresses the
+      # local cache proxy, and clear `ACTIONS_CACHE_SERVICE_V2` so sccache
+      # uses the v1 API that proxy serves. `ACTIONS_RESULTS_URL` is
+      # deliberately not exported: it addresses GitHub's own results service,
+      # and every sccache write failed while it was the configured endpoint.
+      - name: Export Actions cache credentials
+        if: ${{ vars.RSTEST_BDD_SCCACHE_LOCAL != 'true' }}
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3  # v9.0.0
+        with:
+          script: |
+            for (const name of ['ACTIONS_CACHE_URL', 'ACTIONS_RUNTIME_TOKEN']) {
+              const value = process.env[name];
+              if (!value) {
+                core.setFailed(`${name} is unavailable; sccache cannot reach the Ubicloud cache proxy`);
+                return;
+              }
+              core.exportVariable(name, value);
+            }
+            core.exportVariable('ACTIONS_CACHE_SERVICE_V2', '');
+
+      - name: Install prebuilt sccache
+        shell: bash
+        run: |
+          set -euo pipefail
+          tool_dir="$GITHUB_WORKSPACE/.ci-tools"
+          mkdir -p "$tool_dir"
+          # Binstall writes `sccache.exe` on Windows; resolve the real file so
+          # the wrapper and the counter reset both name an executable.
+          sccache_bin="$tool_dir/sccache"
+          if [[ ! -x "$sccache_bin" ]]; then
+            sccache_bin="$tool_dir/sccache.exe"
+          fi
+          expected_version="sccache ${SCCACHE_VERSION}"
+          installed_version=""
+          if [[ -x "$sccache_bin" ]]; then
+            installed_version="$("$sccache_bin" --version | tr -d '\r')"
+          fi
+          if [[ "$installed_version" != "$expected_version" ]]; then
+            cargo binstall --no-confirm --only-signed --disable-strategies compile \
+              --install-path "$tool_dir" "sccache@${SCCACHE_VERSION}"
+            sccache_bin="$tool_dir/sccache"
+            if [[ ! -x "$sccache_bin" ]]; then
+              sccache_bin="$tool_dir/sccache.exe"
+            fi
+          fi
+          test -x "$sccache_bin"
+          "$sccache_bin" --version | grep -Fx "$expected_version"
+          printf '%s\n' "$tool_dir" >> "$GITHUB_PATH"
+          printf 'RUSTC_WRAPPER=%s\n' "$sccache_bin" >> "$GITHUB_ENV"
+          # Zero the counters before the first compilation so the reported
+          # statistics describe this job's builds rather than installer noise.
+          "$sccache_bin" --zero-stats
+
+      - name: Install Whitaker
+        # Merged shared-actions PR #432: installs the official release
+        # archive against a pinned digest manifest, hashing the archive from
+        # stdin so Git Bash on Windows cannot mangle the file name.
+        uses: leynos/shared-actions/.github/actions/install-whitaker@0e3c4d24e43aa48b511d94f3b902711eb02138df
+        with:
+          installer-version: ${{ env.WHITAKER_INSTALLER_VERSION }}
+          cache-provider: external
+
+      # The single Linux execution. `--all-features` subsumes the former
+      # strict-validation lane, because `strict-compile-time-validation`
+      # only implies `compile-time-validation` and conflicts with nothing.
+      # `all-features`, `all-targets`, and `doctests` come from merged
+      # shared-actions PR #428, contained in this pin. `doctests` runs `cargo test --doc --workspace`
+      # with the same feature selection after the instrumented run, because
+      # llvm-cov's nextest path cannot execute doc tests.
+      - name: Test and Measure Coverage
+        uses: leynos/shared-actions/.github/actions/generate-coverage@a5765019912a8ab6882b12db049c7cde635f3a85
+        env:
+          # The cargo watchdog, one of four tiers that can end a run. It
+          # must cover the 75 m nextest global-timeout in
+          # .config/nextest.toml, the grace period nextest takes to
+          # terminate the run once that expires, and the build inside the
+          # same cargo invocation. Below that, a cold run is killed
+          # before nextest can use the budget it was given. See "Test
+          # timeouts: four tiers, outermost last" in
+          # docs/developers-guide.md.
+          RUN_RUST_CARGO_WAIT_TIMEOUT: '6600'
+          # Tests that snapshot a child process's stderr must see the same
+          # panic-hook output on every lane. An instrumented build retains
+          # debuginfo, so a backtrace would otherwise appear here and not on
+          # the Windows lanes.
+          RUST_BACKTRACE: '0'
+        with:
+          cache-provider: external
+          output-path: coverage.xml
+          format: cobertura
+          all-features: 'true'
+          all-targets: 'true'
+          doctests: 'true'
+          use-cargo-nextest: 'true'
+          # Run the Python coverage suite serially: the whitaker lint-gate
+          # integration test shells out to `cargo dylint`, so parallel
+          # xdist workers race on the cargo package-cache lock. This is an
+          # explicit worker count, never `-n auto`.
+          pytest-workers: ''
+          # This lane writes the trunk baseline that every pull-request run
+          # compares against. `publish-artefact` is deliberately unset, so
+          # the action keeps its default and archives the report; the
+          # pull-request lane sets it to 'false', because publication is
+          # this workflow's alone.
+          with-ratchet: 'true'
+
+      # The upload below reads this file. An absent or empty report would
+      # otherwise reach CodeScene as a successful upload of nothing.
+      - name: Verify coverage output exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s coverage.xml
+
+      - name: Upload coverage data to CodeScene
+        # The only CodeScene contact in this repository. The ref guard is
+        # load-bearing: `workflow_dispatch` can select any branch or tag, and
+        # without it a dispatch from a feature branch would publish that
+        # branch's coverage through the main-owned upload. The trigger alone
+        # does not restrict the ref; only this does. The shared action's own
+        # `publish-baseline: auto` already holds the ratchet baseline to a
+        # push to `refs/heads/main`, so this brings the CodeScene report under
+        # the same rule.
+        #
+        # `installer-checksum` is deliberately absent: from shared-actions
+        # f68e8e2e the action rejects a non-empty value and pins `cs-coverage`
+        # through its own manifest, which is what fixed the parse break.
+        if: ${{ github.ref == 'refs/heads/main' && env.CS_ACCESS_TOKEN != '' }}
+        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@a5765019912a8ab6882b12db049c7cde635f3a85
+        with:
+          path: coverage.xml
+          format: cobertura
+          mode: upload
+          access-token: ${{ env.CS_ACCESS_TOKEN }}
+
+      - name: Report peak resource use
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          samples="${RESOURCE_SAMPLES:-}"
+          if [[ -z "$samples" || ! -s "$samples" ]]; then
+            echo 'No resource samples were recorded.'
+            exit 0
+          fi
+          peak_memory="$(awk '{ print $1 }' "$samples" | sort -n | tail -1)"
+          peak_disk="$(awk '{ print $2 }' "$samples" | sort -n | tail -1)"
+          least_free="$(awk '{ print $3 }' "$samples" | sort -n | head -1)"
+          count="$(wc -l < "$samples")"
+          printf 'peak used memory: %s MiB\n' "$peak_memory"
+          printf 'peak used disk: %s MiB\n' "$peak_disk"
+          printf 'least free disk: %s MiB\n' "$least_free"
+          printf 'samples: %s at 15 second intervals\n' "$count"
+          {
+            printf '### Resources\n\n'
+            printf -- '- peak used memory: %s MiB\n' "$peak_memory"
+            printf -- '- peak used disk: %s MiB\n' "$peak_disk"
+            printf -- '- least free disk: %s MiB\n' "$least_free"
+            printf -- '- samples: %s at 15 second intervals\n' "$count"
+            printf -- '- shape: %s vCPU\n' "${RUNNER_VCPUS:-unknown}"
+          } >> "$GITHUB_STEP_SUMMARY"
