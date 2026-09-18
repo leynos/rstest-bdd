@@ -21,6 +21,7 @@ Run via ``make test-workflow-contracts``.
 
 import pytest
 from codescene_coverage_support import (
+    DEPRECATED_DIGEST_VARIABLE,
     MARKER_FIXTURES,
     MARKERS,
     PR_COVERAGE_STEP,
@@ -30,6 +31,7 @@ from codescene_coverage_support import (
     PULL_REQUEST_EVENTS,
     SELECTION_INPUTS,
     SHA_PINNED,
+    _walk,
     codescene_references,
     coverage_step,
     pull_request_workflows,
@@ -107,6 +109,30 @@ def test_no_pull_request_workflow_contacts_codescene() -> None:
         "no workflow reachable from a pull request may name a CodeScene "
         "action, run cs-coverage, or carry CS_ACCESS_TOKEN; main owns every "
         f"CodeScene interaction (CV-005). Found: {offending}"
+    )
+
+
+def test_no_workflow_reads_the_deprecated_cli_digest() -> None:
+    """Leave no workflow maintaining or reading a value nothing consumes.
+
+    `CODESCENE_CLI_SHA256` held the digest of the CodeScene installer script,
+    and `installer-checksum` was its only consumer. From shared-actions
+    `f68e8e2e` that input is rejected when non-empty and the CLI is pinned
+    through the action's own manifest instead, so a workflow still reading the
+    variable is feeding a rejected input, and one still refreshing it is
+    maintaining a value nothing reads. Neither fails loudly on its own, which
+    is why this is asserted rather than left to be noticed.
+    """
+    offending = sorted(
+        f"{name}: {path}"
+        for name in workflow_names()
+        for path, text in _walk(workflow(name), name)
+        if DEPRECATED_DIGEST_VARIABLE in text
+    )
+
+    assert not offending, (
+        f"no workflow may read or refresh {DEPRECATED_DIGEST_VARIABLE}; the "
+        f"shared action pins the CLI through its own manifest: {offending}"
     )
 
 

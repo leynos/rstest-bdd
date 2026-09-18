@@ -26,6 +26,12 @@ PR_WORKFLOW = "ci.yml"
 PR_COVERAGE_STEP = "Test and Measure Coverage (Linux)"
 PUBLISHER_COVERAGE_STEP = "Test and Measure Coverage"
 
+#: The repository variable that held the CodeScene installer script's digest.
+#: `installer-checksum` was its only consumer, and the shared action rejects
+#: that input from f68e8e2e onwards, so anything still reading this variable is
+#: feeding a rejected input or maintaining a value nothing reads.
+DEPRECATED_DIGEST_VARIABLE: typ.Final[str] = "CODESCENE_CLI_SHA256"
+
 #: Events that let a pull request's head decide what runs.
 PULL_REQUEST_EVENTS = frozenset({"pull_request", "pull_request_target"})
 
