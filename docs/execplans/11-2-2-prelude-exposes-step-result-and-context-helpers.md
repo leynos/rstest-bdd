@@ -5,7 +5,9 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Outcomes & retrospective`, `Conformance basis`, and `Verification plan` must
 be kept up to date as work proceeds.
 
-Status: DRAFT
+Status: DRAFT — awaiting approval. The one upstream deviation this plan needed,
+the RM-11.2.2 finish-line amendment (DL-9), was accepted on 2026-09-18, so
+nothing is outstanding beyond approval of the plan itself.
 
 ## Purpose / big picture
 
@@ -639,13 +641,15 @@ ADR-004   -> ADR-022 -> EP-M1 -> docs/developers-guide.md states both edge direc
 ADR-007   -> EP-M3 -> given/when/then rustdoc documents #[harness_context]
 ```
 
-**Proposed deviation, requiring approval before implementation.** RM-11.2.2's
-finish line is not achievable as literally worded, for the five structural
-reasons set out in "The restated finish line". This plan amends
-`docs/roadmap.md:1040-1041` to the achievable property. Per the ExecPlan
-convention this is an upstream change that must be accepted explicitly; it is
-recorded in `Decision log` as DL-9 and is the reason this plan's status is
-`DRAFT` rather than ready to execute.
+**Accepted deviation (2026-09-18).** RM-11.2.2's finish line is not achievable
+as literally worded, for the five structural reasons set out in "The restated
+finish line". This plan amends the roadmap entry to a property that can
+actually be enforced. The maintainer accepted the amendment on 2026-09-18; the
+verbatim replacement text is fixed in DL-9 and applied by EP-M7, so the edit is
+mechanical rather than a judgement call at the end of the work.
+
+The plan itself still awaits approval before implementation begins. That is the
+ordinary ExecPlan gate, not an outstanding blocker.
 
 ## Constraints
 
@@ -713,8 +717,11 @@ Stop and escalate — do not improvise — when any of these is reached.
 - **Gate churn:** if `make lint` reports Whitaker findings that cannot be fixed
   without restructuring code outside this plan's scope, stop and escalate.
 - **Iterations:** a milestone's tests still failing after four attempts.
-- **Roadmap amendment:** if the approver declines the finish-line amendment
-  (DL-9), stop. The item cannot be completed honestly without it.
+- **Roadmap amendment:** the finish-line amendment (DL-9) is accepted and its
+  replacement text is fixed. If implementation evidence shows that even the
+  amended property cannot be met — for example, if an example turns out to need
+  `rstest-bdd-macros` for something the facade cannot re-export — stop and
+  escalate rather than weakening the wording again.
 - **Ambiguity:** if the unconditional-versus-feature-gated decision (DL-2) is
   overruled at approval, stop and re-plan Milestones 1 and 4 before proceeding;
   a feature gate changes the CI feature lists, the docs.rs story, and the
@@ -1249,9 +1256,15 @@ upstream artefact in `Conformance basis` reflects the shipped state.
 
 **Identifier:** EP-M7.
 
-1. Amend `docs/roadmap.md:1040-1041` to the achievable finish line, per DL-9,
-   and tick 11.2.2 as done with a completion note recording what shipped and
-   what was deliberately deferred.
+1. Replace `docs/roadmap.md:1038-1043` with the verbatim text fixed in DL-9
+   under "The verbatim roadmap replacement", and tick 11.2.2 as done with a
+   completion note recording what shipped and what was deliberately deferred.
+   The amendment is already accepted, so this is a transcription step, not a
+   decision. The replacement text was dry-run applied to `docs/roadmap.md` on
+   2026-09-18 and both `make markdownlint` and `make -B spelling` passed with
+   it in place, then the file was restored; the wrapping is therefore known to
+   fit. Re-run both gates after transcribing anyway, since `make fmt` can
+   reflow neighbouring entries in a file this size.
 2. File the follow-up items listed below as roadmap entries or issues.
 3. Run the complete gate suite sequentially, `tee`-ing each to
    `/tmp/$ACTION-rstest-bdd-$(git branch --show-current).out`: `make check-fmt`,
@@ -1409,24 +1422,65 @@ should be filed rather than forgotten:
   proportionately. No crate in the surveyed prior art versions its prelude.
   Date/Author: 2026-09-14, planning agent.
 
-- **DL-9 — PROPOSED DEVIATION, AWAITING APPROVAL: amend RM-11.2.2's finish
-  line.** The finish line "compile tests prove examples import only the prelude
-  plus their harness crate" is unachievable for five structural reasons, none
-  caused by this plan: `rstest` must be in the consuming manifest or
-  `#[fixture]` panics; generated code emits bare `#[rstest::rstest]`,
-  `#[tokio::test]`, and `#[gpui::test]` paths; every example carries
+- **DL-9 — ACCEPTED DEVIATION: amend RM-11.2.2's finish line.** The finish
+  line "compile tests prove examples import only the prelude plus their harness
+  crate" is unachievable for five structural reasons, none caused by this plan:
+  `rstest` must be in the consuming manifest or `#[fixture]` panics; generated
+  code emits bare `#[rstest::rstest]`, `#[tokio::test]`, and `#[gpui::test]`
+  paths; every example carries
   `#[rstest_bdd_test_macros::allow_fixture_expansion_lints]` from an
   unpublished crate; and `examples/todo-cli/tests/cli.rs:7` needs
-  `rstest_bdd_harness::binary_test_support`. The proposed replacement is: *no
-  example crate names any `rstest-bdd-*` crate that the `rstest-bdd` facade
-  re-exports* — concretely, `rstest-bdd-macros` appears in no example manifest
-  and no example source file. That property is compiler-enforced in one
-  direction and script-enforced in the other. Impact:
-  `docs/roadmap.md:1040-1041`. Options: amend (recommended); or ship and record
-  the shortfall in the completion note; or expand scope to remove
-  `rstest-bdd-test-macros` from the examples, which is follow-up 5 and does not
-  address `rstest`, `tokio`, or `gpui` in any case. **Status: BLOCKED pending
-  explicit acceptance.** Date/Author: 2026-09-14, planning agent.
+  `rstest_bdd_harness::binary_test_support`. Rationale for the replacement: the
+  property worth having is the one a gate can hold, and "no example reaches
+  past the facade for something the facade provides" is exactly that. It is
+  compiler-enforced in one direction (an example that names `rstest_bdd_macros`
+  without the manifest entry fails to build) and script-enforced in the other
+  (V-5 catches a manifest entry re-added without a corresponding import). The
+  crates that remain visible — `rstest`, the harness crate, the test-only
+  scaffolding crate — are precisely the ones the roadmap's own "without hiding
+  the underlying crates" clause says should stay visible, so the amendment
+  sharpens the entry rather than retreating from it. Alternatives rejected:
+  ship and record the shortfall in the completion note (leaves a finish line
+  the evidence contradicts, which is how roadmap entries rot); or expand scope
+  to strip `rstest-bdd-test-macros` from the examples, which is follow-up 5 and
+  would still leave `rstest`, `tokio`, and `gpui` unaddressed. Impact:
+  `docs/roadmap.md:1038-1043`. The verbatim replacement text is fixed below and
+  applied by EP-M7. **Status: accepted by the maintainer, 2026-09-18.**
+  Date/Author: proposed 2026-09-14, accepted 2026-09-18.
+
+### The verbatim roadmap replacement
+
+EP-M7 replaces `docs/roadmap.md:1038-1043` with exactly this. Reproduce it
+character for character; the wrapping is already at the 80-column limit the
+Markdown gate enforces, and the checkbox becomes `[x]` at completion.
+
+```markdown
+- [ ] 11.2.2. The public prelude exposes `StepResult`, `Slot`, `ScenarioState`,
+  and `StepContext` with its harness-context helpers, so examples can import
+  one predictable module without hiding the underlying crates. The
+  `#[harness_context]` marker from 11.2.1 is inert parameter syntax with no
+  importable item behind it, so documentation covers it rather than an export.
+  Finish line: every example reaches its `rstest-bdd` surface through
+  `rstest_bdd::prelude` alone, with `rstest-bdd-macros` absent from every
+  example manifest and every example source file, enforced in both directions
+  by the compiler and by a repository gate; a fixture crate naming only
+  `rstest-bdd` and `rstest` compiles and runs a scenario; and
+  `docs/users-guide.md` lists the exported items under a gate that fails when
+  the list and the code disagree. Examples continue to name `rstest`, their
+  harness crate, and the test-only scaffolding crate directly: those are not
+  re-exported and are meant to stay visible. Prerequisite: 11.2.1. Design Doc:
+  `docs/rstest-bdd-design.md` §2.7.6.4. (Dinolump)
+```
+
+Three substantive changes beyond the finish line itself. The item text now says
+`StepContext` explicitly, because that is what carries the five harness-context
+helper methods the original entry named (DL-6 declines to export the reserved
+key constant, which is the other thing "harness-context helpers" could have
+meant). The marker clause is restated so that a later reader cannot construe it
+as requiring an export that cannot exist (DL-4). And the finish line gains the
+fixture-crate clause, which is the observable form of the property that
+actually matters to a downstream user: that they never need `rstest-bdd-macros`
+in their own manifest.
 
 ## Progress
 
@@ -1439,9 +1493,9 @@ should be filed rather than forgotten:
 - [ ] EP-M6 — remaining documentation and ADR-022.
 - [ ] EP-M7 — roadmap amendment, full gates, pull request.
 
-Nothing is implemented. This plan is `DRAFT` and additionally `BLOCKED` on
-DL-9. Do not begin Milestone 1 until both the plan and the finish-line
-amendment are approved.
+Nothing is implemented. The finish-line amendment (DL-9) is accepted, so the
+plan is no longer blocked; it is `DRAFT` awaiting ordinary approval. Do not
+begin Milestone 1 until the plan is approved.
 
 ## Surprises & discoveries
 
@@ -1560,5 +1614,13 @@ New tests:
   became unconditional rather than feature-gated (DL-2), re-exporting
   `rstest::fixture` was dropped as ineffective rather than merely costly
   (DL-3), and the `insta` snapshot was replaced by a Python comparator (DL-5).
-  The plan is `BLOCKED` on DL-9, the finish-line amendment, which must be
-  accepted before Milestone 1 begins.
+  The plan was `BLOCKED` on DL-9, the finish-line amendment.
+
+- 2026-09-18, DL-9 accepted. The maintainer approved amending RM-11.2.2's
+  finish line, so the plan is no longer blocked and is `DRAFT` awaiting
+  ordinary approval. DL-9 now carries the verbatim replacement text for
+  `docs/roadmap.md:1038-1043`, which also restates the item's "harness-context
+  helpers" and "marker attributes" clauses in line with DL-4 and DL-6 so that a
+  later reader cannot construe either as requiring an export that cannot exist.
+  EP-M7 step 1 applies that text mechanically. No other section changed: the
+  design, milestones, and verification plan are unaffected by the amendment.
