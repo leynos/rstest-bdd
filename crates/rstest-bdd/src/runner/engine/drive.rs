@@ -128,13 +128,7 @@ pub(super) fn record_step(
                 has_message = message.is_some(),
                 "scenario stopped: a step requested a skip",
             );
-            let record = StepOutcome::skipped(
-                index,
-                invocation.keyword(),
-                invocation.text(),
-                invocation.source(),
-                message.clone(),
-            );
+            let record = StepOutcome::skipped(index, invocation, message.clone());
             let terminal = Terminal::Skip {
                 index,
                 message,
@@ -154,13 +148,7 @@ pub(super) fn record_step(
             // the terminal both need the error, and `StepOutcome::failed`
             // consumes its argument. See the plan's D18 note on the
             // alternatives that were rejected.
-            let record = StepOutcome::failed(
-                index,
-                invocation.keyword(),
-                invocation.text(),
-                invocation.source(),
-                error.clone(),
-            );
+            let record = StepOutcome::failed(index, invocation, error.clone());
             (record, Some(Terminal::Fail { index, error }))
         }
     }
@@ -179,12 +167,7 @@ pub(super) fn bypassed(index: usize, invocation: &StepInvocation) -> StepOutcome
         status = ?crate::runner::StepStatus::Bypassed,
         "step bypassed",
     );
-    StepOutcome::bypassed(
-        index,
-        invocation.keyword(),
-        invocation.text(),
-        invocation.source(),
-    )
+    StepOutcome::bypassed(index, invocation)
 }
 
 /// Render a step's source as `path:line`, or `unknown` when the plan has none.
@@ -213,11 +196,5 @@ fn location(invocation: &StepInvocation) -> String {
 
 /// Record a successful invocation, with what became of any returned value.
 fn passed(index: usize, invocation: &StepInvocation, fate: Option<ValueFate>) -> StepOutcome {
-    StepOutcome::passed(
-        index,
-        invocation.keyword(),
-        invocation.text(),
-        invocation.source(),
-        fate,
-    )
+    StepOutcome::passed(index, invocation, fate)
 }

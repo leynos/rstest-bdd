@@ -18,6 +18,7 @@ use crate::{
         ScenarioStatus as RunnerStatus,
         StepOutcome,
         ValueFate,
+        test_invocation,
     },
 };
 
@@ -36,7 +37,11 @@ fn plan() -> ScenarioPlan {
 
 /// The first step, passed and returning nothing.
 fn first_step() -> StepOutcome {
-    StepOutcome::passed(0, StepKeyword::Given, "a calculator", None, None)
+    StepOutcome::passed(
+        0,
+        &test_invocation(StepKeyword::Given, "a calculator", None),
+        None,
+    )
 }
 
 /// A step-not-found error naming the second invocation.
@@ -64,7 +69,11 @@ fn a_passing_run_converts() {
         RunnerStatus::Passed,
         vec![
             first_step(),
-            StepOutcome::passed(1, StepKeyword::Then, "the result is 4", None, None),
+            StepOutcome::passed(
+                1,
+                &test_invocation(StepKeyword::Then, "the result is 4", None),
+                None,
+            ),
         ],
         None,
         None,
@@ -103,9 +112,7 @@ fn a_skipped_run_converts_with_its_policy() {
             first_step(),
             StepOutcome::skipped(
                 1,
-                StepKeyword::Then,
-                "the result is 4",
-                None,
+                &test_invocation(StepKeyword::Then, "the result is 4", None),
                 Some("pending".into()),
             ),
         ],
@@ -150,7 +157,11 @@ fn a_failed_run_reports_the_missing_failure_case() {
         RunnerStatus::Failed,
         vec![
             first_step(),
-            StepOutcome::failed(1, StepKeyword::Then, "the result is 4", None, not_found()),
+            StepOutcome::failed(
+                1,
+                &test_invocation(StepKeyword::Then, "the result is 4", None),
+                not_found(),
+            ),
         ],
         None,
         Some(ScenarioFailure::Step {
@@ -202,9 +213,7 @@ fn a_skip_without_a_record_reports_the_gap() {
         RunnerStatus::Skipped,
         vec![StepOutcome::skipped(
             0,
-            StepKeyword::Given,
-            "a calculator",
-            None,
+            &test_invocation(StepKeyword::Given, "a calculator", None),
             None,
         )],
         None,
@@ -233,9 +242,7 @@ fn a_value_fate_does_not_reach_the_record() {
         RunnerStatus::Passed,
         vec![StepOutcome::passed(
             0,
-            StepKeyword::Given,
-            "a calculator",
-            None,
+            &test_invocation(StepKeyword::Given, "a calculator", None),
             Some(ValueFate::AmbiguousIgnored),
         )],
         None,

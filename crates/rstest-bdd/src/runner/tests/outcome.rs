@@ -25,6 +25,7 @@ use crate::{
         StepOutcome,
         StepStatus,
         ValueFate,
+        test_invocation,
     },
 };
 
@@ -52,9 +53,7 @@ fn not_found(index: usize) -> ExecutionError {
 fn failing_outcome(index: usize, error: ExecutionError) -> ScenarioOutcome {
     let step = StepOutcome::failed(
         index,
-        StepKeyword::Given,
-        "an undefined step",
-        Some(&location(12)),
+        &test_invocation(StepKeyword::Given, "an undefined step", Some(&location(12))),
         error.clone(),
     );
     ScenarioOutcome::new(
@@ -70,9 +69,7 @@ fn failing_outcome(index: usize, error: ExecutionError) -> ScenarioOutcome {
 fn passing_outcome() -> ScenarioOutcome {
     let step = StepOutcome::passed(
         0,
-        StepKeyword::Given,
-        "a calculator",
-        Some(&location(12)),
+        &test_invocation(StepKeyword::Given, "a calculator", Some(&location(12))),
         None,
     );
     ScenarioOutcome::new(ScenarioStatus::Passed, vec![step], None, None)
@@ -82,9 +79,7 @@ fn passing_outcome() -> ScenarioOutcome {
 fn skipping_outcome(forced_failure: bool) -> ScenarioOutcome {
     let step = StepOutcome::skipped(
         0,
-        StepKeyword::Given,
-        "a pending step",
-        Some(&location(12)),
+        &test_invocation(StepKeyword::Given, "a pending step", Some(&location(12))),
         Some("waiting on upstream".to_owned()),
     );
     let skip = ScenarioSkip::new(
@@ -170,9 +165,7 @@ fn canonical_fold_prefers_the_failure_over_a_skip() {
     let skip = ScenarioSkip::new(0, None, None, true, true);
     let step = StepOutcome::failed(
         0,
-        StepKeyword::Given,
-        "an undefined step",
-        None,
+        &test_invocation(StepKeyword::Given, "an undefined step", None),
         error.clone(),
     );
 
@@ -193,9 +186,7 @@ fn canonical_fold_prefers_the_failure_over_a_skip() {
 fn statuses_and_payloads_agree() {
     let step = StepOutcome::passed(
         3,
-        StepKeyword::Then,
-        "the result is 4",
-        Some(&location(45)),
+        &test_invocation(StepKeyword::Then, "the result is 4", Some(&location(45))),
         Some(ValueFate::Inserted),
     );
     assert_eq!(step.status(), StepStatus::Passed);
@@ -210,16 +201,17 @@ fn statuses_and_payloads_agree() {
 
     let skipped = StepOutcome::skipped(
         1,
-        StepKeyword::When,
-        "a pending step",
-        None,
+        &test_invocation(StepKeyword::When, "a pending step", None),
         Some("later".to_owned()),
     );
     assert_eq!(skipped.status(), StepStatus::Skipped);
     assert_eq!(skipped.skip_message(), Some("later"));
     assert!(skipped.value_insertion().is_none());
 
-    let bypassed = StepOutcome::bypassed(2, StepKeyword::Then, "the result is 4", None);
+    let bypassed = StepOutcome::bypassed(
+        2,
+        &test_invocation(StepKeyword::Then, "the result is 4", None),
+    );
     assert_eq!(bypassed.status(), StepStatus::Bypassed);
     assert!(bypassed.error().is_none());
     assert!(bypassed.skip_message().is_none());

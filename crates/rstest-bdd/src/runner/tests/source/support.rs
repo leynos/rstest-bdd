@@ -21,7 +21,7 @@
 use crate::{
     StepKeyword,
     execution::ExecutionError,
-    runner::{SourceLocation, StepOutcome, StepStatus},
+    runner::{SourceLocation, StepOutcome, StepStatus, test_invocation},
 };
 
 /// The `feature_path` every decoy error carries.
@@ -95,15 +95,17 @@ pub(super) fn every_status() -> Vec<(StepStatus, StepOutcome)> {
     vec![
         (
             StepStatus::Passed,
-            StepOutcome::passed(0, StepKeyword::Given, "a passed step", Some(&source), None),
+            StepOutcome::passed(
+                0,
+                &test_invocation(StepKeyword::Given, "a passed step", Some(&source)),
+                None,
+            ),
         ),
         (
             StepStatus::Skipped,
             StepOutcome::skipped(
                 1,
-                StepKeyword::When,
-                "a skipped step",
-                Some(&source),
+                &test_invocation(StepKeyword::When, "a skipped step", Some(&source)),
                 Some("asked to skip".to_owned()),
             ),
         ),
@@ -111,15 +113,16 @@ pub(super) fn every_status() -> Vec<(StepStatus, StepOutcome)> {
             StepStatus::Failed,
             StepOutcome::failed(
                 2,
-                StepKeyword::Then,
-                "a failed step",
-                Some(&source),
+                &test_invocation(StepKeyword::Then, "a failed step", Some(&source)),
                 decoy_error(2),
             ),
         ),
         (
             StepStatus::Bypassed,
-            StepOutcome::bypassed(3, StepKeyword::Then, "a bypassed step", Some(&source)),
+            StepOutcome::bypassed(
+                3,
+                &test_invocation(StepKeyword::Then, "a bypassed step", Some(&source)),
+            ),
         ),
     ]
 }

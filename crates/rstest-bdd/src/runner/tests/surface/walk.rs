@@ -11,7 +11,10 @@
 //! would create a place for a real leak to hide.
 
 use camino::Utf8Path;
-use cap_std::{ambient_authority, fs_utf8::Dir};
+use cap_std::{
+    ambient_authority,
+    fs_utf8::{Dir, DirEntry},
+};
 
 /// One walk of the runner tree: what was read, and what could not be.
 ///
@@ -58,6 +61,11 @@ pub(super) fn scan_root(root: &Utf8Path) -> Scanned {
 /// at the root. Symlinked directories are not followed: `cap-std` opens
 /// directories without traversing symlinks, so the scan cannot be redirected
 /// outside the tree it was pointed at.
+///
+/// The per-entry work lives in [`visit`], which keeps this function's own
+/// complexity to the listing plus the loop. The split is not cosmetic: this
+/// function's control flow is the recursion, and mixing it with four failure
+/// arms made a single function the hardest thing in the module to read.
 fn collect(directory: &Dir, prefix: &str, scanned: &mut Scanned) {
     let entries = match directory.entries() {
         Ok(entries) => entries,
@@ -69,42 +77,63 @@ fn collect(directory: &Dir, prefix: &str, scanned: &mut Scanned) {
         }
     };
     for entry in entries {
-        let Ok(entry) = entry else {
-            scanned
-                .unreadable
-                .push(format!("{prefix}: an entry could not be read"));
-            continue;
-        };
-        let Ok(name) = entry.file_name() else {
-            scanned
-                .unreadable
-                .push(format!("{prefix}: an entry had no file name"));
-            continue;
-        };
-        let relative = child_path(prefix, &name);
-        let Ok(file_type) = entry.file_type() else {
-            scanned
-                .unreadable
-                .push(format!("{relative}: the file type could not be read"));
-            continue;
-        };
-        if file_type.is_dir() {
-            match directory.open_dir(&name) {
-                Ok(child) => collect(&child, &relative, scanned),
-                Err(error) => scanned.unreadable.push(format!(
-                    "{relative}: the directory could not be opened: {error}"
-                )),
-            }
-        } else if is_rust_source(&name) && relative != SELF {
-            // Reading the token list's own source would find the literal tokens
-            // in it and report them as leaks.
-            match directory.read_to_string(&name) {
-                Ok(contents) => scanned.sources.push((relative, contents)),
-                Err(error) => scanned
-                    .unreadable
-                    .push(format!("{relative}: the file could not be read: {error}")),
-            }
+        visit(directory, prefix, entry, scanned);
+    }
+}
+
+/// Handle one directory entry, recursing into a subdirectory.
+///
+/// Every failure path records a message rather than returning silently, so a
+/// path the walk could not read is always visible in [`Scanned::unreadable`]
+/// and can never be mistaken for a file with no leaks.
+fn visit(
+    directory: &Dir,
+    prefix: &str,
+    entry: Result<DirEntry, std::io::Error>,
+    scanned: &mut Scanned,
+) {
+    let Ok(entry) = entry else {
+        scanned
+            .unreadable
+            .push(format!("{prefix}: an entry could not be read"));
+        return;
+    };
+    let Ok(name) = entry.file_name() else {
+        scanned
+            .unreadable
+            .push(format!("{prefix}: an entry had no file name"));
+        return;
+    };
+    let relative = child_path(prefix, &name);
+    let Ok(file_type) = entry.file_type() else {
+        scanned
+            .unreadable
+            .push(format!("{relative}: the file type could not be read"));
+        return;
+    };
+    if file_type.is_dir() {
+        match directory.open_dir(&name) {
+            Ok(child) => collect(&child, &relative, scanned),
+            Err(error) => scanned.unreadable.push(format!(
+                "{relative}: the directory could not be opened: {error}"
+            )),
         }
+    } else if is_rust_source(&name) && relative != SELF {
+        read_source(directory, &name, relative, scanned);
+    }
+}
+
+/// Read one source file into `scanned`, or record why it could not be read.
+///
+/// Reading the token list's own source would find the literal tokens in it and
+/// report them as leaks, which is why the caller checks `relative != SELF`
+/// before getting here.
+fn read_source(directory: &Dir, name: &str, relative: String, scanned: &mut Scanned) {
+    match directory.read_to_string(name) {
+        Ok(contents) => scanned.sources.push((relative, contents)),
+        Err(error) => scanned
+            .unreadable
+            .push(format!("{relative}: the file could not be read: {error}")),
     }
 }
 

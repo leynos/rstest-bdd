@@ -14,6 +14,7 @@ use crate::{
         engine::policy::{Terminal, assemble},
         outcome::{StepOutcome, StepStatus},
         source::SourceLocation,
+        test_invocation,
     },
 };
 
@@ -194,9 +195,7 @@ fn a_recorded_insertion_fate_is_preserved() {
     let fate = crate::runner::ValueFate::NoMatch;
     let step = StepOutcome::passed(
         0,
-        StepKeyword::Given,
-        "a calculator",
-        Some(&location()),
+        &test_invocation(StepKeyword::Given, "a calculator", Some(&location())),
         Some(fate),
     );
     let outcome = assemble(vec![step], None, PERMITTED);
