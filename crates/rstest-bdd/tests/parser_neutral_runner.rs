@@ -38,20 +38,21 @@
 //! in a `RefCell<Option<ScenarioPlan>>` fixture rather than passed between step
 //! functions — the state is a Rust value this suite constructs, not a step
 //! parameter, and threading it through the parameter system would make the
-//! `Given` steps describe a context they do not own.
+//! `Given` steps describe a context they do not own. The fixture, the steps
+//! that fill it, and the accessors that read it are in the `support` submodule,
+//! because the parent is at the 400-line cap without them.
 
 use std::{cell::RefCell, panic::AssertUnwindSafe};
 
-use rstest::fixture;
 use rstest_bdd::{
     StepContext,
-    StepKeyword,
     runner::{
-        ScenarioOutcome,
-        ScenarioPlan,
+        FailureSite,
         ScenarioPlanBuilder,
         ScenarioScope,
         ScenarioStatus,
+        SourceLocation,
+        StepOutcome,
         StepStatus,
         run_scenario,
         run_scenario_async,
@@ -59,84 +60,23 @@ use rstest_bdd::{
 };
 use rstest_bdd_macros::{given, scenario, then, when};
 
-/// The plan under construction, and the outcome once it has been run.
-#[derive(Default)]
-struct Bench {
-    /// Built by the `Given` steps, taken by the `When` step.
-    plan: Option<ScenarioPlan>,
-    /// Filled by the `When` step, read by the `Then` steps.
-    outcome: Option<ScenarioOutcome>,
-    /// Filled by the equivalence scenario's `When`, read by its `Then`.
-    ///
-    /// The two runners' results are kept side by side rather than compared
-    /// inside the step, so a failure reports both outcomes through the
-    /// assertion's own diff instead of a hand-built message.
-    async_outcome: Option<ScenarioOutcome>,
-    /// Set if running the plan unwound, which is the one thing INV-17 forbids.
-    unwound: bool,
-}
+#[path = "parser_neutral_runner/support.rs"]
+mod support;
 
-#[rstest_bdd_test_macros::allow_fixture_expansion_lints]
-#[fixture]
-fn bench() -> RefCell<Bench> { RefCell::new(Bench::default()) }
-
-/// Four registered steps, one per role the three scenarios need.
-///
-/// The patterns are spelled to be unmistakably this suite's, because the
-/// registry is process-global and every integration binary in this crate shares
-/// it: a text another suite might also register is a future duplicate.
-///
-/// Each is registered under the keyword `step_text` maps its role to, and
-/// `resolve_step` filters on keyword equality — so the mapping is not a
-/// convenience but the thing that makes each invocation resolve at all. The
-/// returning step is under `When` for that reason, and it is the one that makes
-/// the equivalence scenario more than a status comparison: a value whose
-/// `InsertOutcome` differed between the runners would give two outcomes that
-/// agree on every status and disagree on `value_insertion`.
-#[given("a parser-neutral bench step passes")]
-fn a_bench_step_passes() {}
-
-#[given("a parser-neutral bench step skips")]
-fn a_bench_step_skips() {
-    rstest_bdd::skip!("the bench asked for a skip");
-}
-
-#[then("a parser-neutral bench step fails")]
-fn a_bench_step_fails() {
-    assert_eq!(1, 0, "deliberate failure from a parser-neutral bench step");
-}
-
-/// A step that returns a value matching no fixture in the bench's context.
-///
-/// `NoMatch` is the fate both runners must report. Deliberately *not* a value
-/// the context can hold: an `Inserted` fate would depend on a fixture cell this
-/// suite would have to register, and the equivalence claim is stronger when the
-/// fate under comparison is the one that arises from the plan alone.
-#[when("a parser-neutral bench step returns a value")]
-fn a_bench_step_returns_a_value() -> BenchValue { BenchValue }
-
-/// The returned value's type, deliberately unlike anything the bench inserts.
-#[derive(Debug)]
-struct BenchValue;
-
-/// Map the feature's readable role names onto the registered steps' text.
-fn step_text(role: &str) -> (&'static str, StepKeyword) {
-    match role {
-        "passing" => ("a parser-neutral bench step passes", StepKeyword::Given),
-        "skipping" => ("a parser-neutral bench step skips", StepKeyword::Given),
-        "failing" => ("a parser-neutral bench step fails", StepKeyword::Then),
-        "returning" => (
-            "a parser-neutral bench step returns a value",
-            StepKeyword::When,
-        ),
-        other => panic!("the feature must name a role this suite registers; got `{other}`"),
-    }
-}
+use support::{Bench, async_outcome, bench, outcome, step_text};
 
 #[given("a plan named {name:string} sourced from {source:string}")]
 fn a_plan_named(bench: &RefCell<Bench>, name: String, source: String) {
     let mut bench = bench.borrow_mut();
-    bench.plan = Some(ScenarioPlanBuilder::new(name, source).at_line(1).build());
+    // A tag keyed to the source, so the rebuild below has something to carry:
+    // `ScenarioPlan::tags` is otherwise always empty here, and a reconstruction
+    // that dropped it would be indistinguishable from one that did not.
+    bench.plan = Some(
+        ScenarioPlanBuilder::new(name, source.clone())
+            .at_line(1)
+            .tag(format!("@source:{source}"))
+            .build(),
+    );
 }
 
 #[given("the plan has a {role} step at line {line:u32}")]
@@ -147,10 +87,15 @@ fn the_plan_has_a_step_at_line(bench: &RefCell<Bench>, role: String, line: u32) 
     };
     // `step_at` consumes and returns the builder, and a built plan cannot be
     // extended, so each step re-opens the plan through a fresh builder seeded
-    // from the one that exists. The seed is the plan's own fields, read back
-    // through its accessors, so this cannot drift from what was built.
-    let mut builder = ScenarioPlanBuilder::new(plan.name().to_owned(), plan.source().to_owned())
-        .allow_skipped(plan.allow_skipped());
+    // from the one that exists. The seed is every one of the plan's own fields,
+    // read back through its accessors, so this cannot drift from what was
+    // built — asserted rather than asserted-in-prose: a field the seed forgot
+    // would be dropped silently by the rebuild, and `tags` was.
+    let mut builder = ScenarioPlanBuilder::new(plan.name().to_owned(), plan.source().to_owned());
+    for tag in plan.tags() {
+        builder = builder.tag(tag.to_owned());
+    }
+    builder = builder.allow_skipped(plan.allow_skipped());
     if let Some(source_line) = plan.source_line() {
         builder = builder.at_line(source_line);
     }
@@ -158,7 +103,14 @@ fn the_plan_has_a_step_at_line(bench: &RefCell<Bench>, role: String, line: u32) 
         builder = builder.step(existing.clone());
     }
     let (text, keyword) = step_text(&role);
-    bench.plan = Some(builder.step_at(keyword, text, line).build());
+    let rebuilt = builder.step_at(keyword, text, line).build();
+    assert_eq!(
+        rebuilt.tags().collect::<Vec<_>>(),
+        plan.tags().collect::<Vec<_>>(),
+        "the rebuild must carry every tag the plan had; the seed reads the plan's own fields, so \
+         a field it omits is lost without any other assertion noticing",
+    );
+    bench.plan = Some(rebuilt);
 }
 
 #[when("the plan is executed synchronously")]
@@ -231,32 +183,6 @@ fn the_plan_is_executed_through_both_runners(bench: &RefCell<Bench>) {
     }
 }
 
-/// The asynchronous outcome, or a report of what went wrong.
-fn async_outcome(bench: &RefCell<Bench>) -> ScenarioOutcome {
-    let bench = bench.borrow();
-    assert!(
-        !bench.unwound,
-        "running the plan unwound; the runner must return a failure instead",
-    );
-    let Some(outcome) = bench.async_outcome.clone() else {
-        panic!("the `When` step must have produced an asynchronous outcome");
-    };
-    outcome
-}
-
-/// The outcome the `When` step produced, or a report of what went wrong.
-fn outcome(bench: &RefCell<Bench>) -> ScenarioOutcome {
-    let bench = bench.borrow();
-    assert!(
-        !bench.unwound,
-        "running the plan unwound; the runner must return a failure instead",
-    );
-    let Some(outcome) = bench.outcome.clone() else {
-        panic!("the `When` step must have produced an outcome");
-    };
-    outcome
-}
-
 #[then("the outcome is skipped at step {index:usize}")]
 fn the_outcome_is_skipped_at_step(bench: &RefCell<Bench>, index: usize) {
     let outcome = outcome(bench);
@@ -279,10 +205,7 @@ fn the_outcome_is_skipped_at_step(bench: &RefCell<Bench>, index: usize) {
 fn step_is_recorded_as_bypassed(bench: &RefCell<Bench>, index: usize) {
     let outcome = outcome(bench);
     assert_eq!(
-        outcome
-            .steps()
-            .get(index)
-            .map(rstest_bdd::runner::StepOutcome::status),
+        outcome.steps().get(index).map(StepOutcome::status),
         Some(StepStatus::Bypassed),
         "the step after the skip must be reported, not omitted; a frontend's report is built by \
          walking `steps()`",
@@ -295,7 +218,7 @@ fn every_step_reports_its_source_line(bench: &RefCell<Bench>) {
     let lines: Vec<Option<u32>> = outcome
         .steps()
         .iter()
-        .map(|step| step.source().map(rstest_bdd::runner::SourceLocation::line))
+        .map(|step| step.source().map(SourceLocation::line))
         .collect();
     assert_eq!(
         lines,
@@ -318,7 +241,7 @@ fn the_outcome_is_failed_at_step(bench: &RefCell<Bench>, index: usize) {
         outcome
             .failure()
             .map(rstest_bdd::runner::ScenarioFailure::site),
-        Some(rstest_bdd::runner::FailureSite::Step(index)),
+        Some(FailureSite::Step(index)),
         "the failure's site is the invocation that ended the run",
     );
 }
