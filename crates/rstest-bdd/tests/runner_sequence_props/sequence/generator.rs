@@ -56,6 +56,22 @@ pub(crate) fn case() -> impl Strategy<Value = (Vec<Step>, Arrangement)> {
         })
 }
 
+/// Every crafted plan the catalogue holds, as the biased half draws them.
+///
+/// Exposed so a control can drive the crafted half *alone*. The non-vacuity
+/// assertions are folded across both halves of the strategy, so a catalogue that
+/// stopped supplying a witness would be masked by the uniform backdrop happening
+/// to draw one — the assertion would keep passing on evidence the catalogue no
+/// longer provided, which is how the visibility witness went unsatisfied for as
+/// long as it did.
+pub(crate) fn crafted() -> Vec<Vec<Step>> {
+    VEC_OF_KINDS
+        .iter()
+        .copied()
+        .map(|shape| with_lines(build(shape)))
+        .collect()
+}
+
 /// The crafted subsets, chosen uniformly as one plan.
 ///
 /// A plan drawn from this always carries both halves of every value-returning
@@ -100,23 +116,34 @@ fn kind() -> impl Strategy<Value = Kind> { prop::sample::select(Kind::ALL.as_sli
 /// A crafted plan cannot be described by its kinds alone, because the sequence
 /// that clears a crafted plan has to be one the uniform half can also draw. So
 /// the draw is a whole `Vec<Kind>` out of a small checked-in catalogue and the
-/// plan is *built* from its summary: how many invocations precede the terminal
-/// one, how many value-returning invocations to include, whether to include an
-/// observer, and how many invocations to trail. The summaries are what is
-/// curated; the plans are derived, so a change to a kind's classification or
-/// value-returning status cannot leave a stale literal behind.
+/// plan is *built* from its summary: how many non-value-returning invocations
+/// lead, how many value-returning invocations to include, whether an observer
+/// goes on each side of them and how many invocations separate the two, and
+/// which classification ends the run. The summaries are what is curated; the
+/// plans are derived, so a change to a kind's classification or value-returning
+/// status cannot leave a stale literal behind.
 #[derive(Debug, Clone, Copy)]
 struct Shape {
-    /// Invocations to emit before the first value-returning one.
-    head: usize,
+    /// Non-value-returning invocations to emit before the producers.
+    lead: usize,
     /// Value-returning invocations to emit.
     producers: usize,
+    /// Non-value-returning invocations to emit between the producers and the
+    /// first observer.
+    between: usize,
     /// Whether to emit an observing invocation after the producers.
-    observer: bool,
+    observer_after: bool,
+    /// Whether to emit an observing invocation before the producers.
+    ///
+    /// A separate field rather than an "observer position" enum, because a
+    /// shape may want an observer on each side of the producers and that is
+    /// exactly what INV-3's non-vacuity needs: the observer before demonstrates
+    /// the clause that forbids a *future* value being visible, and with a
+    /// producer on only one side of it the positive half — a value recognised
+    /// as a producer's — can never be witnessed by the same shape.
+    observer_before: bool,
     /// The classification that ends the run, at the end of the plan.
     terminal: Option<Terminal>,
-    /// Non-value-returning invocations to emit first.
-    lead: usize,
 }
 
 /// A terminal's classification, as the shape that names it.
@@ -178,40 +205,71 @@ impl Terminal {
 }
 
 /// The catalogue of crafted plans.
+///
+/// # Why two shapes carry an observer on each side of the producers
+///
+/// INV-3's negative clause is witnessed by an observer that *does not* see a
+/// value whose producer has not run, and the evidence has to be a producer that
+/// sits **after** the observer — `producer > reading.observer` in
+/// [`Witnesses::record`](super::Witnesses). Every row here used to place its
+/// observer after its producers and none before, because [`build`] emitted them
+/// in that order unconditionally. So no crafted plan could satisfy the witness,
+/// and the clause rested entirely on the uniform backdrop happening to draw an
+/// observer at a lower index than a producer that later executed and inserted.
+///
+/// That drew at about one case in fifty. Over the pinned budget of 256 cases it
+/// came out at roughly one run in two — measured at three failures in five — and
+/// an intermittent non-vacuity assertion is worse than none: it teaches the
+/// reader to re-run rather than to read, and it discredits the clause rather
+/// than the generator.
+///
+/// The fix is the [`Shape::observer_before`] field rather than a longer
+/// catalogue, because the clause is *structural*: it is satisfied by
+/// construction once a shape places an observer before a producer, and no
+/// amount of backdrop-drawing makes it so. Rows four and five put an observer on
+/// each side, which is what makes both halves of INV-3 reachable from one plan —
+/// the earlier observer demonstrates the clause forbidding a future value, and
+/// the later one demonstrates the positive half by reading a value that has
+/// genuinely been produced.
 static VEC_OF_KINDS: &[Shape] = &[
     Shape {
         lead: 1,
-        head: 0,
         producers: 1,
-        observer: false,
+        between: 0,
+        observer_after: false,
+        observer_before: false,
         terminal: Some(Terminal::Skip),
     },
     Shape {
         lead: 2,
-        head: 1,
         producers: 1,
-        observer: false,
+        between: 1,
+        observer_after: false,
+        observer_before: false,
         terminal: Some(Terminal::MissingFixture),
     },
     Shape {
         lead: 1,
-        head: 0,
         producers: 1,
-        observer: true,
+        between: 0,
+        observer_after: true,
+        observer_before: false,
         terminal: None,
     },
     Shape {
         lead: 2,
-        head: 1,
         producers: 1,
-        observer: true,
+        between: 1,
+        observer_after: true,
+        observer_before: true,
         terminal: Some(Terminal::Panic),
     },
     Shape {
         lead: 1,
-        head: 0,
         producers: 2,
-        observer: true,
+        between: 0,
+        observer_after: true,
+        observer_before: true,
         terminal: Some(Terminal::HandlerError),
     },
 ];
@@ -223,8 +281,19 @@ static VEC_OF_KINDS: &[Shape] = &[
 /// [`Kind::Observe`] — which is asserted to be the only kind whose handler reads
 /// the probe. So the plan survives a reordering of `ALL` and a change to which
 /// kind returns a value or ends a run.
+///
+/// The lead, the producers, the separators, and the observers are all emitted
+/// *before* [`Shape::terminal`], which is what makes a crafted plan satisfiable
+/// at all: a terminal emitted early would stop the run before the producer it
+/// pairs with ever executed, and INV-3's negative clause requires a producer the
+/// run actually *reached* — an observer that sees nothing because the producer
+/// never ran is true of every driver, which is the incidental evidence the
+/// witness exists to reject.
 fn build(shape: Shape) -> Vec<Kind> {
-    let mut kinds: Vec<Kind> = vec![Kind::Pass; shape.lead + shape.head];
+    let mut kinds: Vec<Kind> = vec![Kind::Pass; shape.lead];
+    if shape.observer_before {
+        kinds.push(Kind::Observe);
+    }
     let producer = Kind::ALL
         .into_iter()
         .find(|kind| kind.returns_a_value())
@@ -232,7 +301,8 @@ fn build(shape: Shape) -> Vec<Kind> {
     for _ in 0..shape.producers {
         kinds.push(producer);
     }
-    if shape.observer {
+    kinds.extend(std::iter::repeat_n(Kind::Pass, shape.between));
+    if shape.observer_after {
         // `Kind::Observe` is named rather than derived because there is no
         // declared classification for "reads the probe" to filter on — and none
         // is needed: its handler is the only step that records a reading, so a

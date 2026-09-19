@@ -49,9 +49,7 @@ pub(super) const SPEC_PATH: &str = "spec/cases.toml";
 pub(super) const PROSE_PATH: &str = "notes/example.md";
 
 /// A step-not-found error whose `feature_path` is the decoy.
-pub(super) fn decoy_error(index: usize) -> ExecutionError {
-    step_not_found(index, DECOY_PATH)
-}
+pub(super) fn decoy_error(index: usize) -> ExecutionError { step_not_found(index, DECOY_PATH) }
 
 /// A step-not-found error whose `feature_path` agrees with the plan's source.
 ///

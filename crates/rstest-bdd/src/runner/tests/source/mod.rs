@@ -77,8 +77,8 @@ fn every_status_records_the_supplied_location(
     assert_ne!(
         record.source().map(SourceLocation::path),
         Some(DECOY_PATH),
-        "the error's feature_path must not be the source; reading it back is the shortcut \
-         INV-7 forbids",
+        "the error's feature_path must not be the source; reading it back is the shortcut INV-7 \
+         forbids",
     );
 }
 
