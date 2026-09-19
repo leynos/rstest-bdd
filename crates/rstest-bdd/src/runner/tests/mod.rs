@@ -3,4 +3,6 @@
 //! One file per invariant group, mirroring the structure of the module under
 //! test. Integration-level properties live in `tests/` at the crate root.
 
+mod outcome;
 mod plan;
+mod surface;
