@@ -996,6 +996,23 @@ between them. Raise that before spending the tolerance.
     the evidence that the leg varies what it claims to vary. That run also
     showed the contract test being collected (`247 passed` in the pytest
     step), which is the half of the discharge that has to happen in CI.
+  - [x] The whole commit-gate set run against a frozen, committed revision,
+    with the result pinned to a revision rather than to a working copy. The
+    authoritative run is at `ad5a1c0e`, working tree clean, and every gate
+    passed: `make lint` (exit 0, all eight sub-steps reached, including the six
+    the earlier Whitaker failure had masked), `make test` (exit 0; 2055 tests
+    all-features, **716 feature-off**, 247 pytest), `make check-fmt` (`121 files
+    left unchanged`), `make markdownlint` (exit 0, `0 error(s)`, `spelling`
+    prerequisite passing), and `make nixie` (`All diagrams validated
+    successfully!`). The revision is recorded in each gate log's own trailer,
+    which is what makes the claim checkable rather than merely asserted.
+    Three earlier gate runs in this milestone were **declared void by the
+    runner** rather than reported as green, because the plan document was
+    rewritten while they ran: two `check-fmt` runs and one `markdownlint` run
+    had computed their verdict on a half-finished edit. That is the correct
+    outcome and it is recorded here because the alternative — a green nobody
+    can map to a revision — is exactly the failure mode this plan has already
+    documented four times.
   - [x] The `Scope` figure re-measured at close and compared against D27's
     breached figures: **71 files and 18,325 net added lines**, against D27's
     58 and 15,737 and the 36-file / 4,500-line tolerance. Escalated as D31
@@ -2373,6 +2390,29 @@ The residual gap is honest and recorded in the test's own doc comment: a
 sentence like "the StepExecution is not adopted here" now escapes the scan.
 That is a narrower hole than rejecting the request type would have been a false
 positive, and `BypassedScenario` — which has no collision — stays bare.
+
+### A green gate is worthless if it cannot be pinned to a revision
+
+- **Observation:** three gate runs in this milestone had to be declared **void**
+  by the agent running them, not because any gate was wrong but because the
+  document they measured was rewritten while they ran. Evidence: two
+  `make check-fmt` runs reported a `+34 -33` reformat and one `markdownlint`
+  run reported an MD013 error, all on a revision that no longer existed by the
+  time the report was written; a fourth run's results could not be mapped to a
+  revision at all. The runs that are trustworthy are the ones whose logs carry
+  the commit SHA in their own trailer, which is the form the final run took.
+  **Impact:** this is the same lesson as the D4 leg and the `mdtablefix` subset
+  invocation, arriving for the third and fourth time and in its purest form —
+  the artefact of a verification step must record *what it verified*, or the
+  verification is only a claim about the past. Two mechanical remedies, both
+  now in use: freeze the revision before requesting a gate run and treat any
+  run that spans an edit as void by construction, and make the revision part of
+  the evidence rather than part of the surrounding conversation. The first
+  attempt at a revision probe made the opposite mistake and is worth recording
+  for the same reason: it hashed `git diff --name-only HEAD` plus untracked
+  files, which is *empty at every clean revision*, so it reported "stable"
+  across commits and pinned cleanliness rather than identity. A probe that
+  returns the empty string on success is not a probe; `git rev-parse HEAD` is.
 
 - **D1: put the new types in a new `rstest_bdd::runner` module, not in
   `execution`, and not in `rstest-bdd-policy`.** Rationale: `execution` is
