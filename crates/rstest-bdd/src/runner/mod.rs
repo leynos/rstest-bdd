@@ -50,6 +50,8 @@ pub use outcome::{
     StepStatus,
     ValueFate,
 };
+#[cfg(test)]
+pub(crate) use outcome::test_invocation;
 pub use plan::{ScenarioPlan, StepInvocation, builder::ScenarioPlanBuilder};
 pub use scope::{NoHooks, ScenarioScope};
 pub use source::{SourceLocation, SourcePath};

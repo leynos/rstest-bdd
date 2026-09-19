@@ -26,6 +26,7 @@ use crate::{
         ScenarioStatus,
         SourceLocation,
         StepOutcome,
+        test_invocation,
     },
 };
 
@@ -58,9 +59,11 @@ fn the_display_projection_renders_every_variant() {
                 ScenarioStatus::Passed,
                 vec![StepOutcome::passed(
                     0,
-                    StepKeyword::Given,
-                    "a calculator",
-                    Some(&at(PROSE_PATH, line(1))),
+                    &test_invocation(
+                        StepKeyword::Given,
+                        "a calculator",
+                        Some(&at(PROSE_PATH, line(1))),
+                    ),
                     None,
                 )],
                 None,
@@ -97,9 +100,11 @@ fn the_display_projection_renders_every_variant() {
                 ScenarioStatus::Failed,
                 vec![StepOutcome::failed(
                     0,
-                    StepKeyword::Given,
-                    "an undefined step",
-                    Some(&at(SPEC_PATH, 7)),
+                    &test_invocation(
+                        StepKeyword::Given,
+                        "an undefined step",
+                        Some(&at(SPEC_PATH, 7)),
+                    ),
                     honest_error(0, SPEC_PATH),
                 )],
                 None,
@@ -177,9 +182,11 @@ fn the_display_projection_renders_every_variant() {
 fn the_rendered_failure_takes_its_path_from_the_error_not_the_plan() {
     let record = StepOutcome::failed(
         0,
-        StepKeyword::Given,
-        "an undefined step",
-        Some(&at(SPEC_PATH, 7)),
+        &test_invocation(
+            StepKeyword::Given,
+            "an undefined step",
+            Some(&at(SPEC_PATH, 7)),
+        ),
         decoy_error(0),
     );
     let outcome = ScenarioOutcome::new(
