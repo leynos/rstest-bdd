@@ -546,16 +546,16 @@ between them. Raise that before spending the tolerance.
   only INV-5's clause remains EP-M3-bound, recorded in-file as such rather than
   silently omitted. That one clause was discharged at EP-M3, in
   `runner_sequence_props/equivalence.rs`, so the entry is closed rather than
-  partial: there is nothing left outstanding against EP-M2.*
-  **Opened 2026-09-19.** The first act was to revise D16, and it is done: see
-  D18 in `Decision log` for why its `Stop(ScenarioFailure)` cannot express a
-  permitted skip. D18's `StepDecision` is checked into
-  `Interfaces and dependencies` as the settled engine decomposition, together
-  with a `Terminal` and a `SkipPolicy`, which EP-M2 mirrors while implementing
-  rather than re-deriving. The two things a reader should not have to
-  reconstruct: the driver keeps the error and hands `classify` a borrow, then
-  moves it into `Terminal::Fail`; and a skip never stores a `failure`, forced
-  or not, because `into_harness_result` derives that at fold time.
+  partial: there is nothing left outstanding against EP-M2.* **Opened
+  2026-09-19.** The first act was to revise D16, and it is done: see D18 in
+  `Decision log` for why its `Stop(ScenarioFailure)` cannot express a permitted
+  skip. D18's `StepDecision` is checked into `Interfaces and dependencies` as
+  the settled engine decomposition, together with a `Terminal` and a
+  `SkipPolicy`, which EP-M2 mirrors while implementing rather than re-deriving.
+  The two things a reader should not have to reconstruct: the driver keeps the
+  error and hands `classify` a borrow, then moves it into `Terminal::Fail`; and
+  a skip never stores a `failure`, forced or not, because `into_harness_result`
+  derives that at fold time.
 
   **Red observed 2026-09-19.** `runner/tests/wire.rs` — three tests asserting
   that a run is *observable* rather than merely well-formed — failed at the
@@ -924,21 +924,21 @@ between them. Raise that before spending the tolerance.
   which sets `unstable_features = true` and a dozen options that only nightly
   rustfmt honours — `wrap_comments`, `format_strings`, `fn_single_line`,
   `imports_granularity`, and others. Stable rustfmt prints
-  `Warning: can't set ... unstable features are only available in nightly
-  channel` for each one, ignores them, and then formats the files by its own
-  default rules. The Makefile pins `FMT_TOOLCHAIN ?= nightly-2026-08-07` with a
-  comment explaining exactly this, and `make check-fmt` uses it. Impact: the 121
-  files were reverted with `git checkout --` against an explicit keep-list, and
-  the line was wrapped with `cargo +nightly-2026-08-07 fmt` instead, which
-  touched nothing outside the working set (verified by an empty drift diff).
-  The lesson is narrower than "use the Makefile target": it is that the *raw*
-  cargo command is unsafe for `fmt` specifically, because its failure mode is
-  silent success over a wider blast radius than intended. `cargo clippy` and
-  `cargo nextest run` are safe to run directly; `cargo fmt` is not.
-  Worth pairing with the existing `make fmt` hazard note: that one is about
-  Markdown drift via `mdtablefix --git`, this one about Rust drift via the
-  missing nightly. The two formatters have two different failure modes and the
-  same remedy — never invoke either formatter bare.
+  `Warning: can't set … unstable features are only available in nightly channel`
+  for each one, ignores them, and then formats the files by its own default
+  rules. The Makefile pins `FMT_TOOLCHAIN ?= nightly-2026-08-07` with a comment
+  explaining exactly this, and `make check-fmt` uses it. Impact: the 121 files
+  were reverted with `git checkout --` against an explicit keep-list, and the
+  line was wrapped with `cargo +nightly-2026-08-07 fmt` instead, which touched
+  nothing outside the working set (verified by an empty drift diff). The lesson
+  is narrower than "use the Makefile target": it is that the *raw* cargo
+  command is unsafe for `fmt` specifically, because its failure mode is silent
+  success over a wider blast radius than intended. `cargo clippy` and
+  `cargo nextest run` are safe to run directly; `cargo fmt` is not. Worth
+  pairing with the existing `make fmt` hazard note: that one is about Markdown
+  drift via `mdtablefix --git`, this one about Rust drift via the missing
+  nightly. The two formatters have two different failure modes and the same
+  remedy — never invoke either formatter bare.
 
 - **Observation:** an "async" step can panic *before* its future exists, and the
   panic boundary built for the poll does not see it. Evidence: `step!`'s
@@ -1150,16 +1150,17 @@ between them. Raise that before spending the tolerance.
   mutation failed to compile and no test was ever run against a mutated tree.
   The output is easy to misread in two ways at once: the exit code is zero, and
   the summary line names a count that sounds like coverage. It is the exact
-  shape of vacuity the plan's own *Verification plan* section tells implementers
-  to look for — a verification that cannot fail when the implementation is
-  wrong — arriving in the plan's own control rather than in a test. Impact:
-  the probe was run against the wrong file, not the wrong way. Implementing
-  `Default` for three types to make an external tool's output tidier would be
-  backwards, and the file is genuinely thin by design (D6), so the honest
-  instrument is the whole runner tree at 151 mutants. The durable lesson is
-  that a mutation count is only evidence when it is decomposed: "unviable",
-  "missed", and "caught" say three different things, and only one of them is
-  a statement about the tests. Date/Author: 2026-09-19, implementation agent.
+  shape of vacuity the plan's own *Verification plan* section tells
+  implementers to look for — a verification that cannot fail when the
+  implementation is wrong — arriving in the plan's own control rather than in a
+  test. Impact: the probe was run against the wrong file, not the wrong way.
+  Implementing `Default` for three types to make an external tool's output
+  tidier would be backwards, and the file is genuinely thin by design (D6), so
+  the honest instrument is the whole runner tree at 151 mutants. The durable
+  lesson is that a mutation count is only evidence when it is decomposed:
+  "unviable", "missed", and "caught" say three different things, and only one
+  of them is a statement about the tests. Date/Author: 2026-09-19,
+  implementation agent.
 
 - **Observation:** a plan can over-claim its own progress, and no deterministic
   gate can catch it. Evidence: D5's narrowed note asserted "the first is what
@@ -3042,8 +3043,8 @@ Finding 1 corrected a false claim in `ScenarioSkip`'s doc: it said a later
 cleanup failure "upgrades the overall status to `Failed`". It does not. A
 panicking destructor during cleanup is caught and logged by the scope's cleanup
 guard and never reaches the outcome, because `ScenarioOutcome` carries exactly
-one failure channel — `cleanup_error` was dropped with the hooks under D2 option
-(ii). The doc was rewritten to say what the code does and to point at
+one failure channel — `cleanup_error` was dropped with the hooks under D2
+option (ii). The doc was rewritten to say what the code does and to point at
 `ScenarioFailure` for the channels that exist. This is a doc-only correction,
 but it described a safety property the design deliberately does not have, which
 is the kind that misleads a caller into relying on it.
@@ -3057,28 +3058,28 @@ holding an `Entered` guard across awaits, contradicting both. It now wraps the
 whole future in `Instrument`, with the policy event moved inside the
 instrumented future so the event carries the scenario's identity. The
 synchronous sibling keeps `entered`, because its body never suspends and so
-cannot observe the difference. The gap this exposed was larger than the finding:
-*grep* showed the async path had no instrumentation coverage at all, so a
-seventh test was added to assert it, driving the runner through a
+cannot observe the difference. The gap this exposed was larger than the
+finding: *grep* showed the async path had no instrumentation coverage at all,
+so a seventh test was added to assert it, driving the runner through a
 current-thread Tokio runtime.
 
 Findings 9 and 14 (also the same defect) asked for the capture to read field
 *values* rather than names. The file documented a reasoned decision to record
-names only, which would normally warrant a decline — but on checking, the stated
-reason was factually wrong: `Visit::record_debug` receives `&dyn Debug`, so one
-visitor renders every field type and no per-type visitor is needed. Since the
-premise was false the decision was re-made on its merits, and the gap was
-*proved* rather than asserted: injecting `index = index + 1` into the bypassed
-event failed exactly one test under the new capture and was invisible to the old
-one. See D14's verification entry for the details and for the `Option<u32>`
-rendering fact the change exposed.
+names only, which would normally warrant a decline — but on checking, the
+stated reason was factually wrong: `Visit::record_debug` receives `&dyn Debug`,
+so one visitor renders every field type and no per-type visitor is needed.
+Since the premise was false the decision was re-made on its merits, and the gap
+was *proved* rather than asserted: injecting `index = index + 1` into the
+bypassed event failed exactly one test under the new capture and was invisible
+to the old one. See D14's verification entry for the details and for the
+`Option<u32>` rendering fact the change exposed.
 
 Findings 10 and 11 asked for `debug_assert!` to become `assert!` in
-`SourceLocation::new`, `new_static`, and `ScenarioPlanBuilder::at_line`. Accepted
-after checking feasibility rather than assuming it: a `rustc 1.98.1` probe
-confirmed `assert!` is const-evaluable, so the `const fn` constructor still
-works, and a call with a bad coordinate in a `const` context is a compile error
-rather than a runtime one. The clincher was that the doc comments already
+`SourceLocation::new`, `new_static`, and `ScenarioPlanBuilder::at_line`.
+Accepted after checking feasibility rather than assuming it: a `rustc 1.98.1`
+probe confirmed `assert!` is const-evaluable, so the `const fn` constructor
+still works, and a call with a bad coordinate in a `const` context is a compile
+error rather than a runtime one. The clincher was that the doc comments already
 promised "failing loudly at the boundary" — a `debug_assert!` does not deliver
 that in a release build, which is the build where a frontend's off-by-one would
 be hardest to trace back. Finding 11 in particular asked to strengthen a guard
@@ -3091,11 +3092,12 @@ Finding 3 asked that `StepContext` values be cleared between scenarios. It
 conflicts with three separate authorities: `clear_values`'s own documented
 contract, which states "there is no way to tell a caller's value from a step's
 once both are in the same map"; `scope.rs`'s statement that "Reusing one
-`StepContext` across scenarios is therefore **not supported**"; and Constraint 3
-of this plan. It also cites "the requested additive `PartialEq`/`Eq` derives",
-which exist nowhere in the plan or the code — a fabricated citation, and not the
-first from this tool, which has now twice cited text that was never written. A
-finding whose premise is invented cannot be actioned on its own terms.
+`StepContext` across scenarios is therefore **not supported**"; and Constraint
+3 of this plan. It also cites "the requested additive `PartialEq`/`Eq`
+derives", which exist nowhere in the plan or the code — a fabricated citation,
+and not the first from this tool, which has now twice cited text that was never
+written. A finding whose premise is invented cannot be actioned on its own
+terms.
 
 Finding 7 cited lines 2211-2212 as containing first-person prose that should be
 made impersonal. Those lines are D14 decision prose, and they are normative
@@ -3803,13 +3805,13 @@ formatted message.
 - Amended at the second CodeRabbit round: the method was first recorded as
   asserting *field names* only, on the reasoning that "a `tracing` field's type
   is fixed at the macro and reading one generically needs a visitor per type".
-  That reasoning was false. The `Visit` trait hands the visitor a
-  `&dyn Debug` and a set of `record_*` methods, so one visitor renders every
-  field type into a `String` and the names-only restriction bought nothing. It
-  was not merely unnecessary but misleading: a name-only capture holds for a
-  runner that emitted `index + 1`, or that transposed two events' fields,
-  because presence is all it can witness. The capture now stores rendered
-  values in a `BTreeMap` and the assertions read them.
+  That reasoning was false. The `Visit` trait hands the visitor a `&dyn Debug`
+  and a set of `record_*` methods, so one visitor renders every field type into
+  a `String` and the names-only restriction bought nothing. It was not merely
+  unnecessary but misleading: a name-only capture holds for a runner that
+  emitted `index + 1`, or that transposed two events' fields, because presence
+  is all it can witness. The capture now stores rendered values in a `BTreeMap`
+  and the assertions read them.
 - One rendering fact the values exposed, recorded because it is not guessable
   from a field's declared type: `tracing` records an `Option<u32>` through its
   *inner* type, so `line = plan.source_line()` renders as `"42"`, not
@@ -3827,11 +3829,11 @@ formatted message.
   assertion would hold for an ungated runner. Falsified at EP-M2 by deleting
   `allow_skipped` from the span, `location` from the failure warning, and
   `has_message` from the skip warning: each deletion failed exactly one named
-  test and nothing else. Falsified again at the second CodeRabbit round, against
-  the value-reading form, by emitting `index = index + 1` in the bypassed-step
-  event: exactly one test failed, reporting `("3", "Bypassed")` where
-  `("2", "Bypassed")` was required. That fault was invisible to the name-only
-  capture, which is what settled the amendment above.
+  test and nothing else. Falsified again at the second CodeRabbit round,
+  against the value-reading form, by emitting `index = index + 1` in the
+  bypassed-step event: exactly one test failed, reporting `("3", "Bypassed")`
+  where `("2", "Bypassed")` was required. That fault was invisible to the
+  name-only capture, which is what settled the amendment above.
 - The skip warning's "never the reason text" claim is asserted by searching
   every captured value for the reason's distinctive literal, not by the absence
   of a `message` field: `tracing` records an event's own format string as a
