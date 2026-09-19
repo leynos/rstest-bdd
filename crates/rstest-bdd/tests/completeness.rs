@@ -50,6 +50,19 @@ fn a_completeness_step_fails() {
     assert_eq!(1, 0, "deliberate failure from a completeness step");
 }
 
+/// A step that resolves, runs, and asks to be skipped — the third terminal
+/// shape, and the one the `skip_at_the_second_of_four` case needs.
+///
+/// Registered rather than reached through an unregistered text: an invocation
+/// nothing answers to fails as `Undefined`, which is a *failure*, so the case
+/// would have exercised the same terminal path as `failure_at_the_first_of_four`
+/// while claiming to be about a skip. The module doc says the cases are the
+/// three ways a run can end, and that claim needs a step that can actually skip.
+#[given("a completeness step skips")]
+fn a_completeness_step_skips() {
+    rstest_bdd::skip!("the completeness case asked for a skip");
+}
+
 /// A plan built from `(keyword, text, line)` triples.
 ///
 /// The lines are distinct and non-sequential so "entry `i` carries invocation
@@ -77,9 +90,19 @@ fn run(plan: &ScenarioPlan) -> ScenarioOutcome {
 /// failure, and at a skip — and each is given trailing invocations so the
 /// `Bypassed` tail exists to be checked. The fourth case, the empty plan, is
 /// INV-13's and is below.
+///
+/// Each case carries the status it claims as well as the terminal index, so the
+/// names are load-bearing rather than decorative. They were not, and the skip
+/// case was wrong because of it: its terminal invocation used a text nothing was
+/// registered under, which fails as `Undefined` rather than skipping, so the case
+/// exercised the *failure* path while calling itself `Skipped`. A positional-only
+/// assertion cannot catch that — both shapes are "reached, not `Bypassed`" — so
+/// the status is asserted directly and the step it names is now a real
+/// registration.
 #[rstest]
 #[case::all_pass(
-    "AllPass", &[(3, StepKeyword::Given, "a completeness step passes")], 0
+    "AllPass", &[(3, StepKeyword::Given, "a completeness step passes")], 0,
+    ScenarioStatus::Passed
 )]
 #[case::failure_at_the_first_of_four(
     "Failed",
@@ -88,26 +111,34 @@ fn run(plan: &ScenarioPlan) -> ScenarioOutcome {
         (4, StepKeyword::Given, "a completeness step passes"),
         (5, StepKeyword::Given, "a completeness step passes"),
     ],
-    0
+    0,
+    ScenarioStatus::Failed
 )]
 #[case::skip_at_the_second_of_four(
     "Skipped",
     &[
         (3, StepKeyword::Given, "a completeness step passes"),
-        (4, StepKeyword::Given, "a step nobody wrote"),
+        (4, StepKeyword::Given, "a completeness step skips"),
         (5, StepKeyword::Given, "a completeness step passes"),
         (6, StepKeyword::Given, "a completeness step passes"),
     ],
-    1
+    1,
+    ScenarioStatus::Skipped
 )]
 fn every_invocation_is_recorded_once_in_order(
     #[case] name: &'static str,
     #[case] steps: &[(u32, StepKeyword, &'static str)],
     #[case] terminal_index: usize,
+    #[case] expected_status: ScenarioStatus,
 ) {
     let plan = plan(name, steps);
     let outcome = run(&plan);
 
+    assert_eq!(
+        outcome.status(),
+        expected_status,
+        "({name}) the case is named for the terminal shape it produces, and that name is checked",
+    );
     assert_eq!(
         outcome.steps().len(),
         plan.steps().len(),
@@ -135,6 +166,21 @@ fn every_invocation_is_recorded_once_in_order(
         // The identity half. Text and keyword are compared as the plan holds
         // them, so an entry carrying the wrong invocation's data — an off-by-one
         // in the zip, say — fails here.
+        assert_eq!(
+            record.keyword(),
+            invocation.keyword(),
+            "({name}) entry {index} carries its own keyword",
+        );
+        assert_eq!(
+            record.text(),
+            invocation.text(),
+            "({name}) entry {index} carries its own text",
+        );
+        assert_eq!(
+            record.index(),
+            index,
+            "({name}) entry {index} carries its own index",
+        );
         assert_eq!(
             record.source().map(SourceLocation::line),
             Some(invocation.source().map_or_else(

@@ -150,10 +150,9 @@ impl SourceLocation {
     #[must_use]
     pub fn new(path: impl Into<SourcePath>, line: u32, column: Option<u32>) -> Self {
         debug_assert!(line >= 1, "a source line is one-based");
-        // `matches!` rather than `Option::is_none_or` or `Option::map_or`:
-        // both are non-const on this toolchain (E0658), so a `const fn` cannot
-        // call them. Expressing the rejection directly is also clearer than
-        // asserting a negated predicate over a mapped value.
+        // The same predicate as `new_static`'s, kept in the same spelling so the
+        // two constructors cannot drift; see that method for why `matches!` is
+        // used rather than a negated `Option` predicate.
         debug_assert!(!matches!(column, Some(0)), "a source column is one-based");
         Self {
             path: path.into(),
