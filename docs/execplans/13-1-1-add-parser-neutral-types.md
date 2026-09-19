@@ -460,6 +460,20 @@ between them. Raise that before spending the tolerance.
   scripts. The gate suite was run by a `scrutineer` sub-agent on a settled,
   committed tree, so the evidence is attached to a revision rather than to a
   working directory.
+- [x] (2026-09-19) EP-M1 second gate closure: the rebase and the CodeRabbit
+  fixes re-verified. The first full-suite run at the rebased revision
+  (`28dddcb5`) failed three gates, all traceable to the previous day's cleanup
+  work rather than to the rebase itself: `make lint` rejected the new column
+  guard with `option_if_let_else`, `make check-fmt` found a rustfmt diff in
+  `surface.rs`, and `make markdownlint` found MD013 on the INV-1 domain
+  enumeration. All three are fixed at `d3ff88b5`, and re-verified on the
+  settled tree: `make lint` rc=0 (39s), `make check-fmt` rc=0 (3s),
+  `make markdownlint` rc=0 with `Summary: 0 error(s)` (16s). See
+  `Surprises & discoveries` for the two formatter behaviours behind the third
+  one, and for the corrected account of the column guard, which had three forms
+  before one satisfied both the lint and the language. `make test` and
+  `make nixie` passed at `28dddcb5` and were unaffected by these deltas; the
+  `make test` re-run against `d3ff88b5` is recorded below.
 - [ ] EP-M2: synchronous runner, engine split, and the sequence properties.
 - [ ] EP-M3: asynchronous runner and cancellation.
 - [x] ~~EP-M4: lifecycle hooks and the lifecycle matrix~~ — struck by D2
