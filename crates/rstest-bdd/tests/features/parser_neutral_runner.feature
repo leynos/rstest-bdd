@@ -17,3 +17,13 @@ Feature: Parser-neutral scenario execution
     Then the outcome is failed at step 0
     And no panic was raised
     And folding the outcome for the harness yields an error
+
+  Scenario: The asynchronous runner agrees with the synchronous runner
+    Given a plan named "equivalence demo" sourced from "notes/demo.md"
+    And the plan has a passing step at line 31
+    And the plan has a returning step at line 32
+    And the plan has a skipping step at line 33
+    And the plan has a passing step at line 34
+    When the plan is executed through both runners
+    Then the two outcomes are equal
+    And neither runner unwound
