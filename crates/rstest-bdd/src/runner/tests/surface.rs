@@ -53,6 +53,18 @@ use walk::{Scanned, scan_root};
 /// `BypassedScenario` name the existing runtime's control-flow types, which a
 /// frontend-neutral runner must not adopt as its own vocabulary.
 ///
+/// The control-flow token carries its delimiter and is listed in both spellings
+/// because bare `StepExecution` is a strict prefix of `StepExecutionRequest` —
+/// the argument type
+/// [`execute_step`](crate::execution::execute_step) takes, and *the* type a
+/// driver is required to build. A bare token would therefore reject the
+/// driver's one unavoidable interaction with the existing runtime, which is the
+/// opposite of what this scan is for: the leak INV-11 guards against is a
+/// signature a caller must name, and naming `StepExecutionRequest` is how a
+/// caller reaches the registry rather than a way of coupling to a frontend.
+/// `BypassedScenario` has no such collision and stays bare, since a token list
+/// that sometimes carries a delimiter has to say which is which and why.
+///
 /// Every token is bare rather than a path prefix. A prefix like `"reporting::"`
 /// matches only the fully qualified spelling, so it misses the one import form
 /// that actually launders the dependency: `use crate::reporting as rep;` binds
@@ -68,13 +80,14 @@ use walk::{Scanned, scan_root};
 /// projection in a file this scan reads. Each addition must therefore be
 /// checked against the artefacts the rest of the plan requires. See the
 /// module-level note on what the scan does and does not establish.
-const FORBIDDEN: [&str; 7] = [
+const FORBIDDEN: [&str; 8] = [
     "gherkin",
     "markdown",
     "trymark",
     "reporting",
     "ScenarioRecord",
-    "StepExecution",
+    "StepExecution::",
+    "StepExecution ",
     "BypassedScenario",
 ];
 
