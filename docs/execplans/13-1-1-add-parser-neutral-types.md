@@ -4349,6 +4349,113 @@ this retraces one step further on.)
 
 Date/Author: 2026-09-20, implementation agent.
 
+### D39: the Linux leg's remaining failure is a CodeScene regression three days older than this branch
+
+**Decision: record it and escalate it, do not attempt to fix it here.** D37
+established that the three `build-test` legs are the ruleset's required checks.
+The Linux leg still fails after D38's fixes, at step 39
+`Check coverage against CodeScene gates`, and the failure is not this branch's.
+Read from the job log at `4e4f6a0c` (job `105981041478`):
+
+```plaintext
+2026-09-19T23:11:00.762Z ERROR [codescene.devtools.error-handling:20] - Failed to parse coverage file
+  '/home/runner/work/rstest-bdd/rstest-bdd/coverage.xml': No matching field found:
+  close for class java.io.InputStreamReader
+##[error]Process completed with exit code 1.
+```
+
+**The tests in that leg all passed.** The log records 2056 `PASS [` lines and
+every `test result:` line reads `ok … 0 failed`. The `coverage.xml` the CLI
+rejects is produced by the same pipeline as before and parses cleanly with any
+standard XML reader. What fails is the CLI's own parse, 2.7 seconds into the
+step, after it has already fetched the project config successfully:
+
+```plaintext
+DEBUG [...code-coverage-check.backend:48] - project-config HTTP response: 200.
+  Got the project-config: {:project_id 69391, ... :gates
+  [{:name "overall_coverage", :threshold 80, :coverage_metric "line_coverage", :enabled false}
+   {:name "new_and_changed_code", :threshold 95, :coverage_metric "line_coverage", :enabled false}]}
+```
+
+**Both gates are `:enabled false` project-side.** That is worth stating
+plainly: this step *cannot* fail by measuring coverage, because both coverage
+gates are switched off for this project. The only way it can fail is by
+crashing, which is what it does. Everything this step has ever reported on this
+repository has been either a no-op or a crash.
+
+**Why it cannot be this branch.** Three independent lines of evidence.
+
+1. *It reproduces on branches sharing no commits with this one* —
+   `chore/typos-config-builder-gate`, `hermetic-push-ref-property`,
+   `fork-fallback-runner-placement`, `11-2-2-public-prelude-execplan`.
+2. *The onset predates the branch by three days.* The last green run of this
+   step is `35079334361` at 2026-09-16T09:25:32Z; the first red is
+   `35109571107` at 2026-09-16T14:35:29Z — a five-hour window. This branch's
+   first commit is 2026-09-19.
+3. *The version is unpinned, and unpinning is the mechanism.* At the pinned
+   action ref `0e3c4d24` the input reads:
+
+   ```plaintext
+   cli-version:
+     description: >-
+       cs-coverage CLI version to install (e.g. "2.1.0"). Defaults to
+       "latest", which skips the CLI cache so a fresh copy is always
+       fetched; pin a version to enable caching.
+     default: latest
+   ```
+
+   `rstest-bdd`'s two call sites pass `format`, `mode`, `project-url`,
+   `access-token` and `installer-checksum` — and **not** `cli-version`. The job
+   log confirms the consequence: `cli-version: latest`, `CLI_VERSION: latest`.
+   (The current default branch of `shared-actions` has since changed this
+   default to a pinned `1.0.101` and deprecated `installer-checksum`; the
+   pinned ref this workflow uses still says `latest`. Reading the default
+   branch instead of the pinned ref produces the opposite conclusion, which is
+   how this was first got wrong.)
+
+**What `main` being green does and does not prove.** It proves nothing about
+this step. The step's condition is
+
+```plaintext
+matrix.os == 'ubicloud-standard-2' &&
+github.event_name == 'pull_request' &&
+env.CS_ACCESS_TOKEN != ''
+```
+
+so it runs only on pull requests. Every recent `main` run is a `push` event,
+and the push-mode sibling step `Upload coverage data to CodeScene` runs
+instead. Main is green partly because it never executes the code path that is
+failing.
+
+**The related correction: `build-test` has never passed on this work.** Of the
+runs enumerated on this branch, exactly one `build-test` succeeded — `c8ec9e48`
+on 2026-09-14 — and it is not an ancestor of `HEAD`
+(`git merge-base --is-ancestor c8ec9e48 HEAD` exits 1). It predates the first
+implementation commit; `runner_panics` does not exist in its tree at all. The
+branch was rebuilt since. So there is no green baseline this milestone
+regressed from, and any statement that "the recent commits broke `build-test`"
+is false in both directions: it was never green, and the failures were two
+independent causes, only one of which was ours.
+
+**Why this is escalated rather than fixed.** D31 is already an open tolerance
+breach awaiting a human answer, and this is the same shape one layer out: a
+required status check cannot be made green by any change to this repository's
+source. Fixing it means pinning `cli-version` in the `shared-actions` input (a
+one-line change to `.github/workflows/ci.yml` in two places), or filing against
+`leynos/shared-actions`, or accepting the check as red. Each of those is a
+decision about another repository's configuration or about this project's merge
+policy, so it goes to the human alongside D31 rather than being taken here.
+
+**What a successor should take from this.** "The failing step is in my leg" and
+"the failing step is mine" are different propositions, and the way to separate
+them is to find the *onset boundary* — the last green run and the first red one
+— and compare it against the branch's first commit. A string of red runs on
+your own branch is not evidence that your branch is the cause; it is what a
+pre-existing breakage looks like when the breakage is upstream of every branch
+you can see.
+
+Date/Author: 2026-09-20, implementation agent.
+
 ### D32: `Display for SourcePath` is uncovered, and is left uncovered
 
 **Decision: the survivor is recorded rather than chased.** The sweep's first
