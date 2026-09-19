@@ -20,6 +20,8 @@ use crate::{
         ScenarioOutcome,
         ScenarioSkip,
         ScenarioStatus,
+        SkipPolicyRecord,
+        SkipRecord,
         SourceLocation,
         SourcePath,
         StepOutcome,
@@ -84,10 +86,14 @@ fn skipping_outcome(forced_failure: bool) -> ScenarioOutcome {
     );
     let skip = ScenarioSkip::new(
         0,
-        Some("waiting on upstream".to_owned()),
-        Some(location(12)),
-        !forced_failure,
-        forced_failure,
+        SkipRecord {
+            message: Some("waiting on upstream".to_owned()),
+            source: Some(location(12)),
+        },
+        SkipPolicyRecord {
+            allow_skipped: !forced_failure,
+            forced_failure,
+        },
     );
     ScenarioOutcome::new(ScenarioStatus::Skipped, vec![step], Some(skip), None)
 }
@@ -162,7 +168,17 @@ fn canonical_fold_returns_the_step_failure() {
 #[test]
 fn canonical_fold_prefers_the_failure_over_a_skip() {
     let error = not_found(0);
-    let skip = ScenarioSkip::new(0, None, None, true, true);
+    let skip = ScenarioSkip::new(
+        0,
+        SkipRecord {
+            message: None,
+            source: None,
+        },
+        SkipPolicyRecord {
+            allow_skipped: true,
+            forced_failure: true,
+        },
+    );
     let step = StepOutcome::failed(
         0,
         &test_invocation(StepKeyword::Given, "an undefined step", None),
@@ -303,10 +319,14 @@ fn terminal_source_prefers_the_skip_then_the_failure() {
     let shared: SourcePath = Arc::<str>::from("spec/cases.toml").into();
     let skipped = ScenarioSkip::new(
         0,
-        None,
-        Some(SourceLocation::new(shared, 7, Some(3))),
-        true,
-        false,
+        SkipRecord {
+            message: None,
+            source: Some(SourceLocation::new(shared, 7, Some(3))),
+        },
+        SkipPolicyRecord {
+            allow_skipped: true,
+            forced_failure: false,
+        },
     );
     let outcome = ScenarioOutcome::new(ScenarioStatus::Skipped, Vec::new(), Some(skipped), None);
     let source = outcome.terminal_source();

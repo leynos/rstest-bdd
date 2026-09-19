@@ -10,12 +10,19 @@
 //! That is deliberate rather than incidental: it is what makes the whole of
 //! the decision logic checkable with hand-built values, and what stops a
 //! future change from smuggling I/O into the layer the drivers both trust.
+//!
+//! The name is broader than "skip" on purpose: [`SkipPolicy`] is the one rule
+//! here that the *outcome* layer must agree with, but [`classify`] and
+//! [`assemble`] are the drivers' shared control flow and have no counterpart on
+//! the record side.
 
 use crate::runner::{
     ScenarioFailure,
     ScenarioOutcome,
     ScenarioSkip,
     ScenarioStatus,
+    SkipPolicyRecord,
+    SkipRecord,
     ValueFate,
     outcome::StepOutcome,
     source::SourceLocation,
@@ -109,47 +116,6 @@ pub(crate) enum Terminal {
     },
 }
 
-/// The resolved skip policy for one run.
-///
-/// Computed once per run, so that a run cannot observe the process-global
-/// configuration changing part-way through it. The two halves are read at
-/// different times and that is deliberate: `ScenarioScope::new` reads
-/// `config::fail_on_skipped()` and stores it, and the driver calls
-/// [`resolve`](Self::resolve) once the plan's own flag is also in hand, because
-/// the plan is not available to the scope. `allow_skipped` is the *effective*
-/// flag: the plan's own value, or the explicit per-run override, already folded
-/// with `fail_on_skipped`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct SkipPolicy {
-    /// Whether this run permits a skip without failing the suite.
-    pub(crate) allow_skipped: bool,
-    /// The resolved `fail_on_skipped` for this run.
-    pub(crate) fail_on_skipped: bool,
-}
-
-impl SkipPolicy {
-    /// Resolve a policy from a plan's own flag and the process-global setting.
-    ///
-    /// The `|| !fail_on_skipped` term makes the recorded `allow_skipped` the
-    /// effective one, so `forced_failure == !allow_skipped && fail_on_skipped`
-    /// holds of the record itself and not merely of the policy that built it.
-    #[must_use]
-    pub(crate) const fn resolve(plan_allows_skipping: bool, fail_on_skipped: bool) -> Self {
-        Self {
-            allow_skipped: plan_allows_skipping || !fail_on_skipped,
-            fail_on_skipped,
-        }
-    }
-
-    /// Whether a skip under this policy must fail the suite.
-    ///
-    /// Takes `self` by value: the type is two `bool`s, and a reference would
-    /// add an indirection for no gain. `SkipPolicy` is `Copy`, so callers are
-    /// unaffected.
-    #[must_use]
-    pub(crate) const fn forces_failure(self) -> bool { !self.allow_skipped && self.fail_on_skipped }
-}
-
 /// Classify one step's error.
 ///
 /// `None` is a step that ran; `Some` is a step that did not. The single
@@ -167,6 +133,77 @@ pub(crate) fn classify(error: Option<crate::ExecutionError>) -> StepDecision {
         },
         Some(error) => StepDecision::Fail(error),
     }
+}
+
+/// The resolved skip policy for one run, as the record needs it.
+///
+/// Computed once per run, so that a run cannot observe the process-global
+/// configuration changing part-way through it. The two halves are read at
+/// different times and that is deliberate: `ScenarioScope::new` reads
+/// `config::fail_on_skipped()` and stores it, and the driver calls
+/// [`resolve`](Self::resolve) once the plan's own flag is also in hand, because
+/// the plan is not available to the scope.
+///
+/// The fields are private and the two questions are asked as one because
+/// [`ScenarioSkip::new`] must record *both*, and they are not independent:
+/// `forced_failure` is exactly `!allow_skipped && fail_on_skipped`. Asking them
+/// as one leaves the caller no way to hand over a pair the record's own
+/// invariant would then have to reject.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct SkipPolicy {
+    /// Whether this run permits a skip without failing the suite.
+    ///
+    /// The *effective* flag: the plan's own value, or the explicit per-run
+    /// override, already folded with `fail_on_skipped`. The `||
+    /// !fail_on_skipped` term in [`resolve`](Self::resolve) is what makes it
+    /// effective, so the record's invariant holds of the recorded value and not
+    /// merely of the policy that produced it.
+    allow_skipped: bool,
+    /// The resolved `fail_on_skipped` for this run.
+    fail_on_skipped: bool,
+}
+
+impl SkipPolicy {
+    /// Resolve a policy from a plan's own flag and the process-global setting.
+    #[must_use]
+    pub(crate) const fn resolve(plan_allows_skipping: bool, fail_on_skipped: bool) -> Self {
+        Self {
+            allow_skipped: plan_allows_skipping || !fail_on_skipped,
+            fail_on_skipped,
+        }
+    }
+
+    /// The permission and the forced-failure flag, for `ScenarioSkip`.
+    ///
+    /// Returned as a pair rather than as two accessors so the record cannot be
+    /// built with one of them and then the other read from a different policy:
+    /// the two are a property of one resolved run, and a caller that asked for
+    /// them separately could interleave another resolve between the two.
+    #[must_use]
+    pub(crate) const fn record(self) -> (bool, bool) {
+        (self.allow_skipped(), self.forced_failure())
+    }
+
+    /// Whether this run permits a skip without failing the suite.
+    ///
+    /// The *effective* flag. [`Self::resolve`]'s `|| !fail_on_skipped` term is
+    /// what makes it effective, so the record's own invariant holds of the
+    /// value this returns and not merely of the policy that produced it.
+    #[must_use]
+    pub(crate) const fn allow_skipped(self) -> bool { self.allow_skipped }
+
+    /// The resolved `fail_on_skipped` for this run.
+    ///
+    /// Read for the tracing span, not for the record: the record carries the
+    /// two *derived* values, and `fail_on_skipped` alone is not one of them.
+    #[must_use]
+    pub(crate) const fn fail_on_skipped(self) -> bool { self.fail_on_skipped }
+
+    /// Whether a skip under this policy must fail the suite.
+    ///
+    /// Exactly `!allow_skipped && fail_on_skipped`, resolved once per run.
+    #[must_use]
+    pub(crate) const fn forced_failure(self) -> bool { !self.allow_skipped && self.fail_on_skipped }
 }
 
 /// Assemble the terminal outcome from the recorded details and the terminal.
@@ -190,12 +227,14 @@ pub(crate) fn assemble(
             message,
             source,
         }) => {
+            let (allow_skipped, forced_failure) = policy.record();
             let skip = ScenarioSkip::new(
                 index,
-                message,
-                source,
-                policy.allow_skipped,
-                policy.forces_failure(),
+                SkipRecord { message, source },
+                SkipPolicyRecord {
+                    allow_skipped,
+                    forced_failure,
+                },
             );
             ScenarioOutcome::new(ScenarioStatus::Skipped, details, Some(skip), None)
         }

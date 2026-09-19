@@ -48,6 +48,8 @@ pub use outcome::{
     ScenarioOutcome,
     ScenarioSkip,
     ScenarioStatus,
+    SkipPolicyRecord,
+    SkipRecord,
     StepOutcome,
     StepStatus,
     ValueFate,

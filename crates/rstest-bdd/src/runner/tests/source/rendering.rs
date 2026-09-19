@@ -24,6 +24,8 @@ use crate::{
         ScenarioOutcome,
         ScenarioSkip,
         ScenarioStatus,
+        SkipPolicyRecord,
+        SkipRecord,
         SourceLocation,
         StepOutcome,
         test_invocation,
@@ -50,105 +52,160 @@ use crate::{
 /// The failure case uses [`honest_error`] rather than the decoy, because this
 /// test freezes the *form* of the projection and a decoy path would freeze a
 /// value production never emits. The decoy's work is done next door.
+///
+/// The bodies live in [`projections`] rather than inline so each variant reads
+/// as one labelled case rather than as a paragraph of constructor arguments;
+/// the table itself is what this test is about, and the cases are the payload.
 #[test]
 fn the_display_projection_renders_every_variant() {
-    let cases: Vec<(&str, ScenarioOutcome)> = vec![
-        (
-            "passed",
-            ScenarioOutcome::new(
-                ScenarioStatus::Passed,
-                vec![StepOutcome::passed(
-                    0,
-                    &test_invocation(
-                        StepKeyword::Given,
-                        "a calculator",
-                        Some(&at(PROSE_PATH, line(1))),
-                    ),
-                    None,
-                )],
-                None,
-                None,
-            ),
-        ),
-        (
-            "skipped, with a message",
-            ScenarioOutcome::new(
-                ScenarioStatus::Skipped,
-                Vec::new(),
-                Some(ScenarioSkip::new(
-                    0,
-                    Some("no database in this lane".to_owned()),
-                    Some(at(PROSE_PATH, 31)),
-                    false,
-                    false,
-                )),
-                None,
-            ),
-        ),
-        (
-            "skipped, without a message",
-            ScenarioOutcome::new(
-                ScenarioStatus::Skipped,
-                Vec::new(),
-                Some(ScenarioSkip::new(2, None, None, true, false)),
-                None,
-            ),
-        ),
-        (
-            "failed at a step",
-            ScenarioOutcome::new(
-                ScenarioStatus::Failed,
-                vec![StepOutcome::failed(
-                    0,
-                    &test_invocation(
-                        StepKeyword::Given,
-                        "an undefined step",
-                        Some(&at(SPEC_PATH, 7)),
-                    ),
-                    honest_error(0, SPEC_PATH),
-                )],
-                None,
-                Some(ScenarioFailure::Step {
-                    index: 0,
-                    error: honest_error(0, SPEC_PATH),
-                }),
-            ),
-        ),
-        (
-            "failed, the plan empty",
-            ScenarioOutcome::new(
-                ScenarioStatus::Failed,
-                Vec::new(),
-                None,
-                Some(ScenarioFailure::EmptyPlan),
-            ),
-        ),
-        (
-            "failed, a forced skip",
-            ScenarioOutcome::new(
-                ScenarioStatus::Failed,
-                Vec::new(),
-                Some(ScenarioSkip::new(
-                    1,
-                    None,
-                    Some(at(SPEC_PATH, 9)),
-                    false,
-                    true,
-                )),
-                Some(ScenarioFailure::ForcedSkip(ScenarioSkip::new(
-                    1, None, None, false, true,
-                ))),
-            ),
-        ),
-    ];
-
-    let rendered: String = cases
+    let rendered: String = projections()
         .iter()
         .map(|(label, outcome)| format!("{label}:\n  {outcome}"))
         .collect::<Vec<_>>()
         .join("\n");
 
     insta::assert_snapshot!(rendered);
+}
+
+/// One labelled outcome per `Display` branch, in the order the snapshot shows.
+///
+/// The skip is the one outcome carrying a policy *pair*, and it is built here
+/// with both halves spelled out — an outcome whose `forced_failure` were
+/// recomputed from `allow_skipped` at render time would still render the same
+/// line, which is why the conversion test next door asserts the pair rather
+/// than this one.
+fn projections() -> Vec<(&'static str, ScenarioOutcome)> {
+    let mut cases = vec![("passed", passed_case())];
+    cases.extend(skip_cases());
+    cases.extend([
+        ("failed at a step", failed_step_case()),
+        ("failed, the plan empty", empty_plan_case()),
+        ("failed, a forced skip", forced_skip_case()),
+    ]);
+    cases
+}
+
+/// A clean pass over one step.
+fn passed_case() -> ScenarioOutcome {
+    ScenarioOutcome::new(
+        ScenarioStatus::Passed,
+        vec![StepOutcome::passed(
+            0,
+            &test_invocation(
+                StepKeyword::Given,
+                "a calculator",
+                Some(&at(PROSE_PATH, line(1))),
+            ),
+            None,
+        )],
+        None,
+        None,
+    )
+}
+
+/// The two skip renderings, over one skip record each.
+///
+/// One function rather than two because the pair differs only in what the
+/// invocation supplied: both are a `Skipped` outcome with no steps and no
+/// failure, so a second body would restate the first and could drift from it.
+/// What the pair is *for* is the contrast — a rendering that always printed a
+/// colon and an empty detail would look correct for the first row alone, and
+/// the second is what says it is not.
+fn skip_cases() -> Vec<(&'static str, ScenarioOutcome)> {
+    let rows = [
+        (
+            "skipped, with a message",
+            Some("no database in this lane".to_owned()),
+            Some(at(PROSE_PATH, 31)),
+            0,
+            (false, false),
+        ),
+        ("skipped, without a message", None, None, 2, (true, false)),
+    ];
+
+    rows.into_iter()
+        .map(
+            |(label, message, source, at_index, (allow_skipped, forced_failure))| {
+                let skip = ScenarioSkip::new(
+                    at_index,
+                    SkipRecord { message, source },
+                    SkipPolicyRecord {
+                        allow_skipped,
+                        forced_failure,
+                    },
+                );
+                (
+                    label,
+                    ScenarioOutcome::new(ScenarioStatus::Skipped, Vec::new(), Some(skip), None),
+                )
+            },
+        )
+        .collect()
+}
+
+/// A failure at a step, sited by the plan rather than by the error.
+fn failed_step_case() -> ScenarioOutcome {
+    ScenarioOutcome::new(
+        ScenarioStatus::Failed,
+        vec![StepOutcome::failed(
+            0,
+            &test_invocation(
+                StepKeyword::Given,
+                "an undefined step",
+                Some(&at(SPEC_PATH, 7)),
+            ),
+            honest_error(0, SPEC_PATH),
+        )],
+        None,
+        Some(ScenarioFailure::Step {
+            index: 0,
+            error: honest_error(0, SPEC_PATH),
+        }),
+    )
+}
+
+/// A failure with no step at all, which the fold rejects as an empty plan.
+fn empty_plan_case() -> ScenarioOutcome {
+    ScenarioOutcome::new(
+        ScenarioStatus::Failed,
+        Vec::new(),
+        None,
+        Some(ScenarioFailure::EmptyPlan),
+    )
+}
+
+/// A skip the policy forces to fail: the one variant carrying two records.
+///
+/// The skip and the failure hold *separately built* records, because that is
+/// the state a caller can be handed — nothing in the type system ties the
+/// forced-skip failure to the skip beside it.
+fn forced_skip_case() -> ScenarioOutcome {
+    ScenarioOutcome::new(
+        ScenarioStatus::Failed,
+        Vec::new(),
+        Some(ScenarioSkip::new(
+            1,
+            SkipRecord {
+                message: None,
+                source: Some(at(SPEC_PATH, 9)),
+            },
+            SkipPolicyRecord {
+                allow_skipped: false,
+                forced_failure: true,
+            },
+        )),
+        Some(ScenarioFailure::ForcedSkip(ScenarioSkip::new(
+            1,
+            SkipRecord {
+                message: None,
+                source: None,
+            },
+            SkipPolicyRecord {
+                allow_skipped: false,
+                forced_failure: true,
+            },
+        ))),
+    )
 }
 
 /// A failed outcome's **rendering** takes its path from the error, not the plan.
