@@ -891,11 +891,54 @@ between them. Raise that before spending the tolerance.
     EP-M5 per that milestone's conformance check. The bespoke mutation
     recorded above remains the only mutation evidence specific to
     `drive_async.rs` itself.
+  - [x] A second CodeRabbit round, requested after the post-review gates came
+    back green, at revision `d15c1e84`. It returned 14 findings and every one
+    was adjudicated — four accepted, three declined with evidence, seven
+    duplicates or restatements. The two findings worth the round on their own
+    both arrived framed as style objections and were only shown to be real
+    defects by going to the code and the plan: the async driver was holding a
+    `Span::enter()` guard across `.await`, which `AGENTS.md` forbids outright
+    and which this plan's own D14 had already specified the fix for, and the
+    instrumentation capture was reading field *names* only on a rationale that
+    was simply false. The second of those exposed that the async path had no
+    instrumentation coverage at all. D28 records all fourteen individually,
+    including the declines, because a decline that is not evidenced is
+    indistinguishable from a finding that was ignored.
+  - [x] The commit gates re-run against the settled revision `21107a13`, which
+    is the revision the second round's fixes leave behind. This is the third
+    full gate run of EP-M3 and the first at a revision carrying both the
+    review fixes and their documentation.
 - [x] ~~EP-M4: lifecycle hooks and the lifecycle matrix~~ — struck by D2
   option (ii).
 - [ ] EP-M5: documentation, snapshots, and the full gate.
 
 ## Surprises & discoveries
+
+- **Observation:** `cargo fmt` on the *stable* toolchain is a whole-crate
+  reformatter here, not a formatter, and running it costs a full-tree revert.
+  Evidence: adding one test pushed
+  `crates/rstest-bdd/tests/runner_instrumentation.rs` to 413 lines against the
+  400-line cap enforced by `scripts/check_rs_file_lengths.py`, and trimming it
+  left a 102-character line. `cargo fmt -p rstest-bdd` was run to wrap it and
+  reformatted **121 files** across the crate. The cause is `.rustfmt.toml`,
+  which sets `unstable_features = true` and a dozen options that only nightly
+  rustfmt honours — `wrap_comments`, `format_strings`, `fn_single_line`,
+  `imports_granularity`, and others. Stable rustfmt prints
+  `Warning: can't set ... unstable features are only available in nightly
+  channel` for each one, ignores them, and then formats the files by its own
+  default rules. The Makefile pins `FMT_TOOLCHAIN ?= nightly-2026-08-07` with a
+  comment explaining exactly this, and `make check-fmt` uses it. Impact: the 121
+  files were reverted with `git checkout --` against an explicit keep-list, and
+  the line was wrapped with `cargo +nightly-2026-08-07 fmt` instead, which
+  touched nothing outside the working set (verified by an empty drift diff).
+  The lesson is narrower than "use the Makefile target": it is that the *raw*
+  cargo command is unsafe for `fmt` specifically, because its failure mode is
+  silent success over a wider blast radius than intended. `cargo clippy` and
+  `cargo nextest run` are safe to run directly; `cargo fmt` is not.
+  Worth pairing with the existing `make fmt` hazard note: that one is about
+  Markdown drift via `mdtablefix --git`, this one about Rust drift via the
+  missing nightly. The two formatters have two different failure modes and the
+  same remedy — never invoke either formatter bare.
 
 - **Observation:** an "async" step can panic *before* its future exists, and the
   panic boundary built for the poll does not see it. Evidence: `step!`'s
