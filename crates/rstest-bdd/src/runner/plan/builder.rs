@@ -73,11 +73,14 @@ impl ScenarioPlanBuilder {
     ///
     /// # Panics
     ///
-    /// Debug builds panic when `line` is zero, because a source line is
-    /// one-based. Release builds store the value unchanged. This mirrors
-    /// [`SourceLocation::new`](crate::runner::SourceLocation::new), which
-    /// guards the same coordinate for steps; without it `at_line` would be the
-    /// one entry point that accepts a position no parser can have observed.
+    /// Panics when `line` is zero, because a source line is one-based. Active
+    /// in every profile, for the reason
+    /// [`SourceLocation::new`](crate::runner::SourceLocation::new) gives: the
+    /// value reaches an outcome as a rendered `path:line`, and a zero that
+    /// survived would be read as a real position. This mirrors that
+    /// constructor, which guards the same coordinate for steps; without it
+    /// `at_line` would be the one entry point that accepts a position no parser
+    /// can have observed.
     ///
     /// # Examples
     ///
@@ -91,7 +94,7 @@ impl ScenarioPlanBuilder {
     /// ```
     #[must_use]
     pub fn at_line(mut self, line: u32) -> Self {
-        debug_assert!(line >= 1, "a source line is one-based");
+        assert!(line >= 1, "a source line is one-based");
         self.source_line = Some(line);
         self
     }
