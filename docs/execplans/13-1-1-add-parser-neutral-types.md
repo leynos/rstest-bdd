@@ -8,11 +8,16 @@ proceeds.
 
 Status: IN PROGRESS — Stage A closed on 2026-09-19; D2 option (ii), D3, and D10
 recorded as approved. EP-M1 is closed and gate-clean at `3a942230`; EP-M2 is
-closed and gate-clean; EP-M3's gates and CodeRabbit round are cleared, and its
-named `cargo-mutants` control was run and found *vacuous* — 3 mutants, all
-unviable — so the obligation is re-scoped to the whole runner tree and read at
-EP-M5. A second CodeRabbit round (14 findings at `d15c1e84`) is being worked
-before EP-M3 is declared closed.
+closed and gate-clean. **EP-M3 is closed**, gate-clean at `9a232fdd` with all
+seven gates green (2,046 nextest tests passed, 7 skipped; doctests; 244
+pytest), D27 recording the Scope-tolerance breach. **EP-M4 is struck** by D2
+option (ii). What remains is **EP-M5**: the `insta` `Display` snapshots, the
+`--no-default-features` test leg, the roadmap and retrospective edits, and the
+re-scoped `cargo-mutants` sweep over the whole runner tree (151 mutants).
+EP-M3's named `cargo-mutants` control was run and found *vacuous* — 3 mutants,
+all unviable — so that obligation is re-scoped rather than discharged, and its
+survivor list is read at EP-M5. Three CodeRabbit rounds have been adjudicated;
+D26, D28, and D29 record them finding by finding.
 
 ## Purpose / big picture
 
@@ -780,8 +785,13 @@ between them. Raise that before spending the tolerance.
   section, which documented the gap as "owned by D11", now states the boundary
   is in place. Not yet gated: the full deterministic suite has not been re-run
   against this revision.
-- [-] EP-M3: asynchronous runner and cancellation. **The milestone's commit
-  gates are green; what remains is the named `cargo-mutants` control.**
+- [x] EP-M3: asynchronous runner and cancellation. **Closed, gate-clean at
+  `9a232fdd`.** Three CodeRabbit rounds were adjudicated against this milestone
+  (D26, D28, D29) and the last of them found no recurrence of an earlier one.
+  The one obligation it does *not* discharge is the named `cargo-mutants`
+  control, which came back vacuous and is re-scoped to the whole runner tree —
+  recorded here rather than under EP-M5, because the re-scoping is EP-M3's
+  finding even though the reading is EP-M5's.
   - [x] `run_scenario_async`, the shared `engine/drive.rs` step handling, and
     the third behavioural scenario. Committed in `9f4ca8c7`.
   - [x] INV-10's step case, in `crates/rstest-bdd/tests/runner_cancel.rs`, with
@@ -926,6 +936,16 @@ between them. Raise that before spending the tolerance.
     seven had passed at `2106cd69` already, and the Rust bytes are identical
     across every revision since `c5519a80`, so only the doc-scoped verdict
     genuinely moved.
+  - [x] A third CodeRabbit round, requested after the gates came back green, at
+    revision `79a7df14`. It returned 12 findings across seven distinct
+    locations (3 high, 6 medium, 3 low), every one adjudicated, every location
+    accepted, and zero verbatim recurrences from round 2. The review's own file
+    list is identical to `git diff --name-only origin/main...HEAD` at that
+    revision, so it is bound to the committed tree rather than to a working
+    copy. D29 records all twelve individually.
+  - [x] The commit gates re-run against the post-third-round revision. See the
+    Surprises entry on `runner_sequence_props` for what the first attempt
+    found.
 - [x] ~~EP-M4: lifecycle hooks and the lifecycle matrix~~ — struck by D2
   option (ii).
 - [ ] EP-M5: documentation, snapshots, and the full gate.
@@ -3160,6 +3180,134 @@ shown to be real defects by going to the code and the plan.
 
 Date/Author: 2026-09-19, implementation agent.
 
+### D29: the third CodeRabbit round, adjudicated finding by finding
+
+The third `coderabbit review --agent` pass, at revision `79a7df14`, raised 12
+findings (3 high, 6 medium, 3 low). The review's own `complete` line lists 58
+files whose sorted set is identical to
+`git diff --name-only origin/main...HEAD` at that revision, so the round is
+bound to the committed revision and is not contaminated by the edits
+adjudicating it. No round-2 finding reappeared verbatim, which is the evidence
+that D26 and D28's fixes landed.
+
+The 12 findings cover **seven distinct locations** — the tool reports several
+issues twice at different severities. They are recorded below grouped by
+location, because adjudicating a duplicate pair twice would be double work.
+Comparing the rounds: round 2 raised 14 findings against 4 major defects and
+round 3 raised 12 against 3. That is not yet a decline in the tool's signal,
+and it is worth recording that all three of round 3's major findings were
+*valid*, while several of its minor ones were restatements of the same location.
+
+**Accepted — the `absorb` doc (findings 1/11).** Two findings, one minor and
+one trivial, asked for the same narrowing: the doc comment's closing sentence
+made claims about code the test does not exercise. It said `absorb` "moves it
+out and neither clones nor inspects it, and the clone the failure path does
+need happens in the driver". Every clause there is true, and none of it is
+established by this test — the test cannot see `record_step`, and a future
+refactor that cloned inside `absorb` would leave the sentence stale while the
+test stayed green. Rewritten to state the two things the test does establish
+and to name `record_step` as the owner of what happens next. The doc in
+`policy.rs` above `absorb` itself was left alone: it describes the function,
+not the test.
+
+**Accepted — the `StepPattern` constants (finding 2).** The three
+`static StepPattern` values repeated their pattern text as literals instead of
+building from the `PARKING_STEP`/`RETURNING_STEP`/`PASSING_STEP` constants
+declared directly above them. Accepted as a real hazard rather than style: a
+pattern and the text the plan passes to `step_at` must agree, and the only
+thing that checks they do is a test that would *stop resolving* — reporting
+"unresolved step" rather than "these two constants diverged".
+`StepPattern::new` is a `const fn`, so the shared constant is usable in a
+`static` initializer and the duplication buys nothing.
+
+**Accepted — Figure 1 (findings 3/12).** Two findings, one major and one minor,
+observed that the execution-sequence diagram still carried the before/after
+lifecycle hook nodes, their `catch_unwind` guards and failure paths, and that
+under D2 option (ii) those describe no shipped mechanism. Accepted, and this
+one is worth recording in full because it was a genuine internal contradiction
+rather than a wording slip: the plan *says* EP-M4 is struck, and one of its own
+figures said otherwise. Figure 1 now shows the shipped sequence — construct,
+resolve the policy once, drive each invocation, assemble — and a paragraph
+below it states why the hook nodes are absent, what the figure still carries
+(the unconditional scope drop), and what a restoring ADR would add. The hooks
+are omitted rather than drawn as optional, because a reader following this plan
+should not implement a mechanism this plan decided not to ship.
+
+**Accepted — the stale status block (findings 4/10).** Two findings asked for
+the same correction and both were right: the opening status still said the
+second CodeRabbit round "is being worked before EP-M3 is declared closed",
+which had been untrue since `fb611b15`. EP-M3 is now stated as closed and
+gate-clean at `9a232fdd` with its green-gates outcome retained, EP-M4 as
+struck, and EP-M5 as the only outstanding milestone. This is the third time a
+stale status line has been caught by review rather than by the plan's own
+upkeep, which is a process observation for the retrospective: the living-status
+discipline this plan commits to is not self-enforcing.
+
+**Accepted — the visibility witness (findings 5/9).** Finding 5 asked for
+`Witnesses::record` to take the `Arrangement` and to gate
+`observer_before_producer` on `Arrangement::OneProbe`; finding 9 asked for the
+same plus a narrowing of the producer set to `Kind::ReturnValue`. Both clauses
+are correct, and the second is the sharper of the two. The flag's whole purpose
+is to be the case a correct driver passes and an eager driver fails, and under
+`NoProbe` or `TwoProbes` no insert can succeed at all — so a case recording the
+flag there would be observationally true of *every* driver, eager ones
+included, and would let `assert_visibility_complete` pass on evidence that
+discriminates nothing. The `Kind::ReturnValue` narrowing is the same argument
+one level down: `ReturnUnmatchedValue` returns a type no fixture holds, so it
+can never insert and can never be seen, and counting it as a producer would
+admit exactly the cases the arrangement gate was added to exclude. Implemented
+as a new declared classification on `Kind` — `returns_a_matchable_value`,
+narrower than the existing `returns_a_value` — rather than as a literal
+`Kind::ReturnValue` comparison in the witness, so a future kind that returns a
+matchable value is picked up by the classification rather than silently
+excluded. `returns_a_value` is deliberately *unchanged* and still governs
+INV-12, whose subject is the fate of every value a handler hands back — and
+`NoMatch` is precisely the fate this kind produces.
+
+**Accepted — the crafted terminal (finding 6).** The finding asked that
+`Shape`'s terminal derivation stop hard-coding kinds and come from `Kind::ALL`,
+and its stated mechanism was partly wrong: it said the values should "remain
+consistent with `Witnesses::assert_complete`", and that function tracks no
+terminal-kind witness at all — it asserts statuses, `FailureKind`s,
+`empty_plan`, and `stopped_early`. And no *value* of `Shape::terminal` can
+escape `Kind::ALL`, because the field is a `Kind`. But the concern underneath
+is valid and was adopted: `Shape.terminal` *was* a spelling,
+`terminal: Some(Kind::Skip)` named a kind by name with nothing tying it to the
+classification it was there to witness. Replaced with a `Terminal` enum whose
+variants name the *classification* the shape witnesses, resolved through
+`Kind::ALL` by `terminal_status`/`failure_kind`. The important part is not the
+indirection but `Terminal::asserted`: a shape whose classification no kind
+satisfies now **panics** at build. Without it the failure mode is a silent
+vacuity — a crafted plan that lost its terminal still satisfies every property,
+because a plan with nothing ending it never stops early, so `stopped_early`
+would simply be set by the uniform half instead and the suite would stay green.
+
+**Accepted — the plan rebuild (findings 7/8).** Two findings, trivial and
+minor, on `the_plan_has_a_step_at_line`: the rebuild dropped `plan.tags()`.
+Accepted, and the fix was amplified past what was asked, because applying it
+verbatim would have produced a *vacuous* assertion. Copying the tags is a
+one-line change, but the benchmark's `Given` steps never set a tag, so the
+rebuild would have carried an empty list and a reconstruction that dropped tags
+would have been indistinguishable from one that did not. The
+`Given a plan named ...` step now adds a tag keyed to the source, and the
+rebuild step asserts the tags survived. The same reasoning applies to the rest
+of the seed: each field is read back through the plan's own accessors, so a
+field the seed forgets is dropped silently — a hazard the new assertion names
+rather than one it merely avoids.
+
+**The round's pattern, recorded for the next reader.** Every one of the seven
+distinct locations was *valid*, including the one whose stated mechanism was
+wrong, which is a better hit rate than round 2's and a reminder that a
+partially wrong rationale does not make the finding wrong. The recurring
+failure mode across all three rounds is not fabrication but *restatement*: the
+tool reports the same location two or three times at different severities, and
+a first reading that treats each as independent over-counts the work. The
+second is that the tool reliably catches stale prose — three status-line
+corrections across three rounds — which is the class of defect a human reviewer
+skims past.
+
+Date/Author: 2026-09-19, implementation agent.
+
 ## Outcomes & retrospective
 
 To be completed at EP-M5. Before marking this plan `COMPLETE`, reconcile every
@@ -4558,10 +4706,7 @@ Three, all additive:
 
 ```mermaid
 flowchart TD
-    A["Construct scope; resolve fail_on_skipped once"] --> B["Run before hook, guarded by catch_unwind"]
-    B --> C{"Before hook failed or panicked?"}
-    C -- yes --> Z["Record every invocation as Bypassed"]
-    C -- no --> D["For each invocation in plan order"]
+    A["Construct scope; resolve fail_on_skipped once"] --> D["For each invocation in plan order"]
     D --> E["Resolve, validate fixtures, execute; catch_unwind"]
     E --> F["engine::policy::classify"]
     F -- "Continue with value" --> G["insert_value; record InsertOutcome"]
@@ -4569,14 +4714,25 @@ flowchart TD
     H --> D
     F -- "Continue, no value" --> H
     F -- "Terminal" --> I["Record the terminal detail; stop"]
-    D -- "steps exhausted" --> J
-    I --> J["Run after hook exactly once, from a disarmable guard"]
-    Z --> J
-    J --> K["engine::policy::assemble"]
+    D -- "steps exhausted" --> K
+    I --> K["engine::policy::assemble"]
     K --> L["Return Passed, Skipped, or Failed; scope drops, cleanup runs"]
 ```
 
-*Figure 1: the canonical scenario execution sequence owned by the runner.*
+*Figure 1: the scenario execution sequence owned by the runner, as shipped at
+EP-M3.*
+
+Under **D2 option (ii)** the before/after hook nodes are struck, so they are
+**not** in Figure 1: there is no `Lifecycle` trait, no `with_hooks`, and no
+hook guard to disarm. What the figure does still carry is the cleanup path —
+the scope drop at `L` is unconditional and synchronous, which is what keeps the
+after/cleanup column of ADR-018's lifecycle matrix discharged. If a later ADR
+restores the hooks (EP-M4 is struck, and its replacement is tracked in
+`docs/roadmap.md`), the sequence gains two guarded nodes — a `before` hook that
+bypasses every invocation when it fails, and an `after` hook run exactly once
+from a disarmable guard — before `K`. They are omitted here rather than drawn
+as optional, because a reader following this plan should not implement a
+mechanism this plan decided not to ship.
 
 ## Plan of work
 
