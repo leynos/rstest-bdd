@@ -90,16 +90,16 @@ can still follow the rest of the document.
 - **Fixture** — a value supplied by `rstest` and made available to steps
   through `StepContext`. Implicit injection derives the fixture key from the
   parameter name and strips at most one leading underscore
-  (`crates/rstest-bdd-macros/src/utils/pattern/mod.rs`, `normalize_param_name`),
-  so `world` and `_world` both request the key `world` while `__world` requests
-  `_world`. `#[from(name)]` binds the exact key `name` and bypasses that
-  normalization entirely, so `#[from(_world)]` requests the literal `_world`
-  key. `#[from]` with no argument requests the parameter's own normalized name,
-  which is what an unannotated parameter already does, so it is documentary.
-  The distinction matters to this plan because a step's parameter list is the
-  only place a scenario's fixture requirements are stated, so any
-  parser-neutral plan must reproduce the same key resolution rather than
-  re-deriving it.
+  (`crates/rstest-bdd-macros/src/utils/pattern/mod.rs`,
+  `normalize_param_name`), so `world` and `_world` both request the key `world`
+  while `__world` requests `_world`. `#[from(name)]` binds the exact key `name`
+  and bypasses that normalization entirely, so `#[from(_world)]` requests the
+  literal `_world` key. `#[from]` with no argument requests the parameter's own
+  normalized name, which is what an unannotated parameter already does, so it
+  is documentary. The distinction matters to this plan because a step's
+  parameter list is the only place a scenario's fixture requirements are
+  stated, so any parser-neutral plan must reproduce the same key resolution
+  rather than re-deriving it.
 - **`StepContext`** — `crates/rstest-bdd/src/context/mod.rs`. A per-scenario
   map from fixture name to either a borrowed reference or an owned
   `RefCell<Box<dyn Any>>` cell, plus a second map of **step-returned override
@@ -767,8 +767,6 @@ between them. Raise that before spending the tolerance.
   being believed, and because the timeout cancelled 78 tests, a run that ends
   this way has **not** exercised them — the green result for those tests must
   come from a completed run, not from the cancelled one.
-
-## Surprises & discoveries
 
 - **Observation:** the first CodeRabbit pass over EP-M1 returned eight findings
   (one `major`, five `minor`, two `trivial`, of which the two `trivial` are
@@ -1998,9 +1996,9 @@ a boxed future, since hooks dispatch statically and AFIT is below the MSRV.
 
 ### Integration points EP-M2 must resolve, measured at EP-M1
 
-Reconnaissance during EP-M1's gate closure turned up four facts that EP-M2
+Reconnaissance during EP-M1's gate closure turned up five facts that EP-M2
 depends on. They are recorded here because each costs real time to rediscover,
-and because two of them are API-shape questions the plan did not anticipate.
+and because three of them are API-shape questions the plan did not anticipate.
 
 1. **The data table needs a conversion that does not exist.** `StepInvocation`
    stores `Option<Vec<Vec<Cow<'static, str>>>>` and `table()` borrows it as
@@ -2029,6 +2027,28 @@ and because two of them are API-shape questions the plan did not anticipate.
    `StepOutcome` that INV-5 wants to compare. The macro path is **not** to be
    changed by this work; the divergence is intentional and belongs in the
    developers' guide.
+5. **`StepDecision` is named but never defined, and LEM-1 pins no signature for
+   either policy function.** D6 says `engine::classify(result) -> StepDecision`
+   and LEM-1 calls it "a total function from one step result to
+   `StepDecision`", but the type is mentioned in only those two places and
+   never given variants; likewise `engine::assemble` appears in the module
+   table and in LEM-1's test method with no signature at all. This is a real
+   gap rather than a stylistic one, because the whole point of D6 is that
+   *neither driver branches on a step result* — a property that is only
+   checkable once the decision type is fixed, since "no `if` on a result" is
+   satisfiable by a `classify` that itself branches on everything. EP-M2 must
+   therefore settle both signatures before writing either driver, and the shape
+   that discharges D6 is one where `classify` returns a value the driver can
+   `match` once, with the count of reachable decision states small enough to
+   enumerate in `policy_tests.rs`. The constraints the shape must satisfy, all
+   already stated in this plan: the decision must express *stop* (INV-1),
+   *stop-for-skip versus stop-for-failure* (INV-2, INV-8), and *continue*; it
+   must be a total function of the step result alone, so it takes no
+   `StepContext` and returns no `Result` (LEM-1); and `assemble` must consume
+   the ordered decision list rather than being re-derived per driver (D6).
+   Recorded rather than resolved here so that EP-M2 opens with the decision
+   rather than discovering it mid-driver, which is exactly how the first draft
+   ended up with the stop decision duplicated in two `break`s.
 
 Two rows of the module-layout table above were stale against D2 option (ii) and
 have been corrected in place. `runner/outcome/failure.rs` was listed as holding
