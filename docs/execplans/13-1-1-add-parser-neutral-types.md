@@ -1109,11 +1109,16 @@ between them. Raise that before spending the tolerance.
     deliberately still unspent: CodeRabbit reports `Review skipped: draft pull
     request` on #770, so requesting a review before the PR leaves draft would
     spend the round on a no-op.
-  - [ ] The Bumpy Road and method-length findings were cleared, but the
+  - [x] The Bumpy Road and method-length findings were cleared, but the
     *upstream* lesson is not yet actioned: this plan's gate list enumerates
     local `make` targets and never names the PR checks, which is the set that
     actually failed. Recorded in D34 rather than fixed, because changing how
-    future plans enumerate gates is outside this plan's scope.
+    future plans enumerate gates is outside this plan's scope. **Discharged by
+    D37**, which named the ruleset's three required checks and their actual
+    conclusions, and recorded the two confusions underneath — visible is not
+    required, and required is not visible. D38 then supplied a third instance of
+    the same shape one commit later: a green reported for a gate the command run
+    does not police.
 
 ## Surprises & discoveries
 
@@ -4092,19 +4097,20 @@ and the failing line was `Makefile:135` of 139. Four checks therefore never ran:
 `check_gpui_mapping_table.py` and `check_serial_nextest_matrix.py`. A green
 `make lint` from any *earlier* revision cannot clear them, because this
 branch's new users-guide and execplan prose is precisely what
-`check_users_guide_links.py` and `check_gpui_mapping_table.py` police. The
-gate report for `c6eb5078` says so rather than folding them into "lint failed":
-they are *unknown*, and the distinction matters because the remedy differs.
-Clearing the line count does not imply clearing them; only a re-run that
-reaches line 139 does.
+`check_users_guide_links.py` and `check_gpui_mapping_table.py` police. The gate
+report for `c6eb5078` says so rather than folding them into "lint failed": they
+are *unknown*, and the distinction matters because the remedy differs. Clearing
+the line count does not imply clearing them; only a re-run that reaches line
+139 does.
 
 **Verified at the new revision.** `runner_panics.rs` 330 lines,
 `runner_panics/mod.rs` 370; `scripts/check_rs_file_lengths.py` exits 0; clippy
 clean under `--all-targets --all-features -- -D warnings`; the focused binary
 runs 6 tests, 6 passed, including both async cases and the wrapped-step
-non-regression control; rustfmt clean. `cs delta origin/main --output-format
-json` returns **0 bytes** at the new revision, re-measured rather than carried
-forward — which is the whole of D35's lesson applied on the next commit.
+non-regression control; rustfmt clean.
+`cs delta origin/main --output-format json` returns **0 bytes** at the new
+revision, re-measured rather than carried forward — which is the whole of D35's
+lesson applied on the next commit.
 
 **What a successor should take from this.** When a gate run reports a failure,
 read the *recipe position* of the failing line before summarizing the gate.
@@ -4152,22 +4158,23 @@ the file must be the module the unwrapped handler is defined in;
 test result: FAILED. 5 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out
 ```
 
-The assertion was `file.ends_with("runner_panics/mod.rs")`, and `file!()` embeds
-the platform separator, so it cannot hold on Windows. The fix normalizes with
-`.replace('\\', "/")` before comparing — the convention this crate's other tests
-already use in `feature_rebuild_invalidation/harness/fixtures.rs` and
-`trybuild_macros/staging.rs`. The raw value is kept for the failure message so a
-reader sees what was produced rather than the normalized form that was compared.
+The assertion was `file.ends_with("runner_panics/mod.rs")`, and `file!()`
+embeds the platform separator, so it cannot hold on Windows. The fix normalizes
+with `.replace('\\', "/")` before comparing — the convention this crate's other
+tests already use in `feature_rebuild_invalidation/harness/fixtures.rs` and
+`trybuild_macros/staging.rs`. The raw value is kept for the failure message so
+a reader sees what was produced rather than the normalized form that was
+compared.
 
 **Why no local gate could have caught it.** The whole local gate set runs on
-Linux, where `replace('\\', "/")` is a no-op and the buggy form is *correct*.
-A green `make test` is not weak evidence here, it is **orthogonal** evidence:
-the failing case is unreachable on the only platform the suite runs on. This is
-the same class as the coverage drift memory records — a passing suite and an
+Linux, where `replace('\\', "/")` is a no-op and the buggy form is *correct*. A
+green `make test` is not weak evidence here, it is **orthogonal** evidence: the
+failing case is unreachable on the only platform the suite runs on. This is the
+same class as the coverage drift memory records — a passing suite and an
 untested path look identical from inside the passing suite.
 
-**Verified non-vacuously, because a local green proves nothing about this one.**
-The predicate was compiled standalone against the literal path string CI
+**Verified non-vacuously, because a local green proves nothing about this
+one.** The predicate was compiled standalone against the literal path string CI
 reported and against the Linux form. The old expression returns `false` for the
 Windows string — reproducing the CI failure exactly — and the new one returns
 `true`; neither form changes on the Linux string. That is the evidence; the
@@ -4184,24 +4191,115 @@ No matching field found: close for class java.io.InputStreamReader
 ```
 
 The tests in that leg passed; only the upload failed. **It is not
-branch-specific**: `adopt-cv005` succeeded at 2026-09-18T17:17Z and every CI run
-recorded after it has failed, including on branches sharing no commits with this
-one, and those unrelated branches fail at the *same two steps*
+branch-specific**: `adopt-cv005` succeeded at 2026-09-18T17:17Z and every CI
+run recorded after it has failed, including on branches sharing no commits with
+this one, and those unrelated branches fail at the *same two steps*
 (`Check coverage against CodeScene gates`, `Test and Measure Coverage`). The
 same parse error appears in this branch's earlier runs. A defect in the
-`upload-codescene-coverage` action or in the CLI version it pins — not something
-this branch introduced and not something this branch can fix.
+`upload-codescene-coverage` action or in the CLI version it pins — not
+something this branch introduced and not something this branch can fix.
 
 **The correction to a previously recorded claim, and why it matters.** D34, D35
 and their Progress entries all describe CodeScene as the gate that "every
 comparable open PR passes" and treat it as the thing standing between this
 branch and merge-readiness. That framing is wrong in the way that matters: the
 check is advisory, and the branch was in fact unmergeable for a reason nobody
-had looked at. **A gate being visible is not the same as its being required, and
-a gate being required is not the same as its being visible to you.** The
-practical rule: read the ruleset's required-status-check list before declaring a
-milestone gate-clean, and treat D34's deferred "upstream lesson" as now
+had looked at. **A gate being visible is not the same as its being required,
+and a gate being required is not the same as its being visible to you.** The
+practical rule: read the ruleset's required-status-check list before declaring
+a milestone gate-clean, and treat D34's deferred "upstream lesson" as now
 discharged by this entry.
+
+Date/Author: 2026-09-20, implementation agent.
+
+### D38: D36's own prose broke `Check formatting`, and "rustfmt clean" is not the claim
+
+**What happened.** CI run `35475806008` at `abeae80c` failed its Linux leg at
+step 20, `Check formatting`, with every later step — including the CodeScene
+coverage step D37 had just analysed — reported `skipped`. This is a *different*
+failure from the ones D37 recorded, and it was mine. It began one commit
+earlier than the D36 write-up assumed and has nothing to do with the Rust tree:
+
+```plaintext
+$ mdtablefix --check --git --include-untracked --wrap --renumber --breaks \
+    --ellipsis --fences
+docs/execplans/13-1-1-add-parser-neutral-types.md +31 -29
+1 file would be reformatted, 120 files left unchanged.
+```
+
+The file is the only one in the repository that drifts, and the drift is
+entirely inside the paragraphs D36 and D37 added.
+`cargo +nightly-2026-08-07 fmt --all -- --check` is clean, as are both
+published-GPUI fixture manifests; the Rust formatting is genuinely fine. What
+fails is `mdtablefix`'s paragraph re-wrap.
+
+**Which revision introduced it.** Bisected over the file's own history with
+`git show <sha>:<path>` piped into `mdtablefix --check`:
+
+```plaintext
+4e4f6a0c: CLEAN
+b99ddf04: DRIFT
+8fb61815: DRIFT
+abeae80c: DRIFT
+```
+
+So the drift enters at `b99ddf04`, the D36 entry itself. D36 is the commit that
+records a gate failure and then introduces a fresh one, in prose, in the same
+commit.
+
+**Why no gate caught it, and the correction to D36's evidence claim.** D36 says
+in as many words: "clippy clean under
+`--all-targets --all-features -- - D warnings`; the focused binary runs 6
+tests, 6 passed …; rustfmt clean." Every one of those is true, and none of them
+is the check that failed. The gap is this: **`make lint` does not run
+`check-fmt`.** Its recipe begins at clippy (`clippy` → `cargo doc` →
+`lint-whitaker` → `lint-python` → the five `scripts/check_*.py` gates) and
+contains no formatting step at all, so a clean `make lint` says nothing about
+`mdtablefix`. And "rustfmt clean" is a claim about `cargo fmt`, which only
+covers Rust — it is silent on every Markdown file in the tree. The gate that
+failed is `make check-fmt`, whose recipe ends in `mdtablefix --check` over all
+tracked and untracked Markdown.
+
+So the honest statement of D36's evidence is: *the Rust half of the formatting
+gate was verified and the Markdown half was never run.* Recording "rustfmt
+clean" as though it covered formatting is precisely the wrong-by-omission
+pattern this plan has now recorded twice — a green check reported for a gate it
+does not police.
+
+**The fix.** `mdtablefix --in-place` restricted to the same selection
+`make check-fmt` uses. It changed exactly one file:
+
+```plaintext
+$ mdtablefix --in-place --git --include-untracked --wrap --renumber --breaks \
+    --ellipsis --fences
+$ git status --short
+ M docs/execplans/13-1-1-add-parser-neutral-types.md
+```
+
+`make fmt` was deliberately **not** used. It runs the same rewrite over the
+whole tree plus `markdownlint --fix`, and the plan's own record is that this
+drifts untracked, unrelated documents into the diff. Restricting the in-place
+rewrite to the one file that `--check` had already named is the same operation
+with none of the collateral. Both halves of `make check-fmt` now pass:
+
+```plaintext
+$ make check-fmt
+…
+66 files already formatted
+mdtablefix --check --git --include-untracked --wrap --renumber --breaks --ellipsis --fences
+121 files left unchanged.
+EXIT=0
+```
+
+**What a successor should take from this.** Three things, in descending order
+of generality. First, `git status --short` should name exactly the files
+`--check` named; if it names more, the rewrite was not scoped and should be
+reverted. Second, a plan entry that reports evidence should name the *command*
+that produced it rather than a description of it — "rustfmt clean" reads as
+"the formatting gate is clean" to every later reader, and it is not that.
+Third, and specific to this repository: after editing a Markdown file,
+`make check-fmt` — not `cargo fmt` — is the check that covers it, and
+`make lint` does not.
 
 Date/Author: 2026-09-20, implementation agent.
 
