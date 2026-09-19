@@ -4,7 +4,11 @@
 //! private sum, so a `Passed` outcome carrying an error is unrepresentable
 //! rather than merely untested.
 
-use crate::{ExecutionError, StepKeyword, runner::source::SourceLocation};
+use crate::{
+    ExecutionError,
+    StepKeyword,
+    runner::{StepInvocation, source::SourceLocation},
+};
 
 /// The status of one step invocation.
 ///
@@ -117,28 +121,58 @@ pub struct StepOutcome {
     record: StepRecord,
 }
 
+/// Build an identity-only invocation for a test that has no plan.
+///
+/// The production path always records against a plan-built [`StepInvocation`],
+/// which is where the identity legitimately comes from. Unit tests that assert
+/// on the fold's arithmetic have no plan to hand and would otherwise restate the
+/// same keyword, text, and source at every call site — the shape that let the
+/// four status constructors drift apart in the first place.
+#[cfg(test)]
+pub(crate) fn test_invocation(
+    keyword: StepKeyword,
+    text: &str,
+    source: Option<&SourceLocation>,
+) -> StepInvocation {
+    let invocation = StepInvocation::new(keyword, text.to_owned());
+    match source {
+        Some(source) => invocation.at(source.clone()),
+        None => invocation,
+    }
+}
+
 impl StepOutcome {
+    /// Record an invocation with the given outcome, copying its identity from
+    /// the plan.
+    ///
+    /// The single place the plan-to-record projection happens, so the four
+    /// status-specific constructors below cannot drift apart on what they copy.
+    /// The identity fields are read from `invocation` rather than passed
+    /// individually: four parallel `(index, keyword, text, source)` tuples that
+    /// must agree would otherwise have to be kept in step by hand at every call
+    /// site, and a caller that reordered two steps could pair one step's text
+    /// with another's position without any type noticing.
+    fn recorded(index: usize, invocation: &StepInvocation, record: StepRecord) -> Self {
+        Self {
+            index,
+            keyword: invocation.keyword(),
+            text: invocation.text().to_owned(),
+            source: invocation.source().cloned(),
+            record,
+        }
+    }
+
     /// Record a successful invocation.
     ///
-    /// The production caller is the runner's engine, which lands in EP-M2; the
-    /// unit tests build outcomes through these constructors so the fold can be
-    /// tested without a registry. See
+    /// The production caller is the runner's engine. See
     /// [`ScenarioSkip::new`](crate::runner::ScenarioSkip::new) for why the
     /// expectation is `not(test)`-scoped.
     pub(crate) fn passed(
         index: usize,
-        keyword: StepKeyword,
-        text: &str,
-        source: Option<&SourceLocation>,
+        invocation: &StepInvocation,
         value: Option<ValueFate>,
     ) -> Self {
-        Self {
-            index,
-            keyword,
-            text: text.to_owned(),
-            source: source.cloned(),
-            record: StepRecord::Passed { value },
-        }
+        Self::recorded(index, invocation, StepRecord::Passed { value })
     }
 
     /// Record an invocation that requested a skip.
@@ -146,57 +180,30 @@ impl StepOutcome {
     /// See [`passed`](Self::passed) for why the expectation is `not(test)`-scoped.
     pub(crate) fn skipped(
         index: usize,
-        keyword: StepKeyword,
-        text: &str,
-        source: Option<&SourceLocation>,
+        invocation: &StepInvocation,
         message: Option<String>,
     ) -> Self {
-        Self {
-            index,
-            keyword,
-            text: text.to_owned(),
-            source: source.cloned(),
-            record: StepRecord::Skipped { message },
-        }
+        Self::recorded(index, invocation, StepRecord::Skipped { message })
     }
 
     /// Record an invocation that failed.
     ///
     /// See [`passed`](Self::passed) for why the expectation is `not(test)`-scoped.
-    pub(crate) fn failed(
-        index: usize,
-        keyword: StepKeyword,
-        text: &str,
-        source: Option<&SourceLocation>,
-        error: ExecutionError,
-    ) -> Self {
-        Self {
+    pub(crate) fn failed(index: usize, invocation: &StepInvocation, error: ExecutionError) -> Self {
+        Self::recorded(
             index,
-            keyword,
-            text: text.to_owned(),
-            source: source.cloned(),
-            record: StepRecord::Failed {
+            invocation,
+            StepRecord::Failed {
                 error: Box::new(error),
             },
-        }
+        )
     }
 
     /// Record an invocation that never ran.
     ///
     /// See [`passed`](Self::passed) for why the expectation is `not(test)`-scoped.
-    pub(crate) fn bypassed(
-        index: usize,
-        keyword: StepKeyword,
-        text: &str,
-        source: Option<&SourceLocation>,
-    ) -> Self {
-        Self {
-            index,
-            keyword,
-            text: text.to_owned(),
-            source: source.cloned(),
-            record: StepRecord::Bypassed,
-        }
+    pub(crate) fn bypassed(index: usize, invocation: &StepInvocation) -> Self {
+        Self::recorded(index, invocation, StepRecord::Bypassed)
     }
 
     /// Return the zero-based position of this invocation in the plan.

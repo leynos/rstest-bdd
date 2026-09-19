@@ -40,6 +40,7 @@ use crate::{
         StepOutcome,
         StepStatus,
         ValueFate,
+        test_invocation,
     },
 };
 
@@ -93,9 +94,7 @@ fn a_failed_record_keeps_the_plans_path_and_not_the_errors() {
     let source = at(SPEC_PATH, 7);
     let record = StepOutcome::failed(
         0,
-        StepKeyword::Given,
-        "an undefined step",
-        Some(&source),
+        &test_invocation(StepKeyword::Given, "an undefined step", Some(&source)),
         decoy_error(0),
     );
 
@@ -135,9 +134,7 @@ fn a_runtime_built_source_round_trips_through_the_outcome() {
     let source = SourceLocation::new(owned, 42, Some(9));
     let record = StepOutcome::passed(
         0,
-        StepKeyword::Given,
-        "a step",
-        Some(&source),
+        &test_invocation(StepKeyword::Given, "a step", Some(&source)),
         Some(ValueFate::NoMatch),
     );
 
@@ -194,9 +191,11 @@ fn the_terminal_source_is_the_terminating_invocations_location() {
         ScenarioStatus::Failed,
         vec![StepOutcome::failed(
             0,
-            StepKeyword::Given,
-            "an undefined step",
-            Some(&at(PROSE_PATH, line(2))),
+            &test_invocation(
+                StepKeyword::Given,
+                "an undefined step",
+                Some(&at(PROSE_PATH, line(2))),
+            ),
             decoy_error(0),
         )],
         None,

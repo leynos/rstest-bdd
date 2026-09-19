@@ -15,6 +15,7 @@ use crate::{
         engine::policy::{SkipPolicy, Terminal},
         outcome::StepOutcome,
         source::SourceLocation,
+        test_invocation,
     },
 };
 
@@ -74,25 +75,24 @@ pub(super) fn skip(message: Option<&str>) -> ExecutionError {
 pub(super) fn passed(index: usize) -> StepOutcome {
     StepOutcome::passed(
         index,
-        StepKeyword::Given,
-        "a calculator",
-        Some(&location()),
+        &test_invocation(StepKeyword::Given, "a calculator", Some(&location())),
         None,
     )
 }
 
 /// A bypassed record at `index`.
 pub(super) fn bypassed(index: usize) -> StepOutcome {
-    StepOutcome::bypassed(index, StepKeyword::Given, "a calculator", Some(&location()))
+    StepOutcome::bypassed(
+        index,
+        &test_invocation(StepKeyword::Given, "a calculator", Some(&location())),
+    )
 }
 
 /// A skipped record at `index`.
 pub(super) fn skipped(index: usize) -> StepOutcome {
     StepOutcome::skipped(
         index,
-        StepKeyword::Given,
-        "a pending step",
-        Some(&location()),
+        &test_invocation(StepKeyword::Given, "a pending step", Some(&location())),
         Some("waiting on upstream".to_owned()),
     )
 }
@@ -101,9 +101,7 @@ pub(super) fn skipped(index: usize) -> StepOutcome {
 pub(super) fn failed(index: usize) -> StepOutcome {
     StepOutcome::failed(
         index,
-        StepKeyword::Given,
-        "an undefined step",
-        Some(&location()),
+        &test_invocation(StepKeyword::Given, "an undefined step", Some(&location())),
         not_found(),
     )
 }

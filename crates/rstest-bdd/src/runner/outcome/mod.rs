@@ -11,6 +11,8 @@ mod step;
 
 pub use failure::{FailureKind, FailureSite, ScenarioFailure};
 pub use step::{StepOutcome, StepStatus, ValueFate};
+#[cfg(test)]
+pub(crate) use step::test_invocation;
 
 use crate::runner::source::SourceLocation;
 
