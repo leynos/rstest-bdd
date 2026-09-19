@@ -35,9 +35,16 @@
 //! convenience, and because it fails loudly on that edit. The aliasing hole is
 //! real and is recorded here rather than papered over: `use crate::X as y;`
 //! hides every later `y::T`, and no token list can close that in general.
+//!
+//! One thing the scan *does* establish is that it read the tree it claims to
+//! police. A path the walk cannot list, open, or read is carried out as an
+//! `unreadable` message and fails the check, rather than being skipped — an
+//! unread file is as invisible as a clean one, which is the same silence.
+
+mod walk;
 
 use camino::Utf8Path;
-use cap_std::{ambient_authority, fs_utf8::Dir};
+use walk::{Scanned, scan_root};
 
 /// Tokens that must not appear in a non-comment line of the runner's sources.
 ///
@@ -55,7 +62,11 @@ use cap_std::{ambient_authority, fs_utf8::Dir};
 /// aliasing `gherkin` as `g` still writes the word `gherkin` at the import, and
 /// that is the line the scan sees.
 ///
-/// This list is a necessary condition, not a sufficient one. See the
+/// This list is a necessary condition, not a sufficient one, and widening it is
+/// not free. A bare `snapshot` entry, for instance, would reject
+/// `assert_snapshot!` — and INV-7 mandates an `insta` snapshot of the `Display`
+/// projection in a file this scan reads. Each addition must therefore be
+/// checked against the artefacts the rest of the plan requires. See the
 /// module-level note on what the scan does and does not establish.
 const FORBIDDEN: [&str; 7] = [
     "gherkin",
@@ -94,87 +105,31 @@ fn leaks_in(line: &str) -> Vec<&'static str> {
         .collect()
 }
 
-/// Read the runner's sources, skipping this check's own file.
+/// Read the runner's sources, skipping this module's own files.
 ///
 /// Paths are relative to the runner root rather than absolute, so a finding
 /// reads `outcome/step.rs:12: gherkin` instead of a path that varies with the
-/// checkout location, and so the sort below is a stable, readable ordering.
-fn runner_sources() -> Vec<(String, String)> {
-    let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("src/runner");
-    let Ok(directory) = Dir::open_ambient_dir(&root, ambient_authority()) else {
-        return Vec::new();
-    };
-    let mut sources = Vec::new();
-    collect(&directory, "", &mut sources);
-    sources.sort_by(|left, right| left.0.cmp(&right.0));
-    sources
-}
-
-/// Recursively collect `(relative path, contents)` for every `.rs` file under
-/// `directory`, except this file.
-///
-/// `prefix` is `directory`'s own path relative to the runner root, and is empty
-/// at the root. Symlinked directories are not followed: `cap-std` opens
-/// directories without traversing symlinks, so the scan cannot be redirected
-/// outside the tree it was pointed at.
-fn collect(directory: &Dir, prefix: &str, sources: &mut Vec<(String, String)>) {
-    let Ok(entries) = directory.entries() else {
-        return;
-    };
-    for entry in entries.flatten() {
-        let Ok(name) = entry.file_name() else {
-            continue;
-        };
-        let relative = child_path(prefix, &name);
-        let Ok(file_type) = entry.file_type() else {
-            continue;
-        };
-        if file_type.is_dir()
-            && let Ok(child) = directory.open_dir(&name)
-        {
-            collect(&child, &relative, sources);
-        } else if is_rust_source(&name) && name != "surface.rs" {
-            // Reading this check's own source would find the literal tokens in
-            // `FORBIDDEN` above and report them as leaks.
-            if let Ok(contents) = directory.read_to_string(&name) {
-                sources.push((relative, contents));
-            }
-        }
-    }
-}
-
-/// Whether a directory entry is a Rust source file.
-///
-/// The comparison is case-insensitive, so a `.RS` file counts as source rather
-/// than slipping past the scan. `Utf8Path::extension` only splits the name; it
-/// does not fold case, so a bare `ext == "rs"` would let an upper-case spelling
-/// of the same file through. A leak in such a file would then be reported as no
-/// leak at all — the failure mode this whole module exists to catch, since the
-/// scan's silence is indistinguishable from a clean tree.
-fn is_rust_source(name: &str) -> bool {
-    Utf8Path::new(name)
-        .extension()
-        .is_some_and(|ext| ext.eq_ignore_ascii_case("rs"))
-}
-
-/// Join a relative directory prefix to one of its children's names.
-///
-/// The root has an empty prefix, so its children are named bare; deeper entries
-/// keep the whole path, which is what makes a nested finding identifiable.
-fn child_path(prefix: &str, name: &str) -> String {
-    if prefix.is_empty() {
-        name.to_owned()
-    } else {
-        format!("{prefix}/{name}")
-    }
+/// checkout location, and so the sort in `walk` is a stable, readable ordering.
+fn runner_sources() -> Scanned {
+    scan_root(&Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("src/runner"))
 }
 
 #[test]
 fn no_frontend_types_in_public_api() {
-    let sources = runner_sources();
+    let Scanned {
+        sources,
+        unreadable,
+    } = runner_sources();
     assert!(
         !sources.is_empty(),
         "the runner source scan found no files, so this check proves nothing",
+    );
+    // A file the walk could not read is exactly as invisible to the scan as a
+    // clean one, so it is reported as a failure rather than skipped quietly.
+    assert!(
+        unreadable.is_empty(),
+        "the runner source scan could not read every path it reached:\n{}",
+        unreadable.join("\n"),
     );
 
     let mut findings = Vec::new();
@@ -213,7 +168,15 @@ fn no_frontend_types_in_public_api() {
 /// name, is caught here and slips past the name-only form.
 #[test]
 fn the_scan_finds_the_runner_tree() {
-    let sources = runner_sources();
+    let Scanned {
+        sources,
+        unreadable,
+    } = runner_sources();
+    assert!(
+        unreadable.is_empty(),
+        "the completeness guard must read the whole tree; unreadable:\n{}",
+        unreadable.join("\n"),
+    );
     let paths = sources
         .iter()
         .map(|(path, _)| path.as_str())
@@ -227,39 +190,16 @@ fn the_scan_finds_the_runner_tree() {
         "plan.rs",
         "plan/builder.rs",
         "source.rs",
+        // The walk is a separate file and holds no forbidden token, so it is
+        // scanned like any other. Only this module's own two files are exempt,
+        // because they carry the token list itself.
+        "tests/surface/walk.rs",
     ] {
         assert!(
             paths.contains(&expected),
             "expected the scan to reach {expected}; found {paths:?}",
         );
     }
-}
-
-/// An upper-case extension still counts as a Rust source file.
-///
-/// `Utf8Path::extension` splits the name but does not fold case, so an
-/// `ext == "rs"` test lets `thing.RS` past the scan entirely: the file is never
-/// read, its leaks are never reported, and the scan's silence is
-/// indistinguishable from a clean tree. This is the guard the earlier
-/// case-sensitive comparison lacked.
-#[test]
-fn an_upper_case_extension_is_still_source() {
-    assert!(is_rust_source("mod.rs"), "a plain .rs file must be source");
-    assert!(
-        is_rust_source("odd.RS"),
-        "an upper-case .RS file must not slip past the scan",
-    );
-    assert!(
-        is_rust_source("odd.Rs"),
-        "a mixed-case .Rs file must not slip past the scan",
-    );
-
-    // The counterpart: folding case must not widen the scan to everything.
-    assert!(!is_rust_source("notes.md"), "a Markdown file is not source");
-    assert!(
-        !is_rust_source("README"),
-        "a file with no extension is not source",
-    );
 }
 
 /// One negative control per leak shape.

@@ -7,7 +7,8 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 proceeds.
 
 Status: IN PROGRESS — Stage A closed on 2026-09-19; D2 option (ii), D3, and D10
-recorded as approved. Implementation begins at EP-M1.
+recorded as approved. EP-M1 is closed and gate-clean at `3a942230`; EP-M2 is in
+progress.
 
 ## Purpose / big picture
 
@@ -861,6 +862,47 @@ between them. Raise that before spending the tolerance.
     `make test`, and rustfmt. The review's value was in the class of defect
     those gates cannot see: a test whose guard does not test what its comment
     claims, and documentation that contradicts the code it documents.
+
+- **Observation:** the second CodeRabbit pass returned nine findings that
+  collapse to six distinct asks, and two of the six were *opposed* to each
+  other on the same lines. Adopting one would have broken the next milestone's
+  mandated test. Evidence: findings 1 and 9 both addressed
+  `runner/tests/surface.rs:60-68`. Finding 1 would have added the bare tokens
+  `process`, `snapshot`, `clap`, and `reporter` to `FORBIDDEN`; finding 9
+  argued explicitly *against* exactly those tokens and for narrow ones instead.
+  The 11-token list passes today — every current hit is on a `//!` or `///`
+  line, which `is_comment` filters — so the harm is prospective and precise:
+  `crates/rstest-bdd/Cargo.toml:45` already carries `insta.workspace = true`,
+  and INV-7 mandates an `insta` snapshot of the `Display` projection in
+  `runner/tests/source.rs`, a file inside the scanned tree. `assert_snapshot!`
+  contains the substring `snapshot`, so finding 1 would make INV-7's own
+  required artefact fail INV-11's check. Two further findings rested on
+  evidence that does not exist: finding 4 cited a token list at doc lines
+  1597-1598, which are INV-7's artefact text, and the premise it asked to fix
+  had already been fixed at line 848; finding 9 cited `clap::Args`, which
+  appears nowhere in the tree (`clap` is not a dependency of `rstest-bdd` at
+  all) and `std::process::ExitStatus`, which appears once repo-wide in
+  `crates/rstest-bdd-harness/src/nested_cargo.rs` — a crate the scan does not
+  read. Four findings were duplicates: 5 = 7 and 3 = 8.
+  - **Impact:** this is the second pass in a row to contain a fabricated
+    citation, which is now a standing property of the tool rather than a
+    one-off. Every finding must therefore be checked against the tree before it
+    is actioned, and a finding whose cited symbol does not exist is rejected
+    outright. More importantly, opposed findings on identical lines mean the
+    set cannot be applied as a batch: it has to be triaged, and the triage
+    recorded, or a later pass will re-raise the same conflict. Three findings
+    were rejected: 1 (harmful to INV-7, and contradicted by 9), 4 (misattributed
+    evidence), and 9's cited examples (fabricated). Three were actioned: the
+    `is_passed` doc, which claimed a forced skip reports `Passed` when both the
+    code and an EP-M1 test already said otherwise; the stale Status line; and
+    the unguarded `at_line`, which was the one entry point accepting a
+    zero-valued one-based coordinate while `step_at` already guarded the same
+    coordinate through `SourceLocation::new`. The `collect` concern (3 = 8) was
+    actioned in the narrower form it actually has: the walk does not swallow
+    read errors, because an unread file is as invisible as a clean one. The
+    claim that the scan "proves nothing" was rejected — the seven-path
+    completeness guard already catches a wholesale failure — and the residual
+    gap was closed rather than argued about.
 
 ### The two Markdown formatters do not agree, and only one of them is checked
 

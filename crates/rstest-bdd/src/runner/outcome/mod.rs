@@ -213,10 +213,13 @@ impl ScenarioOutcome {
 
     /// Whether the run was a clean pass.
     ///
-    /// This does **not** fold skip policy. A scenario whose skip is intended to
-    /// fail the suite still reports `Passed` here; use
-    /// [`into_harness_result`](Self::into_harness_result) to decide whether a
-    /// run should fail a suite.
+    /// True only for [`ScenarioStatus::Passed`]. A skip always reports
+    /// [`Skipped`](ScenarioStatus::Skipped), so this is `false` for a skip the
+    /// suite is content to accept as well as for one policy forces to fail.
+    /// Skip policy is deliberately not folded here: the one canonical
+    /// [`into_harness_result`](Self::into_harness_result) owns it, and the two
+    /// therefore disagree in the permitted-skip case — this returns `false`
+    /// while the fold returns `Ok(())`.
     #[must_use]
     pub const fn is_passed(&self) -> bool { matches!(self.status, ScenarioStatus::Passed) }
 
