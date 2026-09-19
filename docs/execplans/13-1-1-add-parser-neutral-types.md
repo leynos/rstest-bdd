@@ -904,15 +904,53 @@ between them. Raise that before spending the tolerance.
     instrumentation coverage at all. D28 records all fourteen individually,
     including the declines, because a decline that is not evidenced is
     indistinguishable from a finding that was ignored.
-  - [x] The commit gates re-run against the settled revision `21107a13`, which
-    is the revision the second round's fixes leave behind. This is the third
-    full gate run of EP-M3 and the first at a revision carrying both the
-    review fixes and their documentation.
+  - [x] The commit gates re-run against the settled revision. The run at
+    `21107a13` came back **red on one gate**, `make check-fmt`, and the cause
+    was mine rather than the document's: an earlier `mdtablefix --check` had
+    been run *without* the repository's rule flags and reported "121 files left
+    unchanged", which is a false green — `--wrap` is exactly the rule that
+    reflows a paragraph whose emphasis span crosses a line break, so checking
+    without it verifies nothing about wrapping. Fixed by the targeted per-file
+    invocation with `MDTABLEFIX_RULES`' full set, verified as a pure reflow (the
+    file's word sequence is identical but for one `...` → `…`, which
+    `--ellipsis` is for). The lesson is recorded in full under Surprises,
+    because the same shape — a checker invoked with a subset of its configured
+    rules reporting a green that means nothing — is the second instance this
+    plan has hit.
+  - [x] The commit gates re-run green at the settled revision `9a232fdd`, which
+    is the revision the second round's fixes and their documentation leave
+    behind. All seven: `check-fmt`, `lint` (Clippy, rustdoc with `--cfg docsrs`,
+    Whitaker, Ruff, PyLint, Ambrleaks, five `scripts/check_*.py`), `typecheck`,
+    `test` (2046 nextest tests passed, 7 skipped; doctests; 244 pytest), and the
+    three documentation gates `markdownlint`, `spelling`, `nixie`. Six of the
+    seven had passed at `2106cd69` already, and the Rust bytes are identical
+    across every revision since `c5519a80`, so only the doc-scoped verdict
+    genuinely moved.
 - [x] ~~EP-M4: lifecycle hooks and the lifecycle matrix~~ — struck by D2
   option (ii).
 - [ ] EP-M5: documentation, snapshots, and the full gate.
 
 ## Surprises & discoveries
+
+- **Observation:** a checker invoked with a *subset* of its configured rules
+  reports a green that means nothing, and the green is more dangerous than a
+  red. Evidence: `mdtablefix --check --git` was run standalone and reported
+  "121 files left unchanged", which was taken as confirmation that this plan
+  document was formatted. `make check-fmt` then failed on the same file with
+  "+72 -70, 1 file would be reformatted". The Makefile passes
+  `--wrap --renumber --breaks --ellipsis --fences` as `MDTABLEFIX_RULES`, and
+  `--wrap` is exactly the rule that reflows a paragraph whose emphasis span
+  crosses a line break — which is precisely the shape of the drift. So the
+  standalone run checked everything *except* the rule the file was violating,
+  and the result looked like evidence. Impact: the drift entered with
+  `21107a13` and grew with `2106cd69`, both docs-only commits to this file, and
+  was repaired with the targeted per-file invocation carrying the full rule
+  set. The durable lesson is that a gate must be invoked *as the gate*, from the
+  Makefile, and that a hand-rolled approximation of a gate is not a gate. This
+  is the second instance of the same shape in this plan: the earlier one is the
+  `cargo fmt` audit, where the raw command omitted the pinned toolchain and
+  silently reformatted 121 files. Both were "run the tool directly for speed"
+  and both produced a wrong answer that looked right.
 
 - **Observation:** `cargo fmt` on the *stable* toolchain is a whole-crate
   reformatter here, not a formatter, and running it costs a full-tree revert.
