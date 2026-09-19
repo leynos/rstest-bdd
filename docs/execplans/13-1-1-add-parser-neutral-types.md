@@ -986,6 +986,14 @@ between them. Raise that before spending the tolerance.
     which keeps `runner_placement_test.py` and `cache_step_support.py` intact.
     The test was proved non-vacuous before being kept: reintroducing the old
     `$(CARGO_FLAGS)` form made it fail, and restoring the file made it pass.
+    The leg's two configurations were then confirmed by an independent `make
+    test` run at commit `f13f1a84`, which reported **2055 tests** for the
+    all-features leg and **716** for the feature-off leg, with the logged
+    commands matching the Makefile's lines byte-for-byte. A leg that reported
+    the same count twice would have been the defect returning; two counts is
+    the evidence that the leg varies what it claims to vary. That run also
+    showed the contract test being collected (`247 passed` in the pytest
+    step), which is the half of the discharge that has to happen in CI.
   - [x] The `Scope` figure re-measured at close and compared against D27's
     breached figures: **71 files and 18,325 net added lines**, against D27's
     58 and 15,737 and the 36-file / 4,500-line tolerance. Escalated as D31
