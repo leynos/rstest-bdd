@@ -88,9 +88,13 @@ impl<'a> TableView<'a> {
 /// # Panics
 ///
 /// Does not panic. A step body that panics is turned into an ordinary failure
-/// by the macro-generated wrapper's `catch_unwind`, which is the boundary this
-/// driver relies on. Steps registered through a form without that wrapper are
-/// not covered; see D11, which owns that gap.
+/// before it reaches this loop: the macro-generated wrapper catches an
+/// attribute-registered step's panic, and D11's boundary in
+/// `execution::unwind` catches a raw `step!` handler's, which has no wrapper.
+/// Either way [`execute_step`] returns, so this driver never sees an unwind
+/// from a step. A *destructor* that panics during cleanup is a separate case
+/// and does not pass through here at all; `runner::scope`'s `CleanupGuard`
+/// owns it.
 pub(in crate::runner) fn drive(
     plan: &ScenarioPlan,
     ctx: &mut StepContext<'_>,

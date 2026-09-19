@@ -9,6 +9,13 @@
 //!
 //! These tests validate the core execution types used by generated scenario code
 //! and direct registry consumers.
+//!
+//! `unwind` covers D11's panic boundary, whose payload mapping is a total
+//! function over `Box<dyn Any + Send>` and so needs no registry. The split is
+//! `module_max_lines`'s doing rather than a design choice: this file was
+//! already 345 lines and the cap is 400.
+
+mod unwind;
 
 use std::sync::Arc;
 
