@@ -51,8 +51,16 @@
 use std::cell::RefCell;
 
 use rstest_bdd::{
-    StepContext, StepError, StepExecution, StepExecutionMode, StepFuture, StepKeyword, StepPattern,
-    StepText, extract_placeholders, submit,
+    StepContext,
+    StepError,
+    StepExecution,
+    StepExecutionMode,
+    StepFuture,
+    StepKeyword,
+    StepPattern,
+    StepText,
+    extract_placeholders,
+    submit,
 };
 use rstest_bdd_macros::{given, then, when};
 
@@ -245,7 +253,10 @@ fn placeholder_index(text: &str) -> Result<usize, StepError> {
         return failure(text);
     };
     let [capture] = captures.as_slice() else {
-        return failure(&format!("expected exactly one capture, got {}", captures.len()));
+        return failure(&format!(
+            "expected exactly one capture, got {}",
+            captures.len()
+        ));
     };
     capture
         .parse()
@@ -271,7 +282,9 @@ const _: () = {
         docstring: Option<&'ctx str>,
         table: Option<&'ctx [&'ctx [&'ctx str]]>,
     ) -> StepFuture<'ctx> {
-        Box::pin(std::future::ready(observes_probe(ctx, text, docstring, table)))
+        Box::pin(std::future::ready(observes_probe(
+            ctx, text, docstring, table,
+        )))
     }
 
     submit! {
@@ -324,16 +337,17 @@ mod tests {
     //! it stops noticing a change to the value the fixtures are actually built
     //! with.
 
+    use rstest_bdd::StepContext;
+
     use super::{Probe, names, read_probe};
     use crate::sequence::{Arrangement, SENTINEL, context_for};
-    use rstest_bdd::StepContext;
 
     /// A probe fixture is reachable, by name, at the type the steps use.
     ///
     /// The cells are built from the arrangement's own name list rather than
     /// written out, so a second fixture added to an arrangement is supplied
     /// here too. `context_for` asserts that it was given exactly the cells the
-    /// arrangement declares, so a hand-written list would fail there for a
+    /// arrangement declares, so a handwritten list would fail there for a
     /// reason that has nothing to do with what this test is about.
     #[test]
     fn a_probe_fixture_resolves_by_name_and_type() {

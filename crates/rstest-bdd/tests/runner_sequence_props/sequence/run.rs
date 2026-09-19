@@ -16,13 +16,20 @@
 //! violates it. A predicate that had quietly stopped being able to report a
 //! violation would otherwise be a hole in a file nobody was looking at.
 
-use std::any::Any;
-use std::cell::RefCell;
+use std::{any::Any, cell::RefCell};
 
-use rstest_bdd::StepContext;
-use rstest_bdd::runner::{
-    FailureKind, ScenarioOutcome, ScenarioPlan, ScenarioPlanBuilder, ScenarioScope, StepStatus,
-    ValueFate, run_scenario,
+use rstest_bdd::{
+    StepContext,
+    runner::{
+        FailureKind,
+        ScenarioOutcome,
+        ScenarioPlan,
+        ScenarioPlanBuilder,
+        ScenarioScope,
+        StepStatus,
+        ValueFate,
+        run_scenario,
+    },
 };
 
 use super::{Arrangement, Reading, SENTINEL, Step, executed, observed, reset_logs};
@@ -66,7 +73,10 @@ impl Run {
     /// is ever fed a counter-example carries no evidence on its own.
     pub(crate) fn first_exceeding(&self) -> Option<usize> {
         let terminal = self.terminal_index()?;
-        self.executed.iter().copied().find(|&index| index > terminal)
+        self.executed
+            .iter()
+            .copied()
+            .find(|&index| index > terminal)
     }
 
     /// Whether any invocation past the terminal index was executed.
