@@ -94,10 +94,9 @@ fn a_plan_named(bench: &RefCell<Bench>, name: String, source: String) {
 #[given("the plan has a {role} step at line {line:u32}")]
 fn the_plan_has_a_step_at_line(bench: &RefCell<Bench>, role: String, line: u32) {
     let mut bench = bench.borrow_mut();
-    let plan = bench
-        .plan
-        .take()
-        .unwrap_or_else(|| panic!("`Given the plan has ...` must follow `Given a plan named ...`"));
+    let Some(plan) = bench.plan.take() else {
+        panic!("`Given the plan has ...` must follow `Given a plan named ...`");
+    };
     // `step_at` consumes and returns the builder, and a built plan cannot be
     // extended, so each step re-opens the plan through a fresh builder seeded
     // from the one that exists. The seed is the plan's own fields, read back
@@ -120,10 +119,9 @@ fn the_plan_has_a_step_at_line(bench: &RefCell<Bench>, role: String, line: u32) 
 #[when("the plan is executed synchronously")]
 fn the_plan_is_executed_synchronously(bench: &RefCell<Bench>) {
     let mut bench = bench.borrow_mut();
-    let plan = bench
-        .plan
-        .take()
-        .unwrap_or_else(|| panic!("the scenario must build a plan before executing it"));
+    let Some(plan) = bench.plan.take() else {
+        panic!("the scenario must build a plan before executing it");
+    };
 
     // The `catch_unwind` is the point of the step rather than scaffolding.
     // INV-17 claims a step panic is *returned*; a runner that let one unwind
@@ -145,10 +143,10 @@ fn outcome(bench: &RefCell<Bench>) -> ScenarioOutcome {
         !bench.unwound,
         "running the plan unwound; the runner must return a failure instead",
     );
-    bench
-        .outcome
-        .clone()
-        .unwrap_or_else(|| panic!("the `When` step must have produced an outcome"))
+    let Some(outcome) = bench.outcome.clone() else {
+        panic!("the `When` step must have produced an outcome");
+    };
+    outcome
 }
 
 #[then("the outcome is skipped at step {index:usize}")]
@@ -159,9 +157,9 @@ fn the_outcome_is_skipped_at_step(bench: &RefCell<Bench>, index: usize) {
         ScenarioStatus::Skipped,
         "the plan's second step asks to be skipped, so the run is a skip",
     );
-    let skip = outcome
-        .skip()
-        .unwrap_or_else(|| panic!("a skipped run carries a skip record: {outcome:?}"));
+    let Some(skip) = outcome.skip() else {
+        panic!("a skipped run carries a skip record: {outcome:?}");
+    };
     assert_eq!(
         skip.at(),
         index,
