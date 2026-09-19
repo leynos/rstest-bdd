@@ -949,6 +949,23 @@ between them. Raise that before spending the tolerance.
 - [x] ~~EP-M4: lifecycle hooks and the lifecycle matrix~~ — struck by D2
   option (ii).
 - [ ] EP-M5: documentation, snapshots, and the full gate.
+  - [x] The five documents updated (`docs/developers-guide.md`,
+    `docs/rstest-bdd-design.md`, `docs/users-guide.md`,
+    `docs/testing-strategy.md`, `docs/roadmap.md`) — commit `370dcd8f`, plus
+    the roadmap's 13.1.1/13.2.1/13.3.1 entries.
+  - [x] The three CodeRabbit rounds adjudicated and cleared.
+  - [x] The INV-7 `Display` snapshots written and accepted
+    (`source/rendering.rs`, one snapshot across all six outcome variants).
+  - [x] The INV-7 test module split at the data/presentation seam
+    (`source/mod.rs`, `source/rendering.rs`, `source/support.rs`), after the
+    single file breached the 400-line cap at 520.
+  - [ ] The `--no-default-features -p rstest-bdd` leg added to `make test` and
+    to CI, per D4.
+  - [ ] The `Scope` figure re-measured at close and compared against D27's
+    breached figures.
+  - [ ] The `cargo-mutants` runner-tree sweep run and its survivor list read.
+  - [ ] The `## Outcomes & retrospective` section completed, reconciling every
+    discovery with `Conformance basis`.
 
 ## Surprises & discoveries
 
@@ -1551,10 +1568,10 @@ between them. Raise that before spending the tolerance.
   line, which `is_comment` filters — so the harm is prospective and precise:
   `crates/rstest-bdd/Cargo.toml:45` already carries `insta.workspace = true`,
   and INV-7 mandates an `insta` snapshot of the `Display` projection in
-  `runner/tests/source.rs`, a file inside the scanned tree. `assert_snapshot!`
-  contains the substring `snapshot`, so finding 1 would make INV-7's own
-  required artefact fail INV-11's check. Two further findings rested on
-  evidence that does not exist: finding 4 cited a token list at doc lines
+  `runner/tests/source/rendering.rs`, a file inside the scanned tree.
+  `assert_snapshot!` contains the substring `snapshot`, so finding 1 would make
+  INV-7's own required artefact fail INV-11's check. Two further findings rested
+  on evidence that does not exist: finding 4 cited a token list at doc lines
   1597-1598, which are INV-7's artefact text, and the premise it asked to fix
   had already been fixed at line 848; finding 9 cited `clap::Args`, which
   appears nowhere in the tree (`clap` is not a dependency of `rstest-bdd` at
@@ -1796,6 +1813,40 @@ span into separate short spans rather than relying on `mdtablefix` to wrap it.
   shape, and one was removed entirely because `observes_probe` now has a real
   `Err` path and `unnecessary_wraps` no longer applies.
 
+### The INV-7 tests split at the data/presentation seam, and the INV-11 scan then policed the split
+
+- **Observation:** the INV-7 test file reached 520 lines and had to split. The
+  seam was already in the invariant: INV-7's first two clauses are *data* claims
+  about what an outcome carries, and its third is a claim about not reading a
+  value back out of the error, which is only observable at the *presentation*
+  surface. So `source/mod.rs` holds the data tests, `source/rendering.rs` holds
+  the `Display` snapshot and the divergence test, and `source/support.rs` holds
+  the fixtures both need — the shared decoy in particular, because the two halves
+  have to agree on what "the error's own path" means for the divergence test to
+  mean anything.
+- **Impact:** the split had a second consequence nobody planned for. The INV-11
+  token scan (`runner/tests/surface.rs`) reads the whole `src/runner` tree
+  including `tests/`, and it rejects a frontend token on any line that is not a
+  comment — *including inside a string literal and inside an identifier*. So the
+  new fixtures naming `MARKDOWN_PATH` failed the scan, correctly: the runner's
+  own test tree was spelling a frontend four times over. Renaming to `SPEC_PATH`
+  and `PROSE_PATH` keeps the paths (`spec/cases.toml`, `notes/example.md`) that
+  are the fixtures' whole point and moves the reasoning into prose, which is
+  where the scan permits it. Two further findings were string-literal *messages*
+  containing the word — moved into doc comments. **The general lesson:** in this
+  tree a frontend's name is forbidden in code and permitted in prose, so an
+  explanation that belongs in a panic message belongs in the doc comment
+  instead. That is a real constraint on how a failing assertion is worded, and
+  it is worth knowing before writing a message rather than after the scan fails.
+- **A near-miss worth recording.** The first check after the rename used
+  `grep ... ; echo clean`, which printed `clean` because `grep` had errored on a
+  stale working directory rather than because the tokens were gone. The same
+  shell had `cd`-ed earlier and the directory no longer existed. The gate that
+  actually decides this is `no_frontend_types_in_public_api`, and it passed on
+  its own terms; the grep was a convenience that lied. Checking a rename with a
+  command whose failure mode is "prints the success message" is the same defect
+  the whole scan exists to prevent.
+
 ### A failing `assert_eq!` in a step body classifies as `Panic`, not `Assertion`
 
 - **Observation:** writing `completeness.rs`'s failing step as an ordinary
@@ -1949,6 +2000,37 @@ span into separate short spans rather than relying on `mdtablefix` to wrap it.
   built. The remedy is structural, not motivational: put the measurement in the
   milestone boundary check, because prose that says "keep an eye on scope" is
   what failed here.
+
+- **Observation:** INV-7 has three clauses and the implementation satisfies two
+  of them *and appears to satisfy the third*. The clause is "no source is read
+  back out of `ExecutionError`". Every accessor honours it: `StepOutcome::source`
+  returns the plan's `SourceLocation`, `ScenarioOutcome::terminal_source` looks
+  the terminal invocation up in the step list, and the fidelity tests prove both
+  against a decoy that makes the two disagree. But `ScenarioOutcome`'s `Display`
+  renders a failure through `ExecutionError`'s message, and that message embeds
+  `ExecutionError::feature_path` — a `String` the plan's path was flattened into
+  when the runner built the error. So a caller that prints `{outcome}` rather
+  than walking `steps()` reads the path back out of the error, which is the
+  shortcut the clause forbids. The two agree only because the runner populates
+  `feature_path` from the plan, which makes the divergence invisible in
+  production and visible only under the decoy.
+  **Impact:** the delivery is correct for the accessor surface INV-7 names, and
+  the `Display` gap is real but bounded: it is a rendering path, not a data
+  path, and no frontend that walks `steps()` can be misled by it. The plan
+  therefore does *not* change the verdict on INV-7, but it does record that
+  "the accessors are faithful" and "nothing reads the error's copy" are separate
+  claims, and the second is false. `rendering.rs` now pins the disagreement with
+  a test rather than freezing the coincidence, so the day someone renders from
+  `terminal_source()` the test tells them they have fixed it. Fixing it changes
+  a user-visible string, which is why it is recorded rather than done drive-by.
+  The general lesson, and the reason this was found at all, is that writing the
+  INV-7 snapshot forced the question "what is this test's expected value derived
+  from?" — an honest production-shaped path or the decoy. Using the decoy in the
+  snapshot would have frozen a value production never emits; using an honest one
+  silently would have hidden the divergence. Naming the difference in a second
+  test was the only option that kept both facts. A snapshot is a good place to
+  find this class of defect because it is the one test where the author must
+  decide what the *real* input is.
 
 ## Decision log
 
@@ -3681,12 +3763,25 @@ read back out of `ExecutionError`.
   snapshot of the **`Display` projection** across outcome variants — not of
   `Debug`, which is not a contract and whose churn would train a reviewer to
   accept snapshots reflexively.
-- Artefact: `crates/rstest-bdd/src/runner/tests/source.rs` and snapshots under
-  `crates/rstest-bdd/src/runner/tests/snapshots/`.
+- Artefact: `crates/rstest-bdd/src/runner/tests/source/mod.rs` for the data
+  clauses, `crates/rstest-bdd/src/runner/tests/source/rendering.rs` for the
+  `Display` snapshot and the divergence test, supported by
+  `crates/rstest-bdd/src/runner/tests/source/support.rs`, with snapshots under
+  `crates/rstest-bdd/src/runner/tests/source/snapshots/`.
 - Non-vacuity: the paths are `notes/example.md` and `spec/cases.toml`, which no
   Gherkin code path could produce, and the per-step lines differ from the
   scenario line, so an implementation copying the scenario source onto every
   step fails.
+- **Partial discharge, recorded at EP-M5.** The first two clauses are proved and
+  the third is *not*: the accessors honour it — `source()` and
+  `terminal_source()` both return the plan's location, proved against the
+  decoy — but `ScenarioOutcome`'s `Display` renders the failure through
+  `ExecutionError`'s message, which embeds `ExecutionError::feature_path`, so
+  the rendering *does* read the source back out of the error.
+  `rendering.rs::the_rendered_failure_takes_its_path_from_the_error_not_the_plan`
+  pins the disagreement rather than freezing the coincidence. Fixing it means
+  rendering from `terminal_source()`, which changes a user-visible string; see
+  the Surprises entry for why this is recorded rather than done here.
 
 **INV-8 — Failure precedence.** A before-hook or step failure is primary and an
 after-hook failure is retained as `cleanup_error()`. With no primary failure —
