@@ -5,7 +5,7 @@
 //! is the *positive* control that makes the first one evidence. Without it, every
 //! assertion the cancellation case makes would pass for a driver that never
 //! reached the awaiting position at all — the case would be describing an
-//! unreachable state rather than a canceled one.
+//! unreachable state rather than a cancelled one.
 //!
 //! The split follows the repository's convention for integration targets: a
 //! Cargo test target is one `.rs` file, so a colocated module is reached with
@@ -40,7 +40,13 @@ use rstest_bdd::{
 };
 
 use crate::{
-    MARKER, Marker, completing_plan, gate_drops, gate_polls, observed_before_cancel, plan,
+    MARKER,
+    Marker,
+    completing_plan,
+    gate_drops,
+    gate_polls,
+    observed_before_cancel,
+    plan,
     poll_until_gate_entered,
 };
 
@@ -132,7 +138,7 @@ fn a_run_left_alone_completes_and_produces_an_outcome() {
     let outcome = loop {
         match run.as_mut().poll(&mut cx) {
             Poll::Ready(outcome) => break outcome,
-            Poll::Pending => continue,
+            Poll::Pending => {}
         }
     };
 

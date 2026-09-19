@@ -4,11 +4,10 @@
 //! assert all three, in the order that makes each one meaningful:
 //!
 //! 1. **No outcome is produced.** The future never returns `Ready`.
-//! 2. **The in-flight step future is dropped.** A parked `run_async` future's
-//!    own drop probe fires exactly once, when the run is dropped.
-//! 3. **Synchronous scope cleanup still runs.** The context's step-returned
-//!    overrides are cleared, which is observable as the fixture's own value
-//!    becoming visible again.
+//! 2. **The in-flight step future is dropped.** A parked `run_async` future's own drop probe fires
+//!    exactly once, when the run is dropped.
+//! 3. **Synchronous scope cleanup still runs.** The context's step-returned overrides are cleared,
+//!    which is observable as the fixture's own value becoming visible again.
 //!
 //! # Why the first assertion cannot stand alone
 //!
@@ -25,7 +24,7 @@
 //! [`Waker::noop`](std::task::Waker::noop) polls a future directly, with no
 //! executor. That is legal; what panics is a *Tokio* future being polled
 //! outside a runtime, and this file never constructs one — the parked future is
-//! hand-written, and the `Both`-mode steps run synchronously inside
+//! handwritten, and the `Both`-mode steps run synchronously inside
 //! `execute_step_async` because that is what `Both` means.
 //!
 //! # Why this is an integration binary (D21)
@@ -41,14 +40,14 @@
 //!
 //! # The three hardening requirements, and where each is discharged
 //!
-//! 1. The progress witness is [`GATE_POLLS`], asserted non-zero by
-//!    [`poll_until_gate_entered`] before any drop assertion runs.
-//! 2. That poll loop is bounded and continues until the gate reports entered,
-//!    rather than polling exactly once — `Waker::noop`'s `RawWaker` ignores
-//!    `wake`, so a future re-polled only on a wake would hang forever.
-//! 3. The drop probe is owned by the gate future itself, not by the closure
-//!    that builds it, and [`GATE_DROPS`] is asserted **zero** before the drop
-//!    so a probe that was never installed cannot satisfy the assertion after.
+//! 1. The progress witness is [`GATE_POLLS`], asserted non-zero by [`poll_until_gate_entered`]
+//!    before any drop assertion runs.
+//! 2. That poll loop is bounded and continues until the gate reports entered, rather than polling
+//!    exactly once — `Waker::noop`'s `RawWaker` ignores `wake`, so a future re-polled only on a
+//!    wake would hang forever.
+//! 3. The drop probe is owned by the gate future itself, not by the closure that builds it, and
+//!    [`GATE_DROPS`] is asserted **zero** before the drop so a probe that was never installed
+//!    cannot satisfy the assertion after.
 //!
 //! # Why the counters are thread-local
 //!
@@ -148,6 +147,13 @@ impl Drop for DropProbe {
 /// A future that reports its first poll and then parks forever.
 struct Gate {
     /// Exists to be dropped with this future, and is never read.
+    ///
+    /// The leading underscore is load-bearing rather than cosmetic: this field
+    /// is deliberately never read, and without it the `dead_code` lint would
+    /// fire. Reading the field to silence that — `let _ = &self._probe;`, which
+    /// an earlier revision did — trips `clippy::used_underscore_binding`
+    /// instead, so the underscore and the absence of a read are the only
+    /// combination that satisfies both.
     _probe: DropProbe,
 }
 
@@ -155,7 +161,6 @@ impl Future for Gate {
     type Output = Result<StepExecution, StepError>;
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let _ = &self._probe;
         GATE_POLLS.with(|polls| polls.set(polls.get() + 1));
         Poll::Pending
     }
@@ -180,9 +185,7 @@ fn parks<'ctx>(
     _table: Option<&'ctx [&'ctx [&'ctx str]]>,
 ) -> StepFuture<'ctx> {
     GATE_SAW.with(|saw| saw.set(ctx.try_borrow::<Marker>(MARKER).ok().map(|marker| marker.0)));
-    Box::pin(Gate {
-        _probe: DropProbe,
-    })
+    Box::pin(Gate { _probe: DropProbe })
 }
 
 /// The sync arm of [`parks`], which must never be called.
@@ -219,6 +222,10 @@ static RETURNING_PATTERN: StepPattern =
 static PASSING_PATTERN: StepPattern = StepPattern::new("a runner cancellation step passes");
 
 /// Return the marker a caller's fixture holds.
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "a registered step's sync arm must have this signature; this one never fails"
+)]
 fn returns_marker(
     _ctx: &mut StepContext<'_>,
     _text: &str,
@@ -242,6 +249,10 @@ fn returns_marker_async<'ctx>(
 }
 
 /// A step that resolves and does nothing.
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "a registered step's sync arm must have this signature; this one never fails"
+)]
 fn passes(
     _ctx: &mut StepContext<'_>,
     _text: &str,
@@ -314,9 +325,7 @@ pub(crate) fn plan(with_returned_value: bool) -> rstest_bdd::runner::ScenarioPla
             .step_at(StepKeyword::Given, PARKING_STEP, 3)
             .build()
     } else {
-        builder
-            .step_at(StepKeyword::Given, PARKING_STEP, 2)
-            .build()
+        builder.step_at(StepKeyword::Given, PARKING_STEP, 2).build()
     }
 }
 
@@ -367,7 +376,7 @@ where
         }
     }
     panic!(
-        "the gate was never entered within {MAX_POLLS} polls, so nothing was in flight to \
-         cancel and every assertion about the drop would be vacuous"
+        "the gate was never entered within {MAX_POLLS} polls, so nothing was in flight to cancel \
+         and every assertion about the drop would be vacuous"
     );
 }
