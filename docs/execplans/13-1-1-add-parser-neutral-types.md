@@ -3453,11 +3453,9 @@ not repeated below.
   Hooks are not yet supported.
 - **Requirements:** ADR-018-FR3, FR5, FR6, FR7, FR9, FR10, TR2, TR4 (partial).
 - **Acceptance evidence:** INV-1, INV-2, INV-3, INV-6, INV-7, INV-9, INV-11,
-  INV-12, INV-13, INV-14, INV-15, INV-16, and LEM-1; ADR-018-TR2's panic
-  boundary in `crates/rstest-bdd/tests/runner_panics.rs` (five tests, with the
-  sync and async boundaries each verified by removing it and observing the
-  failure); the first two behavioural scenarios; and the `#[cfg(test)]`
-  `reporting` conversion smoke test from D5.
+  INV-12, INV-13, INV-14, INV-15, INV-16, INV-17, and LEM-1; the first two
+  behavioural scenarios; and the `#[cfg(test)]` `reporting` conversion smoke
+  test from D5.
 - **Conformance check:** the bypassed sequence is complete under
   `--no-default-features`; the drivers contain no decision; both files are
   under the complexity threshold.
