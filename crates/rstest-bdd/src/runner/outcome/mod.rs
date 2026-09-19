@@ -80,10 +80,6 @@ impl ScenarioSkip {
     /// outcomes synthetically do not leave it unfulfilled; once EP-M2 constructs
     /// skips it becomes unfulfilled in a normal build too, which fails the lint
     /// until the attribute is deleted rather than lingering unnoticed.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "constructed by the EP-M2 engine")
-    )]
     pub(crate) fn new(
         at: usize,
         message: Option<String>,
@@ -146,10 +142,6 @@ impl ScenarioOutcome {
     ///
     /// The production caller is the runner's engine, which lands in EP-M2. See
     /// [`ScenarioSkip::new`] for why the expectation is `not(test)`-scoped.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "constructed by the EP-M2 engine")
-    )]
     pub(crate) fn new(
         status: ScenarioStatus,
         steps: Vec<StepOutcome>,
