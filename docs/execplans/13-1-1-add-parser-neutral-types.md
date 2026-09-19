@@ -504,7 +504,15 @@ between them. Raise that before spending the tolerance.
   `runner/tests/surface/walk.rs` along its real seam, which is why the surface
   tests now report as `runner::tests::surface::walk::*`.
 
-- [ ] EP-M2: synchronous runner, engine split, and the sequence properties.
+- [~] EP-M2: synchronous runner, engine split, and the sequence properties.
+  *(2026-09-19) Every EP-M2 artefact except `runner_sequence_props.rs` is
+  written and green: the two behavioural scenarios, `tests/modes.rs`,
+  `tests/completeness.rs`, `tests/skip_parity.rs`, and the D11 panic boundary's
+  five integration tests plus six unit cases. `runner_sequence_props.rs` is the
+  one that remains, and two of its four invariants are EP-M3-bound — INV-5
+  needs `run_scenario_async`, and INV-1/INV-2's property domain includes
+  terminal kinds only the async driver exercises as a comparable path.
+  Recorded as partial rather than done for that reason.*
   **Opened 2026-09-19.** The first act was to revise D16, and it is done: see
   D18 in `Decision log` for why its `Stop(ScenarioFailure)` cannot express a
   permitted skip. D18's `StepDecision` is checked into
@@ -606,6 +614,63 @@ between them. Raise that before spending the tolerance.
   Outstanding for EP-M2: the two behavioural scenarios, `tests/modes.rs` for
   INV-15, `crates/rstest-bdd/tests/runner_sequence_props.rs`,
   `tests/completeness.rs`, and `tests/skip_parity.rs`.
+
+  **EP-M2 test artefacts closed at `874e12f0`.** Four of the five are now
+  written and green; only `runner_sequence_props.rs` is outstanding, and INV-5
+  needs `run_scenario_async`, so that file is EP-M3-bound as well.
+
+  `tests/completeness.rs` (INV-2, INV-13) asserts the accounting end to end
+  rather than inferring it from the engine's unit tests, with step lines 3, 4,
+  5, 6 against a plan line of 99 so a runner that copied the plan's line or
+  renumbered from zero fails. The bypassed-tail count is asserted directly,
+  because the per-entry loop can only check a bypassed branch that exists.
+  The one-step passing plan is the control that separates "the fold refuses
+  empty plans" from "the fold refuses everything".
+
+  `tests/skip_parity.rs` (INV-6, INV-9) writes out the full four-row product
+  **and** gives the discriminating `(true, true)` row its own test, because
+  three of the four rows agree under either candidate operator: only that row
+  separates `!allow_skipped && fail_on_skipped` from `||`, `!=`, or a
+  forgotten negation, so a future edit dropping a table case could silently
+  remove the only case that has discriminating power. The first run failed —
+  case inputs had been transposed against their labels — and the assertion
+  caught its own setup error.
+
+  One classification finding, recorded because it is a trap for the *next*
+  person who writes a failing step: an `assert_eq!` inside a macro-registered
+  step body reaches the runner as `FailureKind::Panic`, not `Assertion`. The
+  wrapper's own `catch_unwind` converts it to a `PanicError` before the
+  driver sees it; `Assertion` is the label for a handler that *returns* a
+  `StepError::ExecutionError`. `completeness.rs` pins the end-to-end answer as
+  `Panic`, and that is what would catch a boundary that swallowed the panic
+  and relabelled it as a returned error.
+
+  `tests/parser_neutral_runner.rs` with
+  `tests/features/parser_neutral_runner.feature` binds the plan's first two
+  behavioural scenarios. The steps build and run plans through the new API
+  while the scenarios are executed by the *existing, unmigrated* macro path,
+  so a green result is not the runner agreeing with itself. Two things are
+  worth carrying forward. First, a negative control was run: perturbing one
+  expected source line in the feature changes what the step receives and fails
+  its assertion, so the scenarios are genuinely bound rather than silently
+  skipped. Second, the specification's **third** scenario, "The asynchronous
+  runner agrees with the synchronous runner", is **cut here** rather than
+  bound — its `When` step needs `run_scenario_async`, which does not exist
+  until EP-M3, so the step would not compile. That is D14's own rule, that an
+  executable scenario may only assert observable behaviour of code that
+  exists, and not a new decision; it lands with EP-M3.
+
+  `tests/modes.rs` (INV-15) asserts the two runtime positions concretely
+  rather than comparing them, because "the outcomes differ" is satisfied by a
+  witness that fails in both. A resume counter makes the step demonstrably
+  multi-poll — three resumptions outside a runtime, zero inside one, where the
+  wrapper polls once and reports the diagnostic. The non-suspending sibling is
+  the control that separates "a runtime is current" from "the step suspended",
+  and it was falsified rather than trusted: giving it a single real `.await`
+  flips only its in-runtime case to `Failed`. The first attempt at that
+  mutation was inert — a `yield_now()` future that is never awaited does
+  nothing, which the compiler warned about — so the mutation was redone with
+  the `.await` present.
 - [x] (2026-09-19) EP-M2's D11 panic boundary implemented, having been found
   absent. `crates/rstest-bdd/src/execution/unwind.rs` is new and both
   `execute_step` and `execute_step_async` pass through it; the sync path uses
@@ -1255,6 +1320,27 @@ span into separate short spans rather than relying on `mdtablefix` to wrap it.
   extraction was dropped as a result: `try_borrow`/`try_borrow_mut` stayed put,
   because the harness move alone was sufficient and the pair reads better
   beside the fixture map they reach into.
+
+### A failing `assert_eq!` in a step body classifies as `Panic`, not `Assertion`
+
+- **Observation:** writing `completeness.rs`'s failing step as an ordinary
+  `assert_eq!(1, 0, "...")` and then asserting `FailureKind::Assertion` on the
+  result failed with `left: Some(Panic), right: Some(Assertion)`. The cause is
+  the two-level panic architecture, not a bug: a macro-registered step's body
+  runs inside the wrapper's own `catch_unwind`, which converts the unwind into
+  `StepError::PanicError` before `execute_step` ever sees it. `Assertion` is
+  reserved for a handler that *returns* `StepError::ExecutionError` —
+  `FailureKind::of` maps `ExecutionError::HandlerFailed { StepError::ExecutionError { .. } }`
+  to it. So the kind is decided by *how* the step reported the failure, not by
+  whether the failure was an assertion in the `assert_eq!` sense.
+- **Impact:** the plan's INV-16 wording, and the label itself, invite the
+  mistake — "Assertion" reads as "the assertion failed" to anyone who has not
+  read the mapping. The end-to-end expectation was therefore *pinned to the
+  real answer* rather than to the expected one, with a comment naming the
+  distinction; that pin is also what would catch a boundary which swallowed a
+  panic and relabelled it as a returned error, which is the INV-17 failure mode
+  this whole suite exists to detect. No code change follows: the behaviour is
+  pre-existing, approved, and now documented from the outside.
 
 ## Decision log
 
@@ -2511,6 +2597,23 @@ tested, including from inside a live Tokio runtime.
   the `Pending` diagnostic* inside one, so a witness that failed in both
   positions would satisfy "different" while exercising nothing. D21 records the
   asymmetry.
+- **Discharged at `874e12f0`.** Written as
+  `crates/rstest-bdd/tests/modes.rs`, with a fourth test the invariant did not
+  name. The prescribed two cases are `a_suspending_async_step_diverges_on_runtime_position`;
+  they assert status *and* a thread-local resume count, so "multi-poll" is
+  witnessed rather than assumed (three resumptions outside a runtime, zero
+  inside one). The added control is
+  `a_non_suspending_async_step_passes_in_both_positions`: the same
+  registration form, the same lookup, the same driver, an `async fn` whose
+  first poll is `Ready`. Without it, "the outcomes differ" could be misread as
+  "the macro path is unreachable from inside a runtime", which is stronger and
+  false. The control was falsified rather than trusted — one genuine `.await`
+  added to it flips **only** its in-runtime case to `Failed`, with the
+  `Pending` diagnostic, and that mutation was run and reverted. Note for
+  anyone repeating it: the first attempt dropped the `.await` and was inert,
+  because a `yield_now()` future that is never awaited does nothing. That is
+  worth recording as a near-miss — an inert mutation that "leaves the suite
+  green" reads exactly like a passing negative control.
 
 **INV-16 — Failure classification is stable.** `StepOutcome::failure_kind()`
 projects an `ExecutionError` onto a small `#[non_exhaustive] FailureKind`
