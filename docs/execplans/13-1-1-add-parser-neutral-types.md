@@ -2278,6 +2278,138 @@ either boundary removed, its test fails and the other does not.
 
 Date/Author: 2026-09-19, implementation agent.
 
+### D23: the async driver reuses the loop, not the file
+
+**Decided 2026-09-19, opening EP-M3.** D6 says the two drivers differ only in
+how they *await* a step. The plan's module-layout table settled the answer
+before the code existed: `drive_async.rs` is "the asynchronous driver,
+identical but for `.await`". That is a statement about *behaviour*, and EP-M3
+has to decide what it means for the file.
+
+**Rejected: two fully written-out loops.** It is what the table's phrase reads
+like, and it is the one option INV-5 cannot hold to. Every future edit would
+have to be made twice and could be made once; the equivalence the invariant
+asserts would then depend on a reviewer noticing. Worse, the *recording* half
+of the loop — the per-step `trace!`, the `details.push`, the bypass
+`extend` — has no reason to differ at all, so duplicating it buys nothing.
+
+**Chosen: one loop, parameterized over how a step is executed.** A shared
+`engine/drive.rs` owns the loop, the bypass fold, and `assemble`; each driver
+supplies only its executor. The synchronous one is a plain function, the
+asynchronous one an `async fn`, and because Rust cannot abstract over that,
+the loop is written against a boxed next-poll future:
+
+```rust,ignore
+pub(super) trait StepPoller {
+    fn poll_next<'a>(
+        &'a mut self,
+        index: usize,
+        invocation: &'a StepInvocation,
+        ctx: &'a mut StepContext<'a>,
+        plan: &'a ScenarioPlan,
+    ) -> NextFuture<'a>;
+}
+```
+
+with `NextFuture<'a> = Pin<Box<dyn Future<Output = (StepOutcome, Option<Terminal>)> + 'a>>`.
+The sync poller wraps a ready future, so its poll never yields; the async
+poller boxes `execute_step_async`. `drive_async.rs` is then the thin
+`run_scenario_async` body plus the async poller, and it *contains no loop* —
+which is a stronger version of D6's claim than the file-per-driver layout
+could make, because there is now only one place a loop can be wrong.
+
+**Cost, stated rather than glossed.** The loop boxes one future per
+invocation, on a path that already allocates a `StepExecutionRequest` view and
+routes through a process-global registry. The contract is *behavioural*, not
+performance, equivalence, and INV-5 is what the milestone is judged on.
+
+**Rejected: a macro over the two bodies.** It would keep the loops textually
+separate while generating them from one source, and it needs the same box on
+any version of the async half — a macro cannot make synchronous code await, so
+the shared expansion still has to call back into each driver's executor. So
+the macro adds an indirection layer and removes nothing.
+
+### D24: the gates are module-private, driven without a runtime
+
+**Decided 2026-09-19, opening EP-M3**, implementing INV-10's three hardening
+requirements.
+
+INV-10's artefact is `runner/tests/cancel.rs`, and the plan's caveat says the
+gates must not touch Tokio. That decides the driver: a `#[cfg(test)] mod gates`
+inside `runner::scope` holds module-private flags that the scope consults as it
+passes each boundary, and a test in the unit-test binary appends an
+`EnterGate` hook by hand and polls the run future with
+`std::task::Waker::noop()`.
+
+**Why the hook is reachable from the unit-test binary.** The plan's note that
+the unit-test binary cannot reach the *registry* is about `run_scenario`'s
+step resolution, not about the runner's public surface: a plan whose steps
+never resolve still runs the before hook, and INV-10's step case is *about*
+cancellation during a step, so it needs a step that genuinely blocks. The
+answer is the gate hook, which is reached before any step is executed and
+therefore above the registry. Cancellation during a *step handler* is then
+observed as "the run was dropped while parked at the gate", which is the same
+executor position, and the step case is recorded as discharged *by proxy* in
+`Verification plan` rather than claimed directly.
+
+**Why `std::task::Waker::noop` and not a runtime.** Polling a future outside a
+runtime is legal; what panics is a *Tokio* future being polled without one.
+It was not obvious that this distinction survives here, because
+`execute_step_async` for a `Both`-mode step calls `run` **synchronously** with
+no Tokio future anywhere on the path — so what a case must avoid is a *test
+double* that reaches Tokio, not the driver. Probed directly: an async fn
+owning a context by value, projecting `&mut` from it through a `split`-shaped
+method, and holding that borrow across a real suspension point runs to
+completion under `Waker::noop()` with no runtime in scope. `Waker::noop()` was
+stabilized in Rust 1.85 and this workspace pins 1.98.1, so the harness needs no
+dependency beyond `std`. Its `RawWaker` ignores `wake` by definition, so a gate
+that woke only its own waker would never be re-polled; hardening requirement 2
+exists for exactly this, and the bounded loop is what makes the harness
+converge or fail loudly rather than hang.
+
+**Falsified and withdrawn: `PhantomPinned` and the `unsafe` projection.** The
+first draft of this entry concluded that `split`'s `&mut StepContext` borrow,
+held across a gate, forced `Instrumented` to carry a `PhantomPinned` and
+`run_scenario_async` to project it with `unsafe`. **That is wrong, and it was
+falsified by compiling the shape rather than by reasoning about it.** A future
+that owns its scope by value and holds a `&mut` projected from it across an
+await point is an ordinary self-referential borrow, and the borrow checker
+accepts it without any pinning ceremony: `run_scenario_async` takes `scope` by
+value (the plan's signature), calls `split`, and awaits; the compiler proves
+the borrow ends before the scope is dropped because it can see both. The
+projection never needs to outlive the future's own frame, so there is nothing
+to pin and nothing to make `unsafe` sound. **EP-M3 adds no `unsafe` to this
+crate**, which also keeps it clear of the tolerance on unspecified safety
+arguments. The lesson is the same one D11's entry records: a claim about what
+*will* compile, however carefully reasoned, is a hypothesis until it is
+compiled — and this one had already been written into a decision log as
+settled.
+
+**The gate hook is permanent surface, and is documented as such.**
+`NoHooks::enter_scope` is a defaulted trait method taking `&mut StepContext`,
+not a `#[cfg(test)]` shim: a hook that only existed under `cfg(test)` would
+make the invariant untestable in the build that ships, which is the build whose
+behaviour matters. The plan's hooks are deferred under D2 option (ii), and
+this is the one hook-shaped thing EP-M3 adds; it is inert unless a caller
+implements it, and `NoHooks` cannot.
+
+**The step case is discharged directly, not by proxy.** The first draft called
+it a proxy discharge, on the reading that INV-10's step case needs a step that
+genuinely blocks and the unit-test binary cannot reach the registry. The
+reading is wrong on the second half: what the unit-test binary cannot do is
+*resolve* a registered step (D19/D21), and a plan whose text matches no
+registration still drives the whole loop — it simply records `Undefined` for
+that invocation and stops. So the harness is not limited to a gate above the
+registry. It registers no step at all, runs the loop, and parks at whichever
+gate it needs; cancellation during a step handler is then observed at the same
+executor position a registered blocking step would occupy. The distinction
+that survives is narrower and worth keeping: the case exercises cancellation
+while the loop is *between* resolve and record for an invocation, not the
+`run_async` arm of a genuine async body. That arm is `runner_panics.rs`'s
+subject and INV-15's, and this entry does not claim it.
+
+Date/Author: 2026-09-19, implementation agent.
+
 ## Outcomes & retrospective
 
 To be completed at EP-M5. Before marking this plan `COMPLETE`, reconcile every
