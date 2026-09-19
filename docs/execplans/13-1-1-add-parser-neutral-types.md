@@ -925,6 +925,25 @@ between them. Raise that before spending the tolerance.
     completeness guard already catches a wholesale failure — and the residual
     gap was closed rather than argued about.
 
+- **Observation:** the `-ise`/`-ize` trap recorded above caught this plan
+  *again*, on the very next edit, and the recorded defence was not applied.
+  Evidence: the D18 entry added `materialised` at line 2436 and `make spelling`
+  failed with `error: materialised should be materialized`, which in turn
+  aborted `make markdownlint` before `markdownlint-cli2` ran, because
+  `spelling` is its prerequisite. The failing word was written while
+  *recording* a hazard documented 1600 lines earlier in the same file. Impact:
+  the entry above states the defence as "run `typos` on any file touched by a
+  commit before requesting the gate, especially a plan or doc", and that is the
+  step that was skipped; a one-word edit was the whole cost, but it cost a full
+  gate cycle and a scrutineer run to discover. The sharper lesson is that
+  documenting a trap is not the same as being protected from it, and a
+  checklist entry that lives only in prose is not a mechanism. Worth noting
+  also that the failure mode is louder than it looks: a red `spelling` does not
+  merely fail one gate, it silently suppresses Markdown linting, so a run that
+  reports "spelling failed" has left MD013 and its neighbours entirely
+  unverified rather than verified-and-passing. The gate must be re-run after
+  the fix, not just the one word corrected.
+
 ### The two Markdown formatters do not agree, and only one of them is checked
 
 `make check-fmt` gained a `mdtablefix --check` leg in PR #781, which landed on
@@ -2433,7 +2452,7 @@ the original into the `Terminal`. That is bounded at one per scenario and
 `ExecutionError` is cheap to clone. The alternative that avoids the clone,
 having `assemble` build the terminal step's record itself from `Terminal` plus
 the plan, was rejected because it would make `assemble` take `&ScenarioPlan`
-and reconstruct plan-side identity the driver had already materialised. Read
+and reconstruct plan-side identity the driver had already materialized. Read
 the two copies as a value guarantee rather than an identity one: they descend
 from one original, so they cannot disagree, which is what D16's "verbatim"
 requires. `ExecutionError` already derives `Clone` and `PartialEq`, the latter
