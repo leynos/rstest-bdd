@@ -4115,6 +4115,96 @@ recipe order rather than by explicit aggregation.
 
 Date/Author: 2026-09-20, implementation agent.
 
+### D37: the required checks were never in the plan, and one of them failed on Windows only
+
+**Decision: treat the three `build-test` legs as the gate that actually governs
+this PR, fix the Windows failure, and record the Linux one as a tool defect
+rather than a finding against this branch.**
+
+**The plan's gate list named the wrong set, and D34 said so without acting on
+it.** D34 closed with the observation that this plan enumerates local `make`
+targets and never names the PR checks — "recorded rather than fixed, because
+changing how future plans enumerate gates is outside this plan's scope". The
+cost of that deferral landed here. Ruleset `18427987` `main-required-checks`
+holds exactly three required status checks, and they are the three `build-test`
+legs:
+
+```plaintext
+build-test (ubicloud-standard-2, stable, true, true, true, true)
+build-test (windows-latest, stable-x86_64-pc-windows-msvc, true, true, false, false)
+build-test (windows-latest, stable-x86_64-pc-windows-msvc, true, strict-compile-time-validation, ...)
+```
+
+All three were **failing** while the plan recorded the branch as gate-clean
+apart from CodeScene. So the milestone's own statement of readiness was
+measured against a set that does not gate the merge. **The CodeScene
+code-health check that D34/D35 spent their whole history on is not a required
+check at all**; the coverage check beside it is equally optional. A plan that
+lists what `make` can run, and not what the merge actually requires, is
+checking the wrong thing carefully.
+
+**The Windows failure was mine, and was real.** Both Windows legs failed
+`the_panic_carries_the_registry_identity_and_the_plans_source`:
+
+```plaintext
+the file must be the module the unwrapped handler is defined in;
+  it was `crates\rstest-bdd\tests\runner_panics\mod.rs`
+test result: FAILED. 5 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out
+```
+
+The assertion was `file.ends_with("runner_panics/mod.rs")`, and `file!()` embeds
+the platform separator, so it cannot hold on Windows. The fix normalizes with
+`.replace('\\', "/")` before comparing — the convention this crate's other tests
+already use in `feature_rebuild_invalidation/harness/fixtures.rs` and
+`trybuild_macros/staging.rs`. The raw value is kept for the failure message so a
+reader sees what was produced rather than the normalized form that was compared.
+
+**Why no local gate could have caught it.** The whole local gate set runs on
+Linux, where `replace('\\', "/")` is a no-op and the buggy form is *correct*.
+A green `make test` is not weak evidence here, it is **orthogonal** evidence:
+the failing case is unreachable on the only platform the suite runs on. This is
+the same class as the coverage drift memory records — a passing suite and an
+untested path look identical from inside the passing suite.
+
+**Verified non-vacuously, because a local green proves nothing about this one.**
+The predicate was compiled standalone against the literal path string CI
+reported and against the Linux form. The old expression returns `false` for the
+Windows string — reproducing the CI failure exactly — and the new one returns
+`true`; neither form changes on the Linux string. That is the evidence; the
+subsequent 6-of-6 local pass is not.
+
+**The Linux leg's failure is a tool defect, not a finding.** Its
+`Check coverage against CodeScene gates` step exits 1 after 2.7s having done no
+coverage work at all:
+
+```plaintext
+ERROR [codescene.devtools.error-handling:20] - Failed to parse coverage file
+'/home/runner/work/rstest-bdd/rstest-bdd/coverage.xml':
+No matching field found: close for class java.io.InputStreamReader
+```
+
+The tests in that leg passed; only the upload failed. **It is not
+branch-specific**: `adopt-cv005` succeeded at 2026-09-18T17:17Z and every CI run
+recorded after it has failed, including on branches sharing no commits with this
+one, and those unrelated branches fail at the *same two steps*
+(`Check coverage against CodeScene gates`, `Test and Measure Coverage`). The
+same parse error appears in this branch's earlier runs. A defect in the
+`upload-codescene-coverage` action or in the CLI version it pins — not something
+this branch introduced and not something this branch can fix.
+
+**The correction to a previously recorded claim, and why it matters.** D34, D35
+and their Progress entries all describe CodeScene as the gate that "every
+comparable open PR passes" and treat it as the thing standing between this
+branch and merge-readiness. That framing is wrong in the way that matters: the
+check is advisory, and the branch was in fact unmergeable for a reason nobody
+had looked at. **A gate being visible is not the same as its being required, and
+a gate being required is not the same as its being visible to you.** The
+practical rule: read the ruleset's required-status-check list before declaring a
+milestone gate-clean, and treat D34's deferred "upstream lesson" as now
+discharged by this entry.
+
+Date/Author: 2026-09-20, implementation agent.
+
 ### D32: `Display for SourcePath` is uncovered, and is left uncovered
 
 **Decision: the survivor is recorded rather than chased.** The sweep's first
