@@ -2293,41 +2293,68 @@ asserts would then depend on a reviewer noticing. Worse, the *recording* half
 of the loop — the per-step `trace!`, the `details.push`, the bypass
 `extend` — has no reason to differ at all, so duplicating it buys nothing.
 
-**Chosen: one loop, parameterized over how a step is executed.** A shared
-`engine/drive.rs` owns the loop, the bypass fold, and `assemble`; each driver
-supplies only its executor. The synchronous one is a plain function, the
-asynchronous one an `async fn`, and because Rust cannot abstract over that,
-the loop is written against a boxed next-poll future:
+**Chosen: share the step-result handling, not the loop.** The drift-prone part
+of a driver is not its fifteen-line `for` loop; it is what it *decides* about a
+step result — which `StepOutcome` constructor to call, what `Terminal` to
+build, and which of the three arms the classification landed in. That is
+exactly the part that can be shared, because it is also the part that does not
+care whether the `Result` came from `execute_step` or `execute_step_async`.
+A shared `engine/drive.rs` owns:
 
 ```rust,ignore
-pub(super) trait StepPoller {
-    fn poll_next<'a>(
-        &'a mut self,
-        index: usize,
-        invocation: &'a StepInvocation,
-        ctx: &'a mut StepContext<'a>,
-        plan: &'a ScenarioPlan,
-    ) -> NextFuture<'a>;
-}
+/// Rebuild a plan's table as the borrowed rows a request needs.
+pub(super) struct TableView<'a> { /* .. */ }
+
+/// Assemble one invocation's request view.
+pub(super) fn request<'a>(
+    index: usize,
+    invocation: &'a StepInvocation,
+    table: Option<&'a [&'a [&'a str]]>,
+    plan: &'a ScenarioPlan,
+) -> StepExecutionRequest<'a>;
+
+/// Record what happened to one invocation, and whether the run stops.
+pub(super) fn record_step(
+    index: usize,
+    invocation: &StepInvocation,
+    ctx: &mut StepContext<'_>,
+    result: Result<Option<Box<dyn Any>>, ExecutionError>,
+) -> (StepOutcome, Option<Terminal>);
 ```
 
-with `NextFuture<'a> = Pin<Box<dyn Future<Output = (StepOutcome, Option<Terminal>)> + 'a>>`.
-The sync poller wraps a ready future, so its poll never yields; the async
-poller boxes `execute_step_async`. `drive_async.rs` is then the thin
-`run_scenario_async` body plus the async poller, and it *contains no loop* —
-which is a stronger version of D6's claim than the file-per-driver layout
-could make, because there is now only one place a loop can be wrong.
+`record_step` is `drive_sync::execute` with its one `execute_step` call hoisted
+out to the caller. Each driver is then a plain `for` loop whose body reads
+`request`, call, `record_step`, and which differs from the other in exactly the
+call and its `.await`. `drive_async.rs` still *contains a loop* — the table's
+phrase is literal after all — but the loop contains no decision, which is D6's
+actual claim, and the decisions that could drift are shared and so cannot.
 
-**Cost, stated rather than glossed.** The loop boxes one future per
-invocation, on a path that already allocates a `StepExecutionRequest` view and
-routes through a process-global registry. The contract is *behavioural*, not
-performance, equivalence, and INV-5 is what the milestone is judged on.
+**Falsified and withdrawn: the `StepPoller`/boxed-future design.** The first
+draft of this entry concluded that one loop must own the whole body and that
+Rust therefore forced it to be written against a boxed next-poll future, with a
+sync poller returning an already-ready future and an async poller boxing
+`execute_step_async`. **That was falsified by prototyping it.** The mechanism
+does work — a miniature of it drives one `async fn` from both a
+`now_or_never`-style single poll and a real multi-poll loop, and the sync half
+does stay `Ready` on its first poll (the probe recorded 1 poll for the sync
+driver and 5 for the async one over the same loop). But it buys a duplication
+removal at the price of a **silent wrong answer on the shipping path**:
+`run_scenario` is a plain synchronous `fn` returning `ScenarioOutcome`, so if
+its poller ever yielded, the only honest outcomes are a panic or a silently
+truncated run. That assumption has no type-level protection and nothing in
+EP-M3's evidence would catch it, because INV-5 compares *outcomes* and a
+truncated sync run would simply differ loudly rather than subtly. Trading a
+compile-checked property of the more important entry point for the removal of
+a duplication that INV-5 already polices is the wrong way round. The withdraw
+is recorded rather than deleted because it is the second time on this branch
+that a carefully-reasoned claim about what *will* compile survived review and
+died on contact with a compiler; see D24's withdrawal for the third.
 
 **Rejected: a macro over the two bodies.** It would keep the loops textually
-separate while generating them from one source, and it needs the same box on
-any version of the async half — a macro cannot make synchronous code await, so
-the shared expansion still has to call back into each driver's executor. So
-the macro adds an indirection layer and removes nothing.
+separate while generating them from one source, and it cannot make synchronous
+code await, so the shared expansion would still have to call back into each
+driver's executor. The macro adds an indirection layer and removes nothing that
+`engine/drive.rs` does not remove more simply.
 
 ### D24: the gates are module-private, driven without a runtime
 
@@ -2393,20 +2420,39 @@ behaviour matters. The plan's hooks are deferred under D2 option (ii), and
 this is the one hook-shaped thing EP-M3 adds; it is inert unless a caller
 implements it, and `NoHooks` cannot.
 
-**The step case is discharged directly, not by proxy.** The first draft called
-it a proxy discharge, on the reading that INV-10's step case needs a step that
-genuinely blocks and the unit-test binary cannot reach the registry. The
-reading is wrong on the second half: what the unit-test binary cannot do is
-*resolve* a registered step (D19/D21), and a plan whose text matches no
-registration still drives the whole loop — it simply records `Undefined` for
-that invocation and stops. So the harness is not limited to a gate above the
-registry. It registers no step at all, runs the loop, and parks at whichever
-gate it needs; cancellation during a step handler is then observed at the same
-executor position a registered blocking step would occupy. The distinction
-that survives is narrower and worth keeping: the case exercises cancellation
-while the loop is *between* resolve and record for an invocation, not the
-`run_async` arm of a genuine async body. That arm is `runner_panics.rs`'s
-subject and INV-15's, and this entry does not claim it.
+**The step case is a proxy discharge, and the first draft's second reading was
+also wrong.** The sequence is worth recording in full, because two confident
+readings in a row were each falsified by one probe.
+
+- *First reading:* the unit-test binary cannot reach the registry, so the
+  harness must park at a gate above the registry and the step case is
+  discharged by proxy. *Right conclusion, wrong reason.*
+- *Second reading, after the probe below was written up as a fix:* only
+  *resolving* a registered step needs the registry, so a plan whose text
+  matches nothing still drives the loop and the gate can sit at step position,
+  making the discharge direct. **Falsified.** A probe in `runner/tests/` — the
+  unit-test binary, a plan with one unregistered step, no registration of its
+  own — panicked in `registry/mod.rs:238`, `duplicate step for 'When' +
+  'introspection duplicate step'`. The reason is in `registry/mod.rs`'s
+  `STEP_MAP`: it is a `LazyLock` that **eagerly asserts no two registrations
+  collide**, and `registry/introspection.rs` registers `DUPLICATE_PATTERN`
+  twice *on purpose* to test that assertion. The very first registry touch in
+  the unit-test binary aborts, whatever the plan contains. So the boundary is
+  not at *resolve*; it is at *the registry*, exactly as D19 first said, and the
+  first reading's conclusion stands.
+
+What the gate therefore discharges is cancellation **at the scope/step boundary
+position**, with the loop entered and an in-flight invocation under way, in the
+shipping build — not a registered `Async`-mode handler's `run_async` arm, which
+only an integration binary can reach. That narrower claim is what
+`Verification plan` records, and `runner_panics.rs` plus INV-15 own the rest.
+
+**Recorded because the failure mode is the branch's recurring one.** Two
+consecutive readings — one in D23, one here — each concluded, on inspection,
+that a simpler design was available, and each died to a compiler error the
+inspection could have produced in a minute. Both are left in place rather than
+tidied away: the plan's value at this point is partly as a record that "I
+verified this by reasoning" is not verification.
 
 Date/Author: 2026-09-19, implementation agent.
 
