@@ -11,13 +11,21 @@ recorded as approved. EP-M1 is closed and gate-clean at `3a942230`; EP-M2 is
 closed and gate-clean. **EP-M3 is closed**, gate-clean at `9a232fdd` with all
 seven gates green (2,046 nextest tests passed, 7 skipped; doctests; 244
 pytest), D27 recording the Scope-tolerance breach. **EP-M4 is struck** by D2
-option (ii). What remains is **EP-M5**: the `insta` `Display` snapshots, the
-`--no-default-features` test leg, the roadmap and retrospective edits, and the
-re-scoped `cargo-mutants` sweep over the whole runner tree (152 mutants).
-EP-M3's named `cargo-mutants` control was run and found *vacuous* — 3 mutants,
-all unviable — so that obligation is re-scoped rather than discharged, and its
-survivor list is read at EP-M5. Three CodeRabbit rounds have been adjudicated;
-D26, D28, and D29 record them finding by finding.
+option (ii). **EP-M5 is now closed** — its four parts are done: the `insta`
+`Display` snapshots, the `--no-default-features` test leg, the roadmap and
+retrospective edits, and the re-scoped `cargo-mutants` sweep over the whole
+runner tree. EP-M3's named `cargo-mutants` control was run and found *vacuous*
+— 3 mutants, all unviable — so that obligation was re-scoped rather than
+discharged, and the re-scoped sweep has now completed: **152 mutants, 84
+caught, 5 missed, 57 unviable, 6 timeout, all accounted for.** It discharges
+AXIOM-4 and leaves two recorded coverage gaps, D32 and D33. Four CodeRabbit
+rounds have been adjudicated; D26, D28, D29, and D30 record them finding by
+finding.
+
+**The plan is deliberately not marked `COMPLETE`.** D31 records the `Scope`
+tolerance breached again at close — 71 files and 18,325 net added lines against
+a 36-file / 4,500-line tolerance — and that escalation is open until a human
+answers it. Every other obligation is discharged or explicitly recorded as open.
 
 ## Purpose / big picture
 
