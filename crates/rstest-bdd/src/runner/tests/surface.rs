@@ -18,21 +18,50 @@
 //! suppress it, so a `std::fs` version of this file fails `make lint`. Reaching
 //! for `cap-std` here is therefore deliberate rather than incidental, and is the
 //! same remedy the neighbouring test-support modules use.
+//!
+//! # What the scan does and does not establish
+//!
+//! It is a token scan over source text, so it establishes that no *spelling* of
+//! a known frontend or reporting type appears in the runner. It cannot
+//! establish that no frontend type reaches a public signature, because a
+//! frontend type re-exported under an unrelated name, or reached through a
+//! `crate::` path that never spells `gherkin`, would be invisible to it.
+//! Resolving names properly would mean a compiler pass over the crate's public
+//! API, which is a different and much larger instrument than a unit test.
+//!
+//! The scan is therefore a cheap tripwire over the shapes a leak realistically
+//! takes in this codebase, not a proof of INV-11. It is worth having because
+//! the realistic failure is a future edit that reaches for `gherkin::Step` for
+//! convenience, and because it fails loudly on that edit. The aliasing hole is
+//! real and is recorded here rather than papered over: `use crate::X as y;`
+//! hides every later `y::T`, and no token list can close that in general.
 
 use camino::Utf8Path;
 use cap_std::{ambient_authority, fs_utf8::Dir};
 
 /// Tokens that must not appear in a non-comment line of the runner's sources.
 ///
-/// `gherkin`, `markdown`, and `Trymark` name frontends. `reporting::` and
+/// `gherkin`, `markdown`, and `Trymark` name frontends. `reporting` and
 /// `ScenarioRecord` name the reporting pipeline. `StepExecution` and
 /// `BypassedScenario` name the existing runtime's control-flow types, which a
 /// frontend-neutral runner must not adopt as its own vocabulary.
+///
+/// Every token is bare rather than a path prefix. A prefix like `"reporting::"`
+/// matches only the fully qualified spelling, so it misses the one import form
+/// that actually launders the dependency: `use crate::reporting as rep;` binds
+/// the module under a name the scan has never heard of, and every later use of
+/// it (`rep::Feature`) is then invisible. The same reasoning applies to the
+/// frontend tokens, which is why none of them carries a trailing `::` either —
+/// aliasing `gherkin` as `g` still writes the word `gherkin` at the import, and
+/// that is the line the scan sees.
+///
+/// This list is a necessary condition, not a sufficient one. See the
+/// module-level note on what the scan does and does not establish.
 const FORBIDDEN: [&str; 7] = [
     "gherkin",
     "markdown",
     "trymark",
-    "reporting::",
+    "reporting",
     "ScenarioRecord",
     "StepExecution",
     "BypassedScenario",
@@ -116,12 +145,16 @@ fn collect(directory: &Dir, prefix: &str, sources: &mut Vec<(String, String)>) {
 
 /// Whether a directory entry is a Rust source file.
 ///
-/// Delegated to `Utf8Path::extension` rather than a case-sensitive suffix test,
-/// so a `.RS` file counts as source rather than slipping past the scan.
+/// The comparison is case-insensitive, so a `.RS` file counts as source rather
+/// than slipping past the scan. `Utf8Path::extension` only splits the name; it
+/// does not fold case, so a bare `ext == "rs"` would let an upper-case spelling
+/// of the same file through. A leak in such a file would then be reported as no
+/// leak at all — the failure mode this whole module exists to catch, since the
+/// scan's silence is indistinguishable from a clean tree.
 fn is_rust_source(name: &str) -> bool {
     Utf8Path::new(name)
         .extension()
-        .is_some_and(|ext| ext == "rs")
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("rs"))
 }
 
 /// Join a relative directory prefix to one of its children's names.
@@ -202,6 +235,33 @@ fn the_scan_finds_the_runner_tree() {
     }
 }
 
+/// An upper-case extension still counts as a Rust source file.
+///
+/// `Utf8Path::extension` splits the name but does not fold case, so an
+/// `ext == "rs"` test lets `thing.RS` past the scan entirely: the file is never
+/// read, its leaks are never reported, and the scan's silence is
+/// indistinguishable from a clean tree. This is the guard the earlier
+/// case-sensitive comparison lacked.
+#[test]
+fn an_upper_case_extension_is_still_source() {
+    assert!(is_rust_source("mod.rs"), "a plain .rs file must be source");
+    assert!(
+        is_rust_source("odd.RS"),
+        "an upper-case .RS file must not slip past the scan",
+    );
+    assert!(
+        is_rust_source("odd.Rs"),
+        "a mixed-case .Rs file must not slip past the scan",
+    );
+
+    // The counterpart: folding case must not widen the scan to everything.
+    assert!(!is_rust_source("notes.md"), "a Markdown file is not source");
+    assert!(
+        !is_rust_source("README"),
+        "a file with no extension is not source",
+    );
+}
+
 /// One negative control per leak shape.
 ///
 /// The five shapes are the ones the first draft's line-anchored matcher missed:
@@ -239,6 +299,18 @@ fn every_leak_shape_is_flagged() {
         assert!(
             fragment.lines().any(|line| !leaks_in(line).is_empty()),
             "the matcher must flag a leak in the form of a {shape}:\n{fragment}",
+        );
+    }
+
+    // The bare-import shape, which a path-prefixed token list misses. These
+    // carry no `::` at all, so a `"reporting::"` entry would let both through.
+    for alias in [
+        "use crate::reporting as rep;",
+        "use crate::reporting;",
+    ] {
+        assert!(
+            !leaks_in(alias).is_empty(),
+            "a bare import of a forbidden module must be flagged:\n{alias}",
         );
     }
 
