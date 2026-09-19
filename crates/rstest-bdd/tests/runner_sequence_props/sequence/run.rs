@@ -264,17 +264,20 @@ pub(crate) fn run_case_async(steps: &[Step], arrangement: Arrangement) -> Run {
     let mut run = Box::pin(run_scenario_async(&plan, scope));
     let waker = Waker::noop();
     let mut cx = Context::from_waker(waker);
-    let outcome = (1..=MAX_POLLS)
-        .find_map(|_| match run.as_mut().poll(&mut cx) {
-            Poll::Ready(outcome) => Some(outcome),
-            Poll::Pending => None,
-        })
-        .unwrap_or_else(|| {
-            panic!(
-                "the asynchronous runner stayed pending for {MAX_POLLS} polls on a plan whose \
-                 steps all resolve without parking, so it is not the runner INV-5 is about"
-            )
-        });
+    // The bound is enforced by binding rather than by a panicking fallback:
+    // `unwrap_or_else(|| panic!(..))` is what Whitaker's `no_unwrap_or_else_panic`
+    // forbids, and `let ... else { panic!(..) }` keeps the same message while
+    // saying plainly that this is a failure to resolve rather than a default.
+    let resolved = (1..=MAX_POLLS).find_map(|_| match run.as_mut().poll(&mut cx) {
+        Poll::Ready(outcome) => Some(outcome),
+        Poll::Pending => None,
+    });
+    let Some(outcome) = resolved else {
+        panic!(
+            "the asynchronous runner stayed pending for {MAX_POLLS} polls on a plan whose steps \
+             all resolve without parking, so it is not the runner INV-5 is about"
+        );
+    };
 
     Run {
         outcome,

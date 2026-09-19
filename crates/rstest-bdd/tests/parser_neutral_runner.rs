@@ -202,16 +202,19 @@ fn the_plan_is_executed_through_both_runners(bench: &RefCell<Bench>) {
 
     let caught = std::panic::catch_unwind(AssertUnwindSafe(|| {
         let mut sync_ctx = StepContext::default();
-        let sync_outcome =
-            run_scenario(&plan, ScenarioScope::new(&mut sync_ctx).with_skip_policy(false));
+        let sync_outcome = run_scenario(
+            &plan,
+            ScenarioScope::new(&mut sync_ctx).with_skip_policy(false),
+        );
 
         // A current-thread runtime with time and I/O *disabled*: the steps this
         // suite registers are `Sync`-mode, so no timer or reactor is ever
         // touched, and leaving them off means a future edit that introduced one
         // would fail here loudly instead of here mysteriously.
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .build()
-            .expect("a current-thread runtime builds");
+        let built = tokio::runtime::Builder::new_current_thread().build();
+        let Ok(runtime) = built else {
+            panic!("a current-thread runtime must be constructible: {built:?}");
+        };
         let mut async_ctx = StepContext::default();
         let async_outcome = runtime.block_on(run_scenario_async(
             &plan,

@@ -68,7 +68,9 @@ impl<'a> TableView<'a> {
     }
 
     /// The outer view the request's `table` field takes.
-    pub(super) fn row_slices(&self) -> Vec<&[&str]> { self.rows.iter().map(Vec::as_slice).collect() }
+    pub(super) fn row_slices(&self) -> Vec<&[&str]> {
+        self.rows.iter().map(Vec::as_slice).collect()
+    }
 }
 
 /// Build the request one invocation is executed with.

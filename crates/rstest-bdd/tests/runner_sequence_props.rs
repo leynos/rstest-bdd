@@ -67,7 +67,7 @@
 //! Split into four modules to stay inside the repository's 400-line cap, along
 //! the seams the invariants themselves provide. [`invariants`] holds the four
 //! sequence statements' property halves, [`equivalence`] INV-5,
-//! [`named_witnesses`] the hand-written per-kind and per-class witnesses, and
+//! [`named_witnesses`] the handwritten per-kind and per-class witnesses, and
 //! [`controls`] the negative controls and the checks on the generator's own
 //! domain. The shared driver and the plan builder stay here, because all four
 //! call them.
