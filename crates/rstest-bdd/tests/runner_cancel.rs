@@ -245,7 +245,7 @@ fn returns_marker(
 ///
 /// A `Both`-mode step needs a `run` and a `run_async`, and for these the async
 /// arm is the sync arm wrapped in an immediately-ready future — that is what
-/// `Both` means. One macro rather than a hand-written arm beside each step, so
+/// `Both` means. One macro rather than a handwritten arm beside each step, so
 /// the two cannot drift: a step whose async arm stopped delegating to its sync
 /// arm would be a step with two different bodies, which no registration
 /// currently intends.

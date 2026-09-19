@@ -129,6 +129,11 @@ impl ScenarioSkip {
     ///
     /// The caller is the runner's engine, which builds one whenever an
     /// invocation asks to be skipped.
+    ///
+    /// `#[must_use]`: a skip built and dropped would leave the invocation that
+    /// requested it recorded as skipped with no reason attached, which is the
+    /// silently-green shape [`ScenarioOutcome`] already guards against.
+    #[must_use]
     pub fn new(at: usize, record: SkipRecord, policy: SkipPolicyRecord) -> Self {
         Self { at, record, policy }
     }
