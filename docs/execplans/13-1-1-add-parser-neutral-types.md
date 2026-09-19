@@ -770,7 +770,22 @@ between them. Raise that before spending the tolerance.
   section, which documented the gap as "owned by D11", now states the boundary
   is in place. Not yet gated: the full deterministic suite has not been re-run
   against this revision.
-- [ ] EP-M3: asynchronous runner and cancellation.
+- [-] EP-M3: asynchronous runner and cancellation. **In progress; the
+  asynchronous runner and INV-10's step case are committed, and INV-5's property
+  is the remaining piece.**
+  - [x] `run_scenario_async`, the shared `engine/drive.rs` step handling, and
+    the third behavioural scenario. Committed in `9f4ca8c7`.
+  - [x] INV-10's step case, in `crates/rstest-bdd/tests/runner_cancel.rs`, with
+    the three hardening requirements and two non-vacuity controls. D25 records
+    the design, including a third withdrawn claim.
+  - [ ] INV-5's property in `crates/rstest-bdd/tests/runner_sequence_props.rs`:
+    the same generated plan through both runners, outcomes compared whole. The
+    file's module documentation still carries a now-stale note saying INV-5
+    lands with EP-M3, and must be updated with the clause rather than left
+    as-is.
+  - [ ] The `cargo-mutants` negative control for INV-5 over
+    `runner/engine/drive_async.rs` — the plan's named control for that
+    invariant, not yet run.
 - [x] ~~EP-M4: lifecycle hooks and the lifecycle matrix~~ — struck by D2
   option (ii).
 - [ ] EP-M5: documentation, snapshots, and the full gate.
@@ -1309,6 +1324,29 @@ between them. Raise that before spending the tolerance.
   reports "spelling failed" has left MD013 and its neighbours entirely
   unverified rather than verified-and-passing. The gate must be re-run after
   the fix, not just the one word corrected.
+
+- **Observation:** the first version of INV-10's cleanup assertion was vacuous,
+  and the assertion's own author did not notice — a *negative control* did.
+  Evidence: `insert_value` writes a step's returned value into the context's
+  override map (`ctx.values`), not into the fixture's own cell, so the fixture
+  cell reads the same value before and after cleanup. The first version asserted
+  on that cell, because the discriminating read
+  (`ctx.try_borrow::<Marker>(MARKER)`) needs the run's mutable borrow of `ctx`
+  to have ended first. With `CleanupGuard::drop` rewritten to do nothing, the
+  fixture-cell version still **passed**, reporting that cleanup had run. Only
+  when the read was changed to `ctx.try_borrow` did the broken guard fail, with
+  `left: Some(7), right: Some(0)`. Impact: the control was aimed at the driver
+  and the defect was in the test, which is the more dangerous direction — a
+  vacuous assertion is invisible in a green suite and would have shipped as
+  evidence for a clause it did not test. It also falsified a claim already
+  written into D25, which has been corrected. Two lessons worth carrying. First,
+  an assertion about "state was cleaned up" must read the state cleanup actually
+  touches; picking a neighbouring observable that merely *correlates* with it is
+  how a vacuous assertion looks correct in review. Second, this is the third
+  vacuity of the milestone (D24 records two design claims that died to a
+  compiler), and all three were found by *running* something rather than reading
+  it — which is the pattern the plan's own `Verification plan` warns about in
+  the abstract.
 
 ### The two Markdown formatters do not agree, and only one of them is checked
 
@@ -2456,6 +2494,106 @@ verified this by reasoning" is not verification.
 
 Date/Author: 2026-09-19, implementation agent.
 
+### D25: INV-10 is discharged directly, from an integration binary
+
+**Decided 2026-09-19, closing EP-M3's cancellation work.** D24 recorded two
+withdrawals about this test and left the step case as a *proxy* discharge. That
+conclusion was wrong a third time, for a reason the first two never tested: the
+plan named `runner/tests/cancel.rs` as INV-10's artefact, and that path *cannot*
+discharge the step case — but nothing forces the test to live there.
+
+**The step case is direct, and needs no production seam.** D24 is right that
+`execute_step_async` resolves through `STEP_MAP` and that the unit-test binary's
+first registry touch aborts. The inference that the test must therefore park
+above the registry does not follow, because D21's rule — *runner tests that
+resolve steps live in `crates/rstest-bdd/tests/`* — applies here as it does to
+every other step-resolving test in this milestone. An integration binary may
+register a step. So the test registers a `StepExecutionMode::Async` step whose
+`run_async` returns a future that parks forever, drives the plan through
+`run_scenario_async`, polls the run until the handler is entered, drops the run,
+and asserts the handler's future was dropped with it. That is INV-10's step case
+with no proxy and no `#[cfg(test)]` hook.
+
+**Probed before it was written.** Two throwaway integration tests, run and then
+deleted, established the two facts the design rests on: that a `submit!`-ed
+`Async` step's parked future is reachable and is dropped with the run, and that
+the caller's context is observably cleaned by that drop. **The first probe's
+`ctx.try_borrow` after the drop does not compile** — `E0502`, the live run still
+holds `ctx` mutably — so the read has to happen after the run is dropped; the
+first version of the test therefore asserted on the *fixture cell*, which does
+compile and does outlive the borrow.
+
+**That first version was vacuous, and a negative control proved it.** A negative
+control is a deliberate defect the test must catch; here, `CleanupGuard::drop`
+was rewritten to do nothing. The test still **passed**. The reason is
+`insert_value`: it writes the step's returned value into the context's *override
+map* (`ctx.values`), not into the fixture's own cell, so the fixture cell reads
+the same `0` before and after cleanup and says nothing about whether cleanup
+ran. The discriminating read is `ctx.try_borrow::<Marker>(MARKER)`, which
+consults the override map first and the fixture second — it yields the returned
+`7` while the override is live and the fixture's `0` once cleanup has cleared
+it. Binding the run inside a block so the borrow ends, then reading, is what
+makes the assertion both compile and mean something. Both reads were then run
+against the broken guard: the fixture-cell read reported "clean", the
+`try_borrow` read reported `Some(7)` against an expected `Some(0)`. The test
+that shipped uses the second.
+
+**Rejected: a `#[cfg(test)]` gate slot in `drive_async`.** This was designed in
+full before the probe — a `Gates` struct threaded through `drive` as a new
+parameter, with futures awaited immediately before each step and after the loop.
+It was deleted unbuilt. It buys nothing the integration test does not, and it
+costs a test-only parameter in the driver's signature and a `#[cfg(test)]`
+await point in the shipping loop. Writing the seam first and the test second
+would have left that parameter in the code for the sake of a test that does not
+need it.
+
+**What is proven, stated precisely.** Cancellation while a real
+`StepExecutionMode::Async` handler's `run_async` future is in flight: the future
+is dropped, no `ScenarioOutcome` is produced, and synchronous scope cleanup
+still runs. That is INV-10's step case in full.
+
+**The hook cases (a) and (c) remain contingent on D2, and are unreachable rather
+than merely unwritten.** Under option (ii) there is no `Lifecycle` trait and no
+hook to cancel during; `NoHooks` exists precisely to be the defaulted parameter
+that keeps their arrival source-compatible. A plan cannot cancel during a hook
+that does not exist, so no test can discharge that row, and the plan already
+records it as contingent rather than discharged.
+
+**Where this lands against D24's three hardening requirements.** They were
+written for a harness that polls a future it did not otherwise exercise, and one
+of them changes shape here:
+
+1. **The progress witness is kept.** The gate future increments a counter inside
+   its own `poll`, and the harness's bounded loop returns only once that counter
+   is non-zero — so the test cannot proceed to the drop assertions on a run that
+   never reached the awaiting position. Without it, "no outcome was observed" is
+   true of any future dropped before `Ready`, correct or broken, and carries no
+   discriminating power. The test also asserts the gate was polled exactly once,
+   which is what makes "the drop probe fired exactly once" a statement about the
+   drop rather than about a re-poll.
+2. **The bounded poll loop is kept, and is *more* necessary than D24 thought.**
+   `Waker::noop`'s `RawWaker` ignores `wake` by definition, so a future that
+   registered interest and yielded would never be re-polled. The loop is what
+   makes the harness converge or fail loudly rather than hang.
+3. **The drop probe is owned by the gate future, not by the closure that builds
+   it**, and the test asserts it has *not* fired before the run is dropped and
+   *has* fired exactly once after. The "before" assertion is what stops a probe
+   that was never installed — or one that fired early, before the run held the
+   step — from satisfying the "after" assertion.
+
+**Two negative controls, and what each caught.** The first made
+`drive_async::execute` poll the handler future once, drop it while pending, and
+carry on as though it had returned `None`; the test failed with "the run reached
+`Ready` instead of parking at the gate", which is the intended reason, though it
+does not isolate the driver's `.await` propagation specifically — it shows only
+that the test notices a parked handler being discarded early. A stronger control
+against the driver is still outstanding and is recorded as such. The second made
+`CleanupGuard::drop` a no-op, and it caught the vacuity described above rather
+than a driver defect: the control was aimed at the driver and the finding was in
+the test.
+
+Date/Author: 2026-09-19, implementation agent.
+
 ## Outcomes & retrospective
 
 To be completed at EP-M5. Before marking this plan `COMPLETE`, reconcile every
@@ -2839,23 +2977,45 @@ run.
 
 - Method: a deterministic poll harness built on `std::task::Waker::noop()`.
 - Domain: cancellation during (a) the before hook, (b) a step handler, (c) the
-  after hook. (a) and (c) are contingent on D2.
-- Artefact: `crates/rstest-bdd/src/runner/tests/cancel.rs`.
+  after hook. (a) and (c) are contingent on D2, and under D2's option (ii) they
+  are **unreachable** rather than merely unwritten: there is no hook to cancel
+  during. (b) is discharged.
+- Artefact: `crates/rstest-bdd/tests/runner_cancel.rs` and its `cases` module.
+  The plan originally named `crates/rstest-bdd/src/runner/tests/cancel.rs`;
+  **D25 records why it moved** — reaching the registry at all aborts the
+  unit-test binary (D24), and D21's rule sends step-resolving runner tests to
+  `tests/`. D25 also withdraws D24's conclusion that the step case could only be
+  discharged by proxy.
 - Evidence and the three hardening requirements the review identified:
   1. **A progress witness is mandatory.** "No `ScenarioOutcome` was observed"
      is true of *any* future dropped before `Ready`, in every implementation,
      correct or broken, so it carries no discriminating power and must not be
-     counted as evidence. Each gate carries an `entered: Cell<bool>` set inside
-     its `poll`, asserted `true` **before** the drop assertions.
+     counted as evidence. The gate increments a poll counter inside its own
+     `poll`, and the harness returns only once it is non-zero, so the drop
+     assertions cannot run on a run that never reached the awaiting position.
+     The same counter is then asserted to be exactly one, so "the drop probe
+     fired once" is about the drop and not about a re-poll.
   2. **Poll in a bounded loop until the named gate reports entered**, not
-     exactly once. Case (c) reaches the after hook only if every step resolves
-     `Ready` on the first poll, which holds today purely because
+     exactly once. Case (c) would reach the after hook only if every step
+     resolved `Ready` on the first poll, which holds today purely because
      `execute_step_async` calls `run` synchronously for `Sync|Both` steps. One
      added `yield_now()` for fairness would silently turn case (c) into case
      (b) with every assertion still passing.
   3. **The gate's drop probe must be owned by the gate future, not by the
      closure that builds it**, or dropping the closure would satisfy the probe
-     assertion whether or not the gate was ever polled.
+     assertion whether or not the gate was ever polled. The test therefore
+     asserts the probe has *not* fired before the run is dropped and *has* fired
+     exactly once after.
+- Non-vacuity controls, both run against the shipped test:
+  1. **`drive_async::execute` discards the parked handler and proceeds**: the
+     test fails with "the run reached `Ready` instead of parking at the gate".
+     Recorded caveat: this shows the test notices an early-discarded handler; it
+     does not isolate the driver's `.await` propagation specifically.
+  2. **`CleanupGuard::drop` is made a no-op**: the test fails on the cleanup
+     assertion. This control was aimed at the driver and found a defect in the
+     test itself — the first version read the fixture cell, which
+     `insert_value` never writes, so it passed under a guard that cleared
+     nothing. See `Surprises & discoveries`.
 - Non-vacuity: a companion normal-completion case polls the same future to
   `Poll::Ready` and asserts the after hook ran exactly once, so the
   cancellation assertions are not passing merely because the hook is
@@ -4178,9 +4338,16 @@ INV-10 harness is sound: deterministic, executor-free, no new dependency
 ```
 
 The second case is INV-10's non-vacuity control. The review subsequently added
-three hardening requirements to INV-10 that this spike does **not** yet
-demonstrate — the per-gate `entered` witness, the bounded poll loop, and probe
-ownership — and those must be built into the real test.
+three hardening requirements to INV-10 that this spike did **not** demonstrate —
+the per-gate `entered` witness, the bounded poll loop, and probe ownership.
+**All three are now built into the shipped test** at
+`crates/rstest-bdd/tests/runner_cancel.rs`: the poll counter is asserted before
+any drop assertion, the harness polls in a bounded loop rather than once, and
+the drop probe is a field of the gate future rather than of the closure that
+builds it. Note also that this spike's premise was optimistic in a way that took
+three attempts to correct: it assumed the cancellation case could park *above*
+the registry, and D24 and D25 record why the real test registers a genuine
+`Async` step in an integration binary instead.
 
 **Spike 2 — the plan needs no lifetime.** `Cow<'static, str>` text with shared
 source paths.
