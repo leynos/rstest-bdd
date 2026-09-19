@@ -8,9 +8,11 @@ proceeds.
 
 Status: IN PROGRESS — Stage A closed on 2026-09-19; D2 option (ii), D3, and D10
 recorded as approved. EP-M1 is closed and gate-clean at `3a942230`; EP-M2 is
-closed and gate-clean; EP-M3 is in progress — its CodeRabbit round is cleared
-and the commit gates re-run green against the post-review revision, leaving
-only the named `cargo-mutants` control for INV-5.
+closed and gate-clean; EP-M3's gates and CodeRabbit round are cleared, and its
+named `cargo-mutants` control was run and found *vacuous* — 3 mutants, all
+unviable — so the obligation is re-scoped to the whole runner tree and read at
+EP-M5. A second CodeRabbit round (14 findings at `d15c1e84`) is being worked
+before EP-M3 is declared closed.
 
 ## Purpose / big picture
 
@@ -506,7 +508,7 @@ between them. Raise that before spending the tolerance.
   `runner/tests/surface/walk.rs` along its real seam, which is why the surface
   tests now report as `runner::tests::surface::walk::*`.
 
-- [~] EP-M2: synchronous runner, engine split, and the sequence properties.
+- [x] EP-M2: synchronous runner, engine split, and the sequence properties.
   *(2026-09-19) `runner_sequence_props.rs` is written, split, lint-clean and
   green: fifteen tests, all passing, against a full
   `cargo nextest run -p rstest-bdd` of `703 tests run: 703 passed, 7 skipped`.
@@ -542,7 +544,9 @@ between them. Raise that before spending the tolerance.
   `runner_panics.rs` already demonstrates. So the file is split by necessity
   rather than by preference: INV-1, INV-2, INV-3, and INV-12 land here, and
   only INV-5's clause remains EP-M3-bound, recorded in-file as such rather than
-  silently omitted. Recorded as partial rather than done for that one reason.*
+  silently omitted. That one clause was discharged at EP-M3, in
+  `runner_sequence_props/equivalence.rs`, so the entry is closed rather than
+  partial: there is nothing left outstanding against EP-M2.*
   **Opened 2026-09-19.** The first act was to revise D16, and it is done: see
   D18 in `Decision log` for why its `Stop(ScenarioFailure)` cannot express a
   permitted skip. D18's `StepDecision` is checked into
@@ -870,11 +874,23 @@ between them. Raise that before spending the tolerance.
     Neither is a substitute for the other, which is why the instruction to gate
     *before* requesting review is about ordering and not about redundancy.
 
-  - [ ] The `cargo-mutants` negative control for INV-5 over
-    `runner/engine/drive_async.rs` — the plan's named control for that
-    invariant. A bespoke mutation was run in its place and did catch the
-    property, which is evidence but not the same evidence: `cargo-mutants`
-    enumerates mutations this hand-picked one does not.
+  - [x] The named `cargo-mutants` control over `runner/engine/drive_async.rs`
+    was **run, and reported 3 mutants, all unviable** — so it produced no
+    evidence at all. This is recorded rather than counted as a pass, because
+    "3 unviable" reads like a clean result and is the opposite of one. The
+    cause is a design decision working as intended: every mutant in that file
+    replaces the function body with `Default::default()`, and neither
+    `ScenarioOutcome` nor `StepOutcome` nor `Terminal` implements `Default`, so
+    each mutation fails to compile (`error[E0277]: the trait bound
+    StepOutcome: Default is not satisfied`). The file was a poor choice of
+    instrument: `drive` and `execute` are thin drivers by construction (D6),
+    so the only whole-function replacements cargo-mutants generates for them
+    are ones the type system rejects. The named obligation is therefore
+    **re-scoped, not discharged**: the honest instrument is the whole runner
+    tree, which offers 151 mutants, and the survivor list for it is read at
+    EP-M5 per that milestone's conformance check. The bespoke mutation
+    recorded above remains the only mutation evidence specific to
+    `drive_async.rs` itself.
 - [x] ~~EP-M4: lifecycle hooks and the lifecycle matrix~~ — struck by D2
   option (ii).
 - [ ] EP-M5: documentation, snapshots, and the full gate.
@@ -1081,6 +1097,26 @@ between them. Raise that before spending the tolerance.
   the obligation is now carried by a `match` arm that returns `Err` and a test
   that would have to be deleted, not by a paragraph that a migration could
   overlook. Date/Author: 2026-09-19, implementation agent.
+
+- **Observation:** a mutation run can report success while testing nothing, and
+  the word it reports it with is "unviable". Evidence: the plan's named
+  `cargo-mutants` control over `runner/engine/drive_async.rs` returned
+  `3 mutants tested in 6m: 3 unviable` and exit code 0. Every mutant was
+  `replace <fn> -> T with Default::default()`, and `ScenarioOutcome`,
+  `StepOutcome`, and `Terminal` all deliberately omit `Default`, so each
+  mutation failed to compile and no test was ever run against a mutated tree.
+  The output is easy to misread in two ways at once: the exit code is zero, and
+  the summary line names a count that sounds like coverage. It is the exact
+  shape of vacuity the plan's own *Verification plan* section tells implementers
+  to look for — a verification that cannot fail when the implementation is
+  wrong — arriving in the plan's own control rather than in a test. Impact:
+  the probe was run against the wrong file, not the wrong way. Implementing
+  `Default` for three types to make an external tool's output tidier would be
+  backwards, and the file is genuinely thin by design (D6), so the honest
+  instrument is the whole runner tree at 151 mutants. The durable lesson is
+  that a mutation count is only evidence when it is decomposed: "unviable",
+  "missed", and "caught" say three different things, and only one of them is
+  a statement about the tests. Date/Author: 2026-09-19, implementation agent.
 
 - **Observation:** a plan can over-claim its own progress, and no deterministic
   gate can catch it. Evidence: D5's narrowed note asserted "the first is what
@@ -2948,6 +2984,99 @@ inside scope?", and that omission is the defect this entry names.
 
 Date/Author: 2026-09-19, implementation agent.
 
+### D28: the second CodeRabbit round, adjudicated finding by finding
+
+The second `coderabbit review --agent` pass at revision `d15c1e84` raised 14
+findings. They are recorded here individually because the round's shape matters
+as much as its outcome: four were accepted, three were declined with evidence,
+and the remaining seven were duplicates or restatements of those. Declining is
+recorded with the same care as accepting, because a decline that is not
+evidenced is indistinguishable from a finding that was ignored.
+
+**Accepted — findings 1, 2/13, 9/14, and 10/11.**
+
+Finding 1 corrected a false claim in `ScenarioSkip`'s doc: it said a later
+cleanup failure "upgrades the overall status to `Failed`". It does not. A
+panicking destructor during cleanup is caught and logged by the scope's cleanup
+guard and never reaches the outcome, because `ScenarioOutcome` carries exactly
+one failure channel — `cleanup_error` was dropped with the hooks under D2 option
+(ii). The doc was rewritten to say what the code does and to point at
+`ScenarioFailure` for the channels that exist. This is a doc-only correction,
+but it described a safety property the design deliberately does not have, which
+is the kind that misleads a caller into relying on it.
+
+Findings 2 and 13 (the same defect, raised twice) were accepted as a genuine
+violation rather than a style preference, on two independent authorities.
+`AGENTS.md` forbids holding a `Span::enter()` guard across `.await` in as many
+words, and this plan's own approved D14 already specifies the span as "entered
+in the sync driver and `Instrument`-ed in the async one". `drive_async` was
+holding an `Entered` guard across awaits, contradicting both. It now wraps the
+whole future in `Instrument`, with the policy event moved inside the
+instrumented future so the event carries the scenario's identity. The
+synchronous sibling keeps `entered`, because its body never suspends and so
+cannot observe the difference. The gap this exposed was larger than the finding:
+*grep* showed the async path had no instrumentation coverage at all, so a
+seventh test was added to assert it, driving the runner through a
+current-thread Tokio runtime.
+
+Findings 9 and 14 (also the same defect) asked for the capture to read field
+*values* rather than names. The file documented a reasoned decision to record
+names only, which would normally warrant a decline — but on checking, the stated
+reason was factually wrong: `Visit::record_debug` receives `&dyn Debug`, so one
+visitor renders every field type and no per-type visitor is needed. Since the
+premise was false the decision was re-made on its merits, and the gap was
+*proved* rather than asserted: injecting `index = index + 1` into the bypassed
+event failed exactly one test under the new capture and was invisible to the old
+one. See D14's verification entry for the details and for the `Option<u32>`
+rendering fact the change exposed.
+
+Findings 10 and 11 asked for `debug_assert!` to become `assert!` in
+`SourceLocation::new`, `new_static`, and `ScenarioPlanBuilder::at_line`. Accepted
+after checking feasibility rather than assuming it: a `rustc 1.98.1` probe
+confirmed `assert!` is const-evaluable, so the `const fn` constructor still
+works, and a call with a bad coordinate in a `const` context is a compile error
+rather than a runtime one. The clincher was that the doc comments already
+promised "failing loudly at the boundary" — a `debug_assert!` does not deliver
+that in a release build, which is the build where a frontend's off-by-one would
+be hardest to trace back. Finding 11 in particular asked to strengthen a guard
+that the *first* round had added, so the round-over-round history is that the
+same coordinate was tightened twice rather than left alone.
+
+**Declined — findings 3, 7, and 8.**
+
+Finding 3 asked that `StepContext` values be cleared between scenarios. It
+conflicts with three separate authorities: `clear_values`'s own documented
+contract, which states "there is no way to tell a caller's value from a step's
+once both are in the same map"; `scope.rs`'s statement that "Reusing one
+`StepContext` across scenarios is therefore **not supported**"; and Constraint 3
+of this plan. It also cites "the requested additive `PartialEq`/`Eq` derives",
+which exist nowhere in the plan or the code — a fabricated citation, and not the
+first from this tool, which has now twice cited text that was never written. A
+finding whose premise is invented cannot be actioned on its own terms.
+
+Finding 7 cited lines 2211-2212 as containing first-person prose that should be
+made impersonal. Those lines are D14 decision prose, and they are normative
+imperative, not first person. The only first-person text in the vicinity is a
+*quoted end-user question* — "why did my skip become a failure on CI but not
+locally" — which is a question a user would ask in the first person and which
+would be wrong to rewrite.
+
+Finding 8 asserted that the mutex in the property suite's witness lock is
+untested. The premise is already a reasoned decision stated in the file itself:
+"The lock covers the run only, so assertions are unsynchronized — which is
+correct, because assertions are the part that touches no global state." The
+finding restates the design as though it were an oversight.
+
+**The round's pattern, recorded for whoever reads the next one.** Two of the
+three declines rested on premises that were false or invented, and one of the
+two accepted defect-classes was raised twice under different numbers. The
+practical consequence is that a CodeRabbit finding is a prompt to check, not a
+conclusion to apply: the two findings that turned out to be *most* valuable
+(findings 2/13 and 9/14) were both framed as style objections and were only
+shown to be real defects by going to the code and the plan.
+
+Date/Author: 2026-09-19, implementation agent.
+
 ## Outcomes & retrospective
 
 To be completed at EP-M5. Before marking this plan `COMPLETE`, reconcile every
@@ -3622,25 +3751,50 @@ outputs; a per-step `trace!` carrying index, keyword, and resulting
 formatted message.
 
 - Method: capture the events with a hand-rolled `tracing::Subscriber` installed
-  per-thread with `set_default`, and assert each event's *field names* and
+  per-thread with `set_default`, and assert each event's *field values* and
   level.
-- Artefact: `crates/rstest-bdd/tests/runner_instrumentation.rs` for the six
+- Artefact: `crates/rstest-bdd/tests/runner_instrumentation.rs` for the seven
   tests, with the subscriber and its readers in the companion
   `runner_instrumentation/capture.rs`. The split is `module_max_lines`'s doing,
   not a design choice: the file was 469 lines and the cap is 400.
-- What the method cannot establish, and why that is acceptable: the field
-  *values* are not read back, because a `tracing` field's type is fixed at the
-  macro and reading one generically needs a visitor per type. The assertions
-  establish that each documented field is present and named as documented; the
-  values are established where they are decided, by the `engine/policy_tests`
-  and `runner/tests/outcome.rs` obligations above. The two halves meet here.
+- Amended at the second CodeRabbit round: the method was first recorded as
+  asserting *field names* only, on the reasoning that "a `tracing` field's type
+  is fixed at the macro and reading one generically needs a visitor per type".
+  That reasoning was false. The `Visit` trait hands the visitor a
+  `&dyn Debug` and a set of `record_*` methods, so one visitor renders every
+  field type into a `String` and the names-only restriction bought nothing. It
+  was not merely unnecessary but misleading: a name-only capture holds for a
+  runner that emitted `index + 1`, or that transposed two events' fields,
+  because presence is all it can witness. The capture now stores rendered
+  values in a `BTreeMap` and the assertions read them.
+- One rendering fact the values exposed, recorded because it is not guessable
+  from a field's declared type: `tracing` records an `Option<u32>` through its
+  *inner* type, so `line = plan.source_line()` renders as `"42"`, not
+  `"Some(42)"`. The assertion was first written from the declared type and the
+  capture corrected it.
+- What the method cannot establish, and why that is acceptable: the value's
+  *type*. Everything is rendered to a `String` on the way in, because that is
+  what a `Visit` hands over — so an assertion compares text, and the capture
+  cannot distinguish a field emitted as `0u32` from one emitted as `0u64`.
+  Neither matters for D14, which specifies what a field must hold rather than
+  how it is typed.
 - Non-vacuity: the `WARN`-filtered case asserts the terminal warning still
   arrives **and** that nothing lighter does, which is the control against a
   subscriber whose `enabled` ignores the level — without it every other
   assertion would hold for an ungated runner. Falsified at EP-M2 by deleting
   `allow_skipped` from the span, `location` from the failure warning, and
   `has_message` from the skip warning: each deletion failed exactly one named
-  test and nothing else.
+  test and nothing else. Falsified again at the second CodeRabbit round, against
+  the value-reading form, by emitting `index = index + 1` in the bypassed-step
+  event: exactly one test failed, reporting `("3", "Bypassed")` where
+  `("2", "Bypassed")` was required. That fault was invisible to the name-only
+  capture, which is what settled the amendment above.
+- The skip warning's "never the reason text" claim is asserted by searching
+  every captured value for the reason's distinctive literal, not by the absence
+  of a `message` field: `tracing` records an event's own format string as a
+  `message` field, so that field is always present and its absence would prove
+  nothing. A runner that logged the reason under some other field name would
+  still be caught.
 - D21 applies, and more sharply than the plan first recorded. The events are
   emitted from a driver, and observing them requires a run. A run in the
   unit-test binary can only ever fail to resolve, so `Passed` and `Skipped` —
@@ -4106,15 +4260,6 @@ and because three of them are API-shape questions the plan did not anticipate.
    step result — is preserved exactly; only the spelling that carried it
    changed, and it changed because LEM-1 and D6 could not both be honoured by
    the quoted signature.
-
-   **Settled at EP-M2 by D16 as revised by D18.** Worth noting against the
-   constraints listed above: the third one — the decision must express
-   "stop-for-skip versus stop-for-failure" — already demanded precisely the
-   split that D16 collapsed, and it is the constraint that catches D16's
-   defect. A single `Stop(ScenarioFailure)` cannot distinguish the two, because
-   the permitted-skip case has no failure to carry. So this point was not
-   merely under-specified; read carefully it *refutes* D16's payload, and it is
-   the earliest place in the plan where the contradiction was visible.
 
 Two rows of the module-layout table above were stale against D2 option (ii) and
 have been corrected in place. `runner/outcome/failure.rs` was listed as holding
