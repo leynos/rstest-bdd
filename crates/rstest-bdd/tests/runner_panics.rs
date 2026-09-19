@@ -39,7 +39,7 @@
 //! # Running these tests
 //!
 //! The deliberate panics are silenced by a process-global panic hook, which is
-//! why this binary's tests are serialised — see `runner_panics/mod.rs`. The
+//! why this binary's tests are serialized — see `runner_panics/mod.rs`. The
 //! silencing is confined to a [`panics::silenced`] window around each run, and
 //! never wraps an assertion; the module note explains why that confinement is
 //! load-bearing rather than tidy. Run it with
