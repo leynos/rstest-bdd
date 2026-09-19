@@ -30,10 +30,21 @@ use crate::runner::source::SourceLocation;
 #[non_exhaustive]
 pub enum ScenarioStatus {
     /// Every planned step ran and none failed.
+    ///
+    /// An empty plan also reports this, because running nothing is not itself
+    /// an error. [`ScenarioOutcome::into_harness_result`] is stricter and
+    /// rejects an empty plan; use that fold, not this status, to decide whether
+    /// a run should fail a suite.
     Passed,
     /// A step requested a skip.
     Skipped,
-    /// A step failed, or the plan was empty.
+    /// A step failed.
+    ///
+    /// Only a step failure sets this. An empty plan is *not* a failure here —
+    /// see [`Passed`](Self::Passed) — so a caller that treats this status as
+    /// "the run may proceed" is not misled by a malformed document that parsed
+    /// to no steps, provided it consults
+    /// [`ScenarioOutcome::into_harness_result`] for the success test.
     Failed,
 }
 
