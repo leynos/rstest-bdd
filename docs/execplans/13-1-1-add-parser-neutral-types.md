@@ -6,7 +6,8 @@ This ExecPlan (execution plan) is a living document. The sections
 `Conformance basis`, and `Verification plan` must be kept up to date as work
 proceeds.
 
-Status: DRAFT
+Status: IN PROGRESS — Stage A closed on 2026-09-19; D2 option (ii), D3, and
+D10 recorded as approved. Implementation begins at EP-M1.
 
 ## Purpose / big picture
 
@@ -413,11 +414,16 @@ between them. Raise that before spending the tolerance.
   further findings folded in. See `Surprises & discoveries` and `Decision log`.
 - [x] (2026-09-14) Four spikes compiled and run, validating the revised design.
   Transcripts in `Artefacts and notes`.
-- [ ] Stage A: maintainer approval of Decisions D2, D3, and D10.
+- [x] (2026-09-19) Stage A closed. The maintainer instructed that the
+  preliminary decisions be recorded as approved, so **D2 option (ii)**, **D3**,
+  and **D10** are approved as recommended. D2 option (ii) means EP-M4 is struck
+  and ADR-018's lifecycle matrix is discharged only in part; that deviation is
+  recorded under D2 and must be reflected in `docs/roadmap.md`.
 - [ ] EP-M1: source, plan, and outcome types.
 - [ ] EP-M2: synchronous runner, engine split, and the sequence properties.
 - [ ] EP-M3: asynchronous runner and cancellation.
-- [ ] EP-M4: lifecycle hooks and the lifecycle matrix (contingent on D2).
+- [x] ~~EP-M4: lifecycle hooks and the lifecycle matrix~~ — struck by D2
+  option (ii).
 - [ ] EP-M5: documentation, snapshots, and the full gate.
 
 ## Surprises & discoveries
@@ -576,7 +582,7 @@ between them. Raise that before spending the tolerance.
   Date/Author: 2026-09-14, planning agent.
 
 - **D2: lifecycle hooks — one `Lifecycle` trait, caller-supplied per run, no
-  global registry. THREE OPTIONS; REQUIRES MAINTAINER APPROVAL.**
+  global registry. THREE OPTIONS; APPROVED AS (ii) ON 2026-09-19.**
   ADR-018 makes the before-hook-failure and after-hook-failure rows of its
   lifecycle matrix binding, but no hook mechanism exists anywhere in the
   workspace and the design document still lists them as a candidate.
@@ -601,11 +607,21 @@ between them. Raise that before spending the tolerance.
   extension. Option (ii) costs almost nothing in forward compatibility and
   keeps the cancellation guarantee — which depends on `ScenarioScope`, not on
   hooks — fully intact. If (i) is chosen instead, D7 requires an ADR first.
-  Date/Author: 2026-09-14, planning agent. **Status: awaiting approval.**
+  Date/Author: 2026-09-14, planning agent.
+  **Status: APPROVED AS (ii) on 2026-09-19** — ship
+  `ScenarioScope<'ctx, 'fix, H = NoHooks>` with its defaulted type parameter
+  now; defer `Lifecycle`, `NoHooks`'s `impl`, `with_hooks`, `split`, the
+  `Before`/`After` variants of `ScenarioFailure`, and every hook row of INV-4,
+  INV-8, and INV-10. EP-M4 is struck. ADR-018's lifecycle-path matrix
+  (ADR-018-FR8) is **partially discharged**: its after/cleanup column still
+  holds, because scope cleanup is synchronous and unconditional, but its
+  before/after *hook* rows have no mechanism to exercise. That deviation must
+  be recorded in `docs/roadmap.md` under 13.1.1 as a follow-up, exactly as
+  `Outcomes & retrospective` requires.
 
 - **D3: the plan carries no lifetime. Text is `Cow<'static, str>`; source paths
-  are `SourcePath { Static(&'static str), Shared(Arc<str>) }`. REQUIRES
-  MAINTAINER APPROVAL.**
+  are `SourcePath { Static(&'static str), Shared(Arc<str>) }`. APPROVED ON
+  2026-09-19.**
   Rationale: ADR-018 leaves ownership open to this review and requires support
   for both statically generated and dynamically parsed scenarios "without
   requiring avoidable copies at every step". A lifetime-parameterized plan
@@ -629,7 +645,8 @@ between them. Raise that before spending the tolerance.
   a `.get(..)` plus a non-`unwrap` error path, because `indexing_slicing` is
   denied); and widening `execute_step`'s table parameter (blocked by
   Constraint 1 and by `StepFn` being the registry ABI the macro crate emits).
-  Date/Author: 2026-09-14, planning agent. **Status: awaiting approval.**
+  Date/Author: 2026-09-14, planning agent.
+  **Status: APPROVED on 2026-09-19.** No revision was requested.
 
 - **D4: the outcome's step sequence is complete independently of the
   `diagnostics` feature, and a gate leg must prove it.**
@@ -724,7 +741,7 @@ between them. Raise that before spending the tolerance.
   Date/Author: 2026-09-14, planning agent.
 
 - **D10: `fail_on_skipped` is resolved once, at `ScenarioScope` construction,
-  with an explicit per-run override. REQUIRES MAINTAINER APPROVAL.**
+  with an explicit per-run override. APPROVED ON 2026-09-19.**
   Rationale: ADR-018 fixes the resolution *order* — programmatic, then
   environment, then `false` — but not the *absence* of a per-run knob. Reading
   a process-global `AtomicU8` plus an environment variable from inside a
@@ -739,7 +756,8 @@ between them. Raise that before spending the tolerance.
   resolution order is preserved as the default. This makes INV-9 a type-level
   fact rather than a test, and gives frontends the per-run control ADR-018
   promises. Additive; no existing signature changes.
-  Date/Author: 2026-09-14, planning agent. **Status: awaiting approval.**
+  Date/Author: 2026-09-14, planning agent.
+  **Status: APPROVED on 2026-09-19.** No revision was requested.
 
 - **D11: the runner is panic-safe at its own boundary.**
   Rationale: Constraint 3 cannot rest on the existing `catch_unwind`, which
