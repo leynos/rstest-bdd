@@ -1389,10 +1389,11 @@ execution, centralizing policy decisions that were previously embedded in the
 codegen layer. This separation keeps macro-generated code lightweight and makes
 runtime behaviour easier to test independently.
 
-ADR 018 records the accepted future direction for parser-neutral plans and a
-canonical structured scenario runner built on this module. That direction is
-future roadmap work; this section describes the current execution module and
-does not claim that the parser-neutral plan or runner has been implemented.
+ADR 018 records the accepted design for parser-neutral plans and a canonical
+structured scenario runner built on this module. Stage 1 of that decision —
+§2.6.4's types and the two runners — has **landed**; the remaining staged work
+is the migration of the Gherkin frontend onto it and the lifecycle hooks, and
+is recorded in `docs/roadmap.md` under 13.1.1, 13.2.1 and 13.3.1.
 
 #### 2.6.1 Design rationale
 
@@ -1476,6 +1477,56 @@ fn __rstest_bdd_extract_skip_message(error: &ExecutionError) -> Option<Option<St
 
 This reduces generated code size and centralizes policy logic where it can be
 tested and modified without regenerating macro output.
+
+#### 2.6.4 The parser-neutral scenario runner
+
+`rstest_bdd::runner` is ADR-018's Stage 1. It executes a scenario the caller
+has already parsed, and it holds no frontend types: no `gherkin`, no Markdown,
+no Trymark, no process or reporter types. A non-Gherkin frontend therefore
+keeps its own source paths and line numbers all the way into the outcome.
+
+The surface is four groups of types and two functions.
+
+- **Source identity** — `SourcePath` and `SourceLocation`. `SourcePath` is an
+  opaque `Cow<'static, str>`: it is an identifier the frontend supplies, not a
+  filesystem path the runner will open. `SourceLocation` adds a one-based line
+  and an optional column, and its constructor rejects line zero in every
+  profile because the value reaches an outcome as a rendered `path:line`.
+- **The plan** — `ScenarioPlan`, its `StepInvocation` entries, and
+  `ScenarioPlanBuilder`, the single construction path. A plan is `Clone` and
+  `'static`; step text and tags are `Cow<'static, str>` so the macro path
+  borrows its literals while a dynamically parsed frontend owns its strings,
+  and either way the plan outlives the buffer it was parsed from. Fields are
+  private and the type is deliberately not `#[non_exhaustive]`: external
+  construction and exhaustive destructuring are already impossible, so the
+  attribute would add nothing.
+- **The outcome** — `ScenarioOutcome`, `ScenarioStatus`, `StepOutcome`,
+  `StepStatus`, `ScenarioSkip`, `ScenarioFailure`, `FailureSite`, `FailureKind`
+  and `ValueFate`. The outcome is opaque for the same reason: every payload
+  sits behind an accessor, and the status enums are fieldless, so a
+  representation change is not a breaking change to a caller's `match`.
+- **The scope** — `ScenarioScope` and its `NoHooks` default, which carry the
+  `StepContext` and the `fail_on_skipped` input into a run.
+- **The runners** — `run_scenario` and `run_scenario_async`, thin adapters over
+  `engine::drive_sync::drive` and `engine::drive_async::drive`.
+
+`engine/policy.rs` holds every decision a run makes; the drivers walk the plan
+and stop at the first terminal event, and contain no policy of their own. This
+is what makes the synchronous and asynchronous paths comparable rather than
+merely similar: both classify and assemble through the same code, and the
+property suite asserts that the two produce *equal outcomes* for a plan whose
+every step is registered in `StepExecutionMode::Both` (INV-5). The two loops
+themselves are deliberately not shared — see D23 in the ExecPlan — because the
+abstraction that would merge them is exactly the thing under test.
+
+Two contracts are worth stating here because they are choices rather than
+consequences. A step failure is **returned** in the outcome rather than
+unwound, so a panicking step body does not take a caller's harness down. And a
+run whose skip is permitted reports `ScenarioStatus::Skipped`, not a failure:
+`ScenarioOutcome::into_harness_result` is the one canonical place the
+`fail_on_skipped` policy is folded, and it also rejects a plan that parsed to
+no invocations. `is_passed` is deliberately not that fold, and the two disagree
+in the permitted-skip case.
 
 ### 2.7 Harness adapters and attribute policy plugins (ADR-005a, ADR-007)
 
@@ -3211,6 +3262,72 @@ Public APIs are re‑exported from `lib.rs`, so consumers continue to import fro
   - `greet` example function
 
 All modules use en‑GB spelling and include `//!` module‑level documentation.
+
+#### 3.11.1 The parser-neutral runner modules
+
+`runner/` follows the same convention. Its layout is what keeps the two runners
+comparable without sharing a loop:
+
+- `runner/mod.rs` — the public surface and the two entry points:
+  - `run_scenario`
+  - `run_scenario_async`
+  - re-exports of `outcome`, `plan`, `scope`, and `source`
+
+- `runner/source.rs` — frontend-supplied source identity:
+  - `SourcePath`
+  - `SourceLocation`
+
+- `runner/plan.rs` — the plan and its step invocations:
+  - `ScenarioPlan`
+  - `StepInvocation`
+
+- `runner/plan/builder.rs` — the single construction path:
+  - `ScenarioPlanBuilder`
+
+- `runner/outcome/mod.rs` — the terminal outcome:
+  - `ScenarioOutcome`
+  - `ScenarioStatus`
+  - `ScenarioSkip`
+
+- `runner/outcome/step.rs` — per-invocation records:
+  - `StepOutcome`
+  - `StepStatus`
+  - `ValueFate`
+
+- `runner/outcome/failure.rs` — the single failure channel:
+  - `ScenarioFailure`
+  - `FailureSite`
+  - `FailureKind`
+
+- `runner/scope.rs` — the context and skip-policy inputs:
+  - `ScenarioScope`
+  - `NoHooks`
+
+- `runner/engine/policy.rs` — every decision a run makes, and no I/O:
+  - `absorb`
+  - `classify`
+  - `assemble`
+
+- `runner/engine/drive.rs` — what both drivers would otherwise decide twice:
+  - the request view
+  - `record_step`
+
+- `runner/engine/drive_sync.rs` / `runner/engine/drive_async.rs` — the two
+  drivers: a `for` loop, an executor call, and a `break`, differing only in
+  whether the call is awaited.
+
+Every item in `engine/` is `pub(crate)` or `pub(super)`, and the module is
+private to `runner`. Publishing `classify`, `assemble`, `StepDecision`,
+`Terminal`, `SkipPolicy` or `Absorbed` would freeze a shape that exists to be
+refactored behind `run_scenario`, and none of it is adopted API.
+
+Two test modules are private to the crate's own build and must not be promoted
+to a public path: `runner/tests/` (the type-level obligations, which reach no
+registry) and `runner/engine/policy_tests/` (the policy obligations, which
+build a plan directly and need neither a `StepContext`, a registry, nor an
+`async` signature). A runner test that needs a step to *resolve* is an
+integration test under `crates/rstest-bdd/tests/`; the reason is D21, and
+`docs/developers-guide.md` states it for contributors.
 
 ### 3.12 Harness adapters and attribute plugins (ADR-005a)
 
