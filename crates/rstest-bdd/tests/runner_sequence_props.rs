@@ -140,7 +140,7 @@ fn collect_witnesses() -> Witnesses {
     let mut witnesses = Witnesses::default();
     check(|steps, arrangement| {
         let run = sequence::run_case(&steps, arrangement);
-        witnesses.record(&steps, &run);
+        witnesses.record(&steps, arrangement, &run);
         Ok(())
     });
     witnesses

@@ -130,6 +130,24 @@ impl Kind {
         matches!(self, Self::ReturnValue | Self::ReturnUnmatchedValue)
     }
 
+    /// Whether this kind's returned value is one a probe fixture can match.
+    ///
+    /// Narrower than [`Self::returns_a_value`], and the difference is not
+    /// cosmetic. [`Self::ReturnUnmatchedValue`] returns a type no fixture in
+    /// this suite holds, so `insert_value` can never insert it and an observer
+    /// can never see it — the name resolves to the fixture's own sentinel under
+    /// every driver, an eager one included. So it is *not* a producer for
+    /// INV-3's visibility clause: counting it as one would let a case whose
+    /// only later invocation was this kind set `observer_before_producer` on
+    /// evidence that discriminates nothing.
+    ///
+    /// [`Self::returns_a_value`] is still the right predicate for INV-12, which
+    /// is about recording a fate for every value a handler hands back — and
+    /// `NoMatch` is exactly the fate this kind produces.
+    pub(crate) const fn returns_a_matchable_value(self) -> bool {
+        matches!(self, Self::ReturnValue)
+    }
+
     /// Whether this kind's handler runs at all, and so logs its position.
     ///
     /// [`Self::MissingFixture`] fails fixture validation before its handler is

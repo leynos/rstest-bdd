@@ -20,11 +20,16 @@
 //!
 //! # Why the crafted subsets are built from [`Kind::ALL`]
 //!
-//! Each subset is assembled by filtering [`Kind::ALL`] for the members that
-//! supply what it witnesses, so a kind whose `returns_a_value` or
-//! `terminal_status` changed would be rebuilt into the subset that needs it
-//! rather than silently stop being drawn there. Writing them as literal kind
-//! lists would make that a silent omission instead.
+//! A shape names *what it witnesses* rather than which kind witnesses it. The
+//! producer is found by filtering [`Kind::ALL`] for a member that returns a
+//! value, and the terminal by filtering for the member whose declared
+//! classification is the one the shape names — so a kind whose
+//! `returns_a_value`, `terminal_status`, or `failure_kind` changed is rebuilt
+//! into the shape that needs it rather than silently stop being drawn there.
+//! Writing either as a literal kind would make that a silent omission instead,
+//! and the omission would be *vacuous*: a crafted shape that lost its terminal
+//! still satisfies every property, because a plan with nothing ending it never
+//! stops early. [`Terminal::asserted`] is what turns that into a panic.
 //!
 //! # Why the line is increasing
 //!
@@ -33,6 +38,7 @@
 //! clause on every plan longer than one.
 
 use proptest::prelude::*;
+use rstest_bdd::runner::{FailureKind, ScenarioStatus};
 
 use super::{Arrangement, Kind, MAX_STEPS, Step};
 
@@ -59,8 +65,8 @@ pub(crate) fn case() -> impl Strategy<Value = (Vec<Step>, Arrangement)> {
 /// the observer falls, so all three [`ValueFate`](rstest_bdd::runner::ValueFate)s
 /// stay reachable from these shapes rather than being pinned to one.
 ///
-/// The trailing `Handle` steps are there because a producer or observer at the
-/// very end of a plan is not enough on its own: INV-2's bypassed-trailing
+/// The trailing `lead` invocations are there because a producer or observer at
+/// the very end of a plan is not enough on its own: INV-2's bypassed-trailing
 /// clause and INV-1's "nothing runs past the terminal" clause both need an
 /// invocation *after* the one that ends the run.
 fn catalogue() -> impl Strategy<Value = Vec<Kind>> {
@@ -107,10 +113,68 @@ struct Shape {
     producers: usize,
     /// Whether to emit an observing invocation after the producers.
     observer: bool,
-    /// The kind that ends the run, at the end of the plan.
-    terminal: Option<Kind>,
+    /// The classification that ends the run, at the end of the plan.
+    terminal: Option<Terminal>,
     /// Non-value-returning invocations to emit first.
     lead: usize,
+}
+
+/// A terminal's classification, as the shape that names it.
+///
+/// A [`Kind`] would be the direct spelling and is rejected: the catalogue is
+/// meant to say what each crafted plan *witnesses* — a skip, a missing fixture,
+/// a panic, a handler error — and naming the classification keeps that intent
+/// while [`Terminal::kind`] resolves the kind from [`Kind::ALL`]. The four
+/// variants below are exactly `Skip` plus the kinds whose `failure_kind` is not
+/// `None`, and [`Terminal::asserted`] refuses to build a plan whose resolved
+/// kind is missing.
+///
+/// Spelling a `Kind` here instead would put a literal in the catalogue that no
+/// filter ties to `Kind::ALL`, which is the shape of omission the module
+/// documentation says the catalogue avoids.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Terminal {
+    /// A step that asks to be skipped.
+    Skip,
+    /// A step that resolves but declares a fixture the context lacks.
+    MissingFixture,
+    /// A step whose handler panics.
+    Panic,
+    /// A step whose handler returns an error.
+    HandlerError,
+}
+
+impl Terminal {
+    /// The kind this classification resolves to, or `None` if none does.
+    fn kind(self) -> Option<Kind> { Kind::ALL.into_iter().find(|kind| self.matches(*kind)) }
+
+    /// Whether `kind` is the kind this classification names.
+    fn matches(self, kind: Kind) -> bool {
+        match self {
+            Self::Skip => kind.terminal_status() == Some(ScenarioStatus::Skipped),
+            Self::MissingFixture => kind.failure_kind() == Some(FailureKind::MissingFixture),
+            Self::Panic => kind.failure_kind() == Some(FailureKind::Panic),
+            Self::HandlerError => kind.failure_kind() == Some(FailureKind::Assertion),
+        }
+    }
+
+    /// This classification resolved to a kind, or a report naming the gap.
+    ///
+    /// Called by `build`, because a classification whose only kind was removed
+    /// from [`Kind::ALL`] would otherwise build a plan that silently lost its
+    /// terminal — and a crafted shape with no terminal still passes every
+    /// property, since it satisfies them trivially.
+    fn asserted(self) -> Kind {
+        let Some(kind) = self.kind() else {
+            panic!(
+                "no kind in {KIND_ALL:?} classifies as {self:?}, so the crafted shape naming it \
+                 would build a plan with no terminal at all — which every property accepts \
+                 vacuously",
+                KIND_ALL = Kind::ALL
+            );
+        };
+        kind
+    }
 }
 
 /// The catalogue of crafted plans.
@@ -120,14 +184,14 @@ static VEC_OF_KINDS: &[Shape] = &[
         head: 0,
         producers: 1,
         observer: false,
-        terminal: Some(Kind::Skip),
+        terminal: Some(Terminal::Skip),
     },
     Shape {
         lead: 2,
         head: 1,
         producers: 1,
         observer: false,
-        terminal: Some(Kind::MissingFixture),
+        terminal: Some(Terminal::MissingFixture),
     },
     Shape {
         lead: 1,
@@ -141,22 +205,24 @@ static VEC_OF_KINDS: &[Shape] = &[
         head: 1,
         producers: 1,
         observer: true,
-        terminal: Some(Kind::Panic),
+        terminal: Some(Terminal::Panic),
     },
     Shape {
         lead: 1,
         head: 0,
         producers: 2,
         observer: true,
-        terminal: Some(Kind::HandlerError),
+        terminal: Some(Terminal::HandlerError),
     },
 ];
 
 /// Build a crafted plan from a shape.
 ///
-/// The producer is the first member of [`Kind::ALL`] that returns a value and
-/// the observer the first that is [`Kind::Observe`], so the plan survives a
-/// reordering of `ALL` and a change to which kind returns a value.
+/// The producer is the first member of [`Kind::ALL`] that returns a value, the
+/// terminal the member its [`Terminal`] classification names, and the observer
+/// [`Kind::Observe`] — which is asserted to be the only kind whose handler reads
+/// the probe. So the plan survives a reordering of `ALL` and a change to which
+/// kind returns a value or ends a run.
 fn build(shape: Shape) -> Vec<Kind> {
     let mut kinds: Vec<Kind> = vec![Kind::Pass; shape.lead + shape.head];
     let producer = Kind::ALL
@@ -167,10 +233,16 @@ fn build(shape: Shape) -> Vec<Kind> {
         kinds.push(producer);
     }
     if shape.observer {
+        // `Kind::Observe` is named rather than derived because there is no
+        // declared classification for "reads the probe" to filter on — and none
+        // is needed: its handler is the only step that records a reading, so a
+        // kind that stopped reading would leave INV-3's two visibility
+        // witnesses unsatisfiable and fail the suite loudly rather than
+        // silently.
         kinds.push(Kind::Observe);
     }
     if let Some(terminal) = shape.terminal {
-        kinds.push(terminal);
+        kinds.push(terminal.asserted());
     }
     kinds.truncate(MAX_STEPS);
     kinds
