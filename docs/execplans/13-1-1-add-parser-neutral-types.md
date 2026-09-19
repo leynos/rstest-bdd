@@ -7,8 +7,10 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 proceeds.
 
 Status: IN PROGRESS — Stage A closed on 2026-09-19; D2 option (ii), D3, and D10
-recorded as approved. EP-M1 is closed and gate-clean at `3a942230`; EP-M2 is in
-progress.
+recorded as approved. EP-M1 is closed and gate-clean at `3a942230`; EP-M2 is
+closed and gate-clean; EP-M3 is in progress — its CodeRabbit round is cleared
+and the commit gates re-run green against the post-review revision, leaving
+only the named `cargo-mutants` control for INV-5.
 
 ## Purpose / big picture
 
@@ -717,13 +719,18 @@ between them. Raise that before spending the tolerance.
   steps, the `#[when]` step, and the `outcome` helper — which is exactly where
   the rule bites, because it denies the closure form outside `#[test]` bodies
   while permitting it inside them. The fix is ADR-013's
-  `let ... else { panic!(..) }` shape, already used by `completeness.rs` and
-  `skip_parity.rs`; those two suites were clean for precisely that reason, so
-  the repo already contained the answer and the two outliers were mine. One
-  site needed a named scrutinee, because its diagnostic is built from the
-  `Result` rather than from a panic message and `let ... else` does expose the
-  scrutinee to the `else` block:
-  `let Ok(runtime) = built else { panic!("{built:?}") }`. Note also that
+  `let ... else { panic!(..) }` shape, which two sibling suites added earlier
+  in this same branch — `completeness.rs` and `skip_parity.rs` — already used,
+  and which they were clean for precisely that reason. The correction the first
+  draft of this entry needed: those two are *not* pre-existing files that the
+  new work broke faith with. All four suites are new here, so the idiom was
+  established and then missed in the same branch, and an entry that said "the
+  repo already contained the answer" would credit the wrong revision and make
+  the miss look like drift from an older convention rather than an
+  inconsistency introduced within one milestone. One site needed a named
+  scrutinee, because its diagnostic is built from the `Result` rather than from
+  a panic message and `let ... else` does expose the scrutinee to the `else`
+  block: `let Ok(runtime) = built else { panic!("{built:?}") }`. Note also that
   `lint-whitaker` aborts before `lint-python` and the six `scripts/check_*.py`
   checks run, so the earlier green `make lint` at `e6f92be4` had never covered
   them either; the re-run at `c3bc3147` is the first that did, and all of them
@@ -787,6 +794,82 @@ between them. Raise that before spending the tolerance.
     `check-fmt`, `lint` (Clippy *and* Whitaker), `typecheck`, `test`
     (2041 Rust tests, 244 Python), `spelling`, `markdownlint`, and `nixie`.
     See the Surprises entry on what the first run cost and why.
+  - [x] CodeRabbit's EP-M3 review round. `coderabbit review --agent` returned
+    exit 0 with no rate limit and 19 findings (0 high, 8 medium, 11 low). Every
+    finding was checked against the tree before being acted on, and three were
+    declined or corrected against the review's own reading. Two were
+    substantive defects rather than wording:
+    - **The async panic boundary had a hole** (finding 2). `(step.run_async)(..)`
+      sat *outside* `catch_unwind_future`, so a panic raised while *constructing*
+      the future escaped `execute_step_async` entirely — violating the contract
+      its own docs state. It is reachable, not theoretical: `step!`'s
+      four-argument form with `mode = StepExecutionMode::Async` registers
+      `__rstest_bdd_auto_async`, whose body is `future::ready($handler(..))`, so
+      the synchronous handler is evaluated eagerly. Fixed by adding
+      `unwind::guarded_async`, which wraps the construction in `catch_unwind` and
+      the polls in `catch_unwind_future`; `runner_panics.rs` gained an
+      end-to-end case and `execution/tests/unwind.rs` a unit-level one.
+    - **INV-9's literal claim was untested** (finding 1). `skip_parity.rs`
+      mutated the global *between* runs, never during one, so "mutating the
+      global from inside a step handler cannot change the run's answer" had no
+      test that mutated from inside a handler. Fixed by a step that flips the
+      policy and then skips, with the flip ordered *before* the skip so a lazy
+      re-read would be observable.
+    - **A near-blind scan** (finding 17). The runner-surface scan listed
+      `"StepExecution::"` and `"StepExecution "` to avoid matching the
+      legitimate `StepExecutionRequest`/`StepExecutionMode`, which missed every
+      generic position (`Vec<StepExecution>`, `Result<StepExecution>`) — where a
+      leaking signature would actually put it. Replaced with a right-boundary
+      rule.
+    - Nine further findings were documentation or rationale corrections (a
+      false `&'static str` claim, a stale EP-M2 paragraph, a cancellation
+      doc that named the wrong mechanism, a mis-attributed doc example, two
+      test-rationale claims that did not match what the tests did, and four
+      plan-text corrections).
+    - **Declined:** two findings proposed decomposing `collect` in
+      `tests/surface/walk.rs`. It is 24 lines at cognitive complexity 9 — *at*
+      the configured threshold of 12, not over it — and neither finding cited a
+      gate that fires. Recorded rather than applied, because a refactor on no
+      evidence is churn.
+  - [x] The commit gates re-run against the *post-review* revision. The first
+    run of that round was **red in three gates**, carrying four distinct
+    defects, and this time the masking was the interesting part: `lint` aborted
+    at Clippy and `check-fmt` at rustfmt, and because a Make recipe line that
+    shares a shell aborts the rest of the target, the later lines never ran. So
+    `check-fmt`'s `mdtablefix --check` and `lint`'s Whitaker, Ruff, PyLint,
+    Ambrleaks and five `scripts/check_*.py` steps were all unexercised. Each was
+    run standalone to establish its real status: every masked step was green
+    except `mdtablefix`. The four defects were two formatting, one lint, one
+    spelling.
+    - **rustfmt** in `tests/skip_parity.rs` — the new `step_at(..)` call ran
+      past the width limit. Fixed by letting `cargo +nightly-2026-08-07 fmt`
+      wrap it, rather than hand-wrapping, so the result is the formatter's own.
+    - **`mdtablefix --check`** wanted a whole-file reflow of this document,
+      `+38 -36`. Every changed line outside a table was a paragraph fill; no
+      content changed. Fixed with `--in-place` and verified by diffing the
+      result against a `/tmp` backup line-by-line with trailing whitespace
+      stripped, which is what shows that the 159 insertions are re-wrapping and
+      not text. Note this is a genuine gate and *not* the `make fmt` hazard: that
+      warning is about `mdtablefix --in-place` running across the **whole repo via
+      `--git`** and touching unrelated documents, and the same `--git` selection
+      here reported `121 files left unchanged`, so only this file moved.
+    - **`clippy::string_slice`** (denied crate-wide) in the new
+      `control_flow_leak`: the remainder was taken by indexing. The offset is
+      provably a char boundary, so the lint is a false positive in substance,
+      but `#[expect]` would not have been honest — `str::split_once` returns the
+      same slice with no index at all, so the fix removes the need for the
+      argument rather than suppressing it. The rewrite also drops `find`'s
+      separate match position, which is why it is shorter than the original.
+    - **`spelling`** rejected `generalises` in this document. Not a dictionary
+      gap — `typos.toml:935` maps that exact string to `generalizes`, so the
+      repository's en-GB-oxendict policy wants the `-ize` form here. Changed.
+
+    A second pattern is worth recording: the review round and the gate round
+    each found things the other could not. CodeRabbit found the two substantive
+    defects; the gates found four mechanical ones CodeRabbit did not mention.
+    Neither is a substitute for the other, which is why the instruction to gate
+    *before* requesting review is about ordering and not about redundancy.
+
   - [ ] The `cargo-mutants` negative control for INV-5 over
     `runner/engine/drive_async.rs` — the plan's named control for that
     invariant. A bespoke mutation was run in its place and did catch the
@@ -797,6 +880,54 @@ between them. Raise that before spending the tolerance.
 - [ ] EP-M5: documentation, snapshots, and the full gate.
 
 ## Surprises & discoveries
+
+- **Observation:** an "async" step can panic *before* its future exists, and the
+  panic boundary built for the poll does not see it. Evidence: `step!`'s
+  four-argument form with `mode = StepExecutionMode::Async` registers
+  `__rstest_bdd_auto_async` (`crates/rstest-bdd/src/registry/mod.rs:130`),
+  whose body is
+  `Box::pin(std::future::ready($handler(ctx, text, docstring, table)))`. That
+  call is evaluated *eagerly*, to build the future, so a handler panic happens
+  on the call and there is no future for `catch_unwind_future` to guard.
+  EP-M3's first revision wrapped only the poll, so that panic unwound straight
+  out of `execute_step_async` — the one failure case its own doc comment
+  promised it returned an error for. Impact: `unwind::guarded_async` now takes
+  two boundaries, one around the construction and one around the polls, and
+  `runner_panics.rs` has a case for each. The lesson generalizes past this
+  milestone: "catch the panic in the future" is only sound if the *call that
+  makes the future* cannot panic, and nothing in a function-pointer signature
+  says that. Worth noting that the sync path never had this gap — `guarded`
+  wraps the whole call — so the asymmetry was invisible in the sync tests that
+  shared the file.
+
+- **Observation:** a test can be about the right subject and still not exercise
+  its own claim. Evidence: `skip_parity.rs`'s two INV-9 tests both mutated
+  `config::fail_on_skipped` *between* runs. That does establish "the scope
+  reads the global once, at construction" — but INV-9's literal wording is
+  "mutating the global from inside a step handler cannot change the run's
+  answer", and no test in the file mutated from inside a handler. The
+  CodeRabbit review caught it, which is the useful part: a reviewer reading the
+  prose against the code noticed the antecedent was never established. Impact:
+  a third test with a step that flips the policy and then skips, ordered so the
+  flip precedes the skip — a lazy re-resolution reading the global at
+  record-build time would then see the new value and be caught. Confirmed by
+  mutation: making `assemble` re-resolve against the live global fails exactly
+  that test and no other.
+
+- **Observation:** a delimiter-based token list can be *almost* a boundary rule,
+  and the gap is where the interesting cases live. Evidence: the runner-surface
+  scan listed `"StepExecution::"` and `"StepExecution "` to avoid flagging the
+  legitimate `StepExecutionRequest` and `StepExecutionMode`. That catches the
+  variant-path spelling and the argument-position spelling, and misses
+  `Vec<StepExecution>`, `Result<StepExecution>`, and `Option<StepExecution>` —
+  the generic positions, which is where a leaking type would actually sit.
+  Impact: replaced with a right-boundary rule that reads the identifier
+  characters following each occurrence, so only the two legitimate completions
+  are exempt. The same review noted the scan's own `SELF` exemption used a bare
+  file name, which would have exempted *every* `surface.rs` in the tree; both
+  are now boundary-based rather than spelling-based. The general lesson is that
+  enumerating the spellings of a token is a losing game, while matching its
+  identifier boundary is not.
 
 - **Observation:** a unit test inside `rstest-bdd` cannot resolve *any* step,
   and this has nothing to do with the runner. Evidence:
@@ -2683,6 +2814,61 @@ finding was in the test.
 
 Date/Author: 2026-09-19, implementation agent.
 
+### D26: the async step boundary has two guards, and its token scan has boundaries rather than spellings
+
+**Decided 2026-09-19, clearing CodeRabbit's EP-M3 review.** Two changes, both
+of which replace an enumeration with a boundary.
+
+**The panic boundary.** `execute_step_async` guarded the *poll* of an async
+step's future and not the call that built it. The gap is reachable, not
+theoretical: the 4-argument `step!` form with an explicit `Async` mode
+registers a constructor whose body evaluates the handler eagerly. The fix is
+`unwind::guarded_async`, which takes two boundaries — `catch_unwind` around
+`(step.run_async)(..)` and `catch_unwind_future` around the polls — and maps
+both payloads through the same `from_payload`, so the two registration forms
+still cannot classify a panic differently.
+
+The function takes its `build` closure as `impl FnOnce() -> StepFuture<'ctx>`
+rather than inlining `AssertUnwindSafe(move || ..)` at the call site, and that
+is load-bearing. A closure literal handed straight to `AssertUnwindSafe` has
+its trait kind inferred from its body; it captures the context by mutable
+reference with a reborrow that would be legal on any call, so it is inferred
+`FnMut` — and an `FnMut` body may not return a reference outliving the call,
+which a future borrowing the context does. Compiled inline this fails to
+compile with "captured variable cannot escape `FnMut` closure body". The
+explicit `FnOnce` bound pins the kind and the future outlives the guard frame
+as it did before.
+
+**Rejected: catching only around the construction, or only around the poll.**
+Each leaves one of the two reachable panics unguarded, and the sync path —
+which has always wrapped the whole call in `guarded` — would then differ from
+the async path in a way nothing in the API surface announces. Both arms are now
+covered by name, with a test per arm.
+
+**The token scan.** INV-11's scan listed `"StepExecution::"` and
+`"StepExecution "` to avoid matching the two legitimate prefixed types. That
+catches two spellings and misses every generic position — `Vec<StepExecution>`,
+`Result<StepExecution>`, `Option<StepExecution>` — which is where a leaked type
+would actually appear in a signature. Replaced with `control_flow_leak`, which
+matches `StepExecution` and then reads the identifier characters that follow,
+exempting only `Mode` and `Request`. Underscores count as identifier
+characters, which the first draft of the rule got wrong:
+`char::is_alphanumeric` excludes `_`, so `StepExecution_State` would have been
+read as a bare mention and then not flagged.
+
+**Also corrected:** the scan's `SELF` exemption used the bare name
+`surface.rs`, which would have exempted every file of that name anywhere in the
+tree — so a nested `outcome/surface.rs` holding a frontend import would have
+been skipped while the scan reported a clean sweep. It is now the path relative
+to the runner root.
+
+**Declined: decomposing `collect` in `tests/surface/walk.rs`.** Two findings
+proposed it. The function is 24 lines at cognitive complexity 9 — at the
+configured threshold of 12, not over it — and neither finding cited a gate that
+fires. Recorded rather than applied.
+
+Date/Author: 2026-09-19, implementation agent.
+
 ## Outcomes & retrospective
 
 To be completed at EP-M5. Before marking this plan `COMPLETE`, reconcile every
@@ -3396,7 +3582,7 @@ itself is `engine::classify`, a total function from one step result to
   in duplicate, in the one place INV-1 exists to protect.
 - Method: parameterized unit tests on `engine::classify` and
   `engine::assemble`, with no registry involvement.
-- Artefact: `crates/rstest-bdd/src/runner/engine/policy_tests.rs`.
+- Artefact: `crates/rstest-bdd/src/runner/engine/policy_tests/mod.rs`.
 - Non-vacuity: the tests feed detail sequences no real registry could produce
   (for example a `Passed` after a `Failed`) and assert the functions remain
   total. That proves totality; it deliberately does **not** claim to prove the
@@ -3435,12 +3621,13 @@ All new code lives under `crates/rstest-bdd/src/runner/`, re-exported from
 | `runner/source.rs`             | `SourcePath`, `SourceLocation`                                                        |
 | `runner/plan.rs`               | `StepInvocation`, `ScenarioPlan`, accessors                                           |
 | `runner/plan/builder.rs`       | `ScenarioPlanBuilder`                                                                 |
-| `runner/outcome.rs`            | `ScenarioOutcome`, `ScenarioStatus`, `ScenarioSkip`, `Display`, `into_harness_result` |
+| `runner/outcome/mod.rs`        | `ScenarioOutcome`, `ScenarioStatus`, `ScenarioSkip`, `Display`, `into_harness_result` |
 | `runner/outcome/failure.rs`    | `ScenarioFailure`, `FailureSite`, `FailureKind`                                       |
 | `runner/outcome/step.rs`       | `StepOutcome`, `StepStatus`                                                           |
 | `runner/scope.rs`              | `ScenarioScope`, `CleanupGuard`, `NoHooks`                                            |
 | `runner/engine/mod.rs`         | A two-paragraph map of the split, and nothing else                                    |
 | `runner/engine/policy.rs`      | `classify`, `assemble` — every decision, no I/O, no `async`                           |
+| `runner/engine/drive.rs`       | What both drivers share: `TableView`, `request`, `record_step` (D23)                  |
 | `runner/engine/drive_sync.rs`  | The synchronous driver: resolve, execute, delegate                                    |
 | `runner/engine/drive_async.rs` | The asynchronous driver, identical but for `.await`                                   |
 | `runner/tests/`                | Unit tests, one file per invariant group                                              |
@@ -4399,7 +4586,7 @@ at 72 explaining what and why. Use the `commit-message` skill.
 
 - **Tests:** `make test` passes, including the new `--no-default-features` leg
   and `cargo test --doc`.
-- **Verification:** INV-1 to INV-16 and LEM-1 are each discharged by the named
+- **Verification:** INV-1 to INV-17 and LEM-1 are each discharged by the named
   artefact, each with its non-vacuity control present and passing.
 - **Mutation:** the nightly `cargo-mutants` lane's survivor list for
   `crates/rstest-bdd/src/runner/` has been read and every survivor either

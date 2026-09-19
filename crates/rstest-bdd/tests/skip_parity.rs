@@ -66,6 +66,37 @@ fn a_parity_step_skips() {
     rstest_bdd::skip!("parity wanted a skip");
 }
 
+/// A step that flips the global policy *from inside a handler*, then skips.
+///
+/// This is INV-9's literal antecedent. The other tests in this file mutate the
+/// global between runs, which shows that a scope reads it once at construction —
+/// but not that a mutation arriving *during* a run is ignored, because nothing
+/// in those runs mutates anything. Here the mutation and the skip happen in the
+/// same handler, with the run already in flight, so a driver that re-read the
+/// global at the point it builds the skip record would report a forced failure
+/// while the plan's own `allow_skipped` and the scope's resolved value both said
+/// otherwise.
+///
+/// The two calls are ordered deliberately: the flip happens *before* the skip,
+/// so a re-read at skip time would see the new value. Were the order reversed,
+/// this test would pass against a driver that re-reads and be vacuous.
+#[given("a parity step flips the policy and skips")]
+fn a_parity_step_flips_the_policy_and_skips() {
+    config::set_fail_on_skipped(true);
+    rstest_bdd::skip!("parity flipped the policy mid-run");
+}
+
+/// A plan whose single step flips the global and then skips.
+fn flipping_plan() -> rstest_bdd::runner::ScenarioPlan {
+    ScenarioPlanBuilder::new("Parity", "notes/parity.md")
+        .step_at(
+            StepKeyword::Given,
+            "a parity step flips the policy and skips",
+            3,
+        )
+        .build()
+}
+
 /// A plan with one skipping step, opted in to skipping or not.
 fn plan(allow_skipped: bool) -> rstest_bdd::runner::ScenarioPlan {
     ScenarioPlanBuilder::new("Parity", "notes/parity.md")
@@ -258,5 +289,68 @@ fn the_scopes_ambient_resolution_reads_the_global_once() {
     assert!(
         !tolerated.skip().is_some_and(ScenarioSkip::forced_failure),
         "with the global clear, the same plan must not be forced",
+    );
+}
+
+/// INV-9's literal claim: a flip from *inside* a step cannot change the
+/// in-flight run's answer.
+///
+/// The other INV-9 tests mutate the global between runs. This one mutates it
+/// during a run, from the handler, and then skips — so the driver's
+/// skip-record construction and the mutation are in the same execution. A
+/// driver that resolved policy lazily, at the point it renders the skip, would
+/// read the flipped value and report a forced failure even though the scope had
+/// already resolved `false`. That is exactly the defect the decision to resolve
+/// once (D10) exists to prevent, and nothing else in this file can observe it.
+///
+/// `allow_skipped` is left at its default (false) and `fail_on_skipped` is
+/// supplied explicitly as false, so the expected answer is "not forced" and the
+/// flipped global — had it been read — would have produced `true`. The
+/// direction matters: with both inputs true the row would agree under every
+/// candidate implementation.
+#[test]
+#[serial]
+fn a_policy_flip_inside_a_step_cannot_change_its_own_run() {
+    config::set_fail_on_skipped(false);
+    let mut ctx = StepContext::default();
+    let scope = ScenarioScope::new(&mut ctx).with_skip_policy(false);
+
+    let outcome = run_scenario(&flipping_plan(), scope);
+
+    // Read before clearing, so the assertion below is about the run and not
+    // about whether the restore happened.
+    let flipped_global = config::fail_on_skipped();
+    config::clear_fail_on_skipped_override();
+
+    assert!(
+        flipped_global,
+        "the handler must have actually flipped the global, or this test proves nothing about \
+         mid-run mutation",
+    );
+
+    assert_eq!(
+        outcome.status(),
+        ScenarioStatus::Skipped,
+        "the run still ends in a skip rather than a failure",
+    );
+    let Some(skip) = outcome.skip() else {
+        panic!("the run must carry a skip record: {outcome:?}");
+    };
+    assert!(
+        !skip.forced_failure(),
+        "the run resolved `fail_on_skipped = false` before the handler ran, so a driver that \
+         re-read the global while building this record would be observable here and only here",
+    );
+    assert!(
+        skip.allow_skipped(),
+        "the record's `allow_skipped` is the *effective* value — `plan_allows_skipping || \
+         !fail_on_skipped` — not the plan's raw flag. The plan left it false, so this being true \
+         is the scope's resolved `fail_on_skipped = false` showing through, and a driver that \
+         re-read the flipped global would compute `false || !true` and report false here",
+    );
+    assert_eq!(
+        skip.message(),
+        Some("parity flipped the policy mid-run"),
+        "the reason the handler gave must survive the flip",
     );
 }

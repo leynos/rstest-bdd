@@ -41,6 +41,7 @@ use rstest_bdd::{
 
 use crate::{
     MARKER,
+    MAX_POLLS,
     Marker,
     completing_plan,
     gate_drops,
@@ -135,11 +136,20 @@ fn a_run_left_alone_completes_and_produces_an_outcome() {
     let mut cx = Context::from_waker(waker);
     let mut run = Box::pin(run_scenario_async(&plan, scope));
 
-    let outcome = loop {
-        match run.as_mut().poll(&mut cx) {
-            Poll::Ready(outcome) => break outcome,
-            Poll::Pending => {}
-        }
+    // Bounded for the same reason the cancellation case's gate loop is:
+    // `Waker::noop`'s `RawWaker` ignores `wake`, so a run that suspended would
+    // be re-polled only here and this loop would spin forever rather than
+    // reporting. The plan's single step resolves without parking, so it
+    // completes on the first poll and the bound is a tripwire, not a budget.
+    let outcome = (0..MAX_POLLS).find_map(|_| match run.as_mut().poll(&mut cx) {
+        Poll::Ready(outcome) => Some(outcome),
+        Poll::Pending => None,
+    });
+    let Some(outcome) = outcome else {
+        panic!(
+            "the control's plan has one always-resolving step, so it must complete rather than \
+             staying pending for {MAX_POLLS} polls",
+        );
     };
 
     assert_eq!(

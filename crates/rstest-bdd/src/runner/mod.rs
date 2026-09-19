@@ -117,9 +117,12 @@ pub fn run_scenario<H>(
 /// # Cancellation
 ///
 /// Dropping the future cancels the run: no outcome is produced, and the
-/// awaited after hook is not guaranteed to have run. Synchronous scope cleanup
-/// still happens, because the future owns the scope — it is taken by value, so
-/// dropping the future drops the scope and runs the cleanup guard.
+/// in-flight step's own future is dropped where it stood. Synchronous scope
+/// cleanup still happens, because the future owns the scope — it is taken by
+/// value, so dropping the future drops the scope and runs the cleanup guard.
+/// That guard is what clears any step-returned fixture overrides, so a
+/// cancelled run does not leave the context half-written; the evidence is
+/// `tests/runner_cancel.rs`, which asserts both the drop and the cleanup.
 ///
 /// # Examples
 ///

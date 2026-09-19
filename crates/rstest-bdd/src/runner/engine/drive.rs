@@ -200,8 +200,10 @@ pub(super) fn bypassed(index: usize, invocation: &StepInvocation) -> StepOutcome
 /// A plan may omit the location entirely (D3 makes it optional), and the
 /// warning still has to be emitted for that run. `unknown` is used rather than
 /// an empty string so the field is visibly present-but-absent rather than
-/// looking like a rendering bug, and it is a `&'static str` so the field costs
-/// no allocation on the failure path.
+/// looking like a rendering bug. Both arms build a `String` — the located arm
+/// formats a path and a line into one, the unlocated arm copies the literal —
+/// so the return type is owned rather than borrowed, and the caller can hand it
+/// to the logging call without borrowing the invocation.
 fn location(invocation: &StepInvocation) -> String {
     invocation.source().map_or_else(
         || "unknown".to_owned(),

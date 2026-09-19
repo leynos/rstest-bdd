@@ -14,6 +14,17 @@
 //!
 //! This module is that boundary.
 //!
+//! # The async path needs two boundaries, not one
+//!
+//! [`guarded_async`] wraps both the call that *builds* an async step's future
+//! and the polls of the future it returns. That is not belt-and-braces: the two
+//! catch different panics. `step!`'s four-argument form with
+//! `mode = StepExecutionMode::Async` registers a constructor whose body is
+//! `future::ready(handler(..))`, so the synchronous handler is evaluated
+//! *eagerly* while the future is built, and a panic there happens before any
+//! poll exists to observe it. Catching only the poll would leave that unwind
+//! travelling out of `execute_step_async`, which documents the opposite.
+//!
 //! # The mapping is the wrapper's, deliberately
 //!
 //! [`guarded`] folds whatever escapes back into the *handler-shaped* result the
@@ -55,7 +66,15 @@ use std::{
     panic::{AssertUnwindSafe, catch_unwind},
 };
 
-use crate::{Step, StepError, StepExecution, panic_message, skip::SkipRequest};
+use crate::{
+    Step,
+    StepError,
+    StepExecution,
+    StepFuture,
+    panic_message,
+    panic_support::catch_unwind_future,
+    skip::SkipRequest,
+};
 
 /// Invoke a step handler behind the runner's panic boundary.
 ///
@@ -82,6 +101,41 @@ pub(super) fn guarded(
 ) -> Result<StepExecution, StepError> {
     match catch_unwind(AssertUnwindSafe(invoke)) {
         Ok(result) => result,
+        Err(payload) => from_payload(step, payload),
+    }
+}
+
+/// Build an async step's future behind the boundary, then catch its polls.
+///
+/// The asynchronous counterpart of [`guarded`], and it needs *two* boundaries
+/// rather than one. Calling `run_async` is itself a user-code call, and `step!`'s
+/// four-argument form with `mode = StepExecutionMode::Async` registers a
+/// constructor whose body is `future::ready(handler(..))` — the synchronous
+/// handler is evaluated *eagerly*, to build the future, so a panic there
+/// happens before any poll exists to catch it. Guarding only the poll would let
+/// that unwind travel straight out of `execute_step_async`, which documents
+/// that it returns an error for every failure case. The construction takes a
+/// synchronous `catch_unwind`; the polls take `catch_unwind_future`.
+///
+/// `build` is a plain `impl FnOnce` parameter rather than an inline
+/// `AssertUnwindSafe(move || ..)` at the call site, and that is required rather
+/// than merely tidier. A closure literal handed straight to `AssertUnwindSafe`
+/// gets its trait kind inferred from its body alone: it captures the context by
+/// mutable reference, reborrows are legal on every call, so it is inferred
+/// `FnMut` — and an `FnMut` body may not return a reference that outlives the
+/// call, which the future does. Compiled inline, this fails with "captured
+/// variable cannot escape `FnMut` closure body". An explicit `FnOnce` bound
+/// pins the kind, so the returned future is tied to the context's own lifetime
+/// and outlives the guard exactly as it would have without one.
+pub(super) async fn guarded_async<'ctx>(
+    step: &Step,
+    build: impl FnOnce() -> StepFuture<'ctx>,
+) -> Result<StepExecution, StepError> {
+    match catch_unwind(AssertUnwindSafe(build)) {
+        Ok(future) => match catch_unwind_future(future).await {
+            Ok(result) => result,
+            Err(payload) => from_payload(step, payload),
+        },
         Err(payload) => from_payload(step, payload),
     }
 }

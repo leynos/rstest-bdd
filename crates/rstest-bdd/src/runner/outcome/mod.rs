@@ -75,11 +75,8 @@ pub struct ScenarioSkip {
 impl ScenarioSkip {
     /// Construct a skip record.
     ///
-    /// The production caller is the runner's engine, which lands in EP-M2. In a
-    /// `cfg(test)` build the expectation is absent, so the unit tests that build
-    /// outcomes synthetically do not leave it unfulfilled; once EP-M2 constructs
-    /// skips it becomes unfulfilled in a normal build too, which fails the lint
-    /// until the attribute is deleted rather than lingering unnoticed.
+    /// The caller is the runner's engine, which builds one whenever an
+    /// invocation asks to be skipped.
     pub(crate) fn new(
         at: usize,
         message: Option<String>,

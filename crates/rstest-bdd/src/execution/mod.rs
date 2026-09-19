@@ -364,11 +364,10 @@ pub async fn execute_step_async(
     // registration forms cannot classify a panic differently.
     let result = match step.execution_mode {
         StepExecutionMode::Async => {
-            let future = (step.run_async)(ctx, request.text, request.docstring, request.table);
-            match crate::panic_support::catch_unwind_future(future).await {
-                Ok(result) => result,
-                Err(payload) => unwind::from_payload(step, payload),
-            }
+            unwind::guarded_async(step, || {
+                (step.run_async)(ctx, request.text, request.docstring, request.table)
+            })
+            .await
         }
         StepExecutionMode::Sync | StepExecutionMode::Both => guarded(step, || {
             (step.run)(ctx, request.text, request.docstring, request.table)

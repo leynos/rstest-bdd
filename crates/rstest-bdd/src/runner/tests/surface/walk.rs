@@ -95,7 +95,7 @@ fn collect(directory: &Dir, prefix: &str, scanned: &mut Scanned) {
                     "{relative}: the directory could not be opened: {error}"
                 )),
             }
-        } else if is_rust_source(&name) && name != SELF {
+        } else if is_rust_source(&name) && relative != SELF {
             // Reading the token list's own source would find the literal tokens
             // in it and report them as leaks.
             match directory.read_to_string(&name) {
@@ -108,8 +108,14 @@ fn collect(directory: &Dir, prefix: &str, scanned: &mut Scanned) {
     }
 }
 
-/// The parent module's file name, whose contents the walk must not read.
-const SELF: &str = "surface.rs";
+/// The parent module's own file, whose contents the walk must not read.
+///
+/// The path relative to the runner root, not the bare file name. A bare name
+/// would exempt *every* file called `surface.rs` anywhere in the tree, so a
+/// nested `outcome/surface.rs` holding a frontend import would be skipped and
+/// the scan would report a clean sweep of a file it never read — the exact
+/// silence this module exists to prevent.
+const SELF: &str = "tests/surface.rs";
 
 /// Whether a directory entry is a Rust source file.
 ///
