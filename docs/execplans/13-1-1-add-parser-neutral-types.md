@@ -1,13 +1,13 @@
 # Add parser-neutral scenario plan, outcome, and runner types (13.1.1)
 
-This ExecPlan (execution plan) is a living document. The sections
-`Constraints`, `Tolerances (exception triggers)`, `Risks`, `Progress`,
+This ExecPlan (execution plan) is a living document. The sections `Constraints`,
+`Tolerances (exception triggers)`, `Risks`, `Progress`,
 `Surprises & discoveries`, `Decision log`, `Outcomes & retrospective`,
 `Conformance basis`, and `Verification plan` must be kept up to date as work
 proceeds.
 
-Status: IN PROGRESS — Stage A closed on 2026-09-19; D2 option (ii), D3, and
-D10 recorded as approved. Implementation begins at EP-M1.
+Status: IN PROGRESS — Stage A closed on 2026-09-19; D2 option (ii), D3, and D10
+recorded as approved. Implementation begins at EP-M1.
 
 ## Purpose / big picture
 
@@ -52,8 +52,9 @@ assert_eq!(first.status(), StepStatus::Passed);
 assert_eq!(first.source().map(|s| s.line()), Some(43));
 ```
 
-Every line of that example compiles against the API specified in `Interfaces
-and dependencies`; a spike proving so is transcribed in `Artefacts and notes`.
+Every line of that example compiles against the API specified in
+`Interfaces and dependencies`; a spike proving so is transcribed in
+`Artefacts and notes`.
 
 The observable wins are:
 
@@ -218,10 +219,10 @@ These are hard invariants. Violating one requires escalation, not a workaround.
    wrapper, and a panicking value destructor during cleanup all produce a
    returned `ScenarioOutcome`. See D11.
 4. **The outcome's step sequence is total and ordered.** For every plan,
-   `outcome.steps().len() == plan.steps().len()`, entry `i` describes
-   invocation `i`, and every entry after a terminal event is `Bypassed`. This
-   holds identically with the `diagnostics` feature on and off, which requires
-   a gate leg that does not exist today (see D4).
+   `outcome.steps().len() == plan.steps().len()`, entry `i` describes invocation
+   `i`, and every entry after a terminal event is `Bypassed`. This holds
+   identically with the `diagnostics` feature on and off, which requires a gate
+   leg that does not exist today (see D4).
 5. **No new dependency.** `proptest`, `googletest`, `pretty_assertions`,
    `insta`, `rstest`, `serial_test`, `temp-env`, `tracing`, and `tokio` are
    already available to `crates/rstest-bdd`; nothing else may be added without
@@ -244,10 +245,11 @@ These are hard invariants. Violating one requires escalation, not a workaround.
    Dylint suite. The root `Cargo.toml` denies, among others, `unwrap_used`,
    `expect_used`, `indexing_slicing`, `missing_docs`,
    `missing_docs_in_private_items`, `missing_panics_doc`, and `unsafe_code`;
-   `clippy.toml` sets `cognitive-complexity-threshold = 12`. Three
-   consequences bind the implementation:
+   `clippy.toml` sets `cognitive-complexity-threshold = 12`. Three consequences
+   bind the implementation:
    - The engine may not index a slice. Use `.get(i)`, iterators, and `zip`.
-   - No `.unwrap()` or `.expect()` outside `#[cfg(test)]`. `allow-expect-in-tests`
+   - No `.unwrap()` or `.expect()` outside `#[cfg(test)]`.
+     `allow-expect-in-tests`
      does **not** cover helpers outside a `#[cfg(test)]` module or a `#[test]`
      function; use `let`-`else` with `panic!` there.
    - `unsafe_code` is denied, so the `ManuallyDrop` escape hatch is unavailable
@@ -276,8 +278,8 @@ would have tripped three of them before the second milestone, and a tolerance
 that fires immediately trains its reader to ignore all of them.
 
 - **Scope.** More than 36 files touched, or more than 4,500 net added lines
-  across the whole plan. The expected shape is roughly 11 new source files,
-  9 new test files, 1 feature file, snapshots, and 5 edited documents.
+  across the whole plan. The expected shape is roughly 11 new source files, 9
+  new test files, 1 feature file, snapshots, and 5 edited documents.
 - **Public interface.** Any change to an *existing* public signature, other
   than the one named exception in Constraint 1.
 - **Dependencies.** Any new entry in `[workspace.dependencies]` or in
@@ -300,105 +302,95 @@ between them. Raise that before spending the tolerance.
 ## Risks
 
 - **Risk: the lifecycle-hook surface is a permanent public commitment made
-  ahead of the ADR that should define it.**
-  Severity: high. Likelihood: high (already observed).
-  ADR-018 requires before- and after-scenario hooks "according to ADR 012";
-  ADR-012 defines none, and design document §2.7.6.5 still lists "first-class
-  world lifecycle hooks" as a *candidate*. Shipping `Lifecycle` now means
-  reconciling a per-run `&mut self` trait with a future global registry — a
-  change, not an extension.
-  Mitigation: D2 presents three options including a third the review surfaced,
-  under which `ScenarioScope<'ctx, H = NoHooks>` ships now with its defaulted
-  type parameter and the traits are deferred. That is source-compatible for
-  every caller writing `ScenarioScope::new(&mut ctx)`, so deferring costs
-  almost nothing in forward compatibility.
+  ahead of the ADR that should define it.** Severity: high. Likelihood: high
+  (already observed). ADR-018 requires before- and after-scenario hooks
+  "according to ADR 012"; ADR-012 defines none, and design document §2.7.6.5
+  still lists "first-class world lifecycle hooks" as a *candidate*. Shipping
+  `Lifecycle` now means reconciling a per-run `&mut self` trait with a future
+  global registry — a change, not an extension. Mitigation: D2 presents three
+  options including a third the review surfaced, under which
+  `ScenarioScope<'ctx, H = NoHooks>` ships now with its defaulted type
+  parameter and the traits are deferred. That is source-compatible for every
+  caller writing `ScenarioScope::new(&mut ctx)`, so deferring costs almost
+  nothing in forward compatibility.
 
 - **Risk: a returned outcome is dropped and a failure becomes invisible.**
-  Severity: high. Likelihood: medium.
-  Today a failure panics, so a human always sees it. Constraint 3 removes that
-  channel.
-  Mitigation: `#[must_use]` on `ScenarioOutcome` itself (which covers the
-  awaited async form, unlike `#[must_use]` on the function); exactly one
-  canonical fold, `into_harness_result`, documented as the only sanctioned
-  success test; `Display`; and `tracing` events on every terminal path. See D13
-  and D14.
+  Severity: high. Likelihood: medium. Today a failure panics, so a human always
+  sees it. Constraint 3 removes that channel. Mitigation: `#[must_use]` on
+  `ScenarioOutcome` itself (which covers the awaited async form, unlike
+  `#[must_use]` on the function); exactly one canonical fold,
+  `into_harness_result`, documented as the only sanctioned success test;
+  `Display`; and `tracing` events on every terminal path. See D13 and D14.
 
 - **Risk: a step-returned value silently fails to reach later steps.**
-  Severity: high. Likelihood: medium.
-  `insert_value` returns `InsertOutcome`, whose `NoMatch` variant emits no
-  warning at all. The existing generated loop discards it with
-  `let _ = ctx.insert_value(val)`, and a comment there wrongly claims both
-  dropped cases are logged.
-  Mitigation: INV-12 records the insertion outcome on `StepOutcome` and
-  requires `NoMatch` to be generated and classified by the property suite.
+  Severity: high. Likelihood: medium. `insert_value` returns `InsertOutcome`,
+  whose `NoMatch` variant emits no warning at all. The existing generated loop
+  discards it with `let _ = ctx.insert_value(val)`, and a comment there wrongly
+  claims both dropped cases are logged. Mitigation: INV-12 records the
+  insertion outcome on `StepOutcome` and requires `NoMatch` to be generated and
+  classified by the property suite.
 
 - **Risk: the sync and async runners are not equivalent for `Async`-mode steps,
-  and nothing says so.**
-  Severity: medium. Likelihood: high (already true).
+  and nothing says so.** Severity: medium. Likelihood: high (already true).
   `execute_step` calls `(step.run)` without consulting `execution_mode`. For an
   `Async`-registered step the generated wrapper's `run` either blocks on a
   fresh current-thread runtime or, if a runtime is already current, polls once
-  and returns an error if the future is pending.
-  Mitigation: AXIOM-2 is restated to its true scope; INV-15 documents and tests
-  the `Async`-under-`run_scenario` behaviour, including from inside a live
-  Tokio runtime.
+  and returns an error if the future is pending. Mitigation: AXIOM-2 is
+  restated to its true scope; INV-15 documents and tests the
+  `Async`-under-`run_scenario` behaviour, including from inside a live Tokio
+  runtime.
 
 - **Risk: `fail_on_skipped` tests interfere with each other, and doctests
-  cannot be serialized at all.**
-  Severity: medium. Likelihood: high.
-  The override is a process-global `AtomicU8` with an environment fallback.
+  cannot be serialized at all.** Severity: medium. Likelihood: high. The
+  override is a process-global `AtomicU8` with an environment fallback.
   `make test` runs nextest *and* `cargo test --doc --workspace`, and this is an
   edition-2024 workspace, where doctests are merged into one binary and run in
-  parallel. `#[serial]` cannot be applied to a doctest.
-  Mitigation: D10 moves the resolution into `ScenarioScope` construction, with
-  an explicit `with_skip_policy` override. That makes INV-9 true by
-  construction, removes `#[serial]` from most of the matrix, and makes
-  doctests safe.
+  parallel. `#[serial]` cannot be applied to a doctest. Mitigation: D10 moves
+  the resolution into `ScenarioScope` construction, with an explicit
+  `with_skip_policy` override. That makes INV-9 true by construction, removes
+  `#[serial]` from most of the matrix, and makes doctests safe.
 
 - **Risk: sync and async policy drift into two implementations.**
-  Severity: medium. Likelihood: medium.
-  Mitigation: `engine::classify` owns the stop decision so neither driver
-  branches on a step result, `engine::assemble` owns everything else, and one
-  `Lifecycle` trait whose async methods default to the sync ones makes hook
-  drift impossible by construction. INV-5 pins the rest, with its known gap
-  (async-only steps) recorded rather than glossed.
+  Severity: medium. Likelihood: medium. Mitigation: `engine::classify` owns the
+  stop decision so neither driver branches on a step result, `engine::assemble`
+  owns everything else, and one `Lifecycle` trait whose async methods default
+  to the sync ones makes hook drift impossible by construction. INV-5 pins the
+  rest, with its known gap (async-only steps) recorded rather than glossed.
 
 - **Risk: the new outcome types duplicate `rstest_bdd::reporting`.**
-  Severity: medium. Likelihood: medium.
-  There are in fact three overlapping models — the new one, `reporting`, and
-  the `BypassedScenario` diagnostics registry — and only the new one can
-  express failure at all: `reporting::ScenarioStatus` has exactly `Passed` and
-  `Skipped(SkippedScenario)`.
-  Mitigation: D5 names `runner` canonical, records the missing failure
-  representation as a 13.2.1 obligation, and lands a test-gated conversion at
-  EP-M2 as a structural smoke test.
+  Severity: medium. Likelihood: medium. There are in fact three overlapping
+  models — the new one, `reporting`, and the `BypassedScenario` diagnostics
+  registry — and only the new one can express failure at all:
+  `reporting::ScenarioStatus` has exactly `Passed` and
+  `Skipped(SkippedScenario)`. Mitigation: D5 names `runner` canonical, records
+  the missing failure representation as a 13.2.1 obligation, and lands a
+  test-gated conversion at EP-M2 as a structural smoke test.
 
 - **Risk: a bounded property test passes vacuously.**
-  Severity: medium. Likelihood: medium.
-  A generator that rarely produces terminal events, or one whose shortest cases
-  dominate, makes INV-1 and INV-2 trivially true.
-  Mitigation: every property test records `proptest` classification counters
-  and asserts each material class was reached; INV-13 forces the empty plan to
-  have a defined, non-silently-passing outcome; and negative controls are
-  provided by synthetic-input tests plus the repository's existing
-  `cargo-mutants` lane rather than by fault injection in production code (D12).
+  Severity: medium. Likelihood: medium. A generator that rarely produces
+  terminal events, or one whose shortest cases dominate, makes INV-1 and INV-2
+  trivially true. Mitigation: every property test records `proptest`
+  classification counters and asserts each material class was reached; INV-13
+  forces the empty plan to have a defined, non-silently-passing outcome; and
+  negative controls are provided by synthetic-input tests plus the repository's
+  existing `cargo-mutants` lane rather than by fault injection in production
+  code (D12).
 
 - **Risk: outline code size regresses at 13.2.1.**
-  Severity: low. Likelihood: medium.
-  The macro currently emits a `'static` 2-D `const` table for outlines. A plan
-  type containing `Vec` or `Arc` cannot appear in a `const`.
-  Mitigation: `SourcePath::Static` and `Cow::Borrowed` keep every *string* in
-  the plan const-constructible, so only the `Vec` spines cost anything; measure
-  with `cargo llvm-lines` at 13.2.1 and net it against the shared
-  `run_scenario` monomorphization, which should shrink per-test codegen.
+  Severity: low. Likelihood: medium. The macro currently emits a `'static` 2-D
+  `const` table for outlines. A plan type containing `Vec` or `Arc` cannot
+  appear in a `const`. Mitigation: `SourcePath::Static` and `Cow::Borrowed`
+  keep every *string* in the plan const-constructible, so only the `Vec` spines
+  cost anything; measure with `cargo llvm-lines` at 13.2.1 and net it against
+  the shared `run_scenario` monomorphization, which should shrink per-test
+  codegen.
 
 - **Risk: suite concurrency is capped by a non-`Send` future.**
   Severity: low for 13.1.1, high for 13.3.1. Likelihood: certain.
   `StepScopeGuard` is `!Send`, so `run_scenario_async`'s future is not `Send`
   and cannot be `tokio::spawn`ed. A frontend must use a current-thread runtime
-  or a thread-per-scenario runtime.
-  Mitigation: document it here and add a note to roadmap 13.3.1 so it is not
-  discovered empirically.
+  or a thread-per-scenario runtime. Mitigation: document it here and add a note
+  to roadmap 13.3.1 so it is not discovered empirically.
 
 ## Progress
 
@@ -427,27 +419,27 @@ between them. Raise that before spending the tolerance.
   `scripts/check_rs_file_lengths.py` exits 0 with no allowlist entry. Four
   public items were invented during implementation and are recorded in the
   Decision log: `ValueFate` (a projection of `InsertOutcome`, which cannot be
-  `Clone`/`Eq` and so cannot sit inside `StepOutcome`), and the
-  `EmptyPlan`/`ForcedSkip`/`EmptyPlan`-site trio that gives INV-13's fold an
-  error to return. `LifecycleError` and `ScenarioOutcome::cleanup_error()` were
-  dropped as corollaries of D2 option (ii).
+  `Clone`/`Eq` and so cannot sit inside `StepOutcome`), and the `EmptyPlan`/
+  `ForcedSkip`/`EmptyPlan`-site trio that gives INV-13's fold an error to
+  return. `LifecycleError` and `ScenarioOutcome::cleanup_error()` were dropped
+  as corollaries of D2 option (ii).
 - [x] (2026-09-19) EP-M1 gate closure: the full deterministic suite. The
   first `make lint` / `make test` / `make markdownlint` run failed on three
   unrelated-looking causes, all now resolved or explained; see
   `Surprises & discoveries`. In brief: (1) `make lint` failed with five Whitaker
   `no_std_fs_operations` findings in `runner/tests/surface.rs`, fixed by
   rewriting the scan onto `cap-std`'s `fs_utf8` API rather than by adding a
-  `dylint.toml` exclusion; (2) `make markdownlint` failed on one `-ise` spelling
-  in `outcome/failure.rs`, corrected to `-ize` per `typos.toml`; (3) a
+  `dylint.toml` exclusion; (2) `make markdownlint` failed on one `-ise`
+  spelling in `outcome/failure.rs`, corrected to `-ize` per `typos.toml`; (3) a
   `cargo-bdd` timeout in `make test` was shown to be environmental by an
   isolated re-run (94s against a 180s budget), so no change was made. The
   `surface.rs` rewrite additionally repaired a non-vacuity guard that had been
-  passing for the wrong reason, verified by mutation.
-  Closed against commit `85b5fabe`. All five gates ran to completion and
-  passed: `make check-fmt` (4s), `make lint` (17s), `make test` (611s),
-  `make markdownlint` (12s), `make nixie` (<1s). `make test` reported
-  `1944 tests run: 1944 passed, 7 skipped`, with 0 cancelled, 0 timed out and
-  0 failed; the doctest pass reported 172 passed / 0 failed, and pytest 234
+  passing for the wrong reason, verified by mutation. Closed against commit
+  `85b5fabe`. All five gates ran to completion and passed: `make check-fmt`
+  (4s), `make lint` (17s), `make test` (611s), `make markdownlint` (12s),
+  `make nixie` (<1s). `make test` reported
+  `1944 tests run: 1944 passed, 7 skipped`, with 0 cancelled, 0 timed out and 0
+  failed; the doctest pass reported 172 passed / 0 failed, and pytest 234
   passed. The `cargo-bdd::cli list_steps_runs` test that had previously been
   terminated at 180s now passed in 2.844s — a 63x margin, confirming the
   timeout was cold-cache and not a regression; the 78 tests it had cancelled
@@ -466,97 +458,92 @@ between them. Raise that before spending the tolerance.
 ## Surprises & discoveries
 
 - **Observation:** ADR-018 requires before- and after-scenario hooks "according
-  to ADR 012", but ADR-012 defines no hooks at all.
-  Evidence: ADR-012's *World lifecycle contract* describes only drop-based
-  cleanup performed by the generated test body; `rg 'before_scenario|
-  after_scenario|ScenarioScope'` returns no runtime matches; design document
-  §2.7.6.5 still lists "first-class world lifecycle hooks" among the *remaining
-  candidates*.
-  Impact: Decision D2, which needs explicit approval, and which the review
-  argued should be *deferred* rather than merely approved.
+  to ADR 012", but ADR-012 defines no hooks at all. Evidence: ADR-012's *World
+  lifecycle contract* describes only drop-based cleanup performed by the
+  generated test body; `rg 'before_scenario| after_scenario|ScenarioScope'`
+  returns no runtime matches; design document §2.7.6.5 still lists "first-class
+  world lifecycle hooks" among the *remaining candidates*. Impact: Decision D2,
+  which needs explicit approval, and which the review argued should be
+  *deferred* rather than merely approved.
 
 - **Observation:** `ScenarioScope::with_hooks` as first drafted does not
   compile. Moving a `&'ctx mut StepContext` out of a type that implements
   `Drop` is `E0713`, and `Drop` is load-bearing because cancellation safety
-  depends on it.
-  Evidence: `error[E0713]: borrow may still be in use when destructor runs`.
-  Impact: the destructor moves onto a private `CleanupGuard` field so
-  `ScenarioScope` itself is not `Drop`. Validated by Spike 4. Without this
-  finding an implementer would have hit the error on day one and might have
-  "fixed" it by removing the `Drop`, silently destroying the guarantee.
+  depends on it. Evidence:
+  `error[E0713]: borrow may still be in use when destructor runs`. Impact: the
+  destructor moves onto a private `CleanupGuard` field so `ScenarioScope`
+  itself is not `Drop`. Validated by Spike 4. Without this finding an
+  implementer would have hit the error on day one and might have "fixed" it by
+  removing the `Drop`, silently destroying the guarantee.
 
 - **Observation:** the first draft's justification for boxing the async hook
   futures was wrong. AFIT is stable from Rust 1.75, well below the MSRV of
   1.88, and nothing here is `dyn` — hooks are dispatched statically through
-  `H: Lifecycle`.
-  Evidence: Spike 3 compiles a trait with `async fn` defaults, a stateful
-  synchronous implementor, and an async-only implementor.
-  Impact: two heap allocations per run removed, and `Pin<Box<dyn Future>>` kept
-  out of a permanent public surface.
+  `H: Lifecycle`. Evidence: Spike 3 compiles a trait with `async fn` defaults,
+  a stateful synchronous implementor, and an async-only implementor. Impact:
+  two heap allocations per run removed, and `Pin<Box<dyn Future>>` kept out of
+  a permanent public surface.
 
 - **Observation:** a fully borrowed plan is not required, and dropping the
   lifetime deletes an entire risk, a tolerance, and a prototyping milestone.
   Evidence: Spike 2 builds a macro-style plan whose step text and tags are all
   `Cow::Borrowed` (no `String` allocated), parses a dynamic plan from a
-  non-`'static` buffer in one call, and outlives that buffer.
-  Impact: Decision D3 replaced. `OwnedScenarioPlan`, `PlanTable`, and the
-  two-call `invocations()`/`as_plan()` dance are all gone. The review
-  independently established that the two-call form was virally non-composable
-  (`E0515` prevents returning a `ScenarioPlan<'_>` from a helper), which would
-  have made it the primary API for exactly the audience this work exists for.
+  non-`'static` buffer in one call, and outlives that buffer. Impact: Decision
+  D3 replaced. `OwnedScenarioPlan`, `PlanTable`, and the two-call
+  `invocations()`/`as_plan()` dance are all gone. The review independently
+  established that the two-call form was virally non-composable (`E0515`
+  prevents returning a `ScenarioPlan<'_>` from a helper), which would have made
+  it the primary API for exactly the audience this work exists for.
 
 - **Observation:** `&'a [String]` for tags is not constructible from `const`
   data, so the first draft's EP-M1 allocation criterion was unsatisfiable and
-  the milestone would have failed its own gate.
-  Evidence: `String::from` is not `const`, so `static TAGS: [String; N]` cannot
-  exist.
-  Impact: tags are `Vec<Cow<'static, str>>`, which costs one `Vec` per scenario
-  and no string allocation on the macro path.
+  the milestone would have failed its own gate. Evidence: `String::from` is not
+  `const`, so `static TAGS: [String; N]` cannot exist. Impact: tags are
+  `Vec<Cow<'static, str>>`, which costs one `Vec` per scenario and no string
+  allocation on the macro path.
 
 - **Observation:** `ExecutionError` already carries public `feature_path` and
-  `scenario_name` fields, and the localized message renders them.
-  Evidence: `crates/rstest-bdd/src/execution/error/mod.rs` variants
-  `StepNotFound` and `HandlerFailed`, `MissingFixturesDetails`, and
+  `scenario_name` fields, and the localized message renders them. Evidence:
+  `crates/rstest-bdd/src/execution/error/mod.rs` variants `StepNotFound` and
+  `HandlerFailed`, `MissingFixturesDetails`, and
   `crates/rstest-bdd/i18n/en/rstest-bdd.ftl:28` —
-  `... (feature: { $feature_path }, scenario: { $scenario_name })`.
-  Impact: the first draft's Constraint 7 was unachievable. ADR-018
-  *Source-neutral diagnostics* already permits these legacy names during the
-  additive migration, so Constraint 7 is restated and D15 records the resulting
+  `... (feature: { $feature_path }, scenario: { $scenario_name })`. Impact: the
+  first draft's Constraint 7 was unachievable. ADR-018 *Source-neutral
+  diagnostics* already permits these legacy names during the additive
+  migration, so Constraint 7 is restated and D15 records the resulting
   user-visible wart and its follow-up.
 
 - **Observation:** `reporting::ScenarioStatus` has no failure representation at
-  all — only `Passed` and `Skipped(SkippedScenario)`.
-  Evidence: `crates/rstest-bdd/src/reporting/record.rs`. It works today only
-  because failure panics and the generated report guard suppresses recording
-  via `!std::thread::panicking()`.
-  Impact: 13.2.1 must *extend* `reporting`, not merely add a conversion. D5
-  records this so it is not discovered at migration time.
+  all — only `Passed` and `Skipped(SkippedScenario)`. Evidence:
+  `crates/rstest-bdd/src/reporting/record.rs`. It works today only because
+  failure panics and the generated report guard suppresses recording via
+  `!std::thread::panicking()`. Impact: 13.2.1 must *extend* `reporting`, not
+  merely add a conversion. D5 records this so it is not discovered at migration
+  time.
 
 - **Observation:** the first draft's `#[cfg(test)]` seeded-fault switch could
-  not have worked, and would have been dangerous if it had.
-  Evidence: INV-1's artefact is an integration test, which links the crate
-  compiled *without* `cfg(test)`; making the switch reachable would require a
-  Cargo feature, which feature unification can enable downstream, and whose
-  effect is "keep executing after a terminal event" — a total silent false
-  green shipped to users.
-  Impact: Decision D12. Negative controls become synthetic-input tests of the
-  assertion helpers plus the repository's existing nightly `cargo-mutants`
-  lane, which answers the same question adversarially and across every
-  mutation.
+  not have worked, and would have been dangerous if it had. Evidence: INV-1's
+  artefact is an integration test, which links the crate compiled *without*
+  `cfg(test)`; making the switch reachable would require a Cargo feature, which
+  feature unification can enable downstream, and whose effect is "keep
+  executing after a terminal event" — a total silent false green shipped to
+  users. Impact: Decision D12. Negative controls become synthetic-input tests
+  of the assertion helpers plus the repository's existing nightly
+  `cargo-mutants` lane, which answers the same question adversarially and
+  across every mutation.
 
 - **Observation:** `#[non_exhaustive]` on an enum does not protect the fields
-  of its variants.
-  Evidence: adding a field to an existing struct variant breaks every
-  downstream `match` that does not already write `..`.
-  Impact: the outcome is re-carved as an opaque struct with a fieldless
+  of its variants. Evidence: adding a field to an existing struct variant
+  breaks every downstream `match` that does not already write `..`. Impact: the
+  outcome is re-carved as an opaque struct with a fieldless
   `#[non_exhaustive] ScenarioStatus`. That also removed two real defects: a
   `Skipped { cleanup_error }` field that could never be inhabited, and the loss
   of the skip's `forced_failure` when an after-hook failure upgraded the status
   to `Failed`. See D9, validated by Spike 4.
 
 - **Observation:** the panic boundary the runner would rely on does not cover
-  what the runner will call.
-  Evidence: `catch_unwind` lives in macro-generated step wrappers only
+  what the runner will call. Evidence: `catch_unwind` lives in macro-generated
+  step wrappers only
   (`crates/rstest-bdd-macros/src/codegen/wrapper/emit/assembly/mod.rs`).
   Caller-supplied hooks, steps registered through the raw `step!` form — which
   is ADR-018's own extension story — and value destructors run during cleanup
@@ -567,54 +554,50 @@ between them. Raise that before spending the tolerance.
   unwinds — otherwise that row could not fail.
 
 - **Observation:** the first draft's claim that Cucumber's `AMBIGUOUS` status
-  maps onto an existing `ExecutionError` variant is false.
-  Evidence: the variants are `Skip`, `StepNotFound`, `MissingFixtures`, and
-  `HandlerFailed`; `find_step_with_metadata` returns a bare `Option` and
-  resolves ambiguity silently. `duplicate_steps()` exists only for
-  introspection.
-  Impact: `StepStatus` still stays at four variants, but on the honest ground
-  that it is `#[non_exhaustive]` and a `FailureKind` projection (INV-16) gives
-  reporters a stable classification without freezing `ExecutionError`.
+  maps onto an existing `ExecutionError` variant is false. Evidence: the
+  variants are `Skip`, `StepNotFound`, `MissingFixtures`, and `HandlerFailed`;
+  `find_step_with_metadata` returns a bare `Option` and resolves ambiguity
+  silently. `duplicate_steps()` exists only for introspection. Impact:
+  `StepStatus` still stays at four variants, but on the honest ground that it is
+  `#[non_exhaustive]` and a `FailureKind` projection (INV-16) gives reporters
+  a stable classification without freezing `ExecutionError`.
 
 - **Observation:** Gauge — a language-agnostic acceptance-test runner whose
   core owns execution and whose language runners supply steps — records an
   after-hook failure separately from a primary failure and does not let it
-  override one.
-  Evidence: `ProtoScenario.PreHookFailure` and `PostHookFailure` are distinct
-  fields, and a `ScenarioResult` can carry both.
-  Impact: independent corroboration for ADR-018's primary-versus-cleanup
-  distinction. It did not survive contact with D2 option (ii): a separate
-  `cleanup_error()` accessor has no producer while the hooks are deferred, and
-  as drafted it was ambiguous — a caller seeing `Some(_)` still could not tell
-  which failure was terminal, because `failure()` already carries that. The
-  distinction returns with the hooks; until then exactly one failure channel is
-  the honest shape. See the D2 note and D13.
+  override one. Evidence: `ProtoScenario.PreHookFailure` and `PostHookFailure`
+  are distinct fields, and a `ScenarioResult` can carry both. Impact:
+  independent corroboration for ADR-018's primary-versus-cleanup distinction.
+  It did not survive contact with D2 option (ii): a separate `cleanup_error()`
+  accessor has no producer while the hooks are deferred, and as drafted it was
+  ambiguous — a caller seeing `Some(_)` still could not tell which failure was
+  terminal, because `failure()` already carries that. The distinction returns
+  with the hooks; until then exactly one failure channel is the honest shape.
+  See the D2 note and D13.
 
 - **Observation:** `cucumber-rs`, the obvious Rust prior art, is *not*
-  parser-neutral in the type sense: its `Parser` trait's `Output` is a stream
-  of `gherkin::Feature`, so a non-Gherkin frontend must synthesize Gherkin AST
-  nodes.
-  Impact: that is exactly ADR-018's rejected Option B, corroborating the
+  parser-neutral in the type sense: its `Parser` trait's `Output` is a stream of
+  `gherkin::Feature`, so a non-Gherkin frontend must synthesize Gherkin AST
+  nodes. Impact: that is exactly ADR-018's rejected Option B, corroborating the
   accepted boundary. It also means there is no upstream type vocabulary worth
   copying.
 
 - **Observation:** Cucumber Messages collapses "deliberately skipped" and
-  "skipped because an earlier step failed" into one `SKIPPED` status.
-  Impact: ADR-018's separate `Skipped` and `Bypassed` is a deliberate
-  divergence and the better fit, because the two have different causes and the
-  runtime already distinguishes them.
+  "skipped because an earlier step failed" into one `SKIPPED` status. Impact:
+  ADR-018's separate `Skipped` and `Bypassed` is a deliberate divergence and
+  the better fit, because the two have different causes and the runtime already
+  distinguishes them.
 
 - **Observation:** `std::task::Waker::noop()` is stable and available at the
   MSRV of 1.88, and `crates/rstest-bdd/src/panic_support.rs` already uses this
-  harness shape in its own doctests.
-  Impact: INV-10 needs no new dependency.
+  harness shape in its own doctests. Impact: INV-10 needs no new dependency.
 
 - **Observation:** a milestone that ships types before their consumer cannot be
   `-D warnings` clean on its own, and the workspace's lint configuration forces
-  the resolution rather than merely permitting one.
-  Evidence: EP-M1's `StepOutcome::passed`/`skipped`/`failed`/`bypassed`,
-  `ScenarioOutcome::new`, `ScenarioSkip::new`, and the private `StepRecord` have
-  no production caller until EP-M2's engine, so `make lint` failed with
+  the resolution rather than merely permitting one. Evidence: EP-M1's
+  `StepOutcome::passed`/`skipped`/`failed`/`bypassed`, `ScenarioOutcome::new`,
+  `ScenarioSkip::new`, and the private `StepRecord` have no production caller
+  until EP-M2's engine, so `make lint` failed with
   `error: associated functions ... are never used`. `#[allow]` is unavailable —
   the workspace denies `allow_attributes` and
   `allow_attributes_without_reason` — so each carries
@@ -630,102 +613,102 @@ between them. Raise that before spending the tolerance.
 
 - **Observation:** D3's no-lifetime decision is enforced at the *builder's*
   signature, so a dynamic frontend must own every string it keeps — and the
-  compiler says so at the call site.
-  Evidence: EP-M1's parser test, written as a real parser over a borrowed `&str`
-  buffer, failed to compile with `E0521: borrowed data escapes outside of
-  function` on `step_at`, because `impl Into<Cow<'static, str>>` admits a
-  `&'static str` and an owned `String` but not a `&'buffer str`.
-  Impact: the first draft of that test asserted the opposite — that a parser
-  could hand borrowed slices straight to the builder — which the plan's own
-  `Cow<'static, str>` choice forbids. The test now copies at the parse and says
-  why: the error is the decision being enforced, not an obstacle. It is a
-  *compile*-time check living in a *runtime* test file, so the failure mode is a
-  build break in a later milestone, when a frontend is first written. Worth
-  knowing before that frontend is written.
+  compiler says so at the call site. Evidence: EP-M1's parser test, written as
+  a real parser over a borrowed `&str` buffer, failed to compile with
+  `E0521: borrowed data escapes outside of function` on `step_at`, because
+  `impl Into<Cow<'static, str>>` admits a `&'static str` and an owned `String`
+  but not a `&'buffer str`. Impact: the first draft of that test asserted the
+  opposite — that a parser could hand borrowed slices straight to the builder —
+  which the plan's own `Cow<'static, str>` choice forbids. The test now copies
+  at the parse and says why: the error is the decision being enforced, not an
+  obstacle. It is a *compile*-time check living in a *runtime* test file, so
+  the failure mode is a build break in a later milestone, when a frontend is
+  first written. Worth knowing before that frontend is written.
 
 - **Observation:** Whitaker's `no_std_fs_operations` lint reaches test code, and
   offers no test-only exemption — so a source-scanning *test* may not use
-  `std::fs` either.
-  Evidence: `make lint` on EP-M1 reported five `no_std_fs_operations` findings in
-  `crates/rstest-bdd/src/runner/tests/surface.rs` alone — the import, `read_dir`,
-  the iteration, `entry.path()`, and `read_to_string` — and failed the build.
-  Reading the lint's own source
+  `std::fs` either. Evidence: `make lint` on EP-M1 reported five
+  `no_std_fs_operations` findings in
+  `crates/rstest-bdd/src/runner/tests/surface.rs` alone — the import,
+  `read_dir`, the iteration, `entry.path()`, and `read_to_string` — and failed
+  the build. Reading the lint's own source
   (`~/.local/share/whitaker/crates/no_std_fs_operations/src/`) confirms the
   absence of any `allow-fs-read-in-tests` escape: the driver has no
   test-awareness at all. The lint *does* offer `excluded_paths`, a
-  module-scoped counterpart to `excluded_crates`.
-  Impact: three candidate remedies, and the choice matters. In-source
-  `expect`/`allow` attributes cannot suppress it (already recorded in
-  `docs/developers-guide.md`); excluding the whole `rstest_bdd` crate would
-  exempt the entire library from the workspace's filesystem policy, which is far
-  too broad; `excluded_paths = ["rstest_bdd::runner::tests"]` would work and is
-  narrowly scoped. The remedy taken is **none of these** — `surface.rs` now
-  reaches the tree through `cap-std`'s `fs_utf8` API, mirroring
+  module-scoped counterpart to `excluded_crates`. Impact: three candidate
+  remedies, and the choice matters. In-source `expect`/`allow` attributes
+  cannot suppress it (already recorded in `docs/developers-guide.md`);
+  excluding the whole `rstest_bdd` crate would exempt the entire library from
+  the workspace's filesystem policy, which is far too broad;
+  `excluded_paths = ["rstest_bdd::runner::tests"]` would work and is narrowly
+  scoped. The remedy taken is **none of these** — `surface.rs` now reaches the
+  tree through `cap-std`'s `fs_utf8` API, mirroring
   `crates/rstest-bdd-macros/src/validation/steps/tests/support.rs`. That keeps
-  the crate inside the policy rather than carving an exemption out of it, and it
-  needs no new `dylint.toml` entry. The general lesson for later milestones:
+  the crate inside the policy rather than carving an exemption out of it, and
+  it needs no new `dylint.toml` entry. The general lesson for later milestones:
   **any test that touches the filesystem must use `cap-std`**, and reaching for
   `excluded_paths` should be a deliberate, argued exception rather than the
   first idea.
 
 - **Observation:** converting that scan to `cap-std` exposed a latent weakness
-  in EP-M1's own non-vacuity guard, which had been passing for the wrong reason.
-  Evidence: `the_scan_finds_the_runner_tree` reduced each path to a bare file
-  name — `path.rsplit('/').next()` — and then asserted that the names contained
-  `"outcome"`. No file under `outcome/` has that name (`mod.rs`, `step.rs`,
-  `failure.rs`), so the expectation was satisfied incidentally by an *unrelated*
-  file, `runner/tests/outcome.rs`. It was a guard that named a directory and
-  then never checked one. Rewritten to compare whole relative paths, and
-  verified by mutation: with `child_path` altered to drop its prefix so every
-  key collapsed to a basename, the old guard **passed** while the new guard
-  **failed** with `expected the scan to reach outcome/failure.rs; found
-  ["builder.rs", "failure.rs", "mod.rs", ...]`.
+  in EP-M1's own non-vacuity guard, which had been passing for the wrong
+  reason. Evidence: `the_scan_finds_the_runner_tree` reduced each path to a
+  bare file name — `path.rsplit('/').next()` — and then asserted that the names
+  contained `"outcome"`. No file under `outcome/` has that name (`mod.rs`,
+  `step.rs`, `failure.rs`), so the expectation was satisfied incidentally by an
+  *unrelated* file, `runner/tests/outcome.rs`. It was a guard that named a
+  directory and then never checked one. Rewritten to compare whole relative
+  paths, and verified by mutation: with `child_path` altered to drop its prefix
+  so every key collapsed to a basename, the old guard **passed** while the new
+  guard **failed** with
+  `expected the scan to reach outcome/failure.rs; found
+  ["builder.rs", "failure.rs", "mod.rs", …]`.
   Impact: two corrections to the record. First, a passing test in EP-M1's own
-  inventory was not evidence of what it claimed, which is exactly the
-  vacuity the plan's `Verification plan` requires each obligation to argue
-  against — the guard now has a mutation witness. Second, an over-strong claim
-  in an intermediate doc comment was itself refuted and removed: I had written
-  that the old form "would not notice the recursion silently stopping a level
+  inventory was not evidence of what it claimed, which is exactly the vacuity
+  the plan's `Verification plan` requires each obligation to argue against —
+  the guard now has a mutation witness. Second, an over-strong claim in an
+  intermediate doc comment was itself refuted and removed: I had written that
+  the old form "would not notice the recursion silently stopping a level
   early", but a mutation that skipped the `outcome` directory *was* caught, by
   the separate `"step.rs"` expectation. The real defect was narrower — the
   directory expectation was satisfiable by a same-named file at the top level —
   and the comment now states only what was measured.
 
 - **Observation:** INV-15's premise is confirmed in the generated code, and the
-  two-case test it prescribes is exactly right.
-  Evidence: `crates/rstest-bdd-macros/src/codegen/wrapper/emit/mod.rs` lines
-  103-166. The sync wrapper first calls
+  two-case test it prescribes is exactly right. Evidence:
+  `crates/rstest-bdd-macros/src/codegen/wrapper/emit/mod.rs` lines 103-166. The
+  sync wrapper first calls
   `__rstest_bdd_tokio::runtime::Handle::try_current()`. If a runtime is already
   current it polls the future exactly once with `Waker::noop()` and maps
   `Poll::Pending` to a `StepError::ExecutionError` whose message ends
-  "multi-poll async steps are not supported under a harness — use `runtime =
-  \"tokio-current-thread\"` or an `async fn` scenario signature instead".
-  Otherwise it builds a `new_current_thread` runtime and drives the step under a
-  `LocalSet`.
-  Impact: the divergence INV-15 exists to document is real, is *not* reachable
-  from `execute_step` (which never consults `execution_mode`), and is decided one
-  layer down in macro-generated code. A multi-poll step therefore succeeds
-  outside a runtime and fails inside one, which is what the invariant's
-  non-vacuity requirement asks the two cases to distinguish. It also means the
-  test cannot be written against `execute_step` alone — it must go through a
-  registered `Async`-mode step, which EP-M2's `runner/tests/modes.rs` will need.
+  "multi-poll async steps are not supported under a harness — use
+  `runtime = \"tokio-current-thread\"` or an `async fn` scenario signature
+  instead". Otherwise it builds a `new_current_thread` runtime and drives the
+  step under a `LocalSet`. Impact: the divergence INV-15 exists to document is
+  real, is *not* reachable from `execute_step` (which never consults
+  `execution_mode`), and is decided one layer down in macro-generated code. A
+  multi-poll step therefore succeeds outside a runtime and fails inside one,
+  which is what the invariant's non-vacuity requirement asks the two cases to
+  distinguish. It also means the test cannot be written against `execute_step`
+  alone — it must go through a registered `Async`-mode step, which EP-M2's
+  `runner/tests/modes.rs` will need.
 
 - **Observation:** editing a tracked file *while a gate run is in flight*
   invalidates part of that run's evidence, even when the edits are innocent.
   Evidence: this plan was revised during EP-M1's gate closure to record the
   reconnaissance above. `make markdownlint` and `make nixie` both read
-  `docs/execplans/`, so their verdicts depend on file contents at the moment they
-  run, and the run's result no longer maps to a single tree revision.
-  Impact: a process rule rather than a code one. The plan is edited only between
-  gate runs, never during one; if a correction is urgent, it is made after the
-  run finishes and the affected gates are re-run. Where a gate has already been
-  read from its log and re-verified against the settled tree, that is recorded
-  explicitly rather than left to inference.
+  `docs/execplans/`, so their verdicts depend on file contents at the moment
+  they run, and the run's result no longer maps to a single tree revision.
+  Impact: a process rule rather than a code one. The plan is edited only
+  between gate runs, never during one; if a correction is urgent, it is made
+  after the run finishes and the affected gates are re-run. Where a gate has
+  already been read from its log and re-verified against the settled tree, that
+  is recorded explicitly rather than left to inference.
 
 - **Observation:** the shared `/tmp` gate-log filenames are a hazard when a
   sub-agent and the main conversation both run gates, because the second writer
-  silently overwrites the first writer's evidence.
-  Evidence: the gate-closure run delegated to `scrutineer` wrote its logs to
+  silently overwrites the first writer's evidence. Evidence: the gate-closure
+  run delegated to `scrutineer` wrote its logs to
   `/tmp/$ACTION-13-1-1-add-parser-neutral-types.out`, the naming convention
   this repository mandates. Before committing `85b5fabe` the main conversation
   ran `make markdownlint` and `make nixie` itself against the same filenames.
@@ -736,65 +719,63 @@ between them. Raise that before spending the tolerance.
   showed exactly one worktree on `13-1-1-add-parser-neutral-types`, the reflog
   for this worktree showed only this session's commits, and the plan hash
   `3c1345330e8db42b` matched `git show 85b5fabe:` byte for byte, so the logs
-  described two different runs against two different revisions.
-  Impact: the convention is a filename template, not a lock. Two writers
-  colliding on it can manufacture a false anomaly, and a *real* anomaly could
-  equally be dismissed as one. The resolution is to compare contents rather
-  than trust mtimes: a log's revision is established by reading it, and a log
-  whose verdict cannot be tied to a revision is not evidence. It also cost the
+  described two different runs against two different revisions. Impact: the
+  convention is a filename template, not a lock. Two writers colliding on it
+  can manufacture a false anomaly, and a *real* anomaly could equally be
+  dismissed as one. The resolution is to compare contents rather than trust
+  mtimes: a log's revision is established by reading it, and a log whose
+  verdict cannot be tied to a revision is not evidence. It also cost the
   scrutineer real analysis effort, so where a sub-agent is running the gates,
   the main conversation should not run those same targets concurrently, even
   read-only ones — the `make markdownlint` there was a verification, not an
   authoring act, and it still collided.
 
-- **Observation:** the spelling policy is `-ize`, not the `-ise` that the "en-GB"
-  label invites, and it catches prose written *about* the work as readily as the
-  work itself.
-  Evidence: after fixing `unrecognised` → `unrecognized` in
-  `outcome/failure.rs`, the very prose added to this plan to describe that fix
-  then failed the same gate with `error: materialise should be materialize`,
-  caught by running `typos` on the edited file directly rather than by waiting
-  for `make markdownlint`.
-  Impact: `typos.toml` lines 2127-2145 map a whole family — `recognisable`,
-  `recognised`, `organise`, `materialise`, and others — onto their `-ize` forms,
-  so this is a standing trap, not a one-off. The cheap defence is to run `typos`
-  on any file touched by a commit before requesting the gate, especially a plan
-  or doc where the surrounding prose has not been through review. Checking
-  locally first turned a gate failure into a one-word edit.
+- **Observation:** the spelling policy is `-ize`, not the `-ise` that the
+  "en-GB" label invites, and it catches prose written *about* the work as
+  readily as the work itself. Evidence: after fixing `unrecognised` →
+  `unrecognized` in `outcome/failure.rs`, the very prose added to this plan to
+  describe that fix then failed the same gate with
+  `error: materialise should be materialize`, caught by running `typos` on the
+  edited file directly rather than by waiting for `make markdownlint`. Impact:
+  `typos.toml` lines 2127-2145 map a whole family — `recognisable`,
+  `recognised`, `organise`, `materialise`, and others — onto their `-ize`
+  forms, so this is a standing trap, not a one-off. The cheap defence is to run
+  `typos` on any file touched by a commit before requesting the gate,
+  especially a plan or doc where the surrounding prose has not been through
+  review. Checking locally first turned a gate failure into a one-word edit.
 
 - **Observation:** the full `make test` run reported a `cargo-bdd` timeout that
-  is environmental, not a regression.
-  Evidence: `cargo-bdd::cli list_steps_runs` was terminated at 180.002s against
-  its per-test override, and the run then cancelled the remaining 78 tests. Run
-  in isolation it passes in 94.079s — comfortably inside the same 180s budget.
-  The full run competed for a cold build cache and the `cargo-spawning` test
-  group, which is capped at `max-threads = 1`.
-  Impact: nothing in EP-M1 touches `cargo-bdd`, so no change is warranted. Two
-  things to carry forward: a `make test` that reports this timeout should be
-  re-run in isolation before being believed, and because the timeout cancelled
-  78 tests, a run that ends this way has **not** exercised them — the green
-  result for those tests must come from a completed run, not from the cancelled
-  one.
+  is environmental, not a regression. Evidence:
+  `cargo-bdd::cli list_steps_runs` was terminated at 180.002s against its
+  per-test override, and the run then cancelled the remaining 78 tests. Run in
+  isolation it passes in 94.079s — comfortably inside the same 180s budget. The
+  full run competed for a cold build cache and the `cargo-spawning` test group,
+  which is capped at `max-threads = 1`. Impact: nothing in EP-M1 touches
+  `cargo-bdd`, so no change is warranted. Two things to carry forward: a
+  `make test` that reports this timeout should be re-run in isolation before
+  being believed, and because the timeout cancelled 78 tests, a run that ends
+  this way has **not** exercised them — the green result for those tests must
+  come from a completed run, not from the cancelled one.
 
 ## Decision log
 
 - **D1: put the new types in a new `rstest_bdd::runner` module, not in
-  `execution`, and not in `rstest-bdd-policy`.**
-  Rationale: `execution` is per-step and its name is load-bearing in published
-  documentation; `rstest-bdd-policy` exists only for definitions the proc-macro
-  crate needs without depending on the runtime, and the macro crate needs none
-  of these until 13.2.1 — when it will reference them through
-  `#path::runner::…`, exactly as it already does `#path::execution::…`.
-  Considered and rejected: `context::ScenarioScope`, which would keep ADR-012's
-  lifecycle model in one module but split the runner's own vocabulary across
-  two; and extracting `rstest-bdd-core` now, which ADR-018 defers (Option E).
-  Date/Author: 2026-09-14, planning agent.
+  `execution`, and not in `rstest-bdd-policy`.** Rationale: `execution` is
+  per-step and its name is load-bearing in published documentation;
+  `rstest-bdd-policy` exists only for definitions the proc-macro crate needs
+  without depending on the runtime, and the macro crate needs none of these
+  until 13.2.1 — when it will reference them through `#path::runner::…`,
+  exactly as it already does `#path::execution::…`. Considered and rejected:
+  `context::ScenarioScope`, which would keep ADR-012's lifecycle model in one
+  module but split the runner's own vocabulary across two; and extracting
+  `rstest-bdd-core` now, which ADR-018 defers (Option E). Date/Author:
+  2026-09-14, planning agent.
 
 - **D2: lifecycle hooks — one `Lifecycle` trait, caller-supplied per run, no
-  global registry. THREE OPTIONS; APPROVED AS (ii) ON 2026-09-19.**
-  ADR-018 makes the before-hook-failure and after-hook-failure rows of its
-  lifecycle matrix binding, but no hook mechanism exists anywhere in the
-  workspace and the design document still lists them as a candidate.
+  global registry. THREE OPTIONS; APPROVED AS (ii) ON 2026-09-19.** ADR-018
+  makes the before-hook-failure and after-hook-failure rows of its lifecycle
+  matrix binding, but no hook mechanism exists anywhere in the workspace and
+  the design document still lists them as a candidate.
   - **(i) Ship the trait now.** One `Lifecycle` trait with `before`/`after` and
     `before_async`/`after_async`, the async pair defaulting to the sync pair so
     the two cannot drift; `NoHooks` as the defaulted type parameter; hooks
@@ -816,70 +797,67 @@ between them. Raise that before spending the tolerance.
   extension. Option (ii) costs almost nothing in forward compatibility and
   keeps the cancellation guarantee — which depends on `ScenarioScope`, not on
   hooks — fully intact. If (i) is chosen instead, D7 requires an ADR first.
-  Date/Author: 2026-09-14, planning agent.
-  **Status: APPROVED AS (ii) on 2026-09-19** — ship
-  `ScenarioScope<'ctx, 'fix, H = NoHooks>` with its defaulted type parameter
-  now; defer `Lifecycle`, `NoHooks`'s `impl`, `with_hooks`, `split`, the
-  `Before`/`After` variants of `ScenarioFailure`, and every hook row of INV-4,
-  INV-8, and INV-10. EP-M4 is struck. ADR-018's lifecycle-path matrix
-  (ADR-018-FR8) is **partially discharged**: its after/cleanup column still
-  holds, because scope cleanup is synchronous and unconditional, but its
-  before/after *hook* rows have no mechanism to exercise. That deviation must
-  be recorded in `docs/roadmap.md` under 13.1.1 as a follow-up, exactly as
-  `Outcomes & retrospective` requires.
-  **Two interface consequences, established during EP-M1 (2026-09-19).** Both
-  types existed in the first draft *only* to describe hook failure, so with the
-  hooks deferred they have no producer and would be dead public surface:
+  Date/Author: 2026-09-14, planning agent. **Status: APPROVED AS (ii) on
+  2026-09-19** — ship `ScenarioScope<'ctx, 'fix, H = NoHooks>` with its
+  defaulted type parameter now; defer `Lifecycle`, `NoHooks`'s `impl`,
+  `with_hooks`, `split`, the `Before`/`After` variants of `ScenarioFailure`,
+  and every hook row of INV-4, INV-8, and INV-10. EP-M4 is struck. ADR-018's
+  lifecycle-path matrix (ADR-018-FR8) is **partially discharged**: its
+  after/cleanup column still holds, because scope cleanup is synchronous and
+  unconditional, but its before/after *hook* rows have no mechanism to
+  exercise. That deviation must be recorded in `docs/roadmap.md` under 13.1.1
+  as a follow-up, exactly as `Outcomes & retrospective` requires. **Two
+  interface consequences, established during EP-M1 (2026-09-19).** Both types
+  existed in the first draft *only* to describe hook failure, so with the hooks
+  deferred they have no producer and would be dead public surface:
   `LifecycleError` is not shipped at all, and
-  `ScenarioOutcome::cleanup_error()` is not shipped. `cleanup_error` also folded
-  ambiguously — a caller seeing `Some(_)` could not tell whether the primary
-  failure was the cleanup or a step, because `failure()` already carries the
-  terminal one. Removing it keeps exactly one failure channel
+  `ScenarioOutcome::cleanup_error()` is not shipped. `cleanup_error` also
+  folded ambiguously — a caller seeing `Some(_)` could not tell whether the
+  primary failure was the cleanup or a step, because `failure()` already
+  carries the terminal one. Removing it keeps exactly one failure channel
   (`failure()` / `into_harness_result()`), which is the property D13 exists to
   protect. `LifecycleError` returns with the hooks under a future ADR, as
   `&StepError` behind an opaque struct, exactly as the first draft had it.
 
 - **D3: the plan carries no lifetime. Text is `Cow<'static, str>`; source paths
   are `SourcePath { Static(&'static str), Shared(Arc<str>) }`. APPROVED ON
-  2026-09-19.**
-  Rationale: ADR-018 leaves ownership open to this review and requires support
-  for both statically generated and dynamically parsed scenarios "without
-  requiring avoidable copies at every step". A lifetime-parameterized plan
-  forces a dynamic frontend into either a self-referential type or a two-call
-  borrow dance that cannot be wrapped in a helper (`E0515`), and infects the
-  outcome — which must outlive the run — with a lifetime.
-  `Cow<'static, str>` gives the macro path `Cow::Borrowed` from `'static`
-  literals, so it allocates no string at all, and gives a dynamic frontend one
-  allocation per string, which any owned representation would also pay.
-  `SourcePath` adds a `Static` case so the macro path stays const-constructible
-  — which matters for the outline `const` table at 13.2.1 — and a `Shared`
-  case so a dynamic frontend allocates one path per scenario rather than one
-  per step. Both are `Clone`-cheap.
-  Considered: a fully borrowed `ScenarioPlan<'a>` plus an owned twin (the first
-  draft; rejected for the reasons above); `Cow<'a, str>` (still
-  lifetime-parameterized, so it solves nothing); a fully owned plan with `Arc`
-  strings (loses the macro path's zero-allocation property for no gain over
-  `Cow`); a generic `ScenarioPlan<S: PlanStorage>` (the type parameter infects
-  every signature and doubles the monomorphized code subject to the 400-line
-  and complexity-12 gates); an index-based string arena (every access becomes
-  a `.get(..)` plus a non-`unwrap` error path, because `indexing_slicing` is
-  denied); and widening `execute_step`'s table parameter (blocked by
-  Constraint 1 and by `StepFn` being the registry ABI the macro crate emits).
-  Date/Author: 2026-09-14, planning agent.
-  **Status: APPROVED on 2026-09-19.** No revision was requested.
+  2026-09-19.** Rationale: ADR-018 leaves ownership open to this review and
+  requires support for both statically generated and dynamically parsed
+  scenarios "without requiring avoidable copies at every step". A
+  lifetime-parameterized plan forces a dynamic frontend into either a
+  self-referential type or a two-call borrow dance that cannot be wrapped in a
+  helper (`E0515`), and infects the outcome — which must outlive the run — with
+  a lifetime. `Cow<'static, str>` gives the macro path `Cow::Borrowed` from
+  `'static` literals, so it allocates no string at all, and gives a dynamic
+  frontend one allocation per string, which any owned representation would also
+  pay. `SourcePath` adds a `Static` case so the macro path stays
+  const-constructible — which matters for the outline `const` table at 13.2.1 —
+  and a `Shared` case so a dynamic frontend allocates one path per scenario
+  rather than one per step. Both are `Clone`-cheap. Considered: a fully borrowed
+  `ScenarioPlan<'a>` plus an owned twin (the first draft; rejected for the
+  reasons above); `Cow<'a, str>` (still lifetime-parameterized, so it solves
+  nothing); a fully owned plan with `Arc` strings (loses the macro path's
+  zero-allocation property for no gain over `Cow`); a generic
+  `ScenarioPlan<S: PlanStorage>` (the type parameter infects every signature
+  and doubles the monomorphized code subject to the 400-line and complexity-12
+  gates); an index-based string arena (every access becomes a `.get(..)` plus a
+  non-`unwrap` error path, because `indexing_slicing` is denied); and widening
+  `execute_step`'s table parameter (blocked by Constraint 1 and by `StepFn`
+  being the registry ABI the macro crate emits). Date/Author: 2026-09-14,
+  planning agent. **Status: APPROVED on 2026-09-19.** No revision was requested.
 
 - **D4: the outcome's step sequence is complete independently of the
-  `diagnostics` feature, and a gate leg must prove it.**
-  Rationale: ADR-018 states "diagnostics or reporter configuration must not
-  change this sequence", whereas the generated code computes bypassed steps
-  only under `diagnostics_enabled()`. This is the plan's one deliberate
-  behavioural divergence from the existing loop, and it is the correct
-  direction: the outcome is data for the caller; the diagnostics registry stays
-  feature-gated. Because it is deliberate, it must be visible to a gate:
-  `make test` today never builds `rstest-bdd` without default features, so
-  EP-M5 adds a `--no-default-features -p rstest-bdd` leg. Without that leg the
-  divergence is untested by every gate the project runs.
-  Date/Author: 2026-09-14, planning agent.
+  `diagnostics` feature, and a gate leg must prove it.** Rationale: ADR-018
+  states "diagnostics or reporter configuration must not change this sequence",
+  whereas the generated code computes bypassed steps only under
+  `diagnostics_enabled()`. This is the plan's one deliberate behavioural
+  divergence from the existing loop, and it is the correct direction: the
+  outcome is data for the caller; the diagnostics registry stays feature-gated.
+  Because it is deliberate, it must be visible to a gate: `make test` today
+  never builds `rstest-bdd` without default features, so EP-M5 adds a
+  `--no-default-features -p rstest-bdd` leg. Without that leg the divergence is
+  untested by every gate the project runs. Date/Author: 2026-09-14, planning
+  agent.
 
 - **D5: `runner` is the canonical outcome model and does not depend on
   `reporting`; the conversion lands in `reporting`, test-gated, at EP-M2.**
@@ -890,38 +868,36 @@ between them. Raise that before spending the tolerance.
   `#[cfg(test)]`, so nothing is pulled into `runner` and no unused public
   function ships — is the cheapest possible proof that the two models are
   reconcilable, and it is what surfaced the missing failure representation.
-  Recorded 13.2.1 obligations: `reporting::ScenarioStatus` needs a failure
-  case; `BypassedScenario` needs tags and a reason that `ScenarioOutcome` does
-  not carry, which the caller still holds in the plan; and the report guard's
+  Recorded 13.2.1 obligations: `reporting::ScenarioStatus` needs a failure case;
+  `BypassedScenario` needs tags and a reason that `ScenarioOutcome` does not
+  carry, which the caller still holds in the plan; and the report guard's
   `thread::panicking()` suppression must be revisited for a runner that returns
-  instead of panicking.
-  Date/Author: 2026-09-14, planning agent.
+  instead of panicking. Date/Author: 2026-09-14, planning agent.
 
 - **D6: one set of pure decision functions, two thin drivers, and the stop
-  decision inside `engine::classify`.**
-  Rationale: Rust cannot express one loop that is both synchronous and
-  asynchronous without a macro-duplication crate (forbidden by the dependency
-  tolerance) or per-step boxing. Note that the async path *already* boxes —
-  `AsyncStepFn` returns `Pin<Box<dyn Future>>` — so the real argument against a
-  unified future-based loop is that it would impose a *new* box on the sync
-  path and would change what running an `Async`-mode step synchronously means.
-  The first draft factored only post-hoc assembly into `engine`, leaving the
-  stop decision in each driver's `break` — in duplicate, and in the one place
-  INV-1 exists to protect. `engine::classify(result) -> StepDecision` fixes
-  that: each driver's body becomes a `match` with no policy branch of its own,
-  which also keeps both under `cognitive-complexity-threshold = 12`.
-  Date/Author: 2026-09-14, planning agent.
+  decision inside `engine::classify`.** Rationale: Rust cannot express one loop
+  that is both synchronous and asynchronous without a macro-duplication crate
+  (forbidden by the dependency tolerance) or per-step boxing. Note that the
+  async path *already* boxes — `AsyncStepFn` returns `Pin<Box<dyn Future>>` —
+  so the real argument against a unified future-based loop is that it would
+  impose a *new* box on the sync path and would change what running an
+  `Async`-mode step synchronously means. The first draft factored only post-hoc
+  assembly into `engine`, leaving the stop decision in each driver's `break` —
+  in duplicate, and in the one place INV-1 exists to protect.
+  `engine::classify(result) -> StepDecision` fixes that: each driver's body
+  becomes a `match` with no policy branch of its own, which also keeps both
+  under `cognitive-complexity-threshold = 12`. Date/Author: 2026-09-14,
+  planning agent.
 
 - **D7: an ADR is required if D2 option (i) is *accepted*, not if it is
-  rejected.**
-  Rationale: the first draft had this backwards. Deferring hooks needs a
-  recorded deviation in this plan and the roadmap. *Introducing* a new public
-  extension point — `Lifecycle`, `NoHooks`, `ScenarioScope::with_hooks` — ahead
-  of the ADR that will define user-facing hook registration, ordering, and
-  duplicate detection is the decision that outlives its author and is hard to
-  reverse. Under option (i), raise an ADR amending ADR-018 and closing FR8's
-  dangling reference to ADR-012 before Stage C.
-  Date/Author: 2026-09-14, planning agent.
+  rejected.** Rationale: the first draft had this backwards. Deferring hooks
+  needs a recorded deviation in this plan and the roadmap. *Introducing* a new
+  public extension point — `Lifecycle`, `NoHooks`,
+  `ScenarioScope::with_hooks` — ahead of the ADR that will define user-facing
+  hook registration, ordering, and duplicate detection is the decision that
+  outlives its author and is hard to reverse. Under option (i), raise an ADR
+  amending ADR-018 and closing FR8's dangling reference to ADR-012 before Stage
+  C. Date/Author: 2026-09-14, planning agent.
 
 - **D8: no Kani and no Verus for this change.**
   Rationale: ADR-018 says so, and the review sharpened the reason. The logic
@@ -935,19 +911,19 @@ between them. Raise that before spending the tolerance.
   (feature lanes, process-global configuration), and no model checker finds a
   missing requirement. The residual risk therefore lives in AXIOM-1 to AXIOM-7
   and in what the caller does with the outcome; the tools that pay there are
-  `cargo-mutants`, already in CI, and 13.2.1's dual-path corpus.
-  Date/Author: 2026-09-14, planning agent.
+  `cargo-mutants`, already in CI, and 13.2.1's dual-path corpus. Date/Author:
+  2026-09-14, planning agent.
 
 - **D9: `ScenarioOutcome` is an opaque struct with a fieldless
-  `#[non_exhaustive] ScenarioStatus`, and failure is one sum type.**
-  Rationale: the first draft's `#[non_exhaustive]` enum with public struct
-  variants froze its representation while appearing not to, because
-  `#[non_exhaustive]` on an enum protects only the addition of *variants*. The
-  carve was also wrong on the merits: `steps` appeared in all three variants
-  and is not variant-specific at all; `Skipped { cleanup_error }` could never
-  be inhabited, because INV-8 upgrades a cleanup failure after a skip to
-  `Failed`; and that upgrade discarded the skip's `at`, `message`, and
-  `forced_failure`, forcing a caller to rescan `steps` and recompute
+  `#[non_exhaustive] ScenarioStatus`, and failure is one sum type.** Rationale:
+  the first draft's `#[non_exhaustive]` enum with public struct variants froze
+  its representation while appearing not to, because `#[non_exhaustive]` on an
+  enum protects only the addition of *variants*. The carve was also wrong on
+  the merits: `steps` appeared in all three variants and is not
+  variant-specific at all; `Skipped { cleanup_error }` could never be
+  inhabited, because INV-8 upgrades a cleanup failure after a skip to `Failed`;
+  and that upgrade discarded the skip's `at`, `message`, and `forced_failure`,
+  forcing a caller to rescan `steps` and recompute
   `!allow_skipped && fail_on_skipped` — the duplicated policy ADR-018 exists to
   abolish. Separately, `FailureSite` and `ScenarioError` as independent fields
   admitted contradictory states such as `site: Before` with a step error. One
@@ -956,28 +932,26 @@ between them. Raise that before spending the tolerance.
   `LifecycleError` is opaque so the internal `Arc` stays a free implementation
   choice. `ExecutionError` and `MissingFixturesDetails` gain `PartialEq`/`Eq`
   (additive; see Constraint 1) so INV-5 compares whole outcomes rather than a
-  handwritten projection that could itself omit the differing field.
-  Validated by Spike 4.
-  Date/Author: 2026-09-14, planning agent.
+  handwritten projection that could itself omit the differing field. Validated
+  by Spike 4. Date/Author: 2026-09-14, planning agent.
 
 - **D10: `fail_on_skipped` is resolved once, at `ScenarioScope` construction,
-  with an explicit per-run override. APPROVED ON 2026-09-19.**
-  Rationale: ADR-018 fixes the resolution *order* — programmatic, then
-  environment, then `false` — but not the *absence* of a per-run knob. Reading
-  a process-global `AtomicU8` plus an environment variable from inside a
-  library entry point is the wrong contract for the external-frontend use case
-  that motivated the ADR, and it is the sole reason INV-6 and INV-9 would need
-  `#[serial]` and `temp-env` at all. It is also unworkable for Constraint 10's
-  mandatory doctests: this is an edition-2024 workspace, `make test` runs
+  with an explicit per-run override. APPROVED ON 2026-09-19.** Rationale:
+  ADR-018 fixes the resolution *order* — programmatic, then environment, then
+  `false` — but not the *absence* of a per-run knob. Reading a process-global
+  `AtomicU8` plus an environment variable from inside a library entry point is
+  the wrong contract for the external-frontend use case that motivated the ADR,
+  and it is the sole reason INV-6 and INV-9 would need `#[serial]` and
+  `temp-env` at all. It is also unworkable for Constraint 10's mandatory
+  doctests: this is an edition-2024 workspace, `make test` runs
   `cargo test --doc --workspace --all-features`, doctests are merged into one
   parallel binary, and `#[serial]` cannot be applied to a doctest.
   `ScenarioScope::new` therefore calls `config::fail_on_skipped()` once and
   stores the result, and `with_skip_policy(bool)` overrides it. The ADR's
   resolution order is preserved as the default. This makes INV-9 a type-level
   fact rather than a test, and gives frontends the per-run control ADR-018
-  promises. Additive; no existing signature changes.
-  Date/Author: 2026-09-14, planning agent.
-  **Status: APPROVED on 2026-09-19.** No revision was requested.
+  promises. Additive; no existing signature changes. Date/Author: 2026-09-14,
+  planning agent. **Status: APPROVED on 2026-09-19.** No revision was requested.
 
 - **D11: the runner is panic-safe at its own boundary.**
   Rationale: Constraint 3 cannot rest on the existing `catch_unwind`, which
@@ -994,24 +968,23 @@ between them. Raise that before spending the tolerance.
   panicking destructor degrades to `cleanup_error` rather than aborting; and
   `enter_scope(ScopeKind::Hook, ..)` around hook bodies, so `skip!()` in a hook
   is defined rather than panicking with a bare `&str`. `ScopeKind::Hook`
-  already exists, which is precisely why users will try it.
-  Date/Author: 2026-09-14, planning agent.
+  already exists, which is precisely why users will try it. Date/Author:
+  2026-09-14, planning agent.
 
 - **D12: no fault-injection switch in production code; negative controls are
-  synthetic-input tests plus the existing `cargo-mutants` lane.**
-  Rationale: the first draft proposed a `SEEDED_FAULT_CONTINUE_AFTER_TERMINAL`
-  switch. It could not have worked — INV-1's artefact is an integration test,
-  which links the crate compiled without `cfg(test)` — and making it reachable
-  would have required a Cargo feature that feature unification can enable
-  downstream, whose effect is a total silent false green shipped to users. It
-  was also unnecessary: the subject of INV-1's control is the *assertion
-  helper*, which can simply be handed a synthetic bad log. And it was
-  redundant: `.github/workflows/mutation-testing.yml` already runs
-  `cargo-mutants` nightly over `crates/`. Caveat to carry: that lane is
-  scheduled and informational rather than gating, and mutates only files
-  changed in its detection window, so its survivor list must be read, not
-  assumed green.
-  Date/Author: 2026-09-14, planning agent.
+  synthetic-input tests plus the existing `cargo-mutants` lane.** Rationale:
+  the first draft proposed a `SEEDED_FAULT_CONTINUE_AFTER_TERMINAL` switch. It
+  could not have worked — INV-1's artefact is an integration test, which links
+  the crate compiled without `cfg(test)` — and making it reachable would have
+  required a Cargo feature that feature unification can enable downstream,
+  whose effect is a total silent false green shipped to users. It was also
+  unnecessary: the subject of INV-1's control is the *assertion helper*, which
+  can simply be handed a synthetic bad log. And it was redundant:
+  `.github/workflows/mutation-testing.yml` already runs `cargo-mutants` nightly
+  over `crates/`. Caveat to carry: that lane is scheduled and informational
+  rather than gating, and mutates only files changed in its detection window,
+  so its survivor list must be read, not assumed green. Date/Author:
+  2026-09-14, planning agent.
 
 - **D13: `#[must_use]` on `ScenarioOutcome`, plus exactly one canonical fold.**
   Rationale: removing the panic removes the only channel that guaranteed a
@@ -1019,14 +992,14 @@ between them. Raise that before spending the tolerance.
   covers `let _ = run_scenario_async(..).await;`, which a function-level
   attribute does not. More importantly, returning data leaves the *decision*
   with every caller, so ADR-018's driver — one canonical skip policy — is only
-  half discharged by structure. `into_harness_result() -> Result<(),
-  ScenarioFailure>` is shipped in 13.1.1 and documented as the only sanctioned
-  success test; it folds in `forced_failure` and the empty-plan rule, so a forced
-  skip cannot pass. `is_passed()` deliberately does *not* fold policy and its
-  documentation says so, because it is the helper everyone would otherwise
-  reach for. `Display` is implemented, and 13.2.1's generated adapter must
-  reproduce today's message; that contract is specified at EP-M5 and is the
-  snapshot target for INV-7.
+  half discharged by structure.
+  `into_harness_result() -> Result<(), ScenarioFailure>` is shipped in 13.1.1
+  and documented as the only sanctioned success test; it folds in
+  `forced_failure` and the empty-plan rule, so a forced skip cannot pass.
+  `is_passed()` deliberately does *not* fold policy and its documentation says
+  so, because it is the helper everyone would otherwise reach for. `Display` is
+  implemented, and 13.2.1's generated adapter must reproduce today's message;
+  that contract is specified at EP-M5 and is the snapshot target for INV-7.
   Date/Author: 2026-09-14, planning agent.
 
 - **D14: instrument the runner with `tracing`.**
@@ -1041,26 +1014,25 @@ between them. Raise that before spending the tolerance.
   source won, because "why did my skip become a failure on CI but not locally"
   is otherwise unanswerable after the fact; and a `warn!` on every terminal
   skip or failure carrying index, `path:line`, and the error *kind*
-  discriminant — never the formatted message, which is unbounded localized
-  user text. Metric emission is deferred to 13.3.1, where `metrics` would be a
-  new dependency and a long-running process has something worth aggregating.
+  discriminant — never the formatted message, which is unbounded localized user
+  text. Metric emission is deferred to 13.3.1, where `metrics` would be a new
+  dependency and a long-running process has something worth aggregating.
   Date/Author: 2026-09-14, planning agent.
 
 - **D15: the legacy `feature_path` naming is accepted for now and recorded as a
-  follow-up.**
-  Rationale: the runner must populate `StepExecutionRequest::feature_path`, and
-  the only sensible value is the plan's own source path. ADR-018
-  *Source-neutral diagnostics* explicitly permits existing `feature_path`
-  fields to remain during the additive migration and anticipates a later
-  pre-1.0 rename. The consequence is a real user-visible wart: a Markdown
-  frontend's user will read `(feature: notes/demo.md, scenario: …)`, because
+  follow-up.** Rationale: the runner must populate
+  `StepExecutionRequest::feature_path`, and the only sensible value is the
+  plan's own source path. ADR-018 *Source-neutral diagnostics* explicitly
+  permits existing `feature_path` fields to remain during the additive
+  migration and anticipates a later pre-1.0 rename. The consequence is a real
+  user-visible wart: a Markdown frontend's user will read
+  `(feature: notes/demo.md, scenario: …)`, because
   `crates/rstest-bdd/i18n/en/rstest-bdd.ftl` renders that label. Two follow-ups
   are recorded rather than done here, because both touch surfaces Constraint 1
   freezes: a source-neutral Fluent message variant, and the field rename
   ADR-018 anticipates. Add both to the roadmap under 13.3.1, whose success
   criterion is precisely that a non-Gherkin frontend "reports their supplied
-  locations".
-  Date/Author: 2026-09-14, planning agent.
+  locations". Date/Author: 2026-09-14, planning agent.
 
 ## Outcomes & retrospective
 
@@ -1097,8 +1069,9 @@ matter here are:
   `.feature` files at compile time and generates scenario test functions. This
   plan reads it for reference and does **not** modify it.
 - `crates/rstest-bdd-patterns` — shared pattern and keyword types. It defines
-  `StepKeyword` (`Given`, `When`, `Then`, `And`, `But`; `Debug + Clone + Copy +
-  PartialEq + Eq + Hash`), re-exported as `rstest_bdd::StepKeyword`.
+  `StepKeyword` (`Given`, `When`, `Then`, `And`, `But`;
+  `Debug + Clone + Copy + PartialEq + Eq + Hash`), re-exported as
+  `rstest_bdd::StepKeyword`.
 - `crates/rstest-bdd-policy` — definitions both the runtime and the macro crate
   need. The macro crate may not depend on the runtime crate, because that would
   be a proc-macro dependency cycle.
@@ -1245,8 +1218,8 @@ are stated over data rather than over control flow.
 
 - **AXIOM-1.** `inventory` registers every linked step definition before the
   first test runs, and the registry is not mutated at run time. Note that
-  lookup resolves ambiguity *silently*: `find_step_with_metadata` returns a
-  bare `Option`, and `duplicate_steps()` exists only for introspection.
+  lookup resolves ambiguity *silently*: `find_step_with_metadata` returns a bare
+  `Option`, and `duplicate_steps()` exists only for introspection.
 - **AXIOM-2.** `execute_step` and `execute_step_async` correctly resolve,
   validate fixtures for, and invoke a single step **registered through
   `#[given]`/`#[when]`/`#[then]` in `Sync` or `Both` mode**, and map its result
@@ -1273,8 +1246,8 @@ are stated over data rather than over control flow.
   the MSRV of 1.88, and `crates/rstest-bdd/src/panic_support.rs` already uses
   this harness shape.
 - **AXIOM-7.** Test isolation for process-global state is **not** provided by
-  the runner. `make test` runs nextest *and* `cargo test --doc --workspace`,
-  and `cargo test` remains a supported fallback in the `Makefile`; under it all
+  the runner. `make test` runs nextest *and* `cargo test --doc --workspace`, and
+  `cargo test` remains a supported fallback in the `Makefile`; under it all
   unit tests share one process and `serial_test`'s mutex excludes only *other*
   `#[serial]` tests. This is an edition-2024 workspace, so doctests are merged
   into one parallel binary and `#[serial]` cannot be applied to one. Therefore:
@@ -1290,17 +1263,18 @@ are stated over data rather than over control flow.
 is executed.
 
 - Method: property test over bounded generated step sequences.
-- Domain: sequences of length 0 to 8, each invocation drawn from `{Pass,
-  ReturnValue, ReturnUnmatchedValue, Skip, HandlerError, UnregisteredStep,
-  MissingFixture, Panic}`.
+- Domain: sequences of length 0 to 8, each invocation drawn from
+  `{Pass, ReturnValue, ReturnUnmatchedValue, Skip, HandlerError, UnregisteredStep, MissingFixture, Panic}`.
 - Artefact: `crates/rstest-bdd/tests/runner_sequence_props.rs`.
-- Evidence: `cargo nextest run -p rstest-bdd -E 'binary(runner_sequence_props)'`.
-  The execution log's maximum index equals the terminal index.
+- Evidence:
+  `cargo nextest run -p rstest-bdd -E 'binary(runner_sequence_props)'`. The
+  execution log's maximum index equals the terminal index.
 - Non-vacuity: each case is classified by terminal kind and the test asserts
-  every one of `{pass-through, skip, handler error, not found, missing fixture,
-  panic}` occurred across the run. The negative control is a synthetic-input
-  test that hands the assertion helper a hand-built log containing an execution
-  *after* the terminal index and requires the helper to reject it; plus the
+  every one of
+  `{pass-through, skip, handler error, not found, missing fixture, panic}`
+  occurred across the run. The negative control is a synthetic-input test that
+  hands the assertion helper a hand-built log containing an execution *after*
+  the terminal index and requires the helper to reject it; plus the
   `cargo-mutants` obligation in *Artefacts and notes*.
 
 **INV-2 — Completeness and ordering.** `outcome.steps().len()` equals
@@ -1316,9 +1290,9 @@ with the `diagnostics` feature both enabled and disabled.
   with `--no-default-features`. The second leg is added to `make test` at
   EP-M5; without it, D4's deliberate divergence is invisible to every gate.
 - Non-vacuity: a witness plan with a terminal skip at index 0 and three
-  trailing invocations must produce exactly three `Bypassed` entries.
-  Negative control: a synthetic outcome truncated at the terminal index must be
-  rejected by the assertion helper.
+  trailing invocations must produce exactly three `Bypassed` entries. Negative
+  control: a synthetic outcome truncated at the terminal index must be rejected
+  by the assertion helper.
 
 **INV-3 — Returned-value visibility.** A value returned by invocation `i` is
 visible to every invocation `j > i` and to no invocation `j <= i`.
@@ -1340,9 +1314,9 @@ exactly once.
 - Domain: before-hook failure, step pass, step skip, step failure, resolution
   or fixture failure, **hook panic**, **raw-`step!` handler panic**, and
   after-or-cleanup failure. Note that a panic inside a *macro-wrapped* step is
-  **not** a distinct row: the wrapper's `catch_unwind` turns it into an
-  ordinary `HandlerFailed`. Writing the panic row with a wrapped step would
-  make it unfailable, which is why the two panic rows above name their sources
+  **not** a distinct row: the wrapper's `catch_unwind` turns it into an ordinary
+  `HandlerFailed`. Writing the panic row with a wrapped step would make it
+  unfailable, which is why the two panic rows above name their sources
   explicitly.
 - Artefact: `crates/rstest-bdd/src/runner/tests/lifecycle.rs`.
 - Evidence: each row asserts `after_calls == 1`, `cleanup_runs == 1`, **and**
@@ -1380,14 +1354,14 @@ three policy sources.
 - Method: parameterized `rstest`. Under D10 most cases set the policy through
   `ScenarioScope::with_skip_policy` and need no serialization; only the cases
   proving the *default* resolution order carry `#[serial]` and use `temp-env`.
-- Domain: `allow_skipped` × `fail_on_skipped` × source in `{explicit
-  per-run, programmatic global, environment, default}` × runner in `{sync,
-  async}`.
+- Domain: `allow_skipped` × `fail_on_skipped` × source in
+  `{explicit per-run, programmatic global, environment, default}` × runner in
+  `{sync, async}`.
 - Artefact: `crates/rstest-bdd/src/runner/tests/skip_parity.rs`.
-- Non-vacuity: the discriminating row is `allow_skipped = true,
-  fail_on_skipped = true`, expecting `forced_failure = false`; an
-  implementation using `||` instead of `&& !` fails exactly there, and the test
-  asserts that mutation explicitly.
+- Non-vacuity: the discriminating row is
+  `allow_skipped = true, fail_on_skipped = true`, expecting
+  `forced_failure = false`; an implementation using `||` instead of `&& !`
+  fails exactly there, and the test asserts that mutation explicitly.
 
 **INV-7 — Source fidelity and rendered shape.** Every `StepOutcome::source()`
 equals the `SourceLocation` the plan supplied, for all four statuses;
@@ -1433,8 +1407,8 @@ the run's `forced_failure`.
 
 **INV-10 — Cancellation.** Dropping a pending `run_scenario_async` future
 produces no outcome, drops the in-flight step or hook future, and still
-performs synchronous scope cleanup. The awaited after hook is not guaranteed
-to run.
+performs synchronous scope cleanup. The awaited after hook is not guaranteed to
+run.
 
 - Method: a deterministic poll harness built on `std::task::Waker::noop()`.
 - Domain: cancellation during (a) the before hook, (b) a step handler, (c) the
@@ -1459,11 +1433,10 @@ to run.
   `Poll::Ready` and asserts the after hook ran exactly once, so the
   cancellation assertions are not passing merely because the hook is
   unreachable. Negative control: taking `scope` by reference instead of by
-  value leaves cleanup to the caller and fails the cleanup assertion.
-  Validated by Spike 1.
+  value leaves cleanup to the caller and fails the cleanup assertion. Validated
+  by Spike 1.
 - Caveat to document: these gates must not touch Tokio, because polling
-  outside a runtime panics; the obvious first refactor is
-  `tokio::time::sleep`.
+  outside a runtime panics; the obvious first refactor is `tokio::time::sleep`.
 
 **INV-11 — Surface purity.** No public item under `rstest_bdd::runner` mentions
 a `gherkin`, Markdown, Trymark, process, snapshot, or reporter type.
@@ -1486,16 +1459,16 @@ a `gherkin`, Markdown, Trymark, process, snapshot, or reporter type.
   could not detect it and must not pretend to.
 
 **INV-12 — Returned values are never silently dropped.** `StepOutcome` records
-the `InsertOutcome` of every value-returning invocation, and the property
-suite generates and classifies `NoMatch`.
+the `InsertOutcome` of every value-returning invocation, and the property suite
+generates and classifies `NoMatch`.
 
 - Method: property test plus parameterized `rstest`.
 - Rationale: this is the plan's highest-severity false-green risk. `NoMatch`
   emits no warning anywhere in the runtime — only `AmbiguousIgnored` does — so
   a renamed fixture or a changed type makes later assertions run against a
-  default value while the suite stays green. `InsertOutcome` is `#[must_use =
-  "inspect the outcome to detect dropped step return values"]`, and the design
-  must not suppress the crate's own signal.
+  default value while the suite stays green. `InsertOutcome` is
+  `#[must_use = "inspect the outcome to detect dropped step return values"]`,
+  and the design must not suppress the crate's own signal.
 - Artefact: `crates/rstest-bdd/tests/runner_sequence_props.rs` and
   `crates/rstest-bdd/src/runner/tests/values.rs`.
 - Non-vacuity: the generator must produce a value whose type matches no
@@ -1503,8 +1476,7 @@ suite generates and classifies `NoMatch`.
   would exercise only the `Inserted` path.
 
 **INV-13 — The empty plan has a defined outcome.** A plan with no steps
-produces a documented outcome that a caller cannot mistake for a successful
-run.
+produces a documented outcome that a caller cannot mistake for a successful run.
 
 - Method: parameterized `rstest`, both runners.
 - Rationale: a dynamic frontend's parser can emit an empty plan from a
@@ -1519,22 +1491,23 @@ run.
   `Step` needs an index and an `ExecutionError`, and neither exists for a plan
   that never had a step — so `ScenarioFailure::EmptyPlan` and
   `FailureSite::EmptyPlan` were added, both fieldless. The alternative, reusing
-  `ForcedSkip`, would have been a lie in exactly the case a caller most needs to
-  distinguish. `error()` returns `None` for it, which the doc comment states.
-  This is the minimal honest representation, and it is the shape the fold's
-  `#[non_exhaustive]` attribute exists to permit.
+  `ForcedSkip`, would have been a lie in exactly the case a caller most needs
+  to distinguish. `error()` returns `None` for it, which the doc comment
+  states. This is the minimal honest representation, and it is the shape the
+  fold's `#[non_exhaustive]` attribute exists to permit.
 - Artefact: `crates/rstest-bdd/src/runner/tests/completeness.rs` for the
-  runners; `crates/rstest-bdd/src/runner/tests/outcome.rs::
-  canonical_fold_rejects_an_empty_plan` for the fold, which is observable at
-  EP-M1 because the fold is a pure function of the outcome's fields.
+  runners;
+  `crates/rstest-bdd/src/runner/tests/outcome.rs::
+  canonical_fold_rejects_an_empty_plan`
+  for the fold, which is observable at EP-M1 because the fold is a pure
+  function of the outcome's fields.
 - Non-vacuity: the control is a one-step passing plan, which must fold to
   `Ok(())` (`passing_outcome_folds_to_ok`).
 
-**INV-14 — The scope's cleanup cannot be skipped or bypassed.**
-`ScenarioScope` is not itself `Drop` (its destructor lives on a private
-`CleanupGuard` field, so `with_hooks` can move the context out), it is consumed
-by value, and cleanup runs exactly once on normal completion, on unwind, and on
-cancellation.
+**INV-14 — The scope's cleanup cannot be skipped or bypassed.** `ScenarioScope`
+is not itself `Drop` (its destructor lives on a private `CleanupGuard` field, so
+`with_hooks` can move the context out), it is consumed by value, and cleanup
+runs exactly once on normal completion, on unwind, and on cancellation.
 
 - Method: parameterized `rstest` with a counting drop probe, plus a
   compile-fail `trybuild` case proving a `ScenarioScope` cannot be reused after
@@ -1610,8 +1583,8 @@ to AXIOM-7 and in what a caller does with the outcome; `cargo-mutants` and
 
 ## Interfaces and dependencies
 
-This section is prescriptive. Every signature below was compiled in Spike 4;
-see `Artefacts and notes`. Names remain subject to the Stage A review, and any
+This section is prescriptive. Every signature below was compiled in Spike 4; see
+`Artefacts and notes`. Names remain subject to the Stage A review, and any
 revision must be recorded in `Decision log` and reflected here.
 
 ### Module layout
@@ -1619,21 +1592,21 @@ revision must be recorded in `Decision log` and reflected here.
 All new code lives under `crates/rstest-bdd/src/runner/`, re-exported from
 `lib.rs` as `pub mod runner;`. Each file stays under 400 lines.
 
-| File | Contents |
-| --- | --- |
-| `runner/mod.rs` | Module documentation, re-exports, `run_scenario`, `run_scenario_async` |
-| `runner/source.rs` | `SourcePath`, `SourceLocation` |
-| `runner/plan.rs` | `StepInvocation`, `ScenarioPlan`, accessors |
-| `runner/plan/builder.rs` | `ScenarioPlanBuilder` |
-| `runner/outcome.rs` | `ScenarioOutcome`, `ScenarioStatus`, `ScenarioSkip`, `Display`, `into_harness_result` |
-| `runner/outcome/failure.rs` | `ScenarioFailure`, `FailureSite`, `FailureKind` |
-| `runner/outcome/step.rs` | `StepOutcome`, `StepStatus` |
-| `runner/scope.rs` | `ScenarioScope`, `CleanupGuard`, `NoHooks` |
-| `runner/engine/mod.rs` | A two-paragraph map of the split, and nothing else |
-| `runner/engine/policy.rs` | `classify`, `assemble` — every decision, no I/O, no `async` |
-| `runner/engine/drive_sync.rs` | The synchronous driver: resolve, execute, delegate |
-| `runner/engine/drive_async.rs` | The asynchronous driver, identical but for `.await` |
-| `runner/tests/` | Unit tests, one file per invariant group |
+| File                           | Contents                                                                              |
+| ------------------------------ | ------------------------------------------------------------------------------------- |
+| `runner/mod.rs`                | Module documentation, re-exports, `run_scenario`, `run_scenario_async`                |
+| `runner/source.rs`             | `SourcePath`, `SourceLocation`                                                        |
+| `runner/plan.rs`               | `StepInvocation`, `ScenarioPlan`, accessors                                           |
+| `runner/plan/builder.rs`       | `ScenarioPlanBuilder`                                                                 |
+| `runner/outcome.rs`            | `ScenarioOutcome`, `ScenarioStatus`, `ScenarioSkip`, `Display`, `into_harness_result` |
+| `runner/outcome/failure.rs`    | `ScenarioFailure`, `FailureSite`, `FailureKind`                                       |
+| `runner/outcome/step.rs`       | `StepOutcome`, `StepStatus`                                                           |
+| `runner/scope.rs`              | `ScenarioScope`, `CleanupGuard`, `NoHooks`                                            |
+| `runner/engine/mod.rs`         | A two-paragraph map of the split, and nothing else                                    |
+| `runner/engine/policy.rs`      | `classify`, `assemble` — every decision, no I/O, no `async`                           |
+| `runner/engine/drive_sync.rs`  | The synchronous driver: resolve, execute, delegate                                    |
+| `runner/engine/drive_async.rs` | The asynchronous driver, identical but for `.await`                                   |
+| `runner/tests/`                | Unit tests, one file per invariant group                                              |
 
 The naming is deliberate. The first draft made `engine.rs` the *parent* of
 `engine/sync.rs`, which inverts a reader's expectation: a contributor asking
@@ -1643,8 +1616,8 @@ states the relationship. `drive_async.rs` also avoids the raw-identifier
 filename `r#async.rs`, which clutters every search result.
 
 The rule the developers' guide must state, because
-`cognitive-complexity-threshold = 12` is a lint and not a domain boundary:
-**a driver resolves, executes, and delegates; it contains no `if` on a step
+`cognitive-complexity-threshold = 12` is a lint and not a domain boundary: **a
+driver resolves, executes, and delegates; it contains no `if` on a step
 result.**
 
 ### Source identity
@@ -1742,9 +1715,9 @@ impl ScenarioPlanBuilder {
 ```
 
 `step_at` rather than a `.step(..).at(..)` pair, because the latter makes
-`ScenarioPlanBuilder::new(..).at(..)` — `.at` with no preceding step — type-legal
-and forces a panic or a silent no-op, which is a poor look in a crate that
-denies `unwrap_used` and whose runner must not panic.
+`ScenarioPlanBuilder::new(..).at(..)` — `.at` with no preceding step —
+type-legal and forces a panic or a silent no-op, which is a poor look in a
+crate that denies `unwrap_used` and whose runner must not panic.
 
 `ScenarioPlan` has private fields and is therefore *not* marked
 `#[non_exhaustive]`: external construction and exhaustive destructuring are
@@ -1932,12 +1905,11 @@ impl Lifecycle for NoHooks {}
 ```
 
 Hooks receive `&mut StepContext`, which the `split` method makes expressible.
-Two limitations must be documented, because a user will hit them within an
-hour: `ctx.get::<T>` and `harness_context::<T>` borrow for the *fixture*
-lifetime and so are uncallable from a hook, which must use the guard-based
-accessors; and while a hook can mutate an existing owned fixture cell, it
-cannot register a *new* fixture whose reference would have to outlive the
-context.
+Two limitations must be documented, because a user will hit them within an hour:
+`ctx.get::<T>` and `harness_context::<T>` borrow for the *fixture* lifetime
+and so are uncallable from a hook, which must use the guard-based accessors;
+and while a hook can mutate an existing owned fixture cell, it cannot register
+a *new* fixture whose reference would have to outlive the context.
 
 Everything from `Lifecycle` downwards is contingent on D2. Under option (ii),
 `ScenarioScope<'ctx, 'fix, H = NoHooks>` and `NoHooks` still ship — the
@@ -1946,12 +1918,12 @@ and the trait, `with_hooks`, and the `Before`/`After` variants of
 `ScenarioFailure` are deferred.
 
 **Do not implement the `Lifecycle` block below in any milestone of this plan.**
-It is retained as the agreed design for the deferred work, so that whoever picks
-it up inherits the reasoning rather than re-deriving it. Two of its constraints
-are load-bearing and were expensive to find: the `CleanupGuard` split exists
-because moving `&'ctx mut StepContext` out of a `Drop` type is `E0713` (Spike
-4), and native `async fn` in the trait is deliberate rather than a boxed future,
-since hooks dispatch statically and AFIT is below the MSRV.
+It is retained as the agreed design for the deferred work, so that whoever
+picks it up inherits the reasoning rather than re-deriving it. Two of its
+constraints are load-bearing and were expensive to find: the `CleanupGuard`
+split exists because moving `&'ctx mut StepContext` out of a `Drop` type is
+`E0713` (Spike 4), and native `async fn` in the trait is deliberate rather than
+a boxed future, since hooks dispatch statically and AFIT is below the MSRV.
 
 ### Integration points EP-M2 must resolve, measured at EP-M1
 
@@ -1963,11 +1935,11 @@ and because two of them are API-shape questions the plan did not anticipate.
    stores `Option<Vec<Vec<Cow<'static, str>>>>` and `table()` borrows it as
    `Option<&[Vec<Cow<'static, str>>]>`, but `StepExecutionRequest.table` demands
    `Option<&'a [&'a [&'a str]]>`. Those are different shapes at every level —
-   owned rows of owned `Cow`s versus borrowed slices of borrowed slices — so the
-   driver cannot pass the plan's table straight through. It must materialize a
-   borrowed view for the duration of the call. No helper exists today; EP-M2
-   adds one. This is also a `'static`-versus-borrowed boundary, so the view is
-   necessarily per-call rather than stored on the plan.
+   owned rows of owned `Cow`s versus borrowed slices of borrowed slices — so
+   the driver cannot pass the plan's table straight through. It must
+   materialize a borrowed view for the duration of the call. No helper exists
+   today; EP-M2 adds one. This is also a `'static`-versus-borrowed boundary, so
+   the view is necessarily per-call rather than stored on the plan.
 2. **`context::clear_values` does not exist yet** and is discharged by EP-M2, as
    the plan already states. Confirmed absent by search.
 3. **`ExecutionError` and `MissingFixturesDetails` already derive
@@ -1979,8 +1951,8 @@ and because two of them are API-shape questions the plan did not anticipate.
    `crates/rstest-bdd-macros/src/codegen/scenario/runtime/generators/step_loop.rs`
    line 68 emits `let _ = ctx.insert_value(__rstest_bdd_val);` with a comment
    explaining that `NoMatch` and `AmbiguousIgnored` are expected and the
-   ambiguous case already warns internally. This is the *shape* INV-12 exists to
-   change: the new runner must record the fate rather than discard it. It is
+   ambiguous case already warns internally. This is the *shape* INV-12 exists
+   to change: the new runner must record the fate rather than discard it. It is
    also the reason `ValueFate` had to be invented — `InsertOutcome` cannot be
    `Clone`/`Eq` because it carries `Box<dyn Any>`, so it cannot sit inside a
    `StepOutcome` that INV-5 wants to compare. The macro path is **not** to be
@@ -1994,12 +1966,12 @@ holding `Lifecycle`, which D2 (ii) deferred. The third entry in the table that
 names a deferred item — `ScenarioScope` — is correct, because the struct ships
 with its defaulted `H = NoHooks` parameter while the trait does not.
 
-The runner signatures also read `<H: Lifecycle>` against a deferred `Lifecycle`,
-which cannot compile. Under D2 (ii) they take `H = NoHooks` with no bound, since
-nothing constrains `H` until the trait arrives. The signatures below are
-corrected accordingly. Note that this makes the `H` parameter inert for now: it
-exists so that adding `impl Lifecycle` bounds later is source-compatible, which
-is the whole point of option (ii).
+The runner signatures also read `<H: Lifecycle>` against a deferred
+`Lifecycle`, which cannot compile. Under D2 (ii) they take `H = NoHooks` with
+no bound, since nothing constrains `H` until the trait arrives. The signatures
+below are corrected accordingly. Note that this makes the `H` parameter inert
+for now: it exists so that adding `impl Lifecycle` bounds later is
+source-compatible, which is the whole point of option (ii).
 
 ### The runners
 
@@ -2089,22 +2061,21 @@ an ADR must land before Stage C (D7).
 
 The first draft instructed the implementer to write all eight red test files
 before any production code. That is incompatible with every milestone being a
-validated plateau: seven non-compiling test files mean `make test`, `make
-lint`, and `cargo doc` fail at every commit until the last milestone, and
+validated plateau: seven non-compiling test files mean `make test`,
+`make lint`, and `cargo doc` fail at every commit until the last milestone, and
 EP-M1's own acceptance evidence cannot be observed while a later milestone's
 test file refuses to compile.
 
-So: **introduce each milestone's red tests at the start of that milestone,
-make them green within it, and leave the tree gate-clean at its end.** Within a
-milestone, follow Red-Green-Refactor strictly, committing after each
-transition:
+So: **introduce each milestone's red tests at the start of that milestone, make
+them green within it, and leave the tree gate-clean at its end.** Within a
+milestone, follow Red-Green-Refactor strictly, committing after each transition:
 
 - **Red:** add the smallest test specifying the missing behaviour; run it;
   confirm it fails for the intended reason and not a typo.
 - **Green:** the smallest production change that passes it; run the focused
   test again.
-- **Refactor:** clean up; rerun the focused test and `cargo nextest run -p
-  rstest-bdd`.
+- **Refactor:** clean up; rerun the focused test and
+  `cargo nextest run -p rstest-bdd`.
 
 No `#[ignore]` or expected-failure marker may remain at the end of a milestone.
 
@@ -2151,26 +2122,26 @@ not repeated below.
   `SourceLocation`, `StepInvocation`, `ScenarioPlan`, `ScenarioPlanBuilder`,
   `ScenarioStatus`, `StepStatus`, `FailureKind`, `ValueFate`, `StepOutcome`,
   `ScenarioSkip`, `ScenarioFailure`, `FailureSite`, and `ScenarioOutcome` with
-  its accessors, `Display`, and `into_harness_result`. `LifecycleError` is *not*
-  among them; see the D2 note. No runner yet.
+  its accessors, `Display`, and `into_harness_result`. `LifecycleError` is
+  *not* among them; see the D2 note. No runner yet.
 - **Requirements:** ADR-018-FR1, FR2, TR1, TR6, TR7.
 - **Acceptance evidence:**
   `tests::runner::plan::macro_path_allocates_no_step_text` (every text and tag
-  is `Cow::Borrowed`);
-  `tests::runner::plan::parses_and_outlives_its_buffer` (a real ~20-line parser,
-  written as a parser rather than as struct construction, because the ergonomic
-  risk lives in parsing);
+  is `Cow::Borrowed`); `tests::runner::plan::parses_and_outlives_its_buffer` (a
+  real ~20-line parser, written as a parser rather than as struct construction,
+  because the ergonomic risk lives in parsing);
   `tests::runner::plan::shares_one_source_path_across_steps`;
   `tests::runner::surface::no_frontend_types_in_public_api` with all five leak
-  shapes controlled; `tests::runner::outcome::canonical_fold_folds_forced_skip`.
-  Four further tests were added at implementation time because the acceptance
-  list alone left the milestone's own invariants unobserved:
+  shapes controlled;
+  `tests::runner::outcome::canonical_fold_folds_forced_skip`. Four further
+  tests were added at implementation time because the acceptance list alone
+  left the milestone's own invariants unobserved:
   `tests::runner::outcome::canonical_fold_rejects_an_empty_plan` (INV-13's fold
   case, per the plan above);
   `tests::runner::outcome::canonical_fold_prefers_the_failure_over_a_skip` (a
   failed step must outrank a skip record, which the fold's `if` order decides);
-  `tests::runner::plan::plan_is_clone_and_static` (D3's `'static` claim, checked
-  by a trait bound and exercised by `spawn`); and
+  `tests::runner::plan::plan_is_clone_and_static` (D3's `'static` claim,
+  checked by a trait bound and exercised by `spawn`); and
   `tests::runner::surface::the_scan_finds_the_runner_tree`, without which a
   `collect` that silently found no files would make INV-11's check pass while
   policing nothing.
@@ -2221,9 +2192,9 @@ not repeated below.
 
 - **Outcome:** under D2 option (i), `Lifecycle`, `NoHooks`,
   `ScenarioScope::with_hooks`, `split`, the `Before`/`After` variants of
-  `ScenarioFailure`, hook panic guarding, and `enter_scope(ScopeKind::Hook, ..)`
-  around hook bodies. Under option (ii) or (iii) this milestone is **struck**
-  and the deviation recorded.
+  `ScenarioFailure`, hook panic guarding, and
+  `enter_scope(ScopeKind::Hook, ..)` around hook bodies. Under option (ii) or
+  (iii) this milestone is **struck** and the deviation recorded.
 - **Requirements:** ADR-018-FR8 and the lifecycle matrix.
 - **Acceptance evidence:** INV-4's full row set, INV-8, and INV-10's before-
   and after-hook cases.
@@ -2235,12 +2206,13 @@ not repeated below.
 ### EP-M5 — Documentation, snapshots, gates, and the roadmap
 
 - **Outcome:** the five documents updated; `insta` snapshots of the `Display`
-  projection; the `--no-default-features -p rstest-bdd` leg added to `make
-  test` and CI; the roadmap entry ticked and the recorded follow-ups added.
+  projection; the `--no-default-features -p rstest-bdd` leg added to
+  `make test` and CI; the roadmap entry ticked and the recorded follow-ups
+  added.
 - **Requirements:** ADR-018-TR3 and AGENTS.md's documentation obligations.
 - **Acceptance evidence:** `make check-fmt`, `make lint`, `make test`,
-  `make markdownlint`, `make nixie` all pass; `git diff --stat
-  crates/rstest-bdd-macros` is empty.
+  `make markdownlint`, `make nixie` all pass;
+  `git diff --stat crates/rstest-bdd-macros` is empty.
 - **Conformance check:** every trace link resolves to a passing test; no
   upstream assumption falsified without being recorded; the `cargo-mutants`
   survivor list for `runner/` has been *read*, not assumed green.
@@ -2375,10 +2347,10 @@ at 72 explaining what and why. Use the `commit-message` skill.
 3. Add `let _ = outcome;` in place of the assertions and rebuild: the
    `#[must_use]` warning fires under `-D warnings`, proving a dropped outcome
    cannot silently pass.
-4. Run `RSTEST_BDD_FAIL_ON_SKIPPED=1 cargo nextest run -p rstest-bdd -E
-   'test(/skip_parity/)'` and observe the same cases pass, because D10 makes
-   the tests control the policy explicitly rather than inheriting the ambient
-   value.
+4. Run
+   `RSTEST_BDD_FAIL_ON_SKIPPED=1 cargo nextest run -p rstest-bdd -E 'test(/skip_parity/)'`
+   and observe the same cases pass, because D10 makes the tests control the
+   policy explicitly rather than inheriting the ambient value.
 
 ### Quality criteria (what "done" means)
 
@@ -2413,10 +2385,10 @@ idempotent. If a milestone must be abandoned, `git revert` of its commits
 restores the previous plateau, because each milestone is a coherent state and
 none depends on a half-finished successor.
 
-The one irreversible-looking step is `cargo insta accept`. Review snapshots
-with `cargo insta review`; never accept a diff you have not read. Snapshotting
-the `Display` projection rather than `Debug` (INV-7) exists precisely so that
-churn is semantic and a reviewer's attention stays worth having.
+The one irreversible-looking step is `cargo insta accept`. Review snapshots with
+`cargo insta review`; never accept a diff you have not read. Snapshotting the
+`Display` projection rather than `Debug` (INV-7) exists precisely so that churn
+is semantic and a reviewer's attention stays worth having.
 
 This worktree shares its stash stack with other checkouts. Do not use bare
 `git stash`; prefer a temporary work-in-progress commit.
@@ -2498,18 +2470,18 @@ failure upgrades a skip.
 
 ## Revision note
 
-**2026-09-14, revision 2.** Revised after a six-lens design review
-(structural integrity, contracts, alternatives, failure modes, scaling,
-long-term viability) and four compile-and-run spikes.
+**2026-09-14, revision 2.** Revised after a six-lens design review (structural
+integrity, contracts, alternatives, failure modes, scaling, long-term
+viability) and four compile-and-run spikes.
 
 *What changed.* Decision D3 was replaced: the plan now carries no lifetime, and
 `OwnedScenarioPlan`, `PlanTable`, and the two-call `invocations()`/`as_plan()`
-borrow dance are gone, along with the self-reference risk and its tolerance.
-D2 gained a recommended third option — ship the scope, defer the hook traits —
-and D7's ADR trigger was inverted, because it is *introducing* a public
-extension point, not declining to, that needs an ADR. The outcome was re-carved
-as an opaque struct with a fieldless status (D9), fixing an uninhabited field
-and the loss of a skip's `forced_failure` on the cleanup-failure path.
+borrow dance are gone, along with the self-reference risk and its tolerance. D2
+gained a recommended third option — ship the scope, defer the hook traits — and
+D7's ADR trigger was inverted, because it is *introducing* a public extension
+point, not declining to, that needs an ADR. The outcome was re-carved as an
+opaque struct with a fieldless status (D9), fixing an uninhabited field and the
+loss of a skip's `forced_failure` on the cleanup-failure path.
 `fail_on_skipped` moved into scope construction (D10), which makes INV-9 a
 type-level fact and makes the mandatory doctests safe under edition 2024's
 merged doctest binary. Five decisions were added: panic safety at the runner's
