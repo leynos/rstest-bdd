@@ -2032,7 +2032,45 @@ span into separate short spans rather than relying on `mdtablefix` to wrap it.
   find this class of defect because it is the one test where the author must
   decide what the *real* input is.
 
-## Decision log
+- **Observation:** a non-vacuity witness that no crafted case can satisfy is not
+  a witness; it is a coin flip, and the coin flip reads as an environment fault.
+  Evidence: `make test` failed on
+  `invariants::a_returned_value_is_visible_only_after_its_producer` with "no case
+  placed an observer before the first producer", and five isolated re-runs gave
+  two passes and three failures. The witness is INV-3's negative clause — an
+  observer that does *not* see a value whose producer has not run — and it
+  requires a producer at a **higher** index than the observer
+  (`producer > reading.observer` in `Witnesses::record`). Every crafted shape in
+  `sequence/generator.rs`'s `VEC_OF_KINDS` emitted its observer *after* its
+  producers, because `build` did so unconditionally, so the crafted half could
+  never set the flag. The whole witness therefore rested on the uniform backdrop
+  drawing an observer below a producer that later executed and inserted — about
+  one case in fifty, which over the pinned budget of 256 cases is a failure on
+  roughly two runs in five. Impact: the assertion was satisfiable only by luck,
+  and its failure message ("this assertion is the evidence it was tried")
+  actively misdirected, since the evidence it wanted was the one thing the
+  catalogue could not supply. (The witness was introduced by the round-3
+  CodeRabbit fix `07d066a1`, which narrowed the producer filter to
+  `returns_a_matchable_value` and added the `OneProbe` gate; that narrowing was
+  correct — see `Kind::returns_a_matchable_value` — but it converted a witness
+  that had previously been satisfied by accident into one that was satisfied
+  almost never, and nothing noticed because the two are indistinguishable from a
+  single green run.) Fix, in two parts: `Shape` gained an `observer_before`
+  field and rows four and five now place an observer on *each* side of the
+  producers, so both halves of INV-3 are reachable from one plan; and
+  `sequence::crafted` exposes the catalogue's plans so a new control,
+  `controls::the_crafted_catalogue_alone_witnesses_the_visibility_clause`, drives
+  the crafted half *alone* and asserts the same witness. The second part is the
+  durable one: because the property folds its witnesses across both halves of
+  the strategy, a catalogue that stops supplying a witness is *masked* by the
+  backdrop happening to draw one, and the folded assertion keeps passing on
+  evidence the catalogue no longer provides. That masking is exactly how this
+  went unnoticed for two commits. The control was verified to bite by
+  neutralising both `observer_before` fields and confirming it fails
+  deterministically with the intended message, rather than merely passing. The
+  general lesson: a non-vacuity witness whose satisfaction is probabilistic must
+  be checked by construction, and any witness folded across a stochastic half
+  needs a control that excludes that half.
 
 ### The panic boundary D11 mandates did not exist, and the plan said it did
 

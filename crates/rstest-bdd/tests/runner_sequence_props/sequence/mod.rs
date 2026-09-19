@@ -44,7 +44,7 @@ mod run;
 pub(crate) mod steps;
 mod witnesses;
 
-pub(crate) use generator::case;
+pub(crate) use generator::{case, crafted};
 pub(crate) use run::{Run, context_for, run_case, run_case_async};
 /// The pattern text the generator names, and the placeholder helper.
 ///
