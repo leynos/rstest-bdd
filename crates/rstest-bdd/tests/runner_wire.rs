@@ -11,7 +11,7 @@
 //! satisfy that. It is that the run is *observable*: a step that mutates a
 //! fixture is seen to have run, a step that does not resolve is seen to have
 //! failed, and the error the outcome carries is the registry's own
-//! `StepNotFound`, not a synthesised substitute. Those three together are what
+//! `StepNotFound`, not a fabricated substitute. Those three together are what
 //! a fake cannot fake.
 //!
 //! # Why this is an integration test
@@ -43,9 +43,16 @@ use std::{
 };
 
 use rstest_bdd::{
-    ExecutionError, StepContext, StepKeyword,
+    ExecutionError,
+    StepContext,
+    StepKeyword,
     runner::{
-        ScenarioPlanBuilder, ScenarioScope, ScenarioStatus, StepOutcome, StepStatus, run_scenario,
+        ScenarioPlanBuilder,
+        ScenarioScope,
+        ScenarioStatus,
+        StepOutcome,
+        StepStatus,
+        run_scenario,
     },
 };
 use rstest_bdd_macros::{given, when};
@@ -56,22 +63,16 @@ const COUNTER: &str = "counter";
 // Interior mutability, so the step takes a shared reference and the test can
 // still read what the step did.
 #[given("a counter starts at zero")]
-fn a_counter_starts_at_zero(counter: &Cell<u32>) {
-    counter.set(0);
-}
+fn a_counter_starts_at_zero(counter: &Cell<u32>) { counter.set(0); }
 
 #[when("the counter is incremented twice")]
-fn the_counter_is_incremented_twice(counter: &Cell<u32>) {
-    counter.set(counter.get() + 2);
-}
+fn the_counter_is_incremented_twice(counter: &Cell<u32>) { counter.set(counter.get() + 2); }
 
 /// A fresh counter cell, still holding its sentinel value.
 ///
 /// The caller owns the cell and the context borrows it, which is the real
 /// arrangement: a fixture outlives the run over it.
-fn counter_cell() -> RefCell<Box<dyn Any>> {
-    StepContext::owned_cell(Cell::new(u32::MAX))
-}
+fn counter_cell() -> RefCell<Box<dyn Any>> { StepContext::owned_cell(Cell::new(u32::MAX)) }
 
 /// The context a run borrows: the counter cell, registered under its name.
 fn context_for(cell: &RefCell<Box<dyn Any>>) -> StepContext<'_> {
@@ -81,11 +82,18 @@ fn context_for(cell: &RefCell<Box<dyn Any>>) -> StepContext<'_> {
 }
 
 /// Read the counter back out of its cell, consuming the cell.
+///
+/// A `let ... else` rather than `.expect(...)`: `clippy.toml`'s
+/// `allow-expect-in-tests` covers `#[test]` functions and `#[cfg(test)]`
+/// items, and `AGENTS.md` is explicit that it does not reach helpers like this
+/// one. The lint is right for a different reason than usual — a failure here
+/// means the *test's own* setup is broken, not that the behaviour under test
+/// is wrong, and the message should say so.
 fn counter_value(cell: RefCell<Box<dyn Any>>) -> u32 {
-    cell.into_inner()
-        .downcast::<Cell<u32>>()
-        .expect("the cell holds a Cell<u32>")
-        .get()
+    let Ok(cell) = cell.into_inner().downcast::<Cell<u32>>() else {
+        panic!("the test registered a Cell<u32>, so the cell must hold one");
+    };
+    cell.get()
 }
 
 /// The run reached the registry and its steps mutated the caller's fixture.
@@ -134,7 +142,7 @@ fn a_run_executes_its_steps_against_the_context() {
 /// and scenario name the plan supplied. A driver that invented a failure, or
 /// that reported the wrong index, is caught here.
 #[test]
-fn an_unresolvable_step_fails_with_the_registrys_own_error() {
+fn an_unresolvable_step_fails_with_the_registries_error() {
     let cell = counter_cell();
     let mut ctx = context_for(&cell);
     let plan = ScenarioPlanBuilder::new("Counting", "notes/counting.md")
