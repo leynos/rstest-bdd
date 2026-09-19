@@ -40,7 +40,7 @@
 //! drifts, whereas holding a lock in the guard makes mutual exclusion a
 //! property of the type that must be held to silence the hook.
 //!
-//! The lock covers the run only, so assertions are unsynchronised — which is
+//! The lock covers the run only, so assertions are unsynchronized — which is
 //! correct, because assertions are the part that touches no global state.
 //!
 //! Poisoning is recovered rather than propagated, on the same reasoning as
@@ -64,7 +64,7 @@ use rstest_bdd::{
     submit,
 };
 
-/// Serialises the silenced windows of this binary's tests.
+/// Serializes the silenced windows of this binary's tests.
 static HOOK: Mutex<()> = Mutex::new(());
 
 /// Register a step through the raw form, with no `catch_unwind` anywhere.

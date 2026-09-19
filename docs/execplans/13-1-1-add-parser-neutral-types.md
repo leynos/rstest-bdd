@@ -609,7 +609,7 @@ between them. Raise that before spending the tolerance.
   an inline-code span past 80 columns, and `markdownlint` is the gate that
   rejects the result, so a green `check-fmt` does not imply a green
   `markdownlint` on a revision whose Markdown was just reflowed. It did not
-  materialise here; the plan's hazard note now says to check regardless.
+  materialize here; the plan's hazard note now says to check regardless.
 
   Outstanding for EP-M2: the two behavioural scenarios, `tests/modes.rs` for
   INV-15, `crates/rstest-bdd/tests/runner_sequence_props.rs`,
@@ -1329,10 +1329,11 @@ span into separate short spans rather than relying on `mdtablefix` to wrap it.
   the two-level panic architecture, not a bug: a macro-registered step's body
   runs inside the wrapper's own `catch_unwind`, which converts the unwind into
   `StepError::PanicError` before `execute_step` ever sees it. `Assertion` is
-  reserved for a handler that *returns* `StepError::ExecutionError` —
-  `FailureKind::of` maps `ExecutionError::HandlerFailed { StepError::ExecutionError { .. } }`
-  to it. So the kind is decided by *how* the step reported the failure, not by
-  whether the failure was an assertion in the `assert_eq!` sense.
+  reserved for a handler that *returns* `StepError::ExecutionError`:
+  `FailureKind::of` maps the outer `HandlerFailed` to `Assertion` only when the
+  step error it wraps is `StepError::ExecutionError`. So the kind is decided by
+  *how* the step reported the failure, not by whether the failure was an
+  assertion in the `assert_eq!` sense.
 - **Impact:** the plan's INV-16 wording, and the label itself, invite the
   mistake — "Assertion" reads as "the assertion failed" to anyone who has not
   read the mapping. The end-to-end expectation was therefore *pinned to the
