@@ -332,3 +332,66 @@ fn an_unwrapped_async_step_panic_is_returned_not_thrown() {
         "the panic's message must survive a poll-time unwind; it was `{message}`",
     );
 }
+
+/// The other async boundary: a panic while the future is *built*.
+///
+/// Separate from the poll-time test above because the two catch panics in
+/// different frames, and the distinction is not academic — it is the one a
+/// reader is most likely to dismiss as covered by the other. `step!`'s
+/// four-argument form with an explicit async mode registers a constructor whose
+/// body is `future::ready(handler(..))`, so the synchronous handler runs
+/// *eagerly*, to build the future. A boundary around the poll alone leaves that
+/// panic travelling out of `execute_step_async` before a future exists to poll.
+///
+/// The step is registered with `run_async: panicking_while_building`, whose body
+/// panics instead of returning. An implementation that guarded only the poll
+/// would fail at the `let Ok(result)` below, and the failure would be the
+/// escaping payload rather than a wrong classification — which is exactly what
+/// the assertion message names, so a regression is diagnosable from the output.
+#[test]
+fn an_unwrapped_async_step_build_panic_is_returned_not_thrown() {
+    let escaped = silenced(|| {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .expect("a current-thread runtime builds");
+        let mut ctx = StepContext::default();
+        let request = StepExecutionRequest {
+            index: 0,
+            keyword: StepKeyword::Given,
+            text: "an unwrapped step panics while building",
+            docstring: None,
+            table: None,
+            feature_path: "notes/panics.md",
+            scenario_name: "Unwrapped async build",
+        };
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            runtime.block_on(execute_step_async(&request, &mut ctx))
+        }))
+    });
+
+    let Ok(result) = escaped else {
+        panic!(
+            "execute_step_async must return rather than unwind, including when the panic happens \
+             while the future is built rather than while it is polled; it escaped with {escaped:?}"
+        );
+    };
+
+    let error = result.expect_err("a panicking constructor is a failure, not a pass");
+    let ExecutionError::HandlerFailed { error, .. } = &error else {
+        panic!("the failure must be a HandlerFailed; it was {error:?}");
+    };
+    let StepError::PanicError {
+        pattern, message, ..
+    } = error.as_ref()
+    else {
+        panic!("the wrapped error must be a PanicError");
+    };
+    assert_eq!(
+        pattern, "an unwrapped step panics while building",
+        "the pattern is the registry's own spelling",
+    );
+    assert!(
+        message.contains("deliberate panic while building an unwrapped async step future"),
+        "the constructor panic's message must survive; it was `{message}`",
+    );
+}

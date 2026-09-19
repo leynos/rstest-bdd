@@ -109,10 +109,16 @@ pub enum FailureSite {
 ///
 /// # Examples
 ///
-/// ```
-/// use rstest_bdd::runner::FailureSite;
+/// The payload is what distinguishes this from the [`FailureSite`] it projects
+/// to: the site says *where* a run ended, and the variant says what ended it.
 ///
-/// assert_eq!(FailureSite::Step(0), FailureSite::Step(0));
+/// ```
+/// use rstest_bdd::runner::ScenarioFailure;
+///
+/// // A plan with nothing to run carries no error, only the reason.
+/// let failure = ScenarioFailure::EmptyPlan;
+/// assert!(failure.error().is_none());
+/// assert_eq!(format!("{:?}", failure.site()), "EmptyPlan");
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]

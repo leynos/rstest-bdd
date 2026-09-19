@@ -174,6 +174,49 @@ const _: () = {
     }
 };
 
+/// An `Async`-mode step that panics while its future is being *built*.
+///
+/// Distinct from [`panicking_async`], which panics during a poll. The call that
+/// constructs the future is itself user code, and `step!`'s four-argument form
+/// with an explicit async mode generates exactly a constructor that evaluates
+/// the synchronous handler eagerly:
+///
+/// ```text
+/// fn __rstest_bdd_auto_async(..) -> StepFuture<'ctx> {
+///     Box::pin(::std::future::ready($handler(..)))
+/// }
+/// ```
+///
+/// So the panic happens before a poll exists. A boundary that wrapped only the
+/// poll would let this unwind out of `execute_step_async`, and — unlike the
+/// synchronous case — there would be no `catch_unwind` anywhere between it and
+/// the caller's test harness. The body panics unconditionally and *before* it
+/// returns a future, so it is this case and not the polled one.
+fn panicking_while_building<'ctx>(
+    _ctx: &'ctx mut StepContext<'_>,
+    _text: &'ctx str,
+    _docstring: Option<&'ctx str>,
+    _table: Option<&'ctx [&'ctx [&'ctx str]]>,
+) -> StepFuture<'ctx> {
+    panic!("deliberate panic while building an unwrapped async step future");
+}
+
+const _: () = {
+    static PATTERN: StepPattern = StepPattern::new("an unwrapped step panics while building");
+    submit! {
+        rstest_bdd::Step {
+            keyword: StepKeyword::Given,
+            pattern: &PATTERN,
+            run: panicking,
+            run_async: panicking_while_building,
+            execution_mode: StepExecutionMode::Async,
+            fixtures: &[],
+            file: file!(),
+            line: line!(),
+        }
+    }
+};
+
 /// The shape `std::panic::take_hook` returns.
 ///
 /// Named rather than spelled out at each use because the trait-object bounds

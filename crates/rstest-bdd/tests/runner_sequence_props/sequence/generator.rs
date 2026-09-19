@@ -10,13 +10,13 @@
 //! a suite whose non-vacuity assertions therefore fail intermittently would be
 //! worse than one that never made them.
 //!
-//! So a case is drawn as a triple: a bias flag, a list of kinds, a uniform
-//! backdrop, and an arrangement. When the bias is set the list is one of the
-//! crafted subsets below and the backdrop extends it; otherwise the backdrop is
-//! used alone. Every drawn kind is a member of [`Kind::ALL`], so the crafted
-//! shapes witness the domain without leaving it — and the uniform half keeps
-//! every kind reachable at every length rather than only through a crafted
-//! shape.
+//! So a case is drawn as a four-tuple: a bias flag, a crafted subset, an
+//! arrangement, and a uniform backdrop. The bias flag *selects* between the two
+//! kind lists rather than combining them — when it is set the plan is the
+//! crafted subset alone, and when it is clear the plan is the backdrop alone.
+//! Every drawn kind is a member of [`Kind::ALL`], so the crafted shapes witness
+//! the domain without leaving it — and the uniform half keeps every kind
+//! reachable at every length rather than only through a crafted shape.
 //!
 //! # Why the crafted subsets are built from [`Kind::ALL`]
 //!
