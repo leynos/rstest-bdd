@@ -770,22 +770,25 @@ between them. Raise that before spending the tolerance.
   section, which documented the gap as "owned by D11", now states the boundary
   is in place. Not yet gated: the full deterministic suite has not been re-run
   against this revision.
-- [-] EP-M3: asynchronous runner and cancellation. **In progress; the
-  asynchronous runner and INV-10's step case are committed, and INV-5's property
-  is the remaining piece.**
+- [-] EP-M3: asynchronous runner and cancellation. **All of its deliverables are
+  written and green; what remains is the named `cargo-mutants` control and the
+  milestone's commit gates.**
   - [x] `run_scenario_async`, the shared `engine/drive.rs` step handling, and
     the third behavioural scenario. Committed in `9f4ca8c7`.
   - [x] INV-10's step case, in `crates/rstest-bdd/tests/runner_cancel.rs`, with
     the three hardening requirements and two non-vacuity controls. D25 records
-    the design, including a third withdrawn claim.
-  - [ ] INV-5's property in `crates/rstest-bdd/tests/runner_sequence_props.rs`:
-    the same generated plan through both runners, outcomes compared whole. The
-    file's module documentation still carries a now-stale note saying INV-5
-    lands with EP-M3, and must be updated with the clause rather than left
-    as-is.
+    the design, including a third withdrawn claim. Committed in `854b8186`.
+  - [x] INV-5's property in `crates/rstest-bdd/tests/runner_sequence_props.rs`,
+    in a new `equivalence` module, with `run_case_async` beside `run_case` in
+    `sequence/run.rs`. Whole-`Run` comparison, two in-suite controls, and one
+    bespoke mutation run and recorded. The file's module documentation, which
+    previously said INV-5 lands with EP-M3, now describes it.
   - [ ] The `cargo-mutants` negative control for INV-5 over
     `runner/engine/drive_async.rs` — the plan's named control for that
-    invariant, not yet run.
+    invariant. A bespoke mutation was run in its place and did catch the
+    property, which is evidence but not the same evidence: `cargo-mutants`
+    enumerates mutations this hand-picked one does not.
+  - [ ] The commit gates for this milestone.
 - [x] ~~EP-M4: lifecycle hooks and the lifecycle matrix~~ — struck by D2
   option (ii).
 - [ ] EP-M5: documentation, snapshots, and the full gate.
@@ -1347,6 +1350,47 @@ between them. Raise that before spending the tolerance.
   compiler), and all three were found by *running* something rather than reading
   it — which is the pattern the plan's own `Verification plan` warns about in
   the abstract.
+
+- **Observation:** a planned assertion macro was the wrong tool for a `proptest`
+  property, and the plan named it anyway. Evidence: INV-5's row prescribes
+  `pretty_assertions::assert_eq!`. That macro **panics**, and a panic inside a
+  proptest case aborts the case rather than reporting a failure, so the
+  counter-example is never shrunk. The property was written with `prop_assert!`
+  and `pretty_assertions::Comparison` in the message instead; the control run
+  then shrank a real failure to the two-invocation plan `[Skip, Pass]`, which an
+  unshrunk panic would have reported as a fifteen-invocation plan or whatever
+  the generator happened to draw. Impact: recorded as a deviation in INV-5's row
+  rather than taken silently. The general point is that a plan written before
+  the harness exists can name a mechanism that is right in a unit test and wrong
+  in a property, and the difference is invisible until something actually fails
+  — this one only surfaced *because* the negative control was run, which is the
+  second time in this milestone that a control found something the writing did
+  not.
+
+- **Observation:** twelve of the sixteen rows in the conformance trace table
+  named artefacts that do not exist. Evidence: checking each row against the
+  tree, `tests::runner::props::sync_async_equivalence`,
+  `tests::runner::terminal::stops_and_bypasses`,
+  `tests::runner::completeness::bypasses_every_later_invocation`,
+  `tests::runner::outcome::failure_is_returned_not_panicked`,
+  `tests::runner::outcome::canonical_fold_folds_forced_skip`,
+  `tests::runner::surface::no_frontend_types_in_public_api`,
+  `tests::runner::plan::macro_path_allocates_no_step_text`,
+  `tests::runner::plan::parses_and_outlives_its_buffer`,
+  `tests::runner::skip_parity::matrix`,
+  `tests::runner::source::non_feature_paths_preserved`, and
+  `tests::runner::cancel::drop_during_step` all return nothing, and the three
+  `tests::runner::lifecycle::*` rows are contingent on a struck milestone. Four
+  of the twelve rows name *actual* tests under wrong paths or names — the tests
+  exist in `src/runner/tests/` and `tests/` under different names — and the rest
+  name nothing that was ever written. Impact: the trace table is the plan's
+  main answer to "is every requirement discharged?", and a table whose rows do
+  not resolve answers it vacuously. Every row now names a path and symbol that
+  exists, checked by grep rather than by memory. The rows for EP-M4 stay as they
+  are, because they are labelled contingent and that milestone is struck. The
+  lesson generalises past this table: a traceability artefact is *also* a
+  verification claim, and it decays exactly like the code references in a
+  comment — silently, and in the direction of looking complete.
 
 ### The two Markdown formatters do not agree, and only one of them is checked
 
@@ -2752,22 +2796,22 @@ numbered functional and technical requirements in ADR-018's *Requirements*
 section; the ADR itself assigns no identifiers.
 
 ```plaintext
-ADR-018-FR1,FR2 -> EP-M1 -> tests::runner::plan::macro_path_allocates_no_step_text
-ADR-018-FR3     -> EP-M2 -> tests::runner::terminal::stops_and_bypasses
-ADR-018-FR4     -> EP-M3 -> tests::runner::props::sync_async_equivalence
-ADR-018-FR5     -> EP-M2 -> tests::runner::props::value_visibility
-ADR-018-FR6,FR7 -> EP-M2 -> tests::runner::completeness::bypasses_every_later_invocation
+ADR-018-FR1,FR2 -> EP-M1 -> src/runner/tests/plan.rs (macro_path_allocates_no_step_text)
+ADR-018-FR3     -> EP-M2 -> tests/completeness.rs (every_invocation_is_recorded_once_in_order)
+ADR-018-FR4     -> EP-M3 -> tests/runner_sequence_props.rs (equivalence)
+ADR-018-FR5     -> EP-M2 -> tests/runner_sequence_props.rs (a_returned_value_is_visible_only_after_its_producer)
+ADR-018-FR6,FR7 -> EP-M2 -> tests/completeness.rs (the_bypassed_tail_has_the_length_the_terminal_event_implies)
 ADR-018-FR8     -> EP-M4 -> tests::runner::lifecycle::terminal_paths       (contingent on D2)
-ADR-018-FR9     -> EP-M2 -> tests::runner::outcome::failure_is_returned_not_panicked
-ADR-018-FR10    -> EP-M2 -> tests::runner::outcome::canonical_fold_folds_forced_skip
-ADR-018-TR1     -> EP-M1 -> tests::runner::surface::no_frontend_types_in_public_api
-ADR-018-TR2     -> EP-M2 -> tests/runner_panics.rs (panics_boundary)
+ADR-018-FR9     -> EP-M2 -> tests/runner_panics.rs (an_unwrapped_step_panic_is_returned_not_thrown)
+ADR-018-FR10    -> EP-M2 -> src/runner/tests/outcome.rs (canonical_fold_folds_forced_skip)
+ADR-018-TR1     -> EP-M1 -> src/runner/tests/surface.rs (no_frontend_types_in_public_api)
+ADR-018-TR2     -> EP-M2 -> tests/runner_panics.rs (a_wrapped_step_panic_is_unchanged)
 ADR-018-TR3     -> EP-M5 -> git diff --stat crates/rstest-bdd-macros (empty)
-ADR-018-TR7     -> EP-M1 -> tests::runner::plan::parses_and_outlives_its_buffer
-Skip parity     -> EP-M2 -> tests::runner::skip_parity::matrix
+ADR-018-TR7     -> EP-M1 -> src/runner/tests/plan.rs (parses_and_outlives_its_buffer)
+Skip parity     -> EP-M2 -> tests/skip_parity.rs (forced_failure_is_the_conjunction_of_both_inputs)
 Lifecycle matrix-> EP-M4 -> tests::runner::lifecycle::cleanup_exactly_once (contingent on D2)
-Cancellation    -> EP-M3 -> tests::runner::cancel::drop_during_step
-Source fidelity -> EP-M2 -> tests::runner::source::non_feature_paths_preserved
+Cancellation    -> EP-M3 -> tests/runner_cancel.rs (cases::cancelling_during_a_step_)
+Source fidelity -> EP-M2 -> tests/parser_neutral_runner.rs (every_step_reports_its_source_line)
 ```
 
 ## Verification plan
@@ -2896,20 +2940,50 @@ exactly once.
 step definition is registered in `StepExecutionMode::Both`, `run_scenario` and
 `run_scenario_async` produce equal outcomes.
 
-- Method: property test running the same generated plan through both runners,
-  compared with `pretty_assertions::assert_eq!` on the whole
-  `ScenarioOutcome` — which requires the `PartialEq` derives named in
-  Constraint 1, so that a handwritten projection cannot itself omit the
-  differing field.
-- Artefact: `crates/rstest-bdd/tests/runner_sequence_props.rs`.
+- Method: property test running the same generated plan through both runners
+  and comparing the whole recorded run — the `ScenarioOutcome` *and* the two
+  step-side logs (`executed`, `readings`) the rest of the suite treats as
+  independent evidence. Comparison is on the derived `PartialEq` of the harness
+  `Run`, so that a handwritten projection cannot itself omit the differing
+  field; the `PartialEq` derives named in Constraint 1 are what make that
+  possible for the outcome.
+- Artefact: `crates/rstest-bdd/tests/runner_sequence_props.rs`, in its
+  [`equivalence`](crates/rstest-bdd/tests/runner_sequence_props/equivalence.rs)
+  module. The async leg is `run_case_async` in
+  `runner_sequence_props/sequence/run.rs`, deliberately a mirror of its sync
+  sibling: same plan, same arrangement, same context builder, same logs read
+  back the same way — so the only difference between a compared pair is the
+  driver.
+- **Deviation from the planned comparison macro, recorded rather than silently
+  taken.** The row asked for `pretty_assertions::assert_eq!`. The property uses
+  `prop_assert!` with `pretty_assertions::Comparison` in the message instead,
+  which renders the identical diff. The reason is that `assert_eq!` *panics*,
+  and a panic inside a proptest case aborts the case rather than reporting a
+  failure, so the counter-example is never shrunk. The plan's requirement is
+  that the comparison be whole-value and diff-rendered, and both hold; only the
+  macro changed. On the only occasion the property has failed it shrank to the
+  two-invocation plan `[Skip, Pass]`, which an unshrunk panic would not have
+  produced.
 - **Known gap, recorded rather than glossed:** `Async`-only steps have no sync
   counterpart and are therefore outside this invariant; INV-15 covers them
   separately. The claim "the two loops differ only by `.await`" is a design
   intent that INV-5 supports for `Both`-mode steps and does not establish in
   general.
 - Non-vacuity: classification asserts terminal skips, terminal failures, and
-  full passes all occurred. Negative control: `cargo-mutants` on
-  `runner/engine/drive_async.rs`.
+  full passes all occurred, which is the suite's existing `assert_complete`
+  folded over the generated cases. Two in-suite controls guard the comparison
+  itself: `the_comparison_rejects_a_mutated_outcome` (two runs whose plans
+  differ in one recorded source line must compare unequal) and
+  `a_run_records_the_source_its_plan_gave` (pins the intermediate fact that
+  makes that mutation meaningful rather than a no-op).
+- **In-suite negative control, run and recorded.** `drive_async` was mutated to
+  drop its bypassed records — `details.extend(remaining.map(..))` deleted. The
+  property failed, and `proptest` shrank the counter-example to
+  `plan=[Skip, Pass]`, naming the missing second `Bypassed` record. Reverted
+  after. This is a bespoke mutation standing in for the named `cargo-mutants`
+  pass, not a replacement for it: the named pass over
+  `runner/engine/drive_async.rs` is **still outstanding** and is carried in
+  Progress as such.
 
 **INV-6 — Skip parity.** A successfully skipped step always has
 `StepStatus::Skipped`, and the skip record's `forced_failure` equals
