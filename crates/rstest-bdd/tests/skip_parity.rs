@@ -9,7 +9,7 @@
 //! Both are about the *composition* of two booleans that arrive from opposite
 //! ends of the API: the plan carries `allow_skipped`, and the scope carries
 //! `fail_on_skipped`. Neither is visible to the other until the runner is handed
-//! both, which is why the rows below are parameterised over the full product
+//! both, which is why the rows below are parameterized over the full product
 //! rather than sampled. There are four combinations; writing three of them would
 //! be arbitrary.
 //!
@@ -78,7 +78,7 @@ fn plan(allow_skipped: bool) -> rstest_bdd::runner::ScenarioPlan {
 ///
 /// The policy is passed through [`ScenarioScope::with_skip_policy`] rather than
 /// the environment or the process-global override, so the four rows below do not
-/// contend for either and need no serialisation. That is D10's whole point: the
+/// contend for either and need no serialization. That is D10's whole point: the
 /// ambient value is one *source* of policy, not the only one, and a test that
 /// must set it to exercise a policy is testing the wrong layer.
 fn run_with(allow_skipped: bool, fail_on_skipped: bool) -> ScenarioOutcome {
