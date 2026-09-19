@@ -1041,6 +1041,19 @@ between them. Raise that before spending the tolerance.
     function. See the mutation section of `Outcomes & retrospective`.
   - [x] The `## Outcomes & retrospective` section completed, reconciling every
     discovery with `Conformance basis`.
+  - [x] The CI-only CodeScene code-health gate cleared, after four CodeRabbit
+    rounds had passed it by. 13 findings across 9 files, all `change-type:
+    introduced`; `cs delta origin/main --output-format json` now returns
+    **zero bytes**. The fix was structural rather than cosmetic —
+    `ScenarioSkip`'s five arguments became two named records, the module became
+    `engine/skip.rs`, and the display snapshot's fixtures became per-variant
+    builders. See D34. This box is the one that keeps the milestone open: the
+    gate was red for the whole of EP-M5 and no local target could see it.
+  - [ ] The Bumpy Road and method-length findings were cleared, but the
+    *upstream* lesson is not yet actioned: this plan's gate list enumerates
+    local `make` targets and never names the PR checks, which is the set that
+    actually failed. Recorded in D34 rather than fixed, because changing how
+    future plans enumerate gates is outside this plan's scope.
 
 ## Surprises & discoveries
 
@@ -3769,6 +3782,83 @@ corrections across three rounds — which is the class of defect a human reviewe
 skims past.
 
 Date/Author: 2026-09-19, implementation agent.
+
+### D34: the CodeScene gate was red on this branch and on no other, and the fix was structural
+
+**Discovered after the plan had been read as finished, by comparing CI across
+the open PRs rather than by any local gate.** `CodeScene Code Health Review
+(main)` concludes `failure` on this branch's HEAD. It is *not* a required
+status check — ruleset 18427987 `main-required-checks` requires only the three
+`build-test` legs — but every comparable open PR passes it, so the failure was
+specific to this branch and self-inflicted rather than a change in the gate.
+The plan's `Gates` list did not name it, which is why it surfaced last: it is
+reported by the GitHub App `codescene-access` and is invisible to
+`make lint`, `make test` and every other local target.
+
+**Why this is a deterministic gate and not a review.** The user's instruction
+that CodeRabbit not be used for errors a deterministic tool can catch applies
+here directly. `CodeScene` scores code health by parsing the source; the
+findings are mechanical, reproducible, and locally checkable — `/home/leynos/.local/bin/cs delta origin/main --output-format json` reproduces CI's
+analysis exactly, and an empty output means zero findings. Nothing about the
+findings required human judgement to *discover*. They required judgement only
+to *fix*, where "fix" and "suppress" had to be told apart.
+
+**The findings, and which were real.** 13 findings across 9 files, all
+`change-type: introduced`, meaning attributable to this branch's delta rather
+than pre-existing. They were cleared over two sittings, in this order:
+four `Large Method` (method length against a 70-line threshold); several
+`Excess Number of Function Arguments` (`max arguments = 4`); one
+`Bumpy Road Ahead` (an "Enforce critical code health rules" entry, so a hard
+failure rather than advisory) at `named_witnesses`; and one `Code Duplication`.
+Every one was a real structural fact about the code rather than a false
+positive — which is the point worth recording, because the cheap response to a
+non-required check is to ignore it, and here that would have left a genuine
+defect in place. The worst of them was `Bumpy Road Ahead` on the witness table,
+which is CodeScene's way of saying a function held two interleaved decision
+paths; splitting it into a table plus a fold was the right shape regardless.
+
+**The pattern in the fixes, recorded because it recurred.** Each fix moved the
+finding rather than removing it, and the *move* was the signal that the first
+fix was too shallow. `ScenarioSkip::new` took five arguments; the test-only
+`test_skip` helper added to avoid naming the structs took five too, so the
+finding reappeared verbatim at the new location. The reflex to add a helper was
+the error: `ScenarioSkip::new` is already `pub` and now takes three arguments,
+so the helper was pure duplication and was deleted rather than reshaped. The
+same pattern appeared twice more — a `Large Method` fix that shrank a function
+from 97 to 91 lines (still over 70) before the real fix moved its fixtures into
+per-variant builders, and a duplication fix that merged two skip cases into a
+table. **The lesson: when a gate finding reappears at the site of its own fix,
+the fix addressed the symptom; re-derive what the code should be rather than
+shrinking the counter.**
+
+**The structural change this forced, which is the useful part.** The five-argument
+constructor was two questions wearing one coat. Splitting the *value* rather
+than the constructor produced `SkipRecord` (the reason the step gave and where
+it was written, which travel together) and `SkipPolicyRecord` (the two resolved
+policy values, so a reader asking "would this skip have failed the suite?" gets
+the run's own answer rather than a rule to re-evaluate). `SkipPolicy`'s fields
+became private and gained accessors, and its `record()` returns the pair as one
+value so the engine cannot interleave another resolve between reading them.
+`engine/policy.rs` and `policy_tests/` were renamed to `skip.rs` and
+`skip_tests/`, because `policy` no longer described the module: the skip rule is
+the one decision the outcome layer must agree with, and the other two decisions
+(`classify`, `assemble`) have no counterpart on the record side. The `surface`
+walk's hard-coded module list caught the rename, as designed.
+
+**Verified cleared, not assumed cleared.** `cs delta origin/main --output-format json`
+returns **zero bytes** on the final revision, down from 13 findings. The full
+crate suite is green at the same revision (725 run, 725 passed, 7 skipped), and
+`scripts/check_rs_file_lengths.py` exits 0. Scope impact: 0 files, 0 lines
+beyond the refactor already counted in D31's measurement.
+
+**What a successor should take from this.** The plan's `Gates` section names
+`make lint`, `make test`, the Markdown gates and CodeRabbit; it does not name
+the CI-only checks, and this one ran red through four CodeRabbit rounds without
+any of them noticing. A plan that claims gate coverage should enumerate the
+*PR checks* rather than the local targets, because those are two different sets
+and the difference is exactly the checks whose only report is on GitHub.
+
+Date/Author: 2026-09-20, implementation agent.
 
 ### D32: `Display for SourcePath` is uncovered, and is left uncovered
 

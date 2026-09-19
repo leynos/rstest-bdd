@@ -50,6 +50,48 @@ pub enum ScenarioStatus {
     Failed,
 }
 
+/// The resolved skip policy, as a record rather than as a rule.
+///
+/// Both fields are the *resolved* values, so a reader asking "would this skip
+/// have failed the suite?" gets the run's own answer rather than a rule it
+/// would have to re-evaluate against a policy it no longer has.
+///
+/// # Examples
+///
+/// ```
+/// use rstest_bdd::runner::SkipPolicyRecord;
+/// // Records are produced by the runner.
+/// # let _ = std::marker::PhantomData::<SkipPolicyRecord>;
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SkipPolicyRecord {
+    /// The *effective* permission to skip, which is not the plan's own flag.
+    ///
+    /// A run grants permission when the plan asks for it **or** when
+    /// `fail_on_skipped` is off, so this holds
+    /// `plan.allow_skipped() || !fail_on_skipped` rather than the plan's flag
+    /// alone. Recording the effective value is what makes
+    /// `forced_failure == !allow_skipped && fail_on_skipped` hold of the record
+    /// itself and not merely of the policy that built it.
+    pub allow_skipped: bool,
+    /// `!allow_skipped && fail_on_skipped`, resolved once per run.
+    pub forced_failure: bool,
+}
+
+/// Why a run stopped early, in the words the invocation gave.
+///
+/// The pair a skip record's *message* half is built from, which is why the two
+/// travel together: a caller storing one and reading the other from elsewhere
+/// could pair a message with a location that did not produce it. The policy
+/// half is [`SkipPolicyRecord`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SkipRecord {
+    /// The reason the step supplied, when it supplied one.
+    pub message: Option<String>,
+    /// Where the skipping step was written, when the plan recorded it.
+    pub source: Option<SourceLocation>,
+}
+
 /// The terminal skip, retained so a caller can see *why* the run stopped
 /// early.
 ///
@@ -76,21 +118,10 @@ pub enum ScenarioStatus {
 pub struct ScenarioSkip {
     /// Zero-based index of the step that requested the skip.
     at: usize,
-    /// The reason the step supplied, when it supplied one.
-    message: Option<String>,
-    /// Where the skipping step was written, when the plan recorded it.
-    source: Option<SourceLocation>,
-    /// The *effective* permission to skip, which is not the plan's own flag.
-    ///
-    /// A run grants permission when the plan asks for it **or** when
-    /// `fail_on_skipped` is off, so this holds
-    /// `plan.allow_skipped() || !fail_on_skipped` rather than the plan's flag
-    /// alone. Recording the effective value is what makes
-    /// `forced_failure == !allow_skipped && fail_on_skipped` hold of the record
-    /// itself and not merely of the policy that built it.
-    allow_skipped: bool,
-    /// `!allow_skipped && fail_on_skipped`, resolved once per run.
-    forced_failure: bool,
+    /// Why it stopped, in the invocation's own words.
+    record: SkipRecord,
+    /// The policy the run had resolved when it did.
+    policy: SkipPolicyRecord,
 }
 
 impl ScenarioSkip {
@@ -98,20 +129,8 @@ impl ScenarioSkip {
     ///
     /// The caller is the runner's engine, which builds one whenever an
     /// invocation asks to be skipped.
-    pub(crate) fn new(
-        at: usize,
-        message: Option<String>,
-        source: Option<SourceLocation>,
-        allow_skipped: bool,
-        forced_failure: bool,
-    ) -> Self {
-        Self {
-            at,
-            message,
-            source,
-            allow_skipped,
-            forced_failure,
-        }
+    pub fn new(at: usize, record: SkipRecord, policy: SkipPolicyRecord) -> Self {
+        Self { at, record, policy }
     }
 
     /// Return the zero-based index of the step that requested the skip.
@@ -120,11 +139,11 @@ impl ScenarioSkip {
 
     /// Borrow the reason the step supplied, when it supplied one.
     #[must_use]
-    pub fn message(&self) -> Option<&str> { self.message.as_deref() }
+    pub fn message(&self) -> Option<&str> { self.record.message.as_deref() }
 
     /// Borrow where the skipping step was written, when the plan recorded it.
     #[must_use]
-    pub const fn source(&self) -> Option<&SourceLocation> { self.source.as_ref() }
+    pub const fn source(&self) -> Option<&SourceLocation> { self.record.source.as_ref() }
 
     /// Whether this run permitted skipping, having resolved the policy.
     ///
@@ -133,13 +152,13 @@ impl ScenarioSkip {
     /// not a readback of the plan's own `allow_skipped` flag, and a caller
     /// asking whether the *plan* permits skipping must consult the plan.
     #[must_use]
-    pub const fn allow_skipped(&self) -> bool { self.allow_skipped }
+    pub const fn allow_skipped(&self) -> bool { self.policy.allow_skipped }
 
     /// Whether skip policy converts this skip into a suite failure.
     ///
     /// Exactly `!allow_skipped && fail_on_skipped`, resolved once per run.
     #[must_use]
-    pub const fn forced_failure(&self) -> bool { self.forced_failure }
+    pub const fn forced_failure(&self) -> bool { self.policy.forced_failure }
 }
 
 /// The complete terminal outcome of one scenario run.

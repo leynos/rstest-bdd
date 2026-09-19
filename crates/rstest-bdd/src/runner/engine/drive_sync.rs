@@ -9,7 +9,7 @@
 //!
 //! The driver owns the one responsibility the policy layer deliberately does
 //! not: reaching the registry. That touches process-global state, which is
-//! exactly why it lives here and not in `policy`.
+//! exactly why it lives here and not in `skip`.
 //!
 //! # What is shared with the async driver, and what is not
 //!
@@ -96,9 +96,9 @@ pub(in crate::runner) fn drive(
     // which input granted the flag.
     tracing::debug!(
         plan_allows_skipping = plan.allow_skipped(),
-        fail_on_skipped = policy.fail_on_skipped,
-        allow_skipped = policy.allow_skipped,
-        forced_failure = policy.forces_failure(),
+        fail_on_skipped = policy.fail_on_skipped(),
+        allow_skipped = policy.allow_skipped(),
+        forced_failure = policy.forced_failure(),
         "resolved skip policy",
     );
 

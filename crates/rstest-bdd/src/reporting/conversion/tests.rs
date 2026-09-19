@@ -15,7 +15,10 @@ use crate::{
         ScenarioOutcome,
         ScenarioPlan,
         ScenarioPlanBuilder,
+        ScenarioSkip,
         ScenarioStatus as RunnerStatus,
+        SkipPolicyRecord,
+        SkipRecord,
         StepOutcome,
         ValueFate,
         test_invocation,
@@ -105,7 +108,17 @@ fn a_passing_run_converts() {
 #[test]
 fn a_skipped_run_converts_with_its_policy() {
     let plan = plan();
-    let skip = crate::runner::ScenarioSkip::new(1, Some("pending".into()), None, false, true);
+    let skip = ScenarioSkip::new(
+        1,
+        SkipRecord {
+            message: Some("pending".into()),
+            source: None,
+        },
+        SkipPolicyRecord {
+            allow_skipped: false,
+            forced_failure: true,
+        },
+    );
     let outcome = ScenarioOutcome::new(
         RunnerStatus::Skipped,
         vec![
