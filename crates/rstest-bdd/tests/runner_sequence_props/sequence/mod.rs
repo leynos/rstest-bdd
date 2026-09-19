@@ -45,7 +45,7 @@ pub(crate) mod steps;
 mod witnesses;
 
 pub(crate) use generator::case;
-pub(crate) use run::{Run, context_for, run_case};
+pub(crate) use run::{Run, context_for, run_case, run_case_async};
 /// The pattern text the generator names, and the placeholder helper.
 ///
 /// Re-exported at this level so the properties, the generator, and the
@@ -272,6 +272,10 @@ impl Arrangement {
 }
 
 /// What one observer read, and which invocation it was.
+///
+/// The `PartialEq` here is load-bearing for INV-5 rather than incidental:
+/// [`Run`] is compared as a whole, and a `Run` holds a `Vec<Reading>`. See
+/// `sequence/run.rs`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Reading {
     /// The observer invocation's index in the plan it belongs to.

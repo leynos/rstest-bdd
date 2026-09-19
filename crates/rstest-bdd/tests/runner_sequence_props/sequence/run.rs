@@ -16,7 +16,11 @@
 //! violates it. A predicate that had quietly stopped being able to report a
 //! violation would otherwise be a hole in a file nobody was looking at.
 
-use std::{any::Any, cell::RefCell};
+use std::{
+    any::Any,
+    cell::RefCell,
+    task::{Context, Poll, Waker},
+};
 
 use rstest_bdd::{
     StepContext,
@@ -29,13 +33,24 @@ use rstest_bdd::{
         StepStatus,
         ValueFate,
         run_scenario,
+        run_scenario_async,
     },
 };
 
 use super::{Arrangement, Reading, SENTINEL, Step, executed, observed, reset_logs};
 
+/// The most times a generated plan may be polled before the async leg gives up.
+///
+/// Every step this suite registers is [`Both`](rstest_bdd::StepExecutionMode::Both)
+/// or is not registered at all, and the `Both` arm of `execute_step_async`
+/// calls the synchronous handler directly — so a generated plan resolves on its
+/// first poll. The bound is generous for that reason: exceeding it means a step
+/// genuinely parked, which would make INV-5's subject a different question than
+/// the one it asks, so failing loudly is the honest outcome.
+const MAX_POLLS: usize = 64;
+
 /// The result of running one generated case.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Run {
     /// What the driver returned.
     pub(crate) outcome: ScenarioOutcome,
@@ -208,13 +223,12 @@ pub(crate) fn plan_for(steps: &[Step]) -> ScenarioPlan {
         .build()
 }
 
-/// Run one generated case and collect everything the properties read.
+/// Run one generated case synchronously and collect everything the properties
+/// read.
 pub(crate) fn run_case(steps: &[Step], arrangement: Arrangement) -> Run {
     reset_logs();
     let plan = plan_for(steps);
-    let cells: Vec<ProbeCell> = (0..arrangement.probes())
-        .map(|_| StepContext::owned_cell(super::steps::Probe(SENTINEL)))
-        .collect();
+    let cells = probe_cells(arrangement);
     let mut ctx = context_for(arrangement, &cells);
     let scope = ScenarioScope::new(&mut ctx).with_skip_policy(false);
     let outcome = run_scenario(&plan, scope);
@@ -223,4 +237,59 @@ pub(crate) fn run_case(steps: &[Step], arrangement: Arrangement) -> Run {
         executed: executed(),
         readings: observed(),
     }
+}
+
+/// Run one generated case asynchronously and collect everything the properties
+/// read.
+///
+/// The asynchronous counterpart of [`run_case`], and deliberately its mirror:
+/// the same plan, the same arrangement, the same context built by the same
+/// builder, and the same two logs read back the same way. The only difference
+/// is the driver called, which is what makes a whole-[`Run`] comparison between
+/// the two a statement about the drivers rather than about the harness.
+///
+/// # Why the polls are driven by hand
+///
+/// [`Waker::noop`]'s `RawWaker` ignores `wake`, so there is no executor here to
+/// re-poll a future that yields; this drives the polls itself, bounded by
+/// [`MAX_POLLS`]. A generated plan completes on the first poll, so the loop is
+/// what turns "a step parked" from a hang into a failure.
+pub(crate) fn run_case_async(steps: &[Step], arrangement: Arrangement) -> Run {
+    reset_logs();
+    let plan = plan_for(steps);
+    let cells = probe_cells(arrangement);
+    let mut ctx = context_for(arrangement, &cells);
+    let scope = ScenarioScope::new(&mut ctx).with_skip_policy(false);
+
+    let mut run = Box::pin(run_scenario_async(&plan, scope));
+    let waker = Waker::noop();
+    let mut cx = Context::from_waker(waker);
+    let outcome = (1..=MAX_POLLS)
+        .find_map(|_| match run.as_mut().poll(&mut cx) {
+            Poll::Ready(outcome) => Some(outcome),
+            Poll::Pending => None,
+        })
+        .unwrap_or_else(|| {
+            panic!(
+                "the asynchronous runner stayed pending for {MAX_POLLS} polls on a plan whose \
+                 steps all resolve without parking, so it is not the runner INV-5 is about"
+            )
+        });
+
+    Run {
+        outcome,
+        executed: executed(),
+        readings: observed(),
+    }
+}
+
+/// The probe fixture cells an arrangement describes.
+///
+/// Shared by both legs so they cannot be built differently: a leg handed cells
+/// of a different shape would be a second difference between the runners, on
+/// top of the one INV-5 is measuring.
+fn probe_cells(arrangement: Arrangement) -> Vec<ProbeCell> {
+    (0..arrangement.probes())
+        .map(|_| StepContext::owned_cell(super::steps::Probe(SENTINEL)))
+        .collect()
 }
