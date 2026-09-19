@@ -505,22 +505,43 @@ between them. Raise that before spending the tolerance.
   tests now report as `runner::tests::surface::walk::*`.
 
 - [~] EP-M2: synchronous runner, engine split, and the sequence properties.
-  *(2026-09-19) Every EP-M2 artefact except `runner_sequence_props.rs` is
-  written and green: the two behavioural scenarios, `tests/modes.rs`,
-  `tests/completeness.rs`, `tests/skip_parity.rs`, and the D11 panic boundary's
-  five integration tests plus six unit cases. `runner_sequence_props.rs` is the
-  one that remains. An earlier note here claimed two of its four invariants
-  were EP-M3-bound — INV-5 needs `run_scenario_async`, and INV-1/INV-2's domain
-  includes terminal kinds only the async driver exercises as a comparable path.
-  **The first half of that stands and the second was wrong**, on a reading
-  taken while the file was still unwritten: INV-1, INV-2, INV-3, and INV-12 can
-  all be discharged against the synchronous driver alone, because every
-  terminal kind the domain enumerates has a sync-reachable registration —
-  `panic` through a raw `step!` handler, which `runner_panics.rs` already
-  demonstrates. So the file is split by necessity rather than by preference:
-  INV-1, INV-2, INV-3, and INV-12 land here, and only INV-5's clause remains
-  EP-M3-bound, recorded in-file as such rather than silently omitted. Recorded
-  as partial rather than done for that one reason.* **Opened 2026-09-19.** The
+  *(2026-09-19) `runner_sequence_props.rs` is written, split, lint-clean and
+  green: fifteen tests, all passing, against a full
+  `cargo nextest run -p rstest-bdd` of `703 tests run: 703 passed, 7 skipped`.
+  The property suite is `crates/rstest-bdd/tests/runner_sequence_props.rs` with
+  its support modules under `tests/runner_sequence_props/`: `invariants.rs`
+  (the four property bodies), `named_witnesses.rs` (the per-kind and
+  per-class witnesses), `controls.rs` (the negative controls and the
+  generator's own domain checks), and `sequence/` — `mod.rs` for the
+  vocabulary, `run.rs` for the harness and its predicates, `witnesses.rs` for
+  the non-vacuity accumulator, `generator.rs` for the strategy and the crafted
+  shapes, and `steps/` (`mod.rs` for the registrations, `names.rs` for the
+  pattern text). The support files are reached by `#[path]`, because a Cargo
+  integration target is a single file: `mod controls;` there resolves to
+  `tests/controls.rs`, not under a directory named after the target.
+
+  Four defects were found by *running* the suite rather than by reading it, and
+  all four are recorded in `Surprises & discoveries`: an attribute step cannot
+  take a `StepContext`, so the observer is registered raw; the INV-3
+  non-vacuity witness as first drafted was unsatisfiable, because it required a
+  value to travel backwards; the per-kind control's expected execution count
+  ignored that two kinds are terminal *without* reaching their handler; and one
+  nextest `LEAK` classification is a stderr-timing artifact rather than a
+  failure. Five more were found by *gating* it — the two files were over the
+  400-line cap, and the suite had six pre-existing Clippy findings including
+  two `deny`-level ones — also recorded there. An earlier note here claimed two
+  of its four invariants were EP-M3-bound — INV-5 needs `run_scenario_async`,
+  and INV-1/INV-2's domain includes terminal kinds only the async driver
+  exercises as a comparable path. **The first half of that stands and the
+  second was wrong**, on a reading taken while the file was still unwritten:
+  INV-1, INV-2, INV-3, and INV-12 can all be discharged against the synchronous
+  driver alone, because every terminal kind the domain enumerates has a
+  sync-reachable registration — `panic` through a raw `step!` handler, which
+  `runner_panics.rs` already demonstrates. So the file is split by necessity
+  rather than by preference: INV-1, INV-2, INV-3, and INV-12 land here, and only
+  INV-5's clause remains EP-M3-bound, recorded in-file as such rather than
+  silently omitted. Recorded as partial rather than done for that one reason.*
+  **Opened 2026-09-19.** The
   first act was to revise D16, and it is done: see D18 in `Decision log` for
   why its `Stop(ScenarioFailure)` cannot express a permitted skip. D18's
   `StepDecision` is checked into `Interfaces and dependencies` as the settled
@@ -1384,6 +1405,43 @@ span into separate short spans rather than relying on `mdtablefix` to wrap it.
   because the harness move alone was sufficient and the pair reads better
   beside the fixture map they reach into.
 
+### The cap caught the sequence suite too, and the run harness is the seam
+
+- **Observation:** the EP-M2 sequence properties were written as
+  `tests/runner_sequence_props.rs` (696 lines) plus `tests/sequence/mod.rs`
+  (691), both over the cap, and both carrying a doc comment that *claimed*
+  compliance — which is worse than silence, because it is a false statement a
+  reader would trust instead of running the gate.
+- **Impact:** the split had to be at a seam that was already a seam in the
+  design rather than one invented to satisfy a line count. Three fell out:
+  `sequence/mod.rs` keeps only the *vocabulary* (`Kind`, `Step`, `Arrangement`,
+  `Reading`, `SENTINEL`, `MAX_STEPS`, `CASES`) because the generator, the
+  harness, the accumulator, and every failure message speak it, and gave up the
+  *run harness* to `sequence/run.rs` and the *non-vacuity accumulator* to
+  `sequence/witnesses.rs`; `runner_sequence_props.rs` gave up the property
+  bodies to `invariants.rs`, the named per-kind witnesses to
+  `named_witnesses.rs`, and the negative controls to `controls.rs`.
+- **A Cargo integration target is a single file, not a directory.** `mod
+  controls;` from `tests/runner_sequence_props.rs` is resolved as
+  `tests/controls.rs`, not as `tests/runner_sequence_props/controls.rs` — the
+  Rust 2018 `foo.rs` + `foo/` rule applies to `src/` module paths, not to
+  integration targets, whose module root *is* the file. Colocating support
+  files under a directory named after the target therefore needs the
+  repository's established `#[path = "..."]` idiom, as `runner_panics.rs` and
+  `runner_instrumentation.rs` already do. Getting this wrong is a compile
+  error, not a silent one.
+- **Six of the nine lint findings were pre-existing and invisible.** These
+  files had never been through `make lint`, so two `deny`-level errors
+  (`indexing_slicing` in `invariants.rs`, `string_slice` in `names.rs`) and
+  seven warnings were sitting in them. The two errors would have failed the
+  gate on the first run; the `string_slice` one was in `substitute`, which
+  sliced a pattern by byte offsets from `find`. It is correct for the ASCII
+  patterns here and wrong in general, so it now uses `split_once`. Two
+  `#[expect]`s were *unfulfilled* — a lint that expects to fire and does not is
+  itself a gate failure — because the items they guarded had since changed
+  shape, and one was removed entirely because `observes_probe` now has a real
+  `Err` path and `unnecessary_wraps` no longer applies.
+
 ### A failing `assert_eq!` in a step body classifies as `Panic`, not `Assertion`
 
 - **Observation:** writing `completeness.rs`'s failing step as an ordinary
@@ -1405,6 +1463,72 @@ span into separate short spans rather than relying on `mdtablefix` to wrap it.
   panic and relabelled it as a returned error, which is the INV-17 failure mode
   this whole suite exists to detect. No code change follows: the behaviour is
   pre-existing, approved, and now documented from the outside.
+
+- **Observation:** an attribute step cannot take a `StepContext`. Evidence: the
+  first EP-M2 run of the observer case failed with
+  `MissingFixtures(MissingFixturesDetails { required: ["ctx"], missing: ["ctx"],
+  missing_requirements: [MissingFixtureDiagnostic { name: "ctx",
+  ty: "StepContext < '_ >" }], available: ["sequence probe"] })`. The argument
+  classifier has no type-based recognition of `StepContext`
+  (`codegen/wrapper/args/classify/fixture_or_step.rs`): a parameter is a
+  placeholder when its name matches one after normalization, an explicit
+  `#[from]`/`#[datatable]`/`#[step_args]` when it carries that attribute, and a
+  *fixture* otherwise. So `ctx: &mut StepContext<'_>` is recorded as a fixture
+  named `ctx` of that type, and since nothing inserts one the wrapper refuses
+  the call before the handler runs. **Impact:** the observer step is registered
+  raw — the `submit!` form — which is what every other context-reaching step in
+  this repository already does, so this was a defect in the draft rather than in
+  the machinery. The raw form needs no classifier because it never parses a
+  signature, and it makes the placeholder explicit: the index is recovered with
+  the public `extract_placeholders` against a module-level `StepPattern`, and a
+  text that does not yield exactly one capture is a hard
+  `StepError::ExecutionError` rather than a silent zero, so a fabricated index
+  can never enter the log INV-1 is checked against.
+
+- **Observation:** the INV-3 non-vacuity witness as first drafted was
+  *unsatisfiable*, and that is why the suite failed rather than merely being
+  thin. The flag was set from `seen > reading.observer` — "the observer read the
+  value of a producer at a later index". A value can only travel forwards, so
+  that is precisely the relation the invariant *forbids*; no correct run can
+  produce it, and the assertion "no case placed an observer before the first
+  producer" was therefore unable to ever pass. **Impact:** the witness is now
+  read from the plan's producer indices instead: a case witnesses the negative
+  clause when an observer read no producer's value *and* a producer sits after
+  it *and* that producer ran. The third condition is not decoration — without
+  it, "the observer saw nothing" would hold trivially for a driver that hands
+  every observer a future value, which is the failure the clause exists to
+  catch. The general lesson, recorded because it recurred twice in this
+  milestone: a non-vacuity assertion whose condition cannot be met fails loudly,
+  but one whose condition is met *for the wrong reason* passes silently, and
+  only running the predicate against a corrupted log distinguishes them.
+
+- **Observation:** two of the nine kinds cannot reach their own handler, and the
+  per-kind control's expected execution count silently assumed they could.
+  `Kind::UnregisteredStep` resolves to no step at all and `Kind::MissingFixture`
+  fails validation upstream of the call, so neither logs its position — but both
+  are *terminal*, so the control plan `Pass, kind, Pass` still runs index 0.
+  The expectation of `2` for a terminal kind was therefore correct only for the
+  kinds that run; the two that do not leave exactly one entry, not two.
+  **Impact:** `expected_executed` now decides from both questions
+  (`terminal_status`, `logs_its_position`) rather than from the first alone, and
+  the assertion is an exact count with a companion check that index 1 is absent
+  from the log. This is a *test* defect, not a driver defect: the driver behaved
+  correctly throughout, and the log held exactly the invocations that reached a
+  handler. It was found by running the control, which is the only thing that
+  could have found it.
+
+- **Observation:** a `LEAK` classification from nextest is a stderr-timing
+  artifact here, not a failing test. One run in thirteen reported
+  `15 tests run: 15 passed (1 leaky)` for `a_keyword_mismatch_resolves_to_nothing`,
+  which passes in isolation and passed 10 times out of 10 on re-run.
+  `StepContext`'s ambiguity path emits through `emit_visible_warning`, which
+  `eprintln!`s when no `tracing` listener would receive the event; nextest
+  detects a test as leaky when it writes to a descriptor it did not capture.
+  **Impact:** none on correctness — a leaky test still passes — but the
+  distinction is worth recording so a later reader does not chase it as a
+  failure. The `IntoIterator`-order `Ambiguous fixture override` lines in a
+  captured log come from the same emitter and are the expected signal for
+  `Arrangement::TwoProbes`.
 
 ## Decision log
 
