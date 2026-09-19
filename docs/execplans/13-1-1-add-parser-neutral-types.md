@@ -494,8 +494,8 @@ between them. Raise that before spending the tolerance.
   re-run green before the review was requested and again after the fixes:
   `make check-fmt` rc=0, `make lint` rc=0, `make test` rc=0 with
   `1951 tests run: 1951 passed, 7 skipped` and zero failure markers,
-  `make markdownlint` rc=0 (`Summary: 0 error(s)`), `make nixie` rc=0. The
-  first `make lint` after the fixes failed on `module_max_lines` because
+  `make markdownlint` rc=0 (`Summary: 0 error(s)`), `make nixie` rc=0. The first
+  `make lint` after the fixes failed on `module_max_lines` because
   `surface.rs` reached 429 lines; the tree walk moved to
   `runner/tests/surface/walk.rs` along its real seam, which is why the surface
   tests now report as `runner::tests::surface::walk::*`.
@@ -503,13 +503,13 @@ between them. Raise that before spending the tolerance.
 - [ ] EP-M2: synchronous runner, engine split, and the sequence properties.
   **Opened 2026-09-19.** The first act was to revise D16, and it is done: see
   D18 in `Decision log` for why its `Stop(ScenarioFailure)` cannot express a
-  permitted skip. D18's `StepDecision` is checked into `Interfaces and
-  dependencies` as the settled engine decomposition, together with a `Terminal`
-  and a `SkipPolicy`, which EP-M2 mirrors while implementing rather than
-  re-deriving. The two things a reader should not have to reconstruct: the
-  driver keeps the error and hands `classify` a borrow, then moves it into
-  `Terminal::Fail`; and a skip never stores a `failure`, forced or not, because
-  `into_harness_result` derives that at fold time.
+  permitted skip. D18's `StepDecision` is checked into
+  `Interfaces and dependencies` as the settled engine decomposition, together
+  with a `Terminal` and a `SkipPolicy`, which EP-M2 mirrors while implementing
+  rather than re-deriving. The two things a reader should not have to
+  reconstruct: the driver keeps the error and hands `classify` a borrow, then
+  moves it into `Terminal::Fail`; and a skip never stores a `failure`, forced
+  or not, because `into_harness_result` derives that at fold time.
 
   **Red observed 2026-09-19.** `runner/tests/wire.rs` — three tests asserting
   that a run is *observable* rather than merely well-formed — failed at the
@@ -534,6 +534,27 @@ between them. Raise that before spending the tolerance.
      Four tests, covering INV-1 (termination *and* completeness), INV-12, INV-13,
      and the registry-verbatim error.
 
+  **Green held through the first lint sweep, at the cost of five Clippy
+  findings and three line-cap violations.** All eight are now fixed. The Clippy
+  set was `trivially_copy_pass_by_ref` twice (`forces_failure` takes `self`),
+  `double_must_use` (`assemble` returns a type that already carries the
+  attribute), `elidable_lifetime_names`
+  (`impl<'fix, H> ScenarioScope<'_, 'fix, H>`), and `manual_assert_eq`. The
+  line caps are worth recording because two of the three were *not* where the
+  first read suggested: `policy_tests.rs` was 495 lines and is now a directory
+  of five files, `context/mod.rs` was 408 and is now 336, and `runner_wire.rs`'s
+  `expect_used` was in a helper rather than a test body, so
+  `allow-expect-in-tests` did not cover it.
+
+  One planned refactor was dropped as unnecessary. The intent had been to pull
+  `try_borrow`/`try_borrow_mut` into a new `context/borrow.rs`, but moving the
+  closed ADR-007 wrapper block instead took `mod.rs` under the cap with one
+  extraction rather than two, and the ADR-007 block is the better seam: it is
+  self-contained, its in-place comment already declared the block closed, and
+  the `try_borrow` pair is called from `entry.rs` and `guards.rs` and reads
+  better beside the fixture map it reaches into. `context/harness.rs` is that
+  extraction, unchanged apart from the move.
+
   Outstanding for EP-M2: the `tracing` instrumentation beyond the two `warn!`
   and one `debug!` already in place, the two behavioural scenarios, the
   `#[cfg(test)]` reporting conversion smoke test (D5), `runner/tests/modes.rs`
@@ -545,60 +566,65 @@ between them. Raise that before spending the tolerance.
 
 ## Surprises & discoveries
 
-- **Observation:** a unit test inside `rstest-bdd` cannot resolve *any* step, and
-  this has nothing to do with the runner. Evidence: `crates/rstest-bdd/src/registry/introspection.rs`
-  registers `DUPLICATE_PATTERN` twice — deliberately, so that `duplicate_steps`
-  has a duplicate to find — and the first lookup in a process builds `STEP_MAP`,
+- **Observation:** a unit test inside `rstest-bdd` cannot resolve *any* step,
+  and this has nothing to do with the runner. Evidence:
+  `crates/rstest-bdd/src/registry/introspection.rs` registers
+  `DUPLICATE_PATTERN` twice — deliberately, so that `duplicate_steps` has a
+  duplicate to find — and the first lookup in a process builds `STEP_MAP`,
   whose duplicate `assert!` (`src/registry/mod.rs:238`) fires on it. Every wire
   test panicked there, at `registry/mod.rs:238`, reporting
-  `duplicate step for 'When' + 'introspection duplicate step'`. Impact: the three
-  end-to-end tests were moved from `src/runner/tests/wire.rs` to
+  `duplicate step for 'When' + 'introspection duplicate step'`. Impact: the
+  three end-to-end tests were moved from `src/runner/tests/wire.rs` to
   `crates/rstest-bdd/tests/runner_wire.rs`. Two consequences worth keeping. The
-  move is not a workaround: `run_scenario` is public API and these are its first
-  end-to-end callers, so an integration test is the honest home. But it *also*
-  means the Red stage masked the hazard — the stub panicked before the registry
-  was ever reached, which is exactly the class of blindness a Red stage is
-  supposed to expose rather than create. The hazard is live for any future
-  in-crate registry lookup, and is not caused by this milestone.
+  move is not a workaround: `run_scenario` is public API and these are its
+  first end-to-end callers, so an integration test is the honest home. But it
+  *also* means the Red stage masked the hazard — the stub panicked before the
+  registry was ever reached, which is exactly the class of blindness a Red
+  stage is supposed to expose rather than create. The hazard is live for any
+  future in-crate registry lookup, and is not caused by this milestone.
 
 - **Observation:** a step function has no way to receive the `StepContext`.
-  Evidence: no step in the workspace takes one — `rg 'fn .*ctx: &mut StepContext' crates/rstest-bdd/tests/`
-  returned only this milestone's own new file. The macro classifies such a
-  parameter as a *fixture requirement* named `ctx`, so the step fails validation
-  with `MissingFixtures { missing: ["ctx"] }`. Impact: the first draft of
+  Evidence: no step in the workspace takes one —
+  `rg 'fn .*ctx: &mut StepContext' crates/rstest-bdd/tests/` returned only this
+  milestone's own new file. The macro classifies such a parameter as a *fixture
+  requirement* named `ctx`, so the step fails validation with
+  `MissingFixtures { missing: ["ctx"] }`. Impact: the first draft of
   `runner_wire.rs` was written against an assumption that does not hold. The
   driver owns the context; a step sees only its fixtures. This is not a defect
-  the milestone needed to fix — but it *is* the reason a returned value, and not
-  a direct context touch, is how a step communicates anything outward, which is
-  the whole point of INV-12.
+  the milestone needed to fix — but it *is* the reason a returned value, and
+  not a direct context touch, is how a step communicates anything outward,
+  which is the whole point of INV-12.
 
 - **Observation:** a by-reference step parameter is served from *mutable*
   fixture storage, and its `TypeId` is the referent's. Evidence: a step taking
-  `counter: &'a Cell<u32>` reported `MissingFixture { name: "counter", ty: "Counter < '_ >" }`
-  when the fixture was registered with `insert("counter", &cell)`; registering
-  the `StepContext::owned_cell(Cell::new(…))` with `insert_owned::<Cell<u32>>`
-  made it resolve. The generated guard enum has `Owned(FixtureRef<'a, T>)` and
+  `counter: &'a Cell<u32>` reported
+  `MissingFixture { name: "counter", ty: "Counter < '_ >" }` when the fixture
+  was registered with `insert("counter", &cell)`; registering the
+  `StepContext::owned_cell(Cell::new(…))` with `insert_owned::<Cell<u32>>` made
+  it resolve. The generated guard enum has `Owned(FixtureRef<'a, T>)` and
   `Shared(FixtureRef<'a, &'a T>)`. Impact: this is the pre-existing
   fixture-typing convention, not a runner behaviour, and it cost three
   iterations to discover by error message alone. Recorded here so the two
   behavioural scenarios do not rediscover it.
 
-- **Observation:** `#[cfg_attr(not(test), expect(dead_code, reason = "constructed by the EP-M2 engine"))]`
+- **Observation:**
+  `#[cfg_attr(not(test), expect(dead_code, reason = "constructed by the EP-M2 engine"))]`
   became *unfulfilled* rather than satisfied the moment the driver landed.
   Evidence: seven `unfulfilled_lint_expectations` warnings, five in
-  `runner/outcome/step.rs` and two in `runner/outcome/mod.rs`. Impact: all seven
-  attributes were deleted. Worth noting for EP-M3: the same attribute pattern
-  will need the same treatment on whatever the async driver is the first
-  non-test constructor of, and `-D warnings` makes the failure loud rather than
-  silent, which is the correct trade.
+  `runner/outcome/step.rs` and two in `runner/outcome/mod.rs`. Impact: all
+  seven attributes were deleted. Worth noting for EP-M3: the same attribute
+  pattern will need the same treatment on whatever the async driver is the
+  first non-test constructor of, and `-D warnings` makes the failure loud
+  rather than silent, which is the correct trade.
 
 - **Observation:** `SkipPolicy`'s fields are `pub(crate)`, so a test *can* write
   a raw struct literal, and doing so silently encodes a pre-resolution shape.
-  Evidence: `PERMISSIVE` was written as `SkipPolicy { allow_skipped: false, fail_on_skipped: false }`,
-  which reads as "permissive" but is not what a resolved permissive policy holds
-  — resolution folds in `|| !fail_on_skipped`, giving `allow_skipped: true`. The
-  test asserted the post-resolution invariant against the pre-resolution value
-  and failed. Impact: all three constants now go through `SkipPolicy::resolve`,
+  Evidence: `PERMISSIVE` was written as
+  `SkipPolicy { allow_skipped: false, fail_on_skipped: false }`, which reads as
+  "permissive" but is not what a resolved permissive policy holds — resolution
+  folds in `|| !fail_on_skipped`, giving `allow_skipped: true`. The test
+  asserted the post-resolution invariant against the pre-resolution value and
+  failed. Impact: all three constants now go through `SkipPolicy::resolve`,
   which states the plan-side flag each one stands for and makes the mistake
   unrepresentable. The general lesson is that a constructor is worth using even
   inside the module that owns the private fields, precisely when the fields
@@ -1071,26 +1097,80 @@ whenever an inline-code span would push a prose line past 80 columns, break the
 span into separate short spans rather than relying on `mdtablefix` to wrap it.
 `mdtablefix` cannot do it, and `markdownlint` will not accept the result.
 
+### A formatter that writes to stdout can be mistaken for one that edits in place
+
+- **Observation:** `mdtablefix` requires `--in-place` to modify its argument,
+  and without it the formatted text goes to standard output while the file is
+  left untouched. The check that was supposed to confirm the fix compared the
+  file against a copy of itself, which of course matched, and the claim "the
+  plan is now formatted" was reported upward on that basis. The scrutineer
+  falsified it in one line: the file was byte-identical to `HEAD`.
+- **Impact:** this is a vacuous verification, not a tooling quirk — the exact
+  class of error the plan's own `Avoid vacuous verification` section is written
+  to prevent, committed one section away from that text. The comparison was
+  incapable of failing, so its passing carried no information. Two things
+  follow for the remainder of this work. First, a formatter is confirmed to
+  have written by re-running its `--check` mode and requiring a
+  non-zero-to-zero transition, or by inspecting `git diff --stat` for the file;
+  never by comparing the file to a copy of itself. Second, `--git` and an
+  explicit `[FILES]...` argument are mutually exclusive in `mdtablefix`, so the
+  working invocation is
+  `mdtablefix --in-place --wrap --renumber --breaks --ellipsis --fences <file>`.
+
+### Lint suppressions that are scoped to test *items* do not reach test *helpers*
+
+- **Observation:** `crates/rstest-bdd/tests/runner_wire.rs`'s `counter_value`
+  helper used `.expect("the cell holds a Cell<u32>")` and was rejected by
+  `clippy::unwrap_used`/`expect_used`, despite `clippy.toml` setting
+  `allow-expect-in-tests = true`. `AGENTS.md:278` states the limitation and
+  this is the first place it has bitten: the exemption covers `#[test]`
+  functions and `#[cfg(test)]` items, not a free function in an integration
+  test's root module. The fix is a `let ... else { panic!(...) }`, which is
+  sound here because the failure means the test's own registration is wrong
+  rather than that the behaviour under test is wrong.
+- **Impact:** the workspace lints `unwrap_used` and `expect_used`
+  deny-by-default in `[workspace.lints]`, so this recurs for every helper a
+  future integration test extracts. Worth knowing before a milestone closes,
+  because the error names the helper and not the lint configuration, and the
+  natural reading — "this is a test, the exemption should apply" — is wrong.
+
+### The 400-line module cap forces the split, and the split should be at a real seam
+
+- **Observation:** two files breached the cap during EP-M2. `policy_tests.rs`
+  reached 495 lines and became a five-file directory; `context/mod.rs` reached
+  408 and gave up its ADR-007 harness-context wrapper block to
+  `context/harness.rs`, landing at 336. `scripts/check_rs_file_lengths.py` and
+  Whitaker's `module_max_lines` both enforce the limit, and both failed.
+- **Impact:** the cap is a *module* cap, so tests count. A large test module
+  cannot be given room by reclassifying it as an integration test, which is how
+  the wire tests escaped (D19) and would not have worked here: the policy tests
+  exercise `pub(crate)` functions and must stay inside the crate. Splitting at
+  a named seam rather than at an arbitrary line number is what keeps the result
+  readable — `context/harness.rs` documents its own boundary, and the block it
+  holds had already been declared closed by an in-place comment. One planned
+  extraction was dropped as a result: `try_borrow`/`try_borrow_mut` stayed put,
+  because the harness move alone was sufficient and the pair reads better
+  beside the fixture map they reach into.
+
 ## Decision log
 
 ### D19: the unit-test binary cannot resolve a step, so the wire tests live outside it
 
-**Decided 2026-09-19 during EP-M2.** `crates/rstest-bdd/src/registry/introspection.rs`
-registers `DUPLICATE_PATTERN` twice on purpose, and `STEP_MAP`'s duplicate
-`assert!` fires on it the first time any unit test in the crate performs a
-lookup. The three end-to-end tests for `run_scenario` therefore live at
-`crates/rstest-bdd/tests/runner_wire.rs` rather than in
-`src/runner/tests/wire.rs`.
+**Decided 2026-09-19 during EP-M2.**
+`crates/rstest-bdd/src/registry/introspection.rs` registers `DUPLICATE_PATTERN`
+twice on purpose, and `STEP_MAP`'s duplicate `assert!` fires on it the first
+time any unit test in the crate performs a lookup. The three end-to-end tests
+for `run_scenario` therefore live at `crates/rstest-bdd/tests/runner_wire.rs`
+rather than in `src/runner/tests/wire.rs`.
 
 The options were: (a) move the tests to an integration test; (b) make
 `STEP_MAP` ignore duplicates instead of asserting; (c) delete the duplicate
 fixture from `introspection.rs` and give `duplicate_steps` its coverage some
 other way. (a) was chosen. (b) is a real behaviour change to the registry made
 for a test's convenience, and the assert is load-bearing: it is what turns a
-colliding pattern pair into a startup failure rather than a silently
-first-wins lookup. (c) removes coverage that `duplicate_steps` needs to be
-tested at all, and the affected module is outside this milestone's Constraint 1
-boundary.
+colliding pattern pair into a startup failure rather than a silently first-wins
+lookup. (c) removes coverage that `duplicate_steps` needs to be tested at all,
+and the affected module is outside this milestone's Constraint 1 boundary.
 
 The cost is that the Red stage could not observe the registry at all: the stub
 panicked first, so the duplicate-step collision stayed hidden until Green. That
@@ -1099,9 +1179,9 @@ prefer (b).
 
 ### D20: the INV-11 control-flow token carries its delimiter
 
-**Decided 2026-09-19 during EP-M2.** `FORBIDDEN` now contains `"StepExecution::"`
-and `"StepExecution "` in place of the bare `"StepExecution"`, and remains at
-eight entries.
+**Decided 2026-09-19 during EP-M2.** `FORBIDDEN` now contains
+`"StepExecution::"` and `"StepExecution "` in place of the bare
+`"StepExecution"`, and remains at eight entries.
 
 The driver must build a `StepExecutionRequest` to reach the registry, and
 `execute_step` takes one by reference. The bare token matches that name as a
@@ -1119,8 +1199,8 @@ was added for.
 
 The residual gap is honest and recorded in the test's own doc comment: a
 sentence like "the StepExecution is not adopted here" now escapes the scan.
-That is a narrower hole than rejecting the request type would have been a
-false positive, and `BypassedScenario` — which has no collision — stays bare.
+That is a narrower hole than rejecting the request type would have been a false
+positive, and `BypassedScenario` — which has no collision — stays bare.
 
 - **D1: put the new types in a new `rstest_bdd::runner` module, not in
   `execution`, and not in `rstest-bdd-policy`.** Rationale: `execution` is
@@ -1242,16 +1322,16 @@ false positive, and `BypassedScenario` — which has no collision — stays bare
   run behind `#[cfg(test)]` so that nothing is pulled into `runner` and no
   unused public function ships. The first clause holds exactly as written; the
   second does not follow, because a `#[cfg(test)]` module is compiled only for
-  the crate's own unit tests and is invisible to `crates/rstest-bdd/tests/`.
-  So the smoke test cannot live where EP-M2's acceptance list implied. Two
-  shapes were available: a `#[cfg(test)]` module inside `reporting` unit-testing
-  the conversion against a hand-built `ScenarioOutcome` with a real type-level
+  the crate's own unit tests and is invisible to `crates/rstest-bdd/tests/`. So
+  the smoke test cannot live where EP-M2's acceptance list implied. Two shapes
+  were available: a `#[cfg(test)]` module inside `reporting` unit-testing the
+  conversion against a hand-built `ScenarioOutcome` with a real type-level
   assertion that a `gherkin` type does not appear in either signature; or a
   `#[cfg(any(test, feature = "diagnostics"))]` module, which would reach the
-  integration tests by making the function part of the `diagnostics` build.
-  The second was rejected — it makes a test-only helper part of a shipped
-  feature's surface, which is the thing the gating exists to prevent. The first
-  is what shipped, and the consequence is recorded rather than glossed: **the
+  integration tests by making the function part of the `diagnostics` build. The
+  second was rejected — it makes a test-only helper part of a shipped feature's
+  surface, which is the thing the gating exists to prevent. The first is what
+  shipped, and the consequence is recorded rather than glossed: **the
   conversion is smoke-tested at the unit level, not against a live run.** D5's
   own purpose survives intact, because the missing failure representation it
   was written to surface is still surfaced; what is lost is the end-to-end
@@ -1521,9 +1601,10 @@ false positive, and `BypassedScenario` — which has no collision — stays bare
   evidence is the shipped EP-M1 shape, not a reading of it:
   `runner/outcome/mod.rs` gives `ScenarioOutcome` four independent fields
   (`status`, `steps`, `skip`, `failure`), and `runner/tests/outcome.rs:97`
-  constructs a permitted skip as `ScenarioOutcome::new(ScenarioStatus::Skipped,
-  vec![step], Some(skip), None)` — a skip with no failure. The fold then returns
-  `Ok(())` for it (`canonical_fold_accepts_an_unforced_skip`, line 127).
+  constructs a permitted skip as
+  `ScenarioOutcome::new(ScenarioStatus::Skipped, vec![step], Some(skip),`
+  `None)` — a skip with no failure. The fold then returns `Ok(())` for it
+  (`canonical_fold_accepts_an_unforced_skip`, line 127).
 
   The corrected type:
 
@@ -1548,16 +1629,16 @@ false positive, and `BypassedScenario` — which has no collision — stays bare
   `StepContext`. The resolution is a third function,
   `absorb(result, insert: impl FnOnce(Box<dyn Any>) -> ValueFate) -> Absorbed`,
   which takes the insertion as a **required parameter**, so there is no path to
-  `classify` that skipped it. The driver supplies `|v| ctx.insert_value(v).into()`.
-  `classify` then takes `Option<ExecutionError>`, not the whole result, which is
-  the smallest input its decision actually depends on. The full signatures are
-  in *The engine, as settled by D16 and D18*; the load-bearing point is that
-  "insertion happens before classification" went from a convention to a
-  consequence of the types.
+  `classify` that skipped it. The driver supplies
+  `|v| ctx.insert_value(v).into()`. `classify` then takes
+  `Option<ExecutionError>`, not the whole result, which is the smallest input
+  its decision actually depends on. The full signatures are in *The engine, as
+  settled by D16 and D18*; the load-bearing point is that "insertion happens
+  before classification" went from a convention to a consequence of the types.
 
-  Three variants, and the third is where D16's insight is kept rather than
-  lost. `Fail(ExecutionError)` carries the error **verbatim**, as D16 required,
-  and it is `assemble` — not `classify` — that pairs it with the index to build
+  Three variants, and the third is where D16's insight is kept rather than lost.
+  `Fail(ExecutionError)` carries the error **verbatim**, as D16 required, and
+  it is `assemble` — not `classify` — that pairs it with the index to build
   `ScenarioFailure::Step { index, error }`. That is the right home for the
   pairing: the index is a property of *where* the decision sat in the plan, not
   of the step result, so putting it in the decision would have forced
@@ -1566,16 +1647,17 @@ false positive, and `BypassedScenario` — which has no collision — stays bare
   index available at assembly, the same goal is met by carrying the error alone
   and letting `assemble` do the one projection it already has the inputs for.
 
-  `Continue` is still value-free, and the input enumeration is unchanged: of the
-  eight shapes `execute_step` can return — `Ok(Some(_))`, `Ok(None)`, and the
-  six `Err` classes — five map to `Fail`, one to `Skip`, and two to `Continue`.
-  The six `Err` classes are `Skip`, `StepNotFound`, `MissingFixtures`,
-  `HandlerFailed`, and, per AXIOM-2's exclusions, two more that the plan did not
-  name when D16 was written: a **panic in a step registered without the macro
-  wrapper's `catch_unwind`**, and an **`Async`-mode step invoked through the
-  sync `execute_step`**, which is INV-15's case. Both map to `Fail`, and
-  `classify` needs no knowledge of `ExecutionMode` to do it — a fact worth
-  stating because it is the reason INV-15 requires no new decision variant.
+  `Continue` is still value-free, and the input enumeration is unchanged: of
+  the eight shapes `execute_step` can return — `Ok(Some(_))`, `Ok(None)`, and
+  the six `Err` classes — five map to `Fail`, one to `Skip`, and two to
+  `Continue`. The six `Err` classes are `Skip`, `StepNotFound`,
+  `MissingFixtures`, `HandlerFailed`, and, per AXIOM-2's exclusions, two more
+  that the plan did not name when D16 was written: a **panic in a step
+  registered without the macro wrapper's `catch_unwind`**, and an **
+  `Async`-mode step invoked through the sync `execute_step`**, which is
+  INV-15's case. Both map to `Fail`, and `classify` needs no knowledge of
+  `ExecutionMode` to do it — a fact worth stating because it is the reason
+  INV-15 requires no new decision variant.
 
   The insertion happens *before* classification, so `Ok(Some(_))` calls
   `ctx.insert_value` and records the `ValueFate`, then `Continue`s — including
@@ -2546,11 +2628,11 @@ and because three of them are API-shape questions the plan did not anticipate.
    **Settled at EP-M2 by D16 as revised by D18.** Worth noting against the
    constraints listed above: the third one — the decision must express
    "stop-for-skip versus stop-for-failure" — already demanded precisely the
-   split that D16 collapsed, and it is the constraint that catches D16's defect.
-   A single `Stop(ScenarioFailure)` cannot distinguish the two, because the
-   permitted-skip case has no failure to carry. So this point was not merely
-   under-specified; read carefully it *refutes* D16's payload, and it is the
-   earliest place in the plan where the contradiction was visible.
+   split that D16 collapsed, and it is the constraint that catches D16's
+   defect. A single `Stop(ScenarioFailure)` cannot distinguish the two, because
+   the permitted-skip case has no failure to carry. So this point was not
+   merely under-specified; read carefully it *refutes* D16's payload, and it is
+   the earliest place in the plan where the contradiction was visible.
 
    **Corrected at code time.** The D6 spelling quoted above,
    `engine::classify(result) -> StepDecision`, does not survive contact with
@@ -2560,20 +2642,20 @@ and because three of them are API-shape questions the plan did not anticipate.
    inspecting the result — or in `classify`, which would need a `StepContext`
    and so break LEM-1. The shipped split is three functions rather than two:
    `absorb` (see *The engine, as settled by D16 and D18*) inserts and keeps the
-   `ValueFate`, `classify(error: Option<ExecutionError>)` decides, and `assemble`
-   builds the outcome. D6's *claim* — neither driver branches on a step result —
-   is preserved exactly; only the spelling that carried it changed, and it
-   changed because LEM-1 and D6 could not both be honoured by the quoted
-   signature.
+   `ValueFate`, `classify(error: Option<ExecutionError>)` decides, and
+   `assemble` builds the outcome. D6's *claim* — neither driver branches on a
+   step result — is preserved exactly; only the spelling that carried it
+   changed, and it changed because LEM-1 and D6 could not both be honoured by
+   the quoted signature.
 
    **Settled at EP-M2 by D16 as revised by D18.** Worth noting against the
    constraints listed above: the third one — the decision must express
    "stop-for-skip versus stop-for-failure" — already demanded precisely the
-   split that D16 collapsed, and it is the constraint that catches D16's defect.
-   A single `Stop(ScenarioFailure)` cannot distinguish the two, because the
-   permitted-skip case has no failure to carry. So this point was not merely
-   under-specified; read carefully it *refutes* D16's payload, and it is the
-   earliest place in the plan where the contradiction was visible.
+   split that D16 collapsed, and it is the constraint that catches D16's
+   defect. A single `Stop(ScenarioFailure)` cannot distinguish the two, because
+   the permitted-skip case has no failure to carry. So this point was not
+   merely under-specified; read carefully it *refutes* D16's payload, and it is
+   the earliest place in the plan where the contradiction was visible.
 
 Two rows of the module-layout table above were stale against D2 option (ii) and
 have been corrected in place. `runner/outcome/failure.rs` was listed as holding
@@ -2677,8 +2759,8 @@ decision cannot live there; LEM-1 forbids `classify` from taking a
 INV-12 hangs on it, since `InsertOutcome::NoMatch` is the only signal for the
 silently dropped value — so it has to be a parameter. `absorb` takes the real
 `Result<Option<Box<dyn Any>>, ExecutionError>` the driver already holds plus a
-closure that performs the insertion, and returns a value the driver can hand
-to `classify` without looking inside. Making insertion a required parameter is
+closure that performs the insertion, and returns a value the driver can hand to
+`classify` without looking inside. Making insertion a required parameter is
 also what makes "insertion happens before classification" structural: there is
 no way to reach `classify` that skipped it, and no way for a `NoMatch` to
 change the control flow, because neither function can see a `ValueFate` except
@@ -2716,25 +2798,26 @@ from one original, so they cannot disagree, which is what D16's "verbatim"
 requires. `ExecutionError` already derives `Clone` and `PartialEq`, the latter
 landing in EP-M2 for INV-5.
 
-`assemble` sets `status: Skipped` and `skip: Some(ScenarioSkip::new(at,
-message, source, allow_skipped, forced_failure))` for a terminal skip. It does
-**not** set `failure` for a skip, even a forced one: `ScenarioFailure::ForcedSkip`
-is derived at fold time by `into_harness_result`, and storing it as well would
-create a second source of truth for one fact. The `allow_skipped` written into
-the record is the *effective* one, `allow_skipped || !policy.fail_on_skipped`,
-so D10's invariant `forced_failure == !allow_skipped && fail_on_skipped` holds
-of the record itself rather than only of the policy that produced it. A
-terminal `Fail` becomes `failure: Some(ScenarioFailure::Step { index, error })`
-with `status: Failed`.
+`assemble` sets `status: Skipped` and
+`skip: Some(ScenarioSkip::new(at, message, source, allow_skipped, forced_failure))`
+for a terminal skip. It does **not** set `failure` for a skip, even a forced
+one: `ScenarioFailure::ForcedSkip` is derived at fold time by
+`into_harness_result`, and storing it as well would create a second source of
+truth for one fact. The `allow_skipped` written into the record is the
+*effective* one, `allow_skipped || !policy.fail_on_skipped`, so D10's invariant
+`forced_failure == !allow_skipped && fail_on_skipped` holds of the record
+itself rather than only of the policy that produced it. A terminal `Fail`
+becomes `failure: Some(ScenarioFailure::Step { index, error })` with
+`status: Failed`.
 
-Because `Terminal` carries everything the record needs, `assemble` never
-indexes `details` for it, and `status` and `skip` cannot disagree: a `Skipped`
-status always comes with a `Some(skip)`, since both are produced by the same
-match arm. Had `source` been read from `details[index]` instead, an
-out-of-range index would have produced `status: Skipped` with `skip: None` — a
-contradictory outcome no caller could interpret, and one that only a driver
-bug could reach, which is precisely the sort of thing a pure function should
-make unrepresentable rather than leave to a `debug_assert`.
+Because `Terminal` carries everything the record needs, `assemble` never indexes
+`details` for it, and `status` and `skip` cannot disagree: a `Skipped` status
+always comes with a `Some(skip)`, since both are produced by the same match
+arm. Had `source` been read from `details[index]` instead, an out-of-range
+index would have produced `status: Skipped` with `skip: None` — a contradictory
+outcome no caller could interpret, and one that only a driver bug could reach,
+which is precisely the sort of thing a pure function should make
+unrepresentable rather than leave to a `debug_assert`.
 
 ### The runners
 

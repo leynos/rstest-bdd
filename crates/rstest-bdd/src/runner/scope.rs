@@ -54,18 +54,14 @@ pub(super) struct CleanupGuard<'ctx, 'fix> {
 
 impl<'ctx, 'fix> CleanupGuard<'ctx, 'fix> {
     /// Take ownership of the borrow that cleanup will end.
-    pub(super) const fn new(ctx: &'ctx mut StepContext<'fix>) -> Self {
-        Self { ctx }
-    }
+    pub(super) const fn new(ctx: &'ctx mut StepContext<'fix>) -> Self { Self { ctx } }
 
     /// Borrow the context for a run.
     ///
     /// The only accessor, and on the guard rather than on the scope, so that
     /// "cleanup cannot be skipped" holds of the access path itself: every
     /// borrow made through here is still owned by the value that will clear it.
-    pub(super) fn ctx_mut(&mut self) -> &mut StepContext<'fix> {
-        self.ctx
-    }
+    pub(super) fn ctx_mut(&mut self) -> &mut StepContext<'fix> { self.ctx }
 }
 
 impl Drop for CleanupGuard<'_, '_> {
@@ -147,7 +143,7 @@ impl<'ctx, 'fix> ScenarioScope<'ctx, 'fix, NoHooks> {
     }
 }
 
-impl<'ctx, 'fix, H> ScenarioScope<'ctx, 'fix, H> {
+impl<'fix, H> ScenarioScope<'_, 'fix, H> {
     /// Override the resolved skip policy for this run, bypassing the global.
     ///
     /// The argument is `fail_on_skipped` alone: the plan's own `allow_skipped`
