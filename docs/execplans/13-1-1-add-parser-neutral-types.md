@@ -1078,20 +1078,25 @@ between them. Raise that before spending the tolerance.
     rather than a Decision because it changes no design; the durable copy is in
     the agent's memory file, rewritten to state the split and to name the
     broker variables by name.
-  - [ ] Confirm `CodeScene Code Health Review (main)` green **in CI**, which is
-    the only place the check reports. The local `cs delta` returning zero bytes
-    is strong evidence but is not the artefact that was red; see D34 and the
-    Scope-style reasoning above. CI is running at the time of writing.
+  - [x] CI's verdict on the CodeScene gate obtained, and it **failed** — which
+    is the most useful result this milestone produced. The check did not agree
+    with the local `cs delta` because the local measurement was **stale**: it
+    had been taken before `6c17a2e3`, and the finding did not exist yet at the
+    revision measured. See D35, which supersedes the "zero bytes" claim above.
+    Two advisory findings in `crates/rstest-bdd/tests/runner_panics.rs`,
+    `Complex Method` and `Overall Code Complexity`, both in the same function.
+  - [x] The CI-only finding reproduced locally and fixed. `cs delta origin/main
+    --output-format json` now returns 696 bytes on the committed pre-fix
+    revision and **0 bytes** after the fix, so the tool is not the problem and
+    never was. Proven non-vacuously in both directions — see D35.
   - [ ] Request `coderabbit review --agent` against the pushed revision. The
     deterministic precondition the maintainer set — every applicable code
     quality and correctness gate green **before** a review is requested — has
-    been met since `6c17a2e3` (all six local gates green, tree unchanged apart
-    from this document) and was held across one subsequent commit rather than
-    spent. It is
-    deliberately still unspent, for two reasons found while checking: CodeRabbit
-    currently reports `Review skipped: draft pull request` on #770, so the check
-    is a no-op while the PR stays a draft, and the CodeScene verdict is the one
-    deterministic gate whose result is still outstanding.
+    now been re-established at `188ab854` and must be held through the CI
+    confirmation, because the gate that CI just rejected is itself a
+    deterministic one. It is deliberately still unspent: CodeRabbit reports
+    `Review skipped: draft pull request` on #770, so requesting a review before
+    the PR leaves draft would spend the round on a no-op.
   - [ ] The Bumpy Road and method-length findings were cleared, but the
     *upstream* lesson is not yet actioned: this plan's gate list enumerates
     local `make` targets and never names the PR checks, which is the set that
@@ -3901,11 +3906,20 @@ forces prose elsewhere to become wrong is usually the rename's fault, not the
 prose's.** The value split above needed no rename at all.
 
 **Verified cleared, not assumed cleared.**
-`cs delta origin/main --output-format json` returns **zero bytes** on the final
-revision, down from 13 findings. The full crate suite is green at the same
-revision (725 run, 725 passed, 7 skipped), and
-`scripts/check_rs_file_lengths.py` exits 0. Scope impact: 0 files, 0 lines
+`cs delta origin/main --output-format json` returned **zero bytes** on the
+revision measured, down from 13 findings. The full crate suite was green at the
+same revision (725 run, 725 passed, 7 skipped), and
+`scripts/check_rs_file_lengths.py` exited 0. Scope impact: 0 files, 0 lines
 beyond the refactor already counted in D31's measurement.
+
+**Amendment (2026-09-20): the claim above was true of the revision it was taken
+at, and was read as true of the branch.** The zero-byte result described
+`2d9176ab`-era state; `6c17a2e3`, committed afterwards, made a clippy fix that
+introduced two fresh CodeScene findings in a different file. "Cleared" was
+carried forward as a property of the work rather than as a timestamped
+measurement, and CI caught the difference. See D35, which is the full record;
+the summary is that the local tool was right in both runs and this paragraph
+was the stale half.
 
 **What the fix cost, recorded because it is larger than the finding.** Three
 gate runs were needed, and the first two aborted early enough to hide their own
@@ -3926,6 +3940,88 @@ the CI-only checks, and this one ran red through four CodeRabbit rounds without
 any of them noticing. A plan that claims gate coverage should enumerate the *PR
 checks* rather than the local targets, because those are two different sets and
 the difference is exactly the checks whose only report is on GitHub.
+
+Date/Author: 2026-09-20, implementation agent.
+
+### D35: D34's clearance was superseded by the commit after it, and one gate fix had created the next gate's failure
+
+**Decision: the fix is a split at the function's own boundary, and D34's
+clearance claim is amended rather than deleted.**
+
+**What happened, in order.** D34 recorded the CodeScene gate cleared, on a local
+`cs delta origin/main --output-format json` returning zero bytes. The branch
+was then pushed for the first time, and CI reported
+`CodeScene Code Health Review (main)` **red** — two advisory findings in
+`crates/rstest-bdd/tests/runner_panics.rs`. The natural reading was that the
+local tool and CI disagreed, and that reading is wrong. Re-running the same
+command on the same tree returned **696 bytes**, not zero. The earlier
+measurement was taken before `6c17a2e3` and the finding did not exist yet.
+
+**The mechanism, which is the part worth keeping.** `6c17a2e3` is D34's own
+last fix. It replaced two `.expect(...)` calls in `run_async_catching` with
+`let ... else`, to satisfy `clippy::expect_used` — correct, and required. Each
+`let ... else` adds a branch. The helper went from cyclomatic complexity 7 to
+9, and CodeScene's threshold is 9, so **the clippy gate's fix was the CodeScene
+gate's failure**. `Overall Code Complexity` followed as a second finding for
+the same reason: one function's branch count moved the module mean from
+somewhere under 4 to 4.14.
+
+**Why this was not caught by re-running the gates.** It was: all six local
+gates ran green at `6c17a2e3` and again at `a6490cd9`. None of them is
+CodeScene. `make lint` runs clippy, `cargo doc`, Whitaker, ruff, pylint and five
+`scripts/check_*.py`; `make test` runs the suite; the Markdown gates run
+`spelling` and `markdownlint`. The only CodeScene evidence available locally is
+`cs delta`, which is not wired into any `make` target, and **a gate that is
+only ever run by hand is a gate whose result is a memory rather than a
+measurement.** The two failures are exactly the ones D34 had already identified
+and are the same failure twice: the plan enumerated local targets, CI ran a
+check nobody re-ran.
+
+**The fix is a split, and the split is the finding.** The two gates were
+pulling in opposite directions on one function: clippy wanted the `expect`
+calls gone, and each removal added a branch that CodeScene charged for. That is
+not a conflict between tools; it is the tools agreeing that the function was
+doing two jobs. `run_async_catching` owned the boundary *and* the
+classification. It now owns only the boundary — build the runtime, run under
+`catch_unwind`, report what happened — and `async_panic_identity` owns only the
+classification, turning what came back into the `(pattern, message)` pair.
+
+**A shape chosen by a gate, then re-derived.** The first version returned
+`Result<Result<Option<Box<dyn Any>>, ExecutionError>, Box<dyn Any + Send>>`,
+which clippy rejected as `type_complexity`. The obvious response was an
+`#[allow]`. The better response was to notice that the nested `Result` was
+already the wrong type: *the driver unwound* and *the step failed* are
+different facts that the nested `Result` renders as one value, which is
+precisely the conflation this file's tests exist to prevent. An `AsyncRun` enum
+with `Escaped` and `Returned` says what the nested `Result` meant, and being
+understood by the linter was a consequence of being right rather than the goal.
+This is D34's own lesson repeating one file over: **when a gate finding
+reappears at the site of its own fix, re-derive what the code should be.**
+
+**Verified non-vacuously in both directions, because a zero is not evidence on
+its own.** This is what D34 got wrong, so it is checked rather than asserted:
+
+- On the committed pre-fix revision, `cs delta origin/main --output-format json`
+  returns **696 bytes**: the two findings, with `run_async_catching` at
+  cyclomatic 9 against a threshold of 9 and the module mean at 4.14 against 4.
+- After the split, the same command returns **0 bytes**.
+- Reverting *only* `runner_panics.rs` and re-measuring returns 696 again;
+  restoring it returns to 0. The signal tracks the one file.
+
+The tests in the binary pass (6 run, 6 passed), scoped clippy is clean, and
+rustfmt is clean. The non-vacuity step is the one that would have caught D34's
+error, and it costs one `git checkout` and one re-run.
+
+**What a successor should take from this.** Three things, in order of how
+cheaply they generalize. First, a clearance measurement is a measurement of a
+*revision*, and the moment to re-take it is whenever the revision moves — the
+plan already asserts this ("pinned to a revision rather than to a working
+copy") in EP-M5's gate box, and D34's prose is where the principle was dropped.
+Second, two gates disagreeing about one function is a design signal, not a
+configuration problem. Third, wiring `cs delta` into a `make` target would have
+turned three of these findings into one; that is not done here, because adding
+a gate to the Makefile is a change to the project's gate contract and belongs
+in its own change with its own review.
 
 Date/Author: 2026-09-20, implementation agent.
 
