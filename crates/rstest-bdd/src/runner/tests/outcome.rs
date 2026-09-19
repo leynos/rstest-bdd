@@ -7,6 +7,8 @@
 
 use std::sync::Arc;
 
+use rstest::rstest;
+
 use crate::{
     StepError,
     StepKeyword,
@@ -226,76 +228,80 @@ fn statuses_and_payloads_agree() {
     assert!(bypassed.source().is_none());
 }
 
+/// Wrap `error` in the `HandlerFailed` shape, which is how most step errors
+/// reach `FailureKind::of`.
+fn handler_failed(error: StepError) -> ExecutionError {
+    ExecutionError::HandlerFailed {
+        index: 0,
+        keyword: StepKeyword::Given,
+        text: "x".to_owned(),
+        error: Arc::new(error),
+        feature_path: "f".to_owned(),
+        scenario_name: "s".to_owned(),
+    }
+}
+
+/// An `ExecutionError::MissingFixtures` with no populated lists, which is
+/// enough to distinguish it from the `step error` shapes below it.
+fn missing_fixtures() -> ExecutionError {
+    ExecutionError::MissingFixtures(Arc::new(crate::execution::MissingFixturesDetails {
+        step_pattern: "x".to_owned(),
+        step_location: "f:1".to_owned(),
+        required: Vec::new(),
+        missing: Vec::new(),
+        missing_requirements: Vec::new(),
+        available: Vec::new(),
+        has_suggestion: false,
+        feature_path: "f".to_owned(),
+        scenario_name: "s".to_owned(),
+    }))
+}
+
 /// The classification is a total function, and each variant is reachable.
 ///
-/// A table rather than a loop over generated errors, because the interesting
-/// property is exactly that every *distinguished* case maps where a reporter
-/// expects; an `Other` catch-all that swallowed a real case would still look
-/// total.
-#[test]
-fn failure_kinds_are_stable() {
-    fn handler_failed(error: StepError) -> ExecutionError {
-        ExecutionError::HandlerFailed {
-            index: 0,
-            keyword: StepKeyword::Given,
-            text: "x".to_owned(),
-            error: Arc::new(error),
-            feature_path: "f".to_owned(),
-            scenario_name: "s".to_owned(),
-        }
-    }
-
-    let cases = [
-        (not_found(0), FailureKind::Undefined),
-        (
-            ExecutionError::MissingFixtures(Arc::new(crate::execution::MissingFixturesDetails {
-                step_pattern: "x".to_owned(),
-                step_location: "f:1".to_owned(),
-                required: Vec::new(),
-                missing: Vec::new(),
-                missing_requirements: Vec::new(),
-                available: Vec::new(),
-                has_suggestion: false,
-                feature_path: "f".to_owned(),
-                scenario_name: "s".to_owned(),
-            })),
-            FailureKind::MissingFixture,
-        ),
-        (
-            handler_failed(StepError::MissingFixture {
-                name: "db".to_owned(),
-                ty: "Pool".to_owned(),
-                step: "Given a database".to_owned(),
-            }),
-            FailureKind::MissingFixture,
-        ),
-        (
-            handler_failed(StepError::ExecutionError {
-                pattern: "x".to_owned(),
-                function: "f".to_owned(),
-                message: "boom".to_owned(),
-            }),
-            FailureKind::Assertion,
-        ),
-        (
-            handler_failed(StepError::PanicError {
-                pattern: "x".to_owned(),
-                function: "f".to_owned(),
-                message: "boom".to_owned(),
-            }),
-            FailureKind::Panic,
-        ),
-        (
-            ExecutionError::Skip {
-                message: Some("later".to_owned()),
-            },
-            FailureKind::Other,
-        ),
-    ];
-
-    for (error, expected) in cases {
-        assert_eq!(FailureKind::of(&error), expected, "for {error:?}");
-    }
+/// One `#[case]` per mapping rather than an array walked by a loop, so a broken
+/// mapping names the case that broke instead of failing as "the loop threw".
+/// The interesting property is exactly that every *distinguished* case maps
+/// where a reporter expects; an `Other` catch-all that swallowed a real case
+/// would still look total, so the distinctions are enumerated rather than
+/// sampled.
+#[rstest]
+#[case::undefined(not_found(0), FailureKind::Undefined)]
+#[case::missing_fixtures_diagnostic(missing_fixtures(), FailureKind::MissingFixture)]
+#[case::missing_fixture_step_error(
+    handler_failed(StepError::MissingFixture {
+        name: "db".to_owned(),
+        ty: "Pool".to_owned(),
+        step: "Given a database".to_owned(),
+    }),
+    FailureKind::MissingFixture,
+)]
+#[case::assertion(
+    handler_failed(StepError::ExecutionError {
+        pattern: "x".to_owned(),
+        function: "f".to_owned(),
+        message: "boom".to_owned(),
+    }),
+    FailureKind::Assertion,
+)]
+#[case::panic(
+    handler_failed(StepError::PanicError {
+        pattern: "x".to_owned(),
+        function: "f".to_owned(),
+        message: "boom".to_owned(),
+    }),
+    FailureKind::Panic,
+)]
+// The control: a skip is not a failure, and must not be classified as a
+// distinguished kind by an over-eager match arm.
+#[case::skip_is_other(
+    ExecutionError::Skip {
+        message: Some("later".to_owned()),
+    },
+    FailureKind::Other,
+)]
+fn failure_kinds_are_stable(#[case] error: ExecutionError, #[case] expected: FailureKind) {
+    assert_eq!(FailureKind::of(&error), expected, "for {error:?}");
 }
 
 /// `terminal_source` reports the skip's location when the run skipped, and the

@@ -88,7 +88,18 @@ can still follow the rest of the document.
   macros generate around a user's step body. It performs argument extraction
   and, importantly here, `catch_unwind`.
 - **Fixture** — a value supplied by `rstest` and made available to steps
-  through `StepContext`.
+  through `StepContext`. Implicit injection derives the fixture key from the
+  parameter name and strips at most one leading underscore
+  (`crates/rstest-bdd-macros/src/utils/pattern/mod.rs`, `normalize_param_name`),
+  so `world` and `_world` both request the key `world` while `__world` requests
+  `_world`. `#[from(name)]` binds the exact key `name` and bypasses that
+  normalization entirely, so `#[from(_world)]` requests the literal `_world`
+  key. `#[from]` with no argument requests the parameter's own normalized name,
+  which is what an unannotated parameter already does, so it is documentary.
+  The distinction matters to this plan because a step's parameter list is the
+  only place a scenario's fixture requirements are stated, so any
+  parser-neutral plan must reproduce the same key resolution rather than
+  re-deriving it.
 - **`StepContext`** — `crates/rstest-bdd/src/context/mod.rs`. A per-scenario
   map from fixture name to either a borrowed reference or an owned
   `RefCell<Box<dyn Any>>` cell, plus a second map of **step-returned override
@@ -667,12 +678,12 @@ between them. Raise that before spending the tolerance.
   inventory was not evidence of what it claimed, which is exactly the vacuity
   the plan's `Verification plan` requires each obligation to argue against —
   the guard now has a mutation witness. Second, an over-strong claim in an
-  intermediate doc comment was itself refuted and removed: I had written that
-  the old form "would not notice the recursion silently stopping a level
-  early", but a mutation that skipped the `outcome` directory *was* caught, by
-  the separate `"step.rs"` expectation. The real defect was narrower — the
-  directory expectation was satisfiable by a same-named file at the top level —
-  and the comment now states only what was measured.
+  intermediate doc comment was itself refuted and removed: an early draft
+  asserted that the old form "would not notice the recursion silently stopping
+  a level early", but a mutation that skipped the `outcome` directory *was*
+  caught, by the separate `"step.rs"` expectation. The real defect was narrower
+  — the directory expectation was satisfiable by a same-named file at the top
+  level — and the comment now states only what was measured.
 
 - **Observation:** INV-15's premise is confirmed in the generated code, and the
   two-case test it prescribes is exactly right. Evidence:
@@ -756,6 +767,66 @@ between them. Raise that before spending the tolerance.
   being believed, and because the timeout cancelled 78 tests, a run that ends
   this way has **not** exercised them — the green result for those tests must
   come from a completed run, not from the cancelled one.
+
+## Surprises & discoveries
+
+- **Observation:** the first CodeRabbit pass over EP-M1 returned eight findings
+  (one `major`, five `minor`, two `trivial`, of which the two `trivial` are
+  duplicates of one another, so seven distinct). All seven were verified
+  against the code before any were acted on, and one did not survive. Evidence
+  and disposition:
+  - **Accepted and fixed.** `is_rust_source` compared `ext == "rs"`, which is
+    case-sensitive, while the doc comment four lines above it claimed a `.RS`
+    file would be caught. `Utf8Path::extension` splits the name but does not
+    fold case, so the claim was false and an upper-case file would have been
+    skipped silently — the one failure mode this module exists to prevent,
+    since the scan's silence is indistinguishable from a clean tree.
+    `git show 08d4bfa5:…/surface.rs` shows the comparison predates the cap-std
+    rewrite, so this was pre-existing rather than a regression. Fixed to
+    `eq_ignore_ascii_case`, with `an_upper_case_extension_is_still_source` as
+    the guard and a mutation witness: reverting to `ext == "rs"` makes exactly
+    that test fail and nothing else.
+  - **Accepted and fixed.** `ScenarioStatus::Failed` documented itself as "a
+    step failed, or the plan was empty", contradicting `failure.rs`, which
+    states that a runner reports `Passed` for an empty plan and that the fold
+    is deliberately stricter than the status. The failure.rs wording is the
+    true one.
+  - **Accepted and fixed.** `SourceLocation::new_static` and `::new` asserted
+    `line >= 1` but never checked `column`, though the field is documented
+    "One-based column". Both now reject `Some(0)`. The first attempt used
+    `Option::is_none_or`, which is not const-stable, so `new_static` failed to
+    compile with `E0658`; a `match` is used instead and a comment records why.
+  - **Accepted and fixed.** `normalize_param_name` strips at most one leading
+    underscore and `#[from(name)]` bypasses normalization; the `Fixture`
+    glossary entry said neither. Both are now recorded, with the file path.
+  - **Accepted and fixed.** A `Surprises` entry used first person ("I had
+    written"); rewritten impersonally. A scan for the rest of the document
+    found no other first-person prose.
+  - **Accepted and fixed.** `failure_kinds_are_stable` walked an array in a
+    loop, so any broken mapping failed as "the loop threw" without naming the
+    case. Converted to six named `#[case]`s with `handler_failed` lifted to a
+    helper; the runner's test output now names each case.
+  - **Partially accepted, example rejected.** The `major` finding asked the
+    surface test to resolve aliases to underlying types and cited
+    `crate::FrontendStep` as a public runner type that could launder a frontend
+    through an alias. That type does not exist — a repository-wide grep returns
+    nothing — so the example is fabricated. The underlying concern is real but
+    narrower: `reporting::` was the only `FORBIDDEN` entry carrying a trailing
+    `::`, so it matched the qualified spelling and missed
+    `use crate::reporting as rep;`, after which every `rep::T` is invisible.
+    The token is now bare, and `every_leak_shape_is_flagged` covers both bare
+    import forms. The residue that genuinely cannot be closed by a token scan —
+    a type re-exported under an unrelated name — is now stated in the module
+    docs rather than left implied, and the module says plainly that it is a
+    tripwire over realistic leak shapes and not a proof of INV-11. Resolving
+    names properly needs a compiler pass over the public API, which is a
+    different instrument; that is a candidate for the 13.3.1 follow-ups.
+  - **Impact:** six of seven findings were real defects in EP-M1's own
+    artefacts, which is a useful correction to any belief that a milestone
+    whose gates pass is thereby correct. Every one of them passed `make lint`,
+    `make test`, and rustfmt. The review's value was in the class of defect
+    those gates cannot see: a test whose guard does not test what its comment
+    claims, and documentation that contradicts the code it documents.
 
 ## Decision log
 
