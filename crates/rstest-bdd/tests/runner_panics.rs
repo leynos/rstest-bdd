@@ -132,9 +132,9 @@ fn an_unwrapped_step_panic_is_returned_not_thrown() {
     assert_eq!(
         first.failure_kind(),
         Some(FailureKind::Panic),
-        "a panic must classify as Panic; reusing Assertion would be the \
-         canonical mislabel, since the step is the caller's own code failing \
-         rather than an assertion about the system under test",
+        "a panic must classify as Panic; reusing Assertion would be the canonical mislabel, since \
+         the step is the caller's own code failing rather than an assertion about the system \
+         under test",
     );
 }
 
@@ -154,8 +154,8 @@ fn an_unwrapped_step_panic_is_not_mistaken_for_a_skip() {
     assert_ne!(
         outcome.status(),
         ScenarioStatus::Skipped,
-        "a panic is not a skip; `skip!` raises a SkipRequest payload and this \
-         payload is a plain &str",
+        "a panic is not a skip; `skip!` raises a SkipRequest payload and this payload is a plain \
+         &str",
     );
     assert!(
         outcome.skip().is_none(),
@@ -211,8 +211,8 @@ fn the_panic_carries_the_registry_identity_and_the_plans_source() {
     };
     assert_eq!(
         pattern, "an unwrapped step panics",
-        "the pattern is the registry's own spelling, taken from the step rather \
-         than reconstructed from the invocation",
+        "the pattern is the registry's own spelling, taken from the step rather than \
+         reconstructed from the invocation",
     );
     // The driver cannot recover the handler's *name*: a `Step` records only
     // where it was defined, and the macro wrapper fills this field from
@@ -226,13 +226,12 @@ fn the_panic_carries_the_registry_identity_and_the_plans_source() {
         .expect("the function field must render as `file:line`");
     assert!(
         file.ends_with("runner_panics/mod.rs"),
-        "the file must be the module the unwrapped handler is defined in; it \
-         was `{file}`",
+        "the file must be the module the unwrapped handler is defined in; it was `{file}`",
     );
     assert!(
         line.parse::<u32>().is_ok_and(|n| n > 0),
-        "the line must be the handler's own declaration line, not a zero \
-         placeholder; it was `{line}`",
+        "the line must be the handler's own declaration line, not a zero placeholder; it was \
+         `{line}`",
     );
     assert!(
         message.contains("deliberate panic from an unwrapped step! handler"),
