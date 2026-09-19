@@ -270,6 +270,9 @@ fn the_scan_finds_the_runner_tree() {
         "plan/builder.rs",
         "scope.rs",
         "source.rs",
+        // The INV-7 module is a directory: `source/mod.rs` proves the descent,
+        // by the same reasoning as `engine/policy_tests/mod.rs` above.
+        "tests/source/mod.rs",
         // The walk is a separate file and holds no forbidden token, so it is
         // scanned like any other. Only this module's own two files are exempt,
         // because they carry the token list itself.

@@ -5,4 +5,5 @@
 
 mod outcome;
 mod plan;
+mod source;
 mod surface;

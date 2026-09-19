@@ -1237,7 +1237,7 @@ external-frontends rely on. See
 `docs/adr-018-parser-neutral-scenario-execution.md` (Decision outcome and
 proposed direction).
 
-- [ ] 13.1.1. Add parser-neutral `ScenarioPlan`, `StepInvocation`, source, and
+- [x] 13.1.1. Add parser-neutral `ScenarioPlan`, `StepInvocation`, source, and
   structured terminal-outcome types plus synchronous and asynchronous runners in
   `rstest-bdd`.
   - Requires 12.1.1 and 12.1.3.
@@ -1262,6 +1262,38 @@ proposed direction).
     after cancellation.
   - See `docs/adr-018-parser-neutral-scenario-execution.md` (Requirements and
     Verification strategy).
+
+  Shipped: `rstest_bdd::runner` — `SourcePath`/`SourceLocation`;
+    `ScenarioPlan`/`StepInvocation`/`ScenarioPlanBuilder`; `ScenarioOutcome`
+    with `ScenarioStatus`, `StepOutcome`, `StepStatus`, `ScenarioSkip`,
+    `ScenarioFailure`, `FailureSite`, `FailureKind`, and `ValueFate`;
+    `ScenarioScope`; and `run_scenario`/`run_scenario_async`, both thin
+    adapters over `engine::drive_sync`/`engine::drive_async` with every
+    decision in `engine::policy`. The synchronous and asynchronous runners are
+    proved to produce **equal outcomes** (INV-5), not merely similar ones. A
+    step failure is *returned* in the outcome rather than unwound, so a
+    panicking step cannot take a caller's harness down; and
+    `ScenarioOutcome::into_harness_result` is the one canonical place the
+    `fail_on_skipped` policy is folded. The behavioural suite
+    (`crates/rstest-bdd/tests/parser_neutral_runner.rs`) runs with the
+    *unmigrated* macro path deliberately, so a green result cannot mean the
+    runner merely agrees with itself.
+
+  **Partial discharge of ADR-018's lifecycle matrix, recorded rather than
+    assumed.** The after/cleanup column is discharged exclusively through the
+    unconditional synchronous scope drop. The before-hook column, the
+    hook-failure rows, and the hook cases of INV-8's precedence matrix are
+    *not* discharged: the plan struck them (D2 option (ii)) rather than
+    deferring them, so `Lifecycle`, `NoHooks`' impl, `ScenarioScope::with_hooks`,
+    `split`, and the `Before`/`After` `ScenarioFailure` variants do not exist.
+    `LifecycleError` and `ScenarioOutcome::cleanup_error()` are consequently not
+    shipped either. Restoring any of it needs an ADR amending ADR-018 first, and
+    a replacement roadmap item — there is none today.
+
+  Deviation: the plan's `Scope` tolerance was breached and the breach went
+    unescalated until it was found at close. See
+    `docs/execplans/13-1-1-add-parser-neutral-types.md` D27 for the measured
+    figures and the process lesson.
 
 - [ ] 13.1.2. Preserve frontend-supplied source identity in every failed or
   skipped outcome without extending runtime errors with frontend metadata.
@@ -1290,6 +1322,31 @@ baseline that a non-Gherkin frontend must match.
   - See `docs/adr-018-parser-neutral-scenario-execution.md` (Gherkin macro
     integration and Compatibility and migration).
 
+  Carried in from 13.1.1, because 13.1.1 wrote the conversion and could not
+    finish it. `runner` is the canonical outcome model and does not depend on
+    `reporting`; the one-way conversion lives in `crates/rstest-bdd/src/reporting/conversion.rs`
+    behind `#[cfg(test)]`, which an integration test cannot reach, so it is a
+    signature-level assertion rather than a gate. Three obligations follow, and
+    the first is a blocker:
+
+  - `reporting::ScenarioStatus` cannot express failure at all, which is why the
+    conversion routes a runner failure to a `Gap::Failure` error rather than to
+    a status. It needs a failure case before 13.2.1 can report a runner failure
+    through the existing reporter.
+  - `reporting::BypassedScenario` needs tags and a reason that
+    `ScenarioOutcome` does not carry. `ScenarioRecord` already takes the plan's
+    tags, so the tags are reachable; the *reason* has to come from somewhere
+    rather than be invented.
+  - The report guard's `thread::panicking()` suppression must be revisited. It
+    exists to suppress a report for a scenario that panicked, which cannot
+    happen to a runner that returns its failures instead.
+
+  The conversion's residual hole is worth knowing about before 13.2.1 depends
+    on it: the signature assertion pins the outer types but does not reach
+    inside them, so a frontend type nested in a field would still coerce. That
+    is the same hole `runner/tests/surface.rs` documents for its token scan, and
+    closing it needs a compiler pass over the crate's public API.
+
 ### 13.3. Prove the external-frontend boundary end to end
 
 This step answers whether a parser that is not Gherkin can execute linked steps
@@ -1306,6 +1363,29 @@ boundary without importing Trymark's syntax or reporting model into
     supplied locations, and proves no Rust test crate is generated or compiled.
   - See `docs/adr-018-parser-neutral-scenario-execution.md` (Extension
     boundary and Compatibility and migration).
+
+  Two carried-in obstacles, both of which this milestone is the first to hit.
+
+  The conformance frontend will report its supplied locations through a
+    message that calls them **features**. `crates/rstest-bdd/i18n/en/rstest-bdd.ftl`
+    renders `(feature: …, scenario: …)` for the `feature_path` field, so a
+    Markdown or TOML frontend's user reads a label that names the wrong
+    document kind. A source-neutral Fluent message variant is the fix; it is
+    recorded here rather than done in 13.1.1 because the string is
+    user-visible and translating it is a separate concern from proving the
+    boundary (D15).
+
+  **`run_scenario_async`'s future is not `Send`.** `StepScopeGuard` carries a
+    deliberate `PhantomData<Rc<()>>` marker, because it registers itself in a
+    **thread-local** scope stack and asserts on drop that it is being dropped on
+    the thread that entered it. The marker is not incidental and cannot simply
+    be removed: a guard that crossed threads would either corrupt the stack or
+    fire its assertion. So the future cannot be `tokio::spawn`ed, and a frontend
+    must use a current-thread runtime or a thread-per-scenario runtime. This is
+    a real ceiling on suite concurrency observed at 13.1.1 and recorded here
+    rather than left to be discovered empirically. Lifting it is a change to the
+    scope-stack model — thread-local to per-future — not a bound; documenting
+    thread-per-scenario as the supported shape is the cheaper answer.
 
 ## 14. Engineering hygiene
 

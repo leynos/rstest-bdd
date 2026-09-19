@@ -99,6 +99,16 @@ test: build-python ## Run tests with warnings treated as errors
 		RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) test $(CARGO_FLAGS) $(BUILD_JOBS); \
 	fi
 	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) test --doc --workspace --all-features $(BUILD_JOBS)
+	# D4: the parser-neutral runner's outcome carries a complete step sequence
+	# whether or not `diagnostics` is on, deliberately diverging from the
+	# generated loop, which computes bypassed steps only under
+	# `diagnostics_enabled()`. Without this leg that divergence is invisible to
+	# every gate the project runs.
+	if command -v cargo-nextest >/dev/null 2>&1; then \
+		RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) nextest run $(CARGO_FLAGS) $(BUILD_JOBS) -p rstest-bdd --no-default-features; \
+	else \
+		RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) test $(CARGO_FLAGS) $(BUILD_JOBS) -p rstest-bdd --no-default-features; \
+	fi
 	$(MAKE) check-fixture-lockfiles
 	# Exercise the Python documentation helpers alongside the Rust suite.
 	$(UV_ENV) $(UV) run pytest scripts/tests
