@@ -945,12 +945,12 @@ between them. Raise that before spending the tolerance.
   and the result looked like evidence. Impact: the drift entered with
   `21107a13` and grew with `2106cd69`, both docs-only commits to this file, and
   was repaired with the targeted per-file invocation carrying the full rule
-  set. The durable lesson is that a gate must be invoked *as the gate*, from the
-  Makefile, and that a hand-rolled approximation of a gate is not a gate. This
-  is the second instance of the same shape in this plan: the earlier one is the
-  `cargo fmt` audit, where the raw command omitted the pinned toolchain and
-  silently reformatted 121 files. Both were "run the tool directly for speed"
-  and both produced a wrong answer that looked right.
+  set. The durable lesson is that a gate must be invoked *as the gate*, from
+  the Makefile, and that a hand-rolled approximation of a gate is not a gate.
+  This is the second instance of the same shape in this plan: the earlier one
+  is the `cargo fmt` audit, where the raw command omitted the pinned toolchain
+  and silently reformatted 121 files. Both were "run the tool directly for
+  speed" and both produced a wrong answer that looked right.
 
 - **Observation:** `cargo fmt` on the *stable* toolchain is a whole-crate
   reformatter here, not a formatter, and running it costs a full-tree revert.
