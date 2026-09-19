@@ -557,8 +557,8 @@ between them. Raise that before spending the tolerance.
 
   Outstanding for EP-M2: the `tracing` instrumentation beyond the two `warn!`
   and one `debug!` already in place, the two behavioural scenarios, the
-  `#[cfg(test)]` reporting conversion smoke test (D5), `runner/tests/modes.rs`
-  for INV-15, and `crates/rstest-bdd/tests/runner_sequence_props.rs`.
+  `#[cfg(test)]` reporting conversion smoke test (D5), `tests/modes.rs` for
+  INV-15, and `crates/rstest-bdd/tests/runner_sequence_props.rs`.
 - [ ] EP-M3: asynchronous runner and cancellation.
 - [x] ~~EP-M4: lifecycle hooks and the lifecycle matrix~~ — struck by D2
   option (ii).
@@ -864,7 +864,7 @@ between them. Raise that before spending the tolerance.
   which is what the invariant's non-vacuity requirement asks the two cases to
   distinguish. It also means the test cannot be written against `execute_step`
   alone — it must go through a registered `Async`-mode step, which EP-M2's
-  `runner/tests/modes.rs` will need.
+  `tests/modes.rs` will need.
 
 - **Observation:** editing a tracked file *while a gate run is in flight*
   invalidates part of that run's evidence, even when the edits are innocent.
@@ -1677,6 +1677,63 @@ positive, and `BypassedScenario` — which has no collision — stays bare.
   is the only part that comes from the step, and `assemble` owns the policy.
   Date/Author: 2026-09-19, implementation agent.
 
+### D21: every runner test that resolves a step is an integration test
+
+**Decided 2026-09-19 during EP-M2.** This is a rule, not a one-off, and INV-15
+is the instance that forced it to be stated as one. The rule: a runner test
+that causes a step to be *looked up* lives under `crates/rstest-bdd/tests/`,
+never under `crates/rstest-bdd/src/runner/tests/`. `src/runner/tests/` keeps
+the tests that exercise the pure folds — `outcome`, `plan`, `surface`, and the
+`engine::policy_tests` directory — none of which touch the registry.
+
+The rule applies to INV-15, INV-2's `completeness.rs`, INV-6's
+`skip_parity.rs`, and INV-4's `lifecycle.rs` (as far as D2 leaves it standing).
+All four execute steps, so all four are affected.
+
+INV-15's `Artefact` line above says
+`crates/rstest-bdd/src/runner/tests/modes.rs`. It cannot be. The case that
+carries the invariant — an `Async`-registered step invoked through
+`run_scenario` — must be *found in the registry* before it can be executed, and
+`registry/introspection.rs` registers `DUPLICATE_PATTERN` twice inside a
+`#[cfg(test)] mod tests` (lines 57 and 108-115). The duplicate `assert!` lives
+in `STEP_MAP`'s `LazyLock` initializer at `registry/mod.rs:238`, so it fires on
+the first lookup of any kind, in a binary that has those registrations. The
+lib-test binary is exactly such a binary. So the plan's own artefact line names
+a location where the test cannot run — the same defect D19 recorded for the
+wire tests, reached by a different route.
+
+The artefact is therefore `crates/rstest-bdd/tests/modes.rs`. The invariant,
+its method (parameterized, one case outside a runtime and one inside
+`tokio::runtime::Builder::new_current_thread`), and its non-vacuity requirement
+are unchanged. Only the path moves, and the reason is D19's reason: an
+integration test is where a caller of public API can observe the registry at
+all.
+
+Worth recording as a process point rather than a curiosity. The plan was
+reviewed six ways and four spikes were run against it, and this is the second
+artefact path found to be unrunnable *only* once the code existed to try it
+against. `Verification plan` entries name files optimistically: they are
+written before the test's registry interaction is understood. A plan that names
+an artefact path is making a claim about the build graph, and claims about the
+build graph are settled by building, not by review.
+
+The non-vacuity requirement needs one adjustment that follows from the move.
+INV-15 as written says the in-runtime case "must produce a *different* outcome
+from the out-of-runtime case for a genuinely multi-poll step". In the
+out-of-runtime case the wrapper builds its own current-thread runtime and
+`LocalSet::block_on` drives the future to completion, so a multi-poll step
+*succeeds*. In the in-runtime case the probe at `wrapper/emit/mod.rs:103` finds
+a live runtime, polls exactly once with `Waker::noop()`, and a multi-poll step
+therefore returns `Pending` — which the wrapper converts to a `StepError`
+carrying "async step yielded Pending inside a harness-provided runtime". Two
+genuinely different outcomes, as required, and the difference is the documented
+behaviour rather than an accident. A *single-poll* step in the same two
+positions gives the same outcome in both, so the witness must be multi-poll and
+the test must assert the success in the first case explicitly; otherwise
+"different outcomes" could be satisfied by a pair of failures and the test
+would not be exercising the documented asymmetry at all. Date/Author:
+2026-09-19, implementation agent.
+
 ## Outcomes & retrospective
 
 To be completed at EP-M5. Before marking this plan `COMPLETE`, reconcile every
@@ -1929,7 +1986,7 @@ with the `diagnostics` feature both enabled and disabled.
 - Method: the INV-1 property test, plus a parameterized `rstest` run under both
   feature configurations.
 - Artefact: `crates/rstest-bdd/tests/runner_sequence_props.rs` and
-  `crates/rstest-bdd/src/runner/tests/completeness.rs`.
+  `crates/rstest-bdd/tests/completeness.rs` (D21: it resolves steps).
 - Evidence: `cargo nextest run -p rstest-bdd -E 'test(/runner/)'` and the same
   with `--no-default-features`. The second leg is added to `make test` at
   EP-M5; without it, D4's deliberate divergence is invisible to every gate.
@@ -1962,7 +2019,7 @@ exactly once.
   `HandlerFailed`. Writing the panic row with a wrapped step would make it
   unfailable, which is why the two panic rows above name their sources
   explicitly.
-- Artefact: `crates/rstest-bdd/src/runner/tests/lifecycle.rs`.
+- Artefact: `crates/rstest-bdd/tests/lifecycle.rs` (D21: it resolves steps).
 - Evidence: each row asserts `after_calls == 1`, `cleanup_runs == 1`, **and**
   the row's expected primary outcome, so a row cannot pass by producing the
   wrong terminal status.
@@ -2001,7 +2058,7 @@ three policy sources.
 - Domain: `allow_skipped` × `fail_on_skipped` × source in
   `{explicit per-run, programmatic global, environment, default}` × runner in
   `{sync, async}`.
-- Artefact: `crates/rstest-bdd/src/runner/tests/skip_parity.rs`.
+- Artefact: `crates/rstest-bdd/tests/skip_parity.rs` (D21: it resolves steps).
 - Non-vacuity: the discriminating row is
   `allow_skipped = true, fail_on_skipped = true`, expecting
   `forced_failure = false`; an implementation using `||` instead of `&& !`
@@ -2030,7 +2087,7 @@ including after a normal terminal skip — an after-hook failure produces
 remains reachable through `skip()` with its `forced_failure` intact**.
 
 - Method: parameterized `rstest` over the precedence combinations.
-- Artefact: `crates/rstest-bdd/src/runner/tests/lifecycle.rs`.
+- Artefact: `crates/rstest-bdd/tests/lifecycle.rs` (D21: it resolves steps).
 - Non-vacuity: the skip-then-after-failure case is discriminating — it is the
   only path where a `Skipped` result is upgraded — and the "skip record
   survives the upgrade" assertion is what stops a caller having to rescan
@@ -2044,7 +2101,7 @@ the run's `forced_failure`.
 - Method: under D10 this is largely a *type-level* fact — the scope stores a
   `bool` and the engine reads that field — so one `#[serial]` regression test
   suffices rather than a matrix.
-- Artefact: `crates/rstest-bdd/src/runner/tests/skip_parity.rs`.
+- Artefact: `crates/rstest-bdd/tests/skip_parity.rs` (D21: it resolves steps).
 - Non-vacuity: the mirror case (started `true`, flipped to `false`) must still
   report `forced_failure == true`. An implementation reading the config inside
   the skip handler fails both directions.
@@ -2139,7 +2196,7 @@ produces a documented outcome that a caller cannot mistake for a successful run.
   to distinguish. `error()` returns `None` for it, which the doc comment
   states. This is the minimal honest representation, and it is the shape the
   fold's `#[non_exhaustive]` attribute exists to permit.
-- Artefact: `crates/rstest-bdd/src/runner/tests/completeness.rs` for the
+- Artefact: `crates/rstest-bdd/tests/completeness.rs` (D21) for the
   runners;
   `crates/rstest-bdd/src/runner/tests/outcome.rs::
   canonical_fold_rejects_an_empty_plan`
@@ -2173,10 +2230,16 @@ tested, including from inside a live Tokio runtime.
   runtime is already current, polls once and returns an error if pending. A
   frontend calling the sync runner from inside its own runtime would otherwise
   discover this empirically.
-- Artefact: `crates/rstest-bdd/src/runner/tests/modes.rs`.
+- Artefact: `crates/rstest-bdd/tests/modes.rs` — **not**
+  `src/runner/tests/modes.rs` as first drafted; see D21, which gives D19's
+  reason.
 - Non-vacuity: the in-runtime case must produce a *different* outcome from the
   out-of-runtime case for a genuinely multi-poll step, which is the whole point
-  of documenting it.
+  of documenting it. Both outcomes must be asserted, not merely their
+  difference: the multi-poll step *succeeds* outside a runtime and *fails with
+  the `Pending` diagnostic* inside one, so a witness that failed in both
+  positions would satisfy "different" while exercising nothing. D21 records the
+  asymmetry.
 
 **INV-16 — Failure classification is stable.** `StepOutcome::failure_kind()`
 projects an `ExecutionError` onto a small `#[non_exhaustive] FailureKind`
@@ -3097,7 +3160,7 @@ Expected shape of a red test during a milestone's first commit:
 
 ```plaintext
 error[E0433]: failed to resolve: could not find `runner` in `rstest_bdd`
- --> crates/rstest-bdd/src/runner/tests/completeness.rs:12:20
+ --> crates/rstest-bdd/tests/completeness.rs:12:20
 ```
 
 Expected shape once EP-M2 is green:
