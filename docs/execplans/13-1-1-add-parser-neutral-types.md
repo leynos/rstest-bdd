@@ -431,7 +431,7 @@ between them. Raise that before spending the tolerance.
   `EmptyPlan`/`ForcedSkip`/`EmptyPlan`-site trio that gives INV-13's fold an
   error to return. `LifecycleError` and `ScenarioOutcome::cleanup_error()` were
   dropped as corollaries of D2 option (ii).
-- [ ] (2026-09-19) EP-M1 gate closure: the full deterministic suite. The
+- [x] (2026-09-19) EP-M1 gate closure: the full deterministic suite. The
   first `make lint` / `make test` / `make markdownlint` run failed on three
   unrelated-looking causes, all now resolved or explained; see
   `Surprises & discoveries`. In brief: (1) `make lint` failed with five Whitaker
@@ -443,10 +443,20 @@ between them. Raise that before spending the tolerance.
   isolated re-run (94s against a 180s budget), so no change was made. The
   `surface.rs` rewrite additionally repaired a non-vacuity guard that had been
   passing for the wrong reason, verified by mutation.
-  **Not yet re-run:** the full suite end to end. The 78 tests cancelled by the
-  timeout have not executed since the surface.rs change, so EP-M1's gate
-  evidence is complete for the focused loop and the affected crate, but a full
-  green `make test` is still owed before the milestone can be called closed.
+  Closed against commit `85b5fabe`. All five gates ran to completion and
+  passed: `make check-fmt` (4s), `make lint` (17s), `make test` (611s),
+  `make markdownlint` (12s), `make nixie` (<1s). `make test` reported
+  `1944 tests run: 1944 passed, 7 skipped`, with 0 cancelled, 0 timed out and
+  0 failed; the doctest pass reported 172 passed / 0 failed, and pytest 234
+  passed. The `cargo-bdd::cli list_steps_runs` test that had previously been
+  terminated at 180s now passed in 2.844s — a 63x margin, confirming the
+  timeout was cold-cache and not a regression; the 78 tests it had cancelled
+  executed here. This run also reached the whole of `make lint` for the first
+  time: clippy, `cargo doc`, `lint-whitaker`, and the Python leg (ruff, PyLint
+  10.00/10, the df12 plugin 10.00/10, `ambrleaks`) plus all five checker
+  scripts. The gate suite was run by a `scrutineer` sub-agent on a settled,
+  committed tree, so the evidence is attached to a revision rather than to a
+  working directory.
 - [ ] EP-M2: synchronous runner, engine split, and the sequence properties.
 - [ ] EP-M3: asynchronous runner and cancellation.
 - [x] ~~EP-M4: lifecycle hooks and the lifecycle matrix~~ — struck by D2
@@ -711,6 +721,31 @@ between them. Raise that before spending the tolerance.
   run finishes and the affected gates are re-run. Where a gate has already been
   read from its log and re-verified against the settled tree, that is recorded
   explicitly rather than left to inference.
+
+- **Observation:** the shared `/tmp` gate-log filenames are a hazard when a
+  sub-agent and the main conversation both run gates, because the second writer
+  silently overwrites the first writer's evidence.
+  Evidence: the gate-closure run delegated to `scrutineer` wrote its logs to
+  `/tmp/$ACTION-13-1-1-add-parser-neutral-types.out`, the naming convention
+  this repository mandates. Before committing `85b5fabe` the main conversation
+  ran `make markdownlint` and `make nixie` itself against the same filenames.
+  The agent then observed an impossible ordering — the `nixie` log mtime
+  (07:02:05) *preceding* the `markdownlint` log mtime (07:02:33) despite
+  `nixie` being invoked second — and reasonably raised it as evidence that a
+  second session was authoring on the branch. It was not: `git worktree list`
+  showed exactly one worktree on `13-1-1-add-parser-neutral-types`, the reflog
+  for this worktree showed only this session's commits, and the plan hash
+  `3c1345330e8db42b` matched `git show 85b5fabe:` byte for byte, so the logs
+  described two different runs against two different revisions.
+  Impact: the convention is a filename template, not a lock. Two writers
+  colliding on it can manufacture a false anomaly, and a *real* anomaly could
+  equally be dismissed as one. The resolution is to compare contents rather
+  than trust mtimes: a log's revision is established by reading it, and a log
+  whose verdict cannot be tied to a revision is not evidence. It also cost the
+  scrutineer real analysis effort, so where a sub-agent is running the gates,
+  the main conversation should not run those same targets concurrently, even
+  read-only ones — the `make markdownlint` there was a verification, not an
+  authoring act, and it still collided.
 
 - **Observation:** the spelling policy is `-ize`, not the `-ise` that the "en-GB"
   label invites, and it catches prose written *about* the work as readily as the
