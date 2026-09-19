@@ -29,12 +29,15 @@
 //! assert_eq!(first.source().map(|s| s.line()), Some(43));
 //! ```
 
+mod engine;
 mod outcome;
 mod plan;
 mod source;
 
 #[cfg(test)]
 mod tests;
+
+mod scope;
 
 pub use outcome::{
     FailureKind,
@@ -48,4 +51,36 @@ pub use outcome::{
     ValueFate,
 };
 pub use plan::{ScenarioPlan, StepInvocation, builder::ScenarioPlanBuilder};
+pub use scope::{NoHooks, ScenarioScope};
 pub use source::{SourceLocation, SourcePath};
+
+/// Execute a plan synchronously and return its terminal outcome.
+///
+/// Never panics: a failing step and a returned value's failing destructor both
+/// become part of the returned outcome. A *permitted* skip is reported as
+/// [`ScenarioStatus::Skipped`] rather than as a failure, because whether a skip
+/// should fail a suite is the caller's policy decision and
+/// [`ScenarioOutcome::into_harness_result`] is where it is made.
+///
+/// # Examples
+///
+/// ```
+/// use rstest_bdd::{
+///     StepContext, StepKeyword,
+///     runner::{ScenarioPlanBuilder, ScenarioScope, ScenarioStatus, run_scenario},
+/// };
+///
+/// let mut ctx = StepContext::default();
+/// let plan = ScenarioPlanBuilder::new("Add two numbers", "notes/arithmetic.md")
+///     .step_at(StepKeyword::Given, "an undefined step", 3)
+///     .build();
+/// let outcome = run_scenario(&plan, ScenarioScope::new(&mut ctx));
+///
+/// // No step definition is registered in this doctest, so the run stops at the
+/// // first invocation rather than unwinding.
+/// assert_eq!(outcome.status(), ScenarioStatus::Failed);
+/// ```
+pub fn run_scenario<H>(plan: &ScenarioPlan, mut scope: ScenarioScope<'_, '_, H>) -> ScenarioOutcome {
+    let (fail_on_skipped, ctx) = scope.split();
+    engine::drive_sync::drive(plan, ctx, fail_on_skipped)
+}
