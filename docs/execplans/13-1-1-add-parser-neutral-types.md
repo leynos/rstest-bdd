@@ -4056,9 +4056,14 @@ lines to **410**, over the repository's limit, and `make lint` failed at
 ```plaintext
 Rust sources exceed the 400 line limit:
   crates/rstest-bdd/tests/runner_panics.rs (410 lines)
-Update the module layout to split large files or add a temporary entry to scripts/rs-length-allowlist.txt if the refactor is tracked separately.
+Update the module layout to split large files or add a temporary entry
+to scripts/rs-length-allowlist.txt if the refactor is tracked separately.
 make: *** [Makefile:135: lint] Error 1
 ```
+
+The checker emits its advisory as a single 144-column line
+(`scripts/check_rs_file_lengths.py:113-117`); it is shown wrapped above at the
+break between the two source string literals, and no words are changed.
 
 This is the same shape D35 recorded, one commit further on: **the gate that
 fails is the one the previous gate's fix perturbed.** D35's fix for CodeScene
