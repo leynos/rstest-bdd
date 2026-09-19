@@ -110,8 +110,8 @@ fn difference(steps: &[Step], arrangement: Arrangement, sync: &Run, asynchronous
         )
     };
     format!(
-        "plan={:?} arrangement={arrangement:?}\n{outcome}\nexecuted: sync={:?} async={:?}\n\
-         readings: sync={:?} async={:?}",
+        "plan={:?} arrangement={arrangement:?}\n{outcome}\nexecuted: sync={:?} \
+         async={:?}\nreadings: sync={:?} async={:?}",
         kinds(steps),
         sync.executed,
         asynchronous.executed,

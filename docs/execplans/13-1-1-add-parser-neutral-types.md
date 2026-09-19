@@ -510,14 +510,14 @@ between them. Raise that before spending the tolerance.
   `cargo nextest run -p rstest-bdd` of `703 tests run: 703 passed, 7 skipped`.
   The property suite is `crates/rstest-bdd/tests/runner_sequence_props.rs` with
   its support modules under `tests/runner_sequence_props/`: `invariants.rs`
-  (the four property bodies), `named_witnesses.rs` (the per-kind and
-  per-class witnesses), `controls.rs` (the negative controls and the
-  generator's own domain checks), and `sequence/` — `mod.rs` for the
-  vocabulary, `run.rs` for the harness and its predicates, `witnesses.rs` for
-  the non-vacuity accumulator, `generator.rs` for the strategy and the crafted
-  shapes, and `steps/` (`mod.rs` for the registrations, `names.rs` for the
-  pattern text). The support files are reached by `#[path]`, because a Cargo
-  integration target is a single file: `mod controls;` there resolves to
+  (the four property bodies), `named_witnesses.rs` (the per-kind and per-class
+  witnesses), `controls.rs` (the negative controls and the generator's own
+  domain checks), and `sequence/` — `mod.rs` for the vocabulary, `run.rs` for
+  the harness and its predicates, `witnesses.rs` for the non-vacuity
+  accumulator, `generator.rs` for the strategy and the crafted shapes, and
+  `steps/` (`mod.rs` for the registrations, `names.rs` for the pattern text).
+  The support files are reached by `#[path]`, because a Cargo integration
+  target is a single file: `mod controls;` there resolves to
   `tests/controls.rs`, not under a directory named after the target.
 
   Four defects were found by *running* the suite rather than by reading it, and
@@ -528,29 +528,28 @@ between them. Raise that before spending the tolerance.
   ignored that two kinds are terminal *without* reaching their handler; and one
   nextest `LEAK` classification is a stderr-timing artefact rather than a
   failure. Five more were found by *gating* it — the two files were over the
-  400-line cap, and the suite had six pre-existing Clippy findings including
-  two `deny`-level ones — also recorded there. An earlier note here claimed two
-  of its four invariants were EP-M3-bound — INV-5 needs `run_scenario_async`,
-  and INV-1/INV-2's domain includes terminal kinds only the async driver
-  exercises as a comparable path. **The first half of that stands and the
-  second was wrong**, on a reading taken while the file was still unwritten:
-  INV-1, INV-2, INV-3, and INV-12 can all be discharged against the synchronous
-  driver alone, because every terminal kind the domain enumerates has a
-  sync-reachable registration — `panic` through a raw `step!` handler, which
+  400-line cap, and the suite had six pre-existing Clippy findings including two
+  `deny`-level ones — also recorded there. An earlier note here claimed two of
+  its four invariants were EP-M3-bound — INV-5 needs `run_scenario_async`, and
+  INV-1/INV-2's domain includes terminal kinds only the async driver exercises
+  as a comparable path. **The first half of that stands and the second was
+  wrong**, on a reading taken while the file was still unwritten: INV-1, INV-2,
+  INV-3, and INV-12 can all be discharged against the synchronous driver alone,
+  because every terminal kind the domain enumerates has a sync-reachable
+  registration — `panic` through a raw `step!` handler, which
   `runner_panics.rs` already demonstrates. So the file is split by necessity
-  rather than by preference: INV-1, INV-2, INV-3, and INV-12 land here, and only
-  INV-5's clause remains EP-M3-bound, recorded in-file as such rather than
+  rather than by preference: INV-1, INV-2, INV-3, and INV-12 land here, and
+  only INV-5's clause remains EP-M3-bound, recorded in-file as such rather than
   silently omitted. Recorded as partial rather than done for that one reason.*
-  **Opened 2026-09-19.** The
-  first act was to revise D16, and it is done: see D18 in `Decision log` for
-  why its `Stop(ScenarioFailure)` cannot express a permitted skip. D18's
-  `StepDecision` is checked into `Interfaces and dependencies` as the settled
-  engine decomposition, together with a `Terminal` and a `SkipPolicy`, which
-  EP-M2 mirrors while implementing rather than re-deriving. The two things a
-  reader should not have to reconstruct: the driver keeps the error and hands
-  `classify` a borrow, then moves it into `Terminal::Fail`; and a skip never
-  stores a `failure`, forced or not, because `into_harness_result` derives that
-  at fold time.
+  **Opened 2026-09-19.** The first act was to revise D16, and it is done: see
+  D18 in `Decision log` for why its `Stop(ScenarioFailure)` cannot express a
+  permitted skip. D18's `StepDecision` is checked into
+  `Interfaces and dependencies` as the settled engine decomposition, together
+  with a `Terminal` and a `SkipPolicy`, which EP-M2 mirrors while implementing
+  rather than re-deriving. The two things a reader should not have to
+  reconstruct: the driver keeps the error and hands `classify` a borrow, then
+  moves it into `Terminal::Fail`; and a skip never stores a `failure`, forced
+  or not, because `into_harness_result` derives that at fold time.
 
   **Red observed 2026-09-19.** `runner/tests/wire.rs` — three tests asserting
   that a run is *observable* rather than merely well-formed — failed at the
@@ -770,9 +769,8 @@ between them. Raise that before spending the tolerance.
   section, which documented the gap as "owned by D11", now states the boundary
   is in place. Not yet gated: the full deterministic suite has not been re-run
   against this revision.
-- [-] EP-M3: asynchronous runner and cancellation. **All of its deliverables are
-  written and green; what remains is the named `cargo-mutants` control and the
-  milestone's commit gates.**
+- [-] EP-M3: asynchronous runner and cancellation. **The milestone's commit
+  gates are green; what remains is the named `cargo-mutants` control.**
   - [x] `run_scenario_async`, the shared `engine/drive.rs` step handling, and
     the third behavioural scenario. Committed in `9f4ca8c7`.
   - [x] INV-10's step case, in `crates/rstest-bdd/tests/runner_cancel.rs`, with
@@ -783,12 +781,17 @@ between them. Raise that before spending the tolerance.
     `sequence/run.rs`. Whole-`Run` comparison, two in-suite controls, and one
     bespoke mutation run and recorded. The file's module documentation, which
     previously said INV-5 lands with EP-M3, now describes it.
+  - [x] The commit gates for this milestone. The first run was **red**: three
+    gates failed, and two further failures were masked behind early recipe
+    aborts. Every finding is fixed and the second run is green —
+    `check-fmt`, `lint` (Clippy *and* Whitaker), `typecheck`, `test`
+    (2041 Rust tests, 244 Python), `spelling`, `markdownlint`, and `nixie`.
+    See the Surprises entry on what the first run cost and why.
   - [ ] The `cargo-mutants` negative control for INV-5 over
     `runner/engine/drive_async.rs` — the plan's named control for that
     invariant. A bespoke mutation was run in its place and did catch the
     property, which is evidence but not the same evidence: `cargo-mutants`
     enumerates mutations this hand-picked one does not.
-  - [ ] The commit gates for this milestone.
 - [x] ~~EP-M4: lifecycle hooks and the lifecycle matrix~~ — struck by D2
   option (ii).
 - [ ] EP-M5: documentation, snapshots, and the full gate.
@@ -1332,8 +1335,8 @@ between them. Raise that before spending the tolerance.
   and the assertion's own author did not notice — a *negative control* did.
   Evidence: `insert_value` writes a step's returned value into the context's
   override map (`ctx.values`), not into the fixture's own cell, so the fixture
-  cell reads the same value before and after cleanup. The first version asserted
-  on that cell, because the discriminating read
+  cell reads the same value before and after cleanup. The first version
+  asserted on that cell, because the discriminating read
   (`ctx.try_borrow::<Marker>(MARKER)`) needs the run's mutable borrow of `ctx`
   to have ended first. With `CleanupGuard::drop` rewritten to do nothing, the
   fixture-cell version still **passed**, reporting that cleanup had run. Only
@@ -1342,14 +1345,14 @@ between them. Raise that before spending the tolerance.
   and the defect was in the test, which is the more dangerous direction — a
   vacuous assertion is invisible in a green suite and would have shipped as
   evidence for a clause it did not test. It also falsified a claim already
-  written into D25, which has been corrected. Two lessons worth carrying. First,
-  an assertion about "state was cleaned up" must read the state cleanup actually
-  touches; picking a neighbouring observable that merely *correlates* with it is
-  how a vacuous assertion looks correct in review. Second, this is the third
-  vacuity of the milestone (D24 records two design claims that died to a
-  compiler), and all three were found by *running* something rather than reading
-  it — which is the pattern the plan's own `Verification plan` warns about in
-  the abstract.
+  written into D25, which has been corrected. Two lessons worth carrying.
+  First, an assertion about "state was cleaned up" must read the state cleanup
+  actually touches; picking a neighbouring observable that merely *correlates*
+  with it is how a vacuous assertion looks correct in review. Second, this is
+  the third vacuity of the milestone (D24 records two design claims that died
+  to a compiler), and all three were found by *running* something rather than
+  reading it — which is the pattern the plan's own `Verification plan` warns
+  about in the abstract.
 
 - **Observation:** a planned assertion macro was the wrong tool for a `proptest`
   property, and the plan named it anyway. Evidence: INV-5's row prescribes
@@ -1357,15 +1360,15 @@ between them. Raise that before spending the tolerance.
   proptest case aborts the case rather than reporting a failure, so the
   counter-example is never shrunk. The property was written with `prop_assert!`
   and `pretty_assertions::Comparison` in the message instead; the control run
-  then shrank a real failure to the two-invocation plan `[Skip, Pass]`, which an
-  unshrunk panic would have reported as a fifteen-invocation plan or whatever
-  the generator happened to draw. Impact: recorded as a deviation in INV-5's row
-  rather than taken silently. The general point is that a plan written before
-  the harness exists can name a mechanism that is right in a unit test and wrong
-  in a property, and the difference is invisible until something actually fails
-  — this one only surfaced *because* the negative control was run, which is the
-  second time in this milestone that a control found something the writing did
-  not.
+  then shrank a real failure to the two-invocation plan `[Skip, Pass]`, which
+  an unshrunk panic would have reported as a fifteen-invocation plan or
+  whatever the generator happened to draw. Impact: recorded as a deviation in
+  INV-5's row rather than taken silently. The general point is that a plan
+  written before the harness exists can name a mechanism that is right in a
+  unit test and wrong in a property, and the difference is invisible until
+  something actually fails — this one only surfaced *because* the negative
+  control was run, which is the second time in this milestone that a control
+  found something the writing did not.
 
 - **Observation:** twelve of the sixteen rows in the conformance trace table
   named artefacts that do not exist. Evidence: checking each row against the
@@ -1382,15 +1385,15 @@ between them. Raise that before spending the tolerance.
   `tests::runner::cancel::drop_during_step` all return nothing, and the three
   `tests::runner::lifecycle::*` rows are contingent on a struck milestone. Four
   of the twelve rows name *actual* tests under wrong paths or names — the tests
-  exist in `src/runner/tests/` and `tests/` under different names — and the rest
-  name nothing that was ever written. Impact: the trace table is the plan's
-  main answer to "is every requirement discharged?", and a table whose rows do
-  not resolve answers it vacuously. Every row now names a path and symbol that
-  exists, checked by grep rather than by memory. The rows for EP-M4 stay as they
-  are, because they are labelled contingent and that milestone is struck. The
-  lesson generalises past this table: a traceability artefact is *also* a
-  verification claim, and it decays exactly like the code references in a
-  comment — silently, and in the direction of looking complete.
+  exist in `src/runner/tests/` and `tests/` under different names — and the
+  rest name nothing that was ever written. Impact: the trace table is the
+  plan's main answer to "is every requirement discharged?", and a table whose
+  rows do not resolve answers it vacuously. Every row now names a path and
+  symbol that exists, checked by grep rather than by memory. The rows for EP-M4
+  stay as they are, because they are labelled contingent and that milestone is
+  struck. The lesson generalizes past this table: a traceability artefact is
+  *also* a verification claim, and it decays exactly like the code references
+  in a comment — silently, and in the direction of looking complete.
 
 ### The two Markdown formatters do not agree, and only one of them is checked
 
@@ -1503,8 +1506,8 @@ span into separate short spans rather than relying on `mdtablefix` to wrap it.
   `sequence/witnesses.rs`; `runner_sequence_props.rs` gave up the property
   bodies to `invariants.rs`, the named per-kind witnesses to
   `named_witnesses.rs`, and the negative controls to `controls.rs`.
-- **A Cargo integration target is a single file, not a directory.** `mod
-  controls;` from `tests/runner_sequence_props.rs` is resolved as
+- **A Cargo integration target is a single file, not a directory.**
+  `mod controls;` from `tests/runner_sequence_props.rs` is resolved as
   `tests/controls.rs`, not as `tests/runner_sequence_props/controls.rs` — the
   Rust 2018 `foo.rs` + `foo/` rule applies to `src/` module paths, not to
   integration targets, whose module root *is* the file. Colocating support
@@ -1550,8 +1553,8 @@ span into separate short spans rather than relying on `mdtablefix` to wrap it.
   first EP-M2 run of the observer case failed with
   `MissingFixtures(MissingFixturesDetails { required: ["ctx"], missing: ["ctx"],
   missing_requirements: [MissingFixtureDiagnostic { name: "ctx",
-  ty: "StepContext < '_ >" }], available: ["sequence probe"] })`. The argument
-  classifier has no type-based recognition of `StepContext`
+  ty: "StepContext < '_ >" }], available: ["sequence probe"] })`.
+  The argument classifier has no type-based recognition of `StepContext`
   (`codegen/wrapper/args/classify/fixture_or_step.rs`): a parameter is a
   placeholder when its name matches one after normalization, an explicit
   `#[from]`/`#[datatable]`/`#[step_args]` when it carries that attribute, and a
@@ -1559,8 +1562,8 @@ span into separate short spans rather than relying on `mdtablefix` to wrap it.
   named `ctx` of that type, and since nothing inserts one the wrapper refuses
   the call before the handler runs. **Impact:** the observer step is registered
   raw — the `submit!` form — which is what every other context-reaching step in
-  this repository already does, so this was a defect in the draft rather than in
-  the machinery. The raw form needs no classifier because it never parses a
+  this repository already does, so this was a defect in the draft rather than
+  in the machinery. The raw form needs no classifier because it never parses a
   signature, and it makes the placeholder explicit: the index is recovered with
   the public `extract_placeholders` against a module-level `StepPattern`, and a
   text that does not yield exactly one capture is a hard
@@ -1569,9 +1572,9 @@ span into separate short spans rather than relying on `mdtablefix` to wrap it.
 
 - **Observation:** the INV-3 non-vacuity witness as first drafted was
   *unsatisfiable*, and that is why the suite failed rather than merely being
-  thin. The flag was set from `seen > reading.observer` — "the observer read the
-  value of a producer at a later index". A value can only travel forwards, so
-  that is precisely the relation the invariant *forbids*; no correct run can
+  thin. The flag was set from `seen > reading.observer` — "the observer read
+  the value of a producer at a later index". A value can only travel forwards,
+  so that is precisely the relation the invariant *forbids*; no correct run can
   produce it, and the assertion "no case placed an observer before the first
   producer" was therefore unable to ever pass. **Impact:** the witness is now
   read from the plan's producer indices instead: a case witnesses the negative
@@ -1580,37 +1583,81 @@ span into separate short spans rather than relying on `mdtablefix` to wrap it.
   it, "the observer saw nothing" would hold trivially for a driver that hands
   every observer a future value, which is the failure the clause exists to
   catch. The general lesson, recorded because it recurred twice in this
-  milestone: a non-vacuity assertion whose condition cannot be met fails loudly,
-  but one whose condition is met *for the wrong reason* passes silently, and
-  only running the predicate against a corrupted log distinguishes them.
+  milestone: a non-vacuity assertion whose condition cannot be met fails
+  loudly, but one whose condition is met *for the wrong reason* passes
+  silently, and only running the predicate against a corrupted log
+  distinguishes them.
 
 - **Observation:** two of the nine kinds cannot reach their own handler, and the
   per-kind control's expected execution count silently assumed they could.
-  `Kind::UnregisteredStep` resolves to no step at all and `Kind::MissingFixture`
-  fails validation upstream of the call, so neither logs its position — but both
-  are *terminal*, so the control plan `Pass, kind, Pass` still runs index 0.
-  The expectation of `2` for a terminal kind was therefore correct only for the
-  kinds that run; the two that do not leave exactly one entry, not two.
-  **Impact:** `expected_executed` now decides from both questions
-  (`terminal_status`, `logs_its_position`) rather than from the first alone, and
-  the assertion is an exact count with a companion check that index 1 is absent
-  from the log. This is a *test* defect, not a driver defect: the driver behaved
-  correctly throughout, and the log held exactly the invocations that reached a
-  handler. It was found by running the control, which is the only thing that
-  could have found it.
+  `Kind::UnregisteredStep` resolves to no step at all and
+  `Kind::MissingFixture` fails validation upstream of the call, so neither logs
+  its position — but both are *terminal*, so the control plan
+  `Pass, kind, Pass` still runs index 0. The expectation of `2` for a terminal
+  kind was therefore correct only for the kinds that run; the two that do not
+  leave exactly one entry, not two. **Impact:** `expected_executed` now decides
+  from both questions (`terminal_status`, `logs_its_position`) rather than from
+  the first alone, and the assertion is an exact count with a companion check
+  that index 1 is absent from the log. This is a *test* defect, not a driver
+  defect: the driver behaved correctly throughout, and the log held exactly the
+  invocations that reached a handler. It was found by running the control,
+  which is the only thing that could have found it.
 
 - **Observation:** a `LEAK` classification from nextest is a stderr-timing
   artefact here, not a failing test. One run in thirteen reported
-  `15 tests run: 15 passed (1 leaky)` for `a_keyword_mismatch_resolves_to_nothing`,
-  which passes in isolation and passed 10 times out of 10 on re-run.
-  `StepContext`'s ambiguity path emits through `emit_visible_warning`, which
-  `eprintln!`s when no `tracing` listener would receive the event; nextest
-  detects a test as leaky when it writes to a descriptor it did not capture.
-  **Impact:** none on correctness — a leaky test still passes — but the
-  distinction is worth recording so a later reader does not chase it as a
-  failure. The `IntoIterator`-order `Ambiguous fixture override` lines in a
-  captured log come from the same emitter and are the expected signal for
-  `Arrangement::TwoProbes`.
+  `15 tests run: 15 passed (1 leaky)` for
+  `a_keyword_mismatch_resolves_to_nothing`, which passes in isolation and
+  passed 10 times out of 10 on re-run. `StepContext`'s ambiguity path emits
+  through `emit_visible_warning`, which `eprintln!`s when no `tracing` listener
+  would receive the event; nextest detects a test as leaky when it writes to a
+  descriptor it did not capture. **Impact:** none on correctness — a leaky test
+  still passes — but the distinction is worth recording so a later reader does
+  not chase it as a failure. The `IntoIterator`-order
+  `Ambiguous fixture override` lines in a captured log come from the same
+  emitter and are the expected signal for `Arrangement::TwoProbes`.
+
+- **Observation:** EP-M3's first commit-gate run was red in three gates, and
+  *two further failures were invisible* because an earlier recipe line in the
+  same target aborted first. `check-fmt` failed on nine rustfmt hunks and then
+  never reached `mdtablefix`, which was independently unhappy about this very
+  document; `lint` failed on five Clippy errors and so never reached
+  `lint-whitaker`, which had a sixth finding in the file this milestone had
+  just written; `markdownlint` depends on `spelling`, and `spelling` failed, so
+  markdownlint-cli2 did not run at all and its status was unknown rather than
+  green. **Impact:** the useful lesson is not "run the gates sooner" — they
+  were run at the milestone boundary, which is where they belong — but that a
+  target whose recipe lines share a shell reports only its *first* failure, so
+  a single reported defect count understates the work. Two habits follow, and
+  both are now the pattern to keep: run the masked lines standalone when a
+  target aborts early, and treat an aborted target's *later* lines as unknown
+  rather than passing. Concretely, `markdownlint` was red while Markdown was in
+  fact clean (121 files, 0 errors standalone), and `lint` was red while
+  rustdoc, the 400-line cap, and the four sibling checkers were clean.
+
+- **Observation:** the five Clippy findings and the Whitaker finding were all in
+  *new* code, and four of the five would have been caught by the compiler's own
+  test conventions had they been consulted: the `Ok(..)`-wrapping step fixtures
+  trip `unnecessary_wraps`, which this repository already `#[expect]`s on 21
+  step fixtures elsewhere (`step_return.rs`, `step_registry/wrappers.rs`, and
+  others); and the `tokio::runtime::Builder::build().expect(..)` site has an
+  in-repo `let Ok(..) else { panic!(..) }` counterpart in `modes.rs` written
+  for exactly the same expression. **Impact:** a step fixture returning
+  `Result` is the *normal* case here, not an exception, so the attribute is a
+  house convention to copy rather than a decision to make. The one genuinely
+  new finding was Whitaker's `no_unwrap_or_else_panic` at `sequence/run.rs`,
+  and its fix is the same `let ... else` idiom — which suggests the idiom is
+  worth reaching for *first* when a helper needs a panicking fallback, since
+  both the Clippy and the Whitaker rule converge on it.
+
+- **Observation:** clearing the spelling gate required distinguishing two
+  separate errors that look like one. `typos` rejected `canceled` (US spelling;
+  the repository is en-GB-oxendict) and `generalises` (`-ize` policy), while
+  the second, phrase-level pass rejected `hand-written` in favour of
+  `handwritten` — in two files, both in doc comments. **Impact:** none on
+  design, but it confirms the two-pass structure is load-bearing: the first
+  pass alone would have left both `hand-written` instances in place, and the
+  failure signature (`current: typos.toml` marking the transition) is worth
+  reading rather than assuming one speller's output is the whole gate.
 
 ## Decision log
 
@@ -2372,16 +2419,16 @@ has to decide what it means for the file.
 like, and it is the one option INV-5 cannot hold to. Every future edit would
 have to be made twice and could be made once; the equivalence the invariant
 asserts would then depend on a reviewer noticing. Worse, the *recording* half
-of the loop — the per-step `trace!`, the `details.push`, the bypass
-`extend` — has no reason to differ at all, so duplicating it buys nothing.
+of the loop — the per-step `trace!`, the `details.push`, the bypass `extend` —
+has no reason to differ at all, so duplicating it buys nothing.
 
 **Chosen: share the step-result handling, not the loop.** The drift-prone part
 of a driver is not its fifteen-line `for` loop; it is what it *decides* about a
 step result — which `StepOutcome` constructor to call, what `Terminal` to
 build, and which of the three arms the classification landed in. That is
 exactly the part that can be shared, because it is also the part that does not
-care whether the `Result` came from `execute_step` or `execute_step_async`.
-A shared `engine/drive.rs` owns:
+care whether the `Result` came from `execute_step` or `execute_step_async`. A
+shared `engine/drive.rs` owns:
 
 ```rust,ignore
 /// Rebuild a plan's table as the borrowed rows a request needs.
@@ -2426,11 +2473,11 @@ its poller ever yielded, the only honest outcomes are a panic or a silently
 truncated run. That assumption has no type-level protection and nothing in
 EP-M3's evidence would catch it, because INV-5 compares *outcomes* and a
 truncated sync run would simply differ loudly rather than subtly. Trading a
-compile-checked property of the more important entry point for the removal of
-a duplication that INV-5 already polices is the wrong way round. The withdraw
-is recorded rather than deleted because it is the second time on this branch
-that a carefully-reasoned claim about what *will* compile survived review and
-died on contact with a compiler; see D24's withdrawal for the third.
+compile-checked property of the more important entry point for the removal of a
+duplication that INV-5 already polices is the wrong way round. The withdraw is
+recorded rather than deleted because it is the second time on this branch that
+a carefully-reasoned claim about what *will* compile survived review and died
+on contact with a compiler; see D24's withdrawal for the third.
 
 **Rejected: a macro over the two bodies.** It would keep the loops textually
 separate while generating them from one source, and it cannot make synchronous
@@ -2446,14 +2493,13 @@ requirements.
 INV-10's artefact is `runner/tests/cancel.rs`, and the plan's caveat says the
 gates must not touch Tokio. That decides the driver: a `#[cfg(test)] mod gates`
 inside `runner::scope` holds module-private flags that the scope consults as it
-passes each boundary, and a test in the unit-test binary appends an
-`EnterGate` hook by hand and polls the run future with
-`std::task::Waker::noop()`.
+passes each boundary, and a test in the unit-test binary appends an `EnterGate`
+hook by hand and polls the run future with `std::task::Waker::noop()`.
 
 **Why the hook is reachable from the unit-test binary.** The plan's note that
-the unit-test binary cannot reach the *registry* is about `run_scenario`'s
-step resolution, not about the runner's public surface: a plan whose steps
-never resolve still runs the before hook, and INV-10's step case is *about*
+the unit-test binary cannot reach the *registry* is about `run_scenario`'s step
+resolution, not about the runner's public surface: a plan whose steps never
+resolve still runs the before hook, and INV-10's step case is *about*
 cancellation during a step, so it needs a step that genuinely blocks. The
 answer is the gate hook, which is reached before any step is executed and
 therefore above the registry. Cancellation during a *step handler* is then
@@ -2462,19 +2508,19 @@ executor position, and the step case is recorded as discharged *by proxy* in
 `Verification plan` rather than claimed directly.
 
 **Why `std::task::Waker::noop` and not a runtime.** Polling a future outside a
-runtime is legal; what panics is a *Tokio* future being polled without one.
-It was not obvious that this distinction survives here, because
+runtime is legal; what panics is a *Tokio* future being polled without one. It
+was not obvious that this distinction survives here, because
 `execute_step_async` for a `Both`-mode step calls `run` **synchronously** with
 no Tokio future anywhere on the path — so what a case must avoid is a *test
-double* that reaches Tokio, not the driver. Probed directly: an async fn
-owning a context by value, projecting `&mut` from it through a `split`-shaped
-method, and holding that borrow across a real suspension point runs to
-completion under `Waker::noop()` with no runtime in scope. `Waker::noop()` was
-stabilized in Rust 1.85 and this workspace pins 1.98.1, so the harness needs no
-dependency beyond `std`. Its `RawWaker` ignores `wake` by definition, so a gate
-that woke only its own waker would never be re-polled; hardening requirement 2
-exists for exactly this, and the bounded loop is what makes the harness
-converge or fail loudly rather than hang.
+double* that reaches Tokio, not the driver. Probed directly: an async fn owning
+a context by value, projecting `&mut` from it through a `split`-shaped method,
+and holding that borrow across a real suspension point runs to completion under
+`Waker::noop()` with no runtime in scope. `Waker::noop()` was stabilized in
+Rust 1.85 and this workspace pins 1.98.1, so the harness needs no dependency
+beyond `std`. Its `RawWaker` ignores `wake` by definition, so a gate that woke
+only its own waker would never be re-polled; hardening requirement 2 exists for
+exactly this, and the bounded loop is what makes the harness converge or fail
+loudly rather than hang.
 
 **Falsified and withdrawn: `PhantomPinned` and the `unsafe` projection.** The
 first draft of this entry concluded that `split`'s `&mut StepContext` borrow,
@@ -2491,16 +2537,15 @@ to pin and nothing to make `unsafe` sound. **EP-M3 adds no `unsafe` to this
 crate**, which also keeps it clear of the tolerance on unspecified safety
 arguments. The lesson is the same one D11's entry records: a claim about what
 *will* compile, however carefully reasoned, is a hypothesis until it is
-compiled — and this one had already been written into a decision log as
-settled.
+compiled — and this one had already been written into a decision log as settled.
 
 **The gate hook is permanent surface, and is documented as such.**
 `NoHooks::enter_scope` is a defaulted trait method taking `&mut StepContext`,
 not a `#[cfg(test)]` shim: a hook that only existed under `cfg(test)` would
 make the invariant untestable in the build that ships, which is the build whose
-behaviour matters. The plan's hooks are deferred under D2 option (ii), and
-this is the one hook-shaped thing EP-M3 adds; it is inert unless a caller
-implements it, and `NoHooks` cannot.
+behaviour matters. The plan's hooks are deferred under D2 option (ii), and this
+is the one hook-shaped thing EP-M3 adds; it is inert unless a caller implements
+it, and `NoHooks` cannot.
 
 **The step case is a proxy discharge, and the first draft's second reading was
 also wrong.** The sequence is worth recording in full, because two confident
@@ -2514,14 +2559,14 @@ readings in a row were each falsified by one probe.
   matches nothing still drives the loop and the gate can sit at step position,
   making the discharge direct. **Falsified.** A probe in `runner/tests/` — the
   unit-test binary, a plan with one unregistered step, no registration of its
-  own — panicked in `registry/mod.rs:238`, `duplicate step for 'When' +
-  'introspection duplicate step'`. The reason is in `registry/mod.rs`'s
-  `STEP_MAP`: it is a `LazyLock` that **eagerly asserts no two registrations
-  collide**, and `registry/introspection.rs` registers `DUPLICATE_PATTERN`
-  twice *on purpose* to test that assertion. The very first registry touch in
-  the unit-test binary aborts, whatever the plan contains. So the boundary is
-  not at *resolve*; it is at *the registry*, exactly as D19 first said, and the
-  first reading's conclusion stands.
+  own — panicked in `registry/mod.rs:238`,
+  `duplicate step for 'When' + 'introspection duplicate step'`. The reason is in
+  `registry/mod.rs`'s `STEP_MAP`: it is a `LazyLock` that **eagerly asserts no
+  two registrations collide**, and `registry/introspection.rs` registers
+  `DUPLICATE_PATTERN` twice *on purpose* to test that assertion. The very first
+  registry touch in the unit-test binary aborts, whatever the plan contains. So
+  the boundary is not at *resolve*; it is at *the registry*, exactly as D19
+  first said, and the first reading's conclusion stands.
 
 What the gate therefore discharges is cancellation **at the scope/step boundary
 position**, with the loop entered and an in-flight invocation under way, in the
@@ -2543,78 +2588,78 @@ Date/Author: 2026-09-19, implementation agent.
 **Decided 2026-09-19, closing EP-M3's cancellation work.** D24 recorded two
 withdrawals about this test and left the step case as a *proxy* discharge. That
 conclusion was wrong a third time, for a reason the first two never tested: the
-plan named `runner/tests/cancel.rs` as INV-10's artefact, and that path *cannot*
-discharge the step case — but nothing forces the test to live there.
+plan named `runner/tests/cancel.rs` as INV-10's artefact, and that path
+*cannot* discharge the step case — but nothing forces the test to live there.
 
 **The step case is direct, and needs no production seam.** D24 is right that
-`execute_step_async` resolves through `STEP_MAP` and that the unit-test binary's
-first registry touch aborts. The inference that the test must therefore park
-above the registry does not follow, because D21's rule — *runner tests that
-resolve steps live in `crates/rstest-bdd/tests/`* — applies here as it does to
-every other step-resolving test in this milestone. An integration binary may
-register a step. So the test registers a `StepExecutionMode::Async` step whose
-`run_async` returns a future that parks forever, drives the plan through
-`run_scenario_async`, polls the run until the handler is entered, drops the run,
-and asserts the handler's future was dropped with it. That is INV-10's step case
-with no proxy and no `#[cfg(test)]` hook.
+`execute_step_async` resolves through `STEP_MAP` and that the unit-test
+binary's first registry touch aborts. The inference that the test must
+therefore park above the registry does not follow, because D21's rule — *runner
+tests that resolve steps live in `crates/rstest-bdd/tests/`* — applies here as
+it does to every other step-resolving test in this milestone. An integration
+binary may register a step. So the test registers a `StepExecutionMode::Async`
+step whose `run_async` returns a future that parks forever, drives the plan
+through `run_scenario_async`, polls the run until the handler is entered, drops
+the run, and asserts the handler's future was dropped with it. That is INV-10's
+step case with no proxy and no `#[cfg(test)]` hook.
 
 **Probed before it was written.** Two throwaway integration tests, run and then
 deleted, established the two facts the design rests on: that a `submit!`-ed
 `Async` step's parked future is reachable and is dropped with the run, and that
 the caller's context is observably cleaned by that drop. **The first probe's
-`ctx.try_borrow` after the drop does not compile** — `E0502`, the live run still
-holds `ctx` mutably — so the read has to happen after the run is dropped; the
-first version of the test therefore asserted on the *fixture cell*, which does
-compile and does outlive the borrow.
+`ctx.try_borrow` after the drop does not compile** — `E0502`, the live run
+still holds `ctx` mutably — so the read has to happen after the run is dropped;
+the first version of the test therefore asserted on the *fixture cell*, which
+does compile and does outlive the borrow.
 
-**That first version was vacuous, and a negative control proved it.** A negative
-control is a deliberate defect the test must catch; here, `CleanupGuard::drop`
-was rewritten to do nothing. The test still **passed**. The reason is
-`insert_value`: it writes the step's returned value into the context's *override
-map* (`ctx.values`), not into the fixture's own cell, so the fixture cell reads
-the same `0` before and after cleanup and says nothing about whether cleanup
-ran. The discriminating read is `ctx.try_borrow::<Marker>(MARKER)`, which
-consults the override map first and the fixture second — it yields the returned
-`7` while the override is live and the fixture's `0` once cleanup has cleared
-it. Binding the run inside a block so the borrow ends, then reading, is what
-makes the assertion both compile and mean something. Both reads were then run
-against the broken guard: the fixture-cell read reported "clean", the
-`try_borrow` read reported `Some(7)` against an expected `Some(0)`. The test
-that shipped uses the second.
+**That first version was vacuous, and a negative control proved it.** A
+negative control is a deliberate defect the test must catch; here,
+`CleanupGuard::drop` was rewritten to do nothing. The test still **passed**.
+The reason is `insert_value`: it writes the step's returned value into the
+context's *override map* (`ctx.values`), not into the fixture's own cell, so
+the fixture cell reads the same `0` before and after cleanup and says nothing
+about whether cleanup ran. The discriminating read is
+`ctx.try_borrow::<Marker>(MARKER)`, which consults the override map first and
+the fixture second — it yields the returned `7` while the override is live and
+the fixture's `0` once cleanup has cleared it. Binding the run inside a block
+so the borrow ends, then reading, is what makes the assertion both compile and
+mean something. Both reads were then run against the broken guard: the
+fixture-cell read reported "clean", the `try_borrow` read reported `Some(7)`
+against an expected `Some(0)`. The test that shipped uses the second.
 
 **Rejected: a `#[cfg(test)]` gate slot in `drive_async`.** This was designed in
 full before the probe — a `Gates` struct threaded through `drive` as a new
-parameter, with futures awaited immediately before each step and after the loop.
-It was deleted unbuilt. It buys nothing the integration test does not, and it
-costs a test-only parameter in the driver's signature and a `#[cfg(test)]`
-await point in the shipping loop. Writing the seam first and the test second
-would have left that parameter in the code for the sake of a test that does not
-need it.
+parameter, with futures awaited immediately before each step and after the
+loop. It was deleted unbuilt. It buys nothing the integration test does not,
+and it costs a test-only parameter in the driver's signature and a
+`#[cfg(test)]` await point in the shipping loop. Writing the seam first and the
+test second would have left that parameter in the code for the sake of a test
+that does not need it.
 
 **What is proven, stated precisely.** Cancellation while a real
-`StepExecutionMode::Async` handler's `run_async` future is in flight: the future
-is dropped, no `ScenarioOutcome` is produced, and synchronous scope cleanup
-still runs. That is INV-10's step case in full.
+`StepExecutionMode::Async` handler's `run_async` future is in flight: the
+future is dropped, no `ScenarioOutcome` is produced, and synchronous scope
+cleanup still runs. That is INV-10's step case in full.
 
-**The hook cases (a) and (c) remain contingent on D2, and are unreachable rather
-than merely unwritten.** Under option (ii) there is no `Lifecycle` trait and no
-hook to cancel during; `NoHooks` exists precisely to be the defaulted parameter
-that keeps their arrival source-compatible. A plan cannot cancel during a hook
-that does not exist, so no test can discharge that row, and the plan already
-records it as contingent rather than discharged.
+**The hook cases (a) and (c) remain contingent on D2, and are unreachable
+rather than merely unwritten.** Under option (ii) there is no `Lifecycle` trait
+and no hook to cancel during; `NoHooks` exists precisely to be the defaulted
+parameter that keeps their arrival source-compatible. A plan cannot cancel
+during a hook that does not exist, so no test can discharge that row, and the
+plan already records it as contingent rather than discharged.
 
 **Where this lands against D24's three hardening requirements.** They were
-written for a harness that polls a future it did not otherwise exercise, and one
-of them changes shape here:
+written for a harness that polls a future it did not otherwise exercise, and
+one of them changes shape here:
 
 1. **The progress witness is kept.** The gate future increments a counter inside
-   its own `poll`, and the harness's bounded loop returns only once that counter
-   is non-zero — so the test cannot proceed to the drop assertions on a run that
-   never reached the awaiting position. Without it, "no outcome was observed" is
-   true of any future dropped before `Ready`, correct or broken, and carries no
-   discriminating power. The test also asserts the gate was polled exactly once,
-   which is what makes "the drop probe fired exactly once" a statement about the
-   drop rather than about a re-poll.
+   its own `poll`, and the harness's bounded loop returns only once that
+   counter is non-zero — so the test cannot proceed to the drop assertions on a
+   run that never reached the awaiting position. Without it, "no outcome was
+   observed" is true of any future dropped before `Ready`, correct or broken,
+   and carries no discriminating power. The test also asserts the gate was
+   polled exactly once, which is what makes "the drop probe fired exactly once"
+   a statement about the drop rather than about a re-poll.
 2. **The bounded poll loop is kept, and is *more* necessary than D24 thought.**
    `Waker::noop`'s `RawWaker` ignores `wake` by definition, so a future that
    registered interest and yielded would never be re-polled. The loop is what
@@ -2628,13 +2673,13 @@ of them changes shape here:
 **Two negative controls, and what each caught.** The first made
 `drive_async::execute` poll the handler future once, drop it while pending, and
 carry on as though it had returned `None`; the test failed with "the run reached
-`Ready` instead of parking at the gate", which is the intended reason, though it
-does not isolate the driver's `.await` propagation specifically — it shows only
-that the test notices a parked handler being discarded early. A stronger control
-against the driver is still outstanding and is recorded as such. The second made
-`CleanupGuard::drop` a no-op, and it caught the vacuity described above rather
-than a driver defect: the control was aimed at the driver and the finding was in
-the test.
+`Ready` instead of parking at the gate", which is the intended reason, though
+it does not isolate the driver's `.await` propagation specifically — it shows
+only that the test notices a parked handler being discarded early. A stronger
+control against the driver is still outstanding and is recorded as such. The
+second made `CleanupGuard::drop` a no-op, and it caught the vacuity described
+above rather than a driver defect: the control was aimed at the driver and the
+finding was in the test.
 
 Date/Author: 2026-09-19, implementation agent.
 
@@ -3058,8 +3103,8 @@ run.
   The plan originally named `crates/rstest-bdd/src/runner/tests/cancel.rs`;
   **D25 records why it moved** — reaching the registry at all aborts the
   unit-test binary (D24), and D21's rule sends step-resolving runner tests to
-  `tests/`. D25 also withdraws D24's conclusion that the step case could only be
-  discharged by proxy.
+  `tests/`. D25 also withdraws D24's conclusion that the step case could only
+  be discharged by proxy.
 - Evidence and the three hardening requirements the review identified:
   1. **A progress witness is mandatory.** "No `ScenarioOutcome` was observed"
      is true of *any* future dropped before `Ready`, in every implementation,
@@ -4412,16 +4457,16 @@ INV-10 harness is sound: deterministic, executor-free, no new dependency
 ```
 
 The second case is INV-10's non-vacuity control. The review subsequently added
-three hardening requirements to INV-10 that this spike did **not** demonstrate —
-the per-gate `entered` witness, the bounded poll loop, and probe ownership.
+three hardening requirements to INV-10 that this spike did **not** demonstrate
+— the per-gate `entered` witness, the bounded poll loop, and probe ownership.
 **All three are now built into the shipped test** at
 `crates/rstest-bdd/tests/runner_cancel.rs`: the poll counter is asserted before
 any drop assertion, the harness polls in a bounded loop rather than once, and
 the drop probe is a field of the gate future rather than of the closure that
-builds it. Note also that this spike's premise was optimistic in a way that took
-three attempts to correct: it assumed the cancellation case could park *above*
-the registry, and D24 and D25 record why the real test registers a genuine
-`Async` step in an integration binary instead.
+builds it. Note also that this spike's premise was optimistic in a way that
+took three attempts to correct: it assumed the cancellation case could park
+*above* the registry, and D24 and D25 record why the real test registers a
+genuine `Async` step in an integration binary instead.
 
 **Spike 2 — the plan needs no lifetime.** `Cow<'static, str>` text with shared
 source paths.
