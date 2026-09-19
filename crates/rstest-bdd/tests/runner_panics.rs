@@ -51,7 +51,6 @@ use rstest_bdd::{
     StepContext,
     StepError,
     StepKeyword,
-    execution::{StepExecutionRequest, execute_step_async},
     runner::{
         FailureKind,
         ScenarioPlanBuilder,
@@ -67,7 +66,7 @@ use rstest_bdd_macros::given;
 #[path = "runner_panics/mod.rs"]
 mod panics;
 
-use panics::silenced;
+use panics::{async_panic_identity, silenced};
 
 /// A step registered through the *attribute* macro, so it carries a wrapper.
 ///
@@ -270,85 +269,6 @@ fn a_wrapped_step_panic_is_unchanged() {
         message.contains("deliberate panic from an attribute-registered step"),
         "the wrapper's own message must survive; it was `{message}`",
     );
-}
-
-/// What one async step produced, with the two layers kept apart.
-///
-/// The separation is the point rather than a wrapper added for convenience:
-/// [`Escaped`](Self::Escaped) answers "did an unwind leave the driver?" and
-/// [`Returned`](Self::Returned) is the step's own result. Collapsing them into
-/// one `Result` would make *the driver unwound* and *the step failed* the same
-/// value, which is exactly the distinction the tests below exist to pin.
-enum AsyncRun {
-    /// The driver unwound; the payload escaped past `execute_step_async`.
-    Escaped(Box<dyn std::any::Any + Send>),
-    /// The driver returned the step's own result, as its contract requires.
-    Returned(Result<Option<Box<dyn std::any::Any>>, ExecutionError>),
-}
-
-/// Run one async step under `catch_unwind`, returning what actually happened.
-///
-/// The `silenced` window closes here rather than in the caller, so no
-/// assertion is ever inside it.
-fn run_async_catching(text: &'static str) -> AsyncRun {
-    let escaped = silenced(|| {
-        // `let ... else` rather than `.expect(...)`, following the convention
-        // `runner_wire.rs` records: `allow-expect-in-tests` covers `#[test]`
-        // functions and `#[cfg(test)]` items, and this is neither.
-        let Ok(runtime) = tokio::runtime::Builder::new_current_thread().build() else {
-            panic!("the test's own runtime setup is broken, not the runner under test");
-        };
-        let mut ctx = StepContext::default();
-        let request = StepExecutionRequest {
-            index: 0,
-            keyword: StepKeyword::Given,
-            text,
-            docstring: None,
-            table: None,
-            feature_path: "notes/panics.md",
-            scenario_name: "Unwrapped async",
-        };
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            runtime.block_on(execute_step_async(&request, &mut ctx))
-        }))
-    });
-
-    match escaped {
-        Ok(result) => AsyncRun::Returned(result),
-        Err(payload) => AsyncRun::Escaped(payload),
-    }
-}
-
-/// The `(pattern, message)` a panicking async step's error must carry.
-///
-/// The classification half of [`run_async_catching`], split from it because the
-/// two are different jobs: that function owns the boundary and this one owns
-/// what the boundary produced. Each `let ... else` below names one way the run
-/// can be wrong, and the escape case keeps the payload in its message rather
-/// than discarding it — a regression here escapes instead of misclassifying, so
-/// the printed payload is the only diagnosis a reader gets.
-fn async_panic_identity(text: &'static str) -> (String, String) {
-    let result = match run_async_catching(text) {
-        AsyncRun::Returned(result) => result,
-        AsyncRun::Escaped(escaped) => panic!(
-            "execute_step_async must return rather than unwind, including when the panic happens \
-             while the future is built rather than while it is polled; it escaped with {escaped:?}"
-        ),
-    };
-
-    let Err(error) = result else {
-        panic!("a panicking async step must fail the run rather than pass it");
-    };
-    let ExecutionError::HandlerFailed { error, .. } = &error else {
-        panic!("the failure must be a HandlerFailed; it was {error:?}");
-    };
-    let StepError::PanicError {
-        pattern, message, ..
-    } = error.as_ref()
-    else {
-        panic!("the wrapped error must be a PanicError");
-    };
-    (pattern.clone(), message.clone())
 }
 
 /// The two async boundaries, one case each.

@@ -6,6 +6,13 @@
 //! panic-hook guard is stateful in a way whose constraints deserve to be stated
 //! where they are enforced.
 //!
+//! The async boundary helpers ([`AsyncRun`] and [`run_async_catching`]) live
+//! here for the same reason rather than the same topic. They are the other
+//! half of "how a run is driven": the file below keeps the assertions, and
+//! these own the `catch_unwind` and the [`silenced`] window around it. That is
+//! also what keeps the outer file inside the repository's 400-line limit
+//! without an allowlist entry.
+//!
 //! # Why the panic hook is silenced, and how narrowly
 //!
 //! Every deliberate panic in these tests is *expected*: the driver is supposed
@@ -54,6 +61,7 @@ use std::{
 };
 
 use rstest_bdd::{
+    ExecutionError,
     StepContext,
     StepError,
     StepExecution,
@@ -61,6 +69,7 @@ use rstest_bdd::{
     StepFuture,
     StepKeyword,
     StepPattern,
+    execution::{StepExecutionRequest, execute_step_async},
     submit,
 };
 
@@ -266,4 +275,96 @@ pub(super) fn silenced<T>(body: impl FnOnce() -> T) -> T {
     let result = body();
     drop(guard);
     result
+}
+
+/// What one async step produced, with the two layers kept apart.
+///
+/// The separation is the point rather than a wrapper added for convenience:
+/// [`Escaped`](Self::Escaped) answers "did an unwind leave the driver?" and
+/// [`Returned`](Self::Returned) is the step's own result. Collapsing them into
+/// one `Result` would make *the driver unwound* and *the step failed* the same
+/// value, which is exactly the distinction the tests that consume this exist to
+/// pin.
+///
+/// It lives here rather than beside those tests because it is internal to the
+/// boundary below: nothing outside this module constructs one.
+enum AsyncRun {
+    /// The driver unwound; the payload escaped past `execute_step_async`.
+    Escaped(Box<dyn std::any::Any + Send>),
+    /// The driver returned the step's own result, as its contract requires.
+    Returned(Result<Option<Box<dyn std::any::Any>>, ExecutionError>),
+}
+
+/// Run one async step under `catch_unwind`, returning what actually happened.
+///
+/// The [`silenced`] window closes here rather than in the caller, so no
+/// assertion is ever inside it — the confinement the module note requires.
+///
+/// Its only caller is [`async_panic_identity`], which is why it is private:
+/// the enum above is an implementation detail of these two together, not a
+/// shape the assertion file should be able to see.
+fn run_async_catching(text: &'static str) -> AsyncRun {
+    let escaped = silenced(|| {
+        // `let ... else` rather than `.expect(...)`, following the convention
+        // `runner_wire.rs` records: `allow-expect-in-tests` covers `#[test]`
+        // functions and `#[cfg(test)]` items, and this is neither.
+        let Ok(runtime) = tokio::runtime::Builder::new_current_thread().build() else {
+            panic!("the test's own runtime setup is broken, not the runner under test");
+        };
+        let mut ctx = StepContext::default();
+        let request = StepExecutionRequest {
+            index: 0,
+            keyword: StepKeyword::Given,
+            text,
+            docstring: None,
+            table: None,
+            feature_path: "notes/panics.md",
+            scenario_name: "Unwrapped async",
+        };
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            runtime.block_on(execute_step_async(&request, &mut ctx))
+        }))
+    });
+
+    match escaped {
+        Ok(result) => AsyncRun::Returned(result),
+        Err(payload) => AsyncRun::Escaped(payload),
+    }
+}
+
+/// The `(pattern, message)` a panicking async step's error must carry.
+///
+/// The classification half of [`run_async_catching`], split from it because the
+/// two are different jobs: that function owns the boundary and this one owns
+/// what the boundary produced. Each `let ... else` below names one way the run
+/// can be wrong, and the escape case keeps the payload in its message rather
+/// than discarding it — a regression here escapes instead of misclassifying, so
+/// the printed payload is the only diagnosis a reader gets.
+///
+/// It stays in this module while its only caller does not, because
+/// [`AsyncRun`] is private to the boundary and the classification consumes it
+/// directly. Widening the enum to `pub(super)` so the caller could match it
+/// would expose the two-layer distinction to a file that has no use for it.
+pub(super) fn async_panic_identity(text: &'static str) -> (String, String) {
+    let result = match run_async_catching(text) {
+        AsyncRun::Returned(result) => result,
+        AsyncRun::Escaped(escaped) => panic!(
+            "execute_step_async must return rather than unwind, including when the panic happens \
+             while the future is built rather than while it is polled; it escaped with {escaped:?}"
+        ),
+    };
+
+    let Err(error) = result else {
+        panic!("a panicking async step must fail the run rather than pass it");
+    };
+    let ExecutionError::HandlerFailed { error, .. } = &error else {
+        panic!("the failure must be a HandlerFailed; it was {error:?}");
+    };
+    let StepError::PanicError {
+        pattern, message, ..
+    } = error.as_ref()
+    else {
+        panic!("the wrapped error must be a PanicError");
+    };
+    (pattern.clone(), message.clone())
 }
