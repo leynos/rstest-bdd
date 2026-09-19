@@ -474,6 +474,19 @@ between them. Raise that before spending the tolerance.
   before one satisfied both the lint and the language. `make test` and
   `make nixie` passed at `28dddcb5` and were unaffected by these deltas; the
   `make test` re-run against `d3ff88b5` is recorded below.
+
+  The full deterministic suite then ran to completion against the settled tree
+  at `035117e6`, and all five gates passed: `make check-fmt` rc=0 (3s),
+  `make lint` rc=0 (39s), `make test` rc=0 (186s), `make markdownlint` rc=0
+  (16s), `make nixie` rc=0 (1s). The `make test` result was checked against the
+  log rather than against the exit code alone: nextest reported
+  `1950 tests run: 1950 passed, 7 skipped` with a count of zero for each of
+  `FAIL`, `CANCELLED`, `TIMEOUT`, and `LEAK`; all 16 doctest suites reported
+  `ok` with zero `FAILED`; and pytest reported `244 passed`. The four
+  `runner::tests::surface` tests pass by name, including the
+  `an_upper_case_extension_is_still_source` guard added while clearing the
+  CodeRabbit findings. EP-M1 is closed against `035117e6`.
+
 - [ ] EP-M2: synchronous runner, engine split, and the sequence properties.
 - [ ] EP-M3: asynchronous runner and cancellation.
 - [x] ~~EP-M4: lifecycle hooks and the lifecycle matrix~~ — struck by D2
