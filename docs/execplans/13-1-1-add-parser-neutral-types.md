@@ -1179,6 +1179,82 @@ span into separate short spans rather than relying on `mdtablefix` to wrap it.
   criterion is precisely that a non-Gherkin frontend "reports their supplied
   locations". Date/Author: 2026-09-14, planning agent.
 
+- **D16: `StepDecision` has two variants, and the driver's `match` site is what
+  discharges D6.** This settles integration point 5. The type is
+  `pub(crate) enum StepDecision { Continue, Stop(ScenarioFailure) }`, defined
+  beside `engine::policy` and not exported. Rationale, and the alternatives
+  rejected, are worth recording because the shape is what makes D6 checkable.
+
+  The plan's own constraint is that "no `if` on a result" is satisfiable by a
+  `classify` that itself branches on everything, so the decision type has to be
+  small enough to enumerate and total over its input. Enumerating the inputs
+  reaches `4 + 2 = 6` classes, not the 8 names in INV-1's domain: `Ok(None)`;
+  `Ok(Some(_))`; and four `Err` classes — `Skip`, `StepNotFound`,
+  `MissingFixtures`, and `HandlerFailed`, the last further split by its
+  `StepError` into `MissingFixture` / assertion / panic only to compute the
+  `FailureKind` label. The *decision* is coarser than the labels, because in
+  every `Err` case the run stops for the same reason and the terminal record is
+  `ScenarioFailure::Step { index, error }` carrying the error **verbatim**.
+  Five of the six inputs map to `Stop`; only `Ok(None)` and `Ok(Some(_))` map to
+  `Continue`. Keeping `FailureKind` out of the decision is deliberate: a kind
+  is a reporting label computed from the error, so a decision carrying one
+  would duplicate a projection `FailureKind::of` already owns, and the two
+  could drift.
+
+  `Stop(ScenarioFailure)` rather than a bare `Stop`. It reuses the
+  `ScenarioFailure::Step { index, error }` variant that already ships from
+  EP-M1 and already carries exactly the pair the terminal record needs. It
+  makes the decision self-contained, so `assemble` consumes decisions instead
+  of re-deriving the failure from an error list — which is D6's requirement
+  that assembly not be re-derived per driver. And it leaves room for D2 option
+  (ii)'s deferred `ScenarioFailure::Before`, so a future `classify_before` is
+  one more constructor rather than a redesign. A bare `Stop` plus a separate
+  `Option<ScenarioFailure>` out-parameter was rejected as exactly the two-field
+  contradictory-state shape D9 was written to remove.
+
+  The candidate with four variants — `ContinueNoValue`,
+  `ContinueInserting(Box<dyn Any>)`, `StopForSkip { message, index }`,
+  `StopForFailure { error, index }` — was rejected despite appearing to express
+  three intents. It overloads "what the driver does next" with "what a returned
+  value did", putting an insertion decision and an `ExecutionError`-derived
+  stop decision in one type, and its insert variant drags a value that
+  `execute_step` already returns at the call site into the pure-decision layer.
+  The three-way split it offers is real, but it is a split in the *record*
+  rather than in the control flow, and D6's claim is about control flow. The
+  "three intents" framing also came from treating `InsertOutcome::NoMatch` as a
+  decision; it is not one, because INV-12 is discharged by the driver recording
+  the `ValueFate` after insertion, not by `classify` returning it.
+
+  Two consequences that must not be lost. The driver's body is a **single
+  `match` on the decision**, and that is where "no `if` on a step result" is
+  actually enforced; `classify` may branch freely because it is the designated
+  home for the policy. And the insertion happens *before* classification, so the
+  `Ok(Some(_))` arm calls `ctx.insert_value`, converts with the existing
+  `impl From<crate::InsertOutcome> for ValueFate`, and records the `ValueFate`.
+  An `Ok(Some(_))` whose insertion returns `NoMatch` still `Continue`s, which
+  is the INV-12 behaviour the macro path deliberately lacks. Date/Author:
+  2026-09-19, implementation agent.
+
+- **D17: `engine` is a private module, and three rows of the module table
+  needed correcting.** The table above is the plan's own statement of the
+  layout, and three of its rows are wrong or incomplete against the shipped
+  EP-M1 tree. `runner/outcome.rs` is `runner/outcome/mod.rs`; the table was
+  internally inconsistent on this point, since it already listed
+  `runner/outcome/failure.rs` and `runner/outcome/step.rs` as siblings of the
+  file it named. `runner/scope.rs` does not exist yet: D2 option (ii) struck
+  `Lifecycle` and deferred `with_hooks`, so `ScenarioScope` currently lives in
+  `runner/mod.rs` and moves to `scope.rs` at EP-M2 when `CleanupGuard` joins
+  it. And `engine` must be a **private** module, with `classify`, `assemble`,
+  and `StepDecision` held at `pub(crate)`: they are this milestone's internal
+  decomposition, not adopted API, and publishing them would freeze a shape D6
+  frames as a refactoring boundary. Constraint 1's additive-only rule governs
+  the *existing* surfaces, not every new item, so a private engine does not
+  conflict with it. Only `run_scenario` and `ScenarioScope`'s constructor are
+  public. Recorded rather than silently deviated, because the plan calls the
+  module table the design of record and a later reader comparing table to tree
+  would otherwise flag the difference. Date/Author: 2026-09-19, implementation
+  agent.
+
 ## Outcomes & retrospective
 
 To be completed at EP-M5. Before marking this plan `COMPLETE`, reconcile every
