@@ -35,6 +35,8 @@ use crate::{
         ScenarioOutcome,
         ScenarioSkip,
         ScenarioStatus,
+        SkipPolicyRecord,
+        SkipRecord,
         SourceLocation,
         SourcePath,
         StepOutcome,
@@ -171,14 +173,18 @@ fn the_terminal_source_is_the_terminating_invocations_location() {
         Vec::new(),
         Some(ScenarioSkip::new(
             0,
-            None,
-            Some(SourceLocation::new(
-                SourcePath::from(Arc::<str>::from(SPEC_PATH)),
-                7,
-                Some(3),
-            )),
-            true,
-            false,
+            SkipRecord {
+                message: None,
+                source: Some(SourceLocation::new(
+                    SourcePath::from(Arc::<str>::from(SPEC_PATH)),
+                    7,
+                    Some(3),
+                )),
+            },
+            SkipPolicyRecord {
+                allow_skipped: true,
+                forced_failure: false,
+            },
         )),
         None,
     );
