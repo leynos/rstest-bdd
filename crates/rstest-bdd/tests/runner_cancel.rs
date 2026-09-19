@@ -216,10 +216,15 @@ const RETURNING_STEP: &str = "a runner cancellation step returns a marker";
 const PASSING_STEP: &str = "a runner cancellation step passes";
 
 /// The `StepPattern` objects the registrations match against.
-static PARKING_PATTERN: StepPattern = StepPattern::new("a runner cancellation gate parks");
-static RETURNING_PATTERN: StepPattern =
-    StepPattern::new("a runner cancellation step returns a marker");
-static PASSING_PATTERN: StepPattern = StepPattern::new("a runner cancellation step passes");
+///
+/// Built from the text constants above rather than from repeated literals:
+/// each pattern must match the text the plan passes to `step_at`, and the two
+/// agreeing is only checked by a test that would stop resolving if they
+/// diverged. `StepPattern::new` is a `const fn`, so the shared constant is
+/// usable in a `static` initializer.
+static PARKING_PATTERN: StepPattern = StepPattern::new(PARKING_STEP);
+static RETURNING_PATTERN: StepPattern = StepPattern::new(RETURNING_STEP);
+static PASSING_PATTERN: StepPattern = StepPattern::new(PASSING_STEP);
 
 /// Return the marker a caller's fixture holds.
 #[expect(

@@ -80,7 +80,7 @@ fn the_two_runners_produce_equal_outcomes() {
     check(|steps, arrangement| {
         let sync = run_case(&steps, arrangement);
         let asynchronous = run_case_async(&steps, arrangement);
-        witnesses.record(&steps, &sync);
+        witnesses.record(&steps, arrangement, &sync);
 
         prop_assert!(
             sync == asynchronous,
