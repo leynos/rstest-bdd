@@ -2032,9 +2032,9 @@ assert!(details.allow_skipped());
 Everything above reaches a scenario through a `.feature` file. The
 `rstest_bdd::runner` module is the other half of that arrangement: it executes
 a scenario the caller has already parsed, and it knows nothing about Gherkin,
-Markdown, or `.feature` files. Use it to add a frontend of your own — Markdown
+Markdown, or `.feature` files. It supports a custom frontend — Markdown
 checklists, a bespoke DSL, generated cases — while keeping the step
-definitions, skip policy, and reporting semantics you already have. The
+definitions, skip policy, and reporting semantics already in place. The
 feasibility work and its constraints are recorded in
 [ADR-018][adr-018-parser-neutral-runtime].
 
@@ -2061,10 +2061,10 @@ let outcome = run_scenario(&plan, ScenarioScope::new(&mut context));
 The steps are looked up in the same inventory the Gherkin macros register into,
 so a plan runs ordinary `#[given]`/`#[when]`/`#[then]` definitions;
 `StepInvocation` also carries an optional docstring and data table. `source` is
-whatever identifier your frontend uses — it is a path to the runner, not a
-filesystem path it will open — and each step keeps the line you gave it, so an
-outcome can be reported against your document rather than against a `.feature`
-file that never existed.
+whatever identifier the frontend supplies — it is a path to the runner, not a
+filesystem path it will open — and each step keeps the line it was given, so an
+outcome can be reported against the frontend's document rather than against a
+`.feature` file that never existed.
 
 ### Reading the outcome
 
@@ -2098,10 +2098,10 @@ for step in outcome.steps().iter().filter(|s| s.status() == StepStatus::Bypassed
 ```
 
 A failing step is reported in the outcome rather than unwinding, so a step body
-that panics does not take your test harness down. The one failure channel is
+that panics does not take the test harness down. The one failure channel is
 `failure()`; a value whose destructor panics during cleanup is caught and
 logged as a warning instead, because an outcome with two failure channels would
-leave you unable to tell which was primary.
+leave no way to tell which was primary.
 
 ### Deciding whether a run passes a suite
 

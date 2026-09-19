@@ -28,3 +28,10 @@ memories/
 # CI-only working directories mounted by the Namespace cache volume
 .ci-tools/
 .sccache/
+
+# cargo-mutants output. Its default `--out-dir` is `mutants.out` beside the
+# workspace, and a run that finds one already there moves it to
+# `mutants.out.old` first. Leaving these untracked-and-unignored makes every
+# documented local mutation run dirty the working tree.
+mutants.out/
+mutants.out.old/
