@@ -1019,8 +1019,19 @@ between them. Raise that before spending the tolerance.
     rather than recorded as a footnote, because EP-M5 added 13 files and 2,588
     net lines to an already-breached number. The box is ticked because the
     measurement was taken and recorded; the *escalation* it raises is open.
-  - [ ] The `cargo-mutants` runner-tree sweep run and its survivor list read.
-  - [ ] The `## Outcomes & retrospective` section completed, reconciling every
+  - [x] The `cargo-mutants` runner-tree sweep run and its survivor list read.
+    **152 mutants, all 152 accounted for**: 84 caught, **5 missed**, 57
+    unviable, 6 timeout, 0 unaccounted. Run
+    `cargo-mutants mutants -f 'crates/rstest-bdd/src/runner/**'
+    --all-features --jobs 8 --gitignore=true -o /tmp/mutants-runner-13-1-1-r5b`
+    from a clean `fe595c3e`, writing out-of-tree throughout, so no gate
+    overlapped it. Both available counts agree and were checked rather than
+    assumed: `outcomes.json` records `total_mutants: 152` with 153 outcomes
+    once the baseline `Success` is included, and the four per-outcome `.txt`
+    files sum to 152 with no mutation listed twice. Two survivors are worth
+    acting on and are recorded as D32 and D33; the other three are one
+    function. See the mutation section of `Outcomes & retrospective`.
+  - [x] The `## Outcomes & retrospective` section completed, reconciling every
     discovery with `Conformance basis`.
 
 ## Surprises & discoveries
@@ -2149,10 +2160,18 @@ span into separate short spans rather than relying on `mdtablefix` to wrap it.
 - **Evidence:** `mutants.out/log/*.log` from the run, each ending
   `error[E0277]: the trait bound StepOutcome: Default is not satisfied` (or the
   same for `ScenarioOutcome`, or `Terminal`), followed by `could not compile`
-  and `outcome=Unviable`. Confirmed structurally at close: of the runner tree's
-  152 mutants, **62 are whole-function `Default::default()` replacements**, and
-  every one of them is unviable for the same reason. That is 41% of the sweep
-  reporting no signal by construction.
+  and `outcome=Unviable`. **Corrected at close, from the completed sweep:** the
+  runner tree's 152 mutants include **62 whole-function `Default::default()`
+  replacements**, but the unviable count is **57**, and the relationship is
+  containment, not equality — all 57 unviable mutants are `Default`-shaped, and
+  five `Default`-shaped mutants are perfectly *viable* (they mutate a `Display`
+  to `Ok(Default::default())`, or leak a default in a position whose type does
+  implement `Default`); four of those five are caught and one survives, as D32
+  records. So the correct statement is "57 of 152, 37.5%, report no signal by
+  construction", not "62, 41%", and the 62 figure was an earlier enumeration
+  that conflated the mutation *shape* with the *outcome*. The other survivor,
+  `drive.rs:72`'s table projection, is not `Default`-shaped at all — it is the
+  ordinary kind of miss, a function no test calls.
 - **And the instrument was the wrong one anyway.** Implementing `Default` for
   three types to tidy an external tool's output would be backwards — the
   constructors exist to make the invariants unbypassable — and `drive_async`'s
@@ -3743,6 +3762,81 @@ skims past.
 
 Date/Author: 2026-09-19, implementation agent.
 
+### D32: `Display for SourcePath` is uncovered, and is left uncovered
+
+**Decision: the survivor is recorded rather than chased.** The sweep's first
+survivor is
+`replace <impl Display for SourcePath>::fmt with Ok(Default::default())` at
+`crates/rstest-bdd/src/runner/source.rs:54`. Nothing in any test formats a
+`SourcePath`, so the impl can be replaced by a no-op with every gate still
+green.
+
+Considered and rejected: adding a one-line test that formats a `SourcePath` and
+compares it to `as_str()`. It would clear the survivor honestly — the assertion
+is real, the mutant would then be caught — and it is cheap. It is declined for
+this plan specifically, not in general: this plan is closing with an **open
+tolerance breach (D31)** and four completed CodeRabbit rounds, and the correct
+move at a close with an unresolved escalation is to stop adding work rather
+than to spend a five-file tolerance that is already at 2.0× on a coverage
+increment. The justification is recorded here so a successor can take the
+opposite view with the facts in hand rather than rediscovering them.
+
+The honest mitigation is documentation: `Display for SourcePath`'s doc comment
+should say it exists so `ScenarioPlan`'s path can be interpolated by a
+frontend, and that no test in this crate exercises it. **This paragraph is the
+record that it does not currently say that** — the comment edit is *not* made,
+because making it would be the same tolerance spend by another route, and
+pretending a gap is closed by a comment is the failure mode this plan has
+documented four times. Sized as a follow-up: one test, one file, ~6 lines.
+
+Date/Author: 2026-09-19, implementation agent.
+
+### D33: no test passes a data table through `run_scenario`, and the sweep proves it
+
+**This is the sweep's substantive find, and it is a coverage gap the plan
+should not have had.** All four mutations of `TableView::row_slices` at
+`crates/rstest-bdd/src/runner/engine/drive.rs:72` survive: replacing the
+projection with an empty `Vec`, with one empty row, with one `"xyzzy"` row, or
+with `vec![]` leaves every gate green.
+
+What that means concretely is that **no test anywhere in the crate constructs a
+plan containing a non-empty data table and runs it to completion.** The
+evidence is in the tree rather than inferred: the parser-neutral suite's four
+step definitions in `crates/rstest-bdd/tests/parser_neutral_runner/support.rs`
+all take no table argument; `with_table` — the only way to put a table on a
+`StepInvocation` — appears in the runner tree only inside `plan.rs`'s own
+doctests and in `rstest-bdd-macros`' parser tests; and
+`grep -rn 'with_table' crates/rstest-bdd/tests/` returns nothing. The
+`datatable_cache.rs` suite does pass tables, but it calls `lookup_step` and
+invokes the step function directly, bypassing `run_scenario` entirely, so it
+says nothing about the projection.
+
+**Why this is a real gap rather than a formality.** `TableView` is not an
+accessor; it is the one place the runner converts the plan's owned
+`Vec<Vec<Cow<'static, str>>>` into the `&[&[&str]]` that
+`StepExecutionRequest::table` borrows, in two owned buffers whose *lifetime*
+relationship to the request is the reason the type exists as a struct rather
+than a pair of locals. That is exactly the kind of code whose bugs are silent:
+an off-by-one in row/column transposition, a lost row, or a column lost from a
+row all leave a table-shaped artefact that a status-only assertion cannot
+distinguish from a correct one. The sweeps' mutations are not exotic — "one
+row, wrong contents" is the mutation a real bug produces.
+
+**Decision: recorded as an open coverage gap, not fixed here.** Same reasoning
+as D32, with a firmer footing: a test that closes it must register a step
+taking a table argument, assert the rows and cells it received, and run it
+through `run_scenario` — a new registered step in a shared process-global
+registry plus a test, which is a materially larger change than D32's one-liner,
+and this plan is closing with D31 open. **The obligation is not invented here
+and is not new:** the plan already carries the `execute_step` table-widening
+obligation at the D15 material, blocked by Constraint 1 and by `StepFn`'s
+signature. This finding is adjacent to it and independent of it — the widening
+is about the *existing* runner's parameter, whereas this is about the new
+runner's projection, which exists and is uncalled. A successor should treat the
+two as one work item. Sized: one registered step, one test, ~40 lines.
+
+Date/Author: 2026-09-19, implementation agent.
+
 ### D31: the Scope figure re-measured at close, and it moved again
 
 **Escalating, as the tolerance requires.** D27 recorded the breach at
@@ -3977,6 +4071,63 @@ number in this table is retroactively re-scoped, and the plan is not marked
 `COMPLETE` on the strength of this section:** a breached tolerance that has
 been escalated stays open until a human answers it.
 
+### What the mutation sweep found, survivor by survivor
+
+The sweep is the plan's replacement instrument for a control that could not
+fail, and this section is why that substitution was worth the machine time. The
+run is 152 mutants over `crates/rstest-bdd/src/runner/**`, `--all-features`,
+`--jobs 8`, out-of-tree via `-o`, from a clean `fe595c3e`. **84 caught, 5
+missed, 57 unviable, 6 timeout.** The five survivors:
+
+1. **`source.rs:54` — `<impl Display for SourcePath>::fmt` replaced with
+   `Ok(Default::default())`.** Nothing formats a `SourcePath` in a test, so the
+   impl could be replaced by a no-op and every gate stays green. `SourcePath`
+   implements `Display` for a good reason: `ScenarioPlan` carries it and a
+   frontend rendering a failure wants `{path}` to work. The gap is real
+   coverage debt rather than a defect, and it is recorded as D32.
+2. **`engine/drive.rs:72` — `TableView::row_slices` replaced with an empty
+   vec, a single empty row, or a single `"xyzzy"` row — all four variants
+   survive.** This is the more serious find, because it is not a missing unit
+   test but a missing *end-to-end* one: no test anywhere in the crate passes a
+   non-empty data table through `run_scenario` to a registered step. The
+   parser-neutral suite's steps take no table argument, and the `with_table`
+   calls in the tree are all doctests or macro-internal. So the runner's table
+   projection — the whole reason `TableView` exists, and the one place the plan
+   rebuilds `Vec<Vec<Cow<'static, str>>>` into `&[&[&str]]` on the stack — is
+   exercised by nothing. That the `None` mutation of the neighbouring
+   `StepInvocation::table` *is* caught (by two doctests) is what makes this
+   legible: the accessor is covered, the projection it feeds is not. Recorded
+   as D33.
+3. **The same mutation, three more ways** — survivors 3 to 5 are
+   `row_slices` with `vec![Vec::leak(vec![""])]`,
+   `vec![Vec::leak(vec!["xyzzy"])]` and `vec![]`. They are one finding, not
+   four, and grouping them is the decomposition the mutation lesson asks for: a
+   single uncalled function produces as many "missed" lines as cargo-mutants
+   can think of replacements for it, so a survivor *count* is not a defect
+   count.
+
+**What the six timeouts are, and what they are not.** They are `plan.rs:188`'s
+`Some(...)` replacement family, each of which ran the full 3064 s test-phase
+ceiling. All six are the *same* non-adjudication, and the diagnosis is sharper
+than "the machine was busy". Each timeout log contains **71** `test result:`
+lines against the **76** in both the baseline log and the caught `None` log,
+and — decisively — none of the six contains a `Doc-tests` line at all, while
+both of those two do. So the six ran out of time before reaching the doctests,
+which is precisely where `StepInvocation::table`'s discriminating assertions
+live: the two doctests that catch the `None` mutation are in the suite the six
+never started. The cause is the build, not a hang — five logs end
+mid-`Compiling` in their own scratch tree (116 to 248 dependency crates,
+varying with how much of the shared Cargo cache each found warm), and the sixth
+(`..._006`) actually finished its 11m14s build and then timed out inside a
+`trybuild` fixture test. All six are an artefact of eight parallel out-of-tree
+builds contending on a shared Cargo cache, which is the cost this plan accepted
+when it refused to let the sweep overlap a gate. The distinction matters for
+the report: a timeout is *no evidence either way* about the tests, so it is
+neither a survivor nor a pass, and counting it as caught would have overstated
+coverage by six mutants. The function is not unobserved — its `None` mutation
+was caught — but these six are genuinely unadjudicated, and a successor with a
+quiet machine can settle them by re-running just that filter.
+
 ### Reconciling every discovery with `Conformance basis`
 
 Each item the closing checklist named, discharged or explicitly left open:
@@ -3997,16 +4148,35 @@ Each item the closing checklist named, discharged or explicitly left open:
   discharges ADR-018's Stage 1 compatibility review **for the types that
   shipped**; it is *partially* discharged for the same reason as the bullet
   above.
-- **AXIOM-1 to AXIOM-7 falsified?** No axiom was falsified, but AXIOM-4's
-  *instrument* was. The named mutation control could not fail on the file it
-  was aimed at, which is recorded in `Surprises & discoveries`. Its replacement
-  is the runner-tree sweep, and the honest statement of its status is that **it
-  has been started twice and completed neither time** — the first attempt was
-  stopped deliberately so that it would not compile and run tests concurrently
-  with the commit gates, which this project forbids. It is the last open
-  Progress box, and its survivor list is not yet available to record. AXIOM-4
-  therefore remains **unverified**, not discharged, and a successor should read
-  this as an outstanding obligation rather than as a closed one.
+- **AXIOM-1 to AXIOM-7 falsified?** **No axiom was falsified, and AXIOM-4 is
+  now discharged rather than merely hoped for.** The history is worth keeping,
+  because the first instrument was broken and the second run had to fail
+  informatively before the axiom could be read either way. The named mutation
+  control could not fail on the file it was aimed at, which is recorded in
+  `Surprises & discoveries`; its replacement, the runner-tree sweep, was
+  started twice, stopped once deliberately so it would not compile and run
+  tests concurrently with the commit gates (which this project forbids), and
+  then completed: **152 mutants, all 152 accounted for** — 84 caught, 5 missed,
+  57 unviable, 6 timeout. The six timeouts are `plan.rs:188`'s `Some(...)`
+  replacement family, each of which reached the 3064 s test-phase ceiling while
+  still mid-`Compiling`; they are a build-contention artefact of a `--jobs 8`
+  out-of-tree run, not test hangs, and the *same function's* `None` mutation
+  was caught by two doctests, which is what establishes that the function is
+  covered at all. **On AXIOM-4 specifically, the discharge is positive and
+  discriminating:** all eight `engine/policy.rs` mutants were caught, including
+  `delete !` and `replace && with ||` in `SkipPolicy::forces_failure` and the
+  matching `delete !`/`replace || with &&` in `SkipPolicy::resolve` — the exact
+  operators the axiom's four-row matrix exists to pin. `scope.rs`'s four viable
+  mutants were caught too, including
+  `<impl Drop for CleanupGuard>::drop with ()`, so the cleanup guard is not
+  merely present but load-bearing. Read together with the
+  `assemble`-re-resolves-live-global probe recorded in
+  `Surprises & discoveries`, AXIOM-4's "resolve once, at construction" is
+  verified by a mutation that the suite rejects for the intended reason. The
+  five survivors are recorded as D32 and D33, and **none of them touches
+  `fail_on_skipped`, `policy.rs`, or `scope.rs`** — the missed mutations are a
+  `Display` impl and one table projection. AXIOM-4 is discharged; the plan's
+  remaining open item is the D2 partial discharge above, not this.
 - **D15's follow-ups and the `!Send` suite-concurrency ceiling:** **already
   recorded**, under 13.2.1 in `docs/roadmap.md`, along with the
   `reporting::ScenarioStatus` failure case, `BypassedScenario`'s missing
@@ -4052,16 +4222,24 @@ Each item the closing checklist named, discharged or explicitly left open:
    built the crate that way. The leg was not merely untested; the configuration
    it names did not work. This is the strongest available argument that the leg
    was worth adding.
-4. **A mutation result is only evidence when it is decomposed.** "3 unviable"
-   and exit 0 read like a clean pass and mean the opposite. 62 of the runner
-   tree's 152 mutants are whole-function `Default::default()` replacements
-   against types that deliberately omit `Default`, so 41% of the sweep reports
-   no signal by construction. *Unviable*, *missed*, and *caught* say three
-   different things and only one of them is about the tests. A corollary, and
-   the reason this lesson is the one a successor is most likely to be misled
-   by: a control that cannot fail is worse than no control, because it is
-   recorded as evidence. The sweep itself is unfinished, and the correct
-   reading of AXIOM-4 is *unverified*.
+4. **A mutation result is only evidence when it is decomposed, and the
+   decomposition has to be counted rather than quoted.** "3 unviable" and exit
+   0 read like a clean pass and mean the opposite. The completed sweep's
+   numbers are **84 caught, 5 missed, 57 unviable, 6 timeout, of 152**, and the
+   57 unviable are whole-function `Default::default()` replacements against
+   types that deliberately omit `Default` — 37.5% of the sweep reporting no
+   signal by construction. *Unviable*, *missed*, *timeout*, and *caught* say
+   four different things and only one of them is about the tests. A corollary,
+   and the reason this lesson is the one a successor is most likely to be
+   misled by: a control that cannot fail is worse than no control, because it
+   is recorded as evidence. A second corollary, paid for twice in this plan:
+   the *count* quoted from a partial run is not the count of the completed one.
+   The 62/41% figure that stood here until the sweep finished was an
+   enumeration of `Default`-shaped mutations taken before the outcome was
+   known, and it silently merged "is shaped like a `Default` replacement" with
+   "is unviable" — five of the 62 are viable, and one of those is a survivor.
+   Both figures are checkable in seconds against `outcomes.json`; the earlier
+   one simply was not checked, and it was load-bearing prose in three places.
 5. **A tolerance whose measurement step does not exist will be breached
    silently.** D27 named this at EP-M3; it recurred at EP-M5 anyway, which is
    the clearest possible evidence that the remedy belongs in the milestone
