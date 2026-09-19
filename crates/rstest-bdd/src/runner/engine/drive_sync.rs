@@ -33,8 +33,19 @@ use crate::{
     StepContext,
     execution::{StepExecutionRequest, execute_step},
     runner::{
-        ScenarioOutcome, ScenarioPlan, StepInvocation, ValueFate,
-        engine::policy::{Absorbed, SkipPolicy, StepDecision, Terminal, absorb, assemble, classify},
+        ScenarioOutcome,
+        ScenarioPlan,
+        StepInvocation,
+        ValueFate,
+        engine::policy::{
+            Absorbed,
+            SkipPolicy,
+            StepDecision,
+            Terminal,
+            absorb,
+            assemble,
+            classify,
+        },
         outcome::StepOutcome,
     },
 };
@@ -65,9 +76,7 @@ impl<'a> TableView<'a> {
     }
 
     /// The outer view the request's `table` field takes.
-    fn row_slices(&self) -> Vec<&[&str]> {
-        self.rows.iter().map(Vec::as_slice).collect()
-    }
+    fn row_slices(&self) -> Vec<&[&str]> { self.rows.iter().map(Vec::as_slice).collect() }
 }
 
 /// Execute a plan against a context and assemble its outcome.
@@ -116,16 +125,16 @@ pub(in crate::runner) fn drive(
     // Every invocation after the terminal event is recorded and none of it is
     // executed. INV-2's completeness half; INV-1's termination half is the
     // `break` above.
-    details.extend(
-        remaining.map(|(index, invocation)| StepOutcome::bypassed(
+    details.extend(remaining.map(|(index, invocation)| {
+        StepOutcome::bypassed(
             index,
             invocation.keyword(),
             invocation.text(),
             invocation.source(),
-        )),
-    );
+        )
+    }));
 
-    assemble(details, terminal, &policy)
+    assemble(details, terminal, policy)
 }
 
 /// Run one invocation and record what happened to it.
