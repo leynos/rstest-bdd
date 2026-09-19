@@ -301,9 +301,12 @@ fn a_wrapped_step_panic_is_unchanged() {
 fn run_async_catching(text: &'static str) -> (String, String) {
     let text = text.to_owned();
     let escaped = silenced(|| {
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .build()
-            .expect("a current-thread runtime builds");
+        // `let ... else` rather than `.expect(...)`, following the convention
+        // `runner_wire.rs` records: `allow-expect-in-tests` covers `#[test]`
+        // functions and `#[cfg(test)]` items, and this is neither.
+        let Ok(runtime) = tokio::runtime::Builder::new_current_thread().build() else {
+            panic!("the test's own runtime setup is broken, not the runner under test");
+        };
         let mut ctx = StepContext::default();
         let request = StepExecutionRequest {
             index: 0,
@@ -326,7 +329,9 @@ fn run_async_catching(text: &'static str) -> (String, String) {
         );
     };
 
-    let error = result.expect_err("a panicking async step is a failure, not a pass");
+    let Err(error) = result else {
+        panic!("a panicking async step must fail the run rather than pass it");
+    };
     let ExecutionError::HandlerFailed { error, .. } = &error else {
         panic!("the failure must be a HandlerFailed; it was {error:?}");
     };
@@ -372,7 +377,7 @@ fn an_unwrapped_async_step_panic_is_returned_not_thrown(
 ) {
     let (pattern, message) = run_async_catching(text);
 
-    assert_eq!(pattern, text, "the pattern is the registry's own spelling",);
+    assert_eq!(pattern, text, "the pattern is the registry's own spelling");
     assert!(
         message.contains(expected_message),
         "the panic's message must survive the unwind; it was `{message}`",
