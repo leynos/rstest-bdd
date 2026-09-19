@@ -1089,14 +1089,26 @@ between them. Raise that before spending the tolerance.
     --output-format json` now returns 696 bytes on the committed pre-fix
     revision and **0 bytes** after the fix, so the tool is not the problem and
     never was. Proven non-vacuously in both directions — see D35.
+  - [x] D35's own fix cleared the 400-line cap it had broken, and the four
+    checkers the abort had masked were named as **unverified rather than
+    passing**. `AsyncRun`, `run_async_catching` and `async_panic_identity` moved
+    from `runner_panics.rs` into `runner_panics/mod.rs`, which already owns how
+    a run is driven: it holds the `silenced` window the boundary opens.
+    `runner_panics.rs` is 330 lines and the module 370, so no allowlist entry
+    was needed — which matters, because `scripts/rs-length-allowlist.txt`'s own
+    header records that everything previously listed there has since been
+    decomposed below the limit. Clippy clean, 6 tests pass, `cs delta`
+    re-measured at the new revision rather than carried forward, returning
+    **0 bytes**. See D36.
   - [ ] Request `coderabbit review --agent` against the pushed revision. The
     deterministic precondition the maintainer set — every applicable code
     quality and correctness gate green **before** a review is requested — has
-    now been re-established at `188ab854` and must be held through the CI
-    confirmation, because the gate that CI just rejected is itself a
-    deterministic one. It is deliberately still unspent: CodeRabbit reports
-    `Review skipped: draft pull request` on #770, so requesting a review before
-    the PR leaves draft would spend the round on a no-op.
+    been re-established at `188ab854` and re-verified at `41ee01f5`, but the
+    full set at a single revision is not yet confirmed: the `c6eb5078` run
+    aborted inside `make lint` and left four checker steps unrun. The round is
+    deliberately still unspent: CodeRabbit reports `Review skipped: draft pull
+    request` on #770, so requesting a review before the PR leaves draft would
+    spend the round on a no-op.
   - [ ] The Bumpy Road and method-length findings were cleared, but the
     *upstream* lesson is not yet actioned: this plan's gate list enumerates
     local `make` targets and never names the PR checks, which is the set that
