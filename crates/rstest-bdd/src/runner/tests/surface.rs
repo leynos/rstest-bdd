@@ -11,8 +11,16 @@
 //! `compile_fail` test can only show that *one* written example fails; it cannot
 //! show that no *other* leak exists. The question INV-11 asks is universal, so
 //! the check has to be too.
+//!
+//! The scan reaches the tree through `cap-std` rather than through `std::fs`.
+//! Whitaker's `no_std_fs_operations` lint denies `std::fs` across the workspace
+//! and offers no test-only exemption: in-source `expect` attributes cannot
+//! suppress it, so a `std::fs` version of this file fails `make lint`. Reaching
+//! for `cap-std` here is therefore deliberate rather than incidental, and is the
+//! same remedy the neighbouring test-support modules use.
 
-use std::{fs, path::Path};
+use camino::Utf8Path;
+use cap_std::{ambient_authority, fs_utf8::Dir};
 
 /// Tokens that must not appear in a non-comment line of the runner's sources.
 ///
@@ -58,35 +66,73 @@ fn leaks_in(line: &str) -> Vec<&'static str> {
 }
 
 /// Read the runner's sources, skipping this check's own file.
+///
+/// Paths are relative to the runner root rather than absolute, so a finding
+/// reads `outcome/step.rs:12: gherkin` instead of a path that varies with the
+/// checkout location, and so the sort below is a stable, readable ordering.
 fn runner_sources() -> Vec<(String, String)> {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/runner");
+    let root = Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("src/runner");
+    let Ok(directory) = Dir::open_ambient_dir(&root, ambient_authority()) else {
+        return Vec::new();
+    };
     let mut sources = Vec::new();
-    collect(&root, &mut sources);
+    collect(&directory, "", &mut sources);
     sources.sort_by(|left, right| left.0.cmp(&right.0));
     sources
 }
 
 /// Recursively collect `(relative path, contents)` for every `.rs` file under
 /// `directory`, except this file.
-fn collect(directory: &Path, sources: &mut Vec<(String, String)>) {
-    let Ok(entries) = fs::read_dir(directory) else {
+///
+/// `prefix` is `directory`'s own path relative to the runner root, and is empty
+/// at the root. Symlinked directories are not followed: `cap-std` opens
+/// directories without traversing symlinks, so the scan cannot be redirected
+/// outside the tree it was pointed at.
+fn collect(directory: &Dir, prefix: &str, sources: &mut Vec<(String, String)>) {
+    let Ok(entries) = directory.entries() else {
         return;
     };
     for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            collect(&path, sources);
-        } else if path.extension().is_some_and(|extension| extension == "rs") {
+        let Ok(name) = entry.file_name() else {
+            continue;
+        };
+        let relative = child_path(prefix, &name);
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
+        if file_type.is_dir()
+            && let Ok(child) = directory.open_dir(&name)
+        {
+            collect(&child, &relative, sources);
+        } else if is_rust_source(&name) && name != "surface.rs" {
             // Reading this check's own source would find the literal tokens in
             // `FORBIDDEN` above and report them as leaks.
-            if path.file_name().is_some_and(|name| name == "surface.rs") {
-                continue;
+            if let Ok(contents) = directory.read_to_string(&name) {
+                sources.push((relative, contents));
             }
-            let Ok(contents) = fs::read_to_string(&path) else {
-                continue;
-            };
-            sources.push((path.display().to_string(), contents));
         }
+    }
+}
+
+/// Whether a directory entry is a Rust source file.
+///
+/// Delegated to `Utf8Path::extension` rather than a case-sensitive suffix test,
+/// so a `.RS` file counts as source rather than slipping past the scan.
+fn is_rust_source(name: &str) -> bool {
+    Utf8Path::new(name)
+        .extension()
+        .is_some_and(|ext| ext == "rs")
+}
+
+/// Join a relative directory prefix to one of its children's names.
+///
+/// The root has an empty prefix, so its children are named bare; deeper entries
+/// keep the whole path, which is what makes a nested finding identifiable.
+fn child_path(prefix: &str, name: &str) -> String {
+    if prefix.is_empty() {
+        name.to_owned()
+    } else {
+        format!("{prefix}/{name}")
     }
 }
 
@@ -123,18 +169,35 @@ fn no_frontend_types_in_public_api() {
 /// Without this, a `collect` that silently returned nothing (a moved directory,
 /// a changed extension) would make `no_frontend_types_in_public_api` pass while
 /// checking nothing at all.
+///
+/// The expectations are whole relative paths, not bare file names. A name-only
+/// expectation cannot tell a descent into `outcome/` from an unrelated
+/// `outcome.rs` sitting at the top level: an earlier draft of this guard matched
+/// `"outcome"` against each file name, and the literal was satisfied by
+/// `tests/outcome.rs` — a file the guard was not asking about — so it proved
+/// nothing about the directory it named. Whole paths leave no such slack. A
+/// `child_path` that dropped its prefix, collapsing every key to a bare file
+/// name, is caught here and slips past the name-only form.
 #[test]
 fn the_scan_finds_the_runner_tree() {
     let sources = runner_sources();
-    let names = sources
+    let paths = sources
         .iter()
-        .map(|(path, _)| path.rsplit('/').next().unwrap_or_default())
+        .map(|(path, _)| path.as_str())
         .collect::<Vec<_>>();
 
-    for expected in ["mod.rs", "plan.rs", "source.rs", "outcome", "step.rs"] {
+    for expected in [
+        "mod.rs",
+        "outcome/failure.rs",
+        "outcome/mod.rs",
+        "outcome/step.rs",
+        "plan.rs",
+        "plan/builder.rs",
+        "source.rs",
+    ] {
         assert!(
-            names.iter().any(|name| name.contains(expected)),
-            "expected the scan to reach {expected}; found {names:?}",
+            paths.contains(&expected),
+            "expected the scan to reach {expected}; found {paths:?}",
         );
     }
 }

@@ -422,15 +422,31 @@ between them. Raise that before spending the tolerance.
 - [x] (2026-09-19) EP-M1: source, plan, and outcome types. `runner/` exists
   with `source.rs`, `plan.rs`, `plan/builder.rs`, `outcome/mod.rs`,
   `outcome/step.rs`, `outcome/failure.rs`, and three test files under
-  `runner/tests/`. Sixteen focused tests pass; the crate's 613 tests and 111
-  doctests pass; scoped clippy is clean under `-D warnings`; the pinned nightly
-  rustfmt reports no diff; `scripts/check_rs_file_lengths.py` exits 0 with no
-  allowlist entry. Four public items were invented during implementation and are
-  recorded in the Decision log: `ValueFate` (a projection of `InsertOutcome`,
-  which cannot be `Clone`/`Eq` and so cannot sit inside `StepOutcome`), and the
+  `runner/tests/`. Sixteen focused tests pass; scoped clippy is clean under
+  `-D warnings`; the pinned nightly rustfmt reports no diff;
+  `scripts/check_rs_file_lengths.py` exits 0 with no allowlist entry. Four
+  public items were invented during implementation and are recorded in the
+  Decision log: `ValueFate` (a projection of `InsertOutcome`, which cannot be
+  `Clone`/`Eq` and so cannot sit inside `StepOutcome`), and the
   `EmptyPlan`/`ForcedSkip`/`EmptyPlan`-site trio that gives INV-13's fold an
   error to return. `LifecycleError` and `ScenarioOutcome::cleanup_error()` were
   dropped as corollaries of D2 option (ii).
+- [ ] (2026-09-19) EP-M1 gate closure: the full deterministic suite. The
+  first `make lint` / `make test` / `make markdownlint` run failed on three
+  unrelated-looking causes, all now resolved or explained; see
+  `Surprises & discoveries`. In brief: (1) `make lint` failed with five Whitaker
+  `no_std_fs_operations` findings in `runner/tests/surface.rs`, fixed by
+  rewriting the scan onto `cap-std`'s `fs_utf8` API rather than by adding a
+  `dylint.toml` exclusion; (2) `make markdownlint` failed on one `-ise` spelling
+  in `outcome/failure.rs`, corrected to `-ize` per `typos.toml`; (3) a
+  `cargo-bdd` timeout in `make test` was shown to be environmental by an
+  isolated re-run (94s against a 180s budget), so no change was made. The
+  `surface.rs` rewrite additionally repaired a non-vacuity guard that had been
+  passing for the wrong reason, verified by mutation.
+  **Not yet re-run:** the full suite end to end. The 78 tests cancelled by the
+  timeout have not executed since the surface.rs change, so EP-M1's gate
+  evidence is complete for the focused loop and the affected crate, but a full
+  green `make test` is still owed before the milestone can be called closed.
 - [ ] EP-M2: synchronous runner, engine split, and the sequence properties.
 - [ ] EP-M3: asynchronous runner and cancellation.
 - [x] ~~EP-M4: lifecycle hooks and the lifecycle matrix~~ — struck by D2
@@ -616,6 +632,68 @@ between them. Raise that before spending the tolerance.
   *compile*-time check living in a *runtime* test file, so the failure mode is a
   build break in a later milestone, when a frontend is first written. Worth
   knowing before that frontend is written.
+
+- **Observation:** Whitaker's `no_std_fs_operations` lint reaches test code, and
+  offers no test-only exemption — so a source-scanning *test* may not use
+  `std::fs` either.
+  Evidence: `make lint` on EP-M1 reported five `no_std_fs_operations` findings in
+  `crates/rstest-bdd/src/runner/tests/surface.rs` alone — the import, `read_dir`,
+  the iteration, `entry.path()`, and `read_to_string` — and failed the build.
+  Reading the lint's own source
+  (`~/.local/share/whitaker/crates/no_std_fs_operations/src/`) confirms the
+  absence of any `allow-fs-read-in-tests` escape: the driver has no
+  test-awareness at all. The lint *does* offer `excluded_paths`, a
+  module-scoped counterpart to `excluded_crates`.
+  Impact: three candidate remedies, and the choice matters. In-source
+  `expect`/`allow` attributes cannot suppress it (already recorded in
+  `docs/developers-guide.md`); excluding the whole `rstest_bdd` crate would
+  exempt the entire library from the workspace's filesystem policy, which is far
+  too broad; `excluded_paths = ["rstest_bdd::runner::tests"]` would work and is
+  narrowly scoped. The remedy taken is **none of these** — `surface.rs` now
+  reaches the tree through `cap-std`'s `fs_utf8` API, mirroring
+  `crates/rstest-bdd-macros/src/validation/steps/tests/support.rs`. That keeps
+  the crate inside the policy rather than carving an exemption out of it, and it
+  needs no new `dylint.toml` entry. The general lesson for later milestones:
+  **any test that touches the filesystem must use `cap-std`**, and reaching for
+  `excluded_paths` should be a deliberate, argued exception rather than the
+  first idea.
+
+- **Observation:** converting that scan to `cap-std` exposed a latent weakness
+  in EP-M1's own non-vacuity guard, which had been passing for the wrong reason.
+  Evidence: `the_scan_finds_the_runner_tree` reduced each path to a bare file
+  name — `path.rsplit('/').next()` — and then asserted that the names contained
+  `"outcome"`. No file under `outcome/` has that name (`mod.rs`, `step.rs`,
+  `failure.rs`), so the expectation was satisfied incidentally by an *unrelated*
+  file, `runner/tests/outcome.rs`. It was a guard that named a directory and
+  then never checked one. Rewritten to compare whole relative paths, and
+  verified by mutation: with `child_path` altered to drop its prefix so every
+  key collapsed to a basename, the old guard **passed** while the new guard
+  **failed** with `expected the scan to reach outcome/failure.rs; found
+  ["builder.rs", "failure.rs", "mod.rs", ...]`.
+  Impact: two corrections to the record. First, a passing test in EP-M1's own
+  inventory was not evidence of what it claimed, which is exactly the
+  vacuity the plan's `Verification plan` requires each obligation to argue
+  against — the guard now has a mutation witness. Second, an over-strong claim
+  in an intermediate doc comment was itself refuted and removed: I had written
+  that the old form "would not notice the recursion silently stopping a level
+  early", but a mutation that skipped the `outcome` directory *was* caught, by
+  the separate `"step.rs"` expectation. The real defect was narrower — the
+  directory expectation was satisfiable by a same-named file at the top level —
+  and the comment now states only what was measured.
+
+- **Observation:** the full `make test` run reported a `cargo-bdd` timeout that
+  is environmental, not a regression.
+  Evidence: `cargo-bdd::cli list_steps_runs` was terminated at 180.002s against
+  its per-test override, and the run then cancelled the remaining 78 tests. Run
+  in isolation it passes in 94.079s — comfortably inside the same 180s budget.
+  The full run competed for a cold build cache and the `cargo-spawning` test
+  group, which is capped at `max-threads = 1`.
+  Impact: nothing in EP-M1 touches `cargo-bdd`, so no change is warranted. Two
+  things to carry forward: a `make test` that reports this timeout should be
+  re-run in isolation before being believed, and because the timeout cancelled
+  78 tests, a run that ends this way has **not** exercised them — the green
+  result for those tests must come from a completed run, not from the cancelled
+  one.
 
 ## Decision log
 

@@ -46,7 +46,7 @@ impl FailureKind {
     /// Project an [`ExecutionError`] onto its classification.
     ///
     /// Total by construction: the variants of [`ExecutionError`] are
-    /// `#[non_exhaustive]`, so an unrecognised one degrades to
+    /// `#[non_exhaustive]`, so an unrecognized one degrades to
     /// [`Other`](Self::Other) rather than failing to compile.
     ///
     /// # Examples
