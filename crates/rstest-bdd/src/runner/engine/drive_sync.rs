@@ -1,16 +1,26 @@
-//! The synchronous driver: resolve, execute, delegate, record.
+//! The synchronous driver: resolve, execute, record.
 //!
 //! This file contains **no decision about a step result**. Every branch on
-//! what a step did lives in [`policy`](super::policy); what is left here is the
-//! loop, the registry call, the bookkeeping, and the one `match` that
-//! [`classify`] already reduced. That is D6's claim, and it is the kind of claim
-//! a reviewer cannot check by reading a diff, which is why
+//! what a step did lives either in [`policy`](super::policy) or in
+//! [`drive`](super::drive); what is left here is a `for` loop, the registry
+//! call, and the `break` that ends the run. That is D6's claim, and it is the
+//! kind of claim a reviewer cannot check by reading a diff, which is why
 //! `runner_sequence_props.rs` and the `cargo-mutants` lane exist.
 //!
-//! The driver owns the two responsibilities the policy layer deliberately does
-//! not: reaching the registry, and building the borrowed view a
-//! [`StepExecutionRequest`] needs. Both touch process-global state or
-//! allocate, which is exactly why they live here and not in `policy`.
+//! The driver owns the one responsibility the policy layer deliberately does
+//! not: reaching the registry. That touches process-global state, which is
+//! exactly why it lives here and not in `policy`.
+//!
+//! # What is shared with the async driver, and what is not
+//!
+//! The request view and the step-result record are in [`super::drive`],
+//! because neither depends on how a step is executed. What is left here is the
+//! executor call — [`execute_step`] — and its `.await`-free spelling;
+//! [`super::drive_async`] is the same loop with `execute_step_async(...).await`
+//! in that one position. See D23 for why the loop itself is not shared: writing
+//! it against a boxed next-poll future would make this plain synchronous `fn`
+//! depend on a poller that never yields, and nothing in the type system or in
+//! this milestone's evidence would catch a run that silently stopped early.
 //!
 //! # Borrowing the request
 //!
@@ -31,55 +41,19 @@
 
 use crate::{
     StepContext,
-    execution::{StepExecutionRequest, execute_step},
+    execution::execute_step,
     runner::{
         ScenarioOutcome,
         ScenarioPlan,
-        StepInvocation,
-        ValueFate,
-        engine::policy::{
-            Absorbed,
-            SkipPolicy,
-            StepDecision,
-            Terminal,
-            absorb,
-            assemble,
-            classify,
+        engine::{
+            drive::{TableView, bypassed, record_step, request},
+            policy::{SkipPolicy, Terminal, assemble},
         },
-        outcome::{StepOutcome, StepStatus},
+        outcome::StepOutcome,
     },
 };
 
-/// A borrowed rebuild of one invocation's data table.
-///
-/// Holds the per-row `Vec<&str>` that the request's inner slices point at.
-/// Kept as its own type rather than a pair of locals so the rows cannot be
-/// dropped while a view over them is alive.
-struct TableView<'a> {
-    /// One owned row each, borrowed from the plan.
-    rows: Vec<Vec<&'a str>>,
-}
-
-impl<'a> TableView<'a> {
-    /// Rebuild the plan's table as borrowed rows.
-    ///
-    /// `None` stays `None`, and `Some(empty)` stays `Some(empty)`: an invocation
-    /// with no table and one with an empty table are different plans, and
-    /// collapsing them here would make the request lie about which it was.
-    fn new(table: Option<&'a [Vec<std::borrow::Cow<'static, str>>]>) -> Option<Self> {
-        table.map(|rows| Self {
-            rows: rows
-                .iter()
-                .map(|row| row.iter().map(std::borrow::Cow::as_ref).collect())
-                .collect(),
-        })
-    }
-
-    /// The outer view the request's `table` field takes.
-    fn row_slices(&self) -> Vec<&[&str]> { self.rows.iter().map(Vec::as_slice).collect() }
-}
-
-/// Execute a plan against a context and assemble its outcome.
+/// Execute a plan synchronously and assemble its outcome.
 ///
 /// Resolves the skip policy from the scope's `fail_on_skipped` and the plan's
 /// own `allow_skipped`, runs each invocation in plan order, records every one,
@@ -136,7 +110,7 @@ pub(in crate::runner) fn drive(
         let (record, stop) = execute(index, invocation, ctx, plan);
         // D14's per-step event, emitted from the loop rather than from
         // `execute`, so one call site covers all four statuses instead of one
-        // per match arm. It follows the terminal `warn!` that `execute` may
+        // per match arm. It follows the terminal `warn!` that `record_step` may
         // have just emitted for this same step: the terminal event is the
         // louder one and is announced first, and the trace then records what
         // that step's own entry was.
@@ -156,132 +130,25 @@ pub(in crate::runner) fn drive(
     // Every invocation after the terminal event is recorded and none of it is
     // executed. INV-2's completeness half; INV-1's termination half is the
     // `break` above.
-    details.extend(remaining.map(|(index, invocation)| {
-        tracing::trace!(
-            index,
-            keyword = ?invocation.keyword(),
-            status = ?StepStatus::Bypassed,
-            "step bypassed",
-        );
-        StepOutcome::bypassed(
-            index,
-            invocation.keyword(),
-            invocation.text(),
-            invocation.source(),
-        )
-    }));
+    details.extend(remaining.map(|(index, invocation)| bypassed(index, invocation)));
 
     assemble(details, terminal, policy)
 }
 
-/// Run one invocation and record what happened to it.
+/// Run one invocation synchronously and record what happened to it.
 ///
-/// Returns this invocation's record and, when the run must stop, the event that
-/// stopped it. The stop event is built here rather than in [`assemble`] because
-/// the plan-side identity it needs — the index, and the invocation's own
-/// source — is local to this loop.
+/// The whole of this driver's difference from the asynchronous one is the call
+/// in the middle; everything either side of it is [`super::drive`]'s.
 fn execute(
     index: usize,
-    invocation: &StepInvocation,
+    invocation: &crate::runner::StepInvocation,
     ctx: &mut StepContext<'_>,
     plan: &ScenarioPlan,
 ) -> (StepOutcome, Option<Terminal>) {
     let table = TableView::new(invocation.table());
     let row_slices = table.as_ref().map(TableView::row_slices);
-    let request = StepExecutionRequest {
-        index,
-        keyword: invocation.keyword(),
-        text: invocation.text(),
-        docstring: invocation.docstring(),
-        table: row_slices.as_deref(),
-        feature_path: plan.source(),
-        scenario_name: plan.name(),
-    };
+    let request = request(index, invocation, row_slices.as_deref(), plan);
 
     let result = execute_step(&request, ctx);
-    // The insertion reaches `absorb` as a closure, so it happens exactly when a
-    // value came back and necessarily before anything examines the error.
-    let Absorbed { fate, error } = absorb(result, |value| ctx.insert_value(value).into());
-
-    match classify(error) {
-        StepDecision::Continue => (passed(index, invocation, fate), None),
-        StepDecision::Skip { message } => {
-            // D14: the terminal skip is logged with its identity and whether it
-            // carried a reason — never with the reason itself, which is
-            // step-supplied text.
-            tracing::warn!(
-                index,
-                location = location(invocation),
-                has_message = message.is_some(),
-                "scenario stopped: a step requested a skip",
-            );
-            let record = StepOutcome::skipped(
-                index,
-                invocation.keyword(),
-                invocation.text(),
-                invocation.source(),
-                message.clone(),
-            );
-            let terminal = Terminal::Skip {
-                index,
-                message,
-                source: invocation.source().cloned(),
-            };
-            (record, Some(terminal))
-        }
-        StepDecision::Fail(error) => {
-            // D14: the discriminant, never the formatted message.
-            tracing::warn!(
-                index,
-                location = location(invocation),
-                kind = ?crate::runner::FailureKind::of(&error),
-                "scenario stopped: a step failed",
-            );
-            // One clone per scenario, on the failure path only: the record and
-            // the terminal both need the error, and `StepOutcome::failed`
-            // consumes its argument. See the plan's D18 note on the
-            // alternatives that were rejected.
-            let record = StepOutcome::failed(
-                index,
-                invocation.keyword(),
-                invocation.text(),
-                invocation.source(),
-                error.clone(),
-            );
-            (record, Some(Terminal::Fail { index, error }))
-        }
-    }
-}
-
-/// Render a step's source as `path:line`, or `unknown` when the plan has none.
-///
-/// D14 asks the two terminal warnings to carry `path:line` rather than the
-/// `SourceLocation` itself, because a `tracing` field is read in a log line and
-/// the two coordinates are the whole of what a reader needs. `Display` is
-/// deliberately not implemented on `SourceLocation` for this: the type carries
-/// an optional column, and a `Display` would have to choose whether to render
-/// it — a rendering decision that belongs to the log site, not to a
-/// frontend-facing type that `runner/tests/surface.rs` also polices.
-///
-/// A plan may omit the location entirely (D3 makes it optional), and the
-/// warning still has to be emitted for that run. `unknown` is used rather than
-/// an empty string so the field is visibly present-but-absent rather than
-/// looking like a rendering bug, and it is a `&'static str` so the field costs
-/// no allocation on the failure path.
-fn location(invocation: &StepInvocation) -> String {
-    invocation.source().map_or_else(
-        || "unknown".to_owned(),
-        |source| format!("{}:{}", source.path(), source.line()),
-    )
-}
-
-/// Record a successful invocation, with what became of any returned value.
-fn passed(index: usize, invocation: &StepInvocation, fate: Option<ValueFate>) -> StepOutcome {
-    StepOutcome::passed(
-        index,
-        invocation.keyword(),
-        invocation.text(),
-        invocation.source(),
-        fate,
-    )
+    record_step(index, invocation, ctx, result)
 }
