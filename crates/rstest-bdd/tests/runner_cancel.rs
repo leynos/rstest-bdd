@@ -241,17 +241,36 @@ fn returns_marker(
     Ok(StepExecution::from_value(Some(value)))
 }
 
-/// The async arm of [`returns_marker`]; the step is `Both`, so both arms exist.
-fn returns_marker_async<'ctx>(
-    ctx: &'ctx mut StepContext<'_>,
-    text: &'ctx str,
-    docstring: Option<&'ctx str>,
-    table: Option<&'ctx [&'ctx [&'ctx str]]>,
-) -> StepFuture<'ctx> {
-    Box::pin(std::future::ready(returns_marker(
-        ctx, text, docstring, table,
-    )))
+/// Declare a step's asynchronous arm as its synchronous arm, made ready.
+///
+/// A `Both`-mode step needs a `run` and a `run_async`, and for these the async
+/// arm is the sync arm wrapped in an immediately-ready future — that is what
+/// `Both` means. One macro rather than a hand-written arm beside each step, so
+/// the two cannot drift: a step whose async arm stopped delegating to its sync
+/// arm would be a step with two different bodies, which no registration
+/// currently intends.
+///
+/// A macro rather than a helper function because [`AsyncStepFn`] is a
+/// higher-ranked `fn` pointer. A closure cannot coerce to that type once it
+/// captures anything, and a function pointer cannot be a `const` generic
+/// parameter, so the delegation has to be written out — the macro is what makes
+/// writing it out once sufficient.
+macro_rules! both_mode_arm {
+    ($arm:ident, $sync:path) => {
+        fn $arm<'ctx>(
+            ctx: &'ctx mut rstest_bdd::StepContext<'_>,
+            text: &'ctx str,
+            docstring: Option<&'ctx str>,
+            table: Option<&'ctx [&'ctx [&'ctx str]]>,
+        ) -> rstest_bdd::StepFuture<'ctx> {
+            Box::pin(std::future::ready($sync(ctx, text, docstring, table)))
+        }
+    };
 }
+
+// The async arms: each is its sync arm, made immediately ready.
+both_mode_arm!(returns_marker_async, returns_marker);
+both_mode_arm!(passes_async, passes);
 
 /// A step that resolves and does nothing.
 #[expect(
@@ -265,16 +284,6 @@ fn passes(
     _table: Option<&[&[&str]]>,
 ) -> Result<StepExecution, StepError> {
     Ok(StepExecution::from_value(None))
-}
-
-/// The async arm of [`passes`].
-fn passes_async<'ctx>(
-    ctx: &'ctx mut StepContext<'_>,
-    text: &'ctx str,
-    docstring: Option<&'ctx str>,
-    table: Option<&'ctx [&'ctx [&'ctx str]]>,
-) -> StepFuture<'ctx> {
-    Box::pin(std::future::ready(passes(ctx, text, docstring, table)))
 }
 
 const _: () = {
