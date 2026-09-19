@@ -118,15 +118,11 @@ impl SourceLocation {
     #[must_use]
     pub const fn new_static(path: &'static str, line: u32, column: Option<u32>) -> Self {
         debug_assert!(line >= 1, "a source line is one-based");
-        // `Option::is_none_or` is not yet const-stable, so the check is spelled
-        // as a `match`; a `const fn` may not call it.
-        debug_assert!(
-            match column {
-                None => true,
-                Some(column) => column >= 1,
-            },
-            "a source column is one-based",
-        );
+        // `matches!` rather than `Option::is_none_or` or `Option::map_or`:
+        // both are non-const on this toolchain (E0658), so a `const fn` cannot
+        // call them. Expressing the rejection directly is also clearer than
+        // asserting a negated predicate over a mapped value.
+        debug_assert!(!matches!(column, Some(0)), "a source column is one-based");
         Self {
             path: SourcePath::Static(path),
             line,
@@ -154,15 +150,11 @@ impl SourceLocation {
     #[must_use]
     pub fn new(path: impl Into<SourcePath>, line: u32, column: Option<u32>) -> Self {
         debug_assert!(line >= 1, "a source line is one-based");
-        // `Option::is_none_or` is not yet const-stable, so the check is spelled
-        // as a `match`; a `const fn` may not call it.
-        debug_assert!(
-            match column {
-                None => true,
-                Some(column) => column >= 1,
-            },
-            "a source column is one-based",
-        );
+        // `matches!` rather than `Option::is_none_or` or `Option::map_or`:
+        // both are non-const on this toolchain (E0658), so a `const fn` cannot
+        // call them. Expressing the rejection directly is also clearer than
+        // asserting a negated predicate over a mapped value.
+        debug_assert!(!matches!(column, Some(0)), "a source column is one-based");
         Self {
             path: path.into(),
             line,
