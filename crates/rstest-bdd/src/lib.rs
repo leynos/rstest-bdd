@@ -37,6 +37,7 @@ mod pattern;
 mod placeholder;
 mod registry;
 pub mod reporting;
+pub mod runner;
 mod skip_helpers;
 pub mod state;
 pub mod step_args;
