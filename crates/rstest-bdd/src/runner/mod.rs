@@ -56,11 +56,15 @@ pub use source::{SourceLocation, SourcePath};
 
 /// Execute a plan synchronously and return its terminal outcome.
 ///
-/// Never panics: a failing step and a returned value's failing destructor both
-/// become part of the returned outcome. A *permitted* skip is reported as
-/// [`ScenarioStatus::Skipped`] rather than as a failure, because whether a skip
-/// should fail a suite is the caller's policy decision and
-/// [`ScenarioOutcome::into_harness_result`] is where it is made.
+/// A failing step becomes part of the returned outcome. A value whose
+/// destructor panics during cleanup is caught and logged as a warning rather
+/// than returned: `ScenarioOutcome` carries exactly one failure channel
+/// ([`failure`](ScenarioOutcome::failure) / `into_harness_result`), and a
+/// second one would leave a caller unable to tell which failure was primary.
+/// That is why `cleanup_error` was dropped — see D2 option (ii) and D13. A
+/// *permitted* skip is reported as [`ScenarioStatus::Skipped`] rather than as a
+/// failure, because whether a skip should fail a suite is the caller's policy
+/// decision and [`ScenarioOutcome::into_harness_result`] is where it is made.
 ///
 /// # Examples
 ///

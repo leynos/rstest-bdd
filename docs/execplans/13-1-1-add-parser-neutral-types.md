@@ -227,9 +227,13 @@ These are hard invariants. Violating one requires escalation, not a workaround.
    INV-11, not by review alone.
 3. **The runner never panics, for any reason it can control.** An ordinary
    failure, a skip, a missing step, a missing fixture, a failing lifecycle
-   hook, a *panicking* lifecycle hook, a panicking step registered without a
-   wrapper, and a panicking value destructor during cleanup all produce a
-   returned `ScenarioOutcome`. See D11.
+   hook, a *panicking* lifecycle hook, and a panicking step registered without
+   a wrapper all produce a returned `ScenarioOutcome`. A panicking value
+   destructor during cleanup is caught and **logged as a warning** rather than
+   returned: `clear_values` drops the map whole, so a panic there leaves fewer
+   values and never a half-visible one, and the field that would have carried
+   it was dropped with the hooks under D2 option (ii) because a second failure
+   channel defeats D13's single-fold contract. See D11.
 4. **The outcome's step sequence is total and ordered.** For every plan,
    `outcome.steps().len() == plan.steps().len()`, entry `i` describes invocation
    `i`, and every entry after a terminal event is `Bypassed`. This holds
@@ -1428,11 +1432,13 @@ positive, and `BypassedScenario` — which has no collision — stays bare.
   invocation, mapped through the existing `panic_support::panic_message` into a
   `Panicked` classification; the after hook run from a disarmable drop guard so
   an unwind cannot skip it; `catch_unwind` inside the scope's cleanup so a
-  panicking destructor degrades to `cleanup_error` rather than aborting; and
-  `enter_scope(ScopeKind::Hook, ..)` around hook bodies, so `skip!()` in a hook
-  is defined rather than panicking with a bare `&str`. `ScopeKind::Hook`
-  already exists, which is precisely why users will try it. Date/Author:
-  2026-09-14, planning agent.
+  panicking destructor degrades to `tracing::warn!` rather than aborting (the
+  `cleanup_error` field this first named was dropped with the hooks under D2
+  option (ii), and the warning is what shipped — as-built in
+  `runner/scope.rs`); and `enter_scope(ScopeKind::Hook, ..)` around hook
+  bodies, so `skip!()` in a hook is defined rather than panicking with a bare
+  `&str`. `ScopeKind::Hook` already exists, which is precisely why users will
+  try it. Date/Author: 2026-09-14, planning agent.
 
 - **D12: no fault-injection switch in production code; negative controls are
   synthetic-input tests plus the existing `cargo-mutants` lane.** Rationale:
@@ -2887,8 +2893,11 @@ unrepresentable rather than leave to a `debug_assert`.
 ```rust,ignore
 /// Execute a plan synchronously and return its terminal outcome.
 ///
-/// Never panics: a failing step, a failing or panicking hook, and a panicking
-/// value destructor during cleanup all become part of the returned outcome.
+/// Never panics: a failing step, and a failing or panicking hook, become part
+/// of the returned outcome. A panicking value destructor during cleanup is
+/// caught and logged as a warning instead, because the outcome carries exactly
+/// one failure channel (D13) and `cleanup_error` was dropped with the hooks
+/// under D2 option (ii).
 pub fn run_scenario<H>(
     plan: &ScenarioPlan,
     scope: ScenarioScope<'_, '_, H>,

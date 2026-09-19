@@ -111,10 +111,14 @@ pub(crate) enum Terminal {
 
 /// The resolved skip policy for one run.
 ///
-/// Computed once, by `ScenarioScope::new`, so that a run cannot observe the
-/// process-global configuration changing part-way through. `allow_skipped` is
-/// the *effective* flag: the plan's own value, or the explicit per-run
-/// override, already folded with `fail_on_skipped`.
+/// Computed once per run, so that a run cannot observe the process-global
+/// configuration changing part-way through it. The two halves are read at
+/// different times and that is deliberate: `ScenarioScope::new` reads
+/// `config::fail_on_skipped()` and stores it, and the driver calls
+/// [`resolve`](Self::resolve) once the plan's own flag is also in hand, because
+/// the plan is not available to the scope. `allow_skipped` is the *effective*
+/// flag: the plan's own value, or the explicit per-run override, already folded
+/// with `fail_on_skipped`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct SkipPolicy {
     /// Whether this run permits a skip without failing the suite.
