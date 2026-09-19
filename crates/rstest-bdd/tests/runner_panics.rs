@@ -272,34 +272,25 @@ fn a_wrapped_step_panic_is_unchanged() {
     );
 }
 
-/// The async half of the boundary catches a panic raised *after* an await.
+/// What one async step produced, with the two layers kept apart.
 ///
-/// This test drives `execute_step_async` rather than `run_scenario`: the async
-/// scenario entry point is EP-M3's deliverable and does not exist yet, so the
-/// layer that owns this boundary is where the obligation is discharged. D11's
-/// rationale is about `run_scenario`'s contract, and this is the same boundary
-/// one level down — the place a future async driver will reach through.
+/// The separation is the point rather than a wrapper added for convenience:
+/// [`Escaped`](Self::Escaped) answers "did an unwind leave the driver?" and
+/// [`Returned`](Self::Returned) is the step's own result. Collapsing them into
+/// one `Result` would make *the driver unwound* and *the step failed* the same
+/// value, which is exactly the distinction the tests below exist to pin.
+enum AsyncRun {
+    /// The driver unwound; the payload escaped past `execute_step_async`.
+    Escaped(Box<dyn std::any::Any + Send>),
+    /// The driver returned the step's own result, as its contract requires.
+    Returned(Result<Option<Box<dyn std::any::Any>>, ExecutionError>),
+}
+
+/// Run one async step under `catch_unwind`, returning what actually happened.
 ///
-/// The distinction it exists to catch is real rather than theoretical. A
-/// synchronous `catch_unwind` around `(run_async)(..)` wraps only the *call*,
-/// which merely constructs the future; an `async` body that panics after its
-/// first suspension does so while the future is being polled, in a different
-/// frame that the outer guard has already left. The `yield_now` in the
-/// registered body forces exactly that. So this test fails against an
-/// implementation that catches only the construction, and passes against one
-/// that catches the poll — which is the whole reason the async path uses
-/// `catch_unwind_future` instead of `guarded`.
-/// Run one async step under `catch_unwind`, returning the pattern and message
-/// of the `PanicError` it must have produced.
-///
-/// Lifted into a helper for the same reason [`run_catching`] was: the two async
-/// tests differ in which *frame* panics, not in what a caller observes, so the
-/// run and the classification belong in one place and the tests keep only their
-/// distinct assertions. The escape message names both boundaries, because a
-/// regression here escapes the payload rather than misclassifying it and the
-/// output is the only diagnosis a reader gets.
-fn run_async_catching(text: &'static str) -> (String, String) {
-    let text = text.to_owned();
+/// The `silenced` window closes here rather than in the caller, so no
+/// assertion is ever inside it.
+fn run_async_catching(text: &'static str) -> AsyncRun {
     let escaped = silenced(|| {
         // `let ... else` rather than `.expect(...)`, following the convention
         // `runner_wire.rs` records: `allow-expect-in-tests` covers `#[test]`
@@ -311,7 +302,7 @@ fn run_async_catching(text: &'static str) -> (String, String) {
         let request = StepExecutionRequest {
             index: 0,
             keyword: StepKeyword::Given,
-            text: &text,
+            text,
             docstring: None,
             table: None,
             feature_path: "notes/panics.md",
@@ -322,11 +313,27 @@ fn run_async_catching(text: &'static str) -> (String, String) {
         }))
     });
 
-    let Ok(result) = escaped else {
-        panic!(
+    match escaped {
+        Ok(result) => AsyncRun::Returned(result),
+        Err(payload) => AsyncRun::Escaped(payload),
+    }
+}
+
+/// The `(pattern, message)` a panicking async step's error must carry.
+///
+/// The classification half of [`run_async_catching`], split from it because the
+/// two are different jobs: that function owns the boundary and this one owns
+/// what the boundary produced. Each `let ... else` below names one way the run
+/// can be wrong, and the escape case keeps the payload in its message rather
+/// than discarding it — a regression here escapes instead of misclassifying, so
+/// the printed payload is the only diagnosis a reader gets.
+fn async_panic_identity(text: &'static str) -> (String, String) {
+    let result = match run_async_catching(text) {
+        AsyncRun::Returned(result) => result,
+        AsyncRun::Escaped(escaped) => panic!(
             "execute_step_async must return rather than unwind, including when the panic happens \
              while the future is built rather than while it is polled; it escaped with {escaped:?}"
-        );
+        ),
     };
 
     let Err(error) = result else {
@@ -345,6 +352,24 @@ fn run_async_catching(text: &'static str) -> (String, String) {
 }
 
 /// The two async boundaries, one case each.
+///
+/// The async half of the boundary catches a panic raised *after* an await.
+///
+/// This test drives `execute_step_async` rather than `run_scenario`: the async
+/// scenario entry point is EP-M3's deliverable and does not exist yet, so the
+/// layer that owns this boundary is where the obligation is discharged. D11's
+/// rationale is about `run_scenario`'s contract, and this is the same boundary
+/// one level down — the place a future async driver will reach through.
+///
+/// The distinction it exists to catch is real rather than theoretical. A
+/// synchronous `catch_unwind` around `(run_async)(..)` wraps only the *call*,
+/// which merely constructs the future; an `async` body that panics after its
+/// first suspension does so while the future is being polled, in a different
+/// frame that the outer guard has already left. The `yield_now` in the
+/// registered body forces exactly that. So this test fails against an
+/// implementation that catches only the construction, and passes against one
+/// that catches the poll — which is the whole reason the async path uses
+/// `catch_unwind_future` instead of `guarded`.
 ///
 /// A table rather than two functions because the two cases assert the *same*
 /// relation over different inputs: the registered pattern survives as the
@@ -375,7 +400,7 @@ fn an_unwrapped_async_step_panic_is_returned_not_thrown(
     #[case] text: &'static str,
     #[case] expected_message: &str,
 ) {
-    let (pattern, message) = run_async_catching(text);
+    let (pattern, message) = async_panic_identity(text);
 
     assert_eq!(pattern, text, "the pattern is the registry's own spelling");
     assert!(
