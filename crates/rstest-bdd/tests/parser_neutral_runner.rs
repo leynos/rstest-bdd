@@ -63,7 +63,7 @@ use rstest_bdd_macros::{given, scenario, then, when};
 #[path = "parser_neutral_runner/support.rs"]
 mod support;
 
-use support::{Bench, async_outcome, bench, outcome, step_text};
+use support::{Bench, WhichRunner, bench, outcome, step_text};
 
 #[given("a plan named {name:string} sourced from {source:string}")]
 fn a_plan_named(bench: &RefCell<Bench>, name: String, source: String) {
@@ -185,7 +185,7 @@ fn the_plan_is_executed_through_both_runners(bench: &RefCell<Bench>) {
 
 #[then("the outcome is skipped at step {index:usize}")]
 fn the_outcome_is_skipped_at_step(bench: &RefCell<Bench>, index: usize) {
-    let outcome = outcome(bench);
+    let outcome = outcome(bench, WhichRunner::Sync);
     assert_eq!(
         outcome.status(),
         ScenarioStatus::Skipped,
@@ -203,7 +203,7 @@ fn the_outcome_is_skipped_at_step(bench: &RefCell<Bench>, index: usize) {
 
 #[then("step {index:usize} is recorded as bypassed")]
 fn step_is_recorded_as_bypassed(bench: &RefCell<Bench>, index: usize) {
-    let outcome = outcome(bench);
+    let outcome = outcome(bench, WhichRunner::Sync);
     assert_eq!(
         outcome.steps().get(index).map(StepOutcome::status),
         Some(StepStatus::Bypassed),
@@ -214,7 +214,7 @@ fn step_is_recorded_as_bypassed(bench: &RefCell<Bench>, index: usize) {
 
 #[then("every recorded step reports its supplied source line")]
 fn every_step_reports_its_source_line(bench: &RefCell<Bench>) {
-    let outcome = outcome(bench);
+    let outcome = outcome(bench, WhichRunner::Sync);
     let lines: Vec<Option<u32>> = outcome
         .steps()
         .iter()
@@ -231,7 +231,7 @@ fn every_step_reports_its_source_line(bench: &RefCell<Bench>) {
 
 #[then("the outcome is failed at step {index:usize}")]
 fn the_outcome_is_failed_at_step(bench: &RefCell<Bench>, index: usize) {
-    let outcome = outcome(bench);
+    let outcome = outcome(bench, WhichRunner::Sync);
     assert_eq!(
         outcome.status(),
         ScenarioStatus::Failed,
@@ -257,7 +257,7 @@ fn no_panic_was_raised(bench: &RefCell<Bench>) {
 
 #[then("folding the outcome for the harness yields an error")]
 fn folding_yields_an_error(bench: &RefCell<Bench>) {
-    let outcome = outcome(bench);
+    let outcome = outcome(bench, WhichRunner::Sync);
     assert!(
         outcome.into_harness_result().is_err(),
         "the fold is what turns an outcome into a test result, and a failed run must not fold to \
@@ -275,8 +275,8 @@ fn a_plan_from_a_markdown_source_records_every_step(#[from(bench)] _bench: RefCe
 fn the_two_outcomes_are_equal(bench: &RefCell<Bench>) {
     // Both are taken before the assertion so that a mismatch reports two
     // outcomes rather than one and a panic.
-    let sync = outcome(bench);
-    let asynchronous = async_outcome(bench);
+    let sync = outcome(bench, WhichRunner::Sync);
+    let asynchronous = outcome(bench, WhichRunner::Async);
     assert_eq!(
         sync, asynchronous,
         "INV-5: for a plan whose every step is registered in `StepExecutionMode::Both`, the two \

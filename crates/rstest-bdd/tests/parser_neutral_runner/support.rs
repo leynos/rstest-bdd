@@ -107,28 +107,54 @@ pub(crate) fn step_text(role: &str) -> (&'static str, StepKeyword) {
     }
 }
 
-/// The asynchronous outcome, or a report of what went wrong.
-pub(crate) fn async_outcome(bench: &RefCell<Bench>) -> ScenarioOutcome {
-    let bench = bench.borrow();
-    assert!(
-        !bench.unwound,
-        "running the plan unwound; the runner must return a failure instead",
-    );
-    let Some(outcome) = bench.async_outcome.clone() else {
-        panic!("the `When` step must have produced an asynchronous outcome");
-    };
-    outcome
+/// Which runner's outcome a `Then` step is reading.
+///
+/// A selector rather than two accessors because the two differ only in which
+/// [`Bench`] field they name. Two functions would be one precondition and one
+/// failure message written twice, free to drift apart on the thing that matters
+/// most here: both must distinguish "the runner returned no outcome" from "the
+/// run unwound", and only one of those is the INV-17 violation.
+#[derive(Clone, Copy)]
+pub(crate) enum WhichRunner {
+    /// The synchronous runner's outcome.
+    Sync,
+    /// The asynchronous runner's outcome.
+    Async,
 }
 
-/// The outcome the `When` step produced, or a report of what went wrong.
-pub(crate) fn outcome(bench: &RefCell<Bench>) -> ScenarioOutcome {
+impl WhichRunner {
+    /// This runner's outcome field on `bench`.
+    fn of(self, bench: &Bench) -> Option<&ScenarioOutcome> {
+        match self {
+            Self::Sync => bench.outcome.as_ref(),
+            Self::Async => bench.async_outcome.as_ref(),
+        }
+    }
+
+    /// How the failure message names this runner's outcome.
+    fn label(self) -> &'static str {
+        match self {
+            Self::Sync => "an outcome",
+            Self::Async => "an asynchronous outcome",
+        }
+    }
+}
+
+/// The outcome the `When` step produced for `which`, or a report of what went
+/// wrong.
+///
+/// The `unwound` check comes first and is an assertion, not a branch: a run
+/// that unwound reports a failure through the outcome under INV-17, so reaching
+/// a `Then` step with the flag set means the runner re-threw and the `When`
+/// step's own `catch_unwind` recorded it.
+pub(crate) fn outcome(bench: &RefCell<Bench>, which: WhichRunner) -> ScenarioOutcome {
     let bench = bench.borrow();
     assert!(
         !bench.unwound,
         "running the plan unwound; the runner must return a failure instead",
     );
-    let Some(outcome) = bench.outcome.clone() else {
-        panic!("the `When` step must have produced an outcome");
+    let Some(outcome) = which.of(&bench) else {
+        panic!("the `When` step must have produced {}", which.label());
     };
-    outcome
+    outcome.clone()
 }
