@@ -13,7 +13,7 @@ seven gates green (2,046 nextest tests passed, 7 skipped; doctests; 244
 pytest), D27 recording the Scope-tolerance breach. **EP-M4 is struck** by D2
 option (ii). What remains is **EP-M5**: the `insta` `Display` snapshots, the
 `--no-default-features` test leg, the roadmap and retrospective edits, and the
-re-scoped `cargo-mutants` sweep over the whole runner tree (151 mutants).
+re-scoped `cargo-mutants` sweep over the whole runner tree (152 mutants).
 EP-M3's named `cargo-mutants` control was run and found *vacuous* — 3 mutants,
 all unviable — so that obligation is re-scoped rather than discharged, and its
 survivor list is read at EP-M5. Three CodeRabbit rounds have been adjudicated;
@@ -897,7 +897,9 @@ between them. Raise that before spending the tolerance.
     so the only whole-function replacements cargo-mutants generates for them
     are ones the type system rejects. The named obligation is therefore
     **re-scoped, not discharged**: the honest instrument is the whole runner
-    tree, which offers 151 mutants, and the survivor list for it is read at
+    tree, which offers 152 mutants on the tree as it stands (the first
+    enumeration said 151; `cargo mutants --list` and the sweep's own
+    `mutants.json` now agree on 152), and the survivor list for it is read at
     EP-M5 per that milestone's conformance check. The bespoke mutation
     recorded above remains the only mutation evidence specific to
     `drive_async.rs` itself.
@@ -1268,10 +1270,14 @@ between them. Raise that before spending the tolerance.
   test. Impact: the probe was run against the wrong file, not the wrong way.
   Implementing `Default` for three types to make an external tool's output
   tidier would be backwards, and the file is genuinely thin by design (D6), so
-  the honest instrument is the whole runner tree at 151 mutants. The durable
-  lesson is that a mutation count is only evidence when it is decomposed:
-  "unviable", "missed", and "caught" say three different things, and only one
-  of them is a statement about the tests. Date/Author: 2026-09-19,
+  the honest instrument is the whole runner tree. The figure was first
+  enumerated as 151 mutants and is **152** as the tree stands:
+  `cargo mutants --list -f 'crates/rstest-bdd/src/runner/**' --all-features`
+  and the sweep's own `mutants.json` agree on 152, so the 151 was an
+  enumeration taken before later commits to the runner and should not be
+  quoted. The durable lesson is that a mutation count is only evidence when it
+  is decomposed: "unviable", "missed", and "caught" say three different things,
+  and only one of them is a statement about the tests. Date/Author: 2026-09-19,
   implementation agent.
 
 - **Observation:** a plan can over-claim its own progress, and no deterministic
@@ -3953,8 +3959,14 @@ Each item the closing checklist named, discharged or explicitly left open:
   above.
 - **AXIOM-1 to AXIOM-7 falsified?** No axiom was falsified, but AXIOM-4's
   *instrument* was. The named mutation control could not fail on the file it
-  was aimed at, which is recorded in `Surprises & discoveries`, and the sweep
-  that replaces it is recorded below the Scope table.
+  was aimed at, which is recorded in `Surprises & discoveries`. Its replacement
+  is the runner-tree sweep, and the honest statement of its status is that **it
+  has been started twice and completed neither time** — the first attempt was
+  stopped deliberately so that it would not compile and run tests concurrently
+  with the commit gates, which this project forbids. It is the last open
+  Progress box, and its survivor list is not yet available to record. AXIOM-4
+  therefore remains **unverified**, not discharged, and a successor should read
+  this as an outstanding obligation rather than as a closed one.
 - **D15's follow-ups and the `!Send` suite-concurrency ceiling:** **already
   recorded**, under 13.2.1 in `docs/roadmap.md`, along with the
   `reporting::ScenarioStatus` failure case, `BypassedScenario`'s missing
@@ -4005,7 +4017,11 @@ Each item the closing checklist named, discharged or explicitly left open:
    tree's 152 mutants are whole-function `Default::default()` replacements
    against types that deliberately omit `Default`, so 41% of the sweep reports
    no signal by construction. *Unviable*, *missed*, and *caught* say three
-   different things and only one of them is about the tests.
+   different things and only one of them is about the tests. A corollary, and
+   the reason this lesson is the one a successor is most likely to be misled
+   by: a control that cannot fail is worse than no control, because it is
+   recorded as evidence. The sweep itself is unfinished, and the correct
+   reading of AXIOM-4 is *unverified*.
 5. **A tolerance whose measurement step does not exist will be breached
    silently.** D27 named this at EP-M3; it recurred at EP-M5 anyway, which is
    the clearest possible evidence that the remedy belongs in the milestone
