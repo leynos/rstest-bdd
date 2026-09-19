@@ -488,7 +488,28 @@ between them. Raise that before spending the tolerance.
   `an_upper_case_extension_is_still_source` guard added while clearing the
   CodeRabbit findings. EP-M1 is closed against `035117e6`.
 
+- [x] **EP-M1 CodeRabbit, second pass, cleared 2026-09-19 at `99a93364`.** Nine
+  findings collapsing to six distinct asks; three actioned, three rejected with
+  reasons, all recorded in `Surprises & discoveries`. The five gates were
+  re-run green before the review was requested and again after the fixes:
+  `make check-fmt` rc=0, `make lint` rc=0, `make test` rc=0 with
+  `1951 tests run: 1951 passed, 7 skipped` and zero failure markers,
+  `make markdownlint` rc=0 (`Summary: 0 error(s)`), `make nixie` rc=0. The
+  first `make lint` after the fixes failed on `module_max_lines` because
+  `surface.rs` reached 429 lines; the tree walk moved to
+  `runner/tests/surface/walk.rs` along its real seam, which is why the surface
+  tests now report as `runner::tests::surface::walk::*`.
+
 - [ ] EP-M2: synchronous runner, engine split, and the sequence properties.
+  **Opened 2026-09-19.** The first act was to revise D16, and it is done: see
+  D18 in `Decision log` for why its `Stop(ScenarioFailure)` cannot express a
+  permitted skip. D18's `StepDecision` is checked into `Interfaces and
+  dependencies` as the settled engine decomposition, together with a `Terminal`
+  and a `SkipPolicy`, which EP-M2 mirrors while implementing rather than
+  re-deriving. The two things a reader should not have to reconstruct: the
+  driver keeps the error and hands `classify` a borrow, then moves it into
+  `Terminal::Fail`; and a skip never stores a `failure`, forced or not, because
+  `into_harness_result` derives that at fold time.
 - [ ] EP-M3: asynchronous runner and cancellation.
 - [x] ~~EP-M4: lifecycle hooks and the lifecycle matrix~~ — struck by D2
   option (ii).
@@ -1243,6 +1264,13 @@ span into separate short spans rather than relying on `mdtablefix` to wrap it.
   would duplicate a projection `FailureKind::of` already owns, and the two
   could drift.
 
+  **Superseded in part by D18.** The payload on the stop variant is wrong: a
+  *permitted* skip carries no `ScenarioFailure`, so `Stop(ScenarioFailure)`
+  cannot represent it. The enumeration, the exclusion of `FailureKind`, the
+  rejected four-variant candidate, and the two consequences at the end of this
+  entry all stand; read D18 for the corrected variant list and only treat the
+  paragraph below as the reasoning that led to it.
+
   `Stop(ScenarioFailure)` rather than a bare `Stop`. It reuses the
   `ScenarioFailure::Step { index, error }` variant that already ships from
   EP-M1 and already carries exactly the pair the terminal record needs. It
@@ -1296,6 +1324,76 @@ span into separate short spans rather than relying on `mdtablefix` to wrap it.
   module table the design of record and a later reader comparing table to tree
   would otherwise flag the difference. Date/Author: 2026-09-19, implementation
   agent.
+
+- **D18: D16's `Stop(ScenarioFailure)` is replaced by three variants, because a
+  *permitted* skip carries no failure.** D16 is defective as written and this
+  supersedes it; the reasoning above about input enumeration, about excluding
+  `FailureKind`, and about the driver's single `match` all stand. What does not
+  stand is the payload on the stop variant.
+
+  A permitted skip — `allow_skipped = true` or `fail_on_skipped = false` — is a
+  terminal event whose outcome is `status: Skipped`, `skip: Some(_)`,
+  `failure: **None**`. There is no `ScenarioFailure` to carry, and there cannot
+  be: `ScenarioFailure::ForcedSkip` is **never stored** in an outcome. It is
+  derived on demand by `into_harness_result`, which folds the stored
+  `ScenarioSkip` through `forced_failure` at fold time. So a `Stop` that must
+  carry a `ScenarioFailure` cannot represent the single most common skip case,
+  and the driver would have to fabricate one — a lie in exactly the field a
+  caller reads to decide whether the suite should fail.
+
+  This was not visible at EP-M1 because `StepDecision` had no callers: the
+  contradiction only appears when `classify` has to produce the value. The
+  evidence is the shipped EP-M1 shape, not a reading of it:
+  `runner/outcome/mod.rs` gives `ScenarioOutcome` four independent fields
+  (`status`, `steps`, `skip`, `failure`), and `runner/tests/outcome.rs:97`
+  constructs a permitted skip as `ScenarioOutcome::new(ScenarioStatus::Skipped,
+  vec![step], Some(skip), None)` — a skip with no failure. The fold then returns
+  `Ok(())` for it (`canonical_fold_accepts_an_unforced_skip`, line 127).
+
+  The corrected type:
+
+  ```rust,ignore
+  pub(crate) enum StepDecision {
+      /// The step ran; a returned value was already inserted by the caller.
+      Continue,
+      /// The step requested a skip. The run stops, and the outcome carries a
+      /// `ScenarioSkip` but no failure unless policy forces one.
+      Skip { message: Option<String> },
+      /// The step failed. The run stops and the error is the terminal failure.
+      Fail(ExecutionError),
+  }
+  ```
+
+  Three variants, and the third is where D16's insight is kept rather than
+  lost. `Fail(ExecutionError)` carries the error **verbatim**, as D16 required,
+  and it is `assemble` — not `classify` — that pairs it with the index to build
+  `ScenarioFailure::Step { index, error }`. That is the right home for the
+  pairing: the index is a property of *where* the decision sat in the plan, not
+  of the step result, so putting it in the decision would have forced
+  `classify` to take an index purely to restate it. D16 reached for
+  `ScenarioFailure` to avoid re-deriving a failure from an error list; with the
+  index available at assembly, the same goal is met by carrying the error alone
+  and letting `assemble` do the one projection it already has the inputs for.
+
+  `Continue` is still value-free, and the enumeration is unchanged: six input
+  classes, four of which (`Skip`, `StepNotFound`, `MissingFixtures`,
+  `HandlerFailed`) map to `Fail`, one to `Skip`, two to `Continue`. The
+  insertion still happens *before* classification, so `Ok(Some(_))` calls
+  `ctx.insert_value` and records the `ValueFate`, then `Continue`s — including
+  when the insertion returns `NoMatch`, which is INV-12's whole point.
+
+  Rejected alternatives, and why. A fourth variant
+  `ContinueInserting(Box<dyn Any>)` was rejected for D16's original reason and
+  one more: it drags a value `execute_step` already returns at the call site
+  into the pure-decision layer, and `classify` would then have to be handed the
+  context to insert into, which destroys LEM-1's "takes no `StepContext`". A
+  `StopForSkip(ScenarioSkip)` carrying a fully built skip record was rejected
+  because it would put `allow_skipped` and `forced_failure` — scope-level
+  policy resolved once per run — into a per-step decision, so `classify` would
+  need the scope's policy as an input and would no longer be a function of the
+  step result alone. `Skip { message }` keeps the decision minimal: the message
+  is the only part that comes from the step, and `assemble` owns the policy.
+  Date/Author: 2026-09-19, implementation agent.
 
 ## Outcomes & retrospective
 
@@ -2245,6 +2343,15 @@ and because three of them are API-shape questions the plan did not anticipate.
    rather than discovering it mid-driver, which is exactly how the first draft
    ended up with the stop decision duplicated in two `break`s.
 
+   **Settled at EP-M2 by D16 as revised by D18.** Worth noting against the
+   constraints listed above: the third one — the decision must express
+   "stop-for-skip versus stop-for-failure" — already demanded precisely the
+   split that D16 collapsed, and it is the constraint that catches D16's defect.
+   A single `Stop(ScenarioFailure)` cannot distinguish the two, because the
+   permitted-skip case has no failure to carry. So this point was not merely
+   under-specified; read carefully it *refutes* D16's payload, and it is the
+   earliest place in the plan where the contradiction was visible.
+
 Two rows of the module-layout table above were stale against D2 option (ii) and
 have been corrected in place. `runner/outcome/failure.rs` was listed as holding
 `LifecycleError`, which D2 (ii) dropped; and `runner/scope.rs` was listed as
@@ -2258,6 +2365,81 @@ no bound, since nothing constrains `H` until the trait arrives. The signatures
 below are corrected accordingly. Note that this makes the `H` parameter inert
 for now: it exists so that adding `impl Lifecycle` bounds later is
 source-compatible, which is the whole point of option (ii).
+
+### The engine, as settled by D16 and D18
+
+```rust
+/// What one step result means for the run, as a decision the driver matches
+/// once.
+pub(crate) enum StepDecision {
+    /// The step ran; a returned value was already inserted by the caller.
+    Continue,
+    /// The step requested a skip. The run stops; policy is applied at assembly.
+    Skip { message: Option<String> },
+    /// The step failed; the error is carried verbatim as the terminal failure.
+    Fail(ExecutionError),
+}
+
+/// The event that stopped the run, named by the plan position it happened at.
+pub(crate) enum Terminal {
+    /// The run stopped because the step at `index` requested a skip.
+    Skip { index: usize, message: Option<String> },
+    /// The run stopped because the step at `index` failed.
+    Fail { index: usize, error: ExecutionError },
+}
+
+/// The resolved skip policy, computed once per run by `ScenarioScope::new`.
+pub(crate) struct SkipPolicy {
+    /// The effective `allow_skipped`: the plan's flag, or the explicit override.
+    pub(crate) allow_skipped: bool,
+    /// The resolved `fail_on_skipped`.
+    pub(crate) fail_on_skipped: bool,
+}
+
+/// Classify one step result. Total, and free of I/O, context, and policy.
+pub(crate) fn classify(result: Result<Option<()>, &ExecutionError>) -> StepDecision;
+
+/// Assemble the terminal outcome from the recorded details and the terminal.
+pub(crate) fn assemble(
+    details: Vec<StepOutcome>,
+    terminal: Option<Terminal>,
+    policy: &SkipPolicy,
+) -> ScenarioOutcome;
+```
+
+Three points carry the load, and all three are consequences of decisions
+already taken rather than new ones.
+
+`classify`'s `result` is `Result<Option<()>, &ExecutionError>` rather than
+`Result<Option<Box<dyn Any>>, ExecutionError>`. The value is deliberately
+erased: the driver has already passed the real `Box<dyn Any>` to
+`ctx.insert_value` and converted the returned `InsertOutcome` into a
+`ValueFate` before classifying, so the decision never sees the value. The error
+is **borrowed**, because the driver still owns it for the `tracing` call D14
+requires before it hands over a `Terminal::Fail`. `FailureKind` stays out for
+D16's reason.
+
+`Terminal` exists so that `assemble` does not have to re-derive the stop
+decision by scanning `details` for the last non-`Bypassed` entry. That scan is
+the one derivation this split exists to prevent: it would silently produce a
+wrong outcome if the driver ever padded wrongly, whereas an explicit `Terminal`
+is produced by the very `match` arm that stopped the loop. The error is moved
+into `Terminal::Fail` rather than cloned out of the recorded `StepOutcome`, so
+the compiler enforces that the error the outcome reports is the error the step
+produced — D16's "verbatim", now checked by ownership rather than by
+convention.
+
+`assemble` sets `status: Skipped` and `skip: Some(ScenarioSkip::new(at,
+message, source, allow_skipped, forced_failure))` for a terminal skip, reading
+`source` from `details[index]`. It does **not** set `failure` for a skip, even
+a forced one: `ScenarioFailure::ForcedSkip` is derived at fold time by
+`into_harness_result`, and storing it as well would create a second source of
+truth for one fact. The `allow_skipped` written into the record is the
+*effective* one, `allow_skipped || !policy.fail_on_skipped`, so D10's
+invariant `forced_failure == !allow_skipped && fail_on_skipped` holds of the
+record itself rather than only of the policy that produced it. A terminal
+`Fail` becomes `failure: Some(ScenarioFailure::Step { index, error })` with
+`status: Failed`.
 
 ### The runners
 
