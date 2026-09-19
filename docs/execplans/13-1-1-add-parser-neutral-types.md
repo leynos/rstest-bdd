@@ -509,19 +509,19 @@ between them. Raise that before spending the tolerance.
   written and green: the two behavioural scenarios, `tests/modes.rs`,
   `tests/completeness.rs`, `tests/skip_parity.rs`, and the D11 panic boundary's
   five integration tests plus six unit cases. `runner_sequence_props.rs` is the
-  one that remains, and two of its four invariants are EP-M3-bound — INV-5
-  needs `run_scenario_async`, and INV-1/INV-2's property domain includes
-  terminal kinds only the async driver exercises as a comparable path.
-  Recorded as partial rather than done for that reason.*
-  **Opened 2026-09-19.** The first act was to revise D16, and it is done: see
-  D18 in `Decision log` for why its `Stop(ScenarioFailure)` cannot express a
-  permitted skip. D18's `StepDecision` is checked into
-  `Interfaces and dependencies` as the settled engine decomposition, together
-  with a `Terminal` and a `SkipPolicy`, which EP-M2 mirrors while implementing
-  rather than re-deriving. The two things a reader should not have to
-  reconstruct: the driver keeps the error and hands `classify` a borrow, then
-  moves it into `Terminal::Fail`; and a skip never stores a `failure`, forced
-  or not, because `into_harness_result` derives that at fold time.
+  one that remains, and two of its four invariants are EP-M3-bound — INV-5 needs
+  `run_scenario_async`, and INV-1/INV-2's property domain includes terminal
+  kinds only the async driver exercises as a comparable path. Recorded as
+  partial rather than done for that reason.* **Opened 2026-09-19.** The first
+  act was to revise D16, and it is done: see D18 in `Decision log` for why its
+  `Stop(ScenarioFailure)` cannot express a permitted skip. D18's `StepDecision`
+  is checked into `Interfaces and dependencies` as the settled engine
+  decomposition, together with a `Terminal` and a `SkipPolicy`, which EP-M2
+  mirrors while implementing rather than re-deriving. The two things a reader
+  should not have to reconstruct: the driver keeps the error and hands
+  `classify` a borrow, then moves it into `Terminal::Fail`; and a skip never
+  stores a `failure`, forced or not, because `into_harness_result` derives that
+  at fold time.
 
   **Red observed 2026-09-19.** `runner/tests/wire.rs` — three tests asserting
   that a run is *observable* rather than merely well-formed — failed at the
@@ -604,9 +604,9 @@ between them. Raise that before spending the tolerance.
   run before the commit was `make check-fmt` plus `markdownlint` plus `nixie`.
   The reflow mattered: `make check-fmt` had gone red on the plan's own Markdown
   (`mdtablefix --check` reported `+26 -26`), which was fixed with the canonical
-  `mdtablefix --in-place` invocation rather than by hand, and `markdownlint` was
-  then re-run even though `check-fmt` was green — `mdtablefix --wrap` can join
-  an inline-code span past 80 columns, and `markdownlint` is the gate that
+  `mdtablefix --in-place` invocation rather than by hand, and `markdownlint`
+  was then re-run even though `check-fmt` was green — `mdtablefix --wrap` can
+  join an inline-code span past 80 columns, and `markdownlint` is the gate that
   rejects the result, so a green `check-fmt` does not imply a green
   `markdownlint` on a revision whose Markdown was just reflowed. It did not
   materialize here; the plan's hazard note now says to check regardless.
@@ -623,69 +623,69 @@ between them. Raise that before spending the tolerance.
   rather than inferring it from the engine's unit tests, with step lines 3, 4,
   5, 6 against a plan line of 99 so a runner that copied the plan's line or
   renumbered from zero fails. The bypassed-tail count is asserted directly,
-  because the per-entry loop can only check a bypassed branch that exists.
-  The one-step passing plan is the control that separates "the fold refuses
-  empty plans" from "the fold refuses everything".
+  because the per-entry loop can only check a bypassed branch that exists. The
+  one-step passing plan is the control that separates "the fold refuses empty
+  plans" from "the fold refuses everything".
 
   `tests/skip_parity.rs` (INV-6, INV-9) writes out the full four-row product
   **and** gives the discriminating `(true, true)` row its own test, because
   three of the four rows agree under either candidate operator: only that row
-  separates `!allow_skipped && fail_on_skipped` from `||`, `!=`, or a
-  forgotten negation, so a future edit dropping a table case could silently
-  remove the only case that has discriminating power. The first run failed —
-  case inputs had been transposed against their labels — and the assertion
-  caught its own setup error.
+  separates `!allow_skipped && fail_on_skipped` from `||`, `!=`, or a forgotten
+  negation, so a future edit dropping a table case could silently remove the
+  only case that has discriminating power. The first run failed — case inputs
+  had been transposed against their labels — and the assertion caught its own
+  setup error.
 
   One classification finding, recorded because it is a trap for the *next*
   person who writes a failing step: an `assert_eq!` inside a macro-registered
   step body reaches the runner as `FailureKind::Panic`, not `Assertion`. The
-  wrapper's own `catch_unwind` converts it to a `PanicError` before the
-  driver sees it; `Assertion` is the label for a handler that *returns* a
+  wrapper's own `catch_unwind` converts it to a `PanicError` before the driver
+  sees it; `Assertion` is the label for a handler that *returns* a
   `StepError::ExecutionError`. `completeness.rs` pins the end-to-end answer as
-  `Panic`, and that is what would catch a boundary that swallowed the panic
-  and relabelled it as a returned error.
+  `Panic`, and that is what would catch a boundary that swallowed the panic and
+  relabelled it as a returned error.
 
   `tests/parser_neutral_runner.rs` with
   `tests/features/parser_neutral_runner.feature` binds the plan's first two
   behavioural scenarios. The steps build and run plans through the new API
-  while the scenarios are executed by the *existing, unmigrated* macro path,
-  so a green result is not the runner agreeing with itself. Two things are
-  worth carrying forward. First, a negative control was run: perturbing one
-  expected source line in the feature changes what the step receives and fails
-  its assertion, so the scenarios are genuinely bound rather than silently
-  skipped. Second, the specification's **third** scenario, "The asynchronous
-  runner agrees with the synchronous runner", is **cut here** rather than
-  bound — its `When` step needs `run_scenario_async`, which does not exist
-  until EP-M3, so the step would not compile. That is D14's own rule, that an
-  executable scenario may only assert observable behaviour of code that
-  exists, and not a new decision; it lands with EP-M3.
+  while the scenarios are executed by the *existing, unmigrated* macro path, so
+  a green result is not the runner agreeing with itself. Two things are worth
+  carrying forward. First, a negative control was run: perturbing one expected
+  source line in the feature changes what the step receives and fails its
+  assertion, so the scenarios are genuinely bound rather than silently skipped.
+  Second, the specification's **third** scenario, "The asynchronous runner
+  agrees with the synchronous runner", is **cut here** rather than bound — its
+  `When` step needs `run_scenario_async`, which does not exist until EP-M3, so
+  the step would not compile. That is D14's own rule, that an executable
+  scenario may only assert observable behaviour of code that exists, and not a
+  new decision; it lands with EP-M3.
 
-  `tests/modes.rs` (INV-15) asserts the two runtime positions concretely
-  rather than comparing them, because "the outcomes differ" is satisfied by a
-  witness that fails in both. A resume counter makes the step demonstrably
-  multi-poll — three resumptions outside a runtime, zero inside one, where the
-  wrapper polls once and reports the diagnostic. The non-suspending sibling is
-  the control that separates "a runtime is current" from "the step suspended",
-  and it was falsified rather than trusted: giving it a single real `.await`
-  flips only its in-runtime case to `Failed`. The first attempt at that
-  mutation was inert — a `yield_now()` future that is never awaited does
-  nothing, which the compiler warned about — so the mutation was redone with
-  the `.await` present.
+  `tests/modes.rs` (INV-15) asserts the two runtime positions concretely rather
+  than comparing them, because "the outcomes differ" is satisfied by a witness
+  that fails in both. A resume counter makes the step demonstrably multi-poll —
+  three resumptions outside a runtime, zero inside one, where the wrapper polls
+  once and reports the diagnostic. The non-suspending sibling is the control
+  that separates "a runtime is current" from "the step suspended", and it was
+  falsified rather than trusted: giving it a single real `.await` flips only
+  its in-runtime case to `Failed`. The first attempt at that mutation was inert
+  — a `yield_now()` future that is never awaited does nothing, which the
+  compiler warned about — so the mutation was redone with the `.await` present.
 - [x] (2026-09-19) EP-M2's D11 panic boundary implemented, having been found
   absent. `crates/rstest-bdd/src/execution/unwind.rs` is new and both
   `execute_step` and `execute_step_async` pass through it; the sync path uses
-  `catch_unwind`, the async path `catch_unwind_future` per poll, and both end in
-  one `from_payload` so the two registration forms cannot disagree. Placement,
-  the three rejected alternatives, and the `function` field's `file:line`
-  fallback are D22. The five tests are `crates/rstest-bdd/tests/runner_panics.rs`
-  plus its `runner_panics/mod.rs` companion, which holds the raw `step!`
-  registration that has no wrapper. Each boundary was verified by removing it
-  and observing exactly its own test fail — the negative control matters more
-  than usual here, because the first red run was an abort caused by the test
-  harness itself and was briefly misread as the driver failing *harder* than it
-  did. `engine/drive_sync.rs`'s `# Panics` section, which documented the gap as
-  "owned by D11", now states the boundary is in place. Not yet gated: the full
-  deterministic suite has not been re-run against this revision.
+  `catch_unwind`, the async path `catch_unwind_future` per poll, and both end
+  in one `from_payload` so the two registration forms cannot disagree.
+  Placement, the three rejected alternatives, and the `function` field's
+  `file:line` fallback are D22. The five tests are
+  `crates/rstest-bdd/tests/runner_panics.rs` plus its `runner_panics/mod.rs`
+  companion, which holds the raw `step!` registration that has no wrapper. Each
+  boundary was verified by removing it and observing exactly its own test fail
+  — the negative control matters more than usual here, because the first red
+  run was an abort caused by the test harness itself and was briefly misread as
+  the driver failing *harder* than it did. `engine/drive_sync.rs`'s `# Panics`
+  section, which documented the gap as "owned by D11", now states the boundary
+  is in place. Not yet gated: the full deterministic suite has not been re-run
+  against this revision.
 - [ ] EP-M3: asynchronous runner and cancellation.
 - [x] ~~EP-M4: lifecycle hooks and the lifecycle matrix~~ — struck by D2
   option (ii).
@@ -1350,15 +1350,15 @@ span into separate short spans rather than relying on `mdtablefix` to wrap it.
 - **Observation:** EP-M2's `Outcome` (line 3256) and Constraint 3 both claim
   `run_scenario` returns rather than panicking "even when a raw-`step!` handler
   panics". It did not. `execute_step` called `(step.run)(..)` with no
-  `catch_unwind` anywhere, so a raw-`step!` handler's panic unwound straight out
-  of `run_scenario`. `engine/drive_sync.rs` documented the gap as "owned by
+  `catch_unwind` anywhere, so a raw-`step!` handler's panic unwound straight
+  out of `run_scenario`. `engine/drive_sync.rs` documented the gap as "owned by
   D11", and D11's text does mandate `catch_unwind` "around hook and step
   invocation" — but the *step* half had never been implemented, and the trace
   table pointed at `tests::runner::panics::runner_never_unwinds`, a test that
   did not exist.
 - **Evidence:** a throwaway probe registered a raw `step!` handler whose body
-  was a bare `panic!`, ran it through `run_scenario` under
-  `catch_unwind`, and printed `escaped=true`. The registered test
+  was a bare `panic!`, ran it through `run_scenario` under `catch_unwind`, and
+  printed `escaped=true`. The registered test
   `an_unwrapped_step_panic_is_returned_not_thrown` reproduces it; removing the
   new boundary fails it while leaving the attribute-registered control passing.
 - **Impact:** D11's step half is now implemented at `execution::unwind`, which
@@ -1366,10 +1366,10 @@ span into separate short spans rather than relying on `mdtablefix` to wrap it.
   defect of one class on this branch — a claim in the plan that no artefact
   discharged (previously D5's conversion and D21's artefact path). The class is
   worth naming: **every one was found by writing the artefact, not by reading
-  the plan**, and four review passes plus four spikes did not catch any of them.
-  Where the plan says a behaviour *is* the case, the plan is a claim and the
-  test is the evidence; until the test exists and has been seen to fail, the
-  claim is unverified no matter how confidently it is worded.
+  the plan**, and four review passes plus four spikes did not catch any of
+  them. Where the plan says a behaviour *is* the case, the plan is a claim and
+  the test is the evidence; until the test exists and has been seen to fail,
+  the claim is unverified no matter how confidently it is worded.
 
 ### A second defect of the same class, in the test harness built to catch the first
 
@@ -1377,29 +1377,30 @@ span into separate short spans rather than relying on `mdtablefix` to wrap it.
   `thread caused non-unwinding panic. aborting.` on three of four tests, while
   the *control* passed. The abort came from the test's own helper, not the
   driver: `NoPanicHook::drop` called `panic::set_hook`, and `std` panics when
-  that is called from a panicking thread
-  (`library/std/src/panicking.rs`: "cannot modify the panic hook from a
-  panicking thread"). Drop runs *during* the assertion's unwind, the resulting
-  panic cannot itself unwind, and `std` calls `process::abort()`.
+  that is called from a panicking thread (`library/std/src/panicking.rs`:
+  "cannot modify the panic hook from a panicking thread"). Drop runs *during*
+  the assertion's unwind, the resulting panic cannot itself unwind, and `std`
+  calls `process::abort()`.
 - **Impact:** a `#[should_panic]`-shaped helper that touches process-global
-  state jointly on its success and failure paths is a trap, and the failure mode
-  is an abort with no attribution rather than a failed assertion. The fix is to
-  confine the silencing to a window around the *run*, never an assertion, so the
-  guard's `Drop` only ever runs on a normal return; the guard still checks
-  `thread::panicking()` and skips the restore, so a future edit that widens the
-  window fails safe. Recorded because the wrong diagnosis was plausible and
-  cost real time: the abort was briefly read as the driver's failure — a
-  *stronger* claim than the truth, since the real behaviour was a clean unwind.
-  A test that fails harder than the defect it reports is worth disbelieving.
+  state jointly on its success and failure paths is a trap, and the failure
+  mode is an abort with no attribution rather than a failed assertion. The fix
+  is to confine the silencing to a window around the *run*, never an assertion,
+  so the guard's `Drop` only ever runs on a normal return; the guard still
+  checks `thread::panicking()` and skips the restore, so a future edit that
+  widens the window fails safe. Recorded because the wrong diagnosis was
+  plausible and cost real time: the abort was briefly read as the driver's
+  failure — a *stronger* claim than the truth, since the real behaviour was a
+  clean unwind. A test that fails harder than the defect it reports is worth
+  disbelieving.
 
 ### A silent panic hook also silences the assertion message
 
 - **Observation:** with the hook replaced by a no-op — which is what makes the
-  deliberate panics in `runner_panics.rs` not print stack traces — libtest still
-  reports `FAILED`, but the assertion message is gone. libtest recovers the
-  message *from the panic hook*, so suppressing it discards the diagnostic along
-  with the noise. Probed directly: a failing `assert_eq!` under a no-op hook
-  prints `FAILED` and nothing else.
+  deliberate panics in `runner_panics.rs` not print stack traces — libtest
+  still reports `FAILED`, but the assertion message is gone. libtest recovers
+  the message *from the panic hook*, so suppressing it discards the diagnostic
+  along with the noise. Probed directly: a failing `assert_eq!` under a no-op
+  hook prints `FAILED` and nothing else.
 - **Impact:** this is why the negative control is the important artefact here
   rather than a formality. The first red run was undiagnosable for this reason,
   and a suite whose failures say only `FAILED` invites exactly the wrong
@@ -2045,17 +2046,18 @@ would not be exercising the documented asymmetry at all. Date/Author:
 **Decided 2026-09-19 during EP-M2**, when D11's step half was implemented.
 
 The boundary lives in `crates/rstest-bdd/src/execution/unwind.rs`, and both
-`execute_step` and `execute_step_async` pass through it. Three alternatives were
-rejected, and the reasons are worth recording because the placement looks
+`execute_step` and `execute_step_async` pass through it. Three alternatives
+were rejected, and the reasons are worth recording because the placement looks
 arbitrary from the outside.
 
 **Rejected: a `catch_unwind` in `engine/drive_sync.rs`.** This is the placement
-the plan's own D11 note implies, and it is wrong for a reason the engine's split
-already states. `engine/policy.rs`'s module note says the two drivers differ
-only in how they *await* a step, so anything they would otherwise both decide
-exists twice and can drift. A panic boundary is exactly such a decision, and
-`drive_async` would need a second copy of it in EP-M3. Putting it at the one
-call both drivers make keeps the two from disagreeing about what a panic means.
+the plan's own D11 note implies, and it is wrong for a reason the engine's
+split already states. `engine/policy.rs`'s module note says the two drivers
+differ only in how they *await* a step, so anything they would otherwise both
+decide exists twice and can drift. A panic boundary is exactly such a decision,
+and `drive_async` would need a second copy of it in EP-M3. Putting it at the
+one call both drivers make keeps the two from disagreeing about what a panic
+means.
 
 **Rejected: mapping the panic to an `ExecutionError` directly.** Folding the
 unwind into a `HandlerFailed` at the boundary and returning it would have been
@@ -2066,22 +2068,23 @@ from an `Err` the handler returned deliberately. The boundary therefore returns
 the *handler-shaped* result an unguarded call would have, and lets the existing
 path do the rest.
 
-**Rejected: filling `StepError::PanicError::function` with the handler's name.**
-It is not recoverable. A `Step` records `file`, `line`, `pattern`, and the two
-function pointers — not what the handler was called — and the macro wrapper
-fills the field from `stringify!` only because it *is* the generated code. The
-driver has no equivalent, and a fabricated name would be worse than an absent
-one. The field carries `file:line` instead, which is the crate's existing answer
-to this same question: `MissingFixturesDetails::step_location` identifies a step
-the same way, for the same reason. Unlike a guessed identifier it is actionable,
-because it points at the line a reader has to open. The wrapped path is
-unchanged and still reports the real name, so the field is strictly more
-informative than it was wherever a name is available at all.
+**Rejected: filling `StepError::PanicError::function` with the handler's
+name.** It is not recoverable. A `Step` records `file`, `line`, `pattern`, and
+the two function pointers — not what the handler was called — and the macro
+wrapper fills the field from `stringify!` only because it *is* the generated
+code. The driver has no equivalent, and a fabricated name would be worse than
+an absent one. The field carries `file:line` instead, which is the crate's
+existing answer to this same question: `MissingFixturesDetails::step_location`
+identifies a step the same way, for the same reason. Unlike a guessed
+identifier it is actionable, because it points at the line a reader has to
+open. The wrapped path is unchanged and still reports the real name, so the
+field is strictly more informative than it was wherever a name is available at
+all.
 
 **As-built detail.** The synchronous path uses `catch_unwind` around the call.
 The asynchronous path cannot: an `async` body panics while its future is being
-*polled*, which is a different frame, and wrapping the call would guard only the
-construction. It uses the crate's existing `catch_unwind_future` per poll
+*polled*, which is a different frame, and wrapping the call would guard only
+the construction. It uses the crate's existing `catch_unwind_future` per poll
 instead, and both paths end in the same `from_payload`, so the two registration
 forms cannot classify a panic differently. Verified by negative control: with
 either boundary removed, its test fails and the other does not.
@@ -2280,13 +2283,13 @@ are stated over data rather than over control flow.
   validate fixtures for, and invoke a single step **registered through
   `#[given]`/`#[when]`/`#[then]` in `Sync` or `Both` mode**, and map its result
   into `ExecutionError` as documented. This scope is deliberately narrow. It
-  excluded steps registered through the raw `step!` form on the ground that they
-  had no `catch_unwind`; **that exclusion is discharged**, since D11's boundary
-  now covers them and `tests/runner_panics.rs` exercises a raw registration
-  directly. It still excludes `Async`-mode steps invoked through `execute_step`,
-  whose behaviour differs from `execute_step_async` (handled by INV-15). This
-  plan treats the in-scope behaviour as a contract boundary and exercises it for
-  real rather than through a mock.
+  excluded steps registered through the raw `step!` form on the ground that
+  they had no `catch_unwind`; **that exclusion is discharged**, since D11's
+  boundary now covers them and `tests/runner_panics.rs` exercises a raw
+  registration directly. It still excludes `Async`-mode steps invoked through
+  `execute_step`, whose behaviour differs from `execute_step_async` (handled by
+  INV-15). This plan treats the in-scope behaviour as a contract boundary and
+  exercises it for real rather than through a mock.
 - **AXIOM-3.** `StepContext::insert_value` implements the unique-type rule
   (ADR-015). The runner is verified for *when* it calls it and for *recording
   its answer* — not for the rule's internals. It is explicitly **not** a
@@ -2600,21 +2603,21 @@ tested, including from inside a live Tokio runtime.
   asymmetry.
 - **Discharged at `874e12f0`.** Written as
   `crates/rstest-bdd/tests/modes.rs`, with a fourth test the invariant did not
-  name. The prescribed two cases are `a_suspending_async_step_diverges_on_runtime_position`;
-  they assert status *and* a thread-local resume count, so "multi-poll" is
-  witnessed rather than assumed (three resumptions outside a runtime, zero
-  inside one). The added control is
-  `a_non_suspending_async_step_passes_in_both_positions`: the same
+  name. The prescribed two cases are
+  `a_suspending_async_step_diverges_on_runtime_position`; they assert status
+  *and* a thread-local resume count, so "multi-poll" is witnessed rather than
+  assumed (three resumptions outside a runtime, zero inside one). The added
+  control is `a_non_suspending_async_step_passes_in_both_positions`: the same
   registration form, the same lookup, the same driver, an `async fn` whose
   first poll is `Ready`. Without it, "the outcomes differ" could be misread as
   "the macro path is unreachable from inside a runtime", which is stronger and
   false. The control was falsified rather than trusted — one genuine `.await`
   added to it flips **only** its in-runtime case to `Failed`, with the
-  `Pending` diagnostic, and that mutation was run and reverted. Note for
-  anyone repeating it: the first attempt dropped the `.await` and was inert,
-  because a `yield_now()` future that is never awaited does nothing. That is
-  worth recording as a near-miss — an inert mutation that "leaves the suite
-  green" reads exactly like a passing negative control.
+  `Pending` diagnostic, and that mutation was run and reverted. Note for anyone
+  repeating it: the first attempt dropped the `.await` and was inert, because a
+  `yield_now()` future that is never awaited does nothing. That is worth
+  recording as a near-miss — an inert mutation that "leaves the suite green"
+  reads exactly like a passing negative control.
 
 **INV-16 — Failure classification is stable.** `StepOutcome::failure_kind()`
 projects an `ExecutionError` onto a small `#[non_exhaustive] FailureKind`
@@ -2636,9 +2639,9 @@ projects an `ExecutionError` onto a small `#[non_exhaustive] FailureKind`
 **INV-17 — A step handler's panic is returned, not thrown, whatever
 registration form produced it.** No panic raised by a step body unwinds out of
 `execute_step` or `execute_step_async`: it arrives at the caller as a returned
-`Err`, which the runner classifies `FailureKind::Panic`, carrying the registry's
-own pattern string and a `file:line` identity; and a `SkipRequest` payload
-raised by `skip!` is still read as a skip rather than as a panic.
+`Err`, which the runner classifies `FailureKind::Panic`, carrying the
+registry's own pattern string and a `file:line` identity; and a `SkipRequest`
+payload raised by `skip!` is still read as a skip rather than as a panic.
 
 - Rationale: this is Constraint 3 and ADR-018-TR2 stated as an obligation rather
   than as prose, and it is the obligation D11's boundary discharges. It is
@@ -2653,17 +2656,17 @@ raised by `skip!` is still read as a skip rather than as a panic.
   sees: each test runs the scenario inside `catch_unwind` and requires that
   guard to capture *nothing*, then asserts the returned status, the
   classification, and the diagnostic's own contents. "Does not unwind" is
-  therefore never asserted alone — a boundary that swallowed every payload would
-  satisfy it while turning a crashed step into a green suite. The async test
-  drives `execute_step_async` directly rather than `run_scenario_async`, which
-  is EP-M3's deliverable; the boundary it checks is the one a future async
-  driver reaches through, and D22 records why the boundary sits there and not in
-  a driver.
+  therefore never asserted alone — a boundary that swallowed every payload
+  would satisfy it while turning a crashed step into a green suite. The async
+  test drives `execute_step_async` directly rather than `run_scenario_async`,
+  which is EP-M3's deliverable; the boundary it checks is the one a future
+  async driver reaches through, and D22 records why the boundary sits there and
+  not in a driver.
 - Artefact: `crates/rstest-bdd/tests/runner_panics.rs`, with the raw
-  registration and the panic-hook harness in `runner_panics/mod.rs`. D21 applies
-  — the raw `step!` registration means the step must resolve, so the unit-test
-  binary cannot reach it. The payload mapping itself needs no registry, so it is
-  also asserted as a total function in
+  registration and the panic-hook harness in `runner_panics/mod.rs`. D21
+  applies — the raw `step!` registration means the step must resolve, so the
+  unit-test binary cannot reach it. The payload mapping itself needs no
+  registry, so it is also asserted as a total function in
   `crates/rstest-bdd/src/execution/tests/unwind.rs`, six cases covering the
   ordinary pass-through, a handler's own `Err`, both skip shapes, the step
   identity, and payloads `panic_message` cannot downcast to a string. That file
@@ -2683,20 +2686,20 @@ raised by `skip!` is still read as a skip rather than as a panic.
   wrapper's message still wins for the registration path that always worked).
 - Non-vacuity: established by negative control rather than asserted, and
   established separately for the two boundaries so that neither can be
-  satisfied by the other. Removing the synchronous boundary from
-  `execute_step` fails exactly the three synchronous tests and leaves both the
-  wrapped control and the async test green; removing the asynchronous boundary
-  from `execute_step_async` fails exactly the async test. In each case the
-  failures are readable assertion failures and the test process survives, which
-  is the control against the harness itself aborting — an earlier revision of
-  this file did, on the two tests whose hooks were restored during an unwind
-  (`std` aborts when `set_hook` is called from a panicking thread), and a
-  survival check is what distinguishes "the boundary works" from "the test died
-  before it could object". The skip-versus-panic discrimination is
-  independently controlled: the panicking handler is registered through a form
-  whose payload is a plain `&str`, and the second test asserts the outcome is
-  not a skip, which a boundary that mapped *every* payload to a skip would fail.
-  The unit-level cases carry a control of the same shape: the pass-through and
+  satisfied by the other. Removing the synchronous boundary from `execute_step`
+  fails exactly the three synchronous tests and leaves both the wrapped control
+  and the async test green; removing the asynchronous boundary from
+  `execute_step_async` fails exactly the async test. In each case the failures
+  are readable assertion failures and the test process survives, which is the
+  control against the harness itself aborting — an earlier revision of this
+  file did, on the two tests whose hooks were restored during an unwind (`std`
+  aborts when `set_hook` is called from a panicking thread), and a survival
+  check is what distinguishes "the boundary works" from "the test died before
+  it could object". The skip-versus-panic discrimination is independently
+  controlled: the panicking handler is registered through a form whose payload
+  is a plain `&str`, and the second test asserts the outcome is not a skip,
+  which a boundary that mapped *every* payload to a skip would fail. The
+  unit-level cases carry a control of the same shape: the pass-through and
   handler-`Err` tests fail against a `guarded` that returned a `PanicError`
   unconditionally, so the six assertions cannot all hold for a boundary that
   ignores what it was handed.
