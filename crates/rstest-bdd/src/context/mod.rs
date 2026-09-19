@@ -332,6 +332,24 @@ impl<'a> StepContext<'a> {
         )
     }
 
+    /// Drop every value a step returned, leaving the fixtures untouched.
+    ///
+    /// The counterpart to [`insert_value`](Self::insert_value), and named to
+    /// match it. Called by the parser-neutral runner at the end of a scenario,
+    /// so that returned values cannot leak from one run into the next.
+    ///
+    /// The contract is that it clears **all** override values, including any the
+    /// caller inserted before the run — not merely the ones the run inserted.
+    /// That is simpler than recording and restoring a prior set, and it is the
+    /// honest description: there is no way to tell a caller's value from a
+    /// step's once both are in the same map.
+    ///
+    /// `pub(crate)` rather than `pub`: the runner's scope destructor is the only
+    /// caller, and this crate's public surface is permanent.
+    pub(crate) fn clear_values(&mut self) {
+        self.values.clear();
+    }
+
     /// Borrow a fixture by name, reporting the failure reason on error.
     ///
     /// Step-returned override values take precedence over fixtures of the

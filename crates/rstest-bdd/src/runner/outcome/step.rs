@@ -77,10 +77,6 @@ impl From<crate::InsertOutcome> for ValueFate {
 /// construct records through `StepOutcome`'s constructors. See
 /// [`ScenarioSkip::new`](crate::runner::ScenarioSkip::new) for why the
 /// expectation is `not(test)`-scoped.
-#[cfg_attr(
-    not(test),
-    expect(dead_code, reason = "constructed by the EP-M2 engine")
-)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum StepRecord {
     /// The step ran and succeeded, optionally having returned a value.
@@ -129,10 +125,6 @@ impl StepOutcome {
     /// tested without a registry. See
     /// [`ScenarioSkip::new`](crate::runner::ScenarioSkip::new) for why the
     /// expectation is `not(test)`-scoped.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "constructed by the EP-M2 engine")
-    )]
     pub(crate) fn passed(
         index: usize,
         keyword: StepKeyword,
@@ -152,10 +144,6 @@ impl StepOutcome {
     /// Record an invocation that requested a skip.
     ///
     /// See [`passed`](Self::passed) for why the expectation is `not(test)`-scoped.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "constructed by the EP-M2 engine")
-    )]
     pub(crate) fn skipped(
         index: usize,
         keyword: StepKeyword,
@@ -175,10 +163,6 @@ impl StepOutcome {
     /// Record an invocation that failed.
     ///
     /// See [`passed`](Self::passed) for why the expectation is `not(test)`-scoped.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "constructed by the EP-M2 engine")
-    )]
     pub(crate) fn failed(
         index: usize,
         keyword: StepKeyword,
@@ -200,10 +184,6 @@ impl StepOutcome {
     /// Record an invocation that never ran.
     ///
     /// See [`passed`](Self::passed) for why the expectation is `not(test)`-scoped.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "constructed by the EP-M2 engine")
-    )]
     pub(crate) fn bypassed(
         index: usize,
         keyword: StepKeyword,
