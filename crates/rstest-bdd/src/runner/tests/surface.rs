@@ -304,10 +304,7 @@ fn every_leak_shape_is_flagged() {
 
     // The bare-import shape, which a path-prefixed token list misses. These
     // carry no `::` at all, so a `"reporting::"` entry would let both through.
-    for alias in [
-        "use crate::reporting as rep;",
-        "use crate::reporting;",
-    ] {
+    for alias in ["use crate::reporting as rep;", "use crate::reporting;"] {
         assert!(
             !leaks_in(alias).is_empty(),
             "a bare import of a forbidden module must be flagged:\n{alias}",

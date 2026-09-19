@@ -791,9 +791,18 @@ between them. Raise that before spending the tolerance.
     true one.
   - **Accepted and fixed.** `SourceLocation::new_static` and `::new` asserted
     `line >= 1` but never checked `column`, though the field is documented
-    "One-based column". Both now reject `Some(0)`. The first attempt used
-    `Option::is_none_or`, which is not const-stable, so `new_static` failed to
-    compile with `E0658`; a `match` is used instead and a comment records why.
+    "One-based column". Both now reject `Some(0)`. The guard took three
+    attempts, and the two rejected ones are worth recording because each looked
+    correct in isolation. `Option::is_none_or` is not const-stable on this
+    toolchain, so the `const fn new_static` failed to compile (`E0658`). A
+    `match` compiles, but `option_if_let_else` — denied at workspace level —
+    rejects it and suggests `Option::map_or`, which is *also* non-const and
+    fails the same way. `!matches!(column, Some(0))` is const-stable, satisfies
+    the lint, and says the rejection directly instead of asserting a negated
+    predicate over a mapped value; a comment records the constraint. The
+    general lesson is that a `const fn` on this toolchain cannot use the
+    `Option` combinators clippy prefers, so the lint and the language disagree
+    and only the `matches!` form satisfies both.
   - **Accepted and fixed.** `normalize_param_name` strips at most one leading
     underscore and `#[from(name)]` bypasses normalization; the `Fixture`
     glossary entry said neither. Both are now recorded, with the file path.
@@ -825,6 +834,46 @@ between them. Raise that before spending the tolerance.
     `make test`, and rustfmt. The review's value was in the class of defect
     those gates cannot see: a test whose guard does not test what its comment
     claims, and documentation that contradicts the code it documents.
+
+### The two Markdown formatters do not agree, and only one of them is checked
+
+`make check-fmt` gained a `mdtablefix --check` leg in PR #781, which landed on
+`main` while this branch was open. `mdtablefix --wrap` reflows prose to 80
+columns, and it *joined* the two lines of the INV-1 domain enumeration into one
+line of 107 characters, because the whole enumeration sat inside a single
+inline-code span: `--wrap` will not break inside backticks, and the joined
+result is the shortest form it can produce.
+
+`markdownlint` then failed that line. `.markdownlint-cli2.jsonc` exempts code
+blocks (`code_block_line_length: 120`) and tables from MD013, so this was the
+only prose line in the document above 80 characters — the file has 52 lines
+over 80, and every other one is a table row or a fenced-code line. The two
+tools therefore agree on every line except the one where `mdtablefix` has no
+choice, and on that line they contradict each other outright:
+`mdtablefix --check` exits 0 because the line is already the joined form, while
+`markdownlint` reports `MD013/line-length [Expected: 80; Actual: 107]`.
+
+The fix is to give `mdtablefix` something it is willing to wrap, and the
+constraint is that the fix must survive a future `mdtablefix --in-place` run —
+otherwise the next `make fmt` reintroduces the violation. Splitting the single
+long span into eight short separate spans does that: each piece is short, so
+`mdtablefix` accepts the three resulting lines as already wrapped and exits 0,
+and each line is under 80 characters, so MD013 is satisfied. The obvious
+alternative — one inline-code span spanning several lines — is *not* stable,
+because `--wrap` joins it back into the single 107-character line. The document
+now uses the split-span form:
+
+```plaintext
+- Domain: sequences of length 0 to 8, each invocation drawn from `Pass`,
+  `ReturnValue`, `ReturnUnmatchedValue`, `Skip`, `HandlerError`,
+  `UnregisteredStep`, `MissingFixture`, or `Panic`.
+```
+
+The rule this leaves for the rest of the plan is narrow but worth stating,
+because EP-M5 adds several documents with long type enumerations in prose:
+whenever an inline-code span would push a prose line past 80 columns, break the
+span into separate short spans rather than relying on `mdtablefix` to wrap it.
+`mdtablefix` cannot do it, and `markdownlint` will not accept the result.
 
 ## Decision log
 
@@ -1332,8 +1381,9 @@ are stated over data rather than over control flow.
 is executed.
 
 - Method: property test over bounded generated step sequences.
-- Domain: sequences of length 0 to 8, each invocation drawn from
-  `{Pass, ReturnValue, ReturnUnmatchedValue, Skip, HandlerError, UnregisteredStep, MissingFixture, Panic}`.
+- Domain: sequences of length 0 to 8, each invocation drawn from `Pass`,
+  `ReturnValue`, `ReturnUnmatchedValue`, `Skip`, `HandlerError`,
+  `UnregisteredStep`, `MissingFixture`, or `Panic`.
 - Artefact: `crates/rstest-bdd/tests/runner_sequence_props.rs`.
 - Evidence:
   `cargo nextest run -p rstest-bdd -E 'binary(runner_sequence_props)'`. The
