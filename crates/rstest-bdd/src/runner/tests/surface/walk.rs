@@ -208,3 +208,85 @@ fn an_upper_case_extension_is_still_source() {
         "a file with no extension is not source",
     );
 }
+
+/// The walk actually reaches the tree the scan claims to police.
+///
+/// Split out of the parent module along with the walk it describes: the
+/// assertion is about what [`scan_root`] returned, not about which words are
+/// forbidden, so it belongs beside the walk rather than beside the token list.
+///
+/// Without this, a `collect` that silently returned nothing (a moved directory,
+/// a changed extension) would make `no_frontend_types_in_public_api` pass while
+/// checking nothing at all.
+///
+/// The expectations are whole relative paths, not bare file names. A name-only
+/// expectation cannot tell a descent into `outcome/` from an unrelated
+/// `outcome.rs` sitting at the top level: an earlier draft of this guard matched
+/// `"outcome"` against each file name, and the literal was satisfied by
+/// `tests/outcome.rs` — a file the guard was not asking about — so it proved
+/// nothing about the directory it named. Whole paths leave no such slack. A
+/// [`child_path`] that dropped its prefix, collapsing every key to a bare file
+/// name, is caught here and slips past the name-only form.
+///
+/// The list went stale twice, and that is worth stating because each staleness
+/// was invisible. It first named the files of EP-M1 and was not extended when
+/// EP-M2 added `scope.rs` and the whole `engine/` subtree. It then named
+/// `engine/drive_sync.rs` but not `engine/drive.rs` or `engine/drive_async.rs`,
+/// which landed later, so it claimed a subtree it was only partly watching —
+/// the one direction in which a completeness guard fails quietly.
+///
+/// Extending it again does not fix the recurrence, which is the list's real
+/// defect: a hand-kept inventory of a growing tree drifts by construction. What
+/// the entries are load-bearing *for* is this module's own correctness — the
+/// prefixing `child_path` does, and the descent into each subdirectory — and
+/// that is what the list is kept for. Per-module coverage within a proven
+/// directory is claimed too, so the two driver entries are that claim being made
+/// true again rather than a new proof about the walk.
+///
+/// `engine/policy_tests/` is named by its `mod.rs` for the reason above: one
+/// entry that proves the *descent*, not one entry per test file.
+#[test]
+fn the_scan_finds_the_runner_tree() {
+    let Scanned {
+        sources,
+        unreadable,
+    } = super::runner_sources();
+    assert!(
+        unreadable.is_empty(),
+        "the completeness guard must read the whole tree; unreadable:\n{}",
+        unreadable.join("\n"),
+    );
+    let paths = sources
+        .iter()
+        .map(|(path, _)| path.as_str())
+        .collect::<Vec<_>>();
+
+    for expected in [
+        "mod.rs",
+        "engine/drive.rs",
+        "engine/drive_async.rs",
+        "engine/drive_sync.rs",
+        "engine/mod.rs",
+        "engine/policy.rs",
+        "engine/policy_tests/mod.rs",
+        "outcome/failure.rs",
+        "outcome/mod.rs",
+        "outcome/step.rs",
+        "plan.rs",
+        "plan/builder.rs",
+        "scope.rs",
+        "source.rs",
+        // The INV-7 module is a directory: `source/mod.rs` proves the descent,
+        // by the same reasoning as `engine/policy_tests/mod.rs` above.
+        "tests/source/mod.rs",
+        // This file and the parent are the scan's own two files, but only the
+        // parent carries the token list, so only the parent is exempt from
+        // being scanned. This one is scanned like any other.
+        "tests/surface/walk.rs",
+    ] {
+        assert!(
+            paths.contains(&expected),
+            "expected the scan to reach {expected}; found {paths:?}",
+        );
+    }
+}
