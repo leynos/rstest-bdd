@@ -66,7 +66,8 @@ pub use source::{SourceLocation, SourcePath};
 ///
 /// ```
 /// use rstest_bdd::{
-///     StepContext, StepKeyword,
+///     StepContext,
+///     StepKeyword,
 ///     runner::{ScenarioPlanBuilder, ScenarioScope, ScenarioStatus, run_scenario},
 /// };
 ///
@@ -80,7 +81,10 @@ pub use source::{SourceLocation, SourcePath};
 /// // first invocation rather than unwinding.
 /// assert_eq!(outcome.status(), ScenarioStatus::Failed);
 /// ```
-pub fn run_scenario<H>(plan: &ScenarioPlan, mut scope: ScenarioScope<'_, '_, H>) -> ScenarioOutcome {
+pub fn run_scenario<H>(
+    plan: &ScenarioPlan,
+    mut scope: ScenarioScope<'_, '_, H>,
+) -> ScenarioOutcome {
     let (fail_on_skipped, ctx) = scope.split();
     engine::drive_sync::drive(plan, ctx, fail_on_skipped)
 }

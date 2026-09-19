@@ -12,7 +12,11 @@
 //! future change from smuggling I/O into the layer the drivers both trust.
 
 use crate::runner::{
-    ScenarioFailure, ScenarioOutcome, ScenarioSkip, ScenarioStatus, ValueFate,
+    ScenarioFailure,
+    ScenarioOutcome,
+    ScenarioSkip,
+    ScenarioStatus,
+    ValueFate,
     outcome::StepOutcome,
     source::SourceLocation,
 };
@@ -134,10 +138,12 @@ impl SkipPolicy {
     }
 
     /// Whether a skip under this policy must fail the suite.
+    ///
+    /// Takes `self` by value: the type is two `bool`s, and a reference would
+    /// add an indirection for no gain. `SkipPolicy` is `Copy`, so callers are
+    /// unaffected.
     #[must_use]
-    pub(crate) const fn forces_failure(&self) -> bool {
-        !self.allow_skipped && self.fail_on_skipped
-    }
+    pub(crate) const fn forces_failure(self) -> bool { !self.allow_skipped && self.fail_on_skipped }
 }
 
 /// Classify one step's error.
@@ -164,11 +170,14 @@ pub(crate) fn classify(error: Option<crate::ExecutionError>) -> StepDecision {
 /// Reports [`ScenarioStatus::Passed`] for an empty plan, because running
 /// nothing is not itself an error. The fold is deliberately stricter and
 /// rejects it; that rule is not applied here.
-#[must_use]
+///
+/// The `#[must_use]` is deliberately absent: `ScenarioOutcome` already carries
+/// it on the type, which is D13's whole point, so repeating it here would only
+/// trigger `clippy::double_must_use`.
 pub(crate) fn assemble(
     details: Vec<StepOutcome>,
     terminal: Option<Terminal>,
-    policy: &SkipPolicy,
+    policy: SkipPolicy,
 ) -> ScenarioOutcome {
     match terminal {
         None => ScenarioOutcome::new(ScenarioStatus::Passed, details, None, None),
