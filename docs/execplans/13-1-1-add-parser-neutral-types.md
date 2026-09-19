@@ -953,16 +953,45 @@ between them. Raise that before spending the tolerance.
     `docs/rstest-bdd-design.md`, `docs/users-guide.md`,
     `docs/testing-strategy.md`, `docs/roadmap.md`) — commit `370dcd8f`, plus
     the roadmap's 13.1.1/13.2.1/13.3.1 entries.
-  - [x] The three CodeRabbit rounds adjudicated and cleared.
+  - [x] The four CodeRabbit rounds adjudicated and cleared.
   - [x] The INV-7 `Display` snapshots written and accepted
     (`source/rendering.rs`, one snapshot across all six outcome variants).
   - [x] The INV-7 test module split at the data/presentation seam
     (`source/mod.rs`, `source/rendering.rs`, `source/support.rs`), after the
     single file breached the 400-line cap at 520.
-  - [ ] The `--no-default-features -p rstest-bdd` leg added to `make test` and
-    to CI, per D4.
-  - [ ] The `Scope` figure re-measured at close and compared against D27's
-    breached figures.
+  - [x] A fourth CodeRabbit round, requested after the gates came back green, at
+    revision `129d18da`. It returned 13 findings across 10 distinct locations
+    (1 major, 9 minor, 3 trivial), six accepted, two declined with cited
+    evidence, two partly valid, and zero verbatim recurrences from round 3.
+    D30 records all of them individually. It was run against a revision three
+    commits behind the branch head, so every finding was re-derived against
+    `81b19980` before being actioned; two of the ten turned out to rest on
+    false premises and one (location 8) exposed a false rationale in D13
+    itself.
+  - [x] The `--no-default-features -p rstest-bdd` leg added to `make test`.
+    The first attempt (`81b19980`) was **vacuous** — it reused
+    `$(CARGO_FLAGS)`, whose `--all-features` cancels `--no-default-features` —
+    and correcting it exposed a `dead_code` build failure under `-D warnings`
+    in `registry/mod.rs`. Both are fixed; the leg now builds `rstest-bdd` with
+    no features, runs its 716 tests including every runner suite, and passes.
+    See the Surprises entry and D4's second amendment.
+  - [x] The CI half of D4, **closed by removing the residue rather than by
+    accepting it**. The residue was that nothing in CI would catch the Makefile
+    line being dropped or, worse, quietly emptied of meaning. Both are now
+    caught: `scripts/tests/test_d4_feature_off_leg_contract.py` asserts that the
+    leg exists exactly once, selects `-p rstest-bdd`, and carries neither
+    `$(CARGO_FLAGS)` nor `--all-features` on the line. It is collected by
+    `make test`, which is the target CI's coverage action invokes, so the
+    discharge is genuinely through CI and no new workflow step is needed —
+    which keeps `runner_placement_test.py` and `cache_step_support.py` intact.
+    The test was proved non-vacuous before being kept: reintroducing the old
+    `$(CARGO_FLAGS)` form made it fail, and restoring the file made it pass.
+  - [x] The `Scope` figure re-measured at close and compared against D27's
+    breached figures: **71 files and 18,325 net added lines**, against D27's
+    58 and 15,737 and the 36-file / 4,500-line tolerance. Escalated as D31
+    rather than recorded as a footnote, because EP-M5 added 13 files and 2,588
+    net lines to an already-breached number. The box is ticked because the
+    measurement was taken and recorded; the *escalation* it raises is open.
   - [ ] The `cargo-mutants` runner-tree sweep run and its survivor list read.
   - [ ] The `## Outcomes & retrospective` section completed, reconciling every
     discovery with `Conformance basis`.
@@ -1570,10 +1599,10 @@ between them. Raise that before spending the tolerance.
   and INV-7 mandates an `insta` snapshot of the `Display` projection in
   `runner/tests/source/rendering.rs`, a file inside the scanned tree.
   `assert_snapshot!` contains the substring `snapshot`, so finding 1 would make
-  INV-7's own required artefact fail INV-11's check. Two further findings rested
-  on evidence that does not exist: finding 4 cited a token list at doc lines
-  1597-1598, which are INV-7's artefact text, and the premise it asked to fix
-  had already been fixed at line 848; finding 9 cited `clap::Args`, which
+  INV-7's own required artefact fail INV-11's check. Two further findings
+  rested on evidence that does not exist: finding 4 cited a token list at doc
+  lines 1597-1598, which are INV-7's artefact text, and the premise it asked to
+  fix had already been fixed at line 848; finding 9 cited `clap::Args`, which
   appears nowhere in the tree (`clap` is not a dependency of `rstest-bdd` at
   all) and `std::process::ExitStatus`, which appears once repo-wide in
   `crates/rstest-bdd-harness/src/nested_cargo.rs` — a crate the scan does not
@@ -1816,31 +1845,32 @@ span into separate short spans rather than relying on `mdtablefix` to wrap it.
 ### The INV-7 tests split at the data/presentation seam, and the INV-11 scan then policed the split
 
 - **Observation:** the INV-7 test file reached 520 lines and had to split. The
-  seam was already in the invariant: INV-7's first two clauses are *data* claims
-  about what an outcome carries, and its third is a claim about not reading a
-  value back out of the error, which is only observable at the *presentation*
-  surface. So `source/mod.rs` holds the data tests, `source/rendering.rs` holds
-  the `Display` snapshot and the divergence test, and `source/support.rs` holds
-  the fixtures both need — the shared decoy in particular, because the two halves
-  have to agree on what "the error's own path" means for the divergence test to
-  mean anything.
+  seam was already in the invariant: INV-7's first two clauses are *data*
+  claims about what an outcome carries, and its third is a claim about not
+  reading a value back out of the error, which is only observable at the
+  *presentation* surface. So `source/mod.rs` holds the data tests,
+  `source/rendering.rs` holds the `Display` snapshot and the divergence test,
+  and `source/support.rs` holds the fixtures both need — the shared decoy in
+  particular, because the two halves have to agree on what "the error's own
+  path" means for the divergence test to mean anything.
 - **Impact:** the split had a second consequence nobody planned for. The INV-11
   token scan (`runner/tests/surface.rs`) reads the whole `src/runner` tree
   including `tests/`, and it rejects a frontend token on any line that is not a
-  comment — *including inside a string literal and inside an identifier*. So the
-  new fixtures naming `MARKDOWN_PATH` failed the scan, correctly: the runner's
-  own test tree was spelling a frontend four times over. Renaming to `SPEC_PATH`
-  and `PROSE_PATH` keeps the paths (`spec/cases.toml`, `notes/example.md`) that
-  are the fixtures' whole point and moves the reasoning into prose, which is
-  where the scan permits it. Two further findings were string-literal *messages*
-  containing the word — moved into doc comments. **The general lesson:** in this
-  tree a frontend's name is forbidden in code and permitted in prose, so an
-  explanation that belongs in a panic message belongs in the doc comment
-  instead. That is a real constraint on how a failing assertion is worded, and
-  it is worth knowing before writing a message rather than after the scan fails.
+  comment — *including inside a string literal and inside an identifier*. So
+  the new fixtures naming `MARKDOWN_PATH` failed the scan, correctly: the
+  runner's own test tree was spelling a frontend four times over. Renaming to
+  `SPEC_PATH` and `PROSE_PATH` keeps the paths (`spec/cases.toml`,
+  `notes/example.md`) that are the fixtures' whole point and moves the
+  reasoning into prose, which is where the scan permits it. Two further
+  findings were string-literal *messages* containing the word — moved into doc
+  comments. **The general lesson:** in this tree a frontend's name is forbidden
+  in code and permitted in prose, so an explanation that belongs in a panic
+  message belongs in the doc comment instead. That is a real constraint on how
+  a failing assertion is worded, and it is worth knowing before writing a
+  message rather than after the scan fails.
 - **A near-miss worth recording.** The first check after the rename used
-  `grep ... ; echo clean`, which printed `clean` because `grep` had errored on a
-  stale working directory rather than because the tokens were gone. The same
+  `grep ... ; echo clean`, which printed `clean` because `grep` had errored on
+  a stale working directory rather than because the tokens were gone. The same
   shell had `cd`-ed earlier and the directory no longer existed. The gate that
   actually decides this is `no_frontend_types_in_public_api`, and it passed on
   its own terms; the grep was a convenience that lied. Checking a rename with a
@@ -2003,74 +2033,222 @@ span into separate short spans rather than relying on `mdtablefix` to wrap it.
 
 - **Observation:** INV-7 has three clauses and the implementation satisfies two
   of them *and appears to satisfy the third*. The clause is "no source is read
-  back out of `ExecutionError`". Every accessor honours it: `StepOutcome::source`
-  returns the plan's `SourceLocation`, `ScenarioOutcome::terminal_source` looks
-  the terminal invocation up in the step list, and the fidelity tests prove both
-  against a decoy that makes the two disagree. But `ScenarioOutcome`'s `Display`
-  renders a failure through `ExecutionError`'s message, and that message embeds
-  `ExecutionError::feature_path` — a `String` the plan's path was flattened into
-  when the runner built the error. So a caller that prints `{outcome}` rather
-  than walking `steps()` reads the path back out of the error, which is the
-  shortcut the clause forbids. The two agree only because the runner populates
-  `feature_path` from the plan, which makes the divergence invisible in
-  production and visible only under the decoy.
-  **Impact:** the delivery is correct for the accessor surface INV-7 names, and
-  the `Display` gap is real but bounded: it is a rendering path, not a data
-  path, and no frontend that walks `steps()` can be misled by it. The plan
-  therefore does *not* change the verdict on INV-7, but it does record that
-  "the accessors are faithful" and "nothing reads the error's copy" are separate
-  claims, and the second is false. `rendering.rs` now pins the disagreement with
-  a test rather than freezing the coincidence, so the day someone renders from
-  `terminal_source()` the test tells them they have fixed it. Fixing it changes
-  a user-visible string, which is why it is recorded rather than done drive-by.
-  The general lesson, and the reason this was found at all, is that writing the
-  INV-7 snapshot forced the question "what is this test's expected value derived
-  from?" — an honest production-shaped path or the decoy. Using the decoy in the
-  snapshot would have frozen a value production never emits; using an honest one
-  silently would have hidden the divergence. Naming the difference in a second
-  test was the only option that kept both facts. A snapshot is a good place to
-  find this class of defect because it is the one test where the author must
-  decide what the *real* input is.
+  back out of `ExecutionError`". Every accessor honours it:
+  `StepOutcome::source` returns the plan's `SourceLocation`,
+  `ScenarioOutcome::terminal_source` looks the terminal invocation up in the
+  step list, and the fidelity tests prove both against a decoy that makes the
+  two disagree. But `ScenarioOutcome`'s `Display` renders a failure through
+  `ExecutionError`'s message, and that message embeds
+  `ExecutionError::feature_path` — a `String` the plan's path was flattened
+  into when the runner built the error. So a caller that prints `{outcome}`
+  rather than walking `steps()` reads the path back out of the error, which is
+  the shortcut the clause forbids. The two agree only because the runner
+  populates `feature_path` from the plan, which makes the divergence invisible
+  in production and visible only under the decoy. **Impact:** the delivery is
+  correct for the accessor surface INV-7 names, and the `Display` gap is real
+  but bounded: it is a rendering path, not a data path, and no frontend that
+  walks `steps()` can be misled by it. The plan therefore does *not* change the
+  verdict on INV-7, but it does record that "the accessors are faithful" and
+  "nothing reads the error's copy" are separate claims, and the second is false.
+  `rendering.rs` now pins the disagreement with a test rather than freezing
+  the coincidence, so the day someone renders from `terminal_source()` the test
+  tells them they have fixed it. Fixing it changes a user-visible string, which
+  is why it is recorded rather than done drive-by. The general lesson, and the
+  reason this was found at all, is that writing the INV-7 snapshot forced the
+  question "what is this test's expected value derived from?" — an honest
+  production-shaped path or the decoy. Using the decoy in the snapshot would
+  have frozen a value production never emits; using an honest one silently
+  would have hidden the divergence. Naming the difference in a second test was
+  the only option that kept both facts. A snapshot is a good place to find this
+  class of defect because it is the one test where the author must decide what
+  the *real* input is.
 
 - **Observation:** a non-vacuity witness that no crafted case can satisfy is not
-  a witness; it is a coin flip, and the coin flip reads as an environment fault.
-  Evidence: `make test` failed on
-  `invariants::a_returned_value_is_visible_only_after_its_producer` with "no case
-  placed an observer before the first producer", and five isolated re-runs gave
-  two passes and three failures. The witness is INV-3's negative clause — an
-  observer that does *not* see a value whose producer has not run — and it
+  a witness; it is a coin flip, and the coin flip reads as an environment
+  fault. Evidence: `make test` failed on
+  `invariants::a_returned_value_is_visible_only_after_its_producer` with "no
+  case placed an observer before the first producer", and five isolated re-runs
+  gave two passes and three failures. The witness is INV-3's negative clause —
+  an observer that does *not* see a value whose producer has not run — and it
   requires a producer at a **higher** index than the observer
   (`producer > reading.observer` in `Witnesses::record`). Every crafted shape in
   `sequence/generator.rs`'s `VEC_OF_KINDS` emitted its observer *after* its
   producers, because `build` did so unconditionally, so the crafted half could
-  never set the flag. The whole witness therefore rested on the uniform backdrop
-  drawing an observer below a producer that later executed and inserted — about
-  one case in fifty, which over the pinned budget of 256 cases is a failure on
-  roughly two runs in five. Impact: the assertion was satisfiable only by luck,
-  and its failure message ("this assertion is the evidence it was tried")
-  actively misdirected, since the evidence it wanted was the one thing the
-  catalogue could not supply. (The witness was introduced by the round-3
-  CodeRabbit fix `07d066a1`, which narrowed the producer filter to
-  `returns_a_matchable_value` and added the `OneProbe` gate; that narrowing was
-  correct — see `Kind::returns_a_matchable_value` — but it converted a witness
-  that had previously been satisfied by accident into one that was satisfied
-  almost never, and nothing noticed because the two are indistinguishable from a
-  single green run.) Fix, in two parts: `Shape` gained an `observer_before`
-  field and rows four and five now place an observer on *each* side of the
-  producers, so both halves of INV-3 are reachable from one plan; and
-  `sequence::crafted` exposes the catalogue's plans so a new control,
-  `controls::the_crafted_catalogue_alone_witnesses_the_visibility_clause`, drives
-  the crafted half *alone* and asserts the same witness. The second part is the
-  durable one: because the property folds its witnesses across both halves of
-  the strategy, a catalogue that stops supplying a witness is *masked* by the
-  backdrop happening to draw one, and the folded assertion keeps passing on
-  evidence the catalogue no longer provides. That masking is exactly how this
-  went unnoticed for two commits. The control was verified to bite by
-  neutralising both `observer_before` fields and confirming it fails
+  never set the flag. The whole witness therefore rested on the uniform
+  backdrop drawing an observer below a producer that later executed and
+  inserted — about one case in fifty, which over the pinned budget of 256 cases
+  is a failure on roughly two runs in five. Impact: the assertion was
+  satisfiable only by luck, and its failure message ("this assertion is the
+  evidence it was tried") actively misdirected, since the evidence it wanted
+  was the one thing the catalogue could not supply. (The witness was introduced
+  by the round-3 CodeRabbit fix `07d066a1`, which narrowed the producer filter
+  to `returns_a_matchable_value` and added the `OneProbe` gate; that narrowing
+  was correct — see `Kind::returns_a_matchable_value` — but it converted a
+  witness that had previously been satisfied by accident into one that was
+  satisfied almost never, and nothing noticed because the two are
+  indistinguishable from a single green run.) Fix, in two parts: `Shape` gained
+  an `observer_before` field and rows four and five now place an observer on
+  *each* side of the producers, so both halves of INV-3 are reachable from one
+  plan; and `sequence::crafted` exposes the catalogue's plans so a new control,
+  `controls::the_crafted_catalogue_alone_witnesses_the_visibility_clause`,
+  drives the crafted half *alone* and asserts the same witness. The second part
+  is the durable one: because the property folds its witnesses across both
+  halves of the strategy, a catalogue that stops supplying a witness is
+  *masked* by the backdrop happening to draw one, and the folded assertion
+  keeps passing on evidence the catalogue no longer provides. That masking is
+  exactly how this went unnoticed for two commits. The control was verified to
+  bite by neutralizing both `observer_before` fields and confirming it fails
   deterministically with the intended message, rather than merely passing. The
-  general lesson: a non-vacuity witness whose satisfaction is probabilistic must
-  be checked by construction, and any witness folded across a stochastic half
-  needs a control that excludes that half.
+  general lesson: a non-vacuity witness whose satisfaction is probabilistic
+  must be checked by construction, and any witness folded across a stochastic
+  half needs a control that excludes that half.
+
+### The `cargo-mutants` control could not fail, so it was not a control
+
+- **Observation:** the plan's named mutation control over
+  `runner/engine/drive_async.rs` reported `3 mutants tested in 6m: 3 unviable`
+  and exit code 0. "Unviable" means the mutant did not compile, so no test ever
+  ran against a mutated tree: the control could not fail, which is the
+  definition of vacuous, and it reported a count that reads like coverage.
+  Every mutant in that file is `replace <fn> -> T with Default::default()`, and
+  `ScenarioOutcome`, `StepOutcome`, and `Terminal` all deliberately omit
+  `Default` because their constructors enforce plan-order and non-empty
+  invariants. So the type system rejects the only mutations cargo-mutants
+  generates for it, and the file offers no mutation coverage at all.
+- **Evidence:** `mutants.out/log/*.log` from the run, each ending
+  `error[E0277]: the trait bound StepOutcome: Default is not satisfied` (or the
+  same for `ScenarioOutcome`, or `Terminal`), followed by `could not compile`
+  and `outcome=Unviable`. Confirmed structurally at close: of the runner tree's
+  152 mutants, **62 are whole-function `Default::default()` replacements**, and
+  every one of them is unviable for the same reason. That is 41% of the sweep
+  reporting no signal by construction.
+- **And the instrument was the wrong one anyway.** Implementing `Default` for
+  three types to tidy an external tool's output would be backwards — the
+  constructors exist to make the invariants unbypassable — and `drive_async`'s
+  `drive` and `execute` are thin by construction (D6, D23), so whole-function
+  replacement is the least informative mutation you could ask of them. The
+  re-scoped obligation, the whole runner tree, is the honest instrument and its
+  survivor list is read at EP-M5; the sweep's own result is recorded in the
+  `Outcomes & retrospective` section rather than here.
+- **A second way the control misled, found by measurement rather than
+  reasoning.** I read `mutants.out/debug.log`, saw
+  `build_dir="…/worktrees/b2d2d7aa-…"` on three log lines, and concluded that
+  cargo-mutants mutates the live worktree — then reasoned from that conclusion
+  that it must never overlap a gate run. The conclusion was wrong. `--in-place`
+  is documented as "test mutations in the source tree, rather than in a copy",
+  so copying is the default; the `build_dir` lines were cargo-mutants
+  *reverting* the three mutants it had created and tested in its own
+  `/tmp/cargo-mutants-*.tmp` scratch copy, and `--baseline=skip` alone produced
+  4 caught and 1 unviable rather than the 0-viable signature of a scratch-build
+  problem. A canary then settled it: the real `runner/scope.rs` hashed
+  identically before, during (polled at 400 ms), and after a live run. The
+  lesson is that three matching log lines are a sample, not a property, and the
+  cheap disproof was to look at what the tool says its own flags mean.
+  Date/Author: 2026-09-19, implementation agent.
+
+### `let _ = f();` does not fire `#[must_use]`, and the plan's guard rested on the belief that it did
+
+- **Observation:** the plan's validation step 3 said to add `let _ = outcome;`
+  and watch the `#[must_use]` warning fire, and D13 justified putting the
+  attribute on the *type* rather than the function by claiming that only the
+  type-level placement reaches `let _ = run_scenario_async(..).await;`. Both
+  are false. `let _ = f();` is a *binding* — to the wildcard pattern — so the
+  lint is suppressed for a `#[must_use]` type and for a `#[must_use]` function
+  alike, and a function-level attribute covers the `.await` form perfectly well.
+- **Evidence:** two throwaway crates under `/tmp` built with `rustc 1.98.1`.
+  The first declared a `#[must_use]` struct and a `#[must_use]` function and
+  called each twice, once as a bare statement and once bound to `_`. Under
+  `-D warnings` the bare forms produced two warnings each and the bound forms
+  compiled clean at exit 0. The second put both behind an `async fn` and
+  `.await`-ed the bound form: no warning. Run rather than reasoned about,
+  because the claim is exactly the kind that reasoning gets wrong — `let _` and
+  `let _x` look like the same construct and only one of them is a discard.
+- **Impact:** D13's rationale is corrected in place, and validation step 3 now
+  specifies the bare `outcome;` statement with an explicit warning not to use
+  the binding form. What survives is the attribute itself, for a narrower
+  reason: the no-binding form is the one case the type-level placement reaches
+  through an `.await`, and it is a real case — `run_scenario_async(..).await;`
+  as a statement is the shape a caller writes when they meant to inspect the
+  outcome and then forgot to bind it. So the guard is against *inadvertence*,
+  which is what `#[must_use]` has always meant, and never against a caller who
+  has decided to discard. This is the third instance on this branch of the same
+  class named above — a claim in the plan that no artefact discharged — and the
+  first one caught by a review rather than by writing the artefact. The
+  correction is that the artefact here *was* written; it was written by hand
+  into a rustc probe rather than into the repository, because a `#[must_use]`
+  warning is not something the test suite can observe. A claim of the form "the
+  compiler will tell you X" is cheap to check and was, for four review rounds,
+  unchecked.
+
+### CI cannot run a workspace suite at all, by contract, so D4's "and to CI" had nowhere to land
+
+- **Observation:** D4 requires the `--no-default-features` leg in "`make test`
+  and CI". The Makefile half is a one-line addition. The CI half is not
+  possible as written: `.github/workflows/ci.yml` has a single `build-test` job
+  and **never** invokes `make test` or any `cargo nextest`/`cargo test`
+  command. Every workspace-suite execution is routed through the
+  `leynos/shared-actions` `generate-coverage` action. This is enforced, not
+  conventional: `tests/workflow_contracts/cache_step_support.py` defines
+  `WORKSPACE_TEST_COMMANDS = ("cargo test", "cargo nextest", "make test")` and
+  `runs_workspace_tests(step)` matches them against the stripped prefix of each
+  workflow line, and `runner_placement_test.py` asserts that no step trips it.
+- **Evidence:** the detector's two negative controls in
+  `runner_placement_test.py` (at `:100`/`:109-113` and `:116`/`:148-153`) and
+  the action's own file list, which is what CI actually executes. A bare
+  `cargo nextest` step added to the workflow fails those tests, and CI runs
+  them on every PR.
+- **Impact:** a plan that says "add a leg to CI" can be undeliverable without
+  anybody noticing, because the instruction names an outcome ("CI runs it") and
+  the repository has deliberately arranged that no step *can*. The two honest
+  routes — edit the shared action, or relax the detector — both spend something
+  the repository values more than the leg. D4 is amended to discharge through
+  `make test`, with the residue recorded rather than hidden: nothing in CI
+  would catch the Makefile line being dropped. The general lesson is that a
+  deliverability check on a plan instruction is not the same as a correctness
+  check on it, and this one passed every reading of D4 until someone tried to
+  write the change. Note also that the detector matches *stripped line
+  prefixes*, so the ban is on workspace-suite commands appearing in a workflow
+  file, not on the Makefile containing them — Makefile edits are safe, which is
+  why the first half of D4 was never at risk.
+
+### A green gate leg that ran the wrong tests, and the build failure hiding behind it
+
+- **Observation:** the D4 gate leg in `make test` was green, took 81 seconds,
+  and tested nothing the leg above it had not. It read
+  `cargo nextest run $(CARGO_FLAGS) $(BUILD_JOBS) -p rstest-bdd
+  --no-default-features`,
+  where `$(CARGO_FLAGS)` is `--workspace --all-targets --all-features`. A later
+  `--all-features` wins over `--no-default-features`, so `default` — and with
+  it `diagnostics` — was re-enabled, the `-p rstest-bdd` selection was lost to
+  `--workspace`, and the leg selected **exactly** the 2055 tests the previous
+  leg had just run. The feature configuration D4 exists to exercise was never
+  built.
+- **Evidence:** a pair of `cargo tree -f '{p} {f}'` runs. With the flags as
+  written, `rstest-bdd` resolves to
+  `default,diagnostics,mutable_world_macro,serde,serde_json,test-support`; with
+  `-p rstest-bdd --no-default-features` alone it resolves to no features at
+  all. The test counts match the reading: 2055 under the leg as written, 716
+  under the corrected one, with the runner suites (`completeness`,
+  `parser_neutral_runner`, `runner_wire`, `runner_instrumentation`,
+  `runner_sequence_props`) all present in the 716.
+- **Impact, and the second defect behind the first.** Removing the flag
+  conflict revealed that the crate *did not build* in that configuration:
+  `-D warnings` turns a `dead_code` diagnostic on `registry::step_by_key` into
+  an error, because its only caller is the `diagnostics`-gated
+  `registry::diagnostics` module. That has been true since `d209ec52` on
+  `origin/main`, and no gate had ever built the crate that way — which is
+  precisely the hole D4 was written to close, and which D4's own leg had been
+  silently not closing. Fixed with `#[cfg(feature = "diagnostics")]`; see D4's
+  second amendment for why a two-line change outside Constraint 1's boundary is
+  the right call here rather than an escalation. The general lesson is narrower
+  than "run your gates": it is that **a feature-flag leg is not verified by its
+  exit code**. A leg whose whole purpose is to build a *different*
+  configuration must be shown to build that configuration, and the cheap proof
+  is `cargo tree -f '{p} {f}'` next to the leg's own selection. A passing leg
+  that selected the wrong target is indistinguishable, from the outside, from a
+  passing leg that selected the right one — and `--no-default-features` is
+  especially prone to this because it is order-sensitive against any shared
+  flags variable that carries `--all-features`.
 
 ### The panic boundary D11 mandates did not exist, and the plan said it did
 
@@ -2282,6 +2460,78 @@ positive, and `BypassedScenario` — which has no collision — stays bare.
   untested by every gate the project runs. Date/Author: 2026-09-14, planning
   agent.
 
+  **Amended at EP-M5: "and to CI" is discharged through the coverage action,
+  not by a new workflow step.** The Makefile half landed in `81b19980` as
+  `cargo nextest run -p rstest-bdd --no-default-features`. The CI half cannot
+  be discharged the way the decision's wording implies, and this is a
+  *deliberate* contract rather than an oversight: `.github/workflows/ci.yml`
+  routes every workspace-suite execution through the `leynos/shared-actions`
+  `generate-coverage` action, and two tests enforce that.
+  `cache_step_support.py` defines
+  `WORKSPACE_TEST_COMMANDS = ("cargo test", "cargo nextest", "make test")` and
+  `runs_workspace_tests(step)` matches on a stripped line prefix;
+  `runner_placement_test.py` then asserts that no step in the workflow runs
+  one. Adding a bare `cargo nextest run --no-default-features` step would fail
+  that test, which is a gate the project runs on every PR. The options were:
+  (a) route the leg through the coverage action, which means changing a shared
+  action owned outside this repository; (b) relax the two detector tests to
+  permit this one command, which weakens a guard that exists to keep suite
+  execution in one place; (c) record the Makefile leg as the discharge and
+  amend the decision. (c) is taken. The divergence D4 cares about is the
+  *feature-gated* computation of bypassed steps, and the Makefile leg does
+  build and run `rstest-bdd` without default features, so the behaviour is
+  covered by a gate the project runs — `make test` is the gate that owns the
+  workspace suite, and CI's coverage action is what invokes it. What is *not*
+  covered is a separate CI leg that would catch the Makefile line being
+  dropped; that residue is real and is recorded here rather than papered over,
+  and the ownership question for the shared action belongs to the repository
+  that owns it. Date/Author: 2026-09-19, implementation agent.
+
+  **Corrected again at EP-M5: the Makefile leg as first written was vacuous,
+  and correcting it exposed a build failure.** Two defects, found within
+  minutes of each other and both by running the leg rather than reading it,
+  which is why the earlier "the Makefile half is done and runs" note was wrong.
+
+  First, the invocation reused `$(CARGO_FLAGS)` —
+  `--workspace --all-targets --all-features` — and appended
+  `-p rstest-bdd --no-default-features`. A later `--all-features` wins over an
+  earlier `--no-default-features`, so the leg re-enabled `default` (hence
+  `diagnostics`), ran the entire workspace, and selected exactly the 2055 tests
+  the leg above it had just run. It was green, it took 81 s, and it proved
+  nothing about D4. The `-p rstest-bdd` was cancelled the same way. Evidence is
+  a pair of `cargo tree` runs: the flags as written yield
+  `default,diagnostics,mutable_world_macro,serde,serde_json,test-support`;
+  `-p rstest-bdd --no-default-features` alone yields no features. The test
+  counts agree — 2055 against 716. The lesson is that `--no-default-features`
+  is not a flag that can be appended to a shared flag variable: it is *order-
+  and peer-sensitive*, and a shared `$(CARGO_FLAGS)` that carries
+  `--all-features` silently undoes it. Nothing about the leg's text looks
+  wrong, and the green result actively confirmed it.
+
+  Second, with the flag conflict removed the leg did not build at all: rustc
+  reported `function step_by_key is never used`, denied by `-D warnings`.
+  `step_by_key` is a private helper in `registry/mod.rs` whose only caller is
+  `registry::diagnostics`, which is itself `#[cfg(feature = "diagnostics")]`.
+  The function therefore dies without the feature, and it has been that way
+  since `d209ec52` (2024-08-24, an unrelated formatting commit on
+  `origin/main`) — no gate had ever built the crate that way, which is
+  precisely the gap D4 exists to close. The fix is
+  `#[cfg(feature = "diagnostics")]` on the helper, matching the attribute the
+  file already uses twice for the same feature.
+
+  That second fix is a two-line change to
+  `crates/rstest-bdd/src/registry/mod.rs`, a file this plan's Constraint 1 does
+  not otherwise touch. It is recorded here as a deliberate, bounded boundary
+  crossing rather than smuggled through: the change is additive (an attribute
+  that removes a function from a build configuration that never called it), it
+  is in the *same crate* as the plan's subject, it is required for the plan's
+  own D4 gate leg to function, and it is the minimal edit that makes the crate
+  build as the gate requires. The alternative — leaving the leg disabled and
+  recording the gap — would leave D4 undischarged and its divergence
+  unverified, which is the outcome the decision was written to prevent. Scope
+  impact: 1 file, +9 lines against D27's already-breached figures. Date/Author:
+  2026-09-19, implementation agent.
+
 - **D5: `runner` is the canonical outcome model and does not depend on
   `reporting`; the conversion lands in `reporting`, test-gated, at EP-M2.**
   Rationale: ADR-018 forbids reporter types in the outcome surface, and there
@@ -2465,11 +2715,22 @@ positive, and `BypassedScenario` — which has no collision — stays bare.
 
 - **D13: `#[must_use]` on `ScenarioOutcome`, plus exactly one canonical fold.**
   Rationale: removing the panic removes the only channel that guaranteed a
-  human saw a failure. `#[must_use]` on the *type* rather than the function
-  covers `let _ = run_scenario_async(..).await;`, which a function-level
-  attribute does not. More importantly, returning data leaves the *decision*
+  human saw a failure. More importantly, returning data leaves the *decision*
   with every caller, so ADR-018's driver — one canonical skip policy — is only
-  half discharged by structure.
+  half discharged by structure. Correction, 2026-09-19: the rationale
+  originally added that the *type-level* attribute "covers
+  `let _ = run_scenario_async(..).await;`, which a function-level attribute
+  does not". That is false, and it was checked rather than reasoned about:
+  `let _ = f();` suppresses the lint for a `#[must_use]` type *and* for a
+  `#[must_use]` function, so the type-level placement buys nothing against a
+  deliberate discard. What it does buy is a value produced and then dropped
+  without any binding — `run_scenario(..);` as a statement — which warns under
+  either placement but for which the type-level attribute is the only one that
+  reaches through an `.await`. So the placement is kept and the claim about
+  `let _` is withdrawn: `#[must_use]` is a guard against inadvertence, never
+  against a caller that has decided to discard, and the canonical fold rather
+  than the attribute is what makes the decision explicit. See
+  `Surprises & discoveries` for the probe.
   `into_harness_result() -> Result<(), ScenarioFailure>` is shipped in 13.1.1
   and documented as the only sanctioned success test; it folds in
   `forced_failure` and the empty-plan rule, so a forced skip cannot pass.
@@ -3428,23 +3689,335 @@ skims past.
 
 Date/Author: 2026-09-19, implementation agent.
 
+### D31: the Scope figure re-measured at close, and it moved again
+
+**Escalating, as the tolerance requires.** D27 recorded the breach at
+`d15c1e84` as **58 files and 15,737 net added lines**, against a tolerance of
+36 files and 4,500 lines. EP-M5 then did what D27 warned about: it moved the
+figures without escalating. The measurement at close is **71 files and 18,325
+net added lines** — 2.0× the file limit and 4.1× the line limit, and a further
+**+13 files and +2,588 net lines** past the already-breached number. That
+increment alone is within 2.8 files of the *entire* file tolerance and is 58%
+of the entire line tolerance. This entry exists because the plan's rule is that
+a breached tolerance escalates for human judgement, and because D27 named the
+defect as "no step in the plan re-takes the measurement" — a warning that
+recurred in practice one milestone later.
+
+**What the increment is made of, measured rather than guessed.** All 13 new
+files are documentation and test artefacts, and the two largest single items
+are the D4 work itself: the `scripts/tests/test_d4_feature_off_leg_contract.py`
+contract test and, before it, the hand adjudication of the CodeRabbit rounds.
+Of the 2,588 net lines, **1,405 (54%) are this plan document**. The five
+documents EP-M5 exists to update — `developers-guide.md`,
+`rstest-bdd-design.md`, `users-guide.md`, `testing-strategy.md`, `roadmap.md` —
+account for the rest, along with the INV-7 snapshot module split. No production
+source file outside the runner surface was added.
+
+**Why the increment is larger than the milestone's stated shape.** EP-M5's
+outcome is "the five documents updated; snapshots; the leg added; the roadmap
+ticked". Three items that landed inside it were not in that shape and were not
+optional: a fourth CodeRabbit round (D30) with two false-premise findings and
+one that falsified D13's own rationale; the discovery that the D4 leg as
+written was vacuous and that the crate did not build without `diagnostics`,
+which required a boundary crossing into `registry/mod.rs`; and a second
+Whitaker finding surfaced by fixing the first. Each was a correctness gate, so
+declining any of them would have left a gate red.
+
+**What this does not license, restated because it now applies twice.**
+Recording the second measurement is not a decision that the figure was wrong,
+and it is not a retroactive re-scope. D27's reading stands: the *estimate*
+needs revision rather than the *work*. But the honest reading of two
+consecutive breaches, the second arriving inside the milestone that was
+supposed to close the work, is that the tolerance as written cannot be met by
+any plan of this shape — the mandatory living sections of an ExecPlan are
+themselves several thousand lines, and `Scope` counts every file where the
+planning estimate counted source and test files only. The remedy is therefore
+upstream of this plan: the tolerance's unit must exclude the plan document, or
+the plan must be split at Stage A. That is a judgement for the maintainer, and
+it is the escalation this entry raises rather than a change this agent may make
+unilaterally.
+
+**Consequences for the close.** The `Outcomes & retrospective` section carries
+both measurements and this escalation rather than one number and a comparison.
+The remaining EP-M5 boxes are ticked against the measured figures, and the plan
+is **not** marked `COMPLETE` on the strength of this entry: a breached
+tolerance that has been escalated is open until a human answers it. Scope
+impact: 0 files, 0 lines (this entry is part of the document already counted).
+Date/Author: 2026-09-19, implementation agent.
+
+### D30: CodeRabbit round 4, adjudicated finding by finding
+
+Round 4 ran against `129d18da` and returned 13 findings at 10 distinct
+locations. The recurrence check against round 3 is clean — the location sets
+are disjoint, and all seven of D29's locations are verified fixed at the pinned
+revision. Three of the ten rest on a false premise. Each is adjudicated below;
+the valid ones are actioned in this same commit.
+
+**Location 1 — Figure 1's execution order. VALID, and the round's most
+substantive finding.** Two reports, one major and one minor, of the same
+defect. The figure drew `classify` *before* `absorb`/insert and branched it on
+a value, but `engine/drive.rs`'s `record_step` calls `absorb` first and hands
+`classify` only `Option<ExecutionError>` (`policy.rs:162`). The figure was
+rewritten to the shipped order and its three `StepDecision` branches, with a
+paragraph naming the ordering as load-bearing and why. Note this is a *new*
+defect at a figure round 3 had already touched: round 3 removed the hook nodes
+and D29 records that fix, so the recurrence check's "no overlap" is a statement
+about locations, not about the figure being correct.
+
+**Location 2 — INV-8 as active contract. PARTLY VALID; the marker is thin, the
+claimed violation is not real.** INV-8 does carry a bare `- Contingent on D2.`
+where INV-4 spells out the option-(ii) consequence, and INV-10 alone already
+says its hook cases are "unreachable rather than merely unwritten". So the
+finding's *fix* is right and the marker was tightened to name the option-(ii)
+consequence in the same terms INV-4 uses — including that INV-8 has no non-hook
+content at all, so under option (ii) it is struck in full and no invariant
+remains under that number. But its claim that `run_scenario`'s documentation
+"describes hook failures as returned outcomes" is false: the sketch explicitly
+says the hook was dropped under D2 option (ii), and D2 records that every hook
+row of INV-4, INV-8, and INV-10 is deferred. Declined as to the violation;
+accepted as to the marker.
+
+**Location 3 — the INV-11 scan's expected list named `drive_sync.rs` but not
+`drive.rs` or `drive_async.rs`. VALID.** The guard's own doc comment already
+recorded that the list had gone stale once before, in exactly this way — it was
+extended when `drive_sync.rs` landed and not when the other two did. Fixed in
+`34bf16f1`, which also moved the guard into `surface/walk.rs`: it asserts what
+`scan_root` returned rather than which words are forbidden, so it belongs
+beside the walk, and the move keeps both files inside the 400-line cap that
+appending three entries would have breached. The doc comment now says plainly
+that the recurrence is the list's real defect — a hand-kept inventory drifts by
+construction — and states what the entries are load-bearing for, rather than
+pretending a third extension fixes it.
+
+**Location 4 — `developers-guide.md` cited `engine/tests.rs`. VALID.** The path
+does not exist; it is `engine/policy_tests/`. The line was added by this
+branch, so it is new text rather than pre-existing drift. Fixed.
+
+**Location 5 — the nextest filter in `developers-guide.md`. INVALID.** Both
+clauses of the premise are false. `nextest-filtering`'s `expression.rs:320`
+matches `query.test_name`, which is a `TestCaseName` and never the binary id, so
+`test(/runner::/)` is already a name match and not — as the finding asserts —
+a namespace filter that misses integration tests. The proposed replacement is
+*worse*: no test name anywhere in the workspace contains `runner_wire`, so
+`test(/runner_wire::...)` would select nothing. Declined.
+
+**Location 6 — the `SourceLocation` doc said "debug-asserts". VALID.** The
+plan's `SourceLocation` sketch said `debug-asserts`, but `source.rs:129` and
+`:160` both use release-active `assert!(line >= 1, ..)`. This is the residue of
+a round-2 finding: the code was fixed to release-active validation and this
+plan prose was not. Fixed to "rejects it".
+
+**Location 7 — the quoted skip question. INVALID, and a recurrence of a
+decline.** The text is byte-identical to what round 2 cited, and D28 already
+declined it verbatim: it is a *quoted end-user question* — "why did my skip
+become a failure on CI but not locally" — which a user would ask in the first
+person, and the only first-person text in the vicinity. Nothing has changed;
+the tool re-raised a decline the plan already evidenced. Declined again, citing
+D28.
+
+**Location 8 — the `#[must_use]` validation step. PARTLY VALID; the stated
+mechanism is false, the proposed replacement is right, and the real defect is
+in D13.** The plan's step 3 claimed `let _ = outcome;` makes the `#[must_use]`
+warning fire. It does not: `let _ = f();` suppresses the lint for a
+`#[must_use]` *type* and for a `#[must_use]` *function* alike. Verified
+independently against `rustc 1.98.1` rather than taken on trust — see the
+`Surprises & discoveries` entry. Worse, the same probe shows D13's own
+rationale is wrong: D13 justified the *type-level* attribute by claiming it
+covers `let _ = run_scenario_async(..).await;`, and that form does not warn
+either. So the finding is right to flag the gap, and the gap is larger than it
+says. Both texts were corrected: the validation step now uses a bare `outcome;`
+statement and says why the binding form must not be used, and D13's `let _`
+claim is withdrawn with the reason — `#[must_use]` guards against inadvertence,
+never against a caller that has decided to discard, and the canonical fold
+rather than the attribute is what makes the decision explicit. The attribute is
+kept: it is the only placement that reaches a value produced and dropped
+without a binding through an `.await`.
+
+**Location 9 — a hard-coded worktree path. VALID but cosmetic.** The
+`Idempotence and recovery` section spells a machine-specific UUID path. Two
+other ExecPlans on `origin/main` do the same, so it is a house pattern rather
+than something this branch introduced. Recorded rather than actioned: rewriting
+it means touching a reproduction transcript that is quoted for its fidelity,
+and the finding itself offers no evidence the path appears in a runnable
+instruction rather than in a record of one.
+
+**Location 10 — second-person pronouns in `users-guide.md`. VALID.**
+`docs/documentation-style-guide.md:32` says to avoid first and second person
+outside `README.md`, and `AGENTS.md` makes that guide mandatory. This branch
+added 7 second-person instances to the file (3 "you", 4 "your"), and all 7 were
+rewritten to neutral terms. One instance remains at line 2560, but it is
+present on `origin/main` and so is out of scope rather than unnoticed. The
+distinction from location 7 holds: this is ordinary instructional prose, not a
+quoted question.
+
+**The round's pattern.** Two things are worth carrying forward. First, the
+signal is noisier than round 3's: the tool raised one more finding for fewer
+real defects, three findings rest on false premises, and location 7 is a
+verbatim re-raise of an already-evidenced decline. An adjudication that took
+the tool's severities at face value would have spent the round on the wrong
+items — the "major" at location 2 is largely a thin marker, while the *trivial*
+at location 3 is the one that had left a completeness guard quietly not
+covering the files it claimed. Second, the two findings that mattered most (3
+and 8) are both cases where the tool was right about the *gap* and wrong about
+the *mechanism*: a stale hand-maintained list, and a lint the author believed
+fired and never tested. Neither is a defect a reader finds by re-reading the
+code; both needed the claim to be executed. That is the same lesson as the
+INV-3 witness, and it is now the third instance in this plan.
+
+Date/Author: 2026-09-19, implementation agent.
+
 ## Outcomes & retrospective
 
-To be completed at EP-M5. Before marking this plan `COMPLETE`, reconcile every
-discovery with the upstream artefacts in `Conformance basis`:
+### What was achieved
 
-- If D2 option (i) is accepted, an ADR amending ADR-018 must land first (D7).
-- If D2 option (ii) or (iii) is accepted, record the partial discharge of
-  ADR-018's lifecycle matrix here, in the roadmap entry for 13.1.1, and as a
-  follow-up item, before marking anything complete.
-- Record the resolved ownership and outcome shapes in
-  `docs/rstest-bdd-design.md` §2.6 and §3.11, discharging ADR-018's Stage 1
-  compatibility review.
-- If implementation falsifies any of AXIOM-1 to AXIOM-7, return to
-  `Verification plan` before elaborating further.
-- Add the D15 follow-ups and the `!Send` suite-concurrency ceiling to the
-  roadmap under 13.3.1, and the `execute_step` table-widening and
-  `reporting::ScenarioStatus` failure-case obligations under 13.2.1.
+The parser-neutral runner surface exists and is exercised by gates. A frontend
+that keeps its own document identity can build a `ScenarioPlan` carrying
+`SourcePath`/`SourceLocation` values derived from whatever it parsed, hand it to
+`run_scenario` or `run_scenario_async` through a `ScenarioScope`, and receive a
+`ScenarioOutcome` whose step sequence is total and ordered, whose sources are
+the plan's own rather than reconstructed from an error, and which folds through
+exactly one canonical conversion into the existing harness result. Steps whose
+values are returned rather than written are observable at the call site, which
+discharges ADR-015's requirement on the new path as well as the old.
+
+The seam the plan was built around held: the engine is one set of pure decision
+functions (`policy::absorb`, `policy::classify`, `policy::assemble`) under two
+thin drivers, and every invariant above is stated over the pure functions
+rather than over control flow, which is why the synchronous and asynchronous
+paths share an implementation without sharing a file.
+
+**What is deliberately not here.** D2 option (ii) shipped
+`ScenarioScope<'ctx, 'fix, H = NoHooks>` and deferred `Lifecycle`, `with_hooks`,
+`split`, and every hook row of INV-4, INV-8, and INV-10. **EP-M4 is struck**;
+the lifecycle matrix is delivered by 13.3.1, at which point the rows in
+`Verification plan` are its acceptance criteria. ADR-018 is therefore
+**partially discharged**: its Stage 1 compatibility review and the `Lifecycle`
+half of its requirement set remain open, and this plan must not be read as
+closing them.
+
+### The measured figures, and the escalation attached to them
+
+`Scope` is **breached**, twice, and the second measurement is recorded here
+rather than in a decision entry alone because the milestone's own conformance
+check asks for it explicitly.
+
+| Measurement                      | Files | Net added lines | Against tolerance      |
+| -------------------------------- | ----- | --------------- | ---------------------- |
+| Planning estimate                | ~26   | not estimated   | inside, on files       |
+| D27, at `d15c1e84` (EP-M3 close) | 58    | 15,737          | 1.6× files, 3.5× lines |
+| D31, at close                    | 71    | 18,325          | 2.0× files, 4.1× lines |
+
+The estimate gave a file count and no line count, so the line half of the
+tolerance was never checked against a plan figure at all — which is part of why
+it was breached by the first substantial commit rather than near the end.
+
+**The escalation is open and is D31's.** EP-M5 added 13 files and 2,588 net
+lines to an already-breached figure, 54% of it this document, so the second
+breach arrived inside the milestone whose job was to close the work. D27's
+conclusion — that the *estimate* needs revision rather than the work — is
+restated there with the additional finding that the tolerance as written may be
+unsatisfiable for any plan of this shape, because an ExecPlan's mandatory
+living sections are themselves several thousand lines while `Scope` counts
+every changed file and the estimate counted source and test files only. **No
+number in this table is retroactively re-scoped, and the plan is not marked
+`COMPLETE` on the strength of this section:** a breached tolerance that has
+been escalated stays open until a human answers it.
+
+### Reconciling every discovery with `Conformance basis`
+
+Each item the closing checklist named, discharged or explicitly left open:
+
+- **D2 option (i) / an amending ADR (D7):** not taken — no ADR was required and
+  none was written. Option (ii) was selected, so the second bullet applies.
+- **Partial discharge of ADR-018's lifecycle matrix:** recorded here, in D2, and
+  in `docs/roadmap.md` under 13.1.1's *Partial discharge* paragraph. The
+  `Lifecycle` trait, `NoHooks`' impl, `with_hooks`, `split`, `LifecycleError`,
+  `cleanup_error()`, and the hook rows of INV-4/INV-8/INV-10 do not exist.
+  **This plan did not add a roadmap item for them, and the roadmap says so in
+  terms:** restoring any of it "needs an ADR amending ADR-018 first, and a
+  replacement roadmap item — there is none today." That absence is the single
+  most important open item this plan leaves, and it is named rather than
+  papered over.
+- **Ownership and outcome shapes in `docs/rstest-bdd-design.md`:** recorded at
+  §2.6.4 and §3.11.1, both titled "the parser-neutral scenario runner". This
+  discharges ADR-018's Stage 1 compatibility review **for the types that
+  shipped**; it is *partially* discharged for the same reason as the bullet
+  above.
+- **AXIOM-1 to AXIOM-7 falsified?** No axiom was falsified, but AXIOM-4's
+  *instrument* was. The named mutation control could not fail on the file it
+  was aimed at, which is recorded in `Surprises & discoveries`, and the sweep
+  that replaces it is recorded below the Scope table.
+- **D15's follow-ups and the `!Send` suite-concurrency ceiling:** **already
+  recorded**, under 13.2.1 in `docs/roadmap.md`, along with the
+  `reporting::ScenarioStatus` failure case, `BypassedScenario`'s missing
+  reason, and the report guard's stale panic suppression. **No edit was needed
+  and none was made**, which is worth stating because the closing checklist
+  implies a write and the honest answer is that a previous milestone had
+  already done it.
+- **The `execute_step` table-widening obligation:** recorded in the plan at the
+  D15 material, blocked by Constraint 1 and by `StepFn`'s signature, and
+  deliberately **not** added to the roadmap, because it is a follow-up this
+  plan owns rather than a roadmap item. It is visible here and in the decision
+  log.
+- **`docs/contents.md`:** no change is needed, and this was checked rather than
+  assumed. `contents.md` indexes `docs/execplans/` as a directory rather than
+  listing individual plans, so this plan is reachable without an entry, and all
+  five documents EP-M5 updated are already linked.
+
+### Lessons, in the order they cost the most
+
+1. **A claim in the plan that no artefact discharged — three instances, and the
+   last one was self-referential.** D5's conversion asserted as shipped a
+   module that did not exist; D21's artefact path did not exist; D11's
+   mandatory panic boundary had never been built. Then D13's `#[must_use]`
+   rationale turned out to be false in a way that made the plan's own
+   validation step inert. Every gate was green through all four, correctly,
+   because no gate reads prose. The remedy that worked was mechanical: state
+   the evidence — a path, a command, a count — rather than the intent, so a
+   reader can check the claim without re-deriving it.
+2. **A green gate leg is not evidence until you know what it ran.** The D4 leg
+   was green, took 81 s, and selected the same 2055 tests as the leg above it,
+   because `--all-features` in a shared `$(CARGO_FLAGS)` silently cancels
+   `--no-default-features`. Nothing about the line's text looks wrong and the
+   green result actively confirmed it; only the test count and
+   `cargo tree -f '{p} {f}'` revealed it. A leg whose purpose is to vary a
+   configuration must be shown to vary it, and the cheap proof is the effective
+   feature list beside the leg's own selection. The durable fix is
+   `scripts/tests/test_d4_feature_off_leg_contract.py`, which fails on the
+   exact reintroduced defect.
+3. **Fixing the first defect exposed a second one behind it.** With the flag
+   conflict removed the crate did not build at all — `step_by_key` is dead
+   without `diagnostics` and `-D warnings` denies dead code — a latent breakage
+   from `d209ec52` on `origin/main` that had survived because no gate had ever
+   built the crate that way. The leg was not merely untested; the configuration
+   it names did not work. This is the strongest available argument that the leg
+   was worth adding.
+4. **A mutation result is only evidence when it is decomposed.** "3 unviable"
+   and exit 0 read like a clean pass and mean the opposite. 62 of the runner
+   tree's 152 mutants are whole-function `Default::default()` replacements
+   against types that deliberately omit `Default`, so 41% of the sweep reports
+   no signal by construction. *Unviable*, *missed*, and *caught* say three
+   different things and only one of them is about the tests.
+5. **A tolerance whose measurement step does not exist will be breached
+   silently.** D27 named this at EP-M3; it recurred at EP-M5 anyway, which is
+   the clearest possible evidence that the remedy belongs in the milestone
+   boundary check rather than in the plan's prose.
+6. **Three matching log lines are a sample, not a property.** Reading
+   `cargo-mutants`' `build_dir` and concluding that it mutates the live
+   worktree was wrong, and the cheap disproof was to read what the tool's own
+   `--in-place` flag says: copying is the default. A canary — hash the file,
+   run, hash again — settled it in three minutes and would have been cheaper
+   than the reasoning.
+
+### What a successor should do first
+
+Read D31 and answer the Scope escalation, because the plan's status depends on
+it. Then open the lifecycle work, which has **no roadmap item and cannot start
+without one**: it needs an ADR amending ADR-018 first (the roadmap states this
+under 13.1.1), and after that the `Verification plan` rows for INV-4, INV-8,
+and INV-10 are already written as its acceptance criteria and `NoHooks`'
+default type parameter is the extension point. The 13.2.1 and 13.3.1 follow-ups
+are already in the roadmap and need no action from this plan.
 
 ## Context and orientation
 
@@ -3812,8 +4385,8 @@ read back out of `ExecutionError`.
   step fails.
 - **Partial discharge, recorded at EP-M5.** The first two clauses are proved and
   the third is *not*: the accessors honour it — `source()` and
-  `terminal_source()` both return the plan's location, proved against the
-  decoy — but `ScenarioOutcome`'s `Display` renders the failure through
+  `terminal_source()` both return the plan's location, proved against the decoy
+  — but `ScenarioOutcome`'s `Display` renders the failure through
   `ExecutionError`'s message, which embeds `ExecutionError::feature_path`, so
   the rendering *does* read the source back out of the error.
   `rendering.rs::the_rendered_failure_takes_its_path_from_the_error_not_the_plan`
@@ -3833,7 +4406,12 @@ remains reachable through `skip()` with its `forced_failure` intact**.
   only path where a `Skipped` result is upgraded — and the "skip record
   survives the upgrade" assertion is what stops a caller having to rescan
   `steps` and recompute policy. Validated by Spike 4.
-- Contingent on D2.
+- Contingent on D2, and wholly so: the clause has no non-hook content. Under
+  option (ii) the entire invariant — the before-failure precedence, the retained
+  `cleanup_error()`, the skip upgrade, and the `forced_failure` survival — is
+  unreachable rather than merely unwritten, so this row is struck in full and
+  no invariant remains under this number. Delivered by 13.3.1 with the hooks,
+  at which point the rows above are the acceptance criteria.
 
 **INV-9 — Resolve-once.** `fail_on_skipped` is resolved exactly once, at scope
 construction. Mutating the global from inside a step handler does not change
@@ -4259,7 +4837,7 @@ pub enum SourcePath {
 ///
 /// The path is opaque to the runtime: a `.feature` file, a Markdown document,
 /// or any other identifier. Columns are measured in Unicode scalar values.
-/// A `line` of `0` means "unknown"; the constructor debug-asserts against it.
+/// A `line` of `0` means "unknown"; the constructor rejects it.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SourceLocation { /* private */ }
 
@@ -4841,12 +5419,12 @@ Three, all additive:
 flowchart TD
     A["Construct scope; resolve fail_on_skipped once"] --> D["For each invocation in plan order"]
     D --> E["Resolve, validate fixtures, execute; catch_unwind"]
-    E --> F["engine::policy::classify"]
-    F -- "Continue with value" --> G["insert_value; record InsertOutcome"]
-    G --> H["Record Passed"]
+    E --> F["engine::policy::absorb(result, insert)"]
+    F -- "insert the value if one came back; record the InsertOutcome" --> G["engine::policy::classify(Option of ExecutionError)"]
+    G -- "Continue" --> H["Record Passed, carrying the fate"]
     H --> D
-    F -- "Continue, no value" --> H
-    F -- "Terminal" --> I["Record the terminal detail; stop"]
+    G -- "Skip { message }" --> I["Record the terminal detail; stop"]
+    G -- "Fail(error)" --> I
     D -- "steps exhausted" --> K
     I --> K["engine::policy::assemble"]
     K --> L["Return Passed, Skipped, or Failed; scope drops, cleanup runs"]
@@ -4854,6 +5432,19 @@ flowchart TD
 
 *Figure 1: the scenario execution sequence owned by the runner, as shipped at
 EP-M3.*
+
+The order at `E`–`G` is load-bearing and the figure is drawn to match
+`engine/drive.rs`'s `record_step` rather than summarized. `absorb` runs first
+and is what performs the insertion and records the `ValueFate`; `classify` runs
+second and receives **only** `Option<ExecutionError>`, never the inserted value
+and never the fate. That ordering is what D6 and LEM-1 jointly force — see the
+`absorb` note below — and it is why the branches leaving `classify` are the
+three `StepDecision` variants (`Continue`, `Skip { message }`, `Fail(error)`)
+and not a value/no-value split: `classify` cannot see a value, so it cannot
+branch on one. A reader who takes the two calls as interchangeable, or who reads
+`classify` as the thing that decides whether a value was inserted, has the
+sequence backwards in exactly the way the `absorb`-as-required-parameter design
+exists to make impossible.
 
 Under **D2 option (ii)** the before/after hook nodes are struck, so they are
 **not** in Figure 1: there is no `Lifecycle` trait, no `with_hooks`, and no
@@ -5181,9 +5772,15 @@ at 72 explaining what and why. Use the `commit-message` skill.
    program still exits 0 and prints a `Failed` outcome whose failure is
    `Step { index: 1, .. }` with `failure_kind() == Undefined`, and whose third
    step is `Bypassed` — proving the runner returns rather than panicking.
-3. Add `let _ = outcome;` in place of the assertions and rebuild: the
-   `#[must_use]` warning fires under `-D warnings`, proving a dropped outcome
-   cannot silently pass.
+3. Replace the assertions with a *bare* `outcome;` statement and rebuild: the
+   `#[must_use]` warning fires under `-D warnings`, proving an outcome dropped
+   without any binding cannot silently pass. It must be the bare form and not
+   `let _ = outcome;` — the binding suppresses the lint for a `#[must_use]`
+   type just as it does for one on a function, which was checked against
+   `rustc 1.98.1` rather than assumed. See the D13 correction and the
+   `Surprises & discoveries` entry for the probe; the step as originally
+   written would have "proved" the guard by observing a warning that never
+   fires.
 4. Run
    `RSTEST_BDD_FAIL_ON_SKIPPED=1 cargo nextest run -p rstest-bdd -E 'test(/skip_parity/)'`
    and observe the same cases pass, because D10 makes the tests control the

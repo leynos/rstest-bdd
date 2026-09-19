@@ -3390,12 +3390,13 @@ outcome from the recorded invocations.
 step-execution path, and stops at the first terminal event; a policy question
 that appears in a driver — "should this skip count as a failure?", "which
 failure outranks which?" — belongs in `policy.rs`, where it is reachable from
-both runners and from a unit test that needs no registry. `engine/tests.rs`
-compiles `policy` and the drivers into the same binary, which is what keeps the
-lookup-only rule honest: `policy` may be tested without a registry, so a policy
-decision that has been left in a driver shows up as an untestable one rather
-than as a subtly different async path. `scripts/check_rs_file_lengths.py` is
-the forcing function for splitting a module that outgrows its file; the
+both runners and from a unit test that needs no registry.
+`engine/policy_tests/` compiles `policy` and the drivers into the same binary,
+which is what keeps the lookup-only rule honest: `policy` may be tested without
+a registry, so a policy decision that has been left in a driver shows up as an
+untestable one rather than as a subtly different async path.
+`scripts/check_rs_file_lengths.py` is the forcing function for splitting a
+module that outgrows its file; the
 `docs/complexity-antipatterns-and-refactoring-strategies.md` thresholds are the
 forcing function for moving a decision out.
 

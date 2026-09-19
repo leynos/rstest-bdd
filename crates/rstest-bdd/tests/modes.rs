@@ -148,8 +148,9 @@ fn a_suspending_async_step_diverges_on_runtime_position(#[case] inside_a_runtime
             "the step must not have been resumed even once — if it were, the wrapper would have \
              polled it more than once",
         );
-        let message = failure_message(&outcome)
-            .unwrap_or_else(|| panic!("the failure must be a handler error: {outcome:?}"));
+        let Some(message) = failure_message(&outcome) else {
+            panic!("the failure must be a handler error: {outcome:?}");
+        };
         assert!(
             message.contains("multi-poll async steps are not supported under a harness"),
             "the diagnostic is the whole value of this case: a frontend seeing `Failed` must be \

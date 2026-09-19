@@ -104,10 +104,21 @@ test: build-python ## Run tests with warnings treated as errors
 	# generated loop, which computes bypassed steps only under
 	# `diagnostics_enabled()`. Without this leg that divergence is invisible to
 	# every gate the project runs.
+	#
+	# `$(CARGO_FLAGS)` must NOT be used here. It expands to
+	# `--workspace --all-targets --all-features`, and a later `--all-features`
+	# wins over `--no-default-features`, so the leg would re-enable `default`
+	# (hence `diagnostics`), run the whole workspace, and select the same 2055
+	# tests as the leg above — a green leg that proves nothing. Verified with
+	# `cargo tree -f '{p} {f}'`: the flags together yield
+	# `default,diagnostics,…`, while the flags below yield no features at all.
+	# The package selection is `-p rstest-bdd` alone for the same reason:
+	# `--workspace` would drag in every other crate, none of which is the
+	# subject of this leg.
 	if command -v cargo-nextest >/dev/null 2>&1; then \
-		RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) nextest run $(CARGO_FLAGS) $(BUILD_JOBS) -p rstest-bdd --no-default-features; \
+		RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) nextest run -p rstest-bdd --all-targets --no-default-features $(BUILD_JOBS); \
 	else \
-		RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) test $(CARGO_FLAGS) $(BUILD_JOBS) -p rstest-bdd --no-default-features; \
+		RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) test -p rstest-bdd --all-targets --no-default-features $(BUILD_JOBS); \
 	fi
 	$(MAKE) check-fixture-lockfiles
 	# Exercise the Python documentation helpers alongside the Rust suite.
