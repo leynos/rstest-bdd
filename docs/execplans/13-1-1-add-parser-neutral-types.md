@@ -509,16 +509,24 @@ between them. Raise that before spending the tolerance.
   written and green: the two behavioural scenarios, `tests/modes.rs`,
   `tests/completeness.rs`, `tests/skip_parity.rs`, and the D11 panic boundary's
   five integration tests plus six unit cases. `runner_sequence_props.rs` is the
-  one that remains, and two of its four invariants are EP-M3-bound — INV-5 needs
-  `run_scenario_async`, and INV-1/INV-2's property domain includes terminal
-  kinds only the async driver exercises as a comparable path. Recorded as
-  partial rather than done for that reason.* **Opened 2026-09-19.** The first
-  act was to revise D16, and it is done: see D18 in `Decision log` for why its
-  `Stop(ScenarioFailure)` cannot express a permitted skip. D18's `StepDecision`
-  is checked into `Interfaces and dependencies` as the settled engine
-  decomposition, together with a `Terminal` and a `SkipPolicy`, which EP-M2
-  mirrors while implementing rather than re-deriving. The two things a reader
-  should not have to reconstruct: the driver keeps the error and hands
+  one that remains. An earlier note here claimed two of its four invariants
+  were EP-M3-bound — INV-5 needs `run_scenario_async`, and INV-1/INV-2's domain
+  includes terminal kinds only the async driver exercises as a comparable path.
+  **The first half of that stands and the second was wrong**, on a reading
+  taken while the file was still unwritten: INV-1, INV-2, INV-3, and INV-12 can
+  all be discharged against the synchronous driver alone, because every
+  terminal kind the domain enumerates has a sync-reachable registration —
+  `panic` through a raw `step!` handler, which `runner_panics.rs` already
+  demonstrates. So the file is split by necessity rather than by preference:
+  INV-1, INV-2, INV-3, and INV-12 land here, and only INV-5's clause remains
+  EP-M3-bound, recorded in-file as such rather than silently omitted. Recorded
+  as partial rather than done for that one reason.* **Opened 2026-09-19.** The
+  first act was to revise D16, and it is done: see D18 in `Decision log` for
+  why its `Stop(ScenarioFailure)` cannot express a permitted skip. D18's
+  `StepDecision` is checked into `Interfaces and dependencies` as the settled
+  engine decomposition, together with a `Terminal` and a `SkipPolicy`, which
+  EP-M2 mirrors while implementing rather than re-deriving. The two things a
+  reader should not have to reconstruct: the driver keeps the error and hands
   `classify` a borrow, then moves it into `Terminal::Fail`; and a skip never
   stores a `failure`, forced or not, because `into_harness_result` derives that
   at fold time.
@@ -670,6 +678,61 @@ between them. Raise that before spending the tolerance.
   its in-runtime case to `Failed`. The first attempt at that mutation was inert
   — a `yield_now()` future that is never awaited does nothing, which the
   compiler warned about — so the mutation was redone with the `.await` present.
+
+  **Two further gates cleared at `c3bc3147`, both of which were exposed only
+  once the earlier failures were fixed.** A full sequential gate run at
+  `4ebe45eb` reported `typecheck`, `test`, and `markdownlint` green but
+  `check-fmt` and `lint` red, and each red was a *different* failure from the
+  one that had been repaired just before it. This is worth recording as a
+  pattern rather than as two incidents: a gate that aborts at its first failing
+  step hides every step after it, so repairing one failure reveals the next and
+  a "green except for X" report from an earlier revision can be stale in the
+  direction of optimism.
+
+  `make lint` **regressed**, which is the stronger finding: it recorded exit 0
+  at `e6f92be4` and exit 2 here, so the four new suites introduced it. Five
+  `no_unwrap_or_else_panic` errors, all deny-by-default, at
+  `tests/modes.rs:102` and `tests/parser_neutral_runner.rs:97,123,148,162`.
+  Four of the five are in **non-test helper functions** — the two `#[given]`
+  steps, the `#[when]` step, and the `outcome` helper — which is exactly where
+  the rule bites, because it denies the closure form outside `#[test]` bodies
+  while permitting it inside them. The fix is ADR-013's
+  `let ... else { panic!(..) }` shape, already used by `completeness.rs` and
+  `skip_parity.rs`; those two suites were clean for precisely that reason, so
+  the repo already contained the answer and the two outliers were mine. One
+  site needed a named scrutinee, because its diagnostic is built from the
+  `Result` rather than from a panic message and `let ... else` does expose the
+  scrutinee to the `else` block:
+  `let Ok(runtime) = built else { panic!("{built:?}") }`. Note also that
+  `lint-whitaker` aborts before `lint-python` and the six `scripts/check_*.py`
+  checks run, so the earlier green `make lint` at `e6f92be4` had never covered
+  them either; the re-run at `c3bc3147` is the first that did, and all of them
+  pass.
+
+  `make check-fmt` failed on the plan's own Markdown, `mdtablefix --check`
+  reporting `+157 -154`. This drift **predates** the four suites and traces
+  back through `83a240f1`, `f5f0ec3a`, `e6f92be4`, and earlier to `3ee3f9db`;
+  it was invisible because `check-fmt` had aborted at the rustfmt step in every
+  run until `f5f0ec3a` fixed the pinned-nightly drift. The reflow is prose, not
+  table repair — it joins and splits ordinary wrapped paragraph lines,
+  including across a bold-run boundary. `mdtablefix` is idempotent here, so
+  this was a genuine unformatted state and not a formatter oscillation, and CI
+  at the pinned version would have reproduced it. Fixed with the canonical
+  `mdtablefix --in-place` invocation rather than by hand, per the hazard note
+  above, and confirmed to be a **pure whitespace change**: the file's token
+  multiset is identical before and after, which is the check that distinguishes
+  reflow from content loss on a document this large. Re-running `markdownlint`
+  afterwards confirmed the reflow had not joined an inline-code span past 80
+  columns — the failure mode the note warns about — so the two Markdown gates
+  are simultaneously green rather than trading one for the other.
+
+  Gate evidence at `c3bc3147`, run sequentially: `make lint` EXIT=0,
+  `make check-fmt` EXIT=0, `markdownlint` `Summary: 0 error(s)` over 121 files,
+  and
+  `cargo nextest run -p rstest-bdd -E 'binary(parser_neutral_runner) |
+  binary(modes)'`
+  reporting 6 tests run, 6 passed, 0 skipped.
+
 - [x] (2026-09-19) EP-M2's D11 panic boundary implemented, having been found
   absent. `crates/rstest-bdd/src/execution/unwind.rs` is new and both
   `execute_step` and `execute_step_async` pass through it; the sync path uses
