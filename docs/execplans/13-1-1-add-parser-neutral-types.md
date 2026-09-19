@@ -3865,6 +3865,19 @@ revision (725 run, 725 passed, 7 skipped), and
 `scripts/check_rs_file_lengths.py` exits 0. Scope impact: 0 files, 0 lines
 beyond the refactor already counted in D31's measurement.
 
+**What the fix cost, recorded because it is larger than the finding.** Three
+gate runs were needed, and the first two aborted early enough to hide their own
+successors. `afca89b8` failed `check-fmt`, `lint` and `markdownlint`; fixing
+the three diagnostics moved `lint`'s abort from clippy's first error to its
+third, and the new `markdownlint` failure at `MD013` had been latent at
+`afca89b8` all along, hidden because `spelling` aborted the target before
+mdlint started. At `2d9176ab` the second round fixed both, and the third run at
+`6c17a2e3` was the first in which **`make lint` executed past clippy at all** —
+so `cargo doc`, Whitaker, `lint-python` and all five `scripts/check_*.py`
+validations had three runs and zero evidence behind them. They all pass, and
+the full test count is 2056 tests all-features (717 feature-off) plus 178
+doctests and 247 pytest.
+
 **What a successor should take from this.** The plan's `Gates` section names
 `make lint`, `make test`, the Markdown gates and CodeRabbit; it does not name
 the CI-only checks, and this one ran red through four CodeRabbit rounds without
