@@ -139,7 +139,7 @@ struct Shape {
     /// shape may want an observer on each side of the producers and that is
     /// exactly what INV-3's non-vacuity needs: the observer before demonstrates
     /// the clause that forbids a *future* value being visible, and with a
-    /// producer on only one side of it the positive half — a value recognised
+    /// producer on only one side of it the positive half — a value recognized
     /// as a producer's — can never be witnessed by the same shape.
     observer_before: bool,
     /// The classification that ends the run, at the end of the plan.

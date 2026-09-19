@@ -141,10 +141,12 @@ fn a_runtime_built_source_round_trips_through_the_outcome() {
         Some(ValueFate::NoMatch),
     );
 
-    let recorded = record
-        .source()
-        .cloned()
-        .unwrap_or_else(|| panic!("the record must carry a source; it was built with one"));
+    // A `let ... else` rather than `unwrap_or_else(|| panic!(..))`, which
+    // Whitaker's `no_unwrap_or_else_panic` forbids: the same message, but said
+    // as a failure to resolve rather than as a default.
+    let Some(recorded) = record.source().cloned() else {
+        panic!("the record must carry a source; it was built with one");
+    };
     assert_eq!(recorded.path(), SPEC_PATH);
     assert_eq!(recorded.line(), 42);
     assert_eq!(
