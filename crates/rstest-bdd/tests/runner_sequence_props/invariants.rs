@@ -28,7 +28,7 @@ fn no_invocation_past_the_terminal_index_is_executed() {
 
     check(|steps, arrangement| {
         let run = run_case(&steps, arrangement);
-        witnesses.record(&steps, &run);
+        witnesses.record(&steps, arrangement, &run);
 
         prop_assert!(
             !run.terminal_exceeded(),
@@ -103,7 +103,7 @@ fn a_returned_value_is_visible_only_after_its_producer() {
 
     check(|steps, arrangement| {
         let run = run_case(&steps, arrangement);
-        witnesses.record(&steps, &run);
+        witnesses.record(&steps, arrangement, &run);
 
         prop_assert!(
             run.visibility_violation().is_none(),
@@ -124,7 +124,7 @@ fn every_returned_value_records_its_fate() {
 
     check(|steps, arrangement| {
         let run = run_case(&steps, arrangement);
-        witnesses.record(&steps, &run);
+        witnesses.record(&steps, arrangement, &run);
 
         for (index, fate) in run.fates(&steps) {
             let record = run.outcome.steps().get(index);

@@ -58,15 +58,17 @@ fn a_step_with_no_return_value_records_no_fate() {
     assert!(!called, "there was no value to insert");
 }
 
-/// A failing step's error is carried through untouched, and no insertion
-/// happens.
+/// A failing step's error is preserved, and no insertion happens.
 ///
-/// The error is moved, not cloned: `absorb` gets ownership, and the driver
-/// then moves it into `Terminal::Fail`, so one original reaches both the
-/// recorded step and the terminal. A driver that cloned instead would be
-/// recording a copy, which is the weaker guarantee.
+/// What this establishes is the two things `absorb` itself decides: the error
+/// survives the call, and `insert` is not invoked when there is no value. What
+/// happens to that error *afterwards* is `record_step`'s business rather than
+/// this function's, and nothing here asserts about it.
+///
+/// `expected` is taken before the call because the assertion needs a copy to
+/// compare against once `absorb` has consumed its argument.
 #[test]
-fn a_failed_step_carries_its_error_and_inserts_nothing() {
+fn a_failed_step_preserves_its_error_and_inserts_nothing() {
     let error = not_found();
     let expected = error.clone();
     let mut called = false;
@@ -77,6 +79,6 @@ fn a_failed_step_carries_its_error_and_inserts_nothing() {
 
     let Absorbed { fate, error } = absorbed;
     assert!(fate.is_none(), "a failed step returns no value");
-    assert!(!called);
+    assert!(!called, "there was no value to insert");
     assert_eq!(error, Some(expected));
 }

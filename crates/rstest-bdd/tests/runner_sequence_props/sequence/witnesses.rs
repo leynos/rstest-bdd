@@ -17,7 +17,7 @@
 
 use rstest_bdd::runner::{FailureKind, ScenarioStatus, ValueFate};
 
-use super::{MAX_STEPS, Run, SENTINEL, Step};
+use super::{Arrangement, MAX_STEPS, Run, SENTINEL, Step};
 
 /// The classes each property's non-vacuity claim requires.
 ///
@@ -45,7 +45,8 @@ pub(crate) struct Witnesses {
     fates: Vec<ValueFate>,
     /// Whether any case placed an observer before its first producer.
     observer_before_producer: bool,
-    /// Whether any case observed a producer's value.
+    /// Whether any case observed a producer's value under an unambiguous
+    /// context.
     observer_saw_producer: bool,
     /// Whether any case generated a plan whose run stopped before its end.
     stopped_early: bool,
@@ -55,7 +56,10 @@ pub(crate) struct Witnesses {
 
 impl Witnesses {
     /// Fold one case in.
-    pub(crate) fn record(&mut self, plan: &[Step], run: &Run) {
+    ///
+    /// `arrangement` is the context the case was run against, and the negative
+    /// visibility clause needs it: see the `None` arm below.
+    pub(crate) fn record(&mut self, plan: &[Step], arrangement: Arrangement, run: &Run) {
         self.statuses.push(run.outcome.status());
         self.kinds.extend(run.failure_kinds());
         self.empty_plan |= plan.is_empty();
@@ -68,10 +72,15 @@ impl Witnesses {
         // The indices of the invocations that hand a value back. INV-3's
         // negative clause is about these: an observer must not see a value
         // whose producer has not run yet.
+        //
+        // Matchable values only, not every value-returning kind. An unmatched
+        // value can never be inserted, so counting it here would let a case
+        // whose only later invocation was that kind set the witness below on
+        // evidence true of every driver — see `Kind::returns_a_matchable_value`.
         let producers: Vec<usize> = plan
             .iter()
             .enumerate()
-            .filter(|(_, step)| step.kind.returns_a_value())
+            .filter(|(_, step)| step.kind.returns_a_matchable_value())
             .map(|(index, _)| index)
             .collect();
 
@@ -80,18 +89,35 @@ impl Witnesses {
                 // A value was visible, and it carries the identity of the
                 // invocation that produced it. So the relation is read from
                 // `seen` rather than from where the producers sit in the plan.
+                //
+                // This arm needs no arrangement gate: a visible value can only
+                // come from a successful insert, and only `OneProbe` inserts.
+                // `NoProbe` matches nothing and `TwoProbes` is ambiguous, so
+                // both leave the fixture at `SENTINEL` and land in the arm
+                // below.
                 Some(seen) => self.observer_saw_producer |= seen < reading.observer,
                 // The observer read the fixture's own value, or found no name
                 // at all. That is INV-3's negative clause *holding* — but only
                 // a case with a producer it could have seen makes it evidence.
                 //
-                // Two conditions make the witness real rather than incidental.
-                // The producer must sit after the observer, so the value's
-                // producer had not run when the observer read; and the producer
-                // must have run eventually, or the value never existed at all
-                // and the observer seeing nothing would be true of any driver,
-                // including one that hands every observer a future value.
-                // Together they are the case a correct driver passes and an
+                // Three conditions make the witness real rather than
+                // incidental, and the arrangement is the one that is easy to
+                // miss. The producer must sit after the observer, so the value's
+                // producer had not run when the observer read; the producer must
+                // have run eventually, or the value never existed at all and the
+                // observer seeing nothing would be true of any driver, including
+                // one that hands every observer a future value; and the context
+                // must be capable of showing the observer a value at all.
+                //
+                // That last one is why `OneProbe` is required. Under `NoProbe`
+                // and `TwoProbes` no insert can ever succeed, so the fixture
+                // stays at `SENTINEL` and the observer reads nothing no matter
+                // *when* the driver ran it — the observation is true of every
+                // driver, eager ones included, and setting the flag from such a
+                // case would let `assert_visibility_complete` pass on evidence
+                // that discriminates nothing.
+                //
+                // Together the three are the case a correct driver passes and an
                 // eager one fails.
                 //
                 // Reading this from `seen` instead — requiring the observer to
@@ -99,11 +125,12 @@ impl Witnesses {
                 // unsatisfiable rather than merely rare, since a value can only
                 // travel forwards. That is the direction the invariant forbids,
                 // so no correct run can produce it.
-                None => {
+                None if arrangement == Arrangement::OneProbe => {
                     self.observer_before_producer |= producers.iter().any(|&producer| {
                         producer > reading.observer && run.executed.contains(&producer)
                     });
                 }
+                None => {}
             }
         }
     }
