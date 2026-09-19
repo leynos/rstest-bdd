@@ -27,7 +27,9 @@ use super::{
         Reading,
         SENTINEL,
         Step,
+        Witnesses,
         case,
+        crafted,
         executed,
         run_case,
     },
@@ -195,6 +197,46 @@ fn a_keyword_mismatch_resolves_to_nothing() {
         "the named step must not have run: {}",
         run.describe(&steps),
     );
+}
+
+/// The crafted catalogue alone witnesses INV-3's negative visibility clause.
+///
+/// # Why this is separate from the property that asserts it
+///
+/// `invariants::a_returned_value_is_visible_only_after_its_producer` folds its
+/// [`Witnesses`] across both halves of the strategy, and only the biased half
+/// draws the catalogue. So the folded assertion can be satisfied *entirely* by
+/// the uniform backdrop and still pass — which is exactly what happened: the
+/// catalogue had no shape placing an observer before a producer, and the clause
+/// rested on the backdrop drawing one, at about one case in fifty. Measured over
+/// the pinned budget that was a failing assertion on roughly two runs in five,
+/// and it was misread more than once as an intermittent environment fault rather
+/// than as a catalogue that had stopped covering the clause it claimed to.
+///
+/// Driving [`crafted`] alone removes the backdrop from the evidence, so this
+/// fails whenever the catalogue loses its witness — which is the claim the
+/// catalogue's own documentation makes and the one nothing else checks.
+#[test]
+fn the_crafted_catalogue_alone_witnesses_the_visibility_clause() {
+    let mut witnesses = Witnesses::default();
+
+    for steps in crafted() {
+        // `OneProbe` because the witness requires a context capable of showing
+        // the observer a value at all; under either other arrangement no insert
+        // can succeed, so the observation is true of every driver and the
+        // witness would be set on evidence that discriminates nothing. The
+        // arrangement is therefore pinned here rather than drawn, and the
+        // property that *does* draw it keeps the two independent.
+        let run = run_case(&steps, Arrangement::OneProbe);
+        assert!(
+            run.visibility_violation().is_none(),
+            "a crafted plan violates INV-3; {}",
+            run.describe(&steps),
+        );
+        witnesses.record(&steps, Arrangement::OneProbe, &run);
+    }
+
+    witnesses.assert_visibility_complete();
 }
 
 /// The generator's plan length stays inside the declared domain.
