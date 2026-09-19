@@ -419,7 +419,18 @@ between them. Raise that before spending the tolerance.
   and **D10** are approved as recommended. D2 option (ii) means EP-M4 is struck
   and ADR-018's lifecycle matrix is discharged only in part; that deviation is
   recorded under D2 and must be reflected in `docs/roadmap.md`.
-- [ ] EP-M1: source, plan, and outcome types.
+- [x] (2026-09-19) EP-M1: source, plan, and outcome types. `runner/` exists
+  with `source.rs`, `plan.rs`, `plan/builder.rs`, `outcome/mod.rs`,
+  `outcome/step.rs`, `outcome/failure.rs`, and three test files under
+  `runner/tests/`. Sixteen focused tests pass; the crate's 613 tests and 111
+  doctests pass; scoped clippy is clean under `-D warnings`; the pinned nightly
+  rustfmt reports no diff; `scripts/check_rs_file_lengths.py` exits 0 with no
+  allowlist entry. Four public items were invented during implementation and are
+  recorded in the Decision log: `ValueFate` (a projection of `InsertOutcome`,
+  which cannot be `Clone`/`Eq` and so cannot sit inside `StepOutcome`), and the
+  `EmptyPlan`/`ForcedSkip`/`EmptyPlan`-site trio that gives INV-13's fold an
+  error to return. `LifecycleError` and `ScenarioOutcome::cleanup_error()` were
+  dropped as corollaries of D2 option (ii).
 - [ ] EP-M2: synchronous runner, engine split, and the sequence properties.
 - [ ] EP-M3: asynchronous runner and cancellation.
 - [x] ~~EP-M4: lifecycle hooks and the lifecycle matrix~~ — struck by D2
@@ -546,7 +557,12 @@ between them. Raise that before spending the tolerance.
   Evidence: `ProtoScenario.PreHookFailure` and `PostHookFailure` are distinct
   fields, and a `ScenarioResult` can carry both.
   Impact: independent corroboration for ADR-018's primary-versus-cleanup
-  distinction and for this plan's `failure()` / `cleanup_error()` pair.
+  distinction. It did not survive contact with D2 option (ii): a separate
+  `cleanup_error()` accessor has no producer while the hooks are deferred, and
+  as drafted it was ambiguous — a caller seeing `Some(_)` still could not tell
+  which failure was terminal, because `failure()` already carries that. The
+  distinction returns with the hooks; until then exactly one failure channel is
+  the honest shape. See the D2 note and D13.
 
 - **Observation:** `cucumber-rs`, the obvious Rust prior art, is *not*
   parser-neutral in the type sense: its `Parser` trait's `Output` is a stream
@@ -566,6 +582,40 @@ between them. Raise that before spending the tolerance.
   MSRV of 1.88, and `crates/rstest-bdd/src/panic_support.rs` already uses this
   harness shape in its own doctests.
   Impact: INV-10 needs no new dependency.
+
+- **Observation:** a milestone that ships types before their consumer cannot be
+  `-D warnings` clean on its own, and the workspace's lint configuration forces
+  the resolution rather than merely permitting one.
+  Evidence: EP-M1's `StepOutcome::passed`/`skipped`/`failed`/`bypassed`,
+  `ScenarioOutcome::new`, `ScenarioSkip::new`, and the private `StepRecord` have
+  no production caller until EP-M2's engine, so `make lint` failed with
+  `error: associated functions ... are never used`. `#[allow]` is unavailable —
+  the workspace denies `allow_attributes` and
+  `allow_attributes_without_reason` — so each carries
+  `#[cfg_attr(not(test), expect(dead_code, reason = "constructed by the EP-M2
+  engine"))]`.
+  Impact: the `not(test)` scoping is deliberate in both directions. Unscoped,
+  the attribute is *unfulfilled* in a `cfg(test)` build, because the unit tests
+  do construct these; and once EP-M2 supplies the production caller it becomes
+  unfulfilled in a normal build too, so the lint fails until the attribute is
+  deleted rather than lingering as permanent dead-code camouflage. This is the
+  mechanism the plan's `rust-unused-code` skill note points at; it applies to
+  any milestone, not only to a feature-gated one.
+
+- **Observation:** D3's no-lifetime decision is enforced at the *builder's*
+  signature, so a dynamic frontend must own every string it keeps — and the
+  compiler says so at the call site.
+  Evidence: EP-M1's parser test, written as a real parser over a borrowed `&str`
+  buffer, failed to compile with `E0521: borrowed data escapes outside of
+  function` on `step_at`, because `impl Into<Cow<'static, str>>` admits a
+  `&'static str` and an owned `String` but not a `&'buffer str`.
+  Impact: the first draft of that test asserted the opposite — that a parser
+  could hand borrowed slices straight to the builder — which the plan's own
+  `Cow<'static, str>` choice forbids. The test now copies at the parse and says
+  why: the error is the decision being enforced, not an obstacle. It is a
+  *compile*-time check living in a *runtime* test file, so the failure mode is a
+  build break in a later milestone, when a frontend is first written. Worth
+  knowing before that frontend is written.
 
 ## Decision log
 
@@ -618,6 +668,17 @@ between them. Raise that before spending the tolerance.
   before/after *hook* rows have no mechanism to exercise. That deviation must
   be recorded in `docs/roadmap.md` under 13.1.1 as a follow-up, exactly as
   `Outcomes & retrospective` requires.
+  **Two interface consequences, established during EP-M1 (2026-09-19).** Both
+  types existed in the first draft *only* to describe hook failure, so with the
+  hooks deferred they have no producer and would be dead public surface:
+  `LifecycleError` is not shipped at all, and
+  `ScenarioOutcome::cleanup_error()` is not shipped. `cleanup_error` also folded
+  ambiguously — a caller seeing `Some(_)` could not tell whether the primary
+  failure was the cleanup or a step, because `failure()` already carries the
+  terminal one. Removing it keeps exactly one failure channel
+  (`failure()` / `into_harness_result()`), which is the property D13 exists to
+  protect. `LifecycleError` returns with the hooks under a future ADR, as
+  `&StepError` behind an opaque struct, exactly as the first draft had it.
 
 - **D3: the plan carries no lifetime. Text is `Cow<'static, str>`; source paths
   are `SourcePath { Static(&'static str), Shared(Arc<str>) }`. APPROVED ON
@@ -801,7 +862,7 @@ between them. Raise that before spending the tolerance.
   with every caller, so ADR-018's driver — one canonical skip policy — is only
   half discharged by structure. `into_harness_result() -> Result<(),
   ScenarioFailure>` is shipped in 13.1.1 and documented as the only sanctioned
-  success test; it folds in `forced_failure` and `cleanup_error`, so a forced
+  success test; it folds in `forced_failure` and the empty-plan rule, so a forced
   skip cannot pass. `is_passed()` deliberately does *not* fold policy and its
   documentation says so, because it is the helper everyone would otherwise
   reach for. `Display` is implemented, and 13.2.1's generated adapter must
@@ -1293,9 +1354,22 @@ run.
   `run_scenario` returns `ScenarioStatus::Passed` with an empty `steps()`, but
   `into_harness_result` — the canonical fold of D13 — treats an empty plan as
   an error, and the `Display` says so.
-- Artefact: `crates/rstest-bdd/src/runner/tests/completeness.rs`.
+- **Resolved during EP-M1 (2026-09-19): how the fold *represents* that error.**
+  The decision above fixes the fold's behaviour but names no error to return.
+  Under D2 option (ii) no existing `ScenarioFailure` variant could carry it —
+  `Step` needs an index and an `ExecutionError`, and neither exists for a plan
+  that never had a step — so `ScenarioFailure::EmptyPlan` and
+  `FailureSite::EmptyPlan` were added, both fieldless. The alternative, reusing
+  `ForcedSkip`, would have been a lie in exactly the case a caller most needs to
+  distinguish. `error()` returns `None` for it, which the doc comment states.
+  This is the minimal honest representation, and it is the shape the fold's
+  `#[non_exhaustive]` attribute exists to permit.
+- Artefact: `crates/rstest-bdd/src/runner/tests/completeness.rs` for the
+  runners; `crates/rstest-bdd/src/runner/tests/outcome.rs::
+  canonical_fold_rejects_an_empty_plan` for the fold, which is observable at
+  EP-M1 because the fold is a pure function of the outcome's fields.
 - Non-vacuity: the control is a one-step passing plan, which must fold to
-  `Ok(())`.
+  `Ok(())` (`passing_outcome_folds_to_ok`).
 
 **INV-14 — The scope's cleanup cannot be skipped or bypassed.**
 `ScenarioScope` is not itself `Drop` (its destructor lives on a private
@@ -1531,6 +1605,19 @@ pub enum StepStatus { Passed, Skipped, Failed, Bypassed }
 #[non_exhaustive]
 pub enum FailureKind { Undefined, MissingFixture, Assertion, Panic, Other }
 
+/// What became of a step's returned value.
+///
+/// A projection of `InsertOutcome` that drops the displaced previous override,
+/// which cannot be compared and which the outcome has no use for. `InsertOutcome`
+/// is `Inserted(Option<Box<dyn Any>>)`, so returning it directly would put a
+/// non-`Eq`, non-`Clone` payload inside `StepOutcome` — and `StepOutcome`'s
+/// `PartialEq`/`Clone` derives are load-bearing for the outcome's own.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum ValueFate { Inserted, NoMatch, AmbiguousIgnored }
+
+impl From<InsertOutcome> for ValueFate;
+
 /// The recorded result of one invocation, in plan order.
 ///
 /// Status and payload are stored as one private sum, so a `Passed` outcome
@@ -1550,34 +1637,40 @@ impl StepOutcome {
     pub fn failure_kind(&self) -> Option<FailureKind>;
     /// What became of this step's returned value, if it returned one.
     ///
-    /// `InsertOutcome::NoMatch` means the value reached no later step. The
+    /// `ValueFate::NoMatch` means the value reached no later step. The
     /// runtime emits no warning for it, so this is the only signal.
-    pub fn value_insertion(&self) -> Option<InsertOutcome>;
+    pub fn value_insertion(&self) -> Option<ValueFate>;
 }
-
-/// A lifecycle-hook failure. Opaque, so the internal indirection stays free.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LifecycleError { /* private */ }
-impl LifecycleError { pub fn error(&self) -> &StepError; }
 
 /// Where a terminal failure occurred, together with its payload, so the two
 /// cannot disagree.
+///
+/// The `Before` and `After` variants D2 option (i) would have added are absent
+/// with the rest of the hooks; see D2 and EP-M4.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ScenarioFailure {
-    Before(LifecycleError),
     Step { index: usize, error: ExecutionError },
-    After(LifecycleError),
+    /// The run skipped, and `!allow_skipped && fail_on_skipped` converts that
+    /// skip into a failure. The whole `ScenarioSkip` is carried, so a caller
+    /// that treats the skip as a failure need not rescan `steps`.
+    ForcedSkip(ScenarioSkip),
+    /// The plan contained no invocations. A runner still reports `Passed` for an
+    /// empty plan, because running nothing is not itself an error; the fold is
+    /// stricter than the status, deliberately.
+    EmptyPlan,
 }
 
 impl ScenarioFailure {
     /// A projection, for callers that want the site alone.
     pub fn site(&self) -> FailureSite;
+    /// The step error, when this is a step failure.
+    pub fn error(&self) -> Option<&ExecutionError>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
-pub enum FailureSite { Before, Step(usize), After }
+pub enum FailureSite { Step(usize), ForcedSkip(usize), EmptyPlan }
 
 /// The terminal skip, retained even when a later cleanup failure upgrades the
 /// overall status to `Failed`.
@@ -1607,15 +1700,12 @@ impl ScenarioOutcome {
     pub fn steps(&self) -> &[StepOutcome];
     pub fn skip(&self) -> Option<&ScenarioSkip>;
     pub fn failure(&self) -> Option<&ScenarioFailure>;
-    /// A secondary after-hook or cleanup failure, retained alongside a primary
-    /// failure.
-    pub fn cleanup_error(&self) -> Option<&ScenarioFailure>;
     pub fn terminal_source(&self) -> Option<&SourceLocation>;
     /// True only for a clean pass. This does **not** fold skip policy; use
     /// `into_harness_result` to decide whether a run should fail a suite.
     pub fn is_passed(&self) -> bool;
-    /// The one canonical success test. Folds `forced_failure`, `cleanup_error`,
-    /// and the empty-plan rule.
+    /// The one canonical success test. Folds `forced_failure` and the empty-plan
+    /// rule.
     pub fn into_harness_result(self) -> Result<(), ScenarioFailure>;
 }
 
@@ -1844,19 +1934,31 @@ not repeated below.
 
 - **Outcome:** `rstest_bdd::runner` exists and exports `SourcePath`,
   `SourceLocation`, `StepInvocation`, `ScenarioPlan`, `ScenarioPlanBuilder`,
-  `ScenarioStatus`, `StepStatus`, `FailureKind`, `StepOutcome`,
-  `ScenarioSkip`, `ScenarioFailure`, `FailureSite`, `LifecycleError`, and
-  `ScenarioOutcome` with its accessors, `Display`, and `into_harness_result`.
-  No runner yet.
+  `ScenarioStatus`, `StepStatus`, `FailureKind`, `ValueFate`, `StepOutcome`,
+  `ScenarioSkip`, `ScenarioFailure`, `FailureSite`, and `ScenarioOutcome` with
+  its accessors, `Display`, and `into_harness_result`. `LifecycleError` is *not*
+  among them; see the D2 note. No runner yet.
 - **Requirements:** ADR-018-FR1, FR2, TR1, TR6, TR7.
 - **Acceptance evidence:**
   `tests::runner::plan::macro_path_allocates_no_step_text` (every text and tag
-  is `Cow::Borrowed`); `tests::runner::plan::parses_and_outlives_its_buffer`
-  (a real ~20-line parser, written as a parser rather than as struct
-  construction, because the ergonomic risk lives in parsing);
+  is `Cow::Borrowed`);
+  `tests::runner::plan::parses_and_outlives_its_buffer` (a real ~20-line parser,
+  written as a parser rather than as struct construction, because the ergonomic
+  risk lives in parsing);
   `tests::runner::plan::shares_one_source_path_across_steps`;
   `tests::runner::surface::no_frontend_types_in_public_api` with all five leak
   shapes controlled; `tests::runner::outcome::canonical_fold_folds_forced_skip`.
+  Four further tests were added at implementation time because the acceptance
+  list alone left the milestone's own invariants unobserved:
+  `tests::runner::outcome::canonical_fold_rejects_an_empty_plan` (INV-13's fold
+  case, per the plan above);
+  `tests::runner::outcome::canonical_fold_prefers_the_failure_over_a_skip` (a
+  failed step must outrank a skip record, which the fold's `if` order decides);
+  `tests::runner::plan::plan_is_clone_and_static` (D3's `'static` claim, checked
+  by a trait bound and exercised by `spawn`); and
+  `tests::runner::surface::the_scan_finds_the_runner_tree`, without which a
+  `collect` that silently found no files would make INV-11's check pass while
+  policing nothing.
 - **Conformance check:** no frontend type in the surface; no existing signature
   changed beyond the named `PartialEq` derives; the headline example in
   *Purpose* compiles verbatim.
