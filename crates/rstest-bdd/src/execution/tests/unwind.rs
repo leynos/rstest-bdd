@@ -26,9 +26,13 @@
 //! cases require only that *something* was produced, which is enough to catch a
 //! boundary that dropped the message rather than delegating.
 //!
-//! Nor is the async boundary asserted here. It needs a runtime and a registered
-//! step, so it lives in `tests/runner_panics.rs` beside its synchronous
-//! sibling — see INV-17.
+//! The async boundary is asserted here only for the part that needs no step:
+//! [`guarded_async`] hands the closure it is given to the handler slot, so the
+//! panic it guards against can be raised by a closure rather than by a
+//! registered handler. The end-to-end claim — that a *registered* async step's
+//! panic reaches a frontend as a returned outcome — needs a runtime and a
+//! registry entry, so it lives in `tests/runner_panics.rs` beside its
+//! synchronous sibling; see INV-17.
 
 use std::{
     any::Any,
@@ -37,12 +41,13 @@ use std::{
 
 use rstest::rstest;
 
-use super::super::guarded;
+use super::super::{guarded, unwind::guarded_async};
 use crate::{
     Step,
     StepError,
     StepExecution,
     StepExecutionMode,
+    StepFuture,
     StepKeyword,
     StepPattern,
     context::StepContext,
@@ -108,6 +113,13 @@ macro_rules! harness {
         harness_step(&PATTERN, $file, $line)
     }};
 }
+
+/// How many polls a future is given before it is declared stuck.
+///
+/// `Waker::noop`'s `RawWaker` ignores `wake`, so a suspended future is only ever
+/// re-polled by the loop driving it. Every future asserted here resolves on its
+/// first poll, so this is a tripwire rather than a budget.
+const MAX_POLLS: usize = 64;
 
 /// The panic's rendered message, or `None` when the result was not a panic.
 fn panic_message_of(result: Result<StepExecution, StepError>) -> Option<String> {
@@ -269,5 +281,60 @@ fn an_unrenderable_payload_is_still_a_panic(#[case] payload: Box<dyn Any + Send>
     assert!(
         panic_message_of(result).is_some_and(|message| !message.is_empty()),
         "an unrenderable payload must still render as *some* message",
+    );
+}
+
+/// A panic while *building* an async step's future is caught too.
+///
+/// This is the negative control for the second boundary in [`guarded_async`],
+/// and it is the shape `step!`'s four-argument form with `StepExecutionMode::
+/// Async` actually registers: a constructor whose body is
+/// `future::ready(handler(..))`, which evaluates the synchronous handler
+/// eagerly. So the panic happens on the call, before any future exists to poll
+/// — and a `guarded_async` that wrapped only the poll would let it unwind past
+/// the caller entirely.
+///
+/// # Why the closure cannot return a future
+///
+/// The `build` closure panics instead of returning one, and the return type
+/// still has to name [`StepFuture`] so the closure satisfies the parameter. That
+/// is deliberate: it is what makes this test fail against a poll-only
+/// implementation, where the panic would instead escape through the `Err` of a
+/// `catch_unwind` placed inside the function rather than around the call.
+///
+/// The future is polled directly rather than under a runtime, because
+/// `guarded_async` resolves on its first poll — the construction panics before
+/// anything can suspend. `Waker::noop` is enough for that; a future that
+/// actually parked would never be re-polled, which is why the loop below is
+/// bounded rather than open-ended.
+#[test]
+fn a_panic_while_building_an_async_future_is_caught() {
+    let step = harness!("an eagerly panicking step", "notes/unwind.rs", 300);
+
+    let mut run = Box::pin(guarded_async(&step, || -> StepFuture<'_> {
+        panic!("the constructor panicked before any future existed")
+    }));
+    let waker = std::task::Waker::noop();
+    let mut cx = std::task::Context::from_waker(waker);
+
+    // Bounded for the same reason the runner's own poll loops are: `noop`'s
+    // `RawWaker` ignores `wake`, so a future that suspended would be re-polled
+    // only here and the loop would never end.
+    let outcome = (0..MAX_POLLS).find_map(|_| match run.as_mut().poll(&mut cx) {
+        std::task::Poll::Ready(value) => Some(value),
+        std::task::Poll::Pending => None,
+    });
+    let Some(outcome) = outcome else {
+        panic!(
+            "the construction panics before it can suspend, so the guard must resolve on the \
+             first poll rather than staying pending for {MAX_POLLS}"
+        );
+    };
+
+    assert_eq!(
+        panic_message_of(outcome).as_deref(),
+        Some("the constructor panicked before any future existed"),
+        "a panic while building the future must be classified as a PanicError, exactly as a \
+         poll-time panic is",
     );
 }

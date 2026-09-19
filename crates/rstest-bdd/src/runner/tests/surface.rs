@@ -51,28 +51,18 @@ use walk::{Scanned, scan_root};
 /// `gherkin`, `markdown`, and `Trymark` name frontends. `reporting` and
 /// `ScenarioRecord` name the reporting pipeline. `StepExecution` and
 /// `BypassedScenario` name the existing runtime's control-flow types, which a
-/// frontend-neutral runner must not adopt as its own vocabulary.
+/// frontend-neutral runner must not adopt as its own vocabulary. The
+/// `StepExecution` family is matched by [`control_flow_leak`] rather than here,
+/// because it has legitimate completions; see that function.
 ///
-/// The control-flow token carries its delimiter and is listed in both spellings
-/// because bare `StepExecution` is a strict prefix of `StepExecutionRequest` —
-/// the argument type
-/// [`execute_step`](crate::execution::execute_step) takes, and *the* type a
-/// driver is required to build. A bare token would therefore reject the
-/// driver's one unavoidable interaction with the existing runtime, which is the
-/// opposite of what this scan is for: the leak INV-11 guards against is a
-/// signature a caller must name, and naming `StepExecutionRequest` is how a
-/// caller reaches the registry rather than a way of coupling to a frontend.
-/// `BypassedScenario` has no such collision and stays bare, since a token list
-/// that sometimes carries a delimiter has to say which is which and why.
-///
-/// Every token is bare rather than a path prefix. A prefix like `"reporting::"`
-/// matches only the fully qualified spelling, so it misses the one import form
-/// that actually launders the dependency: `use crate::reporting as rep;` binds
-/// the module under a name the scan has never heard of, and every later use of
-/// it (`rep::Feature`) is then invisible. The same reasoning applies to the
-/// frontend tokens, which is why none of them carries a trailing `::` either —
-/// aliasing `gherkin` as `g` still writes the word `gherkin` at the import, and
-/// that is the line the scan sees.
+/// Every token is matched with `contains`, not as a path prefix. A prefix like
+/// `"reporting::"` matches only the fully qualified spelling, so it misses the
+/// one import form that actually launders the dependency: `use crate::reporting
+/// as rep;` binds the module under a name the scan has never heard of, and every
+/// later use of it (`rep::Feature`) is then invisible. The same reasoning
+/// applies to the frontend tokens, which is why none of them carries a trailing
+/// `::` either — aliasing `gherkin` as `g` still writes the word `gherkin` at
+/// the import, and that is the line the scan sees.
 ///
 /// This list is a necessary condition, not a sufficient one, and widening it is
 /// not free. A bare `snapshot` entry, for instance, would reject
@@ -80,16 +70,76 @@ use walk::{Scanned, scan_root};
 /// projection in a file this scan reads. Each addition must therefore be
 /// checked against the artefacts the rest of the plan requires. See the
 /// module-level note on what the scan does and does not establish.
-const FORBIDDEN: [&str; 8] = [
+const FORBIDDEN: [&str; 6] = [
     "gherkin",
     "markdown",
     "trymark",
     "reporting",
     "ScenarioRecord",
-    "StepExecution::",
-    "StepExecution ",
     "BypassedScenario",
 ];
+
+/// The existing runtime's control-flow type, matched with a right boundary.
+///
+/// Bare `StepExecution` is a strict prefix of `StepExecutionRequest` — the
+/// argument type
+/// [`execute_step`](crate::execution::execute_step) takes, and *the* type a
+/// driver is required to build — and of `StepExecutionMode`, which a driver
+/// names to ask how a step is registered. A bare `contains` would therefore
+/// reject the driver's unavoidable interactions with the existing runtime,
+/// which is the opposite of what this scan is for.
+///
+/// Carrying a delimiter instead does not work either, and the earlier revision
+/// of this list tried exactly that: `"StepExecution::"` and `"StepExecution "`
+/// miss `Vec<StepExecution>`, `Result<StepExecution>`, `Option<StepExecution>`,
+/// and `(StepExecution,)` — every generic position, which is where a leaking
+/// signature would actually put it. The leak INV-11 guards against is a
+/// signature a caller must name, and a token list that only catches the
+/// `StepExecution::Variant` spelling misses most of the ways it can be named.
+const CONTROL_FLOW: &str = "StepExecution";
+
+/// The completions of [`CONTROL_FLOW`] that are legitimate in this tree.
+///
+/// Naming one of these is how a caller reaches the registry, not a way of
+/// coupling to a frontend, so they are exempt. Nothing else is: a new public
+/// alias like `StepExecutionOutcome` would be flagged, which is the intended
+/// outcome.
+const CONTROL_FLOW_ALLOWED: [&str; 2] = ["Mode", "Request"];
+
+/// Whether a line names the control-flow type outside those two completions.
+///
+/// The rule is a right boundary: each occurrence of [`CONTROL_FLOW`] is read
+/// together with whatever identifier characters follow it, and the resulting
+/// word is a leak unless it is one of [`CONTROL_FLOW_ALLOWED`]. That catches
+/// every generic and delimiter position, and it is deliberately *not* a
+/// left boundary — a `StepExecution` written as part of a longer name is still
+/// a mention of it.
+fn control_flow_leak(lower: &str) -> bool {
+    let token = CONTROL_FLOW.to_lowercase();
+    let mut rest = lower;
+    // `split_once` returns the text *just past* the first match, which is the
+    // same slice offset arithmetic would produce — but without indexing a
+    // string, which this crate denies (`clippy::string_slice`) and which needs
+    // a panic argument to justify even where the offset is provably a boundary.
+    while let Some((_, after)) = rest.split_once(token.as_str()) {
+        // Underscore is an identifier character but is not alphanumeric, so a
+        // `char::is_alphanumeric` boundary alone would treat `StepExecution_State`
+        // as a bare mention and then fail to flag it — the same class of miss the
+        // delimiter rule had.
+        let tail: String = after
+            .chars()
+            .take_while(|character| character.is_alphanumeric() || *character == '_')
+            .collect();
+        let allowed = CONTROL_FLOW_ALLOWED
+            .iter()
+            .any(|completion| tail.eq_ignore_ascii_case(completion));
+        if !allowed {
+            return true;
+        }
+        rest = after;
+    }
+    false
+}
 
 /// The substring that marks a line as a comment, a doc comment, or a string
 /// literal held across a line break, and so out of scope.
@@ -111,11 +161,15 @@ fn leaks_in(line: &str) -> Vec<&'static str> {
         return Vec::new();
     }
     let lower = line.to_lowercase();
-    FORBIDDEN
+    let mut found: Vec<&'static str> = FORBIDDEN
         .iter()
         .copied()
         .filter(|token| lower.contains(&token.to_lowercase()))
-        .collect()
+        .collect();
+    if control_flow_leak(&lower) {
+        found.push(CONTROL_FLOW);
+    }
+    found
 }
 
 /// Read the runner's sources, skipping this module's own files.
@@ -284,4 +338,51 @@ fn every_leak_shape_is_flagged() {
         leaks_in("//! Nothing here knows what Gherkin is.").is_empty(),
         "a doc-comment mention must be permitted",
     );
+}
+
+/// The control-flow token is flagged by boundary, not by delimiter.
+///
+/// This is the guard for a hole the earlier revision had and did not see:
+/// `"StepExecution::"` and `"StepExecution "` were the whole rule, and the
+/// driver's most likely leaking signature — `fn drive(&mut self, step:
+/// StepExecution)` or a `Vec<StepExecution>` field — matches neither. Both
+/// directions are asserted, because a boundary rule that flagged the two
+/// legitimate completions would break the driver, and one that exempted
+/// everything ending in an alphanumeric would flag nothing at all.
+#[test]
+fn the_control_flow_token_is_flagged_by_boundary() {
+    // Every position a leaking mention can occupy. The last three are the ones
+    // the delimiter rule missed, and they are the ones a real signature uses.
+    for leaking in [
+        "let outcome = StepExecution::from(step);",
+        "fn drive(&mut self, step: StepExecution) -> Outcome {",
+        "struct Driver { steps: Vec<StepExecution> }",
+        "type Planned = Option<StepExecution>;",
+        "fn take(pair: (StepExecution, usize)) {}",
+        "impl StepExecution { fn run(&self) {} }",
+        "use crate::execution::StepExecution;",
+        // Underscore is an identifier character but not alphanumeric, so a
+        // boundary that only rejected alphanumerics would call this a bare
+        // mention and then decline to flag it.
+        "struct StepExecution_State;",
+    ] {
+        assert!(
+            !leaks_in(leaking).is_empty(),
+            "a mention of the control-flow type must be flagged:\n{leaking}",
+        );
+    }
+
+    // The two completions a driver is *required* to name to reach the registry.
+    // Flagging these would make the scan reject the driver it polices.
+    for allowed in [
+        "let mode = StepExecutionMode::Sync;",
+        "fn build() -> StepExecutionRequest { Default::default() }",
+        "StepExecutionRequest::new(mode, text)",
+        "match step.mode() { StepExecutionMode::Async => {}, _ => {} }",
+    ] {
+        assert!(
+            leaks_in(allowed).is_empty(),
+            "a legitimate completion must not be flagged:\n{allowed}",
+        );
+    }
 }
