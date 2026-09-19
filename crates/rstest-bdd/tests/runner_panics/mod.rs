@@ -121,11 +121,7 @@ fn panicking(
     panic!("deliberate panic from an unwrapped step! handler");
 }
 
-unwrapped_step!(
-    StepKeyword::Given,
-    "an unwrapped step panics",
-    panicking
-);
+unwrapped_step!(StepKeyword::Given, "an unwrapped step panics", panicking);
 
 /// An `Async`-mode step whose async body panics *after* an await point.
 ///
