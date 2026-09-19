@@ -55,21 +55,22 @@
 //! D21: the unit-test binary cannot reach the registry, so a runner test that
 //! merely *executes* a step must live here. See `runner_wire.rs`.
 //!
-//! # INV-5 is not in this file
+//! # INV-5, sync/async equivalence
 //!
-//! INV-5, sync/async equivalence, needs `run_scenario_async`, which does not
-//! exist until EP-M3. It is recorded here rather than silently omitted so that
-//! a reader looking for it in the file the plan names does not conclude it was
-//! dropped. INV-5's own clause lands with EP-M3.
+//! INV-5 needs `run_scenario_async`, so it lands with EP-M3 and lives in
+//! [`equivalence`]. Its domain is the generator's, unchanged: every step this
+//! suite registers is `StepExecutionMode::Both` or is not registered at all.
+//! `Async`-only steps are outside it, and INV-15 covers those.
 //!
 //! # How the file is laid out
 //!
-//! Split into three modules to stay inside the repository's 400-line cap, along
+//! Split into four modules to stay inside the repository's 400-line cap, along
 //! the seams the invariants themselves provide. [`invariants`] holds the four
-//! statements' property halves, [`named_witnesses`] the hand-written per-kind
-//! and per-class witnesses, and [`controls`] the negative controls and the
-//! checks on the generator's own domain. The shared driver and the plan builder
-//! stay here, because all three call them.
+//! sequence statements' property halves, [`equivalence`] INV-5,
+//! [`named_witnesses`] the hand-written per-kind and per-class witnesses, and
+//! [`controls`] the negative controls and the checks on the generator's own
+//! domain. The shared driver and the plan builder stay here, because all four
+//! call them.
 
 use std::cell::RefCell;
 
@@ -84,6 +85,8 @@ use sequence::{Arrangement, CASES, Kind, Step, Witnesses, case};
 // `runner_instrumentation.rs`.
 #[path = "runner_sequence_props/controls.rs"]
 mod controls;
+#[path = "runner_sequence_props/equivalence.rs"]
+mod equivalence;
 #[path = "runner_sequence_props/invariants.rs"]
 mod invariants;
 #[path = "runner_sequence_props/named_witnesses.rs"]
