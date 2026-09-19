@@ -1,4 +1,4 @@
-//! Hand-written witnesses, one per kind and one per classification.
+//! Handwritten witnesses, one per kind and one per classification.
 //!
 //! The generator reaches every kind — `Witnesses::assert_complete` is what
 //! holds it to that — but a property failure reports the *minimal* shrunk case,
@@ -16,9 +16,11 @@
 
 use rstest_bdd::runner::{FailureKind, ScenarioStatus, StepOutcome, ValueFate};
 
-use super::collect_witnesses;
-use super::plan;
-use super::sequence::{Arrangement, Kind, run_case};
+use super::{
+    collect_witnesses,
+    plan,
+    sequence::{Arrangement, Kind, run_case},
+};
 
 /// INV-12's three fates, each pinned to the arrangement that produces it.
 ///
@@ -91,8 +93,8 @@ fn the_generator_reaches_each_class_often_enough() {
         let count = tally.status(expected);
         assert!(
             count >= 30,
-            "only {count} of {} runs ended {expected:?}; a class this rare is one the \
-             generator has stopped reaching rather than one it sometimes misses",
+            "only {count} of {} runs ended {expected:?}; a class this rare is one the generator \
+             has stopped reaching rather than one it sometimes misses",
             tally.cases,
         );
     }
@@ -106,7 +108,7 @@ fn the_generator_reaches_each_class_often_enough() {
     }
 }
 
-/// Every terminal kind, reached by a hand-written plan.
+/// Every terminal kind, reached by a handwritten plan.
 ///
 /// The label travels with the kind rather than being derived from it, so the
 /// lookup cannot be fooled by the constant it is looking for: a pair whose
@@ -195,15 +197,15 @@ fn each_terminal_kind_is_reached_by_its_own_witness() {
         assert_eq!(
             run.executed.len(),
             expected_executed(kind),
-            "({label}) the log must hold exactly the invocations that reached a handler ({} \
-             of them), or INV-1's evidence has a hole in it; {describe}",
+            "({label}) the log must hold exactly the invocations that reached a handler ({} of \
+             them), or INV-1's evidence has a hole in it; {describe}",
             expected_executed(kind),
         );
         if !kind.logs_its_position() {
             assert!(
                 !run.executed.contains(&1),
-                "({label}) this kind never reaches a handler, so the terminal invocation must \
-                 not be in the log; {describe}",
+                "({label}) this kind never reaches a handler, so the terminal invocation must not \
+                 be in the log; {describe}",
             );
         }
     }

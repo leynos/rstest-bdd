@@ -34,8 +34,10 @@
 //! vocabulary, and adding a kind is a compile error at every `match` rather
 //! than a silently unreachable case.
 
-use rstest_bdd::StepKeyword;
-use rstest_bdd::runner::{FailureKind, ScenarioStatus};
+use rstest_bdd::{
+    StepKeyword,
+    runner::{FailureKind, ScenarioStatus},
+};
 
 mod generator;
 mod run;
@@ -44,18 +46,23 @@ mod witnesses;
 
 pub(crate) use generator::case;
 pub(crate) use run::{Run, context_for, run_case};
-pub(crate) use steps::{executed, observed, reset_logs};
-pub(crate) use witnesses::Witnesses;
-
 /// The pattern text the generator names, and the placeholder helper.
 ///
 /// Re-exported at this level so the properties, the generator, and the
-/// context builder all name one set of strings. The registrations themselves
-/// have to spell their own literals — a step attribute accepts no path — and
-/// the agreement between the two is checked by the runtime; see `steps/names.rs`.
-pub(crate) mod names {
-    pub(crate) use super::steps::names::*;
-}
+/// context builder all reach one set of strings by one path. The
+/// registrations themselves have to spell their own literals — a step
+/// attribute accepts no path — and the agreement between the two is checked
+/// by the runtime; see `steps/names.rs`.
+///
+/// This is a plain re-export rather than a `pub(crate) mod names { .. }` shim:
+/// Whitaker's `module_must_have_inner_docs` requires an inner doc comment on
+/// every module, and a shim module holding a single re-export would need a
+/// paragraph of prose that said nothing the re-export itself does not.
+/// `steps::names` keeps its own documentation, and this re-export carries a
+/// doc comment because a `pub(crate) use` with none is itself a lint.
+pub(crate) use steps::names;
+pub(crate) use steps::{executed, observed, reset_logs};
+pub(crate) use witnesses::Witnesses;
 
 /// The value a probe fixture starts at, before any step inserts over it.
 ///

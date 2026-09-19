@@ -11,14 +11,27 @@
 //! properties read is populated by the *handlers* rather than by the driver,
 //! which is what makes INV-1's evidence independent of what the driver says.
 
-use proptest::prelude::*;
-use proptest::test_runner::TestRunner;
-use rstest_bdd::StepKeyword;
-use rstest_bdd::runner::{FailureKind, ScenarioStatus};
+use proptest::{prelude::*, test_runner::TestRunner};
+use rstest_bdd::{
+    StepKeyword,
+    runner::{FailureKind, ScenarioStatus},
+};
 
-use super::plan;
-use super::sequence::{Arrangement, CASES, Kind, MAX_STEPS, Reading, SENTINEL, Step, case, executed};
-use super::sequence::run_case;
+use super::{
+    plan,
+    sequence::{
+        Arrangement,
+        CASES,
+        Kind,
+        MAX_STEPS,
+        Reading,
+        SENTINEL,
+        Step,
+        case,
+        executed,
+        run_case,
+    },
+};
 
 /// The negative control for INV-1.
 ///
@@ -205,8 +218,10 @@ fn the_generator_stays_within_its_declared_bound() {
             MAX_STEPS
         );
         prop_assert!(
-            steps.iter().enumerate().all(|(index, step)| step.line
-                == u32::try_from(index).unwrap_or(0) + 1),
+            steps
+                .iter()
+                .enumerate()
+                .all(|(index, step)| step.line == u32::try_from(index).unwrap_or(0) + 1),
             "the strategy produced non-increasing lines: {:?}",
             steps.iter().map(|step| step.line).collect::<Vec<_>>(),
         );

@@ -16,8 +16,10 @@
 use proptest::prelude::*;
 use rstest_bdd::runner::StepStatus;
 
-use super::sequence::{Witnesses, run_case};
-use super::check;
+use super::{
+    check,
+    sequence::{Witnesses, run_case},
+};
 
 /// INV-1: no invocation past the terminal index is executed.
 #[test]
@@ -68,7 +70,9 @@ fn every_invocation_is_recorded_in_plan_order() {
                 index
             );
             prop_assert_eq!(
-                record.source().map(rstest_bdd::runner::SourceLocation::line),
+                record
+                    .source()
+                    .map(rstest_bdd::runner::SourceLocation::line),
                 Some(step.line),
                 "record {} must carry its own source line",
                 index

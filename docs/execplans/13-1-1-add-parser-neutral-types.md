@@ -526,7 +526,7 @@ between them. Raise that before spending the tolerance.
   non-vacuity witness as first drafted was unsatisfiable, because it required a
   value to travel backwards; the per-kind control's expected execution count
   ignored that two kinds are terminal *without* reaching their handler; and one
-  nextest `LEAK` classification is a stderr-timing artifact rather than a
+  nextest `LEAK` classification is a stderr-timing artefact rather than a
   failure. Five more were found by *gating* it — the two files were over the
   400-line cap, and the suite had six pre-existing Clippy findings including
   two `deny`-level ones — also recorded there. An earlier note here claimed two
@@ -1518,7 +1518,7 @@ span into separate short spans rather than relying on `mdtablefix` to wrap it.
   could have found it.
 
 - **Observation:** a `LEAK` classification from nextest is a stderr-timing
-  artifact here, not a failing test. One run in thirteen reported
+  artefact here, not a failing test. One run in thirteen reported
   `15 tests run: 15 passed (1 leaky)` for `a_keyword_mismatch_resolves_to_nothing`,
   which passes in isolation and passed 10 times out of 10 on re-run.
   `StepContext`'s ambiguity path emits through `emit_visible_warning`, which

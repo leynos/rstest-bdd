@@ -7,23 +7,19 @@
 //! therefore produces *plans*, and every test here runs one through
 //! `run_scenario` and inspects what came back.
 //!
-//! - **INV-1, termination.** The run stops at the terminal index and executes
-//!   nothing past it. The evidence is the execution log the steps themselves
-//!   append to, not `outcome.steps()`: the latter records what the driver
-//!   *says* it did, and a driver that ran a bypassed invocation and then
-//!   recorded it as `Bypassed` would satisfy every assertion drawn from it.
-//! - **INV-2, completeness and ordering.** `steps()` has one entry per
-//!   invocation, in plan order, each carrying its own keyword, text, and
-//!   source, with post-terminal entries marked `Bypassed`.
-//! - **INV-3, returned-value visibility.** A value returned by invocation `i`
-//!   reaches every `j > i` and no `j <= i`. A returning step hands back a
-//!   [`Probe`](sequence::steps::Probe) carrying its own index, so an observer's
-//!   reading names the producer it saw rather than merely proving that
+//! - **INV-1, termination.** The run stops at the terminal index and executes nothing past it. The
+//!   evidence is the execution log the steps themselves append to, not `outcome.steps()`: the
+//!   latter records what the driver *says* it did, and a driver that ran a bypassed invocation and
+//!   then recorded it as `Bypassed` would satisfy every assertion drawn from it.
+//! - **INV-2, completeness and ordering.** `steps()` has one entry per invocation, in plan order,
+//!   each carrying its own keyword, text, and source, with post-terminal entries marked `Bypassed`.
+//! - **INV-3, returned-value visibility.** A value returned by invocation `i` reaches every `j > i`
+//!   and no `j <= i`. A returning step hands back a [`Probe`](sequence::steps::Probe) carrying its
+//!   own index, so an observer's reading names the producer it saw rather than merely proving that
 //!   something was inserted.
-//! - **INV-12, no silent drops.** Every value-returning invocation records its
-//!   `InsertOutcome`, and the generator reaches all three [`ValueFate`]s.
-//!   `NoMatch` is the one that matters: it emits no warning anywhere, so a
-//!   renamed fixture would leave a suite green while later steps read a
+//! - **INV-12, no silent drops.** Every value-returning invocation records its `InsertOutcome`, and
+//!   the generator reaches all three [`ValueFate`]s. `NoMatch` is the one that matters: it emits no
+//!   warning anywhere, so a renamed fixture would leave a suite green while later steps read a
 //!   default.
 //!
 //! # Why the classification is accumulated rather than asserted per case
@@ -77,9 +73,7 @@
 
 use std::cell::RefCell;
 
-use proptest::test_runner::TestCaseError;
-use proptest::test_runner::TestRunner;
-
+use proptest::test_runner::{TestCaseError, TestRunner};
 use sequence::{Arrangement, CASES, Kind, Step, Witnesses, case};
 
 // The support modules sit beside this file rather than under a directory named
@@ -92,10 +86,10 @@ use sequence::{Arrangement, CASES, Kind, Step, Witnesses, case};
 mod controls;
 #[path = "runner_sequence_props/invariants.rs"]
 mod invariants;
-#[path = "runner_sequence_props/sequence/mod.rs"]
-mod sequence;
 #[path = "runner_sequence_props/named_witnesses.rs"]
 mod named_witnesses;
+#[path = "runner_sequence_props/sequence/mod.rs"]
+mod sequence;
 
 /// Drive `body` over the generator with the pinned case budget.
 ///
@@ -112,7 +106,9 @@ fn check(body: impl FnMut(Vec<Step>, Arrangement) -> Result<(), TestCaseError>) 
         ..proptest::test_runner::Config::default()
     });
     let body = RefCell::new(body);
-    let result = runner.run(&case(), |(steps, arrangement)| body.borrow_mut()(steps, arrangement));
+    let result = runner.run(&case(), |(steps, arrangement)| {
+        body.borrow_mut()(steps, arrangement)
+    });
     assert!(result.is_ok(), "the property failed: {result:?}");
 }
 
