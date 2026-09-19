@@ -1050,6 +1050,48 @@ between them. Raise that before spending the tolerance.
     rename was reverted; see D34. This box is the one that keeps the milestone
     open: the gate was red for the whole of EP-M5 and no local target could
     see it.
+  - [x] The branch pushed, so the gate above can be confirmed where it actually
+    reports. Nine commits that had been local-only were pushed at
+    2026-09-19T22:42Z, `e31bb57d..a6490cd9`; a left-right revision count
+    between `origin/13-1-1-add-parser-neutral-types` and `HEAD` now reads
+    `0 0` at
+    `a6490cd9`, and CI run `35474112615` triggered against that exact SHA.
+    The count is nine rather than the eleven that a first pass asserted; the
+    figure was checked with `git rev-list --count e31bb57d..a6490cd9` after
+    being written, which is the only reason it is right.
+    **The push had been failing for a reason that was recorded backwards**, and
+    that is the part worth keeping: four attempts were made with
+    `env -u GH_TOKEN -u GITHUB_TOKEN git push ...` on the strength of a stored
+    note saying the tokens must be stripped, and the plain `git push` that
+    finally worked was the one form nobody had tried. The tokens *do* have to be
+    stripped for `gh` — `gh pr view 770` returns `HTTP 401: Bad credentials`
+    with them present, re-confirmed at the time of writing — but the worktree's
+    `credential.helper` is a lody-provided Node script driven by
+    `LODY_GIT_CRED_BROKER_URL` and `LODY_GIT_CRED_CONTEXT_TOKEN`, so stripping
+    the environment is precisely what stops it working. The two commands need
+    opposite treatments and the note generalized one to the other.
+    `printf ... | git credential fill` is not a usable probe for the
+    distinction: it fails both ways while a real push succeeds.
+    **The lesson: a rule stored as "command X needs flag Y" should name the
+    symptom it was derived from, because the next reader will apply it to a
+    command that does not share the symptom.** Recorded as a Progress entry
+    rather than a Decision because it changes no design; the durable copy is in
+    the agent's memory file, rewritten to state the split and to name the
+    broker variables by name.
+  - [ ] Confirm `CodeScene Code Health Review (main)` green **in CI**, which is
+    the only place the check reports. The local `cs delta` returning zero bytes
+    is strong evidence but is not the artefact that was red; see D34 and the
+    Scope-style reasoning above. CI is running at the time of writing.
+  - [ ] Request `coderabbit review --agent` against the pushed revision. The
+    deterministic precondition the maintainer set — every applicable code
+    quality and correctness gate green **before** a review is requested — has
+    been met since `6c17a2e3` (all six local gates green, tree unchanged apart
+    from this document) and was held across one subsequent commit rather than
+    spent. It is
+    deliberately still unspent, for two reasons found while checking: CodeRabbit
+    currently reports `Review skipped: draft pull request` on #770, so the check
+    is a no-op while the PR stays a draft, and the CodeScene verdict is the one
+    deterministic gate whose result is still outstanding.
   - [ ] The Bumpy Road and method-length findings were cleared, but the
     *upstream* lesson is not yet actioned: this plan's gate list enumerates
     local `make` targets and never names the PR checks, which is the set that
