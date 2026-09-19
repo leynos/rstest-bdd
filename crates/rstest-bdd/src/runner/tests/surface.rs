@@ -179,6 +179,14 @@ fn no_frontend_types_in_public_api() {
 /// nothing about the directory it named. Whole paths leave no such slack. A
 /// `child_path` that dropped its prefix, collapsing every key to a bare file
 /// name, is caught here and slips past the name-only form.
+///
+/// The list went stale once already, and that is worth stating because the
+/// staleness was invisible. It named the files of EP-M1 and was not extended
+/// when EP-M2 added `scope.rs` and the whole `engine/` subtree, so the guard
+/// kept passing while never claiming the newest files — the one direction in
+/// which a completeness guard fails quietly. `engine/policy_tests/` is named by
+/// its `mod.rs` for the reason above: one entry that proves the *descent*, not
+/// one entry per test file.
 #[test]
 fn the_scan_finds_the_runner_tree() {
     let Scanned {
@@ -197,11 +205,16 @@ fn the_scan_finds_the_runner_tree() {
 
     for expected in [
         "mod.rs",
+        "engine/drive_sync.rs",
+        "engine/mod.rs",
+        "engine/policy.rs",
+        "engine/policy_tests/mod.rs",
         "outcome/failure.rs",
         "outcome/mod.rs",
         "outcome/step.rs",
         "plan.rs",
         "plan/builder.rs",
+        "scope.rs",
         "source.rs",
         // The walk is a separate file and holds no forbidden token, so it is
         // scanned like any other. Only this module's own two files are exempt,
