@@ -1045,9 +1045,9 @@ between them. Raise that before spending the tolerance.
     rounds had passed it by. 13 findings across 9 files, all `change-type:
     introduced`; `cs delta origin/main --output-format json` now returns
     **zero bytes**. The fix was structural rather than cosmetic —
-    `ScenarioSkip`'s five arguments became two named records, the module became
-    `engine/skip.rs`, and the display snapshot's fixtures became per-variant
-    builders. See D34. This box is the one that keeps the milestone open: the
+    `ScenarioSkip`'s five arguments became two named records, and the display
+    snapshot's fixtures became per-variant builders. An accompanying module
+    rename was reverted; see D34. This box is the one that keeps the milestone open: the
     gate was red for the whole of EP-M5 and no local target could see it.
   - [ ] The Bumpy Road and method-length findings were cleared, but the
     *upstream* lesson is not yet actioned: this plan's gate list enumerates
@@ -3839,11 +3839,20 @@ policy values, so a reader asking "would this skip have failed the suite?" gets
 the run's own answer rather than a rule to re-evaluate). `SkipPolicy`'s fields
 became private and gained accessors, and its `record()` returns the pair as one
 value so the engine cannot interleave another resolve between reading them.
-`engine/policy.rs` and `policy_tests/` were renamed to `skip.rs` and
-`skip_tests/`, because `policy` no longer described the module: the skip rule is
-the one decision the outcome layer must agree with, and the other two decisions
-(`classify`, `assemble`) have no counterpart on the record side. The `surface`
-walk's hard-coded module list caught the rename, as designed.
+**A rename that was reverted, recorded because the reasoning is the lesson.**
+An intermediate revision also renamed `engine/policy.rs` and `policy_tests/` to
+`skip.rs` and `skip_tests/`, on the argument that the module is "named for the
+skip rule". Re-reading the file falsified that: it holds `absorb`, `classify`,
+and `Terminal` as well as `SkipPolicy`, so `skip` was the *narrower* — and worse
+— name than the one it replaced. The collision it was meant to avoid does not
+exist (`ScenarioSkip::skip` is not a method, and no caller brings a bare `skip`
+value into scope), and the rename had already invalidated four documents —
+`developers-guide.md`, `rstest-bdd-design.md`, and `roadmap.md` twice — that
+correctly say `policy`. The `surface` walk's hard-coded module list did catch
+the rename, as designed; that the guard fired is not evidence the rename was
+right, and reverting cost more than not making it. **The lesson: a rename that
+forces prose elsewhere to become wrong is usually the rename's fault, not the
+prose's.** The value split above needed no rename at all.
 
 **Verified cleared, not assumed cleared.** `cs delta origin/main --output-format json`
 returns **zero bytes** on the final revision, down from 13 findings. The full
