@@ -224,8 +224,17 @@ fn the_panic_carries_the_registry_identity_and_the_plans_source() {
     let (file, line) = function
         .rsplit_once(':')
         .expect("the function field must render as `file:line`");
+    // `file!()` embeds the platform's own separator, so the comparison is made
+    // against a normalized copy: on Windows the raw value ends in
+    // `runner_panics\mod.rs` and a literal `/` comparison cannot hold. This is
+    // the convention the crate's other tests already use
+    // (`feature_rebuild_invalidation/harness/fixtures.rs`,
+    // `trybuild_macros/staging.rs`). The raw value is kept for the failure
+    // message so a reader sees what was actually produced rather than the
+    // normalized form that was compared.
+    let normalized = file.replace('\\', "/");
     assert!(
-        file.ends_with("runner_panics/mod.rs"),
+        normalized.ends_with("runner_panics/mod.rs"),
         "the file must be the module the unwrapped handler is defined in; it was `{file}`",
     );
     assert!(
