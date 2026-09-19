@@ -1,4 +1,4 @@
-//! The plan's two behavioural scenarios for parser-neutral execution.
+//! The plan's three behavioural scenarios for parser-neutral execution.
 //!
 //! The steps below build a plan through the new API and run it through
 //! `run_scenario`, while the scenarios *themselves* are executed by the
@@ -6,15 +6,31 @@
 //! keeps the test honest: if the new runner were used to run its own test, a
 //! green result would say only that the runner agrees with itself.
 //!
-//! # Why the third scenario is not here
+//! # The third scenario and the second runner
 //!
-//! The plan's specification lists a third scenario, "The asynchronous runner
-//! agrees with the synchronous runner", whose `When` is "the plan is executed
-//! through both runners". `run_scenario_async` does not exist until EP-M3, so
-//! the scenario cannot be bound: its step would not compile. Cutting it is
-//! D14's own rule rather than a new decision — an executable scenario may only
-//! assert observable behaviour of code that exists. It lands with EP-M3,
-//! alongside its siblings in `runner_sequence_props.rs`.
+//! "The asynchronous runner agrees with the synchronous runner" landed with
+//! EP-M3, alongside its siblings in `runner_sequence_props.rs`, because it
+//! could not be bound before `run_scenario_async` existed: its `When` step
+//! would not have compiled. It asserts equality of the *whole* outcome rather
+//! than of a status or a step count, and it is deliberately the weaker of the
+//! two INV-5 artefacts — the property suite covers generated plans, this one
+//! covers a plan a human named, including a returning step whose value fate
+//! must match. Both are kept because the property is only as good as its
+//! generator, and a reader checking "does the async runner agree" should be
+//! able to read one plan and see for themselves.
+//!
+//! # Why the async arm needs a runtime here but not in `cancel.rs`
+//!
+//! This suite's steps are ordinary `Sync`-mode registrations, so
+//! `execute_step_async` runs their handlers synchronously and never touches
+//! Tokio — the future it returns is ready on its first poll. But
+//! `run_scenario_async` is still an `async fn`, and this step is a synchronous
+//! `fn` that has to produce an outcome from it, so something must drive the
+//! future to completion. A current-thread runtime is the honest tool: it is
+//! what a caller would really use, and it is what makes this scenario evidence
+//! about the *shipping* path rather than about a hand-rolled poll loop. The
+//! poll loop is `cancel.rs`'s subject, and it lives there because cancellation
+//! is only observable if the test owns the polls.
 //!
 //! # State between steps
 //!
@@ -38,6 +54,7 @@ use rstest_bdd::{
         ScenarioStatus,
         StepStatus,
         run_scenario,
+        run_scenario_async,
     },
 };
 use rstest_bdd_macros::{given, scenario, then, when};
@@ -49,6 +66,12 @@ struct Bench {
     plan: Option<ScenarioPlan>,
     /// Filled by the `When` step, read by the `Then` steps.
     outcome: Option<ScenarioOutcome>,
+    /// Filled by the equivalence scenario's `When`, read by its `Then`.
+    ///
+    /// The two runners' results are kept side by side rather than compared
+    /// inside the step, so a failure reports both outcomes through the
+    /// assertion's own diff instead of a hand-built message.
+    async_outcome: Option<ScenarioOutcome>,
     /// Set if running the plan unwound, which is the one thing INV-17 forbids.
     unwound: bool,
 }
@@ -57,11 +80,19 @@ struct Bench {
 #[fixture]
 fn bench() -> RefCell<Bench> { RefCell::new(Bench::default()) }
 
-/// Three registered steps, one per outcome the two scenarios need.
+/// Four registered steps, one per role the three scenarios need.
 ///
 /// The patterns are spelled to be unmistakably this suite's, because the
 /// registry is process-global and every integration binary in this crate shares
 /// it: a text another suite might also register is a future duplicate.
+///
+/// Each is registered under the keyword `step_text` maps its role to, and
+/// `resolve_step` filters on keyword equality — so the mapping is not a
+/// convenience but the thing that makes each invocation resolve at all. The
+/// returning step is under `When` for that reason, and it is the one that makes
+/// the equivalence scenario more than a status comparison: a value whose
+/// `InsertOutcome` differed between the runners would give two outcomes that
+/// agree on every status and disagree on `value_insertion`.
 #[given("a parser-neutral bench step passes")]
 fn a_bench_step_passes() {}
 
@@ -75,12 +106,29 @@ fn a_bench_step_fails() {
     assert_eq!(1, 0, "deliberate failure from a parser-neutral bench step");
 }
 
-/// Map the feature's readable role names onto those three registered steps.
-fn step_text(role: &str) -> &'static str {
+/// A step that returns a value matching no fixture in the bench's context.
+///
+/// `NoMatch` is the fate both runners must report. Deliberately *not* a value
+/// the context can hold: an `Inserted` fate would depend on a fixture cell this
+/// suite would have to register, and the equivalence claim is stronger when the
+/// fate under comparison is the one that arises from the plan alone.
+#[when("a parser-neutral bench step returns a value")]
+fn a_bench_step_returns_a_value() -> BenchValue { BenchValue }
+
+/// The returned value's type, deliberately unlike anything the bench inserts.
+#[derive(Debug)]
+struct BenchValue;
+
+/// Map the feature's readable role names onto the registered steps' text.
+fn step_text(role: &str) -> (&'static str, StepKeyword) {
     match role {
-        "passing" => "a parser-neutral bench step passes",
-        "skipping" => "a parser-neutral bench step skips",
-        "failing" => "a parser-neutral bench step fails",
+        "passing" => ("a parser-neutral bench step passes", StepKeyword::Given),
+        "skipping" => ("a parser-neutral bench step skips", StepKeyword::Given),
+        "failing" => ("a parser-neutral bench step fails", StepKeyword::Then),
+        "returning" => (
+            "a parser-neutral bench step returns a value",
+            StepKeyword::When,
+        ),
         other => panic!("the feature must name a role this suite registers; got `{other}`"),
     }
 }
@@ -109,11 +157,8 @@ fn the_plan_has_a_step_at_line(bench: &RefCell<Bench>, role: String, line: u32) 
     for existing in plan.steps() {
         builder = builder.step(existing.clone());
     }
-    bench.plan = Some(
-        builder
-            .step_at(StepKeyword::Given, step_text(&role), line)
-            .build(),
-    );
+    let (text, keyword) = step_text(&role);
+    bench.plan = Some(builder.step_at(keyword, text, line).build());
 }
 
 #[when("the plan is executed synchronously")]
@@ -134,6 +179,66 @@ fn the_plan_is_executed_synchronously(bench: &RefCell<Bench>) {
     let caught = std::panic::catch_unwind(AssertUnwindSafe(|| run_scenario(&plan, scope)));
     bench.unwound = caught.is_err();
     bench.outcome = caught.ok();
+}
+
+/// Run the plan through both runners and keep both outcomes.
+///
+/// The synchronous arm runs first and the asynchronous one second, each
+/// against a *fresh* context. That is not incidental: `ScenarioScope`
+/// deliberately does not support reusing one context across runs (see its
+/// documentation — a reused context gives partial isolation, which is worse
+/// than none), and reusing one here would make the two runs differ for a reason
+/// that has nothing to do with which runner executed them.
+///
+/// Both arms are inside one `catch_unwind`, so an unwind in either fails the
+/// same assertion. A runner that threw would otherwise take the test binary
+/// down and produce a failure with no attribution.
+#[when("the plan is executed through both runners")]
+fn the_plan_is_executed_through_both_runners(bench: &RefCell<Bench>) {
+    let mut bench = bench.borrow_mut();
+    let Some(plan) = bench.plan.take() else {
+        panic!("the scenario must build a plan before executing it");
+    };
+
+    let caught = std::panic::catch_unwind(AssertUnwindSafe(|| {
+        let mut sync_ctx = StepContext::default();
+        let sync_outcome =
+            run_scenario(&plan, ScenarioScope::new(&mut sync_ctx).with_skip_policy(false));
+
+        // A current-thread runtime with time and I/O *disabled*: the steps this
+        // suite registers are `Sync`-mode, so no timer or reactor is ever
+        // touched, and leaving them off means a future edit that introduced one
+        // would fail here loudly instead of here mysteriously.
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .expect("a current-thread runtime builds");
+        let mut async_ctx = StepContext::default();
+        let async_outcome = runtime.block_on(run_scenario_async(
+            &plan,
+            ScenarioScope::new(&mut async_ctx).with_skip_policy(false),
+        ));
+
+        (sync_outcome, async_outcome)
+    }));
+
+    bench.unwound = caught.is_err();
+    if let Ok((sync_outcome, async_outcome)) = caught {
+        bench.outcome = Some(sync_outcome);
+        bench.async_outcome = Some(async_outcome);
+    }
+}
+
+/// The asynchronous outcome, or a report of what went wrong.
+fn async_outcome(bench: &RefCell<Bench>) -> ScenarioOutcome {
+    let bench = bench.borrow();
+    assert!(
+        !bench.unwound,
+        "running the plan unwound; the runner must return a failure instead",
+    );
+    let Some(outcome) = bench.async_outcome.clone() else {
+        panic!("the `When` step must have produced an asynchronous outcome");
+    };
+    outcome
 }
 
 /// The outcome the `When` step produced, or a report of what went wrong.
@@ -240,8 +345,40 @@ fn folding_yields_an_error(bench: &RefCell<Bench>) {
 )]
 fn a_plan_from_a_markdown_source_records_every_step(#[from(bench)] _bench: RefCell<Bench>) {}
 
+#[then("the two outcomes are equal")]
+fn the_two_outcomes_are_equal(bench: &RefCell<Bench>) {
+    // Both are taken before the assertion so that a mismatch reports two
+    // outcomes rather than one and a panic.
+    let sync = outcome(bench);
+    let asynchronous = async_outcome(bench);
+    assert_eq!(
+        sync, asynchronous,
+        "INV-5: for a plan whose every step is registered in `StepExecutionMode::Both`, the two \
+         runners must produce equal outcomes — compared whole, because a projection chosen by \
+         this test could omit exactly the field that differs",
+    );
+}
+
+#[then("neither runner unwound")]
+fn neither_runner_unwound(bench: &RefCell<Bench>) {
+    assert!(
+        !bench.borrow().unwound,
+        "both runners returned an outcome, so neither re-threw; a runner that unwound would have \
+         been caught by the `When` step",
+    );
+}
+
 #[scenario(
     path = "tests/features/parser_neutral_runner.feature",
     name = "A failing step returns an outcome rather than panicking"
 )]
 fn a_failing_step_returns_an_outcome_rather_than_panicking(#[from(bench)] _bench: RefCell<Bench>) {}
+
+#[scenario(
+    path = "tests/features/parser_neutral_runner.feature",
+    name = "The asynchronous runner agrees with the synchronous runner"
+)]
+fn the_asynchronous_runner_agrees_with_the_synchronous_runner(
+    #[from(bench)] _bench: RefCell<Bench>,
+) {
+}

@@ -92,3 +92,62 @@ pub fn run_scenario<H>(
     let (fail_on_skipped, ctx) = scope.split();
     engine::drive_sync::drive(plan, ctx, fail_on_skipped)
 }
+
+/// Execute a plan asynchronously and return its terminal outcome.
+///
+/// The asynchronous counterpart of [`run_scenario`], with the same contract for
+/// everything a caller can observe: a failing step becomes part of the returned
+/// outcome rather than unwinding, a permitted skip is reported as
+/// [`ScenarioStatus::Skipped`] rather than as a failure, and
+/// [`ScenarioOutcome::into_harness_result`] makes the policy decision about
+/// whether a skip should fail a suite. For a plan whose every step definition is
+/// registered in [`StepExecutionMode::Both`](crate::StepExecutionMode::Both),
+/// the two runners produce equal outcomes; that is INV-5, and it is what
+/// `crates/rstest-bdd/tests/runner_sequence_props.rs` asserts over generated
+/// plans.
+///
+/// # Not `Send`
+///
+/// The returned future is **not** `Send`, because step scope guards are thread
+/// bound. A caller cannot `tokio::spawn` it and must use a current-thread or
+/// thread-per-scenario runtime. This is inherited from the step execution path
+/// rather than chosen here, and it is why the guidance is a runtime *shape*
+/// rather than "any runtime".
+///
+/// # Cancellation
+///
+/// Dropping the future cancels the run: no outcome is produced, and the
+/// awaited after hook is not guaranteed to have run. Synchronous scope cleanup
+/// still happens, because the future owns the scope — it is taken by value, so
+/// dropping the future drops the scope and runs the cleanup guard.
+///
+/// # Examples
+///
+/// ```
+/// use rstest_bdd::{
+///     StepContext,
+///     StepKeyword,
+///     runner::{ScenarioPlanBuilder, ScenarioScope, ScenarioStatus, run_scenario_async},
+/// };
+///
+/// let mut ctx = StepContext::default();
+/// let plan = ScenarioPlanBuilder::new("Add two numbers", "notes/arithmetic.md")
+///     .step_at(StepKeyword::Given, "an undefined step", 3)
+///     .build();
+///
+/// let runtime = tokio::runtime::Builder::new_current_thread()
+///     .build()
+///     .expect("a current-thread runtime builds");
+/// let outcome = runtime.block_on(run_scenario_async(&plan, ScenarioScope::new(&mut ctx)));
+///
+/// // No step definition is registered in this doctest, so the run stops at the
+/// // first invocation rather than unwinding.
+/// assert_eq!(outcome.status(), ScenarioStatus::Failed);
+/// ```
+pub async fn run_scenario_async<H>(
+    plan: &ScenarioPlan,
+    mut scope: ScenarioScope<'_, '_, H>,
+) -> ScenarioOutcome {
+    let (fail_on_skipped, ctx) = scope.split();
+    engine::drive_async::drive(plan, ctx, fail_on_skipped).await
+}
