@@ -681,6 +681,52 @@ between them. Raise that before spending the tolerance.
   directory expectation was satisfiable by a same-named file at the top level —
   and the comment now states only what was measured.
 
+- **Observation:** INV-15's premise is confirmed in the generated code, and the
+  two-case test it prescribes is exactly right.
+  Evidence: `crates/rstest-bdd-macros/src/codegen/wrapper/emit/mod.rs` lines
+  103-166. The sync wrapper first calls
+  `__rstest_bdd_tokio::runtime::Handle::try_current()`. If a runtime is already
+  current it polls the future exactly once with `Waker::noop()` and maps
+  `Poll::Pending` to a `StepError::ExecutionError` whose message ends
+  "multi-poll async steps are not supported under a harness — use `runtime =
+  \"tokio-current-thread\"` or an `async fn` scenario signature instead".
+  Otherwise it builds a `new_current_thread` runtime and drives the step under a
+  `LocalSet`.
+  Impact: the divergence INV-15 exists to document is real, is *not* reachable
+  from `execute_step` (which never consults `execution_mode`), and is decided one
+  layer down in macro-generated code. A multi-poll step therefore succeeds
+  outside a runtime and fails inside one, which is what the invariant's
+  non-vacuity requirement asks the two cases to distinguish. It also means the
+  test cannot be written against `execute_step` alone — it must go through a
+  registered `Async`-mode step, which EP-M2's `runner/tests/modes.rs` will need.
+
+- **Observation:** editing a tracked file *while a gate run is in flight*
+  invalidates part of that run's evidence, even when the edits are innocent.
+  Evidence: this plan was revised during EP-M1's gate closure to record the
+  reconnaissance above. `make markdownlint` and `make nixie` both read
+  `docs/execplans/`, so their verdicts depend on file contents at the moment they
+  run, and the run's result no longer maps to a single tree revision.
+  Impact: a process rule rather than a code one. The plan is edited only between
+  gate runs, never during one; if a correction is urgent, it is made after the
+  run finishes and the affected gates are re-run. Where a gate has already been
+  read from its log and re-verified against the settled tree, that is recorded
+  explicitly rather than left to inference.
+
+- **Observation:** the spelling policy is `-ize`, not the `-ise` that the "en-GB"
+  label invites, and it catches prose written *about* the work as readily as the
+  work itself.
+  Evidence: after fixing `unrecognised` → `unrecognized` in
+  `outcome/failure.rs`, the very prose added to this plan to describe that fix
+  then failed the same gate with `error: materialise should be materialize`,
+  caught by running `typos` on the edited file directly rather than by waiting
+  for `make markdownlint`.
+  Impact: `typos.toml` lines 2127-2145 map a whole family — `recognisable`,
+  `recognised`, `organise`, `materialise`, and others — onto their `-ize` forms,
+  so this is a standing trap, not a one-off. The cheap defence is to run `typos`
+  on any file touched by a commit before requesting the gate, especially a plan
+  or doc where the surrounding prose has not been through review. Checking
+  locally first turned a gate failure into a one-word edit.
+
 - **Observation:** the full `make test` run reported a `cargo-bdd` timeout that
   is environmental, not a regression.
   Evidence: `cargo-bdd::cli list_steps_runs` was terminated at 180.002s against
@@ -1545,9 +1591,9 @@ All new code lives under `crates/rstest-bdd/src/runner/`, re-exported from
 | `runner/plan.rs` | `StepInvocation`, `ScenarioPlan`, accessors |
 | `runner/plan/builder.rs` | `ScenarioPlanBuilder` |
 | `runner/outcome.rs` | `ScenarioOutcome`, `ScenarioStatus`, `ScenarioSkip`, `Display`, `into_harness_result` |
-| `runner/outcome/failure.rs` | `ScenarioFailure`, `FailureSite`, `LifecycleError`, `FailureKind` |
+| `runner/outcome/failure.rs` | `ScenarioFailure`, `FailureSite`, `FailureKind` |
 | `runner/outcome/step.rs` | `StepOutcome`, `StepStatus` |
-| `runner/scope.rs` | `ScenarioScope`, `CleanupGuard`, `Lifecycle`, `NoHooks` |
+| `runner/scope.rs` | `ScenarioScope`, `CleanupGuard`, `NoHooks` |
 | `runner/engine/mod.rs` | A two-paragraph map of the split, and nothing else |
 | `runner/engine/policy.rs` | `classify`, `assemble` — every decision, no I/O, no `async` |
 | `runner/engine/drive_sync.rs` | The synchronous driver: resolve, execute, delegate |
@@ -1864,6 +1910,62 @@ defaulted parameter is what makes adding the trait later source-compatible —
 and the trait, `with_hooks`, and the `Before`/`After` variants of
 `ScenarioFailure` are deferred.
 
+**Do not implement the `Lifecycle` block below in any milestone of this plan.**
+It is retained as the agreed design for the deferred work, so that whoever picks
+it up inherits the reasoning rather than re-deriving it. Two of its constraints
+are load-bearing and were expensive to find: the `CleanupGuard` split exists
+because moving `&'ctx mut StepContext` out of a `Drop` type is `E0713` (Spike
+4), and native `async fn` in the trait is deliberate rather than a boxed future,
+since hooks dispatch statically and AFIT is below the MSRV.
+
+### Integration points EP-M2 must resolve, measured at EP-M1
+
+Reconnaissance during EP-M1's gate closure turned up four facts that EP-M2
+depends on. They are recorded here because each costs real time to rediscover,
+and because two of them are API-shape questions the plan did not anticipate.
+
+1. **The data table needs a conversion that does not exist.** `StepInvocation`
+   stores `Option<Vec<Vec<Cow<'static, str>>>>` and `table()` borrows it as
+   `Option<&[Vec<Cow<'static, str>>]>`, but `StepExecutionRequest.table` demands
+   `Option<&'a [&'a [&'a str]]>`. Those are different shapes at every level —
+   owned rows of owned `Cow`s versus borrowed slices of borrowed slices — so the
+   driver cannot pass the plan's table straight through. It must materialize a
+   borrowed view for the duration of the call. No helper exists today; EP-M2
+   adds one. This is also a `'static`-versus-borrowed boundary, so the view is
+   necessarily per-call rather than stored on the plan.
+2. **`context::clear_values` does not exist yet** and is discharged by EP-M2, as
+   the plan already states. Confirmed absent by search.
+3. **`ExecutionError` and `MissingFixturesDetails` already derive
+   `PartialEq`/`Eq`** (line 146 and line 192 of
+   `crates/rstest-bdd/src/execution/error/mod.rs`), so the plan's "changes
+   outside `runner/`" item 2 is already satisfied and needs no work. Item 3,
+   `pub mod runner;` in `lib.rs`, is likewise already present at line 40.
+4. **The existing macro runtime deliberately discards the insertion outcome** —
+   `crates/rstest-bdd-macros/src/codegen/scenario/runtime/generators/step_loop.rs`
+   line 68 emits `let _ = ctx.insert_value(__rstest_bdd_val);` with a comment
+   explaining that `NoMatch` and `AmbiguousIgnored` are expected and the
+   ambiguous case already warns internally. This is the *shape* INV-12 exists to
+   change: the new runner must record the fate rather than discard it. It is
+   also the reason `ValueFate` had to be invented — `InsertOutcome` cannot be
+   `Clone`/`Eq` because it carries `Box<dyn Any>`, so it cannot sit inside a
+   `StepOutcome` that INV-5 wants to compare. The macro path is **not** to be
+   changed by this work; the divergence is intentional and belongs in the
+   developers' guide.
+
+Two rows of the module-layout table above were stale against D2 option (ii) and
+have been corrected in place. `runner/outcome/failure.rs` was listed as holding
+`LifecycleError`, which D2 (ii) dropped; and `runner/scope.rs` was listed as
+holding `Lifecycle`, which D2 (ii) deferred. The third entry in the table that
+names a deferred item — `ScenarioScope` — is correct, because the struct ships
+with its defaulted `H = NoHooks` parameter while the trait does not.
+
+The runner signatures also read `<H: Lifecycle>` against a deferred `Lifecycle`,
+which cannot compile. Under D2 (ii) they take `H = NoHooks` with no bound, since
+nothing constrains `H` until the trait arrives. The signatures below are
+corrected accordingly. Note that this makes the `H` parameter inert for now: it
+exists so that adding `impl Lifecycle` bounds later is source-compatible, which
+is the whole point of option (ii).
+
 ### The runners
 
 ```rust,ignore
@@ -1871,7 +1973,7 @@ and the trait, `with_hooks`, and the `Before`/`After` variants of
 ///
 /// Never panics: a failing step, a failing or panicking hook, and a panicking
 /// value destructor during cleanup all become part of the returned outcome.
-pub fn run_scenario<H: Lifecycle>(
+pub fn run_scenario<H>(
     plan: &ScenarioPlan,
     scope: ScenarioScope<'_, '_, H>,
 ) -> ScenarioOutcome;
@@ -1884,7 +1986,7 @@ pub fn run_scenario<H: Lifecycle>(
 /// produced and the awaited after hook is not guaranteed to have run.
 /// Synchronous scope-drop cleanup still happens, because the future owns the
 /// scope.
-pub async fn run_scenario_async<H: Lifecycle>(
+pub async fn run_scenario_async<H>(
     plan: &ScenarioPlan,
     scope: ScenarioScope<'_, '_, H>,
 ) -> ScenarioOutcome;
