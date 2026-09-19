@@ -19,11 +19,14 @@
 mod error;
 /// Fixture validation helpers for step execution.
 mod fixtures;
+/// The panic boundary around a step handler invocation (D11).
+mod unwind;
 
 use std::{any::Any, sync::Arc};
 
 pub use error::{ExecutionError, MissingFixtureDiagnostic, MissingFixturesDetails};
 use fixtures::validate_required_fixtures;
+use unwind::guarded;
 
 use crate::{
     Step,
@@ -292,9 +295,15 @@ pub fn execute_step(
 
     validate_required_fixtures(step, ctx, request)?;
 
+    // The handler call is behind D11's boundary. A step registered through the
+    // macro's own wrapper is caught there first and never reaches this one; a
+    // step registered through the raw `step!` form has no wrapper, and without
+    // this its panic would unwind straight out of `run_scenario`.
     handle_step_result(
         request,
-        (step.run)(ctx, request.text, request.docstring, request.table),
+        guarded(step, || {
+            (step.run)(ctx, request.text, request.docstring, request.table)
+        }),
     )
 }
 
@@ -346,13 +355,24 @@ pub async fn execute_step_async(
 
     validate_required_fixtures(step, ctx, request)?;
 
+    // Same boundary as `execute_step`, and for the same reason: an
+    // `Async`-registered step's handler is a bare pointer too. It cannot use
+    // `guarded`, though, because a genuine `async` body may await real I/O and
+    // must keep yielding — so the unwind is caught per *poll* instead, which is
+    // what `catch_unwind_future` exists for. The awaited-into `Ok` is then
+    // mapped by the same `from_payload` the synchronous path uses, so the two
+    // registration forms cannot classify a panic differently.
     let result = match step.execution_mode {
         StepExecutionMode::Async => {
-            (step.run_async)(ctx, request.text, request.docstring, request.table).await
+            let future = (step.run_async)(ctx, request.text, request.docstring, request.table);
+            match crate::panic_support::catch_unwind_future(future).await {
+                Ok(result) => result,
+                Err(payload) => unwind::from_payload(step, payload),
+            }
         }
-        StepExecutionMode::Sync | StepExecutionMode::Both => {
+        StepExecutionMode::Sync | StepExecutionMode::Both => guarded(step, || {
             (step.run)(ctx, request.text, request.docstring, request.table)
-        }
+        }),
     };
 
     handle_step_result(request, result)
