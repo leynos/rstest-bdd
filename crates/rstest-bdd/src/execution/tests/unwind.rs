@@ -39,7 +39,12 @@ use rstest::rstest;
 
 use super::super::guarded;
 use crate::{
-    Step, StepError, StepExecution, StepExecutionMode, StepKeyword, StepPattern,
+    Step,
+    StepError,
+    StepExecution,
+    StepExecutionMode,
+    StepKeyword,
+    StepPattern,
     context::StepContext,
     skip::SkipRequest,
 };
@@ -233,8 +238,8 @@ fn a_foreign_payload_becomes_a_panic_error_identifying_the_step() {
     );
     assert_eq!(
         function, "notes/unwind.rs:118",
-        "the function field renders the step's file and line, since a raw \
-         registration records no handler name",
+        "the function field renders the step's file and line, since a raw registration records no \
+         handler name",
     );
 }
 

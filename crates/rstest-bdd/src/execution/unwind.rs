@@ -64,8 +64,8 @@ use crate::{Step, StepError, StepExecution, panic_message, skip::SkipRequest};
 /// `handle_step_result` unchanged:
 ///
 /// - the handler's own result, when it returned one;
-/// - `Ok(StepExecution::Skipped { .. })` when the payload was a `SkipRequest`,
-///   which is how `skip!` propagates out of a step; or
+/// - `Ok(StepExecution::Skipped { .. })` when the payload was a `SkipRequest`, which is how `skip!`
+///   propagates out of a step; or
 /// - `Err(StepError::PanicError { .. })` for anything else, which
 ///   [`FailureKind::of`](crate::runner::FailureKind::of) classifies as
 ///   [`Panic`](crate::runner::FailureKind::Panic).
