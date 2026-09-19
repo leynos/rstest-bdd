@@ -4306,6 +4306,47 @@ Third, and specific to this repository: after editing a Markdown file,
 `make check-fmt` — not `cargo fmt` — is the check that covers it, and
 `make lint` does not.
 
+**The second masked failure, one step later.** Clearing step 20 did not clear
+the leg. Run `35476038016` at `36ee0457` passed `Check formatting` and failed
+at step 26, `Markdown lint`:
+
+```plaintext
+docs/execplans/13-1-1-add-parser-neutral-types.md:4059:121
+  error MD013/line-length Line length [Expected: 120; Actual: 144]
+```
+
+`MD013`'s `code_block_line_length` is 120 (`.markdownlint-cli2.jsonc`), and the
+offending line is a verbatim quote of the third line of output from
+`scripts/check_rs_file_lengths.py` — which really does emit one 144-column
+advisory, as two adjacent `str` literals with no newline between them
+(`scripts/check_rs_file_lengths.py:113-117`). Unlike the formatting drift, this
+was **not** introduced by the D36 fix; it was merely *hidden* by it. Tracking
+the line across revisions shows it entering with D36 and riding along unchanged:
+
+```plaintext
+4e4f6a0c: count=0 len=
+b99ddf04: count=1 len=144
+abeae80c: count=1 len=144
+36ee0457: count=1 len=144
+```
+
+The obvious repair — wrap the quote to satisfy the linter — silently turns
+evidence into paraphrase, which is the failure this plan has now recorded three
+times in different guises. The quote is instead re-wrapped **at the break
+between the two source string literals**, which is where the emitting code
+itself splits the string, with a note recording that it is shown wrapped and
+that no words changed. That is the only wrap point that is not an editorial
+choice about someone else's output.
+
+**The pattern, stated once.** Steps 20 and 26 are adjacent gates over the same
+file, and each masked the next. The first was new drift from the commit that
+recorded the previous failure; the second had been there since that commit and
+could not be seen until the first was cleared. A gate report that stops at "the
+leg failed" cannot distinguish these: clearing a gate re-establishes the
+*ability* to learn about everything after it, not the fact that everything
+after it passes. (See the gate-abort record in the Decision log's D36, which
+this retraces one step further on.)
+
 Date/Author: 2026-09-20, implementation agent.
 
 ### D32: `Display for SourcePath` is uncovered, and is left uncovered
