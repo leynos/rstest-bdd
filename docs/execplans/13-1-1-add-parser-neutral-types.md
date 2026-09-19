@@ -4025,6 +4025,84 @@ in its own change with its own review.
 
 Date/Author: 2026-09-20, implementation agent.
 
+### D36: D35's own fix broke the 400-line cap, and the abort hid four checkers
+
+**Decision: move the async boundary helpers into `runner_panics/mod.rs`, and
+treat the four unchecked checker steps as unverified rather than as passing.**
+
+**What happened.** The commit that cleared D35 (`188ab854`) split
+`run_async_catching`, and the split added two functions and their doc comments
+to `crates/rstest-bdd/tests/runner_panics.rs`. That file went from under 400
+lines to **410**, over the repository's limit, and `make lint` failed at
+`scripts/check_rs_file_lengths.py`:
+
+```plaintext
+Rust sources exceed the 400 line limit:
+  crates/rstest-bdd/tests/runner_panics.rs (410 lines)
+Update the module layout to split large files or add a temporary entry to scripts/rs-length-allowlist.txt if the refactor is tracked separately.
+make: *** [Makefile:135: lint] Error 1
+```
+
+This is the same shape D35 recorded, one commit further on: **the gate that
+fails is the one the previous gate's fix perturbed.** D35's fix for CodeScene
+was a split; the split added lines; the line-count gate was the one measuring
+lines. Each step was invisible from the gate that was green at the time, and no
+count of these is asserted here — the recurrence is the point, not its
+arithmetic.
+
+**Why an allowlist entry was rejected.** `scripts/rs-length-allowlist.txt`
+carries its own purpose in its header: "*All files previously listed here have
+been decomposed to under 400 lines*". The file exists to track a refactor
+inwards, so adding a new entry to it would be reversing the direction the file
+documents. The module layout was the fix that matched the file's stated intent.
+
+**Where the code went, and why there.** `AsyncRun`, `run_async_catching` and
+`async_panic_identity` moved into `runner_panics/mod.rs`, which is 370 lines
+after the move. That module already owns *how a run is driven*: it holds the
+`silenced` window, which `run_async_catching` opens and whose confinement rule
+that module's note states, and it holds the raw registrations the runs
+exercise. So the move groups the boundary with the thing that makes the
+boundary legal, rather than merely relocating lines to satisfy a counter.
+
+The classification helper went along with the boundary rather than staying
+behind, and that is the one non-obvious call. `async_panic_identity` is what
+the test in the outer file calls, so placing it there would have been the
+smaller diff. It moved because it consumes `AsyncRun` directly, and `AsyncRun`
+is private to the boundary — widening the enum to `pub(super)` so a file with
+no use for the distinction could `match` on it would have leaked an
+implementation detail to buy a shorter diff. `run_async_catching` is likewise
+now private, since the classification helper is its only caller.
+
+**The abort masked four checkers, and they were reported as unverified.** This
+is the part worth keeping. `make lint` stops at its first failing recipe line,
+and the failing line was `Makefile:135` of 139. Four checks therefore never ran:
+`check_unsafe_code_allows.py`, `check_users_guide_links.py`,
+`check_gpui_mapping_table.py` and `check_serial_nextest_matrix.py`. A green
+`make lint` from any *earlier* revision cannot clear them, because this
+branch's new users-guide and execplan prose is precisely what
+`check_users_guide_links.py` and `check_gpui_mapping_table.py` police. The
+gate report for `c6eb5078` says so rather than folding them into "lint failed":
+they are *unknown*, and the distinction matters because the remedy differs.
+Clearing the line count does not imply clearing them; only a re-run that
+reaches line 139 does.
+
+**Verified at the new revision.** `runner_panics.rs` 330 lines,
+`runner_panics/mod.rs` 370; `scripts/check_rs_file_lengths.py` exits 0; clippy
+clean under `--all-targets --all-features -- -D warnings`; the focused binary
+runs 6 tests, 6 passed, including both async cases and the wrapped-step
+non-regression control; rustfmt clean. `cs delta origin/main --output-format
+json` returns **0 bytes** at the new revision, re-measured rather than carried
+forward — which is the whole of D35's lesson applied on the next commit.
+
+**What a successor should take from this.** When a gate run reports a failure,
+read the *recipe position* of the failing line before summarizing the gate.
+"Lint failed" and "lint failed, and steps 5 through 8 of 9 never ran" are
+different states of knowledge, and only the second one tells you what is still
+unproven. The same masking applies to any Makefile whose checks are chained by
+recipe order rather than by explicit aggregation.
+
+Date/Author: 2026-09-20, implementation agent.
+
 ### D32: `Display for SourcePath` is uncovered, and is left uncovered
 
 **Decision: the survivor is recorded rather than chased.** The sweep's first
