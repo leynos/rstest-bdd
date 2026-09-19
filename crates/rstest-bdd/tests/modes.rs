@@ -99,10 +99,12 @@ fn run_outside_a_runtime(text: &'static str) -> (ScenarioOutcome, u32) {
 /// Run `text` from inside a live current-thread runtime.
 fn run_inside_a_runtime(text: &'static str) -> (ScenarioOutcome, u32) {
     RESUMES.with(|count| count.set(0));
-    let runtime = tokio::runtime::Builder::new_current_thread()
+    let built = tokio::runtime::Builder::new_current_thread()
         .enable_all()
-        .build()
-        .unwrap_or_else(|e| panic!("a current-thread runtime must be constructible: {e}"));
+        .build();
+    let Ok(runtime) = built else {
+        panic!("a current-thread runtime must be constructible: {built:?}");
+    };
     let outcome = runtime.block_on(async {
         let mut ctx = StepContext::default();
         let scope = ScenarioScope::new(&mut ctx).with_skip_policy(false);
