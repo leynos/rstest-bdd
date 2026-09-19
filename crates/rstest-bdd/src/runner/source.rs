@@ -100,12 +100,21 @@ impl SourceLocation {
     ///
     /// # Panics
     ///
-    /// Debug builds panic when `line` is zero or when `column` is
-    /// `Some(0)`, because both coordinates are one-based. Release builds store
-    /// the values unchanged. Positions are only ever produced by a frontend's
-    /// parser, so a zero means the parser reported a coordinate it cannot have
-    /// observed, and failing loudly at the boundary beats carrying an
-    /// unrepresentable position into an outcome.
+    /// Panics when `line` is zero or when `column` is `Some(0)`, because both
+    /// coordinates are one-based. A zero means the caller stated a position no
+    /// parser can have observed, and failing loudly at the boundary beats
+    /// carrying an unrepresentable position into an outcome: a `0` that
+    /// survived would be rendered by the runner's `path:line` helper and read
+    /// as a real position by whoever saw it.
+    ///
+    /// The check is active in every profile, not only debug. It has to be: the
+    /// coordinate is supplied by a frontend's parser, which means a malformed
+    /// document is one route to it and a frontend's own off-by-one is another,
+    /// and a release build that silently stored the zero would be the build in
+    /// which the resulting diagnostic was hardest to trace back.
+    ///
+    /// Because this is a `const fn`, a call evaluated at compile time with a
+    /// bad coordinate is a compile error rather than a runtime panic.
     ///
     /// # Examples
     ///
@@ -117,12 +126,12 @@ impl SourceLocation {
     /// ```
     #[must_use]
     pub const fn new_static(path: &'static str, line: u32, column: Option<u32>) -> Self {
-        debug_assert!(line >= 1, "a source line is one-based");
+        assert!(line >= 1, "a source line is one-based");
         // `matches!` rather than `Option::is_none_or` or `Option::map_or`:
         // both are non-const on this toolchain (E0658), so a `const fn` cannot
         // call them. Expressing the rejection directly is also clearer than
         // asserting a negated predicate over a mapped value.
-        debug_assert!(!matches!(column, Some(0)), "a source column is one-based");
+        assert!(!matches!(column, Some(0)), "a source column is one-based");
         Self {
             path: SourcePath::Static(path),
             line,
@@ -134,10 +143,9 @@ impl SourceLocation {
     ///
     /// # Panics
     ///
-    /// Debug builds panic when `line` is zero or when `column` is `Some(0)`,
-    /// because both coordinates are one-based. Release builds store the values
-    /// unchanged. See [`new_static`](Self::new_static) for why a zero is
-    /// rejected rather than clamped.
+    /// Panics when `line` is zero or when `column` is `Some(0)`, because both
+    /// coordinates are one-based. Active in every profile, for the reasons
+    /// [`new_static`](Self::new_static) gives.
     ///
     /// # Examples
     ///
@@ -149,11 +157,11 @@ impl SourceLocation {
     /// ```
     #[must_use]
     pub fn new(path: impl Into<SourcePath>, line: u32, column: Option<u32>) -> Self {
-        debug_assert!(line >= 1, "a source line is one-based");
+        assert!(line >= 1, "a source line is one-based");
         // The same predicate as `new_static`'s, kept in the same spelling so the
         // two constructors cannot drift; see that method for why `matches!` is
         // used rather than a negated `Option` predicate.
-        debug_assert!(!matches!(column, Some(0)), "a source column is one-based");
+        assert!(!matches!(column, Some(0)), "a source column is one-based");
         Self {
             path: path.into(),
             line,

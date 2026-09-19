@@ -33,6 +33,8 @@
 //! `crates/rstest-bdd/tests/runner_wire.rs` and the plan's D-notes record it as
 //! a documented consequence rather than a limitation to be fixed.
 
+use tracing::Instrument;
+
 use crate::{
     StepContext,
     execution::execute_step_async,
@@ -84,8 +86,35 @@ pub(in crate::runner) async fn drive(
         steps = plan.steps().len(),
         allow_skipped = plan.allow_skipped(),
     );
-    let _entered = span.entered();
+    // `Instrument`, not `entered`. The span must be current for every event this
+    // driver emits — including the per-step traces, which are emitted between
+    // awaits — and an `Entered` guard is the wrong instrument for that: a guard
+    // is thread-local and held across a suspension point, so it would report
+    // this scenario as current on a thread that has since moved on to unrelated
+    // work, and it would be dropped only when the future completed.
+    // `Instrument` re-enters the span around each poll instead, which is both
+    // correct under a work-stealing executor and the reason AGENTS.md forbids
+    // the guard form. The synchronous sibling keeps `entered`, because its body
+    // never suspends and so cannot observe the difference.
+    //
+    // The policy `debug!` below is emitted inside the instrumented future for
+    // the same reason: emitted outside it, it would carry no scenario identity
+    // and two concurrent runs would be indistinguishable in the log.
+    drive_inner(plan, ctx, fail_on_skipped)
+        .instrument(span)
+        .await
+}
 
+/// The driver's body, run inside the scenario span.
+///
+/// Split from [`drive`] so the span can be attached to the whole future rather
+/// than entered around a prefix of it. The split is the smallest one that makes
+/// the instrumentation correct; the body is otherwise what [`drive`] was.
+async fn drive_inner(
+    plan: &ScenarioPlan,
+    ctx: &mut StepContext<'_>,
+    fail_on_skipped: bool,
+) -> ScenarioOutcome {
     // Resolved once, here, exactly as the synchronous driver resolves it. Both
     // inputs and both outputs are logged together for the reason D14 gives: the
     // effective `allow_skipped` is derivable from the inputs, so a reader

@@ -48,8 +48,20 @@ pub enum ScenarioStatus {
     Failed,
 }
 
-/// The terminal skip, retained even when a later cleanup failure upgrades the
-/// overall status to [`Failed`](ScenarioStatus::Failed).
+/// The terminal skip, retained so a caller can see *why* the run stopped
+/// early.
+///
+/// A skip is not itself a failure: whether the suite treats it as one is
+/// [`forced_failure`](Self::forced_failure)'s job, and
+/// [`ScenarioOutcome::into_harness_result`] is the one place that fold happens.
+///
+/// Nothing later in the run can upgrade the status to
+/// [`Failed`](ScenarioStatus::Failed). A value destructor that panics during
+/// cleanup is caught and logged by the scope's cleanup guard and does not
+/// reach the outcome, because `ScenarioOutcome` carries exactly one failure
+/// channel — the `cleanup_error` field that would have carried it was dropped
+/// with the hooks under D2 option (ii). See
+/// [`ScenarioFailure`] for the channels that do exist.
 ///
 /// # Examples
 ///
@@ -66,7 +78,14 @@ pub struct ScenarioSkip {
     message: Option<String>,
     /// Where the skipping step was written, when the plan recorded it.
     source: Option<SourceLocation>,
-    /// Whether the scenario explicitly permits skipping.
+    /// The *effective* permission to skip, which is not the plan's own flag.
+    ///
+    /// A run grants permission when the plan asks for it **or** when
+    /// `fail_on_skipped` is off, so this holds
+    /// `plan.allow_skipped() || !fail_on_skipped` rather than the plan's flag
+    /// alone. Recording the effective value is what makes
+    /// `forced_failure == !allow_skipped && fail_on_skipped` hold of the record
+    /// itself and not merely of the policy that built it.
     allow_skipped: bool,
     /// `!allow_skipped && fail_on_skipped`, resolved once per run.
     forced_failure: bool,
@@ -105,7 +124,12 @@ impl ScenarioSkip {
     #[must_use]
     pub const fn source(&self) -> Option<&SourceLocation> { self.source.as_ref() }
 
-    /// Whether the scenario explicitly permitted skipping.
+    /// Whether this run permitted skipping, having resolved the policy.
+    ///
+    /// This is the *effective* permission, so it is `true` either because the
+    /// plan asked for it or because `fail_on_skipped` was off. It is therefore
+    /// not a readback of the plan's own `allow_skipped` flag, and a caller
+    /// asking whether the *plan* permits skipping must consult the plan.
     #[must_use]
     pub const fn allow_skipped(&self) -> bool { self.allow_skipped }
 

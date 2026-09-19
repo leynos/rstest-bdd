@@ -76,23 +76,45 @@ fn the_three_fates_follow_from_the_fixture_arrangement() {
 /// something follows it, and `NoMatch` needs a returning step whose kind was
 /// drawn at all.
 ///
-/// Flooring the counts turns that into evidence. The floors are far below what
-/// the strategy actually reaches — a regression that halved a rate would still
-/// pass — so this catches a class that stopped being reached or nearly so, not
-/// ordinary sampling noise.
+/// Flooring the counts turns that into evidence, but the floor has to sit below
+/// the strategy's own *minimum* rather than below its average — and the two are
+/// not close. Measured over 200 independent runs of this test (51,200 generated
+/// cases), the per-class counts ranged:
+///
+/// ```plaintext
+/// passed    min= 36 p5= 41 mean= 51.1
+/// skipped   min= 28 p5= 37 mean= 46.3
+/// inserted  min= 37 p5= 45 mean= 58.1
+/// nomatch   min= 55 p5= 63 mean= 77.4
+/// ```
+///
+/// `skipped` is the sparse class, and its minimum lands *below* the mean by
+/// more than a third. The floor is therefore 20 rather than 30: 30 was observed
+/// to fail once in those 200 runs, which would be an intermittent red on a
+/// green tree — the worst kind of failure, because the next step is to re-run
+/// rather than to investigate. A floor of 20 sits about 1.4× below the
+/// observed minimum and about 2.3× below the mean, so it still fails on any
+/// regression that materially changes a rate (a halved `skipped` rate lands
+/// near 23 and would be caught about half the time, and a class that stopped
+/// being reached fails immediately) while retiring the false red.
+///
+/// The `mean` is what a reader is likely to reach for instead, and it is the
+/// wrong number: an earlier draft of this comment cited "about 46" as though it
+/// were the floor's headroom, when it is the centre of a distribution whose
+/// lower tail crosses 30.
 #[test]
 fn the_generator_reaches_each_class_often_enough() {
     let tally = collect_witnesses().tally();
 
     assert!(
         tally.cases >= 200,
-        "the run classified {} cases, so a floor of 30 would say nothing",
+        "the run classified {} cases, so a floor of 20 would say nothing",
         tally.cases,
     );
     for expected in [ScenarioStatus::Passed, ScenarioStatus::Skipped] {
         let count = tally.status(expected);
         assert!(
-            count >= 30,
+            count >= 20,
             "only {count} of {} runs ended {expected:?}; a class this rare is one the generator \
              has stopped reaching rather than one it sometimes misses",
             tally.cases,
@@ -101,7 +123,7 @@ fn the_generator_reaches_each_class_often_enough() {
     for expected in [ValueFate::Inserted, ValueFate::NoMatch] {
         let count = tally.fate(expected);
         assert!(
-            count >= 30,
+            count >= 20,
             "only {count} value-returning invocations recorded {expected:?} across {} cases",
             tally.cases,
         );
