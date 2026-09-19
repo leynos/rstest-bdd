@@ -45,6 +45,7 @@
 //! load-bearing rather than tidy. Run it with
 //! `cargo nextest run -p rstest-bdd -E 'binary(runner_panics)'`.
 
+use rstest::rstest;
 use rstest_bdd::{
     ExecutionError,
     StepContext,
@@ -288,8 +289,17 @@ fn a_wrapped_step_panic_is_unchanged() {
 /// implementation that catches only the construction, and passes against one
 /// that catches the poll — which is the whole reason the async path uses
 /// `catch_unwind_future` instead of `guarded`.
-#[test]
-fn an_unwrapped_async_step_panic_is_returned_not_thrown() {
+/// Run one async step under `catch_unwind`, returning the pattern and message
+/// of the `PanicError` it must have produced.
+///
+/// Lifted into a helper for the same reason [`run_catching`] was: the two async
+/// tests differ in which *frame* panics, not in what a caller observes, so the
+/// run and the classification belong in one place and the tests keep only their
+/// distinct assertions. The escape message names both boundaries, because a
+/// regression here escapes the payload rather than misclassifying it and the
+/// output is the only diagnosis a reader gets.
+fn run_async_catching(text: &'static str) -> (String, String) {
+    let text = text.to_owned();
     let escaped = silenced(|| {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .build()
@@ -298,71 +308,11 @@ fn an_unwrapped_async_step_panic_is_returned_not_thrown() {
         let request = StepExecutionRequest {
             index: 0,
             keyword: StepKeyword::Given,
-            text: "an unwrapped async step panics",
+            text: &text,
             docstring: None,
             table: None,
             feature_path: "notes/panics.md",
             scenario_name: "Unwrapped async",
-        };
-        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            runtime.block_on(execute_step_async(&request, &mut ctx))
-        }))
-    });
-
-    let Ok(result) = escaped else {
-        panic!("execute_step_async must return rather than unwind");
-    };
-
-    let error = result.expect_err("a panicking async step is a failure, not a pass");
-    let ExecutionError::HandlerFailed { error, .. } = &error else {
-        panic!("the failure must be a HandlerFailed; it was {error:?}");
-    };
-    let StepError::PanicError {
-        pattern, message, ..
-    } = error.as_ref()
-    else {
-        panic!("the wrapped error must be a PanicError");
-    };
-    assert_eq!(
-        pattern, "an unwrapped async step panics",
-        "the pattern is the registry's own spelling",
-    );
-    assert!(
-        message.contains("deliberate panic from an unwrapped async step! handler"),
-        "the panic's message must survive a poll-time unwind; it was `{message}`",
-    );
-}
-
-/// The other async boundary: a panic while the future is *built*.
-///
-/// Separate from the poll-time test above because the two catch panics in
-/// different frames, and the distinction is not academic — it is the one a
-/// reader is most likely to dismiss as covered by the other. `step!`'s
-/// four-argument form with an explicit async mode registers a constructor whose
-/// body is `future::ready(handler(..))`, so the synchronous handler runs
-/// *eagerly*, to build the future. A boundary around the poll alone leaves that
-/// panic travelling out of `execute_step_async` before a future exists to poll.
-///
-/// The step is registered with `run_async: panicking_while_building`, whose body
-/// panics instead of returning. An implementation that guarded only the poll
-/// would fail at the `let Ok(result)` below, and the failure would be the
-/// escaping payload rather than a wrong classification — which is exactly what
-/// the assertion message names, so a regression is diagnosable from the output.
-#[test]
-fn an_unwrapped_async_step_build_panic_is_returned_not_thrown() {
-    let escaped = silenced(|| {
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .build()
-            .expect("a current-thread runtime builds");
-        let mut ctx = StepContext::default();
-        let request = StepExecutionRequest {
-            index: 0,
-            keyword: StepKeyword::Given,
-            text: "an unwrapped step panics while building",
-            docstring: None,
-            table: None,
-            feature_path: "notes/panics.md",
-            scenario_name: "Unwrapped async build",
         };
         std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             runtime.block_on(execute_step_async(&request, &mut ctx))
@@ -376,7 +326,7 @@ fn an_unwrapped_async_step_build_panic_is_returned_not_thrown() {
         );
     };
 
-    let error = result.expect_err("a panicking constructor is a failure, not a pass");
+    let error = result.expect_err("a panicking async step is a failure, not a pass");
     let ExecutionError::HandlerFailed { error, .. } = &error else {
         panic!("the failure must be a HandlerFailed; it was {error:?}");
     };
@@ -386,12 +336,45 @@ fn an_unwrapped_async_step_build_panic_is_returned_not_thrown() {
     else {
         panic!("the wrapped error must be a PanicError");
     };
-    assert_eq!(
-        pattern, "an unwrapped step panics while building",
-        "the pattern is the registry's own spelling",
-    );
+    (pattern.clone(), message.clone())
+}
+
+/// The two async boundaries, one case each.
+///
+/// A table rather than two functions because the two cases assert the *same*
+/// relation over different inputs: the registered pattern survives as the
+/// error's pattern, and the panic's own message survives the unwind. Two
+/// functions would be two copies of that relation, free to drift apart.
+///
+/// What differs is which frame panics, and that difference is load-bearing
+/// rather than incidental. `step!`'s four-argument form with an explicit async
+/// mode registers a constructor whose body is `future::ready(handler(..))`, so
+/// the synchronous handler runs *eagerly*, to build the future. A boundary
+/// around the poll alone leaves that panic travelling out of
+/// `execute_step_async` before a future exists to poll — which is why
+/// `poll_time` is not merely a second sample of the first case. An
+/// implementation that guarded only the poll fails the `build_time` case at the
+/// `let Ok(result)` inside [`run_async_catching`], and the failure is the
+/// escaping payload rather than a wrong classification; that helper's message
+/// names both boundaries so the output is diagnosable either way.
+#[rstest]
+#[case::poll_time(
+    "an unwrapped async step panics",
+    "deliberate panic from an unwrapped async step! handler"
+)]
+#[case::build_time(
+    "an unwrapped step panics while building",
+    "deliberate panic while building an unwrapped async step future"
+)]
+fn an_unwrapped_async_step_panic_is_returned_not_thrown(
+    #[case] text: &'static str,
+    #[case] expected_message: &str,
+) {
+    let (pattern, message) = run_async_catching(text);
+
+    assert_eq!(pattern, text, "the pattern is the registry's own spelling",);
     assert!(
-        message.contains("deliberate panic while building an unwrapped async step future"),
-        "the constructor panic's message must survive; it was `{message}`",
+        message.contains(expected_message),
+        "the panic's message must survive the unwind; it was `{message}`",
     );
 }
