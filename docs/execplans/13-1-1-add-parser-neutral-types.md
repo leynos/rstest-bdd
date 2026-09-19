@@ -2423,11 +2423,21 @@ D16's reason.
 decision by scanning `details` for the last non-`Bypassed` entry. That scan is
 the one derivation this split exists to prevent: it would silently produce a
 wrong outcome if the driver ever padded wrongly, whereas an explicit `Terminal`
-is produced by the very `match` arm that stopped the loop. The error is moved
-into `Terminal::Fail` rather than cloned out of the recorded `StepOutcome`, so
-the compiler enforces that the error the outcome reports is the error the step
-produced — D16's "verbatim", now checked by ownership rather than by
-convention.
+is produced by the very `match` arm that stopped the loop.
+
+`Terminal::Fail` carries its own `ExecutionError` rather than `assemble`
+borrowing one back out of `details[index]`. The cost is one **clone**, on the
+failure path only, because `StepOutcome::failed` consumes its error by value —
+so the driver clones the error it already holds, records the step, and moves
+the original into the `Terminal`. That is bounded at one per scenario and
+`ExecutionError` is cheap to clone. The alternative that avoids the clone,
+having `assemble` build the terminal step's record itself from `Terminal` plus
+the plan, was rejected because it would make `assemble` take `&ScenarioPlan`
+and reconstruct plan-side identity the driver had already materialised. Read
+the two copies as a value guarantee rather than an identity one: they descend
+from one original, so they cannot disagree, which is what D16's "verbatim"
+requires. `ExecutionError` already derives `Clone` and `PartialEq`, the latter
+landing in EP-M2 for INV-5.
 
 `assemble` sets `status: Skipped` and `skip: Some(ScenarioSkip::new(at,
 message, source, allow_skipped, forced_failure))` for a terminal skip, reading
