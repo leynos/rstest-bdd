@@ -566,10 +566,35 @@ between them. Raise that before spending the tolerance.
   variants are D5's 13.2.1 obligations made executable, and building it
   corrected two of the three as the decision log records.
 
-  Outstanding for EP-M2: the `tracing` instrumentation beyond the two `warn!`
-  and one `debug!` already in place (the per-step `trace!` is D14's only
-  missing event), the two behavioural scenarios, `tests/modes.rs` for INV-15,
-  and `crates/rstest-bdd/tests/runner_sequence_props.rs`.
+  D14 is now complete in source and covered by tests, which is itself a
+  correction: the plan named the four events and assigned them **no artefact**,
+  so the obligation had no way to fail. The four are emitted from
+  `engine/drive_sync.rs` — the span carries `name`/`source`/`line`/`steps`/
+  `allow_skipped`, the policy `debug!` logs both inputs and both outputs, the
+  per-step `trace!` is emitted from the loop plus the bypass `map` so one site
+  each covers every status, and the two terminal `warn!`s carry `location`
+  (`path:line`, rendered by a driver-local `location()` helper because
+  `SourceLocation` deliberately has no `Display`) and, for a failure, `kind`.
+  The artefact is `crates/rstest-bdd/tests/runner_instrumentation.rs`: six
+  tests over a hand-rolled `Subscriber` recording field *names* and levels.
+
+  The artefact's path is the second correction. D14's tests were first written
+  as a unit module at `src/runner/tests/instrumentation.rs`, following D19, and
+  **every one of them panicked** at `registry/mod.rs:238` — the same duplicate
+  the `Surprises` entry below records. D21 already says a step-resolving test
+  is an integration test, but the constraint is stronger than D21 states: the
+  unit-test binary cannot reach the registry *at all*, so it can observe only
+  an unresolvable invocation. That would have left `Passed` and `Skipped`
+  unobserved, which are two of the four statuses D14's per-step event exists to
+  distinguish. The limit is now written into the file's module docs.
+
+  The tests were falsified rather than trusted: deleting `allow_skipped` from
+  the span, `location` from the failure warning, and `has_message` from the
+  skip warning each failed exactly the test naming that field, and nothing else.
+
+  Outstanding for EP-M2: the two behavioural scenarios, `tests/modes.rs` for
+  INV-15, `crates/rstest-bdd/tests/runner_sequence_props.rs`,
+  `tests/completeness.rs`, and `tests/skip_parity.rs`.
 - [ ] EP-M3: asynchronous runner and cancellation.
 - [x] ~~EP-M4: lifecycle hooks and the lifecycle matrix~~ — struck by D2
   option (ii).
@@ -593,6 +618,20 @@ between them. Raise that before spending the tolerance.
   registry was ever reached, which is exactly the class of blindness a Red
   stage is supposed to expose rather than create. The hazard is live for any
   future in-crate registry lookup, and is not caused by this milestone.
+
+  **Second sighting, at EP-M2, and it is stronger than D21 records.** D21 says
+  a runner test that *resolves a step* must be an integration test. The actual
+  constraint is that the unit-test binary cannot reach the registry at all, so
+  a runner test that merely *executes* must be one too, whether or not its step
+  resolves. Writing D14's instrumentation tests as a unit module
+  (`src/runner/tests/instrumentation.rs`) put all six in that trap; the panic
+  was immediate and identical. The distinction matters because D21's phrasing
+  reads as permission to keep a non-resolving runner test in the unit binary,
+  and that is exactly the case that appears to work: a plan naming no
+  registered step does fail, cleanly and for the right printed reason, so the
+  test passes. What it silently cannot do is produce `Passed` or `Skipped` —
+  the two statuses most of the runner's behaviour is about. A test suite built
+  that way would be green and would have stopped observing the runner.
 
 - **Observation:** a step function has no way to receive the `StepContext`.
   Evidence: no step in the workspace takes one —
@@ -730,8 +769,8 @@ between them. Raise that before spending the tolerance.
   failed by claiming completed work. The remedy is the same in both directions:
   state the evidence (a path, a command, a count) rather than the intent, so a
   reader can check the claim without re-deriving it. D5's record now names the
-  file, the signature, and the test count for exactly this reason.
-  Date/Author: 2026-09-19, implementation agent.
+  file, the signature, and the test count for exactly this reason. Date/Author:
+  2026-09-19, implementation agent.
 
 - **Observation:** the first draft's `#[cfg(test)]` seeded-fault switch could
   not have worked, and would have been dangerous if it had. Evidence: INV-1's
@@ -1382,31 +1421,31 @@ positive, and `BypassedScenario` — which has no collision — stays bare.
   returned nothing, so the conversion had not been written at all. Found while
   re-reading D5 against the tree rather than from any gate — no gate can see a
   plan that over-claims, which is the standing hazard of a living document and
-  the reason this paragraph now names the evidence rather than the intent.
-  What shipped is `crates/rstest-bdd/src/reporting/conversion.rs` plus its
+  the reason this paragraph now names the evidence rather than the intent. What
+  shipped is `crates/rstest-bdd/src/reporting/conversion.rs` plus its
   `conversion/tests.rs`, six unit tests, with the signature pinned by an
   anonymous `const _:` coercion. The conversion is a private
   `fn record_from(&ScenarioPlan, &ScenarioOutcome) -> Result<ScenarioRecord,
-  Gap>`, and `Gap` is the finding made operational.
+  Gap>`,
+  and `Gap` is the finding made operational.
 
   Building it changed the shape of two of D5's three recorded obligations, so
   the record is corrected here rather than left as it was predicted.
   `reporting::ScenarioStatus`'s missing failure case is confirmed and is now
   `Gap::Failure` — the conversion *returns* it rather than degrading to
-  `Passed`, and a test asserts that, so the obligation fails loudly when
-  13.2.1 adds the variant instead of quietly passing. The `BypassedScenario`
+  `Passed`, and a test asserts that, so the obligation fails loudly when 13.2.1
+  adds the variant instead of quietly passing. The `BypassedScenario`
   obligation is real but finer than predicted: the type does carry tags and a
   reason, so the missing pieces are `ScenarioOutcome`'s *name, path, and
   declared line*, which is why `record_from` takes the plan as a second
   parameter. A third gap surfaced that the decision text did not anticipate —
   `ScenarioMetadata::line` is a non-optional `u32` while a plan's line is
   optional under D3, so a frontend that omits it has no record at all;
-  substituting `0` would write a coordinate the frontend never observed, so
-  the conversion reports `Gap::MissingLine` instead. The `thread::panicking()`
+  substituting `0` would write a coordinate the frontend never observed, so the
+  conversion reports `Gap::MissingLine` instead. The `thread::panicking()`
   obligation is unchanged and unexercised by this work: the guard lives in
-  macro-generated code
-  (`codegen/scenario/runtime/generators/scenario.rs:78`), and the conversion
-  neither touches nor tests it.
+  macro-generated code (`codegen/scenario/runtime/generators/scenario.rs:78`),
+  and the conversion neither touches nor tests it.
 
 - **D6: one set of pure decision functions, two thin drivers, and the stop
   decision inside `engine::classify`.** Rationale: Rust cannot express one loop
@@ -1762,6 +1801,26 @@ the tests that exercise the pure folds — `outcome`, `plan`, `surface`, and the
 The rule applies to INV-15, INV-2's `completeness.rs`, INV-6's
 `skip_parity.rs`, and INV-4's `lifecycle.rs` (as far as D2 leaves it standing).
 All four execute steps, so all four are affected.
+
+**Amended 2026-09-19, later in EP-M2: the condition is "executes a step", not
+"resolves a step".** D14's instrumentation tests were first written as
+`src/runner/tests/instrumentation.rs`, on the reading that a plan naming no
+registered step resolves nothing and so escapes the rule. That reading is
+wrong, and the tests panicked immediately at the same `registry/mod.rs:238`.
+The duplicate fires on the first lookup *of any kind*, so the lib-test binary
+cannot reach the registry at all, and a run in it can only ever terminate as an
+unresolvable failure.
+
+The distinction is worth stating because the mistaken reading does not look
+like a mistake. Such a test *passes*: it drives a real run through the real
+driver, and receives a real, correctly-classified failure. What it cannot
+receive is `Passed` or `Skipped`. So a runner suite built on the weaker rule
+would be green while having stopped observing most of the runner's behaviour —
+the same silent-narrowing shape as the `surface.rs` completeness guard, in the
+opposite direction. The rule as amended: **any** runner test that calls
+`run_scenario` or `run_scenario_async` lives under `crates/rstest-bdd/tests/`.
+`src/runner/tests/` keeps only the tests that exercise the pure folds and the
+source-level scan, none of which invoke a driver.
 
 INV-15's `Artefact` line above says
 `crates/rstest-bdd/src/runner/tests/modes.rs`. It cannot be. The case that
@@ -2323,7 +2382,47 @@ projects an `ExecutionError` onto a small `#[non_exhaustive] FailureKind`
   `ExecutionError`'s variants directly — realizing ADR-018's "may accidentally
   freeze internal registry or error representations" risk. A projection is
   cheap now and expensive to retrofit.
-- Artefact: `crates/rstest-bdd/src/runner/tests/source.rs`.
+- Artefact: `crates/rstest-bdd/tests/runner_instrumentation.rs` for the
+  observable event, with `src/runner/tests/outcome.rs` covering the projection
+  itself. Recorded as a correction: the plan named this artefact as
+  `src/runner/tests/source.rs`, a file that holds D7's source-fidelity tests
+  and has nothing to do with `FailureKind`. The projection's witnesses live in
+  `src/runner/tests/outcome.rs:269`; they were written at EP-M1 and the
+  verification plan was never updated to point at them.
+
+**D14 — Instrumentation.** The runner emits four events: a per-run
+`debug_span!` carrying the plan's name, source path, line, step count, and
+`allow_skipped`; a `debug!` at policy resolution naming both inputs and both
+outputs; a per-step `trace!` carrying index, keyword, and resulting
+`StepStatus`; and a `warn!` on every terminal skip or failure carrying index,
+`path:line`, and — for a failure — the error's kind discriminant, never the
+formatted message.
+
+- Method: capture the events with a hand-rolled `tracing::Subscriber` installed
+  per-thread with `set_default`, and assert each event's *field names* and
+  level.
+- Artefact: `crates/rstest-bdd/tests/runner_instrumentation.rs` for the six
+  tests, with the subscriber and its readers in the companion
+  `runner_instrumentation/capture.rs`. The split is `module_max_lines`'s doing,
+  not a design choice: the file was 469 lines and the cap is 400.
+- What the method cannot establish, and why that is acceptable: the field
+  *values* are not read back, because a `tracing` field's type is fixed at the
+  macro and reading one generically needs a visitor per type. The assertions
+  establish that each documented field is present and named as documented; the
+  values are established where they are decided, by the `engine/policy_tests`
+  and `runner/tests/outcome.rs` obligations above. The two halves meet here.
+- Non-vacuity: the `WARN`-filtered case asserts the terminal warning still
+  arrives **and** that nothing lighter does, which is the control against a
+  subscriber whose `enabled` ignores the level — without it every other
+  assertion would hold for an ungated runner. Falsified at EP-M2 by deleting
+  `allow_skipped` from the span, `location` from the failure warning, and
+  `has_message` from the skip warning: each deletion failed exactly one named
+  test and nothing else.
+- D21 applies, and more sharply than the plan first recorded. The events are
+  emitted from a driver, and observing them requires a run. A run in the
+  unit-test binary can only ever fail to resolve, so `Passed` and `Skipped` —
+  two of the four statuses the per-step event exists to distinguish — would be
+  unobservable there. Hence the integration-test path above.
 
 ### Lemmas
 

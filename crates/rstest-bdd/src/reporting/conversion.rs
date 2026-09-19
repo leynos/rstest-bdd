@@ -119,7 +119,5 @@ fn record_from(plan: &ScenarioPlan, outcome: &ScenarioOutcome) -> Result<Scenari
 // `runner/tests/surface.rs` documents for its token scan, and it is left open
 // deliberately: closing it needs a compiler pass over the crate's public API,
 // which is a much larger instrument than a unit test.
-const _: for<'p, 'o> fn(
-    &'p ScenarioPlan,
-    &'o ScenarioOutcome,
-) -> Result<ScenarioRecord, Gap> = record_from;
+const _: for<'p, 'o> fn(&'p ScenarioPlan, &'o ScenarioOutcome) -> Result<ScenarioRecord, Gap> =
+    record_from;

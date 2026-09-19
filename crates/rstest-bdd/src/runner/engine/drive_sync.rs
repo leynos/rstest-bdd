@@ -46,7 +46,7 @@ use crate::{
             assemble,
             classify,
         },
-        outcome::StepOutcome,
+        outcome::{StepOutcome, StepStatus},
     },
 };
 
@@ -96,15 +96,30 @@ pub(in crate::runner) fn drive(
     ctx: &mut StepContext<'_>,
     fail_on_skipped: bool,
 ) -> ScenarioOutcome {
-    let span = tracing::debug_span!("scenario", name = plan.name(), source = plan.source());
+    let span = tracing::debug_span!(
+        "scenario",
+        name = plan.name(),
+        source = plan.source(),
+        line = plan.source_line(),
+        steps = plan.steps().len(),
+        allow_skipped = plan.allow_skipped(),
+    );
     let _entered = span.entered();
 
     // Resolved once, here: this is the first point at which both the plan's own
     // flag and the scope's resolved global are in hand. D10.
     let policy = SkipPolicy::resolve(plan.allow_skipped(), fail_on_skipped);
+    // Both inputs are logged alongside both outputs, deliberately. The
+    // effective `allow_skipped` is `plan_allows_skipping || !fail_on_skipped`,
+    // so writing the inputs as well is what makes the resolution attributable
+    // after the fact — the question D14 names ("why did my skip become a
+    // failure on CI but not locally") is answered by seeing `fail_on_skipped`
+    // differ between the two runs, and a reader does not have to re-derive
+    // which input granted the flag.
     tracing::debug!(
-        allow_skipped = policy.allow_skipped,
+        plan_allows_skipping = plan.allow_skipped(),
         fail_on_skipped = policy.fail_on_skipped,
+        allow_skipped = policy.allow_skipped,
         forced_failure = policy.forces_failure(),
         "resolved skip policy",
     );
@@ -115,6 +130,18 @@ pub(in crate::runner) fn drive(
 
     for (index, invocation) in remaining.by_ref() {
         let (record, stop) = execute(index, invocation, ctx, plan);
+        // D14's per-step event, emitted from the loop rather than from
+        // `execute`, so one call site covers all four statuses instead of one
+        // per match arm. It follows the terminal `warn!` that `execute` may
+        // have just emitted for this same step: the terminal event is the
+        // louder one and is announced first, and the trace then records what
+        // that step's own entry was.
+        tracing::trace!(
+            index,
+            keyword = ?invocation.keyword(),
+            status = ?record.status(),
+            "step executed",
+        );
         details.push(record);
         if let Some(event) = stop {
             terminal = Some(event);
@@ -126,6 +153,12 @@ pub(in crate::runner) fn drive(
     // executed. INV-2's completeness half; INV-1's termination half is the
     // `break` above.
     details.extend(remaining.map(|(index, invocation)| {
+        tracing::trace!(
+            index,
+            keyword = ?invocation.keyword(),
+            status = ?StepStatus::Bypassed,
+            "step bypassed",
+        );
         StepOutcome::bypassed(
             index,
             invocation.keyword(),
@@ -174,6 +207,7 @@ fn execute(
             // step-supplied text.
             tracing::warn!(
                 index,
+                location = location(invocation),
                 has_message = message.is_some(),
                 "scenario stopped: a step requested a skip",
             );
@@ -195,6 +229,7 @@ fn execute(
             // D14: the discriminant, never the formatted message.
             tracing::warn!(
                 index,
+                location = location(invocation),
                 kind = ?crate::runner::FailureKind::of(&error),
                 "scenario stopped: a step failed",
             );
@@ -212,6 +247,28 @@ fn execute(
             (record, Some(Terminal::Fail { index, error }))
         }
     }
+}
+
+/// Render a step's source as `path:line`, or `unknown` when the plan has none.
+///
+/// D14 asks the two terminal warnings to carry `path:line` rather than the
+/// `SourceLocation` itself, because a `tracing` field is read in a log line and
+/// the two coordinates are the whole of what a reader needs. `Display` is
+/// deliberately not implemented on `SourceLocation` for this: the type carries
+/// an optional column, and a `Display` would have to choose whether to render
+/// it — a rendering decision that belongs to the log site, not to a
+/// frontend-facing type that `runner/tests/surface.rs` also polices.
+///
+/// A plan may omit the location entirely (D3 makes it optional), and the
+/// warning still has to be emitted for that run. `unknown` is used rather than
+/// an empty string so the field is visibly present-but-absent rather than
+/// looking like a rendering bug, and it is a `&'static str` so the field costs
+/// no allocation on the failure path.
+fn location(invocation: &StepInvocation) -> String {
+    invocation.source().map_or_else(
+        || "unknown".to_owned(),
+        |source| format!("{}:{}", source.path(), source.line()),
+    )
 }
 
 /// Record a successful invocation, with what became of any returned value.
