@@ -1047,8 +1047,9 @@ between them. Raise that before spending the tolerance.
     **zero bytes**. The fix was structural rather than cosmetic —
     `ScenarioSkip`'s five arguments became two named records, and the display
     snapshot's fixtures became per-variant builders. An accompanying module
-    rename was reverted; see D34. This box is the one that keeps the milestone open: the
-    gate was red for the whole of EP-M5 and no local target could see it.
+    rename was reverted; see D34. This box is the one that keeps the milestone
+    open: the gate was red for the whole of EP-M5 and no local target could
+    see it.
   - [ ] The Bumpy Road and method-length findings were cleared, but the
     *upstream* lesson is not yet actioned: this plan's gate list enumerates
     local `make` targets and never names the PR checks, which is the set that
