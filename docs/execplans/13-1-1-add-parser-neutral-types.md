@@ -559,10 +559,17 @@ between them. Raise that before spending the tolerance.
   better beside the fixture map it reaches into. `context/harness.rs` is that
   extraction, unchanged apart from the move.
 
+  The D5 conversion is now built: `reporting/conversion.rs` holds a private
+  `record_from(&ScenarioPlan, &ScenarioOutcome) -> Result<ScenarioRecord, Gap>`
+  with its signature pinned by an anonymous `const _:` coercion, and
+  `reporting/conversion/tests.rs` holds six unit tests. The three `Gap`
+  variants are D5's 13.2.1 obligations made executable, and building it
+  corrected two of the three as the decision log records.
+
   Outstanding for EP-M2: the `tracing` instrumentation beyond the two `warn!`
-  and one `debug!` already in place, the two behavioural scenarios, the
-  `#[cfg(test)]` reporting conversion smoke test (D5), `tests/modes.rs` for
-  INV-15, and `crates/rstest-bdd/tests/runner_sequence_props.rs`.
+  and one `debug!` already in place (the per-step `trace!` is D14's only
+  missing event), the two behavioural scenarios, `tests/modes.rs` for INV-15,
+  and `crates/rstest-bdd/tests/runner_sequence_props.rs`.
 - [ ] EP-M3: asynchronous runner and cancellation.
 - [x] ~~EP-M4: lifecycle hooks and the lifecycle matrix~~ — struck by D2
   option (ii).
@@ -697,6 +704,34 @@ between them. Raise that before spending the tolerance.
   `!std::thread::panicking()`. Impact: 13.2.1 must *extend* `reporting`, not
   merely add a conversion. D5 records this so it is not discovered at migration
   time.
+
+  Confirmed at EP-M2 by writing the conversion, and the confirmation is
+  stronger than the prediction. Evidence: `Gap::Failure` in
+  `crates/rstest-bdd/src/reporting/conversion.rs`, and
+  `a_failed_run_reports_the_missing_failure_case`, which asserts the conversion
+  *refuses* rather than coercing. The difference from the prediction is what
+  the refusal buys: the natural failure mode of a conversion is to pick a
+  variant that nearly fits, and `Passed` nearly fits every non-skip outcome. So
+  the obligation is now carried by a `match` arm that returns `Err` and a test
+  that would have to be deleted, not by a paragraph that a migration could
+  overlook. Date/Author: 2026-09-19, implementation agent.
+
+- **Observation:** a plan can over-claim its own progress, and no deterministic
+  gate can catch it. Evidence: D5's narrowed note asserted "the first is what
+  shipped" of a conversion module that did not exist —
+  `grep -rn 'runner::' crates/rstest-bdd/src/reporting/` returned nothing, and
+  `reporting/mod.rs` had no `runner` reference at all. Every gate was green
+  while the claim was false, and correctly so: `make test` cannot test a
+  function that was never written, and `make markdownlint` has no opinion about
+  whether prose matches the tree. It was found only by re-reading the decision
+  against the code. Impact: this is the characteristic failure of a living
+  document, and it is the mirror image of the `surface.rs` completeness guard
+  going stale — that guard failed by not *claiming* new files, and this note
+  failed by claiming completed work. The remedy is the same in both directions:
+  state the evidence (a path, a command, a count) rather than the intent, so a
+  reader can check the claim without re-deriving it. D5's record now names the
+  file, the signature, and the test count for exactly this reason.
+  Date/Author: 2026-09-19, implementation agent.
 
 - **Observation:** the first draft's `#[cfg(test)]` seeded-fault switch could
   not have worked, and would have been dangerous if it had. Evidence: INV-1's
@@ -1340,6 +1375,38 @@ positive, and `BypassedScenario` — which has no collision — stays bare.
   own purpose survives intact, because the missing failure representation it
   was written to surface is still surfaced; what is lost is the end-to-end
   shape of the evidence, not the finding.
+
+  **Built at EP-M2, and the note above was briefly ahead of the work.** The
+  first version of this paragraph said "the first is what shipped" while no
+  such module existed: `grep -rn 'runner::' crates/rstest-bdd/src/reporting/`
+  returned nothing, so the conversion had not been written at all. Found while
+  re-reading D5 against the tree rather than from any gate — no gate can see a
+  plan that over-claims, which is the standing hazard of a living document and
+  the reason this paragraph now names the evidence rather than the intent.
+  What shipped is `crates/rstest-bdd/src/reporting/conversion.rs` plus its
+  `conversion/tests.rs`, six unit tests, with the signature pinned by an
+  anonymous `const _:` coercion. The conversion is a private
+  `fn record_from(&ScenarioPlan, &ScenarioOutcome) -> Result<ScenarioRecord,
+  Gap>`, and `Gap` is the finding made operational.
+
+  Building it changed the shape of two of D5's three recorded obligations, so
+  the record is corrected here rather than left as it was predicted.
+  `reporting::ScenarioStatus`'s missing failure case is confirmed and is now
+  `Gap::Failure` — the conversion *returns* it rather than degrading to
+  `Passed`, and a test asserts that, so the obligation fails loudly when
+  13.2.1 adds the variant instead of quietly passing. The `BypassedScenario`
+  obligation is real but finer than predicted: the type does carry tags and a
+  reason, so the missing pieces are `ScenarioOutcome`'s *name, path, and
+  declared line*, which is why `record_from` takes the plan as a second
+  parameter. A third gap surfaced that the decision text did not anticipate —
+  `ScenarioMetadata::line` is a non-optional `u32` while a plan's line is
+  optional under D3, so a frontend that omits it has no record at all;
+  substituting `0` would write a coordinate the frontend never observed, so
+  the conversion reports `Gap::MissingLine` instead. The `thread::panicking()`
+  obligation is unchanged and unexercised by this work: the guard lives in
+  macro-generated code
+  (`codegen/scenario/runtime/generators/scenario.rs:78`), and the conversion
+  neither touches nor tests it.
 
 - **D6: one set of pure decision functions, two thin drivers, and the stop
   decision inside `engine::classify`.** Rationale: Rust cannot express one loop
