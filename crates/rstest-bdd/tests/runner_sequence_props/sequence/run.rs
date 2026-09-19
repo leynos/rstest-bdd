@@ -30,6 +30,7 @@ use rstest_bdd::{
         ScenarioPlan,
         ScenarioPlanBuilder,
         ScenarioScope,
+        StepOutcome,
         StepStatus,
         ValueFate,
         run_scenario,
@@ -136,6 +137,38 @@ impl Run {
                 (index, fate)
             })
             .collect()
+    }
+
+    /// Run a handwritten control plan — a `kind` at index 1, `Pass` either
+    /// side — and return the run.
+    ///
+    /// The shape every nameable witness shares: the leading `Pass` gives the
+    /// kind something to be reached *from* and the trailing one something to be
+    /// stopped *before*, which is what makes an overrun visible as a
+    /// disagreement between the execution log and the plan rather than as a
+    /// shorter plan. Written once because a witness that drifted on the shape
+    /// would still pass when run alone and disagree only about which invocation
+    /// was which.
+    pub(crate) fn of(kind: super::Kind) -> (Vec<Step>, Self) {
+        let steps = crate::plan(&[super::Kind::Pass, kind, super::Kind::Pass]);
+        let run = run_case(&steps, Arrangement::OneProbe);
+        (steps, run)
+    }
+
+    /// The fate of invocation 1, in the runtime's own spelling.
+    ///
+    /// `None` means the driver recorded no status for it at all, which is the
+    /// shape INV-12 forbids for an invocation that ran.
+    pub(crate) fn fate_at(&self, index: usize) -> Option<StepStatus> {
+        self.outcome.steps().get(index).map(StepOutcome::status)
+    }
+
+    /// The classification of invocation 1, in the runtime's own spelling.
+    pub(crate) fn failure_kind_at(&self, index: usize) -> Option<FailureKind> {
+        self.outcome
+            .steps()
+            .get(index)
+            .and_then(StepOutcome::failure_kind)
     }
 
     /// The classification of every record that failed, for the classification.
