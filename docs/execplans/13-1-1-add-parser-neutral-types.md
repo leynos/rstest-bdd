@@ -17,13 +17,13 @@ leg, the roadmap and retrospective edits, and the re-scoped `cargo-mutants`
 sweep over the whole runner tree. Its top-level box stays unticked while two
 sub-boxes are open: the final CodeRabbit round is requested but unadjudicated,
 and the whole-plan state is withheld from `COMPLETE` because D31's Scope
-escalation is unanswered. EP-M3's named `cargo-mutants` control was run and found *vacuous*
-— 3 mutants, all unviable — so that obligation was re-scoped rather than
-discharged, and the re-scoped sweep has now completed: **152 mutants, 84
-caught, 5 missed, 57 unviable, 6 timeout, all accounted for.** It discharges
-AXIOM-4 and leaves two recorded coverage gaps, D32 and D33. Four CodeRabbit
-rounds have been adjudicated; D26, D28, D29, and D30 record them finding by
-finding.
+escalation is unanswered. EP-M3's named `cargo-mutants` control was run and
+found *vacuous* — 3 mutants, all unviable — so that obligation was re-scoped
+rather than discharged, and the re-scoped sweep has now completed: **152
+mutants, 84 caught, 5 missed, 57 unviable, 6 timeout, all accounted for.** It
+discharges AXIOM-4 and leaves two recorded coverage gaps, D32 and D33. Four
+CodeRabbit rounds have been adjudicated; D26, D28, D29, and D30 record them
+finding by finding.
 
 **The plan is deliberately not marked `COMPLETE`.** D31 records the `Scope`
 tolerance breached again at close — 71 files and 18,325 net added lines against
@@ -1134,6 +1134,29 @@ between them. Raise that before spending the tolerance.
     verify HEAD before and after every gate and to write `rev=<sha>` into each
     log. That is D40's sixth instance recorded as a rule rather than a
     coincidence.
+  - [x] (2026-09-20) **The freeze rule broken by the agent that had just written
+    it, and recorded because of that.** The gate run dispatched at `a7002803`
+    was still in flight when I committed the Progress entry that states the
+    freeze-first rule, moving HEAD to `86433a18`. The runner did exactly what it
+    was asked: `check-fmt` completed on `a7002803` and the log's trailer reads
+    `rev=86433a18b59869999af8fc80fcbf3bfcbf67f7d4`, because the trailer is
+    written at the end from the live HEAD rather than captured at the start. So
+    one log's two signals disagree about which revision it measured, which is
+    the mixed-revision failure D40 records recurring *inside the machinery
+    built to prevent it*. The run was stopped and restarted against a frozen
+    revision. **Two lessons, both worth more than the entry:** a rule written
+    in a document does not bind the next action, and a gate trailer must capture
+    the revision at the gate's *start* or it certifies the wrong thing. The
+    second is a real defect in the runner's procedure, not merely in mine.
+  - [x] (2026-09-20) **`check-fmt` failed on the round-5 prose, caught by that
+    same run.** `mdtablefix --wrap` wanted `docs/execplans/13-1-1-add-parser-neutral-types.md`
+    (+35/-34) and `docs/rstest-bdd-design.md` (+5/-5) reformatted: the edits were
+    written to a visual width rather than the gate's. Fixed by running
+    `mdtablefix --in-place` with the Makefile's exact rule set against those two
+    files only — never `make fmt`, whose broader selection drifts unrelated
+    documents. Each hunk was then diffed against the pre-fix copy to confirm it
+    touched only my own paragraphs, and `mdtablefix --check` returns 121 files
+    unchanged at exit 0.
   - [ ] Request `coderabbit review --agent` against the pushed revision, and
     adjudicate what it returns. The deterministic precondition the maintainer
     set — every applicable code quality and correctness gate green **before** a
@@ -4665,14 +4688,15 @@ VALID AS TO THE RULE, FALSE AS TO THE ARITHMETIC.** The proposed replacement,
 general form is right. But the finding's stated mechanism — that the existing
 relation fails to hold for all flag combinations — is a real gap only for a
 plan that sets `allow_skipped(true)`, and the guide's sentence is scoped to the
-instrumentation tests, which run a plan that does not. `runner_instrumentation.rs:174`
-already asserts the `&&` form the finding asks be "retained", so nothing there
-was wrong. The guide now states the general relations in a fenced block, with
-the short form named as the plan-specific special case it is and
-`runner_instrumentation.rs` cited as where that case is used.
+instrumentation tests, which run a plan that does not.
+`runner_instrumentation.rs:174` already asserts the `&&` form the finding asks
+be "retained", so nothing there was wrong. The guide now states the general
+relations in a fenced block, with the short form named as the plan-specific
+special case it is and `runner_instrumentation.rs` cited as where that case is
+used.
 
-**Findings 4 and 10 — the design doc's runner-placement rule is weaker than
-the guide's. VALID, and more so than the finding says.** The design doc said "a
+**Findings 4 and 10 — the design doc's runner-placement rule is weaker than the
+guide's. VALID, and more so than the finding says.** The design doc said "a
 runner test that needs a step to *resolve* is an integration test", then cited
 `developers-guide.md` as stating it for contributors — but the guide states the
 *stronger* rule, "any test that calls `run_scenario` or `run_scenario_async`
@@ -4685,22 +4709,22 @@ carries the guide's rule and names the mechanism — the first registry lookup
 trips a deliberate duplicate-step `assert!`, so the unit-test binary cannot
 reach the registry at all.
 
-**Finding 5 — the design doc called `SourcePath` an opaque `Cow<'static,
-str>`. VALID.** It is an enum, `SourcePath::{Static(&'static str),
-Shared(Arc<str>)}` (`runner/source.rs:24-31`), and the distinction is
-load-bearing rather than cosmetic: it exists so the common compile-time case
-clones by copy instead of through an `Arc`. The doc now describes the enum and
-says why it is not a bare `Cow`.
+**Finding 5 — the design doc called `SourcePath` an opaque `Cow<'static, str>`.
+VALID.** It is an enum, `SourcePath::{Static(&'static str), Shared(Arc<str>)}`
+(`runner/source.rs:24-31`), and the distinction is load-bearing rather than
+cosmetic: it exists so the common compile-time case clones by copy instead of
+through an `Arc`. The doc now describes the enum and says why it is not a bare
+`Cow`.
 
 **Finding 6 — `skip_parity.rs`'s "the only row with discriminating power".
 PARTLY VALID; the claim it corrects is true, the sentence stating it was
-overbroad.** The finding asserts that `(true, false)` also separates the
-correct `!allow_skipped && fail_on_skipped` from `||`, "producing false versus
-true". That is **false**: at `(true, false)` both operators answer `false`. The
-rows where `||` differs are `(false, false)` and `(true, true)`. The doc's
-claim, meanwhile, is true in the only sense that matters — `(true, true)` is
-the unique row that rejects `||`, `!=`, and a forgotten negation *together*, as
-the dedicated test `the_discriminating_row_rejects_the_nearest_wrong_operator`
+overbroad.** The finding asserts that `(true, false)` also separates the correct
+`!allow_skipped && fail_on_skipped` from `||`, "producing false versus true".
+That is **false**: at `(true, false)` both operators answer `false`. The rows
+where `||` differs are `(false, false)` and `(true, true)`. The doc's claim,
+meanwhile, is true in the only sense that matters — `(true, true)` is the
+unique row that rejects `||`, `!=`, and a forgotten negation *together*, as the
+dedicated test `the_discriminating_row_rejects_the_nearest_wrong_operator`
 requires. Two related corrections were nonetheless taken, because the sentence
 did read as a claim about rows rather than about operators: it now names the
 three mistypings, notes that `(false, false)` also separates `||`, and says
@@ -4714,8 +4738,8 @@ tightened.
 VALID.** The test is defined at `walk.rs:278`, in this same module, so the
 `super::` prefix names nothing. This is a rustdoc link to a `pub(super)` item
 inside `#[cfg(test)]`, which is why `make lint`'s `cargo doc` pass cannot see
-it: rustdoc does not document the test items, so the link is never resolved
-and an intra-doc-link failure never fires. Fixed.
+it: rustdoc does not document the test items, so the link is never resolved and
+an intra-doc-link failure never fires. Fixed.
 
 **Finding 8 — `sequence/run.rs`'s `fate_at` and `failure_kind_at` are
 documented as "invocation 1". VALID.** Both take `index: usize`, so the doc
@@ -4726,10 +4750,10 @@ names a caller-specific use as though it were the function's contract. Fixed to
 `named_witnesses::each_terminal_kind_is_reached_by_its_own_witness`. VALID.**
 No such test exists; the one that pins this binding is
 `each_witness_terminates_the_run` (`named_witnesses.rs:160`). This is the
-stale-name shape D30's location 4 recorded, and it matters more here than a
-doc typo usually would: the module's whole argument is that the duplication of
-the pattern text is *checked*, so a reader following the citation to check it
-found nothing. Fixed.
+stale-name shape D30's location 4 recorded, and it matters more here than a doc
+typo usually would: the module's whole argument is that the duplication of the
+pattern text is *checked*, so a reader following the citation to check it found
+nothing. Fixed.
 
 **Recurrence check against round 4.** Clean. Round 4's 10 locations and this
 round's 7 are disjoint, and D30's four accepted fixes are all verifiable at the
