@@ -141,8 +141,13 @@ fn control_flow_leak(lower: &str) -> bool {
     false
 }
 
-/// The substring that marks a line as a comment, a doc comment, or a string
-/// literal held across a line break, and so out of scope.
+/// Whether this line is a comment or doc comment, and so out of scope.
+///
+/// Only the `//` prefix counts. A line *inside* a multi-line string literal is
+/// therefore in scope, and a forbidden token in one is reported: telling the
+/// two apart needs a parser, and this is a token scan. That is the safe
+/// direction for a tripwire — a false positive in prose can be reworded, where
+/// a missed leak is the thing INV-11 exists to catch.
 ///
 /// A doc-comment mention is permitted deliberately: the module doc *should* be
 /// able to say "nothing here knows what Gherkin is", and the phrase is only
