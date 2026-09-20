@@ -1126,10 +1126,9 @@ between them. Raise that before spending the tolerance.
     `a0192a5a` (`make lint` reaches its final recipe line with all four masked
     checkers running and passing; `check-fmt`, `test`, `markdownlint` and
     `nixie` all pass), and two of the three required CI checks are green with the
-    third blocked upstream rather than by anything here. The round is still
-    deliberately unspent for a different reason: CodeRabbit reports
-    `Review skipped: draft pull request` on #770, so requesting it before the PR
-    leaves draft would spend the round on a no-op.
+    third blocked upstream rather than by anything here. **The holding reason
+    previously recorded here was wrong and is retracted — see D40.** The round
+    is now requested against `3f9c988c`.
   - [x] The Bumpy Road and method-length findings were cleared, but the
     *upstream* lesson is not yet actioned: this plan's gate list enumerates
     local `make` targets and never names the PR checks, which is the set that
@@ -4520,6 +4519,63 @@ that ran it, not the job's conclusion at a revision that skipped it. And **
 reassure yourself about a step whose condition requires
 `github.event_name == 'pull_request'` inspects a code path `main` never
 executes, which is the D37 error one layer down.
+
+Date/Author: 2026-09-20, implementation agent.
+
+### D40: the held CodeRabbit round was held for a reason that does not exist
+
+**Decision: retract the holding reason and spend the round.** A Progress entry
+written earlier in EP-M5 declined to request the code review on the grounds
+that "CodeRabbit reports `Review skipped: draft pull request` on #770, so
+requesting a review before the PR leaves draft would spend the round on a
+no-op." Every clause of that sentence is true and the conclusion does not
+follow, because it names the wrong tool.
+
+Two different things are both called CodeRabbit here:
+
+1. **The GitHub App**, which posts a `CodeRabbit` status check on a pull
+   request. On #770 that check reads
+   `pass / Review skipped: draft pull request`. It is a PR-level integration
+   and it genuinely does nothing while the PR is a draft.
+2. **`coderabbit review --agent`**, the local CLI at
+   `/home/leynos/.local/bin/coderabbit` (v0.7.6). Its own help text describes
+   it as "AI-driven code review for the current git repository" and its options
+   are `--base <branch>`, `--base-commit`, `--committed`, `--uncommitted`,
+   `--dir`, `--include-untracked`. There is no PR in the model at all: it does
+   not consult GitHub, it cannot know whether a PR is a draft, and its verdict
+   does not change when the draft flag flips.
+
+The maintainer's instruction names the second one specifically —
+`coderabbit review --agent` — and the CLI has been installed and available the
+whole time (`coderabbit usage` reports 294 reviews this billing period). So the
+round was withheld on the strength of a message emitted by a different tool
+about a different mechanism.
+
+**What made this hard to see, and what would have caught it.** The two share a
+brand name, and the draft-status message is *itself* a plausible-sounding
+explanation for why a code review would be unavailable. Nothing in the plan
+disagreed with it, because the plan had recorded the App's status faithfully
+and then inferred a CLI consequence the App cannot have. The check that breaks
+the inference is one command: `coderabbit review --help`. **When the reason you
+are not running a tool is a message from something else, read the tool's own
+interface before accepting it.** A withheld action should be justified from the
+interface of the thing being withheld, not from an adjacent system's output.
+
+**This is the fifth instance of one shape in this milestone**, and worth naming
+as such because the earlier four were each treated as an isolated slip: a green
+from `mdtablefix --check --git` without `MDTABLEFIX_RULES`; a `build-test`
+conclusion for a step that had been skipped; a `main`-is-green claim about a
+step `main` never runs; an `adopt-cv005` green on a branch that had deleted the
+step; and now a review declared unavailable by the wrong program. In every case
+a verdict was read off an artifact that did not cover the question being asked.
+The general rule is one line: **name the exact command, then confirm the
+artifact came from that command.**
+
+**Consequence for the plan's status.** Nothing about D31, D39, or the milestone
+close changes. The round is requested against `3f9c988c`, the current head, with
+`--committed --base main` so the findings pin to a revision rather than to a
+working copy. If it returns findings, they are adjudicated individually the way
+D28 through D30 adjudicated the first four rounds.
 
 Date/Author: 2026-09-20, implementation agent.
 
