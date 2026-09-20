@@ -11,10 +11,13 @@ recorded as approved. EP-M1 is closed and gate-clean at `3a942230`; EP-M2 is
 closed and gate-clean. **EP-M3 is closed**, gate-clean at `9a232fdd` with all
 seven gates green (2,046 nextest tests passed, 7 skipped; doctests; 244
 pytest), D27 recording the Scope-tolerance breach. **EP-M4 is struck** by D2
-option (ii). **EP-M5 is now closed** — its four parts are done: the `insta`
-`Display` snapshots, the `--no-default-features` test leg, the roadmap and
-retrospective edits, and the re-scoped `cargo-mutants` sweep over the whole
-runner tree. EP-M3's named `cargo-mutants` control was run and found *vacuous*
+option (ii). **EP-M5 is complete but not yet ticked** — its substantive parts
+are done: the `insta` `Display` snapshots, the `--no-default-features` test
+leg, the roadmap and retrospective edits, and the re-scoped `cargo-mutants`
+sweep over the whole runner tree. Its top-level box stays unticked while two
+sub-boxes are open: the final CodeRabbit round is requested but unadjudicated,
+and the whole-plan state is withheld from `COMPLETE` because D31's Scope
+escalation is unanswered. EP-M3's named `cargo-mutants` control was run and found *vacuous*
 — 3 mutants, all unviable — so that obligation was re-scoped rather than
 discharged, and the re-scoped sweep has now completed: **152 mutants, 84
 caught, 5 missed, 57 unviable, 6 timeout, all accounted for.** It discharges
@@ -1119,16 +1122,22 @@ between them. Raise that before spending the tolerance.
     the identical parse error appears. So of the three required checks, two are
     green and the third is blocked by a CodeScene regression three days older
     than this branch. See D38 and D39.
-  - [ ] Request `coderabbit review --agent` against the pushed revision. The
-    deterministic precondition the maintainer set — every applicable code
-    quality and correctness gate green **before** a review is requested — is now
-    **discharged at a single revision**: the full local gate set is green at
-    `a0192a5a` (`make lint` reaches its final recipe line with all four masked
-    checkers running and passing; `check-fmt`, `test`, `markdownlint` and
-    `nixie` all pass), and two of the three required CI checks are green with the
-    third blocked upstream rather than by anything here. **The holding reason
-    previously recorded here was wrong and is retracted — see D40.** The round
-    is now requested against `cf124059`.
+  - [ ] Request `coderabbit review --agent` against the pushed revision, and
+    adjudicate what it returns. The deterministic precondition the maintainer
+    set — every applicable code quality and correctness gate green **before** a
+    review is requested — was **discharged at a single revision**: the full
+    local gate set is green at `a0192a5a` (`make lint` reaches its final recipe
+    line with all four masked checkers running and passing; `check-fmt`,
+    `test`, `markdownlint` and `nixie` all pass), and two of the three required
+    CI checks are green with the third blocked upstream rather than by anything
+    here. **The holding reason previously recorded here was wrong and is
+    retracted — see D40.** The round was then run at `193975b5`, against a
+    revision whose gate run verified HEAD before and after every gate, and it
+    returned **11 findings across 9 distinct concerns and 7 files**. All eleven
+    are adjudicated in **D41**. The box stays unticked until the fixes those
+    adjudications produced are committed and re-gated: the deliverable is a
+    closed round, not a requested one, and the follow-up round is what closes
+    it.
   - [x] The Bumpy Road and method-length findings were cleared, but the
     *upstream* lesson is not yet actioned: this plan's gate list enumerates
     local `make` targets and never names the PR checks, which is the set that
@@ -4598,6 +4607,123 @@ the experiment is measuring, and the resulting verdict does not describe either
 revision.** The fix is to freeze first and dispatch second, and this plan has
 now recorded the same lesson twice: the three gate runs that were "declared
 void by the runner" earlier in EP-M5 failed for exactly this reason.
+
+Date/Author: 2026-09-20, implementation agent.
+
+### D41: CodeRabbit round 5, adjudicated finding by finding
+
+Round 5 ran at `193975b5` and returned **11 findings at 9 distinct concerns
+across 7 files** (8 minor, 3 trivial). Two pairs are the same concern reported
+twice: findings 4 and 10 are both the design doc's runner-placement rule, and
+findings 2 and 11 are both the plan's own status paragraph. Every finding was
+re-derived against the code before being actioned, and **two rest on false
+arithmetic** — both in the same shape, a truth-table claim that is wrong in the
+direction of *understating* the code. That shape is worth recording separately
+from the findings themselves: a wrong claim that flatters the reviewer's own
+proposed fix is the one an adjudicator is least likely to check.
+
+**Finding 1 — the D4 leg contract tests only the first recipe line. VALID, and
+the highest-value finding of the round.** The leg is an `if`/`else` pair
+(`Makefile:118-122`), so `feature_off_lines()` returns **two** lines — the
+`nextest` branch and the plain `cargo test` fallback — and asserting on
+`lines[0]` alone left the fallback unchecked. That is exactly where a reuse of
+`$(CARGO_FLAGS)` would go unnoticed, since the sibling `--all-features` test
+cannot catch it either: the recipe text says `$(CARGO_FLAGS)` and the expansion
+happens later. Fixed to iterate every line. Proved non-vacuous by injecting the
+defect into the **fallback line only** and watching the test fail with the
+offending line quoted, then restoring the Makefile. Worth stating precisely:
+the current recipe carries `$(CARGO_FLAGS)` on neither line, so this is a
+hardening of a guard rather than a repair of a live defect — the guard was
+weaker than it read, which is the defect.
+
+**Findings 2 and 11 — the status paragraph claimed EP-M5 closed while its box
+is unticked. VALID.** Line 14 said "EP-M5 is now closed"; the top-level box at
+`Progress` is `- [ ]`, and one child box is unticked. Both are correct as
+written and they contradict each other, so the paragraph was the wrong one: it
+now says EP-M5 is complete but not ticked, names the two open sub-boxes, and
+states that the whole-plan state is withheld from `COMPLETE` because D31 is
+unanswered. The unticked child box was also stale — it named `cf124059` as the
+revision the round would be requested against, and the round actually ran at
+`193975b5` after D40 retracted the holding reason.
+
+**Finding 3 — `developers-guide.md`'s `allow_skipped == !fail_on_skipped`.
+VALID AS TO THE RULE, FALSE AS TO THE ARITHMETIC.** The proposed replacement,
+`plan_allows_skipping || !fail_on_skipped`, is exactly `SkipPolicy::resolve`
+(`engine/policy.rs:171`) and is what the resolution event records, so the
+general form is right. But the finding's stated mechanism — that the existing
+relation fails to hold for all flag combinations — is a real gap only for a
+plan that sets `allow_skipped(true)`, and the guide's sentence is scoped to the
+instrumentation tests, which run a plan that does not. `runner_instrumentation.rs:174`
+already asserts the `&&` form the finding asks be "retained", so nothing there
+was wrong. The guide now states the general relations in a fenced block, with
+the short form named as the plan-specific special case it is and
+`runner_instrumentation.rs` cited as where that case is used.
+
+**Findings 4 and 10 — the design doc's runner-placement rule is weaker than
+the guide's. VALID, and more so than the finding says.** The design doc said "a
+runner test that needs a step to *resolve* is an integration test", then cited
+`developers-guide.md` as stating it for contributors — but the guide states the
+*stronger* rule, "any test that calls `run_scenario` or `run_scenario_async`
+must live in `crates/rstest-bdd/tests/`, however little it needs". The two
+documents therefore disagreed, and the design doc was carrying the weaker
+reading. That reading is not a stylistic variant: the guide records it as the
+one that was **tried and falsified**, with `runner_instrumentation.rs` first
+written as a unit module on it and all six tests panicking. The design doc now
+carries the guide's rule and names the mechanism — the first registry lookup
+trips a deliberate duplicate-step `assert!`, so the unit-test binary cannot
+reach the registry at all.
+
+**Finding 5 — the design doc called `SourcePath` an opaque `Cow<'static,
+str>`. VALID.** It is an enum, `SourcePath::{Static(&'static str),
+Shared(Arc<str>)}` (`runner/source.rs:24-31`), and the distinction is
+load-bearing rather than cosmetic: it exists so the common compile-time case
+clones by copy instead of through an `Arc`. The doc now describes the enum and
+says why it is not a bare `Cow`.
+
+**Finding 6 — `skip_parity.rs`'s "the only row with discriminating power".
+PARTLY VALID; the claim it corrects is true, the sentence stating it was
+overbroad.** The finding asserts that `(true, false)` also separates the
+correct `!allow_skipped && fail_on_skipped` from `||`, "producing false versus
+true". That is **false**: at `(true, false)` both operators answer `false`. The
+rows where `||` differs are `(false, false)` and `(true, true)`. The doc's
+claim, meanwhile, is true in the only sense that matters — `(true, true)` is
+the unique row that rejects `||`, `!=`, and a forgotten negation *together*, as
+the dedicated test `the_discriminating_row_rejects_the_nearest_wrong_operator`
+requires. Two related corrections were nonetheless taken, because the sentence
+did read as a claim about rows rather than about operators: it now names the
+three mistypings, notes that `(false, false)` also separates `||`, and says
+plainly that "the only row that separates them" is a statement about that
+operator set. **A claim of uniqueness needs its comparison set named, or it is
+false against some other set.** That is the same defect shape as findings 3 and
+6's own arithmetic, which is why it is recorded here rather than silently
+tightened.
+
+**Finding 7 — `walk.rs` linked `[`super::the_scan_finds_the_runner_tree`]`.
+VALID.** The test is defined at `walk.rs:278`, in this same module, so the
+`super::` prefix names nothing. This is a rustdoc link to a `pub(super)` item
+inside `#[cfg(test)]`, which is why `make lint`'s `cargo doc` pass cannot see
+it: rustdoc does not document the test items, so the link is never resolved
+and an intra-doc-link failure never fires. Fixed.
+
+**Finding 8 — `sequence/run.rs`'s `fate_at` and `failure_kind_at` are
+documented as "invocation 1". VALID.** Both take `index: usize`, so the doc
+names a caller-specific use as though it were the function's contract. Fixed to
+`invocation index`.
+
+**Finding 9 — `steps/names.rs` cited
+`named_witnesses::each_terminal_kind_is_reached_by_its_own_witness`. VALID.**
+No such test exists; the one that pins this binding is
+`each_witness_terminates_the_run` (`named_witnesses.rs:160`). This is the
+stale-name shape D30's location 4 recorded, and it matters more here than a
+doc typo usually would: the module's whole argument is that the duplication of
+the pattern text is *checked*, so a reader following the citation to check it
+found nothing. Fixed.
+
+**Recurrence check against round 4.** Clean. Round 4's 10 locations and this
+round's 7 are disjoint, and D30's four accepted fixes are all verifiable at the
+pinned revision. The two rounds agree in shape, not in location: round 4's
+false premises were about a figure and an invariant marker, this round's are
+two truth tables.
 
 Date/Author: 2026-09-20, implementation agent.
 

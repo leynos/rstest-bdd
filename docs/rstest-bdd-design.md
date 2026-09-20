@@ -1488,8 +1488,10 @@ keeps its own source paths and line numbers all the way into the outcome.
 The surface is four groups of types and two functions.
 
 - **Source identity** — `SourcePath` and `SourceLocation`. `SourcePath` is an
-  opaque `Cow<'static, str>`: it is an identifier the frontend supplies, not a
-  filesystem path the runner will open. `SourceLocation` adds a one-based line
+  opaque source identifier backed by static or shared text: it is supplied by
+  the frontend, not a filesystem path the runner will open. It is an enum with
+  a `Static` and a `Shared` variant rather than a bare `Cow`, so the common
+  compile-time case clones by copy. `SourceLocation` adds a one-based line
   and an optional column, and its constructor rejects line zero in every
   profile because the value reaches an outcome as a rendered `path:line`.
 - **The plan** — `ScenarioPlan`, its `StepInvocation` entries, and
@@ -3325,9 +3327,11 @@ Two test modules are private to the crate's own build and must not be promoted
 to a public path: `runner/tests/` (the type-level obligations, which reach no
 registry) and `runner/engine/policy_tests/` (the policy obligations, which
 build a plan directly and need neither a `StepContext`, a registry, nor an
-`async` signature). A runner test that needs a step to *resolve* is an
-integration test under `crates/rstest-bdd/tests/`; the reason is D21, and
-`docs/developers-guide.md` states it for contributors.
+`async` signature). Any test that calls `run_scenario` or `run_scenario_async`
+is an integration test under `crates/rstest-bdd/tests/`, however little it
+needs, because the first registry lookup trips a deliberate duplicate-step
+`assert!` that makes the unit-test binary unable to reach the registry at all.
+The reason is D21, and `docs/developers-guide.md` states it for contributors.
 
 ### 3.12 Harness adapters and attribute plugins (ADR-005a)
 

@@ -99,11 +99,17 @@ def test_feature_off_leg_does_not_reuse_the_shared_flag_variable() -> None:
     lines = feature_off_lines()
     assert lines, f"no {FEATURE_OFF} leg to check"
 
-    assert "$(CARGO_FLAGS)" not in lines[0], (
-        "the leg must not reuse $(CARGO_FLAGS): its --all-features cancels "
-        f"{FEATURE_OFF}, and the leg then re-enables `diagnostics` and passes "
-        f"without proving anything, got {lines[0]!r}"
-    )
+    # Every line, not just the first: the leg is an if/else pair, and the
+    # fallback branch is exactly where a reuse would go unnoticed. Checking
+    # only ``lines[0]`` would let a ``$(CARGO_FLAGS)`` fallback through, and
+    # the sibling ``--all-features`` test cannot catch it either, because the
+    # recipe text says ``$(CARGO_FLAGS)`` and the expansion happens later.
+    for line in lines:
+        assert "$(CARGO_FLAGS)" not in line, (
+            "the leg must not reuse $(CARGO_FLAGS): its --all-features cancels "
+            f"{FEATURE_OFF}, and the leg then re-enables `diagnostics` and passes "
+            f"without proving anything, got {line!r}"
+        )
 
 
 def test_feature_off_leg_does_not_enable_all_features() -> None:

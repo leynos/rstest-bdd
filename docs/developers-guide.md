@@ -3432,10 +3432,20 @@ The remaining constraint is narrower than it looks, and it is what the
 instrumentation tests actually do: a test that does not call `temp-env` must
 not assert an absolute policy value, because `config` reads `fail_on_skipped`
 once per scope while the doctests in the same crate also read it, and
-`#[serial]` gives no protection across binaries. Assert
-`allow_skipped == !fail_on_skipped` and
-`forced_failure == !allow_skipped && fail_on_skipped` instead; both hold under
-either value and both are falsifiable.
+`#[serial]` gives no protection across binaries. Assert the relations the
+resolution event records instead:
+
+```plaintext
+allow_skipped  == plan_allows_skipping || !fail_on_skipped
+forced_failure == !allow_skipped && fail_on_skipped
+```
+
+Both hold under either value of `fail_on_skipped`, and both are falsifiable,
+which is what lets the test pass without controlling the ambient setting. Note
+the first is *not* `allow_skipped == !fail_on_skipped` in general: a plan that
+sets `allow_skipped(true)` keeps that permission whatever the ambient policy
+says. The two agree only for a plan that does not allow skipping, which is the
+case in `runner_instrumentation.rs` and why that test can use the short form.
 
 ### The cancellation-harness pattern
 
