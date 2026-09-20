@@ -929,7 +929,8 @@ between them. Raise that before spending the tolerance.
     indistinguishable from a finding that was ignored.
   - [x] The commit gates re-run against the settled revision. The run at
     `21107a13` came back **red on one gate**, `make check-fmt`, and the cause
-    was mine rather than the document's: an earlier `mdtablefix --check` had
+    lay in the invocation rather than in the document: an earlier
+    `mdtablefix --check` had
     been run *without* the repository's rule flags and reported "121 files left
     unchanged", which is a false green — `--wrap` is exactly the rule that
     reflows a paragraph whose emphasis span crosses a line break, so checking
@@ -1147,7 +1148,8 @@ between them. Raise that before spending the tolerance.
     revision. **Two lessons, both worth more than the entry:** a rule written
     in a document does not bind the next action, and a gate trailer must capture
     the revision at the gate's *start* or it certifies the wrong thing. The
-    second is a real defect in the runner's procedure, not merely in mine.
+    second is a real defect in the runner's procedure, not merely a slip by the
+    implementation agent.
   - [x] (2026-09-20) **`check-fmt` failed on the round-5 prose, caught by that
     same run.** `mdtablefix --wrap` wanted `docs/execplans/13-1-1-add-parser-neutral-types.md`
     (+35/-34) and `docs/rstest-bdd-design.md` (+5/-5) reformatted: the edits were
@@ -1157,7 +1159,7 @@ between them. Raise that before spending the tolerance.
     documents. Each hunk was then diffed against the pre-fix copy to confirm it
     touched only the paragraphs this work had written, and `mdtablefix --check`
     returns 121 files unchanged at exit 0.
-  - [ ] Request `coderabbit review --agent` against the pushed revision, and
+  - [x] Request `coderabbit review --agent` against the pushed revision, and
     adjudicate what it returns. The deterministic precondition the maintainer
     set — every applicable code quality and correctness gate green **before** a
     review is requested — was **discharged at a single revision**: the full
@@ -1172,7 +1174,16 @@ between them. Raise that before spending the tolerance.
     are adjudicated in **D41**. The box stays unticked until the fixes those
     adjudications produced are committed and re-gated: the deliverable is a
     closed round, not a requested one, and the follow-up round is what closes
-    it.
+    it. **Round 5 is closed, and round 6 has since closed the same way.** Round
+    6 ran at `f3499d4b` with `rev_start == rev_end` and
+    `revision_verdict=stable`, and returned **24 findings across 21 files**; its
+    adjudication is **D42**. Eighteen were applied, five were declined, and one
+    needed no change; three of the five declines were reversed on evidence
+    during the adjudication itself. The fixes are committed in `ced97225`,
+    `69cc63a1`, `212b3f80` and `ea5d6288`, with `check-fmt` re-run green after
+    each. The box is ticked because both rounds are closed at single revisions,
+    not because the plan is finished: D31's scope escalation is still
+    unanswered.
   - [x] The Bumpy Road and method-length findings were cleared, but the
     *upstream* lesson is not yet actioned: this plan's gate list enumerates
     local `make` targets and never names the PR checks, which is the set that
@@ -4766,6 +4777,141 @@ two truth tables.
 
 Date/Author: 2026-09-20, implementation agent.
 
+### D42: CodeRabbit round 6, and five declines of which three were wrong
+
+Round 6 ran at `f3499d4b` and returned **24 findings across 21 files** (7
+minor, 17 trivial), the largest round so far and the first whose findings are
+mostly one-line documentation corrections rather than argument defects. The log
+records `rev_start == rev_end == f3499d4b` and `revision_verdict=stable`, so
+the round is valid for a single revision.
+
+**The 24 partition by first adjudication as 18 applied, 5 declined, 1 already
+answered.** The accepted eighteen — F3, F5, F6, F8 through F14, F16 through
+F22, and F24 — landed in `ced97225`. Of the declined five, four were later
+actioned anyway: F1, F2 and F4 were reversed on evidence and F7's intent was
+taken without its wording, so a count by *current outcome* gives 22 actioned
+and 2 not (F15 and F23). Counting by commit double-counts F4, which was
+reversed in `212b3f80` and applied in `ea5d6288`, and by finding alone
+under-counts F7, whose rename is in `212b3f80`. The per-finding outcome is the
+stable figure; the per-commit one is not. None of the eighteen changed runtime
+behaviour; the substantive ones were F20/F24 together, F8, and F6.
+
+**The counts in this entry were wrong when first written, which is the entry's
+own subject.** The first revision said "sixteen were applied" over a list of
+eighteen names, and "four declines" over five, the fifth being F7 — written
+about, but filed under the F23 paragraph as though it belonged there rather
+than to the declines. The numbers came from working memory; the partition above
+comes from reading the log's 24 `finding` records back and bucketing each one.
+Recorded rather than quietly corrected because it is the same failure the
+declines show, one level up: a claim about work done that was cheap to check
+and was not checked.
+
+**F8 is the one that was a live defect rather than a doc fix.** The
+completeness loop asserted `record.status()` against a status it had just
+derived from the same index, so the `else` arm could not fail however the
+runner behaved: a branch that cannot fail is not evidence. It was split into an
+`assert_ne!` for indices at or before the terminal and an `assert_eq!` for
+those past it. The fix was proved non-vacuous by mutating the `else` branch from
+`Bypassed` to `Passed` and confirming that exactly
+`case_2_failure_at_the_first_of_four` and `case_3_skip_at_the_second_of_four`
+fail, each with its own message.
+
+**F20/F24 is latent, not live, and the distinction was checked rather than
+assumed.** `kinds.truncate(MAX_STEPS)` removed from the tail of the vector, and
+the terminal invocation is pushed last — so a shape that overflowed would have
+lost the very classification it exists to witness. The five crafted shapes
+build 3, 5, 3, 7 and 6 invocations against a bound of 8, so the truncation
+never fires today. It was replaced with an assertion that names the bound and
+says what to do about it. A guard against a defect that cannot currently occur
+is worth having where the silent failure it prevents is a wrong verdict; it is
+worth recording as latent so the next reader does not hunt for a reproduction.
+
+**Five declines, three of which did not survive checking.** The other two — F7
+and F15 — were declined on their remedy and are treated below. This is the part
+of the round worth carrying forward, because the failure was in the
+adjudication rather than in the code.
+
+F1 asked for the plan's first-person prose to be made impersonal, and was
+declined on the grounds that it was the house voice with five instances in
+4,700 lines. Both halves were wrong. `docs/documentation-style-guide.md:32`
+states the rule directly: "Avoid first and second person personal pronouns
+outside the `README.md` file", and the count was wrong twice over. The reversal
+in `212b3f80` touched **seven sites**, dropping nine author-voice occurrences
+and reintroducing one as a retained quotation, for a net of eight; that tally
+comes from scanning the commit's own diff rather than from memory. A scan then
+found **two survivors** at lines 932 and 1150 ("the cause was mine", "not
+merely in mine"), both fixed here — a first pass that stops when the obvious
+instances are gone will leave the rest. The scan's remaining hits are
+deliberate: quoted end-user questions ("why did my skip become a failure on
+CI"), a quoted runner message, and prose *describing* the fix, which must be
+able to name the construction it removed. The rule is the style guide's — avoid
+first person *as the document's voice* — and a quotation is not the document's
+voice. The plan had also already recorded fixing one instance of exactly this
+at line 1752, so the decline contradicted the plan's own precedent. **A decline
+that cites a house convention should cite it; "this is the house voice" was an
+assertion where a citation was available.**
+
+F2 asked for a 96-column roadmap line to be wrapped, and was declined as "among
+nine pre-existing long lines on main". Both halves were wrong, and the way they
+were wrong is worth recording. Measured against the pre-fix revision
+(`212b3f80^`), `docs/roadmap.md` held **8** lines over 80 columns, of which **3
+were branch-introduced** and 5 came from `origin/main`; after the fix there are
+5, all from main. So the decline was wrong on the total *and* on the
+provenance, and asserted the provenance most confidently of all
+("pre-existing") where it was exactly inverted. The gate had never seen the
+three, because MD013 exempts a line with no whitespace past column 80 — which
+is why a green `check-fmt` was not evidence that they were fine. The exemption
+was confirmed by experiment rather than inferred: a control line with an inline
+code span but whitespace past column 80 is flagged, and one wrapping exactly at
+the limit is not.
+
+F4 asked that `is_comment`'s documentation say continued multi-line string
+lines remain in scope. It was declined on a misreading of the request — the
+prose clause about literals was read as the whole finding, when the operative
+request was the opposite claim. The function matches only the `//` prefix, so a
+line inside a multi-line string literal *is* scanned, and the doc said it was
+out of scope. **The lesson is procedural: adjudicate the finding's request, not
+the sentence in it that happens to be quotable.**
+
+F15 asked for a panic-hook silencer in `src/execution/tests/unwind.rs`, citing
+the `runner_panics` precedent, and is declined on evidence. Its premise
+measures true — with `--nocapture` the module's two deliberate panics print,
+and captured they do not. The remedy is wrong for this file: the hook is
+process-global, and this is the 213-test library binary, where a two-test probe
+with one holding a silent hook swallowed a concurrently-failing test's message
+whole. `runner_panics` can silence safely because it is a small integration
+binary wrapping one run.
+
+**F7 was declined on its wording and applied on its intent.** It asked that
+`an_unresolvable_step_fails_with_the_registries_error` be renamed to the
+finding's own proposed
+`an_unresolvable_step_fails_with_the_registrys_own_error`. The objection is
+correct — the existing name is not grammatical — but the proposed replacement
+drops an apostrophe and reads worse. The test was renamed to
+`an_unresolvable_step_fails_with_the_registry_error_verbatim`, which takes the
+intent and not the spelling. The decline is of the remedy, not of the finding;
+a rename that ships a new misspelling to fix an old one is not a fix.
+
+**F23 was answered without a change.** It asked that the generated Insta
+snapshot be tracked; `git ls-files` shows it is, so the finding's premise was
+already false when it was written.
+
+**A gate failure found while checking F2, not by the round.** `make check-fmt`
+was red at `ced97225`: the round-6 edits left three rustfmt violations. This is
+the D38 shape recurring — the round-6 commit was gated on test binaries and lib
+tests, neither of which says anything about formatting, and `make lint` does
+not check formatting either. Fixed in `69cc63a1` with `cargo fmt` output
+verbatim.
+
+**Recurrence check against round 5.** The rounds are disjoint in location: 21
+files here, 7 there, no overlap. They differ in kind, and the difference is
+worth noting. Round 5's false premises were the reviewer's; this round's were
+the adjudicator's, in the same direction each time — a decline resting on a
+claim that was never checked, where a check was cheap. Three of the five
+declines were reversed on evidence, and each reversal took one command.
+
+Date/Author: 2026-09-20, implementation agent.
+
 ### D32: `Display for SourcePath` is uncovered, and is left uncovered
 
 **Decision: the survivor is recorded rather than chased.** The sweep's first
@@ -5017,6 +5163,41 @@ code; both needed the claim to be executed. That is the same lesson as the
 INV-3 witness, and it is now the third instance in this plan.
 
 Date/Author: 2026-09-19, implementation agent.
+
+- **Observation:** the round-6 adjudication's failure mode was in the declines,
+  not the fixes, and every bad decline rested on a claim that was cheap to
+  check. Evidence: five findings were declined. F1 was declined as "the house
+  voice, five instances"; there were eight, and
+  `docs/documentation-style-guide.md:32` forbids the construction outright. F2
+  was declined as "among nine pre-existing long lines on main"; there were 8,
+  of which 3 were branch-introduced, and the gate had never seen them because
+  MD013 exempts a line with no whitespace past column 80. F4 was declined on a
+  misreading — the quotable sentence was not the request. Each reversal took
+  one command: a `grep` for the style rule, a `git blame` loop for provenance,
+  a re-read of the finding's own text. Impact: three of five declines were
+  wrong, and the work was done twice. The asymmetry is the point — applying a
+  finding costs an edit, while a wrong decline ships a defect *and* spends the
+  next round re-litigating it. **A decline should cite its evidence the way an
+  acceptance cites a test.** The corrections themselves kept the pattern: the
+  F1 fix left two first-person survivors, and D42's own finding counts were
+  wrong in both directions — "sixteen applied" over a list of eighteen, "four
+  declined" where there were five — until the round's log was read back and
+  every finding bucketed. A count written from working memory is the cheapest
+  thing in this plan to get wrong and the cheapest to check.
+
+- **Observation:** a green formatting gate is not evidence that a document reads
+  well, and the mechanism is narrow enough to be worth naming. Evidence: three
+  branch-introduced lines in `docs/roadmap.md` were 81, 96 and 84 columns, and
+  `mdtablefix --check` reported "121 files left unchanged". The rule is MD013's
+  exception for a line with no whitespace past the limit: a long line whose
+  tail is an unbroken inline code span is accepted, and a control line with the
+  same length but whitespace past column 80 is flagged. Impact:
+  `make check-fmt` cannot be cited as "the prose is formatted"; it can only be
+  cited as "the prose is what the formatter would produce". The two differ
+  exactly where a path in inline code makes a line long, which is common in
+  this repository.
+
+Date/Author: 2026-09-20, implementation agent.
 
 ## Outcomes & retrospective
 
