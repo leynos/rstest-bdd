@@ -73,6 +73,10 @@ use super::{
 /// by a generator that only ever produced full passes, and "the logs are equal"
 /// by one that produced no plans at all; `assert_complete` runs afterwards and
 /// is what stops either from being satisfied that way.
+/// Every generated case runs through both drivers, so this property costs twice
+/// what a single-driver property at the same budget would. Any increase to
+/// `CASES` or `MAX_STEPS` should be costed against *this* test, which is the
+/// most expensive consumer of the generator.
 #[test]
 fn the_two_runners_produce_equal_outcomes() {
     let mut witnesses = Witnesses::default();

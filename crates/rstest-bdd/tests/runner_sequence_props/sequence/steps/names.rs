@@ -47,8 +47,12 @@ pub(crate) const MISSING_FIXTURE: &str = "a sequence probe step needs an absent 
 
 /// Resolves to nothing, because no step is registered for this text.
 ///
-/// Deliberately absent from the registry, so the agreement test above must
-/// exclude it rather than require it.
+/// Deliberately absent from the registry. Unlike the other constants, the
+/// binding checked here is that this text *stays* unregistered: it is the
+/// `UnregisteredStep` row of
+/// `runner_sequence_props::named_witnesses::WITNESSES`, which requires the run
+/// to end `Failed` with the classification `Undefined`. Registering a step for
+/// this text would break that row rather than fix it.
 pub(crate) const UNREGISTERED: &str = "a sequence probe step nobody registered";
 
 /// The name a lone probe fixture is registered under.

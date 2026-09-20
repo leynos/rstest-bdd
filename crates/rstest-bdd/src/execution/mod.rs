@@ -19,7 +19,6 @@
 mod error;
 /// Fixture validation helpers for step execution.
 mod fixtures;
-/// The panic boundary around a step handler invocation (D11).
 mod unwind;
 
 use std::{any::Any, sync::Arc};

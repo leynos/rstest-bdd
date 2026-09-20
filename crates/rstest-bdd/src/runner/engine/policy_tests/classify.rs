@@ -40,10 +40,12 @@ fn a_skip_without_a_reason_is_still_terminal() {
 
 /// Every non-skip `Err` class stops the run, carrying the error untouched.
 ///
-/// The three classes are enumerated rather than sampled so that a fourth
-/// added to `ExecutionError` shows up as a compile-time gap in this list when
-/// `ExecutionError` stops being `#[non_exhaustive]` — and, until then, as a
-/// test that fails to classify it.
+/// The three classes are enumerated by hand rather than sampled from
+/// `ExecutionError`, so this array states each *existing* class's mapping and
+/// nothing more. A fourth class added to `ExecutionError` is untested here
+/// until a row is added for it — no compile error forces that, and `classify`
+/// itself will absorb the new variant through its own match rather than
+/// failing. Exhaustiveness is `classify`'s obligation, not this test's.
 #[test]
 fn every_non_skip_error_is_a_failure_carrying_the_error_verbatim() {
     let cases = [not_found(), missing_fixtures(), handler_failed()];
