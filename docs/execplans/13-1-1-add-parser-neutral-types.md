@@ -14,21 +14,31 @@ pytest), D27 recording the Scope-tolerance breach. **EP-M4 is struck** by D2
 option (ii). **EP-M5 is complete but not yet ticked** — its substantive parts
 are done: the `insta` `Display` snapshots, the `--no-default-features` test
 leg, the roadmap and retrospective edits, and the re-scoped `cargo-mutants`
-sweep over the whole runner tree. Its top-level box stays unticked while two
-sub-boxes are open: the final CodeRabbit round is requested but unadjudicated,
-and the whole-plan state is withheld from `COMPLETE` because D31's Scope
-escalation is unanswered. EP-M3's named `cargo-mutants` control was run and
-found *vacuous* — 3 mutants, all unviable — so that obligation was re-scoped
-rather than discharged, and the re-scoped sweep has now completed: **152
-mutants, 84 caught, 5 missed, 57 unviable, 6 timeout, all accounted for.** It
-discharges AXIOM-4 and leaves two recorded coverage gaps, D32 and D33. Four
-CodeRabbit rounds have been adjudicated; D26, D28, D29, and D30 record them
-finding by finding.
+sweep over the whole runner tree. Its top-level box stays unticked on **one**
+open item, not two: the whole-plan state is withheld from `COMPLETE` because
+the Scope escalation is unanswered (D31, re-measured and extended by D43). The
+CodeRabbit round that was previously listed here as "requested but
+unadjudicated" is round 6, and D42 records its adjudication — 24 findings, 22
+actioned, 2 needing no change. EP-M3's named `cargo-mutants` control was run
+and found *vacuous* — 3 mutants, all unviable — so that obligation was
+re-scoped rather than discharged, and the re-scoped sweep has now completed:
+**152 mutants, 84 caught, 5 missed, 57 unviable, 6 timeout, all accounted
+for.** It discharges AXIOM-4 and leaves two recorded coverage gaps, D32 and
+D33. Six numbered CodeRabbit rounds have been adjudicated — round 1 in D26,
+then D28, D29, D30, D41, and D42 — and EP-M1 additionally saw two unnumbered
+passes before the numbering began. Every round after the first is recorded
+finding by finding, including the declines, on the ground that a decline that
+is not evidenced is indistinguishable from a finding that was ignored.
 
-**The plan is deliberately not marked `COMPLETE`.** D31 records the `Scope`
-tolerance breached again at close — 71 files and 18,325 net added lines against
-a 36-file / 4,500-line tolerance — and that escalation is open until a human
-answers it. Every other obligation is discharged or explicitly recorded as open.
+**The plan is deliberately not marked `COMPLETE`.** The `Scope` tolerance is
+breached and measured three times: D27 at 58 files / 15,737 net, D31 at 71 /
+18,325, and D43 — EP-M5's own closing re-measurement — at **73 files / 20,556
+net added lines** at `bbde0f2e`, against a 36-file / 4,500-line tolerance. D43
+states three options and recommends accepting the breach while recording that
+the tolerance's *unit* is what is wrong; it also notes that its own text then
+moved the figure it records, which is that defect restated. The escalation is
+open until a human answers it. Every other obligation is discharged or
+explicitly recorded as open.
 
 ## Purpose / big picture
 
@@ -1026,11 +1036,15 @@ between them. Raise that before spending the tolerance.
     can map to a revision — is exactly the failure mode this plan has already
     documented four times.
   - [x] The `Scope` figure re-measured at close and compared against D27's
-    breached figures: **71 files and 18,325 net added lines**, against D27's
-    58 and 15,737 and the 36-file / 4,500-line tolerance. Escalated as D31
-    rather than recorded as a footnote, because EP-M5 added 13 files and 2,588
-    net lines to an already-breached number. The box is ticked because the
-    measurement was taken and recorded; the *escalation* it raises is open.
+    breached figures. Measured **twice**, because the first measurement (D31)
+    was itself taken mid-milestone: **71 files and 18,325 net added lines** at
+    D31's revision, then **73 files and 20,556 net** at the true close,
+    `bbde0f2e`, recorded as D43. Against D27's 58 and 15,737 and the 36-file /
+    4,500-line tolerance. Escalated twice rather than recorded as a footnote,
+    because each measurement added to an already-breached number — D31 by 13
+    files and 2,588 net lines, D43 by 2 files and 2,231. The box is ticked
+    because the measurement was taken and recorded; the *escalation* it raises
+    is open, and D43 is the one a successor must answer.
   - [x] The `cargo-mutants` runner-tree sweep run and its survivor list read.
     **152 mutants, all 152 accounted for**: 84 caught, **5 missed**, 57
     unviable, 6 timeout, 0 unaccounted. Run
@@ -1194,6 +1208,27 @@ between them. Raise that before spending the tolerance.
     required, and required is not visible. D38 then supplied a third instance of
     the same shape one commit later: a green reported for a gate the command run
     does not police.
+  - [x] (2026-09-20) **The `Scope` figure re-measured a second time at the true
+    close, and D43 written.** D31's measurement was taken *inside* EP-M5 rather
+    than at its end, so the milestone's acceptance evidence was not yet
+    discharged by it. Re-measured against merge-base `577a4617`: **73 files and
+    20,556 net added lines**, split 6 documentation files (+7,919/−5) and 67
+    non-documentation files (+12,721/−79), of which 7,381 lines are this plan
+    document. The retrospective table, the status header, the not-`COMPLETE`
+    paragraph, D31's own closing note, and this milestone's acceptance evidence
+    were all reconciled with it, so no section now carries a superseded figure
+    without saying so. D43 also records that its own text moved the figure it
+    records, and the table is therefore pinned per revision rather than chased.
+  - [x] (2026-09-20) **The full local gate set re-run green at `bbde0f2e`**,
+    the revision D43's figures are pinned to, by a `scrutineer` runner working
+    sequentially and writing `rev_start` into every log: `check-fmt` rc=0
+    (`66 files already formatted`, `121 files left unchanged`), `typecheck`
+    rc=0 (`All checks passed!`), `lint` rc=0 (reaching its final recipe line
+    with all four masked checkers running), and `test` rc=0 (two nextest legs,
+    `2,058 tests run: 2,058 passed, 7 skipped` on the default feature set and
+    `719 tests run: 719 passed, 7 skipped` on `--no-default-features -p
+    rstest-bdd`, zero `FAILED` or `panicked at` lines in either; every doctest
+    suite `ok`; `247 passed` in pytest).
 
 ## Surprises & discoveries
 
@@ -5041,7 +5076,15 @@ The remaining EP-M5 boxes are ticked against the measured figures, and the plan
 is **not** marked `COMPLETE` on the strength of this entry: a breached
 tolerance that has been escalated is open until a human answers it. Scope
 impact: 0 files, 0 lines (this entry is part of the document already counted).
-Date/Author: 2026-09-19, implementation agent.
+
+**Superseded in part by D43, one milestone later.** This entry's *reasoning*
+stands and is not retracted, but its *figure* was already stale when it was
+written: EP-M5 had not finished when it was taken, and the final count is 73
+files / 20,556 net. The prediction this entry makes — that the tolerance cannot
+be met by a plan of this shape — was then confirmed by the third measurement,
+which is the strongest evidence available that the defect is the unit rather
+than the work. A successor should read this entry for the argument and D43 for
+the number. Date/Author: 2026-09-19, implementation agent.
 
 ### D30: CodeRabbit round 4, adjudicated finding by finding
 
@@ -5199,6 +5242,81 @@ Date/Author: 2026-09-19, implementation agent.
 
 Date/Author: 2026-09-20, implementation agent.
 
+### D43: the scope figure re-measured at EP-M5, and it has grown
+
+**Decided 2026-09-20, opening EP-M5's close.** D27 recorded the `Scope`
+tolerance as breached at **58 files and 15,737 net added lines** and closed
+with a condition: "if the remaining work (EP-M5) would push the figures
+further, that is a fresh escalation". EP-M5 is the close, so the figure is
+re-measured here as its acceptance evidence requires, and it has grown on both
+axes. (D27's 15,737 is the pre-D27-commit figure; including D27's own text it
+was 15,827. The discrepancy is 90 lines and is noted only so a successor
+comparing the two entries does not read it as a third measurement.)
+
+| measure         | tolerance | D27 (EP-M3 close) | now (`bbde0f2e`) |
+| --------------- | --------- | ----------------- | ---------------- |
+| files touched   | > 36      | 58                | **73**           |
+| net added lines | > 4,500   | 15,737            | **20,556**       |
+
+Split by kind, against merge-base `577a4617`: **6 documentation files** (+7,919
+/−5) and **67 non-documentation files** (+12,721 / −79). Of the documentation
+growth, 7,381 lines are this plan document — which is 36% of the branch by
+itself and is instrument, not deliverable. Excluding it, the branch is 20,556 −
+7,381 = **13,175 net**, still 2.9× the line tolerance, and the file count is
+unchanged at 73 because the plan is one file among 73.
+
+**This is the escalation D27 anticipated, not a new discovery.** Two things are
+worth stating that D27 could not. First, the growth between D27's measurement
+and now is **4,729 net lines over 15 files**: this plan +2,541, the other four
+guides +533, and the deliverable +1,655. So 65% of the growth since the breach
+was first recorded is documentation, and the plan document alone accounts for
+54% of it. A tolerance written against "files touched" cannot distinguish a
+living document from the code it describes, and that is a defect in the
+tolerance rather than in the work: a plan required to record its own progress
+is required to grow, and that growth is charged to the same budget as the
+deliverable.
+
+**The claim is self-demonstrating, and that was measured rather than noticed.**
+The figures above are pinned to `bbde0f2e`, the revision this entry was written
+about. Writing the entry added **113 net lines** to this document, taking the
+branch to 20,669 net, so the number a reader sees in git is not the number
+recorded here. That is not a defect in the measurement; it is the tolerance's
+defect restated in miniature. An instrument that measures a set containing
+itself cannot report a stable total, and every attempt to correct the figure
+grows the figure. The measurement is therefore left revision-pinned, with the
+delta named, rather than chased. (The file count is unchanged at 73 either way
+— the same file, more lines — which is the clear half of why the file-count
+half of the tolerance is the less informative one.)
+
+**What is being asked of the human, stated as a question rather than a
+recommendation.** Three options, none of which this agent should take alone:
+
+1. **Accept the breach as recorded**, on the reading that the deliverable is
+   proportionate (13,175 net lines for a parser-neutral runtime with two
+   drivers, a property suite, and five documents is not obviously excessive)
+   and that the tolerance's unit was mis-specified.
+2. **Re-scope to exclude this plan document from the count**, which makes the
+   figure 13,175 net over 72 files — still 2.9× the line limit and 2.0× the
+   file limit, so this option does not bring the plan inside tolerance either;
+   it only removes the ambiguity about what grew.
+3. **Treat the breach as a genuine stop signal**, which would mean splitting
+   the epic or deferring the remaining work to a successor plan.
+
+The recommendation is **(1) with (2) as the recorded correction**: the work is
+defensible on its merits and the tolerance is wrong by construction, but
+re-writing a tolerance after the fact to make a red number green is exactly the
+move the plan's own D27 warns against ("recording the breach is not a decision
+that the figure was wrong"). The honest form is to accept the breach and fix
+the tolerance's unit for *future* plans, which is a lesson for the
+retrospective rather than an edit to this plan's tolerance.
+
+**Until the human answers, the plan is not `COMPLETE`.** The work is finished
+and gated; the status is withheld solely on this escalation, and a successor
+should treat "status: not complete" as meaning "blocked on D31/D43", not
+"implementation unfinished".
+
+Date/Author: 2026-09-20, implementation agent.
+
 ## Outcomes & retrospective
 
 ### What was achieved
@@ -5230,31 +5348,50 @@ closing them.
 
 ### The measured figures, and the escalation attached to them
 
-`Scope` is **breached**, twice, and the second measurement is recorded here
-rather than in a decision entry alone because the milestone's own conformance
-check asks for it explicitly.
+`Scope` is **breached**, and measured three times. Every measurement is in the
+table rather than only the latest, because the point of a tolerance is the
+trend and a single number hides it. The third is recorded here as well as in
+D43 because the milestone's own conformance check asks for the re-measurement
+explicitly.
 
 | Measurement                      | Files | Net added lines | Against tolerance      |
 | -------------------------------- | ----- | --------------- | ---------------------- |
 | Planning estimate                | ~26   | not estimated   | inside, on files       |
 | D27, at `d15c1e84` (EP-M3 close) | 58    | 15,737          | 1.6× files, 3.5× lines |
 | D31, at close                    | 71    | 18,325          | 2.0× files, 4.1× lines |
+| D43, at `bbde0f2e` (EP-M5 close) | 73    | 20,556          | 2.0× files, 4.6× lines |
+
+Each row is pinned to the revision it was measured at, which matters for the
+last one: D43's own text added 113 lines to this document, so the figure in
+`git` is 20,669 and the figure in the table is the one the entry is *about*.
+Chasing it would not converge; see D43 for why that is the tolerance's defect
+rather than a bookkeeping problem.
 
 The estimate gave a file count and no line count, so the line half of the
 tolerance was never checked against a plan figure at all — which is part of why
 it was breached by the first substantial commit rather than near the end.
 
-**The escalation is open and is D31's.** EP-M5 added 13 files and 2,588 net
-lines to an already-breached figure, 54% of it this document, so the second
-breach arrived inside the milestone whose job was to close the work. D27's
-conclusion — that the *estimate* needs revision rather than the work — is
-restated there with the additional finding that the tolerance as written may be
-unsatisfiable for any plan of this shape, because an ExecPlan's mandatory
-living sections are themselves several thousand lines while `Scope` counts
-every changed file and the estimate counted source and test files only. **No
-number in this table is retroactively re-scoped, and the plan is not marked
-`COMPLETE` on the strength of this section:** a breached tolerance that has
-been escalated stays open until a human answers it.
+Read as a trend, the three measurements say something the individual breaches
+do not: the file count is **decelerating** (58 → 71 → 73, increments of +13
+then +2) while the line count is not (15,737 → 18,325 → 20,556, increments of
++2,588 then +2,231 — the later increment is 86% of the earlier, so it is barely
+slowing). A milestone that added two files added nearly as many lines as one
+that added thirteen. That is the shape a tolerance mis-specified by *unit*
+produces: files count artefacts, and the growth is inside them.
+
+**The escalation is open and is D31 and D43's.** EP-M5 added 13 files and 2,588
+net lines to an already-breached figure, 54% of it this document, so the second
+breach arrived inside the milestone whose job was to close the work; D43 then
+re-measured at EP-M5's close and found it had grown again, to **73 files and
+20,556 net lines**. Of that growth since D31, 65% is documentation and 54% is
+this plan document alone. D27's conclusion — that the *estimate* needs revision
+rather than the work — is restated there with the additional finding that the
+tolerance as written may be unsatisfiable for any plan of this shape, because
+an ExecPlan's mandatory living sections are themselves several thousand lines
+while `Scope` counts every changed file and the estimate counted source and
+test files only. **No number in this table is retroactively re-scoped, and the
+plan is not marked `COMPLETE` on the strength of this section:** a breached
+tolerance that has been escalated stays open until a human answers it.
 
 ### What the mutation sweep found, survivor by survivor
 
@@ -5429,7 +5566,27 @@ Each item the closing checklist named, discharged or explicitly left open:
    silently.** D27 named this at EP-M3; it recurred at EP-M5 anyway, which is
    the clearest possible evidence that the remedy belongs in the milestone
    boundary check rather than in the plan's prose.
-6. **Three matching log lines are a sample, not a property.** Reading
+6. **A tolerance can be wrong by *unit*, and the remedy is for the next plan,
+   not for this one.** The lesson immediately above says a tolerance whose
+   measurement step does not exist will be breached silently. D43 shows the
+   next failure along: the measurement was taken, three times, and each time
+   the number was larger — but a large part of what grew was **this document**.
+   The plan's mandatory living sections are several thousand lines by
+   construction, and `Scope` counts every changed file and line, including the
+   file that is doing the counting. Seven thousand three hundred and eighty-one
+   lines of the branch are the ExecPlan, 36% of it, and no tolerance written as
+   "files touched" can tell instrument from deliverable. The tempting response
+   is to exclude the plan retroactively and turn a red number green, which is
+   exactly the move D27 forbids in its own words ("recording the breach is not
+   a decision that the figure was wrong"). The resolution taken here is the
+   honest one: **accept the breach as recorded** and carry the unit defect
+   forward as a lesson — a future ExecPlan should scope its tolerance to the
+   deliverable and state the instrument's size separately, so that a plan
+   required to grow does not charge its own growth to the budget it is measured
+   against. This is a lesson for the retrospective rather than an edit to this
+   plan's tolerance, and it is why the figures table above keeps all three
+   measurements rather than only the last.
+7. **Three matching log lines are a sample, not a property.** Reading
    `cargo-mutants`' `build_dir` and concluding that it mutates the live
    worktree was wrong, and the cheap disproof was to read what the tool's own
    `--in-place` flag says: copying is the default. A canary — hash the file,
@@ -5438,13 +5595,14 @@ Each item the closing checklist named, discharged or explicitly left open:
 
 ### What a successor should do first
 
-Read D31 and answer the Scope escalation, because the plan's status depends on
-it. Then open the lifecycle work, which has **no roadmap item and cannot start
-without one**: it needs an ADR amending ADR-018 first (the roadmap states this
-under 13.1.1), and after that the `Verification plan` rows for INV-4, INV-8,
-and INV-10 are already written as its acceptance criteria and `NoHooks`'
-default type parameter is the extension point. The 13.2.1 and 13.3.1 follow-ups
-are already in the roadmap and need no action from this plan.
+Read D31 and D43 and answer the Scope escalation, because the plan's status
+depends on it — D43 states the three options and recommends the first. Then
+open the lifecycle work, which has **no roadmap item and cannot start without
+one**: it needs an ADR amending ADR-018 first (the roadmap states this under
+13.1.1), and after that the `Verification plan` rows for INV-4, INV-8, and
+INV-10 are already written as its acceptance criteria and `NoHooks`' default
+type parameter is the extension point. The 13.2.1 and 13.3.1 follow-ups are
+already in the roadmap and need no action from this plan.
 
 ## Context and orientation
 
@@ -7065,12 +7223,13 @@ not repeated below.
   `git diff --stat crates/rstest-bdd-macros` is empty; and the `Scope` figure
   is re-measured at close and compared against both the planning estimate and
   D27's breached figures, so the retrospective records a measurement rather
-  than a restatement.
+  than a restatement. Measured at D31's revision and again at the true close
+  (D43), because the first fell inside the milestone rather than at its end.
 - **Conformance check:** every trace link resolves to a passing test; no
   upstream assumption falsified without being recorded; the `cargo-mutants`
   survivor list for `runner/` has been *read*, not assumed green; and the
-  `Scope` tolerance's state is stated explicitly, as either in-breach (with D27
-  cited) or resolved, never left unmentioned.
+  `Scope` tolerance's state is stated explicitly, as either in-breach (with
+  D27, D31, and D43 cited) or resolved, never left unmentioned.
 - **Recovery:** documentation-only commits revert independently.
 
 ## Concrete steps
