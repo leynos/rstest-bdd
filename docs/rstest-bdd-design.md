@@ -1489,11 +1489,11 @@ The surface is four groups of types and two functions.
 
 - **Source identity** — `SourcePath` and `SourceLocation`. `SourcePath` is an
   opaque source identifier backed by static or shared text: it is supplied by
-  the frontend, not a filesystem path the runner will open. It is an enum with
-  a `Static` and a `Shared` variant rather than a bare `Cow`, so the common
-  compile-time case clones by copy. `SourceLocation` adds a one-based line
-  and an optional column, and its constructor rejects line zero in every
-  profile because the value reaches an outcome as a rendered `path:line`.
+  the frontend, not a filesystem path the runner will open. It is an enum with a
+  `Static` and a `Shared` variant rather than a bare `Cow`, so the common
+  compile-time case clones by copy. `SourceLocation` adds a one-based line and
+  an optional column, and its constructor rejects line zero in every profile
+  because the value reaches an outcome as a rendered `path:line`.
 - **The plan** — `ScenarioPlan`, its `StepInvocation` entries, and
   `ScenarioPlanBuilder`, the single construction path. A plan is `Clone` and
   `'static`; step text and tags are `Cow<'static, str>` so the macro path
