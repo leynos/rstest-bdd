@@ -1284,7 +1284,8 @@ proposed direction).
     unconditional synchronous scope drop. The before-hook column, the
     hook-failure rows, and the hook cases of INV-8's precedence matrix are
     *not* discharged: the plan struck them (D2 option (ii)) rather than
-    deferring them, so `Lifecycle`, `NoHooks`' impl, `ScenarioScope::with_hooks`,
+    deferring them, so `Lifecycle`, `NoHooks`' impl,
+    `ScenarioScope::with_hooks`,
     `split`, and the `Before`/`After` `ScenarioFailure` variants do not exist.
     `LifecycleError` and `ScenarioOutcome::cleanup_error()` are consequently not
     shipped either. Restoring any of it needs an ADR amending ADR-018 first, and
@@ -1324,8 +1325,9 @@ baseline that a non-Gherkin frontend must match.
 
   Carried in from 13.1.1, because 13.1.1 wrote the conversion and could not
     finish it. `runner` is the canonical outcome model and does not depend on
-    `reporting`; the one-way conversion lives in `crates/rstest-bdd/src/reporting/conversion.rs`
-    behind `#[cfg(test)]`, which an integration test cannot reach, so it is a
+    `reporting`; the one-way conversion lives in
+    `crates/rstest-bdd/src/reporting/conversion.rs` behind `#[cfg(test)]`,
+    which an integration test cannot reach, so it is a
     signature-level assertion rather than a gate. Three obligations follow, and
     the first is a blocker:
 
@@ -1367,8 +1369,9 @@ boundary without importing Trymark's syntax or reporting model into
   Two carried-in obstacles, both of which this milestone is the first to hit.
 
   The conformance frontend will report its supplied locations through a
-    message that calls them **features**. `crates/rstest-bdd/i18n/en/rstest-bdd.ftl`
-    renders `(feature: …, scenario: …)` for the `feature_path` field, so a
+    message that calls them **features**.
+    `crates/rstest-bdd/i18n/en/rstest-bdd.ftl` renders
+    `(feature: …, scenario: …)` for the `feature_path` field, so a
     Markdown or TOML frontend's user reads a label that names the wrong
     document kind. A source-neutral Fluent message variant is the fix; it is
     recorded here rather than done in 13.1.1 because the string is

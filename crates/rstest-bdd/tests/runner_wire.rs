@@ -142,7 +142,7 @@ fn a_run_executes_its_steps_against_the_context() {
 /// and scenario name the plan supplied. A driver that invented a failure, or
 /// that reported the wrong index, is caught here.
 #[test]
-fn an_unresolvable_step_fails_with_the_registries_error() {
+fn an_unresolvable_step_fails_with_the_registry_error_verbatim() {
     let cell = counter_cell();
     let mut ctx = context_for(&cell);
     let plan = ScenarioPlanBuilder::new("Counting", "notes/counting.md")

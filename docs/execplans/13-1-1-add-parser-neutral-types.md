@@ -1136,8 +1136,8 @@ between them. Raise that before spending the tolerance.
     coincidence.
   - [x] (2026-09-20) **The freeze rule broken by the agent that had just written
     it, and recorded because of that.** The gate run dispatched at `a7002803`
-    was still in flight when I committed the Progress entry that states the
-    freeze-first rule, moving HEAD to `86433a18`. The runner did exactly what it
+    was still in flight when the Progress entry that states the freeze-first
+    rule was committed, moving HEAD to `86433a18`. The runner did exactly what it
     was asked: `check-fmt` completed on `a7002803` and the log's trailer reads
     `rev=86433a18b59869999af8fc80fcbf3bfcbf67f7d4`, because the trailer is
     written at the end from the live HEAD rather than captured at the start. So
@@ -1155,8 +1155,8 @@ between them. Raise that before spending the tolerance.
     `mdtablefix --in-place` with the Makefile's exact rule set against those two
     files only — never `make fmt`, whose broader selection drifts unrelated
     documents. Each hunk was then diffed against the pre-fix copy to confirm it
-    touched only my own paragraphs, and `mdtablefix --check` returns 121 files
-    unchanged at exit 0.
+    touched only the paragraphs this work had written, and `mdtablefix --check`
+    returns 121 files unchanged at exit 0.
   - [ ] Request `coderabbit review --agent` against the pushed revision, and
     adjudicate what it returns. The deterministic precondition the maintainer
     set — every applicable code quality and correctness gate green **before** a
@@ -2331,13 +2331,13 @@ span into separate short spans rather than relying on `mdtablefix` to wrap it.
   survivor list is read at EP-M5; the sweep's own result is recorded in the
   `Outcomes & retrospective` section rather than here.
 - **A second way the control misled, found by measurement rather than
-  reasoning.** I read `mutants.out/debug.log`, saw
-  `build_dir="…/worktrees/b2d2d7aa-…"` on three log lines, and concluded that
-  cargo-mutants mutates the live worktree — then reasoned from that conclusion
-  that it must never overlap a gate run. The conclusion was wrong. `--in-place`
-  is documented as "test mutations in the source tree, rather than in a copy",
-  so copying is the default; the `build_dir` lines were cargo-mutants
-  *reverting* the three mutants it had created and tested in its own
+  reasoning.** A reading of `mutants.out/debug.log` found
+  `build_dir="…/worktrees/b2d2d7aa-…"` on three log lines, which supported the
+  conclusion that cargo-mutants mutates the live worktree — and so that it must
+  never overlap a gate run. The conclusion was wrong. `--in-place` is
+  documented as "test mutations in the source tree, rather than in a copy", so
+  copying is the default; the `build_dir` lines were cargo-mutants *reverting*
+  the three mutants it had created and tested in its own
   `/tmp/cargo-mutants-*.tmp` scratch copy, and `--baseline=skip` alone produced
   4 caught and 1 unviable rather than the 0-viable signature of a scratch-build
   problem. A canary then settled it: the real `runner/scope.rs` hashed
@@ -4218,7 +4218,8 @@ check at all**; the coverage check beside it is equally optional. A plan that
 lists what `make` can run, and not what the merge actually requires, is
 checking the wrong thing carefully.
 
-**The Windows failure was mine, and was real.** Both Windows legs failed
+**The Windows failure was introduced by this branch, and was real.** Both
+Windows legs failed
 `the_panic_carries_the_registry_identity_and_the_plans_source`:
 
 ```plaintext
@@ -4294,8 +4295,9 @@ Date/Author: 2026-09-20, implementation agent.
 **What happened.** CI run `35475806008` at `abeae80c` failed its Linux leg at
 step 20, `Check formatting`, with every later step — including the CodeScene
 coverage step D37 had just analysed — reported `skipped`. This is a *different*
-failure from the ones D37 recorded, and it was mine. It began one commit
-earlier than the D36 write-up assumed and has nothing to do with the Rust tree:
+failure from the ones D37 recorded, and it was branch-introduced. It began one
+commit earlier than the D36 write-up assumed and has nothing to do with the
+Rust tree:
 
 ```plaintext
 $ mdtablefix --check --git --include-untracked --wrap --renumber --breaks \
@@ -4536,8 +4538,8 @@ upstream, one commit-range away:** `0e3c4d24` is an ancestor of `f68e8e2e`
 (`gh api …/compare/0e3c4d24...f68e8e2e` → `ahead 4, behind 0`), so re-pinning
 `ci.yml` lines 609 and 625 from `0e3c4d24` to `f68e8e2e` is a fast-forward to a
 ref that pins the CLI deterministically. Whether to take it is the human's
-call, not mine: it changes which revision of a third-party action this
-repository executes.
+call, not the implementation agent's: it changes which revision of a
+third-party action this repository executes.
 
 **Why this is escalated rather than fixed.** D31 is already an open tolerance
 breach awaiting a human answer, and this is the same shape one layer out: a
@@ -4621,16 +4623,17 @@ close changes. The round is requested against `cf124059`, the current head, with
 working copy. If it returns findings, they are adjudicated individually the way
 D28 through D30 adjudicated the first four rounds.
 
-**A sixth instance, this one mine, caught by the gate run itself.** The attempt
-to spend the round was dispatched as a combined assignment naming `3f9c988c` as
-the target revision. While it ran, I committed and pushed `cf124059` — writing
-D40, the entry that says a verdict is only valid for the revision it was taken
-at. The runner's `check-fmt` had already recorded `rev=3f9c988c`; its `lint`,
-`test`, `markdownlint` and `nixie` landed on `cf124059`, which did not exist
-when the assignment was written. So the run produced a mixed-revision result,
-and the runner said so rather than smoothing it over: "the assignment asserted
-two things that were true at 02:15 but false when I ran". It declined to run
-the CodeRabbit review, correctly, because Part 1 had not passed at a single
+**A sixth instance, this one committed by the implementation agent and caught
+by the gate run itself.** The attempt to spend the round was dispatched as a
+combined assignment naming `3f9c988c` as the target revision. While it ran,
+`cf124059` was committed and pushed — writing D40, the entry that says a
+verdict is only valid for the revision it was taken at. The runner's
+`check-fmt` had already recorded `rev=3f9c988c`; its `lint`, `test`,
+`markdownlint` and `nixie` landed on `cf124059`, which did not exist when the
+assignment was written. So the run produced a mixed-revision result, and the
+runner said so rather than smoothing it over: "the assignment asserted two
+things that were true at 02:15 but false when I ran". It declined to run the
+CodeRabbit review, correctly, because Part 1 had not passed at a single
 revision.
 
 The consequence is instructive rather than merely annoying. `cf124059`
