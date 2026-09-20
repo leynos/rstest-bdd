@@ -152,7 +152,7 @@ pub(super) async fn guarded_async<'ctx>(
 /// request and there is no borrowed accessor — deliberately, since a skip
 /// happens once and the message moves out of it. The `Err` arm needs only a
 /// borrow, which the by-value payload still provides.
-pub(super) fn from_payload(
+fn from_payload(
     step: &Step,
     payload: Box<dyn Any + Send>,
 ) -> Result<StepExecution, StepError> {

@@ -48,6 +48,7 @@ use rstest_bdd::{
     StepContext,
     runner::{
         FailureSite,
+        ScenarioPlan,
         ScenarioPlanBuilder,
         ScenarioScope,
         ScenarioStatus,
@@ -85,12 +86,27 @@ fn the_plan_has_a_step_at_line(bench: &RefCell<Bench>, role: String, line: u32) 
     let Some(plan) = bench.plan.take() else {
         panic!("`Given the plan has ...` must follow `Given a plan named ...`");
     };
-    // `step_at` consumes and returns the builder, and a built plan cannot be
-    // extended, so each step re-opens the plan through a fresh builder seeded
-    // from the one that exists. The seed is every one of the plan's own fields,
-    // read back through its accessors, so this cannot drift from what was
-    // built — asserted rather than asserted-in-prose: a field the seed forgot
-    // would be dropped silently by the rebuild, and `tags` was.
+    let (text, keyword) = step_text(&role);
+    let rebuilt = reopen(&plan).step_at(keyword, text, line).build();
+    assert_eq!(
+        rebuilt.tags().collect::<Vec<_>>(),
+        plan.tags().collect::<Vec<_>>(),
+        "the rebuild must carry every tag the plan had; the seed reads the plan's own fields, so \
+         a field it omits is lost without any other assertion noticing",
+    );
+    bench.plan = Some(rebuilt);
+}
+
+/// Re-open a built plan for extension, seeding a builder with every one of its
+/// fields.
+///
+/// `step_at` consumes and returns the builder, and a built plan cannot be
+/// extended, so each added step goes through a fresh builder seeded from the
+/// plan that exists. The seed reads the plan's own accessors rather than
+/// restating the literal the scenario named, so it cannot drift from what was
+/// built: a field the seed forgets is dropped silently by the rebuild, and
+/// `tags` was.
+fn reopen(plan: &ScenarioPlan) -> ScenarioPlanBuilder {
     let mut builder = ScenarioPlanBuilder::new(plan.name().to_owned(), plan.source().to_owned());
     for tag in plan.tags() {
         builder = builder.tag(tag.to_owned());
@@ -102,15 +118,7 @@ fn the_plan_has_a_step_at_line(bench: &RefCell<Bench>, role: String, line: u32) 
     for existing in plan.steps() {
         builder = builder.step(existing.clone());
     }
-    let (text, keyword) = step_text(&role);
-    let rebuilt = builder.step_at(keyword, text, line).build();
-    assert_eq!(
-        rebuilt.tags().collect::<Vec<_>>(),
-        plan.tags().collect::<Vec<_>>(),
-        "the rebuild must carry every tag the plan had; the seed reads the plan's own fields, so \
-         a field it omits is lost without any other assertion noticing",
-    );
-    bench.plan = Some(rebuilt);
+    builder
 }
 
 #[when("the plan is executed synchronously")]

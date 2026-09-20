@@ -24,10 +24,14 @@ use super::{
 /// One kind, the label its assertions carry, and the fate its invocation must
 /// be recorded with.
 ///
-/// The label travels beside the kind rather than being derived from it, so the
-/// lookup in [`every_kind_has_a_label`] cannot be fooled by the constant it is
-/// looking for: a pair whose kinds were both `Pass` fails there on the
-/// duplicated label instead of passing on the constant.
+/// The label travels beside the kind rather than being derived from it so that
+/// a failing assertion can name the row it came from; assertions here are
+/// written per row, so a label read off [`Kind`] would make two rows
+/// indistinguishable in the output.
+///
+/// Duplicate and missing rows are caught by [`every_kind_has_a_label`], by its
+/// kind-coverage loop and its length check — not by the label, which no lookup
+/// keys on.
 ///
 /// The fate is `Option<StepStatus>` rather than a bare `StepStatus` so the
 /// table can state that a *missing* record is a failure of this test: every

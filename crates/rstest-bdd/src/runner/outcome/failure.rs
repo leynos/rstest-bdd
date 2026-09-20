@@ -45,9 +45,14 @@ pub enum FailureKind {
 impl FailureKind {
     /// Project an [`ExecutionError`] onto its classification.
     ///
-    /// Total by construction: the variants of [`ExecutionError`] are
-    /// `#[non_exhaustive]`, so an unrecognized one degrades to
-    /// [`Other`](Self::Other) rather than failing to compile.
+    /// Total because of the trailing wildcard arm below, not because of
+    /// `#[non_exhaustive]`: that attribute is declared on `ExecutionError` in
+    /// this same crate, where it does not restrict matching, and the compiler
+    /// would otherwise require every variant to be named here. The wildcard is
+    /// what makes an unrecognized — or newly added — variant classify silently
+    /// as [`Other`](Self::Other). A variant that deserves its own
+    /// classification therefore has to be added to this match deliberately;
+    /// nothing will fail to compile if it is not.
     ///
     /// # Examples
     ///

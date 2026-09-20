@@ -5,38 +5,42 @@
 //! could drop. These tests pin that it is called exactly when a value came
 //! back, and that the fate it returns is preserved rather than recomputed.
 
+use rstest::rstest;
+
 use super::fixtures::*;
-use crate::runner::engine::policy::{Absorbed, absorb};
+use crate::runner::{
+    ValueFate,
+    engine::policy::{Absorbed, absorb},
+};
 
 // --- absorb: insertion happens before classification --------------------
 
 /// A returned value is inserted through the supplied closure and its fate is
 /// recorded, whatever the fate was.
 ///
-/// `NoMatch` is the case that matters: it is the only signal for a value that
-/// reached no later step, and the runtime emits no warning for it. A run that
-/// dropped the fate here would leave a renamed fixture silently green.
-#[test]
-fn a_returned_value_is_inserted_and_its_fate_kept() {
-    for fate in [
-        crate::runner::ValueFate::Inserted,
-        crate::runner::ValueFate::NoMatch,
-        crate::runner::ValueFate::AmbiguousIgnored,
-    ] {
-        let absorbed = absorb(Ok(Some(Box::new(7_u32))), |value| {
-            // The closure is the only place the value is visible; the driver
-            // would pass `|v| ctx.insert_value(v).into()`.
-            assert_eq!(value.downcast_ref::<u32>(), Some(&7));
-            fate
-        });
+/// One row per [`ValueFate`], named after it, so a failure says which fate was
+/// lost rather than only that one was. `NoMatch` is the case that matters: it
+/// is the only signal for a value that reached no later step, and the runtime
+/// emits no warning for it. A run that dropped the fate here would leave a
+/// renamed fixture silently green.
+#[rstest]
+#[case::inserted(ValueFate::Inserted)]
+#[case::no_match(ValueFate::NoMatch)]
+#[case::ambiguous_ignored(ValueFate::AmbiguousIgnored)]
+fn a_returned_value_is_inserted_and_its_fate_kept(#[case] fate: ValueFate) {
+    let absorbed = absorb(Ok(Some(Box::new(7_u32))), |value| {
+        // The closure is the only place the value is visible; the driver
+        // would pass `|v| ctx.insert_value(v).into()`.
+        assert_eq!(value.downcast_ref::<u32>(), Some(&7));
+        fate
+    });
 
-        let Absorbed {
-            fate: recorded,
-            error,
-        } = absorbed;
-        assert_eq!(recorded, Some(fate));
-        assert!(error.is_none(), "a step that ran has no error");
-    }
+    let Absorbed {
+        fate: recorded,
+        error,
+    } = absorbed;
+    assert_eq!(recorded, Some(fate));
+    assert!(error.is_none(), "a step that ran has no error");
 }
 
 /// A step that returned nothing inserts nothing, and records no fate.

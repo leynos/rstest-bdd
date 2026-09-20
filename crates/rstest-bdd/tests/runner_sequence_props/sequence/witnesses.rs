@@ -253,8 +253,7 @@ fn class_counts<T: Copy + Eq>(seen: &[T]) -> Vec<(T, usize)> {
 pub(crate) struct Tally {
     /// How many cases were classified.
     pub(crate) cases: usize,
-    /// How often each terminal status was reached, and how often each
-    /// classification was recorded.
+    /// How often each terminal status was reached.
     pub(crate) statuses: Vec<(ScenarioStatus, usize)>,
     /// How often each fate was recorded.
     pub(crate) fates: Vec<(ValueFate, usize)>,

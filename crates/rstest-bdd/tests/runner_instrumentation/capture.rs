@@ -93,12 +93,12 @@ pub(super) type Captures = Arc<Mutex<Vec<Captured>>>;
 
 /// A visitor that records the *value* of each field it is shown, rendered.
 ///
-/// Every `record_*` method is overridden deliberately, and each renders its
-/// value the same way [`record_debug`](Visit::record_debug) does. The trait's
-/// defaults forward to `record_debug`, so the overrides are redundant in
-/// effect; they are kept because the visitor's job is to capture whatever it is
-/// handed, and a reader checking that should not have to know which of the
-/// trait's methods funnel into which.
+/// Only `record_str`, `record_i64`, `record_u64`, and `record_bool` are
+/// overridden; every other `record_*` method falls through to
+/// [`record_debug`](Visit::record_debug) below, which `note`s the `Debug`
+/// rendering. The overrides exist because the trait's defaults also forward to
+/// `record_debug`, so without them a `&str` field would read back with its
+/// quotes still attached — see `record_str`.
 struct FieldValues<'a> {
     /// Where each visited field's rendered value is recorded.
     values: &'a mut BTreeMap<String, String>,
@@ -236,15 +236,15 @@ pub(super) fn carrying<'a>(captured: &'a [Captured], field: &str) -> &'a Capture
     let found = captured.iter().find(|item| item.carries(field));
     let Some(item) = found else {
         panic!(
-            "no capture carried `{field}`; the captured field names were {:?}",
-            field_names(captured),
+            "no capture carried `{field}`; the captured fields were {:?}",
+            captured_fields(captured),
         );
     };
     item
 }
 
-/// Every field name mentioned anywhere in a capture list, for a failure message.
-fn field_names(captured: &[Captured]) -> BTreeMap<&str, &str> {
+/// Every captured field, as name-to-value pairs, for a failure message.
+fn captured_fields(captured: &[Captured]) -> BTreeMap<&str, &str> {
     captured
         .iter()
         .flat_map(|item| item.values.iter().map(|(k, v)| (k.as_str(), v.as_str())))
