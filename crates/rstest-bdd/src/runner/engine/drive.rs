@@ -36,7 +36,6 @@ use crate::{
     runner::{
         ScenarioPlan,
         StepInvocation,
-        ValueFate,
         engine::policy::{Absorbed, StepDecision, Terminal, absorb, classify},
         outcome::StepOutcome,
     },
@@ -117,7 +116,7 @@ pub(super) fn record_step(
     let Absorbed { fate, error } = absorb(result, |value| ctx.insert_value(value).into());
 
     match classify(error) {
-        StepDecision::Continue => (passed(index, invocation, fate), None),
+        StepDecision::Continue => (StepOutcome::passed(index, invocation, fate), None),
         StepDecision::Skip { message } => {
             // D14: the terminal skip is logged with its identity and whether it
             // carried a reason — never with the reason itself, which is
@@ -192,9 +191,4 @@ fn location(invocation: &StepInvocation) -> String {
         || "unknown".to_owned(),
         |source| format!("{}:{}", source.path(), source.line()),
     )
-}
-
-/// Record a successful invocation, with what became of any returned value.
-fn passed(index: usize, invocation: &StepInvocation, fate: Option<ValueFate>) -> StepOutcome {
-    StepOutcome::passed(index, invocation, fate)
 }

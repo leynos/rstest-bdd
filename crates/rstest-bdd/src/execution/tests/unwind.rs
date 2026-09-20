@@ -231,19 +231,21 @@ fn a_bare_skip_request_stays_message_less() {
 fn a_foreign_payload_becomes_a_panic_error_identifying_the_step() {
     let step = harness!("a distinct pattern", "notes/unwind.rs", 118);
 
-    let result = guarded(&step, || panic!("the handler's own message"));
-
-    assert_eq!(
-        panic_message_of(result).as_deref(),
-        Some("the handler's own message"),
-        "the panic's message must come from the raised payload",
-    );
+    // One call, destructured once. Calling `guarded` twice would let the two
+    // assertions describe two different panics; the message is read out of the
+    // same `PanicError` the identity fields come from.
     let Err(StepError::PanicError {
-        pattern, function, ..
+        pattern,
+        function,
+        message,
     }) = guarded(&step, || panic!("the handler's own message"))
     else {
         panic!("a foreign payload must produce a PanicError");
     };
+    assert_eq!(
+        message, "the handler's own message",
+        "the panic's message must come from the raised payload",
+    );
     assert_eq!(
         pattern, "a distinct pattern",
         "the pattern is the step's own registry spelling",

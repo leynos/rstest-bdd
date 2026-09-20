@@ -16,11 +16,15 @@
 //! # Why this is an integration test
 //!
 //! D21: these statements are about invocations that resolve, and the unit-test
-//! binary cannot reach the registry (see `runner_wire.rs`). The feature-gated
-//! sub-module below exists because INV-2 claims the accounting holds with the
-//! `diagnostics` feature on *and* off, and the two configurations are different
-//! compiled artefacts — a runtime test cannot switch features, so the second leg
-//! is a `--no-default-features` build of this same file.
+//! binary cannot reach the registry (see `runner_wire.rs`).
+//!
+//! INV-2 claims the accounting holds with the `diagnostics` feature on *and*
+//! off, and the two configurations are different compiled artefacts — a runtime
+//! test cannot switch features. There is no feature-gated sub-module here; the
+//! whole file is simply compiled twice. The second leg is a
+//! `--no-default-features` build of this same file, driven by the `test` target
+//! in the `Makefile` (`Makefile:119-121`), and that leg is what makes the claim
+//! about both configurations rather than just the default one.
 
 use rstest::rstest;
 use rstest_bdd::{
@@ -146,22 +150,23 @@ fn every_invocation_is_recorded_once_in_order(
     );
 
     for (index, (record, invocation)) in outcome.steps().iter().zip(plan.steps()).enumerate() {
-        assert_eq!(
-            record.status(),
-            if index <= terminal_index {
-                // Position, not per-step expectation: the prefix either passed or
-                // is the terminal event itself, and both are "reached".
-                assert_ne!(
-                    record.status(),
-                    StepStatus::Bypassed,
-                    "({name}) entry {index} is at or before the terminal index and must have run",
-                );
-                record.status()
-            } else {
-                StepStatus::Bypassed
-            },
-            "({name}) entry {index} has the wrong status for its position",
-        );
+        // Position, not per-step expectation: the prefix either passed or is the
+        // terminal event itself, and both are "reached". The two branches assert
+        // different things, so neither is written as a comparison of a value
+        // with itself.
+        if index <= terminal_index {
+            assert_ne!(
+                record.status(),
+                StepStatus::Bypassed,
+                "({name}) entry {index} is at or before the terminal index and must have run",
+            );
+        } else {
+            assert_eq!(
+                record.status(),
+                StepStatus::Bypassed,
+                "({name}) entry {index} is past the terminal index and must be bypassed",
+            );
+        }
 
         // The identity half. Text and keyword are compared as the plan holds
         // them, so an entry carrying the wrong invocation's data — an off-by-one

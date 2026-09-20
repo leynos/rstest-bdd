@@ -75,7 +75,7 @@
 use std::cell::RefCell;
 
 use proptest::test_runner::{TestCaseError, TestRunner};
-use sequence::{Arrangement, CASES, Kind, Step, Witnesses, case};
+use sequence::{Arrangement, CASES, Kind, Step, Witnesses, case, with_lines};
 
 // The support modules sit beside this file rather than under a directory named
 // after it, because a Cargo integration target is a single `.rs` file: `mod
@@ -117,16 +117,12 @@ fn check(body: impl FnMut(Vec<Step>, Arrangement) -> Result<(), TestCaseError>) 
 
 /// A plan from `kinds`, each tagged with the keyword its kind is registered
 /// under and a distinct line.
+///
+/// Delegates to the generator's `with_lines` rather than repeating the tagging:
+/// two copies could drift, and a drifted line would make a plan whose lines no
+/// longer identify its invocations, which several properties read as evidence.
 fn plan(kinds: &[Kind]) -> Vec<Step> {
-    kinds
-        .iter()
-        .enumerate()
-        .map(|(index, &kind)| Step {
-            kind,
-            keyword: kind.keyword(),
-            line: u32::try_from(index).unwrap_or(0) + 1,
-        })
-        .collect()
+    with_lines(kinds.to_vec())
 }
 
 /// Fold every case the generator produces into a fresh accumulator.

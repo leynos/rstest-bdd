@@ -96,7 +96,7 @@ fn catalogue() -> impl Strategy<Value = Vec<Kind>> {
 /// assigned by position would make most invocations resolve to nothing and
 /// collapse INV-1's classification. See
 /// `runner_sequence_props::controls::a_keyword_mismatch_resolves_to_nothing`.
-fn with_lines(kinds: Vec<Kind>) -> Vec<Step> {
+pub(crate) fn with_lines(kinds: Vec<Kind>) -> Vec<Step> {
     kinds
         .into_iter()
         .enumerate()
@@ -314,6 +314,19 @@ fn build(shape: Shape) -> Vec<Kind> {
     if let Some(terminal) = shape.terminal {
         kinds.push(terminal.asserted());
     }
-    kinds.truncate(MAX_STEPS);
+    // Asserted rather than truncated. `MAX_STEPS` bounds the *uniform* strategy's
+    // sequences, and none of the shapes above approaches it — the longest builds
+    // seven. A truncation here would be a silent hazard rather than a bound: it
+    // removes from the tail, and the tail is where the terminal was just pushed,
+    // so a shape that outgrew `MAX_STEPS` would lose the very classification it
+    // exists to witness and fail as an unexplained missing terminal rather than
+    // as an over-long shape. Failing here names the cause.
+    assert!(
+        kinds.len() <= MAX_STEPS,
+        "shape {shape:?} builds {} invocations, over the MAX_STEPS bound of {MAX_STEPS}; \
+         the bound is not a budget for crafted shapes — trim the shape, or raise MAX_STEPS \
+         and re-check the uniform strategy's cost",
+        kinds.len(),
+    );
     kinds
 }
