@@ -1100,15 +1100,36 @@ between them. Raise that before spending the tolerance.
     decomposed below the limit. Clippy clean, 6 tests pass, `cs delta`
     re-measured at the new revision rather than carried forward, returning
     **0 bytes**. See D36.
+  - [x] (2026-09-20) **The `build-test` legs are now understood end to end, at
+    `a0192a5a` (run `35476727900`).** All four previously-masked checker steps
+    executed and passed; `Check formatting`, `Markdown lint`, `Spelling`, and
+    `Lint` all show `success`. Both **Windows** legs are green for the first
+    time in this milestone's history, and the test that failed on Windows at
+    `4e4f6a0c` is verified directly from the logs rather than inferred from the
+    job conclusion:
+
+    ```plaintext
+    test the_panic_carries_the_registry_identity_and_the_plans_source ... ok
+    ```
+
+    Present in both the default-features and strict-validation Windows logs,
+    with zero `FAILED` or `panicked at` lines in either. The Linux leg is green
+    through step 38 and fails only at step 39, `Check coverage against CodeScene
+    gates`, for the upstream reason D39 records — 2056 tests pass, 0 fail, and
+    the identical parse error appears. So of the three required checks, two are
+    green and the third is blocked by a CodeScene regression three days older
+    than this branch. See D38 and D39.
   - [ ] Request `coderabbit review --agent` against the pushed revision. The
     deterministic precondition the maintainer set — every applicable code
-    quality and correctness gate green **before** a review is requested — has
-    been re-established at `188ab854` and re-verified at `41ee01f5`, but the
-    full set at a single revision is not yet confirmed: the `c6eb5078` run
-    aborted inside `make lint` and left four checker steps unrun. The round is
-    deliberately still unspent: CodeRabbit reports `Review skipped: draft pull
-    request` on #770, so requesting a review before the PR leaves draft would
-    spend the round on a no-op.
+    quality and correctness gate green **before** a review is requested — is now
+    **discharged at a single revision**: the full local gate set is green at
+    `a0192a5a` (`make lint` reaches its final recipe line with all four masked
+    checkers running and passing; `check-fmt`, `test`, `markdownlint` and
+    `nixie` all pass), and two of the three required CI checks are green with the
+    third blocked upstream rather than by anything here. The round is still
+    deliberately unspent for a different reason: CodeRabbit reports
+    `Review skipped: draft pull request` on #770, so requesting it before the PR
+    leaves draft would spend the round on a no-op.
   - [x] The Bumpy Road and method-length findings were cleared, but the
     *upstream* lesson is not yet actioned: this plan's gate list enumerates
     local `make` targets and never names the PR checks, which is the set that
@@ -4195,14 +4216,22 @@ ERROR [codescene.devtools.error-handling:20] - Failed to parse coverage file
 No matching field found: close for class java.io.InputStreamReader
 ```
 
-The tests in that leg passed; only the upload failed. **It is not
-branch-specific**: `adopt-cv005` succeeded at 2026-09-18T17:17Z and every CI
-run recorded after it has failed, including on branches sharing no commits with
-this one, and those unrelated branches fail at the *same two steps*
-(`Check coverage against CodeScene gates`, `Test and Measure Coverage`). The
-same parse error appears in this branch's earlier runs. A defect in the
-`upload-codescene-coverage` action or in the CLI version it pins — not
-something this branch introduced and not something this branch can fix.
+The tests in that leg all passed; only the upload failed. **It is not
+branch-specific**: it reproduces on branches sharing no commits with this one,
+which fail at the *same two steps* (`Check coverage against CodeScene gates`,
+`Test and Measure Coverage`), and the same parse error appears in this branch's
+earlier runs. The clean onset boundary is what carries this argument, not
+`adopt-cv005`: that branch's green run at 2026-09-18T17:17Z never executes step
+39 at all — commit `cdecaf79` "Move CodeScene publication to main (CV-005)"
+deleted the call from its `ci.yml`, leaving step 39 as
+`Discard spent build trees` and its `upload-codescene-coverage` count at 0. A
+run that does not invoke a check is not evidence that the check works; it is
+green partly because it does not run the thing under test. That correction is
+made in D39, which supersedes this paragraph's evidence even though its
+conclusion stands. The failure is a defect in the `upload-codescene-coverage`
+action or in the CLI version it pins — specifically CLI 1.0.103, reached
+through the action's unpinned `cli-version: latest` default — and it is neither
+something this branch introduced nor something this branch can fix.
 
 **The correction to a previously recorded claim, and why it matters.** D34, D35
 and their Progress entries all describe CodeScene as the gate that "every
@@ -4391,7 +4420,14 @@ repository has been either a no-op or a crash.
 2. *The onset predates the branch by three days.* The last green run of this
    step is `35079334361` at 2026-09-16T09:25:32Z; the first red is
    `35109571107` at 2026-09-16T14:35:29Z — a five-hour window. This branch's
-   first commit is 2026-09-19.
+   first commit is 2026-09-19. Both are `pull_request` runs on unrelated
+   branches, and at the green end the step reads `success`, **not** `skipped` —
+   which is the detail that makes the boundary mean anything, because the
+   step's condition also requires `env.CS_ACCESS_TOKEN != ''` and a fork PR
+   would skip it silently. `35079334361`'s job `104739656144` shows step 38
+   `Verify coverage output exists` `success` and step 39
+   `Check coverage against CodeScene gates` `success`, so the check really did
+   run and really did pass five hours before it started failing.
 3. *The version is unpinned, and unpinning is the mechanism.* At the pinned
    action ref `0e3c4d24` the input reads:
 
@@ -4437,11 +4473,34 @@ regressed from, and any statement that "the recent commits broke `build-test`"
 is false in both directions: it was never green, and the failures were two
 independent causes, only one of which was ours.
 
+**The mechanism, named upstream.** The action's own changelog at the fix commit
+says it in as many words:
+
+```plaintext
+- Replace the mutable installer script and `latest` default with a committed,
+  checksum-verified manifest for CodeScene CLI 1.0.101 on Linux x64.
+- Add byte-exact Slipcover 1.0.18 and 1.1.0 Cobertura parser fixtures that
+  reproduce the `java.io.InputStreamReader.close` failure in 1.0.103.
+```
+
+So the failure is a regression in CLI **1.0.103**, reached because the pinned
+action resolves `cli-version` to `latest` and therefore installs whatever
+CodeScene published most recently. The first red run is 2026-09-16T14:35:29Z;
+`leynos/shared-actions` commit `f68e8e2e` (PR #496, merged
+2026-09-17T17:26:13Z) pins 1.0.101 by a checksum-verified manifest and adds
+fixtures reproducing this exact exception. **The remedy already exists
+upstream, one commit-range away:** `0e3c4d24` is an ancestor of `f68e8e2e`
+(`gh api …/compare/0e3c4d24...f68e8e2e` → `ahead 4, behind 0`), so re-pinning
+`ci.yml` lines 609 and 625 from `0e3c4d24` to `f68e8e2e` is a fast-forward to a
+ref that pins the CLI deterministically. Whether to take it is the human's
+call, not mine: it changes which revision of a third-party action this
+repository executes.
+
 **Why this is escalated rather than fixed.** D31 is already an open tolerance
 breach awaiting a human answer, and this is the same shape one layer out: a
 required status check cannot be made green by any change to this repository's
-source. Fixing it means pinning `cli-version` in the `shared-actions` input (a
-one-line change to `.github/workflows/ci.yml` in two places), or filing against
+source. Fixing it means re-pinning the `shared-actions` ref in
+`.github/workflows/ci.yml` (two lines, 609 and 625), or filing against
 `leynos/shared-actions`, or accepting the check as red. Each of those is a
 decision about another repository's configuration or about this project's merge
 policy, so it goes to the human alongside D31 rather than being taken here.
@@ -4452,7 +4511,15 @@ them is to find the *onset boundary* — the last green run and the first red on
 — and compare it against the branch's first commit. A string of red runs on
 your own branch is not evidence that your branch is the cause; it is what a
 pre-existing breakage looks like when the breakage is upstream of every branch
-you can see.
+you can see. Two corollaries, both of which this entry had to learn the hard
+way. **A green run only counts as a green boundary if the step actually ran:**
+`adopt-cv005` looked like the last green before the regression and is not,
+because it had removed the step. Read the step's conclusion at the revision
+that ran it, not the job's conclusion at a revision that skipped it. And **
+`pull_request` gates do not all run on `main`:** checking `main`'s status to
+reassure yourself about a step whose condition requires
+`github.event_name == 'pull_request'` inspects a code path `main` never
+executes, which is the D37 error one layer down.
 
 Date/Author: 2026-09-20, implementation agent.
 
