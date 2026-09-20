@@ -22,7 +22,7 @@ use cap_std::{
 /// skipped a file would leave that file's leaks unreported, and the scan's
 /// silence would then be indistinguishable from a clean tree — the failure
 /// mode the check exists to catch. The completeness guard in
-/// [`super::the_scan_finds_the_runner_tree`] pins the paths it names, one per
+/// [`the_scan_finds_the_runner_tree`] pins the paths it names, one per
 /// module rather than one per test file; this covers the remainder, including
 /// any file added later.
 pub(super) struct Scanned {

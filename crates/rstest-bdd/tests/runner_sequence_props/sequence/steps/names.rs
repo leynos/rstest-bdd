@@ -13,7 +13,7 @@
 //! nothing, and every case using that kind would quietly classify as
 //! `Undefined` rather than as the terminal it was drawn to be. So the
 //! duplication is not left to trust.
-//! `runner_sequence_props::named_witnesses::each_terminal_kind_is_reached_by_its_own_witness`
+//! `runner_sequence_props::named_witnesses::each_witness_terminates_the_run`
 //! runs a plan naming every kind and requires each to reach the status, the
 //! terminal index, and the classification that `Kind` declares for it. A
 //! constant that no longer names its registered step resolves to nothing,
