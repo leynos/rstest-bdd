@@ -1128,7 +1128,7 @@ between them. Raise that before spending the tolerance.
     `nixie` all pass), and two of the three required CI checks are green with the
     third blocked upstream rather than by anything here. **The holding reason
     previously recorded here was wrong and is retracted — see D40.** The round
-    is now requested against `3f9c988c`.
+    is now requested against `cf124059`.
   - [x] The Bumpy Road and method-length findings were cleared, but the
     *upstream* lesson is not yet actioned: this plan's gate list enumerates
     local `make` targets and never names the PR checks, which is the set that
@@ -4567,15 +4567,37 @@ from `mdtablefix --check --git` without `MDTABLEFIX_RULES`; a `build-test`
 conclusion for a step that had been skipped; a `main`-is-green claim about a
 step `main` never runs; an `adopt-cv005` green on a branch that had deleted the
 step; and now a review declared unavailable by the wrong program. In every case
-a verdict was read off an artifact that did not cover the question being asked.
+a verdict was read off an artefact that did not cover the question being asked.
 The general rule is one line: **name the exact command, then confirm the
-artifact came from that command.**
+artefact came from that command.**
 
 **Consequence for the plan's status.** Nothing about D31, D39, or the milestone
-close changes. The round is requested against `3f9c988c`, the current head, with
+close changes. The round is requested against `cf124059`, the current head, with
 `--committed --base main` so the findings pin to a revision rather than to a
 working copy. If it returns findings, they are adjudicated individually the way
 D28 through D30 adjudicated the first four rounds.
+
+**A sixth instance, this one mine, caught by the gate run itself.** The attempt
+to spend the round was dispatched as a combined assignment naming `3f9c988c` as
+the target revision. While it ran, I committed and pushed `cf124059` — writing
+D40, the entry that says a verdict is only valid for the revision it was taken
+at. The runner's `check-fmt` had already recorded `rev=3f9c988c`; its `lint`,
+`test`, `markdownlint` and `nixie` landed on `cf124059`, which did not exist
+when the assignment was written. So the run produced a mixed-revision result,
+and the runner said so rather than smoothing it over: "the assignment asserted
+two things that were true at 02:15 but false when I ran". It declined to run
+the CodeRabbit review, correctly, because Part 1 had not passed at a single
+revision.
+
+The consequence is instructive rather than merely annoying. `cf124059`
+introduced **two `artifact` spellings** the spelling gate rejects — this repo
+is en-GB-oxendict and the document already used `artefact` 36 times. `3f9c988c`
+contains zero occurrences and would have passed. **A gate run is an experiment
+against a frozen input; committing mid-run silently widens the change surface
+the experiment is measuring, and the resulting verdict does not describe either
+revision.** The fix is to freeze first and dispatch second, and this plan has
+now recorded the same lesson twice: the three gate runs that were "declared
+void by the runner" earlier in EP-M5 failed for exactly this reason.
 
 Date/Author: 2026-09-20, implementation agent.
 
