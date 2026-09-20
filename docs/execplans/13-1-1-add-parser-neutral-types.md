@@ -1122,6 +1122,18 @@ between them. Raise that before spending the tolerance.
     the identical parse error appears. So of the three required checks, two are
     green and the third is blocked by a CodeScene regression three days older
     than this branch. See D38 and D39.
+  - [x] (2026-09-20) **CodeRabbit round 5 run at `193975b5` and adjudicated in
+    full.** 11 findings at 9 distinct concerns across 7 files. Nine accepted and
+    fixed; two declined as to their arithmetic while the valid part of each was
+    taken. Two findings rest on false truth-table claims, both erring in the
+    direction of overstating the defect. D41 records all eleven finding by
+    finding, and the recurrence check against round 4 is clean — the location
+    sets are disjoint. The round's own discipline point: the previous attempt
+    returned a mixed-revision result because a commit landed mid-run, so this
+    one was dispatched against a frozen `a7002803` with the runner required to
+    verify HEAD before and after every gate and to write `rev=<sha>` into each
+    log. That is D40's sixth instance recorded as a rule rather than a
+    coincidence.
   - [ ] Request `coderabbit review --agent` against the pushed revision, and
     adjudicate what it returns. The deterministic precondition the maintainer
     set — every applicable code quality and correctness gate green **before** a
