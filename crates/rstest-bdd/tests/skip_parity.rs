@@ -15,13 +15,15 @@
 //!
 //! # Why the discriminating row is called out
 //!
-//! Three of the four rows agree under either candidate operator. With
-//! `allow_skipped` or `fail_on_skipped` false, both `&& !` and a plausible
-//! mistyping such as `||` yield the same answer; only `(true, true)` separates
-//! them, because it is the one row where the correct operator must return
-//! `false` and forget the second operand to be seen doing so. The plan names
-//! that mutation explicitly, and the row asserts it explicitly, so the table
-//! cannot pass while the operator is wrong.
+//! `||` also answers `true` at `(false, false)`, and a forgotten negation
+//! answers `false` there — so `(true, true)` is the unique row that rejects
+//! `||`, `!=`, and a forgotten negation *together*. That is the precise sense in
+//! which it is the discriminating row, and the sense the dedicated test below
+//! relies on: "the only row that separates them" is a claim about that operator
+//! set, not about the row set, since a function answering `false` on `(true,
+//! true)` and `true` on `(false, false)` separates the correct operator at
+//! `(false, false)` alone. The plan names the mutation explicitly and the row
+//! asserts it explicitly, so the table cannot pass while the operator is wrong.
 //!
 //! # Why INV-9 is a regression test rather than a matrix
 //!

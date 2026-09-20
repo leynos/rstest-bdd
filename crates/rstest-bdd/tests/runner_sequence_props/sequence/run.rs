@@ -155,7 +155,7 @@ impl Run {
         (steps, run)
     }
 
-    /// The fate of invocation 1, in the runtime's own spelling.
+    /// The fate of invocation `index`, in the runtime's own spelling.
     ///
     /// `None` means the driver recorded no status for it at all, which is the
     /// shape INV-12 forbids for an invocation that ran.
@@ -163,7 +163,7 @@ impl Run {
         self.outcome.steps().get(index).map(StepOutcome::status)
     }
 
-    /// The classification of invocation 1, in the runtime's own spelling.
+    /// The classification of invocation `index`, in the runtime's own spelling.
     pub(crate) fn failure_kind_at(&self, index: usize) -> Option<FailureKind> {
         self.outcome
             .steps()
