@@ -4596,6 +4596,32 @@ source. Fixing it means re-pinning the `shared-actions` ref in
 decision about another repository's configuration or about this project's merge
 policy, so it goes to the human alongside D31 rather than being taken here.
 
+**Re-checked at `7e81eef7`, and the choice has widened rather than narrowed.**
+D39 named `f68e8e2e` as the fix and noted it was a fast-forward. The upstream
+default branch has since moved further, to `82feb2b7` (2026-09-19T15:47:01Z).
+The full range `0e3c4d24...82feb2b7` is `ahead 6, behind 0`, and `f68e8e2e` is
+the **fourth** of the six — so the pin is two commits behind the fix and two
+more have landed on top of it:
+
+```plaintext
+944b039c  Adopt the estate Markdown formatting baseline (#494)
+dc2868fe  Adopt typos-config-builder gate for spelling (#498)
+ee58fd34  Require every commit on a Dependabot branch to be Dependabot's (#469) (#471)
+f68e8e2e  Restore deterministic CodeScene coverage installation (#496)   <- D39's fix
+a5765019  Let a caller suppress the coverage artefact upload (#505)
+82feb2b7  Build(deps): bump the github-actions group with 3 updates (#510)  <- tip
+```
+
+So a human answering this now has three candidate refs rather than one, and the
+three before the fix are not free either — they change the other actions this
+workflow uses (a Markdown baseline, a spelling gate, a Dependabot rule), which
+is the opposite of the two-line re-pin D39 described. The recommendation is
+unchanged and is now better supported: re-pin to `f68e8e2e`, the revision whose
+*contents* D39 actually read, rather than to the tip. A pin that is
+verified-to-fix beats a pin that is merely newer, and nothing in this plan has
+read what any of the other five commits do to the check being escalated — only
+what they are titled.
+
 **What a successor should take from this.** "The failing step is in my leg" and
 "the failing step is mine" are different propositions, and the way to separate
 them is to find the *onset boundary* — the last green run and the first red one
