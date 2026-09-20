@@ -1301,8 +1301,8 @@ between them. Raise that before spending the tolerance.
     `git diff --name-only 577a4617...7e81eef7` — the same 73 GitHub reports for
     this PR. The check matters because **local `main` here is 66 commits behind
     `origin/main`**, so honouring `--base main` literally would have reviewed
-    457 files across 164 commits, 66 of them unrelated `main` history on no
-    revision under review.
+    457 files, 66 commits of unrelated `main` history among them, on no revision
+    under review.
   - [x] (2026-09-20) **The two Markdown gates re-run at `67df72a9` with a clean
     tree, so the trailer certifies the revision it names.** `make check-fmt`
     and `make markdownlint` both exited 0 (`121 files left unchanged`,
@@ -5516,16 +5516,24 @@ do not carry it.**
 
 This matters concretely here rather than in the abstract, because **local
 `main` in this worktree is 66 commits *behind* `origin/main`**. A review that
-had honoured `--base main` literally would have covered 457 files and 164
-commits — this branch's 73, plus 66 commits of unrelated `main` history that
-are on no revision under review. `main...HEAD` and `origin/main...HEAD` are 457
-files and 73 files respectively, and only the second is the branch. That
-near-miss is the reason check 3 compared file *sets* rather than trusting a
-count, and it is the same shape as the round series above: a number that looked
-right, taken from the wrong place. A reviewer's first pass did use the
-`main...HEAD` pair and got 457; under a native-collation `comm` the result
-would have read as a screenful of missing files rather than as a wrong
-comparison set.
+had honoured `--base main` literally would have covered 457 files — this
+branch's 73, plus 66 commits of unrelated `main` history that are on no
+revision under review. `main...HEAD` and `origin/main...HEAD` are 457 files and
+73 files respectively, and only the second is the branch. That near-miss is the
+reason check 3 compared file *sets* rather than trusting a count, and it is the
+same shape as the round series above: a number that looked right, taken from
+the wrong place. A reviewer's first pass did use the `main...HEAD` pair and got
+457; under a native-collation `comm` the result would have read as a screenful
+of missing files rather than as a wrong comparison set.
+
+**The file count is quoted without a commit count on purpose.** The first draft
+gave "457 files and 164 commits", and 164 was already stale — it had been
+measured at `c69b8574`, and the round's own revision `7e81eef7` gives 163 while
+the tip gives 166. The file count is stable across all three because the extra
+commits are documentation; the commit count is not, and pinning it would need a
+revision qualifier the sentence does not otherwise need. This is D43's "my own
+text moved the figure it records" once more, caught before committing rather
+than after, which is the only difference.
 
 Date/Author: 2026-09-20, implementation agent.
 
