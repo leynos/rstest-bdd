@@ -121,9 +121,7 @@ fn check(body: impl FnMut(Vec<Step>, Arrangement) -> Result<(), TestCaseError>) 
 /// Delegates to the generator's `with_lines` rather than repeating the tagging:
 /// two copies could drift, and a drifted line would make a plan whose lines no
 /// longer identify its invocations, which several properties read as evidence.
-fn plan(kinds: &[Kind]) -> Vec<Step> {
-    with_lines(kinds.to_vec())
-}
+fn plan(kinds: &[Kind]) -> Vec<Step> { with_lines(kinds.to_vec()) }
 
 /// Fold every case the generator produces into a fresh accumulator.
 ///

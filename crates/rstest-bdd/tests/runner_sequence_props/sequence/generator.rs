@@ -323,9 +323,9 @@ fn build(shape: Shape) -> Vec<Kind> {
     // as an over-long shape. Failing here names the cause.
     assert!(
         kinds.len() <= MAX_STEPS,
-        "shape {shape:?} builds {} invocations, over the MAX_STEPS bound of {MAX_STEPS}; \
-         the bound is not a budget for crafted shapes — trim the shape, or raise MAX_STEPS \
-         and re-check the uniform strategy's cost",
+        "shape {shape:?} builds {} invocations, over the MAX_STEPS bound of {MAX_STEPS}; the \
+         bound is not a budget for crafted shapes — trim the shape, or raise MAX_STEPS and \
+         re-check the uniform strategy's cost",
         kinds.len(),
     );
     kinds
