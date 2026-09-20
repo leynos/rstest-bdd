@@ -32,7 +32,11 @@ is not evidenced is indistinguishable from a finding that was ignored. **Round
 7, the last, returned zero findings** — recorded in D44 with the four checks
 that were run before the empty result was believed, since "found nothing" and
 "did not run" are indistinguishable from the summary line alone. The numbered
-series is 19, 14, 12, 13, 11, 24, 0.
+series is 19, 14, 12, 13, 11, 24, 0. **The review cycle is closed**: round 7 is
+its last, D44's own successor note says no further review is owed, and the
+commit that landed it (`67df72a9`) is the revision the plan's own two Markdown
+gates were re-run at with a clean tree and a self-certifying trailer — see the
+Progress entry recording it.
 
 **The plan is deliberately not marked `COMPLETE`.** The `Scope` tolerance is
 breached and measured three times: D27 at 58 files / 15,737 net, D31 at 71 /
@@ -1299,6 +1303,18 @@ between them. Raise that before spending the tolerance.
     `origin/main`**, so honouring `--base main` literally would have reviewed
     457 files across 164 commits, 66 of them unrelated `main` history on no
     revision under review.
+  - [x] (2026-09-20) **The two Markdown gates re-run at `67df72a9` with a clean
+    tree, so the trailer certifies the revision it names.** `make check-fmt`
+    and `make markdownlint` both exited 0 (`121 files left unchanged`,
+    `Summary: 0 error(s)`), each logged with `rev_start`, `EXIT=`, and
+    `rev_end` all reading `67df72a9`. That is the first run in this plan where
+    the trailer is not merely present but *sufficient*: the earlier `c69b8574`
+    run had a dirty tree, so its `rev_end` named a revision whose working tree
+    was not what had been gated, and the reviewer's hand-off asked for exactly
+    this property. Only the two Markdown gates were re-run, because the commit
+    between them and `bbde0f2e` touches one document — `git diff --stat
+    bbde0f2e..HEAD` is a single file — so the six-gate set at `bbde0f2e`
+    remains the code evidence and this pair is the document evidence.
 
 ## Surprises & discoveries
 
