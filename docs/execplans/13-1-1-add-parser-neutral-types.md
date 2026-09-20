@@ -28,7 +28,11 @@ D33. Six numbered CodeRabbit rounds have been adjudicated — round 1 in D26,
 then D28, D29, D30, D41, and D42 — and EP-M1 additionally saw two unnumbered
 passes before the numbering began. Every round after the first is recorded
 finding by finding, including the declines, on the ground that a decline that
-is not evidenced is indistinguishable from a finding that was ignored.
+is not evidenced is indistinguishable from a finding that was ignored. **Round
+7, the last, returned zero findings** — recorded in D44 with the four checks
+that were run before the empty result was believed, since "found nothing" and
+"did not run" are indistinguishable from the summary line alone. The numbered
+series is 19, 14, 12, 13, 11, 24, 0.
 
 **The plan is deliberately not marked `COMPLETE`.** The `Scope` tolerance is
 breached and measured three times: D27 at 58 files / 15,737 net, D31 at 71 /
@@ -1164,6 +1168,21 @@ between them. Raise that before spending the tolerance.
     the revision at the gate's *start* or it certifies the wrong thing. The
     second is a real defect in the runner's procedure, not merely a slip by the
     implementation agent.
+  - [x] (2026-09-20) **The freeze rule broken a second time, by the same agent,
+    in the same way, within the hour.** The CodeRabbit round dispatched against
+    the frozen `7e81eef7` was in flight when a further documentation commit,
+    `c69b8574`, was pushed to the same file. That is the entry above recurring
+    with the reviewer this time rather than the gate runner, and it is the
+    third instance this plan has recorded of a rule being written down and then
+    broken by its author on the very next action. The round was not discarded —
+    the reviewer was told to set `revision_verdict=moved` and to report which
+    revision each finding was read from, so the findings are usable and
+    honestly labelled rather than silently certified as stable. **The lesson is
+    not that the rule is wrong but that recording a rule does not implement
+    it.** The mechanical fix, if this plan were continued, is that the freeze
+    must be *held* by something that fails when HEAD moves — a runner that
+    refuses to write a verdict when `rev_start != rev_end`, say. That is outside
+    this plan's scope and is not proposed here.
   - [x] (2026-09-20) **`check-fmt` failed on the round-5 prose, caught by that
     same run.** `mdtablefix --wrap` wanted `docs/execplans/13-1-1-add-parser-neutral-types.md`
     (+35/-34) and `docs/rstest-bdd-design.md` (+5/-5) reformatted: the edits were
@@ -1229,6 +1248,57 @@ between them. Raise that before spending the tolerance.
     `719 tests run: 719 passed, 7 skipped` on `--no-default-features -p
     rstest-bdd`, zero `FAILED` or `panicked at` lines in either; every doctest
     suite `ok`; `247 passed` in pytest).
+  - [x] (2026-09-20) **`### Evidence still to capture` rewritten as a discharge
+    ledger, and the one item that is not discharged is marked rather than
+    dropped.** The section was written at planning time as a forward
+    commitment; at the close it had never been revisited, which is exactly the
+    shape lesson 1 names — a claim in the plan that no artefact discharged,
+    surviving because nothing in the gate list polices it. Four of the five
+    items are discharged with a named artefact. The fifth, *"the red transcript
+    for each milestone's first test"*, is **not**: the plan records exactly one
+    red transcript in ~7,700 lines, for D38's fix, so "the tests failed first"
+    rests on the plan's own assertion rather than on evidence a reader can
+    check. That is recorded as a gap, not ticked. Writing the ledger also
+    caught two stale claims in the section: the item named
+    `InsertOutcome::NoMatch`, a type the runner surface does not expose — the
+    counters read `ValueFate::NoMatch`, after the projection D3 specifies — and
+    it asserted the classification counters without having verified that the
+    suite asserts *reaching* each class rather than only recording them. Read
+    the suite before claiming it: `witnesses.rs` asserts every material class
+    occurred, `named_witnesses.rs` floors each count at 20 against a measured
+    distribution, and `sequence/mod.rs` draws plan lengths from 0 so the empty
+    plan is generated rather than sampled. A discharge ledger is worth less than
+    the reading it forces.
+  - [x] (2026-09-20) **CodeRabbit round 7 run at `7e81eef7` and returned zero
+    findings**, the final round of the plan's review cycle. D44 records it,
+    including the four checks run before the empty result was believed: exit 0
+    with no error or timeout status anywhere in the log; nine `heartbeat`
+    records between `tools_completed` and `complete`, so the tool spent time
+    reading rather than returning instantly; the reviewed file set compared to
+    `git diff --name-only 577a4617...7e81eef7` **as a set** and found identical
+    at 73 files; and the revision binding read back from the log's own trailers.
+    That last check returned **`rev_start=7e81eef7`, `rev_end=c69b8574`** — the
+    freeze broken for the third time, this time caught by the machinery rather
+    than by a reader, which is the mechanical fix D43 proposed demonstrated on
+    the very next round. The verdict is `moved` and D44 says what that does and
+    does not weaken: `c69b8574` touches one file, the plan document, and no
+    code, so 72 of the 73 reviewed files were unchanged for the whole round.
+    **Writing D44 then reproduced D42's lesson**: its first draft gave the
+    finding series from memory as `7, 12, 13, 24, 11, 24, 0`, wrong in three
+    places; read back from each round's own entry, the series is
+    **19, 14, 12, 13, 11, 24, 0**. A count written from working memory remains
+    the cheapest thing in this plan to get wrong and the cheapest to check.
+    **A fifth check was added after the draft, and it is the one that found
+    something.** The session's own metadata names `baseBranch: main` and
+    `baseCommitId: f3499d4b`, and neither describes the change set that was
+    read: `f3499d4b` is a commit *on this branch* six commits behind the
+    reviewed head. The 73 filenames in the session's `incrementalDiff.v2.json`
+    are what was read, and they are set-identical to
+    `git diff --name-only 577a4617...7e81eef7` — the same 73 GitHub reports for
+    this PR. The check matters because **local `main` here is 66 commits behind
+    `origin/main`**, so honouring `--base main` literally would have reviewed
+    457 files across 164 commits, 66 of them unrelated `main` history on no
+    revision under review.
 
 ## Surprises & discoveries
 
@@ -4633,8 +4703,8 @@ way. **A green run only counts as a green boundary if the step actually ran:**
 `adopt-cv005` looked like the last green before the regression and is not,
 because it had removed the step. Read the step's conclusion at the revision
 that ran it, not the job's conclusion at a revision that skipped it. And **
-`pull_request` gates do not all run on `main`:** checking `main`'s status to
-reassure yourself about a step whose condition requires
+`pull_request`-only gates do not all run on `main`:** checking `main`'s status
+to reassure yourself about a step whose condition requires
 `github.event_name == 'pull_request'` inspects a code path `main` never
 executes, which is the D37 error one layer down.
 
@@ -5343,6 +5413,106 @@ should treat "status: not complete" as meaning "blocked on D31/D43", not
 
 Date/Author: 2026-09-20, implementation agent.
 
+### D44: CodeRabbit round 7 returned nothing, and the empty result is the interesting part
+
+**Decided 2026-09-20, closing EP-M5's review cycle. Round 7 ran at `7e81eef7`
+and returned zero findings across all 73 changed files.** The numbered series,
+each round against its own revision, is **19, 14, 12, 13, 11, 24, 0** (round 1
+is D26, then D28, D29, D30, D41, D42, and this entry). The zero is the datum a
+reader should be most suspicious of, because "the tool found nothing" and "the
+tool did not run" are indistinguishable from the summary line alone. The series
+is also worth reading for what it is *not*: it is not monotone, and a falling
+count is not evidence of a converging branch — rounds 4 and 6 are the two
+largest and they sit between the smallest ones, which is what measuring
+different revisions of a growing branch looks like.
+
+**This entry's own first draft wrote the series from memory as
+`7, 12, 13, 24, 11, 24, 0`, which is wrong in three places out of six.** That
+is D42's recorded lesson recurring verbatim — "a count written from working
+memory is the cheapest thing in this plan to get wrong and the cheapest to
+check" — committed by an entry whose subject is that a review result must be
+verified rather than believed. The series above was read back from D26's,
+D28's, D29's, D30's, D41's and D42's own opening lines before being written the
+second time.
+
+**Four checks were run before this round was believed**, and they are recorded
+because the *procedure* is the reusable part:
+
+1. `status: review_completed` with `findings: 0`, and no error, abort, or
+   timeout status anywhere in the log. The CLI exited 0 with
+   `wall_start == wall_end` at `2026-09-20T04:31:58+02:00`.
+2. **Nine `heartbeat` records** between `tools_completed` and `complete`. A run
+   that returned instantly had not read anything; this one spent its time
+   between the analysis phases emitting progress, which is what a real review
+   looks like in this format.
+3. **The reviewed file set was compared to the branch's, as a set rather than
+   as a count.** Both are 73, and `comm` on `LC_ALL=C`-sorted lists shows no
+   file on either side alone — so the review read exactly
+   `git diff --name-only 577a4617...7e81eef7`. A count match alone would not
+   have shown this: the first attempt did compare the two as *lists* and
+   produced a screenful of spurious differences, entirely from collation
+   (`comm` and `sort` disagree about `.gitignore`, `Makefile`, and where
+   `drive_async.rs` sorts until `LC_ALL=C` fixes it). **A set comparison that
+   is not ordered by the same rule on both sides is not a set comparison**, and
+   it fails in the direction that looks like a real finding.
+4. The revision binding. `rev_start=7e81eef7…` is in the log's trailer and
+   `rev_end=c69b8574…` in the status file — the two disagree, because a
+   documentation commit landed while the round ran. See below.
+
+**The revision verdict is `moved`, and that is the honest label.** The round
+was dispatched against a frozen `7e81eef7` and `c69b8574` was pushed mid-run,
+which is the freeze rule broken for the third time in this plan and by the same
+agent that had recorded it twice. Rather than discard the round, the reviewer
+was asked to label it: report which revision each finding came from and set
+`revision_verdict=moved` rather than `stable`. What that buys is worth stating
+precisely. **The zero is still strong evidence**, and for a reason that does
+not depend on the freeze holding: `c69b8574` touches exactly one file,
+`docs/execplans/13-1-1-add-parser-neutral-types.md`, and touches no code. A
+finding the later revision would have produced can only live in that one
+document's prose, so the code verdict is unaffected — 72 of the 73 files were
+unchanged for the whole round. What the moved revision *does* weaken is any
+claim about the plan document itself, and that is why the entry says so rather
+than reporting a clean pair.
+
+**The lesson this round adds to the four already recorded.** The plan has now
+recorded the same failure four times — D40's `let _ = f();`, the `std::fs` lint
+exemption, the freeze rule twice — and D43's freeze entry concluded that
+"recording a rule does not implement it". Round 7 is the first time the
+*machinery* caught it rather than a reader: the runner was required to write
+`rev_start` at the gate's start and `rev_end` at its end, and the two disagree,
+so the mixed revision is visible in the artefacts without anyone remembering to
+look. That is the mechanical fix D43 proposed, demonstrated on the very next
+round. It cost one sentence of procedure and it worked.
+
+**A fifth claim did not survive checking, and it is the kind that would have
+gone unnoticed.** The round was dispatched as
+`coderabbit review --agent --committed --base main`, and the CLI's session
+record duly reports `baseBranch: main` — but its `baseCommitId` is `f3499d4b`,
+a commit *on this branch*, six commits behind the reviewed head. **Neither
+field describes the change set that was actually read.** What was read is the
+73 filenames in that session's `incrementalDiff.v2.json`, and those are
+set-identical to `git diff --name-only 577a4617...7e81eef7` — which is also
+what GitHub reports for this PR (`changedFiles: 73`). Both metadata fields are
+labels rather than statements: `baseBranch` echoes the argument as typed, and
+`baseCommitId` names a revision that cannot produce a 73-file diff. **The
+change set has to be read from the diff, because the branch and commit fields
+do not carry it.**
+
+This matters concretely here rather than in the abstract, because **local
+`main` in this worktree is 66 commits *behind* `origin/main`**. A review that
+had honoured `--base main` literally would have covered 457 files and 164
+commits — this branch's 73, plus 66 commits of unrelated `main` history that
+are on no revision under review. `main...HEAD` and `origin/main...HEAD` are 457
+files and 73 files respectively, and only the second is the branch. That
+near-miss is the reason check 3 compared file *sets* rather than trusting a
+count, and it is the same shape as the round series above: a number that looked
+right, taken from the wrong place. A reviewer's first pass did use the
+`main...HEAD` pair and got 457; under a native-collation `comm` the result
+would have read as a screenful of missing files rather than as a wrong
+comparison set.
+
+Date/Author: 2026-09-20, implementation agent.
+
 ## Outcomes & retrospective
 
 ### What was achieved
@@ -5622,13 +5792,18 @@ Each item the closing checklist named, discharged or explicitly left open:
 ### What a successor should do first
 
 Read D31 and D43 and answer the Scope escalation, because the plan's status
-depends on it — D43 states the three options and recommends the first. Then
-open the lifecycle work, which has **no roadmap item and cannot start without
-one**: it needs an ADR amending ADR-018 first (the roadmap states this under
-13.1.1), and after that the `Verification plan` rows for INV-4, INV-8, and
-INV-10 are already written as its acceptance criteria and `NoHooks`' default
-type parameter is the extension point. The 13.2.1 and 13.3.1 follow-ups are
-already in the roadmap and need no action from this plan.
+depends on it — D43 states the three options and recommends the first. D39's
+CodeScene escalation is the other open question and is now a six-commit move
+rather than the two-line re-pin it first looked like; its recommendation is to
+re-pin to `f68e8e2e`, the revision whose contents were actually read, rather
+than to the upstream tip. Then open the lifecycle work, which has **no roadmap
+item and cannot start without one**: it needs an ADR amending ADR-018 first
+(the roadmap states this under 13.1.1), and after that the `Verification plan`
+rows for INV-4, INV-8, and INV-10 are already written as its acceptance
+criteria and `NoHooks`' default type parameter is the extension point. The
+13.2.1 and 13.3.1 follow-ups are already in the roadmap and need no action from
+this plan. The review cycle is closed: seven numbered rounds, the last of them
+empty (D44), and no further review is owed.
 
 ## Context and orientation
 
@@ -7511,15 +7686,59 @@ failure upgrades a skip.
 
 ### Evidence still to capture
 
-- The red transcript for each milestone's first test.
+This list was written at planning time as a forward commitment. Four of its
+five items were discharged during the work; the fifth was not, and is marked as
+a gap rather than quietly dropped. The count is stated because the first draft
+of this ledger got it wrong — it carried a preamble saying "the two items that
+are *not* discharged" over a list in which exactly one was.
+
+- The red transcript for each milestone's first test. **Not captured, and the
+  gap is recorded rather than papered over.** The plan records exactly one red
+  transcript, for D38's fix (`test result: FAILED. 5 passed; 1 failed`), and it
+  states at Stage B that each milestone's tests were written before the
+  production change. What is missing is the evidence: no per-milestone failing
+  run was transcribed at the time, so "the tests failed first" rests on the
+  plan's assertion rather than on an artefact a reader can check. This is the
+  same defect lesson 1 names — a claim in the plan that no artefact discharged
+  — and it survived to the close because nothing in the gate list polices it.
 - The `proptest` classification output showing every material class reached,
   including `InsertOutcome::NoMatch` (INV-12) and the empty plan (INV-13).
-- The synthetic-input negative-control transcripts for INV-1, INV-2, INV-3,
-  and INV-11's five leak shapes.
+  **Discharged**, with one correction of spelling: the token this item names no
+  longer exists. `insert_value`'s `InsertOutcome` is projected into the
+  runner's own `ValueFate` at the boundary (D3, and the
+  `impl From<InsertOutcome> for ValueFate` the plan specifies), so the counters
+  read `ValueFate::{Inserted, NoMatch}` — item written early, type renamed
+  later, claim unchanged.
+  `crates/rstest-bdd/tests/runner_sequence_props/witnesses.rs` records a fate
+  for every value-returning invocation and asserts each material class occurred;
+  `named_witnesses.rs` proves each occurred *often enough* to be a property
+  rather than a lucky draw, with floors of 20 set against a measured
+  distribution (`skipped min=28`, `nomatch min=55` over 200 runs of the test) —
+  and its own comment records that an earlier draft cited the *mean* where the
+  floor's headroom was wanted. The empty plan is generated rather than sampled:
+  `sequence/mod.rs` takes the domain as length 0 to 8 so that INV-13's shape is
+  drawn deliberately, `witnesses.rs` asserts the domain includes it, and it is
+  also exercised end to end by
+  `a_plan_with_no_steps_does_not_fold_to_a_clean_pass` in
+  `crates/rstest-bdd/tests/runner_wire.rs`.
+- The synthetic-input negative-control transcripts for INV-1, INV-2, INV-3, and
+  INV-11's five leak shapes. **Discharged**, and the plan records the controls
+  that mattered: the INV-11 scan's own unreadable-path failure, and the
+  mutation-sweep canaries. The INV-11 scan also carries its own non-vacuity
+  guard — it fails if the walk found no files, so a scan that read nothing
+  cannot report clean.
 - The `cargo-mutants` survivor list for `crates/rstest-bdd/src/runner/`, read
-  and annotated.
+  and annotated. **Discharged.** 152 mutants, 84 caught, 5 missed, 57 unviable,
+  6 timeout, run out-of-tree from `fe595c3e`. The five survivors are recorded
+  individually under `What the mutation sweep found, survivor by survivor`, and
+  the two worth acting on are D32 and D33.
 - The final `make lint` and `make test` summaries, including the
-  `--no-default-features` leg.
+  `--no-default-features` leg. **Discharged.** At `bbde0f2e`: `make test` green
+  with two nextest legs (2,058 tests on the default feature set, 719 on
+  `--no-default-features -p rstest-bdd`, 7 skipped in each, zero `FAILED` or
+  `panicked at` lines), all doctest suites `ok`, and 247 pytest tests passed;
+  `make lint` reaches its final recipe line with all four masked checkers
+  running.
 
 ## Revision note
 
