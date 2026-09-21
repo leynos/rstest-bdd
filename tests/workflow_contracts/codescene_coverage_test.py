@@ -4,7 +4,9 @@ The shared actions generate and check the coverage report. This module
 asserts rstest-bdd's declarative caller contract so the report-producing
 matrix leg, least-privilege checkout and step ordering cannot drift
 silently. Each shared action must be pinned to a full commit SHA, but the
-SHA value itself is owned by Dependabot and is deliberately not asserted.
+SHA value of the coverage generator is owned by Dependabot and is
+deliberately not asserted; the CodeScene uploader's is, because that
+revision carries the CLI manifest this repository trusts.
 
 Run via ``make test-workflow-contracts``.
 """
@@ -33,7 +35,6 @@ CODESCENE_UPLOAD_GUARD = (
 EXPECTED_CODESCENE_UPLOAD_INPUTS = {
     "format": "cobertura",
     "access-token": "${{ env.CS_ACCESS_TOKEN }}",
-    "installer-checksum": "${{ vars.CODESCENE_CLI_SHA256 }}",
 }
 CODESCENE_GUARD = (
     "matrix.os == 'ubicloud-standard-2' && "
@@ -56,7 +57,6 @@ EXPECTED_CODESCENE_INPUTS = {
     "mode": "check",
     "project-url": "https://api.codescene.io/v2/projects/69391",
     "access-token": "${{ env.CS_ACCESS_TOKEN }}",
-    "installer-checksum": "${{ vars.CODESCENE_CLI_SHA256 }}",
 }
 EXPECTED_CARGO_WAIT_TIMEOUT = "6600"
 
@@ -223,3 +223,116 @@ def test_codescene_reports_split_by_event_in_one_lane() -> None:
     assert upload.get("if") == CODESCENE_UPLOAD_GUARD, (
         "the upload must run only on the report-producing lane on trunk"
     )
+
+
+#: The uploader revision whose committed ``cli-manifest.json`` is the trust
+#: anchor for the CodeScene CLI archive. Named as an allowlist rather than
+#: matched as "any full SHA": a different revision is a different manifest,
+#: whatever the shape of its identifier.
+UPLOADER_PIN = "a5765019912a8ab6882b12db049c7cde635f3a85"
+UPLOADER_ACTION = "leynos/shared-actions/.github/actions/upload-codescene-coverage"
+#: The repository variable that held the installer script's digest.
+DEPRECATED_DIGEST_VARIABLE = "CODESCENE_CLI_SHA256"
+#: The dispatch workflow whose only output was that variable.
+DIGEST_REFRESH_WORKFLOW = "get-codescene-sha.yml"
+
+WORKFLOW_DIRECTORY = WORKFLOW_PATH.parent
+
+
+def _workflow_texts() -> dict[str, str]:
+    """Return every workflow file's raw text, keyed by file name.
+
+    Read as text rather than parsed. The strings refused below read the same
+    in a comment as in a value, and a comment carrying one is an instruction
+    to a later reader to reintroduce the other.
+
+    Returns
+    -------
+    dict[str, str]
+        Workflow file name to file contents.
+    """
+    texts = {
+        path.name: path.read_text(encoding="utf-8")
+        for path in sorted(WORKFLOW_DIRECTORY.iterdir())
+        if path.suffix in {".yml", ".yaml"}
+    }
+    assert texts, (
+        "no workflow files were read, so every assertion over them would hold vacuously"
+    )
+    return texts
+
+
+def test_no_workflow_passes_the_deprecated_installer_checksum() -> None:
+    """Refuse the input the uploader rejects outright.
+
+    From shared-actions ``f68e8e2e`` a non-empty ``installer-checksum`` exits
+    the action with a hard failure. Trunk stayed green only because the
+    repository variable feeding it happened to be empty, so the defect was
+    latent rather than absent, and it fires the moment the variable is set.
+    """
+    offending = sorted(
+        name for name, text in _workflow_texts().items() if "installer-checksum" in text
+    )
+
+    assert not offending, (
+        "installer-checksum is rejected when non-empty; pass nothing, because "
+        "the uploader's committed manifest is the trust anchor and "
+        f"archive-checksum can only repeat its digest: {offending}"
+    )
+
+
+def test_no_workflow_reads_the_deprecated_digest_variable() -> None:
+    """Leave no workflow reading or refreshing a value nothing consumes.
+
+    ``installer-checksum`` was the variable's only consumer. A workflow still
+    reading it feeds a rejected input, which fails only when the uploader
+    runs; one still refreshing it maintains dead state, which never fails at
+    all and so is invisible without this rule.
+    """
+    offending = sorted(
+        name
+        for name, text in _workflow_texts().items()
+        if DEPRECATED_DIGEST_VARIABLE in text
+    )
+
+    assert not offending, (
+        f"no workflow may read or refresh {DEPRECATED_DIGEST_VARIABLE}; the "
+        f"uploader pins the CLI through its own manifest: {offending}"
+    )
+
+
+def test_the_digest_refresh_workflow_is_absent() -> None:
+    """Keep the dispatch that maintained the dead variable out of the tree.
+
+    This repository has never carried it. The rule is estate-wide, so a
+    template sync re-adding the workflow would otherwise reintroduce the
+    variable with nothing here to notice.
+    """
+    assert not (WORKFLOW_DIRECTORY / DIGEST_REFRESH_WORKFLOW).exists(), (
+        f"{DIGEST_REFRESH_WORKFLOW} refreshes a variable nothing reads; it "
+        "must not exist"
+    )
+
+
+def test_every_uploader_call_is_on_the_approved_revision() -> None:
+    """Hold every uploader call to the revision carrying the manifest.
+
+    A full-SHA rule alone is satisfied by any revision, including the ones
+    whose unpinned ``cs-coverage`` could not parse its own Cobertura output.
+    The approved pin is therefore named, and the reference set is asserted
+    non-empty first so that deleting the calls cannot satisfy the rule.
+    """
+    references = sorted(
+        f"{name}:{line.strip()}"
+        for name, text in _workflow_texts().items()
+        for line in text.splitlines()
+        if f"{UPLOADER_ACTION}@" in line
+    )
+
+    assert references, "this repository must call the CodeScene uploader"
+    wrong = [
+        reference
+        for reference in references
+        if f"{UPLOADER_ACTION}@{UPLOADER_PIN}" not in reference
+    ]
+    assert not wrong, f"every uploader call must be pinned to {UPLOADER_PIN}: {wrong}"

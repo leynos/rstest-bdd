@@ -27,7 +27,6 @@ jobs:
     env:
       CARGO_TERM_COLOR: always
       CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
-      CODESCENE_CLI_SHA256: ${{ vars.CODESCENE_CLI_SHA256 }}
       RUSTFLAGS: -D warnings
       RUSTDOCFLAGS: -D warnings
       LADING_REF: b771852411b428ff6fc779cc3a68b153a8f2439a
@@ -606,13 +605,12 @@ jobs:
           matrix.os == 'ubicloud-standard-2' &&
           github.event_name == 'pull_request' &&
           env.CS_ACCESS_TOKEN != ''
-        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@0e3c4d24e43aa48b511d94f3b902711eb02138df
+        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@a5765019912a8ab6882b12db049c7cde635f3a85
         with:
           format: cobertura
           mode: check
           project-url: https://api.codescene.io/v2/projects/69391
           access-token: ${{ env.CS_ACCESS_TOKEN }}
-          installer-checksum: ${{ vars.CODESCENE_CLI_SHA256 }}
 
       - name: Upload coverage data to CodeScene
         env:
@@ -622,11 +620,10 @@ jobs:
           github.event_name == 'push' &&
           github.ref == 'refs/heads/main' &&
           env.CS_ACCESS_TOKEN != ''
-        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@0e3c4d24e43aa48b511d94f3b902711eb02138df
+        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@a5765019912a8ab6882b12db049c7cde635f3a85
         with:
           format: cobertura
           access-token: ${{ env.CS_ACCESS_TOKEN }}
-          installer-checksum: ${{ vars.CODESCENE_CLI_SHA256 }}
 
       # `make publish-check` compiles the workspace a second time, into
       # `target/package`. By this point the lint tree, the two GPUI fixture
