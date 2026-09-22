@@ -242,3 +242,54 @@ def test_only_one_job_in_the_publisher_holds_the_credential() -> None:
     assert holding == [PUBLISHER_JOB], (
         f"only {PUBLISHER_JOB} may hold the CodeScene credential; {holding} hold it"
     )
+
+
+def test_each_publisher_job_pins_the_toolchain_its_gate_leg_uses() -> None:
+    """Restore the Cargo generation the merge gate published, not another.
+
+    Every publisher job is a cache *reader*: the merge gate's trunk run writes
+    the registry and tool archives, and the key carries the toolchain. A
+    publisher job naming a different toolchain therefore restores nothing and
+    compiles the workspace from cold on every trunk run, which is slow and
+    entirely invisible, because a cold run is a correct run.
+
+    The gate takes its toolchain from a matrix row keyed by the runner label,
+    so the two are matched on that label rather than on platform: two legs can
+    share `runner.os` and differ in toolchain.
+    """
+    gate_jobs = workflow(PR_WORKFLOW).get("jobs")
+    assert isinstance(gate_jobs, dict), f"{PR_WORKFLOW} must declare jobs"
+    gate = gate_jobs.get("build-test")
+    assert isinstance(gate, dict), f"{PR_WORKFLOW} must declare build-test"
+    strategy = gate.get("strategy")
+    assert isinstance(strategy, dict), "build-test must declare a strategy"
+    matrix = strategy.get("matrix")
+    assert isinstance(matrix, dict), "build-test must declare a matrix"
+    include = matrix.get("include")
+    assert isinstance(include, list), "the matrix must declare include rows"
+    by_label = {
+        str(row["os"]): str(row["rust-toolchain"])
+        for row in include
+        if isinstance(row, dict)
+    }
+    jobs = workflow(PUBLISHER).get("jobs")
+    assert isinstance(jobs, dict), f"{PUBLISHER} must declare a jobs mapping"
+
+    checked = []
+    for name, job in jobs.items():
+        if not isinstance(job, dict):
+            continue
+        label = str(job.get("runs-on"))
+        declared = str((job.get("env") or {}).get("RUST_TOOLCHAIN"))
+        assert label in by_label, (
+            f"{PUBLISHER}:{name} runs on {label!r}, which the gate's matrix "
+            f"does not use; it uses {sorted(by_label)}"
+        )
+        checked.append(name)
+        assert declared == by_label[label], (
+            f"{PUBLISHER}:{name} pins {declared!r} while the gate leg on "
+            f"{label!r} uses {by_label[label]!r}; the publisher would restore "
+            "a different Cargo generation and compile cold every run"
+        )
+
+    assert checked, f"{PUBLISHER} must declare at least one job"
