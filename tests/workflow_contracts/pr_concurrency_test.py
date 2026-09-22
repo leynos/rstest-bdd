@@ -117,7 +117,12 @@ def test_the_conforming_shape_is_accepted() -> None:
                 value,
                 id=f"per-run-group-{value.rsplit('.', 1)[-1]}",
             )
-            for value in ("github.run_id", "github.run_number", "github.sha")
+            for value in (
+                "github.run_id",
+                "github.run_number",
+                "github.run_attempt",
+                "github.sha",
+            )
         ),
         pytest.param(
             _document(group="ci", **{"cancel-in-progress": CANCEL_IN_PROGRESS}),
