@@ -5,21 +5,23 @@ Run with:
     pytest tests/workflow_contracts/runner_adr_test.py
 """
 
-from pathlib import Path
-
 import pytest
 from workflow_support import (
     GITHUB_HOSTED_WINDOWS,
     UBICLOUD_LINUX_LABEL,
     UBICLOUD_LINUX_VCPUS,
+    repository_file,
 )
 
-REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-ADR_PATH = (
-    REPOSITORY_ROOT / "docs" / "adr-013-adopt-whitaker-no-unwrap-or-else-panic.md"
-)
-HISTORICAL_BASELINE_PATH = (
-    Path(__file__).resolve().parent / "data" / "adr-013-historical-update.md"
+#: Repository-relative locations, read through `repository_file`, the one
+#: boundary that turns a missing or undecodable file into a named contract
+#: failure rather than a raw `OSError`.
+ADR_PARTS = ("docs", "adr-013-adopt-whitaker-no-unwrap-or-else-panic.md")
+HISTORICAL_BASELINE_PARTS = (
+    "tests",
+    "workflow_contracts",
+    "data",
+    "adr-013-historical-update.md",
 )
 HISTORICAL_UPDATE_HEADING = "## Update (2026-07-20): current compatibility contract"
 RUNNER_ADDENDUM_HEADING = "## Addendum (2026-09-03): Ubicloud CI runner migration"
@@ -42,7 +44,7 @@ def _adr_document() -> str:
     str
         The ADR's full text.
     """
-    return ADR_PATH.read_text(encoding="utf-8")
+    return repository_file(*ADR_PARTS)
 
 
 def _section_before(document: str, start_heading: str, end_heading: str) -> str:
@@ -68,10 +70,10 @@ def test_historical_whitaker_update_matches_its_checked_in_baseline(
         HISTORICAL_UPDATE_HEADING,
         RUNNER_ADDENDUM_HEADING,
     )
-    baseline = HISTORICAL_BASELINE_PATH.read_text(encoding="utf-8")
+    baseline = repository_file(*HISTORICAL_BASELINE_PARTS)
     assert historical_update == baseline, (
         "the 2026-07-20 compatibility record is a historical document; it must "
-        f"stay byte-for-byte identical to {HISTORICAL_BASELINE_PATH.name}. "
+        f"stay byte-for-byte identical to {HISTORICAL_BASELINE_PARTS[-1]}. "
         "Record current facts in the dated runner-migration addendum instead."
     )
 

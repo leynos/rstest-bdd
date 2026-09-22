@@ -1524,10 +1524,11 @@ test files.
 The helper modules — `workflow_support`, `cache_step_support`,
 `workflow_queries`, `publish_report_support`, `lockfile_refresh_support`,
 `lading_pins`, `timeout_budgets`, `nextest_config`, `strict_workflow_loader`,
-`pull_request_reach`, `guard_conditions`, `codescene_coverage_support`, and
-`coverage_lane_pairs` — are private to the directory. They are importable only
-because pytest puts the test directory on `sys.path`, and nothing outside
-`tests/workflow_contracts` imports them.
+`pull_request_reach`, `guard_conditions`, `codescene_coverage_support`,
+`coverage_lane_pairs`, `runner_label_support`, and `job_name_support` — are
+private to the directory. They are importable only because pytest puts the test
+directory on `sys.path`, and nothing outside `tests/workflow_contracts` imports
+them.
 
 `cache_step_support` owns the anatomy of a cache step: the approved action and
 its pinned ref, the predicates that recognize a restore or save step, the guard
@@ -1557,6 +1558,14 @@ its own contract test, driven over documents written for each form it reads.
   resolves to, not by an enumerated prefix, GitHub's recommended `$/`
   self-repository spelling included, and a spelling it cannot place, such as
   `$/` with an `@ref`, is refused rather than skipped.
+- `runner_label_support` reads every job's raw `runs-on` and every matrix
+  `os` value, parses the two-armed fork-fallback expression into its guard and
+  arms (`runner_label_expression`), and names any step guard that reads
+  `matrix.os` or a label the lane can resolve to (`literal_label_guard`).
+  `coverage_lane_pairs.labels_of` and `platform_of` build on it, so a lane
+  whose label is an expression is compared on the platform both arms boot.
+  `job_name_support` renders a matrix job's declared name per row, for the
+  contract that no check name interpolates the runner.
 - `guard_conditions` splits an `if:` guard into its conjuncts, refuses `||`,
   grouping and negation, and evaluates the conjunctive equality subset against
   a named context. Contracts that ask whether a step runs for an event, a ref,
