@@ -189,12 +189,30 @@ shared action pins `cs-coverage` through its own manifest and rejects a
 non-empty value for that input; `archive-checksum` replaces it. That pin is
 what fixed the parse break, and a repin without the input change is a red lane.
 
-One residual: CV-005 as published also requires every `generate-coverage` step
-in a pull-request workflow to set `with-ratchet`, and the two Windows lanes do
-not. They are the Windows test execution rather than a baseline reader, and
-ratcheting them against a baseline the Linux lane wrote would compare two
-platforms' coverage. The exception is deliberate and is recorded here rather
-than worked around.
+Every lane ratchets, Windows included. This reverses a platform exception
+recorded here briefly: the two Windows lanes did not ratchet, on the reasoning
+that comparing them against a baseline the Linux lane wrote would compare two
+platforms. That reasoning was sound about the comparison and wrong about the
+mechanism. `generate-coverage` keys its baseline cache by `runner.os`, so a
+Windows lane never reads the Linux baseline; it reads a Windows one, and before
+this there was none, so the action created a zero and the lane passed whatever
+its coverage was. An exception was not what the repository had. What it had was
+a ratchet that could not fail, which is worse, because it looks configured.
+
+`coverage-main.yml` therefore runs a Windows job as well as the Linux one. It
+writes the Windows baseline and uploads nothing: CodeScene reads the Linux
+report, so keeping the credential out of that job leaves `coverage-upload` as
+the single CodeScene contact in the repository. A contract holds the two sets
+equal, so a lane that ratchets on a platform the trunk does not run fails here
+rather than passing against a zero.
+
+One thing the mechanism cannot give us. The cache key carries `runner.os` and
+nothing finer, so both Windows lanes read the one Windows baseline, and the
+trunk writes it from the default-features configuration. The strict lane is
+therefore measured against a figure produced under a different feature
+selection. It is the closest the action's keying allows, and if the strict
+lane's coverage sits below the default-features figure it will say so on the
+second trunk run rather than silently.
 
 The baseline is written only on a push to `main`. Every run restores it and
 measures against it, but a pull request, and a manual dispatch, publish

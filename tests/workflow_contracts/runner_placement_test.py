@@ -100,24 +100,28 @@ def test_build_matrix_uses_exact_runner_labels() -> None:
 def test_one_job_executes_the_workspace_suite() -> None:
     """No two jobs may duplicate the executed set on one event.
 
-    Two jobs call the coverage driver, and they are disjoint in time rather
+    Three jobs call the coverage driver, and they are disjoint in time rather
     than in content: the merge gate measures a pull request, and
-    `coverage-main.yml` measures the trunk, because CV-005 puts the CodeScene
-    upload and the ratchet baseline on a workflow no pull request can reach.
-    They deliberately run the same set, which is what makes the baseline
-    comparable with what the ratchet checks. `codescene_coverage_test.py`
-    holds their inputs equal and holds the events apart; the set is named
-    here so a third caller, which would be a genuine duplicate, fails.
+    `coverage-main.yml`'s two jobs measure the trunk, because CV-005 puts the
+    CodeScene upload and the ratchet baselines on a workflow no pull request
+    can reach. There are two of them because `generate-coverage` keys the
+    baseline by `runner.os`: one Linux writer and one Windows writer, since
+    no platform may go unratcheted. They deliberately run the same sets the
+    gate does, which is what makes the baselines comparable with what the
+    ratchet checks. `codescene_coverage_test.py` holds the inputs equal and
+    holds the events apart; the set is named here so a further caller, which
+    would be a genuine duplicate, fails.
     """
     coverage_callers = _coverage_calling_jobs()
     direct_runners = _direct_workspace_test_steps()
     assert coverage_callers == [
         "ci.yml:build-test",
         "coverage-main.yml:coverage-upload",
+        "coverage-main.yml:coverage-baseline-windows",
     ], (
-        "only the merge gate and the trunk publisher may run the coverage "
-        "driver; a third job with the same platform and features would "
-        f"execute nothing new, got {coverage_callers}"
+        "only the merge gate and the trunk's two baseline writers may run the "
+        "coverage driver; a further job with the same platform and features "
+        f"would execute nothing new, got {coverage_callers}"
     )
     assert not direct_runners, (
         "the coverage action is the only workspace test execution, doc tests "

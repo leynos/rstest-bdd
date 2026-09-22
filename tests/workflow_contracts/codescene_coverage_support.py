@@ -25,6 +25,9 @@ PUBLISHER = "coverage-main.yml"
 PR_WORKFLOW = "ci.yml"
 PR_COVERAGE_STEP = "Test and Measure Coverage (Linux)"
 PUBLISHER_COVERAGE_STEP = "Test and Measure Coverage"
+#: The publisher job that uploads. A second job writes the Windows baseline
+#: and uploads nothing.
+PUBLISHER_JOB = "coverage-upload"
 
 #: The repository variable that held the CodeScene installer script's digest.
 #: `installer-checksum` was its only consumer, and the shared action rejects

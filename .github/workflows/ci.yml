@@ -577,6 +577,11 @@ jobs:
           with-default-features: ${{ matrix.with-default-features }}
           use-cargo-nextest: ${{ matrix.use-nextest }}
           pytest-workers: ''
+          # Compare against the Windows baseline `coverage-main.yml` writes.
+          # `generate-coverage` keys the baseline by `runner.os`, so this is a
+          # different baseline from the Linux lane's, and it exists only
+          # because the trunk now runs a Windows lane too.
+          with-ratchet: 'true'
 
       - name: Test and Measure Coverage (Windows, strict validation)
         # Pull requests only, as above.
@@ -603,6 +608,11 @@ jobs:
           with-default-features: ${{ matrix.with-default-features }}
           use-cargo-nextest: ${{ matrix.use-nextest }}
           pytest-workers: ''
+          # The same Windows baseline the default-features lane reads: the
+          # cache key carries `runner.os` and nothing finer, so both Windows
+          # lanes are measured against the one the trunk's Windows lane
+          # writes. See the developer guide for what that costs.
+          with-ratchet: 'true'
 
       # Only the Linux lane's coverage report is consumed: the ratchet
       # reads it. The Windows lanes run the same suite and must pass it,

@@ -29,8 +29,15 @@ GENERATE_COVERAGE_USES_RE = re.compile(
     r"^leynos/shared-actions/\.github/actions/generate-coverage@[0-9a-f]{40}$"
 )
 
-#: The lane that enables the ratchet, and so the only one the guard governs.
-RATCHET_LANE = "Test and Measure Coverage (Linux)"
+#: The lanes that enable the ratchet, and so the ones the guard governs. Every
+#: lane ratchets: `generate-coverage` keys the baseline by `runner.os`, so the
+#: Windows lanes read a Windows baseline that `coverage-main.yml`'s Windows job
+#: writes, and no platform is exempt.
+RATCHET_LANES = frozenset({
+    "Test and Measure Coverage (Linux)",
+    "Test and Measure Coverage (Windows, default features)",
+    "Test and Measure Coverage (Windows, strict validation)",
+})
 
 
 @pytest.fixture(scope="module")
@@ -96,20 +103,27 @@ def test_every_coverage_step_is_sha_pinned_and_uses_one_revision(
     )
 
 
-def test_one_lane_ratchets_and_it_is_the_documented_one(
+def test_every_lane_ratchets_and_they_are_the_documented_ones(
     coverage_steps: list[dict[str, typ.Any]],
 ) -> None:
-    """Only one step may write the baseline, and it must be the known one.
+    """Every lane reads a baseline, and the set is named.
 
-    Checking the expected lane alone would prove only that it exists. A second
-    lane enabling the ratchet would be another baseline writer, and could opt
-    itself out of the guard without this contract noticing.
+    The rule used to be that exactly one lane ratcheted, which made the two
+    Windows lanes a platform exception: they measured coverage and compared it
+    against nothing. The estate rule is that no platform is exempt, so the set
+    is now all three and `coverage-main.yml` grew a Windows job to write the
+    baseline they read.
+
+    Named rather than counted, in both directions. A lane dropping the ratchet
+    is the exception coming back; a lane appearing that nothing accounts for is
+    a baseline reader with no writer, which passes trivially against the zero
+    the action creates when it finds no cache.
     """
     ratcheting = _ratcheting_steps(coverage_steps)
 
-    assert set(ratcheting) == {RATCHET_LANE}, (
-        f"exactly one coverage step may enable the ratchet, and it must be "
-        f"{RATCHET_LANE!r}; found {sorted(ratcheting)}"
+    assert set(ratcheting) == set(RATCHET_LANES), (
+        f"every coverage step must enable the ratchet, and the set must be "
+        f"{sorted(RATCHET_LANES)}; found {sorted(ratcheting)}"
     )
 
 

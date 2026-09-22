@@ -9,9 +9,13 @@ rule fails while every pull-request lane stays clean.
 Run via ``make test-workflow-contracts``.
 """
 
+import re
+
 from codescene_coverage_support import (
+    PR_WORKFLOW,
     PUBLISHER,
     PUBLISHER_COVERAGE_STEP,
+    PUBLISHER_JOB,
     PULL_REQUEST_EVENTS,
     coverage_step,
     triggers,
@@ -124,4 +128,117 @@ def test_the_publisher_publishes_the_report() -> None:
     assert "publish-artefact" not in inputs, (
         f"{PUBLISHER} must keep the action's default; it declares "
         f"publish-artefact={inputs.get('publish-artefact')!r}"
+    )
+
+
+#: Runner labels this repository deploys on, mapped to the `runner.os` value
+#: GitHub gives them. Named rather than inferred from the label text: a label
+#: is a shape and a provider, and only a table says which operating system it
+#: boots.
+RUNNER_PLATFORMS = {
+    "ubicloud-standard-2": "Linux",
+    "windows-latest": "Windows",
+}
+
+_PLATFORM_GUARD = re.compile(r"runner\.os == '(?P<platform>\w+)'")
+
+
+def _gate_ratcheting_platforms() -> set[str]:
+    """Return the platforms the merge gate ratchets on.
+
+    The gate resolves its runner from a matrix, so the platform is read from
+    each step's own guard rather than from `runs-on`.
+
+    Returns
+    -------
+    set[str]
+        Each `runner.os` value a ratcheting coverage step is guarded to.
+    """
+    found = set()
+    for reference in iter_steps(PR_WORKFLOW):
+        inputs = reference.step.get("with")
+        if "generate-coverage@" not in reference.uses:
+            continue
+        if not isinstance(inputs, dict) or inputs.get("with-ratchet") != "true":
+            continue
+        found.update(_PLATFORM_GUARD.findall(str(reference.step.get("if", ""))))
+    return found
+
+
+def _publisher_ratcheting_platforms() -> set[str]:
+    """Return the platforms the trunk writes a baseline on.
+
+    Returns
+    -------
+    set[str]
+        Each `runner.os` value a ratcheting publisher job runs on.
+    """
+    jobs = workflow(PUBLISHER).get("jobs")
+    assert isinstance(jobs, dict), f"{PUBLISHER} must declare a jobs mapping"
+    found = set()
+    for name, job in jobs.items():
+        if not isinstance(job, dict):
+            continue
+        ratchets = any(
+            "generate-coverage@" in str(step.get("uses", ""))
+            and isinstance(step.get("with"), dict)
+            and step["with"].get("with-ratchet") == "true"
+            for step in job.get("steps") or []
+            if isinstance(step, dict)
+        )
+        if not ratchets:
+            continue
+        label = str(job.get("runs-on"))
+        assert label in RUNNER_PLATFORMS, (
+            f"{PUBLISHER}:{name} runs on {label!r}, which the platform table "
+            f"does not name; it knows {sorted(RUNNER_PLATFORMS)}"
+        )
+        found.add(RUNNER_PLATFORMS[label])
+    return found
+
+
+def test_every_ratcheting_platform_has_a_trunk_writer() -> None:
+    """Give every ratcheting lane a baseline to read.
+
+    `generate-coverage` keys the baseline cache by `runner.os` alone. A lane
+    that ratchets on a platform the trunk never runs therefore restores
+    nothing, and the action writes a zero in its place: the lane reports a
+    ratchet, compares against zero, and passes whatever its coverage is. That
+    is the failure this rule exists to refuse, and it is invisible from the
+    lane itself, which looks configured correctly and goes green.
+
+    Asserted as set equality, so the converse fails too: a trunk writer for a
+    platform nothing reads is a job paying for a baseline no lane consults.
+    """
+    gate = _gate_ratcheting_platforms()
+    publisher = _publisher_ratcheting_platforms()
+
+    assert gate, f"{PR_WORKFLOW} must ratchet on at least one platform"
+    assert gate == publisher, (
+        f"every platform the gate ratchets on needs a trunk baseline writer "
+        f"and no others; the gate ratchets on {sorted(gate)} and the trunk "
+        f"writes {sorted(publisher)}"
+    )
+
+
+def test_only_one_job_in_the_publisher_holds_the_credential() -> None:
+    """Keep the CodeScene contact to one job, not merely to one workflow.
+
+    The publisher grew a second job to write the Windows baseline. That job
+    measures coverage and uploads nothing, and the guide says so; without a
+    rule, giving it the credential would read as symmetry with the Linux job
+    and would quietly double the number of places the token is exposed. The
+    upload rules elsewhere check the job that does upload, so neither would
+    notice a second one appearing.
+    """
+    jobs = workflow(PUBLISHER).get("jobs")
+    assert isinstance(jobs, dict), f"{PUBLISHER} must declare a jobs mapping"
+    holding = sorted(
+        name
+        for name, job in jobs.items()
+        if isinstance(job, dict) and "CS_ACCESS_TOKEN" in str(job.get("env") or {})
+    )
+
+    assert holding == [PUBLISHER_JOB], (
+        f"only {PUBLISHER_JOB} may hold the CodeScene credential; {holding} hold it"
     )
