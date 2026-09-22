@@ -24,8 +24,8 @@ from pr_concurrency_support import (
     is_pull_request_startable,
     pull_request_workflows,
 )
+from pull_request_reach import TriggerShapeError
 from workflow_queries import workflow_names
-from workflow_support import MissingKeyError, NotAMappingError
 
 PULL_REQUEST_WORKFLOWS: typ.Final = pull_request_workflows(workflow_names())
 
@@ -189,11 +189,11 @@ def test_a_workflow_no_pull_request_starts_is_out_of_scope(
 
 def test_a_workflow_with_no_triggers_is_a_shape_fault() -> None:
     """No ``on:`` key is malformed, not "startable by nothing"."""
-    with pytest.raises(MissingKeyError):
+    with pytest.raises(TriggerShapeError):
         is_pull_request_startable({"jobs": {}})
 
 
 def test_an_unreadable_trigger_value_is_a_shape_fault() -> None:
     """A trigger key of an unexpected type names the workflow, not Python."""
-    with pytest.raises(NotAMappingError):
+    with pytest.raises(TriggerShapeError):
         is_pull_request_startable({"on": 42})

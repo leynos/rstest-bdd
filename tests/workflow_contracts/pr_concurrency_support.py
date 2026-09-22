@@ -5,11 +5,13 @@ replaced it. GitHub cancels one only when the workflow declares a
 concurrency group and asks for it, so the fact is a property of every
 workflow a pull request can start, not of any one job.
 
-The readers here are pure: :func:`trigger_names` and
+The readers here are pure: :func:`is_pull_request_startable` and
 :func:`concurrency_violations` take a parsed document, so the contract
 can drive them with a synthetic workflow that the repository does not
 contain. A rule exercised only over files that already satisfy it
-passes whether or not it works.
+passes whether or not it works. Triggers are read by
+:func:`pull_request_reach.trigger_names`, the reader the CodeScene
+closure uses, rather than by a second copy of it.
 
 Shape faults raise :class:`workflow_support.WorkflowShapeError`
 subclasses rather than asserting, matching the rest of the harness.
@@ -17,11 +19,8 @@ subclasses rather than asserting, matching the rest of the harness.
 
 import typing as typ
 
-from workflow_support import (
-    MissingKeyError,
-    NotAMappingError,
-    workflow,
-)
+from pull_request_reach import trigger_names
+from workflow_support import workflow
 
 #: The trigger that a pull request starts. ``pull_request_target`` runs
 #: with the base repository's token and is deliberately excluded: those
@@ -40,64 +39,6 @@ CANCEL_IN_PROGRESS: typ.Final = "${{ github.event_name == 'pull_request' }}"
 RUN_ID_EXPRESSION: typ.Final = "github.run_id"
 
 
-def trigger_names(document: dict[str, object]) -> frozenset[str]:
-    """Return the event names a workflow document declares.
-
-    YAML 1.1 reads an unquoted ``on:`` key as the boolean ``True``, so a
-    reader that looks only under the string key finds no triggers at all
-    and silently reports a workflow as startable by nothing.
-
-    An unreadable trigger value raises
-    :class:`workflow_support.NotAMappingError` from :func:`_event_names`.
-
-    Parameters
-    ----------
-    document : dict[str, object]
-        A parsed workflow document.
-
-    Returns
-    -------
-    frozenset[str]
-        The declared event names.
-
-    Raises
-    ------
-    MissingKeyError
-        If the document declares no triggers under either key.
-    """
-    for key in ("on", True):
-        if key in document:
-            return _event_names(document[key])
-    raise MissingKeyError("workflow", "an on: key")
-
-
-def _event_names(triggers: object) -> frozenset[str]:
-    """Normalize the three shapes GitHub accepts under ``on:``.
-
-    Parameters
-    ----------
-    triggers : object
-        The value of the workflow's trigger key.
-
-    Returns
-    -------
-    frozenset[str]
-        The declared event names.
-
-    Raises
-    ------
-    NotAMappingError
-        If the value is none of the three accepted shapes.
-    """
-    match triggers:
-        case str():
-            return frozenset({triggers})
-        case dict() | list():
-            return frozenset(str(name) for name in triggers)
-        case _:
-            raise NotAMappingError("triggers")
-
-
 def is_pull_request_startable(document: dict[str, object]) -> bool:
     """Report whether a pull request can start this workflow.
 
@@ -109,7 +50,10 @@ def is_pull_request_startable(document: dict[str, object]) -> bool:
     Returns
     -------
     bool
-        True when the document declares the ``pull_request`` trigger.
+        True when the document declares the ``pull_request`` trigger. A
+        trigger block that is absent, ambiguous or of no accepted form is
+        refused by :func:`pull_request_reach.trigger_names` with
+        :class:`pull_request_reach.TriggerShapeError`.
     """
     return PULL_REQUEST_TRIGGER in trigger_names(document)
 
