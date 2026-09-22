@@ -34,9 +34,23 @@ PULL_REQUEST_TRIGGER: typ.Final = "pull_request"
 #: merely a truthy setting.
 CANCEL_IN_PROGRESS: typ.Final = "${{ github.event_name == 'pull_request' }}"
 
-#: A group keyed on the run identifier is unique per run, so it
-#: serializes nothing and can never cancel a predecessor.
-RUN_ID_EXPRESSION: typ.Final = "github.run_id"
+#: Values that change from one run of the same pull request to the next. A
+#: group keyed on any of them is unique per run, so it serializes nothing
+#: and can never cancel the run it supersedes.
+PER_RUN_EXPRESSIONS: typ.Final = (
+    "github.run_id",
+    "github.run_number",
+    "github.run_attempt",
+    "github.sha",
+)
+#: Values that stay the same across pushes to one pull request and differ
+#: between pull requests. A group must carry one: without it, a static
+#: group such as "ci" makes every pull request cancel every other.
+STABLE_DISCRIMINATORS: typ.Final = (
+    "github.ref",
+    "github.head_ref",
+    "github.event.pull_request.number",
+)
 
 
 def is_pull_request_startable(document: dict[str, object]) -> bool:
@@ -84,6 +98,10 @@ def concurrency_violations(document: dict[str, object]) -> list[str]:
 def _group_violations(group: object) -> list[str]:
     """Return the violations of the concurrency group itself.
 
+    The group must separate pull requests from one another and hold one pull
+    request's runs together: a stable discriminator such as ``github.ref``,
+    and no value that changes per run.
+
     Parameters
     ----------
     group : object
@@ -96,8 +114,13 @@ def _group_violations(group: object) -> list[str]:
     """
     if not isinstance(group, str) or not group.strip():
         return ["declares no concurrency group"]
-    if RUN_ID_EXPRESSION in group:
-        return [f"keys its concurrency group on {RUN_ID_EXPRESSION}"]
+    per_run = [value for value in PER_RUN_EXPRESSIONS if value in group]
+    if per_run:
+        return [f"keys its concurrency group on {', '.join(per_run)}"]
+    if not any(value in group for value in STABLE_DISCRIMINATORS):
+        return [
+            f"keys its concurrency group on none of {', '.join(STABLE_DISCRIMINATORS)}"
+        ]
     return []
 
 

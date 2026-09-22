@@ -108,13 +108,21 @@ def test_the_conforming_shape_is_accepted() -> None:
             "cancel-in-progress to 'true'",
             id="quoted-true",
         ),
+        *(
+            pytest.param(
+                _document(
+                    group=f"ci-${{{{ {value} }}}}",
+                    **{"cancel-in-progress": CANCEL_IN_PROGRESS},
+                ),
+                value,
+                id=f"per-run-group-{value.rsplit('.', 1)[-1]}",
+            )
+            for value in ("github.run_id", "github.run_number", "github.sha")
+        ),
         pytest.param(
-            _document(
-                group="ci-${{ github.run_id }}",
-                **{"cancel-in-progress": CANCEL_IN_PROGRESS},
-            ),
-            "github.run_id",
-            id="run-id-group",
+            _document(group="ci", **{"cancel-in-progress": CANCEL_IN_PROGRESS}),
+            "none of github.ref",
+            id="static-group",
         ),
         pytest.param(
             _document(**{"cancel-in-progress": CANCEL_IN_PROGRESS}),
