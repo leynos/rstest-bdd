@@ -80,6 +80,7 @@ def _caller(reference: str) -> dict[str, object]:
 @pytest.mark.parametrize(
     "reference",
     [
+        "$/.github/workflows/called.yml",
         "./.github/workflows/called.yml",
         ".github/workflows/called.yml",
         "./.github/workflows/../workflows/called.yml",
@@ -125,7 +126,7 @@ def test_a_step_level_uses_is_an_action_not_a_call() -> None:
 
 @pytest.mark.parametrize(
     "reference",
-    ["$/.github/workflows/called.yml", "../elsewhere/called.yml", "called.yml"],
+    ["$/.github/workflows/called.yml@main", "../elsewhere/called.yml", "called.yml"],
 )
 def test_an_unrecognized_call_is_refused(reference: str) -> None:
     """Fail on a call this reader cannot place.

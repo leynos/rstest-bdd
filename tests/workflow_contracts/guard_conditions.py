@@ -100,8 +100,8 @@ def conjuncts(condition: str) -> list[str]:
     Raises
     ------
     UnsupportedGuardError
-        If the guard contains ``||``, a parenthesized group, a negation, or an
-        empty conjunct.
+        If the guard contains ``||``, a parenthesis, a negation, or an empty
+        conjunct.
 
     Examples
     --------
@@ -115,6 +115,7 @@ def conjuncts(condition: str) -> list[str]:
     for token, detail in (
         ("||", "a disjunction makes every conjunct optional"),
         ("(", "a grouped sub-expression"),
+        (")", "an unmatched closing parenthesis"),
         ("!", "a negation"),
     ):
         if token in scrubbed:

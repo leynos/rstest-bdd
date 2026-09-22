@@ -26,8 +26,11 @@ on:
   # only on a push to `refs/heads/main`, writes no baseline.
   workflow_dispatch:
 
-# Never cancel a trunk generation: it is the only writer of the baseline and
-# of the CodeScene report.
+# Never cancel a running trunk generation, and never run two at once: it is
+# the only writer of the baseline and of the CodeScene report. This is not a
+# durable queue. GitHub keeps one pending run per group, so a newer push
+# replaces an older pending one, which skips an intermediate commit no pull
+# request should be measured against.
 concurrency:
   group: coverage-main-${{ github.ref }}
   cancel-in-progress: false

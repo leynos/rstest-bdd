@@ -41,8 +41,9 @@ def test_a_folded_guard_splits_into_its_conjuncts() -> None:
         "github.ref == 'refs/heads/main' && (env.A == 'x')",
         "!cancelled()",
         "github.ref == 'refs/heads/main' && ",
+        "github.ref == 'refs/heads/main' && env.T != '' && )",
     ],
-    ids=["disjunction", "group", "negation", "empty conjunct"],
+    ids=["disjunction", "group", "negation", "empty conjunct", "stray parenthesis"],
 )
 def test_a_form_the_reader_cannot_represent_is_refused(condition: str) -> None:
     """Refuse rather than approximate.

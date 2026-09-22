@@ -1467,8 +1467,9 @@ its own contract test, driven over documents written for each form it reads.
   under the boolean `True` key PyYAML gives a bare `on` as well as the string,
   and computes the closure of workflows a pull request can run by following
   job-level same-repository calls. A local call is recognized by the path it
-  resolves to, not by an enumerated prefix, and a spelling it cannot place is
-  refused rather than skipped.
+  resolves to, not by an enumerated prefix, GitHub's recommended `$/`
+  self-repository spelling included, and a spelling it cannot place, such as
+  `$/` with an `@ref`, is refused rather than skipped.
 - `guard_conditions` splits an `if:` guard into its conjuncts, refuses `||`,
   grouping and negation, and evaluates the conjunctive equality subset against
   a named context. Contracts that ask whether a step runs for an event, a ref,

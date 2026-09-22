@@ -29,9 +29,11 @@ def test_the_publisher_serializes_its_trunk_generations() -> None:
     The shared action saves a fresh ratchet-baseline cache per successful push
     and later runs restore the newest match. Two overlapping pushes to `main`
     would both publish, and the older commit finishing last would leave its
-    baseline as the one every pull request is then measured against. Nothing is
-    cancelled: a trunk generation that has started is the one that should
-    finish.
+    baseline as the one every pull request is then measured against. A
+    running generation is never cancelled, because one that has started
+    should finish. The group is not a durable queue: GitHub keeps one pending
+    run per group, so a newer push replaces an older pending one, which skips
+    an intermediate commit no pull request should be measured against.
     """
     declared = workflow(PUBLISHER).get("concurrency")
 

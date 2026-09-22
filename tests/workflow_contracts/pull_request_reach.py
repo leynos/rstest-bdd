@@ -166,9 +166,11 @@ def _event_names(declared: object, subject: str) -> frozenset[str]:
 def _local_path(reference: str) -> str | None:
     """Return the repository path a same-repository call names, if it is one.
 
-    Matched by shape rather than by an enumerated prefix list: strip this
-    repository's own ``owner/repo/`` and any ``@ref``, normalize the path,
-    which also removes a leading ``./``, then ask whether what remains is a
+    Matched by shape rather than by an enumerated prefix list. GitHub's
+    recommended ``$/`` self-repository prefix is stripped when no ``@ref``
+    follows it, since a ``$/`` reference may not carry one; this repository's
+    own ``owner/repo/`` and any ``@ref`` are stripped otherwise; and
+    normalizing the path removes a leading ``./``. What remains must be a
     file directly under the workflow directory.
 
     Parameters
@@ -182,7 +184,25 @@ def _local_path(reference: str) -> str | None:
         The file name under the workflow directory, or ``None`` when the
         reference is not a same-repository call.
     """
-    path = reference.split("@", 1)[0].removeprefix(f"{REPOSITORY}/")
+    path, separator, _ref = reference.partition("@")
+    if path.startswith("$/"):
+        return None if separator else _in_workflow_directory(path.removeprefix("$/"))
+    return _in_workflow_directory(path.removeprefix(f"{REPOSITORY}/"))
+
+
+def _in_workflow_directory(path: str) -> str | None:
+    """Return the file name when a path resolves directly under the directory.
+
+    Parameters
+    ----------
+    path : str
+        A repository-relative path.
+
+    Returns
+    -------
+    str | None
+        The file name, or ``None`` when the path is anywhere else.
+    """
     directory, name = posixpath.split(posixpath.normpath(path))
     return name if directory == WORKFLOW_DIRECTORY and name else None
 
@@ -203,6 +223,7 @@ def _is_remote_reference(reference: str) -> bool:
     path, separator, ref = reference.partition("@")
     return (
         bool(separator and ref)
+        and not path.startswith("$/")
         and path.count("/") >= _REMOTE_SEPARATORS
         and ".." not in path
     )
