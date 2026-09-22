@@ -92,7 +92,8 @@ Semantic tests are the backstop that keeps those contracts aligned.
 Async semantic behaviour tests share a support module at
 `crates/rstest-bdd/tests/common/async_semantic_behaviour_support.rs`. The types
 and helpers below should be used instead of raw strings wherever assertions
-require structured context.
+require structured context. The workflow contracts have a second, unrelated
+support module of their own, described under "Workflow-contract shell harness".
 
 ### Parameter structs
 
@@ -145,6 +146,41 @@ Isolation is therefore per-thread; any test that reads from shared state must
 call the corresponding reset helper before running its scenario. Tests that
 mutate shared state must be annotated with `#[serial]` to prevent interleaving
 with other tests on the same thread pool.
+
+### Workflow-contract shell harness
+
+`tests/workflow_contracts/lockfile_refresh_support.py` resolves a workflow
+`run:` step the way the runner does and executes it against a recording `git`.
+Whether a caller-controlled ref reaches the shell as script text or as data is
+a runtime fact, so the contracts that pin the push step's text cannot answer it
+on their own.
+
+`example_working_dir(tmp_path_factory)` returns one scratch directory for one
+generated Hypothesis example. Its scope and re-use policy:
+
+- **Ownership.** It belongs to the lockfile-refresh harness. It is not a
+  general scratch-directory utility, and a contract that simply wants a
+  temporary directory takes pytest's `tmp_path` directly. A repository sweep
+  before it was extracted found no existing equivalent: nothing else in
+  `tests/` or `scripts/` builds a managed scratch directory, and the only other
+  `mkdtemp` calls are inside docstring examples in
+  `scripts/users_guide_links.py`.
+- **Permitted call sites.** The contracts in
+  `derived_fixture_lockfiles_test` that run a fragment once per generated
+  example, and `lockfile_refresh_support_test`, which holds the helper to its
+  guarantees. A contract that runs a fragment exactly once does not need it.
+- **Composition.** It takes the session-scoped `tmp_path_factory` and nothing
+  else, and is called once per example. Do not wrap it in a function-scoped
+  fixture: a `@given` test acquiring one has to suppress Hypothesis'
+  `function_scoped_fixture` health check, and that suppression then covers
+  every function-scoped fixture the test ever acquires. Taking the factory
+  directly is what lets the health check stay armed, so Hypothesis refuses the
+  older `tmp_path`-plus-counter shape without a handwritten rule.
+
+A Hypothesis property that starts a process takes `deadline=None`. The deadline
+measures wall time per example, so on a property that shells out it asserts the
+machine rather than the code, and any finite figure is one machine at one
+moment.
 
 ## Cargo-spawning fixture-crate tests
 

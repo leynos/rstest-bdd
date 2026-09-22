@@ -16,7 +16,6 @@ that fragment, rather than reading it, is
 Run via ``make test-workflow-contracts``.
 """
 
-import datetime as dt
 import re
 from pathlib import Path
 
@@ -28,6 +27,7 @@ from lockfile_refresh_support import (
     HOSTILE_HEAD_REF_STRATEGY,
     INJECTION_ARTEFACT,
     INVOCATION_LOG_NAME,
+    example_working_dir,
     read_invocation_log,
     resolve_fragment,
     run_fragment,
@@ -270,46 +270,34 @@ def _push_fragment(
     return resolve_fragment(script, declared, head_ref)
 
 
-def _example_working_dir(tmp_path: Path, example_index: int) -> Path:
-    """Return a fresh per-example scratch directory inside *tmp_path*.
-
-    Hypothesis reruns a ``@given`` test body once per generated example while
-    pytest's function-scoped ``tmp_path`` stays put, so the examples would
-    otherwise share one directory.  A fresh subdirectory per example keeps one
-    example's recording-git log and injection sentinel from leaking into the
-    next, and the index is unique across the examples of one run.
-
-    Returns
-    -------
-    pathlib.Path
-        The created scratch directory for one generated example.
-    """
-    working_dir = tmp_path / f"example-{example_index}"
-    working_dir.mkdir()
-    return working_dir
-
-
-# Counts the property test's invocations so each generated example gets a
-# fresh scratch directory inside the one function-scoped ``tmp_path``.
-_EXAMPLE_SEQUENCE = 0
-
-
 @hypothesis.given(head_ref=HOSTILE_HEAD_REF_STRATEGY)
 @hypothesis.settings(
     max_examples=25,
-    deadline=dt.timedelta(seconds=5),
-    suppress_health_check=[hypothesis.HealthCheck.function_scoped_fixture],
+    # No deadline. Every example starts a shell and a recording git, so the
+    # wall time of an example is a property of the machine and not of the
+    # push step. A five-second deadline here failed twice in nineteen runs
+    # on a host under load while asserting nothing about the fragment; see
+    # issue #792. The property is that a ref reaches git as one inert
+    # argument, which has no timing component, so any figure would be a
+    # false assertion rather than a generous one.
+    deadline=None,
 )
 def test_push_step_treats_any_generated_head_ref_as_inert_data(
-    refresh_job: dict[str, object], tmp_path: Path, head_ref: str
+    refresh_job: dict[str, object],
+    tmp_path_factory: pytest.TempPathFactory,
+    head_ref: str,
 ) -> None:
-    """Any ref value reaches git as one argument, whatever it carries."""
-    global _EXAMPLE_SEQUENCE
-    _EXAMPLE_SEQUENCE += 1
+    """Any ref value reaches git as one argument, whatever it carries.
+
+    Takes the session-scoped ``tmp_path_factory`` rather than ``tmp_path``,
+    so no ``function_scoped_fixture`` health check has to be suppressed. The
+    suppression is what would let a function-scoped fixture back in later
+    without anything failing.
+    """
     push = _named_step(refresh_job, "Push refreshed lockfiles")
     script, environment = _push_fragment(push, head_ref)
 
-    working_dir = _example_working_dir(tmp_path, _EXAMPLE_SEQUENCE)
+    working_dir = example_working_dir(tmp_path_factory)
     result = run_fragment_through_posix_shell(script, environment, working_dir)
 
     invocation_log = working_dir / INVOCATION_LOG_NAME
