@@ -237,7 +237,9 @@ def triggers(workflow_name: str) -> dict[object, object]:
     return trigger_mapping(workflow(workflow_name), workflow_name)
 
 
-def pull_request_workflows() -> list[str]:
+def pull_request_workflows(
+    documents: cabc.Mapping[str, object] | None = None,
+) -> list[str]:
     """Return every workflow a pull request's head can reach.
 
     The closure through same-repository calls, not the trigger list: a
@@ -245,14 +247,21 @@ def pull_request_workflows() -> list[str]:
     request and, under ``secrets: inherit``, holds every secret its caller
     does.
 
+    Parameters
+    ----------
+    documents : cabc.Mapping[str, object] | None
+        File name to parsed document. ``None`` reads this repository's
+        workflows; a contract passes its own to drive the composition over a
+        call chain this repository does not contain.
+
     Returns
     -------
     list[str]
         Sorted workflow file names.
     """
-    return sorted(
-        pull_request_closure({name: workflow(name) for name in workflow_names()})
-    )
+    if documents is None:
+        documents = {name: workflow(name) for name in workflow_names()}
+    return sorted(pull_request_closure(documents))
 
 
 def coverage_step(

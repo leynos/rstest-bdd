@@ -10,7 +10,7 @@ Run via ``make test-workflow-contracts``.
 """
 
 import pytest
-from codescene_coverage_support import references_in
+from codescene_coverage_support import pull_request_workflows, references_in
 from pull_request_reach import (
     MissingCalledWorkflowError,
     TriggerShapeError,
@@ -217,3 +217,24 @@ def test_the_closure_reaches_a_called_workflows_codescene_contact() -> None:
     )
     assert found["helper.yml"], "the called workflow's CodeScene contact must be found"
     assert found["gate.yml"], "the caller's secrets: inherit must be found"
+
+
+def test_the_boundary_query_scans_the_closure() -> None:
+    """Drive the composition the boundary rule calls, not only its parts.
+
+    This repository calls no local reusable workflow, so read from its own
+    files a query that had fallen back to the trigger list would pass.
+    """
+    documents = {
+        "gate.yml": {
+            True: {"pull_request": None},
+            "jobs": {"call": {"uses": "./.github/workflows/helper.yml"}},
+        },
+        "helper.yml": {True: {"workflow_call": None}, "jobs": {}},
+    }
+
+    reached = pull_request_workflows(documents)
+
+    assert reached == ["gate.yml", "helper.yml"], (
+        f"the boundary must scan the called workflow too; it scans {reached}"
+    )
