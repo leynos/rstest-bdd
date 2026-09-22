@@ -26,8 +26,6 @@ jobs:
       contents: read
     env:
       CARGO_TERM_COLOR: always
-      CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
-      CODESCENE_CLI_SHA256: ${{ vars.CODESCENE_CLI_SHA256 }}
       RUSTFLAGS: -D warnings
       RUSTDOCFLAGS: -D warnings
       LADING_REF: b771852411b428ff6fc779cc3a68b153a8f2439a
@@ -98,8 +96,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v5
         with:
-          # CodeScene's `cs-coverage check` diffs the pull request against
-          # its merge base, so the full history must be reachable.
+          # `make publish-check` and the coverage action both read the
+          # history, so the full depth must be reachable.
           fetch-depth: 0
           persist-credentials: false
 
@@ -188,10 +186,13 @@ jobs:
           RUNNER_ENVIRONMENT_NAME: ${{ runner.environment }}
         run: |
           set -euo pipefail
-          # Every key carries an explicit `v1` schema generation so the whole
-          # family can be invalidated deliberately, and `runner.environment`
-          # so a self-hosted Ubicloud archive is never restored onto a
-          # GitHub-hosted image with a different glibc baseline.
+          # Every key carries an explicit schema generation so a family can
+          # be invalidated deliberately, and `runner.environment` so a
+          # self-hosted Ubicloud archive is never restored onto a
+          # GitHub-hosted image with a different glibc baseline. The compiler
+          # cache is at `v2`: its writer moved to coverage-main.yml, and an
+          # existing `v1` archive is immutable, so the new writer would
+          # otherwise never replace what the old one saved.
           scope="${RUNNER_OS}-${RUNNER_ARCH}-${RUNNER_ENVIRONMENT_NAME}"
           tool_pins="bun${BUN_VERSION}-mermaid${MERMAID_CLI_VERSION}"
           tool_pins="${tool_pins}-merman${MERMAN_CLI_VERSION}"
@@ -206,9 +207,9 @@ jobs:
             printf 'CI_TOOLS_CACHE_KEY=ci-tools-v1-%s-%s\n' "$scope" "$tool_pins"
             printf 'WHITAKER_CACHE_KEY=whitaker-v1-%s-%s-%s\n' \
               "$scope" "$WHITAKER_INSTALLER_VERSION" "$DYLINT_HASH"
-            printf 'SCCACHE_CACHE_KEY=sccache-v1-%s-%s-debug-%s\n' \
+            printf 'SCCACHE_CACHE_KEY=sccache-v2-%s-%s-debug-%s\n' \
               "$scope" "$TOOLCHAIN" "$LOCKFILE_HASH"
-            printf 'SCCACHE_CACHE_RESTORE_PREFIX=sccache-v1-%s-%s-debug-\n' \
+            printf 'SCCACHE_CACHE_RESTORE_PREFIX=sccache-v2-%s-%s-debug-\n' \
               "$scope" "$TOOLCHAIN"
           } >> "$GITHUB_ENV"
 
@@ -504,8 +505,15 @@ jobs:
       # with the same feature selection after the instrumented run, because
       # llvm-cov's nextest path cannot execute doc tests.
       - name: Test and Measure Coverage (Linux)
-        if: ${{ runner.os == 'Linux' }}
-        uses: leynos/shared-actions/.github/actions/generate-coverage@0e3c4d24e43aa48b511d94f3b902711eb02138df
+        # Pull requests only. On the trunk `coverage-main.yml` runs this
+        # workload over the same commit and owns both persistent outputs, the
+        # CodeScene report and the ratchet baseline. Generating here as well
+        # would leave two lanes racing to publish one baseline, and would run
+        # the suite on the trunk twice over.
+        if: >-
+          ${{ runner.os == 'Linux'
+          && github.event_name == 'pull_request' }}
+        uses: leynos/shared-actions/.github/actions/generate-coverage@a5765019912a8ab6882b12db049c7cde635f3a85
         env:
           # The cargo watchdog, one of four tiers that can end a run. It
           # must cover the 75 m nextest global-timeout in
@@ -534,15 +542,26 @@ jobs:
           # xdist workers race on the cargo package-cache lock. This is an
           # explicit worker count, never `-n auto`.
           pytest-workers: ''
-          # The sole Linux lane writes the trunk baseline that every
-          # pull-request run compares against.
+          # Compare changed-line coverage against the baseline that
+          # `coverage-main.yml` writes on the trunk.
           with-ratchet: 'true'
+          # This lane measures and compares; it does not publish. The action
+          # archives the report it generated under a step of its own, which
+          # no scanner over this file's steps can see, so declining that
+          # archive is the only way the boundary is observable here.
+          publish-artefact: 'false'
 
       # Windows keeps its two feature lanes and its `cargo test` driver.
       - name: Test and Measure Coverage (Windows, default features)
-        if: ${{ runner.os == 'Windows' && matrix.features == '' }}
+        # Pull requests only, for the reason the Linux lane is: on the trunk
+        # the workspace suite runs once, in coverage-main.yml. This lane still
+        # runs on a push for the publish dry run and to write its caches; it
+        # simply does not execute the suite a second time.
+        if: >-
+          ${{ runner.os == 'Windows' && matrix.features == ''
+          && github.event_name == 'pull_request' }}
         # Merged shared-actions whole-workspace coverage revision.
-        uses: leynos/shared-actions/.github/actions/generate-coverage@0e3c4d24e43aa48b511d94f3b902711eb02138df
+        uses: leynos/shared-actions/.github/actions/generate-coverage@a5765019912a8ab6882b12db049c7cde635f3a85
         env:
           # Windows coverage runs (build plus doctests) needed headroom
           # over the shared action's default, and take the same budget as
@@ -561,11 +580,21 @@ jobs:
           with-default-features: ${{ matrix.with-default-features }}
           use-cargo-nextest: ${{ matrix.use-nextest }}
           pytest-workers: ''
+          # Measures and compares; publication belongs to coverage-main.yml.
+          publish-artefact: 'false'
+          # Compare against the Windows baseline `coverage-main.yml` writes.
+          # `generate-coverage` keys the baseline by `runner.os`, so this is a
+          # different baseline from the Linux lane's, and it exists only
+          # because the trunk now runs a Windows lane too.
+          with-ratchet: 'true'
 
       - name: Test and Measure Coverage (Windows, strict validation)
-        if: ${{ runner.os == 'Windows' && matrix.features != '' }}
+        # Pull requests only, as above.
+        if: >-
+          ${{ runner.os == 'Windows' && matrix.features != ''
+          && github.event_name == 'pull_request' }}
         # Merged shared-actions whole-workspace coverage revision.
-        uses: leynos/shared-actions/.github/actions/generate-coverage@0e3c4d24e43aa48b511d94f3b902711eb02138df
+        uses: leynos/shared-actions/.github/actions/generate-coverage@a5765019912a8ab6882b12db049c7cde635f3a85
         env:
           # Windows coverage runs (build plus doctests) needed headroom
           # over the shared action's default, and take the same budget as
@@ -584,49 +613,26 @@ jobs:
           with-default-features: ${{ matrix.with-default-features }}
           use-cargo-nextest: ${{ matrix.use-nextest }}
           pytest-workers: ''
+          # Measures and compares; publication belongs to coverage-main.yml.
+          publish-artefact: 'false'
+          # The same Windows baseline the default-features lane reads: the
+          # cache key carries `runner.os` and nothing finer, so both Windows
+          # lanes are measured against the one the trunk's Windows lane
+          # writes. See the developer guide for what that costs.
+          with-ratchet: 'true'
 
-      # Only the Linux lane's coverage report is consumed: it is what the
-      # CodeScene steps below upload and gate on. The Windows lanes run the
-      # same suite and must pass it, which is why neither carries
-      # `continue-on-error` any more, but nothing reads their report, so
-      # there is nothing here to verify. `workspace_test_gating_test.py`
-      # asserts that no step running the workspace suite is allowed to fail
-      # without failing the job.
+      # Only the Linux lane's coverage report is consumed: the ratchet
+      # reads it. The Windows lanes run the same suite and must pass it,
+      # which is why neither carries `continue-on-error` any more, but
+      # nothing reads their report, so there is nothing here to verify.
+      # `workspace_test_gating_test.py` asserts that no step running the
+      # workspace suite is allowed to fail without failing the job.
       - name: Verify coverage output exists
-        if: ${{ runner.os == 'Linux' }}
+        if: ${{ runner.os == 'Linux' && github.event_name == 'pull_request' }}
         shell: bash
         run: |
           set -euo pipefail
           test -s coverage.xml
-
-      - name: Check coverage against CodeScene gates
-        env:
-          CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
-        if: >-
-          matrix.os == 'ubicloud-standard-2' &&
-          github.event_name == 'pull_request' &&
-          env.CS_ACCESS_TOKEN != ''
-        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@0e3c4d24e43aa48b511d94f3b902711eb02138df
-        with:
-          format: cobertura
-          mode: check
-          project-url: https://api.codescene.io/v2/projects/69391
-          access-token: ${{ env.CS_ACCESS_TOKEN }}
-          installer-checksum: ${{ vars.CODESCENE_CLI_SHA256 }}
-
-      - name: Upload coverage data to CodeScene
-        env:
-          CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
-        if: >-
-          matrix.os == 'ubicloud-standard-2' &&
-          github.event_name == 'push' &&
-          github.ref == 'refs/heads/main' &&
-          env.CS_ACCESS_TOKEN != ''
-        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@0e3c4d24e43aa48b511d94f3b902711eb02138df
-        with:
-          format: cobertura
-          access-token: ${{ env.CS_ACCESS_TOKEN }}
-          installer-checksum: ${{ vars.CODESCENE_CLI_SHA256 }}
 
       # `make publish-check` compiles the workspace a second time, into
       # `target/package`. By this point the lint tree, the two GPUI fixture
@@ -670,13 +676,14 @@ jobs:
           # end-of-job sccache report keeps its meaning (rstest-bdd#720,
           # leynos/shared-actions#459).
           LADING_SCCACHE_STATS_JSON: ${{ runner.temp }}/sccache-publish.json
-          # Skip lading's pre-flight here, and only here. Every lane
-          # reaches this step after its own `Test and Measure Coverage`
-          # step has run the same workspace, and since those steps lost
-          # `continue-on-error` each of them fails its own lane, so the
+          # Skip lading's pre-flight here, and only here. On a pull request
+          # every lane reaches this step after its own `Test and Measure
+          # Coverage` step has run the same workspace, and since those steps
+          # lost `continue-on-error` each of them fails its own lane, so the
           # pre-flight's cargo check and cargo test would be a second
-          # execution of a suite this job has already passed. See
-          # leynos/lading#261.
+          # execution of a suite this job has already passed. On a push to
+          # `main` that execution is coverage-main.yml's, over the same
+          # commit. See leynos/lading#261.
           #
           # Set on the step rather than in lading.toml because a config
           # file cannot tell a CI run from a local one: `make
@@ -798,19 +805,11 @@ jobs:
           path: ~/.local/share/whitaker
           key: ${{ env.WHITAKER_CACHE_KEY }}
 
-      # The compiler cache always changes within a run, so save it on trunk
-      # whenever the primary key is not already present. It exists only on
-      # the lanes that use the local directory.
-      - name: Save compiler cache
-        if: >-
-          (runner.os == 'Windows' || vars.RSTEST_BDD_SCCACHE_LOCAL == 'true') &&
-          github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-          matrix.features == '' &&
-          steps.sccache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
-        with:
-          path: ${{ github.workspace }}/.sccache
-          key: ${{ env.SCCACHE_CACHE_KEY }}
+      # No compiler-cache save here. This lane restores the archive, but its
+      # trunk run no longer builds the instrumented workspace, so an archive
+      # written here would hold only the publish dry run's objects and every
+      # pull-request coverage build would start cold. coverage-main.yml runs
+      # that build on the trunk and is the archive's one writer.
 
       - name: Report peak resource use
         if: ${{ always() && runner.os == 'Linux' }}

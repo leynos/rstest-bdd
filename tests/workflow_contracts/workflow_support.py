@@ -13,6 +13,7 @@ workflow fails the same way whether or not assertions are enabled.
 from pathlib import Path
 
 import yaml
+from strict_workflow_loader import load_strict
 
 ROOT = Path(__file__).resolve().parents[2]
 GITHUB_HOSTED_LINUX = "ubuntu-latest"
@@ -43,7 +44,7 @@ class NotAMappingError(WorkflowShapeError):
 class UnparsableWorkflowError(WorkflowShapeError):
     """A workflow document is not parsable YAML.
 
-    Raised by :func:`parse_workflow` when ``yaml.safe_load`` raises, so
+    Raised by :func:`parse_workflow` when the YAML parser raises, so
     a malformed workflow fails as a shape violation with the same
     treatment as any other contract failure rather than as a raw parser
     fault.
@@ -173,6 +174,10 @@ def parse_workflow(workflow_text: str) -> dict[str, object]:
     is :func:`workflow`, which reads the file through
     :func:`repository_file` and hands the text here.
 
+    A mapping that declares a key twice fails with
+    :class:`strict_workflow_loader.DuplicateKeyError`, raised by the loader,
+    where PyYAML alone would keep the last value in silence.
+
     Parameters
     ----------
     workflow_text : str
@@ -191,7 +196,7 @@ def parse_workflow(workflow_text: str) -> dict[str, object]:
         If the document does not parse to a mapping.
     """
     try:
-        document = yaml.safe_load(workflow_text)
+        document = load_strict(workflow_text)
     except yaml.YAMLError:
         raise UnparsableWorkflowError("workflow") from None
     if not isinstance(document, dict):
