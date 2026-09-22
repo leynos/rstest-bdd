@@ -21,6 +21,8 @@ if typ.TYPE_CHECKING:
     import collections.abc as cabc
     from pathlib import Path
 
+    import pytest
+
 from hypothesis import strategies as st
 
 #: The shell the runner starts for a `run:` fragment, resolved to an absolute
@@ -277,3 +279,42 @@ def run_fragment_through_posix_shell(
         The finished fragment, with its output captured.
     """
     return run_with_recording_git([POSIX_SHELL, "-c", script], environment, working_dir)
+
+
+#: Prefix for the scratch directories the push-ref property runs its examples
+#: in. Named here so a contract can identify one without repeating the string.
+EXAMPLE_DIR_PREFIX: typ.Final[str] = "push-ref-example"
+
+
+def example_working_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """Return a fresh scratch directory for one generated example.
+
+    Hypothesis runs a ``@given`` body once per generated example, so each
+    example needs its own directory: the recording git's invocation log and
+    the injection sentinel would otherwise leak from one example into the
+    next and a contract could pass on evidence another example wrote.
+
+    The directory comes from pytest's session-scoped temporary-path factory
+    rather than from ``tmp_path``. Two things follow. ``tmp_path`` is
+    function-scoped, so a ``@given`` test taking it has to suppress
+    Hypothesis' ``function_scoped_fixture`` health check, and that suppression
+    then covers every function-scoped fixture the test ever acquires. And a
+    module-level counter would otherwise be needed to separate the examples
+    inside the one ``tmp_path``, which makes a directory name a function of
+    how many examples ran earlier in the session rather than of the test.
+
+    Parameters
+    ----------
+    tmp_path_factory : pytest.TempPathFactory
+        pytest's session-scoped temporary-path factory.
+
+    Returns
+    -------
+    pathlib.Path
+        A newly created, empty directory under the session base directory.
+
+    See Also
+    --------
+    run_fragment_through_posix_shell : Runs one example inside this directory.
+    """
+    return tmp_path_factory.mktemp(EXAMPLE_DIR_PREFIX)

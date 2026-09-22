@@ -1525,10 +1525,10 @@ The helper modules — `workflow_support`, `cache_step_support`,
 `workflow_queries`, `publish_report_support`, `lockfile_refresh_support`,
 `lading_pins`, `timeout_budgets`, `nextest_config`, `strict_workflow_loader`,
 `pull_request_reach`, `guard_conditions`, `codescene_coverage_support`,
-`coverage_lane_pairs`, `runner_label_support`, and `job_name_support` — are
-private to the directory. They are importable only because pytest puts the test
-directory on `sys.path`, and nothing outside `tests/workflow_contracts` imports
-them.
+`coverage_lane_pairs`, `runner_label_support`, `job_name_support`, and
+`pr_concurrency_support` — are private to the directory. They are importable
+only because pytest puts the test directory on `sys.path`, and nothing outside
+`tests/workflow_contracts` imports them.
 
 `cache_step_support` owns the anatomy of a cache step: the approved action and
 its pinned ref, the predicates that recognize a restore or save step, the guard
@@ -1566,6 +1566,21 @@ its own contract test, driven over documents written for each form it reads.
   whose label is an expression is compared on the platform both arms boot.
   `job_name_support` renders a matrix job's declared name per row, for the
   contract that no check name interpolates the runner.
+- `lockfile_refresh_support.example_working_dir(tmp_path_factory)` gives each
+  generated example of the push-ref property a fresh, empty directory under
+  pytest's base directory, named with `EXAMPLE_DIR_PREFIX`. It takes the
+  session-scoped `tmp_path_factory` so the property needs no
+  `function_scoped_fixture` suppression, and `lockfile_refresh_support_test.py`
+  holds its guarantees, and the property's `deadline=None` with no suppressed
+  health check, as contracts.
+- `pr_concurrency_support` answers whether a pull request can start a
+  workflow (`is_pull_request_startable`, through `pull_request_reach`'s trigger
+  reader) and what is wrong with its `concurrency` block
+  (`concurrency_violations`). The group must carry a stable pull-request
+  discriminator such as `github.ref` and no per-run value such as
+  `github.run_id` or `github.sha`, and `cancel-in-progress` must be the guarded
+  `${{ github.event_name == 'pull_request' }}`, never a literal `true` that
+  would cancel a push to `main` sharing the group.
 - `guard_conditions` splits an `if:` guard into its conjuncts, refuses `||`,
   grouping and negation, and evaluates the conjunctive equality subset against
   a named context. Contracts that ask whether a step runs for an event, a ref,
