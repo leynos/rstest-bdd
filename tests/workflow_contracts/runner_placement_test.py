@@ -125,13 +125,30 @@ def test_build_matrix_uses_exact_runner_labels() -> None:
 
 
 def test_one_job_executes_the_workspace_suite() -> None:
-    """No job may duplicate the executed set of the coverage lane."""
+    """No two jobs may duplicate the executed set on one event.
+
+    Three jobs call the coverage driver, and they are disjoint in time rather
+    than in content: the merge gate measures a pull request, and
+    `coverage-main.yml`'s two jobs measure the trunk, because CV-005 puts the
+    CodeScene upload and the ratchet baselines on a workflow no pull request
+    can reach. There are two of them because `generate-coverage` keys the
+    baseline by `runner.os`: one Linux writer and one Windows writer, since
+    no platform may go unratcheted. They deliberately run the same sets the
+    gate does, which is what makes the baselines comparable with what the
+    ratchet checks. `codescene_coverage_test.py` holds the inputs equal and
+    holds the events apart; the set is named here so a further caller, which
+    would be a genuine duplicate, fails.
+    """
     coverage_callers = _coverage_calling_jobs()
     direct_runners = _direct_workspace_test_steps()
-    assert coverage_callers == ["ci.yml:build-test"], (
-        "only ci.yml:build-test may run the coverage driver; a second job with "
-        f"the same platform and features would execute nothing new, got "
-        f"{coverage_callers}"
+    assert coverage_callers == [
+        "ci.yml:build-test",
+        "coverage-main.yml:coverage-upload",
+        "coverage-main.yml:coverage-baseline-windows",
+    ], (
+        "only the merge gate and the trunk's two baseline writers may run the "
+        "coverage driver; a further job with the same platform and features "
+        f"would execute nothing new, got {coverage_callers}"
     )
     assert not direct_runners, (
         "the coverage action is the only workspace test execution, doc tests "
@@ -144,8 +161,12 @@ def test_linux_coverage_is_the_only_linux_test_execution() -> None:
     """One instrumented run covers the whole workspace and every feature."""
     steps = _steps(_job("ci.yml", "build-test"))
     generator = steps[_step_index(steps, "Test and Measure Coverage (Linux)")]
-    assert generator.get("if") == "${{ runner.os == 'Linux' }}", (
-        "the Linux coverage step must own every Linux lane"
+    assert generator.get("if") == (
+        "${{ runner.os == 'Linux' && github.event_name == 'pull_request' }}"
+    ), (
+        "the Linux coverage step must own every Linux lane it runs on, and "
+        "run on pull requests only: the trunk generation belongs to "
+        "coverage-main.yml, which owns the baseline and the upload"
     )
     assert "continue-on-error" not in generator, (
         "the sole Linux test execution must fail the build"

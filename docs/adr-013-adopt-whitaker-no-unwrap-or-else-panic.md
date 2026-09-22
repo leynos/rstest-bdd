@@ -274,7 +274,8 @@ separate lane executed nothing new. The two Windows lanes keep their feature
 split because Windows uses a different test driver and the Linux run does not
 cover it. A former `coverage-main.yml` duplicated the Linux lane exactly once
 `ci.yml` gained its `push` trigger; it is removed and its ratchet write and
-CodeScene upload moved into the surviving lane.
+CodeScene upload moved into the surviving lane. (Superseded on 2026-09-22:
+`coverage-main.yml` returns as the owner of both; see the addendum below.)
 
 The Linux lanes use `sccache`'s GitHub Actions cache backend. Its objects reach
 Ubicloud storage when the `sccache` process holds the Actions cache
@@ -337,13 +338,13 @@ all. Only the raw declaration shows the fault, and
 Because the label is now an expression, no step may be guarded by the literal
 label it happens to resolve to: such a step switches off on whichever arm it
 did not name, skipping its work without failing anything. The two CodeScene
-coverage steps are keyed on `runner.os == 'Linux'` instead, which selects the
-same single Linux lane on either arm, and the same contract refuses any step
-whose condition reads `matrix.os` or names either label it can resolve to. The
-reference is what is refused, not the comparison: a rule matching
-`matrix.os ==` admits `matrix.os != 'ubuntu-latest'` and
-`'ubicloud-standard-2' == matrix.os`, and each of those skips a step on one arm
-just as silently.
+coverage steps were keyed on `runner.os == 'Linux'` instead, which selects the
+same single Linux lane on either arm (they left `ci.yml` on 2026-09-22; see the
+next addendum), and the same contract refuses any step whose condition reads
+`matrix.os` or names either label it can resolve to. The reference is what is
+refused, not the comparison: a rule matching `matrix.os ==` admits
+`matrix.os != 'ubuntu-latest'` and `'ubicloud-standard-2' == matrix.os`, and
+each of those skips a step on one arm just as silently.
 
 The same reasoning reaches the job's own check name. GitHub derives a matrix
 job's name from its matrix values with `os` first, so a derived name carries
@@ -362,6 +363,31 @@ is not stable, and a name omitting the dimension that separates two lanes
 collapses two required contexts into one and hides a red lane behind a green
 one. The overlap is asserted against the job's `runs-on` rather than against
 the literal `matrix.os`, so renaming the dimension cannot quietly exempt it.
+
+## Addendum (2026-09-22): main owns CodeScene publication and the baselines
+
+The estate rule CV-005 moves every CodeScene interaction out of anything a pull
+request can run. `coverage-main.yml` returns, triggered by a push to `main` and
+by `workflow_dispatch` only, and owns both persistent coverage outputs:
+
+- `coverage-upload`, on `ubicloud-standard-2`, runs the Linux suite once on the
+  trunk, writes the Linux ratchet baseline, and is the only CodeScene contact
+  in the repository. Its upload runs only when the ref is `refs/heads/main`,
+  because a dispatch can select any ref.
+- `coverage-baseline-windows`, on `windows-latest`, runs the Windows
+  default-features suite and writes the Windows baseline. It uploads nothing
+  and holds no credential.
+- Both jobs write the local-directory compiler cache that the pull-request
+  coverage lanes read, at a `v2` key schema generation.
+
+`ci.yml` generates coverage on pull requests only, on every lane, for its own
+ratchet check, declines the report artefact, and carries no CodeScene action,
+command or credential. Both workflows call `generate-coverage` and
+`upload-codescene-coverage` at one shared-actions revision, and no caller
+passes the rejected `installer-checksum` input. The 2026-09-03 statements that
+the ratchet write and CodeScene upload live in `ci.yml` are historical.
+`docs/developers-guide.md`, "CodeScene publication belongs to main", is the
+operational guide.
 
 ## Known limitations
 

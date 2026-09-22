@@ -45,13 +45,25 @@ SKIP_SETTING: typ.Final[str] = "skip"
 #: precede the publish dry run, and between them the conditions must
 #: select every lane the matrix declares: one Linux, and the two Windows
 #: legs split on whether `matrix.features` is set.
+#:
+#: Every selector also carries an event clause. On the trunk the workspace
+#: suite runs once, in `coverage-main.yml`, which owns the CodeScene upload
+#: and the ratchet baseline (CV-005). This lane still runs on a push, for the
+#: publish dry run and to write its caches; it does not execute the suite a
+#: second time. The selectors are written as folded scalars in the workflow,
+#: so the values here are what YAML parses them to: one line, with the fold
+#: collapsed to a single space.
 TEST_STEPS: typ.Final[dict[str, str]] = {
-    "Test and Measure Coverage (Linux)": "${{ runner.os == 'Linux' }}",
+    "Test and Measure Coverage (Linux)": (
+        "${{ runner.os == 'Linux' && github.event_name == 'pull_request' }}"
+    ),
     "Test and Measure Coverage (Windows, default features)": (
-        "${{ runner.os == 'Windows' && matrix.features == '' }}"
+        "${{ runner.os == 'Windows' && matrix.features == '' "
+        "&& github.event_name == 'pull_request' }}"
     ),
     "Test and Measure Coverage (Windows, strict validation)": (
-        "${{ runner.os == 'Windows' && matrix.features != '' }}"
+        "${{ runner.os == 'Windows' && matrix.features != '' "
+        "&& github.event_name == 'pull_request' }}"
     ),
 }
 
