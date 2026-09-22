@@ -13,6 +13,7 @@ codescene_coverage_test : The CV-005 contracts built on these.
 import re
 import typing as typ
 
+from pull_request_reach import pull_request_closure
 from workflow_queries import iter_steps, workflow_names
 from workflow_support import WorkflowShapeError, workflow
 
@@ -35,9 +36,6 @@ PUBLISHER_JOB = "coverage-upload"
 #: feeding a rejected input or maintaining a value nothing reads.
 DEPRECATED_DIGEST_VARIABLE: typ.Final[str] = "CODESCENE_CLI_SHA256"
 
-#: Events that let a pull request's head decide what runs.
-PULL_REQUEST_EVENTS = frozenset({"pull_request", "pull_request_target"})
-
 SHA_PINNED = re.compile(
     r"^leynos/shared-actions/\.github/actions/"
     r"(generate-coverage|upload-codescene-coverage)@[0-9a-f]{40}$"
@@ -52,6 +50,10 @@ MARKERS = {
     "a cs-coverage command": "cs-coverage",
     "the CodeScene credential": "CS_ACCESS_TOKEN",
 }
+#: A job forwarding every secret its caller holds. It names no credential, so
+#: no text marker finds it, and it is how the token reaches a reusable
+#: workflow, remote or local, that the caller's own text never mentions.
+INHERITED_SECRETS = "every secret forwarded by secrets: inherit"
 
 
 class MissingTriggerBlockError(WorkflowShapeError):
@@ -134,9 +136,11 @@ def references_in(document: object, subject: str) -> list[str]:
     """Return every place a parsed document interacts with CodeScene.
 
     The whole document is walked, not a list of step keys. A credential can be
-    declared at workflow scope, at job scope, on a step, or passed as an action
-    input, and a scan that read only ``uses`` and ``run`` would miss three of
-    those four.
+    declared at workflow scope, at job scope, on a step, passed as an action
+    input, interpolated into a ``run`` body, or forwarded to a reusable
+    workflow by name, and a scan that read only ``uses`` and ``run`` would
+    miss most of those. Forwarding by ``secrets: inherit`` names nothing, so
+    it is recognized by its position instead.
 
     Pure, so the markers can be driven over a document written to carry one
     interaction each. Driven over this repository's workflows alone, a marker
@@ -162,6 +166,8 @@ def references_in(document: object, subject: str) -> list[str]:
             for description, marker in MARKERS.items()
             if marker.lower() in lowered
         )
+        if path.endswith(".secrets") and lowered.strip() == "inherit":
+            found.append(f"{INHERITED_SECRETS} at {path}")
     return sorted(set(found))
 
 
@@ -181,17 +187,24 @@ def codescene_references(workflow_name: str) -> list[str]:
     return references_in(workflow(workflow_name), workflow_name)
 
 
-def triggers(workflow_name: str) -> dict[str, object]:
-    """Return a workflow's trigger block.
+def trigger_mapping(document: object, subject: str) -> dict[object, object]:
+    """Return a parsed workflow's trigger block, which must be a mapping.
+
+    The publisher's rules read filters inside the block, such as the push
+    trigger's branches, so the scalar and list forms, which carry none, are
+    refused here. :func:`pull_request_reach.trigger_names` reads all three
+    forms where only the event names matter.
 
     Parameters
     ----------
-    workflow_name : str
-        The workflow file name.
+    document : object
+        A parsed workflow.
+    subject : str
+        What to name in an error.
 
     Returns
     -------
-    dict[str, object]
+    dict[object, object]
         The declared events. PyYAML reads the bare word ``on`` as the
         boolean ``True``, so both keys are tried.
 
@@ -200,15 +213,37 @@ def triggers(workflow_name: str) -> dict[str, object]:
     MissingTriggerBlockError
         If the workflow declares no trigger mapping.
     """
-    document = workflow(workflow_name)
-    declared = document.get("on", document.get(True))
+    declared = (
+        document.get("on", document.get(True)) if isinstance(document, dict) else None
+    )
     if not isinstance(declared, dict):
-        raise MissingTriggerBlockError(workflow_name, declared)
+        raise MissingTriggerBlockError(subject, declared)
     return declared
+
+
+def triggers(workflow_name: str) -> dict[object, object]:
+    """Return one repository workflow's trigger mapping.
+
+    Parameters
+    ----------
+    workflow_name : str
+        The workflow file name.
+
+    Returns
+    -------
+    dict[object, object]
+        The declared events.
+    """
+    return trigger_mapping(workflow(workflow_name), workflow_name)
 
 
 def pull_request_workflows() -> list[str]:
     """Return every workflow a pull request's head can reach.
+
+    The closure through same-repository calls, not the trigger list: a
+    ``workflow_call``-only workflow a pull-request job calls runs on that pull
+    request and, under ``secrets: inherit``, holds every secret its caller
+    does.
 
     Returns
     -------
@@ -216,12 +251,19 @@ def pull_request_workflows() -> list[str]:
         Sorted workflow file names.
     """
     return sorted(
-        name for name in workflow_names() if PULL_REQUEST_EVENTS & set(triggers(name))
+        pull_request_closure({name: workflow(name) for name in workflow_names()})
     )
 
 
-def coverage_step(workflow_name: str, step_name: str) -> dict[str, object]:
+def coverage_step(
+    workflow_name: str, step_name: str, job_name: str
+) -> dict[str, object]:
     """Return one coverage step's inputs, named by its location if absent.
+
+    The job is named, not inferred from the first match: the publisher
+    declares a step of the same name in each of its jobs, so a lookup by step
+    name alone would select whichever job happens to come first and follow a
+    reordering silently.
 
     Parameters
     ----------
@@ -229,6 +271,8 @@ def coverage_step(workflow_name: str, step_name: str) -> dict[str, object]:
         The workflow file name.
     step_name : str
         The step's declared name.
+    job_name : str
+        The job that declares it.
 
     Returns
     -------
@@ -238,19 +282,23 @@ def coverage_step(workflow_name: str, step_name: str) -> dict[str, object]:
     Raises
     ------
     MissingCoverageStepError
-        If the workflow declares no step of that name.
+        If the job declares no step of that name.
     MissingStepInputsError
         If the step declares no inputs.
     """
     for reference in iter_steps(workflow_name):
-        if reference.name != step_name:
+        if reference.job != job_name or reference.name != step_name:
             continue
         inputs = reference.step.get("with")
         if not isinstance(inputs, dict):
             raise MissingStepInputsError(str(reference))
         return inputs
-    found = [reference.name for reference in iter_steps(workflow_name)]
-    raise MissingCoverageStepError(workflow_name, step_name, found)
+    found = [
+        reference.name
+        for reference in iter_steps(workflow_name)
+        if reference.job == job_name
+    ]
+    raise MissingCoverageStepError(f"{workflow_name}:{job_name}", step_name, found)
 
 
 #: One document per marker, each carrying exactly the interaction its marker
@@ -286,19 +334,12 @@ MARKER_FIXTURES = {
             }
         }
     },
+    INHERITED_SECRETS: {
+        "jobs": {
+            "gate": {
+                "uses": "leynos/shared-actions/.github/workflows/x.yml@" + "0" * 40,
+                "secrets": "inherit",
+            }
+        }
+    },
 }
-
-
-#: Inputs that select what is measured. Publication differs between the two
-#: lanes by design and is asserted separately.
-SELECTION_INPUTS = (
-    "cache-provider",
-    "output-path",
-    "format",
-    "all-features",
-    "all-targets",
-    "doctests",
-    "use-cargo-nextest",
-    "pytest-workers",
-    "with-ratchet",
-)

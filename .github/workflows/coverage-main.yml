@@ -171,10 +171,13 @@ jobs:
           RUNNER_ENVIRONMENT_NAME: ${{ runner.environment }}
         run: |
           set -euo pipefail
-          # Every key carries an explicit `v1` schema generation so the whole
-          # family can be invalidated deliberately, and `runner.environment`
-          # so a self-hosted Ubicloud archive is never restored onto a
-          # GitHub-hosted image with a different glibc baseline.
+          # Every key carries an explicit schema generation so a family can
+          # be invalidated deliberately, and `runner.environment` so a
+          # self-hosted Ubicloud archive is never restored onto a
+          # GitHub-hosted image with a different glibc baseline. The compiler
+          # cache is at `v2`: its writer moved to coverage-main.yml, and an
+          # existing `v1` archive is immutable, so the new writer would
+          # otherwise never replace what the old one saved.
           scope="${RUNNER_OS}-${RUNNER_ARCH}-${RUNNER_ENVIRONMENT_NAME}"
           tool_pins="bun${BUN_VERSION}-mermaid${MERMAID_CLI_VERSION}"
           tool_pins="${tool_pins}-merman${MERMAN_CLI_VERSION}"
@@ -189,9 +192,9 @@ jobs:
             printf 'CI_TOOLS_CACHE_KEY=ci-tools-v1-%s-%s\n' "$scope" "$tool_pins"
             printf 'WHITAKER_CACHE_KEY=whitaker-v1-%s-%s-%s\n' \
               "$scope" "$WHITAKER_INSTALLER_VERSION" "$DYLINT_HASH"
-            printf 'SCCACHE_CACHE_KEY=sccache-v1-%s-%s-debug-%s\n' \
+            printf 'SCCACHE_CACHE_KEY=sccache-v2-%s-%s-debug-%s\n' \
               "$scope" "$TOOLCHAIN" "$LOCKFILE_HASH"
-            printf 'SCCACHE_CACHE_RESTORE_PREFIX=sccache-v1-%s-%s-debug-\n' \
+            printf 'SCCACHE_CACHE_RESTORE_PREFIX=sccache-v2-%s-%s-debug-\n' \
               "$scope" "$TOOLCHAIN"
           } >> "$GITHUB_ENV"
 
@@ -408,6 +411,22 @@ jobs:
           mode: upload
           access-token: ${{ env.CS_ACCESS_TOKEN }}
 
+      # The trunk's writer for the local-directory compiler cache, which the
+      # Linux lanes use only in the RSTEST_BDD_SCCACHE_LOCAL fallback. It is
+      # here rather than in ci.yml because this job runs the instrumented
+      # build the pull-request coverage lane reads; ci.yml's push lane no
+      # longer does, and an archive written there would hold only the
+      # publish dry run's objects.
+      - name: Save compiler cache
+        if: >-
+          vars.RSTEST_BDD_SCCACHE_LOCAL == 'true' &&
+          github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+          steps.sccache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ${{ github.workspace }}/.sccache
+          key: ${{ env.SCCACHE_CACHE_KEY }}
+
       - name: Report peak resource use
         if: ${{ always() }}
         shell: bash
@@ -480,14 +499,16 @@ jobs:
       # build. Size the store for both shapes while leaving room in the
       # 30 GB weekly Ubicloud quota for the registry, tools, and Whitaker.
       SCCACHE_CACHE_SIZE: 4G
-      # The pull-request lane takes this from its matrix. Stated once here,
       # The pull-request lane takes this from its matrix. Held equal to the
       # Windows matrix value by the contract, so the two cannot restore
       # different Cargo generations.
       RUST_TOOLCHAIN: stable-x86_64-pc-windows-msvc
     steps:
-      # GitHub-hosted Windows images ship Git, Git Bash, and Chocolatey but
-      # not GNU Make, which `make publish-check` needs on every lane.
+      # GitHub-hosted Windows images do not include GNU Make. This job runs no
+      # `make publish-check`, but the suite it measures can: the
+      # `trybuild_macros` Whitaker test invokes `make lint-whitaker` when
+      # `cargo dylint` and `whitaker` are available. Installing it keeps the
+      # measured environment the pull-request lane's.
       - name: Install GNU Make
         shell: pwsh
         run: |
@@ -497,8 +518,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v5
         with:
-          # `make publish-check` and the coverage action both read the
-          # history, so the full depth must be reachable.
+          # The coverage action reads the history to attach the report to a
+          # commit, so keep the full depth the gate uses.
           fetch-depth: 0
           persist-credentials: false
 
@@ -543,10 +564,13 @@ jobs:
           RUNNER_ENVIRONMENT_NAME: ${{ runner.environment }}
         run: |
           set -euo pipefail
-          # Every key carries an explicit `v1` schema generation so the whole
-          # family can be invalidated deliberately, and `runner.environment`
-          # so a self-hosted Ubicloud archive is never restored onto a
-          # GitHub-hosted image with a different glibc baseline.
+          # Every key carries an explicit schema generation so a family can
+          # be invalidated deliberately, and `runner.environment` so a
+          # self-hosted Ubicloud archive is never restored onto a
+          # GitHub-hosted image with a different glibc baseline. The compiler
+          # cache is at `v2`: its writer moved to coverage-main.yml, and an
+          # existing `v1` archive is immutable, so the new writer would
+          # otherwise never replace what the old one saved.
           scope="${RUNNER_OS}-${RUNNER_ARCH}-${RUNNER_ENVIRONMENT_NAME}"
           tool_pins="bun${BUN_VERSION}-mermaid${MERMAID_CLI_VERSION}"
           tool_pins="${tool_pins}-merman${MERMAN_CLI_VERSION}"
@@ -561,9 +585,9 @@ jobs:
             printf 'CI_TOOLS_CACHE_KEY=ci-tools-v1-%s-%s\n' "$scope" "$tool_pins"
             printf 'WHITAKER_CACHE_KEY=whitaker-v1-%s-%s-%s\n' \
               "$scope" "$WHITAKER_INSTALLER_VERSION" "$DYLINT_HASH"
-            printf 'SCCACHE_CACHE_KEY=sccache-v1-%s-%s-debug-%s\n' \
+            printf 'SCCACHE_CACHE_KEY=sccache-v2-%s-%s-debug-%s\n' \
               "$scope" "$TOOLCHAIN" "$LOCKFILE_HASH"
-            printf 'SCCACHE_CACHE_RESTORE_PREFIX=sccache-v1-%s-%s-debug-\n' \
+            printf 'SCCACHE_CACHE_RESTORE_PREFIX=sccache-v2-%s-%s-debug-\n' \
               "$scope" "$TOOLCHAIN"
           } >> "$GITHUB_ENV"
 
@@ -590,18 +614,11 @@ jobs:
             ${{ github.workspace }}/.ci-tools
           key: ${{ env.CI_TOOLS_CACHE_KEY }}
 
-      # The Ubicloud lanes use sccache's GitHub Actions cache backend, whose
-      # objects reach Ubicloud storage when the sccache process holds the
-      # Actions cache credentials; the Cuprum cache listing on 2026-09-03
-      # confirmed that. The Windows lane has no such backend, because the
-      # shared Rust setup is called with `use-sccache: false`, so it uses the
-      # local directory. Setting RSTEST_BDD_SCCACHE_LOCAL moves the Linux
-      # lanes onto the same local directory.
+      # Windows has no Actions-cache sccache backend, because the shared Rust
+      # setup is called with `use-sccache: false`, so it always uses the
+      # local directory this step restores and the save below writes.
       - name: Restore compiler cache
         id: sccache
-        # Windows has no Actions-cache sccache backend, because the shared
-        # Rust setup is called with `use-sccache: false`, so it always uses
-        # the local directory this step restores.
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ${{ github.workspace }}/.sccache
@@ -685,3 +702,18 @@ jobs:
           # nothing to compare against until a Windows lane on the trunk
           # writes one. This is that lane, and it is why it exists.
           with-ratchet: 'true'
+
+      # The Windows compiler cache's only writer, for the reason the Linux
+      # job gives: this is the trunk run of the instrumented build both
+      # Windows pull-request lanes read. The publish dry run's objects are
+      # not in it, because ci.yml's Windows push lane builds those and a
+      # second writer for one key would race this one; the instrumented
+      # all-targets build is the larger of the two.
+      - name: Save compiler cache
+        if: >-
+          github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+          steps.sccache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ${{ github.workspace }}/.sccache
+          key: ${{ env.SCCACHE_CACHE_KEY }}

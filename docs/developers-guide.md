@@ -85,10 +85,11 @@ contracts require the registered set to match the labels the matrix names.
 
 Ubicloud destroys each runner's disk at the end of the job, so there is no
 persistent volume and every cache is an archive. Each mutable path therefore
-has exactly one owner and one explainable key. Every key carries a `v1` schema
-generation plus the operating system, architecture, and `runner.environment`,
-so a self-hosted Ubicloud archive can never be restored onto a GitHub-hosted
-image with a different GNU C Library baseline.
+has exactly one owner and one explainable key. Every key carries an explicit
+schema generation (`v1`, and `v2` for the compiler cache) plus the operating
+system, architecture, and `runner.environment`, so a self-hosted Ubicloud
+archive can never be restored onto a GitHub-hosted image with a different GNU C
+Library baseline.
 
 | Cache            | Paths                                                                                                             | Key inputs                       |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------------- |
@@ -114,12 +115,13 @@ includes the installer version so the two cannot disagree.
 Caches are restored on every run. They are saved only by the default-features
 lane on a `push` to `main`, and only when the restore missed. Every key carries
 `runner.os`, so that gives one writer per key: the Linux build-test lane owns
-the Linux keys and the Windows lane owns the Windows keys. Pull-request runs
-therefore waste no time uploading archives they are not allowed to publish, and
-`Unable to reserve cache` stampedes cannot occur. `ci.yml` triggers on `push` to
-`main` for this reason: while it ran only on pull requests and manual
-dispatch, nothing could ever populate a trusted generation, so every lane was
-legitimately cold.
+the Linux keys and the Windows lane owns the Windows keys. The compiler cache
+is the exception, written by `coverage-main.yml` for the reason "Compiler
+cache" gives. Pull-request runs therefore waste no time uploading archives they
+are not allowed to publish, and `Unable to reserve cache` stampedes cannot
+occur. `ci.yml` triggers on `push` to `main` for this reason: while it ran only
+on pull requests and manual dispatch, nothing could ever populate a trusted
+generation, so every lane was legitimately cold.
 
 ### One test execution per platform
 
@@ -170,19 +172,22 @@ repository was blocked on a failure that had nothing to say about the change
 under review, and that no pull request could fix. A lane that cannot contact
 CodeScene cannot be stopped by CodeScene.
 
-One consequence to state plainly: the trunk no longer executes the Windows
-lanes' suite at all, because this publisher is Linux. Windows is tested on
-every pull request, against the same content that merges, so what is lost is
-detection of a Windows-only failure introduced by a semantic merge conflict.
-The alternative was to leave the Windows legs testing on a push, which is the
-duplicate run the rule exists to remove.
+The trunk runs each platform's suite once, in `coverage-main.yml`: the Linux
+suite in `coverage-upload` and the Windows default-features suite in
+`coverage-baseline-windows`. The strict-validation Windows lane runs on pull
+requests only, so what the trunk no longer detects is a failure specific to
+that feature selection on Windows introduced by a semantic merge conflict.
+Leaving the `ci.yml` Windows legs testing on a push would detect it, at the
+cost of the duplicate run the rule exists to remove.
 
-Both lanes must measure the same thing, or the baseline the trunk writes is not
-the baseline a pull request should be compared against.
-`tests/workflow_contracts/codescene_coverage_test.py` holds their
-`generate-coverage` inputs equal field by field, and holds the list of compared
-fields equal to the set both lanes declare, so an input added to both and not
-to the list cannot drift unnoticed.
+Each ratcheting lane must measure what the trunk job writing its baseline
+measures, or the comparison is between two different measurements.
+`tests/workflow_contracts/codescene_coverage_test.py` pairs the Linux lane with
+`coverage-upload` and the Windows default-features lane with
+`coverage-baseline-windows`, resolves the pull-request lane's `${{ matrix.* }}`
+references against the matrix row its own guard selects, and holds every input
+either side declares equal. Only `publish-artefact` is excluded: every
+pull-request lane declines the artefact, and the publisher keeps the default.
 
 The upload passes no `installer-checksum`. From shared-actions `f68e8e2e` the
 shared action pins `cs-coverage` through its own manifest and rejects a
@@ -206,7 +211,7 @@ the single CodeScene contact in the repository. A contract holds the two sets
 equal, so a lane that ratchets on a platform the trunk does not run fails here
 rather than passing against a zero.
 
-One thing the mechanism cannot give us. The cache key carries `runner.os` and
+One thing the mechanism cannot give. The cache key carries `runner.os` and
 nothing finer, so both Windows lanes read the one Windows baseline, and the
 trunk writes it from the default-features configuration. The strict lane is
 therefore measured against a figure produced under a different feature
@@ -270,12 +275,25 @@ of the job is what makes the backend reach Ubicloud. Do not set
 merely a duplicate.
 
 The Windows lane has no backend of that kind because nothing else wires one. It
-uses the workspace directory, restored and saved by the cache action with a
+uses the workspace directory, restored by the cache action with a
 `restore-keys` prefix. Setting the `RSTEST_BDD_SCCACHE_LOCAL` repository
 variable moves the Linux lanes onto that same local directory, which is the
 documented fallback if the backend ever stops reaching Ubicloud. The
 compiler-cache step is guarded so that exactly one mechanism owns the directory
 on any given lane.
+
+That directory archive is written by `coverage-main.yml`, not by `ci.yml`:
+`coverage-baseline-windows` for Windows, and `coverage-upload` for Linux in the
+fallback mode. Once the merge gate stopped running coverage on a push, its
+trunk run built only the publish dry run, and an archive written there would
+have left every pull-request coverage build to start cold. The publisher jobs
+run the instrumented all-targets build the pull-request lanes read, which is
+the larger of the two workloads; the publish dry run's objects are the ones no
+longer persisted. One writer per platform is held by
+`coverage_publisher_setup_test.py`, and the key moved to a `v2` schema
+generation with the change, because a `v1` archive already saved for the
+current lockfile is immutable and the new writer would otherwise never replace
+it.
 
 `SCCACHE_CACHE_SIZE` is 4 GB, sized for two build shapes while leaving room in
 Ubicloud's 30 GB weekly per-repository quota for the registry, the tool
@@ -1418,9 +1436,11 @@ test files.
 
 The helper modules — `workflow_support`, `cache_step_support`,
 `workflow_queries`, `publish_report_support`, `lockfile_refresh_support`,
-`lading_pins`, `timeout_budgets`, and `nextest_config` — are private to the
-directory. They are importable only because pytest puts the test directory on
-`sys.path`, and nothing outside `tests/workflow_contracts` imports them.
+`lading_pins`, `timeout_budgets`, `nextest_config`, `strict_workflow_loader`,
+`pull_request_reach`, `guard_conditions`, `codescene_coverage_support`, and
+`coverage_lane_pairs` — are private to the directory. They are importable only
+because pytest puts the test directory on `sys.path`, and nothing outside
+`tests/workflow_contracts` imports them.
 
 `cache_step_support` owns the anatomy of a cache step: the approved action and
 its pinned ref, the predicates that recognize a restore or save step, the guard
@@ -1432,6 +1452,28 @@ module reads nothing from the repository; it imports only the
 `WorkflowShapeError` family from `workflow_support` and answers questions about
 a step the caller has already parsed, so the cache contracts share one reading
 of what a step owns rather than three independent ones.
+
+Three readers answer questions the CodeScene boundary contracts first raised
+and any later contract may reuse; each is pure over parsed documents and has
+its own contract test, driven over documents written for each form it reads.
+
+- `strict_workflow_loader` is the YAML loader behind
+  `workflow_support.parse_workflow`. It refuses a mapping that declares a key
+  twice, which PyYAML otherwise resolves silently in favour of the last, so a
+  workflow cannot carry one `runs-on` for GitHub and another for the contracts.
+  New readers load through `parse_workflow` rather than calling
+  `yaml.safe_load` themselves.
+- `pull_request_reach` reads a trigger block in all three forms GitHub accepts,
+  under the boolean `True` key PyYAML gives a bare `on` as well as the string,
+  and computes the closure of workflows a pull request can run by following
+  job-level same-repository calls. A local call is recognized by the path it
+  resolves to, not by an enumerated prefix, and a spelling it cannot place is
+  refused rather than skipped.
+- `guard_conditions` splits an `if:` guard into its conjuncts, refuses `||`,
+  grouping and negation, and evaluates the conjunctive equality subset against
+  a named context. Contracts that ask whether a step runs for an event, a ref,
+  or a matrix leg ask this evaluator rather than searching the guard for a
+  phrase, because a substring check accepts a guard with an `||` appended.
 
 ## Mutation-testing workflow contract tests
 

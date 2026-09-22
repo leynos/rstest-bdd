@@ -16,80 +16,11 @@ from codescene_coverage_support import (
     PUBLISHER,
     PUBLISHER_COVERAGE_STEP,
     PUBLISHER_JOB,
-    PULL_REQUEST_EVENTS,
     coverage_step,
-    triggers,
 )
+from coverage_lane_pairs import RUNNER_PLATFORMS
 from workflow_queries import iter_steps
 from workflow_support import workflow
-
-
-def test_the_publisher_is_not_reachable_from_a_pull_request() -> None:
-    """Keep the workflow that holds the credential off pull-request events."""
-    declared = set(triggers(PUBLISHER))
-
-    assert not PULL_REQUEST_EVENTS & declared, (
-        f"{PUBLISHER} holds the CodeScene credential, so it must not trigger "
-        f"on a pull request; it declares {sorted(declared)}"
-    )
-    assert declared <= {"push", "workflow_dispatch"}, (
-        f"{PUBLISHER} may trigger only on a push or a dispatch; it declares "
-        f"{sorted(declared)}"
-    )
-    push = triggers(PUBLISHER)["push"]
-    assert isinstance(push, dict), (
-        f"{PUBLISHER} must filter its push trigger; got {push!r}"
-    )
-    assert push.get("branches") == ["main"], (
-        f"{PUBLISHER} must be restricted to pushes to main; got "
-        f"{push.get('branches')!r}"
-    )
-
-
-def test_the_publisher_uploads_rather_than_checks() -> None:
-    """Upload the trunk report; never gate on it from here.
-
-    ``mode: check`` is the pull-request form, and the form that failed. This
-    lane publishes an analysed branch's report, which is what the ratchet
-    baseline and the CodeScene project both read.
-    """
-    uploads = [
-        reference
-        for reference in iter_steps(PUBLISHER)
-        if "upload-codescene-coverage@" in reference.uses
-    ]
-
-    assert uploads, f"{PUBLISHER} must upload the trunk report to CodeScene"
-    for reference in uploads:
-        inputs = reference.step.get("with")
-        assert isinstance(inputs, dict), f"{reference} must declare inputs"
-        assert inputs.get("mode") == "upload", (
-            f"{reference} must upload, not {inputs.get('mode')!r}"
-        )
-
-
-def test_the_upload_is_restricted_to_the_main_ref() -> None:
-    """Publish only from `main`, whatever the event selected.
-
-    `workflow_dispatch` can select any branch or tag. The push trigger's
-    `branches: [main]` says nothing about a dispatch, so without a ref guard
-    on the step itself a dispatch from a feature branch publishes that
-    branch's coverage through the main-owned upload, and CodeScene records it
-    as the trunk's. The shared action already holds the ratchet baseline to a
-    push to `refs/heads/main`; this brings the report under the same rule.
-    """
-    uploads = [
-        reference
-        for reference in iter_steps(PUBLISHER)
-        if "upload-codescene-coverage@" in reference.uses
-    ]
-
-    assert uploads, f"{PUBLISHER} must upload the trunk report to CodeScene"
-    for reference in uploads:
-        guard = str(reference.step.get("if", ""))
-        assert "github.ref == 'refs/heads/main'" in guard, (
-            f"{reference} must publish only from main; its guard is {guard!r}"
-        )
 
 
 def test_the_publisher_serializes_its_trunk_generations() -> None:
@@ -123,7 +54,7 @@ def test_the_publisher_publishes_the_report() -> None:
     Setting ``publish-artefact`` here as the pull-request lane does would
     leave the upload with no report to read.
     """
-    inputs = coverage_step(PUBLISHER, PUBLISHER_COVERAGE_STEP)
+    inputs = coverage_step(PUBLISHER, PUBLISHER_COVERAGE_STEP, PUBLISHER_JOB)
 
     assert "publish-artefact" not in inputs, (
         f"{PUBLISHER} must keep the action's default; it declares "
@@ -131,14 +62,27 @@ def test_the_publisher_publishes_the_report() -> None:
     )
 
 
-#: Runner labels this repository deploys on, mapped to the `runner.os` value
-#: GitHub gives them. Named rather than inferred from the label text: a label
-#: is a shape and a provider, and only a table says which operating system it
-#: boots.
-RUNNER_PLATFORMS = {
-    "ubicloud-standard-2": "Linux",
-    "windows-latest": "Windows",
-}
+def test_no_publisher_job_widens_when_the_baseline_is_written() -> None:
+    """Leave a dispatch from any ref unable to move a ratchet baseline.
+
+    The shared action's `publish-baseline` default, `auto`, saves only on a
+    push to `refs/heads/main`, which is what lets this workflow's dispatch
+    trigger measure a branch without advancing the baseline every pull
+    request is compared against. `always` would hand that decision to this
+    workflow, whose triggers do not make it.
+    """
+    widened = {
+        reference.job: inputs.get("publish-baseline")
+        for reference in iter_steps(PUBLISHER)
+        if "generate-coverage@" in reference.uses
+        and isinstance(inputs := reference.step.get("with"), dict)
+        and inputs.get("publish-baseline", "auto") != "auto"
+    }
+
+    assert not widened, (
+        f"every {PUBLISHER} job must keep publish-baseline at auto; {widened}"
+    )
+
 
 _PLATFORM_GUARD = re.compile(r"runner\.os == '(?P<platform>\w+)'")
 
@@ -218,29 +162,6 @@ def test_every_ratcheting_platform_has_a_trunk_writer() -> None:
         f"every platform the gate ratchets on needs a trunk baseline writer "
         f"and no others; the gate ratchets on {sorted(gate)} and the trunk "
         f"writes {sorted(publisher)}"
-    )
-
-
-def test_only_one_job_in_the_publisher_holds_the_credential() -> None:
-    """Keep the CodeScene contact to one job, not merely to one workflow.
-
-    The publisher grew a second job to write the Windows baseline. That job
-    measures coverage and uploads nothing, and the guide says so; without a
-    rule, giving it the credential would read as symmetry with the Linux job
-    and would quietly double the number of places the token is exposed. The
-    upload rules elsewhere check the job that does upload, so neither would
-    notice a second one appearing.
-    """
-    jobs = workflow(PUBLISHER).get("jobs")
-    assert isinstance(jobs, dict), f"{PUBLISHER} must declare a jobs mapping"
-    holding = sorted(
-        name
-        for name, job in jobs.items()
-        if isinstance(job, dict) and "CS_ACCESS_TOKEN" in str(job.get("env") or {})
-    )
-
-    assert holding == [PUBLISHER_JOB], (
-        f"only {PUBLISHER_JOB} may hold the CodeScene credential; {holding} hold it"
     )
 
 

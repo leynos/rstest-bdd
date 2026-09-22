@@ -19,17 +19,16 @@ equal here rather than trusted to have been copied correctly.
 Run via ``make test-workflow-contracts``.
 """
 
+import typing as typ
+
 import pytest
 from codescene_coverage_support import (
     DEPRECATED_DIGEST_VARIABLE,
+    INHERITED_SECRETS,
     MARKER_FIXTURES,
     MARKERS,
-    PR_COVERAGE_STEP,
     PR_WORKFLOW,
     PUBLISHER,
-    PUBLISHER_COVERAGE_STEP,
-    PULL_REQUEST_EVENTS,
-    SELECTION_INPUTS,
     SHA_PINNED,
     _walk,
     codescene_references,
@@ -38,11 +37,35 @@ from codescene_coverage_support import (
     references_in,
     triggers,
 )
+from coverage_lane_pairs import (
+    GATE_JOB,
+    PAIRS,
+    gate_inputs,
+    leg_context,
+    matrix_rows,
+    publisher_inputs,
+)
+from guard_conditions import admits
+from pull_request_reach import PULL_REQUEST_EVENTS
 from workflow_queries import iter_steps, workflow_names
 from workflow_support import workflow
 
+if typ.TYPE_CHECKING:
+    from coverage_lane_pairs import LanePair
 
-@pytest.mark.parametrize("marker", sorted(MARKERS))
+
+def test_every_marker_has_a_document_of_its_own() -> None:
+    """Refuse a marker that no fixture proves.
+
+    The rule below is parametrized over the fixtures, so a marker added
+    without one would simply not be proved, and the suite would stay green.
+    """
+    assert set(MARKER_FIXTURES) == {*MARKERS, INHERITED_SECRETS}, (
+        f"every marker needs its own fixture; fixtures {sorted(MARKER_FIXTURES)}"
+    )
+
+
+@pytest.mark.parametrize("marker", sorted(MARKER_FIXTURES))
 def test_each_marker_finds_its_own_interaction(marker: str) -> None:
     """Prove every marker separately.
 
@@ -199,52 +222,69 @@ def test_both_lanes_call_one_coverage_revision() -> None:
     )
 
 
-def test_only_the_publisher_measures_coverage_on_the_trunk() -> None:
-    """Leave one baseline writer on a push to main.
+def _gate_coverage_steps() -> list[tuple[str, str]]:
+    """Return each merge-gate coverage step's name and guard.
 
-    The shared action publishes a baseline only on a push to
-    ``refs/heads/main``. Two lanes generating ratcheted coverage on that
-    event would therefore both publish, and a pull request would be measured
-    against whichever finished last.
+    Returns
+    -------
+    list[tuple[str, str]]
+        One entry per ``generate-coverage`` step in the gate job.
     """
-    step = coverage_step(PR_WORKFLOW, PR_COVERAGE_STEP)
-    guard = str(
-        next(
-            reference.step.get("if", "")
-            for reference in iter_steps(PR_WORKFLOW)
-            if reference.name == PR_COVERAGE_STEP
-        )
-    )
-
-    assert step.get("with-ratchet") == "true", (
-        f"{PR_COVERAGE_STEP} must compare against the trunk baseline"
-    )
-    assert "github.event_name == 'pull_request'" in guard, (
-        f"{PR_COVERAGE_STEP} must run on pull requests only, or it becomes a "
-        f"second baseline writer on the trunk; its guard is {guard!r}"
-    )
-
-
-def test_the_merge_gate_runs_no_coverage_on_the_trunk() -> None:
-    """Leave the trunk one run of the workspace suite.
-
-    Every coverage step here is also this repository's test execution for its
-    lane, so a step without the event clause runs the suite on a push as well,
-    and the trunk then tests the same commit two or three times over. It is
-    also a second baseline writer: the shared action publishes on a push to
-    `refs/heads/main`, so a ratcheting step reaching that event would race the
-    publisher. The rule is the whole set, not the Linux lane alone.
-    """
-    offending = [
-        f"{reference}: {reference.step.get('if')!r}"
+    return [
+        (reference.name, str(reference.step.get("if", "")))
         for reference in iter_steps(PR_WORKFLOW)
-        if "generate-coverage@" in reference.uses
-        and "github.event_name == 'pull_request'" not in str(reference.step.get("if"))
+        if reference.job == GATE_JOB and "generate-coverage@" in reference.uses
     ]
 
-    assert not offending, (
-        f"every coverage step in {PR_WORKFLOW} must run on pull requests "
-        f"only; the trunk's run belongs to {PUBLISHER}: {offending}"
+
+@pytest.mark.parametrize(
+    "row", matrix_rows(), ids=lambda row: f"{row['os']}-{row['features'] or 'default'}"
+)
+def test_the_merge_gate_runs_no_coverage_on_the_trunk(row: dict[str, str]) -> None:
+    """Leave the trunk one run of the workspace suite, on every matrix leg.
+
+    Every coverage step here is also this repository's test execution for its
+    lane, so a step that runs on a push runs the suite a second time on the
+    trunk. It is also a second baseline writer: the shared action publishes on
+    a push to `refs/heads/main`, so a ratcheting step reaching that event would
+    race the publisher.
+
+    Each guard is evaluated as GitHub would evaluate it on a push to `main`,
+    not searched for a phrase: a guard containing the pull-request clause
+    behind an `||` would satisfy a substring check and still run on the trunk.
+    """
+    context = leg_context(row, "push")
+    steps = _gate_coverage_steps()
+
+    assert steps, f"{PR_WORKFLOW}:{GATE_JOB} must generate coverage"
+    running = [name for name, guard in steps if admits(guard, context)]
+    assert not running, (
+        f"on a push to main the {row['os']} leg must run no coverage step; the "
+        f"trunk's run belongs to {PUBLISHER}. It runs {running}"
+    )
+
+
+def test_every_gate_coverage_step_runs_on_a_pull_request() -> None:
+    """Refuse the trivial way to satisfy the trunk rule.
+
+    A guard that never admitted anything would pass the rule above while the
+    merge gate stopped measuring coverage altogether. Every step must run for
+    exactly one matrix leg on a pull request.
+    """
+    unmatched = {
+        name: count
+        for name, guard in _gate_coverage_steps()
+        if (
+            count := sum(
+                admits(guard, leg_context(row, "pull_request")) for row in matrix_rows()
+            )
+        )
+        != 1
+    }
+
+    assert not unmatched, (
+        f"each gate coverage step must run for exactly one leg on a pull "
+        f"request; these run for another number: {unmatched}"
     )
 
 
@@ -270,53 +310,46 @@ def test_the_trigger_reader_survives_the_boolean_on_key() -> None:
     )
 
 
-def test_the_pull_request_lane_declines_publication() -> None:
+@pytest.mark.parametrize("step", [name for name, _guard in _gate_coverage_steps()])
+def test_every_pull_request_lane_declines_publication(step: str) -> None:
     """Keep report publication to the workflow that owns it.
 
     The action archives the report it generated under a step of its own,
     which no scanner over this workflow's steps can see. Declining the
-    archive explicitly is the only way the boundary is observable here.
+    archive explicitly is the only way the boundary is observable here, and
+    it holds for the Windows lanes as much as for the Linux one.
     """
-    inputs = coverage_step(PR_WORKFLOW, PR_COVERAGE_STEP)
+    inputs = coverage_step(PR_WORKFLOW, step, GATE_JOB)
 
     assert inputs.get("publish-artefact") == "false", (
-        f"{PR_COVERAGE_STEP} must decline the artefact; publication belongs "
-        f"to {PUBLISHER}. It declares {inputs.get('publish-artefact')!r}"
+        f"{step} must decline the artefact; publication belongs to "
+        f"{PUBLISHER}. It declares {inputs.get('publish-artefact')!r}"
     )
 
 
-@pytest.mark.parametrize("field", SELECTION_INPUTS)
-def test_both_lanes_measure_the_same_thing(field: str) -> None:
-    """Hold the trunk generation and the pull-request check to one selection.
+@pytest.mark.parametrize("pair", PAIRS, ids=lambda pair: pair.gate_step)
+def test_each_lane_measures_what_its_baseline_writer_measures(
+    pair: LanePair,
+) -> None:
+    """Hold every ratcheting lane and its trunk writer to one selection.
 
     The ratchet compares a pull request's changed-line coverage against the
-    baseline this repository's trunk wrote. If the two lanes select different
+    baseline this repository's trunk wrote. If the two select different
     features, targets or test drivers, that comparison is between two
     different measurements and a pull request can fail or pass on the
     difference rather than on its own change.
+
+    Every input either side declares is compared, after the gate's matrix
+    references are resolved against the row its own guard selects, so an
+    input added to one side only is a difference like any other. Only the
+    publication inputs are excluded, because they differ by design.
     """
-    gate = coverage_step(PR_WORKFLOW, PR_COVERAGE_STEP)
-    publisher = coverage_step(PUBLISHER, PUBLISHER_COVERAGE_STEP)
+    gate = gate_inputs(pair)
+    publisher = publisher_inputs(pair)
 
-    assert gate.get(field) == publisher.get(field), (
-        f"{PR_COVERAGE_STEP} selects {field}={gate.get(field)!r} and "
-        f"{PUBLISHER_COVERAGE_STEP} selects {publisher.get(field)!r}; the "
-        "baseline would not be comparable with what the ratchet checks"
-    )
-
-
-def test_the_selection_list_covers_every_input_both_lanes_declare() -> None:
-    """Refuse a selection list that has fallen behind the workflows.
-
-    The list above is named, so an input added to both lanes and not to it
-    would simply not be compared, and the two could then drift on it.
-    """
-    gate = set(coverage_step(PR_WORKFLOW, PR_COVERAGE_STEP))
-    publisher = set(coverage_step(PUBLISHER, PUBLISHER_COVERAGE_STEP))
-    shared = gate & publisher
-
-    assert shared == set(SELECTION_INPUTS), (
-        "every input both lanes declare must be compared; unlisted: "
-        f"{sorted(shared - set(SELECTION_INPUTS))}, listed but absent: "
-        f"{sorted(set(SELECTION_INPUTS) - shared)}"
+    assert gate, f"{pair.gate_step} must declare the inputs it measures with"
+    assert gate == publisher, (
+        f"{pair.gate_step} measures {gate} and {PUBLISHER}:"
+        f"{pair.publisher_job} measures {publisher}; the baseline would not be "
+        "comparable with what the ratchet checks"
     )

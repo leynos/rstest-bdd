@@ -186,10 +186,13 @@ jobs:
           RUNNER_ENVIRONMENT_NAME: ${{ runner.environment }}
         run: |
           set -euo pipefail
-          # Every key carries an explicit `v1` schema generation so the whole
-          # family can be invalidated deliberately, and `runner.environment`
-          # so a self-hosted Ubicloud archive is never restored onto a
-          # GitHub-hosted image with a different glibc baseline.
+          # Every key carries an explicit schema generation so a family can
+          # be invalidated deliberately, and `runner.environment` so a
+          # self-hosted Ubicloud archive is never restored onto a
+          # GitHub-hosted image with a different glibc baseline. The compiler
+          # cache is at `v2`: its writer moved to coverage-main.yml, and an
+          # existing `v1` archive is immutable, so the new writer would
+          # otherwise never replace what the old one saved.
           scope="${RUNNER_OS}-${RUNNER_ARCH}-${RUNNER_ENVIRONMENT_NAME}"
           tool_pins="bun${BUN_VERSION}-mermaid${MERMAID_CLI_VERSION}"
           tool_pins="${tool_pins}-merman${MERMAN_CLI_VERSION}"
@@ -204,9 +207,9 @@ jobs:
             printf 'CI_TOOLS_CACHE_KEY=ci-tools-v1-%s-%s\n' "$scope" "$tool_pins"
             printf 'WHITAKER_CACHE_KEY=whitaker-v1-%s-%s-%s\n' \
               "$scope" "$WHITAKER_INSTALLER_VERSION" "$DYLINT_HASH"
-            printf 'SCCACHE_CACHE_KEY=sccache-v1-%s-%s-debug-%s\n' \
+            printf 'SCCACHE_CACHE_KEY=sccache-v2-%s-%s-debug-%s\n' \
               "$scope" "$TOOLCHAIN" "$LOCKFILE_HASH"
-            printf 'SCCACHE_CACHE_RESTORE_PREFIX=sccache-v1-%s-%s-debug-\n' \
+            printf 'SCCACHE_CACHE_RESTORE_PREFIX=sccache-v2-%s-%s-debug-\n' \
               "$scope" "$TOOLCHAIN"
           } >> "$GITHUB_ENV"
 
@@ -577,6 +580,8 @@ jobs:
           with-default-features: ${{ matrix.with-default-features }}
           use-cargo-nextest: ${{ matrix.use-nextest }}
           pytest-workers: ''
+          # Measures and compares; publication belongs to coverage-main.yml.
+          publish-artefact: 'false'
           # Compare against the Windows baseline `coverage-main.yml` writes.
           # `generate-coverage` keys the baseline by `runner.os`, so this is a
           # different baseline from the Linux lane's, and it exists only
@@ -608,6 +613,8 @@ jobs:
           with-default-features: ${{ matrix.with-default-features }}
           use-cargo-nextest: ${{ matrix.use-nextest }}
           pytest-workers: ''
+          # Measures and compares; publication belongs to coverage-main.yml.
+          publish-artefact: 'false'
           # The same Windows baseline the default-features lane reads: the
           # cache key carries `runner.os` and nothing finer, so both Windows
           # lanes are measured against the one the trunk's Windows lane
@@ -669,13 +676,14 @@ jobs:
           # end-of-job sccache report keeps its meaning (rstest-bdd#720,
           # leynos/shared-actions#459).
           LADING_SCCACHE_STATS_JSON: ${{ runner.temp }}/sccache-publish.json
-          # Skip lading's pre-flight here, and only here. Every lane
-          # reaches this step after its own `Test and Measure Coverage`
-          # step has run the same workspace, and since those steps lost
-          # `continue-on-error` each of them fails its own lane, so the
+          # Skip lading's pre-flight here, and only here. On a pull request
+          # every lane reaches this step after its own `Test and Measure
+          # Coverage` step has run the same workspace, and since those steps
+          # lost `continue-on-error` each of them fails its own lane, so the
           # pre-flight's cargo check and cargo test would be a second
-          # execution of a suite this job has already passed. See
-          # leynos/lading#261.
+          # execution of a suite this job has already passed. On a push to
+          # `main` that execution is coverage-main.yml's, over the same
+          # commit. See leynos/lading#261.
           #
           # Set on the step rather than in lading.toml because a config
           # file cannot tell a CI run from a local one: `make
@@ -797,19 +805,11 @@ jobs:
           path: ~/.local/share/whitaker
           key: ${{ env.WHITAKER_CACHE_KEY }}
 
-      # The compiler cache always changes within a run, so save it on trunk
-      # whenever the primary key is not already present. It exists only on
-      # the lanes that use the local directory.
-      - name: Save compiler cache
-        if: >-
-          (runner.os == 'Windows' || vars.RSTEST_BDD_SCCACHE_LOCAL == 'true') &&
-          github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-          matrix.features == '' &&
-          steps.sccache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
-        with:
-          path: ${{ github.workspace }}/.sccache
-          key: ${{ env.SCCACHE_CACHE_KEY }}
+      # No compiler-cache save here. This lane restores the archive, but its
+      # trunk run no longer builds the instrumented workspace, so an archive
+      # written here would hold only the publish dry run's objects and every
+      # pull-request coverage build would start cold. coverage-main.yml runs
+      # that build on the trunk and is the archive's one writer.
 
       - name: Report peak resource use
         if: ${{ always() && runner.os == 'Linux' }}

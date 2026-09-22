@@ -274,7 +274,8 @@ separate lane executed nothing new. The two Windows lanes keep their feature
 split because Windows uses a different test driver and the Linux run does not
 cover it. A former `coverage-main.yml` duplicated the Linux lane exactly once
 `ci.yml` gained its `push` trigger; it is removed and its ratchet write and
-CodeScene upload moved into the surviving lane.
+CodeScene upload moved into the surviving lane. (Superseded on 2026-09-22:
+`coverage-main.yml` returns as the owner of both; see the addendum below.)
 
 The Linux lanes use `sccache`'s GitHub Actions cache backend. Its objects reach
 Ubicloud storage when the `sccache` process holds the Actions cache
@@ -311,6 +312,31 @@ byte-for-byte baseline that separates this addendum from the historical update.
 The complete deterministic repository gate also passed locally. Exact-head CI
 evidence on the migrated runners is recorded in PR #710 once the shared-actions
 installer revision it depends on is merged and the branch is pushed.
+
+## Addendum (2026-09-22): main owns CodeScene publication and the baselines
+
+The estate rule CV-005 moves every CodeScene interaction out of anything a pull
+request can run. `coverage-main.yml` returns, triggered by a push to `main` and
+by `workflow_dispatch` only, and owns both persistent coverage outputs:
+
+- `coverage-upload`, on `ubicloud-standard-2`, runs the Linux suite once on the
+  trunk, writes the Linux ratchet baseline, and is the only CodeScene contact
+  in the repository. Its upload runs only when the ref is `refs/heads/main`,
+  because a dispatch can select any ref.
+- `coverage-baseline-windows`, on `windows-latest`, runs the Windows
+  default-features suite and writes the Windows baseline. It uploads nothing
+  and holds no credential.
+- Both jobs write the local-directory compiler cache that the pull-request
+  coverage lanes read, at a `v2` key schema generation.
+
+`ci.yml` generates coverage on pull requests only, on every lane, for its own
+ratchet check, declines the report artefact, and carries no CodeScene action,
+command or credential. Both workflows call `generate-coverage` and
+`upload-codescene-coverage` at one shared-actions revision, and no caller
+passes the rejected `installer-checksum` input. The 2026-09-03 statements that
+the ratchet write and CodeScene upload live in `ci.yml` are historical.
+`docs/developers-guide.md`, "CodeScene publication belongs to main", is the
+operational guide.
 
 ## Known limitations
 
