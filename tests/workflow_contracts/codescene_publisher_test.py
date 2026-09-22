@@ -19,8 +19,8 @@ from codescene_coverage_support import (
     coverage_step,
 )
 from coverage_lane_pairs import RUNNER_PLATFORMS
-from workflow_queries import iter_steps
-from workflow_support import workflow
+from workflow_queries import iter_steps, workflow_names
+from workflow_support import ROOT, workflow
 
 
 def test_the_publisher_serializes_its_trunk_generations() -> None:
@@ -214,3 +214,52 @@ def test_each_publisher_job_pins_the_toolchain_its_gate_leg_uses() -> None:
         )
 
     assert checked, f"{PUBLISHER} must declare at least one job"
+
+
+#: Uploader revisions verified to carry the committed ``cli-manifest.json``
+#: that pins ``cs-coverage``. An allowlist rather than "any full SHA": a
+#: different revision is a different manifest, or none, whatever the shape of
+#: its identifier, and an older one installs the floating CLI that could not
+#: parse its own cobertura output. A newer verified pin is added here; the
+#: rule is a floor on what is trusted, not a request to downgrade.
+MANIFEST_PINNED_UPLOADERS = frozenset({"a5765019912a8ab6882b12db049c7cde635f3a85"})
+UPLOADER_ACTION = "leynos/shared-actions/.github/actions/upload-codescene-coverage"
+#: The dispatch workflow whose only output was the retired digest variable.
+DIGEST_REFRESH_WORKFLOW = "get-codescene-sha.yml"
+
+
+def test_every_uploader_call_is_on_a_manifest_pinned_revision() -> None:
+    """Hold every CodeScene upload to a revision carrying the CLI manifest.
+
+    `test_every_shared_coverage_action_is_sha_pinned` is satisfied by any full
+    SHA, including the revisions whose unpinned CLI broke every pull request
+    here between 2026-09-16 and 2026-09-18. The reference set is asserted
+    non-empty first, so deleting the calls cannot satisfy the rule.
+    """
+    revisions = {
+        reference.uses.partition("@")[2]
+        for name in workflow_names()
+        for reference in iter_steps(name)
+        if reference.uses.partition("@")[0] == UPLOADER_ACTION
+    }
+
+    assert revisions, f"this repository must call {UPLOADER_ACTION}"
+    assert revisions <= MANIFEST_PINNED_UPLOADERS, (
+        f"every upload must use a revision verified to carry the CLI "
+        f"manifest; {sorted(revisions - MANIFEST_PINNED_UPLOADERS)} is not one"
+    )
+
+
+def test_the_digest_refresh_workflow_is_absent() -> None:
+    """Keep the dispatch that maintained the retired variable out of the tree.
+
+    This repository never carried it. The rule is estate-wide, and a copy
+    that names no variable at all would pass the text rule refusing the
+    variable while still being a workflow that maintains nothing.
+    """
+    path = ROOT / ".github" / "workflows" / DIGEST_REFRESH_WORKFLOW
+
+    assert not path.exists(), (
+        f"{DIGEST_REFRESH_WORKFLOW} refreshed a variable nothing reads; it must "
+        "not exist"
+    )
