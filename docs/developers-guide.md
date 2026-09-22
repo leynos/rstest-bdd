@@ -1470,6 +1470,13 @@ its own contract test, driven over documents written for each form it reads.
   resolves to, not by an enumerated prefix, GitHub's recommended `$/`
   self-repository spelling included, and a spelling it cannot place, such as
   `$/` with an `@ref`, is refused rather than skipped.
+- `lockfile_refresh_support.example_working_dir(tmp_path_factory)` gives each
+  generated example of the push-ref property a fresh, empty directory under
+  pytest's base directory, named with `EXAMPLE_DIR_PREFIX`. It takes the
+  session-scoped `tmp_path_factory` so the property needs no
+  `function_scoped_fixture` suppression, and `lockfile_refresh_support_test.py`
+  holds its guarantees, and the property's `deadline=None` with no suppressed
+  health check, as contracts.
 - `guard_conditions` splits an `if:` guard into its conjuncts, refuses `||`,
   grouping and negation, and evaluates the conjunctive equality subset against
   a named context. Contracts that ask whether a step runs for an event, a ref,

@@ -11,9 +11,11 @@ Run with:
     pytest tests/workflow_contracts/lockfile_refresh_support_test.py
 """
 
+import ast
 import typing as typ
 
 from lockfile_refresh_support import EXAMPLE_DIR_PREFIX, example_working_dir
+from workflow_support import repository_file
 
 if typ.TYPE_CHECKING:
     import pytest
@@ -70,3 +72,72 @@ def test_scratch_directories_live_under_the_pytest_base_directory(
             f"{directory.name!r} must carry the {EXAMPLE_DIR_PREFIX!r} prefix, "
             "which is what names the directory's owner in a failure"
         )
+
+
+#: The property whose settings are held, and where it is declared.
+PROPERTY_MODULE = ("tests", "workflow_contracts", "derived_fixture_lockfiles_test.py")
+PROPERTY_NAME = "test_push_step_treats_any_generated_head_ref_as_inert_data"
+
+
+def _property_settings() -> dict[str, ast.expr]:
+    """Return the keywords of the push-ref property's `hypothesis.settings`.
+
+    Read from the source rather than from Hypothesis's runtime attributes,
+    which are private. The property is found by name, and exactly one
+    `settings(...)` decorator is required.
+
+    Returns
+    -------
+    dict[str, ast.expr]
+        Each keyword the decorator passes, mapped to its expression.
+    """
+    module = ast.parse(repository_file(*PROPERTY_MODULE))
+    function = next(
+        node
+        for node in module.body
+        if isinstance(node, ast.FunctionDef) and node.name == PROPERTY_NAME
+    )
+    calls = [
+        decorator
+        for decorator in function.decorator_list
+        if isinstance(decorator, ast.Call)
+        and ast.unparse(decorator.func).endswith("settings")
+    ]
+    assert len(calls) == 1, f"{PROPERTY_NAME} must declare one settings decorator"
+    return {keyword.arg: keyword.value for keyword in calls[0].keywords if keyword.arg}
+
+
+def test_the_push_ref_property_declares_no_deadline() -> None:
+    """Hold the property to `deadline=None`, the fix for the reported flake.
+
+    Every example starts a shell and a recording `git`, so its wall time is a
+    property of the host. A finite deadline fails under load while asserting
+    nothing about the push step, and reintroducing one would pass every other
+    case here on an idle machine.
+    """
+    deadline = _property_settings().get("deadline")
+
+    assert isinstance(deadline, ast.Constant), (
+        f"{PROPERTY_NAME} must declare deadline=None; it declares "
+        f"{ast.unparse(deadline) if deadline is not None else 'no deadline'}"
+    )
+    assert deadline.value is None, (
+        f"{PROPERTY_NAME} must declare deadline=None, not {deadline.value!r}"
+    )
+
+
+def test_the_push_ref_property_suppresses_no_health_check() -> None:
+    """Refuse the fixture-scope suppression the session-scoped helper retired.
+
+    The property takes `tmp_path_factory`, which is session-scoped, so
+    Hypothesis has nothing to warn about. Suppressing
+    `function_scoped_fixture` again would only hide a function-scoped
+    fixture reappearing, which is the shared-directory defect this helper
+    removed.
+    """
+    suppressed = _property_settings().get("suppress_health_check")
+
+    assert suppressed is None, (
+        f"{PROPERTY_NAME} must suppress no health check; it suppresses "
+        f"{ast.unparse(suppressed)}"
+    )
