@@ -54,6 +54,15 @@ REQUIRED_SETUP = frozenset({
 #: matrix legs that a single-platform job does not have.
 IGNORED_KEYS = frozenset({"name", "if"})
 SCCACHE_KEY = "${{ env.SCCACHE_CACHE_KEY }}"
+PUBLISH_SCCACHE_KEY = "${{ env.SCCACHE_PUBLISH_CACHE_KEY }}"
+#: Each compiler-cache family and the one save step per platform allowed to
+#: write it. The instrumented family belongs to the publisher's jobs; the
+#: publish dry run's belongs to the gate, the one job that runs that build on
+#: the trunk (rstest-bdd#803).
+FAMILY_WRITERS = {
+    SCCACHE_KEY: sorted((PUBLISHER, pair.publisher_job) for pair in PAIRS),
+    PUBLISH_SCCACHE_KEY: [(PR_WORKFLOW, GATE_JOB)],
+}
 
 
 def _test_id(value: object) -> str:
@@ -185,23 +194,29 @@ def test_each_repeated_step_matches_the_gate(
     )
 
 
-def test_the_compiler_cache_has_one_writer_per_platform() -> None:
-    """Write the compiler cache from the jobs that build what it must hold.
+@pytest.mark.parametrize(
+    ("key", "expected"), FAMILY_WRITERS.items(), ids=["instrumented", "publish"]
+)
+def test_each_compiler_cache_family_has_one_writer_per_platform(
+    key: str, expected: list[tuple[str, str]]
+) -> None:
+    """Write each compiler-cache family from the job that builds what it holds.
 
-    Every key carries `runner.os`, so one writer per platform is one writer
+    Every key carries `runner.os`, so one save step per platform is one writer
     per key; a second would race it for the reservation, and the loser's
-    objects would be lost.
+    objects would be lost. The gate's one save step for the publish family
+    covers a single platform, which its guard selects.
     """
     writers = sorted(
         (reference.workflow, reference.job)
         for reference in iter_steps()
         if str(reference.uses).startswith("actions/cache/save@")
         and isinstance(inputs := reference.step.get("with"), dict)
-        and inputs.get("key") == SCCACHE_KEY
+        and inputs.get("key") == key
     )
 
-    assert writers == sorted((PUBLISHER, pair.publisher_job) for pair in PAIRS), (
-        f"the compiler cache must be written by the publisher's jobs alone; "
+    assert writers == expected, (
+        f"the compiler-cache family {key} must be written by {expected} alone; "
         f"it is written by {writers}"
     )
 
@@ -228,7 +243,8 @@ def test_the_compiler_cache_is_written_only_from_a_trunk_push(
     context = {
         "github.event_name": event,
         "github.ref": ref,
-        "steps.sccache.outputs.cache-hit": hit,
+        "steps.sccache-linux.outputs.cache-hit": hit,
+        "steps.sccache-windows.outputs.cache-hit": hit,
         "vars.RSTEST_BDD_SCCACHE_LOCAL": "true",
     }
     guards = {
