@@ -90,8 +90,8 @@ schema generation (`v1`, and `v2` for the compiler cache) plus the operating
 system, architecture, and `runner.environment`, so a self-hosted Ubicloud
 archive can never be restored onto a GitHub-hosted image with a different GNU C
 Library baseline. The one recorded exception is `.sccache`, which the two
-compiler-cache families share for the reason "Compiler cache" gives;
-`runner_cache_test.py` names that pair and that path and nothing else.
+compiler-cache families share for the reason given in the "Compiler cache"
+section; `runner_cache_test.py` names that pair and that path and nothing else.
 
 | Cache                          | Paths                                                                                                             | Key inputs                       |
 | ------------------------------ | ----------------------------------------------------------------------------------------------------------------- | -------------------------------- |
@@ -119,13 +119,13 @@ Caches are restored on every run. They are saved only by the default-features
 lane on a `push` to `main`, and only when the restore missed. Every key carries
 `runner.os`, so that gives one writer per key: the Linux build-test lane owns
 the Linux keys and the Windows lane owns the Windows keys. The compiler cache
-is the exception, written by `coverage-main.yml` for the reason "Compiler
-cache" gives, while the Windows default-features lane writes the publish
-dry-run family. Pull-request runs therefore waste no time uploading archives
-they are not allowed to publish, and `Unable to reserve cache` stampedes cannot
-occur. `ci.yml` triggers on `push` to `main` for this reason: while it ran only
-on pull requests and manual dispatch, nothing could ever populate a trusted
-generation, so every lane was legitimately cold.
+is the exception, written by `coverage-main.yml` for the reason given in the
+"Compiler cache" section, while the Windows default-features lane writes the
+publish dry-run family. Pull-request runs therefore waste no time uploading
+archives they are not allowed to publish, and `Unable to reserve cache`
+stampedes cannot occur. `ci.yml` triggers on `push` to `main` for this reason:
+while it ran only on pull requests and manual dispatch, nothing could ever
+populate a trusted generation, so every lane was legitimately cold.
 
 ### One test execution per platform
 
@@ -319,14 +319,16 @@ instrumented one:
   fallback restore cannot cross families either.
 
 Two owners therefore share one path, the single exception
-`runner_cache_test.py` records. `coverage_publisher_setup_test.py` holds each
-family to one writer per platform, and `publish_dry_run_cache_test.py`
-evaluates the guards for every leg and event to hold the writer to the trunk
-miss, keep every writer's run to its own family's restore, and run both key
-scripts to show the prefixes cannot cross. The two archives share the
-`SCCACHE_CACHE_SIZE` budget on a pull-request lane: the instrumented archive
-measured 1.17 GB on 2026-09-23, so the union stays inside 4 GB unless the
-publish archive exceeds about 2.8 GB.
+`runner_cache_test.py` records;
+[ADR-022](adr-022-separate-compiler-cache-family-for-the-publish-dry-run.md)
+records the alternatives and why this one was chosen.
+`coverage_publisher_setup_test.py` holds each family to one writer per
+platform, and `publish_dry_run_cache_test.py` evaluates the guards for every
+leg and event to hold the writer to the trunk miss, keep every writer's run to
+its own family's restore, and run both key scripts to show the prefixes cannot
+cross. The two archives share the `SCCACHE_CACHE_SIZE` budget on a pull-request
+lane: the instrumented archive measured 1.17 GB on 2026-09-23, so the union
+stays inside 4 GB unless the publish archive exceeds about 2.8 GB.
 
 `SCCACHE_CACHE_SIZE` is 4 GB, sized for two build shapes while leaving room in
 Ubicloud's 30 GB weekly per-repository quota for the registry, the tool
