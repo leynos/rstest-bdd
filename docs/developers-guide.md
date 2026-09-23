@@ -89,14 +89,17 @@ has exactly one owner and one explainable key. Every key carries an explicit
 schema generation (`v1`, and `v2` for the compiler cache) plus the operating
 system, architecture, and `runner.environment`, so a self-hosted Ubicloud
 archive can never be restored onto a GitHub-hosted image with a different GNU C
-Library baseline.
+Library baseline. The one recorded exception is `.sccache`, which the two
+compiler-cache families share for the reason "Compiler cache" gives;
+`runner_cache_test.py` names that pair and that path and nothing else.
 
-| Cache            | Paths                                                                                                             | Key inputs                       |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------- | -------------------------------- |
-| Cargo registry   | `~/.cargo/registry`, `~/.cargo/git`                                                                               | toolchain, `Cargo.lock`, scope   |
-| CI tool binaries | `~/.cargo/bin`, `~/.local/bin`, `~/.cache/uv`, `~/.local/share/uv`, Bun stores, `~/.cache/puppeteer`, `.ci-tools` | every tool version pin, scope    |
-| Whitaker suite   | `~/.local/share/whitaker`                                                                                         | installer version, `dylint.toml` |
-| Compiler cache   | `.sccache`                                                                                                        | toolchain, `Cargo.lock`, scope   |
+| Cache                          | Paths                                                                                                             | Key inputs                       |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| Cargo registry                 | `~/.cargo/registry`, `~/.cargo/git`                                                                               | toolchain, `Cargo.lock`, scope   |
+| CI tool binaries               | `~/.cargo/bin`, `~/.local/bin`, `~/.cache/uv`, `~/.local/share/uv`, Bun stores, `~/.cache/puppeteer`, `.ci-tools` | every tool version pin, scope    |
+| Whitaker suite                 | `~/.local/share/whitaker`                                                                                         | installer version, `dylint.toml` |
+| Compiler cache                 | `.sccache`                                                                                                        | toolchain, `Cargo.lock`, scope   |
+| Publish dry-run compiler cache | `.sccache`, Windows only                                                                                          | toolchain, `Cargo.lock`, scope   |
 
 Every lane uses `actions/cache/restore` and `actions/cache/save` pinned to
 v6.1.0. Ubicloud's transparent cache intercepts that revision: the Ubicloud
@@ -117,8 +120,9 @@ lane on a `push` to `main`, and only when the restore missed. Every key carries
 `runner.os`, so that gives one writer per key: the Linux build-test lane owns
 the Linux keys and the Windows lane owns the Windows keys. The compiler cache
 is the exception, written by `coverage-main.yml` for the reason "Compiler
-cache" gives. Pull-request runs therefore waste no time uploading archives they
-are not allowed to publish, and `Unable to reserve cache` stampedes cannot
+cache" gives, while the Windows default-features lane writes the publish
+dry-run family. Pull-request runs therefore waste no time uploading archives
+they are not allowed to publish, and `Unable to reserve cache` stampedes cannot
 occur. `ci.yml` triggers on `push` to `main` for this reason: while it ran only
 on pull requests and manual dispatch, nothing could ever populate a trusted
 generation, so every lane was legitimately cold.
@@ -287,13 +291,42 @@ That directory archive is written by `coverage-main.yml`, not by `ci.yml`:
 fallback mode. Once the merge gate stopped running coverage on a push, its
 trunk run built only the publish dry run, and an archive written there would
 have left every pull-request coverage build to start cold. The publisher jobs
-run the instrumented all-targets build the pull-request lanes read, which is
-the larger of the two workloads; the publish dry run's objects are the ones no
-longer persisted. One writer per platform is held by
-`coverage_publisher_setup_test.py`, and the key moved to a `v2` schema
-generation with the change, because a `v1` archive already saved for the
-current lockfile is immutable and the new writer would otherwise never replace
-it.
+run the instrumented all-targets build the pull-request lanes read. The key
+moved to a `v2` schema generation with the change, because a `v1` archive
+already saved for the current lockfile is immutable and the new writer would
+otherwise never replace it.
+
+The instrumented archive holds nothing the publish dry run can reuse: the dry
+run's package-verification builds are not instrumented, so every object hashes
+differently. While it was the only Windows archive, the pull-request Windows
+`Publish dry run` step averaged 862 seconds over four legs, against 678 seconds
+over six legs before, about 184 seconds more per leg and six minutes per pull
+request (rstest-bdd#803, read from the jobs API). The publish dry run therefore
+has an archive family of its own, `sccache-publish-v1`, keyed like the
+instrumented one:
+
+- `ci.yml`'s Windows default-features lane writes it on a push to `main`,
+  after `Publish dry run` and only when its restore missed. That lane is the
+  one trunk job that runs `make publish-check` on Windows, and its trunk run
+  restores the publish family alone, so the archive holds the dry run's objects
+  and not a copy of the instrumented archive.
+- Both Windows pull-request lanes restore both families into `.sccache`
+  before the `sccache` server first compiles, so one server reads the
+  instrumented objects for the coverage step and the dry run's for the publish
+  step. The instrumented restore runs for pull requests only, because only
+  their coverage steps build that shape in `ci.yml`.
+- Neither family's `restore-keys` prefix is a prefix of the other's key, so a
+  fallback restore cannot cross families either.
+
+Two owners therefore share one path, the single exception
+`runner_cache_test.py` records. `coverage_publisher_setup_test.py` holds each
+family to one writer per platform, and `publish_dry_run_cache_test.py`
+evaluates the guards for every leg and event to hold the writer to the trunk
+miss, keep every writer's run to its own family's restore, and run both key
+scripts to show the prefixes cannot cross. The two archives share the
+`SCCACHE_CACHE_SIZE` budget on a pull-request lane: the instrumented archive
+measured 1.17 GB on 2026-09-23, so the union stays inside 4 GB unless the
+publish archive exceeds about 2.8 GB.
 
 `SCCACHE_CACHE_SIZE` is 4 GB, sized for two build shapes while leaving room in
 Ubicloud's 30 GB weekly per-repository quota for the registry, the tool

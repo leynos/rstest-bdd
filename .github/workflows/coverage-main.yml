@@ -250,7 +250,7 @@ jobs:
       # local directory. Setting RSTEST_BDD_SCCACHE_LOCAL moves the Linux
       # lanes onto the same local directory.
       - name: Restore compiler cache
-        id: sccache
+        id: sccache-linux
         if: ${{ vars.RSTEST_BDD_SCCACHE_LOCAL == 'true' }}
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
@@ -424,7 +424,7 @@ jobs:
         if: >-
           vars.RSTEST_BDD_SCCACHE_LOCAL == 'true' &&
           github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-          steps.sccache.outputs.cache-hit != 'true'
+          steps.sccache-linux.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ${{ github.workspace }}/.sccache
@@ -621,7 +621,7 @@ jobs:
       # setup is called with `use-sccache: false`, so it always uses the
       # local directory this step restores and the save below writes.
       - name: Restore compiler cache
-        id: sccache
+        id: sccache-windows
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ${{ github.workspace }}/.sccache
@@ -709,13 +709,13 @@ jobs:
       # The Windows compiler cache's only writer, for the reason the Linux
       # job gives: this is the trunk run of the instrumented build both
       # Windows pull-request lanes read. The publish dry run's objects are
-      # not in it, because ci.yml's Windows push lane builds those and a
-      # second writer for one key would race this one; the instrumented
-      # all-targets build is the larger of the two.
+      # not in it: ci.yml's Windows push lane builds those and writes them
+      # under a key family of its own, because a second writer for one key
+      # would race this one (rstest-bdd#803).
       - name: Save compiler cache
         if: >-
           github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-          steps.sccache.outputs.cache-hit != 'true'
+          steps.sccache-windows.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ${{ github.workspace }}/.sccache

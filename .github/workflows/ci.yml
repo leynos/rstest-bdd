@@ -213,6 +213,30 @@ jobs:
               "$scope" "$TOOLCHAIN"
           } >> "$GITHUB_ENV"
 
+      # The publish dry run's compiler objects are a second archive family,
+      # written by this job rather than by coverage-main.yml, because only
+      # this job runs `make publish-check`. It is computed apart from the
+      # step above, which coverage-main.yml repeats verbatim and which would
+      # otherwise carry a key its jobs never use. The family's own prefix is
+      # not a prefix of the instrumented family's, so neither `restore-keys`
+      # can ever fall back to the other's archive.
+      - name: Compute publish dry-run cache key
+        if: ${{ runner.os == 'Windows' }}
+        shell: bash
+        env:
+          LOCKFILE_HASH: ${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+          TOOLCHAIN: ${{ matrix.rust-toolchain }}
+          RUNNER_ENVIRONMENT_NAME: ${{ runner.environment }}
+        run: |
+          set -euo pipefail
+          scope="${RUNNER_OS}-${RUNNER_ARCH}-${RUNNER_ENVIRONMENT_NAME}"
+          {
+            printf 'SCCACHE_PUBLISH_CACHE_KEY=sccache-publish-v1-%s-%s-%s\n' \
+              "$scope" "$TOOLCHAIN" "$LOCKFILE_HASH"
+            printf 'SCCACHE_PUBLISH_CACHE_RESTORE_PREFIX=sccache-publish-v1-%s-%s-\n' \
+              "$scope" "$TOOLCHAIN"
+          } >> "$GITHUB_ENV"
+
       # Ubicloud's transparent cache intercepts `actions/cache` v6.1.0, so
       # one action and one pin serve both runner providers. Verified against
       # the Ubicloud cache listing on 2026-09-03; the deprecated
@@ -273,15 +297,47 @@ jobs:
       # shared Rust setup is called with `use-sccache: false`, so it uses the
       # local directory. Setting RSTEST_BDD_SCCACHE_LOCAL moves the Linux
       # lanes onto the same local directory.
-      - name: Restore compiler cache
-        id: sccache
+      #
+      # On Windows this archive holds the instrumented objects that
+      # coverage-main.yml writes, and only a pull request's coverage steps
+      # build that shape here, so it is restored for pull requests alone. On
+      # a push this lane writes the publish dry-run family below, whose
+      # archive must hold that family's objects and not a copy of this one.
+      - name: Restore compiler cache (Windows)
+        id: sccache-windows
         if: >-
-          runner.os == 'Windows' || vars.RSTEST_BDD_SCCACHE_LOCAL == 'true'
+          runner.os == 'Windows' && github.event_name == 'pull_request'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
         with:
           path: ${{ github.workspace }}/.sccache
           key: ${{ env.SCCACHE_CACHE_KEY }}
           restore-keys: ${{ env.SCCACHE_CACHE_RESTORE_PREFIX }}
+
+      - name: Restore compiler cache (Linux)
+        id: sccache-linux
+        if: >-
+          runner.os == 'Linux' && vars.RSTEST_BDD_SCCACHE_LOCAL == 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ${{ github.workspace }}/.sccache
+          key: ${{ env.SCCACHE_CACHE_KEY }}
+          restore-keys: ${{ env.SCCACHE_CACHE_RESTORE_PREFIX }}
+
+      # The publish dry run's objects, overlaid on the same directory so one
+      # sccache server reads both families. The two families hold disjoint
+      # objects: an instrumented build and the dry run's package-verification
+      # builds hash differently, so the dry run reused nothing from the
+      # instrumented archive once that became the only one (rstest-bdd#803).
+      # Both Windows lanes restore it on every event; the strict lane's dry
+      # run builds the same packages as the default lane's.
+      - name: Restore publish dry-run compiler cache
+        id: sccache-publish
+        if: ${{ runner.os == 'Windows' }}
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ${{ github.workspace }}/.sccache
+          key: ${{ env.SCCACHE_PUBLISH_CACHE_KEY }}
+          restore-keys: ${{ env.SCCACHE_PUBLISH_CACHE_RESTORE_PREFIX }}
 
       - name: Setup Rust
         # Merged shared-actions PR #421 cache-provider revision.
@@ -805,11 +861,21 @@ jobs:
           path: ~/.local/share/whitaker
           key: ${{ env.WHITAKER_CACHE_KEY }}
 
-      # No compiler-cache save here. This lane restores the archive, but its
-      # trunk run no longer builds the instrumented workspace, so an archive
-      # written here would hold only the publish dry run's objects and every
-      # pull-request coverage build would start cold. coverage-main.yml runs
-      # that build on the trunk and is the archive's one writer.
+      # The instrumented compiler cache is not saved here: this lane's trunk
+      # run does not build the instrumented workspace, and coverage-main.yml,
+      # which does, is that family's one writer. What this lane's trunk run
+      # does build is the publish dry run, so it writes that family and
+      # nothing else, having restored nothing else into the directory.
+      # `publish_dry_run_cache_test.py` holds both halves.
+      - name: Save publish dry-run compiler cache
+        if: >-
+          runner.os == 'Windows' && github.event_name == 'push' &&
+          github.ref == 'refs/heads/main' && matrix.features == '' &&
+          steps.sccache-publish.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ${{ github.workspace }}/.sccache
+          key: ${{ env.SCCACHE_PUBLISH_CACHE_KEY }}
 
       - name: Report peak resource use
         if: ${{ always() && runner.os == 'Linux' }}
@@ -848,7 +914,9 @@ jobs:
           WHITAKER_CACHE_HIT: ${{ steps.whitaker-suite.outputs.cache-hit }}
           RUNNER_LABEL: ${{ matrix.os }}
           RUNNER_ENVIRONMENT_NAME: ${{ runner.environment }}
-          SCCACHE_CACHE_HIT: ${{ steps.sccache.outputs.cache-hit }}
+          SCCACHE_CACHE_HIT: >-
+            ${{ steps.sccache-linux.outputs.cache-hit }}${{ steps.sccache-windows.outputs.cache-hit }}
+          SCCACHE_PUBLISH_CACHE_HIT: ${{ steps.sccache-publish.outputs.cache-hit }}
         run: |
           set -euo pipefail
           {
@@ -865,6 +933,9 @@ jobs:
             printf -- '- sccache key: %s hit: %s gha-backend: %s\n' \
               "${SCCACHE_CACHE_KEY:-unset}" "${SCCACHE_CACHE_HIT:-skipped}" \
               "${SCCACHE_GHA_ENABLED:-unset}"
+            printf -- '- publish sccache key: %s hit: %s\n' \
+              "${SCCACHE_PUBLISH_CACHE_KEY:-unset}" \
+              "${SCCACHE_PUBLISH_CACHE_HIT:-skipped}"
             printf -- '- target archives: none; sccache owns every build shape\n'
           } >> "$GITHUB_STEP_SUMMARY"
 
