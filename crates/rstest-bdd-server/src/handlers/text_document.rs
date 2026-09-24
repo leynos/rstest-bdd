@@ -1,12 +1,11 @@
-//! Text document notification handlers.
-//!
-//! Phase 7 focuses on building language-server foundations. This module
-//! provides the on-save indexing pipeline for `.feature` files and Rust step
-//! definition sources. Indexing results are stored in the shared server state.
-//! After indexing, diagnostics are computed and published via the LSP protocol.
-
-use metrics::{counter, describe_counter};
+//! Text document notification handlers update shared state before publishing diagnostics via LSP.
 use tracing::{debug, warn};
+
+use crate::lsp::DidSaveTextDocumentParams;
+
+mod indexing_metrics;
+
+use indexing_metrics::{feature_indexing_outcome, record_indexing_outcome, rust_indexing_outcome};
 
 use super::{
     diagnostics::{
@@ -22,53 +21,22 @@ use super::{
 use crate::{
     indexing::{
         FeatureIndexError,
+        RustSourceIndexResult,
         RustStepIndexError,
         index_feature_source,
-        index_rust_file,
-        index_rust_source,
+        index_rust_file_with_bindings,
+        index_rust_source_with_bindings,
     },
-    lsp::DidSaveTextDocumentParams,
     server::ServerState,
 };
-
-/// Metric name for indexing outcomes.
-const INDEXING_COUNTER: &str = "rstest_bdd_server_indexing_total";
-
-/// Record one indexing operation outcome.
-fn record_indexing_outcome(operation: &'static str, outcome: &'static str) {
-    describe_counter!(
-        INDEXING_COUNTER,
-        "Language-server indexing outcomes, labelled by operation and outcome"
-    );
-    counter!(INDEXING_COUNTER, "operation" => operation, "outcome" => outcome).increment(1);
-}
-
-/// Convert a feature indexing error to its fixed metric outcome.
-fn feature_indexing_outcome(error: &FeatureIndexError) -> &'static str {
-    match error {
-        FeatureIndexError::WorkspaceRootUnavailable => "workspace-root-unavailable",
-        FeatureIndexError::OutsideWorkspaceRoot { .. } => "workspace-boundary-failure",
-        FeatureIndexError::NonUtf8Path { .. } => "non-utf8-path",
-        FeatureIndexError::Read(_) => "read-failure",
-        FeatureIndexError::Parse(_) => "parse-failure",
-        FeatureIndexError::DocstringSpanNotFound(_) => "docstring-span-failure",
-    }
-}
-
-/// Convert a Rust indexing error to its fixed metric outcome.
-fn rust_indexing_outcome(error: &RustStepIndexError) -> &'static str {
-    match error {
-        RustStepIndexError::Read(_) => "read-failure",
-        RustStepIndexError::Parse(_) => "parse-failure",
-    }
-}
-
 /// Handle `textDocument/didSave` notifications.
 ///
 /// When a saved document is a `.feature` file or a Rust source file, the
 /// server parses and indexes it. After successful indexing, diagnostics are
 /// computed and published. Parse failures are logged but do not produce
-/// diagnostics (the file remains in its previously indexed state).
+/// diagnostics. A failed Rust save is one coherent transition: the file's
+/// scenario bindings, step index, and compiled steps are all discarded so no
+/// feature resolves against a half-updated index.
 pub fn handle_did_save_text_document(state: &mut ServerState, params: DidSaveTextDocumentParams) {
     if state.workspace_preparation_pending() {
         match state.defer_document_save(params) {
@@ -168,14 +136,48 @@ pub(super) fn apply_feature_index_result(
 
 /// Index a saved Rust file and publish its resulting diagnostics.
 fn handle_rust_file_save(state: &mut ServerState, path: &std::path::Path, text: Option<&str>) {
-    let index_result = index_saved_source(path, text, index_rust_file, index_rust_source);
+    let index_result = index_saved_source(
+        path,
+        text,
+        index_rust_file_with_bindings,
+        index_rust_source_with_bindings,
+    );
 
-    apply_rust_index_result(
+    apply_rust_source_index_result(
         state,
         path,
         index_result,
         FeatureDiagnosticPublication::Immediate,
     );
+}
+
+/// Apply internal scenario bindings before the existing Rust step-index result.
+pub(super) fn apply_rust_source_index_result(
+    state: &mut ServerState,
+    path: &std::path::Path,
+    index_result: Result<RustSourceIndexResult, RustStepIndexError>,
+    diagnostic_publication: FeatureDiagnosticPublication,
+) {
+    let step_result = match index_result {
+        Ok(result) => {
+            let RustSourceIndexResult {
+                steps,
+                scenario_bindings,
+                scenario_binding_diagnostics,
+            } = result;
+            state.upsert_rust_scenario_bindings(path, scenario_bindings);
+            for diagnostic in scenario_binding_diagnostics {
+                record_indexing_outcome("scenario-binding", diagnostic.failure_category());
+                diagnostic.emit_warning();
+            }
+            Ok(steps)
+        }
+        Err(error) => {
+            state.upsert_rust_scenario_bindings(path, Vec::new());
+            Err(error)
+        }
+    };
+    apply_rust_index_result(state, path, step_result, diagnostic_publication);
 }
 
 /// Apply a Rust indexing result and publish its diagnostics.
@@ -211,6 +213,7 @@ pub(super) fn apply_rust_index_result(
         }
         Err(err) => {
             record_indexing_outcome("rust", rust_indexing_outcome(&err));
+            state.remove_rust_step_index(path);
             clear_rust_index_diagnostics(state, path);
             warn!(path = %path.display(), error = %err, "failed to index rust step file");
         }
@@ -238,7 +241,7 @@ mod tests {
     };
     use tempfile::TempDir;
 
-    use super::*;
+    use super::{indexing_metrics::INDEXING_COUNTER, *};
     use crate::{
         config::ServerConfig,
         discovery::WorkspaceInfo,

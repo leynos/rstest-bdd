@@ -1,0 +1,5 @@
+error: duplicate placeholder attribute
+ --> tests/ui_macros/step_args_duplicate_field_attributes.rs:7:40
+  |
+7 |     #[step_args(placeholder = "first", placeholder = "second")]
+  |                                        ^^^^^^^^^^^^^^^^^^^^^^

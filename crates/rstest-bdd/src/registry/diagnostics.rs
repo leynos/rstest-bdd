@@ -15,6 +15,7 @@ use super::{
     USED_STEPS,
     all_steps,
     bypassed::BypassedScenario,
+    library_for_step,
     resolve_step,
     step_by_key,
 };
@@ -36,6 +37,8 @@ pub(super) struct BypassedStepRecord {
     pub(super) scenario_line: u32,
     /// Tags attached to the scenario.
     pub(super) tags: Vec<String>,
+    /// Closed library identities selected by the bypassed scenario.
+    pub(super) libraries: Vec<&'static str>,
     /// Optional reason recorded for the bypass.
     pub(super) reason: Option<String>,
 }
@@ -68,16 +71,33 @@ where
     I: IntoIterator<Item = (StepKeyword, &'a str)>,
 {
     for (keyword, text) in steps {
-        if let Some(step) = resolve_step(keyword, text.into()) {
-            let record = BypassedStepRecord {
-                key: (step.keyword, step.pattern),
-                feature_path: scenario.feature_path.to_owned(),
-                scenario_name: scenario.scenario_name.to_owned(),
-                scenario_line: scenario.scenario_line,
-                tags: scenario.tags.to_owned(),
-                reason: scenario.reason.map(str::to_owned),
-            };
-            mark_bypassed(record);
+        match resolve_step(scenario.scope, keyword, text.into()) {
+            Ok(Some(step)) => {
+                let record = BypassedStepRecord {
+                    key: (library_for_step(step), step.keyword, step.pattern.as_str()),
+                    feature_path: scenario.feature_path.to_owned(),
+                    scenario_name: scenario.scenario_name.to_owned(),
+                    scenario_line: scenario.scenario_line,
+                    tags: scenario.tags.to_owned(),
+                    libraries: scenario
+                        .scope
+                        .libraries()
+                        .iter()
+                        .map(|library| library.as_str())
+                        .collect(),
+                    reason: scenario.reason.map(str::to_owned),
+                };
+                mark_bypassed(record);
+            }
+            Ok(None) => {}
+            Err(error) => tracing::warn!(
+                operation = "record-bypassed-step",
+                keyword = keyword.as_str(),
+                failure_category = "ambiguous-step",
+                selected_library_count = scenario.scope.libraries().len(),
+                candidate_count = error.candidates.len(),
+                "could not resolve bypassed step in scenario scope"
+            ),
         }
     }
 }
@@ -85,6 +105,8 @@ where
 /// Serializable registry step entry.
 #[derive(Serialize)]
 struct DumpedStep {
+    /// Stable library identity that owns the step.
+    library: &'static str,
     /// Step keyword.
     keyword: &'static str,
     /// Step pattern.
@@ -118,11 +140,15 @@ struct DumpedScenario {
     line: u32,
     /// Scenario tags.
     tags: Vec<String>,
+    /// Closed library identities selected by the scenario.
+    libraries: Vec<&'static str>,
 }
 
 /// Serializable bypassed-step entry.
 #[derive(Serialize)]
 struct DumpedBypassedStep {
+    /// Stable library identity that owns the bypassed step.
+    library: &'static str,
     /// Step keyword.
     keyword: &'static str,
     /// Step pattern.
@@ -139,6 +165,8 @@ struct DumpedBypassedStep {
     scenario_line: u32,
     /// Scenario tags.
     tags: Vec<String>,
+    /// Closed library identities selected by the bypassed scenario.
+    libraries: Vec<&'static str>,
     /// Optional bypass reason.
     reason: Option<String>,
 }
@@ -161,19 +189,40 @@ pub(super) fn dump_registry() -> serde_json::Result<String> {
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let bypassed = bypassed_records();
     let bypassed_keys: HashSet<StepKey> = bypassed.iter().map(|entry| entry.key).collect();
-    let steps: Vec<_> = all_steps()
-        .into_iter()
-        .map(|s| DumpedStep {
-            keyword: s.keyword.as_str(),
-            pattern: s.pattern.as_str(),
-            file: s.file,
-            line: s.line,
-            used: used.contains(&(s.keyword, s.pattern)),
-            bypassed: bypassed_keys.contains(&(s.keyword, s.pattern)),
-        })
-        .collect();
+    let steps = dump_steps(&used, &bypassed_keys);
+    let scenarios = dump_scenarios();
+    let bypassed_steps = dump_bypassed_steps(bypassed);
 
-    let scenarios = reporting::snapshot()
+    serde_json::to_string(&RegistryDump {
+        steps,
+        scenarios,
+        bypassed_steps,
+    })
+}
+
+/// Transform registered definitions into their diagnostics representation.
+fn dump_steps(used: &HashSet<StepKey>, bypassed_keys: &HashSet<StepKey>) -> Vec<DumpedStep> {
+    all_steps()
+        .into_iter()
+        .map(|step| {
+            let library = library_for_step(step);
+            let key = (library, step.keyword, step.pattern.as_str());
+            DumpedStep {
+                library: library.as_str(),
+                keyword: step.keyword.as_str(),
+                pattern: step.pattern.as_str(),
+                file: step.file,
+                line: step.line,
+                used: used.contains(&key),
+                bypassed: bypassed_keys.contains(&key),
+            }
+        })
+        .collect()
+}
+
+/// Transform the reporting snapshot into serialized scenario metadata.
+fn dump_scenarios() -> Vec<DumpedScenario> {
+    reporting::snapshot()
         .into_iter()
         .map(|record| {
             let (status, message, allow_skipped, forced_failure) = match record.status() {
@@ -194,14 +243,24 @@ pub(super) fn dump_registry() -> serde_json::Result<String> {
                 forced_failure,
                 line: record.line(),
                 tags: record.tags().to_vec(),
+                libraries: record
+                    .scope()
+                    .libraries()
+                    .iter()
+                    .map(|library| library.as_str())
+                    .collect(),
             }
         })
-        .collect();
+        .collect()
+}
 
-    let bypassed_steps = bypassed
+/// Transform bypass records while omitting steps that are no longer registered.
+fn dump_bypassed_steps(bypassed: Vec<BypassedStepRecord>) -> Vec<DumpedBypassedStep> {
+    bypassed
         .into_iter()
         .filter_map(|entry| {
             step_by_key(entry.key).map(|step| DumpedBypassedStep {
+                library: entry.key.0.as_str(),
                 keyword: step.keyword.as_str(),
                 pattern: step.pattern.as_str(),
                 file: step.file,
@@ -210,14 +269,9 @@ pub(super) fn dump_registry() -> serde_json::Result<String> {
                 scenario_name: entry.scenario_name,
                 scenario_line: entry.scenario_line,
                 tags: entry.tags,
+                libraries: entry.libraries,
                 reason: entry.reason,
             })
         })
-        .collect();
-
-    serde_json::to_string(&RegistryDump {
-        steps,
-        scenarios,
-        bypassed_steps,
-    })
+        .collect()
 }

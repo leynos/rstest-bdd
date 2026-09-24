@@ -2,7 +2,7 @@
 
 use std::fmt;
 
-use rstest_bdd::{StepContext, StepError, StepExecution, StepKeyword};
+use rstest_bdd::{StepContext, StepError, StepExecution, StepKeyword, StepLookupError};
 use rstest_bdd_macros::{given, then, when};
 
 /// Simulate a step function that returns an execution failure.
@@ -211,6 +211,17 @@ pub struct StepInvocation<'a> {
     pub datatable: Option<&'a [&'a [&'a str]]>,
 }
 
+/// Failure returned while resolving or executing a test step invocation.
+#[derive(Debug, thiserror::Error)]
+pub enum StepInvocationError {
+    /// The registry could not select one unambiguous step definition.
+    #[error(transparent)]
+    Lookup(#[from] StepLookupError),
+    /// The selected step implementation failed during execution.
+    #[error(transparent)]
+    Step(#[from] StepError),
+}
+
 impl<'a> StepInvocation<'a> {
     /// Construct a new invocation description for the provided keyword.
     #[must_use]
@@ -242,20 +253,22 @@ impl<'a> StepInvocation<'a> {
 /// Invoke a registered step and capture its result.
 ///
 /// # Errors
-/// Returns any [`StepError`] surfaced by the registered step implementation.
+/// Returns lookup ambiguity or any [`StepError`] surfaced by the registered
+/// step implementation.
 ///
 /// # Panics
 /// Panics if the requested step has not been registered in the global registry.
-pub fn invoke_step(invocation: &StepInvocation<'_>) -> Result<StepExecution, StepError> {
+pub fn invoke_step(invocation: &StepInvocation<'_>) -> Result<StepExecution, StepInvocationError> {
     let mut ctx = StepContext::default();
-    let Some(step_fn) = rstest_bdd::lookup_step(invocation.keyword, invocation.step_pattern.into())
+    let Some(step_fn) =
+        rstest_bdd::lookup_step(invocation.keyword, invocation.step_pattern.into())?
     else {
         panic!("step '{}' not found in registry", invocation.step_pattern);
     };
-    step_fn(
+    Ok(step_fn(
         &mut ctx,
         invocation.step_text,
         invocation.docstring,
         invocation.datatable,
-    )
+    )?)
 }

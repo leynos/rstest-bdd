@@ -45,6 +45,8 @@ pub(crate) struct ScenarioMetadata<'a> {
     pub(crate) harness: Option<&'a syn::Path>,
     /// Base harness API path selected once at the expansion boundary.
     pub(crate) harness_api_path: Option<TokenStream2>,
+    /// Closed step-library scope for this scenario.
+    pub(crate) scope: TokenStream2,
 }
 
 impl<'a> ScenarioMetadata<'a> {
