@@ -285,6 +285,24 @@ shared action pins `cs-coverage` through its own manifest and rejects a
 non-empty value for that input; `archive-checksum` replaces it. That pin is
 what fixed the parse break, and a repin without the input change is a red lane.
 
+The token is in no `env` on the publisher. A
+`Check CodeScene token availability` step (id `codescene_token`) runs exactly
+`echo "available=${{ secrets.CS_ACCESS_TOKEN != '' }}" >> "$GITHUB_OUTPUT"`,
+with no `if:` and no `env`. GitHub evaluates the expression before the shell
+starts, so the command writes a literal `true` or `false` and the token enters
+no process. The upload's condition reads
+`steps.codescene_token.outputs.available == 'true'` beside the main-ref guard,
+and the upload takes `access-token: ${{ secrets.CS_ACCESS_TOKEN }}` directly.
+The token used to sit in the `coverage-upload` job's `env`, which exported it
+into every step of the instrumented build, and even a step-level binding would
+reach every nested step of the composite upload action.
+`tests/workflow_contracts/codescene_upload_test.py` holds the shape, and states
+the token's places exactly, so deleting it cannot pass for keeping it out of an
+`env`. A merge made by the Dependabot automerge workflow's `GITHUB_TOKEN` fires
+no push event, so it publishes nothing until a dispatch or the next push to
+`main`; that is a known exception (see
+[shared-actions issue 518](https://github.com/leynos/shared-actions/issues/518)).
+
 Every lane ratchets, Windows included. This reverses a platform exception
 recorded here briefly: the two Windows lanes did not ratchet, on the reasoning
 that comparing them against a baseline the Linux lane wrote would compare two

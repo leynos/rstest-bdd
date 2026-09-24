@@ -34,9 +34,9 @@ if typ.TYPE_CHECKING:
     import collections.abc as cabc
 
 #: Job-scope variables the publisher may declare beyond the gate's: the
-#: toolchain the gate takes from its matrix, and the credential only the
-#: upload job holds.
-PUBLISHER_ONLY_ENV = frozenset({"RUST_TOOLCHAIN", "CS_ACCESS_TOKEN"})
+#: toolchain the gate takes from its matrix. The CodeScene credential is not
+#: one of them; it is in no ``env`` at all (see ``codescene_upload_test``).
+PUBLISHER_ONLY_ENV = frozenset({"RUST_TOOLCHAIN"})
 #: Setup every publisher job must repeat. Named, so deleting a step is a
 #: failure rather than one fewer comparison.
 REQUIRED_SETUP = frozenset({
