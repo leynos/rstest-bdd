@@ -31,6 +31,13 @@ updates:
       - "/crates/rstest-bdd/tests/ui_lints"
       - "/tests/fixtures/published-gpui-0-2-2"
     groups:
+      # The rstest-bdd crates release in lockstep and one bumped alone does not
+      # build. Cargo counts a 0.x minor as a major, which the catch-all leaves
+      # ungrouped, so this group keeps the family in one pull request. It must
+      # precede the catch-all: Dependabot uses the first group that matches.
+      rstest-bdd:
+        patterns:
+          - "rstest-bdd*"
       minor-and-patch:
         patterns:
           - "*"

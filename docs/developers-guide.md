@@ -1645,9 +1645,12 @@ packages in `crates/cargo-bdd/tests/fixtures/minimal`,
 and `crates/rstest-bdd/tests/ui_lints`. It runs daily, and its
 `minor-and-patch` group matches every dependency but only minor and patch
 updates, so those arrive across every scanned directory in one grouped pull
-request. Major updates are deliberately left ungrouped, following the estate
-Dependabot policy, so each can be reviewed and built on its own. When a major
-lands, check that every scanned directory moved with it.
+request. A narrow `rstest-bdd` group (`rstest-bdd*`) is listed before it, so
+the published crates the fixtures depend on move together even across a 0.x
+minor, which Cargo counts as a major. Other major updates are deliberately left
+ungrouped, following the estate Dependabot policy, so each can be reviewed and
+built on its own. When a major lands, check that every scanned directory moved
+with it.
 
 Each standalone fixture manifest must declare the workspace MSRV with
 `rust-version = "1.88"`. Keep these declarations synchronized with
