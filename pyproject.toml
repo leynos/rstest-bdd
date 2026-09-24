@@ -21,9 +21,9 @@ python-tools = [
     "pylint",
     "pytest",
     "pyyaml",
-    "ruff==0.16.6",
+    "ruff==0.16.8",
     "stilyagi",
-    "ty==0.0.79",
+    "ty==0.0.81",
 ]
 
 [tool.ruff]

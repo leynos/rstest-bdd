@@ -22,6 +22,7 @@ from workflow_queries import (
 from workflow_queries import iter_steps as _iter_steps
 from workflow_queries import owned_paths as _owned_paths
 from workflow_queries import shared_cache_owning_steps as _shared_cache_owning_steps
+from workflow_support import SCCACHE_DIRECTORY
 from workflow_support import job as _job
 from workflow_support import step_index as _step_index
 from workflow_support import steps as _steps
@@ -34,6 +35,16 @@ GITHUB_SCRIPT_USES_RE = re.compile(r"^actions/github-script@[0-9a-f]{40}$")
 SCCACHE_LOCAL_VARIABLE = "vars.RSTEST_BDD_SCCACHE_LOCAL"
 # One job executes the workspace suite, so one job owns the caches.
 CACHING_JOBS = (("ci.yml", "build-test"),)
+#: The one path two owners may share. Both compiler-cache families overlay
+#: the sccache directory so one server reads both, and
+#: `publish_dry_run_cache_test.py` holds each family's writer to restoring
+#: only its own, so neither archive carries the other (rstest-bdd#803).
+SHARED_PATH_EXCEPTION = (
+    frozenset({"compiler cache", "publish dry-run compiler cache"}),
+    SCCACHE_DIRECTORY,
+)
+#: The compiler-cache restore that serves the local-directory fallback.
+LOCAL_MODE_RESTORE = "Restore compiler cache (Linux)"
 TRUNK_SAVE_GUARD_FRAGMENTS = (
     "github.event_name == 'push'",
     "github.ref == 'refs/heads/main'",
@@ -105,8 +116,19 @@ def _paths_collide(left: str, right: str) -> bool:
     return first == second or first in second.parents or second in first.parents
 
 
+def _is_shared_path_exception(owners: frozenset[str], left: str, right: str) -> bool:
+    """Report whether a collision is the recorded compiler-cache overlay."""
+    exception_owners, exception_path = SHARED_PATH_EXCEPTION
+    return owners == exception_owners and left == right == exception_path
+
+
 def test_every_cached_path_has_exactly_one_owner() -> None:
-    """Two cache steps must never contend for the same directory."""
+    """Two cache steps must never contend for the same directory.
+
+    The two compiler-cache families are the one recorded exception, and only
+    on the exact directory they share; any other path either of them claimed
+    would still be a contention.
+    """
     owners = _owned_paths("ci.yml", "build-test")
     assert owners, "ci.yml:build-test must declare cache owners"
     contentions = [
@@ -116,6 +138,9 @@ def test_every_cached_path_has_exactly_one_owner() -> None:
         )
         for left_path, right_path in itertools.product(sorted(left), sorted(right))
         if _paths_collide(left_path, right_path)
+        and not _is_shared_path_exception(
+            frozenset({left_name, right_name}), left_path, right_path
+        )
     ]
     assert not contentions, f"each cached path needs one owner; {contentions}"
 
@@ -175,6 +200,7 @@ def test_build_matrix_reports_cache_and_compiler_cache_state() -> None:
         "CI_TOOLS_CACHE_KEY",
         "WHITAKER_CACHE_KEY",
         "SCCACHE_CACHE_KEY",
+        "SCCACHE_PUBLISH_CACHE_KEY",
     ):
         assert key_name in observation_script, (
             f"the cache observation summary must render {key_name}"
@@ -318,7 +344,7 @@ def test_compiler_cache_backend_has_credentials_and_one_fallback() -> None:
             f"{workflow_name} must re-export the credentials before the sccache "
             "server starts, because --zero-stats starts it"
         )
-        sccache_cache = job_steps[_step_index(job_steps, "Restore compiler cache")]
+        sccache_cache = job_steps[_step_index(job_steps, LOCAL_MODE_RESTORE)]
         assert f"{SCCACHE_LOCAL_VARIABLE} == 'true'" in str(sccache_cache.get("if")), (
             f"{workflow_name} must own the compiler directory only on the lanes "
             "that use it, so the backend and the archive never both claim it"
