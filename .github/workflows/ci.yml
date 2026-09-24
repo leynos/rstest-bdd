@@ -18,6 +18,15 @@ concurrency:
 
 jobs:
   build-test:
+    # The check name must not interpolate the runner label. GitHub derives a
+    # matrix job's name from its matrix values, `os` first, so a derived name
+    # carries whichever label the event selected; a fork pull request would
+    # report a context no branch-protection rule can require, and the derived
+    # name is long enough that GitHub truncates it in the ruleset as well.
+    # `platform` and `feature-set` are stable words that say what the lane is
+    # for, and `job_name_shape_test` refuses a name reaching for `matrix.os`
+    # or a runner label.
+    name: build-test (${{ matrix.platform }}, ${{ matrix.feature-set }})
     runs-on: ${{ matrix.os }}
     # Ubicloud runners register as just-in-time self-hosted runners, so the
     # six-hour hosted limit does not apply. Bound the job explicitly.
@@ -58,7 +67,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubicloud-standard-2
+          # A pull request from a fork cannot obtain an Ubicloud runner,
+          # so the Linux lane falls back to GitHub-hosted compute for
+          # forks only. Keep the continuation at this indent: a deeper
+          # one keeps its line break and puts a newline inside the
+          # expression, which GitHub then evaluates anyway.
+          - os: >-
+              ${{ github.event.pull_request.head.repo.fork
+              && 'ubuntu-latest' || 'ubicloud-standard-2' }}
+            platform: linux
+            feature-set: 'default features'
             rust-toolchain: stable
             coverage: true
             features: ''
@@ -66,6 +84,8 @@ jobs:
             tools: true
             use-nextest: true
           - os: windows-latest
+            platform: windows
+            feature-set: 'default features'
             rust-toolchain: stable-x86_64-pc-windows-msvc
             coverage: true
             features: ''
@@ -75,6 +95,8 @@ jobs:
             # rust-lang/cargo#15744 and nextest-rs/nextest#2463.
             use-nextest: false
           - os: windows-latest
+            platform: windows
+            feature-set: strict-compile-time-validation
             rust-toolchain: stable-x86_64-pc-windows-msvc
             coverage: true
             features: strict-compile-time-validation

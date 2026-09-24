@@ -21,9 +21,9 @@ from codescene_coverage_support import PR_WORKFLOW, PUBLISHER, PUBLISHER_COVERAG
 from coverage_lane_pairs import (
     GATE_JOB,
     PAIRS,
-    RUNNER_PLATFORMS,
     gate_row,
     job_env,
+    platform_of,
     resolve,
 )
 from guard_conditions import admits
@@ -67,7 +67,7 @@ FAMILY_WRITERS = {
 
 def _test_id(value: object) -> str:
     """Name a matrix row by its runner label, and anything else as itself."""
-    return value["os"] if isinstance(value, dict) else str(value)
+    return platform_of(value["os"]) if isinstance(value, dict) else str(value)
 
 
 def _scopes(workflow_name: str, job_name: str, row: cabc.Mapping[str, str]) -> dict:
@@ -124,7 +124,7 @@ def _shared_steps() -> list[tuple[str, str, dict[str, str]]]:
         for job_name, row in _publisher_jobs()
         for step in steps(job(PUBLISHER, job_name))
         if step.get("name") != PUBLISHER_COVERAGE_STEP
-        and _counterpart(str(step.get("name")), RUNNER_PLATFORMS[row["os"]])
+        and _counterpart(str(step.get("name")), platform_of(row["os"]))
     ]
 
 
@@ -177,7 +177,7 @@ def test_each_repeated_step_matches_the_gate(
     resolved before comparison. Names and guards are excluded: the gate
     chooses among matrix legs and this job has one platform.
     """
-    platform = RUNNER_PLATFORMS[row["os"]]
+    platform = platform_of(row["os"])
     publisher_step = next(
         step
         for step in steps(job(PUBLISHER, job_name))

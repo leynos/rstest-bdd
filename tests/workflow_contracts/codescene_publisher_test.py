@@ -18,7 +18,7 @@ from codescene_coverage_support import (
     PUBLISHER_JOB,
     coverage_step,
 )
-from coverage_lane_pairs import RUNNER_PLATFORMS
+from coverage_lane_pairs import RUNNER_PLATFORMS, labels_of
 from workflow_queries import iter_steps, workflow_names
 from workflow_support import ROOT, workflow
 
@@ -191,9 +191,10 @@ def test_each_publisher_job_pins_the_toolchain_its_gate_leg_uses() -> None:
     include = matrix.get("include")
     assert isinstance(include, list), "the matrix must declare include rows"
     by_label = {
-        str(row["os"]): str(row["rust-toolchain"])
+        label: str(row["rust-toolchain"])
         for row in include
         if isinstance(row, dict)
+        for label in labels_of(str(row["os"]))
     }
     jobs = workflow(PUBLISHER).get("jobs")
     assert isinstance(jobs, dict), f"{PUBLISHER} must declare a jobs mapping"

@@ -29,10 +29,10 @@ import pytest
 from codescene_coverage_support import PR_WORKFLOW, PUBLISHER
 from coverage_lane_pairs import (
     GATE_JOB,
-    RUNNER_PLATFORMS,
     job_env,
     leg_context,
     matrix_rows,
+    platform_of,
 )
 from guard_conditions import admits
 from workflow_queries import BASH, StepRef, iter_steps
@@ -155,7 +155,7 @@ def _admitted_restore_keys(
 
 def _row_name(row: cabc.Mapping[str, str]) -> str:
     """Name a gate row by its platform and feature selection."""
-    return f"{RUNNER_PLATFORMS[row['os']]}:{row.get('features') or 'default'}"
+    return f"{platform_of(row['os'])}:{row.get('features') or 'default'}"
 
 
 @pytest.mark.parametrize(
@@ -227,7 +227,7 @@ def test_every_writer_run_restores_only_the_family_it_writes() -> None:
 
 @pytest.mark.parametrize(
     "row",
-    [row for row in matrix_rows() if RUNNER_PLATFORMS[row["os"]] == "Windows"],
+    [row for row in matrix_rows() if platform_of(row["os"]) == "Windows"],
     ids=_row_name,
 )
 def test_each_windows_pull_request_leg_restores_both_families(
@@ -245,7 +245,7 @@ def test_each_windows_pull_request_leg_restores_both_families(
 
 @pytest.mark.parametrize(
     "row",
-    [row for row in matrix_rows() if RUNNER_PLATFORMS[row["os"]] == "Linux"],
+    [row for row in matrix_rows() if platform_of(row["os"]) == "Linux"],
     ids=_row_name,
 )
 def test_no_linux_leg_restores_the_publish_family(row: dict[str, str]) -> None:

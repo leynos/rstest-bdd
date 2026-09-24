@@ -24,6 +24,7 @@ from codescene_coverage_support import (
     coverage_step,
 )
 from guard_conditions import admits
+from runner_label_support import runner_label_expression
 from workflow_queries import iter_steps
 from workflow_support import MissingKeyError, WorkflowShapeError, job
 
@@ -33,11 +34,12 @@ if typ.TYPE_CHECKING:
 #: The merge-gate job that runs every coverage lane.
 GATE_JOB: typ.Final[str] = "build-test"
 #: Runner labels this repository deploys on, mapped to the `runner.os` value
-#: GitHub gives them. Named rather than inferred from the label text: a label
-#: is a shape and a provider, and only a table says which operating system it
-#: boots.
+#: GitHub gives them; both arms of the Linux lane's fork fallback are here.
+#: Named rather than inferred from the label text: a label is a shape and a
+#: provider, and only a table says which operating system it boots.
 RUNNER_PLATFORMS: typ.Final[dict[str, str]] = {
     "ubicloud-standard-2": "Linux",
+    "ubuntu-latest": "Linux",
     "windows-latest": "Windows",
 }
 #: Inputs that decide where a report goes rather than what it measures. The
@@ -82,6 +84,76 @@ class AmbiguousLaneError(WorkflowShapeError):
             f"{step!r} must run for exactly one matrix row on a pull request; "
             f"its guard admits {count}"
         )
+
+
+class MixedPlatformLabelError(WorkflowShapeError):
+    """A runner declaration can resolve to labels on different platforms.
+
+    Parameters
+    ----------
+    declared : str
+        The declaration.
+    platforms : list[str]
+        The platforms its labels boot.
+    """
+
+    def __init__(self, declared: str, platforms: list[str]) -> None:
+        super().__init__(
+            f"{declared!r} resolves to runners on {platforms}; a lane must "
+            "boot one platform whichever label the event selects"
+        )
+
+
+def labels_of(declared: str) -> frozenset[str]:
+    """Return every label a runner declaration can resolve to.
+
+    The Linux lane's label is a two-armed expression, so a pull request from
+    a fork reaches a GitHub-hosted runner and every other event reaches
+    Ubicloud. Both arms are labels the lane can run on.
+
+    Parameters
+    ----------
+    declared : str
+        A literal label or a two-armed runner expression.
+
+    Returns
+    -------
+    frozenset[str]
+        The label itself, or both arms of the expression.
+
+    Examples
+    --------
+    >>> sorted(labels_of("windows-latest"))
+    ['windows-latest']
+    """
+    if not declared.lstrip().startswith("${{"):
+        return frozenset({declared})
+    label = runner_label_expression(declared)
+    return frozenset({label.when_true, label.when_false})
+
+
+def platform_of(declared: str) -> str:
+    """Return the `runner.os` a declaration boots, whichever arm is chosen.
+
+    Parameters
+    ----------
+    declared : str
+        A literal label or a two-armed runner expression.
+
+    Returns
+    -------
+    str
+        The platform every label it can resolve to boots.
+
+    Raises
+    ------
+    MixedPlatformLabelError
+        If its labels boot different platforms.
+    """
+    platforms = sorted({RUNNER_PLATFORMS[label] for label in labels_of(declared)})
+    if len(platforms) != 1:
+        raise MixedPlatformLabelError(declared, platforms)
+    return platforms[0]
 
 
 def render(value: object) -> str:
@@ -167,7 +239,7 @@ def leg_context(row: cabc.Mapping[str, str], event_name: str) -> dict[str, str]:
     return {
         "github.event_name": event_name,
         "github.ref": "refs/heads/main",
-        "runner.os": RUNNER_PLATFORMS[row["os"]],
+        "runner.os": platform_of(row["os"]),
         **{f"matrix.{key}": value for key, value in row.items()},
     }
 
