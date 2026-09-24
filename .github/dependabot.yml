@@ -6,13 +6,16 @@ updates:
       github-actions:
         patterns:
           - '*'
+        update-types:
+          - 'minor'
+          - 'patch'
     directory: "/"
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
       - "github-actions"
     schedule:
-      interval: "weekly"
+      interval: "daily"
     cooldown:
       default-days: 7
 
@@ -28,8 +31,12 @@ updates:
       - "/crates/rstest-bdd/tests/ui_lints"
       - "/tests/fixtures/published-gpui-0-2-2"
     groups:
-      cargo-by-dependency:
-        group-by: dependency-name
+      minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
@@ -43,6 +50,13 @@ updates:
   # Enable version updates for the uv-managed Python tooling environment
   - package-ecosystem: "uv"
     directory: "/"
+    groups:
+      minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
     open-pull-requests-limit: 5
     labels:
       - "dependencies"
@@ -55,8 +69,15 @@ updates:
       semver-major-days: 14
   - package-ecosystem: rust-toolchain
     directory: /
+    groups:
+      minor-and-patch:
+        patterns:
+          - '*'
+        update-types:
+          - minor
+          - patch
     labels:
       - dependencies
       - rust-toolchain
     schedule:
-      interval: weekly
+      interval: daily
