@@ -1315,6 +1315,85 @@ between them. Raise that before spending the tolerance.
     between them and `bbde0f2e` touches one document — `git diff --stat
     bbde0f2e..HEAD` is a single file — so the six-gate set at `bbde0f2e`
     remains the code evidence and this pair is the document evidence.
+  - [x] (2026-09-26) **The branch was replayed onto the current `origin/main`
+    with zero conflicts, and the replay is provably patch-identical.** The
+    target had moved from `577a4617` to `f6244601` (16 commits, 48 files) since
+    the boundary was last recorded, so the branch's 101 commits were replanted
+    onto the new tip. `range-diff` classifies **101 of 101 commits `=`** —
+    no commit's patch changed, none was dropped, none became empty. The replay
+    command kept the accepted boundary explicit
+    (`--onto $TARGET $OLD_BASE $BRANCH`), so no merge-base inference or
+    fork-point guessing was involved, and `--no-update-refs` meant the rewrite
+    never moved any other ref. **`OLD_BASE` (`577a4617`) was re-verified as
+    `git merge-base $OLD_HEAD $TARGET`** *before* the replay, not assumed: the
+    exclusive boundary and the topology's merge-base coincide, which is the
+    property that makes the 101-commit range genuinely branch-owned rather
+    than inherited parent work.
+
+    The weave semantic audit was then run against the result, because a clean
+    driver exit is evidence about the decision and not about the semantics —
+    and here it had to run even though **weave did not participate**: the host
+    is at the reconciled 0.5.1 baseline, but no tracked `.gitattributes`, no
+    `.git/info/attributes`, and no global attributes rule selects the driver,
+    so `git check-attr merge` reports `unspecified` on every path and the
+    repository has not opted in. The built-in merge machinery was used
+    deliberately, with `zdiff3` preserved. All three checks pass:
+
+    1. **46 of 46 target-only paths are byte-identical** at `NEW_HEAD` to
+       `TARGET`. A driver had no branch-side change to reconcile in any of
+       them, so any difference would have been corruption. This check also
+       settles the lock-file question: **every lock file the target touched —
+       `Cargo.lock`, `uv.lock`, the three fixture `Cargo.lock` files,
+       `pyproject.toml` — is in the target-only set and therefore byte-identical
+       to `origin/main` by construction**, which is exactly the "use the changes
+       on the main branch only" rule. The branch touched no lock file at all
+       (`OLD_BASE..OLD_HEAD` over every `Cargo.lock` is empty).
+    2. **Every deletion is explained.** The branch-touched set separates into
+       71 branch-only paths and just 2 shared paths
+       (`docs/developers-guide.md`, `docs/testing-strategy.md`). All 84 deleted
+       lines live in branch-only files, and for each of them the
+       `TARGET..NEW_HEAD` deletion count equals the `OLD_BASE..OLD_HEAD`
+       deletion count exactly — zero mismatches across all 73 paths. A
+       deletion that matched no branch intent would have shown as a mismatch.
+    3. **No newly repeated blocks.** Scanned at block sizes 4, 6, 8, and 12: the
+       set of over-repeated blocks at `NEW_HEAD` is *identical* to the set at
+       the pre-rebase `OLD_HEAD` at every size (symmetric difference **0**).
+       The 108 hits at four lines are Rust idiom — closing braces, `#[rstest]`
+       case lists — and the 3 at eight lines are all `/// # Examples` doc
+       boilerplate; at twelve lines there are none. Because all 71 branch-only
+       blobs are byte-identical across the replay, this was never in doubt for
+       those paths; the check earns its keep on the 2 shared files, both
+       confirmed as clean merges rather than reconstitutions.
+
+    **The two shared files were verified structurally, not by recollection.**
+    `docs/developers-guide.md` is an exact byte-*prefix* of `TARGET` followed by
+    exactly 135 appended lines — the branch's insert-only contribution, with
+    main's 326 new lines and 53 modified lines fully intact. `docs/testing-strategy.md`
+    is *not* append-only, and the first reading of it looked like section
+    reordering; it is not. The branch inserted two new sections (`## The
+    cancellation-harness pattern`, `## Negative controls come from
+    cargo-mutants, not fault injection`) *before* `## Assertion posture`, which
+    legitimately shifts that heading from line 223 to 288, and main's own
+    `### Workflow-contract shell harness` is present at line 150 in main's
+    section. The arithmetic is exact at 297 = 261 + 232 − 196. **This is the
+    second time in this plan that a heading-grep returned `0` for content that
+    was present** — my patterns omitted the backticks that the real headings
+    carry (``## The parser-neutral runner (`rstest_bdd::runner`)``,
+    ``### `#[serial]` and `temp-env` in runner tests``), so the "missing"
+    headings were a measurement error, not a merge defect. The pattern to
+    distrust is a zero from a hand-written pattern, never a full heading list
+    read from the file.
+
+    Finally, `sem diff --from $TARGET --to HEAD` was run over the range as a
+    second, independent view of what the replay actually did. Its 852
+    entity-level changes are accounted for by branch intent, including the two
+    that render as delete-plus-add pairs: `src/execution/tests.rs` →
+    `src/execution/tests/mod.rs` is `git`'s **`R097`** (a 97%-similarity
+    rename, splitting the module and adding `tests/unwind.rs`), and
+    `context/mod.rs`'s `harness` module extraction is the same
+    added/removed pair. Both signatures are identical in the branch's own
+    patch and in the rebased result, so the replay added no structural change
+    of its own.
 
 ## Surprises & discoveries
 
