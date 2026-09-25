@@ -34,9 +34,20 @@ that were run before the empty result was believed, since "found nothing" and
 "did not run" are indistinguishable from the summary line alone. The numbered
 series is 19, 14, 12, 13, 11, 24, 0. **The review cycle is closed**: round 7 is
 its last, D44's own successor note says no further review is owed, and the
-commit that landed it (`67df72a9`) is the revision the plan's own two Markdown
-gates were re-run at with a clean tree and a self-certifying trailer — see the
-Progress entry recording it.
+commit that landed it (`6690c423`, renumbered from `67df72a9` by the rebase) is
+the revision the plan's own two Markdown gates were re-run at with a clean tree
+and a self-certifying trailer — see the Progress entry recording it.
+
+**The branch has since been rebased onto the current `origin/main`**
+(`f6244601`), replaying all 101 commits with zero conflicts and a
+patch-identical result — `range-diff` classifies 101 of 101 commits `=`. Every
+SHA this plan cited before the replay still resolves through the recovery ref
+`refs/recovery/13-1-1-old-head-20260926T010700`, but none is an ancestor of the
+new head, so the Progress entry for the rebase carries an old-to-new
+translation table. The four code gates and the two Markdown gates were re-run
+after the replay and all six pass; their logs certify `b70ad1bb`, the current
+head. **A rebase invalidates the evidence tied to the pre-rebase head, so the
+re-run is the evidence that counts, not the earlier green.**
 
 **The plan is deliberately not marked `COMPLETE`.** The `Scope` tolerance is
 breached and measured three times: D27 at 58 files / 15,737 net, D31 at 71 /
