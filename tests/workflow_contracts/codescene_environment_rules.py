@@ -73,9 +73,7 @@ def _construct_mapping(loader: _StrictLoader, node: yaml.MappingNode) -> Workflo
     return loader.construct_mapping(node, deep=True)
 
 
-_StrictLoader.add_constructor(
-    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _construct_mapping
-)
+_StrictLoader.add_constructor(_StrictLoader.DEFAULT_MAPPING_TAG, _construct_mapping)
 
 
 def _load(text: str) -> object:
@@ -113,7 +111,10 @@ def read_workflows(directory: Path) -> dict[str, Workflow]:
         for path in sorted(directory.iterdir())
         if path.suffix in {".yml", ".yaml"}
     }
-    workflows = {name: doc for name, doc in found.items() if isinstance(doc, dict)}
+    workflows = typ.cast(
+        "dict[str, Workflow]",
+        {name: doc for name, doc in found.items() if isinstance(doc, dict)},
+    )
     if not workflows:
         message = f"no workflows under {directory}"
         raise ValueError(message)
@@ -132,7 +133,22 @@ def jobs(workflow: Workflow) -> dict[str, Job]:
     declared = workflow.get("jobs")
     if not isinstance(declared, dict):
         return {}
-    return {str(key): job for key, job in declared.items() if isinstance(job, dict)}
+    return typ.cast(
+        "dict[str, Job]",
+        {str(key): job for key, job in declared.items() if isinstance(job, dict)},
+    )
+
+
+def _as_mapping(value: object) -> dict[object, object] | None:
+    """Return a value as a mapping, or None when it is not one.
+
+    Returns
+    -------
+    dict[object, object] | None
+        The value itself when it is a mapping.
+
+    """
+    return typ.cast("dict[object, object]", value) if isinstance(value, dict) else None
 
 
 def environment_name(job: Job) -> str | None:
@@ -174,7 +190,7 @@ def uploads(job: Job) -> bool:
     declared = job.get("steps")
     listed = declared if isinstance(declared, list) else []
     return any(
-        isinstance(step, dict) and UPLOAD_ACTION in str(step.get("uses", ""))
+        UPLOAD_ACTION in str((_as_mapping(step) or {}).get("uses", ""))
         for step in listed
     )
 
@@ -209,7 +225,8 @@ def _push_is_trunk_only(push: object) -> bool:
         True when branch filters name main alone, or only tags are pushed.
 
     """
-    if not isinstance(push, dict):
+    push = _as_mapping(push)
+    if push is None:
         return False
     branches = push.get("branches")
     if branches is None:
