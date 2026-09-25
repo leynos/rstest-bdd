@@ -1381,7 +1381,7 @@ between them. Raise that before spending the tolerance.
     carry (``## The parser-neutral runner (`rstest_bdd::runner`)``,
     ``### `#[serial]` and `temp-env` in runner tests``), so the "missing"
     headings were a measurement error, not a merge defect. The pattern to
-    distrust is a zero from a hand-written pattern, never a full heading list
+    distrust is a zero from a handwritten pattern, never a full heading list
     read from the file.
 
     Finally, `sem diff --from $TARGET --to HEAD` was run over the range as a
@@ -1430,6 +1430,37 @@ between them. Raise that before spending the tolerance.
     `645239f6`, identical to `origin/main`**: the resolved versions already
     matched what was pinned, so the sync rewrote nothing. That is the lock-file
     rule holding under the one condition that could have broken it.
+
+    `make markdownlint` was also run, since `make lint` owns no Markdown step
+    and the entry above is a Markdown edit. It passes at `48dc69ea` — `Summary:
+    0 error(s)` over 122 files, with both of its prerequisites (the spelling
+    gate and `markdownlint-cli2`) actually running. It did **not** pass on the
+    first attempt, and the failure was real and mine: **the phrase-level pass
+    rejected `hand-written` in a sentence this entry had just added.** That is
+    the same two-pass trap EP-M3 recorded, firing again on new text — plain
+    `typos` accepts `hand-written`, and only the second pass rejects it. The
+    fix is `handwritten`. The two surviving `hand-written` instances in this
+    plan are deliberately backticked, because they quote the rejected spelling
+    to record the trap, and the gate exempts inline code.
+
+    **One discovery is worth recording because it is a false positive waiting
+    to happen.** `typos.toml` is a *generated* file: the spelling gate's
+    `typos-config-builder` refreshes it from a live shared dictionary on every
+    run, and it rewrote the committed file with **+13 allowlist patterns that
+    this branch never authored**. It was reverted, and the reasoning is
+    recorded here so a successor does not re-add it by reflex. The refresh is
+    idempotent, it is pure tool-side drift against an upstream dictionary, and
+    — decisively — `make spelling` **passes with `EXIT=0` on the reverted,
+    `origin/main`-identical file**, so nothing requires it. `typos.toml` is
+    tracked but is not in either the branch-only or the target-only path set,
+    and it was untouched by all 101 of this branch's commits and all 16 of
+    main's; committing the refresh would have made this branch the sole author
+    of a 13-line diff to a file it has no business owning. No CI step asserts a
+    clean tree after a gate, which is what allows the refresh to be harmless
+    there — but it must not be committed. **The general shape: a gate that
+    regenerates a tracked input leaves that input dirty, and a dirty tracked
+    file is a change to review, never a change to accept.** The check is one
+    command — revert it and see whether the gate still passes.
 
 ## Surprises & discoveries
 
