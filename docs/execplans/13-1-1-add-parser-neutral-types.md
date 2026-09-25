@@ -1395,6 +1395,42 @@ between them. Raise that before spending the tolerance.
     patch and in the rebased result, so the replay added no structural change
     of its own.
 
+    **The replay renumbered the commits, so every SHA cited earlier in this
+    plan is now a historical reference rather than a live one.** They all still
+    resolve — none is dangling, and the recovery ref
+    `refs/recovery/13-1-1-old-head-20260926T010700` keeps them reachable — but
+    none is an ancestor of the new head. Rather than rewrite dozens of
+    citations, the translation is recorded once, taken from `range-diff`'s
+    patch-identity pairing:
+
+    | cited as | now | what it certified |
+    | --- | --- | --- |
+    | `3a942230` | `f645989b` | EP-M1 close, gate-clean |
+    | `035117e6` | `aa05c4e7` | EP-M1 second gate closure |
+    | `9a232fdd` | `f1c75d98` | EP-M3 close, all seven gates green |
+    | `bbde0f2e` | `6aea66b6` | the full local gate set, and D43's Scope re-measurement |
+    | `7e81eef7` | `9531ab15` | D43, recorded |
+    | `c69b8574` | `872db6ce` | D39 re-checked at the tip |
+    | `67df72a9` | `6690c423` | the two Markdown gates, clean tree |
+    | `ceb89de1` | `25c560a8` | the pre-rebase branch tip |
+
+    The four gate logs this entry records are the exception to that
+    translation: they certify `fdde5a2d`, which is the *current* head — the
+    replayed tip plus this entry's own commit. **`make check-fmt`, `make test`,
+    `make typecheck`, and `make lint` all exited 0**, each with `rev_start` =
+    `rev_end`, so each certifies the revision it names. The totals are 2,058
+    nextest tests passed and 719 on the `--no-default-features` leg (7 skipped
+    on each), 247 pytest, and 16 clean doctest blocks. A scan of the `test` log
+    for `TRY n FAIL`, `FAIL [`, `panicked at`, `error[E`, and `test result:
+    FAILED` returns **zero** hits, and the `lint` log reaches its ninth and
+    final recipe step, so no step is masked by a mid-target abort. Main's
+    `pyproject.toml` pinned newer `uv` tooling than the branch had seen (`ty`
+    0.0.79 → 0.0.82, `ruff` → 0.16.8), so `make check-fmt` ran `uv sync` — and
+    **the working tree was byte-clean afterwards and `uv.lock` is still
+    `645239f6`, identical to `origin/main`**: the resolved versions already
+    matched what was pinned, so the sync rewrote nothing. That is the lock-file
+    rule holding under the one condition that could have broken it.
+
 ## Surprises & discoveries
 
 - **Observation:** a checker invoked with a *subset* of its configured rules
