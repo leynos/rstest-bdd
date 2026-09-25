@@ -40,6 +40,10 @@ jobs:
     # The same shape as the pull-request lane's Linux leg, because it runs
     # the same instrumented workload.
     runs-on: ubicloud-standard-2
+    # The CodeScene token lives in this environment, whose deployment policy
+    # admits `main` alone; the codescene environment contract holds it to
+    # this job.
+    environment: codescene
     # Ubicloud runners register as just-in-time self-hosted runners, so the
     # six-hour hosted limit does not apply. Bound the job explicitly, at the
     # pull-request lane's figure.
