@@ -57,6 +57,11 @@
 
 ### Deprecated (Unreleased)
 
+- Deprecated `lookup_step`, `find_step`, `lookup_step_async`, `find_step_async`,
+  `lookup_step_async_with_mode`, `find_step_async_with_mode`, and
+  `find_step_with_mode` in favour of `lookup_step_with_metadata` and
+  `find_step_with_metadata`; callers should project the needed `Step` field.
+  `find_step_with_metadata` now returns `Option<ResolvedStep>`.
 - Deprecated `encode_skip_message` and `decode_skip_message` functions in favour
   of `ExecutionError::Skip` variant. Use `ExecutionError::skip_message()` to
   extract the optional skip message. These functions will be removed in a

@@ -2,7 +2,7 @@
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use rstest_bdd::{StepContext, StepExecution, StepKeyword, find_step};
+use rstest_bdd::{StepContext, StepExecution, StepKeyword, find_step_with_metadata};
 use rstest_bdd_macros::given;
 
 static GENERIC_CALLED: AtomicUsize = AtomicUsize::new(0);
@@ -22,12 +22,14 @@ fn specific_step() { SPECIFIC_CALLED.fetch_add(1, Ordering::Relaxed); }
 
 #[test]
 fn find_step_returns_none_for_missing() {
-    assert!(find_step(StepKeyword::Given, "no match".into()).is_none());
+    assert!(find_step_with_metadata(StepKeyword::Given, "no match".into()).is_none());
 }
 
 #[test]
 fn find_step_executes_single_match() {
-    let step_fn = find_step(StepKeyword::Given, "a unique step".into()).expect("step not found");
+    let step_fn = find_step_with_metadata(StepKeyword::Given, "a unique step".into())
+        .expect("step not found")
+        .run;
     let mut ctx = StepContext::default();
     match step_fn(&mut ctx, "a unique step", None, None) {
         Ok(StepExecution::Continue { .. }) => {}
@@ -40,7 +42,9 @@ fn find_step_executes_single_match() {
 fn find_step_runs_one_of_multiple_matches() {
     GENERIC_CALLED.store(0, Ordering::Relaxed);
     SPECIFIC_CALLED.store(0, Ordering::Relaxed);
-    let step_fn = find_step(StepKeyword::Given, "overlap apples".into()).expect("step not found");
+    let step_fn = find_step_with_metadata(StepKeyword::Given, "overlap apples".into())
+        .expect("step not found")
+        .run;
     let mut ctx = StepContext::default();
     match step_fn(&mut ctx, "overlap apples", None, None) {
         Ok(StepExecution::Continue { .. }) => {}
