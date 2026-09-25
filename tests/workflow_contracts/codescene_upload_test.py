@@ -11,6 +11,11 @@ The run conditions are evaluated as GitHub would evaluate them, for a push to
 rather than searched for a phrase: a guard with `|| github.event_name ==
 'workflow_dispatch'` appended still contains the main-ref clause.
 
+The token is in no `env`. The upload is a composite action whose nested steps
+inherit the calling step's environment, so a check step publishes only whether
+the token exists, the guard reads that output, and the upload takes the token
+directly as an input.
+
 Run via ``make test-workflow-contracts``.
 """
 
@@ -22,13 +27,22 @@ from workflow_queries import StepRef, iter_steps
 from workflow_support import workflow
 
 MAIN_REF = "github.ref == 'refs/heads/main'"
+CHECK_STEP_ID = "codescene_token"
+#: GitHub evaluates the expression before the shell starts, so the command
+#: writes a literal ``true`` or ``false`` and the token enters no process.
+CHECK_COMMAND = (
+    'echo "available=${{ secrets.CS_ACCESS_TOKEN != \'\' }}" >> "$GITHUB_OUTPUT"'
+)
+AVAILABLE = f"steps.{CHECK_STEP_ID}.outputs.available"
+#: Expression contexts are case-insensitive, so the credential scan folds case.
+CREDENTIAL_NAME = "cs_access_token"
 #: Everything the upload sends, stated whole. A partial check would pass an
 #: upload that lost its report path or its credential and published nothing.
 UPLOAD_INPUTS = {
     "path": "coverage.xml",
     "format": "cobertura",
     "mode": "upload",
-    "access-token": "${{ env.CS_ACCESS_TOKEN }}",
+    "access-token": "${{ secrets.CS_ACCESS_TOKEN }}",
 }
 
 
@@ -57,6 +71,27 @@ def _upload() -> tuple[int, StepRef]:
     assert len(uploads) == 1, f"{PUBLISHER_JOB} must upload exactly once"
     assert len(everywhere) == 1, f"{PUBLISHER} must upload once; {everywhere}"
     return uploads[0]
+
+
+def _check() -> tuple[int, StepRef]:
+    """Return the publisher job's availability check and its position.
+
+    Returns
+    -------
+    tuple[int, StepRef]
+        The step's index within its job's steps, and the step.
+    """
+    checks = [
+        (index, reference)
+        for index, reference in enumerate(
+            reference
+            for reference in iter_steps(PUBLISHER)
+            if reference.job == PUBLISHER_JOB
+        )
+        if reference.step.get("id") == CHECK_STEP_ID
+    ]
+    assert len(checks) == 1, f"{PUBLISHER_JOB} must carry one {CHECK_STEP_ID} step"
+    return checks[0]
 
 
 def test_the_publisher_answers_a_push_to_main_and_a_dispatch_only() -> None:
@@ -108,14 +143,42 @@ def test_the_upload_guard_is_a_conjunction_holding_the_main_ref() -> None:
     )
 
 
+def test_the_check_publishes_availability_and_nothing_else() -> None:
+    """Run one exact command, unconditionally, with no env, before the upload.
+
+    A condition on the check would leave its output unset whenever it was
+    false, so the upload would skip forever, and an ``env`` would put the
+    token back into an environment.
+    """
+    index, reference = _check()
+    upload_index, _upload_reference = _upload()
+
+    assert str(reference.step.get("run", "")).strip() == CHECK_COMMAND, (
+        f"{reference} must run exactly {CHECK_COMMAND!r}"
+    )
+    assert "if" not in reference.step, f"{reference} must run unconditionally"
+    assert "env" not in reference.step, f"{reference} must declare no env"
+    assert index < upload_index, f"{reference} must run before the upload"
+
+
+def test_the_upload_guard_reads_the_check() -> None:
+    """Require the check's output as a conjunct of the upload's guard."""
+    _index, reference = _upload()
+    required = f"{AVAILABLE} == 'true'"
+
+    assert required in conjuncts(str(reference.step.get("if", ""))), (
+        f"{reference} must carry {required!r} as a conjunct"
+    )
+
+
 @pytest.mark.parametrize(
     ("event", "ref", "token", "expected"),
     [
-        ("push", "refs/heads/main", "set", True),
-        ("workflow_dispatch", "refs/heads/main", "set", True),
-        ("workflow_dispatch", "refs/heads/feature", "set", False),
-        ("workflow_dispatch", "refs/tags/v1.0.0", "set", False),
-        ("push", "refs/heads/main", "", False),
+        ("push", "refs/heads/main", "true", True),
+        ("workflow_dispatch", "refs/heads/main", "true", True),
+        ("workflow_dispatch", "refs/heads/feature", "true", False),
+        ("workflow_dispatch", "refs/tags/v1.0.0", "true", False),
+        ("push", "refs/heads/main", "false", False),
     ],
     ids=[
         "push to main",
@@ -133,36 +196,35 @@ def test_the_upload_runs_only_for_the_trunk(
     context = {
         "github.event_name": event,
         "github.ref": ref,
-        "env.CS_ACCESS_TOKEN": token,
+        AVAILABLE: token,
     }
 
     assert admits(str(reference.step.get("if", "")), context) is expected, (
         f"{reference} must {'run' if expected else 'not run'} for a {event} "
-        f"on {ref} {'with' if token else 'without'} the token"
+        f"on {ref} with the check reporting {token}"
     )
 
 
 def test_the_credential_appears_only_where_the_upload_needs_it() -> None:
-    """Hold every mention of the token to the upload and its job's scope.
+    """Hold every mention of the token to the check and the upload's input.
 
-    "Some step has it and no other job has it" proves nothing: the token
-    could move to the coverage-generation step, or up to the workflow's own
-    `env`, which reaches every step of every job, and such a rule would
-    still pass. The set of places is stated exactly: the job scope that the
-    upload's guard reads, the guard itself, and the input that sends it.
+    "No env has it" proves nothing on its own: deleting the token satisfies
+    it while the guard goes false and the upload skips forever. The set of
+    places is stated exactly, keys included and case folded: the check's
+    command, and the input that sends the token.
     """
-    index, _reference = _upload()
-    step = f"{PUBLISHER}.jobs.{PUBLISHER_JOB}.steps[{index}]"
+    check_index, _check_reference = _check()
+    upload_index, _reference = _upload()
+    steps_path = f"{PUBLISHER}.jobs.{PUBLISHER_JOB}.steps"
     expected = {
-        f"{PUBLISHER}.jobs.{PUBLISHER_JOB}.env.CS_ACCESS_TOKEN",
-        f"{step}.if",
-        f"{step}.with.access-token",
+        f"{steps_path}[{check_index}].run",
+        f"{steps_path}[{upload_index}].with.access-token",
     }
 
     found = {
         path
         for path, text in _walk(workflow(PUBLISHER), PUBLISHER)
-        if "CS_ACCESS_TOKEN" in text
+        if CREDENTIAL_NAME in text.casefold()
     }
 
     assert found == expected, (

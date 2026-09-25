@@ -48,7 +48,6 @@ jobs:
       contents: read
     env:
       CARGO_TERM_COLOR: always
-      CS_ACCESS_TOKEN: ${{ secrets.CS_ACCESS_TOKEN }}
       RUSTFLAGS: -D warnings
       RUSTDOCFLAGS: -D warnings
       LADING_REF: b771852411b428ff6fc779cc3a68b153a8f2439a
@@ -393,6 +392,16 @@ jobs:
           set -euo pipefail
           test -s coverage.xml
 
+      # Publishes whether the token exists, and nothing else. The token is in
+      # no `env` on this workflow: the upload is a composite action whose
+      # nested steps inherit the calling step's environment, and a job-level
+      # binding reached every step of this build as well. GitHub evaluates
+      # the expression before the shell starts, so the token enters no
+      # process.
+      - name: Check CodeScene token availability
+        id: codescene_token
+        run: echo "available=${{ secrets.CS_ACCESS_TOKEN != '' }}" >> "$GITHUB_OUTPUT"
+
       - name: Upload coverage data to CodeScene
         # The only CodeScene contact in this repository. The ref guard is
         # load-bearing: `workflow_dispatch` can select any branch or tag, and
@@ -406,13 +415,13 @@ jobs:
         # `installer-checksum` is deliberately absent: from shared-actions
         # f68e8e2e the action rejects a non-empty value and pins `cs-coverage`
         # through its own manifest, which is what fixed the parse break.
-        if: ${{ github.ref == 'refs/heads/main' && env.CS_ACCESS_TOKEN != '' }}
+        if: steps.codescene_token.outputs.available == 'true' && github.ref == 'refs/heads/main'
         uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@a5765019912a8ab6882b12db049c7cde635f3a85
         with:
           path: coverage.xml
           format: cobertura
           mode: upload
-          access-token: ${{ env.CS_ACCESS_TOKEN }}
+          access-token: ${{ secrets.CS_ACCESS_TOKEN }}
 
       # The trunk's writer for the local-directory compiler cache, which the
       # Linux lanes use only in the RSTEST_BDD_SCCACHE_LOCAL fallback. It is

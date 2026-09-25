@@ -19,7 +19,7 @@ from guard_conditions import (
 MAIN_PUSH = {
     "github.event_name": "push",
     "github.ref": "refs/heads/main",
-    "env.CS_ACCESS_TOKEN": "set",
+    "steps.codescene_token.outputs.available": "true",
 }
 
 
@@ -68,7 +68,7 @@ def test_operators_inside_a_quoted_literal_are_data() -> None:
     [
         (MAIN_PUSH, True),
         ({**MAIN_PUSH, "github.ref": "refs/heads/feature"}, False),
-        ({**MAIN_PUSH, "env.CS_ACCESS_TOKEN": ""}, False),
+        ({**MAIN_PUSH, "steps.codescene_token.outputs.available": "false"}, False),
     ],
     ids=["main with a token", "another ref", "no token"],
 )
@@ -76,7 +76,10 @@ def test_a_conjunction_is_evaluated_as_github_would(
     context: dict[str, str], expected: object
 ) -> None:
     """Evaluate each conjunct, and admit only when all of them hold."""
-    condition = "${{ github.ref == 'refs/heads/main' && env.CS_ACCESS_TOKEN != '' }}"
+    condition = (
+        "${{ github.ref == 'refs/heads/main' && "
+        "steps.codescene_token.outputs.available == 'true' }}"
+    )
 
     assert admits(condition, context) is expected, (
         f"{condition!r} must evaluate to {expected} in {context}"
