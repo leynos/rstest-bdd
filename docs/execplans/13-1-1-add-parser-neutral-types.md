@@ -53,26 +53,28 @@ plan names the revision its own evidence was gathered at rather than asserting
 a "current" one.
 
 **Published 2026-09-26.** The force push succeeded with the lease bound to the
-recorded pre-rebase remote head (`+ ceb89de1...5b65ea09`); the documentation
-commit that followed it was an ordinary fast-forward (`5b65ea09..cd68363c`).
-The remote branch and PR #770 both report `cd68363c`, with 106 commits, 73
-changed files, and `+21478 -84`. **D39's escalation is retired, not answered:**
-main removed the failing `Check coverage against CodeScene gates` step under
-estate rule CV-005, so no pull-request lane contacts CodeScene at all, and the
-three candidate re-pins D39 weighed no longer name existing lines. D39 is marked
-`SUPERSEDED` at its own site. Separately, main repaired the check-naming
-defect D37 diagnosed, so the required contexts are now
+recorded pre-rebase remote head (`+ ceb89de1...5b65ea09`); the two
+documentation commits that followed it were both ordinary fast-forwards
+(`5b65ea09..cd68363c`, then `cd68363c..5a2dc36d`, each `PUSH_EXIT=0`). The
+remote branch and PR #770 now both report `5a2dc36d`, with 107 commits, 73
+changed files, and `+21512 -84`; each figure was read back from the PR rather
+than computed here. **D39's escalation is retired, not answered:** main removed
+the failing `Check coverage against CodeScene gates` step under estate rule
+CV-005, so no pull-request lane contacts CodeScene at all, and the three
+candidate re-pins D39 weighed no longer name existing lines. D39 is marked
+`SUPERSEDED` at its own site. Separately, main repaired the check-naming defect
+D37 diagnosed, so the required contexts are now
 `build-test (linux, default features)`,
 `build-test (windows, default features)`, and
 `build-test (windows, strict-compile-time-validation)` — the same three legs
 under new labels, read from the ruleset rather than from the plan. **No CI
-result is claimed for any of the three legs at either published revision:**
-they were still running when this header was last updated, and a result is
-recorded only once observed. The two Markdown gates *are* claimed, and pass at
-`cd68363c` on a clean tree with `rev_start` = `rev_end`, so each certifies the
-revision it names; the four code gates last ran at the replayed tip and the
-documentation commits that followed touch nothing they compile or lint, which
-is an argument for exposure rather than a re-run and is labelled as such.
+result is claimed for any of the three legs at any published revision:** they
+were still running when this header was last updated, and a result is recorded
+only once observed. The two Markdown gates *are* claimed, and pass at
+`5a2dc36d` on a clean tree with `rev_start` = `rev_end`, so each certifies the
+revision it names; the four code gates last ran at the replayed tip and every
+documentation commit since touches nothing they compile or lint, which is an
+argument for exposure rather than a re-run and is labelled as such.
 
 **The plan is deliberately not marked `COMPLETE`.** The `Scope` tolerance is
 breached and measured three times: D27 at 58 files / 15,737 net, D31 at 71 /
@@ -1505,11 +1507,13 @@ between them. Raise that before spending the tolerance.
   - [x] (2026-09-26) **The rebase was published and the required-check set
     re-read from the ruleset, which retired D39's escalation.** The force push
     succeeded with the lease bound to the recorded pre-rebase remote head:
-    `+ ceb89de1...5b65ea09 (forced update)`, `PUSH_EXIT=0`. The remote branch
-    and PR #770 both report `5b65ea09`, with `commits: 105`, `changedFiles:
-    73`, still `draft: true`. The 105 is 101 replayed commits plus the four
-    post-rebase documentation commits, which is the arithmetic the plan
-    predicted before the push.
+    `+ ceb89de1...5b65ea09 (forced update)`, `PUSH_EXIT=0`. At that moment the
+    remote branch and PR #770 both reported `5b65ea09`, with `commits: 105`,
+    `changedFiles: 73`, still `draft: true`. The 105 is 101 replayed commits
+    plus the four post-rebase documentation commits, which is the arithmetic
+    the plan predicted before the push. Later commits moved that head twice
+    more; every figure in this entry is the one this entry's own evidence was
+    read at, and the header carries the figures at the current head.
 
     **The required checks were read from the ruleset, and the names this plan
     had recorded are obsolete.** Ruleset `18427987` (`main-required-checks`,
@@ -1643,6 +1647,44 @@ between them. Raise that before spending the tolerance.
     off column 1, not a re-wrap; re-running `mdtablefix` cannot repair a defect
     it has no opinion about. The detector is one line, `grep -n '^#[0-9]'
     <file>`, and it belongs *before* the gate run rather than after it.
+
+  - [x] (2026-09-26) **The second documentation commit was published the same
+    way, and reading the PR back cost me the same mistake twice.** The push was
+    an ordinary fast-forward with the lease bound to the remote head this entry
+    had just published: `cd68363c..5a2dc36d`, `PUSH_EXIT=0`, and the remote ref
+    read back as `5a2dc36d6554642cc1bc9aa9af65e84aef031aa9`. Both Markdown
+    gates were re-run at it on a clean tree before the push, with `rev_start` =
+    `rev_end`, and both exited 0 — so the pair the header now cites is this
+    entry's own run rather than the earlier one it supersedes.
+
+    **The re-hit hazard: `gh pr view --json commits` dumps ~178 KB and trips
+    the output limit.** I made this mistake once earlier in the rebase, recorded
+    it in this plan, and then made it again in the very next command that read
+    the PR. The field is the *entire* commit list with authorship and full
+    message bodies; nothing in the flag's name suggests that. The fix is to ask
+    for scalars only and to get the count from a different endpoint, which is
+    what the commands below do. Recording it a second time because the first
+    recording was prose in one entry and did not become a rule I could follow —
+    the useful form is the pair of commands, not the warning:
+
+    ```bash
+    gh pr view 770 --json state,isDraft,headRefOid,mergeStateStatus,changedFiles,additions,deletions
+    gh api repos/leynos/rstest-bdd/pulls/770 --jq '.commits'
+    ```
+
+    **The second re-hit, and it is a different shape: a subagent is addressable
+    by its agent id, not by the display name I gave it in the `description`
+    field.** `SendMessage` to `"Monitor CI on rebased head"` returned `No agent
+    named 'Monitor CI on rebased head' is reachable`, while the identical
+    message to `ada7511f01c05808a` was queued. The `description` is a label for
+    the human reading the transcript; the name that resolves is the one
+    `ListAgents` prints. The recovery is trivial once diagnosed — call
+    `ListAgents`, copy the id — but it is worth stating because the error
+    message suggests the agent is gone, when in fact it was still running and
+    had merely never had that name. **A "not reachable" from an addressable
+    peer is a statement about the address, not about the peer**, which is the
+    same shape as the ruleset lesson above: read the identity from the thing
+    that assigns it rather than from the label a previous step attached.
 
 ## Surprises & discoveries
 
