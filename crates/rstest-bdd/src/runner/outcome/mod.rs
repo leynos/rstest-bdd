@@ -187,8 +187,10 @@ pub struct ScenarioOutcome {
 impl ScenarioOutcome {
     /// Assemble an outcome from its parts.
     ///
-    /// The production caller is the runner's engine, which lands in EP-M2. See
-    /// [`ScenarioSkip::new`] for why the expectation is `not(test)`-scoped.
+    /// The production caller is `engine::policy::assemble`, which builds the
+    /// terminal outcome once the step sequence has been driven to its end.
+    /// The unit tests construct outcomes directly instead, which is why this
+    /// is `pub(crate)` rather than private.
     pub(crate) fn new(
         status: ScenarioStatus,
         steps: Vec<StepOutcome>,
