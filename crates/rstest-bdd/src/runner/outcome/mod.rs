@@ -299,6 +299,27 @@ impl ScenarioOutcome {
     }
 }
 
+/// Render the terminal failure, taking its location from the plan.
+///
+/// The failure's [`ExecutionError`](crate::ExecutionError) carries its own copy
+/// of the feature path — a `String` the plan's source was flattened into when
+/// the runner built the error. Rendering that copy would read a source back out
+/// of the error, which INV-7 forbids, and in the synthetic case where the two
+/// disagree it would print a path no accessor returns. So a step failure is
+/// re-rendered against [`terminal_source`](ScenarioOutcome::terminal_source),
+/// the same plan-side location the accessors report.
+///
+/// In production the two strings are equal, so this changes no rendered
+/// message for any host: the runner populates the error's field from the plan.
+/// The difference is only reachable through a hand-built outcome — which is
+/// exactly what the INV-7 decoy tests build, and what makes the property
+/// falsifiable.
+///
+/// A failure whose source cannot be resolved (an index past the end of
+/// `steps`, or a record with no location) falls back to the error's own
+/// rendering rather than printing a path it does not have. That is not a
+/// silent divergence: `terminal_source` returns `None` there, so no plan-side
+/// location exists to disagree with.
 impl std::fmt::Display for ScenarioOutcome {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.status {
@@ -312,7 +333,13 @@ impl std::fmt::Display for ScenarioOutcome {
             }
             ScenarioStatus::Failed => match self.failure.as_ref() {
                 Some(ScenarioFailure::Step { index, error }) => {
-                    write!(f, "scenario failed at step {index}: {error}")
+                    let rendered = crate::localization::with_loader(|loader| {
+                        error.format_with_loader_at(
+                            loader,
+                            self.terminal_source().map(SourceLocation::path),
+                        )
+                    });
+                    write!(f, "scenario failed at step {index}: {rendered}")
                 }
                 Some(ScenarioFailure::EmptyPlan) => {
                     write!(f, "scenario failed: the plan contained no steps")

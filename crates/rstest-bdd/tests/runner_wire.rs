@@ -50,6 +50,8 @@ use rstest_bdd::{
         ScenarioPlanBuilder,
         ScenarioScope,
         ScenarioStatus,
+        SourceLocation,
+        StepInvocation,
         StepOutcome,
         StepStatus,
         run_scenario,
@@ -67,6 +69,37 @@ fn a_counter_starts_at_zero(counter: &Cell<u32>) { counter.set(0); }
 
 #[when("the counter is incremented twice")]
 fn the_counter_is_incremented_twice(counter: &Cell<u32>) { counter.set(counter.get() + 2); }
+
+/// A registered step that declares a data table, and asserts what it received.
+///
+/// The parameter is named `datatable` with type `Vec<Vec<String>>`, the
+/// canonical shape the macro's classifier recognizes
+/// (`codegen/wrapper/args/classify/type_shape.rs:120`), so the generated
+/// wrapper binds it from the runner's own table argument rather than from a
+/// fixture. That is what makes this step end-to-end evidence for
+/// `TableView::row_slices`: the cells asserted below travelled from the plan,
+/// through the projection, into the request, and out through the macro's
+/// binding, with no test-side reconstruction anywhere in between.
+///
+/// The assertion lives in the step rather than in the test because
+/// `run_scenario` takes the context — and therefore the request — by `&mut`,
+/// so the table's slices cannot outlive the call to be asserted on later. This
+/// is the same shape the crate's own `tests/datatable.rs` uses for its
+/// `check_table` step, so it needs no new machinery. A mismatch fails the step,
+/// which the runner reports as a returned failure rather than an unwind; the
+/// test then fails on the outcome's status.
+#[given("a parser-neutral table step checks its table")]
+fn a_parser_neutral_table_step_checks_its_table(datatable: Vec<Vec<String>>) {
+    assert_eq!(
+        datatable,
+        vec![
+            vec!["alpha".to_owned(), "beta".to_owned()],
+            vec!["gamma".to_owned()],
+        ],
+        "the step received the plan's rows and cells in order, with the ragged second row \
+         preserved rather than padded or truncated",
+    );
+}
 
 /// A fresh counter cell, still holding its sentinel value.
 ///
@@ -227,4 +260,55 @@ fn a_plan_with_no_steps_does_not_fold_to_a_clean_pass() {
     assert_eq!(outcome.status(), ScenarioStatus::Passed);
     assert!(outcome.steps().is_empty());
     assert!(outcome.into_harness_result().is_err());
+}
+
+/// A plan's data table reaches the step's own table parameter intact (D33).
+///
+/// This closes D33, the mutation sweep's one substantive find: all four
+/// mutations of `TableView::row_slices` survived, because no test anywhere in
+/// the crate built a plan carrying a non-empty table and ran it. The projection
+/// is the single place the runner converts the plan's owned
+/// `Vec<Vec<Cow<'static, str>>>` into the `&[&[&str]]` the request borrows, so
+/// an off-by-one in row or column, a lost row, or a transposed pair would have
+/// left every gate green.
+///
+/// The assertion is on the **cells**, not on a status or a row count: a
+/// projection returning one empty row, or one `"xyzzy"` row, or an empty `Vec`
+/// all produce a table-shaped artefact that a coarse assertion cannot
+/// distinguish from a correct one. Two rows of unequal length are used
+/// deliberately — a projection that transposed rows and columns, or that
+/// padded to a rectangle, changes at least one cell asserted in the step.
+///
+/// The runner is reached through `run_scenario`, and the table through a
+/// registered step's own `datatable` parameter, so the evidence covers the
+/// whole path rather than the projection in isolation.
+#[test]
+fn a_plans_data_table_reaches_the_step_intact() {
+    let cell = counter_cell();
+    let mut ctx = context_for(&cell);
+    let plan = ScenarioPlanBuilder::new("Tabulated", "notes/tabulated.md")
+        .step(
+            StepInvocation::new(
+                StepKeyword::Given,
+                "a parser-neutral table step checks its table",
+            )
+            .with_table(vec![
+                vec!["alpha".into(), "beta".into()],
+                vec!["gamma".into()],
+            ])
+            .at(SourceLocation::new_static("notes/tabulated.md", 3, None)),
+        )
+        .build();
+
+    let outcome = {
+        let scope = ScenarioScope::new(&mut ctx);
+        run_scenario(&plan, scope)
+    };
+
+    assert_eq!(
+        outcome.status(),
+        ScenarioStatus::Passed,
+        "the table step resolved and its own cell assertion held; a failed status here means the \
+         step saw a different table than the plan carried: {outcome:?}",
+    );
 }

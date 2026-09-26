@@ -208,35 +208,41 @@ fn forced_skip_case() -> ScenarioOutcome {
     )
 }
 
-/// A failed outcome's **rendering** takes its path from the error, not the plan.
+/// A failed outcome's **rendering** takes its path from the plan, not the error.
 ///
-/// This test exists because writing the snapshot above found it, and it records
-/// a real, load-bearing wart rather than a documentation nit.
+/// This test exists because writing the snapshot above found the opposite
+/// behaviour, and it now pins the fix rather than the defect.
 ///
-/// INV-7 says "no source is read back out of `ExecutionError`", and the
-/// *accessors* honour that: `StepOutcome::source` and
+/// INV-7 says "no source is read back out of `ExecutionError`". The accessors
+/// always honoured that — `StepOutcome::source` and
 /// `ScenarioOutcome::terminal_source` both return the plan's `SourceLocation`,
-/// and the parent proves it. But `ScenarioOutcome`'s `Display` renders a
-/// failure through the error's own message, and that message embeds
-/// `ExecutionError::feature_path` — a `String` the plan's path was *flattened
-/// into* when the runner built the error. A frontend that prints `{outcome}`
-/// rather than walking `steps()` therefore gets the error's copy, and the two
-/// are equal only because the runner populates the field from the plan.
+/// and the parent proves it — but `ScenarioOutcome`'s `Display` originally
+/// rendered a failure through the error's own `Display`, and that message
+/// embeds `ExecutionError::feature_path`: a `String` the plan's path was
+/// *flattened into* when the runner built the error. A frontend printing
+/// `{outcome}` therefore read the error's copy, and the two agreed only because
+/// the runner populates the field from the plan — a coincidence INV-7 exists to
+/// forbid, invisible in production and reachable only through a hand-built
+/// outcome like this one.
 ///
-/// The test pins the **disagreement** rather than asserting the two agree,
-/// because asserting agreement would be asserting a coincidence: the decoy is
-/// what production never produces, and the point is that the rendering has no
-/// independent reason to carry the plan's location. Fixing it means rendering
-/// the failure from `terminal_source()` rather than from the error's `Display`,
-/// which changes a user-visible string and so is a deliberate change rather
-/// than a drive-by one. Until then this test is the record: a caller that wants
-/// the plan's location must read the accessors, and `Display`'s own doc comment
-/// should say so.
+/// `Display` now re-renders the failure against `terminal_source()`, so this
+/// test asserts the *agreement* between the rendered string and the accessor
+/// instead of pinning their divergence. The decoy is what makes the assertion
+/// load-bearing: if the rendering again took the error's copy, the rendered
+/// string would contain [`DECOY_PATH`] and neither the plan's path nor the
+/// line it was recorded at.
+///
+/// Only the path is asserted, not the line, because the path is the whole of
+/// what the message carries: the localized text interpolates a `feature_path`
+/// argument and no line, so a rendering cannot add one without also changing
+/// the message — and its wording is thirty-five locales' business, not this
+/// test's. `terminal_source()` supplies both coordinates, so a successor who
+/// adds a line to the message has what it needs to assert here.
 ///
 /// The `FailureSite` assertion is the control — without it, a run that lost its
-/// failure entirely would satisfy both string assertions vacuously.
+/// failure entirely would satisfy every string assertion below vacuously.
 #[test]
-fn the_rendered_failure_takes_its_path_from_the_error_not_the_plan() {
+fn the_rendered_failure_takes_its_path_from_the_plan_not_the_error() {
     let record = StepOutcome::failed(
         0,
         &test_invocation(
@@ -270,12 +276,12 @@ fn the_rendered_failure_takes_its_path_from_the_error_not_the_plan() {
 
     let rendered = format!("{outcome}");
     assert!(
-        rendered.contains(DECOY_PATH),
-        "the rendering carries the error's own path instead — `{rendered}`",
+        rendered.contains(SPEC_PATH),
+        "the rendering carries the plan's path, as the accessor does — `{rendered}`",
     );
     assert!(
-        !rendered.contains(SPEC_PATH),
-        "and it does not carry the plan's path at all, which is the divergence this test records \
-         — `{rendered}`",
+        !rendered.contains(DECOY_PATH),
+        "and it does not carry the error's own copy, which is the source INV-7 forbids reading \
+         back — `{rendered}`",
     );
 }
