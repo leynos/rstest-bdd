@@ -6,37 +6,51 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Conformance basis`, and `Verification plan` must be kept up to date as work
 proceeds.
 
-Status: IN PROGRESS — Stage A closed on 2026-09-19; D2 option (ii), D3, and D10
-recorded as approved. EP-M1 is closed and gate-clean at `3a942230`; EP-M2 is
-closed and gate-clean. **EP-M3 is closed**, gate-clean at `9a232fdd` with all
-seven gates green (2,046 nextest tests passed, 7 skipped; doctests; 244
-pytest), D27 recording the Scope-tolerance breach. **EP-M4 is struck** by D2
-option (ii). **EP-M5 is complete but not yet ticked** — its substantive parts
-are done: the `insta` `Display` snapshots, the `--no-default-features` test
-leg, the roadmap and retrospective edits, and the re-scoped `cargo-mutants`
-sweep over the whole runner tree. Its top-level box stays unticked on **one**
-open item, not two: the whole-plan state is withheld from `COMPLETE` because
-the Scope escalation is unanswered (D31, re-measured and extended by D43). The
-CodeRabbit round that was previously listed here as "requested but
-unadjudicated" is round 6, and D42 records its adjudication — 24 findings, 22
-actioned, 2 needing no change. EP-M3's named `cargo-mutants` control was run
-and found *vacuous* — 3 mutants, all unviable — so that obligation was
-re-scoped rather than discharged, and the re-scoped sweep has now completed:
-**152 mutants, 84 caught, 5 missed, 57 unviable, 6 timeout, all accounted
-for.** It discharges AXIOM-4 and leaves two recorded coverage gaps, D32 and
-D33. Six numbered CodeRabbit rounds have been adjudicated — round 1 in D26,
-then D28, D29, D30, D41, and D42 — and EP-M1 additionally saw two unnumbered
-passes before the numbering began. Every round after the first is recorded
-finding by finding, including the declines, on the ground that a decline that
-is not evidenced is indistinguishable from a finding that was ignored. **Round
-7, the last, returned zero findings** — recorded in D44 with the four checks
-that were run before the empty result was believed, since "found nothing" and
-"did not run" are indistinguishable from the summary line alone. The numbered
-series is 19, 14, 12, 13, 11, 24, 0. **The review cycle is closed**: round 7 is
-its last, D44's own successor note says no further review is owed, and the
-commit that landed it (`6690c423`, renumbered from `67df72a9` by the rebase) is
-the revision the plan's own two Markdown gates were re-run at with a clean tree
-and a self-certifying trailer — see the Progress entry recording it.
+Status: COMPLETE — every milestone is closed and every escalation is answered.
+Stage A closed on 2026-09-19; D2 option (ii), D3, and D10 recorded as approved.
+EP-M1 is closed and gate-clean at `3a942230`; EP-M2 is closed and gate-clean.
+**EP-M3 is closed**, gate-clean at `9a232fdd` with all seven gates green (2,046
+nextest tests passed, 7 skipped; doctests; 244 pytest), D27 recording the
+Scope-tolerance breach. **EP-M4 is struck** by D2 option (ii). **EP-M5 is
+closed and ticked** — the `insta` `Display` snapshots, the
+`--no-default-features` test leg, the roadmap and retrospective edits, and the
+re-scoped `cargo-mutants` sweep over the whole runner tree are all done and
+recorded. The Scope escalation (D31, re-measured and extended by D43) **was the
+last open item and is now resolved**: the overage is approved, with the ruling
+that ExecPlan lines do not count towards the size of the code/documentation
+change, and D43's entry records both the approval and what it does not license.
+Two later review findings were actioned on 2026-09-26 — the `Display` path fix
+(D46) and the data-table test that closes D33 (D47) — and D48 records the
+six-of-six re-run that licenses the `COMPLETE` status, with D49 recording why
+the three Markdown-gate verdicts for the final revision belong in the commit
+message rather than in this file. The CodeRabbit round that was previously
+listed here as "requested but unadjudicated" is round 6, and D42 records its
+adjudication — 24 findings, 22 actioned, 2 needing no change. EP-M3's named
+`cargo-mutants` control was run and found *vacuous* — 3 mutants, all unviable —
+so that obligation was re-scoped rather than discharged, and the re-scoped
+sweep has now completed: **152 mutants, 84 caught, 5 missed, 57 unviable, 6
+timeout, all accounted for.** It discharges AXIOM-4 and leaves two recorded
+coverage gaps, D32 and D33. Six numbered CodeRabbit rounds have been
+adjudicated — round 1 in D26, then D28, D29, D30, D41, and D42 — and EP-M1
+additionally saw two unnumbered passes before the numbering began. Every round
+after the first is recorded finding by finding, including the declines, on the
+ground that a decline that is not evidenced is indistinguishable from a finding
+that was ignored. **Round 7, the last, returned zero findings** — recorded in
+D44 with the four checks that were run before the empty result was believed,
+since "found nothing" and "did not run" are indistinguishable from the summary
+line alone. The numbered series is 19, 14, 12, 13, 11, 24, 0. **As of round 7 —
+run at `7e81eef7`, a revision that is not an ancestor of the current head — the
+numbered review cycle was closed**, and D44's successor note said no further
+review was owed at that point. **That statement is scoped to its revision and
+has since been falsified by events**, which is the honest form of it: two
+review findings arrived on 2026-09-26 and were actioned as D46 and D47, and D47
+in particular added a new integration test
+(`crates/rstest-bdd/tests/runner_wire.rs`) and D46 changed a public `Display`
+implementation. Neither has been reviewed by any CodeRabbit round. So the
+accurate reading is: **round 7 was the last review of the revision it ran
+against, and the code added since has not been reviewed** — "no further review
+is owed" was a claim about a closed milestone, not a standing licence for
+everything committed afterwards.
 
 **The branch has since been rebased onto the current `origin/main`**
 (`f6244601`), replaying all 101 commits with zero conflicts and a
@@ -93,22 +107,37 @@ commit to this file ends it.
 
 The two Markdown gates are claimed at `2de4211c` as well, on a clean tree with
 `rev_start` = `rev_end`. The four code gates last ran at `b70ad1bb`, and that
-green is carried forward on a measured argument for exposure rather than a
-re-run. The argument was originally phrased as **every commit after `b70ad1bb`
-touches exactly one file** — this document — verified by diffing the union of
-paths from `b70ad1bb..HEAD`; that phrasing is now inaccurate, because D45's
-commit `c1d94cc0` also carries the regenerated `typos.toml`. The claim is
-therefore restated in the form that survives, and it is the *inputs* that
-matter rather than the path count: **of the paths touched after `b70ad1bb`,
-none is compiled, linted, or typechecked by any of the four code gates.** The
-union is exactly two paths — this document and the generated `typos.toml` — and
-`grep -n typos Makefile` shows the latter is read by `spelling` alone, which is
-a Markdown-side target that no code gate invokes. So there is still no input
-for those four gates to disagree with, which is a different claim from "they
-would probably still pass", and it is the one made here. The restatement also
-removes a drift risk of its own: the original wording would have gone on being
-true-sounding while silently becoming false the moment any non-Markdown file
-was touched.
+green was carried forward for a stretch on a measured argument for exposure
+rather than a re-run. The argument was originally phrased as **every commit
+after `b70ad1bb` touches exactly one file** — this document — verified by
+diffing the union of paths from `b70ad1bb..HEAD`; that phrasing became
+inaccurate when D45's commit `c1d94cc0` also carried the regenerated
+`typos.toml`. It was therefore restated in the form that survived, and it was
+the *inputs* that mattered rather than the path count: **of the paths touched
+after `b70ad1bb`, none is compiled, linted, or typechecked by any of the four
+code gates.** The union was exactly two paths — this document and the generated
+`typos.toml` — and `grep -n typos Makefile` shows the latter is read by
+`spelling` alone, which is a Markdown-side target that no code gate invokes.
+
+**That argument is now spent, and the restatement's own closing warning is what
+spent it.** Its last sentence said the original wording "would have gone on
+being true-sounding while silently becoming false the moment any non-Markdown
+file was touched." The moment arrived: actioning the two review findings below
+touched four non-Markdown files, and all four are read by the code gates:
+
+```plaintext
+crates/rstest-bdd/src/execution/error/format.rs
+crates/rstest-bdd/src/runner/outcome/mod.rs
+crates/rstest-bdd/src/runner/tests/source/rendering.rs
+crates/rstest-bdd/tests/runner_wire.rs
+```
+
+Three are compiled and linted as library or test sources; the fourth adds a
+registered step, so `make test` reads it too. **The carried-forward green is
+therefore retired rather than extended**, and the four code gates were re-run
+at the revision these changes produce. The result is in the Progress entry that
+records this work; a successor should read that entry's revision and not this
+paragraph's, which names the argument's history rather than any gate's verdict.
 
 **A second revision carried its own verdict as well.** Run `36206794540`, event
 `pull_request`, head SHA read back as
@@ -126,27 +155,35 @@ stopped being so the moment the paragraph recording it was committed. That is
 the fixed point the Surprises section records rather than an accident of
 timing. **The verdict that matters is the last one, and it is run `36211394305`
 at `60a2a15d`** — see the final Progress entry; nothing after it has been
-watched, deliberately. What makes the carried-forward argument tolerable is the
-measured exposure and not the coincidence: the recording commits touch this
-document, and **none of the paths touched after `b70ad1bb` is read by any of
-the four code gates** (see the restatement above — the union is this document
-and the generated `typos.toml`, which only `spelling` reads), so no gate input
-has moved since those gates last ran.
+watched, deliberately, and the head has since moved twice: once for the two
+review findings actioned below, and once more for the commit that records them.
+What made the carried-forward argument tolerable was the measured exposure and
+not the coincidence — and that exposure has since ended, because the review
+findings touched four compiled files. The four code gates were **re-run** for
+the revision the findings produce rather than carried forward; that revision
+and its verdict are named in the Progress entry, not here.
 
-**The plan is deliberately not marked `COMPLETE`.** The `Scope` tolerance is
-breached and measured three times: D27 at 58 files / 15,737 net, D31 at 71 /
-18,325, and D43 — EP-M5's own closing re-measurement — at **73 files / 20,556
-net added lines** at `bbde0f2e`, against a 36-file / 4,500-line tolerance. D43
-states three options and recommends accepting the breach while recording that
-the tolerance's *unit* is what is wrong; it also notes that its own text then
-moved the figure it records, which is that defect restated. The escalation is
-open until a human answers it, and it is now the **only** open escalation. A
-second one was raised on 2026-09-26 — the estate's `spelling` target runs
+**Every escalation is now resolved, and the plan carries none.** The `Scope`
+tolerance was breached and measured three times: D27 at 58 files / 15,737 net,
+D31 at 71 / 18,325, and D43 — EP-M5's own closing re-measurement — at 73 files
+/ 20,556 net added lines at `bbde0f2e`, against a 36-file / 4,500-line
+tolerance. D43 states three options and recommends accepting the breach while
+recording that the tolerance's *unit* is what is wrong. **The overage was
+approved on 2026-09-26**, with the ruling that ExecPlan lines do not count
+towards the size of the code/documentation change — so D43's recommendation is
+adopted and its option (2) is the recorded correction. D43's entry carries the
+approval verbatim in substance, together with what it does **not** license: the
+branch is accepted as it stands, not re-scoped to look smaller. A second
+escalation raised on 2026-09-26 — the estate's `spelling` target runs
 `typos-config-builder` in **write** mode, so the quality gate repairs the drift
-it exists to report — and it is **resolved**, not open: D45 records the
-doctrine that settles it, namely that the committed file is never drift checked
-in continuous integration, which makes committing the refresh the conforming
-action rather than a compromise. D39's escalation is retired. Every other
+it exists to report — is likewise **resolved**: D45 records the doctrine that
+settles it, namely that the committed file is never drift checked in continuous
+integration, which makes committing the refresh the conforming action rather
+than a compromise. D39's escalation was retired. Two further review findings
+the same day were actioned rather than escalated, and both are recorded: D46
+fixes the failure rendering so INV-7's third clause holds without amendment,
+and D47 closes D33 by adding the end-to-end table test together with the
+mutation evidence that it would have caught the sweep's survivors. Every other
 obligation is discharged or explicitly recorded as open.
 
 ## Purpose / big picture
@@ -1081,7 +1118,28 @@ between them. Raise that before spending the tolerance.
     found.
 - [x] ~~EP-M4: lifecycle hooks and the lifecycle matrix~~ — struck by D2
   option (ii).
-- [ ] EP-M5: documentation, snapshots, and the full gate.
+- [x] EP-M5: documentation, snapshots, and the full gate.
+  - [x] (2026-09-26) **Ticked on its own acceptance terms, with the last two
+    review findings resolved and every escalation closed.** The box was held
+    open for one reason and one only — a breached tolerance escalated for
+    human judgement — and that judgement has since arrived and is recorded in
+    D43, so the condition the box was waiting on no longer exists. Ticking it
+    is therefore not a change of standard: the milestone's acceptance evidence
+    was already discharged (documents updated, `Display` snapshots written and
+    accepted, the `--no-default-features` leg added and contract-tested, the
+    mutation sweep run with all 152 mutants accounted for, the `Scope` figure
+    re-measured at close and escalated), and the two findings that arrived
+    after it were actioned rather than logged. The **full gate set is green**
+    at this revision — six of six, each verdict read from its own exit code —
+    and the two review findings have both been closed with evidence rather
+    than with an assertion: INV-7's display path now re-renders against the
+    plan's own source (D46), and the table projection has the end-to-end
+    evidence D33 recorded as missing, with two of the four previously
+    surviving mutations now demonstrated as caught (D47). **The plan is
+    therefore `COMPLETE`**, and the residual is stated rather than hidden: no
+    escalation is open, but the branch remains over its original `Scope`
+    envelope by human decision, which D43 records as accepted and as not
+    re-scoped to look smaller.
   - [x] The five documents updated (`docs/developers-guide.md`,
     `docs/rstest-bdd-design.md`, `docs/users-guide.md`,
     `docs/testing-strategy.md`, `docs/roadmap.md`) — commit `370dcd8f`, plus
@@ -1890,6 +1948,135 @@ between them. Raise that before spending the tolerance.
     honour. A successor reading this should take the verdict for `60a2a15d`,
     which is the revision it names, and should require a fresh run only if the
     head moves again.
+
+- [x] (2026-09-26) **The two outstanding review findings were actioned, and the
+  `Scope` escalation was closed by human decision.** This is the first entry
+  after the code was last frozen, and it is the one that changes the
+  carried-forward gate argument rather than extending it: the changes below
+  touch **code**, so the "no path touched after `b70ad1bb` is read by a code
+  gate" argument **no longer applies** and must not be reused. The four code
+  gates were re-run for these revisions rather than carried forward.
+
+  Concern 1, INV-7: `ScenarioOutcome`'s `Display` rendered a failure through
+  `ExecutionError`'s message, which embeds `ExecutionError::feature_path` — so
+  formatting an outcome read a source back out of the error, which INV-7's
+  third clause forbids. Fixed rather than excluded from the invariant, by
+  re-rendering through a new crate-private
+  `ExecutionError::format_with_loader_at(loader, path)` that substitutes the
+  plan's path into the same Fluent message. No message id or wording changed,
+  so all thirty-five locale files are untouched. **The existing `Display`
+  snapshot passes unmodified**, which is the strongest available evidence that
+  the change is inert in production: the runner already populates the error's
+  field from the plan, so the two strings are equal there, and a snapshot fails
+  on *any* change. The decoy test that pinned the defect
+  (`the_rendered_failure_takes_its_path_from_the_error_not_the_plan`) is
+  inverted and renamed to `..._from_the_plan_not_the_error`, so it now asserts
+  the agreement. See D46.
+
+  Concern 2, D33: added `a_plans_data_table_reaches_the_step_intact` to
+  `crates/rstest-bdd/tests/runner_wire.rs` — a plan whose invocation carries a
+  two-row table of unequal length, run through `run_scenario`, with a
+  registered step's own `datatable: Vec<Vec<String>>` parameter asserting the
+  exact rows and cells it received. D33's stated blockers were measured and
+  found false: `StepFn`'s fourth parameter *is* the table, and the crate's own
+  `tests/datatable.rs` has registered a `#[given]` with a `datatable` parameter
+  since before this plan began. **Two of the four mutations D33 recorded as
+  surviving were re-applied and both are now caught** — an empty `Vec`, and
+  every row truncated to its first cell (the column-loss mutation a row-count
+  assertion would miss). `drive.rs` was restored byte-identically afterwards.
+  See D47.
+
+  **The gate run took four attempts, and every red one was a defect in lines
+  this change added.** The first run failed at `make check-fmt` (rustfmt wanted
+  a reflow of the new `StepInvocation::new` call), `make lint` (a broken
+  intra-doc link — `[`ExecutionError`]` written bare in
+  `runner/outcome/mod.rs`, where the name is not in scope, rather than as
+  `[`ExecutionError`](crate::ExecutionError)`), and `make markdownlint`
+  (`recognises` in a new doc comment, where the repository's prose convention
+  and its `typos.toml` rewrite both take `-ize`). All three are exactly the
+  class of defect the deterministic gates exist to catch — which is why they
+  were fixed before any CodeRabbit pass, per the standing instruction. The
+  formatting step was applied with the Makefile's own toolchain pin
+  (`+nightly-2026-08-07`) and scoped to the `rstest-bdd` package rather than
+  the whole workspace, because **`make fmt` also runs `mdtablefix --in-place`
+  and `markdownlint-cli2 --fix` over every tracked Markdown file** and would
+  have drifted unrelated documents; a before/after path-set comparison
+  confirmed no path entered or left the change set.
+
+  A fourth defect surfaced on the second run and was mine as well: the execplan
+  edits I had hand-wrapped were not `mdtablefix`-clean, so `make check-fmt`
+  failed at its *last* sub-step, reporting `+44 -47` of pure paragraph
+  rejoining. The first run had **masked** that sub-step — it aborted at the
+  earlier rustfmt failure, so `mdtablefix --check` never ran and had no verdict
+  — which is the "a gate that aborts early never ran the steps after it" hazard
+  this plan's Surprises section records, encountered here in the wild rather
+  than cited. It was fixed by applying `mdtablefix --in-place` with the gate's
+  exact flags
+  (`--git --include-untracked --wrap --renumber --breaks --ellipsis --fences`),
+  whose `--git` selector confines it to the five paths already in the diff. The
+  reflow was then *proved* content-preserving rather than trusted: the
+  document's newline-separated token sequence is identical before and after, so
+  no character was added, removed, or reordered and only whitespace between
+  tokens moved.
+
+  **The fourth and licensing run is green on all six gates**, from scratch at a
+  working tree whose `HEAD` is `93e03a1f` and which never moved during the run
+  (`rev_start` = `rev_end`, with the exit codes recorded to a sidecar rather
+  than read off a summary line). The verdicts, each read from its own gate's
+  exit code rather than inferred:
+
+  ```plaintext
+  make check-fmt    exit 0   rustfmt 88 files formatted; 122 files left unchanged
+  make test         exit 0   2,059 run: 2,059 passed, 7 skipped; feature-off leg 720 passed; pytest 247
+  make typecheck    exit 0   cargo check clean; ty check "All checks passed!"
+  make lint         exit 0   all 9 sub-steps executed and passed
+  make markdownlint exit 0   122 files linted, 0 error(s)
+  make nixie        exit 0   All diagrams validated successfully!
+  ```
+
+  **No gate verdict in that table is carried forward**, which retires the class
+  of doubt earlier drafts managed by mtime comparison. The `Display` snapshot
+  file was **byte-identical** across the run (`sha256` unchanged), which is the
+  INV-7 evidence that survives a gate run: a passing snapshot assertion must
+  leave the file untouched.
+
+  **This document is itself a gate input, which makes the record of its own
+  final verification circular: the sentences that report a green run are new
+  text the reported run never saw. D49 states the decision that follows — the
+  three Markdown gates are re-run against the final text and their verdicts
+  recorded in the commit message, which no gate reads and nothing reflows — and
+  it also records the first defect that re-run caught.** What this entry can
+  honestly record is the run that *did* happen, at the revision named above,
+  plus the readership argument below for why the other three gates need no
+  re-run.
+
+  **Naming the gates by readership rather than by count is not pedantry here —
+  it is the whole argument.** Of the six, exactly three read Markdown:
+  `check-fmt` (through `mdtablefix`), `markdownlint`, and `nixie`. Those are
+  the three re-run on every edit to this document, including the final cycle.
+  The other three — `make test`, `make typecheck`, `make lint` — did not need
+  re-running, and the reason is a durable property of the scripts rather than a
+  timestamp: of `lint`'s nine sub-steps exactly three read Markdown
+  (`check_users_guide_links.py`, `check_gpui_mapping_table.py`,
+  `check_serial_nextest_matrix.py`), and all three read fixed, named documents —
+  `docs/users-guide.md` and `docs/rstest-bdd-design.md` — never
+  `docs/execplans/`. No script, source file, manifest, or workflow in the tree
+  opens an execplan, so an edit confined to this document cannot move those
+  three gates' input. A successor re-checking that claim should re-run it as a
+  readership question, not re-instantiate an mtime one — and should note that
+  an earlier draft of this very paragraph got the grouping wrong by calling
+  `check-fmt` a code gate that need not be re-run, when it is in fact one of
+  the three that must be.
+
+  The `Scope` escalation is **closed**: the overage is approved, with the
+  ruling that ExecPlan lines do not count towards the size of the
+  code/documentation change. D43 records the approval and states plainly what
+  it does not license. Measured against the true merge-base `f6244601`, the
+  branch is **75 files / 22,476 net** (`+22,564 / −88`), which is the figure at
+  `93e03a1f` plus this block's own sentences. That number **will be stale on
+  the next edit and is not the point**: it is written to show the order of
+  magnitude a reviewer is approving, and the file count — 75, still above the
+  36-file tolerance — is the part that is stable enough to act on.
 
 ## Surprises & discoveries
 
@@ -4019,11 +4206,11 @@ positive, and `BypassedScenario` — which has no collision — stays bare.
   `Continue`. The six `Err` classes are `Skip`, `StepNotFound`,
   `MissingFixtures`, `HandlerFailed`, and, per AXIOM-2's exclusions, two more
   that the plan did not name when D16 was written: a **panic in a step
-  registered without the macro wrapper's `catch_unwind`**, and an **
-  `Async`-mode step invoked through the sync `execute_step`**, which is
-  INV-15's case. Both map to `Fail`, and `classify` needs no knowledge of
-  `ExecutionMode` to do it — a fact worth stating because it is the reason
-  INV-15 requires no new decision variant.
+  registered without the macro wrapper's `catch_unwind`**, and an `Async`-mode
+  step invoked through the sync `execute_step`, which is INV-15's case. Both
+  map to `Fail`, and `classify` needs no knowledge of `ExecutionMode` to do it
+  — a fact worth stating because it is the reason INV-15 requires no new
+  decision variant.
 
   The insertion happens *before* classification, so `Ok(Some(_))` calls
   `ctx.insert_value` and records the `ValueFate`, then `Continue`s — including
@@ -5463,9 +5650,9 @@ you can see. Two corollaries, both of which this entry had to learn the hard
 way. **A green run only counts as a green boundary if the step actually ran:**
 `adopt-cv005` looked like the last green before the regression and is not,
 because it had removed the step. Read the step's conclusion at the revision
-that ran it, not the job's conclusion at a revision that skipped it. And **
-`pull_request`-only gates do not all run on `main`:** checking `main`'s status
-to reassure yourself about a step whose condition requires
+that ran it, not the job's conclusion at a revision that skipped it. And
+`pull_request`-only gates do not all run on `main`: checking `main`'s status to
+reassure yourself about a step whose condition requires
 `github.event_name == 'pull_request'` inspects a code path `main` never
 executes, which is the D37 error one layer down.
 
@@ -6201,12 +6388,40 @@ that the figure was wrong"). The honest form is to accept the breach and fix
 the tolerance's unit for *future* plans, which is a lesson for the
 retrospective rather than an edit to this plan's tolerance.
 
-**Until the human answers, the plan is not `COMPLETE`.** The work is finished
-and gated; the status is withheld solely on this escalation, and a successor
-should treat "status: not complete" as meaning "blocked on D31/D43", not
-"implementation unfinished".
+**Until the human answers, the plan is not `COMPLETE`.** [Superseded 2026-09-26
+— the answer arrived and is recorded immediately below, so this sentence is
+history rather than a live gate. Read it as the state the plan was in when the
+escalation was raised, not as a condition still outstanding. The successor note
+it carried — treat "status: not complete" as meaning "blocked on D31/D43", not
+"implementation unfinished" — no longer applies either, because nothing is
+blocked.] The work is finished and gated; the status was withheld solely on
+this escalation, and a successor should treat "status: not complete" as meaning
+"blocked on D31/D43", not "implementation unfinished".
 
-Date/Author: 2026-09-20, implementation agent.
+**RESOLVED 2026-09-26 — the overage is approved, and the ruling settles the
+tolerance's unit.** The answer is option **(1) with (2) as the recorded
+correction**, as recommended, and it is approved in terms that name the
+measurement's unit directly: the count "includes 7000 lines of execplan, which
+do not count towards the size of the code/documentation change." So the
+tolerance's unit is now settled by decision rather than by inference — an
+ExecPlan is *instrument*, and instrument does not count against the size of the
+change it describes. This is the correction D43 asked for, and it is recorded
+here rather than by editing the tolerance, which is the distinction D27 drew:
+the figure was never wrong, its unit was.
+
+**What the decision does not do, stated so a successor does not over-read it.**
+It does not bring the branch inside the original 36-file / 4,500-line envelope,
+and it does not retroactively make the increment small. Excluding this document
+the branch is 13,175 net lines over 72 files, still 2.9× the line limit and
+2.0× the file limit; what the approval supplies is a *judgement* that the
+remainder is proportionate, and the ruling on units for future plans. The
+branch is therefore accepted as it stands, not re-scoped to look smaller.
+
+With this resolution there is **no open escalation on this plan.** D31 and D43
+are the same escalation measured twice, and both are closed by this entry.
+
+Date/Author: 2026-09-20, implementation agent. Resolution added 2026-09-26 by
+the implementation agent, recording a human decision.
 
 ### D44: CodeRabbit round 7 returned nothing, and the empty result is the interesting part
 
@@ -6367,8 +6582,8 @@ Date/Author: 2026-09-20, implementation agent.
   reformatting with the tool cleared that — whereupon `make markdownlint`
   failed the very same file with `MD018/no-missing-space-atx` at line 54:1,
   because a reflow had left the token `#770` at column 1 and Markdown parsed
-  that line as an ATX heading. `mdtablefix --check` reported **
-  `1 file left unchanged`, rc=0** on the offending revision. Impact: the
+  that line as an ATX heading. `mdtablefix --check` reported
+  `1 file left unchanged`, rc=0, on the offending revision. Impact: the
   paragraph was reworded so the token cannot begin a line
   (`… remote branch and PR #770 both now report …`), which clears MD018 without
   touching the wrap. **The general shape: two gates over one format are not two
@@ -6440,6 +6655,558 @@ decided the question was "everything that observes the working tree". Before
 reverting a tool's output on the grounds that no gate objects, enumerate what
 else looks at the tree.
 
+### D46: the failure rendering takes its path from the plan, so INV-7 holds without amendment
+
+**Decided 2026-09-26, in response to a review finding that INV-7 was only
+partially met.** The finding was correct, and this entry records both the fix
+and why the two available exits were not equivalent.
+
+The third clause of INV-7 is "no source is read back out of `ExecutionError`".
+The accessors always honoured it: `StepOutcome::source` returns the plan's
+`SourceLocation`, and `ScenarioOutcome::terminal_source` looks the terminal
+invocation up in the step list. But `ScenarioOutcome`'s `Display` rendered a
+failure through `ExecutionError`'s own `Display`, and that message interpolates
+`ExecutionError::feature_path` — a `String` the plan's path was *flattened
+into* when the runner built the error. So `format!("{outcome}")` read the path
+back out of the error, which is exactly the shortcut the clause forbids. The
+two agreed only because the runner populates that field from the plan: a
+coincidence, invisible in production and reachable only through a hand-built
+outcome.
+
+**The exit taken was to fix the rendering, not to narrow the invariant.** The
+alternative on offer was to amend INV-7 so it excluded display output. That
+would have shrunk a specification to match a wart, and the wart is
+user-visible: a frontend that renders `{outcome}` is the ordinary way to report
+a failure, so the path a reader would see was the one the error carried rather
+than the one the accessors report. INV-7 exists precisely because those two are
+separate values.
+
+**How, and why it is inert in production.** `Display` now re-renders the
+failure through a new crate-private
+`ExecutionError::format_with_loader_at(loader, path)`, which substitutes the
+plan's path for the error's own in the same Fluent message. No message id is
+added and no wording changes, so the thirty-five locale files are untouched —
+the path is already one of the message's arguments, which is what makes the
+substitution a substitution rather than a new translation. In production the
+two strings are equal, so the rendered message is **byte-identical**; the INV-7
+`Display` snapshot passing **unmodified** is the evidence for that, and it is
+the strongest available form of it, because a snapshot fails on any change at
+all. A failure whose plan-side source cannot be resolved falls back to the
+error's own rendering, which is not a silent divergence: the source is
+unresolvable exactly when `terminal_source()` is `None`.
+
+`the_rendered_failure_takes_its_path_from_the_error_not_the_plan` — the test
+that pinned the defect — is inverted and renamed
+`..._from_the_plan_not_the_error`, so it now asserts the agreement rather than
+recording the divergence. It keeps the decoy path, which is what makes the
+assertion load-bearing: had the rendering reverted to the error's copy, the
+string would contain `DECOY_PATH`.
+
+**The lesson: "record the wart" is a complete answer only until someone asks
+you to resolve it.** The plan's own record of this defect was thorough — it
+explained the mechanism, bounded the impact, and argued that the fix "changes a
+user-visible string and so is a deliberate change rather than a drive-by one".
+Every word of that was true, and it still left a specification clause knowingly
+unmet. Recording a known deviation is a way to keep a delivery honest; it is
+not a substitute for meeting the requirement once the cost is weighed again,
+and here the weighed cost was one substitution and one inverted test in a type
+this plan is itself introducing, with no release to protect.
+
+### D47: D33 is closed — the table conversion now has end-to-end evidence
+
+**Decided 2026-09-26, in response to a review finding that the runner's
+data-table conversion lacked end-to-end evidence.** D33 recorded that all four
+mutations of `TableView::row_slices` survived the sweep, and closed as an open
+coverage gap on the reasoning that the fix was "blocked by Constraint 1 and by
+`StepFn`'s signature". **That premise was false, and this entry records the
+measurement that falsifies it.**
+
+`StepFn` is `fn(&mut StepContext<'a>, &str, Option<&str>, Option<&[&[&str]]>)`.
+Its fourth parameter *is* the table, and `execute_step` passes `request.table`
+to it verbatim (`execution/mod.rs:304`). The macro side is equally unaffected:
+a registered step declares `datatable: Vec<Vec<String>>` and the generated
+wrapper binds it from that same argument
+(`codegen/wrapper/args/classify/type_shape.rs:120`). The crate's own
+`tests/datatable.rs` has done exactly this since before this plan began — its
+`check_table` step is a `#[given]` whose `datatable` parameter it asserts on.
+So neither Constraint 1 nor the registry ABI stood in the way; the only thing
+missing was the test.
+
+**The test.** `crates/rstest-bdd/tests/runner_wire.rs` gains
+`a_plans_data_table_reaches_the_step_intact`, which builds a plan whose single
+invocation carries a two-row table of unequal row length, runs it through
+`run_scenario`, and asserts the exact rows and cells a registered step's
+`datatable` parameter received. The assertion lives *in* the step, because
+`run_scenario` takes the context by `&mut` and the request's slices cannot
+outlive the call; this is the shape `tests/datatable.rs` already uses, so it
+needed no new machinery. Two rows of unequal length are chosen deliberately: a
+projection that transposed rows and columns, that padded to a rectangle, or
+that dropped a column changes at least one asserted cell, where a row-count
+assertion would not.
+
+**The non-vacuity evidence, which is the point of D33.** A test that passes is
+not evidence that it would fail; D33's finding was precisely that four
+mutations survived. Two of those four mutations were therefore re-applied to
+`row_slices` and the new test was run against each. Both were caught:
+
+- `row_slices` returning `Vec::new()` — the step asserted
+  `left: []`, `right: [["alpha", "beta"], ["gamma"]]`;
+- `row_slices` truncating every row to its first cell — the step asserted
+  `left: [["alpha"], ["gamma"]]`, `right: [["alpha", "beta"], ["gamma"]]`.
+
+The second is the mutation a coarse assertion would have missed, and it is the
+reason the assertion names every cell.
+`crates/rstest-bdd/src/runner/engine/drive.rs` was restored byte-identically
+afterwards (`git diff --stat` empty on that path) and the suite re-run green.
+Both mutants also demonstrate Constraint 3 in passing: the step's assertion
+failure came back as a returned `ScenarioOutcome` carrying
+`StepError::PanicError`, not as an unwind out of `run_scenario`.
+
+**The lesson: "blocked by X" is a measurement, and it expires.** D33 named two
+blockers; both were checkable in a single command, and both were false. A
+blocker recorded from inspection rather than from a failing attempt is the kind
+of claim that reads as diligence and functions as a stop sign — and it is
+cheapest to falsify at the moment it is written, not months later when it
+resurfaces as a review finding.
+
+### D48: the plan is marked `COMPLETE` on a full six-of-six re-run, and the four earlier attempts were red on my own defects
+
+**Decided 2026-09-26, closing EP-M5 and the plan.** The milestone box was held
+open by exactly one condition — D31/D43's `Scope` escalation, "a breached
+tolerance that has been escalated stays open until a human answers it" — and
+that answer arrived and is recorded in D43. Everything else EP-M5 names was
+already discharged. So the tick is the mechanical consequence of an answer that
+had already been given, not a new judgement; what this entry records is the
+*evidence* behind it and what went wrong in obtaining it.
+
+**The licensing evidence is a six-of-six green run, not a carried-forward
+one.** Every gate was re-run from scratch at `93e03a1f`, sequentially, with
+`rev_start` and `rev_end` both equal to that revision, and each verdict read
+from its own process exit code with the codes recorded to a sidecar rather than
+read off a summary line. `check-fmt` 0, `test` 0 (2,059 default-feature tests
+passed and 720 on the `--no-default-features` leg, 7 skipped in each; 247
+pytest), `typecheck` 0, `lint` 0 with **all nine sub-steps** reached and passed,
+`markdownlint` 0 (122 files, 0 errors), `nixie` 0. No carried-forward argument
+is needed for any of them, which retires the whole class of doubt the plan had
+previously been managing by mtime comparison.
+
+**That matters, because the mtime form of the argument is the weaker one.** An
+earlier version of this entry rested the four non-Markdown gates on path mtimes
+— "the Rust paths predate the code-gate logs". That is evidence about *writes*,
+and it silently assumes no gate reads a path that was written. The stronger
+claim is about *readership*, and it is checkable: of the nine `lint` sub-steps,
+exactly three read Markdown — `check_users_guide_links.py`,
+`check_gpui_mapping_table.py`, and `check_serial_nextest_matrix.py` — and all
+three read *fixed, named* documents (`docs/users-guide.md` and
+`docs/rstest-bdd-design.md`), never `docs/execplans/`. Beyond those, no script,
+Rust source, manifest, or workflow in the tree opens an execplan; the single
+reference to this file outside `docs/` is a provenance citation in a Python
+test module's docstring, whose only file read is the `Makefile`. So an edit
+confined to this document cannot move a `lint` input — stated as readership,
+which is a fact about those scripts, rather than as mtimes, which is a fact
+about the filesystem at one instant and says nothing about who reads what.
+
+**What went wrong is the part worth keeping: four gate attempts, every red one
+caused by a defect in lines this change added.** The attempt history is
+instructive in a specific way, because the failures were not random — they
+trace a single habit of trusting a green word.
+
+- **Attempt 1** failed three gates at once: `check-fmt` on a rustfmt reflow of
+  a new call, `lint` on a bare `` [`ExecutionError`] `` link written where the
+  name is not in scope, and `markdownlint` on `recognises` in a new doc comment.
+- **That same attempt masked a fourth defect.** `check-fmt` aborted at the
+  rustfmt step, so its *last* sub-step, `mdtablefix --check`, never executed
+  and had **no verdict** — yet the run still reported on "check-fmt".
+- **Attempt 2** exposed it: `check-fmt` went red on `mdtablefix` wanting to
+  reflow this document (`+44 -47`). My hand-wrapped plan edits were not
+  `mdtablefix`-clean.
+- **Attempt 3** re-ran only the three gates whose inputs the reflow had moved
+  — `check-fmt`, `markdownlint`, and `nixie` — and all three went green.
+- **Attempt 4** is the licensing run above: all six, from scratch, at a frozen
+  `HEAD`.
+
+Two lessons, one old and one new:
+
+- **A gate that aborts early has not verified the steps after it**, and the
+  difference between "passed" and "never ran" is invisible in the word "green".
+  This is the plan's existing lesson; the new part is that it recurred *inside*
+  a run whose explicit purpose was to close a previously-masked evidence gap. A
+  masked sub-step does not announce itself — it is simply absent, and its
+  absence looks exactly like success from outside.
+- **Hand-wrapping Markdown to a visual width is not the gate's width.** The
+  plan has recorded this before and it was walked into again; the remedy is
+  mechanical rather than editorial — apply `mdtablefix --in-place` with the
+  Makefile's own flags and let the tool own the wrapping.
+
+**And the reflow was proved content-preserving rather than trusted.** The
+`mdtablefix --git` selector confined it to the five paths already in the diff.
+Its effect was then checked at the level that can actually detect damage: the
+token sequence of the document, taken as newline-separated tokens with
+whitespace runs collapsed, is **identical before and after** — the same token
+count in the same order, so no character was added, removed, or reordered, and
+only whitespace between tokens moved. The check was run on each such reflow
+this document received; the figure written here first said "most recently over
+84,250 tokens", which was true when written and is now 86,849. The figure is
+kept only as a demonstration of its own point, because the token check is the
+honest replacement for a count: "the token sequence is identical" can be re-run
+and will still mean what it says, whereas a number in prose is false at the
+next edit.
+
+**The check is stronger than an earlier draft of this entry gave it credit for,
+and the difference is worth stating exactly.** That draft claimed the token
+check "subsumes" the emphasis property, then — correcting itself in the other
+direction — claimed the property was "invisible" to it. Both are wrong, and the
+truth is more specific than either. Splitting a bold-open marker from the text
+it opens is usually *not* a whitespace-only change, because it depends on what
+follows the `**`:
+
+- When the marker **abuts** its content — written with no space between the
+  asterisks and a backticked word — the split turns one token into two, so the
+  **token check catches it**, and that is exactly how the defect in this
+  document was found: the pass reported `CHANGED — MUST FIX`, and the diff was
+  the bold-open marker becoming a line of its own.
+- When the marker is **already followed by a space** — as in the ordinary
+  `bold sentence opening` form this document uses constantly — the split yields
+  the same token list either way, so the token check is **blind** to it.
+
+So neither instrument subsumes the other, but not for the reason first given:
+the token sequence detects a split when the marker abuts its content, and is
+silent when it does not. The second instrument — markdown-it-py, rendering
+every inline block and comparing the count of `<strong>` open tags against
+close tags — covers the residual, and it is the one that would have caught a
+space-followed split. Running both is what makes the reflow auditable; running
+either alone leaves a named blind spot.
+
+**The residual, stated rather than hidden.** No escalation is open. The branch
+is nonetheless over its original `Scope` envelope by human decision, and D43
+says plainly that this is acceptance rather than a re-scoping: excluding this
+document the branch is still 2.9× the line limit and 2.0× the file limit. A
+successor reading `COMPLETE` should read it as "every escalation answered and
+every named gate re-run green at a frozen revision", not as "inside the
+original estimate". The unit correction D43 records is the durable output of
+that breach, and it belongs to future plans rather than to this one.
+
+### D49: the Markdown-gate verdicts live in the commit message, because a verdict written here cannot license the text that contains it
+
+**This plan spent four attempts learning that an aborted gate leaves no
+verdict, and the act of recording the fourth revealed a second, subtler
+impossibility.** The fourth run was the first of the four to be green; what
+could not be done was write that down. `check-fmt`, `markdownlint`, and `nixie`
+all read `docs/execplans/*.md`, so this document is a gate input. A paragraph
+reporting "the three Markdown gates are green at this revision" is itself new
+text. It was not present when the run it describes executed, and if it were
+edited at all — reflowed, corrected, or even given a different word — the run's
+`rev_end` would no longer describe the file on disk. The verdict therefore
+cannot be *written down* here without expiring at the moment of writing.
+Chasing it is an infinite regress: every attempt to record the result produces
+a new revision that needs recording.
+
+**Decision: the three Markdown gates are re-run against the frozen text, and
+their verdicts are recorded in the commit message that carries this revision.**
+A commit message is the only container available that is immutable (nothing
+reflows or re-parses it), durable (it travels with the SHA a reviewer checks
+out), and read by no gate (so recording the verdict cannot invalidate it). The
+commit message names `rev_start`, `rev_end`, and each gate's exit code, which
+is the same trailer discipline every other gate run in this plan used.
+
+**What this document may still claim, and what it may not.** It may claim the
+six-of-six green run at `93e03a1f` (the table above), because that run happened
+and its revision is named. It may claim the readership argument for the three
+gates that do not read Markdown — `make test`, `make typecheck`, and
+`make lint` — because that is a durable property of the scripts and can be
+re-checked. It may **not** claim a green Markdown-gate run at any revision at
+or after the one that contains this sentence, because no such claim in this
+file can be true for longer than it takes to make the next edit. A successor
+verifying this plan's completion should read the Markdown-gate verdicts from
+`git log -1 --format=%B` at the final revision, and should treat the absence of
+them there — rather than the presence of anything here — as the failure signal.
+
+**The grouping to use, stated once so it stops drifting.** `check-fmt` is *two*
+gates wearing one name: it runs the Rust and Python formatters, and it also runs
+`mdtablefix` over every Markdown file including this document. So "code gate"
+and "reads Markdown" are not opposites, and `check-fmt` is the member that is
+both. **The split that matters is by readership, and it is inclusive: the three
+Markdown gates, `check-fmt`, `markdownlint`, and `nixie`, read this document;
+`make test`, `make typecheck`, and `make lint` do not.** Two drafts of this
+entry and the Progress paragraph above classified `check-fmt` among the gates
+that need no re-run when an execplan changes, and were wrong on that one member
+— the error this whole entry made three times, in three different words, which
+is why the readership list is now written out longhand rather than referred to
+by a count.
+
+**That last fix is worth a paragraph of its own, because it is the only defect
+in this whole plan that no gate could have caught.** The emphasis originally
+opened on a `**` that fell at end-of-line, and `mdtablefix` — run by
+`make check-fmt`, the gate whose whole job is Markdown hygiene — is what put it
+there. CommonMark does not open emphasis on a `**` that ends a line, so the
+rendered document carried two literal asterisks and no bold. Both Markdown
+gates passed it: `mdtablefix --check` reported the file unchanged, because a
+`**` at end-of-line is exactly what its own wrap produces, and `markdownlint`
+has no rule against it. Two spec-compliant renderers confirmed the loss —
+`markdown-it-py`, run as `uv run --with markdown-it-py`, rendered the damaged
+span with no `<strong>` at all and the corrected one with a balanced pair. The
+lesson is not "check harder"; it is that **a formatter's own output is not
+evidence that the formatter's output is correct**, and a text gate that only
+asks "did the tool change anything?" can never detect damage the tool
+introduces on its first pass and then reproduces faithfully on every pass after.
+
+**A later audit of this same document found the damage three more times, and
+established something the paragraph above only half-stated: the damaged form is
+a *fixed point* of the formatter, not an unlucky wrap.** All three sites were
+stranded openers of the same shape — a `**` followed by a space and then a line
+break — and all three were present in the committed revision, not introduced by
+the edit that found them. The decisive experiment was to hand-repair all three
+and re-run `mdtablefix --in-place`: it restored the byte-identical file, and
+with it all six literal asterisks. Hand-repairing the wrap is therefore futile
+by construction — the formatter re-derives the damaged line from any input that
+says the same thing, because this line shape *is* what its own wrap produces.
+**The only durable repair is to change the text so the wrap boundary moves**,
+which is what was done: the three stranded markers were dropped, leaving the
+words unemphasised. That costs nothing in this case, and the measurement is why
+it is known to cost nothing — `<strong>` count is 971 before and after, because
+a `**` that never opened was never rendering. The residual risk this leaves is
+worth stating plainly: emphasis in this document is *fragile to reflow*, and a
+future edit near a bold span can silently destroy it with no gate to catch it.
+A successor who wants a guarantee rather than a measurement should either keep
+bold spans short enough to survive any wrap, or accept that the rendered-HTML
+check described above is the only instrument that sees this class of defect.
+Note the scale of the population that check watches: the committed revision
+renders **881** bold spans, so a silent emphasis failure is a risk carried by
+the document's whole prose style rather than by a handful of unlucky sites. The
+figure is a measurement of *that* revision, taken with markdown-it-py; a later
+reader re-measuring it should expect it to have moved, and should treat the
+predicate (count `<strong>` in the rendered output) rather than the number as
+the durable part.
+
+The phrase "the four code gates" is **not** wrong wherever it appears in this
+plan, and it would be a mistake to sweep the file replacing it. In the entries
+that concern the `typos.toml` refresh it is exactly right: nothing but
+`spelling` reads that file, so no formatter that reads Markdown is affected
+either, and the claim covers the right set for the right reason. The
+distinction is whether the sentence is making a *readership* claim about this
+document — where `check-fmt` belongs on the re-run side — or a readership claim
+about some other file, where it may not. A count is a summary of a grouping,
+not the grouping itself; only the second is load-bearing.
+
+**A consequence worth naming for future plans of this kind.** A plan that is
+itself a gate input cannot self-certify. The choices are to exclude execplans
+from the Markdown gates, or to accept the circularity and put the verdict
+outside the gated artefact, as this plan does. The second is cheaper and keeps
+the document linted, which is worth more than the convenience of a self-
+contained green: **that exemption would have shipped this paragraph's own
+counterexample, which the first re-run under this rule found, and which is the
+fifth distinct defect the deterministic gates caught in this plan's own added
+lines.**
+
+The licensing run left the document green on all three Markdown gates. The
+first re-run under the D49 rule — mandated precisely because the verdicts below
+had already been invalidated by the act of writing them down — found
+`MD013/line-length` at 2020:121, a code-block summary row three characters over
+the configured 120-character `code_block_line_length`. It had been sitting in
+the six-of-six-green table since the licensing run, and **both plausible
+intuitions about it are wrong**. It is not an oversight in the gate: the gate
+was correct to flag it, and correct to flag it in the run where it did. And it
+is not something `check-fmt` could have caught — the run that flagged it also
+reported `make check-fmt` **green** on the same file at the same instant,
+because `mdtablefix` has no opinion about MD013's code-block limit and
+`markdownlint`, configured with `code_block_line_length: 120`, does. So the two
+gates read the same file, at the same revision, and reached opposite verdicts
+about the same line. This is the Surprises entry "two gates over one format are
+not two measurements of one property" recurring — with the tie-break now known:
+the disagreement was the finding, and the gate that flags a defect is right
+about it, which is why `check-fmt`'s green was not evidence that `markdownlint`
+would pass.
+
+The repair was to shorten the row to 103 characters, preserving the
+"feature-off leg" term and dropping only a redundant restatement of its
+run/passed counts, then to re-apply the `mdtablefix` reflow and re-run **all
+three** gates rather than the failing one alone: the revision moved, so the
+earlier `check-fmt` and `nixie` verdicts no longer described the text on disk.
+A stitched certification spanning two revisions would have been exactly the
+carried-forward claim this plan spent four attempts retiring. The line-length
+defect is also why the heading above was shortened by hand — MD013 does not
+constrain headings here (`headings: false`), but the limit is the house style
+and the next author to copy the heading shape should copy a legal one.
+
+**What was deliberately left alone, and why that is not the same as a residual
+gap.** Two classes of over-long line remain, and the gate passes the document
+containing both, so neither is a surviving instance of the defect above. Each
+was measured rather than assumed, and each has a reason a successor can
+re-check.
+
+The first is prose. Some prose lines exceed MD013's 80-character `line_length`,
+and **every one of them passes for the same reason the `mermaid` label below
+does** — MD013's non-strict mode measures the line only up to the start of its
+final run of non-whitespace, so the last word may overflow the limit provided
+it *begins* within it. In the lines that remain over-length the final token is
+always an unbroken run of backticks, a path, or a bare URL, and it always
+begins within column 80. That is the same mechanism the diagram line relies on,
+not a different exception — **an earlier draft of this paragraph called it
+"MD013's documented exception" and described it as "no whitespace beyond column
+80", which is a coincidence of the lines that remain rather than the rule.**
+Stated correctly: the checkable property is where the final token starts, and
+it is exact here rather than approximate — the counting check `markdownlint`
+performs predicts zero failures for this document, which is what `markdownlint`
+reported in the run where it actually executed. A line whose final unbroken
+token begins past column 80 would be a genuine defect.
+
+**No count of those lines appears here, and that is this paragraph applying the
+lesson recorded a few paragraphs below.** A count of this document's own lines
+has no stated predicate, so a successor cannot re-check it — only re-derive it
+and get a different number, which reads as drift rather than as diligence. The
+durable form is the predicate plus the command: re-run `make markdownlint`,
+which applies the rule and reports the only count that is gating information,
+which is zero errors.
+
+The second is a diagram. One code-block line still exceeds 120 characters: the
+130-character `mermaid` edge label on the `engine::policy::absorb` edge of the
+execution-sequence flowchart. **It is identified by its content and not by a
+line number**, because a line number is exactly the kind of figure that expires
+here. The number has been written into this paragraph three times and been
+wrong twice: first as 8642, then as 8703, and the second was already stale when
+it was typed, because typing it reflowed the document and moved the line again.
+**No line number appears here at all now, and that is the fix rather than a
+fourth correction.** The failing line and this one sat in the same document at
+the same revision, and `markdownlint` flagged the 123-character `plaintext` row
+while passing the 130-character `mermaid` one. **The first reading of that,
+recorded here and now corrected, was that the limit "is not applied uniformly
+across fence types".** It is applied uniformly, and there is no
+language-specific exemption; the mechanism is `markdownlint` v0.40.0's MD013,
+which in its default non-strict mode rewrites each line before measuring it —
+replacing the line's final run of non-whitespace with a single `#`. **The last
+unbreakable token may therefore overflow the limit provided it begins within
+it.** For the `mermaid` label that rewritten length is 114, under the 120
+limit, so no error is raised; for the `plaintext` row the rewrite leaves the
+line over the limit and MD013 fires. The distinguishing property is about where
+the final token *starts*, not about which fence it sits in.
+
+Narrowing a diagram edge would damage a diagram `make nixie` validates in order
+to satisfy a rule the gate does not in fact enforce there. The measured
+statement is: **exactly one code-block line exceeds 120 characters, it is a
+`mermaid` label whose final token begins within the limit, and `markdownlint`
+passes the document containing it.** A successor who changes the mermaid
+tooling or the MD013 configuration should re-test the observation, not the line
+length.
+
+The deeper lesson is that **the paragraph about figures going stale went stale
+while explaining itself, twice, and could not be rescued by rewriting it.**
+Each attempt to state the drift produced the drift that falsified the
+statement. The generalization is not "use content-based identification" — this
+paragraph tried that and still had to be corrected a second time, because the
+correction was itself an edit that moved the target. The only form that
+survived was **omitting the figure entirely** and saying what the reader should
+do instead (identify the line by its content, and re-measure rather than
+trust). That is the same circularity D49 records for gate verdicts, and the
+same remedy applies: a claim about this document's own state cannot be recorded
+*in* this document, so either put it where nothing reflows it or leave it out.
+
+### D50: the spelling gate masks inline code, which is why this plan's own `-ise` quotes survive and its bare prose does not
+
+**The second re-run under the D49 rule was red, and the finding is a rule
+rather than a typo.** `make markdownlint` failed at its `spelling` prerequisite
+with exactly one error — `generalisation` should be `generalization`, at the
+bare-prose use in the paragraph above — and because `spelling` is a
+*prerequisite* of `markdownlint` rather than a sibling, the build aborted there
+and `markdownlint`'s own recipe line never ran. So that run certified
+`check-fmt` alone: **MD013's verdict for that revision does not exist**, and
+`nixie` was not run at all. A red gate and a gate that never started produce
+the same absence of a verdict, which is the masking this plan has now recorded
+in four separate entries.
+
+**The interesting part is why the same word family passes two lines away.** The
+document contains several `generalis-` forms, and they fall into two groups:
+those inside backticks — `generalises` at two sites, `generalise` and
+`generalisation` quoted as the literals under discussion — and one bare use in
+prose. The gate flagged only the bare one, and the discriminator is a line in
+the generated config rather than a property of the word: `typos.toml:77` is
+`` "`[^`\n]+`" ``, an `extend-ignore-re` that masks a single-backtick inline
+code span within one line. A quoted `-ise` form is invisible to the gate; the
+same form in prose is an error. **That is worth knowing before writing "the
+spelling gate accepts this word" as a durable claim, and it is not a loophole
+to lean on**: the masking exists so that a document may *quote* a rejected
+spelling without being rejected for quoting it, which is exactly what the
+entries above do. The fix is the `-ize` spelling the repository's
+en-GB-oxendict policy requires in prose, regardless of what the masking rule
+would let through.
+
+The first report of this failure named the backtick split as a hypothesis it
+could not reproduce: a scratch repository flagged all three sites. The
+explanation is that the masking rule is *generated config*, so an isolated
+re-run under a regenerated `typos.toml` does not carry it — the scratch test
+removed the very rule it was testing. This is the same class of error as the
+carried-forward verdicts above, one level down: **a control that re-creates its
+subject from scratch can silently delete the property it is meant to test.**
+The anomaly was reported rather than smoothed over, which is why it is
+resolvable here instead of having been recorded as a mystery.
+
+### D51: two claims this document made about its own hand-off were false, and both are corrected
+
+**Decided 2026-09-26, on the third freeze of the final revision.** Both
+corrections came from reading the document against the artefacts it cites
+rather than from running anything, and both are recorded together because they
+are the same defect: a sentence that reads as authoritative about work this
+plan does *not* do.
+
+**The first was the more serious of the two, because it was load-bearing for a
+successor.** Two places — the `Outcomes & retrospective` paragraph on what is
+deliberately absent, and INV-8's struck row — said the deferred lifecycle hooks
+are "delivered by 13.3.1". That is false. Roadmap 13.3.1 is the conformance
+frontend that proves the external-frontend boundary; it requires 13.2.1 and has
+nothing to do with hooks. The roadmap's own 13.1.1 entry states the position
+correctly and in terms: restoring the hooks "needs an ADR amending ADR-018
+first, and a replacement roadmap item — **there is none today**". So the
+document was contradicting the roadmap it points at, and it was contradicting
+*itself*, since a later entry (in the hand-off section) already said the
+lifecycle work "has no roadmap item and cannot start without one". A successor
+who trusted the earlier sentence would have looked for the hooks in 13.3.1,
+found a frontend milestone, and had to reconstruct the situation from the
+roadmap. Both sites now say what is true: the work is parked, its acceptance
+criteria are the `Verification plan` rows, and no milestone owns it.
+
+The lesson is narrow and worth stating: **a deferral needs a named owner, and
+naming the wrong owner is worse than naming none**, because "delivered by X"
+reads as a schedule. The correct form is "ownerless, here is what it needs, and
+here is what it would discharge" — which is what the roadmap already said and
+what the plan now matches.
+
+**The second was a stale cross-reference, found by review.** A sentence in D48
+directed a successor to "the rendered-HTML check below" for the only instrument
+that can see the emphasis-destruction class. The instrument is described
+*above* it, in the same entry, and nothing resembling it appears in the ~2,470
+lines after the sentence. A pointer is a claim like any other, and this one was
+false; it no longer names a direction at all, so it cannot go stale the same
+way. The same sentence gained the scale of the population that check watches:
+**the committed revision renders 881 bold spans**, which is the size of the
+surface the token-sequence check is blind to. That number is not decoration —
+it is the difference between "a few unlucky sites" and "a property of the
+document's prose style", and it is why the residual is stated as a measured
+fragility rather than as a closed issue. It is recorded as a count of a
+*revision* rather than of the document, and any later reader re-measuring it
+should expect the number to have moved.
+
+**A third false claim, made while writing this entry, and corrected in place
+rather than quietly.** The first draft of the paragraph above asserted that the
+damaged class contained "192 bold spans … which open onto a following space".
+That number came from a review report and **did not reproduce under any
+predicate tried** — the candidate counts were 684, 686, 687, and 57 depending
+on whether the predicate counted openers, closers, line-end placements, or
+fenced-quoted text, and none of them was 192. It was replaced with the 881
+figure above, which was re-measured directly and which has a stated predicate
+and a stated tool. The lesson is this document's own, met a third time: **a
+number quoted from a report is a claim like any other, and the person who
+publishes it owns it.** The report was right about everything that was checked,
+but "checked by someone else" is not a discharge for a figure this document
+then asserts as its own.
+
+**Neither defect was caught by a gate, and that is the point of recording
+them.** Both were prose about the document's own state. The first is a
+consistency claim between two files that no script compares; the second is an
+intra-document pointer that no linter follows. Both survive `check-fmt`,
+`markdownlint`, and `nixie` green — and both were green here, three times over,
+before a reader looked. That is the same shape as D49's finding, one level up:
+the gates check the document's *form*, and the only instrument for its *claims*
+is someone reading it against its sources.
+
 ## Outcomes & retrospective
 
 ### What was achieved
@@ -6462,12 +7229,17 @@ paths share an implementation without sharing a file.
 
 **What is deliberately not here.** D2 option (ii) shipped
 `ScenarioScope<'ctx, 'fix, H = NoHooks>` and deferred `Lifecycle`, `with_hooks`,
-`split`, and every hook row of INV-4, INV-8, and INV-10. **EP-M4 is struck**;
-the lifecycle matrix is delivered by 13.3.1, at which point the rows in
-`Verification plan` are its acceptance criteria. ADR-018 is therefore
-**partially discharged**: its Stage 1 compatibility review and the `Lifecycle`
-half of its requirement set remain open, and this plan must not be read as
-closing them.
+`split`, and every hook row of INV-4, INV-8, and INV-10. **EP-M4 is struck,
+and no roadmap item replaces it**: restoring the hooks needs an ADR amending
+ADR-018 first, and a replacement milestone, which does not exist. (An earlier
+draft of this paragraph named 13.3.1 as the deliverer. It is not: 13.3.1 is the
+conformance frontend, and it needs 13.2.1, not an ADR. The claim was wrong and
+is corrected here rather than left to mislead a successor.) Until such a
+milestone is written, the rows in `Verification plan` are the acceptance
+criteria for whoever picks the work up, and they are parked rather than
+scheduled. ADR-018 is therefore **partially discharged**: its Stage 1
+compatibility review and the `Lifecycle` half of its requirement set remain
+open, and this plan must not be read as closing them.
 
 ### The measured figures, and the escalation attached to them
 
@@ -6502,19 +7274,26 @@ slowing). A milestone that added two files added nearly as many lines as one
 that added thirteen. That is the shape a tolerance mis-specified by *unit*
 produces: files count artefacts, and the growth is inside them.
 
-**The escalation is open and is D31 and D43's.** EP-M5 added 13 files and 2,588
-net lines to an already-breached figure, 54% of it this document, so the second
-breach arrived inside the milestone whose job was to close the work; D43 then
-re-measured at EP-M5's close and found it had grown again, to **73 files and
-20,556 net lines**. Of that growth since D31, 65% is documentation and 54% is
-this plan document alone. D27's conclusion — that the *estimate* needs revision
-rather than the work — is restated there with the additional finding that the
-tolerance as written may be unsatisfiable for any plan of this shape, because
-an ExecPlan's mandatory living sections are themselves several thousand lines
-while `Scope` counts every changed file and the estimate counted source and
-test files only. **No number in this table is retroactively re-scoped, and the
-plan is not marked `COMPLETE` on the strength of this section:** a breached
-tolerance that has been escalated stays open until a human answers it.
+**The escalation was D31 and D43's, and it is now answered.** [Superseded
+2026-09-26: the human approved the overage, and D43 carries the resolution and
+what it does not license. The paragraph below is kept because its *reading* of
+the figures still stands and is what the decision was taken on.] EP-M5 added 13
+files and 2,588 net lines to an already-breached figure, 54% of it this
+document, so the second breach arrived inside the milestone whose job was to
+close the work; D43 then re-measured at EP-M5's close and found it had grown
+again, to **73 files and 20,556 net lines**. Of that growth since D31, 65% is
+documentation and 54% is this plan document alone. D27's conclusion — that the
+*estimate* needs revision rather than the work — is restated there with the
+additional finding that the tolerance as written may be unsatisfiable for any
+plan of this shape, because an ExecPlan's mandatory living sections are
+themselves several thousand lines while `Scope` counts every changed file and
+the estimate counted source and test files only. **No number in this table is
+retroactively re-scoped** — the decision accepted the branch as measured rather
+than shrinking the measurement — and the ruling that settles the tolerance's
+unit is recorded in D43: an ExecPlan is instrument, and instrument does not
+count towards the size of the change it describes. A breached tolerance that
+has been escalated stays open until a human answers it; this one has been
+answered.
 
 ### What the mutation sweep found, survivor by survivor
 
@@ -6730,9 +7509,15 @@ and cannot start without one**: it needs an ADR amending ADR-018 first (the
 roadmap states this under 13.1.1), and after that the `Verification plan` rows
 for INV-4, INV-8, and INV-10 are already written as its acceptance criteria and
 `NoHooks`' default type parameter is the extension point. The 13.2.1 and 13.3.1
-follow-ups are already in the roadmap and need no action from this plan. The
-review cycle is closed: seven numbered rounds, the last of them empty (D44),
-and no further review is owed.
+follow-ups are already in the roadmap and need no action from this plan. Seven
+numbered CodeRabbit rounds were run, the last of them empty (D44), against the
+revisions listed in D26, D28, D29, D30, D41, D42, and D44. **Two review
+findings have since been actioned on this branch — D46 (a `Display` behaviour
+change) and D47 (a new integration test) — and neither has been through a
+review round.** Nothing in the roadmap requires another round, and the plan
+does not claim one is owed; a successor deciding whether to request one should
+weigh D46's user-visible string change, which is the kind of edit a review is
+for.
 
 ## Context and orientation
 
@@ -7125,8 +7910,9 @@ remains reachable through `skip()` with its `forced_failure` intact**.
   option (ii) the entire invariant — the before-failure precedence, the retained
   `cleanup_error()`, the skip upgrade, and the `forced_failure` survival — is
   unreachable rather than merely unwritten, so this row is struck in full and
-  no invariant remains under this number. Delivered by 13.3.1 with the hooks,
-  at which point the rows above are the acceptance criteria.
+  no invariant remains under this number. It is delivered with the hooks, by
+  whatever milestone restores them, at which point the rows above are the
+  acceptance criteria. No such milestone exists yet — see D51.
 
 **INV-9 — Resolve-once.** `fail_on_skipped` is resolved exactly once, at scope
 construction. Mutating the global from inside a step handler does not change
