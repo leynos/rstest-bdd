@@ -48,9 +48,9 @@ translation table. The four code gates and the two Markdown gates were re-run
 after the replay and all six pass; their logs certify `b70ad1bb`, the head at
 that time. **A rebase invalidates the evidence tied to the pre-rebase head, so
 the re-run is the evidence that counts, not the earlier green.** Subsequent
-documentation commits moved the head three times, so each later claim in this
-plan names the revision its own evidence was gathered at rather than asserting
-a "current" one.
+documentation commits have moved the head several more times, so each later
+claim in this plan names the revision its own evidence was gathered at rather
+than asserting a "current" one.
 
 **Published 2026-09-26.** The force push succeeded with the lease bound to the
 recorded pre-rebase remote head (`+ ceb89de1...5b65ea09`); the two
@@ -67,14 +67,35 @@ D37 diagnosed, so the required contexts are now
 `build-test (linux, default features)`,
 `build-test (windows, default features)`, and
 `build-test (windows, strict-compile-time-validation)` — the same three legs
-under new labels, read from the ruleset rather than from the plan. **No CI
-result is claimed for any of the three legs at any published revision:** they
-were still running when this header was last updated, and a result is recorded
-only once observed. The two Markdown gates *are* claimed, and pass at
-`5a2dc36d` on a clean tree with `rev_start` = `rev_end`, so each certifies the
-revision it names; the four code gates last ran at the replayed tip and every
-documentation commit since touches nothing they compile or lint, which is an
-argument for exposure rather than a re-run and is labelled as such.
+under new labels, read from the ruleset rather than from the plan.
+
+**All three required legs pass at `2de4211c`** — run `36204354178`, event
+`pull_request`, `completed/success`, created 00:18:28Z and finished 00:50:38Z,
+head SHA read back as `2de4211c88584c8fe919c0a05240fdb2a2776278`:
+
+```plaintext
+108297793233 build-test (linux, default features):            completed/success
+108297793362 build-test (windows, strict-compile-time-validation): completed/success
+108297793394 build-test (windows, default features):          completed/success
+```
+
+This is the first clean CI verdict this branch has had, and it required the
+sequencing the Surprises section now records: three consecutive earlier heads
+were `cancelled` by their own successors, so **the only way to obtain a verdict
+was to stop pushing and let one run finish.** The result was recorded from the
+run object rather than from a job summary line, and the PR head was still
+`2de4211c` at the moment of the read, so this revision is both the validated
+head and the published one — a coincidence worth stating, because the next
+commit to this file ends it.
+
+The two Markdown gates are claimed at `2de4211c` as well, on a clean tree with
+`rev_start` = `rev_end`. The four code gates last ran at `b70ad1bb`, and that
+green is carried forward on a measured argument for exposure rather than a
+re-run: **every commit after `b70ad1bb` touches exactly one file** — this
+document — verified by diffing the union of paths from `b70ad1bb..HEAD`.
+Nothing those four gates compile, lint, or typecheck has changed since they
+last ran, so there is no input for them to disagree with — which is a different
+claim from "they would probably still pass", and it is the one made here.
 
 **The plan is deliberately not marked `COMPLETE`.** The `Scope` tolerance is
 breached and measured three times: D27 at 58 files / 15,737 net, D31 at 71 /
@@ -1686,6 +1707,36 @@ between them. Raise that before spending the tolerance.
     same shape as the ruleset lesson above: read the identity from the thing
     that assigns it rather than from the label a previous step attached.
 
+  - [x] (2026-09-26) **All three required legs pass at `2de4211c`, the first
+    clean CI verdict this branch has obtained.** Run `36204354178`, event
+    `pull_request`, `completed/success` at 00:50:38Z after starting at
+    00:18:28Z, with `headSha` read back as
+    `2de4211c88584c8fe919c0a05240fdb2a2776278`:
+
+    ```plaintext
+    108297793233 build-test (linux, default features):               completed/success
+    108297793362 build-test (windows, strict-compile-time-validation): completed/success
+    108297793394 build-test (windows, default features):             completed/success
+    ```
+
+    Three job ids, three successes, and the three names are exactly the three
+    contexts the ruleset requires — which is itself the confirmation that the
+    ruleset's labels are the live job names rather than a description of them.
+    The PR head was still `2de4211c` when the result was read, so this is the
+    rare revision that is simultaneously the validated head and the published
+    one; the commit recording this ends that coincidence, which is the fixed
+    point the next Surprises entry names.
+
+    **It took four attempts, and the first three failed for a reason that is
+    now recorded as a rule rather than a nuisance.** Each of the three earlier
+    heads was cancelled by the push that followed it, so the run list reads as a
+    column of `cancelled` conclusions, one per abandoned head. The verdict was
+    obtained by stopping: this revision's run was left alone for 32 minutes,
+    and the four documentation commits that recorded the surrounding findings
+    were held locally until it finished. **Waiting is a step in the procedure,
+    not a delay in it** — and it is the one step that cannot be skipped by
+    working harder, only by pushing less.
+
 ## Surprises & discoveries
 
 - **Observation:** every push to a pull request here *cancels the pull request's
@@ -1727,6 +1778,31 @@ between them. Raise that before spending the tolerance.
   edits first, push once, and only then wait — never to poll between pushes.
   That is what this entry's own commit does: the head is frozen at it
   deliberately, and no further push lands until the three legs have reported.
+
+- **Observation:** the rule above has a sharp consequence that this plan has to
+  live with rather than solve: **recording a CI result in this file is itself a
+  push, and so destroys the run being recorded.** Writing down "the Windows
+  legs passed at `X`" moves the head to `Y`, which cancels nothing that already
+  finished — a completed run keeps its conclusion — but it does mean the plan
+  can never end in a state where the *documented* head is the *validated* head.
+  Every revision that carries a written CI result is one commit behind the
+  revision whose run produced it.
+
+  This is a genuine fixed point, not an oversight, and the honest response is
+  to name it rather than to chase it. The alternatives are all worse: not
+  recording the result loses it; recording it and re-running gates it did not
+  need burns minutes for no verdict; and pushing an empty commit to "re-sync"
+  the head converts a documentation artefact into a moving target. What is
+  recorded instead is the **run identity and its own head SHA**, so a successor
+  can read the result and see exactly which revision it certifies, plus this
+  note explaining why that revision is not the tip.
+
+  The general shape is worth stating because it is not about CI: **a rule that
+  says "only claim a result for the revision it names" is satisfiable; a rule
+  that adds "and the named revision must be the current head" is not, for any
+  process that records its own results.** The first is the rule; the second is
+  the same rule with an impossible extra clause, and it is the one a reader
+  naturally supplies if the distinction is not written down.
 
 - **Observation:** a checker invoked with a *subset* of its configured rules
   reports a green that means nothing, and the green is more dangerous than a
