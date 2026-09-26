@@ -2078,6 +2078,22 @@ between them. Raise that before spending the tolerance.
   magnitude a reviewer is approving, and the file count — 75, still above the
   36-file tolerance — is the part that is stable enough to act on.
 
+  - [x] (2026-09-26) **Round 8 reviewed `05c818de` and returned seven findings:
+    six documentation stalenesses and one false positive. All six are corrected
+    and the seventh is declined, with the reasoning recorded as D52.** The run
+    was `coderabbit review --agent --committed --base origin/main`, pinned by
+    its own `verdict.txt` to `rev_start = rev_end = 05c818de`, over 75 files
+    set-identical to `git diff --name-only origin/main...HEAD`. Two of the six
+    were **created by the commit under review** — `D46`'s `Display` change
+    renamed a test and inverted its assertion while two doc blocks in files
+    outside that diff kept describing the old divergence — which is why the
+    round is recorded here rather than filed as review noise. The correction is
+    `c21c7c83` (six files, `+53 −32`, entirely doc-comment prose, verified
+    mechanically by filtering the changed-line set for non-comment lines and
+    getting nothing back). This entry is a separate commit because it lands
+    after the change it describes, and its own gate verdicts live in that
+    commit message per D49.
+
 ## Surprises & discoveries
 
 - **Observation:** the estate's `spelling` target runs the config builder in
@@ -7206,6 +7222,133 @@ intra-document pointer that no linter follows. Both survive `check-fmt`,
 before a reader looked. That is the same shape as D49's finding, one level up:
 the gates check the document's *form*, and the only instrument for its *claims*
 is someone reading it against its sources.
+
+### D52: round 8 reviewed the two concerns, and found six stale doc blocks they left behind
+
+**Decided 2026-09-26, on the first review round since round 7.** The round ran
+against `05c818de` — the commit that settles D46 and D47 — and returned seven
+findings. One is a false positive; the other six are documentation that had
+gone stale, and **the sharpest of them was created by the very commit under
+review.** That is the finding worth recording, because it is the shape this
+document keeps meeting: a behaviour was changed and its test updated, while
+prose *about* the behaviour, sitting in files the commit did not touch, kept
+describing the old one.
+
+**Finding 1, declined.** `named_witnesses.rs:360` uses
+`rows.next().unwrap_or_else(|| panic!(..))`, which CodeRabbit read as violating
+Whitaker's `no_unwrap_or_else_panic`. It does not, and the exemption is worth
+recording in full because the rule is not "tests are exempt". The lint's
+`policy.rs` returns `false` when
+`summary.is_test && panic_info.is_interpolated_only()`, where interpolated-only
+means `has_interpolated_panic && !has_plain_panic`. The flagged site is inside a
+`#[test]` body and its panic interpolates `{KIND_ALL:?}` and `{expected:?}`,
+so both clauses hold and it is exempt. The lint's own `policy_evaluation` table
+states the same four ways: `plain_panic_in_tests` flags,
+`interpolated_panic_in_tests` does not.
+
+**The repository's two earlier conversions do not contradict that, but the
+first reading of them did — and this document's draft of this very entry
+carried the wrong reading.** Both sites are real, both were flagged, and it is
+tempting to treat them as evidence that "test" is not the operative half. They
+are not, because **they were flagged by two different halves of the
+conjunction**:
+
+- `src/runner/tests/source/mod.rs` lay inside a `#[test]` fn, so `is_test` was
+  true; its pre-conversion panic,
+  `panic!("the record must carry a source; it was built with one")`, was a
+  **plain** literal, so `has_plain_panic` was true and the second clause
+  failed. It is the plain/interpolated half that flagged this one.
+
+- `tests/runner_sequence_props/sequence/run.rs` lay inside
+  `pub(crate) fn run_case_async` — a plain helper with no test attribute, in an
+  integration-test file with no `#![cfg(test)]` — so `is_test` was **false**;
+  its pre-conversion panic interpolated `{MAX_POLLS}`, which is exactly the
+  form the second clause would have exempted **had the first clause held**. It
+  is the context half that flagged this one.
+
+So the two precedents sit on opposite sides of *different* conjuncts, and
+reading either alone would have produced a spurious conversion here — the first
+reading I committed, which inferred "plain literal" as the shared property both
+conversions had in common. They share no property. The decline itself never
+depended on it: `named_witnesses.rs:360` satisfies **both** clauses, which is
+the only thing the exemption asks.
+
+**Findings 4 and 7, the ones this commit caused.** `runner/tests/source/mod.rs`
+still said "the *rendering* does read the error's copy, and `rendering` records
+that", and `support.rs` still pointed at "the divergence test in
+`rendering.rs`" pinning "the one place the two still do disagree today". D46
+had, in the same commit, made the rendering read the plan's path and *renamed*
+that test to `the_rendered_failure_takes_its_path_from_the_plan_not_the_error`.
+Both sentences were true of `93e03a1f` and false one commit later. **Neither
+file is in that commit's diff, which is exactly why it was missed** — the
+change surface and the prose surface disagreed, and only the change surface was
+consulted. The corrections also add the fallback caveat both blocks were
+missing: when `terminal_source()` is `None` there is no plan-side path to
+substitute and the rendering falls back to the error's own, which is a fallback
+rather than the divergence the old text described.
+
+**Findings 2, 3, 5 and 6: stale before this commit, found now.** Three
+independent stalenesses, none of them caused by the reviewed commit and all of
+them live at it. `runner_instrumentation/capture.rs` documented an
+`Option<u32>` as rendering `Some(42)` when `tracing` records an `Option`
+through its inner value and the value is `42` — a fact
+`runner_instrumentation.rs:103` already asserted, having been corrected there
+and not in the doc. Six doc sites across `outcome/mod.rs` and
+`outcome/step.rs` — one in the first file, five in the second — carried the
+same staleness in three variants: every one of them explained the `not(test)`
+expectation by pointing at `ScenarioSkip::new`, three directly and three by way
+of `passed`, which is where that explanation had been parked; and two of them
+said in so many words that the caller "lands in EP-M2", a *future* caller when
+`engine::policy::assemble` had held that role since EP-M2 landed. That pointer
+had gone stale twice over — the seven
+`#[cfg_attr(not(test), expect(dead_code))]` attributes it referred to were
+deleted by `50b096e1`, the commit that wired the driver, and
+`ScenarioSkip::new`'s own doc never mentioned them, so the reference dangled at
+a page that could not answer it. Six hunks rewrote those six blocks, one per
+site. **One further site survives them and is left deliberately**:
+`ScenarioSkip::new`'s own "The caller is the runner's engine, which builds one
+whenever an invocation asks to be skipped" is accurate as written —
+`engine::policy::assemble` *is* the runner's engine, and naming the symbol in
+every caller's doc would be worse prose than naming the role. The six that were
+wrong were wrong because they described a *future* caller or pointed at a
+source that had ceased to explain them; `runner_panics.rs` opened the async
+boundary test with "The two async boundaries, one case each" above an
+`#[rstest]` that has two cases on one function, and justified driving
+`execute_step_async` on the grounds that "the async scenario entry point is
+EP-M3's deliverable and does not exist yet" — but
+`pub async fn run_scenario_async` exists at `runner/mod.rs:154`, and by blame
+evidence it existed *before* the sentence was written. The rewrite states the
+test's real scope instead: it covers the execution layer's boundary, not
+`run_scenario_async`'s loop or outcome assembly.
+
+**The figures in this entry were wrong twice before they were right, and that
+is the same defect in miniature.** The first draft of this entry said "four doc
+sites" and "five hunks" for the two outcome files; the figures above — six and
+six — come from counting the hunks
+(`git show c21c7c83 -- <path> | grep -c '^@@'`, giving one and five) and the
+per-file fix-up wording. The first correction of them then over-claimed in the
+other direction, attributing "lands in EP-M2" to all six sites when two carry
+it. Both mistakes were figures recalled from a reading rather than measured at
+the moment of writing, which is the six findings' own defect one level down: a
+sentence about the tree that nobody checked against the tree.
+
+**Why what looks like housekeeping is recorded as a decision.** Every one of
+the six accepted findings is a sentence that was *checkable* and unchecked —
+against a caller that exists, a lint that was deleted, an assertion two files
+away, or the function directly beneath it. None was caught by a gate, and the
+deterministic gates were green over all of them, because a doc comment naming
+the wrong caller is still valid Markdown, still compiles, and still resolves
+its links. This is D51's lesson at a new address: **the gates check form; a
+claim needs a reader.** Two earlier instances are named in this document, so a
+successor can judge the pattern rather than take the count on trust — EP-M2's
+"Found while re-reading D5 against the tree rather than from any gate — no gate
+can see a plan that over-claims", and D51's own closing, where two false
+consistency claims "survive `check-fmt`, `markdownlint`, and `nixie` green …
+before a reader looked". The one structural remedy available was applied in
+D46's own change and did not help here — updating the test and its adjacent
+comment while two other files described the same behaviour the old way. A
+successor changing a documented behaviour should grep for prose describing it,
+not only for callers of it.
 
 ## Outcomes & retrospective
 
