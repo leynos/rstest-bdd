@@ -1688,6 +1688,46 @@ between them. Raise that before spending the tolerance.
 
 ## Surprises & discoveries
 
+- **Observation:** every push to a pull request here *cancels the pull request's
+  own in-flight CI run*, by design, so a plan that publishes several
+  documentation commits in quick succession destroys the CI evidence for each
+  one before it can be read. **This makes "wait for CI to go green, then push
+  the next commit" a race that cannot be won**, and it is the reason the
+  required-leg results have been outstanding across several head revisions.
+
+  The mechanism is three lines of estate policy, and it is deliberate:
+
+  ```yaml
+  concurrency:
+    group: ci-${{ github.ref }}
+    cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  ```
+
+  `tests/workflow_contracts/pr_concurrency_test.py` enforces exactly this and
+  states the rationale: "Pushing twice to a pull request in quick succession
+  leaves the first run charging minutes for a result nobody will read." The
+  test also drives synthetic documents, because "a rule parametrized over files
+  that already conform passes whether or not it discriminates" — so the
+  cancellation is a contract, not an accident.
+
+  The evidence is a run list where every superseded head shows `cancelled`:
+
+  ```plaintext
+  36204158867 b6123cb4 pending/             pull_request 00:15:28Z
+  36203733834 5a2dc36d in_progress/         pull_request 00:08:53Z
+  36203536076 cd68363c completed/cancelled  pull_request 00:05:49Z
+  ```
+
+  **The lesson is about sequencing, not about CI.** A `cancelled` conclusion is
+  not a failure and not a pass — it is the absence of a verdict, and it must be
+  read as such. The corollary is the same one this plan keeps rediscovering in
+  other forms: **a run's conclusion only certifies the revision its own head
+  SHA names, and here even a fresh run on the right revision can be destroyed
+  by a later push to the same branch.** So the correct order is to finish all
+  edits first, push once, and only then wait — never to poll between pushes.
+  That is what this entry's own commit does: the head is frozen at it
+  deliberately, and no further push lands until the three legs have reported.
+
 - **Observation:** a checker invoked with a *subset* of its configured rules
   reports a green that means nothing, and the green is more dangerous than a
   red. Evidence: `mdtablefix --check --git` was run standalone and reported
