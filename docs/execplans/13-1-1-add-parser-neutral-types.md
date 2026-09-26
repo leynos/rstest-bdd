@@ -46,11 +46,19 @@ has since been falsified by events**, which is the honest form of it: two
 review findings arrived on 2026-09-26 and were actioned as D46 and D47, and D47
 in particular added a new integration test
 (`crates/rstest-bdd/tests/runner_wire.rs`) and D46 changed a public `Display`
-implementation. Neither has been reviewed by any CodeRabbit round. So the
-accurate reading is: **round 7 was the last review of the revision it ran
-against, and the code added since has not been reviewed** — "no further review
-is owed" was a claim about a closed milestone, not a standing licence for
-everything committed afterwards.
+implementation. **Both were subsequently reviewed, and this paragraph has been
+corrected rather than left to mislead.** An earlier version of it read "Neither
+has been reviewed by any CodeRabbit round", which was true when written and
+false a round later: round 8 (D52) ran against `05c818de`, the commit that
+carries D46 and D47, over 75 files set-identical to that revision's own diff —
+so all four of the touched files (`outcome/mod.rs`, `tests/source/rendering.rs`,
+`runner_wire.rs`, `execution/error/format.rs`) were in the reviewed set. The
+accurate reading is therefore: **round 7 was the last review of the revision it
+ran against; round 8 is the last review, and it covered D46 and D47 — but not
+`c21c7c83` or D52's own entry, which landed after it.** "No further review is
+owed" was a claim about a closed milestone, not a standing licence for
+everything committed afterwards, and this sentence is the worked example: a
+revision-scoped claim read as a standing one, corrected one round later.
 
 **The branch has since been rebased onto the current `origin/main`**
 (`f6244601`), replaying all 101 commits with zero conflicts and a
@@ -7656,11 +7664,17 @@ follow-ups are already in the roadmap and need no action from this plan. Seven
 numbered CodeRabbit rounds were run, the last of them empty (D44), against the
 revisions listed in D26, D28, D29, D30, D41, D42, and D44. **Two review
 findings have since been actioned on this branch — D46 (a `Display` behaviour
-change) and D47 (a new integration test) — and neither has been through a
-review round.** Nothing in the roadmap requires another round, and the plan
-does not claim one is owed; a successor deciding whether to request one should
-weigh D46's user-visible string change, which is the kind of edit a review is
-for.
+change) and D47 (a new integration test) — and both went through round 8**,
+which ran against `05c818de`, the commit carrying them (recorded as D52). An
+earlier version of this paragraph said "neither has been through a review
+round", which round 8 falsified; the correction is made here rather than left
+standing, because the whole point of the paragraph is to tell a successor what
+has and has not been reviewed. What remains unreviewed is the work that landed
+*after* round 8: `c21c7c83` (six doc corrections) and D52's own entry. Nothing
+in the roadmap requires another round, and the plan does not claim one is owed;
+a successor deciding whether to request one should weigh D46's user-visible
+string change — which round 8 did see — against the two post-round-8 revisions,
+which are prose and plan text respectively.
 
 ## Context and orientation
 
