@@ -124,9 +124,12 @@ net added lines** at `bbde0f2e`, against a 36-file / 4,500-line tolerance. D43
 states three options and recommends accepting the breach while recording that
 the tolerance's *unit* is what is wrong; it also notes that its own text then
 moved the figure it records, which is that defect restated. The escalation is
-open until a human answers it, and it is now the **only** open escalation:
-D39's is retired. Every other obligation is discharged or explicitly recorded
-as open.
+open until a human answers it. D39's is retired, but this is **no longer the
+only** open escalation: a second one was found on 2026-09-26 and is recorded in
+`Surprises & discoveries` — the estate's `spelling` target runs
+`typos-config-builder` in **write** mode, so the quality gate repairs the drift
+it exists to report. Every other obligation is discharged or explicitly
+recorded as open.
 
 ## Purpose / big picture
 
@@ -1778,6 +1781,63 @@ between them. Raise that before spending the tolerance.
     fixed point below explains.
 
 ## Surprises & discoveries
+
+- **Observation:** the estate's `spelling` target runs the config builder in
+  **write** mode, so the gate repairs the drift it exists to detect. This turns
+  the "never commit generated drift" rule recorded earlier in this plan from an
+  invariant a maintainer can hold into one a *tool* violates on every run, and
+  it is the second open escalation on this work.
+
+  The mechanism is three lines:
+
+  ```makefile
+  markdownlint: spelling ## Lint Markdown files and enforce en-GB-oxendict spelling
+  	$(MD_FILES_FIND) | xargs -0 $(MDLINT)
+
+  spelling: ## Enforce en-GB-oxendict in tracked text
+  	$(TYPOS_CONFIG_BUILDER) gate --repository . --scope all
+  ```
+
+  `markdownlint` **depends on** `spelling`, and `spelling` invokes `gate`,
+  whose own help describes it as "Generate configuration, run Typos, and
+  enforce phrase corrections" — it renders `typos.toml` as a side effect. The
+  builder *does* have the mode a gate should use: `--check` "Report generated
+  configuration drift without writing output." Measured both ways on the
+  committed, `origin/main`-identical file: `--check` **exits 1 and prints
+  `drift: typos.toml`**, writing nothing, while `gate` **exits 0 and silently
+  rewrites the file**. So the committed file is genuinely stale *and* the
+  quality gate is what hides it.
+
+  **The staleness is estate-wide, not branch-caused.** Running the builder
+  against `origin/main`'s own `typos.toml` produces a byte-identical 13-line
+  refresh to the one this branch sees. `main` is stale in exactly the same way,
+  so this is a property of the estate's tooling rather than of these changes —
+  and any branch touching Markdown in this repository meets it.
+
+  **The measurement that matters is the fixed point.** The refresh is
+  deterministic (two consecutive runs byte-identical: 13 additions, 0
+  deletions) *and* stable under its own gate (re-running `gate` on the
+  refreshed file leaves it byte-identical, exit 0). A fixed point is what makes
+  the lesion permanent rather than transient: the gate will never report the
+  file as clean again, because it can always write a version that differs from
+  whatever is committed.
+
+  **Impact, stated precisely.** The plan's earlier rule — *a gate that
+  regenerates a tracked input leaves that input dirty, and a dirty tracked file
+  is a change to review, never a change to accept* — was written as guidance
+  for a human noticing drift. Under this estate's tooling the guidance is not
+  reachable by discipline, because `make markdownlint` **cannot be run without
+  producing the dirty file**. The two available exits are to commit the refresh
+  (making this branch the sole author of a diff to a generated file it has
+  never touched in 112 commits) or to change the tooling to use `--check`.
+  Neither is this plan's decision to make, which is why it is escalated rather
+  than resolved.
+
+  A corollary worth keeping, and the reason this is recorded rather than
+  quietly reverted each time: **a gate that writes cannot be used to test the
+  property it writes.** The plan spent several rounds reverting this file and
+  re-running the gate to confirm the tree was clean, and each confirmation was
+  circular — the gate's own write mode was the thing being confirmed against.
 
 - **Observation:** every push to a pull request here *cancels the pull request's
   own in-flight CI run*, by design, so a plan that publishes several
