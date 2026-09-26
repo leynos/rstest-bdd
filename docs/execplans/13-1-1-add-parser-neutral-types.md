@@ -6099,6 +6099,24 @@ delta named, rather than chased. (The file count is unchanged at 73 either way
 — the same file, more lines — which is the clear half of why the file-count
 half of the tolerance is the less informative one.)
 
+**Re-measured once more at `20c41239`, on the post-rebase base.** D43 above is
+pinned to `bbde0f2e`, which is a *pre-rebase* commit, and the branch was
+subsequently replayed onto `f6244601`; measuring either revision against the
+other's base is an error, and it is one this session made and then had to
+correct — using the stale `577a4617` base inflated the count to 120 files /
+28,585 net, roughly doubling it, because that base predates main's own
+intervening changes. Against the true merge-base `f6244601` the current figures
+are **74 files and 21,849 net** (`+21,933 / −84`), which cross-checks exactly
+against the PR's own `changedFiles: 74, additions: 21933, deletions: 84` — two
+independent sources agreeing. The margin over D43's recording is 1 file and
+1,293 net lines, and the file is `typos.toml`, which D45's commit added to the
+changed set: **the first time this tolerance breach has grown for a reason
+other than documentation.** The line growth is D43's own 113, D45's 146, and
+this paragraph's text. So the file-count half of the tolerance now has exactly
+one entry that is neither the plan nor the deliverable, and it is a generated
+file the estate's tooling rewrites — a third category the tolerance cannot
+name, which is the same defect D43 diagnosed, one instance further on.
+
 **What is being asked of the human, stated as a question rather than a
 recommendation.** Three options, none of which this agent should take alone:
 
