@@ -55,15 +55,18 @@ than asserting a "current" one.
 **Published 2026-09-26.** The force push succeeded with the lease bound to the
 recorded pre-rebase remote head (`+ ceb89de1...5b65ea09`); the two
 documentation commits that followed it were both ordinary fast-forwards
-(`5b65ea09..cd68363c`, then `cd68363c..5a2dc36d`, each `PUSH_EXIT=0`). The
-remote branch and PR #770 now both report `5a2dc36d`, with 107 commits, 73
-changed files, and `+21512 -84`; each figure was read back from the PR rather
-than computed here. **D39's escalation is retired, not answered:** main removed
-the failing `Check coverage against CodeScene gates` step under estate rule
-CV-005, so no pull-request lane contacts CodeScene at all, and the three
-candidate re-pins D39 weighed no longer name existing lines. D39 is marked
-`SUPERSEDED` at its own site. Separately, main repaired the check-naming defect
-D37 diagnosed, so the required contexts are now
+(`5b65ea09..cd68363c`, then `cd68363c..5a2dc36d`, each `PUSH_EXIT=0`). At the
+moment this paragraph was written the remote branch and PR #770 both reported
+`5a2dc36d`, with 107 commits, 73 changed files, and `+21512 -84` — each figure
+read back from the PR rather than computed here, and each scoped to that
+revision. Commits after it have moved the head further, so these figures
+describe a past state rather than a current one; the CI results that matter are
+the ones bound to their own head SHAs below. **D39's escalation is retired, not
+answered:** main removed the failing `Check coverage against CodeScene gates`
+step under estate rule CV-005, so no pull-request lane contacts CodeScene at
+all, and the three candidate re-pins D39 weighed no longer name existing lines.
+D39 is marked `SUPERSEDED` at its own site. Separately, main repaired the
+check-naming defect D37 diagnosed, so the required contexts are now
 `build-test (linux, default features)`,
 `build-test (windows, default features)`, and
 `build-test (windows, strict-compile-time-validation)` — the same three legs
@@ -1813,8 +1816,18 @@ between them. Raise that before spending the tolerance.
   SHA names, and here even a fresh run on the right revision can be destroyed
   by a later push to the same branch.** So the correct order is to finish all
   edits first, push once, and only then wait — never to poll between pushes.
-  That is what this entry's own commit does: the head is frozen at it
-  deliberately, and no further push lands until the three legs have reported.
+
+  **That entry also shows the rule being followed and then misdescribed in the
+  same breath**, which is why it is worth correcting rather than leaving: it
+  claimed "the head is frozen at it deliberately, and no further push lands
+  until the three legs have reported." The freeze was real — the legs did
+  report against an untouched head — but the plan went on to publish more
+  recording commits, exactly as this file's own procedure requires it to. So
+  the honest form of the rule is narrower than the one that was written: **a
+  push must not land while a run that is being *cited* is still in flight**,
+  which is a statement about the run, not about the head. A later push after
+  the cited run has concluded destroys nothing; that is how both clean verdicts
+  here were obtained.
 
 - **Observation:** the rule above has a sharp consequence that this plan has to
   live with rather than solve: **recording a CI result in this file is itself a
