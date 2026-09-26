@@ -233,7 +233,7 @@ fn observes_probe(
     Ok(StepExecution::from_value(None))
 }
 
-/// Recover the bounded context out of an observer invocation's text.
+/// Recover the observed probe's invocation index from an observer's text.
 ///
 /// A capture that is absent, not a `usize`, or ambiguous is reported as
 /// [`StepError::ExecutionError`] rather than folded to a default. The `Err`

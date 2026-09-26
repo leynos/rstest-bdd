@@ -1142,8 +1142,9 @@ between them. Raise that before spending the tolerance.
     and the two review findings have both been closed with evidence rather
     than with an assertion: INV-7's display path now re-renders against the
     plan's own source (D46), and the table projection has the end-to-end
-    evidence D33 recorded as missing, with two of the four previously
-    surviving mutations now demonstrated as caught (D47). **The plan is
+    evidence D33 recorded as missing, with all four previously surviving
+    mutations in that conversion now measured as caught, not inferred (D47).
+    **The plan is
     therefore `COMPLETE`**, and the residual is stated rather than hidden: no
     escalation is open, but the branch remains over its original `Scope`
     envelope by human decision, which D43 records as accepted and as not
@@ -1609,9 +1610,12 @@ between them. Raise that before spending the tolerance.
     rejected `hand-written` in a sentence this entry had just added.** That is
     the same two-pass trap EP-M3 recorded, firing again on new text — plain
     `typos` accepts `hand-written`, and only the second pass rejects it. The
-    fix is `handwritten`. The two surviving `hand-written` instances in this
-    plan are deliberately backticked, because they quote the rejected spelling
-    to record the trap, and the gate exempts inline code.
+    fix is `handwritten`. The instances of the rejected spelling that survive
+    in this plan are deliberately backticked, because they quote it to record
+    the trap, and the gate exempts inline code. (An earlier revision of this
+    sentence said "the two", which was true when written and false within two
+    entries; the count is deliberately gone rather than updated, since a count
+    of a growing document expires again.)
 
     **One discovery is worth recording because it is a false positive waiting
     to happen.** `typos.toml` is a *generated* file: the spelling gate's
@@ -2101,6 +2105,27 @@ between them. Raise that before spending the tolerance.
     getting nothing back). This entry is a separate commit because it lands
     after the change it describes, and its own gate verdicts live in that
     commit message per D49.
+
+  - [x] (2026-09-26) **Round 9 returned five concerns across seven finding
+    records, and all five are actioned — one of them reversing a decline from
+    D52 — with the reasoning recorded as D53.** One finding had been declined
+    twice on the argument that the lint exempts the construct; the finding
+    never claimed the lint flags it, and the repository's own convention
+    prefers the other form, so "the gate permits it" was not an answer to "this
+    would read better". The panic-hook half of the round is the substantive
+    part: the D11 hook was replaced with a single delegating hook reading a
+    **per-thread** flag, because the previous design widened its silence to the
+    whole process and could swallow a sibling test's assertion message. The fix
+    was proved in both directions under in-process libtest `--test-threads=4` —
+    a sibling thread's panic printed in full (1 occurrence) while a panic on
+    the silenced thread was swallowed (0) with its control marker present — so
+    the window is shown to be both open and narrow, rather than merely being
+    described as such. **The follow-up sweep then failed two gates on the
+    round's own new lines**, which is D54: a `DOC502`/`PT018` pair ruff caught
+    in the Python contract test, and three `hand-written` occurrences the
+    phrase-level spelling pass rejected. Both are fixed, and all six gates are
+    green against the exact tree — with four of them re-run rather than carried
+    forward, because the two edited files are files those gates read.
 
 ## Surprises & discoveries
 
@@ -6769,20 +6794,50 @@ that dropped a column changes at least one asserted cell, where a row-count
 assertion would not.
 
 **The non-vacuity evidence, which is the point of D33.** A test that passes is
-not evidence that it would fail; D33's finding was precisely that four
-mutations survived. Two of those four mutations were therefore re-applied to
-`row_slices` and the new test was run against each. Both were caught:
+not evidence that it would fail, and D33's finding was precisely that four
+mutations survived. Three successive drafts of this paragraph got the evidence
+wrong in three different ways, which is itself the finding worth recording: the
+first claimed "two of those four mutations re-applied" when only one of the two
+was a generated mutation at all; the second replaced that with a four-row table
+of `left` values that no run in the transcript produced; the third asserted
+"all four were re-applied" against a transcript containing two. Each version
+was plausible, and each was falsified by reading the artefact — the sweep's
+`outcomes.json` and the session transcript — rather than by re-reading this
+prose for internal consistency. **What follows is measured.**
 
-- `row_slices` returning `Vec::new()` — the step asserted
-  `left: []`, `right: [["alpha", "beta"], ["gamma"]]`;
-- `row_slices` truncating every row to its first cell — the step asserted
-  `left: [["alpha"], ["gamma"]]`, `right: [["alpha", "beta"], ["gamma"]]`.
+The four replacements `cargo-mutants` generated are recorded in the sweep's
+`outcomes.json` at `drive.rs:72:9`, all four with the `MissedMutant` summary
+D33 reported. Each was re-applied to the pristine body of `row_slices` in turn
+and the new test run against it. All four are caught:
 
-The second is the mutation a coarse assertion would have missed, and it is the
-reason the assertion names every cell.
+- `vec![]` returning no rows — `left: []`;
+- `vec![Vec::leak(Vec::new())]` — `left: [[]]`, one empty row;
+- `vec![Vec::leak(vec![""])]` — `left: [[""]]`, one row of one empty cell;
+- `vec![Vec::leak(vec!["xyzzy"])]` — `left: [["xyzzy"]]`, one row of one cell.
+
+Every one differs from `right: [["alpha", "beta"], ["gamma"]]`, so the step's
+assertion — which names the cells rather than the row count — catches all four.
+The last is the substitution `cargo-mutants` generates for a one-row table, and
+it is the closest analogue to the handwritten truncation below: the same
+*shape* as a table shortened to its first cell, with a different value. That is
+the case a row-count assertion would miss, and it is why the assertion names
+every cell.
+
+**The two handwritten mutations, and what they do not prove.** Before those
+four, two mutations were applied by hand: `row_slices` returning `Vec::new()`,
+and then, in sequence, a body that shortens every row to its first cell via
+`row.split_first()` and `std::slice::from_ref`. Both were caught, with
+`left: []` and `left: [["alpha"], ["gamma"]]` respectively. The second is the
+mutation a coarse assertion would have missed, so it is the one that motivated
+the assertion's shape. But it is **not** one of the four the sweep generated,
+and the first replaced the function's *body* rather than its *value* — so
+neither is sweep evidence, and the earlier drafts' framing of them as "two of
+those four" conflated a hand probe with a generated mutant.
+
 `crates/rstest-bdd/src/runner/engine/drive.rs` was restored byte-identically
-afterwards (`git diff --stat` empty on that path) and the suite re-run green.
-Both mutants also demonstrate Constraint 3 in passing: the step's assertion
+after each run, confirmed by `sha256sum` against the pre-run hash rather than by
+`git diff --stat`, whose emptiness would not survive a staged-only change. All
+six mutations also demonstrate Constraint 3 in passing: each step's assertion
 failure came back as a returned `ScenarioOutcome` carrying
 `StepError::PanicError`, not as an unwind out of `run_scenario`.
 
@@ -7357,6 +7412,176 @@ D46's own change and did not help here — updating the test and its adjacent
 comment while two other files described the same behaviour the old way. A
 successor changing a documented behaviour should grep for prose describing it,
 not only for callers of it.
+
+### D53: round 9 found five things, and one of them had been declined on bad reasoning
+
+**Decided 2026-09-26, on the last review round before the plan closed.** The
+round returned five distinct concerns. Four are applied; one is a correction to
+a *previous* decline of my own, and that is the one worth recording, because
+the finding was right and my reason for refusing it was not.
+
+**F1, which had been declined twice, is applied.** Round 8's finding 1 and
+round 9's F1 both asked for `named_witnesses.rs:360`'s
+`rows.next().unwrap_or_else(|| panic!(..))` to become a `let`-`else` binding.
+D52 declined it on the ground that Whitaker's `no_unwrap_or_else_panic` exempts
+it: the predicate is `summary.is_test && panic_info.is_interpolated_only()`,
+both clauses hold, and `make lint-whitaker` is green with the site in place. I
+verified that reasoning again and it is sound **as far as it goes** — the lint
+does not flag the site. But the finding never claimed the lint flags it. It
+asked for a `let`-`else`, and the repository's own convention already prefers
+one: `runner_panics/mod.rs` writes "`let ... else` rather than `.expect(...)`,
+following the convention `runner_wire.rs` records". **"The gate permits it" is
+not an answer to "this would read better", and treating a green gate as a
+rebuttal is the same error class as D52's six stale blocks** — measuring the
+form of a claim instead of the claim. The conversion is one line and the panic
+message is preserved verbatim, so nothing was traded away by doing it.
+
+**F2 and F6, the silencing design, is applied — with the review's two
+corrections.** Both findings asked for the same change: install one filtering
+hook, gate it on a thread-local flag, drop the process-global replacement and
+its `Mutex`. Applied as D11's module note now describes. The independent review
+that checked the design before I wrote it corrected two details that would each
+have been a silent defect:
+
+- the guard must **save and restore** the flag's previous value, not clear it to
+  `false`. Clearing would strand an outer window if windows ever nest; they do
+  not today, but the invariant costs one `bool`;
+- the hook must **not** be wrapped in a `thread::panicking()` guard. That
+  function is false while the hook runs — `std` increments its panic counter
+  before calling the hook and decrements it after — so the guard would look
+  like a safety check and would in fact switch silencing off entirely. The old
+  code's `thread::panicking()` check was correct for a design that called
+  `set_hook` from `Drop`; this design has no `Drop` that touches the hook.
+
+The review also established *why* the thread-local access inside the hook is
+safe, which is narrower than "it is just a `Cell`": `LocalKey::with` panics if
+the value is observed as destroyed, and a panic inside the hook is an abort.
+`Cell<bool>` has no destructor, so it is a plain TLS static with no `State`
+machine and no `Drop` registration, and the access cannot fail. The note
+records this so a later edit to a drop-bearing type does not silently
+reintroduce the abort.
+
+**The evidence for the change is a pair of probes, because a green suite is
+vacuous here.** The former design's defect was that a *sibling* thread's panic
+message was swallowed; the six tests in `runner_panics` do not cover that, and
+neither does nextest, which spawns a process per test. Two temporary probes
+were inserted into `runner_panics.rs` and removed afterwards (working tree
+verified clean against `HEAD` for that path):
+
+- a sibling thread panicking while this thread's window is open — its message,
+  `PROBE-SIBLING-MESSAGE-MUST-SURVIVE`, **printed in full** (1 occurrence);
+- a panic on the silenced thread itself — its message **swallowed** (0
+  occurrences), with the probe body's own completion marker present, so the
+  window was genuinely open rather than skipped.
+
+The second is the negative control that makes the first non-vacuous: a hook
+that silenced nothing at all would also let a sibling's message through. Both
+ran under in-process libtest with `--test-threads=4`, which is the only mode
+that exercises the overlap. The plan's own standard for this is D33's, and this
+meets it in both directions rather than one.
+
+**F3, F4, F5 and F7 are applied as written.** F3 corrected
+`placeholder_index`'s doc summary, which described a "bounded context" the
+function never had — the phrase occurred nowhere else in the repository, so it
+was a summary written for a different function and never revisited. F4/F7
+rewrote the `make test` feature-off contract test to locate the leg by the
+package it selects rather than by the flag under test; the old version filtered
+on `--no-default-features` and then asserted it, so a fallback branch that
+*lost* the flag became invisible and the surviving nextest line satisfied every
+assertion. That defect was reproduced deliberately: the old test **passed** on
+a Makefile whose fallback branch had been stripped of the flag, and the new one
+fails it. F5 labelled the users-guide example as an empty-plan rejection,
+verified rather than assumed — `into_harness_result` returns
+`Err(ScenarioFailure::EmptyPlan)` at `outcome/mod.rs:294`, so the documented
+example genuinely reaches that branch.
+
+**The D47 entry was corrected, and the correction itself was wrong twice.** The
+sweep records four `row_slices` replacements, all `MissedMutant`. The entry's
+first version said two of them were re-applied; the transcript shows two
+*handwritten* mutations, one of which was not a generated replacement at all,
+and the second of which was applied on top of the first rather than to the
+pristine body. The second version replaced that with a four-row table of `left`
+values that no run had produced. Both were caught by reading the artefacts —
+`outcomes.json`, and the session transcript — rather than by re-reading the
+prose. **The version now in the entry is measured**: all four generated
+replacements were re-applied to the pristine body in turn, each ran the D47
+test, and each failed with its own rendered diff (`[]`, `[[]]`, `[[""]]`,
+`[["xyzzy"]]`). The two hand mutations are recorded separately, as hand
+mutations, with what they do and do not prove. Three drafts, three different
+errors, one artefact each time; that is D52's lesson arriving at the third
+address in as many days.
+
+### D54: a re-verified behaviour is not a re-verified file
+
+Round 9's five findings were actioned in the working tree, and **the tree then
+failed two of the six commit gates — both on lines the previous round's fixes
+had just added.** The sweep over the uncommitted tree returned four green and
+two red, and every offending line was a `+` line: the failures were the working
+tree's, not the committed revision's. `make test`, which is the gate that
+actually exercises the D4 contract and the panic-hook rewrite, was green
+throughout.
+
+**`make lint` failed at ruff with three errors in one file.** The `make test`
+feature-off contract test carried two `DOC502`
+(`docstring-extraneous-exception`) hits — its `Raises` sections documented an
+`AssertionError` the functions never raise literally, because they `assert` and
+`S101` is deliberately ignored for `scripts/tests/test_*.py`, so the two idioms
+do not meet — and one `PT018` (`pytest-composite-assertion`). The facts moved
+into the summary prose rather than being dropped, and the composite assertion
+split into three so that each names the token it could not find. Splitting an
+assertion can leave it *vacuously* narrow, so each conjunct was driven
+independently: a missing `else`, a missing `fi`, and an `else` after its `fi`
+each trip their own message, and a well-formed block still parses.
+
+**`make markdownlint` failed in its `spelling` prerequisite** on three
+`hand-written` occurrences, one of them in a sentence D53 had just added. The
+plan already recorded this exact trap, in the entry that states the
+phrase-level pass rejects the hyphen and that the surviving instances pass only
+because they are backticked quotes of the rejected spelling. D53 then
+reintroduced it, in plain prose, three times. **Recording a trap does not
+exempt new text from it**, and prose written *about* a gate failure is still
+prose that gate reads. The three are now `handwritten`.
+
+**The first lesson generalizes past spelling: a green behaviour test is not a
+green file.** The D4 file had been verified twice over — `pytest` reported
+`3 passed`, and its non-vacuity claim had itself been reproduced by running the
+old test against a Makefile with the flag stripped — and neither run said
+anything about `DOC502` or `PT018`. Two independent verdicts about the same
+bytes, and only one question had been asked of them. That is the argument for
+running the whole gate set rather than the gate a change appears to concern.
+
+**Two masking findings, in opposite directions, both worth the entry.**
+
+The first is about reading a red gate's summary line. `markdownlint` depends on
+`spelling`, so the spelling failure meant the `markdownlint-cli2` step **never
+ran** — "markdownlint is red" would misdescribe that state, in which the
+Markdown files were not known either way. The same held for `make lint`, whose
+ruff failure aborted the target before pylint, df12-pylint, ambrleaks and all
+five `scripts/check_*` validators. The re-run confirmed all ten of `lint`'s
+recipe steps executed and that it reached its final line, so a clean exit from
+those validators is now meaningful rather than merely unreported. **A gate that
+has never been shown reachable is not evidence**, and the reachability had to
+be established separately from the green.
+
+The second is about carrying verdicts forward across edits. The first sweep's
+tree hashed `6c9a6fbf…`; the fixed tree hashed `33714b15…`. Four of the first
+sweep's green verdicts were therefore **not** carried forward, because the two
+files edited since are files those gates *read*: `check-fmt` runs `mdtablefix`
+over Markdown and `ruff format` over Python, `typecheck` runs `ty` over Python,
+`test` runs the Python suite, and `nixie` validates Mermaid in Markdown. All
+four were re-run against the exact tree. The test for carrying a verdict
+forward is whether the gate reads the touched paths — not whether the file
+count changed and not whether the change "looks like" the gate's concern. Had
+they been carried forward, the Python edits would have reached this commit with
+only a focused `pytest` run behind them.
+
+**One inherited claim was stale and is corrected here rather than deferred.**
+The entry above had said "the two surviving `hand-written` instances", which
+was true when written and false within two entries, as each later entry quoted
+the rejected spelling in backticks. The sentence now carries no count: the
+count is what expired, so replacing it with a larger one would only expire
+again. This entry is a separate commit from the change it describes, so its own
+gate verdicts live in that commit's message under D49, not here.
 
 ## Outcomes & retrospective
 

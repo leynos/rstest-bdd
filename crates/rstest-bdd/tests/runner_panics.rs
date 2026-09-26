@@ -38,11 +38,12 @@
 //!
 //! # Running these tests
 //!
-//! The deliberate panics are silenced by a process-global panic hook, which is
-//! why this binary's tests are serialized — see `runner_panics/mod.rs`. The
-//! silencing is confined to a [`panics::silenced`] window around each run, and
-//! never wraps an assertion; the module note explains why that confinement is
-//! load-bearing rather than tidy. Run it with
+//! The deliberate panics are silenced by a process-global panic hook that
+//! consults a **per-thread** flag, so this binary's tests are not serialized and
+//! their order does not matter — see `runner_panics/mod.rs`. The silencing is
+//! confined to a [`panics::silenced`] window around each run and never wraps an
+//! assertion; the module note explains why that confinement is load-bearing
+//! rather than tidy, and why the two earlier designs both failed. Run it with
 //! `cargo nextest run -p rstest-bdd -E 'binary(runner_panics)'`.
 
 use rstest::rstest;
