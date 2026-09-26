@@ -49,6 +49,21 @@ after the replay and all six pass; their logs certify `b70ad1bb`, the current
 head. **A rebase invalidates the evidence tied to the pre-rebase head, so the
 re-run is the evidence that counts, not the earlier green.**
 
+**Published 2026-09-26.** The force push succeeded with the lease bound to the
+recorded pre-rebase remote head (`+ ceb89de1...5b65ea09`); the remote branch
+and PR #770 both now report `5b65ea09`. **D39's escalation is retired, not
+answered:** main removed the failing `Check coverage against CodeScene gates`
+step under estate rule CV-005, so no pull-request lane contacts CodeScene at
+all, and the three candidate re-pins D39 weighed no longer name existing lines.
+D39 is marked `SUPERSEDED` at its own site. Separately, main repaired the
+check-naming defect D37 diagnosed, so the required contexts are now
+`build-test (linux, default features)`,
+`build-test (windows, default features)`, and
+`build-test (windows, strict-compile-time-validation)` — the same three legs
+under new labels, read from the ruleset rather than from the plan. The three
+legs were still running when this header was last updated, so **no pass is
+claimed for them here.**
+
 **The plan is deliberately not marked `COMPLETE`.** The `Scope` tolerance is
 breached and measured three times: D27 at 58 files / 15,737 net, D31 at 71 /
 18,325, and D43 — EP-M5's own closing re-measurement — at **73 files / 20,556
@@ -56,8 +71,9 @@ net added lines** at `bbde0f2e`, against a 36-file / 4,500-line tolerance. D43
 states three options and recommends accepting the breach while recording that
 the tolerance's *unit* is what is wrong; it also notes that its own text then
 moved the figure it records, which is that defect restated. The escalation is
-open until a human answers it. Every other obligation is discharged or
-explicitly recorded as open.
+open until a human answers it, and it is now the **only** open escalation:
+D39's is retired. Every other obligation is discharged or explicitly recorded
+as open.
 
 ## Purpose / big picture
 
@@ -1155,7 +1171,10 @@ between them. Raise that before spending the tolerance.
     gates`, for the upstream reason D39 records — 2056 tests pass, 0 fail, and
     the identical parse error appears. So of the three required checks, two are
     green and the third is blocked by a CodeScene regression three days older
-    than this branch. See D38 and D39.
+    than this branch. See D38 and D39. [Superseded 2026-09-26: the blocking
+    step no longer exists; main removed it under CV-005 and the three required
+    legs are unaffected by CodeScene. See D39's `SUPERSEDED` note and the
+    2026-09-26 Progress entry.]
   - [x] (2026-09-20) **CodeRabbit round 5 run at `193975b5` and adjudicated in
     full.** 11 findings at 9 distinct concerns across 7 files. Nine accepted and
     fixed; two declined as to their arithmetic while the valid part of each was
@@ -1472,6 +1491,124 @@ between them. Raise that before spending the tolerance.
     regenerates a tracked input leaves that input dirty, and a dirty tracked
     file is a change to review, never a change to accept.** The check is one
     command — revert it and see whether the gate still passes.
+
+  - [x] (2026-09-26) **The rebase was published and the required-check set
+    re-read from the ruleset, which retired D39's escalation.** The force push
+    succeeded with the lease bound to the recorded pre-rebase remote head:
+    `+ ceb89de1...5b65ea09 (forced update)`, `PUSH_EXIT=0`. The remote branch
+    and PR #770 both report `5b65ea09`, with `commits: 105`, `changedFiles:
+    73`, still `draft: true`. The 105 is 101 replayed commits plus the four
+    post-rebase documentation commits, which is the arithmetic the plan
+    predicted before the push.
+
+    **The required checks were read from the ruleset, and the names this plan
+    had recorded are obsolete.** Ruleset `18427987` (`main-required-checks`,
+    `target: branch`, `enforcement: active`,
+    `strict_required_status_checks_policy: false`) now requires exactly:
+
+    ```plaintext
+    build-test (linux, default features)
+    build-test (windows, default features)
+    build-test (windows, strict-compile-time-validation)
+    ```
+
+    The `ubicloud-standard-2` and `stable-x86_64-pc-windows-msvc` names D37
+    quoted are gone. They were gone because **main fixed the naming defect
+    itself, and the fix is the one the contract test was written to enforce.**
+    `ci.yml` line 29 now declares an explicit `name:` —
+
+    ```yaml
+    name: build-test (${{ matrix.platform }}, ${{ matrix.feature-set }})
+    ```
+
+    — and the comment above it records the reasoning verbatim: a derived name
+    "carries whichever label the event selected; a fork pull request would
+    report a context no branch-protection rule can require, and the derived
+    name is long enough that GitHub truncates it in the ruleset as well."
+    That is precisely the truncation this plan diagnosed from the outside
+    (D37's third context ending in a literal `...`), now repaired by the
+    project that owned the defect. And the contract is enforced, not merely
+    documented: `tests/workflow_contracts/job_name_shape_test.py` holds all
+    four halves of the rule, and `make test-workflow-contracts` — which
+    `ci.yml` line 534 runs — invokes it, so the defect cannot silently return.
+
+    **The larger discovery is that D39's entire escalation was overtaken by
+    events: it is dissolved rather than answered, which is a third outcome and
+    not the same as either resolution.** D39 escalated a choice between three
+    candidate re-pins of `ci.yml` lines 609 and 625, because the Linux leg
+    failed in a step named `Check coverage against CodeScene gates`. That step
+    **no longer exists anywhere in the repository** — the grep for it returns
+    nothing. Main removed it under a new estate rule, **CV-005**,
+    whose own contract test states the reason in the same terms this plan had
+    reached from the outside:
+
+    ```plaintext
+    Between 2026-09-16 and 2026-09-18 an unpinned `cs-coverage` could not
+    parse its own cobertura output, and because the check ran inside the
+    merge gate every pull request in this repository was blocked on a step
+    with nothing to say about the change under review.
+    ```
+
+    Pull-request lanes now carry no CodeScene action, no `cs-coverage`
+    command, and no `CS_ACCESS_TOKEN`; the trunk workflows `coverage-main.yml`
+    owns both the CodeScene upload and the ratchet baseline, and it is
+    reachable only from a push to `main` or a dispatch. `ci.yml` retains the
+    coverage *measurement* and the ratchet comparison under the names `Test
+    and Measure Coverage (Linux)`, `(Windows, default features)`, and
+    `(Windows, strict validation)` — measuring is a pull request's business;
+    publishing is not. A PR lane that cannot contact CodeScene cannot be
+    stopped by CodeScene, which is exactly the property D39 said the merge
+    gate lacked.
+
+    **So the second of the two failures D37 separated is closed by
+    construction, and the escalation attached to it is moot.** D39 recommended
+    re-pinning to `f68e8e2e` over the tool's tip, on the ground that
+    "verified-to-fix beats merely newer". That recommendation is now
+    unactionable in the form given: the lines it names no longer exist, and
+    the action pin it would have changed
+    (`upload-codescene-coverage@a5765019`) is already **one commit after
+    `f68e8e2e`** (`ahead 1, behind 0`), so the pinned ref already contains the
+    fix D39 read — five commits after the `0e3c4d24` pin that both line 609 and
+    line 625 carried at the pre-rebase head, which is the pair the escalation
+    named. Nothing was repinned here and nothing needs to be: main took the
+    fix and then removed the failure site entirely.
+
+    **What this falsifies in the plan, stated plainly.** The plan's D37 gate
+    list is superseded on the names, and D39's open question is superseded on
+    the substance — it is not answered "yes" or "no", it is dissolved. A
+    successor reading D39 should not re-pin anything. The one claim from D37
+    that survives unchanged is the one that mattered: the required set is
+    three `build-test` legs, and CodeScene's health and coverage checks are
+    **not** required — they are advisory, which is why their being red never
+    gated anything.
+
+    **The general shape, and it is D37's own lesson one level up.** D37's
+    correction was "the plan enumerated local `make` targets and never named
+    the PR checks". This entry closes the loop: the check names must be read
+    from the **ruleset API**, not from the plan, not from the workflow file,
+    and not from a prior CI run's log — because all three of those can be
+    stale in different ways. The ruleset is what actually gates the merge, and
+    it is one command:
+
+    ```bash
+    gh api repos/leynos/rstest-bdd/rulesets/18427987 \
+      --jq '[.rules[]|select(.type=="required_status_checks")|.parameters.required_status_checks[].context]'
+    ```
+
+    A rebase across a 16-commit target window is exactly when such drift
+    lands, which is why it surfaced here rather than earlier. **Corollary: a
+    green or red from a check whose name the ruleset no longer lists is not
+    evidence about the merge gate at all** — it is a report from a lane that
+    has been renamed out of the required set, and treating it as blocking
+    would be D37's error in the opposite direction.
+
+    The three re-named legs were `in_progress`/`pending` at the moment this
+    was written, so **this entry does not claim they pass and no result is
+    asserted for them**; their outcome is a separate Progress entry, to be
+    written from observed runs and not from expectation. `CodeScene Code
+    Health Review (main)` and `Gecko Security Review` had completed
+    successfully on the new head, and `Kody Code Review` was `skipped` — which
+    is a conclusion, not a success, and is recorded as such.
 
 ## Surprises & discoveries
 
@@ -4499,6 +4636,15 @@ build-test (windows-latest, stable-x86_64-pc-windows-msvc, true, true, false, fa
 build-test (windows-latest, stable-x86_64-pc-windows-msvc, true, strict-compile-time-validation, ...)
 ```
 
+**These names are historical as of 2026-09-26.** Main repaired the naming
+defect by declaring an explicit matrix `name:` in `ci.yml`, and the ruleset now
+reads `build-test (linux, default features)`,
+`build-test (windows, default features)`, and
+`build-test (windows, strict-compile-time-validation)`. The *set* is unchanged
+— still exactly three `build-test` legs, still with
+`strict_required_status_checks_policy: false` — so this entry's substantive
+claim survives; only the labels moved. See the 2026-09-26 Progress entry.
+
 All three were **failing** while the plan recorded the branch as gate-clean
 apart from CodeScene. So the milestone's own statement of readiness was
 measured against a set that does not gate the merge. **The CodeScene
@@ -4880,6 +5026,22 @@ that ran it, not the job's conclusion at a revision that skipped it. And **
 to reassure yourself about a step whose condition requires
 `github.event_name == 'pull_request'` inspects a code path `main` never
 executes, which is the D37 error one layer down.
+
+**SUPERSEDED 2026-09-26 — do not act on this entry's recommendation.** The step
+this entry escalated (`Check coverage against CodeScene gates`) has been
+**removed from the repository**. Main adopted estate rule CV-005: no
+pull-request workflow carries a CodeScene action, a `cs-coverage` command, or
+`CS_ACCESS_TOKEN`, and the trunk workflow `coverage-main.yml` owns the
+CodeScene upload exclusively. The re-pin of `ci.yml` lines 609 and 625 that
+this entry recommends names lines that no longer exist, and the action pin it
+would have moved (`upload-codescene-coverage@a5765019`) is already one commit
+*after* the fix this entry identified (`f68e8e2e`, `ahead 1, behind 0`). The
+question is therefore dissolved rather than answered — it is not that
+`f68e8e2e` should or should not be taken, it is that nothing needs taking. See
+the Progress entry of 2026-09-26 for the ruleset query and the contract test
+that hold the new arrangement in place. **The lesson this entry teaches
+survives intact and is unchanged by the supersession:** find the onset boundary
+before believing a red run is yours.
 
 Date/Author: 2026-09-20, implementation agent.
 
@@ -5694,6 +5856,68 @@ than after, which is the only difference.
 
 Date/Author: 2026-09-20, implementation agent.
 
+- **Observation:** a whole escalation can be *dissolved* by upstream work
+  rather than answered, and the way to notice is to re-read the artefact the
+  escalation names rather than the escalation's own summary of it. Evidence:
+  D39 weighed three candidate re-pins of `ci.yml` lines 609 and 625 to work
+  around a Linux-leg failure in a step called
+  `Check coverage against CodeScene gates`. After the rebase onto the current
+  `origin/main`, a grep for that step name across the repository returns
+  **nothing** — main had adopted estate rule CV-005, which forbids any
+  pull-request workflow from carrying a CodeScene action, a `cs-coverage`
+  command, or `CS_ACCESS_TOKEN`, and moved publication into the trunk-only
+  `coverage-main.yml`. The lines D39 named no longer exist, and the action pin
+  it would have changed was already one commit *past* the fix D39 had
+  identified as the remedy. Impact: D39 is marked `SUPERSEDED` at its own site,
+  and the plan's single open escalation is now D43's Scope breach alone. The
+  lesson is the one D39 itself taught, applied to D39: an escalation is a
+  statement about a revision, and it decays exactly as fast as the evidence
+  behind it. **An escalation whose named artefact has been deleted was not
+  "resolved in our favour" and it was not refused — it has become unanswerable
+  in the form it was posed, which is a third outcome and the one most easily
+  mistaken for the first.** The cheap check that separates them is a grep for
+  the thing the escalation names.
+
+- **Observation:** the required-check *names* in a plan go stale from the
+  target branch, not from the branch under review, so a rebase is exactly when
+  to re-read them — and the only authoritative source is the ruleset API.
+  Evidence: this plan recorded the required set in D37 as
+  `build-test (ubicloud-standard-2, stable, true, true, true, true)` and two
+  `windows-latest` siblings, one of which ended in a literal `...` because
+  GitHub truncates a derived matrix name. Ruleset `18427987` now reports
+  `build-test (linux, default features)`,
+  `build-test (windows, default features)`, and
+  `build-test (windows, strict-compile-time-validation)`. Main fixed this by
+  declaring an explicit `name:` that interpolates `matrix.platform` and
+  `matrix.feature-set` rather than reaching for the runner label, and
+  `tests/workflow_contracts/job_name_shape_test.py` — run by
+  `make test-workflow-contracts`, which `ci.yml` invokes — holds all four
+  halves of the rule so the truncation cannot return. Impact: D37's names are
+  recorded as historical. **The general shape: read the enforcement surface
+  from the thing that enforces, never from a document that describes it, and
+  never from a workflow file either — the workflow declares names, but the
+  ruleset is what requires them, and the two can disagree.** A green or red
+  from a check the ruleset no longer lists is evidence about nothing that gates
+  the merge.
+
+- **Observation:** the two Markdown gates cover genuinely different defects, and
+  `mdtablefix --check` can report a file clean while `markdownlint` rejects the
+  same file outright. Evidence: the Progress entry of 2026-09-26 was written,
+  `make check-fmt` failed it on `mdtablefix --check` drift (`+58 -54`), and
+  reformatting with the tool cleared that — whereupon `make markdownlint`
+  failed the very same file with `MD018/no-missing-space-atx` at line 54:1,
+  because a reflow had left the token `#770` at column 1 and Markdown parsed
+  that line as an ATX heading. `mdtablefix --check` reported **
+  `1 file left unchanged`, rc=0** on the offending revision. Impact: the
+  paragraph was reworded so the token cannot begin a line
+  (`… remote branch and PR #770 both now report …`), which clears MD018 without
+  touching the wrap. **The general shape: two gates over one format are not two
+  measurements of one property — and when they disagree, the disagreement is
+  the finding, not the tie-break.** The cheap detector for this class is one
+  line, `grep -n '^#[0-9]' <file>`, and it belongs before the gate run rather
+  than after it. A corollary worth keeping: a tool whose own check passes
+  cannot be re-run to fix a defect that tool has no opinion about.
+
 ## Outcomes & retrospective
 
 ### What was achieved
@@ -5973,18 +6197,20 @@ Each item the closing checklist named, discharged or explicitly left open:
 ### What a successor should do first
 
 Read D31 and D43 and answer the Scope escalation, because the plan's status
-depends on it — D43 states the three options and recommends the first. D39's
-CodeScene escalation is the other open question and is now a six-commit move
-rather than the two-line re-pin it first looked like; its recommendation is to
-re-pin to `f68e8e2e`, the revision whose contents were actually read, rather
-than to the upstream tip. Then open the lifecycle work, which has **no roadmap
-item and cannot start without one**: it needs an ADR amending ADR-018 first
-(the roadmap states this under 13.1.1), and after that the `Verification plan`
-rows for INV-4, INV-8, and INV-10 are already written as its acceptance
-criteria and `NoHooks`' default type parameter is the extension point. The
-13.2.1 and 13.3.1 follow-ups are already in the roadmap and need no action from
-this plan. The review cycle is closed: seven numbered rounds, the last of them
-empty (D44), and no further review is owed.
+depends on it — D43 states the three options and recommends the first. **Do not
+act on D39.** Its CodeScene escalation is **SUPERSEDED as of 2026-09-26**: main
+removed the failing `Check coverage against CodeScene gates` step under estate
+rule CV-005, so no pull-request lane contacts CodeScene and the lines D39
+proposed to re-pin no longer exist. The action pin it would have changed is
+already one commit past the fix D39 identified. There is nothing to re-pin and
+nothing to decide. Then open the lifecycle work, which has **no roadmap item
+and cannot start without one**: it needs an ADR amending ADR-018 first (the
+roadmap states this under 13.1.1), and after that the `Verification plan` rows
+for INV-4, INV-8, and INV-10 are already written as its acceptance criteria and
+`NoHooks`' default type parameter is the extension point. The 13.2.1 and 13.3.1
+follow-ups are already in the roadmap and need no action from this plan. The
+review cycle is closed: seven numbered rounds, the last of them empty (D44),
+and no further review is owed.
 
 ## Context and orientation
 
@@ -7964,3 +8190,30 @@ panic boundary did not exist.
 *How it affects the remaining work.* Stage A now gates on three decisions
 rather than two, and the recommended answer to D2 would remove a milestone
 entirely. Implementation is otherwise unstarted.
+
+**2026-09-26, revision 3.** Revised after the branch was rebased onto the
+current `origin/main` (`f6244601`) and force-pushed, and after the repository
+surfaces the plan reasons about were re-read from source.
+
+*What changed.* D39 is marked `SUPERSEDED` at its own site, and the successor
+guidance now says in terms not to act on it. D37's required-check names are
+marked historical. Two new entries were added to `Surprises & discoveries`, and
+a Progress entry records the push, the ruleset query, and the two upstream
+changes that made both corrections necessary. The status header records the
+published head (`5b65ea09`) and states that D43's Scope breach is now the only
+open escalation.
+
+*Why it changed.* Two repository facts moved while this branch was in flight,
+both discovered by re-reading the artefacts rather than the plan's summaries of
+them. Main repaired the matrix job-naming defect D37 diagnosed, renaming all
+three required contexts. Separately, main adopted estate rule CV-005 and
+deleted the `Check coverage against CodeScene gates` step that D39 had spent
+its whole length working around, moving CodeScene publication into the
+trunk-only `coverage-main.yml`. D39's recommendation named `ci.yml` lines that
+no longer exist.
+
+*How it affects the remaining work.* Nothing in the deliverable changed; this
+revision is documentation only, and no gate that the branch's code passes is
+affected. The lifecycle work and the Scope escalation are unchanged. D39's
+escalation is retired — **dissolved by upstream deletion rather than answered**
+— so a successor has exactly one escalation to take to a human.
