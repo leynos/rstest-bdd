@@ -110,9 +110,10 @@ removes a drift risk of its own: the original wording would have gone on being
 true-sounding while silently becoming false the moment any non-Markdown file
 was touched.
 
-**The current head carries its own verdict too.** Run `36206794540`, event
+**A second revision carried its own verdict as well.** Run `36206794540`, event
 `pull_request`, head SHA read back as
-`cf5bc4d6ce64b03c5a5ceeb5e1caf69fda08e04f`, reports the same three legs passing:
+`cf5bc4d6ce64b03c5a5ceeb5e1caf69fda08e04f`, reported the same three legs
+passing:
 
 ```plaintext
 build-test (linux, default features):                 completed/success
@@ -120,10 +121,13 @@ build-test (windows, default features):               completed/success
 build-test (windows, strict-compile-time-validation): completed/success
 ```
 
-So the published head is the validated head once more — and it stops being so
-the moment this paragraph is committed. That is the fixed point the Surprises
-section records rather than an accident of timing. What makes it tolerable is
-the measured exposure and not the coincidence: the recording commits touch this
+So that head was briefly both the published head and the validated one — and it
+stopped being so the moment the paragraph recording it was committed. That is
+the fixed point the Surprises section records rather than an accident of
+timing. **The verdict that matters is the last one, and it is run `36211394305`
+at `60a2a15d`** — see the final Progress entry; nothing after it has been
+watched, deliberately. What makes the carried-forward argument tolerable is the
+measured exposure and not the coincidence: the recording commits touch this
 document, and **none of the paths touched after `b70ad1bb` is read by any of
 the four code gates** (see the restatement above — the union is this document
 and the generated `typos.toml`, which only `spelling` reads), so no gate input
@@ -1846,6 +1850,46 @@ between them. Raise that before spending the tolerance.
     pass is a pass and not a skip, which is the distinction the whole
     escalation turned on. The scratch file was removed and the tree re-checked
     clean afterwards.
+
+  - [x] (2026-09-26) **The final head carries a clean required-check verdict,
+    and it is the first one obtained after a deliberate freeze.** Run
+    `36211394305`, event `pull_request`, head SHA read back as
+    `60a2a15df86e76db844c04bde767de5d5c5e52d1`:
+
+    ```plaintext
+    build-test (linux, default features):                 completed/success
+    build-test (windows, default features):               completed/success
+    build-test (windows, strict-compile-time-validation): completed/success
+    ```
+
+    The result was read twice from independent sources — once by the monitoring
+    agent that watched the run to terminal (~29 minutes, well inside its
+    deadline), and once here by reading the run object directly
+    (`gh run view 36211394305 --json headSha,status,conclusion` →
+    `completed/success` at that head). Two reads agreeing is the strongest form
+    this evidence takes, because the failure mode it guards against — a summary
+    line that names a different run than the one believed — is invisible to a
+    single read.
+
+    **Two heads were spent learning the push rule, and both are recorded as
+    no-verdict rather than as failures.** Runs `36211084096` (`20c41239`) and
+    `36211278381` (`653feecc`) are both `completed/cancelled`, each with all
+    three legs cancelled and an empty failed-step log — which is the signature
+    of supersession, not of a step failure. Neither is a pass and neither is a
+    regression; they are the absence of a verdict, and the cause was this
+    branch's own pushes. This is the third and fourth instance of the pattern on
+    this work, and the reason the rule was refined rather than merely restated:
+    the freeze begins when a watch *starts*, not when a result is cited.
+
+    **This entry is itself the fixed point it describes, and no watch follows
+    it.** Writing the verdict moves the head to a new revision whose own run
+    will not be watched, deliberately. That is the correct application of the
+    rule the previous entries establish: the run being recorded concluded before
+    the recording commit, so nothing is cancelled; and no new watch is started,
+    so no reservation is taken that this session would then be obliged to
+    honour. A successor reading this should take the verdict for `60a2a15d`,
+    which is the revision it names, and should require a fresh run only if the
+    head moves again.
 
 ## Surprises & discoveries
 
