@@ -97,6 +97,23 @@ Nothing those four gates compile, lint, or typecheck has changed since they
 last ran, so there is no input for them to disagree with — which is a different
 claim from "they would probably still pass", and it is the one made here.
 
+**The current head carries its own verdict too.** Run `36206794540`, event
+`pull_request`, head SHA read back as
+`cf5bc4d6ce64b03c5a5ceeb5e1caf69fda08e04f`, reports the same three legs passing:
+
+```plaintext
+build-test (linux, default features):                 completed/success
+build-test (windows, default features):               completed/success
+build-test (windows, strict-compile-time-validation): completed/success
+```
+
+So the published head is the validated head once more — and it stops being so
+the moment this paragraph is committed. That is the fixed point the Surprises
+section records rather than an accident of timing. What makes it tolerable is
+the measured exposure and not the coincidence: the recording commit touches
+this file alone, and **every commit after `b70ad1bb` touches exactly one file**
+— this one — so no gate input has moved since those gates last ran.
+
 **The plan is deliberately not marked `COMPLETE`.** The `Scope` tolerance is
 breached and measured three times: D27 at 58 files / 15,737 net, D31 at 71 /
 18,325, and D43 — EP-M5's own closing re-measurement — at **73 files / 20,556
@@ -1736,6 +1753,26 @@ between them. Raise that before spending the tolerance.
     were held locally until it finished. **Waiting is a step in the procedure,
     not a delay in it** — and it is the one step that cannot be skipped by
     working harder, only by pushing less.
+
+  - [x] (2026-09-26) **The current head carried its own verdict as well.** Run
+    `36206794540` finished `completed/success` at 01:30:18Z with `headSha` read
+    back as `cf5bc4d6ce64b03c5a5ceeb5e1caf69fda08e04f`, reporting the same three
+    legs:
+
+    ```plaintext
+    build-test (linux, default features):                 completed/success
+    build-test (windows, default features):               completed/success
+    build-test (windows, strict-compile-time-validation): completed/success
+    ```
+
+    The Windows default-features leg reported first, at 01:22Z, with the other
+    two still running — which is why the run object, not a job line, is what the
+    result is read from. This is the same verdict as `2de4211c`'s, obtained the
+    same way: by pushing nothing and waiting ~35 minutes. Two clean runs in
+    succession with no code change between them is the closest thing to a
+    reproducible leg result this branch can offer, and it is a weaker claim than
+    a single run of the final revision would be — which is unreachable, as the
+    fixed point below explains.
 
 ## Surprises & discoveries
 
