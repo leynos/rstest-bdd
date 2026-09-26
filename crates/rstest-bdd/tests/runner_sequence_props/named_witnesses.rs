@@ -357,13 +357,13 @@ fn every_classification_the_plan_names_has_a_kind() {
         let mut rows = Kind::ALL
             .into_iter()
             .filter(|kind| kind.failure_kind() == Some(expected));
-        let source = rows.next().unwrap_or_else(|| {
+        let Some(source) = rows.next() else {
             panic!(
                 "no kind in {KIND_ALL:?} classifies as {expected:?}, so the plan's INV-1 \
                  non-vacuity list cannot be satisfied by any generated case",
                 KIND_ALL = Kind::ALL
             )
-        });
+        };
         assert!(
             rows.next().is_none(),
             "{expected:?} is claimed by more than one kind, so this control does not pin it",

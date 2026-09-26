@@ -21,44 +21,66 @@
 //! and a reader would reasonably conclude the harness was broken.
 //!
 //! Silencing is confined to [`silenced`], which wraps only the *run* — never an
-//! assertion. That confinement is the load-bearing part, and it is not
-//! cosmetic. `panic::set_hook` **panics** when called from a panicking thread
+//! assertion. That confinement is still the right shape, but the reason has
+//! changed, and an earlier revision of this file got the reason wrong in a way
+//! that cost the suite its diagnoses.
+//!
+//! # Two designs that both fail, and why
+//!
+//! **The first** installed a silent hook and restored the previous one from its
+//! guard's `Drop`. That is a hard failure whenever the body unwinds, because
+//! `panic::set_hook` *panics* when called from a panicking thread
 //! (`library/std/src/panicking.rs`: "cannot modify the panic hook from a
 //! panicking thread"), and `panic::take_hook` does the same. A panic raised
 //! while already unwinding cannot itself unwind, so `std` prints "thread caused
-//! non-unwinding panic. aborting." and calls `process::abort()`. A guard that
-//! restored the hook from `Drop` while an assertion unwound therefore killed
-//! the process with `SIGABRT` and no message whatsoever — which is exactly what
-//! an earlier revision of this file did.
+//! non-unwinding panic. aborting." and calls `process::abort()`: the process
+//! died with `SIGABRT` and no message at all.
 //!
-//! Keeping the window around the run alone means the guard's `Drop` only ever
-//! executes on the normal path, where `set_hook` is legal. The `Drop` still
-//! checks `thread::panicking()` and skips the restore, because a future edit
-//! could widen the window again and a silent `SIGABRT` is a hard failure to
-//! trace back to its cause. In that case the failure is still reported —
-//! libtest prints `FAILED` regardless — but without its message.
+//! **The second** kept the restore but confined the window to the run, and
+//! serialized the windows behind a `Mutex` so that two overlapping tests could
+//! not restore each other's hook. It is deadlock-free and abort-free, and it
+//! still loses messages. The lock protects the *hook*, not the *reporting*: a
+//! second test's assertion, running unsynchronized by design, panics while the
+//! window is open and its message is swallowed by the silent hook. Worse, the
+//! window can be widened for the rest of the process — `Restored::drop` skipped
+//! its restore entirely when the thread was already unwinding.
 //!
-//! # Why this needs a lock
+//! The claim that shipped with that second design was "assertions are
+//! unsynchronized, which is correct because assertions are the part that
+//! touches no global state". The premise is true and the conclusion does not
+//! follow, which is the whole defect: an assertion touches no global state, but
+//! it *panics*, and panicking consults the process-global hook. Serializing the
+//! writers of a global while leaving every reader uncoordinated is not
+//! synchronization.
 //!
-//! The hook is global, not per-thread, so two runs overlapping would interleave
-//! and one would restore the other's hook. The queue is a `Mutex` held for the
-//! whole silenced body rather than a `serial_test` `#[serial]` attribute:
-//! `#[serial]` is a silent no-op the moment a test forgets it or the key
-//! drifts, whereas holding a lock in the guard makes mutual exclusion a
-//! property of the type that must be held to silence the hook.
+//! # The design here: one permanent hook, one flag per thread
 //!
-//! The lock covers the run only, so assertions are unsynchronized — which is
-//! correct, because assertions are the part that touches no global state.
+//! A single delegating hook is installed once per process, and it consults a
+//! **thread-local** flag: it forwards to the hook it wrapped unless *the
+//! panicking thread* has a window open. So a test's deliberate step panics are
+//! silenced on that test's thread, and every other thread's panics — the
+//! assertion failures the previous design ate — reach the previous hook and
+//! print in full.
 //!
-//! Poisoning is recovered rather than propagated, on the same reasoning as
-//! `runner_instrumentation/capture.rs`: a test that panics while holding the
-//! lock has already reported its own failure, and replacing that report with a
-//! second panic about the lock helps nobody.
+//! Nothing is restored because nothing is replaced, so the whole `SIGABRT`
+//! family is gone rather than guarded against: `set_hook`/`take_hook` are
+//! reachable only from an install that runs once, and the flag is per-thread
+//! and self-healing, so a widened window degrades to "this thread prints"
+//! rather than to a permanently silent process. There is no lock, so tests no
+//! longer need serializing, and their order no longer matters.
+//!
+//! Two properties of the hook body are load-bearing and easy to break:
+//!
+//! - the hook must **not** be guarded with `thread::panicking()`. That function is false while the
+//!   hook runs — `std` increments its panic counter before calling the hook and decrements it after
+//!   — so such a guard would silently disable silencing altogether;
+//! - [`SILENT`] must stay a `const`-initialized, destructor-free `Cell<bool>`. A thread-local that
+//!   registers a destructor can be observed as destroyed from the hook, and `LocalKey::with` panics
+//!   in that case; a panic inside the hook is itself an abort. `Cell<bool>` needs no drop, so the
+//!   access cannot fail, and the `const` block rules out an initializer running from inside the
+//!   hook.
 
-use std::{
-    panic::{self, PanicHookInfo},
-    sync::{Mutex, MutexGuard, PoisonError},
-};
+use std::{cell::Cell, panic, sync::Once};
 
 use rstest_bdd::{
     ExecutionError,
@@ -73,8 +95,32 @@ use rstest_bdd::{
     submit,
 };
 
-/// Serializes the silenced windows of this binary's tests.
-static HOOK: Mutex<()> = Mutex::new(());
+/// Installs the delegating hook exactly once per process.
+static INSTALL: Once = Once::new();
+
+thread_local! {
+    /// Whether *this* thread's panics are currently being silenced.
+    ///
+    /// `const`-initialized and destructor-free deliberately; see the module
+    /// note. A plain static rather than a `RefCell`, because the hook only ever
+    /// reads it and the guard only ever replaces one bit.
+    static SILENT: Cell<bool> = const { Cell::new(false) };
+}
+
+/// Install the delegating hook, once per process, keeping the previous one.
+fn install_hook() {
+    INSTALL.call_once(|| {
+        let previous = panic::take_hook();
+        panic::set_hook(Box::new(move |info| {
+            // Read only this thread's flag. A panic on any other thread — an
+            // assertion in a sibling test, which is exactly what the previous
+            // design swallowed — falls through to the hook that was here first.
+            if !SILENT.with(Cell::get) {
+                previous(info);
+            }
+        }));
+    });
+}
 
 /// Register a step through the raw form, with no `catch_unwind` anywhere.
 ///
@@ -226,55 +272,32 @@ const _: () = {
     }
 };
 
-/// The shape `std::panic::take_hook` returns.
+/// Close this thread's silencing window on the way out, however it exits.
 ///
-/// Named rather than spelled out at each use because the trait-object bounds
-/// (`Sync + Send + 'static`) are three of the four tokens in it, and repeating
-/// them obscures that this is simply "a panic hook".
-type Hook = Box<dyn Fn(&PanicHookInfo<'_>) + Sync + Send + 'static>;
+/// Carries the *previous* flag value rather than clearing to `false`, so a
+/// nested window cannot strand the outer one by closing early. Nesting does not
+/// occur in this binary today — every [`silenced`] call is one frame deep — but
+/// the invariant costs one `bool` and the alternative fails silently.
+///
+/// The binding at the call site must be a named `let`, never a bare `let _`:
+/// `let _ = Unsilence(..)` drops the guard immediately and turns silencing into
+/// a no-op that no test would notice.
+struct Unsilence(bool);
 
-/// Restore a hook once the guarded window has closed.
-///
-/// Owns the lock as well as the hook, so the two cannot be released out of
-/// order: a waiting test must not be able to install its hook while this one is
-/// still un-restored.
-struct Restored {
-    /// Held for the window's duration; released after the hook is restored.
-    _lock: MutexGuard<'static, ()>,
-    /// The hook to put back, captured before the silent one was installed.
-    previous: Option<Hook>,
+impl Drop for Unsilence {
+    fn drop(&mut self) { SILENT.with(|silent| silent.set(self.0)); }
 }
 
-impl Drop for Restored {
-    fn drop(&mut self) {
-        // The window is meant to close on the normal path, where `set_hook` is
-        // legal. This check exists so that widening the window fails safe
-        // rather than aborting the process; see the module note.
-        if std::thread::panicking() {
-            return;
-        }
-        if let Some(previous) = self.previous.take() {
-            panic::set_hook(previous);
-        }
-    }
-}
-
-/// Run `body` with the panic hook silenced, and restore it afterwards.
+/// Silence this thread's panics for the duration of `body`.
 ///
 /// `body` is expected to *return* rather than unwind — it is a `catch_unwind`
-/// in every use here — because that is what keeps the restore legal. See the
-/// module note for why that matters.
+/// in every use here — but it no longer *has* to: the window closes from `Drop`
+/// on both paths, and closing it touches only a thread-local flag.
 pub(super) fn silenced<T>(body: impl FnOnce() -> T) -> T {
-    let guard = Restored {
-        _lock: HOOK.lock().unwrap_or_else(PoisonError::into_inner),
-        previous: Some(panic::take_hook()),
-    };
-    // The silent hook is installed after the previous one is captured, so
-    // `previous` can never be the silent hook itself.
-    panic::set_hook(Box::new(|_| {}));
-    let result = body();
-    drop(guard);
-    result
+    install_hook();
+    let previous = SILENT.with(|silent| silent.replace(true));
+    let _unsilence = Unsilence(previous);
+    body()
 }
 
 /// What one async step produced, with the two layers kept apart.

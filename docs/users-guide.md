@@ -2116,10 +2116,16 @@ a plan that parsed to no steps at all:
 # let plan = ScenarioPlanBuilder::new("demo", "notes/demo.md").build();
 let mut context = StepContext::default();
 let outcome = run_scenario(&plan, ScenarioScope::new(&mut context));
+// An empty plan lands here too: a document that parsed to no steps is a
+// malformed frontend result, not a run that vacuously passed.
 if let Err(failure) = outcome.into_harness_result() {
     panic!("{failure}");
 }
 ```
+
+The plan built above deliberately carries no steps, so this example reaches
+that branch: `into_harness_result` returns `Err` and the test fails rather than
+passing on a plan that never executed anything.
 
 `ScenarioScope::with_skip_policy` sets the `fail_on_skipped` input for one run;
 `ScenarioPlanBuilder::allow_skipped` carries the plan's own permission, which a
