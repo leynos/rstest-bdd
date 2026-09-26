@@ -1967,6 +1967,24 @@ between them. Raise that before spending the tolerance.
   the cited run has concluded destroys nothing; that is how both clean verdicts
   here were obtained.
 
+  **The rule was then broken within the hour, and the way it broke sharpens
+  it.** After pushing `20c41239` the CI run for that head was delegated to a
+  monitoring agent, to be reported when terminal. A further documentation commit
+  (`653feecc`, this Scope re-measurement) was then pushed while that run was
+  in flight, and the run was cancelled — confirmed directly, with
+  `gh run view 36211084096 --json headSha,status,conclusion` returning
+  `"conclusion":"cancelled","status":"completed"` against head `20c41239`. The
+  rule as worded only forbade pushing over a run being *cited*, and at that
+  moment nothing had been cited yet, which is how a rule that had just been
+  written correctly was broken without the author noticing the connection. The
+  refinement is that **delegating a run for monitoring is the act that freezes
+  the head**, not citing it: the whole purpose of monitoring is that its result
+  will be reported and relied upon, so the reservation is taken when the watch
+  starts. The practical form: decide the head is evidence *before* starting the
+  watch, then treat it as frozen — and if that is too strong, then the correct
+  conclusion is that the run should not be watched at all, because a run nobody
+  will wait for is a run nobody should have started.
+
 - **Observation:** the rule above has a sharp consequence that this plan has to
   live with rather than solve: **recording a CI result in this file is itself a
   push, and so destroys the run being recorded.** Writing down "the Windows
