@@ -29,11 +29,17 @@
 //! rendered form, not a typed one. So an assertion here compares text, and a
 //! change to a field's rendering would show up as a changed assertion rather
 //! than as a type error. Two consequences are worth stating: a `str` field is
-//! recorded unquoted and everything else through its `Debug` form, so an
-//! assertion on an `Option<u32>` reads `Some(42)`; and the capture cannot
-//! distinguish a field that was emitted as `0u32` from one emitted as `0u64`.
-//! Neither matters for D14, which specifies what a field must hold rather than
-//! how it is typed, and the field's name is what a subscriber filters on.
+//! recorded unquoted and everything else through its `Debug` form; and the
+//! capture cannot distinguish a field that was emitted as `0u32` from one
+//! emitted as `0u64`. Neither matters for D14, which specifies what a field
+//! must hold rather than how it is typed, and the field's name is what a
+//! subscriber filters on.
+//!
+//! The first consequence has a wrinkle that reading the declared type will not
+//! predict: `tracing` records an `Option` through its *inner* value, so
+//! `plan.source_line()`, an `Option<u32>`, renders as `42` and not `Some(42)`.
+//! `runner_instrumentation.rs` asserts that, having been written the other way
+//! first on the strength of the field's declared type.
 
 use std::{
     collections::BTreeMap,
