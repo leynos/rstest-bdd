@@ -77,10 +77,9 @@ impl From<crate::InsertOutcome> for ValueFate {
 /// One private sum rather than public fields, so the payload can never
 /// contradict the status.
 ///
-/// Built only by the engine, which lands in EP-M2; until then the unit tests
-/// construct records through `StepOutcome`'s constructors. See
-/// [`ScenarioSkip::new`](crate::runner::ScenarioSkip::new) for why the
-/// expectation is `not(test)`-scoped.
+/// Built only by `engine::policy::assemble`, through `StepOutcome`'s
+/// constructors; the unit tests construct records directly, which is why those
+/// constructors are `pub(crate)` rather than private.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum StepRecord {
     /// The step ran and succeeded, optionally having returned a value.
@@ -164,9 +163,8 @@ impl StepOutcome {
 
     /// Record a successful invocation.
     ///
-    /// The production caller is the runner's engine. See
-    /// [`ScenarioSkip::new`](crate::runner::ScenarioSkip::new) for why the
-    /// expectation is `not(test)`-scoped.
+    /// The production caller is `engine::policy::assemble`; the unit tests
+    /// call it directly to build records to assert on.
     pub(crate) fn passed(
         index: usize,
         invocation: &StepInvocation,
@@ -177,7 +175,8 @@ impl StepOutcome {
 
     /// Record an invocation that requested a skip.
     ///
-    /// See [`passed`](Self::passed) for why the expectation is `not(test)`-scoped.
+    /// The production caller is `engine::policy::assemble`; see
+    /// [`passed`](Self::passed).
     pub(crate) fn skipped(
         index: usize,
         invocation: &StepInvocation,
@@ -188,7 +187,8 @@ impl StepOutcome {
 
     /// Record an invocation that failed.
     ///
-    /// See [`passed`](Self::passed) for why the expectation is `not(test)`-scoped.
+    /// The production caller is `engine::policy::assemble`; see
+    /// [`passed`](Self::passed).
     pub(crate) fn failed(index: usize, invocation: &StepInvocation, error: ExecutionError) -> Self {
         Self::recorded(
             index,
@@ -201,7 +201,8 @@ impl StepOutcome {
 
     /// Record an invocation that never ran.
     ///
-    /// See [`passed`](Self::passed) for why the expectation is `not(test)`-scoped.
+    /// The production caller is `engine::policy::assemble`; see
+    /// [`passed`](Self::passed).
     pub(crate) fn bypassed(index: usize, invocation: &StepInvocation) -> Self {
         Self::recorded(index, invocation, StepRecord::Bypassed)
     }

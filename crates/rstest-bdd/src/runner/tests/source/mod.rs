@@ -4,11 +4,18 @@
 //! `StepOutcome::source()` equals the `SourceLocation` the plan supplied, for
 //! all four statuses, and `terminal_source()` equals the terminal invocation's
 //! source. The third — "no source is read back out of `ExecutionError`" — is
-//! discharged here too, by building outcomes whose errors carry a *decoy* path,
-//! and it has a caveat worth knowing before reading the results: the
-//! *rendering* does read the error's copy, and `rendering` records that. So the
-//! claim this file proves is about the accessors, which is what a frontend
-//! walking `steps()` consumes, and not about the `Display` projection.
+//! discharged here too, by building outcomes whose errors carry a *decoy* path.
+//! It holds for the `Display` projection as well as for the accessors:
+//! `ScenarioOutcome`'s `Display` re-renders the failure through
+//! `ExecutionError::format_with_loader_at` with `terminal_source()`, so the
+//! rendering carries the plan's path and agrees with the accessor, and
+//! `rendering` asserts that agreement. The one caveat: when
+//! `terminal_source()` is `None` — an index past the end of `steps`, or a
+//! record with no location — there is no plan-side path to substitute and the
+//! rendering falls back to the error's own, which is a fallback rather than a
+//! divergence. So the claim this file proves is about the accessors, which is
+//! what a frontend walking `steps()` consumes, and about the rendering that
+//! now agrees with them.
 //!
 //! # Why the sources are not `.feature` files
 //!

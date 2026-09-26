@@ -4,7 +4,7 @@
 //! `mod.rs` and the presentation claim in `rendering.rs` — can be stated
 //! without restating the setup. A duplicated helper would be worse than
 //! duplicated prose here: the two halves must agree on what a "decoy path" is,
-//! and that agreement is what makes the divergence test in `rendering.rs` mean
+//! and that agreement is what makes the agreement test in `rendering.rs` mean
 //! anything.
 //!
 //! # The decoy
@@ -14,9 +14,12 @@
 //! one INV-7 forbids, so the fixtures here let the two disagree: an outcome can
 //! be built whose *sources* are `spec/cases.toml` and `notes/example.md` while
 //! its errors carry [`DECOY_PATH`]. An implementation that read the location
-//! out of the error fails every path assertion in the parent, and the
-//! divergence test in `rendering.rs` pins the one place the two still do
-//! disagree today.
+//! out of the error fails every path assertion in the parent — and the
+//! rendering test in `rendering.rs` is what closes the same hole for the
+//! `Display` projection, which re-renders through `terminal_source()` and so
+//! carries the plan's path too. The decoy stays in the fixtures precisely
+//! because agreement is only worth asserting when the two could be seen to
+//! differ.
 
 use crate::{
     StepKeyword,

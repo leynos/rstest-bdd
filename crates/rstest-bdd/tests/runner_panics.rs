@@ -280,15 +280,17 @@ fn a_wrapped_step_panic_is_unchanged() {
     );
 }
 
-/// The two async boundaries, one case each.
+/// The async boundary, driven through its two cases.
 ///
 /// The async half of the boundary catches a panic raised *after* an await.
 ///
-/// This test drives `execute_step_async` rather than `run_scenario`: the async
-/// scenario entry point is EP-M3's deliverable and does not exist yet, so the
-/// layer that owns this boundary is where the obligation is discharged. D11's
-/// rationale is about `run_scenario`'s contract, and this is the same boundary
-/// one level down — the place a future async driver will reach through.
+/// This test drives `execute_step_async` directly rather than
+/// `run_scenario_async`, and the scope of what it covers is worth stating
+/// precisely: it discharges the *execution layer's* panic boundary, which is
+/// the same boundary one level down from the one D11's rationale is about. It
+/// does not exercise `run_scenario_async`'s own driving loop or its outcome
+/// assembly, so a defect there would not show up here. Testing the layer that
+/// owns the boundary keeps the failure attributable to the boundary itself.
 ///
 /// The distinction it exists to catch is real rather than theoretical. A
 /// synchronous `catch_unwind` around `(run_async)(..)` wraps only the *call*,
