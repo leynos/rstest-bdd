@@ -2027,6 +2027,134 @@ let details = assert_scenario_skipped!(
 assert!(details.allow_skipped());
 ```
 
+## Running a plan without the Gherkin frontend
+
+Everything above reaches a scenario through a `.feature` file. The
+`rstest_bdd::runner` module is the other half of that arrangement: it executes
+a scenario the caller has already parsed, and it knows nothing about Gherkin,
+Markdown, or `.feature` files. It supports a custom frontend — Markdown
+checklists, a bespoke DSL, generated cases — while keeping the step
+definitions, skip policy, and reporting semantics already in place. The
+feasibility work and its constraints are recorded in
+[ADR-018][adr-018-parser-neutral-runtime].
+
+A run is two values. `ScenarioPlan` describes what to execute, and a runner
+turns it into a `ScenarioOutcome`:
+
+```rust,no_run
+use rstest_bdd::{
+    StepContext, StepKeyword,
+    runner::{ScenarioPlanBuilder, ScenarioScope, run_scenario},
+};
+
+let plan = ScenarioPlanBuilder::new("Add two numbers", "notes/arithmetic.md")
+    .at_line(42)
+    .step_at(StepKeyword::Given, "a calculator", 43)
+    .step_at(StepKeyword::When, "I add two numbers", 44)
+    .step_at(StepKeyword::Then, "the total is correct", 45)
+    .build();
+
+let mut context = StepContext::default();
+let outcome = run_scenario(&plan, ScenarioScope::new(&mut context));
+```
+
+The steps are looked up in the same inventory the Gherkin macros register into,
+so a plan runs ordinary `#[given]`/`#[when]`/`#[then]` definitions;
+`StepInvocation` also carries an optional docstring and data table. `source` is
+whatever identifier the frontend supplies — it is a path to the runner, not a
+filesystem path it will open — and each step keeps the line it was given, so an
+outcome can be reported against the frontend's document rather than against a
+`.feature` file that never existed.
+
+### Reading the outcome
+
+`ScenarioOutcome` is the whole result of the run: a `ScenarioStatus`, one
+`StepOutcome` per planned invocation in plan order, and, when the run stopped
+early, a `ScenarioSkip` or a `ScenarioFailure`. Steps after a terminal one are
+recorded as bypassed rather than dropped, so a frontend's report is built by
+walking `steps()` and can show what did not run:
+
+```rust,no_run
+# use rstest_bdd::runner::{ScenarioOutcome, ScenarioStatus, StepStatus};
+# fn report(outcome: &ScenarioOutcome) {
+match outcome.status() {
+    ScenarioStatus::Passed => println!("passed ({} steps)", outcome.steps().len()),
+    ScenarioStatus::Skipped => {
+        if let Some(skip) = outcome.skip() {
+            println!("skipped at step {}: {:?}", skip.at(), skip.message());
+        }
+    }
+    ScenarioStatus::Failed => {
+        if let Some(failure) = outcome.failure() {
+            println!("failed: {failure}");
+        }
+    }
+    _ => println!("a status this version does not know"),
+}
+for step in outcome.steps().iter().filter(|s| s.status() == StepStatus::Bypassed) {
+    println!("did not run: {} {}", step.keyword(), step.text());
+}
+# }
+```
+
+A failing step is reported in the outcome rather than unwinding, so a step body
+that panics does not take the test harness down. The one failure channel is
+`failure()`; a value whose destructor panics during cleanup is caught and
+logged as a warning instead, because an outcome with two failure channels would
+leave no way to tell which was primary.
+
+### Deciding whether a run passes a suite
+
+`is_passed()` reports a clean pass and is not the success test. Whether a
+permitted skip should fail a suite depends on `fail_on_skipped`, and
+`into_harness_result` is the one place that policy is folded — it also rejects
+a plan that parsed to no steps at all:
+
+```rust,no_run
+# use rstest_bdd::runner::{ScenarioOutcome, ScenarioPlanBuilder, ScenarioScope, run_scenario};
+# use rstest_bdd::StepContext;
+# let plan = ScenarioPlanBuilder::new("demo", "notes/demo.md").build();
+let mut context = StepContext::default();
+let outcome = run_scenario(&plan, ScenarioScope::new(&mut context));
+if let Err(failure) = outcome.into_harness_result() {
+    panic!("{failure}");
+}
+```
+
+`ScenarioScope::with_skip_policy` sets the `fail_on_skipped` input for one run;
+`ScenarioPlanBuilder::allow_skipped` carries the plan's own permission, which a
+Gherkin frontend derives from `@allow_skipped`. A run permits a skip when
+either says so, and the resolved values are recorded on the outcome so a
+difference between a local run and CI is attributable.
+
+### Asynchronous plans
+
+`run_scenario_async` is the counterpart for steps registered in
+`StepExecutionMode::Async` or `Both`. For a plan whose every step is registered
+in `Both`, the two runners produce equal outcomes.
+
+```rust,no_run
+use rstest_bdd::{
+    StepContext, StepKeyword,
+    runner::{ScenarioPlanBuilder, ScenarioScope, run_scenario_async},
+};
+
+let plan = ScenarioPlanBuilder::new("Add two numbers", "notes/arithmetic.md")
+    .step_at(StepKeyword::Given, "a calculator", 43)
+    .build();
+let runtime = tokio::runtime::Builder::new_current_thread()
+    .build()
+    .expect("a current-thread runtime builds");
+let mut context = StepContext::default();
+let outcome = runtime.block_on(run_scenario_async(&plan, ScenarioScope::new(&mut context)));
+```
+
+The future is deliberately **not** `Send`, because step scope guards are thread
+bound: use a current-thread or thread-per-scenario runtime rather than spawning
+the future onto a work-stealing one. Dropping the future cancels the run — no
+outcome is produced, the in-flight step's future is dropped where it stood, and
+synchronous scope cleanup still runs.
+
 ## Autodiscovering scenarios
 
 For large suites, it is tedious to bind each scenario manually. The
@@ -3227,6 +3355,7 @@ integrate acceptance criteria into their Rust test suites and to engage all
 three amigos in the specification process.
 
 [scenario-status]: https://docs.rs/rstest-bdd/latest/rstest_bdd/reporting/enum.ScenarioStatus.html
+[adr-018-parser-neutral-runtime]: https://github.com/leynos/rstest-bdd/blob/main/docs/adr-018-parser-neutral-scenario-execution.md
 [adr-001]: https://github.com/leynos/rstest-bdd/blob/main/docs/adr-001-async-fixtures-and-test.md
 [adr-007]: https://github.com/leynos/rstest-bdd/blob/main/docs/adr-007-harness-context-injection.md
 [adr-012]: https://github.com/leynos/rstest-bdd/blob/main/docs/adr-012-guard-based-stepcontext-borrowing.md

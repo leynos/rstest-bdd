@@ -51,6 +51,30 @@ impl ExecutionError {
     /// ```
     #[must_use]
     pub fn format_with_loader(&self, loader: &crate::FluentLanguageLoader) -> String {
+        self.format_with_loader_at(loader, None)
+    }
+
+    /// Render using `path` in place of the error's own recorded feature path.
+    ///
+    /// The error's `feature_path` is a flattened copy of the plan's own source,
+    /// so the runner's outcome carries the same location twice: once as the
+    /// structured location on the invocation's record, and once inside this
+    /// error. In production the two agree, because the runner populates the
+    /// field from the plan. They are nevertheless separate values, and a caller
+    /// holding the plan's location — `ScenarioOutcome`'s `Display` — should
+    /// render *that* one, so that the rendering cannot disagree with the
+    /// accessors.
+    ///
+    /// Re-rendering through this entry point keeps the message ids and the
+    /// message shape intact: the path is one of the message's arguments, so a
+    /// substitution changes no translation and adds none. `None` renders the
+    /// error's own path, which is what [`format_with_loader`](Self::format_with_loader)
+    /// does and what every existing caller already sees.
+    pub(crate) fn format_with_loader_at(
+        &self,
+        loader: &crate::FluentLanguageLoader,
+        path: Option<&str>,
+    ) -> String {
         match self {
             Self::Skip { message } => Self::format_skip(loader, message.as_deref()),
             Self::StepNotFound {
@@ -64,12 +88,12 @@ impl ExecutionError {
                     index: *index,
                     keyword: *keyword,
                     text,
-                    feature_path,
+                    feature_path: path.unwrap_or(feature_path),
                     scenario_name,
                 };
                 Self::format_step_not_found(loader, &step)
             }
-            Self::MissingFixtures(details) => Self::format_missing_fixtures(loader, details),
+            Self::MissingFixtures(details) => Self::format_missing_fixtures(loader, details, path),
             Self::HandlerFailed {
                 index,
                 keyword,
@@ -82,7 +106,7 @@ impl ExecutionError {
                     index: *index,
                     keyword: *keyword,
                     text,
-                    feature_path,
+                    feature_path: path.unwrap_or(feature_path),
                     scenario_name,
                 };
                 Self::format_handler_failed(loader, &step, error)
@@ -116,6 +140,7 @@ impl ExecutionError {
     fn format_missing_fixtures(
         loader: &crate::FluentLanguageLoader,
         details: &MissingFixturesDetails,
+        path: Option<&str>,
     ) -> String {
         crate::localization::message_with_loader(
             loader,
@@ -134,8 +159,11 @@ impl ExecutionError {
                     "has_suggestion",
                     if details.has_suggestion { "yes" } else { "no" }.to_owned(),
                 );
-                args.set("feature_path", details.feature_path.clone());
                 args.set("scenario_name", details.scenario_name.clone());
+                args.set(
+                    "feature_path",
+                    path.unwrap_or(&details.feature_path).to_owned(),
+                );
             },
         )
     }

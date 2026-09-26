@@ -30,6 +30,7 @@ use std::{
 mod entry;
 mod error;
 mod guards;
+mod harness;
 mod insert_outcome;
 #[cfg(test)]
 mod tests;
@@ -146,79 +147,6 @@ impl<'a> StepContext<'a> {
         self.fixtures.insert(name, FixtureEntry::owned::<T>(cell));
     }
 
-    // ------------------------------------------------------------------
-    // Harness-context wrappers (ADR-007).
-    //
-    // These thin wrappers hard-code the reserved
-    // `RSTEST_BDD_HARNESS_CONTEXT_FIXTURE` key over the generic fixture API.
-    // They are deliberate API surface, not dead code: the insert side is
-    // emitted by macro-generated harness scenarios, and the borrow side is
-    // the supported typed-extraction surface for adapters and step code.
-    // Do not add further wrappers here for new generic access patterns
-    // unless generated code or the documented step-authoring path needs
-    // them; see ADR-007 ("Phase 2 convention: StepContext mapping").
-    // ------------------------------------------------------------------
-
-    /// Insert harness-provided context using the reserved fixture key.
-    ///
-    /// Part of the ADR-007 harness-context contract. This shared-reference
-    /// variant exists for adapters that keep ownership of their context;
-    /// macro-generated code uses
-    /// [`insert_owned_harness_context`](Self::insert_owned_harness_context).
-    pub fn insert_harness_context<T: Any>(&mut self, context: &'a T) {
-        self.insert(RSTEST_BDD_HARNESS_CONTEXT_FIXTURE, context);
-    }
-
-    /// Insert owned harness-provided context using the reserved fixture key.
-    ///
-    /// Part of the ADR-007 harness-context contract. This is the variant
-    /// emitted by macro-generated harness scenarios (see
-    /// `codegen/scenario/runtime/harness.rs` in `rstest-bdd-macros`), which
-    /// wrap the adapter's `HarnessAdapter::Context` in an owned cell so
-    /// steps can borrow it mutably.
-    pub fn insert_owned_harness_context<T: Any>(&mut self, cell: &'a RefCell<Box<dyn Any>>) {
-        self.insert_owned::<T>(RSTEST_BDD_HARNESS_CONTEXT_FIXTURE, cell);
-    }
-
-    /// Retrieve harness-provided context by type when it is stored by shared reference.
-    ///
-    /// This delegates to [`get`](Self::get), which returns `None` for mutable
-    /// (`insert_owned`) fixture entries. The macro-generated harness path
-    /// currently inserts context with
-    /// [`insert_owned_harness_context`](Self::insert_owned_harness_context)
-    /// under [`RSTEST_BDD_HARNESS_CONTEXT_FIXTURE`], so callers should use
-    /// [`borrow_harness_context`](Self::borrow_harness_context) for that path.
-    #[must_use]
-    pub fn harness_context<T: Any>(&'a self) -> Option<&'a T> {
-        self.get(RSTEST_BDD_HARNESS_CONTEXT_FIXTURE)
-    }
-
-    /// Borrow harness-provided context by type.
-    ///
-    /// Part of the ADR-007 harness-context contract: the supported typed
-    /// read accessor for context stored by
-    /// [`insert_owned_harness_context`](Self::insert_owned_harness_context).
-    #[must_use]
-    pub fn borrow_harness_context<'b, T: Any>(&'b self) -> Option<FixtureRef<'b, T>>
-    where
-        'a: 'b,
-    {
-        self.borrow_ref(RSTEST_BDD_HARNESS_CONTEXT_FIXTURE)
-    }
-
-    /// Borrow harness-provided context mutably by type.
-    ///
-    /// Part of the ADR-007 harness-context contract: the supported typed
-    /// mutable accessor for context stored by
-    /// [`insert_owned_harness_context`](Self::insert_owned_harness_context).
-    #[must_use]
-    pub fn borrow_harness_context_mut<'b, T: Any>(&'b self) -> Option<FixtureRefMut<'b, T>>
-    where
-        'a: 'b,
-    {
-        self.borrow_mut(RSTEST_BDD_HARNESS_CONTEXT_FIXTURE)
-    }
-
     /// Retrieve a shared fixture reference by name and type.
     ///
     /// Only fixtures inserted with [`insert`](Self::insert) are served:
@@ -331,6 +259,22 @@ impl<'a> StepContext<'a> {
                 .map(RefCell::into_inner),
         )
     }
+
+    /// Drop every value a step returned, leaving the fixtures untouched.
+    ///
+    /// The counterpart to [`insert_value`](Self::insert_value), and named to
+    /// match it. Called by the parser-neutral runner at the end of a scenario,
+    /// so that returned values cannot leak from one run into the next.
+    ///
+    /// The contract is that it clears **all** override values, including any the
+    /// caller inserted before the run — not merely the ones the run inserted.
+    /// That is simpler than recording and restoring a prior set, and it is the
+    /// honest description: there is no way to tell a caller's value from a
+    /// step's once both are in the same map.
+    ///
+    /// `pub(crate)` rather than `pub`: the runner's scope destructor is the only
+    /// caller, and this crate's public surface is permanent.
+    pub(crate) fn clear_values(&mut self) { self.values.clear(); }
 
     /// Borrow a fixture by name, reporting the failure reason on error.
     ///

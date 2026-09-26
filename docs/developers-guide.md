@@ -3369,3 +3369,138 @@ current bounded queue depth, and
 `rstest_bdd_server_workspace_preparation_duration_seconds` records preparation
 time. Do not add paths, package names, source text, diagnostic text, or other
 unbounded values to any metric label.
+
+## The parser-neutral runner (`rstest_bdd::runner`)
+
+`crates/rstest-bdd/src/runner/` executes a scenario that a caller has already
+parsed, so a frontend other than Gherkin can reuse the step registry, skip
+policy, and outcome types. The module and its invariants are ADR-018's subject;
+this section records the conventions a change to it must follow.
+
+### The engine split, and the rule it exists to enforce
+
+`run_scenario` and `run_scenario_async` are thin adapters in `runner/mod.rs`.
+Each splits the scope into its skip-policy input and its context, then
+delegates to `engine::drive_sync::drive` or `engine::drive_async::drive`.
+Everything a run *decides* lives in `engine/policy.rs` — the classifier that
+reads a step result into a terminal verdict, and the assembler that builds the
+outcome from the recorded invocations.
+
+**The drivers contain no decision.** A driver walks the plan, invokes the
+step-execution path, and stops at the first terminal event; a policy question
+that appears in a driver — "should this skip count as a failure?", "which
+failure outranks which?" — belongs in `policy.rs`, where it is reachable from
+both runners and from a unit test that needs no registry.
+`engine/policy_tests/` compiles `policy` and the drivers into the same binary,
+which is what keeps the lookup-only rule honest: `policy` may be tested without
+a registry, so a policy decision that has been left in a driver shows up as an
+untestable one rather than as a subtly different async path.
+`scripts/check_rs_file_lengths.py` is the forcing function for splitting a
+module that outgrows its file; the
+`docs/complexity-antipatterns-and-refactoring-strategies.md` thresholds are the
+forcing function for moving a decision out.
+
+The two driver loops are deliberately **not** shared (D23). A merged loop would
+need a `Either`-shaped abstraction over "await or do not await" whose branch
+would be exactly the thing under test, and the equality they must satisfy
+(INV-5) is asserted by comparing whole outcomes, not by construction. Treat the
+duplication as a checked property rather than as an accident to tidy away.
+
+### Why runner tests are integration tests (D21)
+
+Any test that calls `run_scenario` or `run_scenario_async` must live in
+`crates/rstest-bdd/tests/`, however little it needs. The first registry lookup
+builds `STEP_MAP`, whose duplicate-step `assert!` fires on the pattern
+`registry/introspection.rs` registers twice on purpose — so the unit-test
+binary cannot reach the registry *at all*, and a runner test there can only end
+as an unresolvable failure. This is not a preference:
+`runner_instrumentation.rs` was first written as a unit module on the narrower
+reading that a non-resolving test would escape the rule, and all six tests
+panicked.
+
+### `#[serial]` and `temp-env` in runner tests
+
+Skip policy is read from process-global environment state, which normally forces
+`#[serial]` plus `temp-env` on any test that touches it. D10 is what mostly
+removes the need: policy is resolved **once per run**, at scope construction,
+and recorded on the outcome, so a test can assert the *relation* between the
+inputs and outputs rather than the absolute value that a concurrent test might
+be mutating. The resolution event carries both inputs and both outputs for
+exactly this reason.
+
+The remaining constraint is narrower than it looks, and it is what the
+instrumentation tests actually do: a test that does not call `temp-env` must
+not assert an absolute policy value, because `config` reads `fail_on_skipped`
+once per scope while the doctests in the same crate also read it, and
+`#[serial]` gives no protection across binaries. Assert the relations the
+resolution event records instead:
+
+```plaintext
+allow_skipped  == plan_allows_skipping || !fail_on_skipped
+forced_failure == !allow_skipped && fail_on_skipped
+```
+
+Both hold under either value of `fail_on_skipped`, and both are falsifiable,
+which is what lets the test pass without controlling the ambient setting. Note
+the first is *not* `allow_skipped == !fail_on_skipped` in general: a plan that
+sets `allow_skipped(true)` keeps that permission whatever the ambient policy
+says. The two agree only for a plan that does not allow skipping, which is the
+case in `runner_instrumentation.rs` and why that test can use the short form.
+
+### The cancellation-harness pattern
+
+Cancelling a run is only observable if the test owns the polls, so
+`crates/rstest-bdd/tests/runner_cancel.rs` does not `block_on` the future and
+then look at the result. It polls a `Pin<&mut Fut>` by hand with
+`std::task::Waker::noop`, using no executor at all: construct the future, poll
+it until a parked gate step reports it has been entered, drop the future, and
+then assert the consequences — that the gate's own drop probe fired exactly
+once, and that the scope's cleanup guard still ran. A `block_on` would drive
+the future to completion, which is the case that is *not* under test, and an
+`assert!` on a status would be satisfied by a run that never cancelled at all.
+
+Three details are load-bearing rather than incidental, and a new harness that
+omits any of them will pass while testing nothing:
+
+1. **A progress witness.** "No outcome was observed" is true of any future
+   dropped before `Ready`, in every implementation, correct or broken. Record a
+   counter inside the gate's own `poll` and assert it non-zero *before* the
+   drop assertions, or a test that never reached the gate passes for the same
+   reason a correct one does.
+2. **A bounded poll loop, not a single poll.** `Waker::noop`'s `RawWaker`
+   ignores `wake`, so a future re-polled only on a wake hangs forever. Loop
+   until the gate reports entry, with an iteration cap that means "the gate is
+   genuinely unreachable" when it trips.
+3. **A drop probe that cannot be satisfied by accident.** The probe must be
+   owned by the gate future itself rather than by the closure that builds it —
+   otherwise it is dropped when that closure is, and the post-drop assertion
+   holds whether or not the gate was ever reached. Assert the count is **zero**
+   before the drop as well as one after.
+
+Keep the counters thread-local. `cargo test` gives each test a thread and
+nextest gives each its own process, so a pair of `static` counters is shared
+under the first and private under the second: the same file would be correct
+under one runner and racy under the other. `#[serial]` would also work and is
+weaker — with no executor to move work, every poll happens on the asserting
+thread, so `thread_local!` needs no coordination at all.
+
+Adopt the pattern whenever the property is about what did **not** happen:
+assert the observable residue of the cancellation, and keep a normal-completion
+control beside it so a harness that cancelled everything is caught too.
+
+### Which runner gates run in which configuration
+
+`make test` runs the workspace under `--all-features` and then a
+`--no-default-features -p rstest-bdd` leg. The second leg is not redundant with
+the Windows job in `.github/workflows/ci.yml`, which passes
+`with-default-features: false` *and* `strict-compile-time-validation`: that is
+a different configuration, and `ci.yml` never invokes `make test` at all. The
+runner's `--no-default-features` obligation (INV-2) is that the bypassed step
+sequence is complete without the default features, so the leg runs the `runner`
+filter in that configuration rather than only compiling it.
+
+For a focused run during development:
+
+```bash
+cargo nextest run -p rstest-bdd --no-default-features -E 'test(/runner::/)'
+```
