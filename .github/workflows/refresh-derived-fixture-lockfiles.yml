@@ -27,7 +27,7 @@ jobs:
         # Merged shared-actions PR #421 cache-provider revision. No job in
         # this repository archives a `target` tree, so the shared action's
         # Cargo and target cache stays disabled here too.
-        uses: leynos/shared-actions/.github/actions/setup-rust@438ad8a99a3580e753189c47391a1652c5f46ed4
+        uses: leynos/shared-actions/.github/actions/setup-rust@a06e1b8f83ce7f9da5bb26625ef2b7021adbf958
         with:
           cache-provider: external
 
