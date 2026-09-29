@@ -8028,6 +8028,22 @@ Each item the closing checklist named, discharged or explicitly left open:
    `--in-place` flag says: copying is the default. A canary — hash the file,
    run, hash again — settled it in three minutes and would have been cheaper
    than the reasoning.
+8. **A wrong instrument reports a defect that is not there.** Re-verifying the
+   emphasis invariant, a hand-written backtick walker counted 20 code-bound
+   `**` where the committed record said 19, which made the prose total odd and
+   the identity fail to close by one. The obvious reading was that the record
+   was wrong and the document had a stranded marker. It was neither: the
+   walker's inline-code regex mis-paired delimiters and pulled a line out of a
+   fenced block into "prose". `marked`'s own lexer — the parser that actually
+   produces the render — reports 19 code-bound tokens across 15 sites, and at
+   19 the identity closes exactly on the revision the record describes
+   (`5af03234`: 2107 = 19 + 2088, 2088/2 = 1044 rendered `<strong>`). The
+   record was right and the checker was wrong, and the sign of it was visible
+   before any parsing: a prose total that is odd cannot arise from paired
+   markers, so the *split* was suspect rather than the document. When a
+   measurement disagrees with a recorded one, the instrument is a hypothesis
+   too — and the cheaper move is to ask which of the two could be wrong, not to
+   assume it is the one already written down.
 
 ### What a successor should do first
 
