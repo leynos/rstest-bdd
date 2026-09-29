@@ -7897,6 +7897,36 @@ and it is recorded in `Risks` rather than here.
 This entry is a separate commit from the change it describes, so its own gate
 verdicts live in that commit's message under D49, not here.
 
+- **Observation:** a table row can be a claim about a *completed event* and
+  still be unreproducible, when the event it describes has been rewritten
+  underneath it. Evidence: the `Scope` table in this plan and in PR #770 pins
+  each row to a revision, and its caption asserts that "each row is pinned to
+  the revision it was measured at". Every row holds that promise except D31's,
+  which says only "at close" and names no revision. Re-measuring it is not
+  possible: no commit reachable from `HEAD` yields `71 / 18,325` against either
+  surviving base. The figure is not wrong — it is under-specified, which is a
+  different defect with the same effect on a reader.
+
+  The reason is a property of the branch's history rather than of the row. This
+  branch has been replayed more than the two times its recovery refs record.
+  The logical commit that introduced the figure exists in three identities —
+  `e31bb57d`, `a9773b21`, `5d0a88a1` — with byte-identical plan text and an
+  identical `15/7` diffstat, preserved by three different refs. D27's revision,
+  `d15c1e84`, sits in the first generation; the head is on the third. They
+  share no ancestor more recent than `577a4617`. Each generation was measured
+  against the base current when it was written, and those bases moved with the
+  branch points, so the same logical commit measures `73 / 18,940` against
+  `f6244601` rather than `71 / 18,325`.
+
+  *Impact.* No code or document changes. The row is marked as lacking a
+  recorded revision rather than deleted or corrected, because the plan's trend
+  argument rests on it and re-measuring it today would produce a number that
+  answers a different question. The generalizable lesson is that
+  "revision-scoped" is not sufficient on its own: a figure needs **both**
+  endpoints named, a revision *and* the base it was measured against, because a
+  replay changes the base of every commit it touches. A count against an
+  unnamed base is as unreproducible as a count with no revision at all.
+
 ## Outcomes & retrospective
 
 ### What was achieved
