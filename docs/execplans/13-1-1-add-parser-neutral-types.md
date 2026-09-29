@@ -7,202 +7,56 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 proceeds.
 
 Status: COMPLETE — every milestone is closed and every escalation is answered.
-Stage A closed on 2026-09-19; D2 option (ii), D3, and D10 recorded as approved.
-EP-M1 is closed and gate-clean at `3a942230`; EP-M2 is closed and gate-clean.
-**EP-M3 is closed**, gate-clean at `9a232fdd` with all seven gates green (2,046
-nextest tests passed, 7 skipped; doctests; 244 pytest), D27 recording the
-Scope-tolerance breach. **EP-M4 is struck** by D2 option (ii). **EP-M5 is
-closed and ticked** — the `insta` `Display` snapshots, the
-`--no-default-features` test leg, the roadmap and retrospective edits, and the
-re-scoped `cargo-mutants` sweep over the whole runner tree are all done and
-recorded. The Scope escalation (D31, re-measured and extended by D43) **was the
-last open item and is now resolved**: the overage is approved, with the ruling
-that ExecPlan lines do not count towards the size of the code/documentation
-change, and D43's entry records both the approval and what it does not license.
-Two later review findings were actioned on 2026-09-26 — the `Display` path fix
-(D46) and the data-table test that closes D33 (D47) — and D48 records the
-six-of-six re-run that licenses the `COMPLETE` status, with D49 recording why
-the three Markdown-gate verdicts for the final revision belong in the commit
-message rather than in this file. The CodeRabbit round that was previously
-listed here as "requested but unadjudicated" is round 6, and D42 records its
-adjudication — 24 findings, 22 actioned, 2 needing no change. EP-M3's named
-`cargo-mutants` control was run and found *vacuous* — 3 mutants, all unviable —
-so that obligation was re-scoped rather than discharged, and the re-scoped
-sweep has now completed: **152 mutants, 84 caught, 5 missed, 57 unviable, 6
-timeout, all accounted for.** It discharges AXIOM-4; both coverage gaps it
-recorded, D32 and D33, have since been closed, D33 by D47's end-to-end table
-test. Ten numbered CodeRabbit rounds have been adjudicated — round 1 in D26,
-then D28, D29, D30, D41, and D42 for rounds 2–6, and D44, D52, D53, D55 for
-rounds 7–10 — and EP-M1 additionally saw two unnumbered passes before the
-numbering began. Every round after the first is recorded finding by finding,
-including the declines, on the ground that a decline that is not evidenced is
-indistinguishable from a finding that was ignored. **Round 7 returned zero
-findings, the only empty round of the ten** — recorded in D44 with the four
-checks that were run before the empty result was believed, since "found
-nothing" and "did not run" are indistinguishable from the summary line alone.
-The numbered series is 19, 14, 12, 13, 11, 24, 0, then 7, 5, and 4 for rounds
-8, 9, and 10, adjudicated in D52, D53, and D55 respectively. **As of round 7 —
-run at `7e81eef7`, a revision that is not an ancestor of the current head — the
-numbered review cycle was closed**, and D44's successor note said no further
-review was owed at that point. Three rounds have since been run against later
-revisions, each recorded finding-by-finding on the same terms, so the closure
-was of that cycle and not of the practice. **That statement is scoped to its
-revision and has since been falsified by events**, which is the honest form of
-it: two review findings arrived on 2026-09-26 and were actioned as D46 and D47,
-and D47 in particular added a new integration test
-(`crates/rstest-bdd/tests/runner_wire.rs`) and D46 changed a public `Display`
-implementation. **Both were subsequently reviewed, and this paragraph has been
-corrected rather than left to mislead.** An earlier version of it read "Neither
-has been reviewed by any CodeRabbit round", which was true when written and
-false a round later: round 8 (D52) ran against `05c818de`, the commit that
-carries D46 and D47, over 75 files set-identical to that revision's own diff —
-so all four of the touched files (`outcome/mod.rs`, `tests/source/rendering.rs`,
-`runner_wire.rs`, `execution/error/format.rs`) were in the reviewed set. The
-accurate reading is therefore: **round 7 was the last review of the revision it
-ran against; round 8 covered D46 and D47 — but not `c21c7c83` or D52's own
-entry, which landed after it; round 9 then covered those and found five
-concerns (D53); and round 10, the latest, reviewed `b8de0bb3` and found the
-three concerns D55 records.** A successor reading this paragraph should treat
-the round number as a date rather than as a standing verdict, because each
-round is scoped to the revision it ran against and no round speaks for a
-revision it never saw. "No further review is owed" was a claim about a closed
-milestone, not a standing licence for everything committed afterwards, and this
-sentence is the worked example: a revision-scoped claim read as a standing one,
-corrected one round later.
+Stage A closed on 2026-09-19, with D2 option (ii), D3, and D10 recorded as
+approved. EP-M1, EP-M2, EP-M3, and EP-M5 are closed and gate-clean; EP-M4 is
+struck by D2 option (ii). D48 records the six-of-six re-run that licenses the
+`COMPLETE` status, and D49 records why the three Markdown-gate verdicts for a
+given revision belong in that revision's own commit message rather than in this
+file.
 
-**The branch has since been rebased onto the current `origin/main`**
-(`f6244601`), replaying all 101 commits with zero conflicts and a
-patch-identical result — `range-diff` classifies 101 of 101 commits `=`. Every
-SHA this plan cited before the replay still resolves through the recovery ref
-`refs/recovery/13-1-1-old-head-20260926T010700`, but none is an ancestor of the
-new head, so the Progress entry for the rebase carries an old-to-new
-translation table. The four code gates and the two Markdown gates were re-run
-after the replay and all six pass; their logs certify `b70ad1bb`, the head at
-that time. **A rebase invalidates the evidence tied to the pre-rebase head, so
-the re-run is the evidence that counts, not the earlier green.** Subsequent
-documentation commits have moved the head several more times, so each later
-claim in this plan names the revision its own evidence was gathered at rather
-than asserting a "current" one.
+This header states the status and points at the record; it does not hold the
+record. **Review-round history, milestone detail, and every gate verdict live in
+`## Progress` and in the `D..` decision entries, which sit as bullets and
+sub-sections under `## Surprises & discoveries`** — the container is named
+longhand because this document has no `## Decision log` heading, only a
+`Decision log` section referenced by name in the living-document preamble. One
+rule is worth carrying up here, because it governs how every round number in
+this document should be read: **a round is scoped to the revision it ran
+against, so read the number as a date rather than as a standing verdict**, and
+no round speaks for a revision it never saw. The latest round and its
+adjudication are named in Progress.
 
-**Published 2026-09-26.** The force push succeeded with the lease bound to the
-recorded pre-rebase remote head (`+ ceb89de1...5b65ea09`); the two
-documentation commits that followed it were both ordinary fast-forwards
-(`5b65ea09..cd68363c`, then `cd68363c..5a2dc36d`, each `PUSH_EXIT=0`). At the
-moment this paragraph was written the remote branch and PR #770 both reported
-`5a2dc36d`, with 107 commits, 73 changed files, and `+21512 -84` — each figure
-read back from the PR rather than computed here, and each scoped to that
-revision. Commits after it have moved the head further, so these figures
-describe a past state rather than a current one; the CI results that matter are
-the ones bound to their own head SHAs below. **D39's escalation is retired, not
-answered:** main removed the failing `Check coverage against CodeScene gates`
-step under estate rule CV-005, so no pull-request lane contacts CodeScene at
-all, and the three candidate re-pins D39 weighed no longer name existing lines.
-D39 is marked `SUPERSEDED` at its own site. Separately, main repaired the
-check-naming defect D37 diagnosed, so the required contexts are now
-`build-test (linux, default features)`,
-`build-test (windows, default features)`, and
-`build-test (windows, strict-compile-time-validation)` — the same three legs
-under new labels, read from the ruleset rather than from the plan.
+**No escalation is open.** The `Scope` tolerance was breached and measured
+three times — D27 at 58 files / 15,737 net added lines, D31 at 71 / 18,325, and
+D43 at 73 / 20,556 at `bbde0f2e`, against a 36-file / 4,500-line tolerance.
+**The overage was approved on 2026-09-26**, with the ruling that ExecPlan lines
+do not count towards the size of the code/documentation change, so this
+document's own lines are excluded from that count. D43 records the approval,
+and what it does not license: the branch is accepted as it stands, not
+re-scoped to look smaller. The generated-config escalation is resolved by D45,
+whose doctrine is that the committed `typos.toml` is never drift checked in
+continuous integration — which makes committing the refresh the conforming
+action rather than a compromise. D39's CodeScene escalation is `SUPERSEDED`
+rather than answered: main removed the failing step under estate rule CV-005.
+D37's check-naming defect was likewise repaired on main, so the required
+contexts are the three `build-test (…)` legs whose runs Progress records.
 
-**All three required legs pass at `2de4211c`** — run `36204354178`, event
-`pull_request`, `completed/success`, created 00:18:28Z and finished 00:50:38Z,
-head SHA read back as `2de4211c88584c8fe919c0a05240fdb2a2776278`:
+**Gate evidence is revision-scoped, and the readership split is what makes it
+so.** This document is an input to the three Markdown gates — `check-fmt`
+(which runs the Rust and Python formatters *and* `mdtablefix`), `markdownlint`,
+and `nixie` — and to no Rust gate: `make test`, `make typecheck`, and
+`make lint` do not read it. A documentation edit therefore invalidates
+Markdown-gate evidence alone, and the list is written out longhand rather than
+referred to by a count, because two drafts of D49 got that count wrong. **A
+rebase renumbers every commit, so the Progress entry for each replay carries
+the old-to-new translation table** for the load-bearing citations; pre-rebase
+SHAs still resolve through the `refs/recovery/...` refs but are no longer
+ancestors of this branch.
 
-```plaintext
-108297793233 build-test (linux, default features):            completed/success
-108297793362 build-test (windows, strict-compile-time-validation): completed/success
-108297793394 build-test (windows, default features):          completed/success
-```
-
-This is the first clean CI verdict this branch has had, and it required the
-sequencing the Surprises section now records: three consecutive earlier heads
-were `cancelled` by their own successors, so **the only way to obtain a verdict
-was to stop pushing and let one run finish.** The result was recorded from the
-run object rather than from a job summary line, and the PR head was still
-`2de4211c` at the moment of the read, so this revision is both the validated
-head and the published one — a coincidence worth stating, because the next
-commit to this file ends it.
-
-The two Markdown gates are claimed at `2de4211c` as well, on a clean tree with
-`rev_start` = `rev_end`. The four code gates last ran at `b70ad1bb`, and that
-green was carried forward for a stretch on a measured argument for exposure
-rather than a re-run. The argument was originally phrased as **every commit
-after `b70ad1bb` touches exactly one file** — this document — verified by
-diffing the union of paths from `b70ad1bb..HEAD`; that phrasing became
-inaccurate when D45's commit `c1d94cc0` also carried the regenerated
-`typos.toml`. It was therefore restated in the form that survived, and it was
-the *inputs* that mattered rather than the path count: **of the paths touched
-after `b70ad1bb`, none is compiled, linted, or typechecked by any of the four
-code gates.** The union was exactly two paths — this document and the generated
-`typos.toml` — and `grep -n typos Makefile` shows the latter is read by
-`spelling` alone, which is a Markdown-side target that no code gate invokes.
-
-**That argument is now spent, and the restatement's own closing warning is what
-spent it.** Its last sentence said the original wording "would have gone on
-being true-sounding while silently becoming false the moment any non-Markdown
-file was touched." The moment arrived: actioning the two review findings below
-touched four non-Markdown files, and all four are read by the code gates:
-
-```plaintext
-crates/rstest-bdd/src/execution/error/format.rs
-crates/rstest-bdd/src/runner/outcome/mod.rs
-crates/rstest-bdd/src/runner/tests/source/rendering.rs
-crates/rstest-bdd/tests/runner_wire.rs
-```
-
-Three are compiled and linted as library or test sources; the fourth adds a
-registered step, so `make test` reads it too. **The carried-forward green is
-therefore retired rather than extended**, and the four code gates were re-run
-at the revision these changes produce. The result is in the Progress entry that
-records this work; a successor should read that entry's revision and not this
-paragraph's, which names the argument's history rather than any gate's verdict.
-
-**A second revision carried its own verdict as well.** Run `36206794540`, event
-`pull_request`, head SHA read back as
-`cf5bc4d6ce64b03c5a5ceeb5e1caf69fda08e04f`, reported the same three legs
-passing:
-
-```plaintext
-build-test (linux, default features):                 completed/success
-build-test (windows, default features):               completed/success
-build-test (windows, strict-compile-time-validation): completed/success
-```
-
-So that head was briefly both the published head and the validated one — and it
-stopped being so the moment the paragraph recording it was committed. That is
-the fixed point the Surprises section records rather than an accident of
-timing. **The verdict that matters is the last one, and it is run `36211394305`
-at `60a2a15d`** — see the final Progress entry; nothing after it has been
-watched, deliberately, and the head has since moved twice: once for the two
-review findings actioned below, and once more for the commit that records them.
-What made the carried-forward argument tolerable was the measured exposure and
-not the coincidence — and that exposure has since ended, because the review
-findings touched four compiled files. The four code gates were **re-run** for
-the revision the findings produce rather than carried forward; that revision
-and its verdict are named in the Progress entry, not here.
-
-**Every escalation is now resolved, and the plan carries none.** The `Scope`
-tolerance was breached and measured three times: D27 at 58 files / 15,737 net,
-D31 at 71 / 18,325, and D43 — EP-M5's own closing re-measurement — at 73 files
-/ 20,556 net added lines at `bbde0f2e`, against a 36-file / 4,500-line
-tolerance. D43 states three options and recommends accepting the breach while
-recording that the tolerance's *unit* is what is wrong. **The overage was
-approved on 2026-09-26**, with the ruling that ExecPlan lines do not count
-towards the size of the code/documentation change — so D43's recommendation is
-adopted and its option (2) is the recorded correction. D43's entry carries the
-approval verbatim in substance, together with what it does **not** license: the
-branch is accepted as it stands, not re-scoped to look smaller. A second
-escalation raised on 2026-09-26 — the estate's `spelling` target runs
-`typos-config-builder` in **write** mode, so the quality gate repairs the drift
-it exists to report — is likewise **resolved**: D45 records the doctrine that
-settles it, namely that the committed file is never drift checked in continuous
-integration, which makes committing the refresh the conforming action rather
-than a compromise. D39's escalation was retired. Two further review findings
-the same day were actioned rather than escalated, and both are recorded: D46
-fixes the failure rendering so INV-7's third clause holds without amendment,
-and D47 closes D33 by adding the end-to-end table test together with the
-mutation evidence that it would have caught the sweep's survivors. Every other
-obligation is discharged or explicitly recorded as open.
+**The head revision is deliberately not named here.** A revision written in
+this header is falsified by the very commit that writes it, which is the fixed
+point D49 records. The final Progress entry names the revision the last
+six-gate run certified, together with that run's logs.
 
 ## Purpose / big picture
 
@@ -820,8 +674,13 @@ between them. Raise that before spending the tolerance.
   each covers every status, and the two terminal `warn!`s carry `location`
   (`path:line`, rendered by a driver-local `location()` helper because
   `SourceLocation` deliberately has no `Display`) and, for a failure, `kind`.
-  The artefact is `crates/rstest-bdd/tests/runner_instrumentation.rs`: six
-  tests over a hand-rolled `Subscriber` recording field *names* and levels.
+  The artefact was `crates/rstest-bdd/tests/runner_instrumentation.rs`: six
+  tests over a hand-rolled `Subscriber` recording field *names* and levels. A
+  seventh test, for the asynchronous driver's attribution, was added at the
+  second CodeRabbit round, and the file has since been split rather than grown
+  past the repository's 400-line cap: the six synchronous tests stay in the
+  parent file and the async one now lives in the sibling
+  `crates/rstest-bdd/tests/runner_instrumentation/async_attribution.rs`.
 
   The artefact's path is the second correction. D14's tests were first written
   as a unit module at `src/runner/tests/instrumentation.rs`, following D19, and
@@ -2375,6 +2234,16 @@ between them. Raise that before spending the tolerance.
   `runner_panics.rs`, `execution/unwind.rs`, and both drivers — were corrected
   to name all four drop sites rather than attributing them to `CleanupGuard`
   alone. Recorded as D58.
+
+  **The tick on this entry was challenged by round 12 as premature, and the
+  challenge was answered rather than deflected.** The objection was that a tick
+  asserts a *validated* state, so it should stay open while D59's `make test`
+  re-run was outstanding. It was outstanding when the objection was raised and
+  is not now: all six deterministic gates are green at `c4d64d76`, the revision
+  that records D59, with the counts and log names in the D59-closure Progress
+  entry. The tick therefore stands on that verdict rather than on the work
+  merely being written; had the re-run come back red, this line would be
+  unticked and D59 would be the entry explaining why.
 - [x] (2026-09-29) **The first gate run on the round-11 commit came back red
   with three defects, one of them invisible until the other two were fixed.**
   `make check-fmt` failed on mdtablefix reflow of this document (`+26 -29`), and
@@ -2429,6 +2298,64 @@ between them. Raise that before spending the tolerance.
   The split leaves `runner_panics/mod.rs` at 393 lines, seven under the cap, so
   the magnet has moved rather than been removed. The next concern added to this
   test target should be split out first, not after.
+
+- [x] (2026-09-29) **D59's outstanding `make test` re-run was completed, and
+  it is green at the revision D59 named.** All six deterministic gates were run
+  over `c4d64d76` — the revision that records D59 — and all six returned
+  `EXIT=0` with `REV_START` and `REV_END` both reading that SHA, so the
+  verdicts certify one stationary revision rather than bookending a moving one:
+  `make test` (2,791 Rust tests across two nextest binaries — 2,065 and 726 —
+  each with 7 skipped; 16 doctest suites, 178 passed, 0 failed; then 247 pytest
+  passed in 13.69s; 152s total), `make typecheck` (ty 0.0.74,
+  `All checks passed!`, 5s), `make lint` (all nine recipe steps, 17s),
+  `make check-fmt` (4s), `make markdownlint` (`Summary: 0 error(s)`, 18s), and
+  `make nixie` (0s). Logs: the four code gates in
+  `/tmp/<gate>-rstest-bdd-13-1-1-add-parser-neutral-types.postd59.out` and the
+  three Markdown gates — `check-fmt` included, because it reads this document —
+  in the corresponding `.r12.out`.
+
+  **This closes D59's open action rather than restating it.** D59 ends "the
+  re-run is the action this decision commits to, and it is outstanding — no
+  clean `make test` exists at the time of writing"; a clean one now exists, at
+  the revision the decision itself produced, which is the strongest form
+  available: the re-run was green precisely where the unsound verdict had
+  stood. The two verdicts D59 kept on measured grounds are thereby superseded
+  rather than relied on, which removes the last place this plan leaned on
+  timing evidence to license a gate result.
+
+  **This paragraph's first draft carried three figures that were written from
+  expectation rather than read from the logs, and all three were wrong.** The
+  draft said "2,048 Rust tests via two nextest binaries" — the true count is
+  2,791 (2,065 + 726), and the 2,048 was never in any log; it appears to have
+  been recalled from the unrelated EP-M3 count of 2,046 recorded elsewhere in
+  this document. It said `make lint` ran "all nine steps"; nine is the number
+  of *lines* in the `lint` recipe, but one of them recurses into `lint-python`,
+  whose four sub-steps make twelve commands in all, and the log shows every one
+  of them. And it named `make check-fmt`'s log as `.postd59.out` when the file
+  at that path carries no revision trailer at all — it was written at 18:50,
+  two minutes *before* `c4d64d76` was committed at 18:52:20, so it cannot
+  certify that revision; the `check-fmt` verdict that does is `.r12.out`, run
+  at 19:23:53 with both trailers reading `c4d64d76`. Each figure here is now
+  read from the log that produced it, and the rule this document has already
+  been taught once by `never-write-a-hash-you-did-not-run` is the rule that was
+  broken: **a number that has not been measured is not a summary of a
+  measurement.**
+
+  The revision this entry *reports* is not the revision it was *written at*,
+  and the gap is recorded rather than papered over: the first gate run after
+  this branch's cleanup fix was delegated against `976d881b`, and when it was
+  stopped it had reported no gate results — only an initialized log header —
+  with two jobs still running, so it produced no verdicts to record either way.
+  **`976d881b` therefore stands gated only on the Markdown side.** What
+  licenses saying so is reachability rather than a green: none of the four Rust
+  gates reads this document. It is named as an input by exactly one tracked
+  file, a docstring in `scripts/tests/test_d4_feature_off_leg_contract.py`, and
+  a docstring is not read by anything; `grep` for the path across the tracked
+  tree returns no other hit outside the plan itself. This entry's own commit is
+  nonetheless what moves the head past the run, so its Markdown gates are run
+  **after** it is written and their verdicts are carried in its commit message
+  — the D49 discipline, and the reason no gate verdict appears in this
+  paragraph for the revision it created.
 
 ## Surprises & discoveries
 
@@ -7999,6 +7926,285 @@ verdicts live in that commit's message under D49, not here.
   replay changes the base of every commit it touches. A count against an
   unnamed base is as unreproducible as a count with no revision at all.
 
+### D58: round 11's single substantive finding was one instance of a four-site class, and the test written for it was vacuous until a control killed it
+
+Round 11 returned five finding records against `128a4c82`, two of them the same
+concern at the same location, so the round is four concerns. Three are
+documentation and one is a code change; all four were verified against the code
+before being actioned.
+
+**The substantive find: a destructor panic escaping `run_scenario`.** The
+finding asked for the displaced value in `record_step`'s value-conversion
+closure to be dropped under `catch_unwind`, with a panic logged as a warning,
+"matching `CleanupGuard::drop`", and for the existing `ValueFate` conversion to
+be preserved for the other `InsertOutcome` variants. Reading `insert_value`
+rather than the finding's line alone showed the reported site is **one of
+four**: the function drops a value on the `NoMatch` path, on the
+`AmbiguousIgnored` path, and again on `InsertOutcome::Inserted(Some(_))`, where
+the displaced override is returned to the caller — and the `ValueFate`
+conversion then drops that override one call away. All four unwinds escape
+`run_scenario`, which breaks Constraint 3. Guarding only the reported line
+would have left the identical defect two lines away and forced a
+verification-gap declaration, so all four are guarded, through two new
+`pub(crate)` helpers in `panic_support`: `drop_guarded`, which drops a value
+and returns a panic's message rather than propagating it, and
+`report_drop_panic`, which logs one. The reported site keeps its existing
+`ValueFate` conversion; only the drop the conversion performs changed.
+
+**A load-bearing over-claim, in three places.** `tests/runner_panics.rs` and
+`execution/unwind.rs` both asserted that D11's destructor coverage lives in
+`runner/scope.rs`'s `CleanupGuard`, and `drive_sync.rs` and `drive_async.rs`
+repeated it. `CleanupGuard` covers the run-end `clear_values` path and nothing
+else. The claim was true only for the cleanup path, which is what made this a
+contract violation rather than a style nit; all four notes are corrected. This
+is the second time on this branch that a "covered elsewhere" claim turned out
+to name the wrong cover, and the correction names the four sites explicitly so
+a successor need not re-derive them.
+
+**The branch-guard alternative was rejected on evidence, not preference.** The
+finding's own remedy — panic rather than drop, and let the caller handle it —
+moves the abort to `ctx`'s drop, which happens *after* `run_scenario` returns
+and therefore after a test's own `catch_unwind`. In a standalone frontend that
+is still exit 134. Drop-and-report is what `CleanupGuard::drop` already does,
+so the fix converges on the existing convention instead of establishing a
+second one.
+
+**The control found a defect in the test written for the fix.** Three new rows
+in `runner_panics/destructors.rs` (split from the parent file when the
+additions breached the repository's 400-line cap) drive the three drop paths
+through `run_scenario`, each asserting both that the run returned an outcome
+and that the armed value's destructor actually ran. Removing the guards made the
+`Unmatched` and `Ambiguous` rows fail as designed — and the `Displaced` row
+**pass**, which is vacuous. The cause was the row's own scaffolding: it
+registered the armed value through `insert_owned`, which stores a *fixture* as
+a borrowed `RefCell<Box<dyn Any>>`, while `insert_value` matches fixtures by
+erased type and replaces into a different map. So the value it displaced was an
+empty `RefCell` wrapper carrying no destructor at all, and the row would have
+passed whether or not the conversion's guard existed. A fixture and an override
+live in different maps; only the override map is what `insert_value` replaces
+into. The row now seeds the armed value *through* `insert_value` and has the
+step return a quiet value, which is the only arrangement in which the
+conversion is what drops it.
+
+**The 2×2 control that closed it.** With all three guards removed the three
+rows fail; with the `context` guards restored and the `ValueFate` guard still
+removed, `Displaced` is the *sole* failure; with the `ValueFate` guard restored
+and the `context` guards removed, `Unmatched` and `Ambiguous` fail and
+`Displaced` passes. Each row therefore fails only when its own guard is
+missing, which is the property the row was written to have and could not
+demonstrate before. The lesson is the one the plan has recorded twice already
+in other forms: a green run is not evidence that a test can fail, and the only
+cheap way to tell is to break the thing it claims to measure.
+
+**Two documentation findings, both applied.** `runner_sequence_props.rs`'s
+module note disparaged the `RefCell` that `check` in the same file actually
+uses, and claimed a `Fn` bound "would not compile"; the function's own note
+says the opposite, and correctly — the accumulator must live behind interior
+mutability because `TestRunner::run` requires `Fn` and the folding closure is
+`FnMut`. The module note now points at that explanation instead of
+contradicting it. `ScenarioPlanBuilder::step_at` gained a `# Panics` section
+for the zero-line assertion one call down in `SourceLocation::new`, with
+runtime behaviour unchanged; `missing_panics_doc` is denied workspace-wide and
+`make lint` had passed on it because the lint is intraprocedural and the panic
+is one call deep.
+
+**Finding 1, first person, applied across sixteen lines in thirteen edits.**
+Both figures come from a set comparison of the pronoun-bearing lines before and
+after, not from a reading: `comm -23` over the two sorted line sets reports
+sixteen lines present at `128a4c82` and absent after, and two new matching
+lines — this entry's own, either side of the `no I/O` quotation a paragraph
+below. The rule applied is the plan's own, recorded in D55's predecessor —
+avoid first person *as the document's voice*, while quotations and prose
+describing a removed construction are deliberate exceptions. The surviving hits
+are all in those two categories: Gherkin step text, a quoted end-user question,
+a quoted runner message, Mermaid node identifiers, `no I/O`, and prose that
+must be able to name the construction it removed.
+
+**One figure was written before it was measured, and is corrected here.** An
+earlier draft of this entry said the fix covered "thirteen sites" and described
+the round's report as claiming "four sites". Neither was measured: the first
+was an edit count standing in for a line count, and the second attributed to
+the round a figure that came from this session's own partial classification
+pass — four ambiguous sites read before the scan finished. Both are replaced
+with the set-comparison figures above. The distinction is the one D43 records
+and this plan has paid for twice: a count is a claim about a revision and a
+method, and one produced by partial inspection is a guess.
+
+### D59: the 2×2 control was run while the gate run was in flight, and the test verdict had to be re-measured
+
+**Decision: treat the `make test` green at `9c6b808e` as unsound and re-run
+that gate; keep `check-fmt` and `lint` from the same run, on evidence.**
+
+**What happened.** A six-gate re-run was delegated against `9c6b808e`. While it
+was running, the 2×2 control recorded in D58 was completed by direct experiment
+— temporarily replacing two `report_drop_panic(drop_guarded(..))` call sites in
+`crates/rstest-bdd/src/context/mod.rs` and the one in
+`crates/rstest-bdd/src/runner/outcome/step.rs` with bare `drop(..)`. Both files
+are compiled by `lint`, `test` and `typecheck`, so the edit landed inside a
+gate run that reads them. This is the second occurrence of the failure mode:
+the first was an unplanned prose edit; this one was a **deliberate
+experiment**, run with the rule already in memory. That distinction is the
+lesson. A mutation control *always* edits gate inputs, so it belongs after the
+gate run, not alongside it.
+
+**Why two of the three verdicts survived, measured rather than argued.**
+`check-fmt` ended at 18:18:05, 1m47s before the earliest mutation artefact
+(18:19:52). `lint` ended at 18:18:33, 1m19s before it, and its rustdoc leg was
+a whole-tree cache hit —
+`find target/doc -newermt 18:18:05 ! -newermt 18:18:40` returns zero files, the
+newest doc artefact anywhere being 18:14:35. `make test` ran 18:18:47–18:22:35,
+which *contains* the mutation window, so its verdict has unverifiable
+provenance and was not carried forward.
+
+**The corroboration that the mutation never produced a binary.** The source was
+restored at 18:20:18.955 and the `runner_panics` test binary was built at
+18:20:24.398 — 5.4s *after* the restore, from the restored bytes. The one build
+that did start inside the window (`.d` at 18:19:55) produced no executable at
+all, so no mutated test binary was ever run. That is strong evidence and it is
+still not a verdict: it is a reason to expect the re-run to be green, not a
+substitute for running it. The re-run is the action this decision commits to,
+and it was **carried out green** at the revision that records this decision. At
+the time of writing, though, no clean `make test` existed — and that is the
+state this paragraph was written in, so it is left standing as the record of
+it. The Progress entry for 2026-09-29 carries the outcome and names the four
+logs.
+
+**How the incident was contained.** sha256 snapshots were taken before the
+edits; both files were restored and verified byte-identical against the
+*committed blobs* (`context/mod.rs` `fa953a8345b8c46ab…`, `step.rs`
+`e034bda61fc34542…`), not merely against the pre-edit hashes. A STOP-AND-REPORT
+was sent to the gate runner so it would report the overlap window instead of
+certifying a verdict, and it did.
+
+Date/Author: 2026-09-29, implementation agent.
+
+### D60: round 12's eleven concerns arrived as sixteen records, and three of the fixes were themselves defects
+
+**Decision: action every round-12 finding, and treat the round's own record as
+part of what is being reviewed — three of the eleven concerns were defects this
+document had already introduced while fixing an earlier round.**
+
+**Why sixteen records for eleven concerns.** `/tmp/coderabbit-r12.out` holds
+sixteen records carrying text under `codegenInstructions`, and eleven distinct
+concerns among them. Grouping the records by the file and the line anchor each
+one cites gives the whole arithmetic: the plan drew six records for five
+concerns, `docs/roadmap.md` one for one, `context/mod.rs` four for two,
+`runner_instrumentation.rs` two for one, `conversion/tests.rs` two for one, and
+`panic_support.rs` one for one. So six distinct documentation concerns arrived
+as seven records and five code concerns as nine. **Five concerns were filed
+twice** — four of the five code concerns, plus the plan's line-10144
+worktree-path finding, the one documentation concern that was re-emitted — and
+each pair cites an identical line anchor. The duplicates are **not** marked by
+severity: four pairs carry the same severity on both records (`minor`/`minor`
+three times, `trivial`/`trivial` once) and only the line-10144 pair splits
+(`trivial`, then `minor`), so no severity filter would have collapsed them.
+
+**An earlier draft of this entry claimed "nine concerns", and the sentence
+justifying it was wrong in every figure.** It said the six documentation
+concerns arrived as twelve records plus four code concerns. The measured split
+is six documentation concerns as seven records and five code concerns as nine:
+the six was right by luck, the twelve was not, and the four was not. The nine
+was never measured at all — it was inferred from a pattern of twinning that
+holds for the code findings and for only one of the documentation ones. **So
+this entry opened as a further instance of the failure it exists to describe,
+and is corrected here rather than quietly superseded.** The distinct set was
+read out of `codegenInstructions`, one record at a time; it cannot be inferred
+from the returned count, because sixteen and eleven are both true of this run
+and only the second is a usable scope statement.
+
+**Three of the fixes were repairs to earlier fixes.** The INV-7 discharge
+paragraph said "Partial discharge"; the invariant had in fact been discharged
+in full by D46, and the paragraph was a stale description of the state D46 had
+already moved past. The `ScenarioOutcome` rendering test was cited under its
+pre-rename name in two places, both of which correctly described the rename in
+the past tense — so those were left alone deliberately, and the distinction is
+recorded because "stale name" and "name recorded as former" look identical to a
+grep. And the header carried a "requested but unadjudicated" CodeRabbit claim
+that D42 had adjudicated; the round it referred to was round 6, and the stale
+line had survived the adjudication that resolved it.
+
+**One finding was narrowed rather than obeyed wholesale.** The reviewer twice
+asked that the "machine-specific worktree path" be replaced with "the
+repository root". The instruction it quoted — `## Concrete steps`' "Run every
+command from the repository root,
+`/home/leynos/.lody/repos/…/worktrees/b2d2d7aa-…`" — was already correct in the
+working tree and now reads generically, so that half was applied. But `grep`
+finds three further absolute paths in this document that the reviewer's wording
+would also cover and which are **not** the same defect: the `export PATH=…`
+line is a verbatim quote of what this estate's `BASH_ENV` file contains, and
+the two `~/.local/bin` paths are a tool's install location being observed, not
+a command a reader is told to run from a fixed directory. Those three were
+kept, because replacing them with a generic path would turn a quoted
+observation into a false statement. **A finding is a claim about a defect
+class, not a licence to over-apply the fix**, and the distinction between a
+path a reader is *instructed* to use and a path the document *reports* is what
+drew the line.
+
+**What the condensation of the status header cost, and what it did not.** The
+header went from 197 lines to 52 — status, open escalations, the readership
+split that governs which gates a documentation edit invalidates, the
+revision-scoping rule for round numbers, and a pointer to where the record
+lives. Both figures are the *status block* measured from the `Status:` line to
+the last non-blank line before `## Purpose / big picture`; counting the whole
+region above that heading instead gives 205 and 60, because it includes the
+seven-line preamble that no edit touched. Before any of it was deleted, each
+fact was probed for survival elsewhere: the old header's **24 distinct SHA-like
+tokens** were all found in the body, and of its **8 numbers of four digits or
+more** exactly one — `21512`, the PR's net-addition figure as read back at
+`5a2dc36d` — was found nowhere else. That one was dropped rather than carried
+up, because the paragraph that held it already states that it describes a past
+state, and a revision-scoped PR statistic is the class of claim this header's
+own no-expiry rule forbids. The old header's **24 bolded claims** are a
+different case again, and the reason they are described rather than counted:
+only **2 of the 24** appear in the old body as the same string once whitespace
+is normalized, because a bolded sentence in the header is usually a
+*compression* of a body passage rather than a quotation of it. The other 22
+were checked one at a time, and each was either paraphrased from a body passage
+that does carry the fact — "EP-M3 is closed" and "EP-M5 is closed and ticked"
+are both named at length in Progress, "The overage was approved on 2026-09-26"
+is in D27, D31 and D43 — or was a **summary of the header's own history** that
+exists only to make the header current and has no body counterpart at all:
+"Both were subsequently reviewed, and this paragraph has been corrected rather
+than left to mislead", "was the last open item and is now resolved", and "That
+argument is now spent". That second class is the one the condensation was
+*for*, so it was dropped deliberately rather than carried up. This is the
+discipline the earlier "recalled figures" lesson demands — **a fact is
+redundant only once it has been found in the place it is said to survive in.**
+
+**Four figures in this entry's own first draft were wrong, and all four were of
+the class the entry is about.** It said the header went "from 198 lines to 49":
+the true pair is 197 and 52 by the status block, or 205 and 60 by the whole
+region above `## Purpose` — neither of which is 198 or 49. It said the survival
+probe left "four" header-only facts; the probe actually left one, and the
+drafts of the new header that carried four facts across had done so for reasons
+the probe had not classified. And the "nine concerns" figure is corrected
+above. **Every one of these was written from a plausible memory of a
+measurement rather than from the measurement**, in an entry whose whole subject
+is that failure, which is recorded here rather than quietly fixed because it is
+the second time on this branch that a decision entry about fabricated figures
+has itself contained fabricated figures.
+
+**The head revision was removed from the header entirely, and that is the fix
+rather than a concession.** A header that names the head is falsified by the
+commit that writes it: the text cannot be self-consistent, because writing "the
+head is X" moves the head past X. Every earlier attempt to keep the header
+current produced a claim that expired at the moment of writing, which is
+exactly what finding #3 objected to. The header now names no revision; the
+final Progress entry names the revision its evidence certifies, which is where
+a revision-scoped claim can actually be true.
+
+**One Progress figure in this same commit was wrong and was corrected before
+committing.** The D59 closure entry originally said "2,048 Rust tests via two
+nextest binaries". The logs say 2,791 (2,065 + 726); 2,048 appears in no log
+and matches nothing. It also described `make lint` as running "all nine steps"
+(nine lines, twelve commands) and cited a `check-fmt` log written two minutes
+*before* the revision it claimed to certify. All three were caught by reading
+the logs rather than by a gate, and all three are the same failure the plan's
+own `never-write-a-hash-you-did-not-run` rule names: **a figure written from
+expectation rather than measurement.**
+
+Date/Author: 2026-09-29, implementation agent.
+
 ## Outcomes & retrospective
 
 ### What was achieved
@@ -8360,154 +8566,6 @@ the plan does not claim one is owed; a successor deciding whether to request
 one should weigh D46's user-visible string change — which round 8 did see —
 against whatever has landed since the most recent round, this paragraph's own
 lesson being that the round number is a date and not a standing verdict.
-
-### D58: round 11's single substantive finding was one instance of a four-site class, and the test written for it was vacuous until a control killed it
-
-Round 11 returned five finding records against `128a4c82`, two of them the same
-concern at the same location, so the round is four concerns. Three are
-documentation and one is a code change; all four were verified against the code
-before being actioned.
-
-**The substantive find: a destructor panic escaping `run_scenario`.** The
-finding asked for the displaced value in `record_step`'s value-conversion
-closure to be dropped under `catch_unwind`, with a panic logged as a warning,
-"matching `CleanupGuard::drop`", and for the existing `ValueFate` conversion to
-be preserved for the other `InsertOutcome` variants. Reading `insert_value`
-rather than the finding's line alone showed the reported site is **one of
-four**: the function drops a value on the `NoMatch` path, on the
-`AmbiguousIgnored` path, and again on `InsertOutcome::Inserted(Some(_))`, where
-the displaced override is returned to the caller — and the `ValueFate`
-conversion then drops that override one call away. All four unwinds escape
-`run_scenario`, which breaks Constraint 3. Guarding only the reported line
-would have left the identical defect two lines away and forced a
-verification-gap declaration, so all four are guarded, through two new
-`pub(crate)` helpers in `panic_support`: `drop_guarded`, which drops a value
-and returns a panic's message rather than propagating it, and
-`report_drop_panic`, which logs one. The reported site keeps its existing
-`ValueFate` conversion; only the drop the conversion performs changed.
-
-**A load-bearing over-claim, in three places.** `tests/runner_panics.rs` and
-`execution/unwind.rs` both asserted that D11's destructor coverage lives in
-`runner/scope.rs`'s `CleanupGuard`, and `drive_sync.rs` and `drive_async.rs`
-repeated it. `CleanupGuard` covers the run-end `clear_values` path and nothing
-else. The claim was true only for the cleanup path, which is what made this a
-contract violation rather than a style nit; all four notes are corrected. This
-is the second time on this branch that a "covered elsewhere" claim turned out
-to name the wrong cover, and the correction names the four sites explicitly so
-a successor need not re-derive them.
-
-**The branch-guard alternative was rejected on evidence, not preference.** The
-finding's own remedy — panic rather than drop, and let the caller handle it —
-moves the abort to `ctx`'s drop, which happens *after* `run_scenario` returns
-and therefore after a test's own `catch_unwind`. In a standalone frontend that
-is still exit 134. Drop-and-report is what `CleanupGuard::drop` already does,
-so the fix converges on the existing convention instead of establishing a
-second one.
-
-**The control found a defect in the test written for the fix.** Three new rows
-in `runner_panics/destructors.rs` (split from the parent file when the
-additions breached the repository's 400-line cap) drive the three drop paths
-through `run_scenario`, each asserting both that the run returned an outcome
-and that the armed value's destructor actually ran. Removing the guards made the
-`Unmatched` and `Ambiguous` rows fail as designed — and the `Displaced` row
-**pass**, which is vacuous. The cause was the row's own scaffolding: it
-registered the armed value through `insert_owned`, which stores a *fixture* as
-a borrowed `RefCell<Box<dyn Any>>`, while `insert_value` matches fixtures by
-erased type and replaces into a different map. So the value it displaced was an
-empty `RefCell` wrapper carrying no destructor at all, and the row would have
-passed whether or not the conversion's guard existed. A fixture and an override
-live in different maps; only the override map is what `insert_value` replaces
-into. The row now seeds the armed value *through* `insert_value` and has the
-step return a quiet value, which is the only arrangement in which the
-conversion is what drops it.
-
-**The 2×2 control that closed it.** With all three guards removed the three
-rows fail; with the `context` guards restored and the `ValueFate` guard still
-removed, `Displaced` is the *sole* failure; with the `ValueFate` guard restored
-and the `context` guards removed, `Unmatched` and `Ambiguous` fail and
-`Displaced` passes. Each row therefore fails only when its own guard is
-missing, which is the property the row was written to have and could not
-demonstrate before. The lesson is the one the plan has recorded twice already
-in other forms: a green run is not evidence that a test can fail, and the only
-cheap way to tell is to break the thing it claims to measure.
-
-**Two documentation findings, both applied.** `runner_sequence_props.rs`'s
-module note disparaged the `RefCell` that `check` in the same file actually
-uses, and claimed a `Fn` bound "would not compile"; the function's own note
-says the opposite, and correctly — the accumulator must live behind interior
-mutability because `TestRunner::run` requires `Fn` and the folding closure is
-`FnMut`. The module note now points at that explanation instead of
-contradicting it. `ScenarioPlanBuilder::step_at` gained a `# Panics` section
-for the zero-line assertion one call down in `SourceLocation::new`, with
-runtime behaviour unchanged; `missing_panics_doc` is denied workspace-wide and
-`make lint` had passed on it because the lint is intraprocedural and the panic
-is one call deep.
-
-**Finding 1, first person, applied across sixteen lines in thirteen edits.**
-Both figures come from a set comparison of the pronoun-bearing lines before and
-after, not from a reading: `comm -23` over the two sorted line sets reports
-sixteen lines present at `128a4c82` and absent after, and two new matching
-lines — this entry's own, either side of the `no I/O` quotation a paragraph
-below. The rule applied is the plan's own, recorded in D55's predecessor —
-avoid first person *as the document's voice*, while quotations and prose
-describing a removed construction are deliberate exceptions. The surviving hits
-are all in those two categories: Gherkin step text, a quoted end-user question,
-a quoted runner message, Mermaid node identifiers, `no I/O`, and prose that
-must be able to name the construction it removed.
-
-**One figure was written before it was measured, and is corrected here.** An
-earlier draft of this entry said the fix covered "thirteen sites" and described
-the round's report as claiming "four sites". Neither was measured: the first
-was an edit count standing in for a line count, and the second attributed to
-the round a figure that came from this session's own partial classification
-pass — four ambiguous sites read before the scan finished. Both are replaced
-with the set-comparison figures above. The distinction is the one D43 records
-and this plan has paid for twice: a count is a claim about a revision and a
-method, and one produced by partial inspection is a guess.
-
-### D59: the 2×2 control was run while the gate run was in flight, and the test verdict had to be re-measured
-
-**Decision: treat the `make test` green at `9c6b808e` as unsound and re-run
-that gate; keep `check-fmt` and `lint` from the same run, on evidence.**
-
-**What happened.** A six-gate re-run was delegated against `9c6b808e`. While it
-was running, the 2×2 control recorded in D58 was completed by direct experiment
-— temporarily replacing two `report_drop_panic(drop_guarded(..))` call sites in
-`crates/rstest-bdd/src/context/mod.rs` and the one in
-`crates/rstest-bdd/src/runner/outcome/step.rs` with bare `drop(..)`. Both files
-are compiled by `lint`, `test` and `typecheck`, so the edit landed inside a
-gate run that reads them. This is the second occurrence of the failure mode:
-the first was an unplanned prose edit; this one was a **deliberate
-experiment**, run with the rule already in memory. That distinction is the
-lesson. A mutation control *always* edits gate inputs, so it belongs after the
-gate run, not alongside it.
-
-**Why two of the three verdicts survived, measured rather than argued.**
-`check-fmt` ended at 18:18:05, 1m47s before the earliest mutation artefact
-(18:19:52). `lint` ended at 18:18:33, 1m19s before it, and its rustdoc leg was
-a whole-tree cache hit —
-`find target/doc -newermt 18:18:05 ! -newermt 18:18:40` returns zero files, the
-newest doc artefact anywhere being 18:14:35. `make test` ran 18:18:47–18:22:35,
-which *contains* the mutation window, so its verdict has unverifiable
-provenance and was not carried forward.
-
-**The corroboration that the mutation never produced a binary.** The source was
-restored at 18:20:18.955 and the `runner_panics` test binary was built at
-18:20:24.398 — 5.4s *after* the restore, from the restored bytes. The one build
-that did start inside the window (`.d` at 18:19:55) produced no executable at
-all, so no mutated test binary was ever run. That is strong evidence and it is
-still not a verdict: it is a reason to expect the re-run to be green, not a
-substitute for running it. The re-run is the action this decision commits to,
-and it is outstanding — no clean `make test` exists at the time of writing.
-
-**How the incident was contained.** sha256 snapshots were taken before the
-edits; both files were restored and verified byte-identical against the
-*committed blobs* (`context/mod.rs` `fa953a8345b8c46ab…`, `step.rs`
-`e034bda61fc34542…`), not merely against the pre-edit hashes. A STOP-AND-REPORT
-was sent to the gate runner so it would report the overlap window instead of
-certifying a verdict, and it did.
-
-Date/Author: 2026-09-29, implementation agent.
 
 ## Context and orientation
 
@@ -8873,16 +8931,25 @@ read back out of `ExecutionError`.
   Gherkin code path could produce, and the per-step lines differ from the
   scenario line, so an implementation copying the scenario source onto every
   step fails.
-- **Partial discharge, recorded at EP-M5.** The first two clauses are proved and
-  the third is *not*: the accessors honour it — `source()` and
-  `terminal_source()` both return the plan's location, proved against the decoy
-  — but `ScenarioOutcome`'s `Display` renders the failure through
+- **Discharged in full, the third clause last.** The first two clauses were
+  proved first: the accessors honour the clause, `source()` and
+  `terminal_source()` both returning the plan's location against the decoy. The
+  third was recorded at EP-M5 as a **partial discharge** and is no longer one.
+  At that point `ScenarioOutcome`'s `Display` rendered the failure through
   `ExecutionError`'s message, which embeds `ExecutionError::feature_path`, so
-  the rendering *does* read the source back out of the error.
+  the rendering *did* read the source back out of the error, and
   `rendering.rs::the_rendered_failure_takes_its_path_from_the_error_not_the_plan`
-  pins the disagreement rather than freezing the coincidence. Fixing it means
-  rendering from `terminal_source()`, which changes a user-visible string; see
-  the Surprises entry for why this is recorded rather than done here.
+  pinned that disagreement rather than freezing the coincidence. **D46 fixed
+  the rendering instead of narrowing the invariant.** The failure is now
+  re-rendered from the plan's own location through a crate-private
+  `ExecutionError::format_with_loader_at`, so no source is read back out of the
+  error on any path, and the regression test is inverted and renamed to
+  `rendering.rs::the_rendered_failure_takes_its_path_from_the_plan_not_the_error`.
+  It asserts the agreement where it once asserted the divergence, against the
+  same decoy path, which is what keeps it load-bearing. The two sites that
+  describe the rename (the Progress entry and D46) necessarily name both
+  spellings; this paragraph is the one place the *old* spelling would have read
+  as a standing claim, so it is the one that had to be corrected.
 
 **INV-8 — Failure precedence.** A before-hook or step failure is primary and an
 after-hook failure is retained as `cleanup_error()`. With no primary failure —
@@ -9186,10 +9253,14 @@ formatted message.
 - Method: capture the events with a hand-rolled `tracing::Subscriber` installed
   per-thread with `set_default`, and assert each event's *field values* and
   level.
-- Artefact: `crates/rstest-bdd/tests/runner_instrumentation.rs` for the seven
-  tests, with the subscriber and its readers in the companion
-  `runner_instrumentation/capture.rs`. The split is `module_max_lines`'s doing,
-  not a design choice: the file was 469 lines and the cap is 400.
+- Artefact: `crates/rstest-bdd/tests/runner_instrumentation.rs` for the six
+  tests that drive the synchronous runner, with the subscriber and its readers
+  in the companion `runner_instrumentation/capture.rs`, and the seventh — the
+  asynchronous driver's attribution — in
+  `runner_instrumentation/async_attribution.rs`. Every split here is
+  `module_max_lines`'s doing, not a design choice: `capture.rs` was split out
+  when the parent would have been 469 lines, and `async_attribution.rs` when
+  the tip commit took the parent to 445 against a cap of 400.
 - Amended at the second CodeRabbit round: the method was first recorded as
   asserting *field names* only, on the reasoning that "a `tracing` field's type
   is fixed at the macro and reading one generically needs a visitor per type".
@@ -10140,9 +10211,10 @@ not repeated below.
 
 ## Concrete steps
 
-Run every command from the repository root,
-`/home/leynos/.lody/repos/github---leynos---rstest-bdd/worktrees/b2d2d7aa-238f-44c8-b3fa-bdf3933c56ee`.
-Capture long output with `tee`:
+Run every command from the repository root — the checkout that contains this
+file — in a single shell session, so that `$(git branch --show-current)` and
+the relative paths below all resolve against the same tree. Capture long output
+with `tee`:
 
 ```bash
 ACTION=test; make "$ACTION" 2>&1 | tee "/tmp/$ACTION-rstest-bdd-$(git branch --show-current).out"
