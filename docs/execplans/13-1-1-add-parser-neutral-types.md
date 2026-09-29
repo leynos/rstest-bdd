@@ -2255,24 +2255,41 @@ between them. Raise that before spending the tolerance.
     the recipe that runs it. **Resolve a target's reachability from its recipe.**
 
     **Running the covering target turned that reasoning into a measurement, and
-    it came back red.** `make test-workflow-contracts` exits 2: 1 failed, 393
-    passed, of 394 collected. The failure is
+    the first result was red — for a reason that had nothing to do with any of
+    this.** `make test-workflow-contracts` exits 2: 1 failed, 393 passed, of 394
+    collected. The failure is
     `test_push_step_delivers_a_hostile_head_ref_as_one_inert_argument`, which
     ends in `FileNotFoundError` for the injected `git` stand-in's
     `git-invocations.log` — so the stand-in never appended, and no argv
     assertion was reached. The test, its support module
     `lockfile_refresh_support.py`, and the workflow file it reads are all
     byte-identical to `origin/main`, and the branch changes no file under
-    `tests/workflow_contracts/`. What the test reads is
-    `refresh-derived-fixture-lockfiles.yml`, `ci.yml`, and the `Makefile`; of
-    those, main moved only the first two, and only on `uses:` pins. A scratch
-    worktree at `origin/main` was created to run the same test there directly,
-    but its `uv sync` failed on a network fetch (`git: 'remote-lody-github' is
-    not a git command`), so that comparison is **inconclusive and is recorded
-    as such** rather than reported as a result. The red is therefore not
-    attributed to this branch, and not cleared either: it is an open item with
-    its evidence in
-    `/tmp/test-workflow-contracts-postrebase-13-1-1-add-parser-neutral-types.out`.
+    `tests/workflow_contracts/`. The failing test reads only the push step's
+    script; it reads neither `ci.yml` nor the `Makefile` at all.
+
+    **The cause was the environment, and it took three wrong hypotheses to
+    find.** The harness sets `PATH` correctly — the stand-in directory really is
+    first — but every non-interactive `bash` sources `$BASH_ENV`, which this
+    estate points at a Lody-generated file whose entire content is
+    `export PATH='/home/leynos/.lody/gh-session-bin/…':"$PATH"`. That
+    re-prepends a directory holding its own `git` wrapper *in front of* the
+    test's stand-in, so the fragment ran the real wrapper instead and got
+    `fatal: not a git repository`. Unsetting `BASH_ENV` makes the same 394 tests
+    pass. I assumed the branch caused it first (killed by byte-identical
+    inputs), then that a `PATH` export of my own did (killed by re-running with
+    a clean `PATH` — still red), then a shell hash-table cache (killed by
+    reading `os.environ`). What found it was printing `BASH_ENV` and reading the
+    file it names. **A shell can rewrite its own `PATH` after the parent sets
+    it, so the parent's `PATH` is not what the command sees.**
+
+    So the target is **green, 394 passed**, run as
+    `env -u BASH_ENV make test-workflow-contracts`, with the log at
+    `/tmp/twc-BASHENVUNSET-13-1-1-add-parser-neutral-types.out`. The
+    intermediate red is kept above rather than deleted, because it is the more
+    useful record: **a false red is as damaging as a false green, and harder to
+    dismiss because failure feels like information.** The tempting move — note
+    "likely pre-existing" and move on — would have left a permanent caveat where
+    one command produced a clean verdict.
 
     The replay itself moved all 128 commits with zero conflicts and a
     patch-identical result — `range-diff` classifies 128 of 128 `=`, with no
@@ -2314,10 +2331,13 @@ between them. Raise that before spending the tolerance.
     named contract had been certified against a stale workflow file. No earlier
     green verdict had ever certified anything about `.github/workflows/*`,
     because no gate reads them. That is a **pre-existing gap the rebase
-    exposed**, not a consequence of it. So all six gates were re-run after the
-    replay, sequentially, and their verdicts are recorded in the commit message
-    carrying this entry rather than asserted here — the D49 discipline, which
-    applies to every gate that reads this file.
+    exposed**, not a consequence of it — and the rebase then closed it, because
+    the same investigation that established the gap also identified the one
+    target that covers it. So all six gates were re-run after the replay,
+    sequentially, plus `make test-workflow-contracts` as a seventh, and their
+    verdicts are recorded in the commit message carrying this entry rather than
+    asserted here — the D49 discipline, which applies to every gate that reads
+    this file.
 
     **Scope, re-measured against the new base rather than carried over.**
     Against `4077b9a5` the whole branch is 75 files, `+23701 -88`, net 23613.
