@@ -2202,6 +2202,142 @@ between them. Raise that before spending the tolerance.
     misdescribes which steps ran, which is D54's second finding applied to this
     PR's own evidence.
 
+  - [x] (2026-09-29) **The branch was rebased a second time, onto `main`'s
+    current head, because the gate inputs moved underneath it.** This rebase
+    was not tidying. A fetch showed `origin/main` had advanced
+    `f6244601..4077b9a5` across six Dependabot commits, changing seven files:
+    `pyproject.toml` moved `ty==0.0.82` to `ty==0.0.83`, `uv.lock` moved with
+    it, and five files under `.github/workflows/` moved with the shared-actions
+    bumps. The workflow files are the load-bearing ones, and they are easy to
+    dismiss as CI plumbing: `tests/workflow_contracts/` parses them, and 21 of
+    that directory's Python modules name `ci.yml` directly. What those bumps
+    changed was the `uses:` pin on `leynos/shared-actions` actions. The
+    `RUFF_VERSION` and `TY_VERSION` values the contract suite pins are
+    byte-identical across the replay.
+
+    **The pre-rebase ref check would have missed all of it**, and it did:
+    `git merge-base HEAD origin/main` returned the recorded base unchanged,
+    because `origin/main` was stale in the worktree and the merge-base was
+    computed against the stale ref. Only the fetch moved it. **A merge-base
+    check answers "has the base moved?" about the ref you already have; it
+    cannot answer it about a remote you have not fetched.**
+
+    **Two drafts of this entry gave a wrong reason, and the second is the same
+    error as the first, which is why both are recorded.** The first said the
+    type checker itself had changed, on the strength of `pyproject.toml`'s `ty`
+    pin — the right file to be suspicious of and the wrong file to conclude
+    from. The pin that selects the `ty` *binary* is the Makefile's own
+    `TY_VERSION ?= 0.0.74`, which `make typecheck` resolves through
+    `uv run --with ty==$(TY_VERSION) ty`; `pyproject.toml`'s `python-tools`
+    group is not consulted for it. The gate's log confirms it, running
+    `ty==0.0.74` while `pyproject.toml` says `0.0.83`. Main did not touch the
+    Makefile, so that gate read the same version before and after the replay.
+
+    The second draft then claimed the rebase invalidated the branch's test
+    verdicts because `make test` executes the workflow-contract assertions —
+    "whose `nextest` workspace run includes that directory". **It does not.**
+    `tests/workflow_contracts/` holds no Rust and no `Cargo.toml`; it is a
+    pytest suite, and `make test`'s only pytest leg collects `scripts/tests`.
+    The suite has exactly one runner, `make test-workflow-contracts`
+    (`Makefile:248-249`), which no gate invokes. The reason the claim was
+    tempting is a real trap worth naming: `make -n check-fmt`, `make -n lint`,
+    and `make -n typecheck` *all* mention `tests/workflow_contracts`, because
+    `Makefile:58` defines
+
+    ```makefile
+    PYTHON_TARGETS ?= $(shell find scripts tests/workflow_contracts -type f -name "*.py" -print | sort)
+    ```
+
+    — so those modules appear on the `ruff`, `ty`, and `pylint` command lines
+    as **subjects of style and type checking, not as executed assertions**. A
+    path being an argument to a linter is not the same as its tests running.
+    Both drafts failed the same way: asserting what a gate runs without reading
+    the recipe that runs it. **Resolve a target's reachability from its recipe.**
+
+    **Running the covering target turned that reasoning into a measurement, and
+    it came back red.** `make test-workflow-contracts` exits 2: 1 failed, 393
+    passed, of 394 collected. The failure is
+    `test_push_step_delivers_a_hostile_head_ref_as_one_inert_argument`, which
+    ends in `FileNotFoundError` for the injected `git` stand-in's
+    `git-invocations.log` — so the stand-in never appended, and no argv
+    assertion was reached. The test, its support module
+    `lockfile_refresh_support.py`, and the workflow file it reads are all
+    byte-identical to `origin/main`, and the branch changes no file under
+    `tests/workflow_contracts/`. What the test reads is
+    `refresh-derived-fixture-lockfiles.yml`, `ci.yml`, and the `Makefile`; of
+    those, main moved only the first two, and only on `uses:` pins. A scratch
+    worktree at `origin/main` was created to run the same test there directly,
+    but its `uv sync` failed on a network fetch (`git: 'remote-lody-github' is
+    not a git command`), so that comparison is **inconclusive and is recorded
+    as such** rather than reported as a result. The red is therefore not
+    attributed to this branch, and not cleared either: it is an open item with
+    its evidence in
+    `/tmp/test-workflow-contracts-postrebase-13-1-1-add-parser-neutral-types.out`.
+
+    The replay itself moved all 128 commits with zero conflicts and a
+    patch-identical result — `range-diff` classifies 128 of 128 `=`, with no
+    `!` or `<` row — and the files main had changed (`pyproject.toml`,
+    `uv.lock`, and the five workflow files) are byte-identical to main at the
+    new head, so the rebase brought the branch up to date without touching a
+    single one of its own patches. Recovery refs were recorded before the
+    rewrite and were re-verified present afterwards:
+    `refs/recovery/13-1-1-r2-old-head` (`b40a7a5e`),
+    `refs/recovery/13-1-1-r2-old-base` (`f6244601`), and
+    `refs/recovery/13-1-1-r2-target` (`4077b9a5`).
+
+    **A rebase invalidates the evidence tied to the pre-rebase head.** The SHA
+    citations first. Of the 105 distinct 8-hexadecimal tokens this document
+    names, 93 resolve to commits, and 27 of those were ancestors of the
+    pre-rebase head — that is, replayed and given a new identity. Listed below
+    are the load-bearing ones: the revisions whose green verdicts or
+    measurements this plan or the PR body relies on, plus the three commits
+    that exist *only* on the pre-rebase branch and would otherwise be
+    unreachable by name. Every pre-rebase SHA still resolves through the
+    recovery refs and remains readable — none is lost — but none is an
+    ancestor of the new head, so a reader checking out this branch cannot find
+    them there.
+
+    | cited as | now | what it certified |
+    | --- | --- | --- |
+    | `5af03234` | `5fd3cf36` | round 10's three findings; the emphasis figures the PR body pins |
+    | `b8de0bb3` | `9c6be438` | round 9's gate regressions |
+    | `bcbc5df4` | `a1bce021` | D56, recorded — pre-rebase only |
+    | `64b9c865` | `780356ea` | the reflow that closed D56's own gates — pre-rebase only |
+    | `b40a7a5e` | `ab9e49cf` | D57, and the pre-rebase branch tip — pre-rebase only |
+    | `93e03a1f` | `7d4fbe40` | the final green required-check verdict |
+    | `5a2dc36d` | `0536ccef` | the first rebase's published tip |
+    | `20c41239` | `3b9711e9` | the six-of-six green run |
+
+    The invalidation that actually forced the re-run is narrower than either
+    draft claimed, and it is the honest shape of it: the six gates were re-run
+    because the replay rewrote every commit and moved the tree, not because any
+    named contract had been certified against a stale workflow file. No earlier
+    green verdict had ever certified anything about `.github/workflows/*`,
+    because no gate reads them. That is a **pre-existing gap the rebase
+    exposed**, not a consequence of it. So all six gates were re-run after the
+    replay, sequentially, and their verdicts are recorded in the commit message
+    carrying this entry rather than asserted here — the D49 discipline, which
+    applies to every gate that reads this file.
+
+    **Scope, re-measured against the new base rather than carried over.**
+    Against `4077b9a5` the whole branch is 75 files, `+23701 -88`, net 23613.
+    Excluding this document — the pair the `Scope` tolerance actually applies
+    to — it is 74 files, `+13590 -88`, **net 13502**, or 3.0× the 4,500-line
+    limit. Keeping gross and net apart matters here, because the two are easy
+    to quote interchangeably and only one is the ruled figure: the non-plan
+    side adds 13590 lines and removes 88. Every figure was read from
+    `git diff --numstat` at the rebased head rather than recalled.
+
+    **A note on counting, because this entry does it twice.** The paragraph
+    above avoids a total, and states why: a count over a document that keeps
+    growing expires as soon as the next entry lands. The "27 replayed
+    citations" and the scope figures here are the opposite case and are
+    therefore safe to write down — they count a *completed event* (one replay,
+    one measured diff against one named base) rather than an open set, so no
+    later commit can falsify them. The distinction is not "counts are bad" but
+    "counts of an open set are bad", and it is what decides which of the two
+    kinds this document may state.
+
 ## Surprises & discoveries
 
 - **Observation:** the estate's `spelling` target runs the config builder in
