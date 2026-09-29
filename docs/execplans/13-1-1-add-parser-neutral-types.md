@@ -8044,6 +8044,30 @@ Each item the closing checklist named, discharged or explicitly left open:
    with a recorded one, the instrument is a hypothesis too — and the cheaper
    move is to ask which of the two could be wrong, not to assume it is the one
    already written down.
+9. **A trap recorded in prose is still prose the gate reads.** D56's own
+   paragraph then reintroduced `hand-written` in bare prose and failed the
+   spelling prerequisite of `make markdownlint`, which forced a rewrap and a
+   fresh set of Markdown-gate verdicts — and the wrapping tool is the one that
+   can silently split an inline code span, so the repair had to re-measure the
+   emphasis invariant rather than assume it survived. The rule was already
+   written down, in the D53 entry above and nearly in these words: recording a
+   trap does not exempt new text from it. So the durable form of this rule is
+   not the memory of it but the *quoting*. Every instance of the rejected
+   spelling that survives in this plan is inside backticks, which the gate
+   exempts; every bare-prose instance has failed. That makes it mechanically
+   checkable instead of something to remember, and it names the highest-risk
+   moment precisely: a passage *about* the trap is where the rejected form is
+   most likely to be sitting in mind, and therefore on the page. The check
+   itself is a second instance of D56, though: "strip the backticks and search"
+   sounds mechanical, and the obvious regex for it pairs a backtick in prose
+   with one inside a fenced block, deleting the lines between them and joining
+   what is left — it reported a bare occurrence on a line that does not contain
+   the word at all. Restricting the pattern to single lines only trades that
+   for the opposite error, since an inline span *can* legitimately wrap, which
+   is the very hazard the rewrap above created. The instrument that works is
+   the lexer already used for the emphasis identity, counting `codespan` and
+   `code` tokens and subtracting from the source total: 8 occurrences of the
+   rejected spelling in this plan, all 8 inside code, none in prose.
 
 ### What a successor should do first
 
