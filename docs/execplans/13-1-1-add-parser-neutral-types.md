@@ -1665,7 +1665,7 @@ between them. Raise that before spending the tolerance.
     <file>`, and it belongs *before* the gate run rather than after it.
 
   - [x] (2026-09-26) **The second documentation commit was published the same
-    way, and reading the PR back cost me the same mistake twice.** The push was
+    way, and reading the PR back repeated the same mistake twice.** The push was
     an ordinary fast-forward with the lease bound to the remote head this entry
     had just published: `cd68363c..5a2dc36d`, `PUSH_EXIT=0`, and the remote ref
     read back as `5a2dc36d6554642cc1bc9aa9af65e84aef031aa9`. Both Markdown
@@ -2397,7 +2397,7 @@ between them. Raise that before spending the tolerance.
   `guarded` unit cases are both correct and neither concerns this file.
   Recorded as D61, which also preserves two figures I could not certify from
   the repository rather than silently rewriting them.
-- [x] (2026-09-29) **A delegated gate sweep and my own run overlapped in one
+- [x] (2026-09-29) **A delegated gate sweep and a local run overlapped in one
   worktree and produced a red `step_macros_compile` that was neither a defect
   nor ordinary flake, and the commit below rests on the investigated verdict
   rather than the first log.** The red is a **cross-process race**: the
@@ -2406,7 +2406,7 @@ between them. Raise that before spending the tolerance.
   tracked `.stderr` expectation deliberately, so a concurrent process reading
   trybuild's verdict in that window sees "created new stderr files" as a hard
   failure. Four uncontended runs at `ac4ea96c` / tree `e0a79ba2` pass it — the
-  preserved `214620` run (exit 0), my own leg 1 `PASS [81.798s]` and leg 3
+  preserved `214620` run (exit 0), a local leg 1 `PASS [81.798s]` and leg 3
   `PASS [32.916s]`, the sweep's uncontended re-run (all five legs, exit 0), and
   an isolated single-test re-run `PASS [55.711s]` with `REV_START == REV_END`.
   The one failing run is the only overlapping one, 87.054s against 63.075s,
@@ -2441,6 +2441,23 @@ between them. Raise that before spending the tolerance.
   gates now have to be re-established at a tree that includes this edit, since
   the plan is itself a `check-fmt` and `markdownlint` input; D49's rule applies
   and the verdicts will be carried in the commit message.
+- [x] (2026-09-29) **Round 13 returned thirteen records over the whole PR and
+  was actioned as eight concerns, two of whose remedies were wrong; recorded as
+  D64.** Three defects were real and are fixed: the `CleanupGuard` docs in
+  `runner/scope.rs` and `context/mod.rs` credited the guard with a
+  `catch_unwind` it does not hold, `runner_panics/cleanup.rs` repeated the same
+  claim alongside a mistaken "catches the panic" phrasing, and two
+  `skip_parity` rows leaked the process-global override when an assertion
+  failed between arming and clearing. The findings' demand that the capture
+  record an enclosing span was accepted, but their "leave the event checks
+  unchanged" rider would have left the new branch unreachable — nothing in the
+  suite nests a span — so a witness (`nested_span.rs`) was added and a mutation
+  control showed it failing alone when the recording was removed. One finding
+  was rejected on source evidence: `silenced` takes a closure, so
+  `destructors.rs` had no window around its assertions. The repo now has two
+  more test binaries' worth of coverage (26 + 8 tests over four touched
+  suites), and both Markdown checkers still have to be re-run because this
+  entry is itself a gate input.
 
 ## Surprises & discoveries
 
@@ -8324,7 +8341,7 @@ so the split could not touch either.
 
 **Two figures I could not certify from the repository, recorded rather than
 silently altered.** The plan reports the file at "413 lines" in the `cargo fmt`
-observation, and my sweep of every revision in `git rev-list --all` found 392
+observation, and a sweep of every revision in `git rev-list --all` found 392
 and 445 as the only counts either side of it. The narrative — a 21-line test
 added to a 392-line file, trimmed before commit — is internally coherent, and
 an uncommitted intermediate is *expected* to be absent from history, so the
@@ -8368,15 +8385,14 @@ tests, so a clean run prints none of them either way.
 
 Evidence, in the order it became decisive. Four uncontended runs at `ac4ea96c`
 / tree `e0a79ba2` pass this test: the preserved `214620` run (leg 1 complete,
-exit 0), the overlapping run of my own (`/tmp/fix-test.out`, leg 1
-`PASS [81.798s]` and leg 3 `PASS [32.916s]`), the delegated sweep's own
-uncontended re-run (leg 1 `PASS [38.175s]`, leg 3 `PASS [34.838s]`, five legs
-green), and an isolated re-run of the single test, which passed in 55.7s with
-`REV_START == REV_END`. Exactly one run at that revision fails, and it is the
-only one that overlapped another `make test`; its leg 1 took 87.054s against
-63.075s uncontended and it logged four
-`Blocking waiting for file lock on package cache` lines. Note for anyone
-re-deriving this: the preserved directory named `…-2130-ac4ea96c` is
+exit 0), the overlapping local run (`/tmp/fix-test.out`, leg 1 `PASS [81.798s]`
+and leg 3 `PASS [32.916s]`), the delegated sweep's own uncontended re-run (leg 1
+`PASS [38.175s]`, leg 3 `PASS [34.838s]`, five legs green), and an isolated
+re-run of the single test, which passed in 55.7s with `REV_START == REV_END`.
+Exactly one run at that revision fails, and it is the only one that overlapped
+another `make test`; its leg 1 took 87.054s against 63.075s uncontended and it
+logged four `Blocking waiting for file lock on package cache` lines. Note for
+anyone re-deriving this: the preserved directory named `…-2130-ac4ea96c` is
 **misnamed** — its trailers read `rev=976d881b tree=313a177e` — so it does not
 count toward the four, and a directory's name is not evidence of its revision.
 Fixture state is clean in every direction: the tracked `.stderr` files are
@@ -8384,8 +8400,8 @@ byte-identical to both `HEAD` and `origin/main`, and
 `crates/rstest-bdd/src/step_return.rs` is identical to `origin/main`, so
 nothing the branch authored is implicated.
 
-**What this cost, and the lesson.** The first thing I did on seeing the red was
-to check whether the gate input had moved; it had not, so I very nearly
+**What this cost, and the lesson.** The first step on seeing the red was to
+check whether the gate input had moved; it had not, so the run very nearly
 accepted it as a real regression against a passing fixture. What refuted that
 was not the log but the source, and specifically the discovery that the
 expectation file is deleted on purpose. The durable rules: a red at a revision
@@ -8456,6 +8472,79 @@ re-run after the rewrite rather than before it.
   later in a different target. The practical rule is to run the two as a pair
   after any Markdown edit, and to prefer the formatter over the linter when
   they could disagree.
+
+Date/Author: 2026-09-29, implementation agent.
+
+### D64: round 13 returned thirteen records over the whole PR, eight concerns, and two of its remedies were wrong
+
+The thirteenth CodeRabbit pass ran against `7b50e0cd` / tree `e9f8e8bb` over
+the whole 79-file PR diff, not the single commit, and returned thirteen records
+carrying ten `minor` and three `trivial` severities. Four pairs restate one
+concern apiece (the two `context/mod.rs` records, two of the four in
+`runner_panics/cleanup.rs`, the two in `async_attribution.rs`, and the other
+two in `cleanup.rs`), so the records are **eight distinct concerns**. No record
+cites a line this commit wrote: `git blame` places all nine blamed commits
+earlier on the branch, so every finding belongs to an earlier message or to the
+branch as a whole.
+
+**Adjudicated as accepted and fixed.** The `CleanupGuard` docs in
+`runner/scope.rs` and `context/mod.rs` claimed the guard holds its own
+`catch_unwind`, which it does not — it delegates to `clear_values`, which
+drains and drops each value through `drop_guarded`. `runner_panics/cleanup.rs`
+repeated the same claim, along with a "catching a panic from a value's
+destructor" phrasing that made the guard sound like the catch site. Two
+`#[serial]` rows in `skip_parity.rs` armed the process-global `fail_on_skipped`
+override and cleared it only on the success path, so an assertion failure
+between the two would leak the override into every later test in the binary;
+both now bind a `FailOnSkippedOverride` guard, which is the idiom
+`tests/skip.rs` already uses. `an Either` → `an Either` in the developers'
+guide, and six first-person passages in this plan, are reworded impersonally.
+
+**Accepted in part, with the remedy changed.** The `async_attribution.rs`
+records asked for the enclosing span to be recorded in `new_span` so that the
+assertion "the `scenario` span has no enclosing span" could fail. The change is
+right — the field was previously written to events only, so `carries` could not
+be true for any span and the assertion was vacuous. The second half of the
+remedy, "keep the existing event-attribution checks unchanged", would have left
+the new branch **unreachable**: nothing in this suite opens a span inside
+another, so `current_span_name` is always `None` at `new_span` and the field
+would still never be set on a span. The branch is therefore kept live by a new
+witness, `runner_instrumentation/nested_span.rs`, which runs a scenario inside
+a span of its own and asserts the field reads `outer`. A mutation control was
+run against it — the recording block removed — and the witness failed while the
+other seven passed, which is the evidence that the pair is discriminating
+rather than merely new.
+
+**Rejected, with the reason recorded.** A record asked for `silenced` to be
+narrowed in `destructors.rs`. Re-read at source: `silenced` takes a closure, so
+the window already closes when it returns, and `run_drop_catching`'s
+`catch_unwind` contains only the `run_scenario` call — there was never a window
+around the frame. Its sibling in `cleanup.rs` was a real defect for the
+opposite reason: the `catch_unwind` there wrapped `run_cleanup_catching`, which
+holds both `InsertOutcome` assertions, so a scaffolding failure would have been
+caught and reported as "a destructor panic escaped the run". That one is fixed
+by moving the catch inside the helper, where it covers `run_scenario` alone.
+
+**Escalated rather than guessed.** The two `context/mod.rs` records contradict
+each other: one says the docs must state that a destructor panic is logged and
+does not unwind *including during an existing unwind*, the other says to remove
+any claim that this affects whether a panic aborts the process. Both cannot
+hold. What a panic raised inside `catch_unwind` during an active unwind does is
+a property of the Rust runtime, not of this repository, and no amount of
+reading this tree settles it — an experiment under `alchemist` would. The
+documentation added here states the conservative reading: the panic is logged
+as a warning, does not unwind to the caller, and does not reach the returned
+outcome, with the existing-unwind case called out as the one that still aborts,
+pending measurement.
+
+**Not actioned, because it is not actionable as written.** A record asked for
+"the author-voice first-person phrasing throughout the ExecPlan" to be
+rewritten "including the prose beginning 'The second documentation commit' and
+the other identified passages". The other passages are not identified, and four
+of the thirty-one matches are false positives — quoted end-user questions, a
+Mermaid node identifier, and the string `no I/O`. The named passage and the
+four independently located passages are fixed; the open-ended remainder is
+recorded here rather than silently claimed as done.
 
 Date/Author: 2026-09-29, implementation agent.
 

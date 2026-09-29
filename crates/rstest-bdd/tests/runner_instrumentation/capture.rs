@@ -197,6 +197,15 @@ impl Subscriber for CapturingSubscriber {
         span.record(&mut FieldValues {
             values: &mut values,
         });
+        // The enclosing span, recorded at construction so that a span which is
+        // never entered is still distinguishable from one that is not yet
+        // entered. `tracing` calls this before `enter`, so the current span is
+        // the new span's parent. Without this the field would exist only on
+        // events, and the parent's "the outermost span is attributed to
+        // nothing" assertion could not fail however the subscriber behaved.
+        if let Some(enclosing) = self.current_span_name() {
+            let _ = values.insert(CURRENT_SPAN_FIELD.to_owned(), enclosing.to_owned());
+        }
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
         self.span_names
             .lock()

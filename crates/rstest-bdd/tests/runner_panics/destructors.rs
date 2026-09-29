@@ -167,6 +167,11 @@ const fn returning_step(arrangement: Arrangement) -> &'static str {
 /// where the runner drops it, and a seeded override in the row where the return
 /// displaces what it finds.
 fn run_drop_catching(arrangement: Arrangement) -> Result<ScenarioOutcome, Box<dyn Any + Send>> {
+    // The `catch_unwind` covers the `run_scenario` call alone, and the seeding
+    // below is deliberately outside it. A scaffolding assertion that failed
+    // inside the window would be caught and returned as an `Err`, which the
+    // caller reports as "a destructor panic escaped the run" — the one
+    // diagnosis this test must not reach for the wrong reason.
     let mut ctx = StepContext::default();
     let quiet: Vec<PanicOnDrop> = (0..fixture_count(arrangement))
         .map(|_| PanicOnDrop { panics: false })
@@ -194,10 +199,12 @@ fn run_drop_catching(arrangement: Arrangement) -> Result<ScenarioOutcome, Box<dy
     let plan = ScenarioPlanBuilder::new("Drop", "notes/panics.md")
         .step_at(StepKeyword::Given, returning_step(arrangement), 3)
         .build();
-    std::panic::catch_unwind(AssertUnwindSafe(|| {
-        let scope = ScenarioScope::new(&mut ctx);
-        run_scenario(&plan, scope)
-    }))
+    // Only the `run_scenario` call is inside the window, for the reason given
+    // above: its arguments are evaluated in this frame, so the scope is
+    // constructed here and moved in. `ScenarioScope::new` takes the only borrow
+    // of `ctx`, so behaviour is unchanged.
+    let scope = ScenarioScope::new(&mut ctx);
+    std::panic::catch_unwind(AssertUnwindSafe(|| run_scenario(&plan, scope)))
 }
 
 /// The runner drops a step-returned value without unwinding.

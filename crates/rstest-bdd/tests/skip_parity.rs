@@ -58,6 +58,36 @@ use rstest_bdd::{
 use rstest_bdd_macros::given;
 use serial_test::serial;
 
+/// Restores the `fail_on_skipped` override when it drops, panicking or not.
+///
+/// These tests arm the process-global override and then run a scenario, so an
+/// assertion that fails between the `set` and the `clear` would unwind past the
+/// clear and leave the override in place for every later test in the binary.
+/// `#[serial]` keeps the other tests from *running* during this one; it does not
+/// undo a leak that outlives it. Binding a guard makes the restore follow the
+/// value rather than the control flow, which is why the tests below no longer
+/// call `clear_fail_on_skipped_override` themselves.
+///
+/// The seed is a parameter because the rows disagree about it: two begin from a
+/// tolerated policy and let a handler flip it, and one begins from a forced one
+/// to read the ambient path. Dropping the guard clears rather than restores,
+/// which re-exposes the environment variable, so the seed holds only for the
+/// test's own body — which is all any of them depends on.
+#[must_use]
+struct FailOnSkippedOverride;
+
+impl FailOnSkippedOverride {
+    /// Set the override to `seed`, returning the guard that will clear it.
+    fn armed(seed: bool) -> Self {
+        config::set_fail_on_skipped(seed);
+        Self
+    }
+}
+
+impl Drop for FailOnSkippedOverride {
+    fn drop(&mut self) { config::clear_fail_on_skipped_override(); }
+}
+
 /// A step that resolves and asks to be skipped, with a message.
 ///
 /// The message is asserted once, because a skip record that lost it would still
@@ -243,14 +273,13 @@ fn the_skipping_step_is_recorded_as_skipped_and_the_rest_bypassed() {
 #[test]
 #[serial]
 fn a_policy_flip_inside_a_step_cannot_reach_a_run_that_already_resolved() {
-    config::set_fail_on_skipped(false);
+    let _policy = FailOnSkippedOverride::armed(false);
     let outcome = run_with(false, false);
 
     // The flip is what the *next* run would see, and the test asserts that too,
     // so a pass cannot come from the mutation having failed to happen.
     config::set_fail_on_skipped(true);
     let later = run_with(false, false);
-    config::clear_fail_on_skipped_override();
 
     assert!(
         !outcome.skip().is_some_and(ScenarioSkip::forced_failure),
@@ -273,6 +302,11 @@ fn a_policy_flip_inside_a_step_cannot_reach_a_run_that_already_resolved() {
 #[test]
 #[serial]
 fn the_scopes_ambient_resolution_reads_the_global_once() {
+    // Seeded `true` and flipped by the closure below; the guard clears it after
+    // the assertions, which is also the state a following test must not depend
+    // on, since these rows are `#[serial]` but a leaked override would outlive
+    // the serialization.
+    let _policy = FailOnSkippedOverride::armed(true);
     let run = |fail_on_skipped: bool| {
         config::set_fail_on_skipped(fail_on_skipped);
         let mut ctx = StepContext::default();
@@ -282,7 +316,6 @@ fn the_scopes_ambient_resolution_reads_the_global_once() {
 
     let forced = run(true);
     let tolerated = run(false);
-    config::clear_fail_on_skipped_override();
 
     assert!(
         forced.skip().is_some_and(ScenarioSkip::forced_failure),
@@ -313,16 +346,14 @@ fn the_scopes_ambient_resolution_reads_the_global_once() {
 #[test]
 #[serial]
 fn a_policy_flip_inside_a_step_cannot_change_its_own_run() {
-    config::set_fail_on_skipped(false);
+    let _policy = FailOnSkippedOverride::armed(false);
     let mut ctx = StepContext::default();
     let scope = ScenarioScope::new(&mut ctx).with_skip_policy(false);
 
+    // The handler flips the global; the guard has not dropped yet, so this still
+    // reads the flipped value rather than the cleared one.
     let outcome = run_scenario(&flipping_plan(), scope);
-
-    // Read before clearing, so the assertion below is about the run and not
-    // about whether the restore happened.
     let flipped_global = config::fail_on_skipped();
-    config::clear_fail_on_skipped_override();
 
     assert!(
         flipped_global,
