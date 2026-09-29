@@ -71,8 +71,9 @@ use crate::{
 /// Does not panic, for the same reason as the synchronous driver:
 /// [`execute_step_async`] catches a step body's unwind — per poll, since a
 /// genuine `async` body may await real I/O — and returns it as a failure, so
-/// this loop never sees one. A *destructor* that panics during cleanup is
-/// caught by `runner::scope`'s `CleanupGuard`.
+/// this loop never sees one. A *destructor* that panics is a separate case,
+/// guarded at each of the runner's four drop sites rather than here; see the
+/// synchronous driver's note for the list.
 pub(in crate::runner) async fn drive(
     plan: &ScenarioPlan,
     ctx: &mut StepContext<'_>,

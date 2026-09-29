@@ -7,6 +7,7 @@
 use crate::{
     ExecutionError,
     StepKeyword,
+    panic_support::{drop_guarded, report_drop_panic},
     runner::{StepInvocation, source::SourceLocation},
 };
 
@@ -44,6 +45,11 @@ pub enum StepStatus {
 /// [`AmbiguousIgnored`](Self::AmbiguousIgnored) but is silent for
 /// [`NoMatch`](Self::NoMatch).
 ///
+/// The displacement is dropped under a guard rather than by a `_` binding, so a
+/// panicking destructor is logged instead of unwinding out of the conversion's
+/// caller. That caller is the runner's per-step record, which runs inside
+/// `run_scenario` and owes its callers a returned outcome rather than an unwind.
+///
 /// # Examples
 ///
 /// ```
@@ -65,7 +71,18 @@ pub enum ValueFate {
 impl From<crate::InsertOutcome> for ValueFate {
     fn from(outcome: crate::InsertOutcome) -> Self {
         match outcome {
-            crate::InsertOutcome::Inserted(_) => Self::Inserted,
+            crate::InsertOutcome::Inserted(previous) => {
+                // The binding is named and dropped through the guard rather
+                // than matched as `_`, because `_` would drop the displaced
+                // override silently on this frame. `record_step` reaches this
+                // impl from inside `run_scenario`, and the runner's contract is
+                // that a failure reaches the caller as a returned outcome — so
+                // a destructor panic here must not become an unwind. This is
+                // the same protection `insert_value` gives its own three drop
+                // sites.
+                report_drop_panic(drop_guarded(previous));
+                Self::Inserted
+            }
             crate::InsertOutcome::NoMatch => Self::NoMatch,
             crate::InsertOutcome::AmbiguousIgnored => Self::AmbiguousIgnored,
         }

@@ -54,12 +54,28 @@
 //!
 //! # Why this does not catch a panicking destructor
 //!
-//! `catch_unwind` cannot: a destructor that panics *while* another panic
-//! unwinds aborts the process before any handler runs, and no amount of nesting
-//! changes that. D11 names three paths the runner owns, and this module closes
-//! the step-invocation one; value destructors run by cleanup are closed by the
-//! `catch_unwind` already inside `runner::scope`'s `CleanupGuard`. That is why
-//! this file does not appear to cover the case D11's rationale leads with.
+//! `catch_unwind` cannot catch one that panics *while* another panic unwinds:
+//! that aborts the process before any handler runs, and no amount of nesting
+//! changes it. The ordinary destructor case — a drop that panics on its own — is
+//! a different failure, and it is not this module's. It belongs to whichever
+//! code performs the drop, because that is where the unwind would otherwise
+//! originate; a boundary here never sees it, since these guards are around the
+//! step *handler* and a destructor runs long after it returned.
+//!
+//! The runner owns four such drops, and each is guarded at its own site rather
+//! than here:
+//!
+//! - three inside `StepContext::insert_value`, which drops the step's value when nothing matched or
+//!   the match was ambiguous, and the override a successful insert displaced — the displaced one in
+//!   fact one call away, in [`ValueFate`](crate::runner::ValueFate)'s `From` impl;
+//! - one at the end of the run, in `runner::scope`'s `CleanupGuard`, which clears whatever override
+//!   values remain.
+//!
+//! An earlier version of this note said `CleanupGuard` covered them all. It
+//! does not: it covers only the run-end path, and the three mid-run drops would
+//! each have escaped `run_scenario` as an unwind until they were guarded.
+//! `runner_panics.rs` drives all three through `run_scenario` and fails if any
+//! one of them unwinds.
 
 use std::{
     any::Any,

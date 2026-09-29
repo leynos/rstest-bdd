@@ -41,6 +41,8 @@ pub use error::FixtureBorrowError;
 pub use guards::{FixtureRef, FixtureRefMut};
 pub use insert_outcome::InsertOutcome;
 
+use crate::panic_support::{drop_guarded, report_drop_panic};
+
 /// Reserved fixture key used for harness-provided context.
 ///
 /// Harness-backed scenarios insert `HarnessAdapter::Context` into
@@ -219,6 +221,23 @@ impl<'a> StepContext<'a> {
     /// emits a `tracing` warning, mirrored to stderr when no logging listener
     /// would receive it.
     ///
+    /// # A rejected value is dropped here, under its own guard
+    ///
+    /// All three results drop a value on this function's own stack: the
+    /// displaced override on the successful path, and the step's value itself
+    /// when nothing matched or the match was ambiguous. Each drop is wrapped by
+    /// [`drop_guarded`](crate::panic_support::drop_guarded), so a destructor
+    /// that panics is logged rather than unwinding out of the caller. That
+    /// matters here rather than in the caller because `insert_value` is called
+    /// from inside the runner's per-step record, and the runner's contract is
+    /// that every failure reaches the caller as a returned outcome — a
+    /// step-returned value whose destructor panics is a failure the runner
+    /// caused to drop, so it is an unwind the runner must not emit.
+    ///
+    /// The cost is that a destructor panic no longer aborts the process, which
+    /// is the same deliberate trade D11 already made for cleanup in
+    /// `runner::scope`.
+    ///
     /// # Examples
     ///
     /// ```
@@ -243,6 +262,7 @@ impl<'a> StepContext<'a> {
             .iter()
             .filter_map(|(&name, entry)| (entry.type_id == ty).then_some(name));
         let Some(name) = matches.next() else {
+            report_drop_panic(drop_guarded(value));
             return InsertOutcome::NoMatch;
         };
         if matches.next().is_some() {
@@ -251,6 +271,7 @@ impl<'a> StepContext<'a> {
                     args.set("type_id", format!("{ty:?}"));
                 });
             warnings::emit_visible_warning(&message);
+            report_drop_panic(drop_guarded(value));
             return InsertOutcome::AmbiguousIgnored;
         }
         InsertOutcome::Inserted(
