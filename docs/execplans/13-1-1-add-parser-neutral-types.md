@@ -8548,6 +8548,66 @@ recorded here rather than silently claimed as done.
 
 Date/Author: 2026-09-29, implementation agent.
 
+### D65: the sixth gate pass and a credential broker that was up, down, and up again
+
+The sixth full gate pass ran at the tree committed as `61f1176e`, with
+`REV_START` and `REV_END` both `7b50e0cd` and nothing written between the last
+gate and the commit. All six are green: `make check-fmt` (122 files left
+unchanged), `make markdownlint` (0 issues in 0 files), `make nixie` (all
+diagrams validated), `make typecheck`, `make lint` (all nine recipe steps), and
+`make test` (2067 passed / 7 skipped on the workspace leg, 728 passed / 7
+skipped on the D4 feature-off leg). `step_macros_compile` ran and passed in
+both nextest legs at 103.054s and 109.462s rather than being skipped, which is
+a claim this branch has twice been wrong about and is therefore checked
+explicitly each time.
+
+Both nextest legs moved by exactly one test over pass 5, and that increment is
+the new witness in `runner_instrumentation/nested_span.rs`. A gate count that
+rises by one when one test is added is a weak but real corroboration that the
+new test was collected rather than silently filtered out — which is the failure
+mode the count is there to catch, not a redundancy of the green block.
+
+**The push was blocked for over an hour by a flapping credential broker.** The
+first attempt failed with
+`Cannot verify GitHub identity preferences with Lody`, raised by both
+`git-remote-lody-github` and the session's `gh` wrapper. The error names the
+wrong subsystem, so the diagnosis is recorded here in the order it actually
+happened. Three of the four checks below were misleading, and the one that
+settled it was the last.
+
+The remote helper's `requestBroker` sends **POST** to
+`$BROKER/github-auth-context` with a 10-second `AbortSignal.timeout`. Probing
+that endpoint with an unbranded GET returns `404`, which reads as "the endpoint
+does not exist" and is really "the method is wrong". The endpoint is POST-only;
+a faithful replay returned `200` with
+`{"personalEnabled":true, "allowLocalAuth":true}` in 11.1 seconds — **past the
+helper's 10-second limit**, which was the first real signal. A later sample
+took 27.2 seconds before the connection was reset, and then six consecutive
+attempts were refused outright.
+
+`lody daemon status` reported `Daemon is not running` while pid 443200 held
+port 38789 and its logs had stopped hours earlier. The listener was genuinely
+intermittent: sampled every five seconds it went
+`down, up, up, up, up, up, down, down, down, down`. Its socket reported an empty
+`Recv-Q` and a backlog of 511 — a listener that accepts TCP but never services
+the request, which is why `curl` saw connections succeed and then time out with
+zero bytes. A control request to the Lody MCP port answered in milliseconds
+throughout, ruling out the network, the loopback interface, and `curl` itself.
+
+The lesson is not "wait longer". It is that a probe which does not match the
+caller's method, length, and latency measures something else, and that an
+intermittent dependency produces a *consistent* error string — every failure
+looked identical whether the broker was up-but-slow or fully down, because the
+helper collapses all of them into one message. The successful push came after
+the broker was confirmed healthy at 3.5 seconds, comfortably inside the limit,
+by the same POST replay that had diagnosed it.
+
+No process was killed to achieve this. The `lody start` daemon serves other
+agents' sessions on this machine, and it was serving other worktrees at 60% CPU
+throughout; restarting it was not this branch's call to make.
+
+Date/Author: 2026-09-30, implementation agent.
+
 ## Outcomes & retrospective
 
 ### What was achieved
