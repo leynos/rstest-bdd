@@ -29,22 +29,27 @@ adjudication — 24 findings, 22 actioned, 2 needing no change. EP-M3's named
 `cargo-mutants` control was run and found *vacuous* — 3 mutants, all unviable —
 so that obligation was re-scoped rather than discharged, and the re-scoped
 sweep has now completed: **152 mutants, 84 caught, 5 missed, 57 unviable, 6
-timeout, all accounted for.** It discharges AXIOM-4 and leaves two recorded
-coverage gaps, D32 and D33. Six numbered CodeRabbit rounds have been
-adjudicated — round 1 in D26, then D28, D29, D30, D41, and D42 — and EP-M1
-additionally saw two unnumbered passes before the numbering began. Every round
-after the first is recorded finding by finding, including the declines, on the
-ground that a decline that is not evidenced is indistinguishable from a finding
-that was ignored. **Round 7, the last, returned zero findings** — recorded in
-D44 with the four checks that were run before the empty result was believed,
-since "found nothing" and "did not run" are indistinguishable from the summary
-line alone. The numbered series is 19, 14, 12, 13, 11, 24, 0. **As of round 7 —
+timeout, all accounted for.** It discharges AXIOM-4; both coverage gaps it
+recorded, D32 and D33, have since been closed, D33 by D47's end-to-end table
+test. Ten numbered CodeRabbit rounds have been adjudicated — round 1 in D26,
+then D28, D29, D30, D41, and D42 for rounds 2–6, and D44, D52, D53, D55 for
+rounds 7–10 — and EP-M1 additionally saw two unnumbered passes before the
+numbering began. Every round after the first is recorded finding by finding,
+including the declines, on the ground that a decline that is not evidenced is
+indistinguishable from a finding that was ignored. **Round 7 returned zero
+findings, the only empty round of the ten** — recorded in D44 with the four
+checks that were run before the empty result was believed, since "found
+nothing" and "did not run" are indistinguishable from the summary line alone.
+The numbered series is 19, 14, 12, 13, 11, 24, 0, then 7, 5, and 4 for rounds
+8, 9, and 10, adjudicated in D52, D53, and D55 respectively. **As of round 7 —
 run at `7e81eef7`, a revision that is not an ancestor of the current head — the
 numbered review cycle was closed**, and D44's successor note said no further
-review was owed at that point. **That statement is scoped to its revision and
-has since been falsified by events**, which is the honest form of it: two
-review findings arrived on 2026-09-26 and were actioned as D46 and D47, and D47
-in particular added a new integration test
+review was owed at that point. Three rounds have since been run against later
+revisions, each recorded finding-by-finding on the same terms, so the closure
+was of that cycle and not of the practice. **That statement is scoped to its
+revision and has since been falsified by events**, which is the honest form of
+it: two review findings arrived on 2026-09-26 and were actioned as D46 and D47,
+and D47 in particular added a new integration test
 (`crates/rstest-bdd/tests/runner_wire.rs`) and D46 changed a public `Display`
 implementation. **Both were subsequently reviewed, and this paragraph has been
 corrected rather than left to mislead.** An earlier version of it read "Neither
@@ -54,11 +59,16 @@ carries D46 and D47, over 75 files set-identical to that revision's own diff —
 so all four of the touched files (`outcome/mod.rs`, `tests/source/rendering.rs`,
 `runner_wire.rs`, `execution/error/format.rs`) were in the reviewed set. The
 accurate reading is therefore: **round 7 was the last review of the revision it
-ran against; round 8 is the last review, and it covered D46 and D47 — but not
-`c21c7c83` or D52's own entry, which landed after it.** "No further review is
-owed" was a claim about a closed milestone, not a standing licence for
-everything committed afterwards, and this sentence is the worked example: a
-revision-scoped claim read as a standing one, corrected one round later.
+ran against; round 8 covered D46 and D47 — but not `c21c7c83` or D52's own
+entry, which landed after it; round 9 then covered those and found five
+concerns (D53); and round 10, the latest, reviewed `b8de0bb3` and found the
+three concerns D55 records.** A successor reading this paragraph should treat
+the round number as a date rather than as a standing verdict, because each
+round is scoped to the revision it ran against and no round speaks for a
+revision it never saw. "No further review is owed" was a claim about a closed
+milestone, not a standing licence for everything committed afterwards, and this
+sentence is the worked example: a revision-scoped claim read as a standing one,
+corrected one round later.
 
 **The branch has since been rebased onto the current `origin/main`**
 (`f6244601`), replaying all 101 commits with zero conflicts and a
@@ -591,6 +601,19 @@ between them. Raise that before spending the tolerance.
   and cannot be `tokio::spawn`ed. A frontend must use a current-thread runtime
   or a thread-per-scenario runtime. Mitigation: document it here and add a note
   to roadmap 13.3.1 so it is not discovered empirically.
+
+- **Risk: the review and gate tooling depends on an account-level API quota.**
+  Severity: low, likelihood: intermittent. This plan requires review rounds and
+  a full gate run at each milestone, and both are executed by sub-agents. On
+  2026-09-29 a verification sub-agent dispatched alongside round 10 terminated
+  on an account-level credit limit. It was doing redundant work, so nothing was
+  lost, and the gate run that followed completed normally — the limit was not
+  reached for it. The standing remedy for an exhausted CodeRabbit *rate* limit
+  (sleep and retry) does not apply to an account quota, where a blind retry
+  fails identically; the correct response is to stop and report rather than to
+  substitute an unattended run or to work around the gate. Recorded because the
+  failure mode is silent from the summary line: an agent that never started and
+  an agent that found nothing look the same.
 
 ## Progress
 
@@ -2126,6 +2149,27 @@ between them. Raise that before spending the tolerance.
     phrase-level spelling pass rejected. Both are fixed, and all six gates are
     green against the exact tree — with four of them re-run rather than carried
     forward, because the two edited files are files those gates read.
+
+  - [x] (2026-09-29) **Round 10 returned four finding records across three
+    distinct concerns, and all three are actioned — including one that is a
+    genuine ordering dependence rather than a doc nit.** The substantive find
+    is in the property suite's crafted-shape builder: `generator.rs` selected
+    its producer with the broad `returns_a_value` while
+    `witnesses.rs` decides whether the observer's INV-3 visibility witness is
+    meaningful with the narrow `returns_a_matchable_value`, so a producer that
+    can never be observed could have been chosen and the witness would have
+    been vacuous — masked only by `ReturnValue` preceding
+    `ReturnUnmatchedValue` in `Kind::ALL`, while the same function's doc
+    claimed the plan "survives a reordering of `ALL`". The silent
+    `.unwrap_or(Kind::Pass)` fallback is replaced by a panic modelled on the
+    neighbouring `Terminal::asserted`. The other two concerns are the false
+    `engine::policy::assemble` caller attribution on `StepRecord` and all four
+    `StepOutcome` constructors — `assemble` *consumes* records rather than
+    building them — and an assertion message in `runner_wire.rs` that named
+    `u32::MAX` while asserting `4`. The third site carrying the same false
+    attribution, `ScenarioOutcome::new` in `outcome/mod.rs`, was checked
+    rather than assumed and is **correct**: `policy.rs` is genuinely its only
+    production caller. Recorded as D55.
 
 ## Surprises & discoveries
 
@@ -7583,6 +7627,89 @@ count is what expired, so replacing it with a larger one would only expire
 again. This entry is a separate commit from the change it describes, so its own
 gate verdicts live in that commit's message under D49, not here.
 
+### D55: round 10 found an ordering dependence the doc claimed not to have, and a caller attribution that was false four times over
+
+Round 10 returned four finding records against `b8de0bb3`. Two of them are the
+same concern reported at the same location, so the round is three concerns, and
+all three were verified against the code before being actioned. The
+verification mattered in both directions: one finding is substantive, and one
+of the three other places the same false claim appears turned out to be *true*,
+so a find-and-replace would have introduced an error while appearing to fix one.
+
+**The substantive find is a wart the suite has been carrying since the shapes
+were written.** `sequence/generator.rs` built its crafted shapes by selecting
+`Kind::ALL.into_iter().find(|kind| kind.returns_a_value())`, falling back
+silently to `Kind::Pass` if nothing matched. But the observer these shapes pair
+with the producer decides whether its INV-3 visibility witness is *meaningful*
+using the strictly narrower `returns_a_matchable_value`, which is `ReturnValue`
+alone — `ReturnUnmatchedValue` returns a type no fixture in the suite holds, so
+under every driver its value reaches nothing an observer can see. So the
+builder could have selected a producer that makes the witness vacuous, and the
+suite would have gone on passing.
+
+What kept it correct was `Kind::ALL`'s ordering: `ReturnValue` happens to
+precede `ReturnUnmatchedValue`, so `find` always returned the right one. **That
+is an ordering dependence, and the doc comment on the very function claimed the
+opposite** — "so the plan survives a reordering of `ALL`". The two statements
+cannot both hold. The fix is to select on the predicate that names the property
+the shape actually needs, and to make the absence of a match loud rather than
+silent, modelled on the `Terminal::asserted` guard eight lines below it in the
+same file: a shape with no matchable producer would leave INV-3's visibility
+witness true of every driver, which is precisely the incidental evidence the
+witness exists to reject, and every property would accept that vacuously.
+
+The `unwrap_or(Kind::Pass)` fallback was the second half of the same defect. It
+is the pattern the plan records elsewhere as the shape of a *silent* omission:
+it cannot fail, so it converts "the suite no longer has a matchable producer" —
+a real regression in the catalogue — into a plan that is merely easier to
+satisfy. The module documentation already argues this case for the terminal
+filter ("a crafted shape that lost its terminal still satisfies every property,
+because a plan with nothing ending it never stops early. [`Terminal::asserted`]
+is what turns that into a panic"); the producer filter needed the same
+treatment and had not received it.
+
+**The attribution finding was checked at every site rather than applied
+mechanically, and one site was correct.** `StepRecord` and `StepOutcome`'s four
+constructors each claimed `engine::policy::assemble` as the production builder.
+That is false in the direction that matters: `assemble` *consumes*
+`StepOutcome`s to fold them into a `ScenarioOutcome`; it constructs none. The
+real builders are `engine::drive::record_step` (via `drive_sync`/`drive_async`,
+for the `Passed`, `Skipped`, and `Failed` records) and
+`engine::drive::bypassed` (for `Bypassed`). A third site in the same crate
+wrote the same phrase about a different function, `ScenarioOutcome::new`, and
+there it is **genuinely correct** — `engine/policy.rs` is the only production
+caller, at three call sites in one match. So the phrase was not a global error
+to be swept; it was an error in four of its five occurrences, and the fifth is
+why the sweep had to be per-site.
+
+The doc now names the two drive-layer builders, which is also the more useful
+statement: a reader tracing where a record comes from wants the function that
+*has the handler's result in hand*, not the fold that runs afterwards.
+
+**The third concern is small and was still worth the round.** `runner_wire.rs`
+asserted the counter reads `4` — correctly — while the message claimed "the
+cell left `u32::MAX` behind". The chain is `u32::MAX` → `0` (the `given` step) →
+`2` → `4`, so the sentinel is *gone* by construction and the message described
+the opposite of what the assertion proves. The doc comment above it carries the
+sentinel rationale and is right, so only the message changed. An assertion
+message that argues against its own assertion is worse than a missing one: it
+is read at 3 a.m. by someone deciding whether the failure is theirs.
+
+**A note on the round's own provenance.** Round 10's review completed normally
+and its four records are intact, but the verification sub-agent dispatched
+alongside it terminated on an account-level API credit limit — not the
+CodeRabbit rate limit the standing instruction provides a sleep-and-retry
+remedy for, so retrying would have failed identically and none was attempted.
+That sub-agent was duplicating work already completed, so no evidence was lost.
+The limit was noted because it could in principle have blocked the `scrutineer`
+gate run as well; **it did not**, the run completed normally, so no escalation
+arises and none is left open. The remedy for that class of failure is the same
+one a blocked gate would take — stop and report rather than work around it —
+and it is recorded in `Risks` rather than here.
+
+This entry is a separate commit from the change it describes, so its own gate
+verdicts live in that commit's message under D49, not here.
+
 ## Outcomes & retrospective
 
 ### What was achieved
@@ -7885,21 +8012,25 @@ and cannot start without one**: it needs an ADR amending ADR-018 first (the
 roadmap states this under 13.1.1), and after that the `Verification plan` rows
 for INV-4, INV-8, and INV-10 are already written as its acceptance criteria and
 `NoHooks`' default type parameter is the extension point. The 13.2.1 and 13.3.1
-follow-ups are already in the roadmap and need no action from this plan. Seven
-numbered CodeRabbit rounds were run, the last of them empty (D44), against the
-revisions listed in D26, D28, D29, D30, D41, D42, and D44. **Two review
-findings have since been actioned on this branch — D46 (a `Display` behaviour
-change) and D47 (a new integration test) — and both went through round 8**,
-which ran against `05c818de`, the commit carrying them (recorded as D52). An
-earlier version of this paragraph said "neither has been through a review
-round", which round 8 falsified; the correction is made here rather than left
-standing, because the whole point of the paragraph is to tell a successor what
-has and has not been reviewed. What remains unreviewed is the work that landed
-*after* round 8: `c21c7c83` (six doc corrections) and D52's own entry. Nothing
-in the roadmap requires another round, and the plan does not claim one is owed;
-a successor deciding whether to request one should weigh D46's user-visible
-string change — which round 8 did see — against the two post-round-8 revisions,
-which are prose and plan text respectively.
+follow-ups are already in the roadmap and need no action from this plan. Ten
+numbered CodeRabbit rounds were run, the seventh of them empty (D44), against
+the revisions listed in D26, D28, D29, D30, D41, D42, and D44 for rounds 1–7,
+and D52, D53, and D55 for rounds 8–10. **Two review findings have since been
+actioned on this branch — D46 (a `Display` behaviour change) and D47 (a new
+integration test) — and both went through round 8**, which ran against
+`05c818de`, the commit carrying them (recorded as D52). An earlier version of
+this paragraph said "neither has been through a review round", which round 8
+falsified; the correction is made here rather than left standing, because the
+whole point of the paragraph is to tell a successor what has and has not been
+reviewed. What had been unreviewed when this paragraph was written was the work
+that landed *after* round 8: `c21c7c83` (six doc corrections) and D52's own
+entry. **Both have since been reviewed** — round 9 covered them and returned
+five concerns (D53), and round 10 then reviewed `b8de0bb3` and returned the
+three concerns D55 records. Nothing in the roadmap requires another round, and
+the plan does not claim one is owed; a successor deciding whether to request
+one should weigh D46's user-visible string change — which round 8 did see —
+against whatever has landed since the most recent round, this paragraph's own
+lesson being that the round number is a date and not a standing verdict.
 
 ## Context and orientation
 
