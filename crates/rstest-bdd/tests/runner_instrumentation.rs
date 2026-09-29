@@ -9,7 +9,9 @@
 //! The assertions read field *values*, not merely field names; `capture.rs`
 //! says why, and what a name-only capture could not witness. The capture
 //! machinery lives there too, leaving this file the plan, the registered steps,
-//! and the seven assertions that are D14's obligations.
+//! and the six assertions that are D14's obligations here. The seventh, for the
+//! asynchronous driver, is in `async_attribution.rs` with the reasoning that
+//! keeps it separate.
 //!
 //! # Why this is an integration test
 //!

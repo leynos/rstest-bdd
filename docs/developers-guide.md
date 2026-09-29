@@ -1194,6 +1194,35 @@ the two attributes use different lock mechanisms. If a future repository test
 does need cross-process exclusion, choose one convention for that resource and
 document the choice beside the test or nextest override.
 
+### Two gate runs in one worktree: the trybuild `wip` race
+
+The trybuild compile-fail fixtures are selected by two mechanisms — `#[serial]`
+and a nextest test-group — and **both constrain a single test process**.
+Neither constrains two `make test` runs executing concurrently in the same
+worktree, which is what a stop hook, a sub-agent, or a delegated gate sweep
+will do if their schedules overlap. Do not run a second `make test` in a
+worktree that already has one in flight, and treat "one gate run per worktree
+at a time" as part of the gate discipline rather than a courtesy.
+
+The failure this produces is misleading, and worth recognizing rather than
+re-diagnosing. `compile_fail_with_normalized_output` in
+`crates/rstest-bdd/tests/trybuild_macros.rs` deliberately **deletes** the
+tracked `.stderr` expectation, so that trybuild is forced down its `CreatedWip`
+branch, then restores the file and performs its own normalized comparison. For
+the duration of each such fixture the expectation is therefore absent from
+disk, and a second process inspecting trybuild's verdict in that window sees
+`successfully created new stderr files for N test cases` — the panic at
+`trybuild-1.0.121/src/run.rs:106` — as a hard failure, while the owning process
+swallows its own panic because the normalized comparison agreed.
+
+Two consequences for reading evidence. The `wip/` lines in the log are a
+*consequence* of the race, not a fingerprint of it: nextest suppresses stdout
+for passing tests, so a clean run prints none of them either way, and their
+presence or absence distinguishes nothing on its own. And because the per-gate
+logs at `/tmp/<gate>-rstest-bdd-<branch>.out` are *shared* paths, each run
+silently overwrites its predecessor; establish a log's revision by reading its
+`REV_START`/`REV_END` trailers, never by its filename or its modification time.
+
 ## nextest on Windows: trybuild deadlock
 
 nextest wraps test binaries in Windows Job Objects. Child `cargo` processes
