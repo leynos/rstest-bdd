@@ -119,7 +119,11 @@ static COUNTER_FIXTURE: ArmedDrop<Counter> = ArmedDrop {
 /// even when its map is. Measured over the same 4,200 layouts, not one of the
 /// stranded values ran its destructor later with the map. So the late drop
 /// cannot silently repair the defect and hide it from the count.
-fn run_cleanup_catching() -> ScenarioOutcome {
+fn run_cleanup_catching() -> Result<ScenarioOutcome, Box<dyn std::any::Any + Send>> {
+    // The `catch_unwind` below covers the `run_scenario` call, not this
+    // function, so the seeding here cannot be caught: a scaffolding assertion
+    // that failed inside a window would reach the caller as an escape and be
+    // reported as a runner defect.
     let mut ctx = StepContext::default();
     ctx.insert("payload", &PAYLOAD_FIXTURE);
     ctx.insert("counter", &COUNTER_FIXTURE);
@@ -153,8 +157,10 @@ fn run_cleanup_catching() -> ScenarioOutcome {
     // The scope is moved into `run_scenario` and dropped as its frame ends, so
     // cleanup runs *inside* this call. That is the boundary the test needs: a
     // destructor panic here has to become a returned outcome rather than an
-    // unwind past `run_scenario`.
-    run_scenario(&plan, ScenarioScope::new(&mut ctx))
+    // unwind past `run_scenario`. The scope is constructed out here so that the
+    // window covers the call and nothing else.
+    let scope = ScenarioScope::new(&mut ctx);
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run_scenario(&plan, scope)))
 }
 
 /// Cleanup drops every armed override, not only the first one to detonate.
@@ -163,15 +169,27 @@ fn run_cleanup_catching() -> ScenarioOutcome {
 /// destructor either ran or it did not, so no hash order makes the two
 /// implementations agree. `1` is the `clear` defect; `2` is the repair.
 ///
+/// The count separates the two by *where the panics are caught*, not merely by
+/// how many drops happen. `CleanupGuard::drop` calls `clear_values` and holds no
+/// `catch_unwind` of its own; `clear_values` drains the override map and drops
+/// each drained value through `drop_guarded`, which is the catch. Draining is
+/// what makes the count `2`: the map is emptied *before* the first drop runs, so
+/// the second value is already out of the map and on the stack when the first
+/// destructor detonates. `HashMap::clear` instead empties as it goes, so the
+/// first panic unwinds out of the loop and the values it had not reached are
+/// never dropped — the count stops at `1`.
+///
 /// The `Ok` assertion is the weaker half. Both implementations return an outcome
-/// here — the clear that panics is caught by `drop_guarded` in one and by
-/// `CleanupGuard`'s own `catch_unwind` in the other — so it guards against the
-/// repair *introducing* an escape rather than describing the defect. It is
-/// asserted first only because an escaped unwind makes the count meaningless.
+/// here, because `drop_guarded` catches the detonation in each — so it guards
+/// against the repair *introducing* an escape rather than describing the defect.
+/// It is asserted first only because an escaped unwind makes the count
+/// meaningless.
 #[test]
 fn cleanup_drops_every_armed_override() {
     let before = ARMED_CLEANUP_DROPS.with(Cell::get);
-    let escaped = silenced(|| std::panic::catch_unwind(run_cleanup_catching));
+    // No outer `catch_unwind`: the helper returns the caught unwind itself, so
+    // the window here covers one call rather than a frame full of assertions.
+    let escaped = silenced(run_cleanup_catching);
 
     let Ok(outcome) = escaped else {
         panic!(

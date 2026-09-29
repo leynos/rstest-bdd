@@ -244,9 +244,13 @@ impl<'a> StepContext<'a> {
     /// not perform, and it would leave the displaced override looking unguarded
     /// when it is in fact covered one call away.
     ///
-    /// The cost is that a destructor panic no longer aborts the process, which
-    /// is the same deliberate trade D11 already made for cleanup in
-    /// `runner::scope`.
+    /// A destructor panic is therefore logged as a warning: it does not unwind
+    /// out of this function, and the outcome returned below is the one the
+    /// matching rule produced rather than an error the drop introduced. The one
+    /// case that still aborts is a detonation raised while an unwind is already
+    /// in progress — a `catch_unwind` cannot catch a panic that begins during
+    /// one, so there the process dies rather than reporting. That is the same
+    /// deliberate trade D11 already made for cleanup in `runner::scope`.
     ///
     /// # Examples
     ///

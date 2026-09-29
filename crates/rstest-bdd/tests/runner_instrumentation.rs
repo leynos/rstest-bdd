@@ -41,6 +41,12 @@ mod capture;
 #[path = "runner_instrumentation/async_attribution.rs"]
 mod async_attribution;
 
+// The witness that keeps `async_attribution`'s outermost-span assertion from
+// being vacuous. Split out for the same cap, and because the subject is the
+// capture rather than the driver.
+#[path = "runner_instrumentation/nested_span.rs"]
+mod nested_span;
+
 use capture::{Captured, capture, carrying, per_step_events, scenario_span_values, seen, value};
 
 /// A step that resolves and does nothing, so a run can reach `Passed`.

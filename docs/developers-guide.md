@@ -3430,7 +3430,7 @@ module that outgrows its file; the
 forcing function for moving a decision out.
 
 The two driver loops are deliberately **not** shared (D23). A merged loop would
-need a `Either`-shaped abstraction over "await or do not await" whose branch
+need an `Either`-shaped abstraction over "await or do not await" whose branch
 would be exactly the thing under test, and the equality they must satisfy
 (INV-5) is asserted by comparing whole outcomes, not by construction. Treat the
 duplication as a checked property rather than as an accident to tidy away.

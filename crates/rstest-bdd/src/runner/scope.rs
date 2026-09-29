@@ -36,10 +36,13 @@ pub struct NoHooks;
 /// Holds the context mutably for as long as it lives, and is the only route to
 /// it: [`ScenarioScope`] exposes no second path, so a driver cannot obtain the
 /// context in a form that outlives cleanup. Dropping it clears every
-/// step-returned override value, catching a panic from a value's destructor so
-/// that a panicking drop degrades to a warning rather than aborting the
-/// process — which, during another unwind, is the difference between a report
-/// and exit 134.
+/// step-returned override value. The guard holds no `catch_unwind` of its own:
+/// it delegates to [`StepContext::clear_values`], which drains the map and drops
+/// each value through `crate::panic_support::drop_guarded`. A destructor that
+/// panics therefore becomes a logged warning rather than an unwind out of the
+/// run, and the drain is what keeps the *other* values from being stranded — the
+/// map is emptied before the first drop runs, so a panic mid-way cannot leave
+/// anything unreachable.
 ///
 /// There is deliberately no flag to skip cleanup. The plan's lifecycle matrix
 /// has no row on which override values must survive the run, and an unexercised
