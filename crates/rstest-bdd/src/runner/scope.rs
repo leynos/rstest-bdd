@@ -18,8 +18,6 @@
 //! cannot reset fixture cells the caller owns, so a reused context gives
 //! partial isolation, which is worse than none.
 
-use std::panic::{AssertUnwindSafe, catch_unwind};
-
 use crate::{StepContext, config};
 
 /// The default lifecycle hooks: both hooks succeed and do nothing.
@@ -66,17 +64,13 @@ impl<'ctx, 'fix> CleanupGuard<'ctx, 'fix> {
 
 impl Drop for CleanupGuard<'_, '_> {
     fn drop(&mut self) {
-        // `StepContext` is full of `RefCell`s and is not `UnwindSafe`, so the
-        // assertion is required. It is sound in the sense that matters here: a
-        // panic mid-clear leaves *fewer* values, never a half-visible one,
-        // because clearing drops the map whole.
-        let outcome = catch_unwind(AssertUnwindSafe(|| self.ctx.clear_values()));
-        if let Err(payload) = outcome {
-            tracing::warn!(
-                reason = %crate::panic_message(payload.as_ref()),
-                "a step-returned value panicked while being dropped during cleanup",
-            );
-        }
+        // No guard is needed around this call, and adding one would be worse
+        // than redundant: `clear_values` already drops each value through
+        // `drop_guarded`, so it cannot unwind, and an outer `catch_unwind` would
+        // *restore* the leak it was there to prevent — the map is drained before
+        // the guards run, so an unwind escaping mid-drain would strand every
+        // value the loop had not reached.
+        self.ctx.clear_values();
     }
 }
 

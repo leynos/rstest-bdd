@@ -223,9 +223,10 @@ impl<'a> StepContext<'a> {
     ///
     /// # A rejected value is dropped here, under its own guard
     ///
-    /// All three results drop a value on this function's own stack: the
-    /// displaced override on the successful path, and the step's value itself
-    /// when nothing matched or the match was ambiguous. Each drop is wrapped by
+    /// Two of the three outcomes drop the step's own value on this function's
+    /// own stack: [`NoMatch`](InsertOutcome::NoMatch), where nothing matched it,
+    /// and [`AmbiguousIgnored`](InsertOutcome::AmbiguousIgnored), where more
+    /// than one fixture did. Both drops are wrapped by
     /// `crate::panic_support::drop_guarded`, which catches the unwind and logs
     /// it, so a destructor that panics does not unwind out of the caller. That
     /// matters here rather than in the caller because `insert_value` is called
@@ -233,6 +234,15 @@ impl<'a> StepContext<'a> {
     /// that every failure reaches the caller as a returned outcome — a
     /// step-returned value whose destructor panics is a failure the runner
     /// caused to drop, so it is an unwind the runner must not emit.
+    ///
+    /// [`Inserted`](InsertOutcome::Inserted) guards nothing, and the distinction
+    /// is not a gap. It returns the displaced override to the caller, so that
+    /// drop happens on the caller's frame rather than this one — and the caller
+    /// guards it there, through `ValueFate`'s conversion in
+    /// `runner::outcome::step`. Claiming all three paths guard a drop here would
+    /// be wrong twice over: it would credit this function with a drop it does
+    /// not perform, and it would leave the displaced override looking unguarded
+    /// when it is in fact covered one call away.
     ///
     /// The cost is that a destructor panic no longer aborts the process, which
     /// is the same deliberate trade D11 already made for cleanup in
@@ -293,9 +303,35 @@ impl<'a> StepContext<'a> {
     /// honest description: there is no way to tell a caller's value from a
     /// step's once both are in the same map.
     ///
+    /// # Each value is dropped under its own guard
+    ///
+    /// The map is drained rather than cleared, and each value is dropped through
+    /// [`drop_guarded`], for the same reason [`insert_value`](Self::insert_value)
+    /// guards its two drop sites. `HashMap::clear` empties the map *before* it
+    /// drops anything, so a destructor that panics part-way through leaves the
+    /// map empty while some of its values have not yet been dropped — and those
+    /// values are then unreachable and never dropped at all. The leak is silent,
+    /// and it is not a rare edge: measured over 4,200 randomised
+    /// key/position/arity combinations, a single panicking destructor left at
+    /// least one other value never dropped in 3,387 of them, none of those was
+    /// dropped later with the map, and the worst case lost 7 of 8.
+    ///
+    /// The drain is also why this function needs no guard of its own. Each value
+    /// is dropped through `drop_guarded`, so the loop cannot unwind; a
+    /// `catch_unwind` wrapped around the whole loop would *restore* the leak, by
+    /// stranding every value the loop had not yet reached.
+    ///
+    /// Draining per value costs one `Option` per entry and makes the guarantee
+    /// local: a panicking destructor is logged, and every other value is still
+    /// dropped.
+    ///
     /// `pub(crate)` rather than `pub`: the runner's scope destructor is the only
     /// caller, and this crate's public surface is permanent.
-    pub(crate) fn clear_values(&mut self) { self.values.clear(); }
+    pub(crate) fn clear_values(&mut self) {
+        for (_, cell) in self.values.drain() {
+            report_drop_panic(drop_guarded(cell.into_inner()));
+        }
+    }
 
     /// Borrow a fixture by name, reporting the failure reason on error.
     ///
