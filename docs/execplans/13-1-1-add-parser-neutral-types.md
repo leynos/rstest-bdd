@@ -1571,7 +1571,7 @@ between them. Raise that before spending the tolerance.
     `### Workflow-contract shell harness` is present at line 150 in main's
     section. The arithmetic is exact at 297 = 261 + 232 − 196. **This is the
     second time in this plan that a heading-grep returned `0` for content that
-    was present** — my patterns omitted the backticks that the real headings
+    was present** — the patterns omitted the backticks that the real headings
     carry (``## The parser-neutral runner (`rstest_bdd::runner`)``,
     ``### `#[serial]` and `temp-env` in runner tests``), so the "missing"
     headings were a measurement error, not a merge defect. The pattern to
@@ -1629,7 +1629,7 @@ between them. Raise that before spending the tolerance.
     and the entry above is a Markdown edit. It passes at `48dc69ea` — `Summary:
     0 error(s)` over 122 files, with both of its prerequisites (the spelling
     gate and `markdownlint-cli2`) actually running. It did **not** pass on the
-    first attempt, and the failure was real and mine: **the phrase-level pass
+    first attempt, and the failure was real: **the phrase-level pass
     rejected `hand-written` in a sentence this entry had just added.** That is
     the same two-pass trap EP-M3 recorded, firing again on new text — plain
     `typos` accepts `hand-written`, and only the second pass rejects it. The
@@ -1815,13 +1815,14 @@ between them. Raise that before spending the tolerance.
     entry's own run rather than the earlier one it supersedes.
 
     **The re-hit hazard: `gh pr view --json commits` dumps ~178 KB and trips
-    the output limit.** I made this mistake once earlier in the rebase, recorded
-    it in this plan, and then made it again in the very next command that read
-    the PR. The field is the *entire* commit list with authorship and full
+    the output limit.** The same mistake had been made once earlier in the
+    rebase, recorded in this plan, and then made again in the very next command
+    that read the PR. The field is the *entire* commit list with authorship and
+    full
     message bodies; nothing in the flag's name suggests that. The fix is to ask
     for scalars only and to get the count from a different endpoint, which is
     what the commands below do. Recording it a second time because the first
-    recording was prose in one entry and did not become a rule I could follow —
+    recording was prose in one entry and did not become a usable rule —
     the useful form is the pair of commands, not the warning:
 
     ```bash
@@ -1830,7 +1831,7 @@ between them. Raise that before spending the tolerance.
     ```
 
     **The second re-hit, and it is a different shape: a subagent is addressable
-    by its agent id, not by the display name I gave it in the `description`
+    by its agent id, not by the display name given in the `description`
     field.** `SendMessage` to `"Monitor CI on rebased head"` returned `No agent
     named 'Monitor CI on rebased head' is reachable`, while the identical
     message to `ada7511f01c05808a` was queued. The `description` is a label for
@@ -2038,9 +2039,10 @@ between them. Raise that before spending the tolerance.
   have drifted unrelated documents; a before/after path-set comparison
   confirmed no path entered or left the change set.
 
-  A fourth defect surfaced on the second run and was mine as well: the execplan
-  edits I had hand-wrapped were not `mdtablefix`-clean, so `make check-fmt`
-  failed at its *last* sub-step, reporting `+44 -47` of pure paragraph
+  A fourth defect surfaced on the second run and was the branch's as well: the
+  execplan edits that had been hand-wrapped were not `mdtablefix`-clean, so
+  `make check-fmt` failed at its *last* sub-step, reporting `+44 -47` of pure
+  paragraph
   rejoining. The first run had **masked** that sub-step — it aborted at the
   earlier rustfmt failure, so `mdtablefix --check` never ran and had no verdict
   — which is the "a gate that aborts early never ran the steps after it" hazard
@@ -2275,10 +2277,11 @@ between them. Raise that before spending the tolerance.
     re-prepends a directory holding its own `git` wrapper *in front of* the
     test's stand-in, so the fragment ran the real wrapper instead and got
     `fatal: not a git repository`. Unsetting `BASH_ENV` makes the same 394 tests
-    pass. I assumed the branch caused it first (killed by byte-identical
-    inputs), then that a `PATH` export of my own did (killed by re-running with
-    a clean `PATH` — still red), then a shell hash-table cache (killed by
-    reading `os.environ`). What found it was printing `BASH_ENV` and reading the
+    pass. The first assumption was that the branch caused it (killed by
+    byte-identical inputs), the second that a `PATH` export of the branch's own
+    did (killed by re-running with a clean `PATH` — still red), the third a
+    shell hash-table cache (killed by reading `os.environ`). What found it was
+    printing `BASH_ENV` and reading the
     file it names. **A shell can rewrite its own `PATH` after the parent sets
     it, so the parent's `PATH` is not what the command sees.**
 
@@ -2357,6 +2360,21 @@ between them. Raise that before spending the tolerance.
     later commit can falsify them. The distinction is not "counts are bad" but
     "counts of an open set are bad", and it is what decides which of the two
     kinds this document may state.
+
+- [x] (2026-09-29) **Round 11's four concerns were adjudicated and actioned.**
+  The substantive one was a destructor panic escaping `run_scenario` through
+  `record_step`'s value conversion. Reading `insert_value` showed the reported
+  site is one of four drop sites, so all four are guarded via two new
+  `pub(crate)` helpers in `panic_support` (`drop_guarded`,
+  `report_drop_panic`), matching `CleanupGuard::drop`. Three documentation
+  findings (a `# Panics` section, a contradicting module note, first-person
+  prose at sixteen lines) are applied. The three new test rows initially
+  included a **vacuous** one, caught by removing the guards and observing that
+  only two failed; the row was restructured and a 2×2 control now shows each
+  row failing only when its own guard is missing. Three over-claiming notes —
+  `runner_panics.rs`, `execution/unwind.rs`, and both drivers — were corrected
+  to name all four drop sites rather than attributing them to `CleanupGuard`
+  alone. Recorded as D58.
 
 ## Surprises & discoveries
 
@@ -5860,7 +5878,7 @@ implementation commit; `runner_panics` does not exist in its tree at all. The
 branch was rebuilt since. So there is no green baseline this milestone
 regressed from, and any statement that "the recent commits broke `build-test`"
 is false in both directions: it was never green, and the failures were two
-independent causes, only one of which was ours.
+independent causes, only one of which was the branch's.
 
 **The mechanism, named upstream.** The action's own changelog at the fix commit
 says it in as many words:
@@ -7079,7 +7097,7 @@ of claim that reads as diligence and functions as a stop sign — and it is
 cheapest to falsify at the moment it is written, not months later when it
 resurfaces as a review finding.
 
-### D48: the plan is marked `COMPLETE` on a full six-of-six re-run, and the four earlier attempts were red on my own defects
+### D48: the plan is marked `COMPLETE` on a full six-of-six re-run, and the four earlier attempts were red on the branch's defects
 
 **Decided 2026-09-26, closing EP-M5 and the plan.** The milestone box was held
 open by exactly one condition — D31/D43's `Scope` escalation, "a breached
@@ -7562,7 +7580,7 @@ conjunction**:
 
 So the two precedents sit on opposite sides of *different* conjuncts, and
 reading either alone would have produced a spurious conversion here — the first
-reading I committed, which inferred "plain literal" as the shared property both
+reading that was committed inferred "plain literal" as the shared property both
 conversions had in common. They share no property. The decline itself never
 depended on it: `named_witnesses.rs:360` satisfies **both** clauses, which is
 the only thing the exemption asks.
@@ -7648,16 +7666,16 @@ not only for callers of it.
 
 **Decided 2026-09-26, on the last review round before the plan closed.** The
 round returned five distinct concerns. Four are applied; one is a correction to
-a *previous* decline of my own, and that is the one worth recording, because
-the finding was right and my reason for refusing it was not.
+a *previous* decline, and that is the one worth recording, because the finding
+was right and the reason for refusing it was not.
 
 **F1, which had been declined twice, is applied.** Round 8's finding 1 and
 round 9's F1 both asked for `named_witnesses.rs:360`'s
 `rows.next().unwrap_or_else(|| panic!(..))` to become a `let`-`else` binding.
 D52 declined it on the ground that Whitaker's `no_unwrap_or_else_panic` exempts
 it: the predicate is `summary.is_test && panic_info.is_interpolated_only()`,
-both clauses hold, and `make lint-whitaker` is green with the site in place. I
-verified that reasoning again and it is sound **as far as it goes** — the lint
+both clauses hold, and `make lint-whitaker` is green with the site in place.
+That reasoning was verified again and is sound **as far as it goes** — the lint
 does not flag the site. But the finding never claimed the lint flags it. It
 asked for a `let`-`else`, and the repository's own convention already prefers
 one: `runner_panics/mod.rs` writes "`let ... else` rather than `.expect(...)`,
@@ -7671,7 +7689,8 @@ message is preserved verbatim, so nothing was traded away by doing it.
 corrections.** Both findings asked for the same change: install one filtering
 hook, gate it on a thread-local flag, drop the process-global replacement and
 its `Mutex`. Applied as D11's module note now describes. The independent review
-that checked the design before I wrote it corrected two details that would each
+that checked the design before it was written corrected two details that would
+each
 have been a silent defect:
 
 - the guard must **save and restore** the flag's previous value, not clear it to
@@ -8288,6 +8307,110 @@ the plan does not claim one is owed; a successor deciding whether to request
 one should weigh D46's user-visible string change — which round 8 did see —
 against whatever has landed since the most recent round, this paragraph's own
 lesson being that the round number is a date and not a standing verdict.
+
+### D58: round 11's single substantive finding was one instance of a four-site class, and the test written for it was vacuous until a control killed it
+
+Round 11 returned five finding records against `128a4c82`, two of them the same
+concern at the same location, so the round is four concerns. Three are
+documentation and one is a code change; all four were verified against the code
+before being actioned.
+
+**The substantive find: a destructor panic escaping `run_scenario`.** The
+finding asked for the displaced value in `record_step`'s value-conversion
+closure to be dropped under `catch_unwind`, with a panic logged as a warning,
+"matching `CleanupGuard::drop`", and for the existing `ValueFate` conversion to
+be preserved for the other `InsertOutcome` variants. Reading `insert_value`
+rather than the finding's line alone showed the reported site is **one of
+four**: the function drops a value on the `NoMatch` path, on the
+`AmbiguousIgnored` path, and again on `InsertOutcome::Inserted(Some(_))`, where
+the displaced override is returned to the caller — and the `ValueFate`
+conversion then drops that override one call away. All four unwinds escape
+`run_scenario`, which breaks Constraint 3. Guarding only the reported line
+would have left the identical defect two lines away and forced a
+verification-gap declaration, so all four are guarded, through two new
+`pub(crate)` helpers in `panic_support`: `drop_guarded`, which drops a value
+and returns a panic's message rather than propagating it, and
+`report_drop_panic`, which logs one. The reported site keeps its existing
+`ValueFate` conversion; only the drop the conversion performs changed.
+
+**A load-bearing over-claim, in three places.** `tests/runner_panics.rs` and
+`execution/unwind.rs` both asserted that D11's destructor coverage lives in
+`runner/scope.rs`'s `CleanupGuard`, and `drive_sync.rs` and `drive_async.rs`
+repeated it. `CleanupGuard` covers the run-end `clear_values` path and nothing
+else. The claim was true only for the cleanup path, which is what made this a
+contract violation rather than a style nit; all four notes are corrected. This
+is the second time on this branch that a "covered elsewhere" claim turned out
+to name the wrong cover, and the correction names the four sites explicitly so
+a successor need not re-derive them.
+
+**The branch-guard alternative was rejected on evidence, not preference.** The
+finding's own remedy — panic rather than drop, and let the caller handle it —
+moves the abort to `ctx`'s drop, which happens *after* `run_scenario` returns
+and therefore after a test's own `catch_unwind`. In a standalone frontend that
+is still exit 134. Drop-and-report is what `CleanupGuard::drop` already does,
+so the fix converges on the existing convention instead of establishing a
+second one.
+
+**The control found a defect in the test written for the fix.** Three new
+rows in `runner_panics.rs` drive the three drop paths through `run_scenario`,
+each asserting both that the run returned an outcome and that the armed
+value's destructor actually ran. Removing the guards made the `Unmatched` and
+`Ambiguous` rows fail as designed — and the `Displaced` row **pass**, which is
+vacuous. The cause was the row's own scaffolding: it registered the armed value
+through `insert_owned`, which stores a *fixture* as a borrowed
+`RefCell<Box<dyn Any>>`, while `insert_value` matches fixtures by erased type
+and replaces into a different map. So the value it displaced was an empty
+`RefCell` wrapper carrying no destructor at all, and the row would have passed
+whether or not the conversion's guard existed. A fixture and an override live
+in different maps; only the override map is what `insert_value` replaces into.
+The row now seeds the armed value *through* `insert_value` and has the step
+return a quiet value, which is the only arrangement in which the conversion is
+what drops it.
+
+**The 2×2 control that closed it.** With all three guards removed the three
+rows fail; with the `context` guards restored and the `ValueFate` guard still
+removed, `Displaced` is the *sole* failure; with the `ValueFate` guard restored
+and the `context` guards removed, `Unmatched` and `Ambiguous` fail and
+`Displaced` passes. Each row therefore fails only when its own guard is
+missing, which is the property the row was written to have and could not
+demonstrate before. The lesson is the one the plan has recorded twice already
+in other forms: a green run is not evidence that a test can fail, and the only
+cheap way to tell is to break the thing it claims to measure.
+
+**Two documentation findings, both applied.** `runner_sequence_props.rs`'s
+module note disparaged the `RefCell` that `check` in the same file actually
+uses, and claimed a `Fn` bound "would not compile"; the function's own note
+says the opposite, and correctly — the accumulator must live behind interior
+mutability because `TestRunner::run` requires `Fn` and the folding closure is
+`FnMut`. The module note now points at that explanation instead of
+contradicting it. `ScenarioPlanBuilder::step_at` gained a `# Panics` section
+for the zero-line assertion one call down in `SourceLocation::new`, with
+runtime behaviour unchanged; `missing_panics_doc` is denied workspace-wide and
+`make lint` had passed on it because the lint is intraprocedural and the panic
+is one call deep.
+
+**Finding 1, first person, applied across sixteen lines in thirteen edits.**
+Both figures come from a set comparison of the pronoun-bearing lines before and
+after, not from a reading: `comm -23` over the two sorted line sets reports
+sixteen lines present at `128a4c82` and absent after, and two new matching lines
+— this entry's own, either side of the `no I/O` quotation a paragraph below.
+The rule applied is the plan's
+own, recorded in D55's predecessor — avoid first person *as the document's
+voice*, while quotations and prose describing a removed construction are
+deliberate exceptions. The surviving hits are all in those two categories:
+Gherkin step text, a quoted end-user question, a quoted runner message, Mermaid
+node identifiers, `no I/O`, and prose that must be able to name the
+construction it removed.
+
+**One figure was written before it was measured, and is corrected here.** An
+earlier draft of this entry said the fix covered "thirteen sites" and described
+the round's report as claiming "four sites". Neither was measured: the first was
+an edit count standing in for a line count, and the second attributed to the
+round a figure that came from this session's own partial classification pass —
+four ambiguous sites read before the scan finished. Both are replaced with the
+set-comparison figures above. The distinction is the one D43 records and this
+plan has paid for twice: a count is a claim about a revision and a method, and
+one produced by partial inspection is a guess.
 
 ## Context and orientation
 

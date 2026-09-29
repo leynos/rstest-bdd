@@ -113,6 +113,13 @@ pub(super) fn record_step(
 ) -> (StepOutcome, Option<Terminal>) {
     // The insertion reaches `absorb` as a closure, so it happens exactly when a
     // value came back and necessarily before anything examines the error.
+    //
+    // The displaced override is dropped by the conversion, on this frame, so
+    // the guard for it lives in `ValueFate`'s `From` impl rather than here:
+    // that impl is already documented as where the displacement is discarded,
+    // and putting the guard anywhere else would be a second place for the same
+    // drop to happen. `absorb` requires this closure to be total; this closure
+    // inherits that from the conversion it calls.
     let Absorbed { fate, error } = absorb(result, |value| ctx.insert_value(value).into());
 
     match classify(error) {

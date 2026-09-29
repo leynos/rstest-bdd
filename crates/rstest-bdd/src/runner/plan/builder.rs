@@ -171,6 +171,15 @@ impl ScenarioPlanBuilder {
     /// panic or a silent no-op — a poor look in a crate that denies
     /// `unwrap_used` and whose runner must not panic.
     ///
+    /// # Panics
+    ///
+    /// Panics when `line` is zero, because a source line is one-based. The
+    /// check is [`SourceLocation::new`]'s, which this method calls with the
+    /// plan's own path; the panic is documented here as well so a caller of
+    /// `step_at` need not follow the call to find it. `line` comes from a
+    /// frontend's parser, so a malformed document is one route to a zero and a
+    /// frontend's own off-by-one is another.
+    ///
     /// # Examples
     ///
     /// ```

@@ -38,9 +38,9 @@
 //! closure, so a failing case reports its shrunk counter-example.
 //!
 //! The closures are therefore `FnMut`, not `Fn`, because folding a case in
-//! mutates the accumulator. A `Fn` bound here would not compile, and a
-//! `RefCell` worked around it by panicking on re-entry rather than at the
-//! point of the mistake.
+//! mutates the accumulator. [`check`] bridges that to the `Fn` bound proptest
+//! requires, and its own note gives the reason the bridge is sound rather than
+//! a workaround.
 //!
 //! # Why the case budget is pinned here
 //!

@@ -66,9 +66,12 @@ use crate::{
 /// attribute-registered step's panic, and D11's boundary in
 /// `execution::unwind` catches a raw `step!` handler's, which has no wrapper.
 /// Either way [`execute_step`] returns, so this driver never sees an unwind
-/// from a step. A *destructor* that panics during cleanup is a separate case
-/// and does not pass through here at all; `runner::scope`'s `CleanupGuard`
-/// owns it.
+/// from a step. A *destructor* that panics is a separate case, and the runner
+/// guards each of its four drop sites where the drop happens rather than here:
+/// three in `StepContext::insert_value` (and the `ValueFate` conversion beside
+/// it), and one in `runner::scope`'s `CleanupGuard`. None of them reaches this
+/// loop as an unwind, but that is because each is guarded, not because a single
+/// guard covers them.
 pub(in crate::runner) fn drive(
     plan: &ScenarioPlan,
     ctx: &mut StepContext<'_>,
