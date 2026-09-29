@@ -2171,6 +2171,37 @@ between them. Raise that before spending the tolerance.
     rather than assumed and is **correct**: `policy.rs` is genuinely its only
     production caller. Recorded as D55.
 
+  - [x] (2026-09-29) **Round 10's three findings were committed and pushed as
+    `5af03234`, and the PR's description was brought up to date.** The two
+    commits above the remote's previous head — `b8de0bb3` (round 9's fixes) and
+    `5af03234` (round 10's, plus D55) — went out in a single fast-forward push,
+    `93046dde..5af03234`, so the PR-scoped concurrency group cancelled only the
+    run it was superseding rather than one of its own. The plan's own record of
+    the push is deliberately thin: which commits are on the remote is a fact
+    `git` holds, and a plan that restates it can only ever be a stale copy.
+
+    The PR body was the more interesting half. It had accumulated four classes
+    of stale claim, three of them the same error D54 already records — a
+    statement true when written, falsified by a later event. The gate block
+    cited `93e03a1f`, a revision the rebase had long since replaced; the review
+    section said "round 7 was the last review"; the draft paragraph argued from
+    a round that had already returned; and the scope table stopped at
+    `23,024`. Each was corrected by **naming the events that superseded it**
+    rather than by bumping a figure, because a bumped figure expires the same
+    way and leaves no trace of what it displaced. Every historical row is
+    retained and labelled with the revision it measured, so the trend the
+    section exists to show survives.
+
+    The gate block was the one substantive rewrite. It previously reported a
+    single green six-gate run, which was never true of the committed tree: the
+    gates were run in **two passes over a working tree**, the second needed
+    because the first's Markdown document moved mid-run. Reporting them as one
+    run would have concealed that the first pass's `markdownlint` *failed*. The
+    body now shows both passes, and states plainly that pass 1's three green
+    Markdown verdicts are not relied on — a red target's summary line
+    misdescribes which steps ran, which is D54's second finding applied to this
+    PR's own evidence.
+
 ## Surprises & discoveries
 
 - **Observation:** the estate's `spelling` target runs the config builder in
