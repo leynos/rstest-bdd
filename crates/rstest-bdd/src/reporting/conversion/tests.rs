@@ -160,9 +160,18 @@ fn a_skipped_run_converts_with_its_policy() {
 /// crashed scenario as green — the false green the whole runner exists to
 /// avoid — so the conversion refuses instead.
 ///
-/// The refusal is also what makes the gap non-vacuous. Once 13.2.1 adds the
-/// variant, this test stops compiling rather than quietly continuing to pass,
-/// which is the prompt to place the failure in the record and delete the arm.
+/// The gap is **not** self-enforcing, and saying so is the honest description.
+/// Adding a `ScenarioStatus::Failure` variant does not break this test: it
+/// breaks the four matches over `ScenarioStatus` that rendering already has —
+/// `reporting::json`, `reporting::junit`, `registry::diagnostics`, and
+/// `ScenarioStatus::label` — while this test, which matches over `RunnerStatus`,
+/// keeps passing untouched.
+///
+/// That was measured rather than reasoned about: adding the variant plus the
+/// mechanical `label` arm yields exactly four `E0004` errors, none of them in
+/// this file. So the compile failure cannot be relied on as the prompt. The
+/// 13.2.1 migration has to remove `Gap::Failure` and this test **together**,
+/// deliberately, and nothing here will notice if it does only the first.
 #[test]
 fn a_failed_run_reports_the_missing_failure_case() {
     let plan = plan();

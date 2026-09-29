@@ -358,3 +358,13 @@ fn an_unwrapped_async_step_panic_is_returned_not_thrown(
 /// parent's own section divider already marked.
 #[path = "runner_panics/destructors.rs"]
 mod destructors;
+
+/// The run-end cleanup drop site, and the destructor panics it must survive.
+///
+/// The fourth site, and the only one that fires after the last step has
+/// returned: `runner/scope.rs`'s cleanup, which clears every override a step
+/// left in the context. Its contract is stronger than the mid-run sites' — one
+/// panicking destructor must not strand the others — so it gets its own file
+/// rather than a fourth row in `destructors.rs`.
+#[path = "runner_panics/cleanup.rs"]
+mod cleanup;

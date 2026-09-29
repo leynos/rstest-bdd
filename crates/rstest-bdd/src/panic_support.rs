@@ -78,9 +78,15 @@ pub fn panic_message(e: &(dyn std::any::Any + Send)) -> String {
 /// quietly. A `Result` would invite an `?` at a call site where there is nothing
 /// to recover from.
 ///
-/// `pub(crate)` rather than public, because the runner's two drop sites are the
+/// `pub(crate)` rather than public, because the runner's four drop sites are the
 /// only callers and this crate's public surface is permanent. If a frontend ever
 /// needs it, it can be promoted; the reverse is not true.
+///
+/// The four are: the value that matched no fixture and the value whose match was
+/// ambiguous, both in [`crate::StepContext::insert_value`]; the override a
+/// successful insert displaced, in `runner::outcome::step`'s `ValueFate`
+/// conversion; and each override run-end cleanup clears. Every one of them pairs
+/// this call with [`report_drop_panic`], so no site can quietly drop a panic.
 ///
 /// # Why a destructor needs a guard at all
 ///

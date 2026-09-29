@@ -42,8 +42,14 @@
 //! first on the strength of the field's declared type.
 
 use std::{
-    collections::BTreeMap,
-    sync::{Arc, Mutex},
+    collections::{BTreeMap, HashMap},
+    sync::{
+        Arc,
+        Mutex,
+        PoisonError,
+        atomic::{AtomicU64, Ordering},
+    },
+    thread::ThreadId,
 };
 
 use tracing::{
@@ -54,6 +60,16 @@ use tracing::{
     field::{Field, Visit},
     span::{Attributes, Id, Record},
 };
+
+/// The synthetic field naming the span an event was captured inside.
+///
+/// Written with a leading underscore so it cannot collide with a real field
+/// name: `tracing` field names are identifiers, and an identifier cannot begin
+/// with `_` followed by another underscore-free name while remaining
+/// indistinguishable from this. The synthetic name is therefore always
+/// distinguishable from anything the runner emits, which is what lets the
+/// parent assert on attribution through the ordinary [`value`] lookup.
+pub(super) const CURRENT_SPAN_FIELD: &str = "__span";
 
 /// One captured span or event: the level it was emitted at, its name, and the
 /// rendered value of every field it carried.
@@ -137,12 +153,40 @@ impl Visit for FieldValues<'_> {
     fn record_bool(&mut self, field: &Field, value: bool) { self.note(field, value.to_string()); }
 }
 
-/// Records every span and event a level filter admits, with their field values.
+/// Records every span and event a level filter admits, with their field values,
+/// and attributes each event to the span it was captured inside.
+///
+/// Attribution is what makes this more than a field recorder. `tracing` hands a
+/// subscriber three signals — an id from `new_span`, and `enter`/`exit` for the
+/// thread's current span — and reconstructing "which span was this event in?"
+/// from them is the subscriber's job, not the library's. Without that, an event
+/// emitted inside an instrumented future and one emitted outside it are
+/// indistinguishable, so a test named for attribution could not actually
+/// observe any.
 struct CapturingSubscriber {
     /// The most verbose level to capture. `TRACE` admits all four D14 events.
     max_level: Level,
     /// Where captured spans and events accumulate.
     captured: Captures,
+    /// Hands out one unique id per opened span.
+    ///
+    /// Unique because [`Self::entered`] is a *stack*: a constant id would make
+    /// pushing and popping it look like nesting, and the whole point of the stack
+    /// is to know which span is current.
+    next_id: AtomicU64,
+    /// For each thread, the ids of the spans it is currently inside.
+    ///
+    /// Keyed by thread because `set_default` scopes this subscriber to one
+    /// thread while `enter`/`exit` arrive per thread: a span entered on the
+    /// runtime's thread must not appear current on a test's own. The values are
+    /// a `Vec` used as a stack rather than a `HashSet`, because "current span"
+    /// means innermost, and only the top of the stack is that.
+    entered: Mutex<HashMap<ThreadId, Vec<u64>>>,
+    /// Each issued span id's name, so the top of a stack can be rendered.
+    ///
+    /// `&'static str` rather than `String`: `Metadata::name` is already
+    /// `&'static str`, and a span's metadata outlives every subscriber here.
+    span_names: Mutex<HashMap<u64, &'static str>>,
 }
 
 impl Subscriber for CapturingSubscriber {
@@ -153,14 +197,17 @@ impl Subscriber for CapturingSubscriber {
         span.record(&mut FieldValues {
             values: &mut values,
         });
+        let id = self.next_id.fetch_add(1, Ordering::SeqCst);
+        self.span_names
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(id, span.metadata().name());
         self.push(Captured {
             level: *span.metadata().level(),
             name: span.metadata().name().to_owned(),
             values,
         });
-        // Any id will do: nothing in these tests enters or exits a span, so the
-        // id is never looked up again.
-        Id::from_u64(1)
+        Id::from_u64(id)
     }
 
     fn record(&self, _: &Id, _: &Record<'_>) {}
@@ -172,6 +219,12 @@ impl Subscriber for CapturingSubscriber {
         event.record(&mut FieldValues {
             values: &mut values,
         });
+        // Simulated *after* the event's own fields, so the synthetic name cannot
+        // be mistaken for one the runner emitted and cannot be overwritten by
+        // one that happens to share the name.
+        if let Some(name) = self.current_span_name() {
+            let _ = values.insert(CURRENT_SPAN_FIELD.to_owned(), name.to_owned());
+        }
         self.push(Captured {
             level: *event.metadata().level(),
             name: event.metadata().name().to_owned(),
@@ -179,9 +232,27 @@ impl Subscriber for CapturingSubscriber {
         });
     }
 
-    fn enter(&self, _: &Id) {}
+    fn enter(&self, id: &Id) {
+        if let Ok(mut entered) = self.entered.lock() {
+            entered
+                .entry(std::thread::current().id())
+                .or_default()
+                .push(id.into_u64());
+        }
+    }
 
-    fn exit(&self, _: &Id) {}
+    fn exit(&self, id: &Id) {
+        if let Ok(mut entered) = self.entered.lock()
+            && let Some(stack) = entered.get_mut(&std::thread::current().id())
+        {
+            // Pop defensively: `tracing` may exit a span this subscriber never
+            // saw entered, and a mismatch here must not corrupt the stack.
+            let expected = id.into_u64();
+            if let Some(position) = stack.iter().rposition(|&open| open == expected) {
+                let _ = stack.remove(position);
+            }
+        }
+    }
 }
 
 impl CapturingSubscriber {
@@ -194,8 +265,23 @@ impl CapturingSubscriber {
     fn push(&self, captured: Captured) {
         self.captured
             .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .unwrap_or_else(PoisonError::into_inner)
             .push(captured);
+    }
+
+    /// The name of the span this thread is currently inside, if any.
+    ///
+    /// Derived on *read* rather than maintained by writing the current name into
+    /// every thread's own slot: a single shared slot would be clobbered by
+    /// another thread's `enter`, and the innermost span would then be whichever
+    /// thread happened to enter last rather than this one.
+    fn current_span_name(&self) -> Option<&'static str> {
+        let thread = std::thread::current().id();
+        let current = {
+            let entered = self.entered.lock().ok()?;
+            *entered.get(&thread)?.last()?
+        };
+        self.span_names.lock().ok()?.get(&current).copied()
     }
 }
 
@@ -208,6 +294,9 @@ pub(super) fn capture(max_level: Level) -> (Captures, tracing::subscriber::Defau
     let subscriber = CapturingSubscriber {
         max_level,
         captured: Arc::clone(&captured),
+        next_id: AtomicU64::new(1),
+        entered: Mutex::new(HashMap::new()),
+        span_names: Mutex::new(HashMap::new()),
     };
     (captured, tracing::subscriber::set_default(subscriber))
 }
