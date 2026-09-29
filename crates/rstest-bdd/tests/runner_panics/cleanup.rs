@@ -14,7 +14,7 @@
 //! nothing will ever drop them again.
 //!
 //! Both halves of that claim were measured rather than assumed. Over 4,200
-//! randomised key/position/arity combinations, a single panicking destructor
+//! randomized key/position/arity combinations, a single panicking destructor
 //! left at least one other value never dropped in 3,387; none of those values
 //! was dropped later with the map, so the loss is permanent, and the worst case
 //! lost 7 of 8.

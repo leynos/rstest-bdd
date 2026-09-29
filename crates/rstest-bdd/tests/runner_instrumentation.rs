@@ -25,14 +25,7 @@
 use rstest_bdd::{
     StepContext,
     StepKeyword,
-    runner::{
-        ScenarioPlan,
-        ScenarioPlanBuilder,
-        ScenarioScope,
-        ScenarioStatus,
-        run_scenario,
-        run_scenario_async,
-    },
+    runner::{ScenarioPlan, ScenarioPlanBuilder, ScenarioScope, ScenarioStatus, run_scenario},
 };
 use rstest_bdd_macros::given;
 use tracing::Level;
@@ -40,16 +33,13 @@ use tracing::Level;
 #[path = "runner_instrumentation/capture.rs"]
 mod capture;
 
-use capture::{
-    CURRENT_SPAN_FIELD,
-    Captured,
-    capture,
-    carrying,
-    per_step_events,
-    scenario_span_values,
-    seen,
-    value,
-};
+// The one test that drives the *asynchronous* driver, and the attribution
+// decision only it can falsify. Split out because the parent's other six tests
+// all drive the synchronous runner, and the cap is 400 lines.
+#[path = "runner_instrumentation/async_attribution.rs"]
+mod async_attribution;
+
+use capture::{Captured, capture, carrying, per_step_events, scenario_span_values, seen, value};
 
 /// A step that resolves and does nothing, so a run can reach `Passed`.
 #[given("an instrumented step passes")]
@@ -72,7 +62,12 @@ fn an_instrumented_step_skips() {
 /// The lines are set so the span's `line` field and the warnings' `path:line`
 /// have both coordinates to render, rather than a placeholder that would make
 /// the `location` assertion pass without proving anything about rendering.
-fn plan(steps: &[(StepKeyword, &'static str, u32)]) -> ScenarioPlan {
+///
+/// `pub(crate)` because the split-out `async_attribution` child needs the same
+/// plan, and a plan built twice would be two definitions of the fixture the
+/// assertions are written against. (`pub(crate)`, not `pub(super)`: this file
+/// is a crate root, so it has no parent inside the crate for `super` to name.)
+pub(crate) fn plan(steps: &[(StepKeyword, &'static str, u32)]) -> ScenarioPlan {
     let mut builder = ScenarioPlanBuilder::new("Instrumented", "notes/instrumented.md").at_line(42);
     for (keyword, text, line) in steps {
         builder = builder.step_at(*keyword, *text, *line);
@@ -364,82 +359,4 @@ fn a_warn_filter_admits_the_terminal_warning_and_nothing_else() {
         !all.is_empty(),
         "the terminal failure is a WARN, so the filter must still admit it",
     );
-}
-
-/// The asynchronous driver attributes its events to the scenario span.
-///
-/// The async driver attaches the span with `Instrument` rather than entering it
-/// with a guard, because a guard held across `.await` is thread-local and would
-/// report this scenario as current on a thread that had moved on (AGENTS.md
-/// forbids the form outright). Every test above drives the *synchronous* runner,
-/// so none of them would notice the span being dropped from this path.
-///
-/// "Attributes" is meant literally, and that is why this test reads
-/// [`CURRENT_SPAN_FIELD`] rather than merely checking that both events exist.
-/// Presence alone does not distinguish an event emitted *inside* the
-/// instrumented future from one emitted outside it: a driver that dropped the
-/// span would still emit both, and a test asserting only that they arrived would
-/// pass against it. The attribution is the entire claim, so the attribution is
-/// what is asserted.
-#[test]
-fn the_async_driver_attributes_its_events_to_the_scenario_span() {
-    let (captured, _guard) = capture(Level::TRACE);
-    let mut ctx = StepContext::default();
-    let plan = plan(&[(StepKeyword::Given, "an instrumented step passes", 43)]);
-
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .build()
-        .expect("a current-thread runtime builds");
-    let outcome = runtime.block_on(run_scenario_async(&plan, ScenarioScope::new(&mut ctx)));
-    assert_eq!(
-        outcome.status(),
-        ScenarioStatus::Passed,
-        "the step must resolve under the async driver too, or this observes the wrong run",
-    );
-
-    let values = scenario_span_values(&captured);
-    assert_eq!(value(&values, "name"), "Instrumented");
-
-    let all = seen(&captured);
-
-    // The span itself is opened outside any other span, so it is attributed to
-    // nothing. Asserting this pins the synthetic field's meaning: it reports the
-    // *enclosing* span, and a subscriber that attributed every capture to the
-    // nearest span by name would report `scenario` here too and make the two
-    // assertions below unfalsifiable.
-    let scenario = carrying(&all, "name");
-    assert_eq!(scenario.name, "scenario");
-    assert!(
-        !scenario.carries(CURRENT_SPAN_FIELD),
-        "the `scenario` span is the outermost span the run opens, so nothing encloses it; \
-         captured {scenario:?}",
-    );
-
-    // The assertion that carries the `Instrument` decision. The policy event is
-    // emitted inside the instrumented future, so if the driver opened the span
-    // without keeping it current across the poll this would be missing — and it
-    // is the attribution, not the event's presence, that goes missing.
-    let resolved = carrying(&all, "forced_failure");
-    assert_eq!(value(&resolved.values, "plan_allows_skipping"), "false");
-    assert_eq!(
-        value(&resolved.values, CURRENT_SPAN_FIELD),
-        "scenario",
-        "the policy event must be attributed to the scenario span, not merely emitted",
-    );
-
-    // Every per-step event, not just the first: a driver that instrumented only
-    // the first poll would leave the later events unattributed while still
-    // emitting them, which a single check could not see.
-    let steps = per_step_events(&all);
-    assert!(
-        !steps.is_empty(),
-        "the plan records an invocation, so a per-step event must exist; captured {all:?}",
-    );
-    for step in &steps {
-        assert_eq!(
-            value(&step.values, CURRENT_SPAN_FIELD),
-            "scenario",
-            "every per-step event belongs to the scenario span; the unattributed one was {step:?}",
-        );
-    }
 }

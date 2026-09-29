@@ -1244,7 +1244,10 @@ proposed direction).
   - Keep `gherkin`, Markdown, Trymark, process, snapshot, and reporter types
     out of the public plan and outcome surface.
   - Make the runner own ordered resolution, fixture validation, returned-value
-    propagation, terminal skip and failure handling, and after-scenario cleanup.
+    propagation, terminal skip and failure handling, and after-scenario
+    cleanup — cleanup meaning the unconditional synchronous scope drop; the
+    before/after hooks once listed here were struck under D2 option (ii) and
+    are **not** part of this item.
   - Success: direct unit and bounded property tests prove synchronous and
     asynchronous equivalent plans stop after terminal events and produce a
     deterministic, complete `ScenarioOutcome.steps` sequence, with every
@@ -1256,10 +1259,12 @@ proposed direction).
     `forced_failure` rule; and programmatic, environment, and default
     `fail_on_skipped` resolution parity across synchronous, asynchronous,
     macro-generated, and external-frontend paths.
-  - Success: lifecycle tests prove failure precedence and exactly-once cleanup;
-    dropping async runs during a step and before/after hooks verifies no
-    outcome, synchronous scope-drop cleanup, and no awaited-after guarantee
-    after cancellation.
+  - Success: lifecycle tests prove exactly-once cleanup; dropping async runs
+    during a step — and, once the hooks are restored, during before/after hooks
+    — verifies no outcome, synchronous scope-drop cleanup, and no
+    awaited-after guarantee after cancellation. The hook-drop clause and the
+    failure-precedence clause it paired with are **not** discharged: both need
+    the hooks, which D2 option (ii) struck rather than deferred.
   - See `docs/adr-018-parser-neutral-scenario-execution.md` (Requirements and
     Verification strategy).
 
@@ -1290,6 +1295,18 @@ proposed direction).
     `LifecycleError` and `ScenarioOutcome::cleanup_error()` are consequently not
     shipped either. Restoring any of it needs an ADR amending ADR-018 first, and
     a replacement roadmap item — there is none today.
+
+  **Reconciliation of the tick with the criteria above.** The item is checked
+    because everything it names as *in scope* shipped and is proved; it is not
+    a claim that ADR-018 was delivered whole. Three of the criteria in the
+    original wording assumed the hooks — the `Make the runner own …` line's
+    hook ownership, the lifecycle-tests line's failure precedence and
+    hook-drop clause, and the whole of the struck matrix — and those are marked
+    undelivered in place rather than silently dropped from the list. A reader
+    checking this box should read the three annotations above with it: this
+    item's scope is the parser-neutral plan, outcome, and runner contract, and
+    that contract is complete, gated, and green. Lifecycle hooks are out of
+    scope for 13.1.1, carried by a replacement item that does not yet exist.
 
   Deviation: the plan's `Scope` tolerance was breached and the breach went
     unescalated until it was found at close. See

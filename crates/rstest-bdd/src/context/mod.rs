@@ -311,7 +311,7 @@ impl<'a> StepContext<'a> {
     /// drops anything, so a destructor that panics part-way through leaves the
     /// map empty while some of its values have not yet been dropped — and those
     /// values are then unreachable and never dropped at all. The leak is silent,
-    /// and it is not a rare edge: measured over 4,200 randomised
+    /// and it is not a rare edge: measured over 4,200 randomized
     /// key/position/arity combinations, a single panicking destructor left at
     /// least one other value never dropped in 3,387 of them, none of those was
     /// dropped later with the map, and the worst case lost 7 of 8.
