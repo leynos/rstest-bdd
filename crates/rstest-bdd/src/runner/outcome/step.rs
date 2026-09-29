@@ -77,9 +77,13 @@ impl From<crate::InsertOutcome> for ValueFate {
 /// One private sum rather than public fields, so the payload can never
 /// contradict the status.
 ///
-/// Built only by `engine::policy::assemble`, through `StepOutcome`'s
-/// constructors; the unit tests construct records directly, which is why those
-/// constructors are `pub(crate)` rather than private.
+/// Built only by [`StepOutcome`]'s constructors, which the two drivers call
+/// through `engine::drive`: `engine::drive::record_step` builds the
+/// [`Passed`](StepRecord::Passed), [`Skipped`](StepRecord::Skipped), and
+/// [`Failed`](StepRecord::Failed) records, and `engine::drive::bypassed` the
+/// [`Bypassed`](StepRecord::Bypassed) one. The unit tests construct records
+/// directly, which is why those constructors are `pub(crate)` rather than
+/// private.
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum StepRecord {
     /// The step ran and succeeded, optionally having returned a value.
@@ -163,7 +167,7 @@ impl StepOutcome {
 
     /// Record a successful invocation.
     ///
-    /// The production caller is `engine::policy::assemble`; the unit tests
+    /// The production caller is `engine::drive::record_step`; the unit tests
     /// call it directly to build records to assert on.
     pub(crate) fn passed(
         index: usize,
@@ -175,7 +179,7 @@ impl StepOutcome {
 
     /// Record an invocation that requested a skip.
     ///
-    /// The production caller is `engine::policy::assemble`; see
+    /// The production caller is `engine::drive::record_step`; see
     /// [`passed`](Self::passed).
     pub(crate) fn skipped(
         index: usize,
@@ -187,7 +191,7 @@ impl StepOutcome {
 
     /// Record an invocation that failed.
     ///
-    /// The production caller is `engine::policy::assemble`; see
+    /// The production caller is `engine::drive::record_step`; see
     /// [`passed`](Self::passed).
     pub(crate) fn failed(index: usize, invocation: &StepInvocation, error: ExecutionError) -> Self {
         Self::recorded(
@@ -201,7 +205,7 @@ impl StepOutcome {
 
     /// Record an invocation that never ran.
     ///
-    /// The production caller is `engine::policy::assemble`; see
+    /// The production caller is `engine::drive::bypassed`; see
     /// [`passed`](Self::passed).
     pub(crate) fn bypassed(index: usize, invocation: &StepInvocation) -> Self {
         Self::recorded(index, invocation, StepRecord::Bypassed)

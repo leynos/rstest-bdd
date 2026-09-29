@@ -157,7 +157,8 @@ fn a_run_executes_its_steps_against_the_context() {
     assert_eq!(
         counter_value(cell),
         4,
-        "each increment step ran once, so the cell left `u32::MAX` behind",
+        "the `given` step reset the sentinel to zero and each of the two increment steps ran \
+         once, so the cell reads 4",
     );
     assert!(
         outcome

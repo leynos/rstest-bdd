@@ -22,10 +22,11 @@
 //!
 //! A shape names *what it witnesses* rather than which kind witnesses it. The
 //! producer is found by filtering [`Kind::ALL`] for a member that returns a
-//! value, and the terminal by filtering for the member whose declared
-//! classification is the one the shape names — so a kind whose
-//! `returns_a_value`, `terminal_status`, or `failure_kind` changed is rebuilt
-//! into the shape that needs it rather than silently stop being drawn there.
+//! value a probe fixture can *match*, and the terminal by filtering for the
+//! member whose declared classification is the one the shape names — so a kind
+//! whose `returns_a_matchable_value`, `terminal_status`, or `failure_kind`
+//! changed is rebuilt into the shape that needs it rather than silently stop
+//! being drawn there.
 //! Writing either as a literal kind would make that a silent omission instead,
 //! and the omission would be *vacuous*: a crafted shape that lost its terminal
 //! still satisfies every property, because a plan with nothing ending it never
@@ -276,11 +277,22 @@ static VEC_OF_KINDS: &[Shape] = &[
 
 /// Build a crafted plan from a shape.
 ///
-/// The producer is the first member of [`Kind::ALL`] that returns a value, the
-/// terminal the member its [`Terminal`] classification names, and the observer
-/// [`Kind::Observe`] — which is asserted to be the only kind whose handler reads
-/// the probe. So the plan survives a reordering of `ALL` and a change to which
-/// kind returns a value or ends a run.
+/// The producer is the first member of [`Kind::ALL`] that returns a value a
+/// probe fixture can *match*, the terminal the member its [`Terminal`]
+/// classification names, and the observer [`Kind::Observe`] — which is asserted
+/// to be the only kind whose handler reads the probe. So the plan survives a
+/// reordering of `ALL` and a change to which kind returns a matchable value or
+/// ends a run.
+///
+/// The narrower predicate is load-bearing rather than a stylistic preference.
+/// The observer's reading is INV-3's visibility witness, and
+/// [`Kind::ReturnUnmatchedValue`] returns a type no fixture in this suite
+/// holds, so it can never be seen under *any* driver — an observer that saw
+/// nothing because its producer was this kind would satisfy the witness on
+/// evidence that discriminates nothing. Selecting on the broader
+/// `returns_a_value` left that outcome resting on `ReturnValue` happening to
+/// precede `ReturnUnmatchedValue` in `ALL`, which is exactly the ordering
+/// dependence the paragraph above claims not to have.
 ///
 /// The lead, the producers, the separators, and the observers are all emitted
 /// *before* [`Shape::terminal`], which is what makes a crafted plan satisfiable
@@ -294,10 +306,18 @@ fn build(shape: Shape) -> Vec<Kind> {
     if shape.observer_before {
         kinds.push(Kind::Observe);
     }
-    let producer = Kind::ALL
+    let Some(producer) = Kind::ALL
         .into_iter()
-        .find(|kind| kind.returns_a_value())
-        .unwrap_or(Kind::Pass);
+        .find(|kind| kind.returns_a_matchable_value())
+    else {
+        panic!(
+            "no kind in {KIND_ALL:?} returns a value a probe fixture can match, so the crafted \
+             shape's observer would be watching a producer it can never see — leaving INV-3's \
+             visibility witness true of every driver, which is the incidental evidence it exists \
+             to reject and would accept vacuously",
+            KIND_ALL = Kind::ALL
+        );
+    };
     for _ in 0..shape.producers {
         kinds.push(producer);
     }
