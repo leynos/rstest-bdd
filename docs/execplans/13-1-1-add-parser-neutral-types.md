@@ -2326,6 +2326,7 @@ between them. Raise that before spending the tolerance.
     | `93e03a1f` | `7d4fbe40` | the final green required-check verdict |
     | `5a2dc36d` | `0536ccef` | the first rebase's published tip |
     | `20c41239` | `3b9711e9` | the six-of-six green run |
+    | `188ab854` | `655ea473` | D36, whose own text cites the pre-rebase hash |
 
     The invalidation that actually forced the re-run is narrower than either
     draft claimed, and it is the honest shape of it: the six gates were re-run
@@ -2403,15 +2404,31 @@ between them. Raise that before spending the tolerance.
 
   **This is the third time `runner_panics.rs` has breached the 400-line cap,**
   and the pattern is now clear enough to state rather than rediscover. The
-  first was recorded under D35's resolution, when the file went to 410 and four
+  first was recorded under D36's resolution, when the file went to 410 and four
   checkers were masked; the second and third came back within the same file, on
   additions that were each invisible to the gate that was green when they
   landed. The file is a magnet for this because it accumulates a distinct
   concern per change — raw registration, the async boundary, the destructor
   paths — and each arrives as *additive* tests plus the prose explaining them.
-  Decomposing it was the remedy chosen in D35 and again here; a successor
+  Decomposing it was the remedy chosen in D36 and again here; a successor
   adding a fourth concern should split it first rather than discover the cap
   afterwards.
+
+  The three over-cap revisions are worth naming, because the middle one is the
+  one a reader would not guess: `655ea473` (410 lines, introduced by the split
+  that cleared D35's CodeScene finding), `09dd3e88` (still 410 — a
+  documentation-only commit that touched no Rust file, so no Rust gate ran and
+  nothing was measuring), and `d279bb7f` (585, the destructor tests). The file
+  sat over the cap across a commit whose only job was prose.
+
+  That middle revision also corrects the arithmetic: counting breaches by the
+  commits that *touched* the file gives two, not three, because a file does not
+  leave the cap by being edited — it leaves by being measured. The query has to
+  check every commit in the range for the file's length at that commit.
+
+  The split leaves `runner_panics/mod.rs` at 393 lines, seven under the cap, so
+  the magnet has moved rather than been removed. The next concern added to this
+  test target should be split out first, not after.
 
 ## Surprises & discoveries
 
@@ -8447,6 +8464,50 @@ pass — four ambiguous sites read before the scan finished. Both are replaced
 with the set-comparison figures above. The distinction is the one D43 records
 and this plan has paid for twice: a count is a claim about a revision and a
 method, and one produced by partial inspection is a guess.
+
+### D59: the 2×2 control was run while the gate run was in flight, and the test verdict had to be re-measured
+
+**Decision: treat the `make test` green at `9c6b808e` as unsound and re-run
+that gate; keep `check-fmt` and `lint` from the same run, on evidence.**
+
+**What happened.** A six-gate re-run was delegated against `9c6b808e`. While it
+was running, the 2×2 control recorded in D58 was completed by direct experiment
+— temporarily replacing two `report_drop_panic(drop_guarded(..))` call sites in
+`crates/rstest-bdd/src/context/mod.rs` and the one in
+`crates/rstest-bdd/src/runner/outcome/step.rs` with bare `drop(..)`. Both files
+are compiled by `lint`, `test` and `typecheck`, so the edit landed inside a
+gate run that reads them. This is the second occurrence of the failure mode:
+the first was an unplanned prose edit; this one was a **deliberate
+experiment**, run with the rule already in memory. That distinction is the
+lesson. A mutation control *always* edits gate inputs, so it belongs after the
+gate run, not alongside it.
+
+**Why two of the three verdicts survived, measured rather than argued.**
+`check-fmt` ended at 18:18:05, 1m47s before the earliest mutation artefact
+(18:19:52). `lint` ended at 18:18:33, 1m19s before it, and its rustdoc leg was
+a whole-tree cache hit —
+`find target/doc -newermt 18:18:05 ! -newermt 18:18:40` returns zero files, the
+newest doc artefact anywhere being 18:14:35. `make test` ran 18:18:47–18:22:35,
+which *contains* the mutation window, so its verdict has unverifiable
+provenance and was not carried forward.
+
+**The corroboration that the mutation never produced a binary.** The source was
+restored at 18:20:18.955 and the `runner_panics` test binary was built at
+18:20:24.398 — 5.4s *after* the restore, from the restored bytes. The one build
+that did start inside the window (`.d` at 18:19:55) produced no executable at
+all, so no mutated test binary was ever run. That is strong evidence and it is
+still not a verdict: it is a reason to expect the re-run to be green, not a
+substitute for running it. The re-run is the action this decision commits to,
+and it is outstanding — no clean `make test` exists at the time of writing.
+
+**How the incident was contained.** sha256 snapshots were taken before the
+edits; both files were restored and verified byte-identical against the
+*committed blobs* (`context/mod.rs` `fa953a8345b8c46ab…`, `step.rs`
+`e034bda61fc34542…`), not merely against the pre-edit hashes. A STOP-AND-REPORT
+was sent to the gate runner so it would report the overlap window instead of
+certifying a verdict, and it did.
+
+Date/Author: 2026-09-29, implementation agent.
 
 ## Context and orientation
 
