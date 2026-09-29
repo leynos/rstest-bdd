@@ -226,8 +226,8 @@ impl<'a> StepContext<'a> {
     /// All three results drop a value on this function's own stack: the
     /// displaced override on the successful path, and the step's value itself
     /// when nothing matched or the match was ambiguous. Each drop is wrapped by
-    /// [`drop_guarded`](crate::panic_support::drop_guarded), so a destructor
-    /// that panics is logged rather than unwinding out of the caller. That
+    /// `crate::panic_support::drop_guarded`, which catches the unwind and logs
+    /// it, so a destructor that panics does not unwind out of the caller. That
     /// matters here rather than in the caller because `insert_value` is called
     /// from inside the runner's per-step record, and the runner's contract is
     /// that every failure reaches the caller as a returned outcome — a

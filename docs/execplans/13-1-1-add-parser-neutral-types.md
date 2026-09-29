@@ -2042,13 +2042,12 @@ between them. Raise that before spending the tolerance.
   A fourth defect surfaced on the second run and was the branch's as well: the
   execplan edits that had been hand-wrapped were not `mdtablefix`-clean, so
   `make check-fmt` failed at its *last* sub-step, reporting `+44 -47` of pure
-  paragraph
-  rejoining. The first run had **masked** that sub-step — it aborted at the
-  earlier rustfmt failure, so `mdtablefix --check` never ran and had no verdict
-  — which is the "a gate that aborts early never ran the steps after it" hazard
-  this plan's Surprises section records, encountered here in the wild rather
-  than cited. It was fixed by applying `mdtablefix --in-place` with the gate's
-  exact flags
+  paragraph rejoining. The first run had **masked** that sub-step — it aborted
+  at the earlier rustfmt failure, so `mdtablefix --check` never ran and had no
+  verdict — which is the "a gate that aborts early never ran the steps after
+  it" hazard this plan's Surprises section records, encountered here in the
+  wild rather than cited. It was fixed by applying `mdtablefix --in-place` with
+  the gate's exact flags
   (`--git --include-untracked --wrap --renumber --breaks --ellipsis --fences`),
   whose `--git` selector confines it to the five paths already in the diff. The
   reflow was then *proved* content-preserving rather than trusted: the
@@ -2375,6 +2374,44 @@ between them. Raise that before spending the tolerance.
   `runner_panics.rs`, `execution/unwind.rs`, and both drivers — were corrected
   to name all four drop sites rather than attributing them to `CleanupGuard`
   alone. Recorded as D58.
+- [x] (2026-09-29) **The first gate run on the round-11 commit came back red
+  with three defects, one of them invisible until the other two were fixed.**
+  `make check-fmt` failed on mdtablefix reflow of this document (`+26 -29`), and
+  `make lint` failed on a rustdoc `private-intra-doc-links` error: the
+  `insert_value` note linked `[`drop_guarded`]` to a `pub(crate)` item, which
+  `cargo doc --cfg docsrs -D warnings` rejects. Both are fixed — the link is
+  now a plain code span, and mdtablefix was run on the one file rather than
+  through `make fmt`, which would have reflowed Markdown and Python across the
+  whole tree.
+
+  The third was **masked by the second**. `make lint` aborts at `Makefile:132`
+  when `cargo doc` fails, so the six steps after it never ran — including
+  `scripts/check_rs_file_lengths.py` at line 135. My 253 added lines had taken
+  `runner_panics.rs` to 585, over the 400-line cap, and the failure was
+  invisible in the lint log because the run died four steps earlier. It was
+  found by reading the recipe rather than the log, and confirmed by running the
+  checker directly. The destructor tests are now `runner_panics/destructors.rs`
+  (258 lines) under a `#[path]` child module, leaving the parent at 360; both
+  are inside the cap, and all nine tests in the binary pass from their new
+  location.
+
+  The lesson is a variant of one this plan has already paid for twice: a red
+  gate is evidence about **the step that failed**, not about the steps behind
+  it. Six of `make lint`'s nine steps had no verdict at all at that revision,
+  and a reading of the report alone would have called the gate "failed on a doc
+  link" and stopped there.
+
+  **This is the third time `runner_panics.rs` has breached the 400-line cap,**
+  and the pattern is now clear enough to state rather than rediscover. The
+  first was recorded under D35's resolution, when the file went to 410 and four
+  checkers were masked; the second and third came back within the same file, on
+  additions that were each invisible to the gate that was green when they
+  landed. The file is a magnet for this because it accumulates a distinct
+  concern per change — raw registration, the async boundary, the destructor
+  paths — and each arrives as *additive* tests plus the prose explaining them.
+  Decomposing it was the remedy chosen in D35 and again here; a successor
+  adding a fourth concern should split it first rather than discover the cap
+  afterwards.
 
 ## Surprises & discoveries
 
@@ -7690,8 +7727,7 @@ corrections.** Both findings asked for the same change: install one filtering
 hook, gate it on a thread-local flag, drop the process-global replacement and
 its `Mutex`. Applied as D11's module note now describes. The independent review
 that checked the design before it was written corrected two details that would
-each
-have been a silent defect:
+each have been a silent defect:
 
 - the guard must **save and restore** the flag's previous value, not clear it to
   `false`. Clearing would strand an outer window if windows ever nest; they do
@@ -8351,21 +8387,22 @@ is still exit 134. Drop-and-report is what `CleanupGuard::drop` already does,
 so the fix converges on the existing convention instead of establishing a
 second one.
 
-**The control found a defect in the test written for the fix.** Three new
-rows in `runner_panics.rs` drive the three drop paths through `run_scenario`,
-each asserting both that the run returned an outcome and that the armed
-value's destructor actually ran. Removing the guards made the `Unmatched` and
-`Ambiguous` rows fail as designed — and the `Displaced` row **pass**, which is
-vacuous. The cause was the row's own scaffolding: it registered the armed value
-through `insert_owned`, which stores a *fixture* as a borrowed
-`RefCell<Box<dyn Any>>`, while `insert_value` matches fixtures by erased type
-and replaces into a different map. So the value it displaced was an empty
-`RefCell` wrapper carrying no destructor at all, and the row would have passed
-whether or not the conversion's guard existed. A fixture and an override live
-in different maps; only the override map is what `insert_value` replaces into.
-The row now seeds the armed value *through* `insert_value` and has the step
-return a quiet value, which is the only arrangement in which the conversion is
-what drops it.
+**The control found a defect in the test written for the fix.** Three new rows
+in `runner_panics/destructors.rs` (split from the parent file when the
+additions breached the repository's 400-line cap) drive the three drop paths
+through `run_scenario`, each asserting both that the run returned an outcome
+and that the armed value's destructor actually ran. Removing the guards made the
+`Unmatched` and `Ambiguous` rows fail as designed — and the `Displaced` row
+**pass**, which is vacuous. The cause was the row's own scaffolding: it
+registered the armed value through `insert_owned`, which stores a *fixture* as
+a borrowed `RefCell<Box<dyn Any>>`, while `insert_value` matches fixtures by
+erased type and replaces into a different map. So the value it displaced was an
+empty `RefCell` wrapper carrying no destructor at all, and the row would have
+passed whether or not the conversion's guard existed. A fixture and an override
+live in different maps; only the override map is what `insert_value` replaces
+into. The row now seeds the armed value *through* `insert_value` and has the
+step return a quiet value, which is the only arrangement in which the
+conversion is what drops it.
 
 **The 2×2 control that closed it.** With all three guards removed the three
 rows fail; with the `context` guards restored and the `ValueFate` guard still
@@ -8392,25 +8429,24 @@ is one call deep.
 **Finding 1, first person, applied across sixteen lines in thirteen edits.**
 Both figures come from a set comparison of the pronoun-bearing lines before and
 after, not from a reading: `comm -23` over the two sorted line sets reports
-sixteen lines present at `128a4c82` and absent after, and two new matching lines
-— this entry's own, either side of the `no I/O` quotation a paragraph below.
-The rule applied is the plan's
-own, recorded in D55's predecessor — avoid first person *as the document's
-voice*, while quotations and prose describing a removed construction are
-deliberate exceptions. The surviving hits are all in those two categories:
-Gherkin step text, a quoted end-user question, a quoted runner message, Mermaid
-node identifiers, `no I/O`, and prose that must be able to name the
-construction it removed.
+sixteen lines present at `128a4c82` and absent after, and two new matching
+lines — this entry's own, either side of the `no I/O` quotation a paragraph
+below. The rule applied is the plan's own, recorded in D55's predecessor —
+avoid first person *as the document's voice*, while quotations and prose
+describing a removed construction are deliberate exceptions. The surviving hits
+are all in those two categories: Gherkin step text, a quoted end-user question,
+a quoted runner message, Mermaid node identifiers, `no I/O`, and prose that
+must be able to name the construction it removed.
 
 **One figure was written before it was measured, and is corrected here.** An
 earlier draft of this entry said the fix covered "thirteen sites" and described
-the round's report as claiming "four sites". Neither was measured: the first was
-an edit count standing in for a line count, and the second attributed to the
-round a figure that came from this session's own partial classification pass —
-four ambiguous sites read before the scan finished. Both are replaced with the
-set-comparison figures above. The distinction is the one D43 records and this
-plan has paid for twice: a count is a claim about a revision and a method, and
-one produced by partial inspection is a guess.
+the round's report as claiming "four sites". Neither was measured: the first
+was an edit count standing in for a line count, and the second attributed to
+the round a figure that came from this session's own partial classification
+pass — four ambiguous sites read before the scan finished. Both are replaced
+with the set-comparison figures above. The distinction is the one D43 records
+and this plan has paid for twice: a count is a claim about a revision and a
+method, and one produced by partial inspection is a guess.
 
 ## Context and orientation
 
