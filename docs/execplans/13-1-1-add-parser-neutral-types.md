@@ -2356,6 +2356,91 @@ between them. Raise that before spending the tolerance.
   **after** it is written and their verdicts are carried in its commit message
   — the D49 discipline, and the reason no gate verdict appears in this
   paragraph for the revision it created.
+- [x] (2026-09-29) **The two reds the `313a177e` run found are fixed, and all
+  six gates are green at `ac4ea96c` / tree `e0a79ba2`.** Every gate's
+  `REV_START` and `REV_END` read `ac4ea96c7f6d92ac388db556c29320bbe0b16524` and
+  every `TREE_START` and `TREE_END` read
+  `e0a79ba2250beb9cad465e433e87d2f01d5c3064`, so the six verdicts certify one
+  stationary revision: `make check-fmt` (0, 4s), `make markdownlint` (0, 28s,
+  `Summary: 0 issues in 0 files`), `make nixie` (0, 0s), `make typecheck` (0,
+  1s), `make lint` (0, 19s), `make test` (0, 134s). These durations are the
+  preserved run at `/tmp/gate-run-preserved-20260929-214620/`, which is the run
+  whose counts the rest of this paragraph reports; the six canonical
+  `/tmp/<gate>-….out` paths named two sentences below have since been rewritten
+  by later runs and no longer carry these numbers, so read them by their `REV_`
+  trailers rather than by filename. The lint run reached **all nine recipe
+  steps** — more than `EXIT=0` alone proves, since the recipe aborts at the
+  first failure, and `scripts/check_rs_file_lengths.py` through
+  `check_serial_nextest_matrix.py` had been left without a verdict by an
+  earlier run that died before reaching them. `make test`'s five legs were
+  green: 2,066 passed / 7 skipped (leg 1), 178 doctests passed / 65 ignored
+  (leg 2), 727 passed / 7 skipped on the `--no-default-features` leg, 5 fixture
+  lockfiles up to date, 247 pytest passed. `step_macros_compile` **ran and
+  passed** in both nextest legs rather than being skipped, which is the check
+  this branch has twice been wrong about. Logs are the six canonical
+  `/tmp/<gate>-rstest-bdd-13-1-1-add-parser-neutral-types.out` files; the run
+  they displaced, red on `markdownlint` and `lint`, is preserved with its
+  digests in `/tmp/gate-run-preserved-20260929-2130-ac4ea96c/`.
+
+  **The 400-line split that repaired the lint red then staled three figures,
+  and the post-commit review AGENTS.md requires is what found them.** One was a
+  bare count in the parent's module doc ("the seven assertions" where the split
+  left six) and two were plan citations by *line number* into the file the
+  split had renumbered. Measured against the history rather than assumed: at
+  `e760e22b` line 174 genuinely was the `&&` conjunction the plan cites and
+  line 103 genuinely was the `"42"` assertion, so neither citation was ever
+  wrong — both were correct and then expired, which is what a line number does
+  when the file around it moves. All three are repaired, the citations now
+  naming the *test* rather than its address. The sweep that found them was
+  widened to every figure the split could have staled and reported no others:
+  the plan's "six tests in `runner_panics`" and "six assertions" of the
+  `guarded` unit cases are both correct and neither concerns this file.
+  Recorded as D61, which also preserves two figures I could not certify from
+  the repository rather than silently rewriting them.
+- [x] (2026-09-29) **A delegated gate sweep and my own run overlapped in one
+  worktree and produced a red `step_macros_compile` that was neither a defect
+  nor ordinary flake, and the commit below rests on the investigated verdict
+  rather than the first log.** The red is a **cross-process race**: the
+  repository's `#[serial]` and nextest test-group both constrain one process,
+  and the trybuild wrapper `compile_fail_with_normalized_output` deletes the
+  tracked `.stderr` expectation deliberately, so a concurrent process reading
+  trybuild's verdict in that window sees "created new stderr files" as a hard
+  failure. Four uncontended runs at `ac4ea96c` / tree `e0a79ba2` pass it — the
+  preserved `214620` run (exit 0), my own leg 1 `PASS [81.798s]` and leg 3
+  `PASS [32.916s]`, the sweep's uncontended re-run (all five legs, exit 0), and
+  an isolated single-test re-run `PASS [55.711s]` with `REV_START == REV_END`.
+  The one failing run is the only overlapping one, 87.054s against 63.075s,
+  with four package-cache lock waits. Fixtures are clean throughout: every
+  tracked `.stderr` is byte-identical to `HEAD` and to `origin/main`, and
+  `crates/rstest-bdd/src/step_return.rs` is identical to `origin/main`, so no
+  branch-authored content is implicated. Recorded as **D62**, with the
+  procedural rule and the `REV_START`-not-filename discipline now also in
+  `docs/developers-guide.md` beside the `#[serial]`/test-group guidance, which
+  is where that section asks a cross-process resource to be documented. Two
+  stale claims in the entry above were repaired in the same pass:
+  `make nixie`'s missing duration (`0, s` → `0, 0s`) and the fact that the six
+  canonical `/tmp/<gate>-….out` logs have since been overwritten by later runs,
+  so the paragraph now names the preserved directory its numbers came from.
+  Corrected mid-draft: a preserved directory named `…-2130-ac4ea96c` actually
+  carries `rev=976d881b`, so it was struck from the tally — a directory's name
+  is not evidence of its revision, which is `shared-tmp-gate-log-hazard` again.
+- [x] (2026-09-29) **`make check-fmt` rejected the hand-wrapping, the stop
+  hook overlapped the delegated sweep, and both are recorded as D63.** The
+  hook's own `check-fmt` ran while the sweep was mid-flight and failed on
+  `mdtablefix --check`, which reported both touched Markdown files as needing
+  reformatting (+17/-18 and +39/-39). The sweep was stopped rather than left to
+  finish: its `check-fmt` verdict had raced the hook's and its `test` leg would
+  have been exposed to the D62 race, so none of its verdicts would have counted.
+  `mdtablefix --in-place` was then run on those two files alone, which is the
+  authoring tool for wrapping; the full-tree check went from 2 files to repair
+  to **0**, and `markdownlint` was re-run *after* the rewrite and stayed green
+  (`Summary: 0 issues in 0 files`). The rewrite was proved whitespace-only by
+  reverse-applying its own diff to a copy of the rewritten file, which
+  reproduced both pre-rewrite blobs exactly (`0c66d6dd…`, `500448cc…`) — the
+  first attempt at this compared a file against itself and was vacuous. All six
+  gates now have to be re-established at a tree that includes this edit, since
+  the plan is itself a `check-fmt` and `markdownlint` input; D49's rule applies
+  and the verdicts will be carried in the commit message.
 
 ## Surprises & discoveries
 
@@ -6077,11 +6162,11 @@ general form is right. But the finding's stated mechanism — that the existing
 relation fails to hold for all flag combinations — is a real gap only for a
 plan that sets `allow_skipped(true)`, and the guide's sentence is scoped to the
 instrumentation tests, which run a plan that does not.
-`runner_instrumentation.rs:174` already asserts the `&&` form the finding asks
-be "retained", so nothing there was wrong. The guide now states the general
-relations in a fenced block, with the short form named as the plan-specific
-special case it is and `runner_instrumentation.rs` cited as where that case is
-used.
+`runner_instrumentation.rs::policy_resolution_is_announced_with_its_inputs`
+already asserts the `&&` form the finding asks be "retained", so nothing there
+was wrong. The guide now states the general relations in a fenced block, with
+the short form named as the plan-specific special case it is and
+`runner_instrumentation.rs` cited as where that case is used.
 
 **Findings 4 and 10 — the design doc's runner-placement rule is weaker than the
 guide's. VALID, and more so than the finding says.** The design doc said "a
@@ -7585,15 +7670,15 @@ independent stalenesses, none of them caused by the reviewed commit and all of
 them live at it. `runner_instrumentation/capture.rs` documented an
 `Option<u32>` as rendering `Some(42)` when `tracing` records an `Option`
 through its inner value and the value is `42` — a fact
-`runner_instrumentation.rs:103` already asserted, having been corrected there
-and not in the doc. Six doc sites across `outcome/mod.rs` and
-`outcome/step.rs` — one in the first file, five in the second — carried the
-same staleness in three variants: every one of them explained the `not(test)`
-expectation by pointing at `ScenarioSkip::new`, three directly and three by way
-of `passed`, which is where that explanation had been parked; and two of them
-said in so many words that the caller "lands in EP-M2", a *future* caller when
-`engine::policy::assemble` had held that role since EP-M2 landed. That pointer
-had gone stale twice over — the seven
+`runner_instrumentation.rs::the_run_opens_a_span_carrying_the_plans_identity`
+already asserted, having been corrected there and not in the doc. Six doc sites
+across `outcome/mod.rs` and `outcome/step.rs` — one in the first file, five in
+the second — carried the same staleness in three variants: every one of them
+explained the `not(test)` expectation by pointing at `ScenarioSkip::new`, three
+directly and three by way of `passed`, which is where that explanation had been
+parked; and two of them said in so many words that the caller "lands in EP-M2",
+a *future* caller when `engine::policy::assemble` had held that role since
+EP-M2 landed. That pointer had gone stale twice over — the seven
 `#[cfg_attr(not(test), expect(dead_code))]` attributes it referred to were
 deleted by `50b096e1`, the commit that wired the driver, and
 `ScenarioSkip::new`'s own doc never mentioned them, so the reference dangled at
@@ -8202,6 +8287,175 @@ and matches nothing. It also described `make lint` as running "all nine steps"
 the logs rather than by a gate, and all three are the same failure the plan's
 own `never-write-a-hash-you-did-not-run` rule names: **a figure written from
 expectation rather than measurement.**
+
+Date/Author: 2026-09-29, implementation agent.
+
+### D61: the 400-line split moved two citations that were correct, and a figure sweep found only one stale count
+
+The split at `ac4ea96c` cut `runner_instrumentation.rs` from 445 to 362 lines
+by moving the async attribution test into a sibling. That was the right repair
+for the cap, but it **relocated two plan citations that had been correct at the
+revision they were written**. Both pointed into the file by *line number*
+(`runner_instrumentation.rs:174` and `:103`), and a line number is a property
+of the file's layout rather than of the assertion it names. Measured against
+the history rather than assumed: at `e760e22b` line 174 *was*
+`if allow_skipped == "false" && fail_on_skipped == "true" {` and line 103 *was*
+`assert_eq!(value(&values, "line"), "42");`. After the split the conjunction is
+at 178 and the `"42"` assertion at 107. Neither citation was ever wrong; both
+were correct and then expired, which is the failure mode
+`present-tense-revision-claims-go-stale` names in a different guise.
+
+Both are now cited by **test name** —
+`policy_resolution_is_announced_with_its_inputs` and
+`the_run_opens_a_span_carrying_the_plans_identity` — because the name is the
+assertion's identity while the number is only its address. This also matches
+the form the same document already uses elsewhere
+(`rendering.rs::the_rendered_failure_takes_its_path_from_the_plan_not_the_error`).
+
+Rather than fix those two and stop, I swept every figure the split could have
+staled. **One was actually stale**: the parent's module doc said "the seven
+assertions that are D14's obligations" when the split left it six. It now says
+six and points at the seventh's new home, which is more useful than the bare
+number was. Two further counts were checked and are correct: the plan's "the
+six tests in `runner_panics`" (4 in `runner_panics.rs`, 1 in
+`runner_panics/cleanup.rs`, 1 in `runner_panics/mod.rs`) and its "six
+assertions" for the `guarded` unit cases — neither is `runner_instrumentation`,
+so the split could not touch either.
+
+**Two figures I could not certify from the repository, recorded rather than
+silently altered.** The plan reports the file at "413 lines" in the `cargo fmt`
+observation, and my sweep of every revision in `git rev-list --all` found 392
+and 445 as the only counts either side of it. The narrative — a 21-line test
+added to a 392-line file, trimmed before commit — is internally coherent, and
+an uncommitted intermediate is *expected* to be absent from history, so the
+figure is not refuted; it is simply not something a reader can verify from the
+tree. I left it as written because changing a number I cannot measure would
+replace an unverifiable claim with a fabricated one, which the plan's
+`never-write-a-hash-you-did-not-run` rule forbids more sharply. The same
+applies to the "six assertions" of the `guarded` unit cases: I could not
+reliably locate the five-of-six and two-of-many cases the passage describes
+(`guard` as a string does not find its subject; I did not assume the
+occurrence), and the count predates this branch's split entirely, so it is out
+of scope for a split-driven correction.
+
+### D62: two gate runs in one worktree can fabricate a trybuild failure
+
+`step_macros_compile` failed once at `ac4ea96c` / tree `e0a79ba2` and passed
+four times at that same revision, which is the whole of the evidence. The
+failure is not a defect and not flake in the ordinary sense: it is a
+**cross-process race** the repository's own serialization does not cover.
+
+`step_macros_compile` is `#[serial_test::serial(trybuild_target_directory)]`,
+and `.config/nextest.toml` puts the trybuild binaries in a `cargo-spawning`
+group with `max-threads = 1`. Both of those constrain **one** test process.
+They do nothing about a second `make test` — a stop hook, a sub-agent, or a
+delegated gate run — executing concurrently in the same worktree. The two runs
+then share `target/tests/trybuild` and `crates/rstest-bdd/wip`.
+
+The mechanism is in `trybuild_macros.rs::compile_fail_with_normalized_output`,
+which is a deliberate delete-and-restore protocol: it reads the tracked
+`.stderr`, **deletes it** so trybuild is forced to take its `CreatedWip`
+branch, restores the file, and then compares normalized actual against
+normalized expected itself. So for the duration of every one of these fixtures
+the expectation is *absent from disk*. A second process reading trybuild's
+verdict in that window sees a test that "created new stderr files" — the panic
+`trybuild-1.0.121/src/run.rs:106` raises — while the first process is about to
+swallow its own panic because the normalized comparison succeeded. Reading the
+source rather than inferring from the log is what settled this: the
+observed-only-in-the-failing-run `wip/` lines are a *consequence* of the race
+and not a fingerprint of it, because nextest suppresses stdout for passing
+tests, so a clean run prints none of them either way.
+
+Evidence, in the order it became decisive. Four uncontended runs at `ac4ea96c`
+/ tree `e0a79ba2` pass this test: the preserved `214620` run (leg 1 complete,
+exit 0), the overlapping run of my own (`/tmp/fix-test.out`, leg 1
+`PASS [81.798s]` and leg 3 `PASS [32.916s]`), the delegated sweep's own
+uncontended re-run (leg 1 `PASS [38.175s]`, leg 3 `PASS [34.838s]`, five legs
+green), and an isolated re-run of the single test, which passed in 55.7s with
+`REV_START == REV_END`. Exactly one run at that revision fails, and it is the
+only one that overlapped another `make test`; its leg 1 took 87.054s against
+63.075s uncontended and it logged four
+`Blocking waiting for file lock on package cache` lines. Note for anyone
+re-deriving this: the preserved directory named `…-2130-ac4ea96c` is
+**misnamed** — its trailers read `rev=976d881b tree=313a177e` — so it does not
+count toward the four, and a directory's name is not evidence of its revision.
+Fixture state is clean in every direction: the tracked `.stderr` files are
+byte-identical to both `HEAD` and `origin/main`, and
+`crates/rstest-bdd/src/step_return.rs` is identical to `origin/main`, so
+nothing the branch authored is implicated.
+
+**What this cost, and the lesson.** The first thing I did on seeing the red was
+to check whether the gate input had moved; it had not, so I very nearly
+accepted it as a real regression against a passing fixture. What refuted that
+was not the log but the source, and specifically the discovery that the
+expectation file is deleted on purpose. The durable rules: a red at a revision
+that has just passed is evidence of *interference* until the mechanism says
+otherwise; the concurrent-run window belongs to the same family as
+`never-edit-a-gate-input-while-a-gate-runs` and `shared-tmp-gate-log-hazard`,
+and the fix is procedural — one gate run per worktree at a time, and a
+delegated sweep must own the worktree for its duration. The six canonical
+`/tmp/<gate>-….out` logs are *shared* paths, so each later run silently
+overwrites the previous run's evidence; that is why this entry cites preserved
+directories rather than filenames, and why the Progress entry above now names
+the run its numbers came from.
+
+Date/Author: 2026-09-29, implementation agent.
+
+### D63: the stop hook cannot be excluded from the gate window, and `mdtablefix` owns the wrapping
+
+Two findings from the same window, one procedural and one technical.
+
+**The procedural one.** D62's rule — one gate run per worktree at a time — is
+necessary but not sufficient, because the stop hook runs its own `check-fmt`
+whenever a turn ends and it does not consult any rule this plan can state. The
+overlap therefore has two parties, not one: the agent can serialize its own
+runs and a delegated sweep, and still be overlapped from outside. The practical
+consequence is that a gate which cannot be re-run cheaply should be *finished*
+before the turn ends, and that a delegated sweep started late in a turn is
+likely to be invalidated rather than merely delayed. A run that raced the hook
+is not evidence either way, and its verdicts have to be re-established rather
+than reported.
+
+**The technical one, and the more useful.** `make check-fmt` rejects
+hand-wrapped prose: its final step is `mdtablefix --check --wrap`, so the
+column at which a paragraph breaks is not a matter of taste but a property the
+tool defines. Editing three files by hand and then running `make markdownlint`
+green proves nothing, because `markdownlint` does not check wrapping at all;
+`mdtablefix` does, and it disagreed with both touched Markdown files on the
+first run after the edits. **A green `markdownlint` is not a green `check-fmt`,
+and the two must be run as a pair whenever Markdown changes.**
+
+The correct order is to let `mdtablefix --in-place` do the wrapping and then
+read what it did, rather than to wrap by hand and hope. Two verification
+techniques are worth keeping, because the obvious one is vacuous:
+
+- `mdtablefix --check --git --include-untracked` is read-only and idempotent —
+  two consecutive runs produced byte-identical output and left the files
+  unchanged — so it is safe to run as a probe. `--diff` with explicit `FILES`
+  arguments *conflicts* with `--git` and exits 2 without a diff; drop `--git`
+  when naming files explicitly.
+- To prove the rewrite changed nothing but whitespace, reverse-apply the diff
+  to a copy of the *rewritten* file and compare hashes against the pre-rewrite
+  content. Doing this the other way round — copying the working tree and
+  comparing it against itself — compares a file with itself and proves nothing,
+  which is exactly the mistake made here first. With `-p0` (the tool emits
+  unprefixed paths) the reverse-apply reproduced both pre-`mdtablefix` blobs
+  byte-for-byte (`0c66d6dd…` for `docs/developers-guide.md`, `500448cc…` for
+  this plan), which is a real proof that the only change was wrapping.
+
+Both files are now clean under `mdtablefix --check`, and `markdownlint` was
+re-run after the rewrite rather than before it.
+
+- **Observation:** `make markdownlint` and `make check-fmt` have disjoint
+  coverage of Markdown, and this branch's habit of treating `markdownlint` as
+  *the* Markdown gate is what let hand-wrapping survive two green runs. The
+  spell check lives under `markdownlint`'s `spelling` prerequisite; the wrap
+  check lives in `check-fmt`'s `mdtablefix` step; `markdownlint-cli2` itself
+  never inspects line width. So a hand-wrapped paragraph is invisible to
+  `markdownlint` however green it reports, and the failure surfaces one gate
+  later in a different target. The practical rule is to run the two as a pair
+  after any Markdown edit, and to prefer the formatter over the linter when
+  they could disagree.
 
 Date/Author: 2026-09-29, implementation agent.
 
