@@ -405,6 +405,8 @@ jobs:
 
       - name: Install prebuilt sccache
         shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           tool_dir="$GITHUB_WORKSPACE/.ci-tools"
