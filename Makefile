@@ -47,7 +47,7 @@ RUFF_VERSION ?= 0.16.4
 RUFF = $(UV_ENV) $(UV) tool run --python 3.14 ruff@$(RUFF_VERSION) --config pyproject.toml
 TY_VERSION ?= 0.0.74
 TY = $(UV_ENV) $(UV) run --with ty==$(TY_VERSION) ty
-TYPOS_CONFIG_BUILDER_VERSION ?= v0.1.1
+TYPOS_CONFIG_BUILDER_VERSION ?= v0.1.3
 TYPOS_CONFIG_BUILDER = $(UV_ENV) $(UV) tool run --python 3.14 --from \
 	"git+https://github.com/leynos/typos-config-builder.git@$(TYPOS_CONFIG_BUILDER_VERSION)" \
 	typos-config-builder
