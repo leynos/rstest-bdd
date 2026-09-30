@@ -1779,6 +1779,10 @@ shared `typos-config-builder` gate, which pins the Typos release it runs.
 depends on it, so prose checks cannot bypass the repository-wide spelling
 policy.
 
+`TYPOS_CONFIG_BUILDER_VERSION` in the `Makefile` pins the
+`typos-config-builder` release the gate runs (currently `v0.1.3`). Raise it
+together with the regenerated `typos.toml`, never on its own.
+
 The Markdown discovery used by `make markdownlint` excludes ignored `.vtcode`
 task metadata, keeping editor task files out of project documentation
 validation. The spelling gate reads tracked files, so it never sees them.
