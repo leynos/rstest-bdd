@@ -248,7 +248,7 @@ fn extract_step_struct_attribute_detects_marker() {
         Ok(false) => panic!("attribute should be detected"),
         Err(err) => panic!("attribute parse failed: {err}"),
     }
-    assert!(arg.attrs.is_empty());
+    assert_eq!(arg.attrs, []);
 }
 
 #[test]

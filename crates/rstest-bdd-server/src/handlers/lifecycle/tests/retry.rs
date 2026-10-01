@@ -91,7 +91,7 @@ fn stale_workspace_preparation_is_discarded_after_initialize_retry() {
     let preparation = prepare_workspace(workspace.path());
 
     assert_eq!(retry.workspace_path, None);
-    assert!(state.workspace_folders().is_empty());
+    assert_eq!(state.workspace_folders(), []);
     handle_workspace_ready(
         &mut state,
         WorkspaceReadyEvent {

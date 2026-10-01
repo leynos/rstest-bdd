@@ -19,13 +19,12 @@ pub fn __rstest_bdd_expect_skip_message_contains(
             actual = message,
             expected = expected,
         );
-    } else {
-        panic_localized!(
-            "assert-skip-missing-message",
-            target = target,
-            expected = expected,
-        );
     }
+    panic_localized!(
+        "assert-skip-missing-message",
+        target = target,
+        expected = expected,
+    );
 }
 
 #[doc(hidden)]

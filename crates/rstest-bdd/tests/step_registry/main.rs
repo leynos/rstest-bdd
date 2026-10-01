@@ -157,7 +157,7 @@ fn find_step_with_metadata_returns_empty_fixtures_for_no_fixture_step() {
         .expect("step 'behavioural' not found in registry");
 
     assert_eq!(step.pattern.as_str(), "behavioural");
-    assert!(step.fixtures.is_empty());
+    assert_eq!(step.fixtures, Vec::<&str>::new());
 }
 
 #[test]
@@ -195,7 +195,7 @@ fn fixture_validation_detects_missing_fixtures() {
         .filter(|f| !available.contains(f))
         .collect();
 
-    assert!(!missing.is_empty());
+    assert_ne!(missing, Vec::<&str>::new());
     assert!(missing.contains(&"missing"));
 }
 
@@ -217,7 +217,7 @@ fn fixture_validation_passes_when_all_fixtures_present() {
         .filter(|f| !available.contains(f))
         .collect();
 
-    assert!(missing.is_empty());
+    assert_eq!(missing, Vec::<&str>::new());
 }
 
 #[test]

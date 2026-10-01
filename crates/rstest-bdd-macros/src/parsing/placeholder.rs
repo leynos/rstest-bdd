@@ -222,6 +222,6 @@ mod tests {
     #[test]
     fn extract_placeholder_names_empty_when_none() {
         let names = extract_placeholder_names("No placeholders here");
-        assert!(names.is_empty());
+        assert_eq!(names, Vec::<String>::new());
     }
 }
