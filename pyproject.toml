@@ -68,35 +68,35 @@ select = [
     "ANN",
     "C90",
     "PLR",
-    "PLE4703",
-    "PLR0202",
-    "PLR0203",
-    "PLR0914",
-    "PLR0916",
-    "PLR1702",
-    "PLR6104",
-    "PLR6201",
-    "PLR6301",
-    "PLW0108",
-    "RUF036",
-    "RUF053",
-    "RUF055",
-    "RUF064",
-    "RUF066",
+    "modified-iterating-set",
+    "no-classmethod-decorator",
+    "no-staticmethod-decorator",
+    "too-many-locals",
+    "too-many-boolean-expressions",
+    "too-many-nested-blocks",
+    "non-augmented-assignment",
+    "literal-membership",
+    "no-self-use",
+    "unnecessary-lambda",
+    "none-not-at-end-of-union",
+    "class-with-mixed-type-vars",
+    "unnecessary-regular-expression",
+    "non-octal-permissions",
+    "property-without-return",
 ]
 extend-ignore = [
-    "D203",
-    "D213",
+    "incorrect-blank-line-before-class",
+    "multi-line-summary-second-line",
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"scripts/tests/test_*.py" = ["S101", "PLR0913", "PLR0917", "PLR2004", "PLR6301"]
+"scripts/tests/test_*.py" = ["assert", "too-many-arguments", "too-many-positional-arguments", "magic-value-comparison", "no-self-use"]
 "tests/workflow_contracts/*_test.py" = [
-    "S101",
-    "PLR0913",
-    "PLR0917",
-    "PLR2004",
-    "PLR6301",
+    "assert",
+    "too-many-arguments",
+    "too-many-positional-arguments",
+    "magic-value-comparison",
+    "no-self-use",
 ]
 
 [tool.ruff.lint.flake8-import-conventions]
