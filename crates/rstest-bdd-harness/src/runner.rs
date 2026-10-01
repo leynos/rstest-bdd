@@ -184,7 +184,7 @@ mod tests {
         assert_eq!(metadata.feature_path(), "<unknown>");
         assert_eq!(metadata.scenario_name(), "<unknown>");
         assert_eq!(metadata.scenario_line(), 1);
-        assert!(metadata.tags().is_empty());
+        assert_eq!(metadata.tags(), Vec::<String>::new());
     }
 
     #[test]

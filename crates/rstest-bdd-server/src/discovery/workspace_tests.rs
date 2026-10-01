@@ -118,7 +118,7 @@ fn finds_feature_files_in_various_locations(
 fn returns_empty_when_no_feature_files(create_test_workspace: io::Result<TempDir>) {
     let workspace = create_test_workspace.expect("test setup should succeed");
     let features = find_feature_files(workspace.path()).expect("feature discovery should succeed");
-    assert!(features.is_empty());
+    assert_eq!(features, Vec::<std::path::PathBuf>::new());
 }
 
 /// Creates and removes a temporary directory, returning its missing path.

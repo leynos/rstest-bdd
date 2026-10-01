@@ -9,7 +9,7 @@ fn new_state_is_not_initialized() {
     assert!(!state.is_initialised());
     assert!(state.client_capabilities().is_none());
     assert!(state.workspace_info().is_none());
-    assert!(state.workspace_folders().is_empty());
+    assert_eq!(state.workspace_folders(), []);
     assert!(state.feature_indices.is_empty());
     assert!(state.rust_step_indices.is_empty());
     assert!(

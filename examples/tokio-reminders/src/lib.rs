@@ -300,8 +300,8 @@ mod tests {
         local_set
             .run_until(async move {
                 assert_eq!(service.pending_reminder_count(), 0);
-                assert!(service.pending_recipients().is_empty());
-                assert!(service.delivered_reminders().is_empty());
+                assert_eq!(service.pending_recipients(), Vec::<String>::new());
+                assert_eq!(service.delivered_reminders(), Vec::<String>::new());
             })
             .await;
     }
@@ -336,7 +336,7 @@ mod tests {
                     ]
                 );
                 assert_eq!(service.pending_reminder_count(), 0);
-                assert!(service.pending_recipients().is_empty());
+                assert_eq!(service.pending_recipients(), Vec::<String>::new());
             })
             .await;
     }
@@ -357,7 +357,7 @@ mod tests {
                     service.delivered_reminders(),
                     vec!["Reminder sent to Ada".to_owned()]
                 );
-                assert!(service.pending_recipients().is_empty());
+                assert_eq!(service.pending_recipients(), Vec::<String>::new());
 
                 service.schedule_reminder("Linus");
                 assert_eq!(service.pending_recipients(), vec!["Linus".to_owned()]);
@@ -411,7 +411,7 @@ mod tests {
                     vec!["Reminder sent to Grace".to_owned()]
                 );
                 assert_eq!(service.pending_reminder_count(), 0);
-                assert!(service.pending_recipients().is_empty());
+                assert_eq!(service.pending_recipients(), Vec::<String>::new());
             })
             .await;
     }

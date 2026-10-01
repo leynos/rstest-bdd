@@ -123,7 +123,7 @@ fn sig_to_string(sig: &syn::Signature) -> String { quote!(#sig).to_string() }
 #[test]
 fn build_lint_attributes_empty_fixtures_produces_no_attributes() {
     let attrs = build_lint_attributes(&[]);
-    assert!(attrs.is_empty());
+    assert_eq!(attrs, []);
 }
 
 #[test]

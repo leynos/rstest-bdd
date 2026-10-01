@@ -16,7 +16,7 @@ fn drain_clears_records() {
     assert_eq!(snapshot().len(), 1);
     let drained = drain();
     assert_eq!(drained.len(), 1);
-    assert!(snapshot().is_empty());
+    assert_eq!(snapshot(), []);
 }
 
 #[test]
