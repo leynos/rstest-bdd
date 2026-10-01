@@ -314,8 +314,8 @@ profile type rather than a bare crate name.
 ## Outstanding decisions
 
 - Resolved: the harness-to-policy mapping lives in
-  `crates/rstest-bdd-policy/src/lib.rs` beside policy-path hints, through
-  `KNOWN_HARNESS_HINTS` and `resolve_test_attribute_hint_for_harness_path`.
+  `crates/rstest-bdd-policy/src/lib.rs` beside policy-path hints, through the
+  `FIRST_PARTY_ADAPTER_HINTS` table and the policy- and harness-path resolvers.
 - Whether future third-party integrations should opt into inference through a
   marker type path, a registration macro, or remain explicit-only.
 - Whether a later “integration profile” syntax is worth adding once the
