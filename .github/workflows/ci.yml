@@ -454,7 +454,7 @@ jobs:
         # `make check-fmt` runs `mdtablefix --check --git`; 0.6.0 is the
         # first release with `--check` and `--git`.
         if: ${{ matrix.tools }}
-        uses: leynos/shared-actions/.github/actions/install-mdtablefix@a06e1b8f83ce7f9da5bb26625ef2b7021adbf958
+        uses: leynos/shared-actions/.github/actions/install-mdtablefix@c4ed5ffaf0640b1907d5359a87fd1677034eec27
         with:
           version: "0.6.0"
 
