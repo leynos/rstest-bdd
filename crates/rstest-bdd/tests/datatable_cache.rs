@@ -10,7 +10,7 @@ use std::{
     thread,
 };
 
-use rstest_bdd::{StepContext, StepKeyword, datatable::CachedTable, lookup_step};
+use rstest_bdd::{StepContext, StepKeyword, datatable::CachedTable, lookup_step_with_metadata};
 use rstest_bdd_macros::given;
 
 fn cached_calls() -> &'static Mutex<HashMap<thread::ThreadId, Vec<usize>>> {
@@ -103,8 +103,9 @@ fn cached_table_reuses_conversion_for_identical_table_pointer() {
 
     take_calls();
 
-    let step_fn = lookup_step(StepKeyword::Given, "a cached table:".into())
-        .expect("cached table step should be registered");
+    let step_fn = lookup_step_with_metadata(StepKeyword::Given, "a cached table:".into())
+        .expect("cached table step should be registered")
+        .run;
     let mut ctx = StepContext::default();
 
     for _ in 0..2 {
@@ -126,8 +127,9 @@ fn cached_table_cache_separates_distinct_tables() {
 
     take_calls();
 
-    let step_fn = lookup_step(StepKeyword::Given, "a cached table:".into())
-        .expect("cached table step should be registered");
+    let step_fn = lookup_step_with_metadata(StepKeyword::Given, "a cached table:".into())
+        .expect("cached table step should be registered")
+        .run;
     let mut ctx = StepContext::default();
 
     let _ = step_fn(&mut ctx, "a cached table:", None, Some(TABLE_ONE))
@@ -151,10 +153,13 @@ fn cached_table_cache_is_scoped_per_step_wrapper() {
 
     take_calls();
 
-    let first_step_fn = lookup_step(StepKeyword::Given, "a cached table:".into())
-        .expect("cached table step should be registered");
-    let second_step_fn = lookup_step(StepKeyword::Given, "another cached table:".into())
-        .expect("another cached table step should be registered");
+    let first_step_fn = lookup_step_with_metadata(StepKeyword::Given, "a cached table:".into())
+        .expect("cached table step should be registered")
+        .run;
+    let second_step_fn =
+        lookup_step_with_metadata(StepKeyword::Given, "another cached table:".into())
+            .expect("another cached table step should be registered")
+            .run;
     let mut ctx = StepContext::default();
 
     let _ = first_step_fn(&mut ctx, "a cached table:", None, Some(TABLE))
@@ -185,8 +190,9 @@ fn datatable_vec_path_clones_per_call_and_preserves_isolation() {
     take_values();
     reset_conversions();
 
-    let step_fn = lookup_step(StepKeyword::Given, "a counting table:".into())
-        .expect("counting table step should be registered");
+    let step_fn = lookup_step_with_metadata(StepKeyword::Given, "a counting table:".into())
+        .expect("counting table step should be registered")
+        .run;
     let mut ctx = StepContext::default();
 
     for _ in 0..2 {

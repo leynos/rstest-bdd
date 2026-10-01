@@ -226,10 +226,9 @@ fn find_step_with_metadata_marks_step_as_used() {
     let step = find_step_with_metadata(StepKeyword::Then, StepText::from("needs fixture"))
         .expect("step 'needs fixture' not found in registry");
 
-    // Verify the step is no longer in the unused_steps list by comparing pointers.
-    // Both `step` and items in `unused` are `&'static Step`, so we compare them directly.
+    // Compare the wrapped step with the registry entries by their stable pointers.
     let unused = unused_steps();
-    let is_still_unused = unused.iter().any(|s| std::ptr::eq(*s, step));
+    let is_still_unused = unused.iter().any(|s| std::ptr::eq(*s, step.as_step()));
 
     assert!(
         !is_still_unused,

@@ -158,6 +158,40 @@ a global registry. The wrapper captures the step keyword, pattern string and
 associated fixtures and uses the `inventory` crate to publish them for later
 lookup.
 
+### Registry lookups
+
+The public registry API provides metadata lookups for code that needs to
+inspect or invoke a registered step. Use `lookup_step_with_metadata` for an
+exact keyword and pattern match, or `find_step_with_metadata` when matching
+step text against registered patterns. Both functions return an
+`Option<ResolvedStep>`:
+
+```rust,no_run
+use rstest_bdd::{find_step_with_metadata, StepKeyword, StepText};
+
+let step = find_step_with_metadata(
+    StepKeyword::Given,
+    StepText::from("the balance is 10"),
+).expect("a matching step exists");
+
+let synchronous_handler = step.run;
+let asynchronous_handler = step.run_async;
+let execution_mode = step.execution_mode;
+let step_ref = step.as_step();
+```
+
+`ResolvedStep` dereferences to `Step`, so its metadata and synchronous
+(`run`) or asynchronous (`run_async`) handler can be accessed directly. The
+`as_step()` method provides the underlying `&'static Step` when an explicit
+reference is required. Constructing a `ResolvedStep` records the step as used
+for the `cargo bdd unused` diagnostic; a lookup that finds no step records
+nothing.
+
+The older projection functions remain available for compatibility and are
+deprecated. New code should use the metadata pair and project the required
+field, including `execution_mode` when selecting between synchronous and
+asynchronous execution.
+
 ### Fixtures and implicit injection
 
 `rstest‑bdd` builds on `rstest`’s fixture system rather than using a monolithic

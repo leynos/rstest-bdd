@@ -64,9 +64,14 @@ pub use pattern::StepPattern;
 pub use placeholder::extract_placeholders;
 #[cfg(feature = "diagnostics")]
 pub use registry::dump_registry;
+#[expect(
+    deprecated,
+    reason = "retain deprecated registry lookup exports until the next breaking release"
+)]
 pub use registry::{
     BypassedScenario,
     FixtureRequirement,
+    ResolvedStep,
     Step,
     StepFixtureRequirements,
     duplicate_steps,
@@ -78,6 +83,7 @@ pub use registry::{
     lookup_step,
     lookup_step_async,
     lookup_step_async_with_mode,
+    lookup_step_with_metadata,
     record_bypassed_steps,
     unused_steps,
 };

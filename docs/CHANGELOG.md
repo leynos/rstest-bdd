@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Deprecated `lookup_step`, `find_step`, `lookup_step_async`, `find_step_async`,
+  `lookup_step_async_with_mode`, `find_step_async_with_mode`, and
+  `find_step_with_mode` in favour of `lookup_step_with_metadata` and
+  `find_step_with_metadata`; callers should project the needed `Step` field.
+  `find_step_with_metadata` now returns `Option<ResolvedStep>`.
+
 - Raised the nextest compile budget for the trybuild-based tests from ten to
   twenty minutes, and the default profile's global timeout from twenty to forty
   minutes so the larger per-test budget can be spent. A CI run with a cold
