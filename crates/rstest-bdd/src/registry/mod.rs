@@ -266,6 +266,14 @@ fn mark_used(key: StepKey) {
 fn all_steps() -> Vec<&'static Step> { iter::<Step>.into_iter().collect() }
 
 /// Look up a step by its stable registry key.
+///
+/// Gated on `diagnostics` because `registry::diagnostics` is its only caller,
+/// so without the feature this is dead code and `make lint`'s `-D warnings`
+/// turns that into a build failure. The crate's own idiom for a
+/// feature-scoped item is this attribute rather than an `#[allow(dead_code)]`,
+/// which would silence the warning for every future caller instead of for the
+/// one absent feature.
+#[cfg(feature = "diagnostics")]
 fn step_by_key(key: StepKey) -> Option<&'static Step> { STEP_MAP.get(&key).copied() }
 
 /// Resolve a step whose registered pattern text exactly matches the input.

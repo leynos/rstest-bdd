@@ -43,6 +43,13 @@ camino.workspace = true
 cap-std.workspace = true
 cargo_metadata.workspace = true
 insta.workspace = true
+# `feature_rebuild_invalidation` parses `cargo --message-format=json` output, so
+# it needs `serde_json` in its own right. It used to get it by accident: the
+# optional `serde_json` dependency above is enabled by `diagnostics`, which is
+# on by default, so the test only compiled as a side effect of a feature it does
+# not otherwise use. That made the crate unbuildable with
+# `--no-default-features`, which the D4 gate leg requires.
+serde_json.workspace = true
 rstest.workspace = true
 rstest-bdd-test-macros.workspace = true
 rstest-bdd-macros = { workspace = true, features = ["compile-time-validation"] }
