@@ -42,7 +42,7 @@ pub mod state;
 pub mod step_args;
 mod types;
 
-#[cfg(feature = "test-support")]
+#[cfg(any(test, feature = "test-support"))]
 pub mod test_support;
 
 pub use context::{

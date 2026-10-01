@@ -38,6 +38,8 @@ The [crates](../crates/) directory contains all workspace crates.
   types shared across macro and harness crates.
 - [crates/rstest-bdd-harness](../crates/rstest-bdd-harness/) defines the base
   harness adapter API, scenario execution contracts, and shared test support.
+  Its `nested_cargo` helper serves both the `nested_cargo_env` contract test and
+  `rstest-bdd`'s feature-rebuild-invalidation fixture harness.
 - [crates/rstest-bdd-harness-tokio](../crates/rstest-bdd-harness-tokio/)
   provides the first-party Tokio harness adapter.
 - [crates/rstest-bdd-harness-gpui](../crates/rstest-bdd-harness-gpui/)

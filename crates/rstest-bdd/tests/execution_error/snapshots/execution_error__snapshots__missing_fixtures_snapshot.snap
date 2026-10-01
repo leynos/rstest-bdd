@@ -1,6 +1,6 @@
 ---
-source: crates/rstest-bdd/tests/execution_error.rs
-assertion_line: 334
+source: crates/rstest-bdd/tests/execution_error/snapshots.rs
+assertion_line: 36
 expression: "format!(\"{error}\")"
 ---
 Step '⁨needs fixture⁩' (defined at ⁨src/steps.rs:42⁩) requires fixtures ⁨db⁩, but the following are missing: ⁨db⁩. Requested fixture information: ⁨db: DbPool⁩. Available fixtures from scenario: ⁨world⁩ ⁨Select a harness-backed scenario so rstest_bdd_harness_context is inserted.⁩ (feature: ⁨features/example.feature⁩, scenario: ⁨Example scenario⁩)
