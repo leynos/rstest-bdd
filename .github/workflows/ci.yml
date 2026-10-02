@@ -371,7 +371,7 @@ jobs:
         # re-export for every later step; the server then addresses GitHub's
         # results service and every write fails. Measured on
         # ubicloud-standard-2. Do not set this to 'true'.
-        uses: leynos/shared-actions/.github/actions/setup-rust@6cec89bac47a21cf756d68d638a9a510998e57f8
+        uses: leynos/shared-actions/.github/actions/setup-rust@ff1dd759dfffc0db3459e30e833f52437ee62b57
         with:
           toolchain: ${{ matrix.rust-toolchain }}
           cache-provider: external
