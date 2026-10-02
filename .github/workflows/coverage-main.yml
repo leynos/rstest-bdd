@@ -354,7 +354,7 @@ jobs:
       # with the same feature selection after the instrumented run, because
       # llvm-cov's nextest path cannot execute doc tests.
       - name: Test and Measure Coverage
-        uses: leynos/shared-actions/.github/actions/generate-coverage@a5765019912a8ab6882b12db049c7cde635f3a85
+        uses: leynos/shared-actions/.github/actions/generate-coverage@ff1dd759dfffc0db3459e30e833f52437ee62b57
         env:
           # The cargo watchdog, one of four tiers that can end a run. It
           # must cover the 75 m nextest global-timeout in
@@ -698,7 +698,7 @@ jobs:
       # lane this baseline is written for.
       - name: Test and Measure Coverage
         # Merged shared-actions whole-workspace coverage revision.
-        uses: leynos/shared-actions/.github/actions/generate-coverage@a5765019912a8ab6882b12db049c7cde635f3a85
+        uses: leynos/shared-actions/.github/actions/generate-coverage@ff1dd759dfffc0db3459e30e833f52437ee62b57
         env:
           # Windows coverage runs (build plus doctests) needed headroom
           # over the shared action's default, and take the same budget as
