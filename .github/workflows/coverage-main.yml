@@ -422,7 +422,7 @@ jobs:
         # f68e8e2e the action rejects a non-empty value and pins `cs-coverage`
         # through its own manifest, which is what fixed the parse break.
         if: steps.codescene_token.outputs.available == 'true' && github.ref == 'refs/heads/main'
-        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@a5765019912a8ab6882b12db049c7cde635f3a85
+        uses: leynos/shared-actions/.github/actions/upload-codescene-coverage@7d751eded578e48dacf43ab173d5820e6437c474
         with:
           path: coverage.xml
           format: cobertura
