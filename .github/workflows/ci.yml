@@ -593,7 +593,7 @@ jobs:
         if: >-
           ${{ runner.os == 'Linux'
           && github.event_name == 'pull_request' }}
-        uses: leynos/shared-actions/.github/actions/generate-coverage@a5765019912a8ab6882b12db049c7cde635f3a85
+        uses: leynos/shared-actions/.github/actions/generate-coverage@7d751eded578e48dacf43ab173d5820e6437c474
         env:
           # The cargo watchdog, one of four tiers that can end a run. It
           # must cover the 75 m nextest global-timeout in
@@ -641,7 +641,7 @@ jobs:
           ${{ runner.os == 'Windows' && matrix.features == ''
           && github.event_name == 'pull_request' }}
         # Merged shared-actions whole-workspace coverage revision.
-        uses: leynos/shared-actions/.github/actions/generate-coverage@a5765019912a8ab6882b12db049c7cde635f3a85
+        uses: leynos/shared-actions/.github/actions/generate-coverage@7d751eded578e48dacf43ab173d5820e6437c474
         env:
           # Windows coverage runs (build plus doctests) needed headroom
           # over the shared action's default, and take the same budget as
@@ -674,7 +674,7 @@ jobs:
           ${{ runner.os == 'Windows' && matrix.features != ''
           && github.event_name == 'pull_request' }}
         # Merged shared-actions whole-workspace coverage revision.
-        uses: leynos/shared-actions/.github/actions/generate-coverage@a5765019912a8ab6882b12db049c7cde635f3a85
+        uses: leynos/shared-actions/.github/actions/generate-coverage@7d751eded578e48dacf43ab173d5820e6437c474
         env:
           # Windows coverage runs (build plus doctests) needed headroom
           # over the shared action's default, and take the same budget as
