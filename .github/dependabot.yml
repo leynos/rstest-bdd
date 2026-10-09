@@ -3,6 +3,9 @@ updates:
   # Enable version updates for GitHub Actions
   - package-ecosystem: "github-actions"
     groups:
+      shared-actions:
+        patterns:
+          - 'leynos/shared-actions*'
       github-actions:
         patterns:
           - '*'
