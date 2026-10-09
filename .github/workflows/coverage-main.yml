@@ -341,7 +341,7 @@ jobs:
         # Merged shared-actions PR #432: installs the official release
         # archive against a pinned digest manifest, hashing the archive from
         # stdin so Git Bash on Windows cannot mangle the file name.
-        uses: leynos/shared-actions/.github/actions/install-whitaker@7d751eded578e48dacf43ab173d5820e6437c474
+        uses: leynos/shared-actions/.github/actions/install-whitaker@0606ca899ce2995a0c4bc78e660e80832e6e8855
         with:
           installer-version: ${{ env.WHITAKER_INSTALLER_VERSION }}
           cache-provider: external
