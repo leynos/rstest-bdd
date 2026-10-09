@@ -456,7 +456,7 @@ jobs:
         if: ${{ matrix.tools }}
         uses: leynos/shared-actions/.github/actions/install-mdtablefix@c4ed5ffaf0640b1907d5359a87fd1677034eec27
         with:
-          version: "0.6.0"
+          version: "0.6.1"
 
       - name: Check formatting
         if: ${{ matrix.tools }}
