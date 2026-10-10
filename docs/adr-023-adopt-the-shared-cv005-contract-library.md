@@ -63,7 +63,7 @@ read through them.
 ## Known risks and limitations
 
 - A fix to the rules reaches this repository only as a pin bump.
-- The target needs `uv`, which fetches the Python 3.13 the library runs under.
+- The target needs `uv`, which fetches the Python 3.14 the library runs under.
 - The library checks clauses and shape. It does not run the CodeScene upload,
   so the publisher run on the merge commit remains the proof of the upload.
 

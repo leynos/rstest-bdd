@@ -135,7 +135,7 @@ def test_one_job_executes_the_workspace_suite() -> None:
     baseline by `runner.os`: one Linux writer and one Windows writer, since
     no platform may go unratcheted. They deliberately run the same sets the
     gate does, which is what makes the baselines comparable with what the
-    ratchet checks. the shared CV-005 pairings hold the inputs equal and
+    ratchet checks. The shared CV-005 pairings hold the inputs equal and
     the events apart; the set is named here so a further caller, which
     would be a genuine duplicate, fails.
     """

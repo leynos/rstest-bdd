@@ -1,9 +1,10 @@
-"""Where the coverage lanes sit, and the readers the remaining contracts share.
+"""Describe where the coverage lanes sit and the readers the contracts share.
 
-The workflow and step names the lane and publisher contracts address, the
-reading of a coverage step's inputs, and the pull-request closure with the
-scan for CodeScene references that `pull_request_reach_test` drives. The CV-005
-rules themselves are held by `cv005-contracts check`.
+This module holds the workflow and step names that the lane and publisher
+contracts address, the reader for a coverage step's inputs, and the
+pull-request closure with the scan for CodeScene references that
+`pull_request_reach_test` drives. The CV-005 rules themselves are held by
+`cv005-contracts check`.
 """
 
 import typing as typ
