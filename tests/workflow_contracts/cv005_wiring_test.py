@@ -106,34 +106,37 @@ def test_make_all_includes_the_target() -> None:
     assert "cv005-contracts check --repository ." in commands, commands
 
 
-def test_ci_runs_the_target_once_on_the_tools_cell() -> None:
-    """Require a CI step running the target, gated only on the tools cell.
-
-    The merge gate installs its tools on one matrix cell, so the step carries
-    exactly ``matrix.tools``; that cell must exist, and neither the job nor any
-    other condition may skip it.
-    """
+def _ci_holders() -> list[tuple[dict[str, object], dict[str, object]]]:
+    """Return each (job, step) pair of ``ci.yml`` that runs the target."""
     workflow = yaml.safe_load(
         (ROOT / ".github" / "workflows" / "ci.yml").read_text("utf-8")
     )
-    holders = [
+    return [
         (job, step)
         for job in workflow["jobs"].values()
         for step in job.get("steps", [])
         if f"make {TARGET}" in str(step.get("run", ""))
     ]
+
+
+def test_ci_runs_the_exact_target_with_no_ignored_failure() -> None:
+    """Require the step's command to be the target, and its failure to count."""
+    holders = _ci_holders()
     assert holders, f"ci.yml must run `make {TARGET}` in a step"
-    assert all(step.get("if") == TOOLS_CELL for _, step in holders), holders
-    assert all("if" not in job for job, _ in holders), holders
-    assert all("continue-on-error" not in step for _, step in holders), holders
-    assert all("continue-on-error" not in job for job, _ in holders), holders
-    assert all(
-        str(step.get("run", "")).strip() == f"make {TARGET}" for _, step in holders
-    ), holders
-    cells = [
-        cell
-        for job, _ in holders
-        for cell in job["strategy"]["matrix"]["include"]
-        if cell.get("tools") is True
-    ]
-    assert cells, "the matrix must keep a cell with tools enabled"
+    for job, step in holders:
+        assert str(step.get("run", "")).strip() == f"make {TARGET}", step
+        assert "continue-on-error" not in step, step
+        assert "continue-on-error" not in job, job
+
+
+def test_ci_gates_the_target_only_on_the_tools_cell() -> None:
+    """Require the step to carry exactly ``matrix.tools`` and the cell to exist.
+
+    The merge gate installs its tools on one matrix cell, so neither the job nor
+    any other condition may skip it.
+    """
+    for job, step in _ci_holders():
+        assert step.get("if") == TOOLS_CELL, step
+        assert "if" not in job, job
+        include = job["strategy"]["matrix"]["include"]
+        assert any(cell.get("tools") is True for cell in include), include
