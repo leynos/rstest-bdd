@@ -10,7 +10,7 @@ Run via ``make test-workflow-contracts``.
 """
 
 import pytest
-from codescene_coverage_support import pull_request_workflows, references_in
+from coverage_support import pull_request_workflows, references_in
 from pull_request_reach import (
     MissingCalledWorkflowError,
     TriggerShapeError,

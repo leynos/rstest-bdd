@@ -15,7 +15,7 @@ would pass; the exposure is what a later change would introduce.
 
 See Also
 --------
-codescene_coverage_support.pull_request_workflows : The closure over this
+coverage_support.pull_request_workflows : The closure over this
     repository's workflows.
 """
 

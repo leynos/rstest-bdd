@@ -1,0 +1,29 @@
+repository = "leynos/rstest-bdd"
+
+# The Linux lane ratchets against the publisher's Linux job.
+[[pairing]]
+lane = "ci.yml:build-test:Test and Measure Coverage (Linux)"
+publisher = "coverage-main.yml:coverage-upload:Test and Measure Coverage"
+differs = ["RUST_TOOLCHAIN"]
+guards = ["runner.os == 'Linux'"]
+
+# The Windows default-features lane ratchets against the Windows baseline job.
+[[pairing]]
+lane = "ci.yml:build-test:Test and Measure Coverage (Windows, default features)"
+publisher = "coverage-main.yml:coverage-baseline-windows:Test and Measure Coverage"
+differs = ["RUST_TOOLCHAIN"]
+guards = ["runner.os == 'Windows'", "matrix.features == ''"]
+[pairing.matrix]
+with-default-features = "true"
+use-nextest = "false"
+
+# The strict-validation lane differs from the Windows baseline in its features.
+[[pairing]]
+lane = "ci.yml:build-test:Test and Measure Coverage (Windows, strict validation)"
+publisher = "coverage-main.yml:coverage-baseline-windows:Test and Measure Coverage"
+differs = ["features", "with-default-features", "RUST_TOOLCHAIN"]
+guards = ["runner.os == 'Windows'", "matrix.features != ''"]
+[pairing.matrix]
+features = "strict-compile-time-validation"
+with-default-features = "false"
+use-nextest = "false"

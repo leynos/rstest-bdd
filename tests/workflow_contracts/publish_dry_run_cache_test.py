@@ -26,7 +26,6 @@ import subprocess  # ruff: ignore[suspicious-subprocess-import] - runs a script 
 import typing as typ
 
 import pytest
-from codescene_coverage_support import PR_WORKFLOW, PUBLISHER
 from coverage_lane_pairs import (
     GATE_JOB,
     job_env,
@@ -34,6 +33,7 @@ from coverage_lane_pairs import (
     matrix_rows,
     platform_of,
 )
+from coverage_support import PR_WORKFLOW, PUBLISHER
 from guard_conditions import admits
 from workflow_queries import BASH, StepRef, iter_steps
 from workflow_support import SCCACHE_DIRECTORY, job, step_index, steps
