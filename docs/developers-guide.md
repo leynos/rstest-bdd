@@ -247,6 +247,19 @@ and the ratchet baseline. `ci.yml` generates coverage on a pull request only,
 for its own ratchet check, and carries no CodeScene action, no `cs-coverage`
 command and no `CS_ACCESS_TOKEN` at all. That is the estate rule CV-005.
 
+`make test-workflow-contracts` holds the rule by running
+`cv005-contracts check`, the shared contract library in `leynos/shared-actions`
+(`packages/cv005-contracts`), from the full commit named by
+`CV005_CONTRACTS_REF` in the Makefile, before the remaining pytest contracts. A
+fix to a rule reaches this repository as a pin bump. The target needs `uv`,
+which fetches the Python 3.14 the library runs under here, and
+`.github/cv005.toml` holds the repository's parameters, including the lane
+pairings described below. `tests/workflow_contracts/cv005_wiring_test.py` fails
+if the pin is not a full commit, the target stops running the pinned checker,
+the repository parameter is wrong, `make all` drops the target, or CI stops
+running it (on the matrix cell that installs the tools). The decision is
+recorded in [ADR-023](adr-023-adopt-the-shared-cv005-contract-library.md).
+
 This reverses an earlier decision recorded here, and the reason is worth
 keeping. `coverage-main.yml` was removed once because it duplicated the Linux
 lane's executed set on every merge. That objection is answered rather than
@@ -273,12 +286,18 @@ cost of the duplicate run the rule exists to remove.
 
 Each ratcheting lane must measure what the trunk job writing its baseline
 measures, or the comparison is between two different measurements.
-`tests/workflow_contracts/codescene_coverage_test.py` pairs the Linux lane with
-`coverage-upload` and the Windows default-features lane with
-`coverage-baseline-windows`, resolves the pull-request lane's `${{ matrix.* }}`
-references against the matrix row its own guard selects, and holds every input
-either side declares equal. Only `publish-artefact` is excluded: every
-pull-request lane declines the artefact, and the publisher keeps the default.
+`make test-workflow-contracts` holds this through the `[[pairing]]` tables in
+`.github/cv005.toml`: the Linux lane pairs with `coverage-upload`, and the
+Windows default-features and strict-validation lanes pair with
+`coverage-baseline-windows`. The shared checker resolves the pull-request lane's
+`${{ matrix.* }}` references against the matrix cell each pairing names, holds
+every input either side declares equal, and requires each lane's `if:` to be
+the pull-request guard plus exactly the pairing's `guards`. A pairing lists
+what legitimately differs: `RUST_TOOLCHAIN` (the lane takes its toolchain from
+the matrix, the publisher from its job `env`), and for the strict lane its
+features and default-features flag. Inputs that name or ship the report, such as
+`publish-artefact`, are not compared: every pull-request lane declines the
+artefact, and the publisher keeps the default.
 
 The upload passes no `installer-checksum`. From shared-actions `f68e8e2e` the
 shared action pins `cs-coverage` through its own manifest and rejects a
@@ -295,12 +314,12 @@ no process. The upload's condition reads
 and the upload takes `access-token: ${{ secrets.CS_ACCESS_TOKEN }}` directly.
 The token used to sit in the `coverage-upload` job's `env`, which exported it
 into every step of the instrumented build, and even a step-level binding would
-reach every nested step of the composite upload action.
-`tests/workflow_contracts/codescene_upload_test.py` holds the shape, and states
-the token's places exactly, so deleting it cannot pass for keeping it out of an
-`env`. A merge made by the Dependabot automerge workflow's `GITHUB_TOKEN` fires
-no push event, so it publishes nothing until a dispatch or the next push to
-`main`; that is a known exception (see
+reach every nested step of the composite upload action. The shared checker
+(`make test-workflow-contracts`) holds the shape, and states the token's places
+exactly, so deleting it cannot pass for keeping it out of an `env`. A merge
+made by the Dependabot automerge workflow's `GITHUB_TOKEN` fires no push event,
+so it publishes nothing until a dispatch or the next push to `main`; that is a
+known exception (see
 [shared-actions issue 518](https://github.com/leynos/shared-actions/issues/518)).
 
 Every lane ratchets, Windows included. This reverses a platform exception
@@ -316,7 +335,7 @@ a ratchet that could not fail, which is worse, because it looks configured.
 `coverage-main.yml` therefore runs a Windows job as well as the Linux one. It
 writes the Windows baseline and uploads nothing: CodeScene reads the Linux
 report, so keeping the credential out of that job leaves `coverage-upload` as
-the single CodeScene contact in the repository. A contract holds the two sets
+the single CodeScene contact in the repository. The pairings hold the two sets
 equal, so a lane that ratchets on a platform the trunk does not run fails here
 rather than passing against a zero.
 
@@ -1577,7 +1596,7 @@ test files.
 The helper modules — `workflow_support`, `cache_step_support`,
 `workflow_queries`, `publish_report_support`, `lockfile_refresh_support`,
 `lading_pins`, `timeout_budgets`, `nextest_config`, `strict_workflow_loader`,
-`pull_request_reach`, `guard_conditions`, `codescene_coverage_support`,
+`pull_request_reach`, `guard_conditions`, `coverage_support`,
 `coverage_lane_pairs`, `runner_label_support`, `job_name_support`, and
 `pr_concurrency_support` — are private to the directory. They are importable
 only because pytest puts the test directory on `sys.path`, and nothing outside

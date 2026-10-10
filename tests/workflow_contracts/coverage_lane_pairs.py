@@ -10,14 +10,14 @@ through :func:`guard_conditions.admits`, not typed beside it.
 
 See Also
 --------
-codescene_coverage_test : The parity contracts built on these pairs.
+coverage_publisher_setup_test : The setup equalities built on these pairs.
 """
 
 import dataclasses
 import re
 import typing as typ
 
-from codescene_coverage_support import (
+from coverage_support import (
     PR_WORKFLOW,
     PUBLISHER,
     PUBLISHER_COVERAGE_STEP,

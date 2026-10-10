@@ -12,8 +12,8 @@ implementation of any particular remote action revision.
 Scoped to ``ci.yml``. Since CV-005 the trunk generation and the CodeScene
 upload live in ``coverage-main.yml``, and the rules spanning the two
 workflows, including that they call one action revision and select the same
-work, are in :mod:`codescene_coverage_test`. Restating them here would leave
-two modules able to disagree.
+work, are in the shared CV-005 pairings (``.github/cv005.toml``). Restating
+them here would leave two modules able to disagree.
 """
 
 import re

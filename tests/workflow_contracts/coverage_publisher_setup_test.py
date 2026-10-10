@@ -17,7 +17,6 @@ Run via ``make test-workflow-contracts``.
 import typing as typ
 
 import pytest
-from codescene_coverage_support import PR_WORKFLOW, PUBLISHER, PUBLISHER_COVERAGE_STEP
 from coverage_lane_pairs import (
     GATE_JOB,
     PAIRS,
@@ -26,6 +25,7 @@ from coverage_lane_pairs import (
     platform_of,
     resolve,
 )
+from coverage_support import PR_WORKFLOW, PUBLISHER, PUBLISHER_COVERAGE_STEP
 from guard_conditions import admits
 from workflow_queries import iter_steps
 from workflow_support import job, steps
@@ -35,7 +35,7 @@ if typ.TYPE_CHECKING:
 
 #: Job-scope variables the publisher may declare beyond the gate's: the
 #: toolchain the gate takes from its matrix. The CodeScene credential is not
-#: one of them; it is in no ``env`` at all (see ``codescene_upload_test``).
+#: one of them; it is in no ``env`` at all (the shared CV-005 token clause holds this).
 PUBLISHER_ONLY_ENV = frozenset({"RUST_TOOLCHAIN"})
 #: Setup every publisher job must repeat. Named, so deleting a step is a
 #: failure rather than one fewer comparison.

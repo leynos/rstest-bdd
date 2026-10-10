@@ -40,6 +40,15 @@ ACRONYM_SCRIPT ?= scripts/update_acronym_allowlist.py
 UV ?= $(or $(shell command -v uv 2>/dev/null),$(HOME)/.local/bin/uv)
 UVX ?= $(or $(shell command -v uvx 2>/dev/null),$(HOME)/.local/bin/uvx)
 UV_ENV = UV_CACHE_DIR=.uv-cache UV_TOOL_DIR=.uv-tools
+
+# The CV-005 CodeScene contracts live in shared-actions and run from a full
+# commit, so a fix is a pin bump. `.github/cv005.toml` holds this repository's
+# only parameters.
+CV005_CONTRACTS_REF ?= 3754876bc4e94dc65c83af3def37828934f8f65e
+CV005_CONTRACTS = $(UV_ENV) $(UV) tool run --python 3.14 \
+	--from 'git+https://github.com/leynos/shared-actions@$(CV005_CONTRACTS_REF)\#subdirectory=packages/cv005-contracts' \
+	cv005-contracts
+
 PROJECT_PYTHON = $(UV_ENV) $(UV) run --python 3.14 python
 # Keep the Makefile and CI pins aligned; workflow-contract tests protect the
 # shared value without making a specific release part of the test contract.
@@ -85,7 +94,7 @@ build-python: pyproject.toml ## Build Python tooling environment
 	$(UV_ENV) $(UV) sync --group python-tools
 release: target/release/$(APP) ## Build release binary
 
-all: release spelling ## Build the release binary and enforce spelling
+all: release spelling test-workflow-contracts ## Build the release binary and enforce spelling
 
 clean: ## Remove build artefacts
 	$(CARGO) clean
@@ -225,6 +234,7 @@ publish-check: build-python stage-published-gpui-e2e ## Package crates in releas
 	$(UV_ENV) $(UV) run --with "$(LADING_SPEC)" lading publish --workspace-root . --allow-unpublished-workspace-deps
 
 test-workflow-contracts: ## Validate the mutation-testing caller contract
+	$(CV005_CONTRACTS) check --repository .
 	$(UV_ENV) $(UV) run --with 'pytest>=8' --with 'pyyaml>=6' pytest tests/workflow_contracts -q
 
 update-ui-lints-lock: ## Refresh ui_lints trybuild lockfile for `--locked` CI

@@ -15,8 +15,8 @@ name: Coverage (main)
 # This lane is the trunk generation. It runs the same instrumented workload
 # as the pull-request lane, over the same feature and target selection, so
 # the baseline it writes is comparable with what the ratchet checks against;
-# `tests/workflow_contracts/codescene_coverage_test.py` holds the two sets
-# equal rather than trusting that they were copied correctly.
+# `make test-workflow-contracts` holds the two sets equal through the pairings
+# in `.github/cv005.toml` rather than trusting that they were copied correctly.
 
 on:
   push:

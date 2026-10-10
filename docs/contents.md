@@ -117,6 +117,8 @@
 - [ADR 022: a separate compiler-cache family for the Windows publish dry
   run][adr-022] records the decision to give the dry run's objects their own
   archive family, sharing the sccache directory with the instrumented one.
+- [ADR 023: adopt the shared CV-005 contract library][adr-023] records the move
+  from a local copy of the CV-005 contract to the pinned shared check.
 
 ## Execution plans
 
@@ -140,6 +142,7 @@
 [adr-020]: adr-020-consolidate-on-the-tracing-logging-facade.md
 [adr-021]: adr-021-single-source-base-url-for-users-guide-links.md
 [adr-022]: adr-022-separate-compiler-cache-family-for-the-publish-dry-run.md
+[adr-023]: adr-023-adopt-the-shared-cv005-contract-library.md
 [complexity-guide]: complexity-antipatterns-and-refactoring-strategies.md
 [cucumber-async]: cucumber-rs-migration-and-async-patterns.md
 [dependency-injection]: reliable-testing-in-rust-via-dependency-injection.md
