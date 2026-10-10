@@ -14,6 +14,7 @@ Run via ``make test-workflow-contracts``.
 import re
 import subprocess  # ruff: ignore[suspicious-subprocess-import]  # The wiring is read from make -n.
 import tomllib
+import typing as typ
 from pathlib import Path
 
 import yaml
@@ -106,7 +107,7 @@ def test_make_all_includes_the_target() -> None:
     assert "cv005-contracts check --repository ." in commands, commands
 
 
-def _ci_holders() -> list[tuple[dict[str, object], dict[str, object]]]:
+def _ci_holders() -> list[tuple[dict[str, typ.Any], dict[str, typ.Any]]]:
     """Return each (job, step) pair of ``ci.yml`` that runs the target."""
     workflow = yaml.safe_load(
         (ROOT / ".github" / "workflows" / "ci.yml").read_text("utf-8")
