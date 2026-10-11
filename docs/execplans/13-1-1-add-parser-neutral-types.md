@@ -8843,6 +8843,116 @@ not repairing the one site the abort happened to print.
 
 Date/Author: 2026-10-11, implementation agent.
 
+### D69: CodeScene's two findings were both introduced by this branch, and neither fix shrank a counter
+
+The push of `18a7bc8b` turned the hosted CodeScene check red with two findings,
+both `change-type: introduced`, both `new-score: 9.68`. This is the first
+CodeScene failure on this branch since D34/D35, and D34's own amendment is the
+reason it was investigated rather than assumed: that entry recorded a clearance
+that "was true of the revision it was taken at, and was read as true of the
+branch."
+
+**The discriminator was run before any diagnosis.** D68's rebase moved the
+base, and D35 recorded a case where a CodeScene red was inherited from a base
+three days older than the branch. So the finding had to be attributed before it
+was repaired. `cs delta origin/main --output-format json` reproduces the hosted
+analysis locally, and it returned the same 857 bytes against **both** bases —
+`4077b9a5`, the pre-rebase merge base, and `2f0ea8d5`, the current one. A
+finding that does not move when the base moves is not base drift. The second
+check is stronger: `plan.rs` is byte-identical between the old head `d4c12901`
+and the new head `18a7bc8b`, and `git log -S'from_parts'` puts the whole
+constructor in `9a722ffc`, a commit of this branch. Both findings are
+branch-introduced, and the old head's green was a moved enforcement basis
+rather than evidence of a clean tree.
+
+**`ScenarioPlan::from_parts` was a struct literal wearing a function
+signature.** The finding was `Excess Number of Function Arguments` — six
+parameters, against a maximum of four — and the reflex D34 records ("the reflex
+to add a helper is the error") is exactly what the finding invites: introduce a
+parts struct, or a second constructor, and the count drops. What the code
+actually showed is that the six parameters mirrored the six fields in the same
+order, that the body was the struct literal they were destructured into, and
+that the only caller — `ScenarioPlanBuilder::build` — already held all six as
+*named fields* of the builder. Privacy in Rust reaches a module's descendants,
+so the child `builder` module can name `plan`'s private fields and write them
+directly. The constructor was deleted rather than restructured, the call site
+went from six unlabelled positional values to six labelled fields, and the
+one-construction-path rule the builder module exists to enforce became a
+visible property of the code rather than a convention a signature implied.
+D34's precedent applies unchanged: the fix was to re-derive what the code
+should be, not to reduce an argument count.
+
+**The walk's string ratio was a type error, not a style smell.** The second
+finding was `String Heavy Function Arguments` — 46.7% of arguments across the
+module's nine functions, against a 39.0% threshold. The obvious way to move
+that figure is to add trivial functions until the average falls, which the
+skill forbids and which would have been a lie about the code. Reading it
+instead: the walk's `prefix` was a `&str` and its keys were `String` while
+`scan_root` — the module's own entry point — takes a `Utf8Path`. The tree's
+identity therefore changed type at the boundary and changed back at each use,
+and the join between prefix and name was a hand-rolled `child_path` that
+special-cased an empty prefix, because string concatenation cannot know that
+joining onto an empty path yields the child. `Utf8Path::join` is that
+operation. The helper is gone, the prefix is `&Utf8Path`, the keys are
+`Utf8PathBuf`, and `name` stays a `&str` because `cap-std` hands one over and
+it is a directory-entry name rather than a path. The ratio fell from 46.7% to
+20.0% across the *same nine functions*, with none added.
+
+**The fix for the second finding is the reason the first one's guidance was
+easy to misread.** Both metrics are ratios over the set of functions, so both
+can be moved without touching a defect. The test applied here was whether each
+change made the code describe itself more accurately — a deleted constructor
+whose callers now name fields, a replaced helper whose job a standard-library
+method already did — and the ratio moved as a consequence rather than as the
+goal.
+
+**The deleted helper's guard was re-established, not inherited.** D34/EP-M1
+record a mutation witness for the prefixing: with the join stripped of its
+prefix so every key collapsed to a basename, an early name-only guard passed
+while the rewritten whole-path guard failed. That witness was taken against
+`child_path`, which this repair deletes, so it cannot be inherited by a claim
+about the new code. It was re-run against the new form: with `visit` mutated to
+`Utf8PathBuf::from(&name)`, `the_scan_finds_the_runner_tree` fails with
+`expected the scan to reach engine/drive.rs; found ["absorb.rs", "assemble.rs",
+…]` —
+the same failure shape, and the same demonstration that the guard is
+load-bearing rather than decorative. The mutant was reverted and the guard
+re-verified green.
+
+**The prose that cited the deleted helper was corrected rather than left
+dangling.** Two doc comments in `walk.rs` named `child_path` by intra-doc link;
+after the deletion those links would have been broken, and `make lint`'s
+`cargo doc` step runs with `-D warnings`, so they would also have failed the
+gate. Both now describe the live code — the prefixing `visit` does — which is
+what the sentences were actually about. The recorded *history* of that guard is
+preserved verbatim; only the anchor into the present tense changed.
+
+**A local environment trap worth recording, because it silently rewrites 290
+files.** The first formatting attempt used a bare `cargo fmt`, which resolves
+to the `stable` toolchain. `rustfmt.toml` sets `unstable_features = true` and a
+dozen nightly-only options (`imports_granularity`, `wrap_comments`,
+`fn_single_line`, …), so stable rustfmt discarded all of them and reformatted
+the *entire workspace* — 290 files, 1975 insertions. `Makefile:22` pins
+`FMT_TOOLCHAIN ?= nightly-2026-08-07`, and the gate works because it calls
+`$(CARGO) +$(FMT_TOOLCHAIN) fmt`. The drift was backed out with
+`git checkout -- .` after the three genuinely-edited files had been copied
+aside, and the repair was then formatted with the pinned nightly, which touched
+those three files and nothing else. The lesson is D63's in a new guise: on this
+repository a formatting command is not an isolated operation, and the toolchain
+is part of the command.
+
+**Verification at this revision.** `cs delta origin/main --output-format json`
+returns empty (0 bytes, exit 0) with empty stderr.
+`cargo +nightly-2026-08-07 fmt --all -- --check` passes tree-wide.
+`cargo check -p rstest-bdd --all-features --all-targets` is warning-free —
+noting that the `[build-limits] … the managed sccache server is unreachable`
+lines are the documented uncached-build notice, not failures — and the focused
+`runner::tests` suite passes 39 tests, four of them in `surface`. The full six
+commit gates are re-run at `80748eff` and recorded separately; this entry's
+figures are scoped to the revision it was written at.
+
+Date/Author: 2026-10-11, implementation agent.
+
 ## Outcomes & retrospective
 
 ### What was achieved
