@@ -209,6 +209,15 @@ impl ScenarioPlanBuilder {
 
     /// Consume the builder and produce the plan.
     ///
+    /// The plan's fields are written directly rather than passed through a
+    /// constructor. `ScenarioPlan`'s fields are private to the `plan` module,
+    /// and privacy in Rust reaches a module's descendants, so this child
+    /// module can name them. That keeps the one construction path the
+    /// type-level rule this module exists to enforce — every field is written
+    /// here and nowhere else — without a positional signature whose six
+    /// arguments are six unlabelled values a reader has to line up against the
+    /// field list to check.
+    ///
     /// # Examples
     ///
     /// ```
@@ -219,13 +228,13 @@ impl ScenarioPlanBuilder {
     /// ```
     #[must_use]
     pub fn build(self) -> ScenarioPlan {
-        ScenarioPlan::from_parts(
-            self.name,
-            self.tags,
-            self.source,
-            self.source_line,
-            self.steps,
-            self.allow_skipped,
-        )
+        ScenarioPlan {
+            name: self.name,
+            tags: self.tags,
+            source: self.source,
+            source_line: self.source_line,
+            steps: self.steps,
+            allow_skipped: self.allow_skipped,
+        }
     }
 }

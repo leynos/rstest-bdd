@@ -10,7 +10,7 @@
 //! only the file that carries the token list, and widening it to a directory
 //! would create a place for a real leak to hide.
 
-use camino::Utf8Path;
+use camino::{Utf8Path, Utf8PathBuf};
 use cap_std::{
     ambient_authority,
     fs_utf8::{Dir, DirEntry},
@@ -25,9 +25,16 @@ use cap_std::{
 /// [`the_scan_finds_the_runner_tree`] pins the paths it names, one per
 /// module rather than one per test file; this covers the remainder, including
 /// any file added later.
+///
+/// The keys are [`Utf8PathBuf`] rather than `String` because they are paths:
+/// they get joined, compared against [`SELF`], and printed as `path:line`,
+/// which is [`Utf8Path`]'s vocabulary rather than a string's. The walk's own
+/// entry point already takes a [`Utf8Path`], so a `String` here meant the
+/// tree's identity changed type at the boundary of `scan_root` and changed
+/// back at every use.
 pub(super) struct Scanned {
     /// `(relative path, contents)` for every file the walk read.
-    pub(super) sources: Vec<(String, String)>,
+    pub(super) sources: Vec<(Utf8PathBuf, String)>,
     /// One message per path the walk could not read, in no particular order.
     pub(super) unreadable: Vec<String>,
 }
@@ -48,8 +55,10 @@ pub(super) fn scan_root(root: &Utf8Path) -> Scanned {
             .push(format!("{root}: the root could not be opened"));
         return scanned;
     };
-    collect(&directory, "", &mut scanned);
-    scanned.sources.sort_by(|left, right| left.0.cmp(&right.0));
+    collect(&directory, Utf8Path::new(""), &mut scanned);
+    scanned
+        .sources
+        .sort_by(|left, right| left.0.as_str().cmp(right.0.as_str()));
     scanned.unreadable.sort();
     scanned
 }
@@ -66,7 +75,7 @@ pub(super) fn scan_root(root: &Utf8Path) -> Scanned {
 /// complexity to the listing plus the loop. The split is not cosmetic: this
 /// function's control flow is the recursion, and mixing it with four failure
 /// arms made a single function the hardest thing in the module to read.
-fn collect(directory: &Dir, prefix: &str, scanned: &mut Scanned) {
+fn collect(directory: &Dir, prefix: &Utf8Path, scanned: &mut Scanned) {
     let entries = match directory.entries() {
         Ok(entries) => entries,
         Err(error) => {
@@ -88,7 +97,7 @@ fn collect(directory: &Dir, prefix: &str, scanned: &mut Scanned) {
 /// and can never be mistaken for a file with no leaks.
 fn visit(
     directory: &Dir,
-    prefix: &str,
+    prefix: &Utf8Path,
     entry: Result<DirEntry, std::io::Error>,
     scanned: &mut Scanned,
 ) {
@@ -104,7 +113,7 @@ fn visit(
             .push(format!("{prefix}: an entry had no file name"));
         return;
     };
-    let relative = child_path(prefix, &name);
+    let relative = prefix.join(&name);
     let Ok(file_type) = entry.file_type() else {
         scanned
             .unreadable
@@ -128,7 +137,7 @@ fn visit(
 /// Reading the token list's own source would find the literal tokens in it and
 /// report them as leaks, which is why the caller checks `relative != SELF`
 /// before getting here.
-fn read_source(directory: &Dir, name: &str, relative: String, scanned: &mut Scanned) {
+fn read_source(directory: &Dir, name: &str, relative: Utf8PathBuf, scanned: &mut Scanned) {
     match directory.read_to_string(name) {
         Ok(contents) => scanned.sources.push((relative, contents)),
         Err(error) => scanned
@@ -158,18 +167,6 @@ fn is_rust_source(name: &str) -> bool {
     Utf8Path::new(name)
         .extension()
         .is_some_and(|ext| ext.eq_ignore_ascii_case("rs"))
-}
-
-/// Join a relative directory prefix to one of its children's names.
-///
-/// The root has an empty prefix, so its children are named bare; deeper entries
-/// keep the whole path, which is what makes a nested finding identifiable.
-fn child_path(prefix: &str, name: &str) -> String {
-    if prefix.is_empty() {
-        name.to_owned()
-    } else {
-        format!("{prefix}/{name}")
-    }
 }
 
 /// An unreadable path is reported rather than skipped.
@@ -254,8 +251,8 @@ fn an_upper_case_extension_is_still_source() {
 /// `"outcome"` against each file name, and the literal was satisfied by
 /// `tests/outcome.rs` — a file the guard was not asking about — so it proved
 /// nothing about the directory it named. Whole paths leave no such slack. A
-/// [`child_path`] that dropped its prefix, collapsing every key to a bare file
-/// name, is caught here and slips past the name-only form.
+/// walk that dropped its prefix, collapsing every key to a bare file name, is
+/// caught here and slips past the name-only form.
 ///
 /// The list went stale twice, and that is worth stating because each staleness
 /// was invisible. It first named the files of EP-M1 and was not extended when
@@ -267,10 +264,11 @@ fn an_upper_case_extension_is_still_source() {
 /// Extending it again does not fix the recurrence, which is the list's real
 /// defect: a hand-kept inventory of a growing tree drifts by construction. What
 /// the entries are load-bearing *for* is this module's own correctness — the
-/// prefixing `child_path` does, and the descent into each subdirectory — and
-/// that is what the list is kept for. Per-module coverage within a proven
-/// directory is claimed too, so the two driver entries are that claim being made
-/// true again rather than a new proof about the walk.
+/// prefixing [`visit`] does when it joins a child onto the accumulated path,
+/// and the descent into each subdirectory — and that is what the list is kept
+/// for. Per-module coverage within a proven directory is claimed too, so the two
+/// driver entries are that claim being made true again rather than a new proof
+/// about the walk.
 ///
 /// `engine/policy_tests/` is named by its `mod.rs` for the reason above: one
 /// entry that proves the *descent*, not one entry per test file.

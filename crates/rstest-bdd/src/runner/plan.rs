@@ -335,24 +335,4 @@ impl ScenarioPlan {
     /// ```
     #[must_use]
     pub const fn allow_skipped(&self) -> bool { self.allow_skipped }
-
-    /// Construct the internal representation. Used by
-    /// [`ScenarioPlanBuilder`](crate::runner::ScenarioPlanBuilder) only.
-    pub(crate) fn from_parts(
-        name: Cow<'static, str>,
-        tags: Vec<Cow<'static, str>>,
-        source: SourcePath,
-        source_line: Option<u32>,
-        steps: Vec<StepInvocation>,
-        allow_skipped: bool,
-    ) -> Self {
-        Self {
-            name,
-            tags,
-            source,
-            source_line,
-            steps,
-            allow_skipped,
-        }
-    }
 }
