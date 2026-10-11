@@ -259,7 +259,7 @@ fn a_plan_with_no_steps_does_not_fold_to_a_clean_pass() {
     };
 
     assert_eq!(outcome.status(), ScenarioStatus::Passed);
-    assert!(outcome.steps().is_empty());
+    assert_eq!(outcome.steps(), []);
     assert!(outcome.into_harness_result().is_err());
 }
 

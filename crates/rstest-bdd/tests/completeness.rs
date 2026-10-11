@@ -244,7 +244,7 @@ fn an_empty_plan_is_a_passed_run_the_fold_refuses() {
     let outcome = run(&plan);
 
     assert_eq!(outcome.status(), ScenarioStatus::Passed);
-    assert!(outcome.steps().is_empty());
+    assert_eq!(outcome.steps(), []);
     assert!(outcome.skip().is_none());
     assert!(outcome.failure().is_none());
     assert!(

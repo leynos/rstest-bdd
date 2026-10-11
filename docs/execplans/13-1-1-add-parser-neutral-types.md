@@ -8763,9 +8763,9 @@ exclusive replay boundary. The series was 140 linear commits with no merges, so
 the linear procedure applied and the boundary was the merge base rather than a
 squash receipt. Recovery refs were written for all three before any rewrite.
 
-**Weave was selected by ambient configuration only, and was bypassed.** `git
-check-attr merge -- <path.rs>` reported `merge: weave`, but the selection came
-solely from the environment's global `~/.config/git/attributes`, an
+**Weave was selected by ambient configuration only, and was bypassed.**
+`git check-attr merge -- <path.rs>` reported `merge: weave`, but the selection
+came solely from the environment's global `~/.config/git/attributes`, an
 ANSIBLE-managed block. There is no tracked `.gitattributes` in this repository
 — the file is absent — and no `.git/info/attributes`. The skill's own baseline
 says an unattended multi-commit replay must not treat ambient selection as
@@ -8780,14 +8780,14 @@ stderr captured to a temporary file held only rebase progress — no
 single line of the generated ignore list. `1d65b96a` had added the broad form
 `"\\bvar\\.iamge_id\\b"`; `5fd3cf36`, later in the same series and still to be
 replayed, rewrites that line to the narrower `var\.iamge_id` instead of
-`var\.image_id` — which is byte-identical to the form `main` already
-carries. Both sides therefore wanted the narrower form, and `main`'s side was
-already correct: taking `--theirs` here lets the later commit replay as a
+`var\.image_id` — which is byte-identical to the form `main` already carries.
+Both sides therefore wanted the narrower form, and `main`'s side was already
+correct: taking `--theirs` here lets the later commit replay as a
 no-op-adjacent edit rather than as a change against the wrong base. Dropping
 our line instead would have made that later commit empty, and the replay runs
 with `--empty=stop`, which halts. Resolved `--theirs` on that reading of
-intent, and validated structurally: no conflict markers remain and
-`tomllib` parses the result.
+intent, and validated structurally: no conflict markers remain and `tomllib`
+parses the result.
 
 **The audit found exactly one semantically-changed commit, and it is the one
 that was resolved.** `git range-diff 4077b9a5..52bca9f8 2f0ea8d5..HEAD` marks
@@ -8795,21 +8795,21 @@ every commit `=` except replay 114, `1d65b96a ! 279e4119`, whose patch changed
 by exactly the `typos.toml` hunk above. No commit was dropped, added, or
 reordered. All 140 are present at the new head.
 
-**Two `git diff --check` warnings are pre-existing content, not rebase
-damage.** `docs/execplans/13-1-1-add-parser-neutral-types.md:2477` and
-`:2480` are reported as "space before tab in indent". Both lines are quoted
-`makefile` inside a fenced block — they begin with `+` and a tab because they
-are diff lines being shown to the reader — and the same two warnings appear
-verbatim against the pre-rebase candidate `52bca9f8`. The file is branch-only,
-so the diff sees every line as added; the warnings are the document's subject
-matter, and neither is a repository gate.
+**Two `git diff --check` warnings are pre-existing content, not rebase damage.**
+`docs/execplans/13-1-1-add-parser-neutral-types.md:2477` and `:2480` are
+reported as "space before tab in indent". Both lines are quoted `makefile`
+inside a fenced block — they begin with `+` and a tab because they are diff
+lines being shown to the reader — and the same two warnings appear verbatim
+against the pre-rebase candidate `52bca9f8`. The file is branch-only, so the
+diff sees every line as added; the warnings are the document's subject matter,
+and neither is a repository gate.
 
 **What this inherits.** `crates/rstest-bdd/src/skip_helpers.rs` now has
 `2fd3d2fe` as its most recent change, which is the `redundant_else` fix, and
 the other four `assert_is_empty` sites are `main`'s unchanged files. The
 candidate is `b9fcd320`, sitting directly on `2f0ea8d5`. Every gate evidence
-tied to `d4c12901` is now stale for acceptance and is retained only as
-history; the full gate set must be re-run against the rebased candidate.
+tied to `d4c12901` is now stale for acceptance and is retained only as history;
+the full gate set must be re-run against the rebased candidate.
 
 Lessons. The first is D67's, confirmed by acting on it: fetching before
 diagnosing is what made the five clippy findings attributable to `main` at all,
@@ -8818,6 +8818,28 @@ touched and manufacturing conflicts on the next replay. The second is that a
 one-line conflict in a generated file still deserves history: the resolution
 looked arbitrary from the stage blobs alone and only became obvious after
 reading what the later commit in the same series intended to do with the line.
+
+**The gate pass on the rebased candidate found two reds, and the lint one had a
+hidden second site.** `make check-fmt` failed because `mdtablefix --check`
+wanted to re-wrap three paragraphs of the D68 prose above, which had been
+written at the wrong column. That is a formatting slip in a document, repaired
+by applying `mdtablefix --in-place` to that one file.
+
+`make lint` aborted at step 1 of 9 on `assert_is_empty` at
+`crates/rstest-bdd/tests/runner_wire.rs:262` — the same rust-1.99 pedantic lint
+`main` had just fixed elsewhere, but in a file this branch wrote. The abort
+matters more than the finding: cargo had already stopped, so the log named
+exactly one site and steps 2–9 carried no verdict. A `--keep-going` sweep with
+the gate's own flags found the real count is **two**: `completeness.rs:247`
+holds the byte-identical expression and would have surfaced only on the next
+run, after the first fix. Both are repaired to the shape `main` chose for the
+same lint (`assert_eq!(outcome.steps(), [])`).
+
+The lesson is a second-order version of D67's. An aborting gate does not merely
+withhold the verdicts of the steps after it; it can withhold the *other
+instances of the same finding*, because the compiler stops before reaching
+every target. Diagnosing a first-failure abort means enumerating the finding,
+not repairing the one site the abort happened to print.
 
 Date/Author: 2026-10-11, implementation agent.
 
