@@ -2460,6 +2460,33 @@ between them. Raise that before spending the tolerance.
   more test binaries' worth of coverage (26 + 8 tests over four touched
   suites), and both Markdown checkers still have to be re-run because this
   entry is itself a gate input.
+- [x] (2026-10-11) **The ninth hosted run went red on both Windows legs, from
+  a defect in this branch's own CodeScene repair; recorded as D71 and fixed in
+  `de86ce7f`.** The CodeScene fix `80748eff` replaced the hand-rolled
+  `child_path` join (`format!("{prefix}/{name}")`, always `/`-spelled) with
+  `Utf8Path::join`, which writes `MAIN_SEPARATOR`. On Linux those coincide, so
+  every local gate stayed green; on Windows the walk's keys became
+  `engine\drive.rs` while the completeness guard pins `engine/drive.rs`, and
+  the guard reported a tree it had in fact read as one it never reached — this
+  module's own documented failure mode. The repair normalizes once at key
+  construction rather than at each comparison, and the new test supplies the
+  back-slashed literal Windows CI produced, so it fails on Linux for the same
+  reason it failed on Windows. Non-vacuity was shown by mutation: with the
+  normalizer reduced to the identity the new test fails with exactly the CI
+  pair while the pre-existing guard still *passes* on Linux. The two Markdown
+  gates and `make test` were re-run at the fixing revision, and the branch was
+  then pushed. Note that the local suite is **orthogonal** evidence for this
+  class, not weak evidence — the failing case is unreachable on the only
+  platform the suite runs on, which is the same lesson D65 recorded for
+  `file!()`.
+- [x] (2026-10-11) **The D71 entry's own gate comparison was wrong by an order
+  of magnitude, and was corrected in `18cbb1d8`; recorded in D71.** The first
+  version compared the `make test` recipe's 720s wall clock against the 1200s
+  ceiling. Those are different quantities: the ceiling is nextest's per-*test*
+  `slow-timeout` for `step_macros_compile` and its siblings, not a budget for
+  the recipe. The comparable figure is that test's **285.4s** at `de86ce7f`
+  against the 997.3s and 962.3s D70 recorded at `f5a1e806`. CodeRabbit's own
+  learning from this PR names the trap, and it was right.
 
 ## Surprises & discoveries
 
@@ -11529,3 +11556,33 @@ revision is documentation only, and no gate that the branch's code passes is
 affected. The lifecycle work and the Scope escalation are unchanged. D39's
 escalation is retired — **dissolved by upstream deletion rather than answered**
 — so a successor has exactly one escalation to take to a human.
+
+**2026-10-11, revision 4.** Revised after the branch was rebased onto
+`origin/main` (`2f0ea8d5`) and after the ninth hosted run failed on both
+Windows legs.
+
+*What changed.* Two decision entries were added. D71 records the hosted red:
+the CodeScene repair `80748eff` replaced the hand-rolled `child_path` join with
+`Utf8Path::join`, which writes `MAIN_SEPARATOR`, so on Windows the runner
+suite's scan keys became `engine\drive.rs` while the completeness guard pins
+`engine/drive.rs`. The repair (`de86ce7f`) normalizes once at key construction.
+D70 records the eighth gate pass's single timeout and a ratio in D69 that was
+wrong by arithmetic. Two Progress entries carry the hosted red and the
+correction to D71's gate comparison. The status header is unchanged: it names
+no head and holds no gate verdict by design (D49), so there was nothing in it
+to correct.
+
+*Why it changed.* The Windows failure was introduced by this branch, in the
+change made to satisfy CodeScene, and it was invisible to every local gate
+because on Linux the two separators coincide. The D71 correction was needed for
+a separate reason: the entry's first version compared the `make test` recipe's
+720s wall clock against nextest's 1200s `slow-timeout`, which is a per-*test*
+ceiling and not a budget for the recipe, so the comparison flattered the result
+by an order of magnitude.
+
+*How it affects the remaining work.* The deliverable is unchanged; the repair
+restores the documented `outcome/step.rs:12` finding format on every host
+rather than changing it. The lesson is recorded in D71 and is the same one D65
+recorded for `file!()`: a suite that only ever runs on Linux is **orthogonal**
+evidence about a separator defect, not weak evidence. The Scope escalation
+remains the one open item, and it has been approved.
