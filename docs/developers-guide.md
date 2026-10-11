@@ -1601,6 +1601,13 @@ gap in a large repository. No ignore flag and no exclusion is configured.
 `scripts/tests` sits under `scripts`, so it is covered. A new Python directory
 is added to `INTERROGATE_TARGETS`.
 
+`tests/workflow_contracts/interrogate_gate_test.py` holds the contract: `lint`
+reaches `interrogate` through `lint-python`, the tool is pinned and run through
+`uv tool run`, the flags demand `--fail-under 100` and `-vv` with no ignore
+flag, and every directory holding Python source is a target. It also runs the
+target against a stub tool to prove that a clean report passes, a failing tool
+status is kept, and a `MISSED` row that the rounded percentage hid fails it.
+
 ## Workflow-contract helper modules (`tests/workflow_contracts`)
 
 The contracts in `tests/workflow_contracts` assert against workflow YAML and
