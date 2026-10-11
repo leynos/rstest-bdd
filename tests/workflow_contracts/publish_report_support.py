@@ -78,6 +78,7 @@ class PublishReportShapeError(WorkflowShapeError):
     """
 
     def __init__(self, message: str) -> None:
+        """Build the message from the parameters documented on the class."""
         super().__init__(message)
 
 

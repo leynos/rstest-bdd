@@ -77,6 +77,7 @@ class UnrecognizedDurationError(WorkflowShapeError):
     """
 
     def __init__(self, duration: str) -> None:
+        """Build the message from the parameters documented on the class."""
         super().__init__(f"unrecognized nextest duration {duration!r}")
 
 
@@ -98,6 +99,7 @@ class MissingDefaultProfileError(WorkflowShapeError):
     """
 
     def __init__(self) -> None:
+        """Build the message from the parameters documented on the class."""
         super().__init__(
             "nextest.toml must declare a [profile.default] section; the "
             "ordering contract has nothing to compare against without one"
@@ -121,6 +123,7 @@ class MissingGlobalTimeoutError(WorkflowShapeError):
     """
 
     def __init__(self) -> None:
+        """Build the message from the parameters documented on the class."""
         super().__init__(
             "[profile.default] must set global-timeout; without it the "
             "whole-run budget is unbounded and the watchdog becomes the "
@@ -145,6 +148,7 @@ class MissingSlowTimeoutError(WorkflowShapeError):
     """
 
     def __init__(self) -> None:
+        """Build the message from the parameters documented on the class."""
         super().__init__("nextest.toml must set at least one slow-timeout period")
 
 
@@ -168,6 +172,7 @@ class UnparsableConfigurationError(WorkflowShapeError):
     """
 
     def __init__(self, detail: str) -> None:
+        """Build the message from the parameters documented on the class."""
         super().__init__(f"nextest.toml is not valid TOML: {detail}")
 
 
@@ -192,6 +197,7 @@ class UnboundedTestError(WorkflowShapeError):
     """
 
     def __init__(self, where: str) -> None:
+        """Build the message from the parameters documented on the class."""
         super().__init__(
             f"{where}.slow-timeout sets no terminate-after, so nextest reports "
             f"the test as slow once per period and never stops it; there is no "
@@ -223,6 +229,7 @@ class MalformedSlowTimeoutPeriodError(WorkflowShapeError):
     """
 
     def __init__(self, where: str, value: object) -> None:
+        """Build the message from the parameters documented on the class."""
         super().__init__(
             f"{where}.slow-timeout sets no period nextest can read "
             f"({value!r}); nextest requires a duration string"
@@ -255,6 +262,7 @@ class MalformedTerminateAfterError(WorkflowShapeError):
     """
 
     def __init__(self, where: str, value: object) -> None:
+        """Build the message from the parameters documented on the class."""
         super().__init__(
             f"{where}.slow-timeout sets terminate-after = {value!r}; nextest "
             f"requires a whole number of periods greater than zero"
@@ -285,6 +293,7 @@ class MalformedGracePeriodError(WorkflowShapeError):
     """
 
     def __init__(self, where: str, value: object) -> None:
+        """Build the message from the parameters documented on the class."""
         super().__init__(
             f"{where}.slow-timeout sets grace-period = {value!r}; nextest "
             f"requires a duration string"

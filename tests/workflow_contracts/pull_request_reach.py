@@ -50,6 +50,7 @@ class TriggerShapeError(WorkflowShapeError):
     """
 
     def __init__(self, subject: str, detail: str) -> None:
+        """Build the message from the parameters documented on the class."""
         super().__init__(f"{subject}: {detail}")
 
 
@@ -66,6 +67,7 @@ class UnrecognizedCallError(WorkflowShapeError):
     """
 
     def __init__(self, reference: str) -> None:
+        """Build the message from the parameters documented on the class."""
         super().__init__(
             f"{reference!r} is neither a path under {WORKFLOW_DIRECTORY} nor an "
             "owner/repo/path@ref reference; refusing to guess what it calls"
@@ -82,6 +84,7 @@ class MissingCalledWorkflowError(WorkflowShapeError):
     """
 
     def __init__(self, reference: str) -> None:
+        """Build the message from the parameters documented on the class."""
         super().__init__(
             f"{reference!r} calls a workflow that is not in {WORKFLOW_DIRECTORY}; "
             "the closure cannot be computed over a file it cannot read"

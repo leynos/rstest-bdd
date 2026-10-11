@@ -38,6 +38,7 @@ class NotAMappingError(WorkflowShapeError):
     """A document or fragment that should have parsed to a mapping did not."""
 
     def __init__(self, subject: str) -> None:
+        """Build the message from the parameters documented on the class."""
         super().__init__(f"{subject} must parse to a mapping")
 
 
@@ -60,6 +61,7 @@ class UnparsableWorkflowError(WorkflowShapeError):
     """
 
     def __init__(self, subject: str) -> None:
+        """Build the message from the parameters documented on the class."""
         super().__init__(f"{subject} is not parsable YAML")
 
 
@@ -67,6 +69,7 @@ class MissingKeyError(WorkflowShapeError):
     """A document did not declare a structure the contracts require."""
 
     def __init__(self, subject: str, expected: str) -> None:
+        """Build the message from the parameters documented on the class."""
         super().__init__(f"{subject} must declare {expected}")
 
 
@@ -74,6 +77,7 @@ class StepNotAMappingError(WorkflowShapeError):
     """A workflow step was not a mapping."""
 
     def __init__(self) -> None:
+        """Build the message from the parameters documented on the class."""
         super().__init__("every workflow step must be a mapping")
 
 
@@ -81,6 +85,7 @@ class CacheStepInputsError(WorkflowShapeError):
     """A cache step declared no inputs."""
 
     def __init__(self) -> None:
+        """Build the message from the parameters documented on the class."""
         super().__init__("a cache step must declare inputs")
 
 
@@ -88,6 +93,7 @@ class CacheStepPathsError(WorkflowShapeError):
     """A cache step declared no paths."""
 
     def __init__(self) -> None:
+        """Build the message from the parameters documented on the class."""
         super().__init__("a cache step must declare its paths")
 
 
@@ -111,6 +117,7 @@ class MissingRepositoryFileError(WorkflowShapeError):
     """
 
     def __init__(self, subject: str) -> None:
+        """Build the message from the parameters documented on the class."""
         super().__init__(f"{subject} must exist in the repository")
 
 
@@ -136,6 +143,7 @@ class RepositoryReadError(WorkflowShapeError):
     """
 
     def __init__(self, subject: str, category: str) -> None:
+        """Build the message from the parameters documented on the class."""
         self.category = category
         super().__init__(f"{subject} could not be read: {category}")
 
@@ -144,6 +152,7 @@ class AmbiguousStepError(WorkflowShapeError):
     """A step name did not match exactly one step in a job."""
 
     def __init__(self, name: str, found: int) -> None:
+        """Build the message from the parameters documented on the class."""
         super().__init__(f"expected exactly one {name!r} step, found {found}")
 
 

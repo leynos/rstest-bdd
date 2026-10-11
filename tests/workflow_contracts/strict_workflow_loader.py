@@ -44,6 +44,7 @@ class DuplicateKeyError(AssertionError):
     """
 
     def __init__(self, key: object, line: int) -> None:
+        """Build the message from the parameters documented on the class."""
         self.key = key
         self.line = line
         super().__init__(
