@@ -1,7 +1,7 @@
 VALE ?= vale
 
 .PHONY: help all clean test build build-python release lint lint-python update-users-guide-links
-.PHONY: lint-whitaker typecheck fmt check-fmt markdownlint spellcheck spelling
+.PHONY: lint-whitaker typecheck fmt check-fmt markdownlint spellcheck spelling interrogate
 .PHONY: nixie publish-check
 .PHONY: check-published-gpui stage-published-gpui-e2e e2e-published-gpui
 .PHONY: check-published-gpui-e2e-lock
@@ -64,6 +64,16 @@ TYPOS_CONFIG_BUILDER = $(UV_ENV) $(UV) tool run --python 3.14 --from \
 MD_FILES_FIND = find . -type f -name '*.md' -not -path '*/target/*' -not -path '*/node_modules/*' -not -path './.vtcode/*' -print0
 LADING_REF ?= b771852411b428ff6fc779cc3a68b153a8f2439a
 LADING_SPEC ?= lading @ git+https://github.com/leynos/lading@$(LADING_REF)
+# Interrogate measures docstring presence over every Python file the repository
+# owns: the maintenance scripts, their tests and the workflow-contract suite.
+# Ruff owns docstring style. Add a new Python directory here.
+INTERROGATE_VERSION ?= 1.7.0
+INTERROGATE_TARGETS ?= scripts tests/workflow_contracts
+# Level 2 prints a MISSED row per undocumented definition, which the
+# `interrogate` target fails on: the rounded percentage alone passes a lone gap.
+INTERROGATE_FLAGS ?= -vv --fail-under 100
+INTERROGATE = $(UV_ENV) $(UV) tool run --python 3.14 \
+	--from 'interrogate==$(INTERROGATE_VERSION)' interrogate
 PYTHON_TARGETS ?= $(shell find scripts tests/workflow_contracts -type f -name "*.py" -print | sort)
 # Run Pylint on the interpreter whose grammar the lint targets are written in.
 # A managed PyPy lags that syntax and reports nothing at all for a module it
@@ -129,11 +139,23 @@ lint: ## Run Clippy and the Whitaker Dylint suite with warnings denied
 lint-whitaker: ## Run the Whitaker Dylint suite with warnings denied
 	RUSTFLAGS="$(RUST_FLAGS)" $(WHITAKER) --all -- $(CARGO_FLAGS)
 
-lint-python: build-python ## Run Python linters
+lint-python: build-python interrogate ## Run Python linters
 	$(RUFF) check $(PYTHON_TARGETS)
 	$(PYLINT) $(PYLINT_TARGETS)
 	$(DF12_PYLINT) $(PYLINT_TARGETS)
 	$(AMBRLEAKS) tests
+
+# Interrogate rounds its percentage to one decimal, so `--fail-under 100` alone
+# passes a lone gap in a large repository; fail on any MISSED row as well.
+interrogate: ## Enforce complete Python docstring coverage
+	@report="$$($(INTERROGATE) $(INTERROGATE_FLAGS) $(INTERROGATE_TARGETS))"; \
+	  status=$$?; \
+	  printf '%s\n' "$$report"; \
+	  test "$$status" -eq 0 || exit "$$status"; \
+	  if printf '%s\n' "$$report" | grep -q '| *MISSED |'; then \
+	    printf '%s\n' 'interrogate: undocumented definitions remain; see the MISSED rows above' >&2; \
+	    exit 1; \
+	  fi
 
 # The write side of the `lint` step that validates the users-guide reference
 # links: it rewrites the block from the one base URL recorded in

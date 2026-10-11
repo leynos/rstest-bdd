@@ -79,6 +79,7 @@ def render_job_name(name: str, row: dict[str, object]) -> str:
     """
 
     def substitute(match: re.Match[str]) -> str:
+        """Replace a matrix reference with its row value, or keep it if unknown."""
         reference = match["body"].strip()
         key = reference.removeprefix("matrix.")
         return str(row[key]) if key in row else match.group(0)

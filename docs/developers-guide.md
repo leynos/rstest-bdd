@@ -1582,6 +1582,32 @@ accepts, and checks the pool rule at both ends of the machine range. It runs
 the pass rather than reading the configured values, because a pool pinned to
 one worker still satisfies every string assertion.
 
+## Python docstring coverage (interrogate)
+
+`make lint-python` first runs `make interrogate`, which requires a docstring on
+every definition in `scripts` and `tests/workflow_contracts`, nested helpers
+and test doubles included:
+
+```make
+INTERROGATE_VERSION ?= 1.7.0
+INTERROGATE_TARGETS ?= scripts tests/workflow_contracts
+INTERROGATE_FLAGS ?= -vv --fail-under 100
+```
+
+Interrogate measures docstring presence and Ruff keeps docstring style. The run
+prints every definition (`-vv`) and the target fails on any `MISSED` row,
+because interrogate rounds its percentage to one decimal and so passes a lone
+gap in a large repository. No ignore flag and no exclusion is configured.
+`scripts/tests` sits under `scripts`, so it is covered. A new Python directory
+is added to `INTERROGATE_TARGETS`.
+
+`tests/workflow_contracts/interrogate_gate_test.py` holds the contract: `lint`
+reaches `interrogate` through `lint-python`, the tool is pinned and run through
+`uv tool run`, the flags demand `--fail-under 100` and `-vv` with no ignore
+flag, and every directory holding Python source is a target. It also runs the
+target against a stub tool to prove that a clean report passes, a failing tool
+status is kept, and a `MISSED` row that the rounded percentage hid fails it.
+
 ## Workflow-contract helper modules (`tests/workflow_contracts`)
 
 The contracts in `tests/workflow_contracts` assert against workflow YAML and
