@@ -9129,17 +9129,21 @@ the sixth comparison.
 
 `make test` was re-run at `de86ce7f` with the revision recorded on both sides
 of the run: `REV_START` and `REV_END` both read `de86ce7f`, the tree was clean
-at both ends, and the run exited 0 in **720s** against D70's 1200s ceiling — so
-the leg that had been exposed to contention completed with the limit not
-approached. The other three verdicts at that head are carried by reachability
-rather than by a recorded revision: `make check-fmt` reported
-`123 files left unchanged`, `make lint` ran all nine steps with zero warnings,
-and `make markdownlint` reported `0 error(s)`, each from a log taken minutes
-before the commit against the tree it recorded. That is sound for `lint` and
-`test`, whose recipes read no Markdown, and it is why the two Markdown verdicts
-are re-taken at the revision this entry creates: the plan is itself a
-`mdtablefix` and `markdownlint` input, so D49's rule applies and every edit to
-it re-opens those two gates.
+at both ends, and the run exited 0. The run's 720s wall clock is **not** the
+figure to compare against D70's 1200s ceiling, because that ceiling is
+nextest's per-*test* `slow-timeout`, not a budget for the recipe: the
+comparable figure is `runner::step_macros_compile`'s **285.4s** at this head
+against the 997.3s and 962.3s it took at `f5a1e806`. The contended leg came
+back to roughly a third of its worst recorded time and sits well under the
+limit, which is what the re-run was for. The other three verdicts at that head
+are carried by reachability rather than by a recorded revision:
+`make check-fmt` reported `123 files left unchanged`, `make lint` ran all nine
+steps with zero warnings, and `make markdownlint` reported `0 error(s)`, each
+from a log taken minutes before the commit against the tree it recorded. That
+is sound for `lint` and `test`, whose recipes read no Markdown, and it is why
+the two Markdown verdicts are re-taken at the revision this entry creates: the
+plan is itself a `mdtablefix` and `markdownlint` input, so D49's rule applies
+and every edit to it re-opens those two gates.
 
 Date/Author: 2026-10-11, implementation agent.
 
