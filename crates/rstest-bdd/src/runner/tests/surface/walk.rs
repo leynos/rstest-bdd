@@ -308,6 +308,14 @@ fn the_scan_finds_the_runner_tree() {
         // The INV-7 module is a directory: `source/mod.rs` proves the descent,
         // by the same reasoning as `engine/policy_tests/mod.rs` above.
         "tests/source/mod.rs",
+        // The outcome suite is a directory too, split by the 400-line cap, and
+        // its `mod.rs` is the entry that proves the descent. `rendering.rs` is
+        // named as well because it is the file the split created: the point of
+        // the move was to bring a new file into this tree, and an entry that
+        // only proved the directory would not notice if the walk stopped
+        // short of the file that move produced.
+        "tests/outcome/mod.rs",
+        "tests/outcome/rendering.rs",
         // This file and the parent are the scan's own two files, but only the
         // parent carries the token list, so only the parent is exempt from
         // being scanned. This one is scanned like any other.

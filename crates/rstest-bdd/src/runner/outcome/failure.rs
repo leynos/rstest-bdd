@@ -151,6 +151,38 @@ pub enum ScenarioFailure {
 }
 
 impl ScenarioFailure {
+    /// Render this failure, substituting `path` for the error's own copy.
+    ///
+    /// The single place this type's failure wording lives. [`Display`] passes
+    /// `None` because a `ScenarioFailure` alone carries no plan-side location —
+    /// that is [`ScenarioOutcome::terminal_source`]'s to supply — while
+    /// `ScenarioOutcome`'s own `Display` passes the plan's path so the rendered
+    /// string agrees with the accessors, which is what INV-7 requires of it.
+    ///
+    /// The `match` is exhaustive rather than carrying a wildcard arm. Adding a
+    /// variant is meant to stop the build here, so that the new variant gets a
+    /// rendering worded for it rather than a generic line nobody chose: the
+    /// deferred `Before`/`After` hook variants (D2 option (i), EP-M4) are the
+    /// known arrivals, and a wildcard would let them ship as
+    /// "scenario failed", which is the message a reporter prints when it has
+    /// nothing to say.
+    ///
+    /// [`Display`]: std::fmt::Display
+    /// [`ScenarioOutcome::terminal_source`]:
+    ///     crate::runner::ScenarioOutcome::terminal_source
+    pub(super) fn render_with(&self, path: Option<&str>) -> String {
+        match self {
+            Self::Step { index, error } => {
+                let rendered = crate::localization::with_loader(|loader| {
+                    error.format_with_loader_at(loader, path)
+                });
+                format!("scenario failed at step {index}: {rendered}")
+            }
+            Self::ForcedSkip(skip) => format!("scenario failed: skipped at step {}", skip.at()),
+            Self::EmptyPlan => "scenario failed: the plan contained no steps".to_owned(),
+        }
+    }
+
     /// Project this failure onto its site.
     ///
     /// # Examples
@@ -180,6 +212,40 @@ impl ScenarioFailure {
     /// ```
     #[must_use]
     pub const fn error(&self) -> Option<&ExecutionError> {
+        match self {
+            Self::Step { error, .. } => Some(error),
+            _ => None,
+        }
+    }
+}
+
+/// Render the failure.
+///
+/// This is the error type of the canonical
+/// [`into_harness_result`](crate::runner::ScenarioOutcome::into_harness_result),
+/// so it is what a caller's own failure message will most often format, and a
+/// `Display` is what makes that possible in a `panic!("{failure}")` or a
+/// `Result` with `?`.
+///
+/// The rendering falls back to the error's own recorded path, because a
+/// [`ScenarioFailure`] carries no plan-side location to prefer. A caller that
+/// holds the outcome should render *that* — `ScenarioOutcome`'s `Display`
+/// substitutes the plan's path, which is the rendering INV-7 governs.
+impl std::fmt::Display for ScenarioFailure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.render_with(None))
+    }
+}
+
+/// The failure as an error source.
+///
+/// A step failure's cause is the [`ExecutionError`] that ended the run, so it
+/// is exposed as the source; the other two variants have no cause to name.
+/// [`EmptyPlan`](ScenarioFailure::EmptyPlan) is a fact about the plan rather
+/// than a defect to unwrap, and a forced skip's cause is the skip itself, which
+/// is not an `Error`.
+impl std::error::Error for ScenarioFailure {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Step { error, .. } => Some(error),
             _ => None,

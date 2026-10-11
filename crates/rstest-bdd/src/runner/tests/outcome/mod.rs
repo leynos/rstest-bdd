@@ -4,6 +4,11 @@
 //! scenario. That is deliberate: the fold is a pure function of the outcome's
 //! fields, so its cases are enumerable without a registry, and a synthetic
 //! outcome is also what the integration suite's negative controls need.
+//!
+//! `rendering` holds the other half: `ScenarioFailure`'s `Display` and `Error`
+//! projections, which are about how a value reads rather than what it holds.
+
+mod rendering;
 
 use std::sync::Arc;
 
@@ -35,7 +40,7 @@ use crate::{
 fn location(line: u32) -> SourceLocation { SourceLocation::new_static("notes/demo.md", line, None) }
 
 /// An `ExecutionError::StepNotFound`, the shape most tests here fail with.
-fn not_found(index: usize) -> ExecutionError {
+pub(super) fn not_found(index: usize) -> ExecutionError {
     ExecutionError::StepNotFound {
         index,
         keyword: StepKeyword::Given,

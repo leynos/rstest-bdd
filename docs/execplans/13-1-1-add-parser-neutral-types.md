@@ -661,9 +661,11 @@ between them. Raise that before spending the tolerance.
   The D5 conversion is now built: `reporting/conversion.rs` holds a private
   `record_from(&ScenarioPlan, &ScenarioOutcome) -> Result<ScenarioRecord, Gap>`
   with its signature pinned by an anonymous `const _:` coercion, and
-  `reporting/conversion/tests.rs` holds six unit tests. The three `Gap`
-  variants are D5's 13.2.1 obligations made executable, and building it
-  corrected two of the three as the decision log records.
+  `reporting/conversion/tests.rs` holds eight unit tests. The `Gap` variants
+  are D5's 13.2.1 obligations made executable, and building it corrected two of
+  the three the decision text predicted. A fourth, `Gap::EmptyPlan`, arrived
+  later from review — D66 records why — so the count is four and not the three
+  the D5 text names.
 
   D14 is now complete in source and covered by tests, which is itself a
   correction: the plan named the four events and assigned them **no artefact**,
@@ -3046,11 +3048,12 @@ between them. Raise that before spending the tolerance.
   bare file name — `path.rsplit('/').next()` — and then asserted that the names
   contained `"outcome"`. No file under `outcome/` has that name (`mod.rs`,
   `step.rs`, `failure.rs`), so the expectation was satisfied incidentally by an
-  *unrelated* file, `runner/tests/outcome.rs`. It was a guard that named a
-  directory and then never checked one. Rewritten to compare whole relative
-  paths, and verified by mutation: with `child_path` altered to drop its prefix
-  so every key collapsed to a basename, the old guard **passed** while the new
-  guard **failed** with
+  *unrelated* file, `runner/tests/outcome.rs` (since moved to
+  `runner/tests/outcome/mod.rs`). It was a guard that named a directory and
+  then never checked one. Rewritten to compare whole relative paths, and
+  verified by mutation: with `child_path` altered to drop its prefix so every
+  key collapsed to a basename, the old guard **passed** while the new guard
+  **failed** with
   `expected the scan to reach outcome/failure.rs; found
   ["builder.rs", "failure.rs", "mod.rs", …]`.
   Impact: two corrections to the record. First, a passing test in EP-M1's own
@@ -4234,7 +4237,7 @@ positive, and `BypassedScenario` — which has no collision — stays bare.
   plan that over-claims, which is the standing hazard of a living document and
   the reason this paragraph now names the evidence rather than the intent. What
   shipped is `crates/rstest-bdd/src/reporting/conversion.rs` plus its
-  `conversion/tests.rs`, six unit tests, with the signature pinned by an
+  `conversion/tests.rs`, eight unit tests, with the signature pinned by an
   anonymous `const _:` coercion. The conversion is a private
   `fn record_from(&ScenarioPlan, &ScenarioOutcome) -> Result<ScenarioRecord,
   Gap>`,
@@ -4534,11 +4537,11 @@ positive, and `BypassedScenario` — which has no collision — stays bare.
   contradiction only appears when `classify` has to produce the value. The
   evidence is the shipped EP-M1 shape, not a reading of it:
   `runner/outcome/mod.rs` gives `ScenarioOutcome` four independent fields
-  (`status`, `steps`, `skip`, `failure`), and `runner/tests/outcome.rs:97`
-  constructs a permitted skip as
+  (`status`, `steps`, `skip`, `failure`), and the `skipping_outcome` helper in
+  `runner/tests/outcome/mod.rs` constructs a permitted skip as
   `ScenarioOutcome::new(ScenarioStatus::Skipped, vec![step], Some(skip),`
   `None)` — a skip with no failure. The fold then returns `Ok(())` for it
-  (`canonical_fold_accepts_an_unforced_skip`, line 127).
+  (`canonical_fold_accepts_an_unforced_skip`).
 
   The corrected type:
 
@@ -8608,6 +8611,146 @@ throughout; restarting it was not this branch's call to make.
 
 Date/Author: 2026-09-30, implementation agent.
 
+### D66: the fourteenth CodeRabbit pass found four concerns, and three of its preferred remedies were taken
+
+The fourteenth review ran against `d4c12901`, the branch head the thirteenth
+round's repairs produced, and returned four actionable records — two `Major`
+and two `Minor`, all inline. All four were verified against the live source
+before any edit, and all four were true of the tree as written. Three of the
+four repairs are code changes; the fourth's preferred remedy was code-side as
+well, so every record changed behaviour or public surface rather than prose
+alone.
+
+**`reporting/conversion.rs` — a zero-step pass had no guard.** The conversion
+read `outcome.status()` rather than calling `into_harness_result`, so a
+frontend whose parser produced nothing from a document was recorded as
+`ScenarioStatus::Passed`. The runner's own fold already refuses that shape
+(`ScenarioFailure::EmptyPlan`), and the gap is that the conversion does not
+reach the fold. Fixed by `Gap::EmptyPlan`, scoped to the `Passed` arm: every
+other status with an empty step list is either unreachable or already carries a
+reason of its own, so a status-blind empty check would rename those reasons
+rather than add one. Two tests were added — the guard, and the control that a
+*stepless skip* still converts, which a status-blind check would have
+intercepted. The guard's non-vacuity was measured rather than asserted:
+removing the one line makes `an_empty_pass_reports_the_gap` fail with
+`left: Ok(ScenarioRecord { .. status: Passed })`, which is the false green in
+the failure output itself.
+
+**`runner/outcome/mod.rs` — the skip records had a public construction path.**
+`SkipPolicyRecord`'s two fields, `SkipRecord`'s two fields, and
+`ScenarioSkip::new` were all `pub`. The pair is only meaningful resolved — an
+externally built `{allow_skipped: true, forced_failure: true}` satisfies the
+type and violates `forced_failure == !allow_skipped && fail_on_skipped` — and
+the accessors on `ScenarioSkip` are the read surface that exists instead.
+Narrowed to `pub(crate)`. Checked break-free rather than assumed: every
+construction site is inside `crates/rstest-bdd/src/`, and no doc link from
+another module names either type. The crate is `0.6.0`, so this is not a
+released-API break, and the whole `runner` module is new on this branch.
+
+**`runner/source.rs` — `SourcePath` compared by storage, not by path.** The
+enumerated type had a derived `PartialEq`, which compares the discriminant
+first, so `Static("a.md")` and `Shared(Arc::from("a.md"))` were unequal and
+hashed differently. Two records of one document would have compared as
+different records, and a map keyed by a path would have lost its own key. Fixed
+with handwritten `PartialEq`, `Eq`, and `Hash` over `as_str()`. The `Hash` impl
+is not incidental to that: an `Eq` written by hand beside a *derived* `Hash`
+would compile and pass an equality-only test, so the regression test asserts
+the two hash alike as well. Verified break-free: no `HashMap`, `HashSet`, or
+`BTreeMap` in the workspace is keyed by `SourcePath` or `SourceLocation`, and
+no test asserted variant-dependent inequality.
+
+**`ScenarioFailure` had no `Display`, and the users' guide printed it.** The
+guide's two examples write `println!("failed: {failure}")` and
+`panic!("{failure}")`, neither of which compiled. The reviewer's preferred
+remedy was the code-side one — give the type a `Display` and an `Error` — and
+that is what the plan already assigned: the Stage C skill table names
+`rust-errors` for exactly "`ScenarioFailure` shape, `Display`/`Error`
+implementations". The failure wording moved into one `render_with(path)` that
+both `ScenarioFailure`'s `Display` and `ScenarioOutcome`'s `Display` delegate
+to, so the two renderings differ only in the path they pass and cannot drift.
+`Error::source()` names the step error for the `Step` variant and `None` for
+the other two.
+
+An earlier revision of this record would have called these four "modest
+documentation nits". Two of them are not: the first is a false-green guard in a
+conversion that exists to prevent exactly that, and the second changes what
+callers can construct.
+
+**A fifth concern arrived with the repairs and came from the compiler.** Adding
+an exhaustive `match` to `render_with` left a wildcard arm that rustc reported
+as `unreachable_pattern` — and the comment defending it was wrong. It claimed
+`#[non_exhaustive]` would route a future variant into the wildcard, but that
+attribute does not restrict matching inside the defining crate, which is the
+same fact D5's `Gap::Failure` note already records about `FailureKind::of`. So
+the wildcard was dead code *and* did not provide the forward compatibility it
+was there for. Removing it is the correct disposition under either reading: an
+exhaustive match stops the build on a new variant, which is what a rendering
+that must word every variant wants. The arm is deleted and the doc now says why
+the match is deliberately total.
+
+Date/Author: 2026-10-11, implementation agent.
+
+### D67: the seventh gate pass split two failures, and only one of them was this branch's
+
+The seventh sequential gate run at `d4c12901` returned four passes and two
+failures. The split matters more than the count, because the two failures have
+different owners and only one of them is repairable here.
+
+**`markdownlint` failed in its `spelling` prerequisite, and that one is mine.**
+The gate reported exactly one finding:
+
+```plaintext
+docs/execplans/13-1-1-add-parser-neutral-types.md:8655:6: hand-written -> handwritten
+```
+
+Line 8655 is prose D66 had just added, and it was the only bare `hand-written`
+in the file: the other eight occurrences are wrapped in backticks, which the
+gate ignores. This is the two-pass behaviour D53 already recorded — `typos`
+alone accepts the hyphenated form and only the phrase-level pass rejects it —
+so the occurrence was invisible to the earlier check and visible to this one.
+Corrected to `handwritten`. The `typos.toml` that came back dirty from the run
+is the gate's own regeneration (`refreshed: typos.toml`) and is a separate
+artefact from this repair; the file was already modified before the run began.
+
+**`lint` failed, and that one is `main`'s, not the branch's.** Five clippy
+findings, all of them `rust-1.99.0` pedantic lints:
+
+```plaintext
+redundant_else        crates/rstest-bdd/src/skip_helpers.rs:22
+assert_is_empty (×4)  crates/rstest-bdd-harness/src/runner.rs:187
+                      rstest-bdd-macros/src/codegen/wrapper/args/classify/tests.rs:251
+                      rstest-bdd-macros/src/macros/scenarios/test_generation/tests/mod.rs:126
+                      rstest-bdd-macros/src/parsing/placeholder.rs:225
+```
+
+Every one of the five files is byte-identical to `origin/main`, and none of
+them appears anywhere in this branch's diff. The findings are a toolchain
+change: the branch's own CI last ran at rustc **1.98.1**, where these lints did
+not fire, and the local toolchain is now **1.99.0**, where they do. The branch
+changed no lint configuration — `Cargo.toml`'s `[workspace.lints]` table is
+untouched — so nothing here can be attributed to the work under review.
+
+**`origin/main` moved 33 commits during this review cycle, and one of them is
+the fix.**
+`2fd3d2fe Fix clippy 1.99 pedantic findings (assert_is_empty,
+redundant_else) (#849)`
+touches exactly these five files, among eleven, with the same one-line
+dispositions clippy asks for. So the correct remedy is not to re-derive those
+fixes here, which would conflict with `main` on the next rebase: it is to
+rebase onto the current `origin/main` and inherit them. The four passing gates
+(`check-fmt` with 88 files and 122 left unchanged by `mdtablefix`; `nixie`
+validating every diagram; `typecheck` passing all checks; `test` at 2076 passed
+/ 7 skipped and 737 passed / 7 skipped) are unaffected by the rebase, and the
+`lint` gate must be re-run on the rebased candidate.
+
+The lesson is one this plan has met before and recorded at D59: a green hosted
+CI is evidence about the revision that ran it, not about the branch's current
+base. Here the PR's checks are green only because they last executed under
+1.98.1. A re-run at 1.99.0 against the un-rebased tree would redden `lint` for
+reasons no branch change caused and none can fix in isolation.
+
+Date/Author: 2026-10-11, implementation agent.
+
 ## Outcomes & retrospective
 
 ### What was achieved
@@ -9117,7 +9260,7 @@ ADR-018-FR5     -> EP-M2 -> tests/runner_sequence_props.rs (a_returned_value_is_
 ADR-018-FR6,FR7 -> EP-M2 -> tests/completeness.rs (the_bypassed_tail_has_the_length_the_terminal_event_implies)
 ADR-018-FR8     -> EP-M4 -> tests::runner::lifecycle::terminal_paths       (contingent on D2)
 ADR-018-FR9     -> EP-M2 -> tests/runner_panics.rs (an_unwrapped_step_panic_is_returned_not_thrown)
-ADR-018-FR10    -> EP-M2 -> src/runner/tests/outcome.rs (canonical_fold_folds_forced_skip)
+ADR-018-FR10    -> EP-M2 -> src/runner/tests/outcome/mod.rs (canonical_fold_folds_forced_skip)
 ADR-018-TR1     -> EP-M1 -> src/runner/tests/surface.rs (no_frontend_types_in_public_api)
 ADR-018-TR2     -> EP-M2 -> tests/runner_panics.rs (a_wrapped_step_panic_is_unchanged)
 ADR-018-TR3     -> EP-M5 -> git diff --stat crates/rstest-bdd-macros (empty)
@@ -9500,7 +9643,7 @@ produces a documented outcome that a caller cannot mistake for a successful run.
   fold's `#[non_exhaustive]` attribute exists to permit.
 - Artefact: `crates/rstest-bdd/tests/completeness.rs` (D21) for the
   runners;
-  `crates/rstest-bdd/src/runner/tests/outcome.rs::
+  `crates/rstest-bdd/src/runner/tests/outcome/mod.rs::
   canonical_fold_rejects_an_empty_plan`
   for the fold, which is observable at EP-M1 because the fold is a pure
   function of the outcome's fields.
@@ -9570,12 +9713,12 @@ projects an `ExecutionError` onto a small `#[non_exhaustive] FailureKind`
   freeze internal registry or error representations" risk. A projection is
   cheap now and expensive to retrofit.
 - Artefact: `crates/rstest-bdd/tests/runner_instrumentation.rs` for the
-  observable event, with `src/runner/tests/outcome.rs` covering the projection
-  itself. Recorded as a correction: the plan named this artefact as
+  observable event, with `src/runner/tests/outcome/mod.rs` covering the
+  projection itself. Recorded as a correction: the plan named this artefact as
   `src/runner/tests/source.rs`, a file that holds D7's source-fidelity tests
   and has nothing to do with `FailureKind`. The projection's witnesses live in
-  `src/runner/tests/outcome.rs:269`; they were written at EP-M1 and the
-  verification plan was never updated to point at them.
+  `src/runner/tests/outcome/mod.rs` (`failure_kinds_are_stable`); they were
+  written at EP-M1 and the verification plan was never updated to point at them.
 
 **INV-17 — A step handler's panic is returned, not thrown, whatever
 registration form produced it.** No panic raised by a step body unwinds out of

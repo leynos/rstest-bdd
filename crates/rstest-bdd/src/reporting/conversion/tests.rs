@@ -152,6 +152,66 @@ fn a_skipped_run_converts_with_its_policy() {
     );
 }
 
+/// A zero-step pass reports [`Gap::EmptyPlan`], not a passing record.
+///
+/// The canonical false green, one layer up from where
+/// `into_harness_result` already refuses it: a frontend whose parser produced
+/// nothing from a document must not be recorded as a scenario that passed. The
+/// conversion reads `status()` rather than calling the fold, so nothing else in
+/// this path would catch it.
+///
+/// The non-vacuity control is [`a_passing_run_converts`]: it differs from this
+/// case in exactly one field — the step list — so a conversion that refused
+/// every run, or that keyed off the status alone, would fail one of the two.
+#[test]
+fn an_empty_pass_reports_the_gap() {
+    let plan = plan();
+    let outcome = ScenarioOutcome::new(RunnerStatus::Passed, Vec::new(), None, None);
+
+    assert_eq!(
+        record_from(&plan, &outcome),
+        Err(Gap::EmptyPlan),
+        "a plan that parsed to no steps has no passing record to build",
+    );
+}
+
+/// A skipped run is still converted when its step list is empty.
+///
+/// The negative control for the guard above in its other direction: the empty
+/// check is scoped to the `Passed` arm, so it must not swallow a skip that
+/// happens to carry no per-step records — a real shape, since a skip can be
+/// requested before any invocation is recorded. A guard written over
+/// `outcome.steps().is_empty()` without the status would report this run as an
+/// empty plan and lose its skip policy.
+#[test]
+fn a_stepless_skip_still_converts() {
+    let plan = plan();
+    let skip = ScenarioSkip::new(
+        0,
+        SkipRecord {
+            message: Some("pending".into()),
+            source: None,
+        },
+        SkipPolicyRecord {
+            allow_skipped: false,
+            forced_failure: true,
+        },
+    );
+    let outcome = ScenarioOutcome::new(RunnerStatus::Skipped, Vec::new(), Some(skip), None);
+
+    let record = record_from(&plan, &outcome).expect("a stepless skip still has a record");
+    let ScenarioStatus::Skipped(stored) = record.status() else {
+        panic!(
+            "the status must survive the crossing; got {:?}",
+            record.status()
+        );
+    };
+    assert!(
+        stored.forced_failure(),
+        "and the guard above must not have intercepted it on the way",
+    );
+}
+
 /// A failed run reports [`Gap::Failure`], not a passing record.
 ///
 /// This is D5's central finding, and this test is its evidence:

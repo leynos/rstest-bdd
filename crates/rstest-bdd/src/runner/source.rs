@@ -5,10 +5,20 @@
 //! is, which is what lets a non-Gherkin frontend keep its own source paths and
 //! line numbers all the way into the outcome.
 
-use std::sync::Arc;
+use std::{
+    hash::{Hash, Hasher},
+    sync::Arc,
+};
 
 /// A source path that is `const`-constructible on the macro path and shared on
 /// the dynamic path.
+///
+/// The variant is a **storage choice**, not part of the path's identity. A
+/// `Static` and a `Shared` path holding the same text compare equal and hash
+/// alike, because a frontend that parsed a document into an owned buffer and
+/// the same frontend compiling a literal for it are describing one document.
+/// Equality reaching `SourceLocation`, `StepOutcome`, and `ScenarioOutcome`
+/// would otherwise report two records of one document as different records.
 ///
 /// # Examples
 ///
@@ -20,8 +30,12 @@ use std::sync::Arc;
 ///
 /// let shared: SourcePath = std::sync::Arc::<str>::from("spec/cases.toml").into();
 /// assert_eq!(shared.as_str(), "spec/cases.toml");
+///
+/// // The storage differs; the path does not.
+/// let same: SourcePath = std::sync::Arc::<str>::from("notes/arithmetic.md").into();
+/// assert_eq!(static_path, same);
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 #[non_exhaustive]
 pub enum SourcePath {
     /// A path known at compile time; [`Clone`] is a copy.
@@ -47,6 +61,25 @@ impl SourcePath {
             Self::Shared(path) => path,
         }
     }
+}
+
+// The three trait impls below are written by hand rather than derived, and
+// they are one decision, not three: the variant is a storage choice, so the
+// path text is the whole of the identity. A derived `PartialEq` compares the
+// discriminant first and would call `Static("a.md")` and
+// `Shared(Arc::from("a.md"))` unequal despite their holding the same path.
+//
+// `Hash` must hash the same basis as `Eq` compares, or a map keyed by any of
+// these types would fail to find a key it had just inserted — the classic
+// inconsistency, and one the compiler cannot see.
+impl PartialEq for SourcePath {
+    fn eq(&self, other: &Self) -> bool { self.as_str() == other.as_str() }
+}
+
+impl Eq for SourcePath {}
+
+impl Hash for SourcePath {
+    fn hash<H: Hasher>(&self, state: &mut H) { self.as_str().hash(state); }
 }
 
 impl std::fmt::Display for SourcePath {

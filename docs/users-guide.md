@@ -2103,6 +2103,14 @@ that panics does not take the test harness down. The one failure channel is
 logged as a warning instead, because an outcome with two failure channels would
 leave no way to tell which was primary.
 
+`ScenarioFailure` implements `Display` and `std::error::Error`, so the
+`println!` above is the whole of what a reporter needs. Rendering an outcome
+rather than a failure — `format!("{outcome}")` — carries the plan's own source
+path, which is the same one the accessors return; a `ScenarioFailure` on its
+own has no plan-side location to prefer and falls back to the path its error
+recorded. The two agree in a real run, because the runner populates the error's
+field from the plan.
+
 ### Deciding whether a run passes a suite
 
 `is_passed()` reports a clean pass and is not the success test. Whether a

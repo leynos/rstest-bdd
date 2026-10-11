@@ -56,6 +56,15 @@ pub enum ScenarioStatus {
 /// have failed the suite?" gets the run's own answer rather than a rule it
 /// would have to re-evaluate against a policy it no longer has.
 ///
+/// The fields are crate-private because the invariant they carry is only
+/// meaningful as a resolved pair: an externally built
+/// `SkipPolicyRecord { allow_skipped: true, forced_failure: true }` satisfies
+/// the type and violates `forced_failure == !allow_skipped && fail_on_skipped`,
+/// and the accessors on [`ScenarioSkip`] are the read surface that exists
+/// instead. Keeping construction inside the crate also means a field added
+/// later is not a breaking change for a caller who cannot name the fields at
+/// all.
+///
 /// # Examples
 ///
 /// ```
@@ -73,9 +82,9 @@ pub struct SkipPolicyRecord {
     /// alone. Recording the effective value is what makes
     /// `forced_failure == !allow_skipped && fail_on_skipped` hold of the record
     /// itself and not merely of the policy that built it.
-    pub allow_skipped: bool,
+    pub(crate) allow_skipped: bool,
     /// `!allow_skipped && fail_on_skipped`, resolved once per run.
-    pub forced_failure: bool,
+    pub(crate) forced_failure: bool,
 }
 
 /// Why a run stopped early, in the words the invocation gave.
@@ -84,12 +93,17 @@ pub struct SkipPolicyRecord {
 /// travel together: a caller storing one and reading the other from elsewhere
 /// could pair a message with a location that did not produce it. The policy
 /// half is [`SkipPolicyRecord`].
+///
+/// Like the policy record, the fields are crate-private: a skip record is built
+/// once by the runner and read through [`ScenarioSkip`]'s accessors, so making
+/// the fields public would offer a second construction path to a value only the
+/// engine can produce meaningfully.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SkipRecord {
     /// The reason the step supplied, when it supplied one.
-    pub message: Option<String>,
+    pub(crate) message: Option<String>,
     /// Where the skipping step was written, when the plan recorded it.
-    pub source: Option<SourceLocation>,
+    pub(crate) source: Option<SourceLocation>,
 }
 
 /// The terminal skip, retained so a caller can see *why* the run stopped
@@ -128,13 +142,15 @@ impl ScenarioSkip {
     /// Construct a skip record.
     ///
     /// The caller is the runner's engine, which builds one whenever an
-    /// invocation asks to be skipped.
+    /// invocation asks to be skipped, so this is crate-private: an external
+    /// caller has no `SkipRecord` or `SkipPolicyRecord` it could pass, and the
+    /// accessors below are the read surface that exists instead.
     ///
     /// `#[must_use]`: a skip built and dropped would leave the invocation that
     /// requested it recorded as skipped with no reason attached, which is the
     /// silently-green shape [`ScenarioOutcome`] already guards against.
     #[must_use]
-    pub fn new(at: usize, record: SkipRecord, policy: SkipPolicyRecord) -> Self {
+    pub(crate) fn new(at: usize, record: SkipRecord, policy: SkipPolicyRecord) -> Self {
         Self { at, record, policy }
     }
 
@@ -322,6 +338,13 @@ impl ScenarioOutcome {
 /// rendering rather than printing a path it does not have. That is not a
 /// silent divergence: `terminal_source` returns `None` there, so no plan-side
 /// location exists to disagree with.
+///
+/// The failure wording itself lives in
+/// [`ScenarioFailure::render_with`](ScenarioFailure), which this delegates to
+/// so that [`ScenarioFailure`]'s own `Display` and this one cannot drift: they
+/// differ only in the path they pass. The two are otherwise identical, and two
+/// copies of the same `match` would be the obvious place for that to stop being
+/// true.
 impl std::fmt::Display for ScenarioOutcome {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.status {
@@ -333,24 +356,12 @@ impl std::fmt::Display for ScenarioOutcome {
                     None => write!(f, "scenario skipped at step {at}"),
                 }
             }
-            ScenarioStatus::Failed => match self.failure.as_ref() {
-                Some(ScenarioFailure::Step { index, error }) => {
-                    let rendered = crate::localization::with_loader(|loader| {
-                        error.format_with_loader_at(
-                            loader,
-                            self.terminal_source().map(SourceLocation::path),
-                        )
-                    });
-                    write!(f, "scenario failed at step {index}: {rendered}")
-                }
-                Some(ScenarioFailure::EmptyPlan) => {
-                    write!(f, "scenario failed: the plan contained no steps")
-                }
-                Some(ScenarioFailure::ForcedSkip(skip)) => {
-                    write!(f, "scenario failed: skipped at step {}", skip.at())
-                }
-                _ => write!(f, "scenario failed"),
-            },
+            ScenarioStatus::Failed => {
+                let Some(failure) = self.failure.as_ref() else {
+                    return f.write_str("scenario failed");
+                };
+                f.write_str(&failure.render_with(self.terminal_source().map(SourceLocation::path)))
+            }
         }
     }
 }

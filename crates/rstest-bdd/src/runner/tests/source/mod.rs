@@ -28,7 +28,11 @@
 mod rendering;
 mod support;
 
-use std::sync::Arc;
+use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
+    sync::Arc,
+};
 
 use rstest::rstest;
 
@@ -52,6 +56,20 @@ use crate::{
         test_invocation,
     },
 };
+
+/// The `Hash` value of a `SourcePath`, for comparing two paths' hashing.
+///
+/// `SourcePath` implements `Hash` but no caller in the crate hashes one, so
+/// there is no production route to assert through. Hashing into a
+/// `DefaultHasher` is the shortest way to observe the trait's contribution, and
+/// it is deliberately compared between two *equal* values rather than against a
+/// fixed number: the contract is that `Eq` and `Hash` agree, not that any
+/// particular seed is used.
+fn hash_of(path: &SourcePath) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    path.hash(&mut hasher);
+    hasher.finish()
+}
 
 /// Every status's record keeps the location the plan supplied (INV-7).
 #[rstest]
@@ -165,6 +183,68 @@ fn a_runtime_built_source_round_trips_through_the_outcome() {
         Some(ValueFate::NoMatch),
         "the control: the record is otherwise ordinary, so the assertions above are about the \
          source rather than about a record that lost everything",
+    );
+}
+
+/// The two storage variants of one path are one path (INV-7).
+///
+/// A parser that reads a document at run time hands back an `Arc<str>`, while
+/// the macro path hands back `&'static str`, and both are describing the same
+/// source. A derived `PartialEq` compares the discriminant first, so it would
+/// call these two unequal and hash them differently — which would make
+/// `SourceLocation`'s, `StepOutcome`'s, and `ScenarioOutcome`'s derived
+/// equality report two records of one document as different records.
+///
+/// The `Hash` assertion is not decorative: `Eq` and `Hash` agree here only
+/// because both were written over `as_str()`. An `Eq` written by hand beside a
+/// *derived* `Hash` would compile, pass an equality-only test, and then lose
+/// keys in a map — the inconsistency a comparison-only test cannot see. The
+/// hashing control below is what makes this test able to fail for that defect.
+#[test]
+fn one_path_has_one_identity_whatever_its_storage() {
+    let static_path = SourcePath::Static(SPEC_PATH);
+    let shared: SourcePath = SourcePath::from(Arc::<str>::from(SPEC_PATH));
+    let different: SourcePath = SourcePath::from(Arc::<str>::from(PROSE_PATH));
+
+    assert_eq!(
+        static_path, shared,
+        "the storage differs, the path does not, so the two must compare equal",
+    );
+    assert_ne!(
+        static_path, different,
+        "the control: equality must still separate two genuinely different paths",
+    );
+    assert_eq!(
+        hash_of(&static_path),
+        hash_of(&shared),
+        "equal values must hash alike, or a map keyed by a path cannot find its own key",
+    );
+    assert_eq!(
+        static_path.as_str(),
+        shared.as_str(),
+        "and the shared basis is the path text both expose",
+    );
+}
+
+/// The `SourcePath` equality spreads to the locations that embed it.
+///
+/// `SourcePath`'s own test above would not catch a `SourceLocation` that
+/// hand-wrote a variant-sensitive comparison of its own, and a location is what
+/// the outcome's accessors actually return.
+#[test]
+fn a_static_and_a_shared_location_for_one_path_agree() {
+    let static_location = SourceLocation::new_static(SPEC_PATH, 7, Some(3));
+    let shared_location =
+        SourceLocation::new(SourcePath::from(Arc::<str>::from(SPEC_PATH)), 7, Some(3));
+    let other_line = SourceLocation::new(SourcePath::from(Arc::<str>::from(SPEC_PATH)), 8, Some(3));
+
+    assert_eq!(
+        static_location, shared_location,
+        "one document at one position is one location, however the path is stored",
+    );
+    assert_ne!(
+        static_location, other_line,
+        "the control: the line is still part of the location's identity",
     );
 }
 

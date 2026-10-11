@@ -13,6 +13,16 @@
 //! item for 13.2.1 rather than a silent loss. The gaps are this module's
 //! finding, not a defect in it.
 //!
+//! # The empty plan is refused here as well as in the fold
+//!
+//! [`Gap::EmptyPlan`] restates a rule the runner already enforces, and the
+//! duplication is deliberate. `ScenarioOutcome::into_harness_result` refuses a
+//! zero-step pass, but this conversion does not call the fold — it reads the
+//! status — so a caller that reaches `reporting` without folding would record a
+//! false green. The guard is cheap, it names the reason rather than degrading to
+//! `Passed`, and it is the one place in this module where the two models
+//! *could* have agreed on a wrong answer.
+//!
 //! What it cannot be is end-to-end. A `#[cfg(test)]` module is compiled only
 //! for this crate's own unit tests, so the conversion is smoke-tested against a
 //! hand-built outcome and never against a live run. D5 records that narrowing
@@ -35,7 +45,7 @@ mod tests;
 
 /// A place where a plan and its outcome have no `reporting` representation.
 ///
-/// Three variants, each a 13.2.1 work item that would otherwise have been
+/// Four variants, each a 13.2.1 work item that would otherwise have been
 /// discovered during the migration rather than before it. Naming them is the
 /// product of D5's "write the conversion now" instruction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -46,6 +56,29 @@ enum Gap {
     /// This is the gap D5 exists to surface, and it is why the conversion
     /// cannot be a `From` impl.
     Failure,
+    /// A zero-step run reported `Passed`, and `reporting` has no way to record
+    /// that as anything but a pass.
+    ///
+    /// The runner's own fold already refuses this:
+    /// [`ScenarioOutcome::into_harness_result`] returns
+    /// [`ScenarioFailure::EmptyPlan`], because a frontend whose parser produced
+    /// nothing from a document has produced a malformed result rather than a
+    /// scenario that vacuously passed. `reporting::ScenarioStatus` has no
+    /// failure case to carry that refusal — which is [`Failure`](Self::Failure)
+    /// — so the conversion reports the reason itself rather than degrading to
+    /// `Passed`, which would be the canonical false green one layer up from
+    /// where the fold already prevents it.
+    ///
+    /// Scope: only the `Passed` arm. Every other status is reachable with an
+    /// empty step list only by hand, and each already has a reason of its own
+    /// (`Failure` for a failed run, `MissingSkipRecord` for a skip the engine
+    /// cannot produce), so widening this guard would rename those reasons
+    /// rather than add one.
+    ///
+    /// [`ScenarioOutcome::into_harness_result`]:
+    ///     crate::runner::ScenarioOutcome::into_harness_result
+    /// [`ScenarioFailure::EmptyPlan`]: crate::runner::ScenarioFailure::EmptyPlan
+    EmptyPlan,
     /// The plan recorded no scenario line, and [`ScenarioMetadata`] requires
     /// one. A dynamic frontend is free to omit the line, so this is reachable
     /// rather than theoretical.
@@ -75,10 +108,12 @@ enum Gap {
 ///
 /// - [`Gap::MissingLine`] when `plan` recorded no scenario line;
 /// - [`Gap::Failure`] when the run failed;
+/// - [`Gap::EmptyPlan`] when the run reported `Passed` with no steps;
 /// - [`Gap::MissingSkipRecord`] when the run reported a skip with no record of one.
 fn record_from(plan: &ScenarioPlan, outcome: &ScenarioOutcome) -> Result<ScenarioRecord, Gap> {
     let line = plan.source_line().ok_or(Gap::MissingLine)?;
     let status = match outcome.status() {
+        RunnerStatus::Passed if outcome.steps().is_empty() => return Err(Gap::EmptyPlan),
         RunnerStatus::Passed => ScenarioStatus::Passed,
         RunnerStatus::Skipped => {
             let skip = outcome.skip().ok_or(Gap::MissingSkipRecord)?;
