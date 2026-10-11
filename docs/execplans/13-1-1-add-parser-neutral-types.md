@@ -8895,8 +8895,11 @@ special-cased an empty prefix, because string concatenation cannot know that
 joining onto an empty path yields the child. `Utf8Path::join` is that
 operation. The helper is gone, the prefix is `&Utf8Path`, the keys are
 `Utf8PathBuf`, and `name` stays a `&str` because `cap-std` hands one over and
-it is a directory-entry name rather than a path. The ratio fell from 46.7% to
-20.0% across the *same nine functions*, with none added.
+it is a directory-entry name rather than a path. The ratio fell from 46.7% (7
+of 15 arguments) to 15.4% (2 of 13), with no function added to dilute it. The
+function count went from nine to eight, and the one that left is `child_path`
+itself, so both the numerator and the denominator moved only as the deletion
+removed a string-heavy helper along with the string arguments it consumed.
 
 **The fix for the second finding is the reason the first one's guidance was
 easy to misread.** Both metrics are ratios over the set of functions, so both
@@ -8950,6 +8953,91 @@ lines are the documented uncached-build notice, not failures — and the focused
 `runner::tests` suite passes 39 tests, four of them in `surface`. The full six
 commit gates are re-run at `80748eff` and recorded separately; this entry's
 figures are scoped to the revision it was written at.
+
+Date/Author: 2026-10-11, implementation agent.
+
+### D70: the eighth gate pass timed out once, and a ratio in D69 was wrong by arithmetic
+
+The six gates were re-run at `f5a1e806`. Five passed — `check-fmt` (5s), `lint`
+(all nine steps, zero warnings), `markdownlint`, `nixie`, `typecheck` (311s).
+`test` returned exit 2 after 1902s, and the failure was a single
+`TIMEOUT [1200.003s]` on `runner::step_macros_compile`, against nextest's
+20-minute ceiling in `.config/nextest.toml` line 44. The same test passed in
+**47.4s** at `18a7bc8b` under the same rustc, which is the measurement that
+separates a timeout from a defect: a 25-fold wall-clock spread on
+byte-identical inputs is contention, not regression. The log bears it out — the
+nested trybuild build reports `Finished dev profile … in 1m 21s` with five
+`Blocking waiting for file lock on package cache` lines, in a tree of 8.8G
+rebuilding from a 160K remnant, while `build-limits-status` showed
+`capacity 4, held 4` with ~30 waiters from other agents' repositories. A
+process listing while the re-run was in flight showed a compiler for
+`server_lifecycle_observability`, a crate that does not exist anywhere in this
+repository, holding a slot under the same shared pool — independent
+corroboration that the contention was real and external rather than assumed.
+
+**Hand-wrapping this entry broke `check-fmt`, and the failure had been
+misdiagnosed as tool noise before it was read.** Writing D70 by hand produced
+several lines that stopped short of the 80-column fill, where greedily
+re-wrapped prose would have continued. `check-fmt` calls `mdtablefix --check`
+with `--git --include-untracked` (`Makefile:259`), which catches exactly that.
+The earlier probing had used a *different* argv — a bare positional path with no
+`--git` — which is not the gate and was therefore answering a different
+question; it also reported `+12 -13` and was wrongly discounted as a
+`--check`/write-mode disagreement. Run with the gate's own argv it reproduced
+the failure exactly, so the flag was a genuine defect introduced by this entry,
+not a tool artefact. Running `--in-place` on that one file applied the
+re-wrapping, and the gate's argv then reported the file unchanged. The lesson
+is the one D63 records: a check reproduced with different arguments is not a
+reproduction, and "the tool disagrees with itself" deserves a second look
+before it is believed.
+
+**The `wip` output in that log is by design, and reading it as drift would have
+been the expensive error.** Two fixtures wrote `wip/*.stderr` and two trybuild
+panics were logged. That looks like a snapshot divergence — and given that both
+fixtures are byte-identical to `origin/main`, it looked like a toolchain-drift
+finding worth reporting. It is neither. `compile_fail_with_normalized_output`
+(`crates/rstest-bdd/tests/trybuild_macros.rs:277`) *deletes* the expected
+`.stderr` before invoking trybuild, so trybuild must write `wip/` and panic;
+the wrapper catches the panic, applies normalizers to both sides, compares, and
+removes the file. Both fixtures in the log go through it. The wrapper's own
+unit tests pass in the same run. The second fixture's normalizer,
+`normalize_conditional_trait_help`, exists precisely because rustc's wording
+for a conditionally-implemented trait changed; it is applied on that path and
+the expected file keeps the older wording deliberately. `wip/` now holds only
+its `.gitignore`, which is the post-run steady state, not damage.
+
+**A ratio recorded in D69 was wrong, and the error was arithmetic rather than
+measurement.** D69 stated the walk's string-argument share "fell from 46.7% to
+20.0% across the *same nine functions*". Counting the current tree gives **2
+string-typed parameters out of 13, or 15.4%**, across **eight** functions. The
+method is not in doubt: applying the same count to the pre-fix revision yields
+7 of 15, which is **exactly** the 46.7% `codescene-access[bot]` reported, so
+the counting reproduces the tool it is answering. What went wrong is the
+accompanying claim — "same nine functions, with none added". `child_path` was
+itself deleted, so the set went from nine functions to eight, and the deleted
+one was string-heavy: it consumed two of the seven string arguments. The
+numerator and the denominator therefore both moved, and neither moved because a
+function was added to dilute the average — which is the thing D69 was
+asserting. The conclusion survives; the figures did not. Both were corrected in
+place, and the two replies posted to the CodeScene threads carry the corrected
+values rather than the ones D69 had recorded.
+
+The lesson is narrower than "check your sums", and it is the one D63 and D69
+each record in a different form: a number that travels from a draft into a
+committed document acquires authority it has not earned. The 20.0% figure was
+never measured against this tree — it was carried and reasoned about, and the
+arithmetic that rules it out (three values, two of which were already known)
+was available the whole time.
+
+**Verification scoped to this revision.** Five gates green at `f5a1e806` as
+listed above. `make test` has no green verdict at this revision: its second leg
+timed out, and legs 3–7 — doctests, the `--no-default-features` nextest leg,
+`check-fixture-lockfiles`, and `uv run pytest scripts/tests` — **never ran**,
+because the recipe aborts at the first failure. They are recorded as having no
+verdict, not as passing. The re-run of `make test` alone is the outstanding
+item. `cs delta origin/main --output-format json` returns empty (0 bytes, exit
+0) with empty stderr, which is the local agreement with the hosted CodeScene
+check that the two repairs were made to satisfy.
 
 Date/Author: 2026-10-11, implementation agent.
 
