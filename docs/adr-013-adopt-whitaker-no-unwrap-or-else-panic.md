@@ -175,7 +175,8 @@ suite's toolchain to `nightly-2026-05-28` with Dylint `6.0.1`
 - **Toolchain:** the pinned nightly (`nightly-2026-05-28`) and the Dylint
   driver (`cargo-dylint` / `dylint_linting` `6.0.1`) are managed by
   `whitaker-installer` and scoped to lint runs. The repository's own build,
-  test, and Clippy commands remain on `stable` (`rust-toolchain.toml`).
+  test, and Clippy commands remain on the stable channel, pinned to the release
+  named in `rust-toolchain.toml` (`1.99.0`).
 - **Configuration:** per-lint configuration, including the
   `no_std_fs_operations` `excluded_crates` list with rationale, lives in the
   root `dylint.toml`.
