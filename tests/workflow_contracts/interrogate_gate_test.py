@@ -113,8 +113,10 @@ def test_the_flags_demand_a_full_exact_report() -> None:
     flags = _variable("INTERROGATE_FLAGS").split()
     assert flags[flags.index("--fail-under") + 1] == "100", "the threshold must be 100"
     assert "-vv" in flags, "the report must print every definition"
-    relaxing = [flag for flag in flags if flag.startswith("--ignore")]
-    assert not relaxing, f"no ignore flag may relax the gate: {relaxing}"
+    relaxing = [
+        flag for flag in flags if flag.startswith(("--ignore", "--exclude", "-e"))
+    ]
+    assert not relaxing, f"no ignore or exclude flag may relax the gate: {relaxing}"
 
 
 def test_every_python_directory_is_a_target() -> None:
@@ -144,7 +146,11 @@ def _run_target(tmp_path: Path, script: str) -> subprocess.CompletedProcess[str]
         The result, with both streams captured as text.
     """
     stub = tmp_path / "stub.sh"
-    stub.write_text("#!/bin/sh\n" + textwrap.dedent(script), encoding="utf-8")
+    stub.write_text(
+        '#!/bin/sh\nprintf "%s\\n" "$@" > "$(dirname "$0")/args.txt"\n'
+        + textwrap.dedent(script),
+        encoding="utf-8",
+    )
     stub.chmod(stub.stat().st_mode | stat.S_IXUSR)
     make = shutil.which("make")
     assert make is not None, "make must be available to run the gate"
@@ -158,9 +164,21 @@ def _run_target(tmp_path: Path, script: str) -> subprocess.CompletedProcess[str]
 
 
 def test_the_target_passes_when_the_tool_reports_no_gap(tmp_path: Path) -> None:
-    """A clean report and a zero status pass."""
+    """A clean report and a zero status pass, and the report reaches stdout."""
     result = _run_target(tmp_path, "echo '| f.py | COVERED |'\nexit 0\n")
     assert result.returncode == 0, result.stdout + result.stderr
+    assert "| f.py | COVERED |" in result.stdout, "the report must be printed"
+
+
+def test_the_target_passes_the_configured_flags_and_targets(tmp_path: Path) -> None:
+    """The tool receives exactly ``INTERROGATE_FLAGS`` then ``INTERROGATE_TARGETS``."""
+    _run_target(tmp_path, "exit 0\n")
+    received = (tmp_path / "args.txt").read_text(encoding="utf-8").split()
+    expected = (
+        _variable("INTERROGATE_FLAGS").split()
+        + _variable("INTERROGATE_TARGETS").split()
+    )
+    assert received == expected, f"the tool received {received}, not {expected}"
 
 
 def test_the_target_fails_when_the_tool_fails(tmp_path: Path) -> None:
