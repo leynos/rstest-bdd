@@ -9046,11 +9046,17 @@ check passed, and the Python suite reported `247 passed`. There were **no**
 `TIMEOUT` and no `FAIL` lines anywhere in the log. That is the contention
 diagnosis confirmed rather than merely argued: the same binary, on the same
 inputs, ran to completion under the same 1200s ceiling that it had previously
-exceeded, with `runner::step_macros_compile` no longer the slow pole — the
-longest single test this time was `gpui_macro_fixtures_compile` at 496s. The
-3500s wall clock is itself the evidence that the first run's failure was load
-rather than defect; a genuine hang would not have cleared on a retry with no
-code change between the two.
+exceeded. The margin is the uncomfortable part, and it should be recorded
+plainly rather than celebrated: `runner::step_macros_compile` still took
+**997.274s** in its first appearance and **962.343s** in the second, against
+that 1200s ceiling. It did not stop being the slow pole — it remains by a wide
+margin the longest test in the run, roughly twice `gpui_macro_fixtures_compile`
+at 496s. The re-run cleared the budget on the strength of a load-dependent
+margin of a few hundred seconds, not because the cost went away. The 3500s wall
+clock is evidence that the first run's failure was load rather than defect — a
+genuine hang would not have cleared on a retry with no code change between the
+two — but this revision's `make test` is close to its ceiling under current
+pool contention, and a future run should expect the same order of magnitude.
 
 `cs delta origin/main --output-format json` returns empty (0 bytes, exit 0)
 with empty stderr, which is the local agreement with the hosted CodeScene check
