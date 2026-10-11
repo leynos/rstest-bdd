@@ -80,6 +80,7 @@ class AmbiguousLaneError(WorkflowShapeError):
     """
 
     def __init__(self, step: str, count: int) -> None:
+        """Build the message from the parameters documented on the class."""
         super().__init__(
             f"{step!r} must run for exactly one matrix row on a pull request; "
             f"its guard admits {count}"
@@ -98,6 +99,7 @@ class MixedPlatformLabelError(WorkflowShapeError):
     """
 
     def __init__(self, declared: str, platforms: list[str]) -> None:
+        """Build the message from the parameters documented on the class."""
         super().__init__(
             f"{declared!r} resolves to runners on {platforms}; a lane must "
             "boot one platform whichever label the event selects"

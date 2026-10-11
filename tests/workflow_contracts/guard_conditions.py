@@ -46,6 +46,7 @@ class UnsupportedGuardError(WorkflowShapeError):
     """
 
     def __init__(self, condition: str, detail: str) -> None:
+        """Build the message from the parameters documented on the class."""
         super().__init__(f"cannot read the guard {condition!r}: {detail}")
 
 
@@ -59,6 +60,7 @@ class UnknownContextError(WorkflowShapeError):
     """
 
     def __init__(self, reference: str) -> None:
+        """Build the message from the parameters documented on the class."""
         super().__init__(
             f"the guard reads {reference!r}, which the evaluation context does "
             "not name; supply it rather than let it default"

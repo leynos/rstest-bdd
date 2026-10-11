@@ -309,6 +309,7 @@ def test_shell_safe_executable_reference_uses_cygpath_for_mingw(
     observed_command: list[str] = []
 
     def fake_run(command: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        """Record the command and return a canned ``cygpath`` result."""
         observed_command.extend(command)
         return subprocess.CompletedProcess(
             command,

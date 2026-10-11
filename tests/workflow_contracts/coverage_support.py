@@ -56,6 +56,7 @@ class MissingCoverageStepError(WorkflowShapeError):
     """
 
     def __init__(self, workflow_name: str, step_name: str, found: list[str]) -> None:
+        """Build the message from the parameters documented on the class."""
         super().__init__(
             f"{workflow_name} must declare a {step_name!r} step; it has {found}"
         )
@@ -71,6 +72,7 @@ class MissingStepInputsError(WorkflowShapeError):
     """
 
     def __init__(self, where: str) -> None:
+        """Build the message from the parameters documented on the class."""
         super().__init__(f"{where} must declare a with: mapping")
 
 
