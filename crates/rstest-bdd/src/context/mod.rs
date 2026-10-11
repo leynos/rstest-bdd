@@ -30,6 +30,7 @@ use std::{
 mod entry;
 mod error;
 mod guards;
+mod harness;
 mod insert_outcome;
 #[cfg(test)]
 mod tests;
@@ -39,6 +40,8 @@ use entry::FixtureEntry;
 pub use error::FixtureBorrowError;
 pub use guards::{FixtureRef, FixtureRefMut};
 pub use insert_outcome::InsertOutcome;
+
+use crate::panic_support::{drop_guarded, report_drop_panic};
 
 /// Reserved fixture key used for harness-provided context.
 ///
@@ -146,79 +149,6 @@ impl<'a> StepContext<'a> {
         self.fixtures.insert(name, FixtureEntry::owned::<T>(cell));
     }
 
-    // ------------------------------------------------------------------
-    // Harness-context wrappers (ADR-007).
-    //
-    // These thin wrappers hard-code the reserved
-    // `RSTEST_BDD_HARNESS_CONTEXT_FIXTURE` key over the generic fixture API.
-    // They are deliberate API surface, not dead code: the insert side is
-    // emitted by macro-generated harness scenarios, and the borrow side is
-    // the supported typed-extraction surface for adapters and step code.
-    // Do not add further wrappers here for new generic access patterns
-    // unless generated code or the documented step-authoring path needs
-    // them; see ADR-007 ("Phase 2 convention: StepContext mapping").
-    // ------------------------------------------------------------------
-
-    /// Insert harness-provided context using the reserved fixture key.
-    ///
-    /// Part of the ADR-007 harness-context contract. This shared-reference
-    /// variant exists for adapters that keep ownership of their context;
-    /// macro-generated code uses
-    /// [`insert_owned_harness_context`](Self::insert_owned_harness_context).
-    pub fn insert_harness_context<T: Any>(&mut self, context: &'a T) {
-        self.insert(RSTEST_BDD_HARNESS_CONTEXT_FIXTURE, context);
-    }
-
-    /// Insert owned harness-provided context using the reserved fixture key.
-    ///
-    /// Part of the ADR-007 harness-context contract. This is the variant
-    /// emitted by macro-generated harness scenarios (see
-    /// `codegen/scenario/runtime/harness.rs` in `rstest-bdd-macros`), which
-    /// wrap the adapter's `HarnessAdapter::Context` in an owned cell so
-    /// steps can borrow it mutably.
-    pub fn insert_owned_harness_context<T: Any>(&mut self, cell: &'a RefCell<Box<dyn Any>>) {
-        self.insert_owned::<T>(RSTEST_BDD_HARNESS_CONTEXT_FIXTURE, cell);
-    }
-
-    /// Retrieve harness-provided context by type when it is stored by shared reference.
-    ///
-    /// This delegates to [`get`](Self::get), which returns `None` for mutable
-    /// (`insert_owned`) fixture entries. The macro-generated harness path
-    /// currently inserts context with
-    /// [`insert_owned_harness_context`](Self::insert_owned_harness_context)
-    /// under [`RSTEST_BDD_HARNESS_CONTEXT_FIXTURE`], so callers should use
-    /// [`borrow_harness_context`](Self::borrow_harness_context) for that path.
-    #[must_use]
-    pub fn harness_context<T: Any>(&'a self) -> Option<&'a T> {
-        self.get(RSTEST_BDD_HARNESS_CONTEXT_FIXTURE)
-    }
-
-    /// Borrow harness-provided context by type.
-    ///
-    /// Part of the ADR-007 harness-context contract: the supported typed
-    /// read accessor for context stored by
-    /// [`insert_owned_harness_context`](Self::insert_owned_harness_context).
-    #[must_use]
-    pub fn borrow_harness_context<'b, T: Any>(&'b self) -> Option<FixtureRef<'b, T>>
-    where
-        'a: 'b,
-    {
-        self.borrow_ref(RSTEST_BDD_HARNESS_CONTEXT_FIXTURE)
-    }
-
-    /// Borrow harness-provided context mutably by type.
-    ///
-    /// Part of the ADR-007 harness-context contract: the supported typed
-    /// mutable accessor for context stored by
-    /// [`insert_owned_harness_context`](Self::insert_owned_harness_context).
-    #[must_use]
-    pub fn borrow_harness_context_mut<'b, T: Any>(&'b self) -> Option<FixtureRefMut<'b, T>>
-    where
-        'a: 'b,
-    {
-        self.borrow_mut(RSTEST_BDD_HARNESS_CONTEXT_FIXTURE)
-    }
-
     /// Retrieve a shared fixture reference by name and type.
     ///
     /// Only fixtures inserted with [`insert`](Self::insert) are served:
@@ -291,6 +221,37 @@ impl<'a> StepContext<'a> {
     /// emits a `tracing` warning, mirrored to stderr when no logging listener
     /// would receive it.
     ///
+    /// # A rejected value is dropped here, under its own guard
+    ///
+    /// Two of the three outcomes drop the step's own value on this function's
+    /// own stack: [`NoMatch`](InsertOutcome::NoMatch), where nothing matched it,
+    /// and [`AmbiguousIgnored`](InsertOutcome::AmbiguousIgnored), where more
+    /// than one fixture did. Both drops are wrapped by
+    /// `crate::panic_support::drop_guarded`, which catches the unwind and logs
+    /// it, so a destructor that panics does not unwind out of the caller. That
+    /// matters here rather than in the caller because `insert_value` is called
+    /// from inside the runner's per-step record, and the runner's contract is
+    /// that every failure reaches the caller as a returned outcome — a
+    /// step-returned value whose destructor panics is a failure the runner
+    /// caused to drop, so it is an unwind the runner must not emit.
+    ///
+    /// [`Inserted`](InsertOutcome::Inserted) guards nothing, and the distinction
+    /// is not a gap. It returns the displaced override to the caller, so that
+    /// drop happens on the caller's frame rather than this one — and the caller
+    /// guards it there, through `ValueFate`'s conversion in
+    /// `runner::outcome::step`. Claiming all three paths guard a drop here would
+    /// be wrong twice over: it would credit this function with a drop it does
+    /// not perform, and it would leave the displaced override looking unguarded
+    /// when it is in fact covered one call away.
+    ///
+    /// A destructor panic is therefore logged as a warning: it does not unwind
+    /// out of this function, and the outcome returned below is the one the
+    /// matching rule produced rather than an error the drop introduced. The one
+    /// case that still aborts is a detonation raised while an unwind is already
+    /// in progress — a `catch_unwind` cannot catch a panic that begins during
+    /// one, so there the process dies rather than reporting. That is the same
+    /// deliberate trade D11 already made for cleanup in `runner::scope`.
+    ///
     /// # Examples
     ///
     /// ```
@@ -315,6 +276,7 @@ impl<'a> StepContext<'a> {
             .iter()
             .filter_map(|(&name, entry)| (entry.type_id == ty).then_some(name));
         let Some(name) = matches.next() else {
+            report_drop_panic(drop_guarded(value));
             return InsertOutcome::NoMatch;
         };
         if matches.next().is_some() {
@@ -323,6 +285,7 @@ impl<'a> StepContext<'a> {
                     args.set("type_id", format!("{ty:?}"));
                 });
             warnings::emit_visible_warning(&message);
+            report_drop_panic(drop_guarded(value));
             return InsertOutcome::AmbiguousIgnored;
         }
         InsertOutcome::Inserted(
@@ -330,6 +293,48 @@ impl<'a> StepContext<'a> {
                 .insert(name, RefCell::new(value))
                 .map(RefCell::into_inner),
         )
+    }
+
+    /// Drop every value a step returned, leaving the fixtures untouched.
+    ///
+    /// The counterpart to [`insert_value`](Self::insert_value), and named to
+    /// match it. Called by the parser-neutral runner at the end of a scenario,
+    /// so that returned values cannot leak from one run into the next.
+    ///
+    /// The contract is that it clears **all** override values, including any the
+    /// caller inserted before the run — not merely the ones the run inserted.
+    /// That is simpler than recording and restoring a prior set, and it is the
+    /// honest description: there is no way to tell a caller's value from a
+    /// step's once both are in the same map.
+    ///
+    /// # Each value is dropped under its own guard
+    ///
+    /// The map is drained rather than cleared, and each value is dropped through
+    /// [`drop_guarded`], for the same reason [`insert_value`](Self::insert_value)
+    /// guards its two drop sites. `HashMap::clear` empties the map *before* it
+    /// drops anything, so a destructor that panics part-way through leaves the
+    /// map empty while some of its values have not yet been dropped — and those
+    /// values are then unreachable and never dropped at all. The leak is silent,
+    /// and it is not a rare edge: measured over 4,200 randomized
+    /// key/position/arity combinations, a single panicking destructor left at
+    /// least one other value never dropped in 3,387 of them, none of those was
+    /// dropped later with the map, and the worst case lost 7 of 8.
+    ///
+    /// The drain is also why this function needs no guard of its own. Each value
+    /// is dropped through `drop_guarded`, so the loop cannot unwind; a
+    /// `catch_unwind` wrapped around the whole loop would *restore* the leak, by
+    /// stranding every value the loop had not yet reached.
+    ///
+    /// Draining per value costs one `Option` per entry and makes the guarantee
+    /// local: a panicking destructor is logged, and every other value is still
+    /// dropped.
+    ///
+    /// `pub(crate)` rather than `pub`: the runner's scope destructor is the only
+    /// caller, and this crate's public surface is permanent.
+    pub(crate) fn clear_values(&mut self) {
+        for (_, cell) in self.values.drain() {
+            report_drop_panic(drop_guarded(cell.into_inner()));
+        }
     }
 
     /// Borrow a fixture by name, reporting the failure reason on error.

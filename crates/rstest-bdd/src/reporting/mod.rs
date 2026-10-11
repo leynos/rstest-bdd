@@ -214,4 +214,6 @@ pub fn drain() -> Vec<ScenarioRecord> {
 }
 
 #[cfg(test)]
+mod conversion;
+#[cfg(test)]
 mod tests;

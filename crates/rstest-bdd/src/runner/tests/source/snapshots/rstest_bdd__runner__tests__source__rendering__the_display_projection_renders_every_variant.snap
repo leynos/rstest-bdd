@@ -1,0 +1,16 @@
+---
+source: crates/rstest-bdd/src/runner/tests/source/rendering.rs
+expression: rendered
+---
+passed:
+  scenario passed (1 steps)
+skipped, with a message:
+  scenario skipped at step 0: no database in this lane
+skipped, without a message:
+  scenario skipped at step 2
+failed at a step:
+  scenario failed at step 0: Step not found at index ⁨0⁩: ⁨Given⁩ ⁨an undefined step⁩ (feature: ⁨spec/cases.toml⁩, scenario: ⁨demo⁩)
+failed, the plan empty:
+  scenario failed: the plan contained no steps
+failed, a forced skip:
+  scenario failed: skipped at step 1
