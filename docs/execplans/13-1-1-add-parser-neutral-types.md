@@ -9101,7 +9101,7 @@ untested platform look identical from inside the passing suite.
 **The guard's own blindness was the interesting part.**
 `the_scan_finds_the_runner_tree` failed, but `no_frontend_types_in_public_api`
 **passed** on the same Windows run, and `tests\surface.rs` never appeared in
-the found list. That is what `relative != SELF` compares `Utf8PathBuf`s — path
+the found list. That is why `relative != SELF` compares `Utf8PathBuf`s — path
 equality goes through `components()`, and a Windows path component splitter
 accepts `/` as a separator (`std::sys::path::windows::is_sep_byte` is
 `b'/' || b'\\'`). Path comparison folds the two spellings; `as_str` does not.
@@ -9116,6 +9116,30 @@ pair, `left: "engine\\drive.rs"` against `right: "engine/drive.rs"`, while
 the new test is the thing catching this and the old guard is not — a mutation
 that leaves the pre-existing guard green cannot be caught by it. The mutant was
 reverted and the suite re-verified green (6 passed).
+
+**The repair is `de86ce7f`, and it normalizes at one point rather than at every
+comparison.** The deleted `child_path` was the only join in the walk, so
+`slash_spelled` is applied where the key is built and nowhere else: the keys,
+the completeness guard, and the rendered finding all inherit the one spelling
+by construction, and no comparison has to know the host separator exists. It
+was not rewritten in place as a check that each key equals its own `as_str`
+rendering, because that would have caught this one comparison and left the next
+one to be missed — the sixth site to hard-code a separator is the defect, not
+the sixth comparison.
+
+`make test` was re-run at `de86ce7f` with the revision recorded on both sides
+of the run: `REV_START` and `REV_END` both read `de86ce7f`, the tree was clean
+at both ends, and the run exited 0 in **720s** against D70's 1200s ceiling — so
+the leg that had been exposed to contention completed with the limit not
+approached. The other three verdicts at that head are carried by reachability
+rather than by a recorded revision: `make check-fmt` reported
+`123 files left unchanged`, `make lint` ran all nine steps with zero warnings,
+and `make markdownlint` reported `0 error(s)`, each from a log taken minutes
+before the commit against the tree it recorded. That is sound for `lint` and
+`test`, whose recipes read no Markdown, and it is why the two Markdown verdicts
+are re-taken at the revision this entry creates: the plan is itself a
+`mdtablefix` and `markdownlint` input, so D49's rule applies and every edit to
+it re-opens those two gates.
 
 Date/Author: 2026-10-11, implementation agent.
 
