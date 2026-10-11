@@ -9030,14 +9030,31 @@ arithmetic that rules it out (three values, two of which were already known)
 was available the whole time.
 
 **Verification scoped to this revision.** Five gates green at `f5a1e806` as
-listed above. `make test` has no green verdict at this revision: its second leg
+listed above. `make test` had no green verdict at that revision: its second leg
 timed out, and legs 3–7 — doctests, the `--no-default-features` nextest leg,
 `check-fixture-lockfiles`, and `uv run pytest scripts/tests` — **never ran**,
-because the recipe aborts at the first failure. They are recorded as having no
-verdict, not as passing. The re-run of `make test` alone is the outstanding
-item. `cs delta origin/main --output-format json` returns empty (0 bytes, exit
-0) with empty stderr, which is the local agreement with the hosted CodeScene
-check that the two repairs were made to satisfy.
+because the recipe aborts at the first failure. They were recorded as having no
+verdict, not as passing.
+
+**The re-run settled it, and all seven legs are green.** `make test` was re-run
+alone against the same revision — `REV_START` and `REV_END` both
+`f5a1e8062e83278a4395c8fd271841c8b512d136` — and returned **exit 0** in 3500s:
+the workspace nextest leg finished `2076 tests run: 2076 passed, 7 skipped`
+after 2261s, doctests and the `--no-default-features` leg
+(`737 tests run: 737 passed, 7 skipped`) both passed, the fixture-lockfile
+check passed, and the Python suite reported `247 passed`. There were **no**
+`TIMEOUT` and no `FAIL` lines anywhere in the log. That is the contention
+diagnosis confirmed rather than merely argued: the same binary, on the same
+inputs, ran to completion under the same 1200s ceiling that it had previously
+exceeded, with `runner::step_macros_compile` no longer the slow pole — the
+longest single test this time was `gpui_macro_fixtures_compile` at 496s. The
+3500s wall clock is itself the evidence that the first run's failure was load
+rather than defect; a genuine hang would not have cleared on a retry with no
+code change between the two.
+
+`cs delta origin/main --output-format json` returns empty (0 bytes, exit 0)
+with empty stderr, which is the local agreement with the hosted CodeScene check
+that the two repairs were made to satisfy.
 
 Date/Author: 2026-10-11, implementation agent.
 
