@@ -39,7 +39,7 @@ extend-ignore-re = [
     "(?m)^\\s*types: \\[opened, reopened, synchronize, labeled, ready_for_review\\]$",
     "(?s)```.*?```",
     "(^|[^[:alnum:]_])--color($|[^[:alnum:]_])",
-    "--[a-zA-Z0-9-]*color[a-zA-Z0-9*-]*",
+    "--[A-Za-z0-9_-]*color(?:ed|s|ing|ize[ds]?|izing)?(?:\\b|_)",
     "-fuse-ld=mold",
     "Artifacts and [Nn]otes",
     "Azure\\s+Architecture\\s+Center\\s*\\|\\s*Microsoft\\s+Learn\\b",

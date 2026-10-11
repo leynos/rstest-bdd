@@ -220,6 +220,71 @@ newly added `.feature` file is run. The rule of thumb: prose that must not rot
 when executed — recipes, configs, commands — should be marked and consumed by a
 test rather than duplicated.
 
+## The cancellation-harness pattern
+
+When the property under test is about what did **not** happen, a test that
+drives the code to completion cannot witness it. Cancellation is the worked
+case, and `crates/rstest-bdd/tests/runner_cancel.rs` is the reference
+implementation: the run's future is polled by hand with `Waker::noop` until a
+parked gate step reports it has been entered, then dropped, and the assertions
+are on the residue — the gate's drop probe firing exactly once, and the scope's
+cleanup guard still running. `block_on` would drive the future past the point
+of interest, and a status assertion would be satisfied by a run that never
+cancelled at all.
+
+Three elements are load-bearing in any such harness, and omitting one leaves a
+test that passes while proving nothing:
+
+1. **A progress witness.** Record a counter inside the parked future's own
+   `poll` and assert it non-zero _before_ the drop assertions. Without it, "no
+   outcome was produced" holds trivially of a future that was dropped on its
+   first poll.
+2. **A bounded poll loop, not one poll.** `Waker::noop`'s `RawWaker` ignores
+   `wake`, so polling only on a wake hangs forever. Loop until the gate reports
+   entry, with a cap whose message says the gate is unreachable when it trips.
+3. **A drop probe that cannot fire by accident.** The probe belongs to the
+   parked future itself, not to the closure that builds it — a probe in the
+   closure is dropped with the closure, and the post-drop assertion then holds
+   whether or not the gate was ever reached. Assert zero before the drop as
+   well as one after.
+
+Keep the counters thread-local rather than `static`. Under `cargo test` each
+test has a thread and under nextest each has its own process, so a `static` is
+shared under the first and private under the second; the same file would be
+correct under one runner and racy under the other. `#[serial]` also works and
+is weaker: with no executor to move work, every poll happens on the asserting
+thread.
+
+Pair every cancellation case with a normal-completion control, so a harness
+that cancels everything is caught rather than rewarded.
+
+## Negative controls come from `cargo-mutants`, not fault injection
+
+A test that asserts an invariant must be able to fail when the invariant is
+broken. The cheap-looking way to establish that is to inject a fault by hand —
+flip a branch, patch a constant, and watch the test go red — and it is not
+evidence: the hand-edit is a different program from the one that ships, and it
+is chosen by the same person who wrote the assertion.
+
+`cargo-mutants` is the repository's source of negative controls because it
+generates the fault from the source rather than from the tester's imagination,
+and its survivor list is a _finding_ rather than a formality. A surviving
+mutant is a specific claim that the suite would not notice a specific defect,
+and it must be read and either fixed, or recorded with the reason it is
+equivalent or out of scope. "The suite passes" is not a substitute: it says the
+assertions hold, not that they can fail.
+
+Two consequences follow for how coverage is reported. A mutation run over a
+tree is evidence about the tests that were actually run against it, so the
+survivor list is quoted rather than reduced to a score. And a mutation run that
+finds no survivors in a file is only good news for the mutants the tool
+generated, which is why the run's scope is named alongside its result.
+
+For a narrow, deterministic property that a mutation run cannot reach cheaply,
+a manual negative control is still acceptable — but it must be recorded as
+such, with the fault it injected and the test that caught it, so a reader can
+tell it apart from a generated one.
+
 ## Assertion posture
 
 This repository adopted `googletest` and `pretty_assertions` in roadmap 10.3.3

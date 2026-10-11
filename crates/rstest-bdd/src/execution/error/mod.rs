@@ -143,7 +143,7 @@ impl From<FixtureRequirement> for MissingFixtureDiagnostic {
 /// assert!(error.is_skip());
 /// assert_eq!(error.skip_message(), Some("not implemented yet"));
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ExecutionError {
     /// Step requested to skip execution.
@@ -189,7 +189,7 @@ pub enum ExecutionError {
 ///
 /// This struct is separated from `ExecutionError::MissingFixtures` to allow
 /// wrapping in `Arc`, reducing the overall size of `Result<T, ExecutionError>`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MissingFixturesDetails {
     /// The step definition's pattern (e.g., `"a user named {name}"`).
     pub step_pattern: String,
