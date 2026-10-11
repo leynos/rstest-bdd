@@ -9064,6 +9064,61 @@ that the two repairs were made to satisfy.
 
 Date/Author: 2026-10-11, implementation agent.
 
+### D71: the ninth hosted run went red on both Windows legs, from a defect in the CodeScene repair
+
+Both Windows `build-test` legs failed on `cb8ef590` — the one head at which
+every local gate was green — while `18a7bc8b`, the head before the CodeScene
+repairs, had all three green. The change between them was `80748eff`'s two
+deletions, and the failure was in one of them:
+
+```plaintext
+test runner::tests::surface::walk::the_scan_finds_the_runner_tree ... FAILED
+expected the scan to reach engine/drive.rs; found ["engine\\drive.rs",
+"engine\\drive_async.rs", ...]
+```
+
+`child_path` had hard-coded `format!("{prefix}/{name}")`, so the walk's keys
+were always `/`-spelled. Replacing it with `Utf8Path::join` — correctly, since
+joining onto an empty path does yield the child — silently changed the
+separator, because `join` writes `MAIN_SEPARATOR` and that is `\` on Windows.
+The keys were not incidental: `runner_sources` documents a finding's rendering
+as `outcome/step.rs:12`, and the completeness guard pins whole relative paths
+in that same spelling. So a refactor undertaken to make the types accurate
+changed a documented output format, and the guard whose whole purpose is to
+prove the scan read the tree it claims to police was reading `engine\drive.rs`
+while being asked about `engine/drive.rs`. It reported a tree it had in fact
+read as one it never reached — this module's own documented failure mode,
+arriving through the repair rather than in spite of it.
+
+**The local gate set is orthogonal evidence here, not weak evidence.** Every
+local gate runs on Linux, where `/` *is* the native separator, so
+`slash_spelled` is the identity function and the pre-fix form is correct. The
+9th `make test` pass, the green `check-fmt`, and the empty `cs delta` were all
+true and all blind to this. This is the same class as D65's `file!()` finding
+and the `runner_panics.rs` assertion it records: a passing suite and an
+untested platform look identical from inside the passing suite.
+
+**The guard's own blindness was the interesting part.**
+`the_scan_finds_the_runner_tree` failed, but `no_frontend_types_in_public_api`
+**passed** on the same Windows run, and `tests\surface.rs` never appeared in
+the found list. That is what `relative != SELF` compares `Utf8PathBuf`s — path
+equality goes through `components()`, and a Windows path component splitter
+accepts `/` as a separator (`std::sys::path::windows::is_sep_byte` is
+`b'/' || b'\\'`). Path comparison folds the two spellings; `as_str` does not.
+The scan therefore looked correct in every respect except the one string-level
+comparison.
+
+**Verified non-vacuously, because a local green cannot be.** The normalization
+was mutated to the identity and the focused suite re-run: the new
+`a_key_is_spelled_with_a_forward_slash_on_every_host` fails with exactly the CI
+pair, `left: "engine\\drive.rs"` against `right: "engine/drive.rs"`, while
+`the_scan_finds_the_runner_tree` still **passes** on Linux. That is the proof
+the new test is the thing catching this and the old guard is not — a mutation
+that leaves the pre-existing guard green cannot be caught by it. The mutant was
+reverted and the suite re-verified green (6 passed).
+
+Date/Author: 2026-10-11, implementation agent.
+
 ## Outcomes & retrospective
 
 ### What was achieved

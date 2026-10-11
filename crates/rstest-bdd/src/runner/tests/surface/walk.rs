@@ -9,6 +9,17 @@
 //! check it supports. That is deliberate: the parent's own exemption covers
 //! only the file that carries the token list, and widening it to a directory
 //! would create a place for a real leak to hide.
+//!
+//! Keys are spelled with a forward slash on every platform, and that is a
+//! requirement rather than a preference. The parent renders a finding as
+//! `outcome/step.rs:12`, and the completeness guard pins whole relative paths
+//! in the same spelling. A key joined with [`Utf8Path::join`] alone would carry
+//! [`std::path::MAIN_SEPARATOR`], so on Windows every key would read
+//! `outcome\step.rs` and both of those would break — the guard would report a
+//! clean tree it had in fact read, which is the silence this module exists to
+//! prevent, and the finding format would change with the host. The separator is
+//! therefore normalized once, at the point the key is built, and never
+//! compared in its native spelling.
 
 use camino::{Utf8Path, Utf8PathBuf};
 use cap_std::{
@@ -113,7 +124,7 @@ fn visit(
             .push(format!("{prefix}: an entry had no file name"));
         return;
     };
-    let relative = prefix.join(&name);
+    let relative = slash_spelled(&prefix.join(&name));
     let Ok(file_type) = entry.file_type() else {
         scanned
             .unreadable
@@ -167,6 +178,58 @@ fn is_rust_source(name: &str) -> bool {
     Utf8Path::new(name)
         .extension()
         .is_some_and(|ext| ext.eq_ignore_ascii_case("rs"))
+}
+
+/// The same path, spelled with a forward slash on every platform.
+///
+/// [`Utf8Path::join`] writes `MAIN_SEPARATOR`, which is `\` on Windows, while
+/// every expectation in [`the_scan_finds_the_runner_tree`] and the `path:line`
+/// the parent renders are written with `/`. The two spellings are equal as
+/// *paths* — a Windows path compares its components, and `/` separates there
+/// too — but not as the strings the guard compares, because `as_str` hands back
+/// the bytes exactly as written.
+///
+/// Normalizing at the point the key is built keeps that dependence in one place
+/// instead of in every comparison, and it is what the hand-rolled join this
+/// replaced did implicitly by using `{prefix}/{name}`. Without it the guard
+/// reports a tree it read as one it did not reach, which is the same silence
+/// the module exists to prevent, and a finding's rendering would change with the
+/// host.
+fn slash_spelled(path: &Utf8Path) -> Utf8PathBuf {
+    Utf8PathBuf::from(path.as_str().replace('\\', "/"))
+}
+
+/// A key is spelled with a forward slash whatever the host separator is.
+///
+/// The guard that failed on Windows is this module's completeness check:
+/// `Utf8Path::join` produced `engine\drive.rs` for a key the guard expected as
+/// `engine/drive.rs`, so the check reported a tree it had read as one it never
+/// reached. No gate on Linux can observe that, because there the two spellings
+/// coincide — which is exactly why the input is supplied here rather than taken
+/// from the host.
+///
+/// The back-slashed input is the literal Windows CI produced, so this is the
+/// failing case rather than a restatement of the passing one. The assertion is
+/// on the *spelling*, so it fails on Linux for the same reason it failed on
+/// Windows.
+#[test]
+fn a_key_is_spelled_with_a_forward_slash_on_every_host() {
+    let windows_key = slash_spelled(Utf8Path::new(r"engine\drive.rs"));
+    assert_eq!(
+        windows_key.as_str(),
+        "engine/drive.rs",
+        "a native Windows key must be normalized to the spelling the guard pins",
+    );
+
+    // The counterpart: normalization must not disturb the separator that is
+    // already correct, or the Linux and Windows spellings would disagree in the
+    // other direction.
+    let unix_key = slash_spelled(Utf8Path::new("engine/drive.rs"));
+    assert_eq!(
+        unix_key.as_str(),
+        "engine/drive.rs",
+        "an already-slash-spelled key must be left alone",
+    );
 }
 
 /// An unreadable path is reported rather than skipped.
