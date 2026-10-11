@@ -2,7 +2,7 @@
 
 use std::sync::atomic::{AtomicU32, Ordering};
 
-use rstest_bdd::{StepContext, StepError, StepKeyword, lookup_step};
+use rstest_bdd::{StepContext, StepError, StepKeyword, lookup_step_with_metadata};
 use rstest_bdd_macros::given;
 
 static CAPTURED: AtomicU32 = AtomicU32::new(0);
@@ -13,8 +13,9 @@ fn number(value: u32) { CAPTURED.store(value, Ordering::Relaxed); }
 #[test]
 fn passes_captured_value() {
     CAPTURED.store(0, Ordering::Relaxed);
-    let step_fn =
-        lookup_step(StepKeyword::Given, "number {value:u32}".into()).expect("step missing");
+    let step_fn = lookup_step_with_metadata(StepKeyword::Given, "number {value:u32}".into())
+        .expect("step missing")
+        .run;
     let mut ctx = StepContext::default();
     let _ = step_fn(&mut ctx, "number 41", None, None).expect("step should match");
     assert_eq!(CAPTURED.load(Ordering::Relaxed), 41);
@@ -22,8 +23,9 @@ fn passes_captured_value() {
 
 #[test]
 fn returns_error_on_pattern_mismatch() {
-    let step_fn =
-        lookup_step(StepKeyword::Given, "number {value:u32}".into()).expect("step missing");
+    let step_fn = lookup_step_with_metadata(StepKeyword::Given, "number {value:u32}".into())
+        .expect("step missing")
+        .run;
     let mut ctx = StepContext::default();
     let Err(err) = step_fn(&mut ctx, "unrelated text", None, None) else {
         panic!("expected mismatch to error");

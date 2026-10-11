@@ -6,7 +6,7 @@ use rstest_bdd::{
     StepExecution,
     StepKeyword,
     dump_registry,
-    find_step,
+    find_step_with_metadata,
     record_bypassed_steps,
     reporting::{self, ScenarioMetadata, ScenarioRecord, ScenarioStatus, SkippedScenario},
     step,
@@ -33,11 +33,11 @@ step!(
 );
 
 fn execute_and_validate_step(keyword: StepKeyword, pattern: &str) {
-    let Some(runner) = find_step(keyword, pattern.into()) else {
+    let Some(step) = find_step_with_metadata(keyword, pattern.into()) else {
         panic!("step not found");
     };
     let mut ctx = StepContext::default();
-    match runner(&mut ctx, pattern, None, None) {
+    match (step.run)(&mut ctx, pattern, None, None) {
         Ok(StepExecution::Continue { .. }) => {}
         Ok(StepExecution::Skipped { .. }) => panic!("step unexpectedly skipped"),
         Err(e) => panic!("execution failed: {e}"),

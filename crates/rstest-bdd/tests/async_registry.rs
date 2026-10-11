@@ -6,17 +6,31 @@
 //! patterns or keywords do not match, and that async lookups properly mark
 //! steps as used.
 
+#![expect(
+    deprecated,
+    reason = "tests the deprecated registry lookup compatibility boundary"
+)]
+
 use rstest::rstest;
 use rstest_bdd::{
     AsyncStepFn,
+    ResolvedStep,
     Step,
     StepContext,
     StepExecution,
+    StepExecutionMode,
     StepFuture,
     StepKeyword,
+    find_step,
     find_step_async,
+    find_step_async_with_mode,
+    find_step_with_metadata,
+    find_step_with_mode,
     iter,
+    lookup_step,
     lookup_step_async,
+    lookup_step_async_with_mode,
+    lookup_step_with_metadata,
     step,
     unused_steps,
 };
@@ -70,6 +84,19 @@ fn assert_step_marked_as_used(
     );
 }
 
+/// Resolve a step through either canonical metadata lookup.
+fn resolve_metadata_step(
+    should_match_exactly: bool,
+    keyword: StepKeyword,
+    pattern: &str,
+) -> Option<ResolvedStep> {
+    if should_match_exactly {
+        lookup_step_with_metadata(keyword, pattern.into())
+    } else {
+        find_step_with_metadata(keyword, pattern.into())
+    }
+}
+
 // Register a test step for async registry tests.
 step!(
     StepKeyword::Given,
@@ -119,20 +146,81 @@ fn step_struct_has_run_async_field() {
     );
 }
 
-#[test]
-fn find_step_async_returns_async_wrapper() {
+#[rstest]
+#[case::fuzzy(false)]
+#[case::exact(true)]
+fn metadata_lookup_returns_async_wrapper(#[case] should_match_exactly: bool) {
     assert_async_wrapper_works(
-        || find_step_async(StepKeyword::Given, "an async registry test step".into()),
+        || {
+            resolve_metadata_step(
+                should_match_exactly,
+                StepKeyword::Given,
+                "an async registry test step",
+            )
+            .map(|step| step.run_async)
+        },
         "an async registry test step",
     );
 }
 
-#[test]
-fn lookup_step_async_returns_async_wrapper() {
+// ----------------------------------------------------------------------------
+// Deprecated lookup compatibility tests
+// ----------------------------------------------------------------------------
+
+#[rstest]
+#[case::exact(0)]
+#[case::fuzzy(1)]
+#[case::metadata_alias(2)]
+fn deprecated_sync_lookup_projects_an_invocable_handler(#[case] variant: usize) {
+    let handler = match variant {
+        0 => lookup_step(StepKeyword::Given, "an async registry test step".into()),
+        1 => find_step(StepKeyword::Given, "an async registry test step".into()),
+        2 => {
+            let resolved: Option<&'static Step> =
+                find_step_with_mode(StepKeyword::Given, "an async registry test step".into());
+            resolved.map(|step| step.run)
+        }
+        _ => panic!("unknown sync lookup variant: {variant}"),
+    }
+    .expect("step should be found");
+
+    let mut ctx = StepContext::default();
+    let result = handler(&mut ctx, "an async registry test step", None, None);
+    assert!(
+        matches!(result, Ok(StepExecution::Continue { .. })),
+        "unexpected result: {result:?}"
+    );
+}
+
+#[rstest]
+#[case::exact(true)]
+#[case::fuzzy(false)]
+fn deprecated_async_lookup_projects_an_invocable_handler(#[case] should_match_exactly: bool) {
     assert_async_wrapper_works(
-        || lookup_step_async(StepKeyword::Given, "an async registry test step".into()),
+        || {
+            if should_match_exactly {
+                lookup_step_async(StepKeyword::Given, "an async registry test step".into())
+            } else {
+                find_step_async(StepKeyword::Given, "an async registry test step".into())
+            }
+        },
         "an async registry test step",
     );
+}
+
+#[rstest]
+#[case::exact(true)]
+#[case::fuzzy(false)]
+fn deprecated_mode_lookup_projects_an_invocable_handler(#[case] should_match_exactly: bool) {
+    let (handler, mode) = if should_match_exactly {
+        lookup_step_async_with_mode(StepKeyword::Given, "an async registry test step".into())
+    } else {
+        find_step_async_with_mode(StepKeyword::Given, "an async registry test step".into())
+    }
+    .expect("step should be found");
+
+    assert_eq!(mode, StepExecutionMode::Both);
+    assert_async_wrapper_works(|| Some(handler), "an async registry test step");
 }
 
 // ----------------------------------------------------------------------------
@@ -141,41 +229,41 @@ fn lookup_step_async_returns_async_wrapper() {
 
 /// Test that async lookup APIs return None when the pattern or keyword does not match.
 ///
-/// This parameterized test consolidates all failure cases for both `find_step_async`
-/// and `lookup_step_async` into a single test with multiple cases.
+/// This parameterized test consolidates all failure cases for both canonical
+/// metadata lookups into a single test with multiple cases.
 #[rstest]
 #[case::find_unknown_pattern(
-    "find_step_async",
+    "find_step_with_metadata",
     StepKeyword::Given,
     "a completely unknown pattern xyz123",
     "for an unknown pattern"
 )]
 #[case::find_mismatched_when(
-    "find_step_async",
+    "find_step_with_metadata",
     StepKeyword::When,
     "an async registry test step",
     "when keyword does not match (When)"
 )]
 #[case::find_mismatched_then(
-    "find_step_async",
+    "find_step_with_metadata",
     StepKeyword::Then,
     "an async registry test step",
     "when keyword does not match (Then)"
 )]
 #[case::lookup_unknown_pattern(
-    "lookup_step_async",
+    "lookup_step_with_metadata",
     StepKeyword::Given,
     "a completely unknown pattern xyz123",
     "for an unknown pattern"
 )]
 #[case::lookup_mismatched_when(
-    "lookup_step_async",
+    "lookup_step_with_metadata",
     StepKeyword::When,
     "an async registry test step",
     "when keyword does not match (When)"
 )]
 #[case::lookup_mismatched_then(
-    "lookup_step_async",
+    "lookup_step_with_metadata",
     StepKeyword::Then,
     "an async registry test step",
     "when keyword does not match (Then)"
@@ -186,11 +274,8 @@ fn async_lookup_returns_none_for_invalid_input(
     #[case] pattern: &str,
     #[case] failure_reason: &str,
 ) {
-    let result = match api_name {
-        "find_step_async" => find_step_async(keyword, pattern.into()),
-        "lookup_step_async" => lookup_step_async(keyword, pattern.into()),
-        _ => panic!("unknown API: {api_name}"),
-    };
+    let result = resolve_metadata_step(api_name == "lookup_step_with_metadata", keyword, pattern)
+        .map(|step| step.run_async);
     assert!(
         result.is_none(),
         "{api_name} should return None {failure_reason}"
@@ -211,16 +296,6 @@ step!(
     &[]
 );
 
-#[test]
-fn find_step_async_marks_step_as_used() {
-    assert_step_marked_as_used(
-        "async unused tracking test step",
-        || find_step_async(StepKeyword::Given, "async unused tracking test step".into()),
-        "find_step_async",
-    );
-}
-
-// Register another step for testing lookup_step_async unused tracking.
 step!(
     StepKeyword::When,
     "async lookup unused tracking test step",
@@ -229,16 +304,28 @@ step!(
     &[]
 );
 
-#[test]
-fn lookup_step_async_marks_step_as_used() {
+#[rstest]
+#[case::fuzzy(
+    false,
+    StepKeyword::Given,
+    "async unused tracking test step",
+    "find_step_with_metadata"
+)]
+#[case::exact(
+    true,
+    StepKeyword::When,
+    "async lookup unused tracking test step",
+    "lookup_step_with_metadata"
+)]
+fn metadata_lookup_marks_step_as_used(
+    #[case] should_match_exactly: bool,
+    #[case] keyword: StepKeyword,
+    #[case] pattern: &str,
+    #[case] api_name: &str,
+) {
     assert_step_marked_as_used(
-        "async lookup unused tracking test step",
-        || {
-            lookup_step_async(
-                StepKeyword::When,
-                "async lookup unused tracking test step".into(),
-            )
-        },
-        "lookup_step_async",
+        pattern,
+        || resolve_metadata_step(should_match_exactly, keyword, pattern).map(|step| step.run_async),
+        api_name,
     );
 }

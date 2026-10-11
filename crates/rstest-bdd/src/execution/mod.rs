@@ -57,15 +57,15 @@ pub use rstest_bdd_policy::TestAttributeHint;
 fn resolve_step_for_request(
     request: &StepExecutionRequest<'_>,
 ) -> Result<&'static Step, ExecutionError> {
-    find_step_with_metadata(request.keyword, StepText::from(request.text)).ok_or_else(|| {
-        ExecutionError::StepNotFound {
+    find_step_with_metadata(request.keyword, StepText::from(request.text))
+        .map(|step| step.as_step())
+        .ok_or_else(|| ExecutionError::StepNotFound {
             index: request.index,
             keyword: request.keyword,
             text: request.text.to_owned(),
             feature_path: request.feature_path.to_owned(),
             scenario_name: request.scenario_name.to_owned(),
-        }
-    })
+        })
 }
 
 /// Convert a step result into the executor's structured outcome.

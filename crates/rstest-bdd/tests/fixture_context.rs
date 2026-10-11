@@ -8,7 +8,7 @@ use rstest_bdd::{
     assert_step_err,
     assert_step_ok,
     localization::{ScopedLocalization, strip_directional_isolates},
-    lookup_step,
+    lookup_step_with_metadata,
 };
 use rstest_bdd_macros::given;
 use unic_langid::langid;
@@ -30,16 +30,18 @@ fn context_passes_fixture() {
     let number = 42u32;
     let mut ctx = StepContext::default();
     ctx.insert("number", &number);
-    let step_fn = lookup_step(StepKeyword::Given, "a value".into())
-        .expect("step 'a value' not found in registry");
+    let step_fn = lookup_step_with_metadata(StepKeyword::Given, "a value".into())
+        .expect("step 'a value' not found in registry")
+        .run;
     let _ = assert_step_ok!(step_fn(&mut ctx, "a value", None, None));
 }
 
 #[test]
 fn context_missing_fixture_returns_error() {
     let mut ctx = StepContext::default();
-    let step_fn = lookup_step(StepKeyword::Given, "a value".into())
-        .expect("step 'a value' not found in registry");
+    let step_fn = lookup_step_with_metadata(StepKeyword::Given, "a value".into())
+        .expect("step 'a value' not found in registry")
+        .run;
     let err = assert_step_err!(step_fn(&mut ctx, "a value", None, None));
     let display = strip_directional_isolates(&err.to_string());
     match err {
@@ -63,8 +65,9 @@ fn context_missing_fixture_localizes_error() {
         Err(error) => panic!("failed to scope French locale: {error}"),
     };
     let mut ctx = StepContext::default();
-    let step_fn = lookup_step(StepKeyword::Given, "a value".into())
-        .expect("step 'a value' not found in registry");
+    let step_fn = lookup_step_with_metadata(StepKeyword::Given, "a value".into())
+        .expect("step 'a value' not found in registry")
+        .run;
     let err = assert_step_err!(step_fn(&mut ctx, "a value", None, None));
     let display = strip_directional_isolates(&err.to_string());
     assert!(display.contains("La fixture « number »"));
@@ -76,8 +79,9 @@ fn fixture_step_panic_returns_panic_error() {
     let number = 1u32;
     let mut ctx = StepContext::default();
     ctx.insert("number", &number);
-    let step_fn = lookup_step(StepKeyword::Given, "a panicking value step".into())
-        .expect("step 'a panicking value step' not found in registry");
+    let step_fn = lookup_step_with_metadata(StepKeyword::Given, "a panicking value step".into())
+        .expect("step 'a panicking value step' not found in registry")
+        .run;
     let err = assert_step_err!(
         step_fn(&mut ctx, "a panicking value step", None, None),
         "boom"
