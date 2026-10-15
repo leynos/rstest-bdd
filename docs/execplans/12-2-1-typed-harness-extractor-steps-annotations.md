@@ -148,9 +148,9 @@ Hard invariants. Violating one requires escalation, not a workaround.
   from the options listed there.
 - R2. Type-directed recognition is syntactic: a procedural macro sees tokens,
   not resolved types. A user type that happens to be named `Harness<T>` would
-  be captured; `use rstest_bdd::Harness as H;` would not be recognised.
+  be captured; `use rstest_bdd::Harness as H;` would not be recognized.
   Severity: medium. Likelihood: low. Mitigation: generated code routes every
-  recognised parameter through the sealed extraction trait, so a foreign
+  recognized parameter through the sealed extraction trait, so a foreign
   `Harness` fails to compile with an `on_unimplemented` message that names the
   `#[from(...)]` opt-out; renamed imports are documented as unsupported and
   fall back to ordinary fixture handling (D4).
@@ -236,10 +236,10 @@ Hard invariants. Violating one requires escalation, not a workaround.
   meaning when a fixture of the same type is later added. Extractor types make
   the request explicit at the same cost as writing the type. Date/Author:
   2026-10-15, planner.
-- D3. Decision: recognise extractors syntactically (final path segment
+- D3. Decision: recognize extractors syntactically (final path segment
   `Harness` or `HarnessMut`, exactly one generic type argument, at most one
   lifetime argument), then route generated code through a sealed trait so that
-  the compiler confirms the recognised type really is
+  the compiler confirms the recognized type really is
   `rstest_bdd::Harness`/`HarnessMut`. Rationale: a procedural macro cannot
   resolve types; the classification must happen at expansion time because it
   chooses the fixture key. The sealed trait turns any misrecognition into a
@@ -253,7 +253,7 @@ Hard invariants. Violating one requires escalation, not a workaround.
 - D4. Decision: `#[from(name)]` on an extractor-shaped parameter opts out of
   extractor recognition and classifies the parameter as an ordinary fixture
   named `name`. Renamed imports (`use rstest_bdd::Harness as H`) are not
-  recognised and are documented as unsupported. Rationale: gives owners of an
+  recognized and are documented as unsupported. Rationale: gives owners of an
   unrelated `Harness<T>` fixture type a one-attribute escape hatch, and keeps
   recognition a pure function of the parameter's own tokens. Date/Author:
   2026-10-15, planner.
@@ -491,7 +491,7 @@ The admissibility predicate the classifier must implement is
 - L2 (order independence). For a multiset of borrow requests on one
   `RefCell`, whether all can be held at once does not depend on acquisition
   order. Follows from A1 by induction on `n`.
-- L3 (characterisation). Under A1, A2, and L1, the wrapper's harness
+- L3 (characterization). Under A1, A2, and L1, the wrapper's harness
   acquisitions all succeed (given the context exists with the requested type
   and was inserted owned) iff `Compatible(S, X)`.
 - Theorem T (soundness and completeness of the compile-time check). The
@@ -580,7 +580,7 @@ revised before continuing.
   asserts the string is present in a known legacy fixture
   (`tests/fixtures_macros/harness_context_coexist.rs`), proving the search
   works.
-- O7 (foreign-type rejection). Obligation: a recognised parameter whose type
+- O7 (foreign-type rejection). Obligation: a recognized parameter whose type
   is not `rstest_bdd::Harness`/`HarnessMut` fails to compile with the
   `on_unimplemented` message naming the `#[from(...)]` opt-out. Method:
   `trybuild` compile-fail fixture. Non-vacuity: the paired opt-out fixture
@@ -857,11 +857,11 @@ implementation PR.
   C9. Evidence: Clippy transcripts. Conformance: no public change. Recovery:
   delete scratch crate. Remaining gaps: all implementation. Compatibility
   decision: none.
-- EP-M2. Outcome: `Harness`/`HarnessMut` usable from hand-written code.
+- EP-M2. Outcome: `Harness`/`HarnessMut` usable from handwritten code.
   Requirements: FL-1, FL-2 (runtime half), O4 (runtime half), O5. Evidence:
   unit tests and equivalence table. Conformance: C3, C4 checked against
   `cargo doc` output for new public items. Recovery: revert the commit.
-  Remaining gaps: macros do not yet recognise the types. Compatibility
+  Remaining gaps: macros do not yet recognize the types. Compatibility
   decision: none (additive, pre-1.0).
 - EP-M3. Outcome: steps can take extractors. Requirements: FL-1, FL-2,
   FL-3, O1, O2, O4, O8. Evidence: unit, property, snapshot tests. Conformance:
