@@ -28,6 +28,7 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::parse_quote;
 
+mod args;
 mod given;
 mod scenario;
 pub(crate) mod scenarios;

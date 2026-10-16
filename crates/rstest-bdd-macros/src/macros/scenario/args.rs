@@ -12,6 +12,8 @@ use syn::{
     token::Comma,
 };
 
+use crate::macros::args::set_once_arg;
+
 /// Internal data used by the macros implementation.
 pub(super) struct ScenarioArgs {
     /// Stores the internal `path` value.
@@ -99,15 +101,15 @@ impl Parse for ScenarioArgs {
 
         for arg in args {
             match arg {
-                ScenarioArg::Path(lit) => set_unique_field(&mut path, lit, "path", input)?,
+                ScenarioArg::Path(lit) => set_once_arg(&mut path, lit, "path", input)?,
                 ScenarioArg::Index(i) => set_selector_index(&mut selector, &i)?,
                 ScenarioArg::Name(lit) => set_selector_name(&mut selector, &lit)?,
-                ScenarioArg::Tags(lit) => set_unique_field(&mut tag_filter, lit, "tags", input)?,
+                ScenarioArg::Tags(lit) => set_once_arg(&mut tag_filter, lit, "tags", input)?,
                 ScenarioArg::Harness(p) => {
-                    set_unique_field(&mut harness, p, "harness", input)?;
+                    set_once_arg(&mut harness, p, "harness", input)?;
                 }
                 ScenarioArg::Attributes(p) => {
-                    set_unique_field(&mut attributes, p, "attributes", input)?;
+                    set_once_arg(&mut attributes, p, "attributes", input)?;
                 }
             }
         }
@@ -122,20 +124,6 @@ impl Parse for ScenarioArgs {
             attributes,
         })
     }
-}
-
-/// Assign `value` to `slot` if empty, or return a duplicate-argument error.
-fn set_unique_field<T>(
-    slot: &mut Option<T>,
-    value: T,
-    label: &str,
-    input: ParseStream<'_>,
-) -> syn::Result<()> {
-    if slot.is_some() {
-        return Err(input.error(format!("duplicate `{label}` argument")));
-    }
-    *slot = Some(value);
-    Ok(())
 }
 
 /// Generic helper to set a selector after checking for conflicts.
@@ -183,6 +171,40 @@ enum SelectorKind {
     Name,
 }
 
+/// Data needed to report one side of a selector conflict.
+#[derive(Clone, Copy)]
+struct SelectorConflict {
+    /// Source span of this selector argument.
+    span: Span,
+    /// User-facing label for this selector argument.
+    label: &'static str,
+}
+
+impl SelectorConflict {
+    /// Create a selector conflict side from its source span and label.
+    fn new(span: Span, label: &'static str) -> Self { Self { span, label } }
+
+    /// Build this side's selector-conflict diagnostic message.
+    fn message(self, other: Self) -> String {
+        let guidance = if self.label == "name" {
+            "; choose one selector"
+        } else {
+            ""
+        };
+        format!(
+            "`{}` cannot be combined with `{}`{guidance}",
+            self.label, other.label
+        )
+    }
+}
+
+/// Combine selector-conflict diagnostics for the new and existing arguments.
+fn combined_conflict_error(new: SelectorConflict, existing: SelectorConflict) -> syn::Error {
+    let mut error = syn::Error::new(new.span, new.message(existing));
+    error.combine(syn::Error::new(existing.span, existing.message(new)));
+    error
+}
+
 /// Provides the internal `selector_conflict_error` operation.
 fn selector_conflict_error(
     existing: &ScenarioSelector,
@@ -196,25 +218,14 @@ fn selector_conflict_error(
         (ScenarioSelector::Name { .. }, SelectorKind::Name) => {
             syn::Error::new(new_span, "duplicate `name` argument")
         }
-        (ScenarioSelector::Index { span, .. }, SelectorKind::Name) => {
-            let mut err = syn::Error::new(
-                new_span,
-                "`name` cannot be combined with `index`; choose one selector",
-            );
-            err.combine(syn::Error::new(
-                *span,
-                "`index` cannot be combined with `name`",
-            ));
-            err
-        }
-        (ScenarioSelector::Name { span, .. }, SelectorKind::Index) => {
-            let mut err = syn::Error::new(new_span, "`index` cannot be combined with `name`");
-            err.combine(syn::Error::new(
-                *span,
-                "`name` cannot be combined with `index`; choose one selector",
-            ));
-            err
-        }
+        (ScenarioSelector::Index { span, .. }, SelectorKind::Name) => combined_conflict_error(
+            SelectorConflict::new(new_span, "name"),
+            SelectorConflict::new(*span, "index"),
+        ),
+        (ScenarioSelector::Name { span, .. }, SelectorKind::Index) => combined_conflict_error(
+            SelectorConflict::new(new_span, "index"),
+            SelectorConflict::new(*span, "name"),
+        ),
     }
 }
 
