@@ -32,8 +32,14 @@ if typ.TYPE_CHECKING:
 # named separately from the whole expression because the narrow mutation this
 # contract must refuse swaps it for a sibling field of the same object.
 FORK_FIELD = "github.event.pull_request.head.repo.fork"
+# A pull request Dependabot opened takes the hosted arm too, because hosted
+# minutes cost nothing on a public repository. The author is tested, not
+# `github.actor`: the actor is whoever triggered the run, so a person pushing to
+# a Dependabot branch would flip the runner.
+DEPENDABOT_FIELD = "github.event.pull_request.user.login == 'dependabot[bot]'"
+HOSTED_GUARD = f"({FORK_FIELD} || {DEPENDABOT_FIELD})"
 FORK_FALLBACK_LINUX_LABEL = (
-    "${{ github.event.pull_request.head.repo.fork "
+    f"${{{{ {HOSTED_GUARD} "
     f"&& '{GITHUB_HOSTED_LINUX}' || '{UBICLOUD_LINUX_LABEL}' }}}}"
 )
 # Collapses the folding whitespace a block scalar may leave in a label.

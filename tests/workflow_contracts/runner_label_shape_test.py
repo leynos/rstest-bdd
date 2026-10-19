@@ -16,7 +16,7 @@ Run with:
 """
 
 import pytest
-from runner_label_support import FORK_FIELD
+from runner_label_support import HOSTED_GUARD
 from runner_label_support import (
     literal_label_guard as _literal_label_guard,
 )
@@ -75,9 +75,9 @@ def test_linux_lane_falls_back_to_github_hosted_for_forks() -> None:
         f"ci.yml:build-test must declare its Linux lane at {LINUX_LANE_SOURCE}"
     )
     label = _runner_label_expression(declared.raw)
-    assert label.guard == FORK_FIELD, (
-        f"the Linux lane must branch on {FORK_FIELD}, which is the only field "
-        f"that says a runner cannot be obtained; got {label.guard!r}"
+    assert label.guard == HOSTED_GUARD, (
+        f"the Linux lane must branch on {HOSTED_GUARD}, the only test that "
+        f"says a runner cannot or need not be obtained; got {label.guard!r}"
     )
     assert label.when_true == GITHUB_HOSTED_LINUX, (
         f"a fork pull request must fall back to {GITHUB_HOSTED_LINUX}; got "
