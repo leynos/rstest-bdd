@@ -39,8 +39,7 @@ FORK_FIELD = "github.event.pull_request.head.repo.fork"
 DEPENDABOT_FIELD = "github.event.pull_request.user.login == 'dependabot[bot]'"
 HOSTED_GUARD = f"({FORK_FIELD} || {DEPENDABOT_FIELD})"
 FORK_FALLBACK_LINUX_LABEL = (
-    f"${{{{ {HOSTED_GUARD} "
-    f"&& '{GITHUB_HOSTED_LINUX}' || '{UBICLOUD_LINUX_LABEL}' }}}}"
+    f"${{{{ {HOSTED_GUARD} && '{GITHUB_HOSTED_LINUX}' || '{UBICLOUD_LINUX_LABEL}' }}}}"
 )
 # Collapses the folding whitespace a block scalar may leave in a label.
 # Spelled out rather than written `\\s`, which in Python also matches U+001C
