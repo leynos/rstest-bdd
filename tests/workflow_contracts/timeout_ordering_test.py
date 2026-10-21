@@ -7,12 +7,14 @@ the ``cargo`` invocation in the workflow, and the job's own
 ``timeout-minutes``. They only work if each sits above the one inside it.
 
 The ordering was inverted for months. The watchdog defaulted to 1,800 s
-while nextest was configured for a 75 m run, so a cold compile was killed
-by the outer timer before the inner one had spent a third of its budget,
-and the failure read as an infrastructure fault rather than as a slow
-build. Nothing in ``.config/nextest.toml`` mentions the watchdog, and
-nothing in the workflow mentioned nextest, so the two could drift apart
-without either side noticing.
+while nextest was configured for what was then a 75 m run, so a cold
+compile was killed by the outer timer before the inner one had spent a
+third of its budget, and the failure read as an infrastructure fault
+rather than as a slow build. Nothing in ``.config/nextest.toml`` mentions
+the watchdog, and nothing in the workflow mentioned nextest, so the two
+could drift apart without either side noticing. The run budget has since
+been raised to 90 m; the arithmetic below reads it from the configuration
+rather than restating it.
 
 Two of the four timers do not start together, which the ordering has to
 allow for. The watchdog starts when ``cargo`` starts, and covers the

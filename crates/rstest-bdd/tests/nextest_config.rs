@@ -87,15 +87,6 @@ fn trybuild_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn 
 #[test]
 fn feature_rebuild_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn Error>> {
     let configuration = nextest_configuration()?;
-    let default_profile = default_profile(&configuration)?;
-    assert_eq!(
-        default_profile
-            .get("global-timeout")
-            .and_then(Value::as_str),
-        Some("75m"),
-        "the default nextest profile must retain the measured 75-minute global timeout",
-    );
-
     let overrides = default_overrides(&configuration)?;
     let filter = format!("binary_id({FEATURE_REBUILD_BINARY})");
     let matching = overrides
@@ -136,6 +127,34 @@ fn feature_rebuild_nextest_override_preserves_timeout_contract() -> Result<(), B
     );
     Ok(())
 }
+
+/// Keep cold-build drift from consuming the run-level reserve again.
+#[test]
+fn nested_cargo_run_retains_cold_build_reserve() -> Result<(), Box<dyn Error>> {
+    let configuration = nextest_configuration()?;
+    // R-6 is a sizing scenario, not a sum of every test's maximum. Keep its
+    // baseline and cold-build perturbation separate so neither is mistaken
+    // for measured elapsed time on this host.
+    let reference_lane_seconds = 180 + 600 * 4 + 600 * 3;
+    let cold_invocations = 10;
+    let additional_seconds_per_invocation = 19;
+    let minimum_reserve_seconds = 600;
+    let required = reference_lane_seconds
+        + cold_invocations * additional_seconds_per_invocation
+        + minimum_reserve_seconds;
+    let actual = duration_seconds(default_global_timeout(&configuration)?)?;
+    assert!(
+        actual >= required,
+        "nested Cargo needs {required}s including cold-build drift and reserve, got {actual}s",
+    );
+    assert_eq!(
+        test_group_max_threads(&configuration, "cargo-spawning")?,
+        1,
+        "nested Cargo builds must remain serialized to avoid competing for compiler resources",
+    );
+    Ok(())
+}
+
 fn nextest_configuration() -> Result<Value, Box<dyn Error>> {
     let configuration_directory = workspace_root()?.join(".config");
     let configuration_directory =
@@ -173,6 +192,23 @@ fn default_global_timeout(configuration: &Value) -> Result<&str, io::Error> {
         .and_then(Value::as_str)
         .ok_or_else(|| {
             io::Error::other("nextest configuration must set profile.default.global-timeout")
+        })
+}
+
+/// `test-groups` is a top-level nextest table, not a profile key, so it needs
+/// its own lookup rather than `default_profile_key`.
+fn test_group_max_threads(configuration: &Value, group_name: &str) -> Result<i64, io::Error> {
+    configuration
+        .get("test-groups")
+        .and_then(Value::as_table)
+        .and_then(|groups| groups.get(group_name))
+        .and_then(Value::as_table)
+        .and_then(|group| group.get("max-threads"))
+        .and_then(Value::as_integer)
+        .ok_or_else(|| {
+            io::Error::other(format!(
+                "nextest configuration must set test-groups.{group_name}.max-threads"
+            ))
         })
 }
 
