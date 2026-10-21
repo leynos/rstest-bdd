@@ -2063,6 +2063,14 @@ two-phase strategy to locate test binaries, implemented by
 This pattern ensures tests run from a clean checkout without a separate
 pre-build step in every CI job.
 
+The private `cli_child_environment` helper in `crates/cargo-bdd/tests/cli.rs`
+supplies the workspace `target/` directory as the fallback for CLI fixture
+builds, so repeated builds share compiled artefacts. It composes the shared
+`nested_cargo::env_from_vars` environment filtering with this CLI-specific
+target policy; keep the helper private to the CLI test module. An inherited
+`CARGO_TARGET_DIR` takes precedence, including the coverage target directory
+used by `cargo llvm-cov`.
+
 ### `binary_test_support` API reference
 
 ```rust
@@ -3220,29 +3228,80 @@ pattern in `crates/rstest-bdd/tests/feature_rebuild_invalidation/`:
 
 - The checked-in fixture (for example
   `tests/fixtures/rebuild_invalidation/`) is a non-workspace crate with a
-  trailing `[workspace]` stanza, a committed `Cargo.lock`, and dependencies
-  byte-identical to `tests/fixtures/minimal/`'s, so the two fixtures share
-  compiled units.
+  trailing `[workspace]` stanza, a committed `Cargo.lock`, and only the
+  dependencies its own sources reach. It does not need to mirror
+  `tests/fixtures/minimal/` clause for clause: what matters is that every
+  package it resolves is one the workspace also resolves, which the alignment
+  pass below enforces. A requirement no fixture source imports still enters the
+  resolved graph, so an unused dependency can fork a shared crate just as a
+  wrong version can.
 - Refresh the two feature-rebuild fixture lockfiles together with
-  `make update-feature-rebuild-fixtures-lock`. The target seeds both locks from
-  `tests/fixtures/minimal/Cargo.lock` before Cargo resolves the
-  fixture-specific root and `rstest 0.26.1` closure required by `#[scenario]`.
-  This keeps nested `--offline` runs on the dependency resolution already
-  populated by CI.
+  `make update-feature-rebuild-fixtures-lock`, or refresh them with the rest of
+  the fixture set through `make update-fixture-lockfiles`. The dedicated target
+  seeds both locks from `tests/fixtures/minimal/Cargo.lock` before Cargo
+  resolves the fixture-specific root and `rstest 0.26.1` closure required by
+  `#[scenario]`; the shared target seeds from the root `Cargo.lock` instead.
+  Either way the fixtures resolve inside the workspace graph — the minimal
+  fixture is itself a discovered fixture, so its lockfile is held to the same
+  alignment requirement — and nested `--offline` runs reuse the dependency
+  resolution already populated by CI.
+- Keep every fixture's resolved graph inside the workspace's. A nested
+  `cargo test` resolves through the fixture's own lockfile, so a crate the
+  fixture pins to a version or source the workspace did not pick is a compiled
+  unit the workspace build cannot lend it and the nested run builds a second
+  time. Because the nested lanes serialize behind the `cargo-spawning` test
+  group, that duplication is paid on the critical path of every cold CI lane.
+  `make check-fixture-lockfiles` therefore runs
+  `scripts/fixture_lockfile_alignment.py` after the `--locked` validation: it
+  reads the root `Cargo.lock` and each fixture's, compares them as sets of
+  `(name, version, source)`, and fails naming every package that only the
+  fixture resolves. The fixture's own crate is excluded — it is the one
+  legitimate addition — and two fixtures are exempt by path in
+  `EXEMPT_FIXTURES`, each for a structural reason: `ui_lints` builds through
+  its own `CARGO_TARGET_DIR` so its artefacts are isolated anyway, and
+  `published-gpui-0-2-2` exists to resolve `gpui` from crates.io instead of the
+  workspace's vendored path. The regression pin is
+  `test_the_repository_itself_is_aligned`, which fails with the duplicated
+  packages when a bump re-forks a fixture.
+- The tooling splits along the same lines as the concern it models.
+  `scripts/fixture_lockfile_packages.py` is the reading layer: it parses a
+  lockfile or a `[package]` table and answers with `(name, version, source)`
+  identities, and it is the only module that imports `tomllib` for this purpose.
+  `scripts/fixture_lockfile_alignment.py` owns the comparison policy and
+  re-exports the reading, so a caller needs one import.
+  `scripts/fixture_lockfile_cargo.py` owns the Cargo invocations, and
+  `scripts/check_fixture_lockfiles.py` is the gate that wires discovery,
+  refresh and reporting together. Keep the split: the reading is shared by the
+  comparison and by its own tests, and folding it back into either consumer
+  pushed that consumer past the 400-line module budget.
 - Validate the whole standalone-fixture set with
   `make check-fixture-lockfiles`. The gate runs
   `scripts/check_fixture_lockfiles.py`, which discovers every workspace opt-out
   manifest that uses local `path` dependencies and commits a `Cargo.lock`, then
-  proves each lockfile still resolves with `cargo metadata --locked`. The
-  target depends on `check-published-gpui-e2e-lock` because the staged
-  published-GPUI end-to-end fixture patches crates.io names onto `target/`
-  artefacts and is invisible to the script's discovery. CI runs the same target
-  after the workspace build, and the Dependabot refresh workflow regenerates
-  the set with `make update-fixture-lockfiles`, which mirrors the same two
-  halves through its `update-published-gpui-e2e-lock` prerequisite, so the
-  check and the refresh path always agree on which fixtures are authoritative.
-  A stale lockfile therefore fails before the behavioural nested-Cargo tests
-  can mask the drift.
+  proves each lockfile still resolves with `cargo metadata --locked` and that
+  its resolved graph stays inside the workspace's (see the alignment pass
+  above). The target depends on `check-published-gpui-e2e-lock` because the
+  staged published-GPUI end-to-end fixture patches crates.io names onto
+  `target/` artefacts and is invisible to the script's discovery. CI runs the
+  same target after the workspace build, and the Dependabot refresh workflow
+  regenerates the set with `make update-fixture-lockfiles`, which mirrors the
+  same two halves through its `update-published-gpui-e2e-lock` prerequisite, so
+  the check and the refresh path always agree on which fixtures are
+  authoritative. A stale lockfile therefore fails before the behavioural
+  nested-Cargo tests can mask the drift.
+- A refresh seeds each fixture's lockfile from the root `Cargo.lock` before
+  re-resolving it, which is what keeps the result aligned: seeding pins every
+  shared crate to the workspace's choice, leaving Cargo only the fixture's own
+  additions. `published-gpui-0-2-2` is listed in `SEED_EXCLUDED_FIXTURES` and
+  is re-resolved from its own lockfile instead. Seeding is categorically wrong
+  for it — its 568 crates.io-only packages exist to prove the published `gpui`
+  resolves without the workspace's vendored path, and a seed replaced them with
+  the workspace's resolution, so the fixture silently stopped testing what it
+  was written to test. Its `make update-published-gpui-0-2-2-lock` target owns
+  that lockfile. Seed exclusion is deliberately a separate set from
+  `EXEMPT_FIXTURES`: `ui_lints` is excluded from the alignment comparison but
+  is still seeded, because aligning it costs nothing even though its isolated
+  `CARGO_TARGET_DIR` means it cannot borrow the workspace's units.
 - Manifest paths in this tooling are rendered with forward slashes on every
   platform. `scripts/check_fixture_lockfiles.py --list` and the stale, refresh
   and prefetch failure reports all render a repository manifest through

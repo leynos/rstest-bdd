@@ -14,13 +14,15 @@ from check_fixture_lockfiles import (
     cargo_fetch_command,
     cargo_metadata_command,
     check_fixtures,
-    fetch_fixture_dependencies,
     fetch_fixture_dependencies_or_failure,
     fetch_fixtures,
     main,
     refresh_fixtures,
+    seed_fixture_lockfile,
+)
+from fixture_lockfile_alignment import is_seed_excluded
+from fixture_lockfile_cargo import (
     refresh_lockfile,
-    run_cargo_command,
     run_cargo_metadata,
 )
 from fixture_lockfile_discovery import discover_fixture_manifests
@@ -51,6 +53,29 @@ def test_every_discovered_manifest_matches_its_lockfile() -> None:
             f"stale fixture lockfile for {manifest.relative_to(REPO_ROOT)}:\n"
             f"{result.stdout}{result.stderr}"
         )
+
+
+def test_the_real_seed_is_never_reached_by_these_tests() -> None:
+    """No test may copy the workspace lock over a committed fixture lockfile.
+
+    ``seed_and_resolve`` really writes: it copies ``Cargo.lock`` beside the
+    fixture before re-resolving. A test that lets it run re-resolves fixtures
+    for real, which both mutates the working tree and makes the suite depend on
+    the network. This pins the seam every test here mocks: the real function
+    must not be the one the tests reach.
+    """
+    manifest = REPO_ROOT / "crates/rstest-bdd/tests/ui_lints/Cargo.toml"
+    before = manifest.parent.joinpath("Cargo.lock").read_bytes()
+    with (
+        mock.patch(
+            "check_fixture_lockfiles.seed_and_resolve", side_effect=AssertionError
+        ),
+        pytest.raises(AssertionError),
+    ):
+        refresh_fixtures(REPO_ROOT, [manifest])
+    assert manifest.parent.joinpath("Cargo.lock").read_bytes() == before, (
+        "a mocked seed must not rewrite any committed lockfile"
+    )
 
 
 def test_stale_lockfile_fails_with_manifest_path_and_cargo_output() -> None:
@@ -109,10 +134,13 @@ def test_refresh_mode_regenerates_before_validating() -> None:
         stderr="",
     )
 
-    def record_refresh(manifest: Path) -> None:
+    def record_refresh(
+        root_lock: Path, manifest: Path, resolve: object
+    ) -> subprocess.CompletedProcess[str]:
         """Record a refresh event in the shared call-order log."""
         events.append("refresh")
         observed.append(manifest)
+        return successful
 
     def record_metadata(manifest: Path) -> subprocess.CompletedProcess[str]:
         """Record a validation event in the shared call-order log."""
@@ -122,75 +150,30 @@ def test_refresh_mode_regenerates_before_validating() -> None:
 
     with (
         mock.patch(
-            "check_fixture_lockfiles.refresh_lockfile", side_effect=record_refresh
+            "check_fixture_lockfiles.seed_and_resolve",
+            side_effect=record_refresh,
         ),
         mock.patch(
             "check_fixture_lockfiles.run_cargo_metadata", side_effect=record_metadata
         ),
     ):
         exit_code = refresh_fixtures(REPO_ROOT, manifests)
+    seeded = [m for m in manifests if not is_seed_excluded(m, REPO_ROOT)]
+    re_resolved = [m for m in manifests if is_seed_excluded(m, REPO_ROOT)]
     assert exit_code == 0, "valid refreshed fixtures must pass the gate"
-    assert events == ["refresh", "metadata"] * len(manifests), (
-        "each fixture must be regenerated before its locked-metadata validation"
+    assert is_seed_excluded(
+        REPO_ROOT / "tests/fixtures/published-gpui-0-2-2/Cargo.toml", REPO_ROOT
+    ), "this test leans on that fixture keeping its own resolution"
+    assert events == ["refresh", "metadata"] * len(seeded) + ["metadata"] * len(
+        re_resolved
+    ), (
+        "a seeded fixture must be regenerated before its locked-metadata "
+        "validation, while a seed-excluded one is validated without being "
+        "seeded at all"
     )
-    assert observed == [m for m in manifests for _ in range(2)], (
+    assert observed == [m for m in seeded for _ in range(2)] + re_resolved, (
         "every discovered fixture must be visited in order"
     )
-
-
-def test_run_cargo_command_reports_a_missing_cargo_executable() -> None:
-    """A Cargo that cannot start raises the gate's own error, named per fixture."""
-    manifest = REPO_ROOT / "crates/rstest-bdd/tests/ui_lints/Cargo.toml"
-    oserror = OSError(2, "No such file or directory")
-    with (
-        mock.patch(
-            "check_fixture_lockfiles.subprocess.run", side_effect=oserror
-        ) as spawn,
-        pytest.raises(FixtureLockfileError, match="cannot run cargo") as excinfo,
-    ):
-        run_cargo_command(cargo_metadata_command(manifest), manifest)
-    assert spawn.call_args.kwargs["capture_output"] is True, (
-        "the runner must capture Cargo output so failures can name it"
-    )
-    assert spawn.call_args.kwargs["text"] is True, (
-        "Cargo output must be decoded as text"
-    )
-    assert spawn.call_args.kwargs["check"] is False, (
-        "a non-zero exit must return the result so every fixture is reported"
-    )
-    assert isinstance(excinfo.value.__cause__, OSError), (
-        "the original launch failure must stay chained for debugging"
-    )
-
-
-def test_thin_wrappers_delegate_to_the_shared_runner() -> None:
-    """Every public entry point builds its argv and hands it to one runner."""
-    manifest = REPO_ROOT / "crates/rstest-bdd/tests/ui_lints/Cargo.toml"
-    with mock.patch("check_fixture_lockfiles.run_cargo_command") as runner:
-        run_cargo_metadata(manifest)
-        refresh_lockfile(manifest)
-        fetch_fixture_dependencies(manifest)
-    assert runner.call_count == 3, (
-        "each wrapper must route through the shared Cargo runner exactly once"
-    )
-    metadata_argv, metadata_manifest = runner.call_args_list[0].args
-    refresh_argv, refresh_manifest = runner.call_args_list[1].args
-    fetch_argv, fetch_manifest = runner.call_args_list[2].args
-    assert metadata_argv == cargo_metadata_command(manifest), (
-        "validation must always use the locked metadata argv"
-    )
-    assert metadata_manifest == manifest, "validation must name the manifest"
-    assert refresh_argv == [
-        "cargo",
-        "generate-lockfile",
-        "--manifest-path",
-        str(manifest),
-    ], "the refresh argv must stay cargo generate-lockfile --manifest-path"
-    assert refresh_manifest == manifest, "refresh must name the manifest it regenerated"
-    assert fetch_argv == cargo_fetch_command(manifest), (
-        "the prefetch must use the locked fetch argv"
-    )
-    assert fetch_manifest == manifest, "the prefetch must name the manifest it warmed"
 
 
 def test_check_failure_output_carries_manifest_command_and_cargo_streams() -> None:
@@ -229,7 +212,7 @@ def test_refresh_failure_report_uses_the_refresh_wording() -> None:
         stderr=STALE_OUTPUT,
     )
     with (
-        mock.patch("check_fixture_lockfiles.refresh_lockfile"),
+        mock.patch("check_fixture_lockfiles.seed_and_resolve"),
         mock.patch("check_fixture_lockfiles.run_cargo_metadata", return_value=failing),
         mock.patch("check_fixture_lockfiles.print_failures") as emit_failures,
     ):
@@ -262,7 +245,7 @@ def test_gate_wrappers_delegate_to_the_shared_reporter() -> None:
                 print_refresh_summary,
                 cargo_metadata_command,
                 run_cargo_metadata,
-                refresh_lockfile,
+                seed_fixture_lockfile,
             ),
         ),
         (
@@ -299,7 +282,7 @@ def test_refresh_failure_summary_streams_to_stderr(
         stderr=STALE_OUTPUT,
     )
     with (
-        mock.patch("check_fixture_lockfiles.refresh_lockfile"),
+        mock.patch("check_fixture_lockfiles.seed_and_resolve"),
         mock.patch("check_fixture_lockfiles.run_cargo_metadata", return_value=failing),
     ):
         exit_code = refresh_fixtures(REPO_ROOT, [manifest])
@@ -315,7 +298,7 @@ def test_main_lists_manifests_without_running_the_gate(
 ) -> None:
     """--list prints the discovered set and exits 0 before any Cargo run."""
     manifests = discover_fixture_manifests(REPO_ROOT)
-    with mock.patch("check_fixture_lockfiles.run_cargo_command") as runner:
+    with mock.patch("fixture_lockfile_cargo.run_cargo_command") as runner:
         exit_code = main(["--list"])
     assert exit_code == 0, "listing must exit successfully"
     assert runner.assert_not_called() is None, "listing must not invoke Cargo"
@@ -352,7 +335,7 @@ def test_main_refresh_flag_routes_to_refresh_fixtures(
         stderr="",
     )
     with (
-        mock.patch("check_fixture_lockfiles.refresh_lockfile", return_value=successful),
+        mock.patch("check_fixture_lockfiles.seed_and_resolve", return_value=successful),
         mock.patch(
             "check_fixture_lockfiles.run_cargo_metadata", return_value=successful
         ),
@@ -378,8 +361,12 @@ def test_an_unstartable_cargo_only_stops_the_validating_modes() -> None:
     ticks = iter([100.0, 100.25])
     with (
         mock.patch(
-            "check_fixture_lockfiles.run_cargo_command", side_effect=unstartable
+            "fixture_lockfile_cargo.run_cargo_command", side_effect=unstartable
         ) as runner,
+        mock.patch(
+            "check_fixture_lockfiles.seed_fixture_lockfile",
+            side_effect=lambda root, manifest: refresh_lockfile(manifest),
+        ),
         mock.patch("check_fixture_lockfiles.print_prefetch_metrics") as metrics,
     ):
         for validating in (check_fixtures, refresh_fixtures):

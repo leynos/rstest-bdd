@@ -1,0 +1,197 @@
+#!/usr/bin/env python3
+"""Build and run the Cargo invocations the fixture lockfile gate needs.
+
+The gate has three operations over one manifest: validate it with a locked
+``cargo metadata``, re-resolve it for a refresh, and prefetch its dependencies
+with a locked ``cargo fetch``. Each is a fixed argv plus the manifest path, run
+with captured output and a non-raising return code, so a single stale lockfile
+is reported rather than aborting the run. Keeping the argv construction and the
+invocation together leaves the gate script to decide what to do with the
+results, which is the part that differs between the modes.
+"""
+
+import subprocess  # ruff: ignore[suspicious-subprocess-import] - builds and runs a fixed cargo argv; see run_cargo_command.
+import typing as typ
+
+from fixture_lockfile_reporting import FixtureLockfileError
+
+if typ.TYPE_CHECKING:
+    from pathlib import Path
+
+CARGO = "cargo"
+METADATA_FORMAT_VERSION = "1"
+
+
+def cargo_metadata_command(manifest: Path) -> list[str]:
+    """Build the locked ``cargo metadata`` command for *manifest*.
+
+    Returns
+    -------
+    list[str]
+        The locked ``cargo metadata`` argv for *manifest*.
+    """
+    return [
+        CARGO,
+        "metadata",
+        "--locked",
+        "--format-version",
+        METADATA_FORMAT_VERSION,
+        "--manifest-path",
+        str(manifest),
+    ]
+
+
+def cargo_resolve_command(manifest: Path) -> list[str]:
+    """Build the command that re-resolves *manifest*'s lockfile.
+
+    ``cargo metadata`` without ``--locked`` resolves the manifest and writes any
+    lockfile change, but keeps the versions an existing lockfile already pins
+    instead of upgrading them. ``cargo generate-lockfile`` upgrades, which is
+    why it is not used here; see
+    :func:`fixture_lockfile_alignment.seed_and_resolve`.
+
+    Returns
+    -------
+    list[str]
+        The resolving ``cargo metadata`` argv for *manifest*.
+    """
+    return [
+        CARGO,
+        "metadata",
+        "--format-version",
+        METADATA_FORMAT_VERSION,
+        "--manifest-path",
+        str(manifest),
+    ]
+
+
+def cargo_fetch_command(manifest: Path) -> list[str]:
+    """Build the locked ``cargo fetch`` command for *manifest*.
+
+    Returns
+    -------
+    list[str]
+        The locked ``cargo fetch`` argv for *manifest*.
+
+    Examples
+    --------
+    >>> cargo_fetch_command(Path("fixtures/minimal/Cargo.toml"))
+    ['cargo', 'fetch', '--locked', '--manifest-path', 'fixtures/minimal/Cargo.toml']
+    """
+    return [CARGO, "fetch", "--locked", "--manifest-path", str(manifest)]
+
+
+def run_cargo_command(
+    command: list[str], manifest: Path
+) -> subprocess.CompletedProcess[str]:
+    """Run a Cargo command for *manifest* and return the captured result.
+
+    Every gate invocation uses the same plumbing: a fixed argv (no shell),
+    captured output, and a non-raising return code so stale lockfiles are
+    reported per fixture instead of aborting the whole run.
+
+    Returns
+    -------
+    subprocess.CompletedProcess[str]
+        The completed invocation with captured output.
+
+    Raises
+    ------
+    FixtureLockfileError
+        Cargo could not be started; the message names it and *manifest*.
+    """
+    try:
+        return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - argv carries a fixed command plus the manifest path; no shell.
+            command, capture_output=True, text=True, check=False
+        )
+    except OSError as error:
+        raise FixtureLockfileError(
+            FixtureLockfileError.cargo_unavailable_message(CARGO, manifest, error)
+        ) from error
+
+
+def run_cargo_metadata(manifest: Path) -> subprocess.CompletedProcess[str]:
+    """Run locked ``cargo metadata`` for *manifest* and return the result.
+
+    ``cargo metadata --locked`` is the authoritative lockfile check: Cargo
+    re-resolves the manifest against the committed lockfile and fails when the
+    two disagree, which is exactly the staleness this gate exists to catch.
+
+    Returns
+    -------
+    subprocess.CompletedProcess[str]
+        The completed invocation; errors per :func:`run_cargo_command`.
+    """
+    return run_cargo_command(cargo_metadata_command(manifest), manifest)
+
+
+def refresh_lockfile(manifest: Path) -> subprocess.CompletedProcess[str]:
+    """Regenerate the lockfile for *manifest* through Cargo.
+
+    Cargo's own lockfile writer produces the committed artefact; the script
+    never hand-edits package records or checksums.
+
+    Returns
+    -------
+    subprocess.CompletedProcess[str]
+        The completed invocation; errors per :func:`run_cargo_command`.
+    """
+    return run_cargo_command(cargo_resolve_command(manifest), manifest)
+
+
+def fetch_fixture_dependencies(manifest: Path) -> subprocess.CompletedProcess[str]:
+    """Download the locked dependencies of *manifest* into the Cargo cache.
+
+    ``cargo fetch --locked`` fills ``~/.cargo/registry`` from the committed
+    lockfile without building anything, so a later ``--offline`` invocation of
+    the same lockfile resolves from the cache. The mutation lane runs this mode
+    because it has no outer online workspace build to warm that cache before its
+    nested fixture tests run.
+
+    Returns
+    -------
+    subprocess.CompletedProcess[str]
+        The completed invocation; errors per :func:`run_cargo_command`.
+
+    Examples
+    --------
+    Prefetch the dependencies of a single fixture manifest::
+
+        fetch_fixture_dependencies(
+            Path("crates/cargo-bdd/tests/fixtures/minimal/Cargo.toml")
+        )
+
+    The completed invocation carries ``returncode == 0`` once every locked
+    crate is cached; a non-zero code marks that fixture as a failed prefetch.
+    """
+    return run_cargo_command(cargo_fetch_command(manifest), manifest)
+
+
+def fetch_fixture_dependencies_or_failure(
+    manifest: Path,
+) -> subprocess.CompletedProcess[str]:
+    """Prefetch *manifest*, turning an unstartable Cargo into a failed result.
+
+    ``cargo fetch`` is one fixture's work, so a Cargo that cannot be started
+    must fail that fixture rather than the whole run: the prefetch visits every
+    fixture and closes with exactly one metrics record either way. The launch
+    error therefore becomes a failed synthetic invocation carrying the same
+    message, which the shared report renders like any other prefetch failure.
+    The check and refresh modes keep :func:`run_cargo_command`'s raising
+    contract, because a lockfile cannot be validated without Cargo at all.
+
+    Returns
+    -------
+    subprocess.CompletedProcess[str]
+        The completed invocation, or a failed synthetic one when Cargo could
+        not be started.
+    """
+    try:
+        return fetch_fixture_dependencies(manifest)
+    except FixtureLockfileError as error:
+        return subprocess.CompletedProcess(
+            args=cargo_fetch_command(manifest),
+            returncode=1,
+            stdout="",
+            stderr=f"{error}\n",
+        )

@@ -46,7 +46,7 @@ def test_prefetch_fetches_every_discovered_fixture() -> None:
         args=cargo_fetch_command(manifests[0]), returncode=0, stdout="", stderr=""
     )
     with mock.patch(
-        "check_fixture_lockfiles.run_cargo_command", return_value=successful
+        "fixture_lockfile_cargo.run_cargo_command", return_value=successful
     ) as runner:
         exit_code = fetch_fixtures(REPO_ROOT, manifests)
     assert exit_code == 0, "a clean prefetch must pass"
@@ -66,7 +66,7 @@ def test_prefetch_failure_report_names_the_fixture_and_cargo_output() -> None:
     )
     with (
         mock.patch(
-            "check_fixture_lockfiles.fetch_fixture_dependencies", return_value=failing
+            "fixture_lockfile_cargo.fetch_fixture_dependencies", return_value=failing
         ),
         mock.patch("check_fixture_lockfiles.print_failures") as emit_failures,
     ):
@@ -97,7 +97,7 @@ def test_prefetch_failure_summary_streams_to_stderr(
         stderr=FETCH_FAILURE,
     )
     with mock.patch(
-        "check_fixture_lockfiles.fetch_fixture_dependencies", return_value=failing
+        "fixture_lockfile_cargo.fetch_fixture_dependencies", return_value=failing
     ):
         exit_code = fetch_fixtures(REPO_ROOT, [manifest])
     assert exit_code == 1, "a failed prefetch must fail the run"
@@ -120,7 +120,7 @@ def test_main_fetch_flag_routes_to_prefetch_without_validating(
             "check_fixture_lockfiles.discover_fixture_manifests", return_value=manifests
         ),
         mock.patch(
-            "check_fixture_lockfiles.fetch_fixture_dependencies",
+            "fixture_lockfile_cargo.fetch_fixture_dependencies",
             return_value=successful,
         ),
         mock.patch("check_fixture_lockfiles.run_cargo_metadata") as metadata,

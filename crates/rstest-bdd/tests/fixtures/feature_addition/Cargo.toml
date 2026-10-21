@@ -4,23 +4,21 @@ version = "0.1.0"
 edition = "2024"
 build = "build.rs"
 
-# Dependencies are byte-identical to `crates/cargo-bdd/tests/fixtures/minimal`,
-# including `features = ["diagnostics", "test-support"]` on `rstest-bdd`, and
-# the committed lockfile resolves every shared crate to the same versions.
-# Cargo hashes the resolved feature set into `-C metadata`, so a divergent set
-# would give this fixture its own compiled units instead of sharing them —
-# doubling the cold-build cost on CI.
+# The fixture resolves through its own lockfile in the shared `target/`, so
+# its graph is what decides which of the workspace's compiled units it can
+# reuse. `features = ["diagnostics", "test-support"]` matches the workspace's
+# `--all-features` build, and the committed lockfile is seeded from the
+# workspace lock so shared crates resolve to the same versions.
 #
-# One deliberate addition, recorded in the 10.3.3 execplan Decision Log: the
-# minimal fixture never uses `#[scenario]`, whereas this fixture's whole point
-# is a `#[scenario]`-bound test, and the `#[scenario]` expansion unconditionally
-# emits `#[rstest::rstest]`. `rstest 0.26.1` is therefore added to
-# `[dev-dependencies]`; it is already a workspace dependency at the same
-# version, so the resolved rstest-bdd graph (the `-C metadata` that matters) is
-# unchanged and every compiled unit is still shared.
+# Only what the fixture's sources use is named here. `rstest-bdd-macros`
+# provides `scenarios!`, and `rstest` is required because that expansion
+# unconditionally emits `#[rstest::rstest]`. `inventory` and `serial_test` used
+# to be named as well, at `"0.3"` and `"2"`; nothing in this fixture imports
+# either, and the `"2"` requirement dragged `serial_test` 2.0.0 and a second
+# `dashmap`/`hashbrown` pair into the build alongside the workspace's 4.0.1.
+# `scripts/fixture_lockfile_alignment.py` fails if a package here resolves to a
+# version or source the workspace did not pick.
 [dependencies]
-inventory = "0.3"
-serial_test = "2"
 rstest-bdd = { path = "../../../../../crates/rstest-bdd", features = ["diagnostics", "test-support"] }
 
 [dev-dependencies]

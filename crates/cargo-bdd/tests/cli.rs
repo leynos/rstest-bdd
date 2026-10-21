@@ -1,6 +1,6 @@
 //! Basic smoke tests for the cargo-bdd subcommand.
 
-use std::{env, path::PathBuf, process::ExitStatus, str};
+use std::{env, ffi::OsString, path::PathBuf, process::ExitStatus, str};
 
 use assert_cmd::Command;
 use eyre::{Context, Result};
@@ -44,12 +44,7 @@ fn run_cargo_bdd_raw(args: &[&str]) -> Result<std::process::Output> {
     // `LLVM_PROFILE_FILE`: `cargo llvm-cov` only merges the `.profraw` files
     // named by the pattern it exported, and redirecting this one would report
     // its exercised lines as never executed.
-    let fallback_target_dir =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/cargo-bdd-cli");
-    let child_env = nested_cargo::build_child_env(
-        &fallback_target_dir,
-        nested_cargo::ProfileDestination::Caller,
-    );
+    let child_env = cli_child_environment(env::vars_os().collect());
     let program = locate_or_build_cargo_bdd_command()?;
     let mut cmd = nested_cargo::filtered_command(
         std::path::Path::new(program.get_program()),
@@ -72,6 +67,33 @@ fn locate_or_build_cargo_bdd_command() -> Result<Command> {
 }
 
 fn workspace_root() -> PathBuf { PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..") }
+
+/// Apply the shared isolation policy with this CLI fixture's workspace target.
+///
+/// Only CLI smoke-test setup owns this fallback; explicit coverage and caller
+/// target directories continue to take precedence.
+///
+/// For example, `cli_child_environment(Vec::new())` selects the workspace
+/// `target/`; a snapshot containing `CARGO_TARGET_DIR` retains that value.
+fn cli_child_environment(vars: Vec<(OsString, OsString)>) -> nested_cargo::NestedCargoEnv {
+    nested_cargo::env_from_vars(
+        vars,
+        Some(&workspace_root().join("target")),
+        nested_cargo::ProfileDestination::Caller,
+    )
+}
+
+#[rstest::rstest]
+#[case::workspace_cache(None)]
+#[case::caller_cache(Some("custom-coverage-target"))]
+fn cli_child_environment_reuses_target(#[case] target: Option<&str>) {
+    let vars = target
+        .map(|value| vec![(OsString::from("CARGO_TARGET_DIR"), OsString::from(value))])
+        .unwrap_or_default();
+    let child = cli_child_environment(vars);
+    let expected = target.map_or_else(|| workspace_root().join("target"), PathBuf::from);
+    assert_eq!(child.get("CARGO_TARGET_DIR"), Some(expected.as_os_str()));
+}
 
 fn run_cargo_bdd_captured(args: &[&str]) -> Result<(ExitStatus, String, String)> {
     let output = run_cargo_bdd_raw(args)?;

@@ -279,8 +279,9 @@ class GateMode:
         Build the Cargo argv the failure report quotes for reproduction.
     operation : cabc.Callable[[Path], subprocess.CompletedProcess[str]]
         Run that argv for one manifest; a non-zero exit is a failure.
-    prepare : cabc.Callable[[Path], object] | None
-        Optional per-manifest step before the operation, or None.
+    prepare : cabc.Callable[[Path, Path], object] | None
+        Optional per-manifest step before the operation, taking the repository
+        root and the manifest, or None.
     report_metrics : cabc.Callable[[int, int, int], None] | None
         Optional machine-readable record of the whole run, taking the fixture
         total, the failed count, and the elapsed milliseconds; None for a mode
@@ -295,6 +296,6 @@ class GateMode:
     print_summary: cabc.Callable[[int, int], None]
     command: cabc.Callable[[Path], list[str]]
     operation: cabc.Callable[[Path], subprocess.CompletedProcess[str]]
-    prepare: cabc.Callable[[Path], object] | None = None
+    prepare: cabc.Callable[[Path, Path], object] | None = None
     report_metrics: cabc.Callable[[int, int, int], None] | None = None
     clock: cabc.Callable[[], float] = time.monotonic
