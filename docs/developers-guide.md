@@ -977,11 +977,11 @@ workspace root; this is the only nextest configuration file the runner loads.
 The file sets the timeout policy for the test suite:
 
 - The default profile kills any test that runs past a 60 s `slow-timeout`
-  (`terminate-after = 1`, 5 s grace period) and applies a 75 m `global-timeout`
-  to the whole run. This allows the cargo-spawning group to run its bounded
-  tests one at a time without exhausting the whole-suite budget. The global
-  timeout must stay above the largest per-test budget below, or the run is
-  killed before the test that budget exists for can finish;
+  (`terminate-after = 1`, 5 s grace period) and applies a 90 m `global-timeout`
+  to the whole run. This gives the cargo-spawning group room for cold nested
+  builds without relaxing any per-test limit. The global timeout must stay
+  above the largest per-test budget below, or the run is killed before a test
+  with that budget can finish;
   `trybuild_nextest_override_preserves_timeout_contract` enforces the ordering.
 - A `[[profile.default.overrides]]` entry raises the `slow-timeout` to 180 s
   for `cargo-bdd::cli`, whose smoke tests spawn `cargo` to build fixture crates
@@ -1002,16 +1002,31 @@ The file sets the timeout policy for the test suite:
 - A third override raises the `slow-timeout` to 600 s for
   `rstest-bdd::feature_rebuild_invalidation`, whose three scenarios run nested
   `cargo` commands for dependency tracking, rebuilding, and file addition.
-- All three overrides also place their binaries in a `cargo-spawning` test
-  group (`max-threads = 1`), so `cargo-bdd::cli`, the four trybuild binaries,
-  and `rstest-bdd::feature_rebuild_invalidation` run one at a time instead of
-  contending for CPU with concurrent `cargo` builds. Their worst-case serial
-  budget is 180 s + (20 m × 4) + (600 s × 3) = 6,180 s (103 m). That figure is
-  a bound, not an expectation: it assumes every member of the group exhausts
-  its own allowance in the same run, which has never happened. The 75 m
-  `global-timeout` is deliberately below it, because a run that genuinely took
-  103 minutes would be a fault worth failing rather than waiting out. The group
-  bound only serializes execution; it does not cap it.
+- All three overrides also place matching tests in a `cargo-spawning` test
+  group (`max-threads = 1`), so nested Cargo builds do not contend with each
+  other. The 90 m `global-timeout` is an operational ceiling sized for the
+  nested-fixture lane. R-6 uses `180 + 600 × 4 + 600 × 3 = 4,380 s` as its
+  reference scenario; the projected cold-cache increase is about 19 s for each
+  of roughly ten nested invocations, or 4,570 s total. A 5,400 s ceiling
+  therefore leaves 830 s above that projection, exceeding the required 600 s
+  reserve.
+
+  Milestone 1 of that risk measured a cold nested-fixture build before and
+  after the alignment work. The "before" figure is a fixture resolving 30
+  registry packages the workspace did not: `rebuild_invalidation` compiled 92
+  crates in 27.4 s. Its "after" figure, with the same manifests resolving only
+  within the workspace graph, compiled 0 crates in 132 ms against a warm
+  workspace `target/`, and `feature_addition` compiled 4 — its own build-script
+  and test units, nothing borrowed. The duplicate units were not merely slower;
+  they were a second copy of crates the workspace had already built. The
+  numbers are from one host and one cache state, so treat the ratio, not the
+  absolute seconds, as the part that generalizes.
+
+  The overrides apply per test. The CLI binary contains nine smoke tests and
+  two target-environment regressions. The four compile-test binaries also
+  include helper and nightly tests, so binary counts do not describe the number
+  of tests using an override. The group serializes matching tests; it does not
+  cap their combined duration.
 
 The feature-rebuild fixture-manifest rewriter is the sole owner of TOML
 basic-string encoding for its rewritten absolute dependency paths. It must
@@ -1034,7 +1049,7 @@ so it is worth knowing which is which and in what order they can fire.
 | Tier                     | What it bounds                     | Where it is set                                                 | Current value                                |
 | ------------------------ | ---------------------------------- | --------------------------------------------------------------- | -------------------------------------------- |
 | Per-test `slow-timeout`  | one test                           | `.config/nextest.toml`                                          | 60 s default, 20 m for the trybuild binaries |
-| nextest `global-timeout` | the whole test run                 | `.config/nextest.toml`                                          | 75 m                                         |
+| nextest `global-timeout` | the whole test run                 | `.config/nextest.toml`                                          | 90 m                                         |
 | Cargo watchdog           | one `cargo` invocation, wall clock | `RUN_RUST_CARGO_WAIT_TIMEOUT` on the coverage steps in `ci.yml` | 6,600 s (110 m)                              |
 | Job `timeout-minutes`    | the whole job                      | `ci.yml`, job level                                             | 190 m                                        |
 
@@ -1063,8 +1078,9 @@ reads it from the configuration so a profile that raises it raises the
 requirement too.
 
 The watchdog is therefore sized as the global timeout, plus a termination
-allowance, plus a cold-build allowance: 75 m + 65 s + 15 m, taken up to 110 m.
-The termination allowance is derived, not fixed: the largest configured grace
+allowance, plus a cold-build allowance: 90 m + 65 s + 15 m = 6,365 s, taken up
+to 6,600 s (110 m). This leaves 235 s after the stated allowances. The
+termination allowance is derived, not fixed: the largest configured grace
 period, five seconds here, or nextest's ten-second default when none is named,
 plus a sixty-second margin for the teardown and report writing that follow. The
 build phase inside `cargo` measured 3 m 31 s on run 33966769942 with a nearly
@@ -1122,11 +1138,11 @@ The Linux coverage step was measured on `ubicloud-standard-2`:
 | 33971821695           | 30 m 33 s     | cold    |
 | this change's own run | 42 m 02 s     | cold    |
 
-That last row is why the earlier numbers were not enough. Each of the first
-three was the coldest run available when it was taken, and each was beaten. At
-1,800 s this run would have been killed with twelve minutes of work left; the
-job itself took 1 h 50 m, so the former 90 minute ceiling would have cancelled
-it even with a larger watchdog in place.
+Those are historical measurements from before the current timeout policy. Each
+of the first three was the coldest run available when it was taken, and each
+was beaten. At 1,800 s this run would have been killed with twelve minutes of
+work left; the job itself took 1 h 50 m, so the former 90 minute job ceiling
+would have cancelled it even with a larger watchdog in place.
 
 A dependabot bump to `syn` on 2026-09-05 served 9 % of Rust compile requests
 from the cache and was killed by the watchdog at 1,800 s with 1,894 of 1,897
