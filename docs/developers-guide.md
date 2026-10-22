@@ -2100,15 +2100,17 @@ used by `cargo llvm-cov`.
 That precedence is covered behaviourally, not just through the private
 environment map. `crates/cargo-bdd/tests/nested_target/mod.rs` runs the real
 `cargo-bdd` against the fixture in both cases and observes the directory the
-nested build actually receives. The inherited-target case points
-`CARGO_TARGET_DIR` at a regular file, so the nested `cargo` fails immediately
-and names the directory it tried to use; that costs no compilation, where a
-cold build into a fresh directory takes over a minute. The absent-target case
-removes the fixture's own `target/` first and asserts it is still absent
-afterwards, because an unredirected build is what recreates it. Both tests
-drive the helper with an explicit variable snapshot rather than the process
-environment, so a `CARGO_TARGET_DIR` set by the test runner or a coverage job
-cannot displace the branch under test.
+nested build resolves to. Each case asks `cargo metadata` — through the same
+environment map the fixture build receives — which directory that build would
+use, and compares it against the expected one. That is a positive witness: it
+answers without compiling anything, so raising the inherited case costs no
+build time, and it does not depend on a build's refusal text, which is not the
+same on every platform. The absent-target case additionally removes the
+fixture's own `target/` and asserts it is still absent after a successful
+`cargo-bdd steps` run, because an unredirected build is what recreates it. Both
+tests drive the helper with an explicit variable snapshot rather than the
+process environment, so a `CARGO_TARGET_DIR` set by the test runner or a
+coverage job cannot displace the branch under test.
 
 ### `binary_test_support` API reference
 
