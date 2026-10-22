@@ -31,9 +31,14 @@ struct SkipReport {
     step: Option<SkippedDefinition>,
 }
 
+/// The fixture crate the CLI smoke tests build and inspect.
+fn fixture_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/minimal")
+}
+
 /// Execute cargo-bdd with the given arguments and return the raw output.
 fn run_cargo_bdd_raw(args: &[&str]) -> Result<std::process::Output> {
-    let fixture_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/minimal");
+    let fixture_dir = fixture_dir();
     // Preserve the caller's target directory (cargo llvm-cov's
     // `target/llvm-cov-target` when coverage is running) so the fixture build
     // stays warm; the filtered environment stops `cargo-bdd` and its nested
@@ -67,6 +72,11 @@ fn locate_or_build_cargo_bdd_command() -> Result<Command> {
 }
 
 fn workspace_root() -> PathBuf { PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..") }
+
+// The nested-build target policy has its own behavioural coverage; it lives in
+// a subdirectory so Cargo does not also discover it as a second test target.
+#[path = "nested_target/mod.rs"]
+mod nested_target;
 
 /// Apply the shared isolation policy with this CLI fixture's workspace target.
 ///
