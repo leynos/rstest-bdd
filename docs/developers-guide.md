@@ -2980,6 +2980,12 @@ resolve a step (via `resolve_exact_step` / `resolve_step`) and pass it through
 `mark_and_project`. The one sanctioned direct `mark_step_used` call lives at
 the execution command boundary in `src/execution/mod.rs`.
 
+Both resolvers and `StepLookupError` live in `registry/selection.rs`, which
+owns matching and selection: which definitions could accept the text, and which
+of those to run. Keep resolution pure there and usage-marking at the caller.
+`registry/mod.rs` re-exports `StepLookupError` and the resolvers so
+`async_lookup` and `diagnostics` continue to reach them as `super::` items.
+
 Pure scoped metadata lookup, exposed by `find_step_with_metadata_in_scope`,
 does not mutate usage tracking. The execution boundary resolves the step in its
 `StepScope`, then calls `mark_step_used` only after successful resolution. This

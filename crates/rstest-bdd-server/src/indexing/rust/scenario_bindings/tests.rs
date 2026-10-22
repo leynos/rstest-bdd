@@ -125,7 +125,7 @@ fn retains_source_path_in_ignored_binding_diagnostics() {
         .expect("Rust source");
     let index = index_scenario_bindings(&file, Path::new("src/scenarios.rs"));
 
-    assert!(index.bindings.is_empty());
+    assert_eq!(index.bindings, []);
     assert_eq!(index.diagnostics.len(), 1);
     assert_eq!(
         index

@@ -5,11 +5,9 @@ use std::sync::{LazyLock, Mutex};
 
 use hashbrown::{HashMap, HashSet};
 use inventory::iter;
-use rstest_bdd_patterns::SpecificityScore;
 
 use crate::{
     pattern::StepPattern,
-    placeholder::extract_placeholders,
     types::{AsyncStepFn, PatternStr, StepExecutionMode, StepFn, StepKeyword, StepText},
 };
 
@@ -24,6 +22,8 @@ mod introspection;
 mod library;
 /// Step inventory registration macro implementation.
 mod registration;
+/// Matching a step text against registered definitions, and choosing one.
+mod selection;
 
 pub use async_lookup::{
     find_step_async_with_mode,
@@ -36,6 +36,11 @@ pub use fixtures::{FixtureRequirement, StepFixtureRequirements, fixture_requirem
 pub use introspection::dump_registry;
 pub use introspection::{duplicate_steps, unused_steps};
 pub use library::{GLOBAL_STEP_LIBRARY, StepLibrary, StepLibraryId, StepScope};
+pub use selection::StepLookupError;
+// Private re-export: the resolvers stay internal to `registry`, but routing the
+// names through here keeps `async_lookup` and `diagnostics` referring to
+// `super::resolve_step` rather than reaching into a sibling module.
+use selection::{resolve_exact_step, resolve_step};
 
 /// Represents a single step definition registered with the framework.
 #[derive(Debug)]
@@ -161,135 +166,6 @@ fn all_steps() -> Vec<&'static Step> { iter::<Step>.into_iter().collect() }
 /// one absent feature.
 #[cfg(feature = "diagnostics")]
 fn step_by_key(key: StepKey) -> Option<&'static Step> { STEP_MAP.get(&key).copied() }
-
-/// Resolve a step whose registered pattern text exactly matches the input.
-fn resolve_exact_step(
-    scope: StepScope,
-    keyword: StepKeyword,
-    pattern: PatternStr<'_>,
-) -> Result<Option<&'static Step>, StepLookupError> {
-    let mut seen_libraries = HashSet::new();
-    let matches = scope
-        .libraries()
-        .iter()
-        .filter(|library| seen_libraries.insert(**library))
-        .filter_map(|library| {
-            STEP_MAP
-                .get(&(*library, keyword, pattern.as_str()))
-                .copied()
-        })
-        .collect();
-    select_most_specific(scope, keyword, pattern.as_str(), matches)
-}
-
-/// Resolve the most specific registered step matching the supplied text.
-fn resolve_step(
-    scope: StepScope,
-    keyword: StepKeyword,
-    text: StepText<'_>,
-) -> Result<Option<&'static Step>, StepLookupError> {
-    // Fast path: exact pattern match
-    if let Some(step) = resolve_exact_step(scope, keyword, text.as_str().into())? {
-        return Ok(Some(step));
-    }
-
-    // Find the most specific matching step directly via iterator
-    let mut seen_libraries = HashSet::new();
-    let matches = scope
-        .libraries()
-        .iter()
-        .filter(|library| seen_libraries.insert(**library))
-        .flat_map(|library| STEPS_BY_LIBRARY.get(library).into_iter().flatten().copied())
-        .filter(|step| step.keyword == keyword && extract_placeholders(step.pattern, text).is_ok())
-        .collect();
-    select_most_specific(scope, keyword, text.as_str(), matches)
-}
-
-/// Compute the specificity score for a step, logging any errors.
-fn step_specificity(step: &Step) -> SpecificityScore {
-    step.pattern.specificity().unwrap_or_else(|e| {
-        tracing::warn!(
-            "specificity calculation failed for pattern '{}': {e}",
-            step.pattern.as_str()
-        );
-        SpecificityScore::default()
-    })
-}
-
-/// Ambiguity found while resolving a scoped step.
-#[derive(Clone, Debug)]
-pub struct StepLookupError {
-    /// Keyword used by the scenario step.
-    pub keyword: StepKeyword,
-    /// Scenario step text.
-    pub text: String,
-    /// Closed library list used for resolution.
-    pub scope: StepScope,
-    /// Equally specific matching definitions.
-    pub candidates: Vec<&'static Step>,
-}
-
-impl std::fmt::Display for StepLookupError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let selected = self
-            .scope
-            .libraries()
-            .iter()
-            .map(|library| library.as_str())
-            .collect::<Vec<_>>()
-            .join(", ");
-        let candidates = self
-            .candidates
-            .iter()
-            .map(|step| {
-                format!(
-                    "{} '{}' at {}:{}",
-                    library_for_step(step).as_str(),
-                    step.pattern.as_str(),
-                    step.file,
-                    step.line
-                )
-            })
-            .collect::<Vec<_>>()
-            .join("; ");
-        write!(
-            formatter,
-            "ambiguous {} '{}'; selected libraries: [{}]; candidates: {}",
-            self.keyword.as_str(),
-            self.text,
-            selected,
-            candidates
-        )
-    }
-}
-
-impl std::error::Error for StepLookupError {}
-
-/// Select the unique most-specific candidate, or report the tied candidates.
-fn select_most_specific(
-    scope: StepScope,
-    keyword: StepKeyword,
-    text: &str,
-    matches: Vec<&'static Step>,
-) -> Result<Option<&'static Step>, StepLookupError> {
-    let Some(top_specificity) = matches.iter().map(|step| step_specificity(step)).max() else {
-        return Ok(None);
-    };
-    let candidates: Vec<_> = matches
-        .into_iter()
-        .filter(|step| step_specificity(step) == top_specificity)
-        .collect();
-    if candidates.len() == 1 {
-        Ok(candidates.into_iter().next())
-    } else {
-        Err(StepLookupError {
-            keyword,
-            text: text.to_owned(),
-            scope,
-            candidates,
-        })
-    }
-}
 
 /// Mark a resolved step as used and apply a projection to it.
 ///
