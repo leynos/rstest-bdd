@@ -28,17 +28,14 @@ import time
 import typing as typ
 from pathlib import Path
 
-from fixture_lockfile_alignment import (
-    check_alignment,
-    is_seed_excluded,
-    seed_and_resolve,
-)
+from fixture_lockfile_alignment import check_alignment, is_seed_excluded
 from fixture_lockfile_cargo import (
     cargo_fetch_command,
     cargo_metadata_command,
     fetch_fixture_dependencies_or_failure,
     refresh_lockfile,
     run_cargo_metadata,
+    seed_and_resolve,
 )
 from fixture_lockfile_discovery import discover_fixture_manifests
 from fixture_lockfile_reporting import (
@@ -201,7 +198,7 @@ def refresh_fixtures(root: Path, manifests: list[Path]) -> int:
 
     Each lockfile starts from the root ``Cargo.lock``, so Cargo keeps the
     versions the workspace already selected and adds only what the fixture
-    needs; see :func:`fixture_lockfile_alignment.seed_and_resolve` for why the
+    needs; see :func:`fixture_lockfile_cargo.seed_and_resolve` for why the
     seed is what keeps a refresh aligned.
 
     Fixtures in

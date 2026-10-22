@@ -1844,16 +1844,26 @@ as a test assertion on the SHA string.
 
 The Cargo Dependabot entry scans the workspace root and the standalone fixture
 packages in `crates/cargo-bdd/tests/fixtures/minimal`,
+`crates/rstest-bdd/tests/fixtures/feature_addition`,
+`crates/rstest-bdd/tests/fixtures/rebuild_invalidation`,
 `crates/rstest-bdd/tests/fixtures_macros`, `crates/rstest-bdd/tests/ui_macros`,
-and `crates/rstest-bdd/tests/ui_lints`. It runs daily, and its
-`minor-and-patch` group matches every dependency but only minor and patch
-updates, so those arrive across every scanned directory in one grouped pull
-request. A narrow `rstest-bdd` group (`rstest-bdd*`) is listed before it, so
-the published crates the fixtures depend on move together even across a 0.x
-minor, which Cargo counts as a major. Other major updates are deliberately left
-ungrouped, following the estate Dependabot policy, so each can be reviewed and
-built on its own. When a major lands, check that every scanned directory moved
-with it.
+`crates/rstest-bdd/tests/ui_lints`, and `tests/fixtures/published-gpui-0-2-2`.
+It runs daily, and its `minor-and-patch` group matches every dependency but
+only minor and patch updates, so those arrive across every scanned directory in
+one grouped pull request. A narrow `rstest-bdd` group (`rstest-bdd*`) is listed
+before it, so the published crates the fixtures depend on move together even
+across a 0.x minor, which Cargo counts as a major. Other major updates are
+deliberately left ungrouped, following the estate Dependabot policy, so each
+can be reviewed and built on its own. When a major lands, check that every
+scanned directory moved with it.
+
+Every scanned directory below the root commits its own `Cargo.lock`, so a
+grouped update lands with each lockfile refreshed rather than only the root's:
+the dependabot refresh workflow runs `make update-fixture-lockfiles` over the
+pull request head, and `make check-fixture-lockfiles` then proves each lockfile
+still resolves and stays inside the workspace graph. A grouped update that
+skipped a fixture's lockfile therefore fails the gate rather than surfacing as
+a stale fixture on a later unrelated run.
 
 Each standalone fixture manifest must declare the workspace MSRV with
 `rust-version = "1.88"`. Keep these declarations synchronized with
@@ -3290,6 +3300,16 @@ pattern in `crates/rstest-bdd/tests/feature_rebuild_invalidation/`:
   refresh and reporting together. Keep the split: the reading is shared by the
   comparison and by its own tests, and folding it back into either consumer
   pushed that consumer past the 400-line module budget.
+- Within that split, the alignment comparison is a query and the Cargo work is
+  a command. `alignment_divergences` returns each diverging fixture as a
+  `(manifest, packages)` pair and writes nothing; `alignment_failure` renders
+  one pair and `check_alignment` owns the stream output, so a caller that wants
+  the structure never has to capture a stream to get it. On the command side,
+  `fixture_lockfile_cargo.seed_and_resolve` performs the write — copying the
+  root lock beside the fixture, then resolving through its injected resolver —
+  which is why it lives with the other Cargo invocations rather than in the
+  alignment module. Tests that only read use the query; the seeding is tested
+  at its own filesystem boundary with a temporary fixture and a stub resolver.
 - Validate the whole standalone-fixture set with
   `make check-fixture-lockfiles`. The gate runs
   `scripts/check_fixture_lockfiles.py`, which discovers every workspace opt-out
@@ -3328,6 +3348,14 @@ pattern in `crates/rstest-bdd/tests/feature_rebuild_invalidation/`:
   Windows lanes and nowhere else before this was settled. `as_posix` is applied
   where a path becomes text and nowhere else: the filesystem is still addressed
   through `Path`, so this is a display contract, not a path-handling one.
+- Tests that need a temporary fixture write its manifest through the
+  `write_manifest` factory fixture in `scripts/tests/conftest.py`, which takes
+  the temporary root and package name and answers with the manifest path. The
+  manifest shape is a contract with discovery — its own `[workspace]` opt-out
+  stanza and a local `path` dependency — so it is written from one definition
+  rather than repeated per test. Everything that differs between scenarios
+  stays local: each test still writes its own lockfile data and asserts its own
+  outcome.
 - The Dependabot lockfile refresh runs in
   `.github/workflows/refresh-derived-fixture-lockfiles.yml`, which triggers
   only on `pull_request_target` events from Dependabot (`dependabot[bot]`) that

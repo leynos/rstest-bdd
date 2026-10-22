@@ -10,16 +10,57 @@ invocation together leaves the gate script to decide what to do with the
 results, which is the part that differs between the modes.
 """
 
+import shutil
 import subprocess  # ruff: ignore[suspicious-subprocess-import] - builds and runs a fixed cargo argv; see run_cargo_command.
 import typing as typ
 
 from fixture_lockfile_reporting import FixtureLockfileError
 
 if typ.TYPE_CHECKING:
+    import collections.abc as cabc
     from pathlib import Path
 
 CARGO = "cargo"
 METADATA_FORMAT_VERSION = "1"
+
+
+def seed_and_resolve(
+    root_lock: Path,
+    manifest: Path,
+    resolve: cabc.Callable[[Path], subprocess.CompletedProcess[str]],
+) -> subprocess.CompletedProcess[str]:
+    """Seed *manifest*'s lockfile from *root_lock*, then re-resolve it.
+
+    Seeding pins every shared crate to the version the workspace selected, so
+    Cargo has only the fixture's own additions left to make. Without it the
+    resolver picks the highest version each requirement allows, which is not
+    the workspace's choice: a refresh of this repository moved several crates
+    to newer patch releases and left all three fixtures outside the workspace
+    graph. *resolve* is injected so the seeding can be tested without Cargo.
+
+    Parameters
+    ----------
+    root_lock : Path
+        The workspace lockfile to seed from.
+    manifest : Path
+        The fixture manifest whose sibling ``Cargo.lock`` is rewritten.
+    resolve : cabc.Callable[[Path], subprocess.CompletedProcess[str]]
+        The resolver to run over *manifest* after seeding.
+
+    Returns
+    -------
+    subprocess.CompletedProcess[str]
+        The resolver's result.
+
+    Examples
+    --------
+    A refresh target seeds from the root lock and lets Cargo add only what the
+    fixture needs::
+
+        seed_and_resolve(Path("Cargo.lock"), manifest, refresh_lockfile)
+    """
+    shutil.copyfile(root_lock, manifest.parent / "Cargo.lock")
+    return resolve(manifest)
 
 
 def cargo_metadata_command(manifest: Path) -> list[str]:
@@ -47,8 +88,7 @@ def cargo_resolve_command(manifest: Path) -> list[str]:
     ``cargo metadata`` without ``--locked`` resolves the manifest and writes any
     lockfile change, but keeps the versions an existing lockfile already pins
     instead of upgrading them. ``cargo generate-lockfile`` upgrades, which is
-    why it is not used here; see
-    :func:`fixture_lockfile_alignment.seed_and_resolve`.
+    why it is not used here; see :func:`seed_and_resolve`.
 
     Returns
     -------

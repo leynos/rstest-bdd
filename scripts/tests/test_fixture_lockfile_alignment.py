@@ -6,12 +6,15 @@ regression it exists to catch or cry wolf on every run. These tests pin the
 comparison, the exemption rules, and the reports.
 """
 
+import re
 import tomllib
+import typing as typ
 from pathlib import Path
 
 import pytest
 from fixture_lockfile_alignment import (
     EXEMPT_FIXTURES,
+    alignment_divergences,
     alignment_failure,
     alignment_failures,
     check_alignment,
@@ -20,9 +23,18 @@ from fixture_lockfile_alignment import (
     is_exempt,
 )
 
+if typ.TYPE_CHECKING:
+    import collections.abc as cabc
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 CRATES_IO = "registry+https://github.com/rust-lang/crates.io-index"
+
+#: Dependencies a fixture's own sources never name because a macro expansion
+#: emits them. `#[scenario]`, `#[given]`, `scenarios!` and their siblings all
+#: expand to `#[rstest::rstest]`, so the requirement is real even though no
+#: `use rstest` or `rstest::` path appears in the fixture's text.
+MACRO_GENERATED_DEPENDENCIES = frozenset({"rstest"})
 
 
 def _write_lockfile(path: Path, packages: list[tuple[str, str, str | None]]) -> None:
@@ -90,23 +102,12 @@ def test_exempt_fixtures_are_the_documented_directories(relative: str) -> None:
 
 
 def test_alignment_failures_report_a_fixture_resolving_away_from_the_workspace(
-    tmp_path: Path,
+    tmp_path: Path, write_manifest: cabc.Callable[[Path, str], Path]
 ) -> None:
-    """A fixture pinned to a workspace-absent version is reported.
-
-    The fixture is laid out the way discovery expects (``[workspace]``, a path
-    dependency, a sibling lockfile) so this exercises the real check path rather
-    than the comparison helper alone.
-    """
-    fixture = tmp_path / "fixtures" / "drifted"
-    fixture.mkdir(parents=True)
-    (fixture / "Cargo.toml").write_text(
-        '[package]\nname = "drifted-fixture"\nversion = "0.1.0"\n'
-        '[dependencies]\nlocal = { path = "../../local" }\n[workspace]\n',
-        encoding="utf-8",
-    )
+    """A fixture pinned to a workspace-absent version is reported."""
+    manifest = write_manifest(tmp_path, "drifted")
     _write_lockfile(
-        fixture / "Cargo.lock",
+        manifest.parent / "Cargo.lock",
         [("drifted-fixture", "0.1.0", None), ("dashmap", "5.5.3", CRATES_IO)],
     )
     _write_lockfile(
@@ -124,17 +125,13 @@ def test_alignment_failures_report_a_fixture_resolving_away_from_the_workspace(
     )
 
 
-def test_alignment_passes_when_only_the_own_crate_is_new(tmp_path: Path) -> None:
+def test_alignment_passes_when_only_the_own_crate_is_new(
+    tmp_path: Path, write_manifest: cabc.Callable[[Path, str], Path]
+) -> None:
     """The fixture's own crate is the only legitimate addition to the graph."""
-    fixture = tmp_path / "fixtures" / "aligned"
-    fixture.mkdir(parents=True)
-    (fixture / "Cargo.toml").write_text(
-        '[package]\nname = "aligned-fixture"\nversion = "0.1.0"\n'
-        '[dependencies]\nlocal = { path = "../../local" }\n[workspace]\n',
-        encoding="utf-8",
-    )
+    manifest = write_manifest(tmp_path, "aligned")
     _write_lockfile(
-        fixture / "Cargo.lock",
+        manifest.parent / "Cargo.lock",
         [("aligned-fixture", "0.1.0", None), ("serde", "1.0.228", CRATES_IO)],
     )
     _write_lockfile(tmp_path / "Cargo.lock", [("serde", "1.0.228", CRATES_IO)])
@@ -144,20 +141,56 @@ def test_alignment_passes_when_only_the_own_crate_is_new(tmp_path: Path) -> None
     )
 
 
+def test_alignment_divergences_are_the_query_behind_the_reports(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    write_manifest: cabc.Callable[[Path, str], Path],
+) -> None:
+    """The comparison answers with structure; only the gate prints.
+
+    A caller that needs the divergent packages rather than prose reads the
+    query, so it must be safe to call for its answer alone: nothing it does may
+    write to a stream. The rendering and the stream output belong to the
+    report and the gate, which is what the assertions here separate.
+    """
+    manifest = write_manifest(tmp_path, "drifted")
+    _write_lockfile(
+        manifest.parent / "Cargo.lock",
+        [("drifted-fixture", "0.1.0", None), ("dashmap", "5.5.3", CRATES_IO)],
+    )
+    _write_lockfile(tmp_path / "Cargo.lock", [("serde", "1.0.228", CRATES_IO)])
+
+    divergences = alignment_divergences(tmp_path)
+
+    assert divergences == [(manifest, [("dashmap", "5.5.3", CRATES_IO)])], (
+        "the query must pair each diverging manifest with its own packages only"
+    )
+    captured = capsys.readouterr()
+    assert not captured.out, (
+        "the query must write nothing to standard output; rendering belongs to "
+        "the report and the gate"
+    )
+    assert not captured.err, (
+        "the query must write nothing to standard error; stream output belongs "
+        "to the report and the gate"
+    )
+
+    assert check_alignment(tmp_path) == 1, "the gate must report the drift"
+    assert "dashmap 5.5.3" in capsys.readouterr().err, (
+        "the gate owns the stream output the query deliberately omits"
+    )
+
+
 def test_check_alignment_exit_codes(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    write_manifest: cabc.Callable[[Path, str], Path],
 ) -> None:
     """Aligned fixtures are silent; a failure prints and exits non-zero."""
     probe = tmp_path / "probe"
-    fixture = probe / "fixtures" / "drifted"
-    fixture.mkdir(parents=True)
-    (fixture / "Cargo.toml").write_text(
-        '[package]\nname = "drifted-fixture"\nversion = "0.1.0"\n'
-        '[dependencies]\nlocal = { path = "../../local" }\n[workspace]\n',
-        encoding="utf-8",
-    )
+    manifest = write_manifest(probe, "drifted")
     _write_lockfile(
-        fixture / "Cargo.lock",
+        manifest.parent / "Cargo.lock",
         [("drifted-fixture", "0.1.0", None), ("dashmap", "5.5.3", CRATES_IO)],
     )
     _write_lockfile(probe / "Cargo.lock", [("serde", "1.0.228", CRATES_IO)])
@@ -168,7 +201,7 @@ def test_check_alignment_exit_codes(
     )
 
     _write_lockfile(
-        fixture / "Cargo.lock",
+        manifest.parent / "Cargo.lock",
         [("drifted-fixture", "0.1.0", None), ("serde", "1.0.228", CRATES_IO)],
     )
 
@@ -184,6 +217,23 @@ def test_the_repository_itself_is_aligned(capsys: pytest.CaptureFixture[str]) ->
     """
     exit_code = check_alignment(REPO_ROOT)
     assert exit_code == 0, capsys.readouterr().err
+
+
+def _declares_crate(source: str, crate: str) -> bool:
+    """Return whether *source* reaches *crate* by its whole identifier.
+
+    Whole-identifier matching is the point: a substring test accepts `serde`
+    when the source says `use serde_json`, so an unused requirement of a crate
+    whose name prefixes a used one would pass the check that exists to catch
+    exactly that.
+
+    Returns
+    -------
+    bool
+        ``True`` when *source* names *crate* as a whole identifier.
+    """
+    pattern = rf"\b{re.escape(crate)}::|\buse\s+{re.escape(crate)}\b"
+    return re.search(pattern, source) is not None
 
 
 @pytest.mark.parametrize(
@@ -206,6 +256,7 @@ def test_aligned_fixtures_declare_no_unused_dependencies(fixture: str) -> None:
         manifest.get("dev-dependencies", {})
     )
     declared -= {"rstest-bdd", "rstest-bdd-macros"}
+    declared -= MACRO_GENERATED_DEPENDENCIES
     source = "\n".join(
         path.read_text(encoding="utf-8")
         for path in sorted(root.rglob("*.rs"))
@@ -213,4 +264,23 @@ def test_aligned_fixtures_declare_no_unused_dependencies(fixture: str) -> None:
     )
     for dependency in sorted(declared):
         crate = dependency.replace("-", "_")
-        assert f"{crate}::" in source or f"use {crate}" in source, dependency
+        assert _declares_crate(source, crate), (
+            f"{fixture} declares `{dependency}` but no source reaches it"
+        )
+
+
+def test_dependency_check_rejects_a_prefix_only_match() -> None:
+    """A `serde` requirement is not satisfied by `use serde_json` alone.
+
+    The regression this pins: the check exists to find requirements nothing
+    imports, and a prefix match would report an unused `serde` as used.
+    """
+    assert _declares_crate("use serde_json::Value;", "serde") is False, (
+        "a longer crate name must not satisfy a shorter requirement"
+    )
+    assert _declares_crate("use serde::Serialize;", "serde") is True, (
+        "a whole-identifier import must satisfy the requirement"
+    )
+    assert _declares_crate("let _ = serde::json::to_string;", "serde") is True, (
+        "a whole-identifier path must satisfy the requirement"
+    )

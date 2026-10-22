@@ -158,20 +158,29 @@ def test_refresh_mode_regenerates_before_validating() -> None:
         ),
     ):
         exit_code = refresh_fixtures(REPO_ROOT, manifests)
-    seeded = [m for m in manifests if not is_seed_excluded(m, REPO_ROOT)]
-    re_resolved = [m for m in manifests if is_seed_excluded(m, REPO_ROOT)]
+    # Walk discovery order rather than grouping the fixtures by kind: a new
+    # fixture that sorts after the seed-excluded one would otherwise reorder
+    # the two expected lists and fail on correct behaviour.
+    expected_events: list[str] = []
+    expected_observed: list[Path] = []
+    for manifest in manifests:
+        if is_seed_excluded(manifest, REPO_ROOT):
+            expected_events += ["metadata"]
+            expected_observed += [manifest]
+        else:
+            expected_events += ["refresh", "metadata"]
+            expected_observed += [manifest, manifest]
+
     assert exit_code == 0, "valid refreshed fixtures must pass the gate"
     assert is_seed_excluded(
         REPO_ROOT / "tests/fixtures/published-gpui-0-2-2/Cargo.toml", REPO_ROOT
     ), "this test leans on that fixture keeping its own resolution"
-    assert events == ["refresh", "metadata"] * len(seeded) + ["metadata"] * len(
-        re_resolved
-    ), (
+    assert events == expected_events, (
         "a seeded fixture must be regenerated before its locked-metadata "
         "validation, while a seed-excluded one is validated without being "
         "seeded at all"
     )
-    assert observed == [m for m in seeded for _ in range(2)] + re_resolved, (
+    assert observed == expected_observed, (
         "every discovered fixture must be visited in order"
     )
 

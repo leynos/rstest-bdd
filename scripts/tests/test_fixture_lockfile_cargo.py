@@ -5,8 +5,15 @@ path, routed through one shared runner so a lockfile that cannot be validated
 is reported per fixture rather than aborting the run. These tests pin that
 routing and the launch-failure contract; the gate's mode behaviour lives in
 ``test_check_fixture_lockfiles``.
+
+``seed_and_resolve`` is the one function here that writes, so it is tested at
+its own filesystem boundary: a temporary fixture, a real copy, and an injected
+resolver stand in for Cargo. The resolver is what the tests observe, so the
+seeding can be proven to happen before resolution without a network or a build.
 """
 
+import subprocess  # ruff: ignore[suspicious-subprocess-import] - tests build stand-in CompletedProcess values without running anything.
+import typing as typ
 from pathlib import Path
 from unittest import mock
 
@@ -19,8 +26,12 @@ from fixture_lockfile_cargo import (
     refresh_lockfile,
     run_cargo_command,
     run_cargo_metadata,
+    seed_and_resolve,
 )
 from fixture_lockfile_reporting import FixtureLockfileError
+
+if typ.TYPE_CHECKING:
+    import collections.abc as cabc
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -77,3 +88,90 @@ def test_thin_wrappers_delegate_to_the_shared_runner() -> None:
         "the prefetch must use the locked fetch argv"
     )
     assert fetch_manifest == manifest, "the prefetch must name the manifest it warmed"
+
+
+def _stub_resolver(
+    observed: list[tuple[str, str]],
+) -> cabc.Callable[[Path], subprocess.CompletedProcess[str]]:
+    """Return a resolver that records the fixture lockfile it was handed.
+
+    The lockfile's contents are captured by value, because the resolver reads
+    the seeded file while it is still in place.
+
+    Returns
+    -------
+    cabc.Callable[[Path], subprocess.CompletedProcess[str]]
+        A resolver appending ``(manifest, lockfile contents)`` to *observed*.
+    """
+
+    def resolve(manifest: Path) -> subprocess.CompletedProcess[str]:
+        """Record *manifest* and the lockfile contents beside it."""
+        lock = manifest.parent / "Cargo.lock"
+        observed.append((str(manifest), lock.read_text(encoding="utf-8")))
+        return subprocess.CompletedProcess(
+            args=["cargo"], returncode=0, stdout="", stderr=""
+        )
+
+    return resolve
+
+
+def test_seed_and_resolve_copies_the_root_lock_before_resolving(
+    tmp_path: Path,
+) -> None:
+    """The workspace lock lands beside the fixture before the resolver runs.
+
+    The copy is the whole point of the function: it pins every shared crate to
+    the workspace's choice, leaving Cargo only the fixture's own additions. A
+    resolver that saw anything else would resolve to versions the workspace
+    did not pick, which is the drift the alignment gate then reports.
+    """
+    root_lock = tmp_path / "Cargo.lock"
+    root_lock.write_text("# workspace resolution\n", encoding="utf-8")
+    fixture = tmp_path / "fixtures" / "drifted"
+    fixture.mkdir(parents=True)
+    manifest = fixture / "Cargo.toml"
+    manifest.write_text('[package]\nname = "drifted"\n[workspace]\n', encoding="utf-8")
+    (fixture / "Cargo.lock").write_text(
+        "# fixture's own resolution\n", encoding="utf-8"
+    )
+    observed: list[tuple[str, str]] = []
+
+    seed_and_resolve(root_lock, manifest, _stub_resolver(observed))
+
+    assert observed == [(str(manifest), "# workspace resolution\n")], (
+        "the resolver must be handed the manifest, with the workspace lock "
+        "already copied beside it"
+    )
+    assert (fixture / "Cargo.lock").read_text(encoding="utf-8") == (
+        "# workspace resolution\n"
+    ), "the seeded lockfile must persist beside the fixture"
+
+
+def test_seed_and_resolve_returns_the_resolver_result_unchanged(
+    tmp_path: Path,
+) -> None:
+    """A failing resolution is returned, not raised or rewritten.
+
+    The gate reports each fixture's result itself, so the seeding must stay
+    transparent to the failure: converting it here would hide Cargo's own
+    diagnostic from the report.
+    """
+    root_lock = tmp_path / "Cargo.lock"
+    root_lock.write_text("# workspace resolution\n", encoding="utf-8")
+    manifest = tmp_path / "fixtures" / "broken" / "Cargo.toml"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text('[package]\nname = "broken"\n[workspace]\n', encoding="utf-8")
+    failure = subprocess.CompletedProcess(
+        args=cargo_resolve_command(manifest),
+        returncode=101,
+        stdout="partial resolution output",
+        stderr="error: failed to resolve",
+    )
+
+    def failing_resolver(_manifest: Path) -> subprocess.CompletedProcess[str]:
+        """Return the recorded failure for whichever manifest it is handed."""
+        return failure
+
+    result = seed_and_resolve(root_lock, manifest, failing_resolver)
+
+    assert result is failure, "the resolver's own result must come back unchanged"

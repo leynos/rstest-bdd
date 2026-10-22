@@ -30,9 +30,8 @@ Exit codes: 0 when every discovered fixture is a subset of the workspace graph;
 1 when one is not, or when a lockfile cannot be read.
 """
 
-import shutil
 import sys
-import typing as typ
+from itertools import starmap
 from pathlib import Path
 
 from fixture_lockfile_discovery import discover_fixture_manifests
@@ -43,10 +42,6 @@ from fixture_lockfile_packages import (
     read_lockfile_packages,
 )
 from fixture_lockfile_reporting import FixtureLockfileError
-
-if typ.TYPE_CHECKING:
-    import collections.abc as cabc
-    import subprocess
 
 #: Fixtures excluded from the alignment requirement, by root-relative directory.
 #:
@@ -79,12 +74,13 @@ EXEMPT_FIXTURES = frozenset({
 SEED_EXCLUDED_FIXTURES = frozenset({"tests/fixtures/published-gpui-0-2-2"})
 
 # Re-exported: the alignment comparison and its reading are one concept to a
-# caller, and the tests that pin the reading patch it by this module's path.
+# caller, so a comparison consumer needs one import rather than two.
 __all__ = [
     "EXEMPT_FIXTURES",
     "SEED_EXCLUDED_FIXTURES",
     "LockfileUnreadableError",
     "PackageKey",
+    "alignment_divergences",
     "alignment_failure",
     "alignment_failures",
     "check_alignment",
@@ -94,7 +90,6 @@ __all__ = [
     "is_seed_excluded",
     "own_package",
     "read_lockfile_packages",
-    "seed_and_resolve",
 ]
 
 
@@ -186,7 +181,26 @@ def _relative_fixture_dir(manifest: Path, root: Path) -> str | None:
 
 
 def is_exempt(manifest: Path, root: Path) -> bool:
-    """Return whether *manifest* is exempt from the alignment requirement."""
+    """Return whether *manifest* is exempt from the alignment requirement.
+
+    An exempt fixture is still discovered and validated; exemption only
+    removes it from the alignment comparison below.
+
+    Parameters
+    ----------
+    manifest : Path
+        The fixture manifest to classify.
+    root : Path
+        The repository root that :data:`EXEMPT_FIXTURES` entries are relative
+        to.
+
+    Returns
+    -------
+    bool
+        ``True`` when the manifest's own directory is one of the
+        :data:`EXEMPT_FIXTURES` entries, and ``False`` for every other
+        manifest the comparison covers.
+    """
     return _relative_fixture_dir(manifest, root) in EXEMPT_FIXTURES
 
 
@@ -197,51 +211,55 @@ def is_seed_excluded(manifest: Path, root: Path) -> bool:
     would overwrite the very resolution the fixture exists to prove, so they
     are left to their own Makefile target.
 
+    Parameters
+    ----------
+    manifest : Path
+        The fixture manifest to classify.
+    root : Path
+        The repository root that :data:`SEED_EXCLUDED_FIXTURES` entries are
+        relative to.
+
     Returns
     -------
     bool
-        ``True`` when a refresh must re-resolve *manifest* without seeding.
+        ``True`` when the manifest's directory is one of the
+        :data:`SEED_EXCLUDED_FIXTURES` entries.
     """
     return _relative_fixture_dir(manifest, root) in SEED_EXCLUDED_FIXTURES
 
 
-def seed_and_resolve(
-    root_lock: Path,
-    manifest: Path,
-    resolve: cabc.Callable[[Path], subprocess.CompletedProcess[str]],
-) -> subprocess.CompletedProcess[str]:
-    """Seed *manifest*'s lockfile from *root_lock*, then re-resolve it.
+def alignment_divergences(root: Path) -> list[tuple[Path, list[PackageKey]]]:
+    """Return each fixture's divergent packages, keyed by its manifest.
 
-    Seeding pins every shared crate to the version the workspace selected, so
-    Cargo has only the fixture's own additions left to make. Without it the
-    resolver picks the highest version each requirement allows, which is not
-    the workspace's choice: a refresh of this repository moved several crates
-    to newer patch releases and left all three fixtures outside the workspace
-    graph. *resolve* is injected so the seeding can be tested without Cargo.
+    The comparison is a query: it reads both lockfiles and reports what
+    differs, leaving the rendering of that result to
+    :func:`alignment_failure` at the presentation boundary.
 
     Parameters
     ----------
-    root_lock : Path
-        The workspace lockfile to seed from.
-    manifest : Path
-        The fixture manifest whose sibling ``Cargo.lock`` is rewritten.
-    resolve : cabc.Callable[[Path], subprocess.CompletedProcess[str]]
-        The resolver to run over *manifest* after seeding.
+    root : Path
+        The repository root.
 
     Returns
     -------
-    subprocess.CompletedProcess[str]
-        The resolver's result.
-
-    Examples
-    --------
-    A refresh target seeds from the root lock and lets Cargo add only what the
-    fixture needs::
-
-        seed_and_resolve(Path("Cargo.lock"), manifest, refresh_lockfile)
+    list[tuple[Path, list[PackageKey]]]
+        One ``(manifest, divergent packages)`` pair per fixture that resolves
+        outside the workspace graph, in discovery order. Empty when every
+        fixture is aligned.
     """
-    shutil.copyfile(root_lock, manifest.parent / "Cargo.lock")
-    return resolve(manifest)
+    workspace = read_lockfile_packages(root / "Cargo.lock")
+    divergences = []
+    for manifest in discover_fixture_manifests(root):
+        if is_exempt(manifest, root):
+            continue
+        fixture = read_lockfile_packages(manifest.parent / "Cargo.lock")
+        own = own_package(manifest)
+        if own is not None:
+            fixture -= {own}
+        packages = divergent_packages(workspace, fixture)
+        if packages:
+            divergences.append((manifest, packages))
+    return divergences
 
 
 def alignment_failures(root: Path) -> list[str]:
@@ -257,19 +275,7 @@ def alignment_failures(root: Path) -> list[str]:
     list[str]
         The failure reports, empty when every fixture is aligned.
     """
-    workspace = read_lockfile_packages(root / "Cargo.lock")
-    failures = []
-    for manifest in discover_fixture_manifests(root):
-        if is_exempt(manifest, root):
-            continue
-        fixture = read_lockfile_packages(manifest.parent / "Cargo.lock")
-        own = own_package(manifest)
-        if own is not None:
-            fixture -= {own}
-        packages = divergent_packages(workspace, fixture)
-        if packages:
-            failures.append(alignment_failure(manifest, packages))
-    return failures
+    return list(starmap(alignment_failure, alignment_divergences(root)))
 
 
 def check_alignment(root: Path) -> int:
