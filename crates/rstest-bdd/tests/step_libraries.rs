@@ -2,8 +2,16 @@
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
+// Gated because the D4 gate leg builds this target with
+// `--no-default-features`: `dump_registry` is a `diagnostics`-only export, and
+// `serde_json` reaches this target as an optional dependency that
+// `diagnostics` switches on. They are used by one assertion below, not by the
+// scenarios themselves, so gating them here keeps every scenario step
+// compiled and exercised in both legs.
+#[cfg(feature = "diagnostics")]
 use rstest_bdd::{dump_registry, reporting};
 use rstest_bdd_macros::{given, scenario, scenarios, step_library, then, when};
+#[cfg(feature = "diagnostics")]
 use serde_json::Value;
 use serial_test::serial;
 
@@ -166,6 +174,12 @@ fn async_scoped_vocabulary_scenario_sets_its_flag() {
 #[serial]
 fn scoped_bypass_vocabulary() {}
 
+/// The bypass record is diagnostics-only, so this assertion is too.
+///
+/// `scoped_bypass_vocabulary` itself stays ungated: it is a real scenario and
+/// runs in both legs. Only the registry dump that inspects *what it recorded*
+/// needs the `diagnostics` feature.
+#[cfg(feature = "diagnostics")]
 #[test]
 #[serial]
 fn scoped_bypass_records_only_the_selected_library() {

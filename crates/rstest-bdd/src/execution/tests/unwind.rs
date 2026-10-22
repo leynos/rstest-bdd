@@ -88,6 +88,11 @@ fn unreachable(
 /// rather than pass silently.
 fn harness_step(pattern: &'static StepPattern, file: &'static str, line: u32) -> Step {
     Step {
+        // This test never resolves the step through the registry, so the
+        // library an ordinary registration would give it is irrelevant here.
+        // `module_path!()` is what a registered step carries, and using it keeps
+        // the value honest rather than inventing a library name.
+        module_path: module_path!(),
         keyword: StepKeyword::Given,
         pattern,
         run: unreachable,
