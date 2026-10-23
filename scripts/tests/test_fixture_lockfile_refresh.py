@@ -90,15 +90,30 @@ def test_seed_fixture_lockfile_routes_by_the_seed_exclusion(
         )
 
 
+def _cargo_stand_in(
+    argv: list[str], *, returncode: int = 0, stderr: str = ""
+) -> subprocess.CompletedProcess[str]:
+    """Return a stand-in for a ``cargo`` invocation that ran *argv*.
+
+    Every stand-in in this module is that same value with a different argv, so
+    the shape is built in one place rather than restated in each of them.
+
+    Returns
+    -------
+    subprocess.CompletedProcess[str]
+        The stand-in, carrying *argv* as the command it appears to have run.
+    """
+    return subprocess.CompletedProcess(
+        args=argv, returncode=returncode, stdout="", stderr=stderr
+    )
+
+
 def _resolve_result(
     manifest: Path, *, returncode: int = 0, stderr: str = ""
 ) -> subprocess.CompletedProcess[str]:
     """Return a stand-in for a resolving ``cargo metadata`` over *manifest*."""
-    return subprocess.CompletedProcess(
-        args=cargo_resolve_command(manifest),
-        returncode=returncode,
-        stdout="",
-        stderr=stderr,
+    return _cargo_stand_in(
+        cargo_resolve_command(manifest), returncode=returncode, stderr=stderr
     )
 
 
@@ -199,11 +214,8 @@ def _metadata_result(
     manifest: Path, *, returncode: int = 0, stderr: str = ""
 ) -> subprocess.CompletedProcess[str]:
     """Return a stand-in for a locked ``cargo metadata`` over *manifest*."""
-    return subprocess.CompletedProcess(
-        args=["cargo", "metadata", "--locked", "--manifest-path", str(manifest)],
-        returncode=returncode,
-        stdout="",
-        stderr=stderr,
+    return _cargo_stand_in(
+        cargo_metadata_command(manifest), returncode=returncode, stderr=stderr
     )
 
 
