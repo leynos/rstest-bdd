@@ -258,9 +258,9 @@ def test_seed_and_resolve_restores_the_lockfile_when_the_seed_copy_fails(
     ``shutil.copyfile`` opens the destination before it copies into it, so the
     fixture's committed ``Cargo.lock`` is already truncated when the copy can
     still fail -- on a cancelled run, or a full disk. Restoring only from the
-    resolver's failure would leave that empty file behind, and Cargo reads an
-    empty lockfile as a resolution the fixture never committed: the next check
-    would pass over a fixture whose graph it never actually compared.
+    resolver's failure would leave that file behind, destroying a resolution
+    the fixture did commit, and the next run would report Cargo's ``--locked``
+    refusal against a lockfile this gate wrote rather than the fixture's own.
     """
     root_lock = tmp_path / "Cargo.lock"
     root_lock.write_text("# workspace resolution\n", encoding="utf-8")

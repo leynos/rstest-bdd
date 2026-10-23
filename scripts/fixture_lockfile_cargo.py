@@ -58,19 +58,19 @@ def seed_and_resolve(
     The seed is kept only when the resolution succeeds. A refresh that returns
     non-zero, or that is interrupted anywhere from the copy onward, puts the
     fixture's own lockfile back: the copy is a starting point rather than a
-    resolution, so leaving it in place would let the next locked validation
-    compare the fixture's manifest against the workspace's lockfile and pass
-    over a fixture that cannot be refreshed. The restoration therefore belongs
-    to a ``finally``, which also covers the ``KeyboardInterrupt`` a cancelled
-    run raises.
+    resolution, so keeping it would replace a resolution the fixture did commit
+    with the workspace's, which never held the fixture's own package. The next
+    run then reports Cargo's ``--locked`` refusal against a file this gate
+    wrote. The restoration therefore belongs to a ``finally``, which also
+    covers the ``KeyboardInterrupt`` a cancelled run raises.
 
-    The copy itself sits inside that ``finally`` rather than before it. Copying
+    The copy itself sits inside that ``try`` rather than before it. Copying
     truncates the destination as it opens it, so a cancellation or a full disk
     part-way through the copy would otherwise leave the fixture's committed
-    lockfile empty and never reach the restoration. An empty lockfile parses as
-    a resolution the fixture never made, which is the same false "healthy" a
-    stranded seed would report; see
-    :func:`test_seed_and_resolve_restores_the_lockfile_when_the_seed_copy_fails`.
+    lockfile empty or half-written and never reach the restoration. That
+    destroys the fixture's own resolution rather than leaving it stale, so
+    ``make update-fixture-lockfiles`` has to rebuild it from the workspace;
+    ``scripts/tests/test_fixture_lockfile_cargo.py`` pins the ordering.
 
     Parameters
     ----------
