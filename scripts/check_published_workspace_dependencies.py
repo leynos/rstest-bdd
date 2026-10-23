@@ -188,7 +188,14 @@ def _dependency_tables(
     for name, value in manifest.items():
         if name.endswith("dependencies") and isinstance(value, dict):
             yield value
-    targets = manifest.get("target")
+
+    yield from _target_dependency_tables(manifest.get("target"))
+
+
+def _target_dependency_tables(
+    targets: object,
+) -> cabc.Iterator[cabc.Mapping[str, object]]:
+    """Yield dependency tables nested beneath Cargo target scopes."""
     if not isinstance(targets, dict):
         return
     for target in targets.values():

@@ -75,6 +75,39 @@ def test_rejects_stale_internal_dependency_lower_bound(
         validate_staged_package_manifests(repository, staged_dir)
 
 
+def test_accepts_current_target_qualified_dependency_lower_bound(
+    release_fixture: cabc.Callable[[str], tuple[Path, Path]],
+) -> None:
+    """A target-qualified dependency may use the current workspace release."""
+    repository, staged_dir = release_fixture(WORKSPACE_VERSION)
+    write_manifest(
+        staged_dir / f"rstest-bdd-macros-{WORKSPACE_VERSION}" / "Cargo.toml",
+        '[package]\nname = "rstest-bdd-macros"\nversion = "0.6.1"\n'
+        "\n[target.'cfg(unix)'.dependencies]\n"
+        f'rstest-bdd-patterns = "{WORKSPACE_VERSION}"\n',
+    )
+
+    validate_staged_package_manifests(repository, staged_dir)
+
+
+def test_rejects_stale_target_qualified_dependency_lower_bound(
+    release_fixture: cabc.Callable[[str], tuple[Path, Path]],
+) -> None:
+    """A target-qualified dependency cannot resolve an older release API."""
+    repository, staged_dir = release_fixture(WORKSPACE_VERSION)
+    write_manifest(
+        staged_dir / f"rstest-bdd-macros-{WORKSPACE_VERSION}" / "Cargo.toml",
+        '[package]\nname = "rstest-bdd-macros"\nversion = "0.6.1"\n'
+        "\n[target.'cfg(unix)'.dependencies]\n"
+        'rstest-bdd-patterns = "0.6.0"\n',
+    )
+
+    with pytest.raises(
+        ReleaseContractError, match=r"rstest-bdd-patterns lower bound 0\.6\.0"
+    ):
+        validate_staged_package_manifests(repository, staged_dir)
+
+
 @pytest.mark.parametrize(
     ("requirement", "expected"),
     [
