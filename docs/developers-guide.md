@@ -44,8 +44,10 @@ leg resolves its label from the head repository and the author instead:
     && 'ubuntu-latest' || 'ubicloud-standard-2' }}
 ```
 
-Every other event, `push` to `main` included, leaves both properties as empty
-strings (falsy) and reaches Ubicloud exactly as before. Three rules follow from
+Every other event reaches Ubicloud exactly as before. A `push` to `main` or a
+dispatch leaves both properties as empty strings (falsy). A pull request from
+this repository by a person sets the fork property to `false` and the author
+login to that person, which is not `dependabot[bot]`. Three rules follow from
 the label being an expression, and a green run demonstrates none of them:
 
 - Keep the continuation at the same indent as the first line. A continuation
