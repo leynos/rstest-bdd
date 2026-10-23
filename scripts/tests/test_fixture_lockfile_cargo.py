@@ -250,6 +250,46 @@ def test_seed_and_resolve_restores_the_lockfile_when_the_resolver_raises(
     )
 
 
+def test_seed_and_resolve_restores_the_lockfile_when_the_seed_copy_fails(
+    tmp_path: Path,
+) -> None:
+    """A failed seed copy restores the lockfile it had already truncated.
+
+    ``shutil.copyfile`` opens the destination before it copies into it, so the
+    fixture's committed ``Cargo.lock`` is already truncated when the copy can
+    still fail -- on a cancelled run, or a full disk. Restoring only from the
+    resolver's failure would leave that empty file behind, and Cargo reads an
+    empty lockfile as a resolution the fixture never committed: the next check
+    would pass over a fixture whose graph it never actually compared.
+    """
+    root_lock = tmp_path / "Cargo.lock"
+    root_lock.write_text("# workspace resolution\n", encoding="utf-8")
+    fixture = tmp_path / "fixtures" / "truncated"
+    fixture.mkdir(parents=True)
+    manifest = fixture / "Cargo.toml"
+    manifest.write_text(
+        '[package]\nname = "truncated"\n[workspace]\n', encoding="utf-8"
+    )
+    committed = "# the fixture's own resolution\n"
+    (fixture / "Cargo.lock").write_text(committed, encoding="utf-8")
+
+    def failing_copy(_src: Path, dst: Path) -> None:
+        """Truncate the destination, then fail, exactly as a cancelled copy does."""
+        Path(dst).write_bytes(b"")
+        raise KeyboardInterrupt
+
+    with (
+        mock.patch("fixture_lockfile_cargo.shutil.copyfile", failing_copy),
+        pytest.raises(KeyboardInterrupt),
+    ):
+        seed_and_resolve(root_lock, manifest, _stub_resolver([]))
+
+    assert (fixture / "Cargo.lock").read_text(encoding="utf-8") == committed, (
+        "a seed copy that fails part-way must leave the committed lockfile as it "
+        "was found, not truncated"
+    )
+
+
 def test_seed_and_resolve_removes_a_seed_the_fixture_never_committed(
     tmp_path: Path,
 ) -> None:

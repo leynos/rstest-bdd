@@ -56,13 +56,21 @@ def seed_and_resolve(
     graph. *resolve* is injected so the seeding can be tested without Cargo.
 
     The seed is kept only when the resolution succeeds. A refresh that returns
-    non-zero, or that is interrupted while it runs, puts the fixture's own
-    lockfile back: the copy is a starting point rather than a resolution, so
-    leaving it in place would let the next locked validation compare the
-    fixture's manifest against the workspace's lockfile and pass over a fixture
-    that cannot be refreshed. The restoration therefore belongs to a
-    ``finally``, which also covers the ``KeyboardInterrupt`` a cancelled run
-    raises.
+    non-zero, or that is interrupted anywhere from the copy onward, puts the
+    fixture's own lockfile back: the copy is a starting point rather than a
+    resolution, so leaving it in place would let the next locked validation
+    compare the fixture's manifest against the workspace's lockfile and pass
+    over a fixture that cannot be refreshed. The restoration therefore belongs
+    to a ``finally``, which also covers the ``KeyboardInterrupt`` a cancelled
+    run raises.
+
+    The copy itself sits inside that ``finally`` rather than before it. Copying
+    truncates the destination as it opens it, so a cancellation or a full disk
+    part-way through the copy would otherwise leave the fixture's committed
+    lockfile empty and never reach the restoration. An empty lockfile parses as
+    a resolution the fixture never made, which is the same false "healthy" a
+    stranded seed would report; see
+    :func:`test_seed_and_resolve_restores_the_lockfile_when_the_seed_copy_fails`.
 
     Parameters
     ----------
@@ -87,9 +95,9 @@ def seed_and_resolve(
     """
     lockfile = manifest.parent / "Cargo.lock"
     snapshot = lockfile.read_bytes() if lockfile.is_file() else None
-    shutil.copyfile(root_lock, lockfile)
     resolved = False
     try:
+        shutil.copyfile(root_lock, lockfile)
         result = resolve(manifest)
         resolved = result.returncode == 0
         return result
