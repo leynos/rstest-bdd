@@ -1,6 +1,38 @@
-//! Basic smoke tests for the cargo-bdd subcommand.
+//! Smoke tests for the `cargo-bdd` subcommand, driven as a real subprocess.
+//!
+//! Each test that runs the binary locates or builds it with
+//! `locate_or_build_binary`, wraps the result in an `assert_cmd::Command` and
+//! drives it against the fixture crate in `tests/fixtures/minimal`, asserting
+//! on the captured stdout, stderr and exit status. The suite covers `steps`
+//! with and without `--skipped`, and `skipped` with `--reasons` and with
+//! `--json`, including the skipped-scenario and forced-failure reporting
+//! paths, the handling of test binaries that cannot dump steps, and the
+//! rejection of `steps --json` without `--skipped`.
+//!
+//! Every child is spawned through `nested_cargo::filtered_command` with the
+//! map the private `cli_child_environment` helper builds. That helper
+//! supplies the workspace `target/` as the fallback and preserves a
+//! caller-provided `CARGO_TARGET_DIR` (the coverage target directory when
+//! `cargo llvm-cov` is running), so the nested builds reuse the workspace's
+//! compiled units instead of rebuilding the fixture's own graph. The child
+//! keeps its inherited `LLVM_PROFILE_FILE`, because `cargo-bdd` is the
+//! process under test: redirecting that profile would report the lines it
+//! exercised as never executed.
+//!
+//! The nested-build target policy has behavioural coverage of its own in the
+//! `nested_target` submodule, attached with `#[path = "nested_target/mod.rs"]`
+//! so Cargo does not also compile it as a second test target.
+//!
+//! The tests that drive the binary each spawn a nested Cargo build against
+//! the shared workspace `target/`, so they carry `#[serial]`: under
+//! `cargo test` the annotation holds them one at a time in the shared test
+//! process, and `.config/nextest.toml` puts the binary in a `cargo-spawning`
+//! group with `max-threads = 1` under nextest. Either way they do not contend
+//! for the same target directory and the package-cache lock. The environment
+//! map's precedence is asserted separately by
+//! `cli_child_environment_reuses_target`.
 
-use std::{env, path::PathBuf, process::ExitStatus, str};
+use std::{env, ffi::OsString, path::PathBuf, process::ExitStatus, str};
 
 use assert_cmd::Command;
 use eyre::{Context, Result};
@@ -31,9 +63,14 @@ struct SkipReport {
     step: Option<SkippedDefinition>,
 }
 
+/// The fixture crate the CLI smoke tests build and inspect.
+fn fixture_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/minimal")
+}
+
 /// Execute cargo-bdd with the given arguments and return the raw output.
 fn run_cargo_bdd_raw(args: &[&str]) -> Result<std::process::Output> {
-    let fixture_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/minimal");
+    let fixture_dir = fixture_dir();
     // Preserve the caller's target directory (cargo llvm-cov's
     // `target/llvm-cov-target` when coverage is running) so the fixture build
     // stays warm; the filtered environment stops `cargo-bdd` and its nested
@@ -44,12 +81,7 @@ fn run_cargo_bdd_raw(args: &[&str]) -> Result<std::process::Output> {
     // `LLVM_PROFILE_FILE`: `cargo llvm-cov` only merges the `.profraw` files
     // named by the pattern it exported, and redirecting this one would report
     // its exercised lines as never executed.
-    let fallback_target_dir =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/cargo-bdd-cli");
-    let child_env = nested_cargo::build_child_env(
-        &fallback_target_dir,
-        nested_cargo::ProfileDestination::Caller,
-    );
+    let child_env = cli_child_environment(env::vars_os().collect());
     let program = locate_or_build_cargo_bdd_command()?;
     let mut cmd = nested_cargo::filtered_command(
         std::path::Path::new(program.get_program()),
@@ -72,6 +104,38 @@ fn locate_or_build_cargo_bdd_command() -> Result<Command> {
 }
 
 fn workspace_root() -> PathBuf { PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..") }
+
+// The nested-build target policy has its own behavioural coverage; it lives in
+// a subdirectory so Cargo does not also discover it as a second test target.
+#[path = "nested_target/mod.rs"]
+mod nested_target;
+
+/// Apply the shared isolation policy with this CLI fixture's workspace target.
+///
+/// Only CLI smoke-test setup owns this fallback; explicit coverage and caller
+/// target directories continue to take precedence.
+///
+/// For example, `cli_child_environment(Vec::new())` selects the workspace
+/// `target/`; a snapshot containing `CARGO_TARGET_DIR` retains that value.
+fn cli_child_environment(vars: Vec<(OsString, OsString)>) -> nested_cargo::NestedCargoEnv {
+    nested_cargo::env_from_vars(
+        vars,
+        Some(&workspace_root().join("target")),
+        nested_cargo::ProfileDestination::Caller,
+    )
+}
+
+#[rstest::rstest]
+#[case::workspace_cache(None)]
+#[case::caller_cache(Some("custom-coverage-target"))]
+fn cli_child_environment_reuses_target(#[case] target: Option<&str>) {
+    let vars = target
+        .map(|value| vec![(OsString::from("CARGO_TARGET_DIR"), OsString::from(value))])
+        .unwrap_or_default();
+    let child = cli_child_environment(vars);
+    let expected = target.map_or_else(|| workspace_root().join("target"), PathBuf::from);
+    assert_eq!(child.get("CARGO_TARGET_DIR"), Some(expected.as_os_str()));
+}
 
 fn run_cargo_bdd_captured(args: &[&str]) -> Result<(ExitStatus, String, String)> {
     let output = run_cargo_bdd_raw(args)?;

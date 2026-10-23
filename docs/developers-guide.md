@@ -977,11 +977,11 @@ workspace root; this is the only nextest configuration file the runner loads.
 The file sets the timeout policy for the test suite:
 
 - The default profile kills any test that runs past a 60 s `slow-timeout`
-  (`terminate-after = 1`, 5 s grace period) and applies a 75 m `global-timeout`
-  to the whole run. This allows the cargo-spawning group to run its bounded
-  tests one at a time without exhausting the whole-suite budget. The global
-  timeout must stay above the largest per-test budget below, or the run is
-  killed before the test that budget exists for can finish;
+  (`terminate-after = 1`, 5 s grace period) and applies a 90 m `global-timeout`
+  to the whole run. This gives the cargo-spawning group room for cold nested
+  builds without relaxing any per-test limit. The global timeout must stay
+  above the largest per-test budget below, or the run is killed before a test
+  with that budget can finish;
   `trybuild_nextest_override_preserves_timeout_contract` enforces the ordering.
 - A `[[profile.default.overrides]]` entry raises the `slow-timeout` to 180 s
   for `cargo-bdd::cli`, whose smoke tests spawn `cargo` to build fixture crates
@@ -1002,16 +1002,31 @@ The file sets the timeout policy for the test suite:
 - A third override raises the `slow-timeout` to 600 s for
   `rstest-bdd::feature_rebuild_invalidation`, whose three scenarios run nested
   `cargo` commands for dependency tracking, rebuilding, and file addition.
-- All three overrides also place their binaries in a `cargo-spawning` test
-  group (`max-threads = 1`), so `cargo-bdd::cli`, the four trybuild binaries,
-  and `rstest-bdd::feature_rebuild_invalidation` run one at a time instead of
-  contending for CPU with concurrent `cargo` builds. Their worst-case serial
-  budget is 180 s + (20 m × 4) + (600 s × 3) = 6,180 s (103 m). That figure is
-  a bound, not an expectation: it assumes every member of the group exhausts
-  its own allowance in the same run, which has never happened. The 75 m
-  `global-timeout` is deliberately below it, because a run that genuinely took
-  103 minutes would be a fault worth failing rather than waiting out. The group
-  bound only serializes execution; it does not cap it.
+- All three overrides also place matching tests in a `cargo-spawning` test
+  group (`max-threads = 1`), so nested Cargo builds do not contend with each
+  other. The 90 m `global-timeout` is an operational ceiling sized for the
+  nested-fixture lane. R-6 uses `180 + 600 × 4 + 600 × 3 = 4,380 s` as its
+  reference scenario; the projected cold-cache increase is about 19 s for each
+  of roughly ten nested invocations, or 4,570 s total. A 5,400 s ceiling
+  therefore leaves 830 s above that projection, exceeding the required 600 s
+  reserve.
+
+  Milestone 1 of that risk measured a cold nested-fixture build before and
+  after the alignment work. The "before" figure is a fixture resolving 30
+  registry packages the workspace did not: `rebuild_invalidation` compiled 92
+  crates in 27.4 s. Its "after" figure, with the same manifests resolving only
+  within the workspace graph, compiled 0 crates in 132 ms against a warm
+  workspace `target/`, and `feature_addition` compiled 4 — its own build-script
+  and test units, nothing borrowed. The duplicate units were not merely slower;
+  they were a second copy of crates the workspace had already built. The
+  numbers are from one host and one cache state, so treat the ratio, not the
+  absolute seconds, as the part that generalizes.
+
+  The overrides apply per test. The CLI binary contains nine smoke tests and
+  two target-environment regressions. The four compile-test binaries also
+  include helper and nightly tests, so binary counts do not describe the number
+  of tests using an override. The group serializes matching tests; it does not
+  cap their combined duration.
 
 The feature-rebuild fixture-manifest rewriter is the sole owner of TOML
 basic-string encoding for its rewritten absolute dependency paths. It must
@@ -1034,7 +1049,7 @@ so it is worth knowing which is which and in what order they can fire.
 | Tier                     | What it bounds                     | Where it is set                                                 | Current value                                |
 | ------------------------ | ---------------------------------- | --------------------------------------------------------------- | -------------------------------------------- |
 | Per-test `slow-timeout`  | one test                           | `.config/nextest.toml`                                          | 60 s default, 20 m for the trybuild binaries |
-| nextest `global-timeout` | the whole test run                 | `.config/nextest.toml`                                          | 75 m                                         |
+| nextest `global-timeout` | the whole test run                 | `.config/nextest.toml`                                          | 90 m                                         |
 | Cargo watchdog           | one `cargo` invocation, wall clock | `RUN_RUST_CARGO_WAIT_TIMEOUT` on the coverage steps in `ci.yml` | 6,600 s (110 m)                              |
 | Job `timeout-minutes`    | the whole job                      | `ci.yml`, job level                                             | 190 m                                        |
 
@@ -1063,8 +1078,9 @@ reads it from the configuration so a profile that raises it raises the
 requirement too.
 
 The watchdog is therefore sized as the global timeout, plus a termination
-allowance, plus a cold-build allowance: 75 m + 65 s + 15 m, taken up to 110 m.
-The termination allowance is derived, not fixed: the largest configured grace
+allowance, plus a cold-build allowance: 90 m + 65 s + 15 m = 6,365 s, taken up
+to 6,600 s (110 m). This leaves 235 s after the stated allowances. The
+termination allowance is derived, not fixed: the largest configured grace
 period, five seconds here, or nextest's ten-second default when none is named,
 plus a sixty-second margin for the teardown and report writing that follow. The
 build phase inside `cargo` measured 3 m 31 s on run 33966769942 with a nearly
@@ -1122,11 +1138,11 @@ The Linux coverage step was measured on `ubicloud-standard-2`:
 | 33971821695           | 30 m 33 s     | cold    |
 | this change's own run | 42 m 02 s     | cold    |
 
-That last row is why the earlier numbers were not enough. Each of the first
-three was the coldest run available when it was taken, and each was beaten. At
-1,800 s this run would have been killed with twelve minutes of work left; the
-job itself took 1 h 50 m, so the former 90 minute ceiling would have cancelled
-it even with a larger watchdog in place.
+Those are historical measurements from before the current timeout policy. Each
+of the first three was the coldest run available when it was taken, and each
+was beaten. At 1,800 s this run would have been killed with twelve minutes of
+work left; the job itself took 1 h 50 m, so the former 90 minute job ceiling
+would have cancelled it even with a larger watchdog in place.
 
 A dependabot bump to `syn` on 2026-09-05 served 9 % of Rust compile requests
 from the cache and was killed by the watchdog at 1,800 s with 1,894 of 1,897
@@ -1828,16 +1844,27 @@ as a test assertion on the SHA string.
 
 The Cargo Dependabot entry scans the workspace root and the standalone fixture
 packages in `crates/cargo-bdd/tests/fixtures/minimal`,
+`crates/rstest-bdd/tests/fixtures/feature_addition`,
+`crates/rstest-bdd/tests/fixtures/rebuild_invalidation`,
 `crates/rstest-bdd/tests/fixtures_macros`, `crates/rstest-bdd/tests/ui_macros`,
-and `crates/rstest-bdd/tests/ui_lints`. It runs daily, and its
-`minor-and-patch` group matches every dependency but only minor and patch
-updates, so those arrive across every scanned directory in one grouped pull
-request. A narrow `rstest-bdd` group (`rstest-bdd*`) is listed before it, so
-the published crates the fixtures depend on move together even across a 0.x
-minor, which Cargo counts as a major. Other major updates are deliberately left
-ungrouped, following the estate Dependabot policy, so each can be reviewed and
-built on its own. When a major lands, check that every scanned directory moved
-with it.
+`crates/rstest-bdd/tests/ui_lints`, and `tests/fixtures/published-gpui-0-2-2`.
+It runs daily, and its `minor-and-patch` group matches every dependency but
+only minor and patch updates, so those arrive across every scanned directory in
+one grouped pull request. A narrow `rstest-bdd` group (`rstest-bdd*`) is listed
+before it, so the published crates the fixtures depend on move together even
+across a 0.x minor, which Cargo counts as a major. Other major updates are
+deliberately left ungrouped, following the estate Dependabot policy, so each
+can be reviewed and built on its own. When a major lands, check that every
+scanned directory moved with it.
+
+Every scanned directory below the root commits its own `Cargo.lock`, so a
+grouped update lands with each lockfile refreshed rather than only the root's:
+the dependabot refresh workflow runs `make update-fixture-lockfiles` over the
+pull request head, and `make check-fixture-lockfiles` then proves each lockfile
+still resolves, and that every fixture outside `EXEMPT_FIXTURES` stays inside
+the workspace graph. A grouped update that skipped a fixture's lockfile
+therefore fails the gate rather than surfacing as a stale fixture on a later
+unrelated run.
 
 Each standalone fixture manifest must declare the workspace MSRV with
 `rust-version = "1.88"`. Keep these declarations synchronized with
@@ -2062,6 +2089,36 @@ two-phase strategy to locate test binaries, implemented by
 
 This pattern ensures tests run from a clean checkout without a separate
 pre-build step in every CI job.
+
+The private `cli_child_environment` helper in `crates/cargo-bdd/tests/cli.rs`
+supplies the workspace `target/` directory as the fallback for CLI fixture
+builds, so repeated builds share compiled artefacts. It composes the shared
+`nested_cargo::env_from_vars` environment filtering with this CLI-specific
+target policy; keep the helper private to the CLI test module. An inherited
+`CARGO_TARGET_DIR` takes precedence, including the coverage target directory
+used by `cargo llvm-cov`.
+
+That precedence is covered behaviourally, not just through the private
+environment map. `crates/cargo-bdd/tests/nested_target/mod.rs` covers it with
+three tests and two means. Two of them ask `cargo metadata` — through the same
+environment map the fixture build receives — which directory that build would
+use, and compare it against the expected one: the caller's directory when
+`CARGO_TARGET_DIR` is inherited, the workspace `target/` when it is absent.
+That is a positive witness: it answers without compiling anything, so raising
+the inherited case costs no build time, and it does not depend on a build's
+refusal text, which is not the same on every platform. A further test pins the
+link `cargo metadata` cannot reach: it inspects the `CARGO_TARGET_DIR` the
+`cargo-bdd` process would be started with, because that process is what spawns
+the nested build and could replace an inherited value first. It never runs the
+command it inspects, since observing such a replacement in the nested build's
+output would mean building into a directory other than the shared warm workspace
+`target/`, which forces a full cold rebuild of the fixture graph. The
+absent-target case additionally removes the fixture's own `target/` and asserts
+it is still absent after a successful `cargo-bdd steps` run, and that the run
+reported steps. An unredirected build is what recreates that directory. All
+three tests drive the helper with an explicit variable snapshot rather than the
+process environment, so a `CARGO_TARGET_DIR` set by the test runner or a
+coverage job cannot displace the branch under test.
 
 ### `binary_test_support` API reference
 
@@ -3220,29 +3277,99 @@ pattern in `crates/rstest-bdd/tests/feature_rebuild_invalidation/`:
 
 - The checked-in fixture (for example
   `tests/fixtures/rebuild_invalidation/`) is a non-workspace crate with a
-  trailing `[workspace]` stanza, a committed `Cargo.lock`, and dependencies
-  byte-identical to `tests/fixtures/minimal/`'s, so the two fixtures share
-  compiled units.
+  trailing `[workspace]` stanza, a committed `Cargo.lock`, and only the
+  dependencies its own sources reach. It does not need to mirror
+  `tests/fixtures/minimal/` clause for clause: what matters is that every
+  package it resolves is one the workspace also resolves, which the alignment
+  pass below enforces. A requirement no fixture source imports still enters the
+  resolved graph, so an unused dependency can fork a shared crate just as a
+  wrong version can.
 - Refresh the two feature-rebuild fixture lockfiles together with
-  `make update-feature-rebuild-fixtures-lock`. The target seeds both locks from
-  `tests/fixtures/minimal/Cargo.lock` before Cargo resolves the
-  fixture-specific root and `rstest 0.26.1` closure required by `#[scenario]`.
-  This keeps nested `--offline` runs on the dependency resolution already
-  populated by CI.
+  `make update-feature-rebuild-fixtures-lock`, or refresh them with the rest of
+  the fixture set through `make update-fixture-lockfiles`. The dedicated target
+  seeds both locks from `tests/fixtures/minimal/Cargo.lock` before Cargo
+  resolves the fixture-specific root and `rstest 0.26.1` closure required by
+  `#[scenario]`; the shared target seeds from the root `Cargo.lock` instead.
+  Either way the fixtures resolve inside the workspace graph — the minimal
+  fixture is itself a discovered fixture, so its lockfile is held to the same
+  alignment requirement — and nested `--offline` runs reuse the dependency
+  resolution already populated by CI.
+- Keep every fixture's resolved graph inside the workspace's. A nested
+  `cargo test` resolves through the fixture's own lockfile, so a crate the
+  fixture pins to a version or source the workspace did not pick is a compiled
+  unit the workspace build cannot lend it and the nested run builds a second
+  time. Because the nested lanes serialize behind the `cargo-spawning` test
+  group, that duplication is paid on the critical path of every cold CI lane.
+  `make check-fixture-lockfiles` therefore runs
+  `scripts/fixture_lockfile_alignment.py` after the `--locked` validation: it
+  reads the root `Cargo.lock` and each fixture's, compares them as sets of
+  `(name, version, source)`, and fails naming every package that only the
+  fixture resolves. The fixture's own crate is excluded — it is the one
+  legitimate addition — and two fixtures are exempt by path in
+  `EXEMPT_FIXTURES`, each for a structural reason: `ui_lints` builds through
+  its own `CARGO_TARGET_DIR` so its artefacts are isolated anyway, and
+  `published-gpui-0-2-2` exists to resolve `gpui` from crates.io instead of the
+  workspace's vendored path. The regression pin is
+  `test_the_repository_itself_is_aligned`, which fails with the duplicated
+  packages when a bump re-forks a fixture.
+- The tooling splits along the same lines as the concern it models.
+  `scripts/fixture_lockfile_packages.py` is the reading layer: it parses a
+  lockfile or a `[package]` table and answers with `(name, version, source)`
+  identities, and it is the only module that imports `tomllib` for this purpose.
+  `scripts/fixture_lockfile_alignment.py` owns the comparison policy and
+  re-exports the reading, so a caller needs one import.
+  `scripts/fixture_lockfile_cargo.py` owns the Cargo invocations, and
+  `scripts/check_fixture_lockfiles.py` is the gate that wires discovery,
+  refresh and reporting together. Keep the split: the reading is shared by the
+  comparison and by its own tests, and folding it back into either consumer
+  pushed that consumer past the 400-line module budget.
+- Within that split, the alignment comparison is a query and the Cargo work is
+  a command. `alignment_divergences` returns each diverging fixture as a
+  `(manifest, packages)` pair and writes nothing; `alignment_failure` renders
+  one pair and `check_alignment` owns the stream output, so a caller that wants
+  the structure never has to capture a stream to get it. On the command side,
+  `fixture_lockfile_cargo.seed_and_resolve` performs the write — copying the
+  root lock beside the fixture, then resolving through its injected resolver —
+  which is why it lives with the other Cargo invocations rather than in the
+  alignment module. Tests that only read use the query; the seeding is tested
+  at its own filesystem boundary with a temporary fixture and a stub resolver.
+- `check_alignment` is a composition and `check_alignment_or_failure` is the
+  boundary that wraps it. The comparison propagates `LockfileUnreadableError`,
+  because a lockfile it cannot read is not a divergence it can describe and
+  inventing an empty graph for one would let the gate pass over the very
+  fixture it exists to check. A command boundary must therefore catch it rather
+  than let it escape: the wrapper prints the gate's own `error:` report and
+  returns 1, which is what both entry points call, so a missing or malformed
+  root lockfile reaches the user as the documented exit code instead of an
+  unhandled traceback.
 - Validate the whole standalone-fixture set with
   `make check-fixture-lockfiles`. The gate runs
   `scripts/check_fixture_lockfiles.py`, which discovers every workspace opt-out
   manifest that uses local `path` dependencies and commits a `Cargo.lock`, then
-  proves each lockfile still resolves with `cargo metadata --locked`. The
-  target depends on `check-published-gpui-e2e-lock` because the staged
-  published-GPUI end-to-end fixture patches crates.io names onto `target/`
-  artefacts and is invisible to the script's discovery. CI runs the same target
-  after the workspace build, and the Dependabot refresh workflow regenerates
-  the set with `make update-fixture-lockfiles`, which mirrors the same two
-  halves through its `update-published-gpui-e2e-lock` prerequisite, so the
-  check and the refresh path always agree on which fixtures are authoritative.
-  A stale lockfile therefore fails before the behavioural nested-Cargo tests
-  can mask the drift.
+  proves each lockfile still resolves with `cargo metadata --locked` and that
+  the resolved graph of every fixture outside `EXEMPT_FIXTURES` stays inside
+  the workspace's (see the alignment pass above). The target depends on
+  `check-published-gpui-e2e-lock` because the staged published-GPUI end-to-end
+  fixture patches crates.io names onto `target/` artefacts and is invisible to
+  the script's discovery. CI runs the same target after the workspace build,
+  and the Dependabot refresh workflow regenerates the set with
+  `make update-fixture-lockfiles`, which mirrors the same two halves through its
+  `update-published-gpui-e2e-lock` prerequisite, so the check and the refresh
+  path always agree on which fixtures are authoritative. A stale lockfile
+  therefore fails before the behavioural nested-Cargo tests can mask the drift.
+- A refresh seeds each fixture's lockfile from the root `Cargo.lock` before
+  re-resolving it, which is what keeps the result aligned: seeding pins every
+  shared crate to the workspace's choice, leaving Cargo only the fixture's own
+  additions. `published-gpui-0-2-2` is listed in `SEED_EXCLUDED_FIXTURES` and
+  is re-resolved from its own lockfile instead. Seeding is categorically wrong
+  for it — its 568 crates.io-only packages exist to prove the published `gpui`
+  resolves without the workspace's vendored path, and a seed replaced them with
+  the workspace's resolution, so the fixture silently stopped testing what it
+  was written to test. Its `make update-published-gpui-0-2-2-lock` target owns
+  that lockfile. Seed exclusion is deliberately a separate set from
+  `EXEMPT_FIXTURES`: `ui_lints` is excluded from the alignment comparison but
+  is still seeded, because aligning it costs nothing even though its isolated
+  `CARGO_TARGET_DIR` means it cannot borrow the workspace's units.
 - Manifest paths in this tooling are rendered with forward slashes on every
   platform. `scripts/check_fixture_lockfiles.py --list` and the stale, refresh
   and prefetch failure reports all render a repository manifest through
@@ -3253,6 +3380,14 @@ pattern in `crates/rstest-bdd/tests/feature_rebuild_invalidation/`:
   Windows lanes and nowhere else before this was settled. `as_posix` is applied
   where a path becomes text and nowhere else: the filesystem is still addressed
   through `Path`, so this is a display contract, not a path-handling one.
+- Tests that need a temporary fixture write its manifest through the
+  `write_manifest` factory fixture in `scripts/tests/conftest.py`, which takes
+  the temporary root and package name and answers with the manifest path. The
+  manifest shape is a contract with discovery — its own `[workspace]` opt-out
+  stanza and a local `path` dependency — so it is written from one definition
+  rather than repeated per test. Everything that differs between scenarios
+  stays local: each test still writes its own lockfile data and asserts its own
+  outcome.
 - The Dependabot lockfile refresh runs in
   `.github/workflows/refresh-derived-fixture-lockfiles.yml`, which triggers
   only on `pull_request_target` events from Dependabot (`dependabot[bot]`) that

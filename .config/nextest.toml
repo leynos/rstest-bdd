@@ -2,16 +2,20 @@
 # Kill any test once it crosses 60s.
 slow-timeout = { period = "60s", terminate-after = 1, grace-period = "5s" }
 
-# Accommodate cargo-spawning tests that deliberately run one at a time. The
-# `cargo-spawning` group runs at `max-threads = 1`, so the worst case for the
-# whole run is the sum of the group members' slow-timeouts: 180 s (cargo-bdd
-# cli) + 600 s x 4 (trybuild/macro_compile binaries) + 600 s x 3
-# (rstest-bdd::feature_rebuild_invalidation's dep-info, rebuild and
-# file-addition scenarios) = 4380 s. 75 m covers that bound with 120 s of
-# slack; the per-test enforcement is the harness's own 300 s nested-cargo
-# wall clock, and this ceiling only lets a genuinely hung run fail loudly at
-# the run level (see the 10.3.3 ExecPlan's timeout-arithmetic decisions).
-global-timeout = "75m"
+# Keep a run-level reserve for cold nested builds without relaxing per-test
+# hang detection or allowing competing Cargo builds. R-6's sizing scenario
+# was 180 + 600*4 + 600*3 = 4380 s; adding 19 s across ten cold invocations
+# gives 4570 s, already beyond the old 75 m ceiling (4500 s). 90 m leaves
+# 830 s for that scenario, exceeding the required ten-minute reserve.
+# This is an operational ceiling, NOT a sum of all per-test maxima: the
+# compile tests now allow 20 m each, and nextest applies overrides per test,
+# not per binary (the CLI has nine Cargo smoke tests). Tests still
+# terminate at their own limits; increasing this ceiling adds no passing-run
+# latency. The 110 m CI watchdog also covers 15 m of outer compilation and
+# 65 s of termination/reporting; the 190 m job retains its 75 m allowance.
+# Keep crates/rstest-bdd/tests/nextest_config.rs and the four-tier workflow
+# contracts in step with future policy changes.
+global-timeout = "90m"
 
 [test-groups.cargo-spawning]
 # Tests that shell out to `cargo` contend for the package-cache lock and for

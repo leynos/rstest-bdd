@@ -3,9 +3,12 @@
 
 Keeping the message formatting and the shared error type apart from the Cargo
 plumbing lets the gate script stay under the 400-line budget while the wording
-of a stale-lockfile or failed-prefetch failure stays testable in one place. The
-prefetch mode's machine-readable metrics record lives here too, beside the
-human-readable summary it accompanies.
+of a stale-lockfile, failed-prefetch, or divergent-fixture failure stays
+testable in one place. The alignment report belongs here on the same terms: the
+comparison module answers which packages diverged, and the prose that names
+them is wording, like every other report this module owns. The prefetch mode's
+machine-readable metrics record lives here too, beside the human-readable
+summary it accompanies.
 """
 
 import dataclasses
@@ -18,6 +21,10 @@ if typ.TYPE_CHECKING:
     import collections.abc as cabc
     import subprocess
     from pathlib import Path, PurePath
+
+    # Annotation-only: importing the packages module at runtime would close a
+    # cycle, because it imports this module's error type.
+    from fixture_lockfile_packages import PackageKey
 
 #: Suggested remediation printed when a lockfile no longer resolves.
 REFRESH_HINT = "run 'make update-fixture-lockfiles' to refresh them"
@@ -113,6 +120,62 @@ refresh_failure_message = _failure_message("refresh failed for")
 fetch_failure_message = _failure_message(
     "failed to prefetch fixture dependencies:",
 )
+
+
+def format_package(key: PackageKey) -> str:
+    """Return a package identity as one readable line.
+
+    Parameters
+    ----------
+    key : PackageKey
+        The package to render.
+
+    Returns
+    -------
+    str
+        ``name version`` followed by the source when the package has one.
+
+    Examples
+    --------
+    >>> format_package(("serde", "1.0.228", None))
+    'serde 1.0.228'
+    >>> format_package(("serde", "1.0.228", "registry+https://example.invalid"))
+    'serde 1.0.228 (registry+https://example.invalid)'
+    """
+    name, version, source = key
+    return f"{name} {version}" if source is None else f"{name} {version} ({source})"
+
+
+def alignment_failure(manifest: Path, packages: list[PackageKey]) -> str:
+    """Render the report for a fixture that resolves outside the workspace.
+
+    The wording lives with the other reports because it is wording: the
+    comparison module answers which packages diverged, and the fix a reader
+    needs — align the requirements, or seed the lockfile from the root one — is
+    a sentence rather than a comparison result.
+
+    Parameters
+    ----------
+    manifest : Path
+        The fixture manifest, named so the report points at the fixture to fix.
+    packages : list[PackageKey]
+        The divergent packages, already sorted.
+
+    Returns
+    -------
+    str
+        A multi-line report naming every divergent package.
+    """
+    listed = "\n".join(f"  {format_package(key)}" for key in packages)
+    count = len(packages)
+    return (
+        f"fixture {manifest.as_posix()} resolves {count} package(s) the "
+        f"workspace does not:\n{listed}\n"
+        f"each one is a compiled unit the nested build cannot reuse from the "
+        f"workspace build; align the fixture's requirements with the workspace "
+        f"(or seed its lockfile from the root Cargo.lock) and run "
+        f"'make update-fixture-lockfiles'"
+    )
 
 
 def print_failures(failures: list[str]) -> None:
@@ -279,8 +342,15 @@ class GateMode:
         Build the Cargo argv the failure report quotes for reproduction.
     operation : cabc.Callable[[Path], subprocess.CompletedProcess[str]]
         Run that argv for one manifest; a non-zero exit is a failure.
-    prepare : cabc.Callable[[Path], object] | None
-        Optional per-manifest step before the operation, or None.
+    prepare : cabc.Callable[
+            [Path, Path], subprocess.CompletedProcess[str] | None
+        ]
+        | None
+        Optional per-manifest step before the operation, taking the repository
+        root and the manifest. A non-zero result fails that fixture without
+        validating it: a failed preparation restores the committed lockfile,
+        and that restored lockfile would validate cleanly. None for a mode that
+        prepares nothing.
     report_metrics : cabc.Callable[[int, int, int], None] | None
         Optional machine-readable record of the whole run, taking the fixture
         total, the failed count, and the elapsed milliseconds; None for a mode
@@ -295,6 +365,8 @@ class GateMode:
     print_summary: cabc.Callable[[int, int], None]
     command: cabc.Callable[[Path], list[str]]
     operation: cabc.Callable[[Path], subprocess.CompletedProcess[str]]
-    prepare: cabc.Callable[[Path], object] | None = None
+    prepare: (
+        cabc.Callable[[Path, Path], subprocess.CompletedProcess[str] | None] | None
+    ) = None
     report_metrics: cabc.Callable[[int, int, int], None] | None = None
     clock: cabc.Callable[[], float] = time.monotonic

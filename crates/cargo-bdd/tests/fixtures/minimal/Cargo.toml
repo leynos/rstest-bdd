@@ -4,9 +4,17 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.88"
 
+# The fixture resolves through its own lockfile in the shared `target/`, so
+# every dependency it names has to match the workspace resolution to share the
+# workspace's compiled units. `serial_test` is pinned to the workspace's major
+# on purpose: `"3"` held this fixture at 3.5.0 while the workspace resolved
+# 4.0.1, and the duplicate `serial_test`, `serial_test_derive`, `dashmap` and
+# `hashbrown` units were then built twice on every cold nested run. The
+# alignment gate in `scripts/fixture_lockfile_alignment.py` fails if a package
+# here resolves to a version or source the workspace did not pick.
 [dependencies]
 inventory = "0.3"
-serial_test = "3"
+serial_test = "4"
 rstest-bdd = { path = "../../../../../crates/rstest-bdd", features = ["diagnostics", "test-support"] }
 
 [dev-dependencies]

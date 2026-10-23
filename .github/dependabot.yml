@@ -29,6 +29,8 @@ updates:
     directories:
       - "/"
       - "/crates/cargo-bdd/tests/fixtures/minimal"
+      - "/crates/rstest-bdd/tests/fixtures/feature_addition"
+      - "/crates/rstest-bdd/tests/fixtures/rebuild_invalidation"
       - "/crates/rstest-bdd/tests/fixtures_macros"
       - "/crates/rstest-bdd/tests/ui_macros"
       - "/crates/rstest-bdd/tests/ui_lints"
