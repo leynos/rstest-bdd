@@ -367,10 +367,14 @@ def test_check_fixtures_reports_an_unreadable_lockfile_and_does_not_raise(
     manifest = write_manifest(tmp_path, "probe")
     lockfile = manifest.parent / "Cargo.lock"
     lockfile.write_text(ALIGNED_FIXTURE_LOCK, encoding="utf-8")
-    # A root lockfile that is valid TOML but not a lockfile: the read succeeds
-    # and the package table is absent, which is the shape a half-written or
-    # wrong-file lockfile has. The fixture's own lockfile is left readable so
-    # the failure can only come from the root side.
+    # A root lockfile truncated mid-header — "[[package]" never closes its
+    # array declaration — so it is not valid TOML at all and the read raises on
+    # the parse, before any package table is consulted. Truncation is the shape
+    # a half-written lockfile has, and the input has to be malformed rather
+    # than merely table-less: valid TOML without a package table parses into an
+    # empty graph, which the comparison reports as a divergence rather than as
+    # an unreadable file. The fixture's own lockfile is left readable so the
+    # failure can only come from the root side.
     (tmp_path / "Cargo.lock").write_text("[[package]\n", encoding="utf-8")
 
     manifests = discover_fixture_manifests(tmp_path)
