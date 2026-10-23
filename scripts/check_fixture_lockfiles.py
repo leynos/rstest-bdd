@@ -28,7 +28,10 @@ import time
 import typing as typ
 from pathlib import Path
 
-from fixture_lockfile_alignment import check_alignment, is_seed_excluded
+from fixture_lockfile_alignment import (
+    check_alignment_or_failure,
+    is_seed_excluded,
+)
 from fixture_lockfile_cargo import (
     cargo_fetch_command,
     cargo_metadata_command,
@@ -270,7 +273,7 @@ def check_fixtures(root: Path, manifests: list[Path]) -> int:
             cargo_metadata_command,
             run_cargo_metadata,
         ),
-    ) or check_alignment(root)
+    ) or check_alignment_or_failure(root)
 
 
 def refresh_fixtures(root: Path, manifests: list[Path]) -> int:

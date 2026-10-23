@@ -236,7 +236,8 @@ def test_check_fixtures_propagates_an_alignment_failure(
             side_effect=_metadata_result,
         ),
         mock.patch(
-            "check_fixture_lockfiles.check_alignment", return_value=alignment
+            "check_fixture_lockfiles.check_alignment_or_failure",
+            return_value=alignment,
         ) as compare,
         mock.patch("check_fixture_lockfiles.print_failures"),
         mock.patch("check_fixture_lockfiles.print_check_summary"),
@@ -260,7 +261,7 @@ def test_check_fixtures_skips_alignment_when_a_lockfile_is_stale() -> None:
     stale = _metadata_result(SEEDED_MANIFEST, returncode=101, stderr="stale lockfile")
     with (
         mock.patch("check_fixture_lockfiles.run_cargo_metadata", return_value=stale),
-        mock.patch("check_fixture_lockfiles.check_alignment") as compare,
+        mock.patch("check_fixture_lockfiles.check_alignment_or_failure") as compare,
         mock.patch("check_fixture_lockfiles.print_failures"),
         mock.patch("check_fixture_lockfiles.print_check_summary"),
     ):
@@ -344,4 +345,49 @@ def test_check_fixtures_joins_cargo_validation_to_the_alignment_comparison(
     assert f"fixture {manifest.as_posix()} resolves 1 package(s)" in reported, (
         "the failure must open on the fixture whose graph drifted, named the way "
         "the renderer names a manifest"
+    )
+
+
+def test_check_fixtures_reports_an_unreadable_lockfile_and_does_not_raise(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    write_manifest: cabc.Callable[[Path, str], Path],
+) -> None:
+    """A lockfile the gate cannot parse fails it; it never reaches the caller.
+
+    The alignment comparison declines to invent a graph for a lockfile it
+    cannot read, so it raises — which is right for a comparison and wrong at
+    the check path's boundary. Without the boundary the raise escapes
+    ``check_fixtures`` as a traceback, and the gate exits on an unhandled
+    exception instead of the ``error:`` report and exit code 1 its own module
+    docstring promises. This is the regression pin for that: the assertion is
+    that the call *returns*, so a re-raised error fails here rather than
+    surfacing as a crash in the gate that calls it.
+    """
+    manifest = write_manifest(tmp_path, "probe")
+    lockfile = manifest.parent / "Cargo.lock"
+    lockfile.write_text(ALIGNED_FIXTURE_LOCK, encoding="utf-8")
+    # A root lockfile that is valid TOML but not a lockfile: the read succeeds
+    # and the package table is absent, which is the shape a half-written or
+    # wrong-file lockfile has. The fixture's own lockfile is left readable so
+    # the failure can only come from the root side.
+    (tmp_path / "Cargo.lock").write_text("[[package]\n", encoding="utf-8")
+
+    manifests = discover_fixture_manifests(tmp_path)
+    with mock.patch(
+        "check_fixture_lockfiles.run_cargo_metadata",
+        side_effect=_metadata_result,
+    ):
+        exit_code = check_fixtures(tmp_path, manifests)
+
+    assert exit_code == 1, (
+        "an unreadable lockfile must fail the gate through its exit code, not "
+        "escape as an unhandled exception"
+    )
+    reported = capsys.readouterr().err
+    assert "error: cannot read lockfile" in reported, (
+        "the failure must use the gate's own error report wording"
+    )
+    assert "as TOML" in reported, (
+        "the report must name the condition, so the reader knows what to fix"
     )

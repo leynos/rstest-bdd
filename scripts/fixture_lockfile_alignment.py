@@ -102,6 +102,7 @@ __all__ = [
     "alignment_divergences",
     "alignment_failure",
     "check_alignment",
+    "check_alignment_or_failure",
     "divergent_packages",
     "format_package",
     "is_exempt",
@@ -237,6 +238,13 @@ def check_alignment(root: Path) -> int:
     standard error through the gate's shared failure printer, so the calling
     gate's own summary stays the last line of its output.
 
+    This is a composition rather than a boundary: a lockfile that cannot be
+    read is not a divergence it can describe, so the
+    ``LockfileUnreadableError`` its comparison propagates is not caught here
+    and no graph is invented for it. A caller at a command boundary wants
+    :func:`check_alignment_or_failure`, which turns that into the gate's own
+    ``error:`` report and exit code.
+
     Parameters
     ----------
     root : Path
@@ -253,6 +261,35 @@ def check_alignment(root: Path) -> int:
     return 1 if failures else 0
 
 
+def check_alignment_or_failure(root: Path) -> int:
+    """Report alignment failures, turning an unreadable lockfile into one.
+
+    :func:`check_alignment` is a composition, not a boundary: it lets
+    ``LockfileUnreadableError`` escape because a lockfile that cannot be read
+    is not a divergence it can describe. A gate that calls it has to supply
+    the boundary, or a missing or malformed root lockfile reaches the user as
+    an unhandled traceback instead of the documented ``error:`` report and
+    exit code. This wrapper is that boundary, so every caller reports the
+    condition the same way: the message is a ``FixtureLockfileError``, which
+    keeps the gate's own ``error:`` spelling.
+
+    Parameters
+    ----------
+    root : Path
+        The repository root.
+
+    Returns
+    -------
+    int
+        ``0`` when every fixture is aligned, otherwise ``1``.
+    """
+    try:
+        return check_alignment(root)
+    except FixtureLockfileError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
+
+
 def main() -> int:
     """Run the fixture-alignment gate.
 
@@ -262,11 +299,7 @@ def main() -> int:
         The exit code: ``0`` when every fixture is aligned, otherwise ``1``.
     """
     root = Path(__file__).resolve().parents[1]
-    try:
-        exit_code = check_alignment(root)
-    except FixtureLockfileError as error:
-        print(f"error: {error}", file=sys.stderr)
-        return 1
+    exit_code = check_alignment_or_failure(root)
     if exit_code == 0:
         print("every fixture lockfile resolves within the workspace graph")
     return exit_code

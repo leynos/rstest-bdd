@@ -3333,6 +3333,15 @@ pattern in `crates/rstest-bdd/tests/feature_rebuild_invalidation/`:
   which is why it lives with the other Cargo invocations rather than in the
   alignment module. Tests that only read use the query; the seeding is tested
   at its own filesystem boundary with a temporary fixture and a stub resolver.
+- `check_alignment` is a composition and `check_alignment_or_failure` is the
+  boundary that wraps it. The comparison propagates `LockfileUnreadableError`,
+  because a lockfile it cannot read is not a divergence it can describe and
+  inventing an empty graph for one would let the gate pass over the very
+  fixture it exists to check. A command boundary must therefore catch it rather
+  than let it escape: the wrapper prints the gate's own `error:` report and
+  returns 1, which is what both entry points call, so a missing or malformed
+  root lockfile reaches the user as the documented exit code instead of an
+  unhandled traceback.
 - Validate the whole standalone-fixture set with
   `make check-fixture-lockfiles`. The gate runs
   `scripts/check_fixture_lockfiles.py`, which discovers every workspace opt-out
