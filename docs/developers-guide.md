@@ -970,6 +970,19 @@ builds continue to use the default LLVM backend and platform linker. Do not
 copy this fragment into `.cargo/config.toml`, because Cargo applies that file
 automatically to every build.
 
+## Development build footprint (`.cargo/config.toml`)
+
+The Concordat `rust-dev-build-footprint` rule keeps default development builds
+small. `.cargo/config.toml` sets `incremental = false` and `debug = 0` in
+`[profile.dev]`, and the test profile inherits both, so builds keep no
+incremental compilation state and no debug information. The trade-off is that a
+debugger sees no symbols or line tables in a default development build and
+every rebuild recompiles whole crates. To debug, run with
+`CARGO_PROFILE_DEV_DEBUG=true`; to rebuild incrementally, set
+`CARGO_INCREMENTAL=1`. The pin is the floating `stable` channel, so the rule's
+unstable metadata key does not apply.
+`tests/workflow_contracts/build_footprint_test.py` holds both settings.
+
 ## nextest configuration (`.config/nextest.toml`)
 
 cargo-nextest reads its configuration from `.config/nextest.toml` at the
