@@ -1861,9 +1861,10 @@ Every scanned directory below the root commits its own `Cargo.lock`, so a
 grouped update lands with each lockfile refreshed rather than only the root's:
 the dependabot refresh workflow runs `make update-fixture-lockfiles` over the
 pull request head, and `make check-fixture-lockfiles` then proves each lockfile
-still resolves and stays inside the workspace graph. A grouped update that
-skipped a fixture's lockfile therefore fails the gate rather than surfacing as
-a stale fixture on a later unrelated run.
+still resolves, and that every fixture outside `EXEMPT_FIXTURES` stays inside
+the workspace graph. A grouped update that skipped a fixture's lockfile
+therefore fails the gate rather than surfacing as a stale fixture on a later
+unrelated run.
 
 Each standalone fixture manifest must declare the workspace MSRV with
 `rust-version = "1.88"`. Keep these declarations synchronized with
@@ -2098,17 +2099,24 @@ target policy; keep the helper private to the CLI test module. An inherited
 used by `cargo llvm-cov`.
 
 That precedence is covered behaviourally, not just through the private
-environment map. `crates/cargo-bdd/tests/nested_target/mod.rs` runs the real
-`cargo-bdd` against the fixture in both cases and observes the directory the
-nested build resolves to. Each case asks `cargo metadata` — through the same
+environment map. `crates/cargo-bdd/tests/nested_target/mod.rs` covers it with
+three tests and two means. Two of them ask `cargo metadata` — through the same
 environment map the fixture build receives — which directory that build would
-use, and compares it against the expected one. That is a positive witness: it
-answers without compiling anything, so raising the inherited case costs no
-build time, and it does not depend on a build's refusal text, which is not the
-same on every platform. The absent-target case additionally removes the
-fixture's own `target/` and asserts it is still absent after a successful
-`cargo-bdd steps` run, because an unredirected build is what recreates it. Both
-tests drive the helper with an explicit variable snapshot rather than the
+use, and compare it against the expected one: the caller's directory when
+`CARGO_TARGET_DIR` is inherited, the workspace `target/` when it is absent.
+That is a positive witness: it answers without compiling anything, so raising
+the inherited case costs no build time, and it does not depend on a build's
+refusal text, which is not the same on every platform. A further test pins the
+link `cargo metadata` cannot reach: it inspects the `CARGO_TARGET_DIR` the
+`cargo-bdd` process would be started with, because that process is what spawns
+the nested build and could replace an inherited value first. It never runs the
+command it inspects, since observing such a replacement in the nested build's
+output would mean building into a directory other than the shared warm workspace
+`target/`, which forces a full cold rebuild of the fixture graph. The
+absent-target case additionally removes the fixture's own `target/` and asserts
+it is still absent after a successful `cargo-bdd steps` run, and that the run
+reported steps. An unredirected build is what recreates that directory. All
+three tests drive the helper with an explicit variable snapshot rather than the
 process environment, so a `CARGO_TARGET_DIR` set by the test runner or a
 coverage job cannot displace the branch under test.
 
@@ -3330,16 +3338,16 @@ pattern in `crates/rstest-bdd/tests/feature_rebuild_invalidation/`:
   `scripts/check_fixture_lockfiles.py`, which discovers every workspace opt-out
   manifest that uses local `path` dependencies and commits a `Cargo.lock`, then
   proves each lockfile still resolves with `cargo metadata --locked` and that
-  its resolved graph stays inside the workspace's (see the alignment pass
-  above). The target depends on `check-published-gpui-e2e-lock` because the
-  staged published-GPUI end-to-end fixture patches crates.io names onto
-  `target/` artefacts and is invisible to the script's discovery. CI runs the
-  same target after the workspace build, and the Dependabot refresh workflow
-  regenerates the set with `make update-fixture-lockfiles`, which mirrors the
-  same two halves through its `update-published-gpui-e2e-lock` prerequisite, so
-  the check and the refresh path always agree on which fixtures are
-  authoritative. A stale lockfile therefore fails before the behavioural
-  nested-Cargo tests can mask the drift.
+  the resolved graph of every fixture outside `EXEMPT_FIXTURES` stays inside
+  the workspace's (see the alignment pass above). The target depends on
+  `check-published-gpui-e2e-lock` because the staged published-GPUI end-to-end
+  fixture patches crates.io names onto `target/` artefacts and is invisible to
+  the script's discovery. CI runs the same target after the workspace build,
+  and the Dependabot refresh workflow regenerates the set with
+  `make update-fixture-lockfiles`, which mirrors the same two halves through its
+  `update-published-gpui-e2e-lock` prerequisite, so the check and the refresh
+  path always agree on which fixtures are authoritative. A stale lockfile
+  therefore fails before the behavioural nested-Cargo tests can mask the drift.
 - A refresh seeds each fixture's lockfile from the root `Cargo.lock` before
   re-resolving it, which is what keeps the result aligned: seeding pins every
   shared crate to the workspace's choice, leaving Cargo only the fixture's own

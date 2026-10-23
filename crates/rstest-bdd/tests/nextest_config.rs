@@ -1,4 +1,35 @@
-//! Integration contract for the workspace's trybuild nextest override.
+//! Integration contract for the workspace's nextest override and timeout budget
+//! policy.
+//!
+//! The suite reads `.config/nextest.toml` as data rather than running
+//! cargo-nextest: `nextest_configuration` parses the file with `toml`, and the
+//! tests assert the budget policy a reviewer can see written down there. The
+//! run-level ceiling and the test group's thread limit come from the same
+//! parsed value, read through `default_profile_key` and
+//! `test_group_max_threads` respectively.
+//!
+//! Three contracts are pinned:
+//!
+//! * `trybuild_nextest_override_preserves_timeout_contract` requires exactly one override to name
+//!   any of the four compile-test binaries, and that override's filter to name all four and no
+//!   others. It then requires the override to keep a 20 m `slow-timeout` period, `terminate-after =
+//!   1`, a 5 s grace period and membership of the `cargo-spawning` group, and the default profile's
+//!   `global-timeout` to exceed the period in seconds.
+//! * `feature_rebuild_nextest_override_preserves_timeout_contract` requires exactly one override to
+//!   carry the exact filter `binary_id(rstest-bdd::feature_rebuild_invalidation)`, with the same
+//!   termination settings and group, at a 600 s period.
+//! * `nested_cargo_run_retains_cold_build_reserve` recomputes the R-6 sizing scenario (a reference
+//!   lane of `180 + 600 * 4 + 600 * 3` seconds, ten cold nested invocations at 19 s each and a 600
+//!   s reserve) and requires the default profile's `global-timeout` to cover it, and the
+//!   `cargo-spawning` group's `max-threads` to stay at 1 so nested builds keep serializing.
+//!
+//! The overrides, the group and the run-level ceiling are policy that a future
+//! edit could break silently, so these assertions fail loudly instead. They
+//! cover the two nextest tiers of the four-tier timeout budget: a per-test
+//! `slow-timeout` compared against the whole-run `global-timeout`. The
+//! coverage watchdog and the job `timeout-minutes` are the outer two tiers,
+//! covered by the workflow contracts under `tests/workflow_contracts`;
+//! `.config/nextest.toml` asks that suite and this file to be kept in step.
 
 use std::{
     collections::{BTreeMap, BTreeSet},

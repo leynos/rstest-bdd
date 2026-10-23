@@ -45,6 +45,14 @@ STALE_OUTPUT = (
 )
 
 
+#: A refresh that resolved its fixture. The gate inspects a preparation's
+#: result, so a test meaning "the refresh succeeded, the validation failed" must
+#: answer with a successful one rather than leaving a bare mock to do so.
+REFRESHED = subprocess.CompletedProcess(
+    args=["cargo"], returncode=0, stdout="", stderr=""
+)
+
+
 def test_every_discovered_manifest_matches_its_lockfile() -> None:
     """Each committed fixture lockfile resolves against its manifest."""
     for manifest in discover_fixture_manifests(REPO_ROOT):
@@ -221,7 +229,7 @@ def test_refresh_failure_report_uses_the_refresh_wording() -> None:
         stderr=STALE_OUTPUT,
     )
     with (
-        mock.patch("check_fixture_lockfiles.seed_and_resolve"),
+        mock.patch("check_fixture_lockfiles.seed_and_resolve", return_value=REFRESHED),
         mock.patch("check_fixture_lockfiles.run_cargo_metadata", return_value=failing),
         mock.patch("check_fixture_lockfiles.print_failures") as emit_failures,
     ):
@@ -232,7 +240,7 @@ def test_refresh_failure_report_uses_the_refresh_wording() -> None:
         "refresh mode must keep its own failure wording"
     )
     assert "ui_lints" in report, "the report must name the stale fixture"
-    assert STALE_OUTPUT in report, "the report must carry Cargo stderr"
+    assert STALE_OUTPUT in report, "the report must carry the validation stderr"
 
 
 def test_gate_wrappers_delegate_to_the_shared_reporter() -> None:
@@ -291,7 +299,7 @@ def test_refresh_failure_summary_streams_to_stderr(
         stderr=STALE_OUTPUT,
     )
     with (
-        mock.patch("check_fixture_lockfiles.seed_and_resolve"),
+        mock.patch("check_fixture_lockfiles.seed_and_resolve", return_value=REFRESHED),
         mock.patch("check_fixture_lockfiles.run_cargo_metadata", return_value=failing),
     ):
         exit_code = refresh_fixtures(REPO_ROOT, [manifest])

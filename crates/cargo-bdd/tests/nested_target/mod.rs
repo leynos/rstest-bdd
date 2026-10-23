@@ -8,13 +8,13 @@
 //! representation, while the directory is the effect the timeout budget and the
 //! lockfile-alignment gate depend on.
 //!
-//! Both tests drive the helper with an explicit variable snapshot. Reading the
+//! Every test drives the helper with an explicit variable snapshot. Reading the
 //! ambient process environment would let a caller-set `CARGO_TARGET_DIR` (as CI
 //! coverage sets one) silently displace the fallback each test exists to check.
 
 use std::{
     env,
-    ffi::OsString,
+    ffi::{OsStr, OsString},
     fs,
     path::{Path, PathBuf},
 };
@@ -109,6 +109,27 @@ fn names_same_directory(left: &Path, right: &Path) -> bool {
 /// The directory the workspace fallback names.
 fn workspace_target() -> std::path::PathBuf { workspace_root().join("target") }
 
+/// The `CARGO_TARGET_DIR` applied to the command that starts `cargo-bdd`.
+///
+/// The command is built through [`nested_cargo::filtered_command`] exactly as
+/// [`run_fixture_with`] builds it, so what this reads is the value the CLI
+/// process would be started with rather than a re-derivation of it.
+///
+/// Returns
+///
+/// The applied value, or `None` when the command would carry no target
+/// directory at all.
+fn cli_target_dir(snapshot: Vec<(OsString, OsString)>) -> Result<Option<OsString>> {
+    let env = cli_child_environment(snapshot);
+    let program = locate_or_build_cargo_bdd_command()?;
+    let cmd =
+        nested_cargo::filtered_command(Path::new(program.get_program()), &env, &fixture_dir());
+    Ok(cmd
+        .get_envs()
+        .find(|(key, _)| *key == OsStr::new("CARGO_TARGET_DIR"))
+        .and_then(|(_, value)| value.map(OsStr::to_os_string)))
+}
+
 /// The ambient variable pairs a real CLI run starts from.
 ///
 /// `cli_child_environment` is applied to the process environment in production,
@@ -151,6 +172,40 @@ fn an_inherited_target_takes_precedence_over_the_workspace_fallback() -> Result<
          `{}`; cargo resolved `{}`",
         workspace_target().display(),
         resolved.display()
+    );
+    Ok(())
+}
+
+#[test]
+#[serial]
+fn an_inherited_target_reaches_the_cli_process_that_runs_the_nested_build() -> Result<()> {
+    // `cargo metadata` answers for the environment the *fixture build* would
+    // receive, but it never starts `cargo-bdd`: the CLI is a process of its
+    // own, and the test above would still pass if that process replaced an
+    // inherited `CARGO_TARGET_DIR` before spawning its nested `cargo`.
+    // Observing that replacement in the nested build's output would mean
+    // building into a directory other than the shared warm workspace
+    // `target/`, which costs a full cold rebuild of the fixture graph. The
+    // applied environment is the last link that can be checked cheaply, so it
+    // is the one this test pins.
+    let scratch = tempfile::tempdir()?;
+    let caller_target = scratch.path().join("caller-target");
+    fs::create_dir(&caller_target)?;
+
+    let mut snapshot = ambient_without_target_dir();
+    snapshot.push((
+        OsString::from("CARGO_TARGET_DIR"),
+        caller_target.as_os_str().to_os_string(),
+    ));
+
+    let applied = cli_target_dir(snapshot)?;
+
+    assert_eq!(
+        applied.as_deref(),
+        Some(caller_target.as_os_str()),
+        "the `cargo-bdd` process must be started with the caller's `CARGO_TARGET_DIR`, so its \
+         nested build inherits that directory rather than the workspace fallback `{}`",
+        workspace_target().display()
     );
     Ok(())
 }

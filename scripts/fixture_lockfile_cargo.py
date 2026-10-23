@@ -24,6 +24,23 @@ CARGO = "cargo"
 METADATA_FORMAT_VERSION = "1"
 
 
+def restore_lockfile(lockfile: Path, snapshot: bytes | None) -> None:
+    """Restore *lockfile* from *snapshot*, or remove it when there was none.
+
+    Parameters
+    ----------
+    lockfile : Path
+        The fixture lockfile the seed was copied over.
+    snapshot : bytes | None
+        The bytes read before the copy, or None when the fixture committed no
+        lockfile for the copy to have replaced.
+    """
+    if snapshot is None:
+        lockfile.unlink(missing_ok=True)
+    else:
+        lockfile.write_bytes(snapshot)
+
+
 def seed_and_resolve(
     root_lock: Path,
     manifest: Path,
@@ -37,6 +54,15 @@ def seed_and_resolve(
     the workspace's choice: a refresh of this repository moved several crates
     to newer patch releases and left all three fixtures outside the workspace
     graph. *resolve* is injected so the seeding can be tested without Cargo.
+
+    The seed is kept only when the resolution succeeds. A refresh that returns
+    non-zero, or that is interrupted while it runs, puts the fixture's own
+    lockfile back: the copy is a starting point rather than a resolution, so
+    leaving it in place would let the next locked validation compare the
+    fixture's manifest against the workspace's lockfile and pass over a fixture
+    that cannot be refreshed. The restoration therefore belongs to a
+    ``finally``, which also covers the ``KeyboardInterrupt`` a cancelled run
+    raises.
 
     Parameters
     ----------
@@ -59,8 +85,17 @@ def seed_and_resolve(
 
         seed_and_resolve(Path("Cargo.lock"), manifest, refresh_lockfile)
     """
-    shutil.copyfile(root_lock, manifest.parent / "Cargo.lock")
-    return resolve(manifest)
+    lockfile = manifest.parent / "Cargo.lock"
+    snapshot = lockfile.read_bytes() if lockfile.is_file() else None
+    shutil.copyfile(root_lock, lockfile)
+    resolved = False
+    try:
+        result = resolve(manifest)
+        resolved = result.returncode == 0
+        return result
+    finally:
+        if not resolved:
+            restore_lockfile(lockfile, snapshot)
 
 
 def cargo_metadata_command(manifest: Path) -> list[str]:

@@ -175,3 +175,111 @@ def test_seed_and_resolve_returns_the_resolver_result_unchanged(
     result = seed_and_resolve(root_lock, manifest, failing_resolver)
 
     assert result is failure, "the resolver's own result must come back unchanged"
+
+
+def test_seed_and_resolve_restores_a_failed_resolutions_lockfile(
+    tmp_path: Path,
+) -> None:
+    """A resolution that fails leaves the fixture's committed lockfile intact.
+
+    The seed is a starting point, not a resolution: if a failed refresh left
+    the workspace lockfile beside the fixture, the next locked validation would
+    compare the fixture's *manifest* against the *workspace's* resolution and
+    pass, so the gate would report a clean fixture whose lockfile no longer
+    describes it. Restoring the committed bytes is what keeps the refresh's
+    failure visible to the next check.
+    """
+    root_lock = tmp_path / "Cargo.lock"
+    root_lock.write_text("# workspace resolution\n", encoding="utf-8")
+    fixture = tmp_path / "fixtures" / "unrefreshable"
+    fixture.mkdir(parents=True)
+    manifest = fixture / "Cargo.toml"
+    manifest.write_text(
+        '[package]\nname = "unrefreshable"\n[workspace]\n', encoding="utf-8"
+    )
+    committed = "# the fixture's own resolution\n"
+    (fixture / "Cargo.lock").write_text(committed, encoding="utf-8")
+
+    def failing_resolver(_manifest: Path) -> subprocess.CompletedProcess[str]:
+        """Return a failed resolution for whichever manifest it is handed."""
+        return subprocess.CompletedProcess(
+            args=cargo_resolve_command(manifest),
+            returncode=101,
+            stdout="partial resolution output",
+            stderr="error: failed to resolve",
+        )
+
+    seed_and_resolve(root_lock, manifest, failing_resolver)
+
+    assert (fixture / "Cargo.lock").read_text(encoding="utf-8") == committed, (
+        "a failed resolution must leave the committed lockfile as it was found"
+    )
+
+
+def test_seed_and_resolve_restores_the_lockfile_when_the_resolver_raises(
+    tmp_path: Path,
+) -> None:
+    """An interrupted refresh restores the lockfile and re-raises the interrupt.
+
+    A refresh is long enough for a cancellation to land inside it, and
+    ``KeyboardInterrupt`` is what a cancelled run raises. The restoration must
+    therefore sit in a ``finally`` rather than on the failure result alone:
+    without it, an abandoned refresh would strand the workspace lockfile beside
+    the fixture, which is the state the next check reads as healthy.
+    """
+    root_lock = tmp_path / "Cargo.lock"
+    root_lock.write_text("# workspace resolution\n", encoding="utf-8")
+    fixture = tmp_path / "fixtures" / "cancelled"
+    fixture.mkdir(parents=True)
+    manifest = fixture / "Cargo.toml"
+    manifest.write_text(
+        '[package]\nname = "cancelled"\n[workspace]\n', encoding="utf-8"
+    )
+    committed = "# the fixture's own resolution\n"
+    (fixture / "Cargo.lock").write_text(committed, encoding="utf-8")
+
+    def interrupted_resolver(_manifest: Path) -> subprocess.CompletedProcess[str]:
+        """Interrupt the refresh part-way through, as a cancelled run does."""
+        raise KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt):
+        seed_and_resolve(root_lock, manifest, interrupted_resolver)
+
+    assert (fixture / "Cargo.lock").read_text(encoding="utf-8") == committed, (
+        "an interrupted refresh must leave the committed lockfile as it was found"
+    )
+
+
+def test_seed_and_resolve_removes_a_seed_the_fixture_never_committed(
+    tmp_path: Path,
+) -> None:
+    """A fixture with no committed lockfile is left with none after a failure.
+
+    Removing the seeded file rather than emptying it matters because Cargo
+    treats an absent lockfile and a truncated one differently: a truncated one
+    parses as a lockfile with no packages, which is a resolution the fixture
+    never committed.
+    """
+    root_lock = tmp_path / "Cargo.lock"
+    root_lock.write_text("# workspace resolution\n", encoding="utf-8")
+    fixture = tmp_path / "fixtures" / "uncommitted"
+    fixture.mkdir(parents=True)
+    manifest = fixture / "Cargo.toml"
+    manifest.write_text(
+        '[package]\nname = "uncommitted"\n[workspace]\n', encoding="utf-8"
+    )
+
+    def failing_resolver(_manifest: Path) -> subprocess.CompletedProcess[str]:
+        """Return a failed resolution for whichever manifest it is handed."""
+        return subprocess.CompletedProcess(
+            args=cargo_resolve_command(manifest),
+            returncode=101,
+            stdout="",
+            stderr="error: failed to resolve",
+        )
+
+    seed_and_resolve(root_lock, manifest, failing_resolver)
+
+    assert not (fixture / "Cargo.lock").exists(), (
+        "a fixture that committed no lockfile must not be given one by a failed refresh"
+    )

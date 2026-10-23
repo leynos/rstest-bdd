@@ -3,7 +3,11 @@
 The gate's value is entirely in how it fails: a check that cannot report drift,
 or that reports a fixture's own crate as drift, would either pass over the
 regression it exists to catch or cry wolf on every run. These tests pin the
-comparison, the exemption rules, and the reports.
+comparison, the exemption rules, the reports, and the gate that emits them.
+
+The reports are read from two sides: the renderers are called directly, because
+the wording is a pure function of the divergent pairs, and the gate is exercised
+through its own stream, because emitting them is the part with side effects.
 """
 
 import re
@@ -11,12 +15,13 @@ import tomllib
 import typing as typ
 from pathlib import Path
 
+import fixture_lockfile_alignment
+import fixture_lockfile_reporting
 import pytest
 from fixture_lockfile_alignment import (
     EXEMPT_FIXTURES,
     alignment_divergences,
     alignment_failure,
-    alignment_failures,
     check_alignment,
     divergent_packages,
     format_package,
@@ -68,6 +73,23 @@ def test_divergent_packages_reports_only_the_difference() -> None:
     ], "a shared package must not be drift, and the report must be sorted"
 
 
+def test_the_alignment_module_re_exports_the_renderers_it_once_defined() -> None:
+    """The comparison module still names the renderers its callers import.
+
+    The renderers moved to the reporting module, where the rest of the gate's
+    wording lives, but ``fixture_lockfile_alignment`` is the surface its callers
+    know: the comparison and the report were one import to them. Re-exporting
+    keeps that surface unchanged, and this pin makes a later removal a failing
+    test rather than a broken import in someone else's branch.
+    """
+    assert fixture_lockfile_alignment.alignment_failure is (
+        fixture_lockfile_reporting.alignment_failure
+    ), "the comparison module must re-export the report renderer it once defined"
+    assert fixture_lockfile_alignment.format_package is (
+        fixture_lockfile_reporting.format_package
+    ), "the comparison module must re-export the package renderer it once defined"
+
+
 def test_format_package_omits_absent_source() -> None:
     """A path package renders without an empty source suffix."""
     assert format_package(("fixture", "0.1.0", None)) == "fixture 0.1.0", (
@@ -101,10 +123,15 @@ def test_exempt_fixtures_are_the_documented_directories(relative: str) -> None:
     ), "an exemption must not cover an unrelated manifest"
 
 
-def test_alignment_failures_report_a_fixture_resolving_away_from_the_workspace(
+def test_alignment_divergences_pair_a_drifted_fixture_with_its_own_packages(
     tmp_path: Path, write_manifest: cabc.Callable[[Path, str], Path]
 ) -> None:
-    """A fixture pinned to a workspace-absent version is reported."""
+    """A fixture pinned to a workspace-absent version is reported as diverging.
+
+    The comparison answers with structure, so the assertions are made on that
+    structure: which fixture diverged, and that the fixture's own crate — the
+    one legitimate addition to a fixture's graph — is not counted as drift.
+    """
     manifest = write_manifest(tmp_path, "drifted")
     _write_lockfile(
         manifest.parent / "Cargo.lock",
@@ -115,12 +142,35 @@ def test_alignment_failures_report_a_fixture_resolving_away_from_the_workspace(
         [("dashmap", "6.1.0", CRATES_IO), ("serde", "1.0.228", CRATES_IO)],
     )
 
-    failures = alignment_failures(tmp_path)
+    assert alignment_divergences(tmp_path) == [
+        (manifest, [("dashmap", "5.5.3", CRATES_IO)])
+    ], "a fixture's own crate must not be reported as drift"
 
-    assert len(failures) == 1, "only the drifted fixture must be reported"
-    assert "drifted/Cargo.toml" in failures[0], "the report must name the fixture"
-    assert "dashmap 5.5.3" in failures[0], "the report must name the drifted package"
-    assert "drifted-fixture" not in failures[0], (
+
+def test_the_report_names_the_fixture_and_every_divergent_package(
+    tmp_path: Path, write_manifest: cabc.Callable[[Path, str], Path]
+) -> None:
+    """The rendered report names the fixture to fix and each package to align.
+
+    A report that omitted either would send its reader back to the lockfiles to
+    find out what drifted: the fixture path is what a reader acts on, and the
+    package list is what they change.
+    """
+    manifest = write_manifest(tmp_path, "drifted")
+    _write_lockfile(
+        manifest.parent / "Cargo.lock",
+        [("drifted-fixture", "0.1.0", None), ("dashmap", "5.5.3", CRATES_IO)],
+    )
+    _write_lockfile(
+        tmp_path / "Cargo.lock",
+        [("dashmap", "6.1.0", CRATES_IO), ("serde", "1.0.228", CRATES_IO)],
+    )
+
+    report = alignment_failure(*alignment_divergences(tmp_path)[0])
+
+    assert "drifted/Cargo.toml" in report, "the report must name the fixture"
+    assert "dashmap 5.5.3" in report, "the report must name the drifted package"
+    assert "drifted-fixture" not in report, (
         "a fixture's own crate must not be reported as drift"
     )
 
@@ -136,7 +186,7 @@ def test_alignment_passes_when_only_the_own_crate_is_new(
     )
     _write_lockfile(tmp_path / "Cargo.lock", [("serde", "1.0.228", CRATES_IO)])
 
-    assert not alignment_failures(tmp_path), (
+    assert not alignment_divergences(tmp_path), (
         "a fixture adding only its own crate must be aligned"
     )
 

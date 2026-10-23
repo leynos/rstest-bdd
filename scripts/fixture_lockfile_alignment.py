@@ -28,6 +28,12 @@ Usage: ``python3 scripts/fixture_lockfile_alignment.py``.
 
 Exit codes: 0 when every discovered fixture is a subset of the workspace graph;
 1 when one is not, or when a lockfile cannot be read.
+
+The comparison is a query and the reports are presentation, so
+:func:`alignment_divergences` answers with ``(manifest, packages)`` pairs and
+writes nothing, :func:`~fixture_lockfile_reporting.alignment_failure` renders
+one pair, and :func:`check_alignment` owns the stream output. A caller that
+wants the structure never has to capture a stream to get it.
 """
 
 import sys
@@ -41,7 +47,19 @@ from fixture_lockfile_packages import (
     own_package,
     read_lockfile_packages,
 )
-from fixture_lockfile_reporting import FixtureLockfileError
+
+# The report wording lives with the rest of the gate's wording, in the
+# reporting module. ``alignment_failure`` is imported to render the pairs
+# :func:`alignment_divergences` answers with, and both it and ``format_package``
+# stay in this module's ``__all__`` so a caller that already imports them from
+# here keeps working. ``print_failures`` is the shared printer
+# :func:`check_alignment` emits through.
+from fixture_lockfile_reporting import (
+    FixtureLockfileError,
+    alignment_failure,
+    format_package,
+    print_failures,
+)
 
 #: Fixtures excluded from the alignment requirement, by root-relative directory.
 #:
@@ -73,8 +91,9 @@ EXEMPT_FIXTURES = frozenset({
 #: that lockfile instead.
 SEED_EXCLUDED_FIXTURES = frozenset({"tests/fixtures/published-gpui-0-2-2"})
 
-# Re-exported: the alignment comparison and its reading are one concept to a
-# caller, so a comparison consumer needs one import rather than two.
+# Re-exported: the alignment comparison, its reading, and the report of its
+# result are one concept to a caller, so a comparison consumer needs one import
+# rather than three.
 __all__ = [
     "EXEMPT_FIXTURES",
     "SEED_EXCLUDED_FIXTURES",
@@ -82,7 +101,6 @@ __all__ = [
     "PackageKey",
     "alignment_divergences",
     "alignment_failure",
-    "alignment_failures",
     "check_alignment",
     "divergent_packages",
     "format_package",
@@ -119,57 +137,6 @@ def divergent_packages(
     [('a', '2.0.0', None)]
     """
     return sorted(fixture - workspace)
-
-
-def format_package(key: PackageKey) -> str:
-    """Return a package identity as one readable line.
-
-    Parameters
-    ----------
-    key : PackageKey
-        The package to render.
-
-    Returns
-    -------
-    str
-        ``name version`` followed by the source when the package has one.
-
-    Examples
-    --------
-    >>> format_package(("serde", "1.0.228", None))
-    'serde 1.0.228'
-    >>> format_package(("serde", "1.0.228", "registry+https://example.invalid"))
-    'serde 1.0.228 (registry+https://example.invalid)'
-    """
-    name, version, source = key
-    return f"{name} {version}" if source is None else f"{name} {version} ({source})"
-
-
-def alignment_failure(manifest: Path, packages: list[PackageKey]) -> str:
-    """Render the report for a fixture that resolves outside the workspace.
-
-    Parameters
-    ----------
-    manifest : Path
-        The fixture manifest, named so the report points at the fixture to fix.
-    packages : list[PackageKey]
-        The divergent packages, already sorted.
-
-    Returns
-    -------
-    str
-        A multi-line report naming every divergent package.
-    """
-    listed = "\n".join(f"  {format_package(key)}" for key in packages)
-    count = len(packages)
-    return (
-        f"fixture {manifest.as_posix()} resolves {count} package(s) the "
-        f"workspace does not:\n{listed}\n"
-        f"each one is a compiled unit the nested build cannot reuse from the "
-        f"workspace build; align the fixture's requirements with the workspace "
-        f"(or seed its lockfile from the root Cargo.lock) and run "
-        f"'make update-fixture-lockfiles'"
-    )
 
 
 def _relative_fixture_dir(manifest: Path, root: Path) -> str | None:
@@ -233,7 +200,8 @@ def alignment_divergences(root: Path) -> list[tuple[Path, list[PackageKey]]]:
 
     The comparison is a query: it reads both lockfiles and reports what
     differs, leaving the rendering of that result to
-    :func:`alignment_failure` at the presentation boundary.
+    :func:`~fixture_lockfile_reporting.alignment_failure` at the presentation
+    boundary.
 
     Parameters
     ----------
@@ -262,27 +230,12 @@ def alignment_divergences(root: Path) -> list[tuple[Path, list[PackageKey]]]:
     return divergences
 
 
-def alignment_failures(root: Path) -> list[str]:
-    """Return one failure report per fixture that resolves outside the workspace.
-
-    Parameters
-    ----------
-    root : Path
-        The repository root.
-
-    Returns
-    -------
-    list[str]
-        The failure reports, empty when every fixture is aligned.
-    """
-    return list(starmap(alignment_failure, alignment_divergences(root)))
-
-
 def check_alignment(root: Path) -> int:
     """Report every fixture that resolves outside the workspace graph.
 
-    Prints each failure to standard error, so the calling gate's own summary
-    stays the last line of its output.
+    Composes the comparison with the report renderer, printing each failure to
+    standard error through the gate's shared failure printer, so the calling
+    gate's own summary stays the last line of its output.
 
     Parameters
     ----------
@@ -294,9 +247,9 @@ def check_alignment(root: Path) -> int:
     int
         ``0`` when every fixture is aligned, otherwise ``1``.
     """
-    failures = alignment_failures(root)
-    for failure in failures:
-        print(failure, file=sys.stderr)
+    failures = list(starmap(alignment_failure, alignment_divergences(root)))
+    if failures:
+        print_failures(failures)
     return 1 if failures else 0
 
 

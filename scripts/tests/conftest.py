@@ -1,4 +1,28 @@
-"""Shared script-test configuration and fixtures."""
+"""Shared pytest configuration and fixtures for the script tests.
+
+Two things are shared here because every test beside this module needs them and
+none of them owns them: the ``sys.path`` entry that lets a test import the gate
+scripts directly, and the manifest writer below.
+
+pytest imports this module automatically for the tests in its directory, so a
+test obtains a fixture by naming it as a parameter. Nothing imports from here,
+and no test defines these itself.
+
+``write_manifest`` is the shared writer for a discovered fixture's manifest: a
+test declares it in its signature and calls it with the temporary root and the
+fixture's package name, as in::
+
+    def test_drift(
+        tmp_path: Path, write_manifest: cabc.Callable[[Path, str], Path]
+    ) -> None:
+        manifest = write_manifest(tmp_path, "drifted")
+
+Routing the manifest shape through one writer is what keeps discovery's
+contract in a single definition. The shape a fixture must have to be discovered
+- its own ``[workspace]`` opt-out stanza and a local ``path`` dependency - is
+written in exactly one place, so a test cannot drift into a shape discovery
+would reject.
+"""
 
 import sys
 import typing as typ

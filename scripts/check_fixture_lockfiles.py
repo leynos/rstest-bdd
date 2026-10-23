@@ -81,7 +81,8 @@ def collect_fixture_results(
     root: Path,
     manifests: list[Path],
     operation: cabc.Callable[[Path], subprocess.CompletedProcess[str]],
-    prepare: cabc.Callable[[Path, Path], object] | None = None,
+    prepare: cabc.Callable[[Path, Path], subprocess.CompletedProcess[str] | None]
+    | None = None,
 ) -> list[tuple[Path, subprocess.CompletedProcess[str]]]:
     """Return the failing results of *operation* over *manifests*.
 
@@ -89,6 +90,29 @@ def collect_fixture_results(
     first), then run through *operation*: locked ``cargo metadata`` for the
     check and refresh modes, locked ``cargo fetch`` for the prefetch mode. The
     loop never stops at the first failure so one gate run reports every fixture.
+
+    A preparation's own result is inspected rather than discarded. The
+    preparation restores the fixture's committed lockfile when it fails, so
+    ``operation`` would then validate a lockfile the fixture still resolves:
+    its pass would be a pass over the artefact, not over the refresh that was
+    asked for, and the failure that caused the restoration would go unreported.
+    A failed preparation is therefore that fixture's failure, and the fixture
+    is not validated at all; ``None`` means no preparation was performed.
+
+    Parameters
+    ----------
+    root : Path
+        The repository root, passed to *prepare*.
+    manifests : list[Path]
+        The fixtures to visit.
+    operation : cabc.Callable[[Path], subprocess.CompletedProcess[str]]
+        The gate operation to run over each prepared manifest.
+    prepare : cabc.Callable[
+            [Path, Path], subprocess.CompletedProcess[str] | None
+        ]
+        | None
+        Optional per-manifest step returning its result, or None for a mode
+        that prepares nothing.
 
     Returns
     -------
@@ -98,11 +122,67 @@ def collect_fixture_results(
     failures: list[tuple[Path, subprocess.CompletedProcess[str]]] = []
     for manifest in manifests:
         if prepare is not None:
-            prepare(root, manifest)
+            prepared = prepare(root, manifest)
+            if prepared is not None and prepared.returncode != 0:
+                failures.append((manifest, prepared))
+                continue
         result = operation(manifest)
         if result.returncode != 0:
             failures.append((manifest, result))
     return failures
+
+
+def _is_string_argv(argv: object) -> bool:
+    """Return whether *argv* is a non-empty command whose parts are all strings.
+
+    A ``CompletedProcess`` carries whatever ``args`` it was built with, so the
+    report can only quote an argv that really is a command: an empty list, a
+    string, or a list holding a non-string part names no invocation to rerun,
+    and the report falls back to the mode's own command instead.
+
+    Returns
+    -------
+    bool
+        True when *argv* is a usable command line.
+    """
+    return (
+        isinstance(argv, list)
+        and bool(argv)
+        and all(isinstance(item, str) for item in argv)
+    )
+
+
+def _failing_command(
+    mode: GateMode,
+    manifest: Path,
+    result: subprocess.CompletedProcess[str],
+) -> list[str]:
+    """Return the Cargo argv that produced *result*, for the failure report.
+
+    The argv *result* carries is preferred over the mode's validating command,
+    because a failed preparation's argv is the resolving invocation: quoting
+    the validating argv instead would send the reader to a command that
+    succeeds and hide the failed one. A result that carries no argv of its own
+    falls back to the command the mode would have run.
+
+    Parameters
+    ----------
+    mode : GateMode
+        The mode whose command is the fallback.
+    manifest : Path
+        The fixture whose operation failed.
+    result : subprocess.CompletedProcess[str]
+        The failing invocation.
+
+    Returns
+    -------
+    list[str]
+        The argv to quote in the failure report.
+    """
+    argv = result.args
+    if _is_string_argv(argv):
+        return argv
+    return mode.command(manifest)
 
 
 def _report_fixture_operation(
@@ -131,7 +211,7 @@ def _report_fixture_operation(
     failures = [
         mode.failure_message(
             manifest.relative_to(root),
-            mode.command(manifest),
+            _failing_command(mode, manifest, result),
             result.stdout,
             result.stderr,
         )

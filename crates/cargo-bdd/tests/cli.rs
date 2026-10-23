@@ -1,4 +1,36 @@
-//! Basic smoke tests for the cargo-bdd subcommand.
+//! Smoke tests for the `cargo-bdd` subcommand, driven as a real subprocess.
+//!
+//! Each test that runs the binary locates or builds it with
+//! `locate_or_build_binary`, wraps the result in an `assert_cmd::Command` and
+//! drives it against the fixture crate in `tests/fixtures/minimal`, asserting
+//! on the captured stdout, stderr and exit status. The suite covers `steps`
+//! with and without `--skipped`, and `skipped` with `--reasons` and with
+//! `--json`, including the skipped-scenario and forced-failure reporting
+//! paths, the handling of test binaries that cannot dump steps, and the
+//! rejection of `steps --json` without `--skipped`.
+//!
+//! Every child is spawned through `nested_cargo::filtered_command` with the
+//! map the private `cli_child_environment` helper builds. That helper
+//! supplies the workspace `target/` as the fallback and preserves a
+//! caller-provided `CARGO_TARGET_DIR` (the coverage target directory when
+//! `cargo llvm-cov` is running), so the nested builds reuse the workspace's
+//! compiled units instead of rebuilding the fixture's own graph. The child
+//! keeps its inherited `LLVM_PROFILE_FILE`, because `cargo-bdd` is the
+//! process under test: redirecting that profile would report the lines it
+//! exercised as never executed.
+//!
+//! The nested-build target policy has behavioural coverage of its own in the
+//! `nested_target` submodule, attached with `#[path = "nested_target/mod.rs"]`
+//! so Cargo does not also compile it as a second test target.
+//!
+//! The tests that drive the binary each spawn a nested Cargo build against
+//! the shared workspace `target/`, so they carry `#[serial]`: under
+//! `cargo test` the annotation holds them one at a time in the shared test
+//! process, and `.config/nextest.toml` puts the binary in a `cargo-spawning`
+//! group with `max-threads = 1` under nextest. Either way they do not contend
+//! for the same target directory and the package-cache lock. The environment
+//! map's precedence is asserted separately by
+//! `cli_child_environment_reuses_target`.
 
 use std::{env, ffi::OsString, path::PathBuf, process::ExitStatus, str};
 
