@@ -30,18 +30,25 @@ and Windows `use-nextest: false` deadlock mitigation stay unchanged.
 
 A pull request from a fork cannot obtain an Ubicloud runner, so a fixed
 `ubicloud-standard-2` label would leave such a pull request with no Linux lane
-at all. The Linux matrix leg resolves its label from the head repository
-instead:
+at all. A pull request Dependabot opened takes the hosted arm too: hosted
+minutes cost nothing on a public repository, and Dependabot opens many pull
+requests, which therefore build cold. The guard tests the pull request's
+author, not `github.actor`, because the actor is whoever triggered the run, so
+a person pushing to a Dependabot branch would flip the runner. The Linux matrix
+leg resolves its label from the head repository and the author instead:
 
 ```yaml
 - os: >-
-    ${{ github.event.pull_request.head.repo.fork
+    ${{ (github.event.pull_request.head.repo.fork
+    || github.event.pull_request.user.login == 'dependabot[bot]')
     && 'ubuntu-latest' || 'ubicloud-standard-2' }}
 ```
 
-Every other event, `push` to `main` included, leaves the fork field null and
-reaches Ubicloud exactly as before. Three rules follow from the label being an
-expression, and a green run demonstrates none of them:
+Every other event reaches Ubicloud exactly as before. A `push` to `main` or a
+dispatch leaves both properties as empty strings (falsy). A pull request from
+this repository by a person sets the fork property to `false` and the author
+login to that person, which is not `dependabot[bot]`. Three rules follow from
+the label being an expression, and a green run demonstrates none of them:
 
 - Keep the continuation at the same indent as the first line. A continuation
   indented one level deeper keeps its line break, so the folded scalar parses

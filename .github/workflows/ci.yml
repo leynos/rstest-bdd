@@ -71,9 +71,13 @@ jobs:
           # so the Linux lane falls back to GitHub-hosted compute for
           # forks only. Keep the continuation at this indent: a deeper
           # one keeps its line break and puts a newline inside the
-          # expression, which GitHub then evaluates anyway.
+          # expression, which GitHub then evaluates anyway. A Dependabot pull
+          # request takes the hosted arm too (hosted minutes are free on a
+          # public repository); the author is tested, not the actor, which
+          # changes when someone else pushes to the branch.
           - os: >-
-              ${{ github.event.pull_request.head.repo.fork
+              ${{ (github.event.pull_request.head.repo.fork
+              || github.event.pull_request.user.login == 'dependabot[bot]')
               && 'ubuntu-latest' || 'ubicloud-standard-2' }}
             platform: linux
             feature-set: 'default features'
