@@ -15,10 +15,8 @@ use syn::{Data, DataStruct, DeriveInput, Generics, Type, parse_macro_input, span
 
 use crate::{
     codegen::rstest_bdd_path,
-    datatable::{
-        config::{Accessor, FieldConfig, FieldSpec},
-        validation::is_string_type,
-    },
+    datatable::config::{Accessor, FieldConfig, FieldSpec},
+    named_fields::requires_fromstr,
 };
 
 /// Provides the internal `expand` operation.
@@ -113,5 +111,5 @@ fn augment_generics(generics: &Generics, fields: &[FieldSpec]) -> Generics {
 
 /// Provides the internal `needs_from_str_bound` operation.
 fn needs_from_str_bound(config: &FieldConfig, inner_ty: &Type) -> bool {
-    config.parse_with.is_none() && !config.truthy && !is_string_type(inner_ty)
+    requires_fromstr(&config.conversion, inner_ty)
 }

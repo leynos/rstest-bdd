@@ -1,7 +1,7 @@
 //! Command dispatch and formatting for the `cargo bdd` entrypoint.
 
 use std::{
-    collections::HashMap,
+    collections::BTreeMap,
     io::{self, Write},
 };
 
@@ -75,6 +75,8 @@ struct SkipReport<'a> {
     line: u32,
     /// Tags attached to the scenario.
     tags: &'a [String],
+    /// Closed library identities selected by the scenario.
+    libraries: &'a [String],
     #[serde(skip_serializing_if = "Option::is_none")]
     /// Optional reason recorded for the skip.
     reason: Option<&'a str>,
@@ -86,6 +88,8 @@ struct SkipReport<'a> {
 #[derive(Serialize)]
 /// JSON representation of a bypassed step definition.
 struct SkippedDefinition<'a> {
+    /// Stable library identity that owns the step.
+    library: &'a str,
     /// Gherkin keyword for the step.
     keyword: &'a str,
     /// Registered step pattern.
@@ -103,6 +107,7 @@ impl<'a> From<&'a Scenario> for SkipReport<'a> {
             scenario: &scenario.name,
             line: scenario.line,
             tags: &scenario.tags,
+            libraries: &scenario.libraries,
             reason: scenario.message.as_deref(),
             step: None,
         }
@@ -116,8 +121,10 @@ impl<'a> From<&'a BypassedStep> for SkipReport<'a> {
             scenario: &step.scenario_name,
             line: step.scenario_line,
             tags: &step.tags,
+            libraries: &step.libraries,
             reason: step.reason.as_deref(),
             step: Some(SkippedDefinition {
+                library: &step.library,
                 keyword: &step.keyword,
                 pattern: &step.pattern,
                 file: &step.file,
@@ -157,15 +164,9 @@ fn handle_unused() -> Result<()> { write_filtered_steps(|step| !step.used, None)
 
 /// Handle the `steps --duplicates` diagnostic.
 fn handle_duplicates() -> Result<()> {
-    let mut groups: HashMap<(String, String), Vec<Step>> = HashMap::new();
-    for step in collect_registry()?.steps {
-        groups
-            .entry((step.keyword.clone(), step.pattern.clone()))
-            .or_default()
-            .push(step);
-    }
+    let groups = group_duplicate_steps(collect_registry()?.steps);
     let mut stdout = io::stdout();
-    for group in groups.into_values().filter(|g| g.len() > 1) {
+    for group in groups {
         for step in &group {
             write_step(&mut stdout, step)?;
         }
@@ -174,6 +175,25 @@ fn handle_duplicates() -> Result<()> {
     stdout
         .flush()
         .wrap_err("failed to flush duplicate listing to stdout")
+}
+
+/// Group steps by the library-local identity used for duplicate diagnostics.
+fn group_duplicate_steps(steps: impl IntoIterator<Item = Step>) -> Vec<Vec<Step>> {
+    let mut groups: BTreeMap<(String, String, String), Vec<Step>> = BTreeMap::new();
+    for step in steps {
+        groups
+            .entry((
+                step.library.clone(),
+                step.keyword.clone(),
+                step.pattern.clone(),
+            ))
+            .or_default()
+            .push(step);
+    }
+    groups
+        .into_values()
+        .filter(|group| group.len() > 1)
+        .collect()
 }
 
 /// Handle the `steps --skipped` diagnostic.
@@ -257,60 +277,4 @@ fn write_skip_reports_json(reports: &[SkipReport<'_>]) -> Result<()> {
 }
 
 #[cfg(test)]
-mod tests {
-    //! Unit tests for command-line argument parsing.
-
-    use super::*;
-
-    #[test]
-    fn write_skip_reports_json_emits_fields() {
-        let report = SkipReport {
-            feature: "feature",
-            scenario: "scenario",
-            line: 3,
-            tags: &[String::from("@a")],
-            reason: Some("why"),
-            step: Some(SkippedDefinition {
-                keyword: "Given",
-                pattern: "x",
-                file: "file",
-                line: 7,
-            }),
-        };
-        let mut buffer = Vec::new();
-        serde_json::to_writer(&mut buffer, &[report]).expect("test setup should succeed");
-        let parsed: serde_json::Value =
-            serde_json::from_slice(&buffer).expect("test setup should succeed");
-        let entry = parsed
-            .as_array()
-            .and_then(|array| array.first())
-            .ok_or_else(|| eyre::eyre!("missing entry"))
-            .expect("test setup should succeed");
-        assert_eq!(
-            entry.get("feature"),
-            Some(&serde_json::Value::String("feature".into()))
-        );
-        assert_eq!(
-            entry.get("scenario"),
-            Some(&serde_json::Value::String("scenario".into()))
-        );
-        assert_eq!(entry.get("line"), Some(&serde_json::Value::from(3_u64)));
-        assert_eq!(
-            entry.get("reason"),
-            Some(&serde_json::Value::String("why".into()))
-        );
-        let step = entry
-            .get("step")
-            .and_then(serde_json::Value::as_object)
-            .ok_or_else(|| eyre::eyre!("missing step object"))
-            .expect("test setup should succeed");
-        assert_eq!(
-            step.get("keyword"),
-            Some(&serde_json::Value::String("Given".into()))
-        );
-        assert_eq!(
-            step.get("pattern"),
-            Some(&serde_json::Value::String("x".into()))
-        );
-    }
-}
+mod tests;

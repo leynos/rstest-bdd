@@ -139,13 +139,13 @@ fn is_unused(pattern: &str) -> bool {
 /// Invoke one lookup variant, returning whether it resolved a step.
 fn run_variant(variant: usize, keyword: StepKeyword, text: &str) -> bool {
     match variant {
-        0 => lookup_step(keyword, text.into()).is_some(),
-        1 => find_step(keyword, text.into()).is_some(),
-        2 => lookup_step_async(keyword, text.into()).is_some(),
-        3 => find_step_async(keyword, text.into()).is_some(),
-        4 => lookup_step_async_with_mode(keyword, text.into()).is_some(),
-        5 => find_step_async_with_mode(keyword, text.into()).is_some(),
-        _ => find_step_with_metadata(keyword, text.into()).is_some(),
+        0 => lookup_step(keyword, text.into()).is_ok_and(|step| step.is_some()),
+        1 => find_step(keyword, text.into()).is_ok_and(|step| step.is_some()),
+        2 => lookup_step_async(keyword, text.into()).is_ok_and(|step| step.is_some()),
+        3 => find_step_async(keyword, text.into()).is_ok_and(|step| step.is_some()),
+        4 => lookup_step_async_with_mode(keyword, text.into()).is_ok_and(|step| step.is_some()),
+        5 => find_step_async_with_mode(keyword, text.into()).is_ok_and(|step| step.is_some()),
+        _ => find_step_with_metadata(keyword, text.into()).is_ok_and(|step| step.is_some()),
     }
 }
 

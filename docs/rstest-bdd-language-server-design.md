@@ -333,16 +333,39 @@ step-struct parameters.
 
 `StepDefinitionCollector` is private to one `index_rust_source` traversal. It
 owns the current inline-module path and the accumulated definitions and
-diagnostics while borrowing that source text. The entry point creates it once,
-then consumes its output to construct `RustStepIndexResult`; handlers, caches,
-and other indexers must not reuse it outside that source-file boundary.
+diagnostics while borrowing that source text. `indexing/rust/entry.rs` owns the
+public entry points and consumes the collector output as part of an internal
+`RustSourceIndexResult`; the public functions project its `RustStepIndexResult`
+step data. Handlers, caches, and other indexers must not reuse the collector
+outside that source-file boundary.
+
+The sibling `indexing/rust/scenario_bindings.rs` module owns indexing of the
+feature path and closed `libraries` selection from `#[scenario]` and
+`scenarios!`. It resolves library paths lexically from the enclosing inline
+module, including `crate::`, `self::`, and `super::` paths. Malformed bindings
+or bindings without a feature target are ignored with structured warnings that
+include the operation, source location, failure category, and fallback state.
+`ScenarioScopeRegistry` owns valid records after indexing and resolves their
+relative targets against ancestors of the Rust source file. It normalizes
+library-list order only to recognize equivalent scopes; if bindings for one
+feature select distinct closed scopes, it returns `ScenarioScopeConflict`
+instead of merging them. Handlers then use no candidates and emit the
+structured conflict warning. Feature navigation and diagnostics must obtain
+candidate definitions through `ServerState::steps_for_feature_keyword`; they
+must not call the unscoped keyword registry directly. Rust-to-feature lookups
+use `ServerState::feature_selects_library` for the inverse check. This boundary
+keeps syntax parsing in the Rust indexer, path resolution in server state, and
+pattern matching in handlers without exposing a second public registry API.
 
 Figure: Class diagram of the Rust step indexing data structures and how they
 are cached in the language server state.
 
-Screen-reader description: `RustStepIndexResult` owns one `RustStepFileIndex`
-and zero or more `RustStepIndexDiagnostic` values, while `ServerState` retains
-only file indexes.
+Screen-reader description: `RustSourceIndexResult` contains the public
+`RustStepIndexResult` projection and `IndexedScenarioBinding` records.
+`RustStepIndexResult` owns one `RustStepFileIndex` and zero or more
+`RustStepIndexDiagnostic` values. Each `IndexedStepDefinition` carries its
+library identity, while `ScenarioScopeRegistry` retains the closed bindings
+used by `ServerState` for feature lookups.
 
 ```mermaid
 classDiagram
@@ -352,6 +375,7 @@ classDiagram
     }
 
     class IndexedStepDefinition {
+        +String library
         +StepType keyword
         +String pattern
         +bool pattern_inferred
@@ -392,9 +416,31 @@ classDiagram
         +Vec~RustStepIndexDiagnostic~ diagnostics
     }
 
+    class RustSourceIndexResult {
+        +RustStepIndexResult steps
+        +Vec~IndexedScenarioBinding~ scenario_bindings
+    }
+
+    class IndexedScenarioBinding {
+        +ScenarioBindingTarget target
+        +Vec~String~ libraries
+    }
+
+    class ScenarioBindingTarget {
+        <<enum>>
+        +Feature(PathBuf)
+        +Directory(PathBuf)
+    }
+
+    class ScenarioScopeRegistry {
+        -bindings grouped by Rust source file
+        +libraries_for_feature(path Path) Result
+    }
+
     class ServerState {
         -HashMap~PathBuf,FeatureFileIndex~ feature_indices
         -HashMap~PathBuf,RustStepFileIndex~ rust_step_indices
+        -ScenarioScopeRegistry scenario_scopes
         +upsert_rust_step_index(index RustStepFileIndex) void
         +rust_step_index(path Path) Option~&RustStepFileIndex~
         +feature_index(path Path) Option~&FeatureFileIndex~
@@ -403,6 +449,8 @@ classDiagram
     class RustIndexingModule {
         +index_rust_file(path Path) Result~RustStepIndexResult,RustStepIndexError~
         +index_rust_source(path PathBuf, source &str) Result~RustStepIndexResult,RustStepIndexError~
+        +index_rust_file_with_bindings(path Path) Result~RustSourceIndexResult,RustStepIndexError~
+        +index_rust_source_with_bindings(path PathBuf, source &str) Result~RustSourceIndexResult,RustStepIndexError~
     }
 
     RustStepFileIndex "1" o-- "*" IndexedStepDefinition : contains
@@ -410,25 +458,34 @@ classDiagram
     IndexedStepDefinition "1" o-- "*" IndexedStepParameter : parameters
     RustStepIndexResult "1" *-- "1" RustStepFileIndex : owns
     RustStepIndexResult "1" *-- "*" RustStepIndexDiagnostic : owns
+    RustSourceIndexResult "1" *-- "1" RustStepIndexResult : projects
+    RustSourceIndexResult "1" *-- "*" IndexedScenarioBinding : owns
+    IndexedScenarioBinding "1" o-- "1" ScenarioBindingTarget : selects
     ServerState "1" o-- "*" RustStepFileIndex : rust_step_indices
     ServerState "1" o-- "*" FeatureFileIndex : feature_indices
+    ServerState "1" o-- "1" ScenarioScopeRegistry : scenario_scopes
     RustIndexingModule ..> RustStepIndexResult : creates
+    RustIndexingModule ..> RustSourceIndexResult : creates internally
     RustIndexingModule ..> RustStepIndexError : returns
     RustIndexingModule ..> RustStepIndexDiagnostic : reports
     RustIndexingModule ..> IndexedStepDefinition : builds
     RustIndexingModule ..> IndexedStepParameter : builds
 ```
 
-**Rust indexing result contract:** `RustStepIndexResult` owns the complete
-`RustStepFileIndex` and every recoverable per-function
-`RustStepIndexDiagnostic` from one indexing pass. Both public indexing entry
-points return it on successful file read and parse; only file-read and
-whole-source parse failures remain `RustStepIndexError` values. Callers must
-persist or replace the owned `index` independently of diagnostics, so one
-invalid function never removes valid neighbouring definitions. Reuse this
-wrapper only at Rust-file indexing boundaries; handlers and cache APIs consume
-the contained `RustStepFileIndex` rather than retaining diagnostics as index
-state.
+**Rust indexing result contract:** the internal `RustSourceIndexResult` groups
+the public `RustStepIndexResult` projection with scenario-binding metadata from
+one syntax-tree traversal. `index_rust_file` and `index_rust_source` project
+the step result for their public API, while the server's save pipeline uses the
+internal combined result to update both indexes. `RustStepIndexResult` owns the
+complete `RustStepFileIndex` and every recoverable per-function
+`RustStepIndexDiagnostic`; only file-read and whole-source parse failures remain
+`RustStepIndexError` values. Callers must persist or replace the owned `index`
+independently of diagnostics, so one invalid function never removes valid
+neighbouring definitions. `IndexedScenarioBinding` retains the exact closed
+library list and its `ScenarioBindingTarget`. `ScenarioScopeRegistry`
+normalizes order-equivalent lists, but returns `ScenarioScopeConflict` for
+distinct scopes targeting one feature. Handlers use no candidates and emit a
+structured warning rather than merging the scopes or applying precedence.
 
 **Workspace filesystem boundary:** After selecting the workspace root,
 including the fallback used when Cargo discovery fails, `ServerState` owns the

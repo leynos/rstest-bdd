@@ -7,6 +7,7 @@ use proc_macro2::Ident;
 use syn::{ExprPath, Type};
 
 use super::rename::RenameRule;
+use crate::named_fields::{NamedFieldSpec, ScalarConversion};
 
 /// Internal data used by the macros implementation.
 pub(crate) struct StructConfig {
@@ -45,12 +46,8 @@ pub(crate) struct FieldConfig {
     pub(crate) optional: bool,
     /// Optional fallback used when the cell is missing.
     pub(crate) default: Option<DefaultValue>,
-    /// Optional parser function for the field value.
-    pub(crate) parse_with: Option<ExprPath>,
-    /// Whether boolean values use truthy-string parsing.
-    pub(crate) truthy: bool,
-    /// Whether cell text is trimmed before parsing.
-    pub(crate) trim: bool,
+    /// Shared normalization and scalar-conversion policy.
+    pub(crate) conversion: ScalarConversion,
 }
 
 impl FieldConfig {
@@ -60,9 +57,7 @@ impl FieldConfig {
             accessor,
             optional: false,
             default: None,
-            parse_with: None,
-            truthy: false,
-            trim: false,
+            conversion: ScalarConversion::plain(),
         }
     }
 }
@@ -77,4 +72,6 @@ pub(crate) struct FieldSpec {
     pub(crate) inner_ty: Type,
     /// Parsed field attributes controlling conversion.
     pub(crate) config: FieldConfig,
+    /// Shared metadata for named fields; tuple fields intentionally omit this.
+    pub(crate) named: Option<NamedFieldSpec>,
 }

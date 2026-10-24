@@ -32,6 +32,7 @@ use std::{any::Any, borrow::Cow};
 
 use crate::{
     StepContext,
+    StepScope,
     execution::{ExecutionError, StepExecutionRequest},
     runner::{
         ScenarioPlan,
@@ -78,6 +79,19 @@ impl<'a> TableView<'a> {
 /// they are the *plan's*, not the invocation's: a step's error message names
 /// the scenario it belongs to, and `StepOutcome` carries the invocation's own
 /// [`source`](StepInvocation::source) separately.
+///
+/// # The selected step-library scope
+///
+/// A plan built by a frontend carries no library selection, so a run through
+/// these drivers resolves against the global library
+/// ([`StepScope::global`]). That is RFC 0001's rule for a scenario that names no
+/// `libraries`: "omitting `libraries` selects only `rstest_bdd::global`".
+///
+/// The macro path does not reach this function. `#[scenario]` and `scenarios!`
+/// emit their own [`StepExecutionRequest`](crate::execution::StepExecutionRequest)
+/// literal from a generated `__RSTEST_BDD_STEP_SCOPE` const, so a scenario that
+/// *does* name libraries keeps its closed vocabulary on that path and never
+/// arrives here.
 pub(super) fn request<'a>(
     index: usize,
     invocation: &'a StepInvocation,
@@ -92,6 +106,7 @@ pub(super) fn request<'a>(
         table,
         feature_path: plan.source(),
         scenario_name: plan.name(),
+        scope: StepScope::global(),
     }
 }
 
