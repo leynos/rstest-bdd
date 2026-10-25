@@ -5,9 +5,9 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Outcomes & retrospective`, `Conformance basis`, and `Verification plan` must
 be kept up to date as work proceeds.
 
-Status: DRAFT — awaiting approval. The one upstream deviation this plan needed,
-the RM-11.2.2 finish-line amendment (DL-9), was accepted on 2026-09-18, so
-nothing is outstanding beyond approval of the plan itself.
+Status: APPROVED — the user approved this plan on 2026-10-25. The accepted
+scope includes the unconditional macro dependency (DL-2) and the RM-11.2.2
+finish-line amendment (DL-9).
 
 ## Purpose / big picture
 
@@ -672,8 +672,8 @@ actually be enforced. The maintainer accepted the amendment on 2026-09-18; the
 verbatim replacement text is fixed in DL-9 and applied by EP-M7, so the edit is
 mechanical rather than a judgement call at the end of the work.
 
-The plan itself still awaits approval before implementation begins. That is the
-ordinary ExecPlan gate, not an outstanding blocker.
+The user approved this plan on 2026-10-25. Implementation may proceed within
+the accepted constraints and tolerances below.
 
 ## Constraints
 
@@ -1412,6 +1412,13 @@ should be filed rather than forgotten:
 
 ## Decision log
 
+- **DL-10 — Approve the plan as written.** The user approved implementation on
+  2026-10-25, including the unconditional `rstest-bdd` to `rstest-bdd-macros`
+  dependency (DL-2) and the accepted RM-11.2.2 finish-line amendment (DL-9).
+  The approved scope, constraints, tolerances, and verification obligations
+  remain authoritative. Date/Author: 2026-10-25, user approval recorded by the
+  implementation agent.
+
 - **DL-1 — Ship both a crate-root re-export and a `prelude` module.**
   Rationale: the root re-export is required independently of the roadmap,
   because three READMEs already document
@@ -1626,9 +1633,8 @@ in their own manifest.
 - [ ] EP-M6 — remaining documentation and ADR-022.
 - [ ] EP-M7 — roadmap amendment, full gates, pull request.
 
-Nothing is implemented. The finish-line amendment (DL-9) is accepted, so the
-plan is no longer blocked; it is `DRAFT` awaiting ordinary approval. Do not
-begin Milestone 1 until the plan is approved.
+Nothing is implemented yet. The finish-line amendment (DL-9) is accepted and
+the user approved the plan on 2026-10-25; implementation may now begin.
 
 ## Surprises & discoveries
 
