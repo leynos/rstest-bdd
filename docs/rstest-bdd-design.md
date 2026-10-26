@@ -2855,6 +2855,171 @@ now include:
 This layout allows each crate to evolve independently while sharing common
 configuration and lints at the workspace level.
 
+### 3.6a `cargo-bdd` configuration boundary (ADR-025)
+
+`crates/cargo-bdd` is a driving adapter. It is the only workspace member with a
+command line, and therefore the only member that layers settings from a
+command-line configuration source. The library crates describe behaviour and
+never learn where a setting came from. This section records the shape of that
+boundary; [ADR 025](adr-025-adopt-ortho-config-for-the-cargo-bdd-cli.md)
+records why OrthoConfig was chosen over the alternatives.
+
+The adopted dependency is `ortho_config` v0.10.0, taken with default features
+enabled. Default features matter: v0.10.0 does not build with
+`default-features = false` (leynos/ortho-config#627), and the `json`, `json5`
+and `yaml` configuration extensions are feature-gated anyway, so only TOML
+files are discovered. No other member gains the dependency.
+
+#### Configurable and command-line-only settings
+
+The settings that can come from a file or the environment are exactly the
+toggles that already exist, and nothing else:
+
+| Subcommand | Flag        | File key  | Environment variable             |
+| ---------- | ----------- | --------- | -------------------------------- |
+| `steps`    | `--skipped` | `skipped` | `CARGO_BDD_CMDS_STEPS_SKIPPED`   |
+| `steps`    | `--json`    | `json`    | `CARGO_BDD_CMDS_STEPS_JSON`      |
+| `skipped`  | `--reasons` | `reasons` | `CARGO_BDD_CMDS_SKIPPED_REASONS` |
+| `skipped`  | `--json`    | `json`    | `CARGO_BDD_CMDS_SKIPPED_JSON`    |
+
+*Table 1: Configurable settings per subcommand.*
+
+Everything else is command-line-only: the choice of subcommand itself, help and
+version, and the `requires = "skipped"` constraint on `--json`. Those describe
+the shape of a single invocation rather than a preference that outlives it, so
+there is no file or environment spelling for them.
+
+#### File name, discovery, and formats
+
+Configuration files are TOML, and a file's settings for a subcommand live in a
+`[cmds.<subcommand>]` table:
+
+```toml
+[cmds.steps]
+skipped = true
+json = true
+
+[cmds.skipped]
+reasons = true
+```
+
+The table path is not an arbitrary convention: it is the path the derive builds
+from `clap`'s own command name, so the file spelling and the parser cannot
+drift apart. The derived command name is fixed with an explicit
+`#[command(name = "…")]` on each argument struct rather than left to the crate
+name.
+
+Discovery locations, in the order OrthoConfig consults them, with `$PREFIX` the
+normalized prefix `cargo_bdd`:
+
+1. `$HOME/.cargo_bdd.toml`.
+2. `config.toml` under the first XDG base that has one, where the base list is
+   `$XDG_CONFIG_HOME/cargo_bdd` — or `$HOME/.config/cargo_bdd` when
+   `XDG_CONFIG_HOME` is unset or not absolute — followed by `cargo_bdd` under
+   each absolute entry of `$XDG_CONFIG_DIRS`, which falls back to `/etc/xdg`
+   when the variable is unset or holds no absolute entry.
+3. `./.cargo_bdd.toml` in the working directory.
+
+Files found along that list are merged in order, each over the one before, so a
+working-directory file refines a user-wide one. A file that does not exist is
+not an error and contributes nothing; only an unreadable or malformed file that
+discovery actually found is reported. This distinction matters because an
+absent optional file is the normal case. A probe that fails for a reason other
+than absence — an unreadable parent directory, for instance — is reported
+against the path that failed rather than silently treated as absent, so a
+permissions problem cannot quietly change which file loads.
+
+#### Environment prefix and legacy names
+
+The prefix is `CARGO_BDD_`. A subcommand setting is spelled
+`CARGO_BDD_CMDS_<SUBCOMMAND>_<FIELD>`, with the subcommand and field names
+upper-cased and hyphens turned into underscores. There are no legacy variables
+and no legacy file names to honour, because `cargo-bdd` has never been
+configurable; the prefix is introduced whole, so no compatibility alias is
+warranted.
+
+#### Precedence and `cli_default_as_absent`
+
+Precedence runs from lowest to highest: the struct's `Default` implementation,
+then configuration files, then the environment, then the command line.
+
+Command-line precedence needs one explicit marker. A `bool` argument is not
+nullable: clap gives it `false` when the flag is absent, and `false` is a real
+value, so a naive merge would let an untyped flag outrank a file that says
+`true`. Each configurable field is therefore annotated with
+`#[ortho_config(cli_default_as_absent)]`, which makes the derive ask the
+`ArgMatches` whether the value came from the command line rather than from
+clap's default. Only a value the user actually typed joins the command-line
+tier. The loaders that do this are the `_with_matches` family; the plain
+`load_and_merge` cannot distinguish the two cases and is not used.
+
+Because the subcommand merge starts from `Default`, each struct's `Default`
+implementation must agree with its clap defaults. Today all four fields default
+to `false`, and `Default` says the same.
+
+#### Per-subcommand namespaces
+
+Each subcommand gets its own namespace rather than sharing one flat table. A
+repository that always wants JSON from `skipped` but not from `steps` writes
+`[cmds.skipped] json = true` and stops there. The environment mirrors the same
+split, so a CI variable can be scoped to one subcommand.
+
+#### Help and parse-failure localization
+
+Help text and parse failures stay English. No localizer is installed, so
+OrthoConfig's `NoOpLocalizer` remains in force. This is a deliberate choice
+rather than an omission: the workspace's localization roadmap targets library
+messages, and substituting localized help would change the wording the
+command-line contract already freezes.
+
+#### Profiles
+
+There are no configuration profiles and no `--profile` flag. OrthoConfig
+v0.10.0's subcommand path does not load profiles; adding a repository-side
+profile tier would mean hand-writing a layer upstream does not provide, for a
+tool with four booleans.
+
+#### Cargo external-subcommand entry shape
+
+Cargo runs `cargo bdd steps` by executing `cargo-bdd` with the subcommand name
+injected, so the process sees `cargo-bdd bdd steps`. Today that is rejected with
+`error: unrecognized subcommand 'bdd'`, exit 2, nothing on stdout and the
+message on stderr.
+
+Two parser shapes are needed, not one. The flat form `cargo-bdd steps` is the
+existing contract: its help text, usage lines, error wording, exit statuses and
+streams are frozen by the tests in `crates/cargo-bdd/tests/cli.rs`, which pass
+unmodified. `ortho_config::cargo::external_subcommand` necessarily wraps the
+inner command in a synthetic `cargo` parent, renames it, and resets its
+`bin_name`, so routing the flat form through it would change the very text that
+must not move. The entry point therefore selects a parser by invocation form:
+
+- If the first argument is `bdd`, the arguments are the Cargo form. They are
+  parsed through `external_subcommand("cargo-bdd", "bdd", Cli::command())`,
+  which consumes the injected token and leaves the tool's own subcommands one
+  level down.
+- Otherwise the arguments are the flat form and are parsed by the existing
+  `Cli` parser, untouched.
+
+Both branches yield the same `Cli` value, so dispatch is written once. The
+upstream invocation hint — which tells the user to invoke the tool via
+`cargo <name>` or `cargo-<name> <name>` — is deliberately not installed,
+because it would omit the flat form that remains first-class here and would
+therefore mislead.
+
+`--config-path` is not offered. The derive generates that flag only on its own
+hidden CLI struct, and no subcommand loader consults it, so accepting it on
+`cargo-bdd` would mean either wiring it by hand or shipping a flag that
+silently does nothing. The discovery locations and the environment variable
+cover the need instead.
+
+#### Settings handed to the domain
+
+The configuration layer stops at the argument structs. Dispatch reads plain
+bools out of the resolved struct and hands them to the existing handlers, which
+are unchanged. The registry and output modules never see a configuration type,
+never read the environment, and never handle a configuration error.
+
 ### 3.7 Initial scenario macro implementation
 
 The first implementation of the `#[scenario]` macro kept the scope narrow to
