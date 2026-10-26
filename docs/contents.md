@@ -127,6 +127,10 @@
   archive family, sharing the sccache directory with the instrumented one.
 - [ADR 023: adopt the shared CV-005 contract library][adr-023] records the move
   from a local copy of the CV-005 contract to the pinned shared check.
+- [ADR 024: adopt OrthoConfig for the `cargo-bdd` command-line
+  interface][adr-024] records the decision to layer the diagnostic tool's
+  settings through OrthoConfig while keeping every library crate free of the
+  dependency.
 
 ## Execution plans
 
@@ -151,6 +155,7 @@
 [adr-021]: adr-021-single-source-base-url-for-users-guide-links.md
 [adr-022]: adr-022-separate-compiler-cache-family-for-the-publish-dry-run.md
 [adr-023]: adr-023-adopt-the-shared-cv005-contract-library.md
+[adr-024]: adr-024-adopt-ortho-config-for-the-cargo-bdd-cli.md
 [complexity-guide]: complexity-antipatterns-and-refactoring-strategies.md
 [cucumber-async]: cucumber-rs-migration-and-async-patterns.md
 [dependency-injection]: reliable-testing-in-rust-via-dependency-injection.md

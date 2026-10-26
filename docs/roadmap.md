@@ -321,6 +321,21 @@ at improving maintainability and IDE integration.
     }
     ```
 
+- [x] 6.1.6. Layer the diagnostic tool's settings with OrthoConfig v0.10.0.
+  - Take `ortho_config` with default features in `crates/cargo-bdd` only, and
+    raise that crate's `rust-version` to 1.89 while the libraries stay at 1.88.
+  - Let `--skipped`, `--reasons`, and both `--json` flags be set from a
+    `[cmds.<subcommand>]` table in a `cargo_bdd.toml` or from
+    `CARGO_BDD_CMDS_<SUBCOMMAND>_<FIELD>`, with defaults below files, files
+    below environment, and environment below the command line.
+  - Accept both `cargo bdd <subcommand>` and `cargo-bdd <subcommand>`, and
+    leave the flat form's help, output, exit statuses and streams unchanged
+    when nothing is configured.
+
+  The decision and its boundary are recorded in
+  [ADR 024](adr-024-adopt-ortho-config-for-the-cargo-bdd-cli.md) and
+  [design §3.6a](rstest-bdd-design.md#36a-cargo-bdd-configuration-boundary-adr-024).
+
 ### 6.2. IDE integration
 
 - [ ] 6.2.1. Investigate creating a `rust-analyzer` procedural macro server to
