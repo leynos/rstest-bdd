@@ -48,6 +48,14 @@
   the v0.6.0 release changes.
 - [v0.7.0 migration guide](v0-7-0-migration-guide.md) helps users adopt the
   v0.7.0 scoped-vocabulary and named-capture contracts.
+- [OrthoConfig user's guide](ortho-config-users-guide.md) is the imported
+  upstream guide to configuring a command-line application with OrthoConfig
+  v0.10.0.
+- [OrthoConfig v0.10.0 migration guide](ortho-config-v0-10-0-migration-guide.md)
+  is the imported upstream guide to moving an application from OrthoConfig
+  v0.9.0 to v0.10.0.
+- [Provenance of the imported OrthoConfig guides](ortho-config-v0-10-0-provenance.md)
+  records the release, commit, paths, and checksums of those two imports.
 - [Releasing crates](releasing-crates.md) documents the release and publication
   process for workspace crates.
 - [Lading user guide](lading-users-guide.md) documents the `lading` release
