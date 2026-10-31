@@ -36,6 +36,11 @@ EXPECTED_INVOCATIONS = {
     ],
     "typecheck": ["check"],
 }
+#: Every Cargo call that builds, checks or tests, whether or not it assigns
+#: ``RUSTFLAGS``; packaging and metadata calls are not gate builds.
+ANY_CARGO = re.compile(
+    r"\S*cargo\s+(?P<sub>nextest run|test --doc|build|check|clippy|test|run|doc)\b"
+)
 ASSIGNED_CARGO = re.compile(
     r'RUSTFLAGS="(?P<flags>[^"]*)"\s+\S*cargo\s+(?P<sub>nextest run|test --doc|\w+)'
 )
@@ -44,9 +49,18 @@ ASSIGNED_CARGO = re.compile(
 def test_linker_is_a_linux_only_default() -> None:
     """The linker flag lives in the Linux table and in no platform-wide source."""
     config = tomllib.loads((ROOT / ".cargo" / "config.toml").read_text("utf-8"))
-    linux = config.get("target", {}).get(LINUX_TABLE, {})
+    targets = config.get("target", {})
+    linux = targets.get(LINUX_TABLE, {})
     assert LINKER_FLAG in linux.get("rustflags", []), (
         "the Linux table must select the mold linker"
+    )
+    elsewhere = sorted(
+        key
+        for key, table in targets.items()
+        if key != LINUX_TABLE and LINKER_FLAG in table.get("rustflags", [])
+    )
+    assert not elsewhere, (
+        f"the mold linker ships for Linux only, but these tables name it: {elsewhere}"
     )
     build = config.get("build", {}).get("rustflags", [])
     assert LINKER_FLAG not in build, (
@@ -110,8 +124,13 @@ def test_every_cargo_invocation_in_a_gate_target_restates_the_flags(
     ``STANDARD_RUSTFLAGS`` run on any machine. The enumeration is exact, so a
     new Cargo call that forgets the assignment, or a dropped one, is noticed.
     """
-    found = ASSIGNED_CARGO.findall(_dry_run(target, host_os))
-    assert [sub for _, sub in found] == EXPECTED_INVOCATIONS[target], (
+    output = _dry_run(target, host_os)
+    calls = [match["sub"] for match in ANY_CARGO.finditer(output)]
+    assert calls == EXPECTED_INVOCATIONS[target], (
+        f"make {target} on {host_os} runs an unexpected set of Cargo calls: {calls}"
+    )
+    found = ASSIGNED_CARGO.findall(output)
+    assert [sub for _, sub in found] == calls, (
         f"make {target} on {host_os} must assign RUSTFLAGS on every Cargo call"
     )
     expected = ["-D", "warnings"] + ([LINKER_FLAG] if expects_linker else [])
