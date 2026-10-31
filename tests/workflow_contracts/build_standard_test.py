@@ -14,17 +14,21 @@ import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-MOLD = "-Clink-arg=-fuse-ld=mold"
+LINKER_FLAG = "-Clink-arg=-fuse-ld=mold"
 LINUX_TABLE = 'cfg(target_os = "linux")'
 
 
-def test_mold_is_a_linux_only_default() -> None:
+def test_linker_is_a_linux_only_default() -> None:
     """The linker flag lives in the Linux table and in no platform-wide source."""
     config = tomllib.loads((ROOT / ".cargo" / "config.toml").read_text("utf-8"))
     linux = config.get("target", {}).get(LINUX_TABLE, {})
-    assert MOLD in linux.get("rustflags", []), "the Linux table must select mold"
+    assert LINKER_FLAG in linux.get("rustflags", []), (
+        "the Linux table must select the mold linker"
+    )
     build = config.get("build", {}).get("rustflags", [])
-    assert MOLD not in build, "mold ships for Linux only, so [build] must not name it"
+    assert LINKER_FLAG not in build, (
+        "the mold linker ships for Linux only, so [build] must not name it"
+    )
 
 
 def _recipe(makefile: str, target: str) -> str:
@@ -39,9 +43,9 @@ def test_gate_recipes_restate_the_linker_flag() -> None:
     """The test and typecheck recipes add the standard flags to RUSTFLAGS."""
     makefile = (ROOT / "Makefile").read_text("utf-8")
     assert (
-        f"STANDARD_RUSTFLAGS := $(if $(filter Linux,$(BUILD_HOST_OS)),{MOLD})"
+        f"STANDARD_RUSTFLAGS := $(if $(filter Linux,$(BUILD_HOST_OS)),{LINKER_FLAG})"
         in makefile
-    ), "STANDARD_RUSTFLAGS must carry mold on Linux only"
+    ), "STANDARD_RUSTFLAGS must carry the mold linker on Linux only"
     restated = 'RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)"'
     for target in ("test", "typecheck"):
         recipe = _recipe(makefile, target)
@@ -53,5 +57,5 @@ def test_whitaker_route_takes_no_development_flags() -> None:
     """The Whitaker recipe assigns plain warnings only."""
     recipe = _recipe((ROOT / "Makefile").read_text("utf-8"), "lint-whitaker")
     assert "STANDARD_RUSTFLAGS" not in recipe, (
-        "the Whitaker route must not inherit mold"
+        "the Whitaker route must not inherit the mold linker"
     )
