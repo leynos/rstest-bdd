@@ -50,3 +50,5 @@ jobs:
       # that would already have resolved those lockfiles, so warm the
       # registry from each fixture's committed lockfile first.
       setup-commands: "make prefetch-fixture-deps"
+      # .cargo/config.toml selects the mold linker on Linux.
+      install-mold: "true"

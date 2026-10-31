@@ -23,6 +23,12 @@ FMT_TOOLCHAIN ?= nightly-2026-08-07
 CARGO_FMT ?= $(CARGO) +$(FMT_TOOLCHAIN) fmt
 BUILD_JOBS ?=
 RUST_FLAGS ?= -D warnings
+# The development build standard (concordat rule `rust-build-defaults`): the
+# mold linker on Linux. An assigned RUSTFLAGS replaces every `rustflags` table
+# in .cargo/config.toml, so each gate recipe that sets it adds the linker flag.
+# The pinned stable toolchain has no parallel frontend or Cranelift backend.
+BUILD_HOST_OS := $(shell uname -s)
+STANDARD_RUSTFLAGS := $(if $(filter Linux,$(BUILD_HOST_OS)),-Clink-arg=-fuse-ld=mold)
 RUSTDOC_FLAGS ?= --cfg docsrs -D warnings
 CARGO_FLAGS ?= --workspace --all-targets --all-features
 CLIPPY_FLAGS ?= $(CARGO_FLAGS) -- $(RUST_FLAGS)
@@ -111,13 +117,13 @@ clean: ## Remove build artefacts
 	rm -rf .uv-cache .uv-tools
 
 test: build-python ## Run tests with warnings treated as errors
-	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) build --bin $(APP) --bin todo-cli $(BUILD_JOBS)
+	RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" $(CARGO) build --bin $(APP) --bin todo-cli $(BUILD_JOBS)
 	if command -v cargo-nextest >/dev/null 2>&1; then \
-		RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) nextest run $(CARGO_FLAGS) $(BUILD_JOBS); \
+		RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" $(CARGO) nextest run $(CARGO_FLAGS) $(BUILD_JOBS); \
 	else \
-		RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) test $(CARGO_FLAGS) $(BUILD_JOBS); \
+		RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" $(CARGO) test $(CARGO_FLAGS) $(BUILD_JOBS); \
 	fi
-	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) test --doc --workspace --all-features $(BUILD_JOBS)
+	RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" $(CARGO) test --doc --workspace --all-features $(BUILD_JOBS)
 	# D4: the parser-neutral runner's outcome carries a complete step sequence
 	# whether or not `diagnostics` is on, deliberately diverging from the
 	# generated loop, which computes bypassed steps only under
@@ -135,9 +141,9 @@ test: build-python ## Run tests with warnings treated as errors
 	# `--workspace` would drag in every other crate, none of which is the
 	# subject of this leg.
 	if command -v cargo-nextest >/dev/null 2>&1; then \
-		RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) nextest run -p rstest-bdd --all-targets --no-default-features $(BUILD_JOBS); \
+		RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" $(CARGO) nextest run -p rstest-bdd --all-targets --no-default-features $(BUILD_JOBS); \
 	else \
-		RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) test -p rstest-bdd --all-targets --no-default-features $(BUILD_JOBS); \
+		RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" $(CARGO) test -p rstest-bdd --all-targets --no-default-features $(BUILD_JOBS); \
 	fi
 	$(MAKE) check-fixture-lockfiles
 	# Exercise the Python documentation helpers alongside the Rust suite.
@@ -186,7 +192,7 @@ update-users-guide-links: ## Rewrite the users-guide reference links from the ca
 	$(PROJECT_PYTHON) scripts/check_users_guide_links.py --fix
 
 typecheck: build-python ## Run cargo and Python type checks with warnings denied
-	RUSTFLAGS="$(RUST_FLAGS)" $(CARGO) check $(CARGO_FLAGS) $(BUILD_JOBS)
+	RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" $(CARGO) check $(CARGO_FLAGS) $(BUILD_JOBS)
 	$(TY) check --python-version 3.14 $(PYTHON_TARGETS)
 
 PUBLISHED_GPUI_MANIFEST := tests/fixtures/published-gpui-0-2-2/Cargo.toml
