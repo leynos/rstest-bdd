@@ -9,13 +9,36 @@ exception: its installer-managed toolchain must not inherit the flag.
 Run via ``make test-workflow-contracts``.
 """
 
+import os
 import re
+import subprocess  # ruff: ignore[suspicious-subprocess-import] - dry-runs this repository's own Makefile.
 import tomllib
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 LINKER_FLAG = "-Clink-arg=-fuse-ld=mold"
 LINUX_TABLE = 'cfg(target_os = "linux")'
+
+#: Every Cargo invocation each gate target prints under ``make -n``, in order:
+#: the leading subcommand words. ``test`` builds the binaries, then runs the
+#: workspace suite (nextest when installed, otherwise ``cargo test``), the
+#: doctests, and the no-default-features leg; ``typecheck`` runs ``cargo check``.
+EXPECTED_INVOCATIONS = {
+    "test": [
+        "build",
+        "nextest run",
+        "test",
+        "test --doc",
+        "nextest run",
+        "test",
+    ],
+    "typecheck": ["check"],
+}
+ASSIGNED_CARGO = re.compile(
+    r'RUSTFLAGS="(?P<flags>[^"]*)"\s+\S*cargo\s+(?P<sub>nextest run|test --doc|\w+)'
+)
 
 
 def test_linker_is_a_linux_only_default() -> None:
@@ -59,3 +82,40 @@ def test_whitaker_route_takes_no_development_flags() -> None:
     assert "STANDARD_RUSTFLAGS" not in recipe, (
         "the Whitaker route must not inherit the mold linker"
     )
+
+
+def _dry_run(target: str, host_os: str) -> str:
+    """Return what ``make -n`` prints for a gate target on a controlled host."""
+    return subprocess.run(  # ruff: ignore[subprocess-without-shell-equals-true] - a fixed Make invocation.
+        ["make", "--dry-run", target, f"BUILD_HOST_OS={host_os}"],  # ruff: ignore[start-process-with-partial-path] - make is resolved from PATH.
+        cwd=ROOT,
+        env=os.environ.copy(),
+        capture_output=True,
+        check=True,
+        text=True,
+    ).stdout
+
+
+@pytest.mark.parametrize("target", sorted(EXPECTED_INVOCATIONS))
+@pytest.mark.parametrize(
+    ("host_os", "expects_linker"),
+    [("Linux", True), ("Darwin", False), ("Windows_NT", False)],
+)
+def test_every_cargo_invocation_in_a_gate_target_restates_the_flags(
+    target: str, host_os: str, *, expects_linker: bool
+) -> None:
+    """Each Cargo call assigns the warning policy, plus the linker on Linux only.
+
+    The host is controlled through ``BUILD_HOST_OS``, so both branches of
+    ``STANDARD_RUSTFLAGS`` run on any machine. The enumeration is exact, so a
+    new Cargo call that forgets the assignment, or a dropped one, is noticed.
+    """
+    found = ASSIGNED_CARGO.findall(_dry_run(target, host_os))
+    assert [sub for _, sub in found] == EXPECTED_INVOCATIONS[target], (
+        f"make {target} on {host_os} must assign RUSTFLAGS on every Cargo call"
+    )
+    expected = ["-D", "warnings"] + ([LINKER_FLAG] if expects_linker else [])
+    for flags, sub in found:
+        assert flags.split() == expected, (
+            f"make {target} on {host_os}: `cargo {sub}` must assign exactly {expected}"
+        )

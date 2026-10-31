@@ -987,10 +987,15 @@ toolchain cannot select the backend). The opt-in `make dev-build` and
 own pinned nightly.
 
 The default build standard is the `mold` linker on Linux, in a Linux-only table
-in `.cargo/config.toml`. Assigning `RUSTFLAGS` replaces every `rustflags`
-source, so the gate recipes in the `Makefile` add the linker flag through
-`STANDARD_RUSTFLAGS`; the Whitaker route and coverage builds take none of it.
-CI installs `mold` through `install-mold` on `setup-rust`, and
+in `.cargo/config.toml`. Install `mold` before a default Linux build (for
+example `sudo apt-get install mold`, or a release from the `mold` project):
+without it `cargo build` and `make test` fail at link time. To build without it
+for a one-off, assign `RUSTFLAGS` yourself, which replaces the configuration
+(`RUSTFLAGS="-D warnings" cargo build`), or run the gates with
+`make test STANDARD_RUSTFLAGS=`. Assigning `RUSTFLAGS` replaces every
+`rustflags` source, so the gate recipes in the `Makefile` add the linker flag
+through `STANDARD_RUSTFLAGS`; the Whitaker route and coverage builds take none
+of it. CI installs `mold` through `install-mold` on `setup-rust`, and
 `tests/workflow_contracts/build_standard_test.py` holds the configuration and
 the recipes. Revisit the exception if the repository moves to a nightly pin.
 
