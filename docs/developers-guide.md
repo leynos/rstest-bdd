@@ -977,6 +977,23 @@ builds continue to use the default LLVM backend and platform linker. Do not
 copy this fragment into `.cargo/config.toml`, because Cargo applies that file
 automatically to every build.
 
+### Cranelift in default builds
+
+Exception: Cranelift is not the development-profile backend, because Cranelift
+requires a nightly toolchain and this repository pins the floating `stable`
+channel (recorded 2026-10-31; no measurement was taken, because a stable
+toolchain cannot select the backend). The opt-in `make dev-build` and
+`make dev-test` targets above are the supported route to Cranelift, on their
+own pinned nightly.
+
+The default build standard is the `mold` linker on Linux, in a Linux-only table
+in `.cargo/config.toml`. Assigning `RUSTFLAGS` replaces every `rustflags`
+source, so the gate recipes in the `Makefile` add the linker flag through
+`STANDARD_RUSTFLAGS`; the Whitaker route and coverage builds take none of it.
+CI installs `mold` through `install-mold` on `setup-rust`, and
+`tests/workflow_contracts/build_standard_test.py` holds the configuration and
+the recipes. Revisit the exception if the repository moves to a nightly pin.
+
 ## Development build footprint (`.cargo/config.toml`)
 
 The Concordat `rust-dev-build-footprint` rule keeps default development builds

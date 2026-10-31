@@ -245,7 +245,12 @@ def test_shared_actions_leave_cache_ownership_to_the_caller() -> None:
         "ci.yml:Setup Rust must use setup-rust pinned to a full lowercase "
         "40-character SHA"
     )
-    assert setup_step.get("with") == {
+    setup_inputs = dict(setup_step.get("with") or {})
+    assert setup_inputs.pop("install-mold", None) == "true", (
+        "ci.yml:Setup Rust must install the mold linker that "
+        ".cargo/config.toml selects on Linux"
+    )
+    assert setup_inputs == {
         "toolchain": "${{ matrix.rust-toolchain }}",
         "cache-provider": "external",
         "use-sccache": "false",

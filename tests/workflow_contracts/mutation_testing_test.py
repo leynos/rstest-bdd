@@ -57,6 +57,8 @@ EXPECTED_WITH = {
     ),
     "extra-args": "--all-features --test-workspace=true",
     "setup-commands": "make prefetch-fixture-deps",
+    # .cargo/config.toml selects the mold linker on Linux.
+    "install-mold": "true",
 }
 
 
@@ -182,6 +184,7 @@ def test_with_block_carries_the_caller_configuration(
     assert isinstance(with_block, dict), "jobs.mutation.with is missing"
     assert with_block == EXPECTED_WITH, (
         "jobs.mutation.with must configure exactly the workspace paths, the "
-        "example/fixture/test-support excludes, and --all-features; got "
+        "example/fixture/test-support excludes, --all-features, and the linker "
+        "install; got "
         f"{with_block!r}, expected {EXPECTED_WITH!r}"
     )

@@ -20,6 +20,7 @@ ignore = [
   "Cranelift \\+ mold",
   "Cranelift and mold",
   "`mold`",
+  "install-mold",
   # GitHub Actions and Cargo machine interfaces retain upstream spelling.
   '(?m)^\s*CARGO_TERM_COLOR: always$',
   # The environment variable markdownlint-cli2 honours; `make fmt` clears it.

@@ -278,9 +278,12 @@ def test_cargo_auto_configuration_excludes_the_dev_fast_fragment() -> None:
     assert "codegen-backend" not in cargo_config, (
         "Cargo's auto-discovered configuration must not select a codegen backend"
     )
-    assert "-fuse-ld=mold" not in cargo_config, (
-        "Cargo's auto-discovered configuration must not select the dev-fast linker"
-    )
+    # The development build standard makes the mold linker the Linux default, so the
+    # configuration may name it, but only in the Linux-only target table.
+    config = tomllib.loads(cargo_config)
+    assert "-Clink-arg=-fuse-ld=mold" not in config.get("build", {}).get(
+        "rustflags", []
+    ), "Cargo's auto-discovered configuration must scope the mold linker to Linux"
 
 
 def test_shell_safe_executable_reference_preserves_a_posix_path() -> None:

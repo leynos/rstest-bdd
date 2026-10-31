@@ -380,6 +380,7 @@ jobs:
           toolchain: ${{ matrix.rust-toolchain }}
           cache-provider: external
           use-sccache: 'false'
+          install-mold: 'true'
 
       # A plain `run:` step never sees the Actions cache credentials; the
       # runner exposes them to JavaScript actions only. This job installs its

@@ -2,3 +2,11 @@
 opt-level = 1          # default is 0; 1 shrinks a bit without killing compile times
 debug = 0              # Keep development artefacts free of debug information
 incremental = false
+
+# The development build standard: the mold linker is the default on Linux. The
+# pin is the floating `stable` channel, so the parallel frontend and the
+# Cranelift backend (both nightly-only) do not apply. The mold linker ships for
+# Linux only, so the flag lives in a Linux-only table. The gate recipes restate it where
+# they assign `RUSTFLAGS`, which replaces every `rustflags` source.
+[target.'cfg(target_os = "linux")']
+rustflags = ["-Clink-arg=-fuse-ld=mold"]
