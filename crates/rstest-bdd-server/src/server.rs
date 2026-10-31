@@ -20,20 +20,17 @@ use crate::{
         WorkspaceRoot,
         index_feature_source_owned,
     },
-    lsp::{
-        ClientCapabilities,
-        ServerCapabilities,
-        TextDocumentSyncCapability,
-        TextDocumentSyncKind,
-        TextDocumentSyncOptions,
-        WorkspaceFolder,
-    },
+    lsp::{ClientCapabilities, WorkspaceFolder},
 };
 
 mod deferred_saves;
+mod scenario_scopes;
+mod server_capabilities;
 mod workspace_task;
 
 use deferred_saves::{DeferredDocumentSaves, DeferredSaveDropReason};
+use scenario_scopes::ScenarioScopeRegistry;
+pub use server_capabilities::build_server_capabilities;
 use workspace_task::WorkspaceTask;
 
 /// Central state shared across all LSP handlers.
@@ -71,6 +68,8 @@ pub struct ServerState {
     rust_step_indices: HashMap<std::path::PathBuf, RustStepFileIndex>,
     /// Compiled step patterns keyed by keyword, built from Rust step indices.
     step_registry: StepDefinitionRegistry,
+    /// Closed step-library scopes selected by Rust scenario bindings.
+    scenario_scopes: ScenarioScopeRegistry,
     /// Client socket for sending notifications (e.g., diagnostics).
     client: Option<ClientSocket>,
 }
@@ -103,6 +102,7 @@ impl std::fmt::Debug for ServerState {
             .field("feature_indices", &self.feature_indices)
             .field("rust_step_indices", &self.rust_step_indices)
             .field("step_registry", &self.step_registry)
+            .field("scenario_scopes", &self.scenario_scopes)
             .field("client", &self.client.as_ref().map(|_| "<ClientSocket>"))
             .finish()
     }
@@ -136,6 +136,7 @@ impl ServerState {
             feature_indices: HashMap::new(),
             rust_step_indices: HashMap::new(),
             step_registry: StepDefinitionRegistry::default(),
+            scenario_scopes: ScenarioScopeRegistry::default(),
             client: None,
         }
     }
@@ -359,32 +360,17 @@ impl ServerState {
             }
         }
     }
-}
 
-/// Build the server capabilities to advertise to the client.
-///
-/// Phase 7 advertises text document sync to receive save notifications for
-/// `.feature` file indexing, definition navigation for Rust-to-feature step
-/// navigation, and implementation navigation for feature-to-Rust step
-/// navigation.
-#[must_use]
-pub fn build_server_capabilities() -> ServerCapabilities {
-    ServerCapabilities {
-        text_document_sync: Some(TextDocumentSyncCapability::Options(
-            TextDocumentSyncOptions {
-                open_close: Some(true),
-                change: Some(TextDocumentSyncKind::INCREMENTAL),
-                save: Some(crate::lsp::TextDocumentSyncSaveOptions::SaveOptions(
-                    crate::lsp::SaveOptions {
-                        include_text: Some(true),
-                    },
-                )),
-                ..Default::default()
-            },
-        )),
-        definition_provider: Some(crate::lsp::OneOf::Left(true)),
-        implementation_provider: Some(crate::lsp::ImplementationProviderCapability::Simple(true)),
-        ..ServerCapabilities::default()
+    /// Drop the cached index and compiled steps for one Rust source file.
+    ///
+    /// Called when the file no longer parses: the scenario-scope registry has
+    /// already discarded the file's bindings, so the previous step index and
+    /// its compiled entries must be removed as part of the same failure
+    /// transition. Retaining them would leave features resolving against a
+    /// stale index after the scope that selected it disappeared.
+    pub fn remove_rust_step_index(&mut self, path: &Path) {
+        self.rust_step_indices.remove(path);
+        self.step_registry.invalidate_file(path);
     }
 }
 

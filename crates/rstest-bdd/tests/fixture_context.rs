@@ -31,6 +31,7 @@ fn context_passes_fixture() {
     let mut ctx = StepContext::default();
     ctx.insert("number", &number);
     let step_fn = lookup_step(StepKeyword::Given, "a value".into())
+        .expect("lookup should be unambiguous")
         .expect("step 'a value' not found in registry");
     let _ = assert_step_ok!(step_fn(&mut ctx, "a value", None, None));
 }
@@ -39,6 +40,7 @@ fn context_passes_fixture() {
 fn context_missing_fixture_returns_error() {
     let mut ctx = StepContext::default();
     let step_fn = lookup_step(StepKeyword::Given, "a value".into())
+        .expect("lookup should be unambiguous")
         .expect("step 'a value' not found in registry");
     let err = assert_step_err!(step_fn(&mut ctx, "a value", None, None));
     let display = strip_directional_isolates(&err.to_string());
@@ -64,6 +66,7 @@ fn context_missing_fixture_localizes_error() {
     };
     let mut ctx = StepContext::default();
     let step_fn = lookup_step(StepKeyword::Given, "a value".into())
+        .expect("lookup should be unambiguous")
         .expect("step 'a value' not found in registry");
     let err = assert_step_err!(step_fn(&mut ctx, "a value", None, None));
     let display = strip_directional_isolates(&err.to_string());
@@ -77,6 +80,7 @@ fn fixture_step_panic_returns_panic_error() {
     let mut ctx = StepContext::default();
     ctx.insert("number", &number);
     let step_fn = lookup_step(StepKeyword::Given, "a panicking value step".into())
+        .expect("lookup should be unambiguous")
         .expect("step 'a panicking value step' not found in registry");
     let err = assert_step_err!(
         step_fn(&mut ctx, "a panicking value step", None, None),

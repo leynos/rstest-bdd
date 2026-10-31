@@ -66,6 +66,7 @@ impl ScenarioTestConfig for TestTokensConfig<'_> {
             &self.processed_steps,
             self.metadata.is_async,
             self.metadata.return_kind,
+            &self.metadata.scope,
         )
     }
 
@@ -78,6 +79,7 @@ impl ScenarioTestConfig for OutlineTestTokensConfig<'_> {
             &self.all_rows_steps,
             self.metadata.is_async,
             self.metadata.return_kind,
+            &self.metadata.scope,
         )
     }
 
@@ -149,11 +151,12 @@ fn create_scenario_literals(input: ScenarioLiteralsInput<'_>) -> ScenarioLiteral
 fn generate_common_components(
     is_async: bool,
     return_kind: ScenarioReturnKind,
+    scope: &TokenStream2,
 ) -> (TokenStream2, TokenStream2, TokenStream2, TokenStream2) {
     let step_executor = if is_async {
-        generate_async_step_executor()
+        generate_async_step_executor(scope)
     } else {
-        generate_step_executor()
+        generate_step_executor(scope)
     };
 
     (
@@ -169,9 +172,10 @@ fn generate_code_components(
     processed_steps: &ProcessedSteps,
     is_async: bool,
     return_kind: ScenarioReturnKind,
+    scope: &TokenStream2,
 ) -> CodeComponents {
     let (step_executor, skip_extractor, scenario_guard, skip_handler) =
-        generate_common_components(is_async, return_kind);
+        generate_common_components(is_async, return_kind, scope);
     let ProcessedSteps {
         keyword_tokens,
         values,
@@ -248,6 +252,7 @@ fn assemble_test_tokens(
             __RSTEST_BDD_SCENARIO_NAME,
             __RSTEST_BDD_SCENARIO_LINE,
             __RSTEST_BDD_SCENARIO_TAGS.clone(),
+            __RSTEST_BDD_STEP_SCOPE,
         );
         let mut __rstest_bdd_skipped: Option<Option<String>> = None;
         let mut __rstest_bdd_skipped_at: Option<usize> = None;
@@ -330,9 +335,10 @@ fn generate_code_components_outline(
     all_rows_steps: &[ProcessedStepTokens],
     is_async: bool,
     return_kind: ScenarioReturnKind,
+    scope: &TokenStream2,
 ) -> CodeComponents {
     let (step_executor, skip_extractor, scenario_guard, skip_handler) =
-        generate_common_components(is_async, return_kind);
+        generate_common_components(is_async, return_kind, scope);
     let step_executor_loop = if is_async {
         generate_async_step_executor_loop_outline(all_rows_steps)
     } else {

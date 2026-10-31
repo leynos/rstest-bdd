@@ -1,6 +1,5 @@
-//! Tests for step-definition validation: missing/single/ambiguous outcomes and registry behaviour.
-// Intentionally left without file-wide lint suppressions; add per-function #[expect(...)] where
-// needed.
+//! Tests for missing, single, and ambiguous step-definition validation outcomes.
+//! Add per-function `#[expect(...)]` entries rather than file-wide lint suppressions.
 use camino::Utf8PathBuf;
 use rstest::rstest;
 use serial_test::serial;
@@ -128,6 +127,128 @@ fn errors_when_step_matches_three_definitions() {
     assert!(err.contains("I have 1"));
     assert_bullet_count(&err, 3);
     assert!(validate_steps_exist(&steps, true).is_err());
+}
+
+#[test]
+#[serial]
+fn scoped_validation_uses_only_selected_libraries() {
+    clear_registry();
+    let account = syn::LitStr::new("the domain is empty", proc_macro2::Span::call_site());
+    let filesystem = syn::LitStr::new("the domain is empty", proc_macro2::Span::call_site());
+    register_step_in_library(StepKeyword::Given, &account, "accounts");
+    register_step_in_library(StepKeyword::Given, &filesystem, "filesystem");
+    let steps = [create_test_step(StepKeyword::Given, "the domain is empty")];
+    let accounts = vec![Box::<str>::from("accounts")];
+
+    assert!(validate_steps_exist_in_scope(&steps, &accounts, true).is_ok());
+
+    let partly_external = vec![
+        Box::<str>::from("accounts"),
+        Box::<str>::from("external::shared"),
+    ];
+    let external_step = [create_test_step(
+        StepKeyword::Given,
+        "an externally defined step",
+    )];
+    assert!(validate_steps_exist_in_scope(&external_step, &partly_external, true).is_ok());
+}
+
+fn scoped_validation_error(definitions: &[(&str, &str)], selected_libraries: &[&str]) -> String {
+    clear_registry();
+    for (library, pattern) in definitions {
+        let pattern = syn::LitStr::new(pattern, proc_macro2::Span::call_site());
+        register_step_in_library(StepKeyword::Given, &pattern, library);
+    }
+    let steps = [create_test_step(StepKeyword::Given, "the domain is empty")];
+    let libraries = selected_libraries
+        .iter()
+        .map(|library| Box::<str>::from(*library))
+        .collect::<Vec<_>>();
+
+    let Err(error) = validate_steps_exist_in_scope(&steps, &libraries, true) else {
+        return String::from("scoped validation fixture unexpectedly succeeded");
+    };
+    error.to_string()
+}
+
+#[test]
+#[serial]
+fn scoped_validation_reports_unselected_library_hints() {
+    let error = scoped_validation_error(
+        &[
+            ("accounts", "a different account step"),
+            ("filesystem", "the domain is empty"),
+        ],
+        &["accounts"],
+    );
+    assert!(error.contains("Selected libraries: [accounts]"));
+    assert!(error.contains("unselected libraries"));
+    assert!(error.contains("filesystem"));
+}
+
+#[test]
+#[serial]
+fn scoped_validation_reports_equal_candidates_without_precedence() {
+    let error = scoped_validation_error(
+        &[
+            ("accounts", "the domain is empty"),
+            ("filesystem", "the domain is empty"),
+        ],
+        &["accounts", "filesystem"],
+    );
+    assert!(error.contains("Ambiguous step definition"));
+    assert!(error.contains("Selected libraries: [accounts, filesystem]"));
+    assert!(error.contains("accounts"));
+    assert!(error.contains("filesystem"));
+}
+
+fn registration_index_counts(
+    crate_id: &str,
+    library: &str,
+    register: impl FnOnce(),
+) -> Result<(usize, usize), String> {
+    clear_registry();
+    register();
+
+    let registry = REGISTERED
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let crate_id = normalize_crate_id(crate_id);
+    let defs = registry.get(crate_id.as_ref()).ok_or_else(|| {
+        format!("registration should create a crate definition entry for {crate_id}")
+    })?;
+    let global_count = defs.patterns(StepKeyword::Given).len();
+    let scoped_count = defs
+        .scoped_by_kw
+        .get(&(Box::<str>::from(library), StepKeyword::Given))
+        .map_or(0, Vec::len);
+
+    Ok((global_count, scoped_count))
+}
+
+#[test]
+#[serial]
+fn global_registration_populates_global_and_scoped_indexes() -> Result<(), String> {
+    let crate_id = "global-registration-test";
+    let counts = registration_index_counts(crate_id, "rstest_bdd::global", || {
+        register_step_for_crate(StepKeyword::Given, "the global step", crate_id);
+    })?;
+
+    assert_eq!(counts, (1, 1));
+    Ok(())
+}
+
+#[test]
+#[serial]
+fn named_library_registration_avoids_global_index() -> Result<(), String> {
+    let crate_id = current_crate_id();
+    let pattern = syn::LitStr::new("the named step", proc_macro2::Span::call_site());
+    let counts = registration_index_counts(crate_id, "accounts", || {
+        register_step_in_library(StepKeyword::Given, &pattern, "accounts");
+    })?;
+
+    assert_eq!(counts, (0, 1));
+    Ok(())
 }
 
 #[test]

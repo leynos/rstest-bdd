@@ -93,6 +93,42 @@ fn compute_table_docstring_diagnostics_for_path(
     ),
     Some(CODE_DOCSTRING_EXPECTED),
 )]
+#[case::selected_library(
+    "Feature: test\n  Scenario: s\n    Given a step\n",
+    concat!(
+        "#[step_library]\n",
+        "mod accounts {\n",
+        "    #[given(\"a step\")]\n",
+        "    fn a_step(datatable: DataTable) {}\n",
+        "}\n",
+        "#[step_library]\n",
+        "mod filesystem {\n",
+        "    #[given(\"a step\")]\n",
+        "    fn a_step() {}\n",
+        "}\n",
+        "#[scenario(path = \"test.feature\", libraries = [accounts])]\n",
+        "fn bind() {}\n",
+    ),
+    Some(CODE_TABLE_EXPECTED),
+)]
+#[case::equally_specific_candidates(
+    "Feature: test\n  Scenario: s\n    Given a step\n",
+    concat!(
+        "#[step_library]\n",
+        "mod accounts {\n",
+        "    #[given(\"a {value}\")]\n",
+        "    fn account(value: String) {}\n",
+        "}\n",
+        "#[step_library]\n",
+        "mod filesystem {\n",
+        "    #[given(\"a {name}\")]\n",
+        "    fn filesystem(name: String) {}\n",
+        "}\n",
+        "#[scenario(path = \"test.feature\", libraries = [accounts, filesystem])]\n",
+        "fn bind() {}\n",
+    ),
+    Some(CODE_AMBIGUOUS_STEP),
+)]
 fn table_docstring_validation(
     scenario_builder: ScenarioBuilder,
     #[case] feature_content: &str,

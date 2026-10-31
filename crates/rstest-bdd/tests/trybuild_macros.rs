@@ -67,6 +67,10 @@ fn run_passing_macro_tests(t: &trybuild::TestCases) {
         MacroFixtureCase::from("scenario_bulk_migration_cookbook.rs"),
         MacroFixtureCase::from("scenario_harness_failing.rs"),
         MacroFixtureCase::from("scenario_async_step_tokio_bridge.rs"),
+        MacroFixtureCase::from("scenario_step_libraries.rs"),
+        MacroFixtureCase::from("scenario_local_and_cross_crate_libraries.rs"),
+        MacroFixtureCase::from("scenarios_step_libraries.rs"),
+        MacroFixtureCase::from("step_args_named_fields.rs"),
         MacroFixtureCase::from("execution_policy_reexports.rs"),
         MacroFixtureCase::from("scenarios_harness_params.rs"),
         MacroFixtureCase::from("harness_context_coexist.rs"),
@@ -114,6 +118,9 @@ fn run_failing_macro_tests(t: &trybuild::TestCases) {
         MacroFixtureCase::from("scenario_harness_not_default.rs"),
         MacroFixtureCase::from("scenario_harness_async_rejected.rs"),
         MacroFixtureCase::from("scenario_outline_harness_async_rejected.rs"),
+        MacroFixtureCase::from("scenario_malformed_step_libraries.rs"),
+        MacroFixtureCase::from("scenarios_malformed_step_libraries.rs"),
+        MacroFixtureCase::from("scenarios_duplicate_step_libraries.rs"),
         MacroFixtureCase::from("result_fixture_requires_result_scenario.rs"),
     ] {
         t.compile_fail(macros_fixture(case).as_std_path());
@@ -144,6 +151,7 @@ fn run_failing_ui_tests(t: &trybuild::TestCases) -> io::Result<()> {
         UiFixtureCase::from("step_return_nested_result.rs"),
         UiFixtureCase::from("step_return_impl_trait.rs"),
         UiFixtureCase::from("insert_value_must_use.rs"),
+        UiFixtureCase::from("step_args_duplicate_field_attributes.rs"),
     ] {
         t.compile_fail(ui_fixture(case).as_std_path());
     }

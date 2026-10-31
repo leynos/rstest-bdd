@@ -289,6 +289,7 @@ const _: () = {
 
     submit! {
         rstest_bdd::Step {
+            module_path: module_path!(),
             keyword: StepKeyword::When,
             pattern: &OBSERVER_PATTERN,
             run: observes_probe,
