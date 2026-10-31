@@ -21,6 +21,8 @@ use syn::{
     token::Comma,
 };
 
+use crate::macros::args::set_once_arg;
+
 /// Compatibility aliases that map legacy runtime syntax to harness selection.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum RuntimeCompatibilityAlias {
@@ -141,20 +143,6 @@ fn parse_runtime_mode(value: &LitStr) -> syn::Result<RuntimeMode> {
     }
 }
 
-/// Assign `value` to `slot` if empty, or return a duplicate-argument error.
-fn set_once<T>(
-    slot: &mut Option<T>,
-    value: T,
-    label: &str,
-    input: ParseStream<'_>,
-) -> syn::Result<()> {
-    if slot.is_some() {
-        return Err(input.error(format!("duplicate `{label}` argument")));
-    }
-    *slot = Some(value);
-    Ok(())
-}
-
 /// Process each parsed argument and populate the corresponding field.
 #[expect(
     clippy::type_complexity,
@@ -180,15 +168,15 @@ fn process_args(
 
     for arg in args {
         match arg {
-            ScenariosArg::Dir(lit) => set_once(&mut dir, lit, "dir/path", input)?,
-            ScenariosArg::Tags(lit) => set_once(&mut tag_filter, lit, "tags", input)?,
+            ScenariosArg::Dir(lit) => set_once_arg(&mut dir, lit, "dir/path", input)?,
+            ScenariosArg::Tags(lit) => set_once_arg(&mut tag_filter, lit, "tags", input)?,
             ScenariosArg::Fixtures(specs) => {
-                set_once(&mut fixtures, specs, "fixtures", input)?;
+                set_once_arg(&mut fixtures, specs, "fixtures", input)?;
             }
-            ScenariosArg::Runtime(mode) => set_once(&mut runtime, mode, "runtime", input)?,
-            ScenariosArg::Harness(p) => set_once(&mut harness, p, "harness", input)?,
+            ScenariosArg::Runtime(mode) => set_once_arg(&mut runtime, mode, "runtime", input)?,
+            ScenariosArg::Harness(p) => set_once_arg(&mut harness, p, "harness", input)?,
             ScenariosArg::Attributes(p) => {
-                set_once(&mut attributes, p, "attributes", input)?;
+                set_once_arg(&mut attributes, p, "attributes", input)?;
             }
         }
     }
