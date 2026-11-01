@@ -325,7 +325,8 @@ at improving maintainability and IDE integration.
   - Take `ortho_config` with default features in `crates/cargo-bdd` only, and
     raise that crate's `rust-version` to 1.89 while the libraries stay at 1.88.
   - Let `--skipped`, `--reasons`, and both `--json` flags be set from a
-    `[cmds.<subcommand>]` table in a `cargo_bdd.toml` or from
+    `[cmds.<subcommand>]` table in the default-discovered TOML files, including
+    `.cargo_bdd.toml` and XDG `cargo_bdd/config.toml`, or from
     `CARGO_BDD_CMDS_<SUBCOMMAND>_<FIELD>`, with defaults below files, files
     below environment, and environment below the command line.
   - Accept both `cargo bdd <subcommand>` and `cargo-bdd <subcommand>`, and
