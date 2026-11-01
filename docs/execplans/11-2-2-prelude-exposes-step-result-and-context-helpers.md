@@ -1063,9 +1063,11 @@ implementation.
 ## Plan of work
 
 Seven milestones. Each ends in a repository state that builds, passes the
-gates, and is safe to stop at. Run `make check-fmt && make lint && make test`
-sequentially at every milestone boundary — never in parallel, because the build
-cache is shared and sequential runs are what make it useful — and commit.
+gates, and is safe to stop at. Run gates sequentially at every milestone
+boundary — never in parallel, because the build cache is shared and sequential
+runs are what make it useful — and commit. For final merge validation, preserve
+the user's requested order: `make check-fmt`, `make test`, `make typecheck`,
+then `make lint`.
 
 ### Milestone 0 — orientation and green baseline
 
@@ -1077,13 +1079,17 @@ any later failure is attributable. Capture the two baseline measurements that
 
 ```bash
 cargo tree -p rstest-bdd --prefix none -e normal | sort -u | wc -l
-# expect: 99
+# historical reference: 99; record the count for the current base
 
 CARGO_TARGET_DIR=target/ep-m0-baseline \
   /usr/bin/time -f '%e wall %U user %S sys' cargo build -p rstest-bdd
 # record the elapsed time and available CPU allocation
 # compare with ~10.1 s only on the reference 24-core machine
 ```
+
+If `/usr/bin/time` is unavailable, use Bash's built-in `time` and record its
+wall, user, and system values. Do not disable `RUSTC_WRAPPER` to manufacture a
+cold build; record the available cache state.
 
 Keep `RUSTC_WRAPPER` enabled so the shared compiler-admission pool accounts for
 every Rust invocation. Keep the target directory inside the repository; Cargo
@@ -1103,15 +1109,18 @@ meaningless. With `-e normal` the same query reports "nothing to print" until
 EP-M1 lands. Any edge or acyclicity check written with `cargo tree` and without
 `-e normal` is vacuous; that is why V-1 parses the manifest directly instead.
 
-Then settle the assumption the whole ergonomic case rests on. Temporarily add
-`pub mod prelude { pub use crate::StepResult; }` to
-`crates/rstest-bdd/src/lib.rs` and `use rstest_bdd::prelude::*;` to an existing
-integration test, run `make lint`, observe it pass, and revert both. If
-`make lint` reports `clippy::wildcard_imports` on that glob, **stop and
-escalate**: the choice between setting `warn-on-all-wildcard-imports`
-explicitly, adding a scoped `#[expect]`, and abandoning glob imports in favour
-of named prelude imports belongs to the approver, not the implementer. Confirm
-the working tree is clean again before proceeding.
+Then settle the assumption the whole ergonomic case rests on. Temporarily add a
+documented `prelude` module to `crates/rstest-bdd/src/lib.rs` and
+`use rstest_bdd::prelude::*;` to an existing integration test, run `make lint`,
+observe it pass, and revert both. Use an inner `//!` module comment without an
+outer `///` comment: Whitaker requires inner module documentation, and Clippy
+rejects mixing the two styles. If `make lint` reports
+`clippy::wildcard_imports` on that glob, **stop and escalate**: the choice
+between setting `warn-on-all-wildcard-imports` explicitly, adding a scoped
+`#[expect]`, and abandoning glob imports in favour of named prelude imports
+belongs to the approver, not the implementer. Confirm the source probe is
+reverted before proceeding; keep any generated configuration change separate
+from feature implementation.
 
 **Acceptance evidence:** `make check-fmt`, `make lint`, `make typecheck`,
 `make test`, `make markdownlint`, and `make nixie` all green on an unmodified
@@ -1717,6 +1726,19 @@ implementation pending the base-branch arrangement.
 ## Surprises & discoveries
 
 Recorded during planning and execution as evidence was confirmed.
+
+- **Observation:** the first wildcard probe attempts failed on module-document
+  lint rules before reaching the wildcard decision. **Evidence:** Whitaker
+  rejected a module without an inner doc comment, then Clippy rejected mixed
+  inner and outer docs; the corrected inner-only probe passed `make lint` in 66
+  seconds with no wildcard diagnostic. **Impact:** future probes must use the
+  documented module shape above so they test only the intended lint question.
+
+- **Observation:** `/usr/bin/time` is not installed in this worktree
+  environment. **Evidence:** the requested command returned
+  `/bin/bash: /usr/bin/time: No such file or directory`; the Cargo build then
+  passed under Bash's built-in timer. **Impact:** the measured values remain
+  useful for this host but are not a cold reference comparison.
 
 - **Observation:** the rebased main branch has a larger normal dependency
   graph than the plan's historical baseline. **Evidence:**
