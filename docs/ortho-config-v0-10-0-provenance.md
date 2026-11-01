@@ -39,24 +39,31 @@ cannot silently change what this repository records.
 
 _Table 2: Source paths, destination paths, and checksums._
 
-| Upstream path                     | Repository path                                | SHA-256                                                            |
-| --------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------ |
-| `docs/users-guide.md`             | `docs/ortho-config-users-guide.md`             | `84d1c97b77024224dc9220a12d4b749205d9bb2db54849185da21c969dda5575` |
-| `docs/v0-10-0-migration-guide.md` | `docs/ortho-config-v0-10-0-migration-guide.md` | `b5331aa6cfcc07b3dcd188c620db98d0a1a1f13b0c8ef96d88913d701bca25bf` |
+| Upstream path                     | Repository path                                               | SHA-256                                                            |
+| --------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `docs/users-guide.md`             | `docs/ortho-config-users-guide.md`                            | `84d1c97b77024224dc9220a12d4b749205d9bb2db54849185da21c969dda5575` |
+| `docs/v0-10-0-migration-guide.md` | `docs/ortho-config-v0-10-0-migration-guide.md`                | `b5331aa6cfcc07b3dcd188c620db98d0a1a1f13b0c8ef96d88913d701bca25bf` |
+| `docs/users-guide.md`             | `vendor/ortho-config-v0-10-0/docs/users-guide.md`             | `84d1c97b77024224dc9220a12d4b749205d9bb2db54849185da21c969dda5575` |
+| `docs/v0-10-0-migration-guide.md` | `vendor/ortho-config-v0-10-0/docs/v0-10-0-migration-guide.md` | `b5331aa6cfcc07b3dcd188c620db98d0a1a1f13b0c8ef96d88913d701bca25bf` |
 
 The checksums were taken from the upstream files at commit `38812c56` and
-re-taken from the copies after they were written into this repository; the two
-sets agree. To check a copy, run `sha256sum` on the repository path and compare
-the result with Table 2.
+re-taken from both the requested flat imports and the link-preserving copies;
+all four checksums match. To check a copy, run `sha256sum` on the repository
+path and compare it with Table 2.
 
 The imported guides contain relative links to one another using their upstream
 filenames (`users-guide.md` and `v0-10-0-migration-guide.md`). The repository's
 project guide already owns `docs/users-guide.md`, so those names cannot be
 restored beside the requested flat imports without changing its meaning. Exact
-link-preserving copies of both imported files therefore also live under
-`docs/ortho-config-v0-10-0/` with their upstream filenames. Open those copies
-when following the guides' cross-links; the flat imports above remain the
-canonical checksum-verified files and remain byte-for-byte unchanged.
+copies with upstream filenames therefore live at
+`vendor/ortho-config-v0-10-0/docs/`. The documentation index points to these
+copies, whose relative links resolve within the pinned upstream layout.
+
+The mirror also contains short pointer pages for relative upstream targets
+outside the two imported guides. Each pointer leads to the corresponding file
+or directory at the immutable source commit. The imported text in both
+locations remains byte-for-byte identical; compare the four files with the
+checksums in Table 2.
 
 ## Version boundary
 
