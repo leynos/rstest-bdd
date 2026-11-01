@@ -111,9 +111,9 @@ Hard invariants. Violation requires escalation, not a workaround.
   `SubcommandFileContext`) and never rely on discovery; binary-level tests
   isolate `HOME` and `XDG_CONFIG_HOME` in the child process environment.
 - Risk: the Cargo-dispatch wrapper's `external_subcommand` help differs from
-  `cargo-bdd --help`. Severity: medium. Likelihood: high. Mitigation: the
-  upstream helper deliberately gives the installed binary its own command name;
-  decide and record which surface each form shows, then pin both in tests.
+  the flat `cargo-bdd --help`. Severity: medium. Likelihood: high. Mitigation:
+  select the helper only when argv begins with Cargo's injected `bdd` token;
+  keep the existing parser for the flat form and pin both surfaces in tests.
 - Risk: `make test` contention with other agents' builds causes a nextest
   timeout that looks like a defect. Severity: medium. Likelihood: high.
   Mitigation: check `build-limits-status` before diagnosing; see the baseline
@@ -175,6 +175,10 @@ Hard invariants. Violation requires escalation, not a workaround.
       definition to `docs/contents.md`; add the decision to roadmap §6.1.
 - [ ] §3: review the recorded design with CodeRabbit after the deterministic
       documentation gates; resolve any valid concerns before implementation.
+- [x] (2026-11-01) Align the ADR and this plan with the two-parser invocation
+      design in §3.6a: the existing parser handles flat argv, and
+      `external_subcommand` handles argv with Cargo's injected `bdd` token.
+      `make fmt`, `make check-fmt`, `make markdownlint`, and `make nixie` passed.
 - [x] (2026-11-01) Correct the plan's baseline description: retain verified
       help/parser captures, and mark the listing probe and baseline package
       run as unsuccessful. `make fmt`, `make check-fmt`, `make markdownlint`,
@@ -284,13 +288,14 @@ Hard invariants. Violation requires escalation, not a workaround.
   because `rust-version.workspace = true` would inherit 1.88. Date/Author:
   2026-10-25, implementing agent.
 
-- Decision: use `ortho_config::cargo::external_subcommand` for the Cargo entry
-  shape, so both `cargo bdd steps` and `cargo-bdd steps` are accepted.
-  Rationale: it is the upstream-supported helper, and it enforces the
-  `cargo-<name>` / `<name>` pairing with debug assertions. The alternative — an
-  `Option<String>` first positional in `Cli` — cannot reproduce Cargo's
-  namespace and would accept a stray `bdd` token in the flat form too.
-  Date/Author: 2026-10-25, implementing agent.
+- Decision: use `ortho_config::cargo::external_subcommand` only for argv that
+  begins with Cargo's injected `bdd` token; keep the original parser for the
+  flat `cargo-bdd <subcommand>` form. Rationale: the upstream helper correctly
+  models `cargo bdd <subcommand>` and `cargo-bdd bdd <subcommand>`, but its
+  synthetic parent changes the flat form's frozen usage and help text. The
+  alternative — an `Option<String>` first positional in `Cli` — cannot
+  reproduce Cargo's namespace and would accept a stray `bdd` token in the flat
+  form too. Date/Author: 2026-11-01, implementing agent.
 
 - Decision: settings configurable through files and environment are the
   per-subcommand booleans `--skipped`, `--json` (on `steps`) and `--reasons`,
@@ -498,16 +503,17 @@ The change introduces four obligations worth stating.
   OrthoConfig's internal discovery. Discovery itself is third-party and treated
   as an axiom, with the caveat recorded under `V5`.
 
-- Obligation: `V3 invocation-forms`. `cargo-bdd steps` and `cargo-bdd bdd steps`
-  both run the `steps` subcommand; each form is separately pinned for exit
-  status and streams. Method: isolated child-process test, one case per form,
-  both reaching a fixture workspace. Rationale: the defect is a property of
-  argument shape, which only a real process exercises; an in-process
-  `Cli::try_parse_from` would also work for the accept/reject decision, and
-  both are used — the parse-level test for breadth, the child-process test for
-  the streams. Domain: 2 forms x 2 subcommands (`steps`, `skipped`) = 4 rows.
-  Artefact: `crates/cargo-bdd/tests/invocation.rs`. Evidence: against the
-  pre-change binary the Cargo-form rows fail with exit 2 and
+- Obligation: `V3 invocation-forms`. The flat form `cargo-bdd steps` and Cargo's
+  injected form `cargo-bdd bdd steps` both run the `steps` subcommand; each
+  form is separately pinned for exit status and streams. Method: isolated
+  child-process test, one case per form, both reaching a fixture workspace.
+  Rationale: the defect is a property of argument shape, which only a real
+  process exercises; an in-process `Cli::try_parse_from` would also work for
+  the accept/reject decision, and both are used — the parse-level test for
+  breadth, the child-process test for the streams. Domain: 2 forms x 2
+  subcommands (`steps`, `skipped`) = 4 rows. Artefact:
+  `crates/cargo-bdd/tests/invocation.rs`. Evidence: against the pre-change
+  binary the injected rows fail with exit 2 and
   `error: unrecognized subcommand 'bdd'`; against the post-change binary they
   pass. Discharge condition: green, and the flat-form rows still match Table 1.
   Non-vacuity: the pre-change failure is recorded, so the test demonstrably
@@ -617,8 +623,9 @@ Cargo form still rejected.
    structs, give each a `#[command(name = "…")]`, mark the booleans with
    `#[ortho_config(cli_default_as_absent)]`, and implement `Default` to agree
    with the clap defaults.
-9. Add the Cargo external-subcommand wrapper and route both forms through one
-   dispatch function.
+9. Select the existing parser for the flat form and the Cargo
+   external-subcommand wrapper for argv beginning with `bdd`; route both forms
+   through one dispatch function.
 10. Handle display requests and configuration errors at the boundary, keeping
     clap's exit statuses and streams.
 11. Add `tests/precedence.rs` and `tests/config_errors.rs`.
