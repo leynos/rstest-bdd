@@ -16,9 +16,9 @@ remains free of the dependency.
 `skipped`. Every setting it has is a command-line flag. An operator who wants a
 repository to always render skip reasons, or a CI lane that always wants the
 JSON payload, has to repeat the flag at each call site, and there is nowhere to
-record the choice once. Cargo's dependency form, `cargo bdd steps`, is also
-rejected outright, because the parser has no slot for the `bdd` token Cargo
-passes to the binary.
+record the choice once. Cargo's external-subcommand form, `cargo bdd steps`, is
+also rejected outright, because the parser has no slot for the `bdd` token
+Cargo passes to the binary.
 
 Two constraints shape any answer. First, the workspace advertises Rust 1.88 for
 its libraries and a configuration layer is a new dependency in the build graph,
@@ -99,6 +99,14 @@ command line. Every configurable field is marked
 does not outrank a value from a file or the environment. The matching `Default`
 implementation agrees with the clap default, because the subcommand merge
 starts from `Default`.
+
+For `steps`, the existing `--json` requirement still applies after merging:
+resolved `json = true` requires resolved `skipped = true`. Clap enforces this
+for explicitly supplied command-line flags. Since clap cannot see file or
+environment values, the application boundary validates the merged settings and
+reports that the configuration value `steps.json` requires
+`steps.skipped = true` (or `--skipped`). This check does not change the
+existing parse failure for `steps --json` without `--skipped`.
 
 Help text and parse failures stay English. No localizer is installed, so
 OrthoConfig's `NoOpLocalizer` remains in force and the wording of help and
