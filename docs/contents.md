@@ -39,12 +39,12 @@
   the v0.5.0 release changes.
 - [v0.6.0 migration guide](v0-6-0-migration-guide.md) helps users move through
   the v0.6.0 release changes.
-- [OrthoConfig user's guide](ortho-config-users-guide.md) is the imported
-  upstream guide to configuring a command-line application with OrthoConfig
-  v0.10.0.
-- [OrthoConfig v0.10.0 migration guide](ortho-config-v0-10-0-migration-guide.md)
-  is the imported upstream guide to moving an application from OrthoConfig
-  v0.9.0 to v0.10.0.
+- [OrthoConfig user's guide](../vendor/ortho-config-v0-10-0/docs/users-guide.md)
+  is the link-preserving mirror of the imported upstream guide to configuring a
+  command-line application with OrthoConfig v0.10.0.
+- [OrthoConfig v0.10.0 migration guide](../vendor/ortho-config-v0-10-0/docs/v0-10-0-migration-guide.md)
+  is the link-preserving mirror of the imported upstream guide to moving an
+  application from OrthoConfig v0.9.0 to v0.10.0.
 - [Provenance of the imported OrthoConfig guides](ortho-config-v0-10-0-provenance.md)
   records the release, commit, paths, and checksums of those two imports.
 - [Releasing crates](releasing-crates.md) documents the release and publication
