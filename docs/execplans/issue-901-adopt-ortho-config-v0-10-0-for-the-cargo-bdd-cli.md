@@ -647,8 +647,9 @@ Cargo form still rejected.
    parse failures; no profiles; and the Cargo entry shape.
 3. Add the ADR 024 bullet and the `[adr-024]` reference definition to
    `docs/contents.md`.
-4. Add the decision to `docs/roadmap.md` §6.1 as a new checked sub-item under
-   the diagnostic tooling heading, naming OrthoConfig v0.10.0.
+4. Add the decision to `docs/roadmap.md` §6.1 as a new unchecked sub-item under
+   the diagnostic tooling heading, naming OrthoConfig v0.10.0. Mark it checked
+   only after the implementation is complete.
 5. Add the baseline fixture and `tests/baseline_output.rs`; run it.
 6. Add `tests/invocation.rs`; run it and record the red failure.
 7. In `Cargo.toml` (workspace) add `ortho_config = "0.10.0"` under
