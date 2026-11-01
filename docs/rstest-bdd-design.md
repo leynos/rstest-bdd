@@ -2878,6 +2878,15 @@ version, and the `requires = "skipped"` constraint on `--json`. Those describe
 the shape of a single invocation rather than a preference that outlives it, so
 there is no file or environment spelling for them.
 
+That constraint also applies to the resolved settings. Clap checks explicitly
+provided flags before configuration is loaded, but it cannot validate values
+from files or the environment. After merging `steps` settings, the application
+boundary rejects `json = true` when `skipped = false`, with an actionable error
+identifying the `steps.json` configuration value and requiring
+`steps.skipped = true` or `--skipped`. Thus a configuration source cannot make
+`cargo bdd steps` fail later in the listing handler, and the original parser
+failure for a CLI-only `steps --json` invocation remains unchanged.
+
 #### File name, discovery, and formats
 
 Configuration files are TOML, and a file's settings for a subcommand live in a
