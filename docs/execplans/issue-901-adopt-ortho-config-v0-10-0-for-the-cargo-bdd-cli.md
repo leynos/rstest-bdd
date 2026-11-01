@@ -179,6 +179,10 @@ Hard invariants. Violation requires escalation, not a workaround.
       design in §3.6a: the existing parser handles flat argv, and
       `external_subcommand` handles argv with Cargo's injected `bdd` token.
       `make fmt`, `make check-fmt`, `make markdownlint`, and `make nixie` passed.
+- [x] (2026-11-01) Address all three CodeRabbit findings: leave roadmap item
+      6.1.6 unchecked during implementation, describe MSRV metadata per package,
+      and specify platform-specific unreadable-file fixtures. The three docs
+      gates passed; request a fresh review on the committed correction.
 - [x] (2026-11-01) Correct the plan's baseline description: retain verified
       help/parser captures, and mark the listing probe and baseline package
       run as unsuccessful. `make fmt`, `make check-fmt`, `make markdownlint`,
@@ -521,19 +525,21 @@ The change introduces four obligations worth stating.
   `cargo-bdd bdd bogus` must still exit 2.
 
 - Obligation: `V4 failure-surface`. Malformed and unreadable configuration
-  files, invalid values, unknown keys, and localized parse failures each
-  produce the documented exit status and stream, and none of them is confused
-  with "no configuration file present". Method: parameterized table over the
-  failure cases. Domain: malformed TOML; unreadable file (mode 0o000);
-  `skipped = "maybe"` (type error); an unknown key; an invalid value for a
-  typed field. Artefact: `crates/cargo-bdd/tests/config_errors.rs`. Evidence:
-  each row asserts a non-zero exit and an actionable message naming the file;
-  the missing-file row asserts exit 0 and the unchanged listing. Discharge
-  condition: green. Non-vacuity: the missing-file row is the negative control
-  for the error rows — if the loader treated absence as an error, that row
-  would fail. Note: the unknown-key row asserts that the key is **ignored**,
-  because the derive emits no `deny_unknown_fields`; asserting an error there
-  would be a test written against behaviour OrthoConfig does not have.
+  files, invalid values and unknown keys produce the documented boundary
+  behaviour, and a missing optional file is not reported as an error. Method:
+  parameterized tests in `crates/cargo-bdd/tests/config_errors.rs`. Domain:
+  malformed TOML; an unreadable file; `skipped = "maybe"` (type error); an
+  unknown key; and a validly parsed value that is invalid for the command. The
+  unreadable-file fixture is platform-specific: on Unix, set mode `0o000` and
+  exercise the read failure from a non-root test process; if the process can
+  still open the file, report that case as unavailable rather than passing it.
+  On Windows, hold a config file open with `OpenOptionsExt::share_mode(0)` so
+  OrthoConfig's file probe cannot open it. Evidence: failure rows assert a
+  non-zero result and actionable context; the missing-file row asserts no
+  configuration error. Discharge condition: all cases applicable to the
+  platform pass. Note: unknown keys are **ignored**, because the derive emits no
+  `deny_unknown_fields`; asserting an error would test behaviour OrthoConfig
+  does not have.
 
 - Obligation: `V5 discovery axiom`. The claim "with no configuration file
   present, no file tier contributes" depends on OrthoConfig's discovery rules
@@ -648,13 +654,15 @@ Acceptance means all of the following, in one gate run against the final tree:
 - No crate other than `cargo-bdd` appears in the `ortho_config` dependency
   graph: `cargo tree -p rstest-bdd -e normal | grep -c ortho_config` returns 0,
   and likewise for each other library crate.
-- `cargo metadata` reports `rust-version` 1.88 for the workspace and 1.89 for
-  `cargo-bdd`.
+- `cargo metadata` reports `rust_version` 1.88 for every library package and
+  1.89 for `cargo-bdd`. The workspace root is a virtual manifest and has no
+  package-level `rust_version`.
+- Rust 1.88.0 checks the library packages without `ortho_config`; Rust 1.89.0
+  checks `cargo-bdd` with OrthoConfig. These commands test the package-level
+  MSRV split directly.
 
-Reported as unavailable, if they remain unavailable: there is no MSRV CI job in
-this repository, so the 1.89 split is proven by `cargo metadata` and by the
-crate's own build rather than by a dedicated pipeline. State this rather than
-implying a pipeline covers it.
+There is no dedicated MSRV CI job in this repository. Report the direct local
+MSRV checks above and do not imply a pipeline covers them.
 
 ## Idempotence and recovery
 
