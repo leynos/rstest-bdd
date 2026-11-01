@@ -129,6 +129,15 @@ Hard invariants. Violation requires escalation, not a workaround.
 - [x] (2026-10-25) §1: import the two OrthoConfig v0.10.0 guides from the
       resolved tag commit; record provenance and SHA-256 checksums; gate and
       commit as `c2a8306f`.
+- [x] (2026-11-01) Re-fetch `v0.10.0`, confirm tag object
+      `996e5a1c9f22ace4f55bf5dcc196d2c0524262bf` peels to
+      `38812c563e3953a490e3efc202609f37e21a0517`, and verify both imported
+      guides match the pinned commit checksums. Firecrawl scraped the migration
+      guide from that immutable commit to check the v0.10.0 capability summary.
+- [x] (2026-11-01) Record the execution baseline compiler identity:
+      `rustc 1.99.1 (58cf8f9c35b355199727627d07ae34a4e2846d67)`, host
+      `x86_64-unknown-linux-gnu`, LLVM `23.1.1`. The current cargo-bdd sources,
+      manifests and lockfile match baseline commit `2ee10a13`.
 - [x] (2026-10-25) §2: record baseline commit `2ee10a13` and compiler identity;
       inventory binaries, subcommands, flags, defaults, environment variables,
       config files, exit statuses, output streams, and machine-readable
@@ -140,11 +149,15 @@ Hard invariants. Violation requires escalation, not a workaround.
       `scripts/tests/` and `tests/workflow_contracts/`). No workflow invokes
       `cargo bdd`.
 - [x] (2026-10-25) §1–§2 gates: `make spelling` and `make check-fmt` green.
-- [ ] §2: re-run `cargo nextest run -p cargo-bdd` to a clean pass. The first
-      baseline run timed out on `cargo-bdd::cli list_steps_runs` at its 180 s
-      nextest budget while `build-limits-status` showed all four compiler slots
-      held by unrelated repositories. That is compile-admission contention, not
-      a defect, but it is **not** a recorded pass and must not be cited as one.
+- [ ] §2: baseline `cargo nextest run -p cargo-bdd` did not complete cleanly.
+      `/tmp/baseline-cargo-bdd-issue-901.out` records 19/31 passing tests; the
+      next test, `cargo-bdd::cli::list_steps_runs`, timed out at 180 s while
+      building its nested Cargo fixture. At timeout, `build-limits-status`
+      showed a healthy but saturated shared compiler pool and unrelated queued
+      builds. This is consistent with compile-admission contention, but is not
+      a pass and must not be cited as one. Re-run the full package suite after
+      implementation validation; classify any repeat using the test child and
+      admission logs.
 - [ ] §3: write this plan (done when this file is committed).
 - [ ] §3: write ADR 025 recording the configuration decision.
 - [ ] §3: add the configuration and integration-boundary sections to
@@ -299,9 +312,24 @@ Hard invariants. Violation requires escalation, not a workaround.
   freeze constraint forbids. OrthoConfig's `NoOpLocalizer` is the default and
   remains in force. Date/Author: 2026-10-25, implementing agent.
 
-Open: how to reconcile `#[derive(SelectedSubcommandMerge)]` with the two unit
-variants, and whether to offer a working `--config-path`. Both are settled
-below before implementation begins.
+- Decision: do **not** use `#[derive(SelectedSubcommandMerge)]`. Hand-roll the
+  per-arm merge with `SubcmdConfigMerge::load_and_merge_with_matches`.
+  Rationale: the derive hard-errors on the unit variants `Unused` and
+  `Duplicates`, and the only way to satisfy it would be to invent empty payload
+  structs for two subcommands that have no settings. Those structs would exist
+  solely to please a macro, would appear in `--help` as a change if the derive
+  generated their metadata, and would make the "no configurable settings here"
+  fact less obvious than it is today. Two arms that call a loader and two arms
+  that do not is the honest shape. The derive remains worth using if a later
+  subcommand needs settings that the other units do not. Date/Author:
+  2026-10-25, implementing agent.
+
+- Decision: do not offer `--config-path`.
+  Rationale: the derive emits it only on its own hidden CLI struct, and no
+  subcommand loader consults it. Exposing it would mean hand-wiring a second
+  discovery path, or shipping a flag that accepts a path and ignores it. The
+  documented discovery locations and the environment variable cover the need.
+  Date/Author: 2026-10-25, implementing agent.
 
 ## Outcomes & retrospective
 
