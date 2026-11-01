@@ -78,10 +78,14 @@ The configurable settings are the per-subcommand booleans that already exist:
 
 Configuration files are TOML. With default features the crate discovers only
 `.toml`, so no other format is offered. Per-subcommand values live in a
-`[cmds.<subcommand>]` table, which is the layout the derive produces from
-`clap`'s own command name; the discovery locations are the ones OrthoConfig
-provides (a dot-prefixed file in the home directory, the XDG configuration
-directories, and a dot-prefixed file in the working directory).
+`[cmds.<subcommand>]` table, which the subcommand loader selects from `clap`'s
+command name. On Unix and Redox, it merges `~/.cargo_bdd.toml`, the first
+existing XDG `cargo_bdd/config.toml`, and `./.cargo_bdd.toml` in that order. On
+other platforms it checks the home dotfile, the native `cargo_bdd/config.toml`
+directory (under `%APPDATA%` on Windows), and the working-directory dotfile.
+Missing optional files contribute nothing; found files that are unreadable or
+malformed return an error. The subcommand loader does not expose a
+`--config-path` option or `CARGO_BDD_CONFIG_PATH` selector.
 
 The environment prefix is `CARGO_BDD_`, and a subcommand setting is spelled
 `CARGO_BDD_CMDS_<SUBCOMMAND>_<FIELD>`, for example
