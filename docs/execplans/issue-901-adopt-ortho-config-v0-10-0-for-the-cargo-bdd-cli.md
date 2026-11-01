@@ -18,23 +18,22 @@ run the tool from Cargo's dependency form at all — `cargo bdd steps` is
 rejected.
 
 After this change, an operator can put `reasons = true` under `[cmds.skipped]`
-in a `cargo_bdd.toml`, get the same effect from
-`CARGO_BDD_CMDS_SKIPPED_REASONS=true`, and still override either on the command
-line with `--reasons`. `cargo bdd steps` and `cargo-bdd steps` both work, and
-running the tool with no configuration file and no environment variable
-produces byte-identical output, exit statuses and streams to today.
+in a discovered `.cargo_bdd.toml` or XDG `cargo_bdd/config.toml`, get the same
+effect from `CARGO_BDD_CMDS_SKIPPED_REASONS=true`, and still override either on
+the command line with `--reasons`. `cargo bdd steps` and `cargo-bdd steps` both
+work, and running the tool with no configuration file and no environment
+variable produces byte-identical output, exit statuses and streams to today.
 
 Success is observable without reading code:
 
 ```plaintext
-cargo-bdd steps --skipped --json     # unchanged: exit 0, 3 bytes stdout
-CARGO_BDD_CMDS_STEPS_SKIPPED=true cargo-bdd steps --json   # newly configurable
-printf '[cmds.skipped]\nreasons = true\n' > cargo_bdd.toml
+CARGO_BDD_CMDS_STEPS_SKIPPED=true cargo-bdd steps --skipped --json
+printf '[cmds.skipped]\nreasons = true\n' > .cargo_bdd.toml
 cargo-bdd skipped                    # now lists reasons, exit 0
 ```
 
-The second and third lines are new. The first line, and every existing test
-under `crates/cargo-bdd/tests/`, must not move.
+The configuration examples are new. Every existing test under
+`crates/cargo-bdd/tests/` must keep its current assertions and pass unchanged.
 
 ## Constraints
 
@@ -48,10 +47,11 @@ Hard invariants. Violation requires escalation, not a workaround.
   may depend on it.
 - **No-configuration behaviour is frozen.** With no configuration file
   discoverable and no `CARGO_BDD_*` variable set, the flat invocation form
-  (`cargo-bdd <subcommand>`) must keep the exact help text, error text, exit
-  status, and output stream recorded in the baseline table below. Existing
-  tests in `crates/cargo-bdd/tests/` must pass **unmodified** — not edited to
-  accommodate the change.
+  (`cargo-bdd <subcommand>`) must keep the same flags, defaults, output, exit
+  statuses and streams. Exact help and parser-failure output captured below
+  pins the cases that could be exercised without building the nested fixture.
+  Existing tests in `crates/cargo-bdd/tests/` must pass **unmodified** — not
+  edited to accommodate the change.
 - **Workspace MSRV split.** The workspace stays at `rust-version = "1.88"`.
   Only `crates/cargo-bdd/Cargo.toml` moves to `"1.89"`, and it does so with a
   literal value rather than `rust-version.workspace = true`. The raise is
@@ -138,18 +138,28 @@ Hard invariants. Violation requires escalation, not a workaround.
       `rustc 1.99.1 (58cf8f9c35b355199727627d07ae34a4e2846d67)`, host
       `x86_64-unknown-linux-gnu`, LLVM `23.1.1`. The current cargo-bdd sources,
       manifests and lockfile match baseline commit `2ee10a13`.
-- [x] (2026-10-25) §2: record baseline commit `2ee10a13` and compiler identity;
-      inventory binaries, subcommands, flags, defaults, environment variables,
-      config files, exit statuses, output streams, and machine-readable
-      formats; capture exact help and error text; confirm `cargo-bdd bdd steps`
-      is rejected with exit 2.
+- [x] (2026-11-01) Keep the generated Tokio spelling patterns in the separate
+      base commit `8c23a75e` on `chore/refresh-generated-typos-config`, based on
+      `origin/main` `4d585b78`. `make check-fmt`, `make markdownlint`, and
+      `make nixie` passed. CodeRabbit returned “All files are ignored” for the
+      `typos.toml`-only change and produced no findings. Rebase the issue branch
+      onto that commit; `git range-diff` confirms all three issue commits are
+      content-equivalent to their pre-rebase versions.
+- [x] (2026-11-01) §2: record baseline commit `2ee10a13`, compiler identity,
+      command inventory, callers, and supported output formats. Capture exact
+      help, version and parser-failure output in
+      `/tmp/baseline-cli-errors-issue-901.out`; confirm `cargo-bdd bdd steps`
+      is rejected with exit 2. A successful listing could not be captured:
+      the nested fixture build failed in `convert_case`, so its stdout/stderr
+      and exact byte counts remain unknown. Do not treat that probe as a pass.
 - [x] (2026-10-25) §2: inventory callers (`Makefile`,
       `.github/workflows/mutation-testing.yml`, `.github/dependabot.yml`,
       `scripts/fixture_lockfile_cargo.py`, three test modules under
       `scripts/tests/` and `tests/workflow_contracts/`). No workflow invokes
       `cargo bdd`.
 - [x] (2026-10-25) §1–§2 gates: `make spelling` and `make check-fmt` green.
-- [ ] §2: baseline `cargo nextest run -p cargo-bdd` did not complete cleanly.
+- [x] §2: capture the baseline package test inventory and result. The
+      `cargo nextest run -p cargo-bdd` command did not complete cleanly.
       `/tmp/baseline-cargo-bdd-issue-901.out` records 19/31 passing tests; the
       next test, `cargo-bdd::cli::list_steps_runs`, timed out at 180 s while
       building its nested Cargo fixture. At timeout, `build-limits-status`
@@ -158,11 +168,17 @@ Hard invariants. Violation requires escalation, not a workaround.
       a pass and must not be cited as one. Re-run the full package suite after
       implementation validation; classify any repeat using the test child and
       admission logs.
-- [ ] §3: write this plan (done when this file is committed).
-- [ ] §3: write ADR 024 recording the configuration decision.
-- [ ] §3: add the configuration and integration-boundary sections to
+- [x] §3: write this plan.
+- [x] §3: write ADR 024 recording the configuration decision.
+- [x] §3: add the configuration and integration-boundary sections to
       `docs/rstest-bdd-design.md`; add the ADR 024 entry and reference
       definition to `docs/contents.md`; add the decision to roadmap §6.1.
+- [ ] §3: review the recorded design with CodeRabbit after the deterministic
+      documentation gates; resolve any valid concerns before implementation.
+- [x] (2026-11-01) Correct the plan's baseline description: retain verified
+      help/parser captures, and mark the listing probe and baseline package
+      run as unsuccessful. `make fmt`, `make check-fmt`, `make markdownlint`,
+      and `make nixie` passed; imported guide SHA-256 checksums remain exact.
 - [ ] §4: implement. Manifest and MSRV split; `OrthoConfig` derives; the
       Cargo external-subcommand wrapper; boundary error handling.
 - [ ] §5: tests. Precedence tiers per subcommand with injected sources;
@@ -174,20 +190,21 @@ Hard invariants. Violation requires escalation, not a workaround.
 - Observation: `cargo-bdd bdd steps` — the form Cargo produces — is rejected
   today with `error: unrecognized subcommand 'bdd'`, exit 2, 0 bytes on stdout
   and 102 bytes on stderr. Evidence: captured in
-  `/tmp/baseline-text-issue-901-adopt-ortho-config-v0-10-0-for-the-cargo-bdd-cli.out`.
-  Impact: this is a real defect, not a documentation gap, and issue #901
-  requires it fixed while preserving the flat form. Both forms need a test.
+  `/tmp/baseline-cli-errors-issue-901.out`. Impact: this is a real defect, not
+  a documentation gap, and issue #901 requires it fixed while preserving the
+  flat form. Both forms need a test.
 
-- Observation: all substantive `cargo-bdd` output goes to **stderr**, including
-  the successful listings. Only `--json` payloads and help/version write
-  stdout. Evidence: the byte matrix below. Impact: "unchanged output" cannot be
-  proved by comparing stdout alone; the tests must compare both streams and the
-  exit status.
+- Observation: successful listings and help/version write to **stdout**;
+  parser failures and no-argument usage text write to **stderr**. Evidence: the
+  captured help/parser cases and the existing integration test helper, which
+  returns stdout for successful commands and stderr for failures. The
+  successful listing byte counts were not captured because the nested fixture
+  build failed. Tests must compare both streams and the exit status.
 
-- Observation: bare `cargo-bdd` with no arguments prints the full help text to
-  **stderr** and exits **2**, while `cargo-bdd -h` prints to stdout and exits
-  0. Evidence: baseline capture. Impact: the wrapper must not "helpfully"
-  convert the no-argument case into a display request.
+- Observation: bare `cargo-bdd` with no arguments prints command help to
+  **stderr** and exits **2**, while `cargo-bdd --help` prints to stdout and
+  exits 0. Evidence: baseline capture. Impact: the wrapper must not convert the
+  no-argument case into a display request.
 
 - Observation: `#[derive(SelectedSubcommandMerge)]` hard-errors on unit
   variants — "unit variants are not supported; use `Variant(Args)`" — and
@@ -387,34 +404,31 @@ Terms used in this plan:
 Baseline commit and identity: `2ee10a136b3ae641f3feab295d4b2f48aa30ec76`, built
 with the workspace `rust-toolchain.toml` stable toolchain.
 
-Baseline behaviour that must survive unchanged, re-captured verbatim from the
-built binary:
+Baseline parser/help behaviour captured verbatim from the built binary. The
+successful listing commands could not be captured in the baseline probe because
+their nested fixture build failed; the existing `tests/cli.rs` assertions
+remain the behavioural baseline for those commands.
 
-*Table 1: Baseline exit status and stream sizes for each invocation.*
+*Table 1: Captured baseline exit status and stream sizes for help and parser
+invocations.*
 
-| Invocation               | Exit | stdout | stderr |
-| ------------------------ | ---- | ------ | ------ |
-| `steps`                  | 0    | 0 B    | 5594 B |
-| `steps --skipped`        | 0    | 0 B    | 953 B  |
-| `steps --skipped --json` | 0    | 3 B    | 660 B  |
-| `unused`                 | 0    | 0 B    | 684 B  |
-| `duplicates`             | 0    | 0 B    | 571 B  |
-| `skipped`                | 0    | 0 B    | 415 B  |
-| `skipped --reasons`      | 0    | 0 B    | 675 B  |
-| `skipped --json`         | 0    | 3 B    | 623 B  |
-| `steps --json`           | 2    | 0 B    | 149 B  |
-| `--version` / `-V`       | 0    | 16 B   | 0 B    |
-| `help`                   | 0    | 446 B  | 0 B    |
-| `help steps`             | 0    | 238 B  | 0 B    |
-| `bogus-cmd`              | 2    | 0 B    | 108 B  |
-| `--nope`                 | 2    | 0 B    | 107 B  |
-| *(no arguments)*         | 2    | 0 B    | help   |
-| `bdd steps`              | 2    | 0 B    | 102 B  |
+| Invocation       | Exit | stdout | stderr |
+| ---------------- | ---- | ------ | ------ |
+| `--help`         | 0    | 446 B  | 0 B    |
+| `--version`      | 0    | 16 B   | 0 B    |
+| `help`           | 0    | 446 B  | 0 B    |
+| `help steps`     | 0    | 238 B  | 0 B    |
+| `steps --json`   | 2    | 0 B    | 149 B  |
+| `bogus-cmd`      | 2    | 0 B    | 108 B  |
+| `--nope`         | 2    | 0 B    | 107 B  |
+| *(no arguments)* | 2    | 0 B    | 446 B  |
+| `bdd steps`      | 2    | 0 B    | 102 B  |
 
-The exact help and error texts are recorded in
-`/tmp/baseline-text-issue-901-adopt-ortho-config-v0-10-0-for-the-cargo-bdd-cli.out`
-and must be copied into a checked-in fixture as part of §5; a `/tmp` file is
-not durable evidence.
+The exact captured text is in `/tmp/baseline-cli-errors-issue-901.out`. This
+scratch record is not durable; §5 must add checked-in assertions for the stable
+help and parser-failure cases. The failed successful-listing probe wrote 0
+stdout bytes because the nested Cargo build failed before the CLI could list
+the fixture; that result says nothing about successful output.
 
 Existing callers, none of which invoke the binary as `cargo bdd`: the
 `Makefile`, `.github/workflows/mutation-testing.yml`, `.github/dependabot.yml`,
@@ -453,23 +467,16 @@ issue-901 -> EP-M4 (documentation)     -> users' guide, developers' guide, ADR 0
 
 The change introduces four obligations worth stating.
 
-- Obligation: `V1 no-configuration-equivalence`. For every invocation in
-  Table 1, the post-change binary produces the same exit status, the same
-  stdout bytes, and the same stderr bytes as the baseline, given an environment
-  with no `CARGO_BDD_*` variables and no discoverable configuration file.
-  Method: parameterized golden test over the invocation table, comparing
-  captured bytes against a checked-in fixture generated from the pre-change
-  binary. Rationale: this is a finite, fully enumerable partition; a table is
-  exhaustive here and a property test would add no coverage. Domain: the 16
-  rows of Table 1. Artefact: `crates/cargo-bdd/tests/baseline_output.rs` plus a
-  fixture directory of expected bytes. Evidence: the test fails against an
-  implementation that changes any stream or status, and passes unchanged
-  against the pre-change binary. Discharge condition: green in the same run as
-  the rest of the suite. Non-vacuity: the fixture is generated from the
-  pre-change binary, so the test cannot be satisfied by construction. Negative
-  control: temporarily widening the fixture's allowance for one row (for
-  example, accepting any exit status for `steps --json`) must make the test
-  fail for that row; revert.
+- Obligation: `V1 no-configuration-equivalence`. For the captured help and
+  parser cases in Table 1, the post-change binary produces the same exit
+  status, stdout bytes and stderr bytes as the baseline when no configuration
+  is present. Method: checked-in byte assertions generated from the captured
+  pre-change binary output. Successful listing behaviour is covered by the
+  existing integration tests, which must remain unmodified, and by source
+  snapshots for output formatting; the baseline probe could not produce a
+  successful fixture listing. Artefact: focused tests in
+  `crates/cargo-bdd/tests/`. Discharge condition: all applicable cases pass in
+  the full test run.
 
 - Obligation: `V2 precedence`. For each configurable field of each subcommand,
   a value set at a higher tier wins, and a value absent from every tier yields
@@ -524,11 +531,11 @@ The change introduces four obligations worth stating.
 
 - Obligation: `V5 discovery axiom`. The claim "with no configuration file
   present, no file tier contributes" depends on OrthoConfig's discovery rules
-  (`$HOME/.cargo_bdd.toml`, `$XDG_CONFIG_HOME/cargo_bdd/config.toml`, each
-  absolute `$XDG_CONFIG_DIRS` entry, then a local `.cargo_bdd.toml`, TOML only
-  with default features). Method: treated as an axiom about a third-party
-  interface, with one contract-level check: a child process with `HOME` and
-  `XDG_CONFIG_HOME` pointed at empty temporary directories and
+  (home `.cargo_bdd.toml`, the first existing XDG configuration file, then a
+  local `.cargo_bdd.toml` on Unix and Redox; platform-native locations
+  elsewhere; TOML only with default features). Method: treated as an axiom
+  about a third-party interface, with one contract-level check: a child process
+  with `HOME` and `XDG_CONFIG_HOME` pointed at empty temporary directories and
   `XDG_CONFIG_DIRS` likewise, confirming the file tier is empty. Rationale:
   verifying OrthoConfig's internals is out of scope, but the repository's own
   hermeticity depends on this boundary, so it is exercised once rather than

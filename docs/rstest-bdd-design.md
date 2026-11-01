@@ -2898,25 +2898,32 @@ drift apart. The derived command name is fixed with an explicit
 `#[command(name = "…")]` on each argument struct rather than left to the crate
 name.
 
-Discovery locations, in the order OrthoConfig consults them, with `$PREFIX` the
-normalized prefix `cargo_bdd`:
+The subcommand loader derives its file stem from the normalized prefix
+`cargo_bdd`. On Unix and Redox, it checks these locations in order:
 
-1. `$HOME/.cargo_bdd.toml`.
-2. `config.toml` under the first XDG base that has one, where the base list is
-   `$XDG_CONFIG_HOME/cargo_bdd` — or `$HOME/.config/cargo_bdd` when
-   `XDG_CONFIG_HOME` is unset or not absolute — followed by `cargo_bdd` under
-   each absolute entry of `$XDG_CONFIG_DIRS`, which falls back to `/etc/xdg`
-   when the variable is unset or holds no absolute entry.
-3. `./.cargo_bdd.toml` in the working directory.
+1. `$HOME/.cargo_bdd.toml`, when `HOME` is available.
+2. The first existing `config.toml` under the ordered XDG bases:
+   `$XDG_CONFIG_HOME/cargo_bdd`, or `$HOME/.config/cargo_bdd` when
+   `XDG_CONFIG_HOME` is unset or not absolute; then each absolute entry of
+   `$XDG_CONFIG_DIRS/cargo_bdd`. If no absolute `XDG_CONFIG_DIRS` entry is
+   available, `/etc/xdg/cargo_bdd` is used.
+3. `./.cargo_bdd.toml` under the current working directory.
 
-Files found along that list are merged in order, each over the one before, so a
-working-directory file refines a user-wide one. A file that does not exist is
-not an error and contributes nothing; only an unreadable or malformed file that
-discovery actually found is reported. This distinction matters because an
-absent optional file is the normal case. A probe that fails for a reason other
-than absence — an unreadable parent directory, for instance — is reported
-against the path that failed rather than silently treated as absent, so a
-permissions problem cannot quietly change which file loads.
+On other platforms, discovery checks `.cargo_bdd.toml` under `HOME` or
+`USERPROFILE` (falling back to the platform home directory), then `config.toml`
+under the native `cargo_bdd` configuration directory, then `./.cargo_bdd.toml`
+under the working directory. On Windows the native configuration directory is
+`%APPDATA%`.
+
+The home dotfile, the selected XDG or native configuration file, and the
+working-directory dotfile are merged in that order. Missing optional files
+contribute nothing. A malformed or unreadable file that is found is reported;
+on Unix and Redox, an XDG metadata probe that fails for a reason other than
+absence is also reported rather than treated as a missing file.
+
+This subcommand loader does not expose OrthoConfig's hidden `--config-path`
+option or a `CARGO_BDD_CONFIG_PATH` selector. Its file inputs are the default
+discovery locations above.
 
 #### Environment prefix and legacy names
 
