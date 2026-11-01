@@ -5,9 +5,9 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Outcomes & retrospective`, `Conformance basis`, and `Verification plan` must
 be kept up to date as work proceeds.
 
-Status: APPROVED — the user approved this plan on 2026-10-25. The accepted
-scope includes the unconditional macro dependency (DL-2) and the RM-11.2.2
-finish-line amendment (DL-9).
+Status: APPROVED — the user approved this plan on 2026-10-25 and directed full
+implementation through PR completion on 2026-11-01. DL-11 records the revised
+file-count tolerance; DL-12 adapts EP-M0 to the shared build environment.
 
 ## Purpose / big picture
 
@@ -733,7 +733,7 @@ Hard invariants. Violating one requires escalation, not a workaround.
 
 Stop and escalate — do not improvise — when any of these is reached.
 
-- **Scope:** more than 30 files changed, or more than 1,200 net added lines
+- **Scope:** more than 50 files changed, or more than 1,200 net added lines
   across the whole plan.
 - **Interface:** any change to an existing public function or type signature.
   Adding new items and adding the `rstest-bdd -> rstest-bdd-macros` edge are
@@ -744,9 +744,10 @@ Stop and escalate — do not improvise — when any of these is reached.
   Python script by design, precisely to avoid that.
 - **Build cost:** if `cargo build -p rstest-bdd` cold wall time exceeds 25
   seconds on the reference 24-core machine, or the normal-dependency count
-  exceeds 135 crates, stop and escalate. The measured pre-change baseline is
-  10.09 s and 99 crates; the predicted post-change figures are ~19.9 s and 129
-  crates. See `Risks` R-2.
+  exceeds 135 crates, stop and escalate. On other hosts, record the CPU
+  allocation and compare only measurements from the same host. The measured
+  reference baseline is 10.09 s and 99 crates; the predicted post-change
+  figures are ~19.9 s and 129 crates. See `Risks` R-2.
 - **Gate churn:** if `make lint` reports Whitaker findings that cannot be fixed
   without restructuring code outside this plan's scope, stop and escalate.
 - **Iterations:** a milestone's tests still failing after four attempts.
@@ -1070,10 +1071,18 @@ any later failure is attributable. Capture the two baseline measurements that
 cargo tree -p rstest-bdd --prefix none -e normal | sort -u | wc -l
 # expect: 99
 
-env -u RUSTC_WRAPPER CARGO_TARGET_DIR=$(mktemp -d) \
+CARGO_TARGET_DIR=target/ep-m0-baseline \
   /usr/bin/time -f '%e wall %U user %S sys' cargo build -p rstest-bdd
-# expect: ~10.1 s wall on a 24-core machine
+# record the elapsed time and available CPU allocation
+# compare with ~10.1 s only on the reference 24-core machine
 ```
+
+Keep `RUSTC_WRAPPER` enabled so the shared compiler-admission pool accounts for
+every Rust invocation. Keep the target directory inside the repository; Cargo
+continues using the shared default package cache. For the initial gates, set
+`CARGO_BUILD_JOBS=2` to reduce process-spawn pressure after the previous
+typecheck attempt received OS error 11. This is an invocation-only limit, not a
+project configuration change.
 
 Record both in `Progress`. They are the numbers the build-cost tolerance is
 measured against.
@@ -1096,8 +1105,9 @@ explicitly, adding a scoped `#[expect]`, and abandoning glob imports in favour
 of named prelude imports belongs to the approver, not the implementer. Confirm
 the working tree is clean again before proceeding.
 
-**Acceptance evidence:** `make check-fmt && make lint && make test` all green
-on an unmodified tree, with the log written to
+**Acceptance evidence:** `make check-fmt`, `make lint`, `make typecheck`,
+`make test`, `make markdownlint`, and `make nixie` all green on an unmodified
+code tree, with the log written to
 `/tmp/baseline-rstest-bdd-$(git branch --show-current).out`. **Recovery:**
 nothing to undo.
 
@@ -1412,6 +1422,30 @@ should be filed rather than forgotten:
 
 ## Decision log
 
+- **DL-13 — Bound the initial gate job count after a spawn failure.** The
+  previous `make typecheck` failed because the OS could not spawn a Rust build
+  script (`EAGAIN`, OS error 11). Current Lody cgroup readings show no PID-cap
+  or OOM event, so a persistent cgroup limit is not established. Run the
+  initial Cargo-heavy gates with `CARGO_BUILD_JOBS=2` to reduce simultaneous
+  process creation, while retaining the shared compiler wrapper and Cargo
+  package cache. This setting is not committed to repository configuration.
+  Date/Author: 2026-11-01, implementation agent.
+
+- **DL-12 — Preserve shared compiler admission in EP-M0.** The original
+  measurement command cleared `RUSTC_WRAPPER` and placed build artefacts under
+  `/tmp`; both conflict with the current worktree instructions. EP-M0 now keeps
+  the wrapper enabled and uses `target/ep-m0-baseline`. Record the CPU
+  allocation because this host does not match the 24-core reference machine.
+  Date/Author: 2026-11-01, implementation agent.
+
+- **DL-11 — Extend the file-count tolerance for full delivery.** The initial
+  30-file limit conflicts with the approved plan's estimate of at least 33
+  files by EP-M4 and about 49 by EP-M7. After that conflict was presented, the
+  user directed implementation to continue through PR completion. This adopts
+  the offered 50-file ceiling; the 1,200-net-added-line limit remains.
+  Date/Author: 2026-11-01, user direction interpreted by the implementation
+  agent.
+
 - **DL-10 — Approve the plan as written.** The user approved implementation on
   2026-10-25, including the unconditional `rstest-bdd` to `rstest-bdd-macros`
   dependency (DL-2) and the accepted RM-11.2.2 finish-line amendment (DL-9).
@@ -1633,8 +1667,13 @@ in their own manifest.
 - [ ] EP-M6 — remaining documentation and ADR-022.
 - [ ] EP-M7 — roadmap amendment, full gates, pull request.
 
-Nothing is implemented yet. The finish-line amendment (DL-9) is accepted and
-the user approved the plan on 2026-10-25; implementation may now begin.
+Nothing in the implementation is changed yet. The finish-line amendment (DL-9)
+remains accepted. The plan was rebased onto `main` at
+`4d585b789dcc8f070c3c7b7cb141388a65afcbe5` without conflicts; all seven plan
+commits matched in `git range-diff`. On the earlier base, `make check-fmt` and
+`make lint` passed, while `make typecheck` failed when the OS could not spawn
+the `rustversion` build script. Those results are not baseline evidence for the
+current head; rerun the gates with `CARGO_BUILD_JOBS=2` before EP-M1.
 
 ## Surprises & discoveries
 
