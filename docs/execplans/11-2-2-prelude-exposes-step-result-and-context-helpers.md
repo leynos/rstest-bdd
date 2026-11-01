@@ -5,9 +5,13 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Outcomes & retrospective`, `Conformance basis`, and `Verification plan` must
 be kept up to date as work proceeds.
 
-Status: APPROVED — the user approved this plan on 2026-10-25 and directed full
-implementation through PR completion on 2026-11-01. DL-11 records the revised
-file-count tolerance; DL-12 adapts EP-M0 to the shared build environment.
+Status: BLOCKED — the user approved this plan on 2026-10-25 and directed full
+implementation through PR completion on 2026-11-01. EP-M1 reached the
+build-cost stop: its projected normal dependency graph is 154 packages against
+the approved ceiling of 135. DL-14 proposes adapting the ceiling to the rebased
+baseline and awaits the user's direction before manifest changes. DL-11 records
+the revised file-count tolerance; DL-12 adapts EP-M0 to the shared build
+environment.
 
 ## Purpose / big picture
 
@@ -1425,6 +1429,18 @@ should be filed rather than forgotten:
    does not belong in a v0.6.1 additive item. See R-11.
 
 ## Decision log
+
+- **DL-14 — Reconcile the build-cost ceiling with the rebased dependency graph
+  (proposed; awaiting user direction).** The approved ceiling of 135 packages
+  was based on a historical runtime baseline of 99 and a projected post-edge
+  count of 129. On rebased `main`, the runtime graph is 121 packages and the
+  planned macro edge adds 33, projecting 154. Option A is to preserve the
+  unconditional facade edge and raise the ceiling to 160, retaining the
+  original six-package margin above the projection. Option B is to preserve 135
+  and redesign the facade architecture to avoid the edge; that would depart
+  from DL-2 and the approved public-prelude contract. No option is selected
+  until the user responds. EP-M1 remains paused before manifest or lockfile
+  edits. Date/Author: 2026-11-01, implementation agent.
 
 - **DL-13 — Bound the initial gate job count after a spawn failure.** The
   previous `make typecheck` failed because the OS could not spawn a Rust build
