@@ -59,6 +59,12 @@ copies with upstream filenames therefore live at
 `vendor/ortho-config-v0-10-0/docs/`. The documentation index points to these
 copies, whose relative links resolve within the pinned upstream layout.
 
+The requested flat imports under `docs/` retain their upstream-relative links
+unchanged. In this repository, those links can resolve to unrelated project
+files or to paths that are absent. The flat imports are retained as the exact
+source copies and are not linked from `docs/contents.md`; follow links from the
+vendor copies, which are the indexed, link-safe versions.
+
 The mirror also contains short pointer pages for relative upstream targets
 outside the two imported guides. Each pointer leads to the corresponding file
 or directory at the immutable source commit. The imported text in both
