@@ -49,6 +49,15 @@ re-taken from the copies after they were written into this repository; the two
 sets agree. To check a copy, run `sha256sum` on the repository path and compare
 the result with Table 2.
 
+The imported guides contain relative links to one another using their upstream
+filenames (`users-guide.md` and `v0-10-0-migration-guide.md`). The repository's
+project guide already owns `docs/users-guide.md`, so those names cannot be
+restored beside the requested flat imports without changing its meaning. Exact
+link-preserving copies of both imported files therefore also live under
+`docs/ortho-config-v0-10-0/` with their upstream filenames. Open those copies
+when following the guides' cross-links; the flat imports above remain the
+canonical checksum-verified files and remain byte-for-byte unchanged.
+
 ## Version boundary
 
 Both guides describe OrthoConfig v0.10.0 and nothing later. Statements in the

@@ -191,6 +191,12 @@ Hard invariants. Violation requires escalation, not a workaround.
       help/parser captures, and mark the listing probe and baseline package
       run as unsuccessful. `make fmt`, `make check-fmt`, `make markdownlint`,
       and `make nixie` passed; imported guide SHA-256 checksums remain exact.
+- [x] (2026-11-01) Address the seven minor CodeRabbit findings on the design
+      candidate: make dependency absence an explicit assertion, preserve
+      upstream guide cross-links with checksum-identical copies, use the Cargo
+      external-subcommand term, and document the post-merge `steps.json`
+      constraint. `make fmt` passed and all four imported-file checksums match;
+      deterministic docs gates and a fresh review remain pending.
 - [ ] §4: implement. Manifest and MSRV split; `OrthoConfig` derives; the
       Cargo external-subcommand wrapper; boundary error handling.
 - [ ] §5: tests. Precedence tiers per subcommand with injected sources;
@@ -535,17 +541,20 @@ The change introduces five obligations worth stating.
   behaviour, and a missing optional file is not reported as an error. Method:
   parameterized tests in `crates/cargo-bdd/tests/config_errors.rs`. Domain:
   malformed TOML; an unreadable file; `skipped = "maybe"` (type error); an
-  unknown key; and a validly parsed value that is invalid for the command. The
-  unreadable-file fixture is platform-specific: on Unix, set mode `0o000` and
-  exercise the read failure from a non-root test process; if the process can
-  still open the file, report that case as unavailable rather than passing it.
-  On Windows, hold a config file open with `OpenOptionsExt::share_mode(0)` so
-  OrthoConfig's file probe cannot open it. Evidence: failure rows assert a
-  non-zero result and actionable context; the missing-file row asserts no
-  configuration error. Discharge condition: all cases applicable to the
-  platform pass. Note: unknown keys are **ignored**, because the derive emits no
-  `deny_unknown_fields`; asserting an error would test behaviour OrthoConfig
-  does not have.
+  unknown key; and `steps.json = true` with resolved `steps.skipped = false`.
+  The latter must fail at the application boundary with an actionable error
+  that identifies the configuration value and requires `steps.skipped = true` or
+  `--skipped`; the existing CLI-only `steps --json` parse error remains
+  unchanged. The unreadable-file fixture is platform-specific: on Unix, set mode
+  `0o000` and exercise the read failure from a non-root test process; if the
+  process can still open the file, report that case as unavailable rather than
+  passing it. On Windows, hold a config file open with
+  `OpenOptionsExt::share_mode(0)` so OrthoConfig's file probe cannot open it.
+  Evidence: failure rows assert a non-zero result and actionable context; the
+  missing-file row asserts no configuration error. Discharge condition: all
+  cases applicable to the platform pass. Note: unknown keys are **ignored**,
+  because the derive emits no `deny_unknown_fields`; asserting an error would
+  test behaviour OrthoConfig does not have.
 
 - Obligation: `V5 discovery axiom`. The claim "with no configuration file
   present, no file tier contributes" depends on OrthoConfig's discovery rules
@@ -660,8 +669,19 @@ Acceptance means all of the following, in one gate run against the final tree:
 - `V2`, `V3`, and `V4` are green, and the pre-change failure for the Cargo form
   is recorded in the commit that adds the test.
 - No crate other than `cargo-bdd` appears in the `ortho_config` dependency
-  graph: `cargo tree -p rstest-bdd -e normal | grep -c ortho_config` returns 0,
-  and likewise for each other library crate.
+  graph. For each library package, first save
+  `cargo tree -p <package> -e normal` to a temporary file and check its status;
+  then run this explicit assertion against that file:
+
+  ```sh
+  if rg -q 'ortho_config v' /tmp/<package>-dependency-tree.out; then
+      printf 'unexpected ortho_config dependency in <package>\n' >&2
+      exit 1
+  fi
+  ```
+
+  Repeat for every library package. The `cargo tree` command runs separately so
+  a tree-generation failure cannot be mistaken for an absent dependency.
 - `cargo metadata` reports `rust_version` 1.88 for every library package and
   1.89 for `cargo-bdd`. The workspace root is a virtual manifest and has no
   package-level `rust_version`.
