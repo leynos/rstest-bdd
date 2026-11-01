@@ -109,8 +109,12 @@ v0.10.0's subcommand path does not load profiles, and inventing a
 repository-side profile tier would mean hand-writing a layer upstream does not
 provide.
 
-The Cargo entry shape uses `ortho_config::cargo::external_subcommand`, so
-`cargo bdd steps` and `cargo-bdd steps` both dispatch to the same handler.
+For the injected Cargo form, the entry point uses
+`ortho_config::cargo::external_subcommand` when `bdd` is the first argument.
+The existing flat `cargo-bdd <subcommand>` form continues through the original
+parser. Both paths produce the same command arguments and use one dispatch
+function. This split preserves the flat parser's help, usage and error output;
+the helper's synthetic `cargo` parent would otherwise change that output.
 
 ## Known risks and limitations
 

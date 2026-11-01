@@ -2994,12 +2994,13 @@ injected, so the process sees `cargo-bdd bdd steps`. Today that is rejected with
 message on stderr.
 
 Two parser shapes are needed, not one. The flat form `cargo-bdd steps` is the
-existing contract: its help text, usage lines, error wording, exit statuses and
-streams are frozen by the tests in `crates/cargo-bdd/tests/cli.rs`, which pass
-unmodified. `ortho_config::cargo::external_subcommand` necessarily wraps the
-inner command in a synthetic `cargo` parent, renames it, and resets its
-`bin_name`, so routing the flat form through it would change the very text that
-must not move. The entry point therefore selects a parser by invocation form:
+existing contract: `crates/cargo-bdd/tests/cli.rs` exercises successful listing
+output and must pass unmodified, while the captured help and parser failures
+are pinned by new byte-level tests. The helper
+`ortho_config::cargo::external_subcommand` necessarily wraps the inner command
+in a synthetic `cargo` parent, renames it, and resets its `bin_name`, so
+routing the flat form through it would change the very text that must not move.
+The entry point therefore selects a parser by invocation form:
 
 - If the first argument is `bdd`, the arguments are the Cargo form. They are
   parsed through `external_subcommand("cargo-bdd", "bdd", Cli::command())`,
