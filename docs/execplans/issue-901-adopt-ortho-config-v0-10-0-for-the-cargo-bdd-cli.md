@@ -183,6 +183,10 @@ Hard invariants. Violation requires escalation, not a workaround.
       6.1.6 unchecked during implementation, describe MSRV metadata per package,
       and specify platform-specific unreadable-file fixtures. The three docs
       gates passed; request a fresh review on the committed correction.
+- [x] (2026-11-01) Resolve the current CodeRabbit plan findings: correct the
+      V1–V5 obligation count, isolate the discovery test's working directory,
+      and link to the design and ADR from this nested plan. All three docs
+      gates passed; a fresh review is pending.
 - [x] (2026-11-01) Correct the plan's baseline description: retain verified
       help/parser captures, and mark the listing probe and baseline package
       run as unsuccessful. `make fmt`, `make check-fmt`, `make markdownlint`,
@@ -458,7 +462,9 @@ Upstream artefacts:
   `docs/ortho-config-v0-10-0-migration-guide.md`, imported verbatim at
   `leynos/ortho-config` commit `38812c563e3953a490e3efc202609f37e21a0517` and
   recorded in `docs/ortho-config-v0-10-0-provenance.md`.
-- `docs/rstest-bdd-design.md` and the new ADR 024, both authored by this plan.
+- [design §3.6a](../rstest-bdd-design.md#36a-cargo-bdd-configuration-boundary-adr-024)
+  and [ADR 024](../adr-024-adopt-ortho-config-for-the-cargo-bdd-cli.md), both
+  authored by this plan.
 - `docs/roadmap.md` §6.1 "Diagnostic tooling".
 
 No pre-existing Terms of Reference or technical-design identifiers cover the
@@ -474,7 +480,7 @@ issue-901 -> EP-M4 (documentation)     -> users' guide, developers' guide, ADR 0
 
 ## Verification plan
 
-The change introduces four obligations worth stating.
+The change introduces five obligations worth stating.
 
 - Obligation: `V1 no-configuration-equivalence`. For the captured help and
   parser cases in Table 1, the post-change binary produces the same exit
@@ -546,13 +552,15 @@ The change introduces four obligations worth stating.
   (home `.cargo_bdd.toml`, the first existing XDG configuration file, then a
   local `.cargo_bdd.toml` on Unix and Redox; platform-native locations
   elsewhere; TOML only with default features). Method: treated as an axiom
-  about a third-party interface, with one contract-level check: a child process
-  with `HOME` and `XDG_CONFIG_HOME` pointed at empty temporary directories and
-  `XDG_CONFIG_DIRS` likewise, confirming the file tier is empty. Rationale:
-  verifying OrthoConfig's internals is out of scope, but the repository's own
-  hermeticity depends on this boundary, so it is exercised once rather than
-  assumed. Residual gap: a developer with a real `~/.cargo_bdd.toml` will see
-  it affect local runs. The users' guide must say so.
+  about a third-party interface, with one contract-level check: run the child
+  from an empty temporary working directory, assert that it contains no local
+  `.cargo_bdd.toml`, and point `HOME`, `XDG_CONFIG_HOME`, and `XDG_CONFIG_DIRS`
+  at empty temporary directories. This confirms the file tier is empty.
+  Rationale: verifying OrthoConfig's internals is out of scope, but the
+  repository's hermeticity depends on this boundary, so it is exercised once
+  rather than assumed. Residual gap: a developer with a real
+  `~/.cargo_bdd.toml` will see it affect local runs. The users' guide must say
+  so.
 
 No non-trivial lemma or formal proof is introduced: the change selects and
 merges values from a finite set of sources, and the properties above are
