@@ -109,7 +109,9 @@ Hard invariants. Violation requires escalation, not a workaround.
   runs behave differently from CI. Severity: high. Likelihood: medium.
   Mitigation: unit tests inject sources (`MapEnv`, `_at` loaders,
   `SubcommandFileContext`) and never rely on discovery; binary-level tests
-  isolate `HOME` and `XDG_CONFIG_HOME` in the child process environment.
+  isolate `HOME`, `XDG_CONFIG_HOME`, `XDG_CONFIG_DIRS`, `USERPROFILE`, and
+  `APPDATA`, and remove the four configurable `CARGO_BDD_CMDS_*` variables from
+  the child process environment.
 - Risk: the Cargo-dispatch wrapper's `external_subcommand` help differs from
   the flat `cargo-bdd --help`. Severity: medium. Likelihood: high. Mitigation:
   select the helper only when argv begins with Cargo's injected `bdd` token;
@@ -196,7 +198,15 @@ Hard invariants. Violation requires escalation, not a workaround.
       upstream guide cross-links with checksum-identical copies, use the Cargo
       external-subcommand term, and document the post-merge `steps.json`
       constraint. `make fmt` passed and all four imported-file checksums match;
-      deterministic docs gates and a fresh review remain pending.
+      the three documentation gates passed, then a fresh review found three
+      additional link and Windows-discovery issues. Those are being resolved
+      before implementation.
+- [x] (2026-11-01) Resolve the three follow-up CodeRabbit findings: isolate
+      `USERPROFILE` and `APPDATA`, index the link-preserving guide mirror, and
+      restore all relative upstream link targets through pinned pointer pages.
+      A direct link-path check passed, all three docs gates passed, and the
+      requested imports and guide copies retain matching SHA-256 checksums; a
+      fresh review remains pending.
 - [ ] §4: implement. Manifest and MSRV split; `OrthoConfig` derives; the
       Cargo external-subcommand wrapper; boundary error handling.
 - [ ] §5: tests. Precedence tiers per subcommand with injected sources;
@@ -563,11 +573,13 @@ The change introduces five obligations worth stating.
   elsewhere; TOML only with default features). Method: treated as an axiom
   about a third-party interface, with one contract-level check: run the child
   from an empty temporary working directory, assert that it contains no local
-  `.cargo_bdd.toml`, and point `HOME`, `XDG_CONFIG_HOME`, and `XDG_CONFIG_DIRS`
-  at empty temporary directories. This confirms the file tier is empty.
-  Rationale: verifying OrthoConfig's internals is out of scope, but the
-  repository's hermeticity depends on this boundary, so it is exercised once
-  rather than assumed. Residual gap: a developer with a real
+  `.cargo_bdd.toml`, and point `HOME`, `XDG_CONFIG_HOME`, `XDG_CONFIG_DIRS`,
+  `USERPROFILE`, and `APPDATA` at empty temporary directories. Remove the four
+  `CARGO_BDD_CMDS_*` setting variables from the child environment. This
+  confirms that neither platform discovery roots nor the environment tier
+  contributes a value. Rationale: verifying OrthoConfig's internals is out of
+  scope, but the repository's hermeticity depends on this boundary, so it is
+  exercised once rather than assumed. Residual gap: a developer with a real
   `~/.cargo_bdd.toml` will see it affect local runs. The users' guide must say
   so.
 
