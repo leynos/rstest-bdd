@@ -416,23 +416,26 @@ in "Follow-up work this plan deliberately does not do".
 
 ### What goes in the prelude
 
-Founding membership is twelve items. Every one is either named by the roadmap
-or required to make a named item usable.
+Founding membership is thirteen namespace bindings across eleven distinct
+spellings. Every binding is either named by the roadmap or required to make a
+named item usable. `ScenarioState` and `StepArgs` each occupy both the type and
+macro namespaces.
 
-| Item            | Kind                 | Source                   | Why                                                               |
-| --------------- | -------------------- | ------------------------ | ----------------------------------------------------------------- |
-| `given`         | attribute macro      | `rstest-bdd-macros`      | used by all four examples                                         |
-| `when`          | attribute macro      | `rstest-bdd-macros`      | used by all four examples                                         |
-| `then`          | attribute macro      | `rstest-bdd-macros`      | used by all four examples                                         |
-| `scenario`      | attribute macro      | `rstest-bdd-macros`      | used by all four examples                                         |
-| `scenarios`     | function-like macro  | `rstest-bdd-macros`      | the bulk-binding counterpart to `scenario`                        |
-| `ScenarioState` | derive macro         | `rstest-bdd-macros`      | named by the roadmap                                              |
-| `ScenarioState` | trait                | `rstest-bdd` (`state`)   | named by the roadmap; supplies `.reset()`                         |
-| `Slot`          | struct               | `rstest-bdd` (`state`)   | named by the roadmap                                              |
-| `StepResult`    | type alias           | `rstest-bdd`             | named by the roadmap                                              |
-| `StepError`     | enum                 | `rstest-bdd`             | `StepResult`'s default error parameter; unusable without it       |
-| `StepContext`   | struct               | `rstest-bdd` (`context`) | carries the five harness-context helper methods the roadmap names |
-| `StepArgs`      | derive macro + trait | both crates              | trait/derive pair; see the pairing rule below                     |
+| Item            | Kind                | Source                     | Why                                                               |
+| --------------- | ------------------- | -------------------------- | ----------------------------------------------------------------- |
+| `given`         | attribute macro     | `rstest-bdd-macros`        | used by all four examples                                         |
+| `when`          | attribute macro     | `rstest-bdd-macros`        | used by all four examples                                         |
+| `then`          | attribute macro     | `rstest-bdd-macros`        | used by all four examples                                         |
+| `scenario`      | attribute macro     | `rstest-bdd-macros`        | used by all four examples                                         |
+| `scenarios`     | function-like macro | `rstest-bdd-macros`        | the bulk-binding counterpart to `scenario`                        |
+| `ScenarioState` | derive macro        | `rstest-bdd-macros`        | named by the roadmap                                              |
+| `ScenarioState` | trait               | `rstest-bdd` (`state`)     | named by the roadmap; supplies `.reset()`                         |
+| `Slot`          | struct              | `rstest-bdd` (`state`)     | named by the roadmap                                              |
+| `StepResult`    | type alias          | `rstest-bdd`               | named by the roadmap                                              |
+| `StepError`     | enum                | `rstest-bdd`               | `StepResult`'s default error parameter; unusable without it       |
+| `StepContext`   | struct              | `rstest-bdd` (`context`)   | carries the five harness-context helper methods the roadmap names |
+| `StepArgs`      | derive macro        | `rstest-bdd-macros`        | paired with the trait below                                       |
+| `StepArgs`      | trait               | `rstest-bdd` (`step_args`) | named by the derive; see the pairing rule below                   |
 
 *Table: founding membership of `rstest_bdd::prelude`.*
 
@@ -613,9 +616,9 @@ This plan writes the bar into `docs/developers-guide.md`:
 > recorded in `docs/CHANGELOG.md` and noted as potentially requiring
 > disambiguation for glob importers.
 
-The founding twelve are grandfathered by the roadmap, which names `StepResult`,
-`Slot`, and `ScenarioState` directly even though no example uses them yet; the
-bar governs everything after.
+The founding thirteen bindings are grandfathered by the roadmap, which names
+`StepResult`, `Slot`, and `ScenarioState` directly even though no example uses
+them yet; the bar governs everything after.
 
 `prelude::v1`-style versioning was considered and rejected. `std::prelude::v1`
 exists because `std` can never break anything; this crate is at `0.6.0` with a
@@ -646,22 +649,22 @@ artefacts are:
 - `docs/developers-guide.md:368-393` — the workspace dependency policy.
   **DG-DEP**.
 
-This plan proposes one new decision record, **ADR-022**, covering the facade
+This plan proposes one new decision record, **ADR-024**, covering the facade
 dependency edge, the prelude admission bar, and the deliberate non-export of
-`rstest`. Numbering note: the existing set runs to 021, but `005` is duplicated
+`rstest`. Numbering note: the existing set runs to 023, but `005` is duplicated
 (`adr-005-async-step-functions.md` and
 `adr-005-harness-adapter-crates-for-framework-specific-test-integration.md`,
-indexed in `docs/contents.md` as "ADR 005a"). 022 is the next free number.
+indexed in `docs/contents.md` as "ADR 005a"). 024 is the next free number.
 
 Trace links:
 
 ```plaintext
-RM-11.2.2 -> ADR-022 -> EP-M2 -> crates/rstest-bdd/tests/prelude_surface.rs
-RM-11.2.2 -> ADR-022 -> EP-M4 -> examples/*/tests/*.rs compile without rstest-bdd-macros
+RM-11.2.2 -> ADR-024 -> EP-M2 -> crates/rstest-bdd/tests/prelude_surface.rs
+RM-11.2.2 -> ADR-024 -> EP-M4 -> examples/*/tests/*.rs compile without rstest-bdd-macros
 RM-11.2.2 -> EP-M5 -> scripts/check_prelude_exports.py in `make lint`
 RM-P11    -> EP-M1 -> `make publish-check` green; no public item removed
 DD-2.7.6.4 -> EP-M6 -> docs/rstest-bdd-design.md §2.7.6.4 marks the prelude delivered
-ADR-004   -> ADR-022 -> EP-M1 -> docs/developers-guide.md states both edge directions
+ADR-004   -> ADR-024 -> EP-M1 -> docs/developers-guide.md states both edge directions
 ADR-007   -> EP-M3 -> given/when/then rustdoc documents #[harness_context]
 ```
 
@@ -785,7 +788,7 @@ Stop and escalate — do not improvise — when any of these is reached.
   `rstest-bdd-macros` pay **nothing**, because they already build the macro
   crate. The two payers are `cargo-bdd` and `rstest-bdd-harness-gpui`; for GPUI
   users the delta is +25 crates against a 787-package graph, about 3%.
-  Mitigation: accepted, recorded in ADR-022's Known Risks, with two follow-ups
+  Mitigation: accepted, recorded in ADR-024's Known Risks, with two follow-ups
   filed that would remove most of it (see "Follow-up work").
 
 - **R-3 — `proc-macro2/span-locations` becomes unconditional downstream.**
@@ -875,7 +878,7 @@ Stop and escalate — do not improvise — when any of these is reached.
   breaks with a bare `unresolved import rstest` from generated code the user
   never wrote. This predates the plan, but a prelude that tells users "one
   import is enough" makes it likelier they arrive here confused. Mitigation:
-  EP-M6 states the supported `rstest` range in the users guide and in ADR-022's
+  EP-M6 states the supported `rstest` range in the users guide and in ADR-024's
   Known Risks, and EP-M4's fixture derives its `rstest` requirement from
   `[workspace.dependencies]` rather than duplicating a literal version.
   Resolving the path through `proc_macro_crate` so that a renamed or missing
@@ -950,8 +953,8 @@ complete scenario through `rstest_bdd::prelude` and run it.
 item resolves.**
 
 - Method: an exhaustive compile-time naming test — the finite-partition case,
-  where the partition is the twelve founding items and enumeration is not
-  merely practical but total.
+  where the partition is the thirteen founding namespace bindings and
+  enumeration is not merely practical but total.
 - Rationale: the set is small, closed, and fully known. Enumerating it is
   strictly stronger than sampling it.
 - Artefact: a doctest in `crates/rstest-bdd/src/prelude.rs` that globs the
@@ -1044,13 +1047,14 @@ Assumed without verification, as third-party contracts:
 ### What is deliberately not verified
 
 No `proptest` strategy, no `kani` harness, and no `verus` proof. There is no
-quantified invariant: the prelude's membership is a fixed list of twelve names,
-not a domain; the dependency edge is a single boolean fact about one manifest;
-the documentation correspondence is an equality between two finite sets that
-V-4 compares exhaustively. Generating random inputs would add cost and no
-information, and a proof would restate the assumption. Recording this judgement
-is itself the obligation; reviewers who disagree should say so at the approval
-gate rather than after implementation.
+quantified invariant: the prelude's membership is a fixed list of thirteen
+namespace bindings across eleven spellings, not a domain; the dependency edge
+is a single boolean fact about one manifest; the documentation correspondence
+is an equality between two finite sets that V-4 compares exhaustively.
+Generating random inputs would add cost and no information, and a proof would
+restate the assumption. Recording this judgement is itself the obligation;
+reviewers who disagree should say so at the approval gate rather than after
+implementation.
 
 ## Plan of work
 
@@ -1187,8 +1191,8 @@ decision:** none required. Every change is additive and the examples are
 Red first. Write the doctest before the module.
 
 1. **Red.** Add `crates/rstest-bdd/src/prelude.rs` containing only the module
-   documentation and its doctest, which globs the prelude and uses all twelve
-   items. Add `pub mod prelude;` to `lib.rs`. Run
+   documentation and its doctest, which globs the prelude and exercises all
+   thirteen namespace bindings. Add `pub mod prelude;` to `lib.rs`. Run
    `cargo test -p rstest-bdd --doc prelude` and observe it fail with unresolved
    names. Record the transcript.
 2. **Green.** Add the `pub use` statements. Import the trait halves from their
@@ -1306,7 +1310,7 @@ silently. **Recovery:** revert; `make lint` returns to its previous checks.
 
 ### Milestone 6 — the remaining documentation
 
-**Identifier:** EP-M6. **Discharges:** DD-2.7.6.4, ADR-022, DG-DEP.
+**Identifier:** EP-M6. **Discharges:** DD-2.7.6.4, ADR-024, DG-DEP.
 
 1. **`README.md`, `crates/rstest-bdd/README.md`,
    `crates/rstest-bdd-macros/README.md`** — audit all five
@@ -1325,7 +1329,7 @@ silently. **Recovery:** revert; `make lint` returns to its previous checks.
    re-export harness traits and why.
 3. **`docs/rstest-bdd-design.md` §2.7.6.4** — move "a prelude for common
    integration imports" out of "Remaining candidates, not yet shipped" into the
-   delivered sentence, naming roadmap 11.2.2 and cross-linking ADR-022.
+   delivered sentence, naming roadmap 11.2.2 and cross-linking ADR-024.
 4. **`docs/developers-guide.md`** — amend the "Workspace dependency policy"
    section at 368-393 to state both edge directions explicitly; add the prelude
    admission bar; add a section describing `check_prelude_exports.py` and
@@ -1336,13 +1340,13 @@ silently. **Recovery:** revert; `make lint` returns to its previous checks.
 6. **`docs/ergonomics-and-developer-experience.md`** — add the prelude to §2,
    "Reducing boilerplate in step definitions". That section is literally this
    change's subject.
-7. **`docs/adr-022-*.md`** — write it, using the template at
+7. **`docs/adr-024-*.md`** — write it, using the template at
    `docs/documentation-style-guide.md:418-425`. Cover the facade edge and its
    reconciliation with ADR-004 (whose options table at line 36 rejected an
    option on the grounds that it "ties runtime to macros"), the admission bar,
    the deliberate non-export of `rstest`, and Known Risks naming the absent
    public-API gate and the measured build cost.
-8. **`docs/contents.md`** — index ADR-022.
+8. **`docs/contents.md`** — index ADR-024.
 9. **`docs/CHANGELOG.md`** — an additive entry on the v0.6.1 line.
 10. Run `make markdownlint` and `make nixie`. Note that `make fmt` can itself
     introduce MD039/MD013 findings, so run the Markdown lint after formatting,
@@ -1510,7 +1514,7 @@ should be filed rather than forgotten:
   `rstest` version under `rstest-bdd`'s control**, gating every consumer's
   rstest upgrade on an rstest-bdd release. Since generated code emits
   `#[rstest::rstest]` resolved against the consumer's own dependency, the
-  consumer must own that version. That is the trade to write into ADR-022. The
+  consumer must own that version. That is the trade to write into ADR-024. The
   same review rejected as overstated the claim that two `rstest` copies would
   "silently mismatch" — two rstest majors produce a hard compile error on the
   fixture-resolution protocol, not silent misbehaviour — so this plan does not
@@ -1658,26 +1662,64 @@ in their own manifest.
 
 ## Progress
 
-- [ ] EP-M0 — orientation and green baseline.
+- [x] EP-M0 — orientation and green baseline.
 - [ ] EP-M1 — dependency edge, crate-root re-export, lockfile refresh.
 - [ ] EP-M2 — the prelude module.
 - [ ] EP-M3 — marker documentation and the missing trybuild fixture.
 - [ ] EP-M4 — example migration and the two fixture crates.
 - [ ] EP-M5 — the drift gate and the users-guide table.
-- [ ] EP-M6 — remaining documentation and ADR-022.
+- [ ] EP-M6 — remaining documentation and ADR-024.
 - [ ] EP-M7 — roadmap amendment, full gates, pull request.
 
-Nothing in the implementation is changed yet. The finish-line amendment (DL-9)
-remains accepted. The plan was rebased onto `main` at
+No implementation change is retained. The finish-line amendment (DL-9) remains
+accepted. The plan was rebased onto `main` at
 `4d585b789dcc8f070c3c7b7cb141388a65afcbe5` without conflicts; all seven plan
-commits matched in `git range-diff`. On the earlier base, `make check-fmt` and
-`make lint` passed, while `make typecheck` failed when the OS could not spawn
-the `rustversion` build script. Those results are not baseline evidence for the
-current head; rerun the gates with `CARGO_BUILD_JOBS=2` before EP-M1.
+commits matched in `git range-diff`.
+
+EP-M0 passed on `162798e8a457921288ce510f89fe899e8254daf6` with
+`CARGO_BUILD_JOBS=2`: `make check-fmt`, `make lint`, `make typecheck`,
+`make test`, `make markdownlint`, and `make nixie` all passed. The test gate
+passed 2,083 of 2,083 nextest tests (seven skipped), all doctests, and 290
+pytest checks. Logs are under `/tmp/` with the branch and worktree identifier
+in their names. The temporary wildcard-import probe passed `make lint` in 66
+seconds, with no `clippy::wildcard_imports` diagnostic; its source edits were
+reverted immediately afterwards.
+
+The rebased candidate has 121 unique normal dependencies, not the historical
+reference count of 99. Adding the macro crate's 33 packages not already in the
+runtime graph projects a union of 154 packages, above the approved ceiling of
+135. EP-M1 is therefore paused before changing manifests or lockfiles, pending
+the user's direction on this tolerance trigger. The baseline `cargo build` used
+a fresh in-repository target directory and warm shared `sccache`; Bash's
+built-in timer measured 60.567 seconds wall, 13.320 user, and 3.484 system with
+24 CPUs available. This is not comparable to the plan's cold reference build.
+
+The only other working-tree change is generated `typos.toml`, whose diff is the
+same generated refresh already held by PR #908. It remains separate from the
+implementation pending the base-branch arrangement.
 
 ## Surprises & discoveries
 
-Recorded during planning, before any implementation.
+Recorded during planning and execution as evidence was confirmed.
+
+- **Observation:** the rebased main branch has a larger normal dependency
+  graph than the plan's historical baseline. **Evidence:**
+  `cargo tree -p rstest-bdd --prefix none -e normal | sort -u | wc -l` returned
+  121; the equivalent macro-crate graph has 81 packages, of which 33 are absent
+  from the runtime graph, projecting 154 after the planned edge. **Impact:**
+  this exceeds the 135-package build-cost ceiling and triggers the explicit
+  stop-and-escalate rule before EP-M1 changes any manifest.
+
+- **Observation:** the compile-time export inventory has thirteen namespace
+  bindings across eleven distinct spellings. **Evidence:** `ScenarioState` and
+  `StepArgs` each occupy both the type and macro namespaces; the table now
+  lists those bindings separately. **Impact:** V-3 and the prelude doctest must
+  account for every binding without confusing spelling count with namespace
+  membership.
+
+- **Observation:** the next design decision record is ADR-024. **Evidence:**
+  the rebased main branch already contains ADR-023. **Impact:** all proposed
+  ADR references in this plan now use ADR-024.
 
 - **Observation:** three READMEs document an import that has never compiled.
   **Evidence:** `README.md:116`, `crates/rstest-bdd/README.md:106`, and
