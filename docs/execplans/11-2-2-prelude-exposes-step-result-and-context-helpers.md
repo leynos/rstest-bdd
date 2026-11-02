@@ -5,12 +5,11 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Outcomes & retrospective`, `Conformance basis`, and `Verification plan` must
 be kept up to date as work proceeds.
 
-Status: BLOCKED — the user approved this plan on 2026-10-25 and directed full
-implementation through PR completion on 2026-11-01. EP-M1 reached the
-build-cost stop: its projected normal dependency graph is 154 packages against
-the approved ceiling of 135. DL-14 proposes adapting the ceiling to the rebased
-baseline and awaits the user's direction before manifest changes. DL-11 records
-the revised file-count tolerance; DL-12 adapts EP-M0 to the shared build
+Status: IN PROGRESS — the user approved this plan on 2026-10-25 and directed
+full implementation through PR completion on 2026-11-01. EP-M0 and EP-M1 are
+complete; EP-M2 is next. The corrected package-identity count is 129 normal
+packages, within the approved ceiling of 135; see DL-14. DL-11 records the
+revised file-count tolerance; DL-12 adapts EP-M0 to the shared build
 environment.
 
 ## Purpose / big picture
@@ -1078,7 +1077,8 @@ any later failure is attributable. Capture the two baseline measurements that
 `Tolerances` and R-6 depend on:
 
 ```bash
-cargo tree -p rstest-bdd --prefix none -e normal | sort -u | wc -l
+cargo tree -p rstest-bdd --prefix none -e normal --no-dedupe \
+  --format '{p}' | LC_ALL=C sort -u | wc -l
 # historical reference: 99; record the count for the current base
 
 CARGO_TARGET_DIR=target/ep-m0-baseline \
@@ -1092,11 +1092,15 @@ wall, user, and system values. Do not disable `RUSTC_WRAPPER` to manufacture a
 cold build; record the available cache state.
 
 Keep `RUSTC_WRAPPER` enabled so the shared compiler-admission pool accounts for
-every Rust invocation. Keep the target directory inside the repository; Cargo
-continues using the shared default package cache. For the initial gates, set
-`CARGO_BUILD_JOBS=2` to reduce process-spawn pressure after the previous
-typecheck attempt received OS error 11. This is an invocation-only limit, not a
-project configuration change.
+every Rust invocation. Keep ordinary target directories inside the repository;
+Cargo continues using the shared default package cache. `make publish-check`
+uses `TMPDIR` for both its throwaway target and test fixtures. Its server tests
+need those fixture projects outside the checkout so Cargo does not discover
+them beneath the workspace root. Set `TMPDIR` to an isolated user-cache
+directory for that gate, never `/tmp`; this is the one target-location
+exception. For the initial gates, set `CARGO_BUILD_JOBS=2` to reduce
+process-spawn pressure after the previous typecheck attempt received OS error
+11. This is an invocation-only limit, not a project configuration change.
 
 Record both in `Progress`. They are the numbers the build-cost tolerance is
 measured against.
@@ -1106,8 +1110,10 @@ dev-dependency edges by default, so on the unmodified tree
 `cargo tree -p rstest-bdd -i rstest-bdd-macros` already prints the package via
 `[dev-dependencies]`, which would make a before-and-after comparison
 meaningless. With `-e normal` the same query reports "nothing to print" until
-EP-M1 lands. Any edge or acyclicity check written with `cargo tree` and without
-`-e normal` is vacuous; that is why V-1 parses the manifest directly instead.
+EP-M1 lands. `--no-dedupe` and `--format '{p}'` keep Cargo's display-only `(*)`
+marker out of the package identities counted by `sort -u`. Any edge or
+acyclicity check written with `cargo tree` and without `-e normal` is vacuous;
+that is why V-1 parses the manifest directly instead.
 
 Then settle the assumption the whole ergonomic case rests on. Temporarily add a
 documented `prelude` module to `crates/rstest-bdd/src/lib.rs` and
@@ -1439,17 +1445,16 @@ should be filed rather than forgotten:
 
 ## Decision log
 
-- **DL-14 — Reconcile the build-cost ceiling with the rebased dependency graph
-  (proposed; awaiting user direction).** The approved ceiling of 135 packages
-  was based on a historical runtime baseline of 99 and a projected post-edge
-  count of 129. On rebased `main`, the runtime graph is 121 packages and the
-  planned macro edge adds 33, projecting 154. Option A is to preserve the
-  unconditional facade edge and raise the ceiling to 160, retaining the
-  original six-package margin above the projection. Option B is to preserve 135
-  and redesign the facade architecture to avoid the edge; that would depart
-  from DL-2 and the approved public-prelude contract. No option is selected
-  until the user responds. EP-M1 remains paused before manifest or lockfile
-  edits. Date/Author: 2026-11-01, implementation agent.
+- **DL-14 — Correct the package-count measurement; retain the approved
+  ceiling.** Resolved on 2026-11-02. The earlier command counted Cargo's
+  display-only `(*)` marker as a separate row because it used `sort -u` on the
+  deduplicated tree output. Re-running with `--no-dedupe --format '{p}'` and
+  counting unique package identities gives 99 packages for `rstest-bdd`, 70 for
+  `rstest-bdd-macros`, and 129 in their union; the macro edge adds 30. This is
+  below the approved ceiling of 135, so no dependency reduction, tolerance
+  change, or facade redesign is needed. Continue EP-M1 under the existing DL-2
+  and DL-10 approvals. Date/Author: 2026-11-02, implementation agent, following
+  the user's instruction to proceed with the corrected count.
 
 - **DL-13 — Bound the initial gate job count after a spawn failure.** The
   previous `make typecheck` failed because the OS could not spawn a Rust build
@@ -1688,7 +1693,7 @@ in their own manifest.
 ## Progress
 
 - [x] EP-M0 — orientation and green baseline.
-- [ ] EP-M1 — dependency edge, crate-root re-export, lockfile refresh.
+- [x] EP-M1 — dependency edge, crate-root re-export, lockfile refresh.
 - [ ] EP-M2 — the prelude module.
 - [ ] EP-M3 — marker documentation and the missing trybuild fixture.
 - [ ] EP-M4 — example migration and the two fixture crates.
@@ -1696,10 +1701,21 @@ in their own manifest.
 - [ ] EP-M6 — remaining documentation and ADR-024.
 - [ ] EP-M7 — roadmap amendment, full gates, pull request.
 
-No implementation change is retained. The finish-line amendment (DL-9) remains
-accepted. The plan was rebased onto `main` at
-`4d585b789dcc8f070c3c7b7cb141388a65afcbe5` without conflicts; all seven plan
-commits matched in `git range-diff`.
+EP-M1 is implemented in the working tree: the macro edge, crate-root
+re-exports, manifest acyclicity test, paired-fixture comments, and fixture lock
+refreshes. Its sequential gates passed on candidate HEAD
+`5d7ca1e80e29c6fbe1ec600535cdae2145d3046a`: `make check-fmt`, `make test`,
+`make typecheck`, `make lint`, `make markdownlint`, `make nixie`, and
+`make check-fixture-lockfiles`. The test gate passed 2,084 tests with seven
+skipped, the no-default-features leg passed 740 with seven skipped, and all 290
+Python tests passed. Logs are under `/tmp/` with the `-2` suffix and the branch
+and worktree identifier. `make publish-check` also passed after the package
+edge and before the two comment-only fixture-manifest edits; those comments do
+not alter package metadata. The complete transcript is
+`/tmp/publish-check-ep-m1-isolated-scratch-11-2-2-public-prelude-execplan.out`.
+The finish-line amendment (DL-9) remains accepted. The plan was rebased onto
+`main` at `4d585b789dcc8f070c3c7b7cb141388a65afcbe5` without conflicts; all
+seven plan commits matched in `git range-diff`.
 
 EP-M0 passed on `162798e8a457921288ce510f89fe899e8254daf6` with
 `CARGO_BUILD_JOBS=2`: `make check-fmt`, `make lint`, `make typecheck`,
@@ -1710,18 +1726,39 @@ in their names. The temporary wildcard-import probe passed `make lint` in 66
 seconds, with no `clippy::wildcard_imports` diagnostic; its source edits were
 reverted immediately afterwards.
 
-The rebased candidate has 121 unique normal dependencies, not the historical
-reference count of 99. Adding the macro crate's 33 packages not already in the
-runtime graph projects a union of 154 packages, above the approved ceiling of
-135. EP-M1 is therefore paused before changing manifests or lockfiles, pending
-the user's direction on this tolerance trigger. The baseline `cargo build` used
-a fresh in-repository target directory and warm shared `sccache`; Bash's
-built-in timer measured 60.567 seconds wall, 13.320 user, and 3.484 system with
-24 CPUs available. This is not comparable to the plan's cold reference build.
+The initial count was wrong: Cargo's default deduplicated display marks
+repeated packages with `(*)`, and the earlier `sort -u` counted those marker
+rows as packages. With
+`cargo tree -p rstest-bdd --prefix none -e normal
+--no-dedupe --format '{p}' | LC_ALL=C sort -u | wc -l`,
+the rebased runtime graph contains 99 packages, the macro graph 70, and their
+union 129 (30 added by the edge). This is within the approved ceiling of 135,
+so no dependency reduction or tolerance change is needed. The baseline
+`cargo build` used a fresh in-repository target directory and warm shared
+`sccache`; Bash's built-in timer measured 60.567 seconds wall, 13.320 user, and
+3.484 system with 24 online CPUs. A fresh post-edge package build measured
+137.087 seconds wall, 19.192 user, and 5.012 system while the four-slot
+compiler pool was full with healthy queued work, so its wall time includes
+shared admission contention. An earlier post-edge run measured 544.006 seconds
+wall with 22.829 user and 5.708 system. Do not treat either wall reading as a
+direct cold-build comparison with the baseline. A separate fresh nested
+`rebuild_invalidation` fixture build passed both tests in 85.347 seconds wall,
+18.406 user, and 4.861 system; that fixture already names `rstest-bdd-macros`
+as a dev-dependency, so this measurement does not isolate the new edge's cost.
+Keep these readings and the reference-machine measurements distinct in R-2 and
+R-6.
 
-The only other working-tree change is generated `typos.toml`, whose diff is the
-same generated refresh already held by PR #908. It remains separate from the
-implementation pending the base-branch arrangement.
+The worktree was clean at the start of resumed implementation, and the branch
+matched both its upstream and PR #773 head.
+
+`make publish-check` passed with `CARGO_BUILD_JOBS=2` and
+`TMPDIR=$HOME/.cache/rstest-bdd-publish-preflight`. It validated all seven
+tracked lockfiles, checked the workspace, passed its unit and binary tests, and
+packaged all eight publishable crates in dry-run mode. The complete transcript
+is
+`/tmp/publish-check-ep-m1-isolated-scratch-11-2-2-public-prelude-execplan.out`.
+The external cache directory keeps the preflight's temporary test workspaces
+outside the checkout; Cargo still uses the shared package cache.
 
 ## Surprises & discoveries
 
@@ -1740,13 +1777,29 @@ Recorded during planning and execution as evidence was confirmed.
   passed under Bash's built-in timer. **Impact:** the measured values remain
   useful for this host but are not a cold reference comparison.
 
-- **Observation:** the rebased main branch has a larger normal dependency
-  graph than the plan's historical baseline. **Evidence:**
-  `cargo tree -p rstest-bdd --prefix none -e normal | sort -u | wc -l` returned
-  121; the equivalent macro-crate graph has 81 packages, of which 33 are absent
-  from the runtime graph, projecting 154 after the planned edge. **Impact:**
-  this exceeds the 135-package build-cost ceiling and triggers the explicit
-  stop-and-escalate rule before EP-M1 changes any manifest.
+- **Observation:** the initial rebased package count included Cargo's display
+  marker as if it were a package. **Evidence:** using
+  `cargo tree -p rstest-bdd --prefix none -e normal --no-dedupe --format '{p}'`
+  produces 99 runtime packages, 70 macro packages, and a 129-package union; the
+  initial deduplicated display command reported 121 runtime rows and
+  incorrectly projected 154. **Impact:** the original 135-package ceiling
+  remains satisfied and EP-M1 can proceed.
+
+- **Observation:** shared compiler admission distorts fresh-target wall times.
+  **Evidence:** a post-edge runtime build measured 137.087 seconds wall but
+  24.204 seconds combined user and system CPU while the four-slot pool was full
+  and queued work was healthy; a prior run measured 544.006 seconds wall with
+  28.537 seconds CPU. The baseline measured 60.567 seconds wall and 16.804
+  seconds CPU with a different queue state. **Impact:** retain these values
+  with their admission context; do not infer a dependency reduction from wall
+  time or claim a like-for-like comparison.
+
+- **Observation:** Lading's publish preflight shares `TMPDIR` with its Cargo
+  target and Rust test fixtures. **Evidence:** placing it under the checkout
+  made `rstest-bdd-server` fixtures appear nested in the repository workspace;
+  moving the temporary root to the user cache made the complete dry run pass.
+  **Impact:** use the user cache for `TMPDIR` on this gate and keep `/tmp` for
+  logs only.
 
 - **Observation:** the compile-time export inventory has thirteen namespace
   bindings across eleven distinct spellings. **Evidence:** `ScenarioState` and
