@@ -36,6 +36,7 @@ rust-embed.workspace = true
 fluent.workspace = true
 unic-langid.workspace = true
 tokio.workspace = true
+rstest-bdd-macros.workspace = true
 
 [dev-dependencies]
 anyhow = "1.0.104"
@@ -80,3 +81,6 @@ test-support = []
 name = "dump_registry"
 path = "tests/dump_registry.rs"
 required-features = ["diagnostics"]
+
+[package.metadata.docs.rs]
+all-features = true
