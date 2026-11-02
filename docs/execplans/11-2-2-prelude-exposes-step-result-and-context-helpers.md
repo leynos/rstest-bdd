@@ -1701,9 +1701,9 @@ in their own manifest.
 - [ ] EP-M6 — remaining documentation and ADR-024.
 - [ ] EP-M7 — roadmap amendment, full gates, pull request.
 
-EP-M1 is implemented in the working tree: the macro edge, crate-root
-re-exports, manifest acyclicity test, paired-fixture comments, and fixture lock
-refreshes. Its sequential gates passed on candidate HEAD
+EP-M1 is committed as `7fbd9fee`: the macro edge, crate-root re-exports,
+manifest acyclicity test, paired-fixture comments, and fixture lock refreshes.
+Its sequential gates passed on the candidate tree based on HEAD
 `5d7ca1e80e29c6fbe1ec600535cdae2145d3046a`: `make check-fmt`, `make test`,
 `make typecheck`, `make lint`, `make markdownlint`, `make nixie`, and
 `make check-fixture-lockfiles`. The test gate passed 2,084 tests with seven
@@ -1713,6 +1713,10 @@ and worktree identifier. `make publish-check` also passed after the package
 edge and before the two comment-only fixture-manifest edits; those comments do
 not alter package metadata. The complete transcript is
 `/tmp/publish-check-ep-m1-isolated-scratch-11-2-2-public-prelude-execplan.out`.
+CodeRabbit CLI `0.9.2` reviewed all 12 committed paths in `7fbd9fee` against
+`5d7ca1e80e29c6fbe1ec600535cdae2145d3046a`; the review completed with zero
+findings. Its log is
+`/tmp/coderabbit-2f060a99-dabc-4460-b43b-7ea2da17770f-11-2-2-public-prelude-execplan.out`.
 The finish-line amendment (DL-9) remains accepted. The plan was rebased onto
 `main` at `4d585b789dcc8f070c3c7b7cb141388a65afcbe5` without conflicts; all
 seven plan commits matched in `git range-diff`.
