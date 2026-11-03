@@ -2859,6 +2859,12 @@ enabled. Default features matter: v0.10.0 does not build with
 and `yaml` configuration extensions are feature-gated anyway, so only TOML
 files are discovered. No other member gains the dependency.
 
+The lockfile resolves `cargo-platform` to v0.3.2 so library crates that depend
+on `cargo_metadata` can retain the workspace's Rust 1.88 MSRV. The locked
+v0.3.3 release raises its floor to Rust 1.91; `cargo_metadata` v0.23.1 accepts
+the v0.3.2 release under its `0.3.0` requirement. The direct MSRV check covers
+this lockfile constraint.
+
 #### Configurable and command-line-only settings
 
 The settings that can come from a file or the environment are exactly the

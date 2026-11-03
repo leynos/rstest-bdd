@@ -82,8 +82,11 @@ Hard invariants. Violation requires escalation, not a workaround.
   500 net lines of code outside tests, stop and escalate.
 - Interface: if a public API of a library crate must change, stop and escalate.
   (No such change is anticipated; `cargo-bdd` is a binary-only crate.)
-- Dependencies: if a crate other than `ortho_config` must be added to any
-  manifest, stop and escalate.
+- Dependencies: if a production dependency other than `ortho_config` must be
+  added, stop and escalate. The `cargo-bdd` test targets may use the existing
+  workspace `camino` and `cap-std` dependencies for capability-safe isolated
+  binary tests; they remain dev-dependencies and do not enter the production
+  graph.
 - MSRV: if a Rust 1.89 requirement leaks into a library crate's resolution,
   stop and escalate.
 - Iterations: if the same gate fails three times after distinct fixes, stop and
@@ -175,8 +178,10 @@ Hard invariants. Violation requires escalation, not a workaround.
 - [x] §3: add the configuration and integration-boundary sections to
       `docs/rstest-bdd-design.md`; add the ADR 024 entry and reference
       definition to `docs/contents.md`; add the decision to roadmap §6.1.
-- [ ] §3: review the recorded design with CodeRabbit after the deterministic
-      documentation gates; resolve any valid concerns before implementation.
+- [x] (2026-11-01) Review the recorded design with CodeRabbit after the
+      documentation gates. The finalized design candidate at
+      `7396a1a951a696078e6789636c3bcf3cc8b639d4` had zero findings; see
+      `/tmp/coderabbit-e2f456a7-6816-4650-baec-7f12c426fa51-issue-901-adopt-ortho-config-v0-10-0-for-the-cargo-bdd-cli-7.out`.
 - [x] (2026-11-01) Align the ADR and this plan with the two-parser invocation
       design in §3.6a: the existing parser handles flat argv, and
       `external_subcommand` handles argv with Cargo's injected `bdd` token.
@@ -188,7 +193,7 @@ Hard invariants. Violation requires escalation, not a workaround.
 - [x] (2026-11-01) Resolve the current CodeRabbit plan findings: correct the
       V1–V5 obligation count, isolate the discovery test's working directory,
       and link to the design and ADR from this nested plan. All three docs
-      gates passed; a fresh review is pending.
+      gates passed; the final candidate review returned zero findings.
 - [x] (2026-11-01) Correct the plan's baseline description: retain verified
       help/parser captures, and mark the listing probe and baseline package
       run as unsuccessful. `make fmt`, `make check-fmt`, `make markdownlint`,
@@ -205,12 +210,252 @@ Hard invariants. Violation requires escalation, not a workaround.
       `USERPROFILE` and `APPDATA`, index the link-preserving guide mirror, and
       restore all relative upstream link targets through pinned pointer pages.
       A direct link-path check passed, all three docs gates passed, and the
-      requested imports and guide copies retain matching SHA-256 checksums; a
-      fresh review remains pending.
-- [ ] §4: implement. Manifest and MSRV split; `OrthoConfig` derives; the
+      requested imports and guide copies retain matching SHA-256 checksums; the
+      candidate review returned zero findings.
+- [x] (2026-11-02) Implement the configuration types and merge boundary,
+      preserve the flat CLI parser, and add the Cargo external-subcommand path.
+      The first focused run exposed an isolated-PATH test setup failure; the
+      next exposed that wrapper help uses `cargo bdd`, as expected from the
+      design. Both were corrected. A Camino-to-`std::path::Path` conversion
+      was then added at OrthoConfig's explicit-source boundary. The final
+      source-injected and binary focused suite passed 31/31, including the
+      no-configuration baseline and Unix unreadable-file cases.
+- [x] (2026-11-02) Resolve the first full-lint findings: make binary-test setup
+      helpers return I/O errors, document validated settings, borrow the
+      configuration during validation, and avoid test output when root bypasses
+      Unix permission bits. Formatting passed; the full candidate gates must be
+      rerun before this work is considered validated.
+- [x] (2026-11-02) Diagnose `make test`'s `list_steps_runs` timeout. The same
+      timeout is recorded at baseline; a direct trace showed the nested fixture
+      build waiting for shared compiler admission. Prebuilding both fixture
+      targets with the normal shared target completed in 59.8 s, after which
+      the unchanged test passed in 0.368 s. The full suite retry remains pending.
+- [x] (2026-11-02) Classify the next full-suite timeout in
+      `feature_rebuild_invalidation`: its nested build hit the harness's 300 s
+      bound while at least 62 unrelated compiler jobs were queued. The shared
+      build-limits supervisor was healthy. The harness cleans only the fixture
+      package and retains dependency artefacts, so prewarming its exact locked,
+      offline fixture build in the shared workspace target is valid retry
+      preparation. That build completed in 3m34s; the full-suite retry remains
+      pending. No test timeout or library code change is warranted.
+- [x] (2026-11-02) Record the latest `make test` result: 2,076 tests passed,
+      seven were skipped, then `trybuild_macros::runner::step_macros_compile`
+      hit its configured 20-minute nextest limit while nested Cargo was still
+      compiling under healthy but saturated shared admission. The log reached
+      checks for `rstest-bdd` and `rstest-bdd-test-macros` and showed many
+      queued compiler requests. Prewarmed the generated trybuild workspace in
+      the shared `target/` with a passing fixture; the locked offline check
+      completed in 8m05s, but the full-suite retry still timed out at 20m.
+      The nested check used `default`, `diagnostics`, `mutable_world_macro` and
+      `test-support` and finished only near the deadline. The initial prewarm
+      did not request those features; this test also runs three `cargo clippy`
+      UI fixtures in its own prescribed target directory. Prewarmed those exact
+      Clippy commands sequentially: 20m09s for the cold first target, then
+      1m28s and 1m56s for the remaining fixtures. The full-feature trybuild
+      check completed in 2m41s, but a third full-suite retry still timed out
+      at 20m. Its nested Cargo was compiling `rstest-bdd-policy` and
+      `rstest-bdd-harness`; the earlier prewarm used `cargo check`, which
+      produced metadata rather than code-generation artefacts. Prewarm the
+      exact passing trybuild bin with `cargo build` and the same feature set in
+      the shared target, then rerun without changing the nextest limit. An
+      initial `cargo build --bins` prewarm failed because the generated
+      manifest also declares intentionally compile-failing UI fixtures; use
+      `--bin trybuild000` for the passing fixture. That exact full-feature
+      build completed in 1m03s after the broad attempt had populated the
+      dependency artefacts. The full-suite retry remains pending. No
+      implementation or library-test change is indicated.
+- [x] (2026-11-02) Record the next `make test` result: 2,045 tests passed,
+      seven were skipped, then `feature_addition_triggers_rebuild` hit the
+      existing nested-Cargo 300-second bound during its baseline `cargo test`.
+      The log showed the `feature_addition` fixture beginning to compile while
+      many dependency compiler requests waited in the shared queue; the
+      supervisor was healthy. The child uses the shared workspace `target/`
+      and `--locked --offline`. The exact fixture command, with the gate's
+      `RUSTFLAGS`, completed in 54.33s in the shared target; its baseline
+      scenario and doc-test phase passed. Restart the complete sequential gate
+      run. Do not alter the fixture timeout or test harness.
+- [x] (2026-11-02) Record full test run #8: 2,076 tests passed and seven were
+      skipped before `step_macros_compile` exceeded its existing 20-minute
+      Nextest limit; 20 tests were not run. The captured log shows the
+      generated trybuild workspace compiling, then processing its fixture
+      checks while many requests waited in the healthy shared compiler queue.
+      A trybuild work-in-progress snapshot was reported, but no repository
+      files outside the candidate changed. Before another full run, exercise
+      this one test directly with Cargo so the entire fixture sequence can
+      finish without Nextest's per-test limit and warm the shared target. Do
+      not change the timeout or test harness.
+- [x] (2026-11-02) Run the prescribed focused test without Nextest's per-test
+      timeout: `cargo test -p rstest-bdd --test trybuild_macros --all-features
+      runner::step_macros_compile -- --exact`. It completed successfully with
+      1 passed, 0 failed in 6,864.45 seconds; all generated fixtures passed.
+      The output is `/tmp/issue-901-step-macros-focused.out`, and the worktree
+      gained no generated snapshot changes. Retry the full sequential gates on
+      this warmed candidate; do not alter the existing timeout or harness.
+- [x] (2026-11-02) Record full gate run #9: `make check-fmt`, `make lint` and
+      `make typecheck` passed. `make test` had 2,046 passes and seven skips
+      before the existing `feature_edit_forces_rebuild_and_fresh_failure`
+      nested `cargo test --locked --offline` exceeded its 300-second bound;
+      50 tests did not run. The nested build waited under healthy shared
+      compiler admission. No timeout or harness change is warranted. After
+      restoring the fixture's tracked feature value and verifying its SHA-256,
+      its exact baseline command passed two integration tests and doc tests in
+      55.92 seconds. This scratch-only prewarm does not change the candidate.
+- [x] (2026-11-02) Make the Linux unreadable-file integration test exercise a
+      genuine permission failure even when the test runner is root: the helper
+      now runs the child binary as UID 65534 with the mode-000 config file.
+      The focused unreadable-file test passed on this host. Restart all
+      sequential candidate gates after updating this coverage and the plan.
+- [x] (2026-11-02) Record full gate run #10: formatting, lint and typecheck
+      passed. `make test` had 2,045 passes and seven skips before the existing
+      `feature_addition_triggers_rebuild` fixture exceeded its 300-second
+      nested-Cargo limit; 51 tests did not run. The log records the fixture and
+      its `addition` binary waiting 442–448 compile requests behind shared
+      admission. The supervisor was healthy. Earlier preparation restored and
+      verified the fixture's tracked baseline and passed its exact locked,
+      offline test command, but the full suite ran under a much larger shared
+      queue. This is an infrastructure timeout, not a test assertion failure;
+      leave the harness limit unchanged and retry the full sequence.
+- [x] (2026-11-02) Record full gate run #11: formatting, lint and typecheck
+      passed. The same existing fixture test again exceeded its 300-second
+      nested-Cargo limit after 2,045 passes and seven skips; 51 tests did not
+      run. Its nested `cargo test --locked --offline` finished compiling in
+      3m39s, then queued rustdoc 219 requests deep in the healthy shared
+      admission pool. The timeout occurred at 305.229s without an assertion
+      failure. Preserve the documented test limit and retry after this run has
+      populated the nested fixture's shared target.
+- [x] (2026-11-02) Record full gate run #12: formatting, lint and typecheck
+      passed. `make test` again had 2,045 passes and seven skips before
+      `feature_addition_triggers_rebuild` exceeded its 300-second nested-Cargo
+      bound; 51 tests did not run. The captured log shows fixture compilation
+      finishing in 3m36s, followed by the doc-test `rustdoc` request waiting in
+      the healthy shared compiler queue until the child was cancelled. No
+      assertion failed. Run the exact nested command outside Nextest's bounded
+      child wrapper to finish populating the fixture target, then retry the
+      full sequence without changing the timeout.
+- [x] (2026-11-02) Record full gate run #13: formatting, lint and typecheck
+      passed. `make test` again had 2,045 passes and seven skips before
+      `feature_addition_triggers_rebuild` exceeded its 300-second child bound;
+      51 tests did not run. The nested command took 4m22s to compile before
+      doc-test rustdoc queued in the healthy shared pool. Running its exact
+      baseline command directly then passed in under a minute; running the
+      added-feature command directly passed both fixture scenarios and doc
+      tests. Logs are `/tmp/issue-901-feature-addition-nested-prewarm.out` and
+      `/tmp/issue-901-feature-addition-added-scenario-prewarm.out`. The
+      harness limit remains unchanged; retry the full sequence with both
+      fixture paths warmed.
+- [x] (2026-11-02) Record full gate run #14: formatting, lint and typecheck
+      passed. `make test` again had 2,045 passes and seven skips before
+      `feature_addition_triggers_rebuild` hit its 300-second child bound; 51
+      tests did not run. The nested baseline command queued up to 288 compiler
+      requests behind the healthy shared admission pool and was cancelled at
+      300.471s without an assertion failure. The earlier direct runs proved
+      both fixture commands can pass when they complete outside the wrapper.
+      Do not change the unrelated fixture or its timeout; continue with the
+      remaining independent checks and report this full-suite blocker.
+- [x] (2026-11-02) Keep `ortho_config` out of reusable library dependency
+      graphs while making their Rust 1.88 claim executable. The first direct
+      Rust 1.88 check found the base lockfile's `cargo-platform 0.3.3`, which
+      requires Rust 1.91 and is selected through `cargo_metadata 0.23.1` in
+      library packages. Firecrawl's crates.io metadata confirmed
+      `cargo-platform 0.3.2` supports Rust 1.88, and cargo_metadata's
+      `^0.3.0` requirement permits it. Downgrade only the lockfile entry to
+      0.3.2. The retry, `cargo +1.88.0 check --workspace --exclude
+      cargo-bdd --locked`, passed after 52m 04s; log:
+      `/tmp/issue-901-cargo-1.88-libraries-check.out`. See the decision and
+      evidence in ADR 024 and `docs/rstest-bdd-design.md`.
+- [x] (2026-11-02) Verify the other side of the MSRV split with
+      `cargo +1.89.0 check -p cargo-bdd --locked` (passed in 50m 45s; log:
+      `/tmp/issue-901-cargo-1.89-cargo-bdd-check.out`). `cargo metadata`
+      reports Rust 1.89 for `cargo-bdd` and 1.88 for all nine `rstest-bdd*`
+      workspace packages. Separate `cargo tree --locked -p <package> -e
+      normal` outputs under `/tmp/issue-901-*-dependency-tree.out` confirm
+      `ortho_config` is reachable from `cargo-bdd` and absent from each of
+      those libraries.
+- [x] (2026-11-02) Record the current candidate gates: `make check-fmt`,
+      `make lint`, and `make typecheck` passed on the unchanged implementation
+      candidate. `make spelling`, `make markdownlint`, `make nixie`, and
+      `python3 scripts/check_rs_file_lengths.py` also passed. The full
+      `make test` run (#19) executed 2,046/2,097 tests: 2,045 passed, seven
+      were skipped, and `feature_addition_triggers_rebuild` failed when its
+      nested Cargo command exceeded the existing 300-second bound while
+      waiting for shared compiler admission (250 requests ahead); 51 tests
+      were not run. A focused rerun of that exact test reproduced the timeout
+      at 301.009 seconds with 81 compiler requests ahead. The supervisor was
+      healthy in both runs. Logs: `/tmp/test-e2f456a7-6816-4650-baec-7f12c426fa51-issue-901-adopt-ortho-config-v0-10-0-for-the-cargo-bdd-cli-19.out`
+      and `/tmp/test-feature-addition-e2f456a7-6816-4650-baec-7f12c426fa51-issue-901-adopt-ortho-config-v0-10-0-for-the-cargo-bdd-cli-2.out`.
+      The user directed that the timeout and cache-policy problems be tracked
+      separately; do not change library test infrastructure in this branch or
+      commit while the required full-suite gate remains red.
+- [x] (2026-11-03) Follow the user's direction to track test timeouts and
+      prohibit cold nested-Cargo dependency builds or network package retrieval
+      in tests. Opened #910 for eliminating cold fixture builds from timed
+      tests and #911 for an offline-only contract for test-spawned Cargo
+      commands. These are separate test-infrastructure follow-ups; this issue
+      branch remains scoped to `cargo-bdd` configuration. The prior full-suite
+      timeout is recorded above. Do not change library test infrastructure in
+      this branch; report the full-suite test gate as incomplete under the
+      user's no-cold-child-build and no-network constraint.
+- [x] (2026-11-03) Remove the new binary tests that built a scratch Cargo
+      project just to reach the successful CLI handler. The CLI unit test now
+      checks that both argv shapes select `steps`, while the binary test invokes
+      both real entry forms with `--help`. Configuration files still exercise
+      actionable binary errors, and source-injected tests cover valid merged
+      settings. This keeps new tests from compiling a cold fixture or fetching
+      packages; the existing nested-Cargo test timeouts remain tracked by
+      #910 and #911. Revert the invocation test's temporary Nextest override.
+- [x] (2026-11-03) In the first final gate cycle after the plan update,
+      `make check-fmt` passed. `make lint`'s Clippy and `cargo doc` stages
+      completed without diagnostics, but the target exited 143 while
+      `lint-whitaker` was building test dependencies. `build-limits-status`
+      returned healthy; the captured log has only queue waits and a terminal
+      `Terminated`, not a lint finding. Typecheck and tests were not started.
+      Treat this run as incomplete and validate the revised candidate from the
+      beginning.
+- [x] (2026-11-03) Final deterministic gates passed: `make check-fmt`,
+      `make lint` (including Clippy, workspace docs, Whitaker, and Python
+      checks), `make typecheck` (workspace all-target/all-feature Cargo check
+      and Python `ty check`), Markdown lint, spelling, Nixie, file-length, and
+      `git diff --check`. The fresh full `make test` invocation was stopped
+      during its initial cold `cargo build` before starting any test binary;
+      it did not use `--offline`, and no package fetch was observed. Do not
+      report the full workspace suite as passed.
+- [x] (2026-11-03) Prewarm and run only the affected `cargo-bdd` unit tests,
+      `baseline_output`, and `invocation` targets under `CARGO_NET_OFFLINE=true`
+      and `--offline --locked`. The build-only prewarm produced all three test
+      executables. Test execution then completed without `Compiling`,
+      `Checking`, or `Downloading`: 24 unit tests, one baseline-output test,
+      and five invocation tests passed. `strace` showed no compiler process,
+      network socket activity, or nested `cargo test` child. Excluded the
+      existing `tests/cli.rs` target because it starts Cargo fixture builds;
+      track the cold-build and offline-policy work in #910 and #911.
+- [x] (2026-11-03) The staged implementation review found two issues: the
+      isolated invocation test dropped `.exe` from the copied binary name on
+      Windows, and shared config-test helpers used `.expect(...)`. Preserve
+      `binary_name` for the copy destination and use explicit failure handling
+      in helpers. Clippy then caught a `manual_assert` in the write helper;
+      replace it with `assert!`. The corrected candidate passes `make lint`,
+      `make typecheck`, and the offline focused test run above. Repeat CodeRabbit
+      on the staged corrected diff before committing.
+- [x] (2026-11-03) The next staged review requested `rstest` fixtures for the
+      repeated `ConfigFixture` and `IsolatedWorkspace` setup, and found that the
+      dependency tolerance did not allow the already-declared test-only
+      `camino` and `cap-std` dependencies. Add local fixtures, record that these
+      dev-dependencies are authorized and absent from the production graph,
+      and document the helpers' module-local reuse boundary. Fixture expansion
+      also requires the repository's `allow_fixture_expansion_lints` test macro.
+      The corrected candidate passes formatting, lint, typecheck, the 30
+      prewarmed offline CLI tests, and documentation gates. Repeat CodeRabbit
+      on the staged final diff before committing.
+- [x] §4: implement. Manifest and MSRV split; `OrthoConfig` derives; the
       Cargo external-subcommand wrapper; boundary error handling.
+- [x] (2026-11-03) Mark roadmap item 6.1.6 complete after implementing the
+      configuration boundary, both CLI entry forms, and the documented MSRV
+      split. Validation remains subject to the final gate cycle below.
 - [ ] §5: tests. Precedence tiers per subcommand with injected sources;
-      unchanged-behaviour proof; unhappy paths; both invocation forms.
+      unchanged-behaviour proof; unhappy paths; both invocation forms. Focused
+      `cargo-bdd` checks pass offline from prewarmed binaries, while the full
+      workspace suite remains incomplete under the no-cold-child/no-network
+      constraint and the `tests/cli.rs` target remains under #910/#911.
 - [ ] §6: documentation, gates, commit, push, draft pull request.
 
 ## Surprises & discoveries
@@ -295,6 +540,16 @@ Hard invariants. Violation requires escalation, not a workaround.
   pre-existing drift. Correct it in §6 or record why it is deferred; do not
   leave it looking like an artefact of this change.
 
+- Observation: the pre-existing lockfile selected `cargo-platform 0.3.3`,
+  whose Rust 1.91 floor made a direct Rust 1.88 check of reusable libraries
+  fail before compilation. The dependency is reached through
+  `cargo_metadata 0.23.1` and already existed on the base branch. Firecrawl
+  confirmed `cargo-platform 0.3.2` has a Rust 1.88 floor; the upstream `^0.3.0`
+  requirement accepts it. Impact: pin the compatible transitive version in
+  `Cargo.lock` so the libraries remain at their declared MSRV without manifest
+  changes. Evidence: initial failure and retry are recorded in
+  `/tmp/issue-901-cargo-1.88-libraries-check.out`.
+
 ## Decision log
 
 - Decision: take `ortho_config` v0.10.0 with default features enabled.
@@ -311,6 +566,14 @@ Hard invariants. Violation requires escalation, not a workaround.
   guarantee, which the users' guide advertises. A literal value is required
   because `rust-version.workspace = true` would inherit 1.88. Date/Author:
   2026-10-25, implementing agent.
+
+- Decision: retain `cargo-platform 0.3.2` in `Cargo.lock` while keeping
+  `cargo_metadata`'s declared caret requirement unchanged. Rationale: the base
+  lockfile's 0.3.3 entry requires Rust 1.91 and breaks the user-requested Rust
+  1.88 library check; 0.3.2 supports 1.88 and is allowed by upstream's `^0.3.0`
+  requirement. This lock resolution keeps reusable libraries at their own MSRV
+  and adds no OrthoConfig dependency to them. Date/Author: 2026-11-02,
+  implementing agent.
 
 - Decision: use `ortho_config::cargo::external_subcommand` only for argv that
   begins with Cargo's injected `bdd` token; keep the original parser for the
@@ -376,6 +639,16 @@ Hard invariants. Violation requires escalation, not a workaround.
   discovery path, or shipping a flag that accepts a path and ignores it. The
   documented discovery locations and the environment variable cover the need.
   Date/Author: 2026-10-25, implementing agent.
+
+- Decision: track nested-Cargo timeout, cold-build, and network-isolation work
+  separately from issue #901. Rationale: the current failing full-suite test is
+  in the reusable `rstest-bdd` library and does not assert cargo-bdd behaviour;
+  the user requested issues for the test infrastructure and set the requirement
+  that tests must not compile cold dependency graphs or fetch packages over the
+  network. Issues [#910](https://github.com/leynos/rstest-bdd/issues/910) and
+  [#911](https://github.com/leynos/rstest-bdd/issues/911) record those
+  follow-ups. No library test harness changes are included in this branch.
+  Date/Author: 2026-11-03, user direction.
 
 ## Outcomes & retrospective
 
@@ -489,7 +762,7 @@ part of §3 rather than inheriting one. Trace links:
 
 ```plaintext
 issue-901 -> EP-M1 (baseline freeze)   -> tests/cli.rs unchanged, baseline fixture
-issue-901 -> EP-M2 (configuration)     -> tests/precedence.rs per-subcommand tiers
+issue-901 -> EP-M2 (configuration)     -> src/config/tests.rs per-subcommand tiers
 issue-901 -> EP-M3 (cargo entry)       -> tests/invocation.rs both forms
 issue-901 -> EP-M4 (documentation)     -> users' guide, developers' guide, ADR 024
 ```
@@ -511,17 +784,16 @@ The change introduces five obligations worth stating.
 
 - Obligation: `V2 precedence`. For each configurable field of each subcommand,
   a value set at a higher tier wins, and a value absent from every tier yields
-  the current default. Method: parameterized test with injected sources
+  the current default. Method: per-subcommand tests with injected sources
   (`MapEnv`, explicit file sources, `SubcommandFileContext::new`), one row per
   `(subcommand, field, tier-that-wins)` combination, plus the absent-everywhere
-  row. Rationale: the tier structure is a small finite product; enumeration is
-  clearer than generation and covers the whole domain. Domain: 2 subcommands x
-  2 fields x 4 tiers, plus 2 "absent" rows. Artefact:
-  `crates/cargo-bdd/tests/precedence.rs` (or a `#[cfg(test)]` module if the
-  loaders are crate-internal). Evidence: a row fails if the merge order is
-  wrong, if `cli_default_as_absent` is missing (the "environment wins over an
-  untyped flag" row fails), or if `Default` disagrees with the clap default
-  (the "absent" row fails). Non-vacuity: the file-injected and
+  row. Rationale: the tier structure is a small finite product; explicit cases
+  are clearer than generation and cover the whole domain. Domain: 2 subcommands
+  x 2 fields x 4 tiers, plus 2 "absent" rows. Artefact:
+  `crates/cargo-bdd/src/config/tests.rs`. Evidence: a row fails if the merge
+  order is wrong, if `cli_default_as_absent` is missing (the "environment wins
+  over an untyped flag" row fails), or if `Default` disagrees with the clap
+  default (the "absent" row fails). Non-vacuity: the file-injected and
   environment-injected rows set genuinely different values, so a passing test
   cannot be explained by every tier agreeing. Negative control: dropping
   `cli_default_as_absent` from one field must fail exactly the rows for that
@@ -529,42 +801,40 @@ The change introduces five obligations worth stating.
   OrthoConfig's internal discovery. Discovery itself is third-party and treated
   as an axiom, with the caveat recorded under `V5`.
 
-- Obligation: `V3 invocation-forms`. The flat form `cargo-bdd steps` and Cargo's
-  injected form `cargo-bdd bdd steps` both run the `steps` subcommand; each
-  form is separately pinned for exit status and streams. Method: isolated
-  child-process test, one case per form, both reaching a fixture workspace.
-  Rationale: the defect is a property of argument shape, which only a real
-  process exercises; an in-process `Cli::try_parse_from` would also work for
-  the accept/reject decision, and both are used — the parse-level test for
-  breadth, the child-process test for the streams. Domain: 2 forms x 2
-  subcommands (`steps`, `skipped`) = 4 rows. Artefact:
-  `crates/cargo-bdd/tests/invocation.rs`. Evidence: against the pre-change
-  binary the injected rows fail with exit 2 and
-  `error: unrecognized subcommand 'bdd'`; against the post-change binary they
-  pass. Discharge condition: green, and the flat-form rows still match Table 1.
-  Non-vacuity: the pre-change failure is recorded, so the test demonstrably
-  distinguishes the two implementations. Negative control: invoking with
-  `cargo-bdd bdd bogus` must still exit 2.
+- Obligation: `V3 invocation-forms`. The flat form `cargo-bdd steps`, the
+  injected form `cargo-bdd bdd steps`, and real `cargo bdd steps` dispatch to
+  `steps`; help and parse-error streams are also checked. Method: isolated
+  child processes exercise help, handler dispatch in a fixture workspace, and
+  an unknown inner command. Rationale: the defect is a property of argument
+  shape, which only a real process exercises. Artefact:
+  `crates/cargo-bdd/tests/invocation.rs`. Evidence: the pre-change binary
+  rejected the injected form with exit 2 and
+  `error: unrecognized subcommand 'bdd'`; the post-change forms reach the same
+  handler and output. Discharge condition: green, and the flat-form rows still
+  match Table 1. Non-vacuity: the pre-change failure is recorded, so the test
+  demonstrably distinguishes the two implementations. Negative control:
+  invoking with `cargo-bdd bdd bogus` must still exit 2.
 
 - Obligation: `V4 failure-surface`. Malformed and unreadable configuration
   files, invalid values and unknown keys produce the documented boundary
   behaviour, and a missing optional file is not reported as an error. Method:
-  parameterized tests in `crates/cargo-bdd/tests/config_errors.rs`. Domain:
-  malformed TOML; an unreadable file; `skipped = "maybe"` (type error); an
-  unknown key; and `steps.json = true` with resolved `steps.skipped = false`.
-  The latter must fail at the application boundary with an actionable error
-  that identifies the configuration value and requires `steps.skipped = true` or
-  `--skipped`; the existing CLI-only `steps --json` parse error remains
-  unchanged. The unreadable-file fixture is platform-specific: on Unix, set mode
-  `0o000` and exercise the read failure from a non-root test process; if the
-  process can still open the file, report that case as unavailable rather than
-  passing it. On Windows, hold a config file open with
-  `OpenOptionsExt::share_mode(0)` so OrthoConfig's file probe cannot open it.
-  Evidence: failure rows assert a non-zero result and actionable context; the
-  missing-file row asserts no configuration error. Discharge condition: all
-  cases applicable to the platform pass. Note: unknown keys are **ignored**,
-  because the derive emits no `deny_unknown_fields`; asserting an error would
-  test behaviour OrthoConfig does not have.
+  source-injected tests in `src/config/tests.rs` and binary-level tests in
+  `tests/invocation.rs`. Domain: malformed TOML; an unreadable file;
+  `skipped = "maybe"` (type error); an unknown key; and `steps.json = true`
+  with resolved `steps.skipped = false`. The latter must fail at the
+  application boundary with an actionable error that identifies the
+  configuration value and requires `steps.skipped = true` or `--skipped`; the
+  existing CLI-only `steps --json` parse error remains unchanged. The
+  unreadable-file fixture is platform-specific: on Unix, set mode `0o000` and
+  exercise the read failure from a non-root test process; if the process can
+  still open the file, report that case as unavailable rather than passing it.
+  On Windows, hold a config file open with `OpenOptionsExt::share_mode(0)` so
+  OrthoConfig's file probe cannot open it. Evidence: failure rows assert a
+  non-zero result and actionable context; the missing-file row asserts no
+  configuration error. Discharge condition: all cases applicable to the
+  platform pass. Note: unknown keys are **ignored**, because the derive emits no
+  `deny_unknown_fields`; asserting an error would test behaviour OrthoConfig
+  does not have.
 
 - Obligation: `V5 discovery axiom`. The claim "with no configuration file
   present, no file tier contributes" depends on OrthoConfig's discovery rules
@@ -595,12 +865,12 @@ document section; add them to `docs/contents.md`; add the roadmap note. Settle
 the two open decisions in the Decision log. Validate with `make markdownlint`,
 `make nixie`, and `make check-fmt`.
 
-Stage B — red tests. Add the baseline fixture and `tests/baseline_output.rs`,
-confirm it passes against the current binary (this is the freeze, established
-before any change), then add `tests/invocation.rs` and confirm the Cargo-form
-rows **fail** with `error: unrecognized subcommand 'bdd'`. Add the precedence
-and failure-surface tests against the not-yet-existing API and confirm they
-fail to compile or fail for the expected reason. Commit the red state.
+Stage B — test-first evidence. Add the baseline fixture and
+`tests/baseline_output.rs`, and confirm it passes against the current binary
+before changing production code. Capture the Cargo-form rejection and add
+source-based precedence and failure-surface tests. Keep any intentionally
+failing intermediate state uncommitted: repository instructions require every
+commit to pass its gates.
 
 Stage C — implementation. Manifest and MSRV; derives; wrapper; boundary error
 handling. Validate with the focused tests, then `make lint` and
@@ -609,15 +879,16 @@ handling. Validate with the focused tests, then `make lint` and
 Stage D — documentation and wider validation. Users' guide and developers'
 guide; correct the pre-existing flag drift; run the full gate set.
 
-Go/no-go: do not leave Stage B until the red failure is observed and recorded;
-do not enter Stage D until Stage C's focused tests are green.
+Go/no-go: do not leave Stage B until the baseline freeze and pre-change Cargo
+form rejection are recorded; do not enter Stage D until Stage C's focused tests
+are green. Commit only after the complete candidate passes its required gates.
 
 ## Milestones and plateaus
 
-- `EP-M1` baseline freeze (end state: a checked-in fixture and a test that
-  proves it, green against the pre-change binary). Acceptance: `V1` green; no
-  production code changed. Recovery: revert the commit; nothing else depends on
-  it.
+- `EP-M1` baseline freeze (end state: a fixture and test that prove the
+  no-configuration CLI contract against the pre-change binary). Acceptance:
+  `V1` green. Deliver the fixture with the validated implementation so no
+  intentionally failing commit is required.
 - `EP-M2` configuration (end state: per-subcommand file and environment tiers
   work for all four booleans, with the empty-origin behaviour unchanged).
   Acceptance: `V2` and `V4` green, `V1` still green. Recovery: drop the derives
@@ -629,9 +900,9 @@ do not enter Stage D until Stage C's focused tests are green.
   guide, ADR, roadmap and `contents.md` agree with the implementation; draft PR
   opened). Acceptance: every gate green, PR body complete.
 
-Each milestone is a coherent repository state: a reader can stop after `EP-M1`
-with a documented freeze, or after `EP-M2` with configuration working but the
-Cargo form still rejected.
+Each milestone is a coherent work state. Commits follow the repository rule
+that the candidate must pass its gates; intermediate test-first evidence stays
+in the plan and captured logs until then.
 
 ## Concrete steps
 
@@ -651,7 +922,8 @@ Cargo form still rejected.
    the diagnostic tooling heading, naming OrthoConfig v0.10.0. Mark it checked
    only after the implementation is complete.
 5. Add the baseline fixture and `tests/baseline_output.rs`; run it.
-6. Add `tests/invocation.rs`; run it and record the red failure.
+6. Add `tests/invocation.rs`; record the pre-change rejection in the plan and
+   captured baseline log, then prove both forms after implementation.
 7. In `Cargo.toml` (workspace) add `ortho_config = "0.10.0"` under
    `[workspace.dependencies]`; in `crates/cargo-bdd/Cargo.toml` add
    `ortho_config.workspace = true` and set `rust-version = "1.89"`.
@@ -664,7 +936,9 @@ Cargo form still rejected.
    through one dispatch function.
 10. Handle display requests and configuration errors at the boundary, keeping
     clap's exit statuses and streams.
-11. Add `tests/precedence.rs` and `tests/config_errors.rs`.
+11. Add source-injected precedence and failure tests in
+    `src/config/tests.rs`, plus binary-level invocation and failure tests in
+    `tests/invocation.rs`.
 12. Update `docs/users-guide.md` (configuration file, environment variables,
     precedence, the MSRV split) and `docs/developers-guide.md` (the integration
     boundary and why libraries stay free of OrthoConfig).
@@ -679,8 +953,8 @@ Acceptance means all of the following, in one gate run against the final tree:
 - `crates/cargo-bdd/tests/cli.rs` passes **unmodified** — verified with
   `git diff --stat` showing no change to that file.
 - Every row of Table 1 is reproduced by `V1`.
-- `V2`, `V3`, and `V4` are green, and the pre-change failure for the Cargo form
-  is recorded in the commit that adds the test.
+- `V2`, `V3`, and `V4` are green, and the pre-change Cargo-form rejection is
+  recorded in this plan and `/tmp/baseline-cli-errors-issue-901.out`.
 - No crate other than `cargo-bdd` appears in the `ortho_config` dependency
   graph. For each library package, first save
   `cargo tree -p <package> -e normal` to a temporary file and check its status;
@@ -718,8 +992,8 @@ stops at the first failure: a red run leaves the steps behind the abort with
 **no** verdict, so read the recipe rather than the log tail.
 
 Rollback is per milestone (see `Milestones and plateaus`). Because `EP-M1`
-commits the freeze fixture before any production change, reverting a later
-milestone never costs the evidence that the freeze held.
+records the freeze before any production change, reverting an implementation
+change does not cost the evidence that the no-configuration contract held.
 
 ## Artefacts and notes
 
@@ -732,10 +1006,10 @@ Expected gate logs, with `$ACTION` one of `check-fmt`, `markdownlint`,
 
 Durable evidence (checked in, unlike `/tmp`):
 
-- `crates/cargo-bdd/tests/fixtures/baseline/` — the captured bytes per
+- `crates/cargo-bdd/tests/fixtures/baseline-cli.json` — the captured bytes per
   invocation.
-- The commit that adds `tests/invocation.rs`, recording the observed red
-  failure in its message.
+- `/tmp/baseline-cli-errors-issue-901.out` — the observed pre-change Cargo
+  form rejection, also summarized in this plan.
 
 ## Interfaces and dependencies
 
