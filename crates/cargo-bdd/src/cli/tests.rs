@@ -1,5 +1,7 @@
 //! Unit tests for command-line argument parsing.
 
+use std::ffi::OsString;
+
 use super::*;
 
 #[test]
@@ -9,7 +11,7 @@ fn flat_and_cargo_dispatched_forms_select_steps() {
         vec!["cargo-bdd", "bdd", "steps"],
     ] {
         let arguments = arguments.into_iter().map(OsString::from);
-        let (cli, matches) =
+        let (cli, matches, _) =
             parse_command_line(arguments).expect("supported invocation should parse");
 
         assert!(matches!(cli.command, Commands::Steps(_)));
