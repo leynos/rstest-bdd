@@ -1366,8 +1366,9 @@ The file sets the timeout policy for the test suite:
   the trybuild families the 30 m period is the only bound and a wedged build is
   reported as a runner slow-timeout without captured output.
 - The second override raises the `slow-timeout` to 180 s
-  for `cargo-bdd::cli`, whose smoke tests spawn `cargo` to build fixture crates
-  and can legitimately exceed 60 s on cold caches.
+  for `cargo-bdd::cli` and `cargo-bdd::invocation`. The smoke tests build
+  fixture crates, and the invocation test checks Cargo's external-subcommand
+  dispatch; both use the `cargo-spawning` group.
 - The third override raises the `slow-timeout` further, to 20 minutes, for the
   trybuild-based compile-test binaries:
   `rstest-bdd-harness-tokio::macro_compile`,
@@ -1671,10 +1672,10 @@ Mitigation:
   `rstest-bdd-server::workspace_discovery_compile`) to 20 minutes as a
   local-development safety net. This does not fix the deadlock; it only delays
   termination to allow the build to complete on fast machines.
-- `.config/nextest.toml` also places the `cargo-bdd::cli` and trybuild
-  binaries in a `cargo-spawning` test group with `max-threads = 1`, so these
-  cargo-spawning tests run one at a time rather than contending for the
-  package-cache lock and build parallelism.
+- `.config/nextest.toml` also places the `cargo-bdd::cli`,
+  `cargo-bdd::invocation`, and trybuild binaries in a `cargo-spawning` test
+  group with `max-threads = 1`, so these cargo-spawning tests run one at a time
+  rather than contending for the package-cache lock and build parallelism.
 - Do not add `macro_compile`-style tests (tests that spawn `cargo` via
   `trybuild` or `cargo_metadata`) to nextest-managed binaries intended to run
   on Windows.
@@ -3350,6 +3351,44 @@ entry point were removed; generated code and manual callers must use the
 descriptor form. With the `diagnostics` feature disabled, the function remains
 callable and drops the iterator without iterating it, keeping generated
 wrappers feature-independent.
+
+## cargo-bdd configuration boundary
+
+The `cargo-bdd` application is the only crate that reads command-line,
+configuration-file and environment settings. Its `src/config.rs` module owns
+the OrthoConfig-derived parsing types and the validated `StepsSettings` and
+`SkippedSettings` passed to command handlers. The registry and output modules
+receive those plain settings; they do not read process sources or handle
+configuration errors.
+
+Keep OrthoConfig within `crates/cargo-bdd`. Reusable library crates stay free
+of the dependency and retain the workspace Rust 1.88 MSRV; only the binary
+crate requires Rust 1.89. When adding a configurable option, first record its
+scope, file and environment names, precedence, and domain validation in
+[design §3.6a](rstest-bdd-design.md#36a-cargo-bdd-configuration-boundary-adr-024)
+and [ADR 024](adr-024-adopt-ortho-config-for-the-cargo-bdd-cli.md). Keep
+configuration types in the application crate and pass validated values into
+existing handlers.
+
+The workspace lockfile keeps `cargo-platform` at v0.3.2 because v0.3.3 raises
+the MSRV of library crates that reach it through `cargo_metadata`. Re-run the
+Rust 1.88 library check before updating this transitive dependency.
+
+Configuration unit tests use OrthoConfig's `_with_sources` entry points,
+`MapEnv`, and an explicit file-discovery context. Binary-level checks launch
+isolated child processes, so tests never mutate the test runner's environment.
+The `ConfigFixture` in `crates/cargo-bdd/src/config/tests.rs` and the
+`IsolatedWorkspace` fixture in `crates/cargo-bdd/tests/invocation.rs` are
+private to their respective test modules; keep them local rather than promoting
+them to shared test support. The baseline fixture pins the existing flat CLI's
+exact output, status and streams when no configuration is present.
+
+The binary accepts three useful spellings: `cargo bdd <subcommand>`, the
+injected form `cargo-bdd bdd <subcommand>`, and the existing flat
+`cargo-bdd <subcommand>` form. The flat form must continue through its original
+Clap parser so help and error text stay byte-for-byte stable. The Cargo forms
+use the single-variant external-subcommand wrapper; both parser paths dispatch
+through the same handlers.
 
 ## cargo-bdd scenario output formatting
 

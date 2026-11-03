@@ -30,9 +30,11 @@ mouldy leftovers.
 - `cargo bdd duplicates` — groups definitions that share both keyword and
   pattern, separating each duplicate set with `---`.
 
-The user’s guide showcases invocations such as `cargo bdd unused --quiet` and
-`cargo bdd duplicates --json`. Follow your local appetite for formatting when
-consuming the raw output.
+`cargo bdd skipped --reasons` includes source locations and skip reasons;
+`cargo bdd skipped --json` emits structured output. The `steps` command also
+supports `--skipped --json`. See the
+[users' guide](../../docs/users-guide.md#diagnostic-tooling) for supported
+flags, configuration files, environment variables and their precedence.
 
 ## How it raids your step stash
 

@@ -3,6 +3,21 @@
 use super::*;
 
 #[test]
+fn flat_and_cargo_dispatched_forms_select_steps() {
+    for arguments in [
+        vec!["cargo-bdd", "steps"],
+        vec!["cargo-bdd", "bdd", "steps"],
+    ] {
+        let arguments = arguments.into_iter().map(OsString::from);
+        let (cli, matches) =
+            parse_command_line(arguments).expect("supported invocation should parse");
+
+        assert!(matches!(cli.command, Commands::Steps(_)));
+        assert!(selected_matches(&matches, "steps").is_ok());
+    }
+}
+
+#[test]
 fn write_skip_reports_json_emits_fields() {
     let report = SkipReport {
         feature: "feature",
