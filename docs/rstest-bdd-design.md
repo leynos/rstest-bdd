@@ -2879,19 +2879,19 @@ toggles that already exist, and nothing else:
 
 *Table 1: Configurable settings per subcommand.*
 
-Everything else is command-line-only: the choice of subcommand itself, help and
-version, and the `requires = "skipped"` constraint on `--json`. Those describe
-the shape of a single invocation rather than a preference that outlives it, so
-there is no file or environment spelling for them.
+The choice of subcommand, help, and version remain command-line-only. The
+`steps` JSON constraint applies to resolved settings across every source:
+`json = true` requires `skipped = true`, whether that value comes from TOML,
+the environment, or the command line. The application calls `validate_steps`
+after merging all sources, so a file or environment setting can satisfy an
+explicit `--json`. A configuration source that enables JSON without enabling
+skipped steps receives an actionable configuration error.
 
-That constraint also applies to the resolved settings. Clap checks explicitly
-provided flags before configuration is loaded, but it cannot validate values
-from files or the environment. After merging `steps` settings, the application
-boundary rejects `json = true` when `skipped = false`, with an actionable error
-identifying the `steps.json` configuration value and requiring
-`steps.skipped = true` or `--skipped`. Thus a configuration source cannot make
-`cargo bdd steps` fail later in the listing handler, and the original parser
-failure for a CLI-only `steps --json` invocation remains unchanged.
+To preserve the existing no-configuration contract, an explicit `--json` with
+no effective `skipped = true` makes the CLI adapter invoke Clap again only to
+reproduce the old parse failure, including its status and output stream. Clap
+does not reject the first parse, which lets configuration sources contribute to
+the resolved requirement before validation.
 
 #### File name, discovery, and formats
 

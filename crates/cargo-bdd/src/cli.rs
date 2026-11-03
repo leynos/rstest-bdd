@@ -2,13 +2,11 @@
 
 use std::{
     collections::HashMap,
-    ffi::OsString,
     io::{self, Write},
 };
 
-use clap::{ArgMatches, CommandFactory, FromArgMatches, Parser, Subcommand};
+use clap::{ArgMatches, Parser, Subcommand};
 use eyre::{Context, Result, bail};
-use ortho_config::cargo::external_subcommand;
 use serde::Serialize;
 
 use crate::{
@@ -17,8 +15,9 @@ use crate::{
         SkippedSettings,
         StepsConfig,
         StepsSettings,
+        merge_steps,
         resolve_skipped,
-        resolve_steps,
+        validate_steps,
     },
     output::{
         ScenarioDisplayOptions,
@@ -29,6 +28,10 @@ use crate::{
     },
     registry::{BypassedStep, Scenario, ScenarioOutcome, Step, collect_registry},
 };
+
+mod invocation;
+
+use invocation::{InvocationForm, missing_required_skipped_error, parse_command_line};
 
 /// Cargo subcommand providing diagnostics for rstest-bdd.
 #[derive(Parser)]
@@ -117,11 +120,10 @@ impl<'a> From<&'a BypassedStep> for SkipReport<'a> {
 
 /// Parse the command line and dispatch the selected diagnostic.
 pub(crate) fn run() -> Result<()> {
-    let (cli, matches) = parse_command_line(std::env::args_os())?;
+    let (cli, matches, invocation_form) = parse_command_line(std::env::args_os())?;
     match cli.command {
         Commands::Steps(config) => {
-            let command_matches = selected_matches(&matches, "steps")?;
-            handle_steps(&resolve_steps(&config, command_matches)?)?;
+            handle_steps(&resolve_steps_settings(&config, &matches, invocation_form)?)?;
         }
         Commands::Unused => handle_unused()?,
         Commands::Duplicates => handle_duplicates()?,
@@ -133,26 +135,18 @@ pub(crate) fn run() -> Result<()> {
     Ok(())
 }
 
-/// Parse either the direct binary form or Cargo's injected `bdd` form.
-fn parse_command_line<I>(arguments: I) -> Result<(Cli, ArgMatches)>
-where
-    I: IntoIterator<Item = OsString>,
-{
-    let arguments = arguments.into_iter().collect::<Vec<_>>();
-    let is_cargo_dispatch = arguments.get(1).is_some_and(|argument| argument == "bdd");
-    if is_cargo_dispatch {
-        let wrapped_matches =
-            external_subcommand("cargo-bdd", "bdd", Cli::command()).get_matches_from(arguments);
-        let command_matches = wrapped_matches
-            .subcommand_matches("bdd")
-            .ok_or_else(|| eyre::eyre!("Cargo's external subcommand parser lost `bdd`"))?;
-        let cli = Cli::from_arg_matches(command_matches).unwrap_or_else(|error| error.exit());
-        Ok((cli, command_matches.clone()))
-    } else {
-        let matches = Cli::command().get_matches_from(arguments);
-        let cli = Cli::from_arg_matches(&matches).unwrap_or_else(|error| error.exit());
-        Ok((cli, matches))
+/// Merge and validate `steps` settings before passing them to the handler.
+fn resolve_steps_settings(
+    config: &StepsConfig,
+    matches: &ArgMatches,
+    invocation_form: InvocationForm,
+) -> Result<StepsSettings> {
+    let command_matches = selected_matches(matches, "steps")?;
+    let merged = merge_steps(config, command_matches)?;
+    if command_matches.get_flag("json") && !merged.skipped {
+        missing_required_skipped_error(invocation_form);
     }
+    validate_steps(&merged)
 }
 
 /// Return the clap matches for a selected subcommand.
@@ -284,6 +278,8 @@ fn write_skip_reports_json(reports: &[SkipReport<'_>]) -> Result<()> {
 mod tests {
     //! Unit tests for command-line argument parsing.
 
+    use std::ffi::OsString;
+
     use super::*;
 
     #[test]
@@ -293,7 +289,7 @@ mod tests {
             vec!["cargo-bdd", "bdd", "steps"],
         ] {
             let arguments = arguments.into_iter().map(OsString::from);
-            let (cli, matches) =
+            let (cli, matches, _) =
                 parse_command_line(arguments).expect("supported invocation should parse");
 
             assert!(matches!(cli.command, Commands::Steps(_)));

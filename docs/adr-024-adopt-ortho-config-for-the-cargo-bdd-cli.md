@@ -107,13 +107,13 @@ does not outrank a value from a file or the environment. The matching `Default`
 implementation agrees with the clap default, because the subcommand merge
 starts from `Default`.
 
-For `steps`, the existing `--json` requirement still applies after merging:
-resolved `json = true` requires resolved `skipped = true`. Clap enforces this
-for explicitly supplied command-line flags. Since clap cannot see file or
-environment values, the application boundary validates the merged settings and
-reports that the configuration value `steps.json` requires
-`steps.skipped = true` (or `--skipped`). This check does not change the
-existing parse failure for `steps --json` without `--skipped`.
+For `steps`, the existing `--json` requirement still applies after merging: the
+application calls `validate_steps` after all sources are merged, so explicit
+`--json` may use `skipped = true` from a file or environment variable. If
+explicit `--json` still has no effective `skipped = true`, the CLI adapter
+invokes Clap again only to reproduce the original parse failure, including its
+exit status and output stream. A file or environment value that enables JSON
+without enabling skipped steps is reported as an actionable configuration error.
 
 Help text and parse failures stay English. No localizer is installed, so
 OrthoConfig's `NoOpLocalizer` remains in force and the wording of help and

@@ -15,7 +15,7 @@ pub(crate) struct StepsConfig {
     #[ortho_config(cli_default_as_absent)]
     pub(crate) skipped: bool,
     /// Emit JSON instead of human-readable text.
-    #[arg(long, requires = "skipped")]
+    #[arg(long)]
     #[ortho_config(cli_default_as_absent)]
     pub(crate) json: bool,
 }
@@ -53,12 +53,11 @@ pub(crate) struct SkippedSettings {
     pub(crate) json: bool,
 }
 
-/// Load `steps` settings from process sources and validate cross-field rules.
-pub(crate) fn resolve_steps(config: &StepsConfig, matches: &ArgMatches) -> Result<StepsSettings> {
-    let merged = config
+/// Merge `steps` settings from process sources.
+pub(crate) fn merge_steps(config: &StepsConfig, matches: &ArgMatches) -> Result<StepsConfig> {
+    config
         .load_and_merge_with_matches(matches)
-        .wrap_err("failed to load configuration for `steps`")?;
-    validate_steps(&merged)
+        .wrap_err("failed to load configuration for `steps`")
 }
 
 /// Load `skipped` settings from process sources.
@@ -76,7 +75,7 @@ pub(crate) fn resolve_skipped(
 }
 
 /// Reject a file or environment combination that the CLI alone cannot express.
-fn validate_steps(config: &StepsConfig) -> Result<StepsSettings> {
+pub(crate) fn validate_steps(config: &StepsConfig) -> Result<StepsSettings> {
     if config.json && !config.skipped {
         bail!(concat!(
             "invalid configuration `cmds.steps.json = true`: set ",
