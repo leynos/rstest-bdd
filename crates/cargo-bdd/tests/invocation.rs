@@ -91,6 +91,7 @@ impl IsolatedWorkspace {
             .env("APPDATA", self.home.as_os_str())
             .env("PATH", path)
             .env("CARGO", env!("CARGO"))
+            .env("CARGO_NET_OFFLINE", "true")
             .current_dir(&self.working_directory);
         if let Some(home) = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")) {
             let home = Utf8PathBuf::try_from(home)
@@ -116,6 +117,12 @@ impl IsolatedWorkspace {
     fn direct(&self, args: &[&str]) -> io::Result<Output> {
         let mut command = self.command(env!("CARGO_BIN_EXE_cargo-bdd"))?;
         command.args(args);
+        command.output()
+    }
+
+    fn direct_with_env(&self, args: &[&str], key: &str, value: &str) -> io::Result<Output> {
+        let mut command = self.command(env!("CARGO_BIN_EXE_cargo-bdd"))?;
+        command.args(args).env(key, value);
         command.output()
     }
 
@@ -156,6 +163,25 @@ impl IsolatedWorkspace {
         let working_directory = self.root.open_dir("work")?;
         working_directory.write(".cargo_bdd.toml", contents)
     }
+
+    fn write_empty_package(&self) -> io::Result<()> {
+        let working_directory = self.root.open_dir("work")?;
+        working_directory.create_dir("src")?;
+        working_directory.write(
+            "Cargo.toml",
+            concat!(
+                "[package]\n",
+                "name = \"empty-cli-fixture\"\n",
+                "version = \"0.1.0\"\n",
+                "edition = \"2021\"\n\n",
+                "[[bin]]\n",
+                "name = \"empty-cli-fixture\"\n",
+                "path = \"src/main.rs\"\n"
+            ),
+        )?;
+        let source_directory = working_directory.open_dir("src")?;
+        source_directory.write("main.rs", "fn main() {}\n")
+    }
 }
 
 #[rstest_bdd_test_macros::allow_fixture_expansion_lints]
@@ -171,17 +197,60 @@ fn flat_injected_and_real_cargo_forms_share_the_same_command_help(
     let injected = workspace.direct(&["bdd", "steps", "--help"])?;
     let cargo = workspace.cargo_dispatch(&["steps", "--help"])?;
 
-    assert!(flat.status.success(), "flat invocation should succeed");
-    assert!(
-        injected.status.success(),
-        "injected invocation should succeed"
+    assert_successful_help(&flat, "Usage: cargo-bdd steps");
+    assert_successful_help(&injected, "Usage: cargo bdd steps");
+    assert_matching_streams(&injected, &cargo);
+    Ok(())
+}
+
+#[rstest]
+fn all_invocation_forms_reach_the_steps_handler_with_file_configuration(
+    isolated_workspace: io::Result<IsolatedWorkspace>,
+) -> io::Result<()> {
+    let workspace = isolated_workspace?;
+    workspace.write_empty_package()?;
+    workspace.write_local_config("[cmds.steps]\nskipped = true\n")?;
+
+    let flat = workspace.direct(&["steps", "--json"])?;
+    let injected = workspace.direct(&["bdd", "steps", "--json"])?;
+    let cargo = workspace.cargo_dispatch(&["steps", "--json"])?;
+
+    for output in [&flat, &injected, &cargo] {
+        assert_successful_json_listing(output);
+    }
+    Ok(())
+}
+
+#[rstest]
+fn explicit_json_uses_environment_configuration_in_a_child_process(
+    isolated_workspace: io::Result<IsolatedWorkspace>,
+) -> io::Result<()> {
+    let workspace = isolated_workspace?;
+    workspace.write_empty_package()?;
+    let output =
+        workspace.direct_with_env(&["steps", "--json"], "CARGO_BDD_CMDS_STEPS_SKIPPED", "true")?;
+
+    assert_successful_json_listing(&output);
+    Ok(())
+}
+
+#[rstest]
+fn flat_steps_json_without_configuration_keeps_the_original_parse_failure(
+    isolated_workspace: io::Result<IsolatedWorkspace>,
+) -> io::Result<()> {
+    let workspace = isolated_workspace?;
+    let flat = workspace.direct(&["steps", "--json"])?;
+    let injected = workspace.direct(&["bdd", "steps", "--json"])?;
+    let cargo = workspace.cargo_dispatch(&["steps", "--json"])?;
+    let expected_flat_stderr = concat!(
+        "error: the following required arguments were not provided:\n",
+        "  --skipped\n\n",
+        "Usage: cargo-bdd steps --skipped --json\n\n",
+        "For more information, try '--help'.\n"
     );
-    assert!(cargo.status.success(), "Cargo dispatch should succeed");
-    assert!(String::from_utf8_lossy(&flat.stdout).contains("Usage: cargo-bdd steps"));
-    assert!(String::from_utf8_lossy(&injected.stdout).contains("Usage: cargo bdd steps"));
-    assert_eq!(injected.stdout, cargo.stdout);
-    assert_eq!(injected.stderr, cargo.stderr);
-    assert_eq!(flat.stderr, [] as [u8; 0]);
+
+    assert_missing_skipped_error(&flat, expected_flat_stderr);
+    assert_matching_parse_failures(&injected, &cargo);
     Ok(())
 }
 
@@ -213,65 +282,52 @@ fn configuration_file_errors_exit_one_on_stderr(
     Ok(())
 }
 
-#[cfg(target_os = "linux")]
 #[rstest]
 fn unreadable_local_configuration_exits_one_on_stderr(
     isolated_workspace: io::Result<IsolatedWorkspace>,
 ) -> io::Result<()> {
-    use cap_std::fs::{Permissions, PermissionsExt};
-
     let workspace = isolated_workspace?;
     workspace.write_local_config("[cmds.steps]\nskipped = true\n")?;
-    let working_directory = workspace.root.open_dir("work")?;
-    working_directory.set_permissions(".cargo_bdd.toml", Permissions::from_mode(0o000))?;
-    let current_user_can_read = working_directory.open(".cargo_bdd.toml").is_ok();
-    let output = if current_user_can_read {
-        workspace.direct_as_unprivileged(&["steps"])?
-    } else {
-        workspace.direct(&["steps"])?
+    let output = {
+        #[cfg(unix)]
+        {
+            use cap_std::fs::{Permissions, PermissionsExt};
+
+            let working_directory = workspace.root.open_dir("work")?;
+            working_directory.set_permissions(".cargo_bdd.toml", Permissions::from_mode(0o000))?;
+            let current_user_can_read = working_directory.open(".cargo_bdd.toml").is_ok();
+            #[cfg(target_os = "linux")]
+            {
+                if current_user_can_read {
+                    workspace.direct_as_unprivileged(&["steps"])?
+                } else {
+                    workspace.direct(&["steps"])?
+                }
+            }
+            #[cfg(not(target_os = "linux"))]
+            {
+                if current_user_can_read {
+                    // Some privileged Unix runners can bypass file permission bits.
+                    return Ok(());
+                }
+                workspace.direct(&["steps"])?
+            }
+        }
+        #[cfg(windows)]
+        {
+            use cap_std::fs::{OpenOptions, OpenOptionsExt};
+
+            let working_directory = workspace.root.open_dir("work")?;
+            let mut options = OpenOptions::new();
+            options.write(true).share_mode(0);
+            let _exclusive_file = working_directory.open_with(".cargo_bdd.toml", &options)?;
+            workspace.direct(&["steps"])?
+        }
+        #[cfg(not(any(unix, windows)))]
+        {
+            return Ok(());
+        }
     };
-
-    assert_configuration_error(&output);
-    Ok(())
-}
-
-#[cfg(all(unix, not(target_os = "linux")))]
-#[rstest]
-fn unreadable_local_configuration_exits_one_on_stderr(
-    isolated_workspace: io::Result<IsolatedWorkspace>,
-) -> io::Result<()> {
-    use cap_std::fs::{Permissions, PermissionsExt};
-
-    let workspace = isolated_workspace?;
-    workspace.write_local_config("[cmds.steps]\nskipped = true\n")?;
-    let working_directory = workspace.root.open_dir("work")?;
-    working_directory.set_permissions(".cargo_bdd.toml", Permissions::from_mode(0o000))?;
-    if working_directory.open(".cargo_bdd.toml").is_ok() {
-        // Some privileged Unix runners can bypass file permission bits.
-        return Ok(());
-    }
-
-    let output = workspace.direct(&["steps"])?;
-
-    assert_configuration_error(&output);
-    Ok(())
-}
-
-#[cfg(windows)]
-#[rstest]
-fn unreadable_local_configuration_exits_one_on_stderr(
-    isolated_workspace: io::Result<IsolatedWorkspace>,
-) -> io::Result<()> {
-    use cap_std::fs::{OpenOptions, OpenOptionsExt};
-
-    let workspace = isolated_workspace?;
-    workspace.write_local_config("[cmds.steps]\nskipped = true\n")?;
-    let working_directory = workspace.root.open_dir("work")?;
-    let mut options = OpenOptions::new();
-    options.write(true).share_mode(0);
-    let _exclusive_file = working_directory.open_with(".cargo_bdd.toml", &options)?;
-
-    let output = workspace.direct(&["steps"])?;
 
     assert_configuration_error(&output);
     Ok(())
@@ -282,4 +338,48 @@ fn assert_configuration_error(output: &Output) {
     assert_eq!(output.stdout, [] as [u8; 0]);
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(stderr.contains("failed to load configuration for `steps`"));
+}
+
+fn assert_successful_help(output: &Output, usage: &str) {
+    assert!(output.status.success(), "help invocation should succeed");
+    assert!(String::from_utf8_lossy(&output.stdout).contains(usage));
+    assert_eq!(output.stderr, [] as [u8; 0]);
+}
+
+fn assert_successful_json_listing(output: &Output) {
+    assert!(output.status.success(), "JSON listing should succeed");
+    assert_eq!(
+        (output.stdout.as_slice(), output.stderr.as_slice()),
+        (b"[]\n" as &[u8], b"" as &[u8])
+    );
+}
+
+fn assert_matching_streams(actual: &Output, expected: &Output) {
+    assert_eq!(
+        (actual.stdout.as_slice(), actual.stderr.as_slice()),
+        (expected.stdout.as_slice(), expected.stderr.as_slice())
+    );
+}
+
+fn assert_missing_skipped_error(output: &Output, expected_stderr: &str) {
+    assert_eq!(
+        (
+            output.status.code(),
+            output.stdout.as_slice(),
+            output.stderr.as_slice()
+        ),
+        (Some(2), b"" as &[u8], expected_stderr.as_bytes())
+    );
+}
+
+fn assert_matching_parse_failures(injected: &Output, cargo: &Output) {
+    assert_eq!(
+        (injected.status.code(), cargo.status.code()),
+        (Some(2), Some(2))
+    );
+    assert_eq!(
+        (injected.stdout.as_slice(), injected.stderr.as_slice()),
+        (cargo.stdout.as_slice(), cargo.stderr.as_slice())
+    );
+    assert!(String::from_utf8_lossy(&cargo.stderr).contains("--skipped"));
 }
