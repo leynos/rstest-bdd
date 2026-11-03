@@ -512,9 +512,26 @@ Hard invariants. Violation requires escalation, not a workaround.
       the no-cold-child/no-network constraint, and the existing `tests/cli.rs`
       target remains under #910 and #911.
 - [ ] §6: documentation, gates, follow-up review, commit, push, draft pull
-      request, and hosted CI validation. The draft PR exists and the staged
-      candidate has a clean CodeRabbit review. Commit, push, and hosted CI
-      validation remain.
+      request, and hosted CI validation. Draft PR #912 exists. Its first hosted
+      run, #41673314102, failed before tests started on Windows because the
+      Unix-only `ConfigFixture::local_directory` helper triggered `dead_code`
+      under `-D warnings`; the helper now has a `#[cfg(unix)]` guard. Linux also
+      found three stale fixture locks resolving `cargo-platform` 0.3.3 instead
+      of the workspace's locked 0.3.2. The offline fixture-lock refresh
+      0.3.2 and the offline `make check-fixture-lockfiles` passed with five
+      fixture lockfiles up to date. Unrelated published-GPUI lock churn was
+      removed. No timeout occurred in that hosted run. Issues #910 and #911
+      track cold nested compilation and network-enabled child Cargo commands.
+      CodeRabbit then found the baseline version output pinned to 0.6.0. A
+      red/green check confirmed the finding and the test now expands a
+      `<CARGO_PKG_VERSION>` marker using `CARGO_PKG_VERSION`; its target was
+      prewarmed separately with `--no-run`. The final candidate passed
+      `make check-fmt`, offline `make lint` and `make typecheck`, offline/locked
+      prewarm and all 37 focused tests, Markdown and Mermaid checks, file length,
+      diff check and CodeScene. CodeRabbit reviewed 37 files with zero findings.
+      Commit and push the candidate, update the draft PR description, then
+      validate the new hosted run and reconcile its checks before completing
+      this section. Do not merge or publish a release.
 
 ## Surprises & discoveries
 
@@ -552,6 +569,23 @@ Hard invariants. Violation requires escalation, not a workaround.
   `StepsArgs` help text cannot be polluted by the generated `--config-path`
   flag; the freeze risk is confined to the fields the derive is asked to
   generate.
+
+- Observation: the first hosted run for PR #912 found a Windows-only
+  `dead_code` warning promoted to an error, plus three standalone fixture lock
+  files out of alignment with the workspace lock. The test jobs did not start,
+  and the run reported no timeout. Impact: gate the Unix-only helper with
+  `#[cfg(unix)]` and refresh the affected locks; keep cold-build and offline
+  child-Cargo follow-up in issues #910 and #911.
+
+- Observation: CodeRabbit found that the captured `--version` output was pinned
+  to `0.6.0`. Replacing the literal with `<CARGO_PKG_VERSION>` made the
+  baseline test fail only for that output. Expanding the marker with the test
+  package's `CARGO_PKG_VERSION` restored the captured bytes; a separate
+  offline, locked `--no-run` build preceded the passing test. Evidence is in
+  `/tmp/baseline-version-red-issue-901.out`,
+  `/tmp/baseline-version-green-prewarm-issue-901.out`, and
+  `/tmp/baseline-version-green-issue-901.out`. Impact: other baseline output
+  remains byte-exact while the version case follows the package release.
 
 - Observation: only TOML is discovered with default features.
   Evidence: `ortho_config-0.10.0/src/subcommand/paths.rs` gates the
@@ -1087,3 +1121,10 @@ Repository-owned interface introduced, inside `crates/cargo-bdd` only:
 No public interface of any library crate changes. `crates/cargo-bdd` remains
 binary-only, so there is no source-compatibility surface to preserve and no
 compatibility shim is warranted at any milestone.
+
+## Revision note
+
+Updated §6 with the first hosted CI failures and their fixes, the passing local
+gate sequence and zero-finding CodeRabbit review on the final candidate. The
+remaining delivery work is to commit, push, update the draft PR description,
+and validate the new hosted head; the first hosted run reported no timeouts.

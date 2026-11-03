@@ -14,7 +14,7 @@
       "--version"
     ],
     "exit_code": 0,
-    "stdout": "cargo-bdd 0.6.0\n",
+    "stdout": "cargo-bdd <CARGO_PKG_VERSION>\n",
     "stderr": ""
   },
   {

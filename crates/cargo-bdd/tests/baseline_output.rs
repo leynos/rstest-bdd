@@ -63,9 +63,12 @@ fn cli_without_configuration_matches_the_captured_baseline() {
             "unexpected exit status for {}",
             case.name
         );
+        let expected_stdout = case
+            .stdout
+            .replace("<CARGO_PKG_VERSION>", env!("CARGO_PKG_VERSION"));
         assert_eq!(
             output.stdout,
-            case.stdout.as_bytes(),
+            expected_stdout.as_bytes(),
             "unexpected stdout for {}",
             case.name
         );
