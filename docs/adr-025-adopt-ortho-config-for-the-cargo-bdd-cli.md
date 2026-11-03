@@ -72,6 +72,13 @@ enabled, from the workspace dependency table. No other crate depends on it,
 directly or through a feature. `crates/cargo-bdd` alone raises its
 `rust-version` to `1.89`; the workspace stays at `1.88`.
 
+The workspace lockfile resolves `cargo-platform` to v0.3.2. Reusable library
+crates reach it through `cargo_metadata` v0.23.1, whose
+`cargo-platform = "0.3.0"` requirement accepts that release. The previously
+locked v0.3.3 requires Rust 1.91, which would make the libraries' declared Rust
+1.88 floor inaccurate. This lockfile resolution preserves the library MSRV
+without adding an OrthoConfig dependency or changing library manifests.
+
 The configurable settings are the per-subcommand booleans that already exist:
 `--skipped` and `--json` for `steps`, and `--reasons` and `--json` for
 `skipped`. Nothing else gains a configuration surface.

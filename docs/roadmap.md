@@ -321,7 +321,7 @@ at improving maintainability and IDE integration.
     }
     ```
 
-- [ ] 6.1.6. Layer the diagnostic tool's settings with OrthoConfig v0.10.0.
+- [x] 6.1.6. Layer the diagnostic tool's settings with OrthoConfig v0.10.0.
   - Take `ortho_config` with default features in `crates/cargo-bdd` only, and
     raise that crate's `rust-version` to 1.89 while the libraries stay at 1.88.
   - Let `--skipped`, `--reasons`, and both `--json` flags be set from a
