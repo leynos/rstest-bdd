@@ -144,6 +144,7 @@ impl ConfigFixture {
         );
     }
 
+    #[cfg(unix)]
     fn local_directory(&self) -> Dir {
         let Ok(local) = self.root.open_dir("local") else {
             panic!("test setup should open the local configuration directory");
