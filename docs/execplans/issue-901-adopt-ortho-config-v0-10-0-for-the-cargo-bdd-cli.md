@@ -446,17 +446,75 @@ Hard invariants. Violation requires escalation, not a workaround.
       The corrected candidate passes formatting, lint, typecheck, the 30
       prewarmed offline CLI tests, and documentation gates. Repeat CodeRabbit
       on the staged final diff before committing.
+- [x] (2026-11-03) Draft PR #912's first CodeScene run found duplicate
+      structure in the two subcommand precedence tests and the platform-specific
+      unreadable-file tests. Parameterize the precedence test by subcommand and
+      combine the platform branches into one test. The first lint rerun caught
+      E0382 because the JSON environment key was moved before reuse; borrow it
+      and restart the gates. The corrected candidate passes `make check-fmt`,
+      `make lint`, `make typecheck`, Markdown lint, spelling, Nixie, Rust file
+      length, and `git diff --check`. The offline, locked prewarm built the
+      three focused test executables, then all 30 tests passed. Test execution
+      had no compile, check, download, compiler-process, or network activity.
+      Local `cs delta` reports both clone findings fixed. The full workspace
+      test suite remains incomplete under the no-cold-build/no-network policy.
+- [x] (2026-11-03) Resolve the follow-up CodeRabbit findings: the three
+      invocation forms now reach the `steps --skipped --json` handler in a
+      dependency-free package with no test targets, and precedence is tested
+      independently for all four configurable fields. The child environment
+      sets `CARGO_NET_OFFLINE=true`, so the handler's Cargo metadata query
+      cannot retrieve packages and has no test targets to build. Clippy then
+      flagged an unnested pattern in the table helper; after nesting it, the
+      fresh gate sequence passed: `make check-fmt`, `make lint`,
+      `make typecheck`, offline/locked prewarm and all 33 focused tests, Markdown
+      lint, spelling, Nixie, file length, `git diff --check`, and `cs delta`.
+      A traced handler test showed only Cargo metadata and rustc `--print`
+      queries, no source compilation, no nested `cargo test`, and no external
+      network connection. The full workspace suite remains incomplete under
+      the no-cold-build/no-network policy.
 - [x] §4: implement. Manifest and MSRV split; `OrthoConfig` derives; the
       Cargo external-subcommand wrapper; boundary error handling.
 - [x] (2026-11-03) Mark roadmap item 6.1.6 complete after implementing the
       configuration boundary, both CLI entry forms, and the documented MSRV
       split. Validation remains subject to the final gate cycle below.
-- [ ] §5: tests. Precedence tiers per subcommand with injected sources;
-      unchanged-behaviour proof; unhappy paths; both invocation forms. Focused
-      `cargo-bdd` checks pass offline from prewarmed binaries, while the full
-      workspace suite remains incomplete under the no-cold-child/no-network
-      constraint and the `tests/cli.rs` target remains under #910/#911.
-- [ ] §6: documentation, gates, commit, push, draft pull request.
+- [ ] (2026-11-03) The final CodeRabbit review found that Clap's `requires`
+      rejected `steps --json` before TOML or environment `skipped = true` could
+      satisfy the rule. Remove that early constraint, merge first, then
+      validate; replay Clap's original exit-2 parse error when explicit `--json`
+      still has no effective `skipped = true`. Add injected-source and isolated
+      child-process coverage for file, environment, direct, and Cargo forms,
+      and correct the users' guide and ADR. The complete deterministic gate
+      sequence is pending for the latest assertion-helper edits. The first
+      `make check-fmt` passed; offline `make lint` then found missing Rustdoc,
+      one missing code mark in a comment, and a duplicate test match arm. Fix
+      those before restarting the full sequence. The next lint run caught the
+      required nested spelling of that test's or-pattern; the rerun stopped at
+      lint, so typecheck, tests and documentation gates remain pending. The
+      following lint run passed Clippy/rustdoc but Whitaker found `cli` at 407
+      lines and conditional complexity in `run`. Move parsing and compatibility
+      errors into private `cli::invocation`, and extract merged step-settings
+      resolution before restarting all gates. That full retry passed check-fmt,
+      lint, typecheck, offline/locked prewarm and all 37 focused tests, docs
+      gates, file length and diff check. `cs delta` then found a large assertion
+      block and duplicated assertions around command output. Extract the
+      repeated output checks into test-local assertion helpers and rerun gates.
+      The next CodeRabbit pass found that the ADR and design document still
+      described this as Clap validation after merging. Clarify that
+      `validate_steps` enforces merged settings and Clap is replayed only for
+      the legacy explicit-flag parse error. Docs-only gates passed, then the
+      complete staged CodeRabbit review finished with zero findings.
+- [x] §5: tests. Precedence tiers per subcommand with injected sources;
+      unchanged-behaviour proof; unhappy paths; both invocation forms. The
+      latest full focused run passed 28 unit/config, one baseline-output and
+      eight invocation tests offline from prewarmed binaries. Formatting,
+      offline lint/typecheck, documentation gates, file length, diff check and
+      CodeScene all passed. The full workspace suite remains incomplete under
+      the no-cold-child/no-network constraint, and the existing `tests/cli.rs`
+      target remains under #910 and #911.
+- [ ] §6: documentation, gates, follow-up review, commit, push, draft pull
+      request, and hosted CI validation. The draft PR exists and the staged
+      candidate has a clean CodeRabbit review. Commit, push, and hosted CI
+      validation remain.
 
 ## Surprises & discoveries
 

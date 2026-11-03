@@ -3317,8 +3317,9 @@ Examples
 - `cargo bdd skipped --reasons`
 - `cargo bdd skipped --json`
 - `cargo-bdd bdd steps --skipped --json`
-- `cargo bdd steps --skipped --json` must be paired; using `--json` without
-  `--skipped` is rejected by the CLI, so invalid combinations fail fast.
+- `cargo bdd steps --json` requires an effective `skipped = true` setting.
+  This may come from a configuration file or environment variable; otherwise
+  the CLI reports its existing missing-`--skipped` parse error.
 
 The tool inspects the runtime step registry and offers four commands:
 

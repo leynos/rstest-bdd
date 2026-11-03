@@ -16,13 +16,79 @@ use ortho_config::{
 use rstest::{fixture, rstest};
 use tempfile::TempDir;
 
-use super::{SkippedConfig, StepsConfig, validate_steps};
+use super::{SkippedConfig, StepsConfig, StepsSettings, validate_steps};
 
 struct ConfigFixture {
     _temporary_directory: TempDir,
     root: Dir,
     local_base: Utf8PathBuf,
     discovery: MapEnv,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum BooleanOptions {
+    Steps,
+    Skipped,
+}
+
+impl BooleanOptions {
+    const fn command(self) -> &'static str {
+        match self {
+            Self::Steps => "steps",
+            Self::Skipped => "skipped",
+        }
+    }
+
+    const fn option(self, is_json: bool) -> &'static str {
+        if is_json {
+            "json"
+        } else {
+            match self {
+                Self::Steps => "skipped",
+                Self::Skipped => "reasons",
+            }
+        }
+    }
+
+    const fn cli_flags(self, is_json: bool) -> &'static [&'static str] {
+        match (self, is_json) {
+            (Self::Steps | Self::Skipped, true) => &["--json"],
+            (Self::Steps, false) => &["--skipped"],
+            (Self::Skipped, false) => &["--reasons"],
+        }
+    }
+
+    fn environment_variable(self, is_json: bool) -> String {
+        format!(
+            "CARGO_BDD_CMDS_{}_{}",
+            self.command().to_ascii_uppercase(),
+            self.option(is_json).to_ascii_uppercase()
+        )
+    }
+
+    const fn expected_values(self, is_json: bool, enabled: bool) -> (bool, bool) {
+        match (self, is_json) {
+            (Self::Steps, true) => (true, enabled),
+            (Self::Steps | Self::Skipped, false) => (enabled, false),
+            (Self::Skipped, true) => (false, enabled),
+        }
+    }
+
+    fn merge(
+        self,
+        fixture: &ConfigFixture,
+        args: &[&str],
+        environment: MapEnv,
+    ) -> OrthoResult<(bool, bool)> {
+        match self {
+            Self::Steps => fixture
+                .merge_steps(args, environment)
+                .map(|config| (config.skipped, config.json)),
+            Self::Skipped => fixture
+                .merge_skipped(args, environment)
+                .map(|config| (config.reasons, config.json)),
+        }
+    }
 }
 
 impl ConfigFixture {
@@ -144,71 +210,50 @@ fn parse_skipped(args: &[&str]) -> (SkippedConfig, clap::ArgMatches) {
 }
 
 #[rstest]
-fn steps_configuration_uses_defaults_file_environment_then_explicit_cli(fixture: ConfigFixture) {
-    let defaults = fixture
-        .merge_steps(&["steps"], MapEnv::new())
+#[case::steps_skipped(BooleanOptions::Steps, false)]
+#[case::steps_json(BooleanOptions::Steps, true)]
+#[case::skipped_reasons(BooleanOptions::Skipped, false)]
+#[case::skipped_json(BooleanOptions::Skipped, true)]
+fn subcommand_configuration_uses_defaults_file_environment_then_cli(
+    fixture: ConfigFixture,
+    #[case] options: BooleanOptions,
+    #[case] is_json: bool,
+) {
+    let command = options.command();
+    let default_args = [command];
+    let defaults = options
+        .merge(&fixture, &default_args, MapEnv::new())
         .expect("missing optional files should preserve defaults");
-    assert!(!defaults.skipped);
-    assert!(!defaults.json);
+    assert_eq!(defaults, (false, false));
 
-    fixture.write_local_config("[cmds.steps]\nskipped = true\njson = true\n");
-    let file = fixture
-        .merge_steps(&["steps"], MapEnv::new())
+    let setting = options.option(is_json);
+    let support_setting = if matches!(options, BooleanOptions::Steps) && is_json {
+        "skipped = true\n"
+    } else {
+        ""
+    };
+    let file_config = format!("[cmds.{command}]\n{support_setting}{setting} = true\n");
+    fixture.write_local_config(&file_config);
+    let file = options
+        .merge(&fixture, &default_args, MapEnv::new())
         .expect("valid local settings should load");
-    assert!(file.skipped);
-    assert!(file.json);
+    assert_eq!(file, options.expected_values(is_json, true));
 
-    let environment = MapEnv::new()
-        .with_var("CARGO_BDD_CMDS_STEPS_SKIPPED", "false")
-        .with_var("CARGO_BDD_CMDS_STEPS_JSON", "false");
-    let env = fixture
-        .merge_steps(&["steps"], environment)
+    let environment = MapEnv::new().with_var(options.environment_variable(is_json), "false");
+    let env = options
+        .merge(&fixture, &default_args, environment)
         .expect("injected environment values should load");
-    assert!(!env.skipped);
-    assert!(!env.json);
+    assert_eq!(env, options.expected_values(is_json, false));
 
-    let environment = MapEnv::new()
-        .with_var("CARGO_BDD_CMDS_STEPS_SKIPPED", "false")
-        .with_var("CARGO_BDD_CMDS_STEPS_JSON", "false");
-    let cli = fixture
-        .merge_steps(&["steps", "--skipped", "--json"], environment)
+    let cli_args = [command]
+        .into_iter()
+        .chain(options.cli_flags(is_json).iter().copied())
+        .collect::<Vec<_>>();
+    let environment = MapEnv::new().with_var(options.environment_variable(is_json), "false");
+    let cli = options
+        .merge(&fixture, &cli_args, environment)
         .expect("explicit flags should override lower precedence tiers");
-    assert!(cli.skipped);
-    assert!(cli.json);
-}
-
-#[rstest]
-fn skipped_configuration_uses_defaults_file_environment_then_explicit_cli(fixture: ConfigFixture) {
-    let defaults = fixture
-        .merge_skipped(&["skipped"], MapEnv::new())
-        .expect("missing optional files should preserve defaults");
-    assert!(!defaults.reasons);
-    assert!(!defaults.json);
-
-    fixture.write_local_config("[cmds.skipped]\nreasons = true\njson = true\n");
-    let file = fixture
-        .merge_skipped(&["skipped"], MapEnv::new())
-        .expect("valid local settings should load");
-    assert!(file.reasons);
-    assert!(file.json);
-
-    let environment = MapEnv::new()
-        .with_var("CARGO_BDD_CMDS_SKIPPED_REASONS", "false")
-        .with_var("CARGO_BDD_CMDS_SKIPPED_JSON", "false");
-    let env = fixture
-        .merge_skipped(&["skipped"], environment)
-        .expect("injected environment values should load");
-    assert!(!env.reasons);
-    assert!(!env.json);
-
-    let environment = MapEnv::new()
-        .with_var("CARGO_BDD_CMDS_SKIPPED_REASONS", "false")
-        .with_var("CARGO_BDD_CMDS_SKIPPED_JSON", "false");
-    let cli = fixture
-        .merge_skipped(&["skipped", "--reasons", "--json"], environment)
-        .expect("explicit flags should override lower precedence tiers");
-    assert!(cli.reasons);
-    assert!(cli.json);
+    assert_eq!(cli, options.expected_values(is_json, true));
 }
 
 #[rstest]
@@ -284,6 +329,33 @@ fn configuration_cannot_enable_steps_json_without_skipped_steps(fixture: ConfigF
     let message = error.to_string();
     assert!(message.contains("cmds.steps.json"));
     assert!(message.contains("cmds.steps.skipped = true"));
+}
+
+#[rstest]
+#[case::file(true)]
+#[case::environment(false)]
+fn explicit_steps_json_uses_skipped_from_merged_sources(
+    fixture: ConfigFixture,
+    #[case] use_file: bool,
+) {
+    let environment = if use_file {
+        fixture.write_local_config("[cmds.steps]\nskipped = true\n");
+        MapEnv::new()
+    } else {
+        fixture.write_local_config("");
+        MapEnv::new().with_var("CARGO_BDD_CMDS_STEPS_SKIPPED", "true")
+    };
+    let merged = fixture
+        .merge_steps(&["steps", "--json"], environment)
+        .expect("the explicit JSON flag and source setting should merge");
+
+    assert_eq!(
+        validate_steps(&merged).expect("merged skipped setting should satisfy JSON mode"),
+        StepsSettings {
+            skipped: true,
+            json: true,
+        }
+    );
 }
 
 #[cfg(unix)]
