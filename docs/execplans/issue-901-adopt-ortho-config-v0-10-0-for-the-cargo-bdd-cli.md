@@ -1194,3 +1194,36 @@ not used as the no-compilation evidence. CodeRabbit reviewed the corrected
 source and plan files with zero findings. This evidence is on the dirty tree
 based at `7bacb672`; commit it, push the branch, then validate hosted CI and
 refresh the draft PR summary.
+
+Hosted run
+[#41789683010](https://github.com/leynos/rstest-bdd/actions/runs/41789683010) on
+`7a807fb2` failed the CodeScene advisory gate because
+`cli_without_configuration_matches_the_captured_baseline` was a Large Method.
+The test now delegates fixture setup, process execution, output rendering, and
+assertions to small private helpers. A repository sweep found the related
+`IsolatedWorkspace` in `tests/invocation.rs`; it also copies the binary and
+supports Cargo dispatch, so the baseline fixture remains deliberately local.
+The helper scope and reuse policy are recorded in `docs/testing-strategy.md`.
+The first lint run caught `expect_used` in helpers; they now propagate
+`io::Result`, and the test returns `Result` without lint suppressions. The
+corrected dirty tree passed the full sequential deterministic gate sequence.
+Locked offline prewarms built the two focused test executables; direct
+execution passed `nextest_config` 4/4 and `baseline_output` 1/1, with no
+compiler, download, or build-limit output during execution. Local `cs delta`
+against the PR base reports no issues, and CodeRabbit reports zero findings.
+Commit and push these changes, then validate the resulting hosted CI run and
+update the draft PR summary.
+
+Inspection of run #41789683010's Windows logs showed a second output context:
+`cargo-bdd help steps` uses `cargo-bdd.exe`, while the `steps --json` parse
+failure uses `cargo-bdd`. Both Windows jobs failed quickly on the former
+fixture mismatch; neither was a timeout. The fixture now assigns the root-name
+marker to `help steps` and retains the extensionless subcommand marker for the
+parse failure. Linux passed on that head. The latest correction remains
+uncommitted. It passed the full sequential deterministic gate sequence; locked
+offline prewarms followed by direct test-binary execution passed
+`nextest_config` 4/4 and `baseline_output` 1/1, with no compiler, download, or
+build-limit output during execution. Local `cs delta` against the PR base
+reports no issues. After the requested cooldown, CodeRabbit reviewed this final
+tree with zero findings. Commit and push the correction, validate its hosted
+run, and refresh the draft PR summary.
