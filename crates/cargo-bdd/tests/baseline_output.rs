@@ -63,9 +63,16 @@ fn cli_without_configuration_matches_the_captured_baseline() {
             "unexpected exit status for {}",
             case.name
         );
+        let binary_name = if cfg!(windows) {
+            "cargo-bdd.exe"
+        } else {
+            "cargo-bdd"
+        };
         let expected_stdout = case
             .stdout
+            .replace("<CARGO_BDD_BINARY>", binary_name)
             .replace("<CARGO_PKG_VERSION>", env!("CARGO_PKG_VERSION"));
+        let expected_stderr = case.stderr.replace("<CARGO_BDD_BINARY>", binary_name);
         assert_eq!(
             output.stdout,
             expected_stdout.as_bytes(),
@@ -74,7 +81,7 @@ fn cli_without_configuration_matches_the_captured_baseline() {
         );
         assert_eq!(
             output.stderr,
-            case.stderr.as_bytes(),
+            expected_stderr.as_bytes(),
             "unexpected stderr for {}",
             case.name
         );

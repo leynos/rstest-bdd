@@ -5,7 +5,7 @@
       "--help"
     ],
     "exit_code": 0,
-    "stdout": "Diagnostic tooling for rstest-bdd\n\nUsage: cargo-bdd <COMMAND>\n\nCommands:\n  steps       List all registered steps\n  unused      List registered steps that were never executed\n  duplicates  List step definitions that share the same keyword and pattern\n  skipped     List skipped scenarios and their reasons\n  help        Print this message or the help of the given subcommand(s)\n\nOptions:\n  -h, --help     Print help\n  -V, --version  Print version\n",
+    "stdout": "Diagnostic tooling for rstest-bdd\n\nUsage: <CARGO_BDD_BINARY> <COMMAND>\n\nCommands:\n  steps       List all registered steps\n  unused      List registered steps that were never executed\n  duplicates  List step definitions that share the same keyword and pattern\n  skipped     List skipped scenarios and their reasons\n  help        Print this message or the help of the given subcommand(s)\n\nOptions:\n  -h, --help     Print help\n  -V, --version  Print version\n",
     "stderr": ""
   },
   {
@@ -14,7 +14,7 @@
       "--version"
     ],
     "exit_code": 0,
-    "stdout": "cargo-bdd <CARGO_PKG_VERSION>\n",
+    "stdout": "<CARGO_BDD_BINARY> <CARGO_PKG_VERSION>\n",
     "stderr": ""
   },
   {
@@ -24,7 +24,7 @@
       "steps"
     ],
     "exit_code": 0,
-    "stdout": "List all registered steps\n\nUsage: cargo-bdd steps [OPTIONS]\n\nOptions:\n      --skipped  Filter for step definitions bypassed when scenarios were skipped\n      --json     Emit JSON instead of human-readable text\n  -h, --help     Print help\n",
+    "stdout": "List all registered steps\n\nUsage: <CARGO_BDD_BINARY> steps [OPTIONS]\n\nOptions:\n      --skipped  Filter for step definitions bypassed when scenarios were skipped\n      --json     Emit JSON instead of human-readable text\n  -h, --help     Print help\n",
     "stderr": ""
   },
   {
@@ -35,7 +35,7 @@
     ],
     "exit_code": 2,
     "stdout": "",
-    "stderr": "error: the following required arguments were not provided:\n  --skipped\n\nUsage: cargo-bdd steps --skipped --json\n\nFor more information, try '--help'.\n"
+    "stderr": "error: the following required arguments were not provided:\n  --skipped\n\nUsage: <CARGO_BDD_BINARY> steps --skipped --json\n\nFor more information, try '--help'.\n"
   },
   {
     "name": "cargo-bdd bogus-cmd",
@@ -44,7 +44,7 @@
     ],
     "exit_code": 2,
     "stdout": "",
-    "stderr": "error: unrecognized subcommand 'bogus-cmd'\n\nUsage: cargo-bdd <COMMAND>\n\nFor more information, try '--help'.\n"
+    "stderr": "error: unrecognized subcommand 'bogus-cmd'\n\nUsage: <CARGO_BDD_BINARY> <COMMAND>\n\nFor more information, try '--help'.\n"
   },
   {
     "name": "cargo-bdd --nope",
@@ -53,13 +53,13 @@
     ],
     "exit_code": 2,
     "stdout": "",
-    "stderr": "error: unexpected argument '--nope' found\n\nUsage: cargo-bdd <COMMAND>\n\nFor more information, try '--help'.\n"
+    "stderr": "error: unexpected argument '--nope' found\n\nUsage: <CARGO_BDD_BINARY> <COMMAND>\n\nFor more information, try '--help'.\n"
   },
   {
     "name": "cargo-bdd no arguments",
     "args": [],
     "exit_code": 2,
     "stdout": "",
-    "stderr": "Diagnostic tooling for rstest-bdd\n\nUsage: cargo-bdd <COMMAND>\n\nCommands:\n  steps       List all registered steps\n  unused      List registered steps that were never executed\n  duplicates  List step definitions that share the same keyword and pattern\n  skipped     List skipped scenarios and their reasons\n  help        Print this message or the help of the given subcommand(s)\n\nOptions:\n  -h, --help     Print help\n  -V, --version  Print version\n"
+    "stderr": "Diagnostic tooling for rstest-bdd\n\nUsage: <CARGO_BDD_BINARY> <COMMAND>\n\nCommands:\n  steps       List all registered steps\n  unused      List registered steps that were never executed\n  duplicates  List step definitions that share the same keyword and pattern\n  skipped     List skipped scenarios and their reasons\n  help        Print this message or the help of the given subcommand(s)\n\nOptions:\n  -h, --help     Print help\n  -V, --version  Print version\n"
   }
 ]
