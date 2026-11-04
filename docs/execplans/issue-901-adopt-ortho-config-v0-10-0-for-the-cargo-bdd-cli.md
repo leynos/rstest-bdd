@@ -1124,7 +1124,17 @@ compatibility shim is warranted at any milestone.
 
 ## Revision note
 
-Updated §6 with the first hosted CI failures and their fixes, the passing local
-gate sequence and zero-finding CodeRabbit review on the final candidate. The
-remaining delivery work is to commit, push, update the draft PR description,
-and validate the new hosted head; the first hosted run reported no timeouts.
+The latest hosted run passed Linux and failed both Windows test jobs on the
+baseline help snapshot: clap reports `cargo-bdd.exe` in Windows usage output,
+while the captured fixture used the Unix basename. This is a portability
+assertion failure, not a test timeout. The fixture now substitutes the
+platform-specific binary name in stdout and stderr. The correct PR worktree
+passed formatting, lint, typecheck, fixture-lockfile, Markdown, Mermaid,
+file-length, and diff checks. The focused baseline test passed after an
+offline, locked prewarm, and CodeRabbit reported no findings. The workspace
+typecheck took 58m59s under shared compiler admission; the focused test
+prewarm took 18m21s. A review of v0.10.0's published source also found that
+`PostMergeHook` is not invoked by the subcommand merge helpers; upstream issue
+[#652](https://github.com/leynos/ortho-config/issues/652) records that API gap.
+The remaining delivery work is to commit, push, validate hosted CI on the new
+head, and refresh the draft PR's validation summary.
