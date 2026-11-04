@@ -3,7 +3,8 @@
 //! Split out of [`super`] so each file states one policy area. The parent
 //! module owns the preparation and trybuild overrides; this one owns the two
 //! contracts about the third timed override and the whole-run ceiling that
-//! must cover it.
+//! must cover it. Both use the parent's [`assert_slow_timeout_contract`], so
+//! the four promises a timed override makes are stated once.
 //!
 //! Reading the parsed value is `support`'s job. This module states the policy;
 //! that one finds the keys it is stated about.
@@ -15,6 +16,7 @@ use toml::Value;
 
 use super::{
     FEATURE_REBUILD_BINARY,
+    assert_slow_timeout_contract,
     single_preparation_override,
     support::{
         default_global_timeout,
@@ -44,28 +46,7 @@ fn feature_rebuild_nextest_override_preserves_timeout_contract() -> Result<(), B
     let override_value = matching
         .first()
         .expect("the asserted single feature-rebuild override must be present");
-    let slow_timeout = override_value
-        .get("slow-timeout")
-        .and_then(Value::as_table)
-        .expect("feature-rebuild override must contain a slow-timeout table");
-    assert_eq!(
-        slow_timeout.get("period").and_then(Value::as_str),
-        Some("600s")
-    );
-    assert_eq!(
-        slow_timeout
-            .get("terminate-after")
-            .and_then(Value::as_integer),
-        Some(1)
-    );
-    assert_eq!(
-        slow_timeout.get("grace-period").and_then(Value::as_str),
-        Some("5s")
-    );
-    assert_eq!(
-        override_value.get("test-group").and_then(Value::as_str),
-        Some("cargo-spawning")
-    );
+    assert_slow_timeout_contract(override_value, "600s", "feature-rebuild")?;
     Ok(())
 }
 
