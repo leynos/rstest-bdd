@@ -15,8 +15,9 @@ use rstest_bdd_harness::nested_cargo;
 use toml::Value;
 
 use super::{
-    FEATURE_REBUILD_BINARY,
+    FEATURE_REBUILD_TIMEOUT_EXPECTATION,
     assert_slow_timeout_contract,
+    override_for_exact_filter,
     single_preparation_override,
     support::{
         default_global_timeout,
@@ -31,22 +32,8 @@ use super::{
 fn feature_rebuild_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn Error>> {
     let configuration = nextest_configuration()?;
     let overrides = default_overrides(&configuration)?;
-    let filter = format!("binary_id({FEATURE_REBUILD_BINARY})");
-    let matching = overrides
-        .iter()
-        .filter(|override_value| {
-            override_value.get("filter").and_then(Value::as_str) == Some(filter.as_str())
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(
-        matching.len(),
-        1,
-        "the feature-rebuild test must have exactly one exact nextest override",
-    );
-    let override_value = matching
-        .first()
-        .expect("the asserted single feature-rebuild override must be present");
-    assert_slow_timeout_contract(override_value, "600s", "feature-rebuild")?;
+    let override_value = override_for_exact_filter(overrides, FEATURE_REBUILD_TIMEOUT_EXPECTATION)?;
+    assert_slow_timeout_contract(override_value, FEATURE_REBUILD_TIMEOUT_EXPECTATION.timeout)?;
     Ok(())
 }
 
