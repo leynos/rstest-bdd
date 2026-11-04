@@ -3406,10 +3406,19 @@ export CARGO_BDD_CMDS_SKIPPED_JSON=true
 ```
 
 Values are resolved in this order: defaults, configuration files, environment,
-then explicitly supplied command-line flags. These are positive-only flags; to
-turn off a `true` value from a file or environment, remove that setting or
-unset the variable. The `steps` JSON output still requires `skipped = true`,
-whether those values come from TOML, the environment or the CLI.
+then explicitly supplied command-line flags. The CLI exposes these as
+positive-only flags, while environment values accept `true` or `false` and
+override file values. For one non-JSON run when TOML enables both `steps`
+settings, set both environment values to `false`:
+
+```sh
+CARGO_BDD_CMDS_STEPS_SKIPPED=false \
+  CARGO_BDD_CMDS_STEPS_JSON=false cargo bdd steps
+```
+
+Unset both variables to use the TOML values again. The `steps` JSON output
+still requires `skipped = true`, whether those values come from TOML, the
+environment or the CLI.
 
 Both `cargo bdd <subcommand>` and `cargo-bdd bdd <subcommand>` consume Cargo's
 injected `bdd` token. The original flat form, `cargo-bdd <subcommand>`,
