@@ -1160,6 +1160,15 @@ The final CodeRabbit review reported zero findings. Hosted run
 `baseline_output`: Clap displayed `cargo-bdd` in usage text while the fixture
 substituted `cargo-bdd.exe`. These were fast assertion failures, not timeouts,
 so they do not add a timeout issue beyond #910 and #911. The fixture now uses
-Clap's displayed basename on every platform. The remaining delivery work is to
-gate and commit this correction, push, validate hosted CI on the new head, and
-refresh the draft PR's validation summary.
+Clap's displayed basename on every platform. The CodeScene check on `eecb891b`
+still flagged duplicated exact-filter lookup in the `cargo-bdd` and
+feature-rebuild timeout tests. This candidate combines those cases in one
+`rstest` function and shares exact-filter selection. The test-local timeout
+expectation types stay in this integration test and do not become library
+configuration. Local `cs delta` now reports no findings. The full deterministic
+gate sequence passed on this working-tree candidate. The focused tests passed
+4/4 and 1/1 after offline, locked prewarms, with no compile or package-download
+output during test execution. CodeRabbit reported zero findings. These results
+include uncommitted changes after `eecb891b`. The remaining delivery work is to
+commit this refactor, let the `eecb891b` CI run finish, push the new head,
+validate hosted CI, and refresh the draft PR's validation summary.
