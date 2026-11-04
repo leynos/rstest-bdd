@@ -24,7 +24,7 @@
       "steps"
     ],
     "exit_code": 0,
-    "stdout": "List all registered steps\n\nUsage: <CARGO_BDD_SUBCOMMAND_BINARY> steps [OPTIONS]\n\nOptions:\n      --skipped  Filter for step definitions bypassed when scenarios were skipped\n      --json     Emit JSON instead of human-readable text\n  -h, --help     Print help\n",
+    "stdout": "List all registered steps\n\nUsage: <CARGO_BDD_ROOT_BINARY> steps [OPTIONS]\n\nOptions:\n      --skipped  Filter for step definitions bypassed when scenarios were skipped\n      --json     Emit JSON instead of human-readable text\n  -h, --help     Print help\n",
     "stderr": ""
   },
   {

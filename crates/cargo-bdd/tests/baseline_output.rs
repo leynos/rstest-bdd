@@ -1,10 +1,15 @@
 //! Freeze the existing no-configuration command-line contract.
 
-use std::process::Command;
+use std::{
+    error::Error,
+    io,
+    process::{Command, Output},
+};
 
-use camino::Utf8Path;
+use camino::{Utf8Path, Utf8PathBuf};
 use cap_std::{ambient_authority, fs::Dir};
 use serde::Deserialize;
+use tempfile::TempDir;
 
 #[derive(Debug, Deserialize)]
 struct BaselineCase {
@@ -15,17 +20,44 @@ struct BaselineCase {
     stderr: String,
 }
 
-#[test]
-fn cli_without_configuration_matches_the_captured_baseline() {
-    let cases: Vec<BaselineCase> = serde_json::from_str(include_str!("fixtures/baseline-cli.json"))
-        .expect("baseline fixture should be valid JSON");
-    let isolation = tempfile::tempdir().expect("temporary directory should be created");
-    let isolation_root = Utf8Path::from_path(isolation.path())
-        .expect("temporary directory should be representable as UTF-8");
-    let isolation_directory =
-        Dir::open_ambient_dir(isolation_root.as_std_path(), ambient_authority())
-            .expect("test setup should open an isolated directory capability");
-    for directory in [
+struct IsolatedConfigDirectories {
+    _temporary_directory: TempDir,
+    home: Utf8PathBuf,
+    xdg_config_home: Utf8PathBuf,
+    xdg_config_dirs: Utf8PathBuf,
+    user_profile: Utf8PathBuf,
+    appdata: Utf8PathBuf,
+    working_directory: Utf8PathBuf,
+}
+
+impl IsolatedConfigDirectories {
+    fn new() -> io::Result<Self> {
+        let temporary_directory = tempfile::tempdir()?;
+        let root = Utf8Path::from_path(temporary_directory.path())
+            .ok_or_else(|| io::Error::other("temporary directory path is not UTF-8"))?;
+        create_config_directories(root)?;
+        let home = root.join("home");
+        let xdg_config_home = root.join("xdg-config-home");
+        let xdg_config_dirs = root.join("xdg-config-dirs");
+        let user_profile = root.join("user-profile");
+        let appdata = root.join("appdata");
+        let working_directory = root.join("working-directory");
+
+        Ok(Self {
+            _temporary_directory: temporary_directory,
+            home,
+            xdg_config_home,
+            xdg_config_dirs,
+            user_profile,
+            appdata,
+            working_directory,
+        })
+    }
+}
+
+fn create_config_directories(root: &Utf8Path) -> io::Result<()> {
+    let directory = Dir::open_ambient_dir(root.as_std_path(), ambient_authority())?;
+    for path in [
         "home",
         "xdg-config-home",
         "xdg-config-dirs",
@@ -33,62 +65,81 @@ fn cli_without_configuration_matches_the_captured_baseline() {
         "appdata",
         "working-directory",
     ] {
-        isolation_directory
-            .create_dir(directory)
-            .expect("isolated config directory should be created");
+        directory.create_dir(path)?;
     }
-    let home = isolation_root.join("home");
-    let xdg_config_home = isolation_root.join("xdg-config-home");
-    let xdg_config_dirs = isolation_root.join("xdg-config-dirs");
-    let user_profile = isolation_root.join("user-profile");
-    let appdata = isolation_root.join("appdata");
-    let working_directory = isolation_root.join("working-directory");
+    Ok(())
+}
+
+#[test]
+fn cli_without_configuration_matches_the_captured_baseline() -> Result<(), Box<dyn Error>> {
+    let cases = baseline_cases()?;
+    let isolated_directories = IsolatedConfigDirectories::new()?;
 
     for case in cases {
-        let output = Command::new(env!("CARGO_BIN_EXE_cargo-bdd"))
-            .args(&case.args)
-            .env_clear()
-            .env("HOME", &home)
-            .env("XDG_CONFIG_HOME", &xdg_config_home)
-            .env("XDG_CONFIG_DIRS", &xdg_config_dirs)
-            .env("USERPROFILE", &user_profile)
-            .env("APPDATA", &appdata)
-            .current_dir(&working_directory)
-            .output()
-            .expect("cargo-bdd process should start");
+        assert_case_matches_baseline(&case, &isolated_directories)?;
+    }
+    Ok(())
+}
 
-        assert_eq!(
-            output.status.code(),
-            Some(case.exit_code),
-            "unexpected exit status for {}",
-            case.name
-        );
-        // Clap preserves `.exe` for root commands but omits it for subcommands.
-        let root_binary_name = if cfg!(windows) {
-            "cargo-bdd.exe"
-        } else {
-            "cargo-bdd"
-        };
-        let expected_stdout = case
-            .stdout
-            .replace("<CARGO_BDD_ROOT_BINARY>", root_binary_name)
-            .replace("<CARGO_BDD_SUBCOMMAND_BINARY>", "cargo-bdd")
-            .replace("<CARGO_PKG_VERSION>", env!("CARGO_PKG_VERSION"));
-        let expected_stderr = case
-            .stderr
-            .replace("<CARGO_BDD_ROOT_BINARY>", root_binary_name)
-            .replace("<CARGO_BDD_SUBCOMMAND_BINARY>", "cargo-bdd");
-        assert_eq!(
-            output.stdout,
-            expected_stdout.as_bytes(),
-            "unexpected stdout for {}",
-            case.name
-        );
-        assert_eq!(
-            output.stderr,
-            expected_stderr.as_bytes(),
-            "unexpected stderr for {}",
-            case.name
-        );
+fn baseline_cases() -> Result<Vec<BaselineCase>, serde_json::Error> {
+    serde_json::from_str(include_str!("fixtures/baseline-cli.json"))
+}
+
+fn assert_case_matches_baseline(
+    case: &BaselineCase,
+    directories: &IsolatedConfigDirectories,
+) -> io::Result<()> {
+    let output = run_cli_case(case, directories)?;
+    assert_eq!(
+        output.status.code(),
+        Some(case.exit_code),
+        "unexpected exit status for {}",
+        case.name
+    );
+    assert_eq!(
+        output.stdout,
+        expected_output(&case.stdout),
+        "unexpected stdout for {}",
+        case.name
+    );
+    assert_eq!(
+        output.stderr,
+        expected_output(&case.stderr),
+        "unexpected stderr for {}",
+        case.name
+    );
+    Ok(())
+}
+
+fn run_cli_case(
+    case: &BaselineCase,
+    directories: &IsolatedConfigDirectories,
+) -> io::Result<Output> {
+    Command::new(env!("CARGO_BIN_EXE_cargo-bdd"))
+        .args(&case.args)
+        .env_clear()
+        .env("HOME", &directories.home)
+        .env("XDG_CONFIG_HOME", &directories.xdg_config_home)
+        .env("XDG_CONFIG_DIRS", &directories.xdg_config_dirs)
+        .env("USERPROFILE", &directories.user_profile)
+        .env("APPDATA", &directories.appdata)
+        .current_dir(&directories.working_directory)
+        .output()
+}
+
+fn expected_output(template: &str) -> Vec<u8> {
+    // `help <command>` retains the root name; subcommand parse errors do not.
+    template
+        .replace("<CARGO_BDD_ROOT_BINARY>", expected_root_binary_name())
+        .replace("<CARGO_BDD_SUBCOMMAND_BINARY>", "cargo-bdd")
+        .replace("<CARGO_PKG_VERSION>", env!("CARGO_PKG_VERSION"))
+        .into_bytes()
+}
+
+fn expected_root_binary_name() -> &'static str {
+    if cfg!(windows) {
+        "cargo-bdd.exe"
+    } else {
+        "cargo-bdd"
     }
 }
