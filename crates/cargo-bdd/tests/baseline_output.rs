@@ -63,14 +63,21 @@ fn cli_without_configuration_matches_the_captured_baseline() {
             "unexpected exit status for {}",
             case.name
         );
-        // Clap omits the Windows executable suffix in its displayed usage
-        // name even though the child process is launched from `cargo-bdd.exe`.
-        let binary_name = "cargo-bdd";
+        // Clap preserves `.exe` for root commands but omits it for subcommands.
+        let root_binary_name = if cfg!(windows) {
+            "cargo-bdd.exe"
+        } else {
+            "cargo-bdd"
+        };
         let expected_stdout = case
             .stdout
-            .replace("<CARGO_BDD_BINARY>", binary_name)
+            .replace("<CARGO_BDD_ROOT_BINARY>", root_binary_name)
+            .replace("<CARGO_BDD_SUBCOMMAND_BINARY>", "cargo-bdd")
             .replace("<CARGO_PKG_VERSION>", env!("CARGO_PKG_VERSION"));
-        let expected_stderr = case.stderr.replace("<CARGO_BDD_BINARY>", binary_name);
+        let expected_stderr = case
+            .stderr
+            .replace("<CARGO_BDD_ROOT_BINARY>", root_binary_name)
+            .replace("<CARGO_BDD_SUBCOMMAND_BINARY>", "cargo-bdd");
         assert_eq!(
             output.stdout,
             expected_stdout.as_bytes(),
