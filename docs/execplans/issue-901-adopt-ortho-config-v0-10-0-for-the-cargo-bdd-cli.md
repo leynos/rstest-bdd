@@ -1172,3 +1172,25 @@ output during test execution. CodeRabbit reported zero findings. These results
 include uncommitted changes after `eecb891b`. The remaining delivery work is to
 commit this refactor, let the `eecb891b` CI run finish, push the new head,
 validate hosted CI, and refresh the draft PR's validation summary.
+
+Hosted run
+[#41782484279](https://github.com/leynos/rstest-bdd/actions/runs/41782484279) on
+`eecb891b` exposed a second Windows-only baseline difference: root help uses
+`cargo-bdd.exe`, while subcommand help and parse errors use `cargo-bdd`. The
+fixture had expected the extensionless name for both. Both Windows jobs failed
+quickly on this assertion; neither failure was a timeout. The test now uses
+separate root and subcommand placeholders, and the fixture assigns them to the
+observed output forms. The merged-configuration validation ergonomics gap
+reported in this revision remains tracked upstream as
+[`ortho-config#652`](https://github.com/leynos/ortho-config/issues/652). The
+current pushed candidate is `7bacb672`; its hosted run is being superseded by
+this baseline correction. The corrected fixture passed `make check-fmt`,
+offline lint and typecheck, offline Markdown lint, Mermaid, file-length, and
+diff checks. Offline, locked prewarms built both focused test executables;
+direct execution then passed `nextest_config` 4/4 and `baseline_output` 1/1
+with no compiler, download, or build-limit output during execution. Cargo-based
+test invocations emitted build-limit compiler-slot requests, so their output is
+not used as the no-compilation evidence. CodeRabbit reviewed the corrected
+source and plan files with zero findings. This evidence is on the dirty tree
+based at `7bacb672`; commit it, push the branch, then validate hosted CI and
+refresh the draft PR summary.
