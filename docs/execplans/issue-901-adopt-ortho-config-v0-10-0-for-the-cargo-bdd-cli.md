@@ -1227,3 +1227,19 @@ build-limit output during execution. Local `cs delta` against the PR base
 reports no issues. After the requested cooldown, CodeRabbit reviewed this final
 tree with zero findings. Commit and push the correction, validate its hosted
 run, and refresh the draft PR summary.
+
+The correction was committed and pushed as `5a6acf35`. Hosted CI run
+[#41801681477](https://github.com/leynos/rstest-bdd/actions/runs/41801681477)
+then exposed a Windows-only usage-name mismatch in
+`flat_injected_and_real_cargo_forms_share_the_same_command_help`; both Windows
+coverage jobs failed there, while the no-configuration baseline test passed.
+The invocation test now accounts for Windows' `.exe` argv[0] and passes locally
+with `cargo test --locked --offline`. `make check-fmt` and offline `make lint`
+pass on the current dirty tree. The offline full `make test` run reached 2,083
+of 2,104 tests before
+`rstest-bdd::trybuild_macros::runner::step_macros_compile` timed out at its
+configured 20-minute limit while compiling its isolated UI fixture. This
+reproduces the cold nested-build concern tracked in #910; child Cargo remained
+offline. The Windows usage correction is uncommitted. After docs gates, review
+it with CodeRabbit, commit and push it, then validate the new hosted run and
+refresh the draft PR summary.

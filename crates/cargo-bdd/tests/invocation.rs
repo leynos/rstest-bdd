@@ -197,7 +197,12 @@ fn flat_injected_and_real_cargo_forms_share_the_same_command_help(
     let injected = workspace.direct(&["bdd", "steps", "--help"])?;
     let cargo = workspace.cargo_dispatch(&["steps", "--help"])?;
 
-    assert_successful_help(&flat, "Usage: cargo-bdd steps");
+    let flat_usage = if cfg!(windows) {
+        "Usage: cargo-bdd.exe steps"
+    } else {
+        "Usage: cargo-bdd steps"
+    };
+    assert_successful_help(&flat, flat_usage);
     assert_successful_help(&injected, "Usage: cargo bdd steps");
     assert_matching_streams(&injected, &cargo);
     Ok(())
