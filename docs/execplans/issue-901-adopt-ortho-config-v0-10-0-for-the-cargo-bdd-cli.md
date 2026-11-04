@@ -1154,6 +1154,12 @@ passed `make check-fmt`, offline lint and typecheck, offline Markdown lint (137
 files), Mermaid, file-length and diff checks. Offline locked prewarms prepared
 the `nextest_config` and `baseline_output` targets; the focused tests passed
 4/4 and 1/1, with no compilation or package downloads during test execution.
-The final CodeRabbit review reported zero findings. The remaining delivery work
-is to commit, push, validate hosted CI on the corrected head, and refresh the
-draft PR's validation summary.
+The final CodeRabbit review reported zero findings. Hosted run
+[#41777155784](https://github.com/leynos/rstest-bdd/actions/runs/41777155784) on
+`71400866` passed Linux, but both Windows coverage jobs failed
+`baseline_output`: Clap displayed `cargo-bdd` in usage text while the fixture
+substituted `cargo-bdd.exe`. These were fast assertion failures, not timeouts,
+so they do not add a timeout issue beyond #910 and #911. The fixture now uses
+Clap's displayed basename on every platform. The remaining delivery work is to
+gate and commit this correction, push, validate hosted CI on the new head, and
+refresh the draft PR's validation summary.

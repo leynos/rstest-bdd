@@ -63,11 +63,9 @@ fn cli_without_configuration_matches_the_captured_baseline() {
             "unexpected exit status for {}",
             case.name
         );
-        let binary_name = if cfg!(windows) {
-            "cargo-bdd.exe"
-        } else {
-            "cargo-bdd"
-        };
+        // Clap omits the Windows executable suffix in its displayed usage
+        // name even though the child process is launched from `cargo-bdd.exe`.
+        let binary_name = "cargo-bdd";
         let expected_stdout = case
             .stdout
             .replace("<CARGO_BDD_BINARY>", binary_name)
