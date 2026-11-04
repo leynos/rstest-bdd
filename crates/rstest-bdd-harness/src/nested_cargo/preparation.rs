@@ -176,15 +176,47 @@ where
         ));
     }
 
+    prepare_locked(preparation, &stamp, &fingerprint, prepare)
+}
+
+/// Prepare the family unconditionally, for the named preparation test.
+///
+/// This is the entry point `make prepare-nested-fixtures` reaches: it runs
+/// under nextest, where [`ensure_prepared`] would otherwise fail fast. It is
+/// still idempotent, so a warm target directory costs only the stamp read.
+///
+/// # Errors
+///
+/// As [`ensure_prepared`].
+pub fn prepare_now<F>(preparation: &Preparation<'_>, prepare: F) -> io::Result<()>
+where
+    F: FnOnce() -> io::Result<PreparationSummary>,
+{
+    let fingerprint = fingerprint(preparation);
+    prepare_locked(preparation, &stamp_path(preparation), &fingerprint, prepare)
+}
+
+/// Run `prepare` under the process-wide lock unless the family is already
+/// prepared, then stamp it.
+fn prepare_locked<F>(
+    preparation: &Preparation<'_>,
+    stamp: &Path,
+    fingerprint: &str,
+    prepare: F,
+) -> io::Result<()>
+where
+    F: FnOnce() -> io::Result<PreparationSummary>,
+{
     let _guard = lock();
-    // Another thread may have prepared the same family while this one waited.
-    if stamp_matches(&stamp, &fingerprint) {
+    // Another process or thread may have prepared the family while this one
+    // waited for the lock.
+    if stamp_matches(stamp, fingerprint) {
         return Ok(());
     }
 
     let started = Instant::now();
     let summary = prepare()?;
-    write_stamp(&stamp, &fingerprint)?;
+    write_stamp(stamp, fingerprint)?;
     eprintln!(
         "nested preparation: family={} prepared in {:.1}s ({} Compiling lines); stamp {}",
         preparation.family,
@@ -478,6 +510,22 @@ mod tests {
 
         assert_eq!(runs, 1, "the second call should see the stamp");
         assert!(stamp_path(&preparation).is_file());
+    }
+
+    #[test]
+    fn prepare_now_runs_under_nextest_and_stamps_once() {
+        let directory = tempfile::tempdir().expect("temp dir");
+        let environment = environment();
+        let preparation = preparation(directory.path(), &environment, "v", "hash");
+        let mut runs = 0_u32;
+        for _ in 0..2 {
+            prepare_now(&preparation, || {
+                runs += 1;
+                Ok(PreparationSummary { compiled_units: 1 })
+            })
+            .expect("explicit preparation should succeed");
+        }
+        assert_eq!(runs, 1, "a warm family should not prepare twice");
     }
 
     #[test]

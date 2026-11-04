@@ -55,7 +55,7 @@ mod profile;
 
 pub use preparation::{
     PREPARATION_COMMAND_TIMEOUT, Preparation, PreparationSummary, count_compiling, ensure_prepared,
-    input_hash, running_under_nextest,
+    input_hash, prepare_now, running_under_nextest,
 };
 pub use profile::ProfileDestination;
 
