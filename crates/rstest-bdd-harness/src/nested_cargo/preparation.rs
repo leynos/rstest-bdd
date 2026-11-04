@@ -34,7 +34,9 @@
 use std::{
     env,
     fmt::Write as _,
-    fs, io,
+    fs,
+    hash::{Hash as _, Hasher},
+    io,
     path::{Path, PathBuf},
     process::Command,
     sync::{Mutex, MutexGuard, OnceLock, PoisonError},
@@ -200,6 +202,62 @@ pub fn count_compiling(stderr: &[u8]) -> usize {
         .lines()
         .filter(|line| line.trim_start().starts_with("Compiling "))
         .count()
+}
+
+/// Hash the inputs a preparation family's artefacts derive from.
+///
+/// `roots` may name files or directories; directories are walked in sorted
+/// order and every regular file contributes its relative path, length and
+/// bytes. Directory entries named `target` or `.git` are skipped, as are the
+/// stamp files this module writes, so a nested build never invalidates the
+/// fingerprint that describes it.
+///
+/// # Errors
+///
+/// Returns the read error when a named input or one of its files cannot be
+/// read.
+pub fn input_hash(roots: &[PathBuf]) -> io::Result<String> {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    STAMP_VERSION.hash(&mut hasher);
+    for root in roots {
+        hash_entry(root, &mut hasher)?;
+    }
+    Ok(format!("{:016x}", hasher.finish()))
+}
+
+/// Feed one file or directory tree into `hasher`.
+fn hash_entry(path: &Path, hasher: &mut impl Hasher) -> io::Result<()> {
+    let metadata = fs::symlink_metadata(path)?;
+    if metadata.is_file() {
+        path.file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .hash(hasher);
+        let contents = fs::read(path)?;
+        contents.hash(hasher);
+        return Ok(());
+    }
+    if !metadata.is_dir() {
+        return Ok(());
+    }
+    let mut entries: Vec<PathBuf> = fs::read_dir(path)?
+        .map(|entry| entry.map(|entry| entry.path()))
+        .collect::<io::Result<_>>()?;
+    entries.sort();
+    for entry in entries {
+        let name = entry
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        // `target` holds build output and the stamp names the fingerprint
+        // computed from these inputs, so neither is an input.
+        if name == "target" || name.ends_with(PREPARED_FILE_SUFFIX) {
+            continue;
+        }
+        name.hash(hasher);
+        hash_entry(&entry, hasher)?;
+    }
+    Ok(())
 }
 
 /// Whether the current process was started by `cargo nextest`.
@@ -467,6 +525,30 @@ mod tests {
         })
         .expect_err("stale inputs must fail under nextest");
         assert_eq!(error.kind(), io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn input_hash_ignores_stamps_and_build_output() {
+        let directory = tempfile::tempdir().expect("temp dir");
+        let source = directory.path().join("fixture");
+        fs::create_dir_all(source.join("features")).expect("fixture dir");
+        fs::write(source.join("Cargo.toml"), "[package]\nname = \"f\"\n").expect("manifest");
+        fs::write(source.join("features/a.feature"), "Feature: a\n").expect("feature");
+        let before = input_hash(&[source.clone()]).expect("initial hash");
+
+        fs::create_dir_all(source.join("target/debug")).expect("target dir");
+        fs::write(source.join("target/debug/artifact"), "binary").expect("artefact");
+        fs::write(
+            source.join(format!(".unit{PREPARED_FILE_SUFFIX}")),
+            "different fingerprint",
+        )
+        .expect("stamp");
+        let after = input_hash(&[source.clone()]).expect("hash after build");
+        assert_eq!(before, after, "build output must not change the inputs");
+
+        fs::write(source.join("features/a.feature"), "Feature: changed\n").expect("edit");
+        let changed = input_hash(&[source]).expect("hash after edit");
+        assert_ne!(before, changed, "fixture edits must change the inputs");
     }
 
     #[test]
