@@ -93,28 +93,7 @@ fn cargo_bdd_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn
     let override_value = matching
         .first()
         .expect("the asserted single cargo-bdd override must be present");
-    let slow_timeout = override_value
-        .get("slow-timeout")
-        .and_then(Value::as_table)
-        .expect("cargo-bdd override must contain a slow-timeout table");
-    assert_eq!(
-        slow_timeout.get("period").and_then(Value::as_str),
-        Some("180s")
-    );
-    assert_eq!(
-        slow_timeout
-            .get("terminate-after")
-            .and_then(Value::as_integer),
-        Some(1)
-    );
-    assert_eq!(
-        slow_timeout.get("grace-period").and_then(Value::as_str),
-        Some("5s")
-    );
-    assert_eq!(
-        override_value.get("test-group").and_then(Value::as_str),
-        Some("cargo-spawning")
-    );
+    assert_slow_timeout_contract(override_value, "180s", "cargo-bdd")?;
 
     Ok(())
 }
@@ -286,22 +265,7 @@ fn trybuild_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn 
         "trybuild nextest override must identify exactly the expected binaries. {binary_id_report}",
     );
 
-    let slow_timeout = trybuild_override
-        .get("slow-timeout")
-        .and_then(Value::as_table)
-        .expect("trybuild nextest override must contain a slow-timeout table");
-
-    let period = slow_timeout
-        .get("period")
-        .and_then(Value::as_str)
-        .ok_or_else(|| io::Error::other("trybuild nextest override must name a period"))?;
-    assert_eq!(
-        period, "20m",
-        concat!(
-            "trybuild nextest override must allow a 20-minute slow timeout, which is what a cold ",
-            "compiler cache costs this fixture tree",
-        ),
-    );
+    let period = assert_slow_timeout_contract(trybuild_override, "20m", "trybuild")?;
 
     let global_timeout = default_global_timeout(&configuration)?;
     assert!(
@@ -310,24 +274,6 @@ fn trybuild_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn 
          timeout ({period}); otherwise nextest kills the run before the test the budget exists \
          for can finish, and raising the budget alone rescues nothing",
     );
-    assert_eq!(
-        slow_timeout
-            .get("terminate-after")
-            .and_then(Value::as_integer),
-        Some(1),
-        "trybuild nextest override must terminate after one slow-timeout period",
-    );
-    assert_eq!(
-        slow_timeout.get("grace-period").and_then(Value::as_str),
-        Some("5s"),
-        "trybuild nextest override must retain its five-second grace period",
-    );
-    assert_eq!(
-        trybuild_override.get("test-group").and_then(Value::as_str),
-        Some("cargo-spawning"),
-        "trybuild nextest override must remain in the cargo-spawning group",
-    );
-
     Ok(())
 }
 
@@ -350,29 +296,53 @@ fn feature_rebuild_nextest_override_preserves_timeout_contract() -> Result<(), B
     let override_value = matching
         .first()
         .expect("the asserted single feature-rebuild override must be present");
+    assert_slow_timeout_contract(override_value, "600s", "feature-rebuild")?;
+    Ok(())
+}
+
+fn assert_slow_timeout_contract<'a>(
+    override_value: &'a Value,
+    expected_period: &str,
+    test_name: &str,
+) -> Result<&'a str, io::Error> {
     let slow_timeout = override_value
         .get("slow-timeout")
         .and_then(Value::as_table)
-        .expect("feature-rebuild override must contain a slow-timeout table");
+        .ok_or_else(|| {
+            io::Error::other(format!(
+                "{test_name} override must contain a slow-timeout table"
+            ))
+        })?;
+    let period = slow_timeout
+        .get("period")
+        .and_then(Value::as_str)
+        .ok_or_else(|| {
+            io::Error::other(format!(
+                "{test_name} slow-timeout table must contain a period"
+            ))
+        })?;
     assert_eq!(
-        slow_timeout.get("period").and_then(Value::as_str),
-        Some("600s")
+        period, expected_period,
+        "{test_name} override must use the expected slow-timeout period",
     );
     assert_eq!(
         slow_timeout
             .get("terminate-after")
             .and_then(Value::as_integer),
-        Some(1)
+        Some(1),
+        "{test_name} override must terminate after one slow-timeout period",
     );
     assert_eq!(
         slow_timeout.get("grace-period").and_then(Value::as_str),
-        Some("5s")
+        Some("5s"),
+        "{test_name} override must retain its five-second grace period",
     );
     assert_eq!(
         override_value.get("test-group").and_then(Value::as_str),
-        Some("cargo-spawning")
+        Some("cargo-spawning"),
+        "{test_name} override must remain in the cargo-spawning group",
     );
-    Ok(())
+    Ok(period)
 }
 
 /// Keep cold-build drift from consuming the run-level reserve again.
