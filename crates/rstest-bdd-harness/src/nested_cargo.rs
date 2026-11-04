@@ -34,6 +34,10 @@
 //! are drained concurrently (a chatty build would otherwise fill the pipe
 //! buffer and deadlock), the child is killed on timeout, and the error carries
 //! the command context plus the captured output.
+//!
+//! Cold fixture builds are moved out of timed test bodies by the `preparation`
+//! submodule, which stamps prepared artefact directories and fails fast under
+//! nextest when the named preparation test has not run.
 
 use std::{
     collections::BTreeMap,
@@ -46,8 +50,13 @@ use std::{
     time::{Duration, Instant},
 };
 
+mod preparation;
 mod profile;
 
+pub use preparation::{
+    PREPARATION_COMMAND_TIMEOUT, Preparation, PreparationSummary, count_compiling, ensure_prepared,
+    running_under_nextest,
+};
 pub use profile::ProfileDestination;
 
 /// Per-invocation wall-clock bound for each nested `cargo` call.
@@ -153,7 +162,9 @@ impl NestedCargoEnv {
 
     /// Whether `key` is set in the filtered environment.
     #[must_use]
-    pub fn contains_key(&self, key: &str) -> bool { self.0.contains_key(OsStr::new(key)) }
+    pub fn contains_key(&self, key: &str) -> bool {
+        self.0.contains_key(OsStr::new(key))
+    }
 
     /// The value of `key` in the filtered environment, if present.
     #[must_use]
@@ -162,7 +173,9 @@ impl NestedCargoEnv {
     }
 
     /// Iterate the filtered environment as sorted `(key, value)` pairs.
-    pub fn iter(&self) -> impl Iterator<Item = (&OsString, &OsString)> { self.0.iter() }
+    pub fn iter(&self) -> impl Iterator<Item = (&OsString, &OsString)> {
+        self.0.iter()
+    }
 
     /// Apply the environment to `cmd`, starting from an empty environment.
     pub fn apply_to(&self, cmd: &mut Command) {

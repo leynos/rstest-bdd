@@ -13,15 +13,8 @@ use std::{
 };
 
 use rstest_bdd_harness::nested_cargo::{
-    CapturedOutput,
-    NestedCargoEnv,
-    ProfileDestination,
-    cargo_command,
-    describe_env,
-    env_from_vars,
-    filtered_command,
-    run_bounded,
-    run_bounded_with_timeout,
+    CapturedOutput, NestedCargoEnv, ProfileDestination, cargo_command, describe_env, env_from_vars,
+    filtered_command, run_bounded, run_bounded_with_timeout,
 };
 
 fn vars(pairs: &[(&str, &str)]) -> Vec<(OsString, OsString)> {
@@ -31,7 +24,9 @@ fn vars(pairs: &[(&str, &str)]) -> Vec<(OsString, OsString)> {
         .collect()
 }
 
-fn fallback() -> PathBuf { PathBuf::from("/tmp/fallback-target") }
+fn fallback() -> PathBuf {
+    PathBuf::from("/tmp/fallback-target")
+}
 
 /// Build an environment for a process whose coverage the caller keeps.
 fn caller_env(vars: Vec<(OsString, OsString)>) -> NestedCargoEnv {

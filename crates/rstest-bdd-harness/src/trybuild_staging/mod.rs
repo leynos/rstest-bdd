@@ -6,8 +6,7 @@
 //! not part of the supported public API.
 
 use std::{
-    fs,
-    io,
+    fs, io,
     path::{Path, PathBuf},
 };
 
@@ -131,7 +130,9 @@ fn canonical_missing_destination(destination: &Path) -> io::Result<PathBuf> {
     Ok(apply_missing_tail(base, destination))
 }
 
-fn paths_overlap(a: &Path, b: &Path) -> bool { a == b || a.starts_with(b) || b.starts_with(a) }
+fn paths_overlap(a: &Path, b: &Path) -> bool {
+    a == b || a.starts_with(b) || b.starts_with(a)
+}
 
 /// Rejects paths where `copy_dir_tree` would call `remove_destination` on a tree
 /// that still contains (or equals) the source directory.

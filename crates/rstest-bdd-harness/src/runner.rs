@@ -47,23 +47,33 @@ impl ScenarioMetadata {
 
     /// Returns the feature path.
     #[must_use]
-    pub fn feature_path(&self) -> &str { &self.feature_path }
+    pub fn feature_path(&self) -> &str {
+        &self.feature_path
+    }
 
     /// Returns the scenario name.
     #[must_use]
-    pub fn scenario_name(&self) -> &str { &self.scenario_name }
+    pub fn scenario_name(&self) -> &str {
+        &self.scenario_name
+    }
 
     /// Returns the one-based line number in the feature file.
     #[must_use]
-    pub const fn scenario_line(&self) -> u32 { self.scenario_line }
+    pub const fn scenario_line(&self) -> u32 {
+        self.scenario_line
+    }
 
     /// Returns the scenario tags.
     #[must_use]
-    pub fn tags(&self) -> &[String] { &self.tags }
+    pub fn tags(&self) -> &[String] {
+        &self.tags
+    }
 }
 
 impl Default for ScenarioMetadata {
-    fn default() -> Self { Self::new("<unknown>", "<unknown>", 1, Vec::new()) }
+    fn default() -> Self {
+        Self::new("<unknown>", "<unknown>", 1, Vec::new())
+    }
 }
 
 /// A callable scenario runner closure owned by a harness.
@@ -92,7 +102,9 @@ impl<'a, C, T> ScenarioRunner<'a, C, T> {
 
     /// Executes the wrapped closure.
     #[must_use]
-    pub fn run(self, context: C) -> T { (self.inner)(context) }
+    pub fn run(self, context: C) -> T {
+        (self.inner)(context)
+    }
 }
 
 impl<'a, T> ScenarioRunner<'a, (), T> {
@@ -104,7 +116,9 @@ impl<'a, T> ScenarioRunner<'a, (), T> {
 
     /// Executes a unit-context runner without explicitly passing `()`.
     #[must_use]
-    pub fn run_without_context(self) -> T { self.run(()) }
+    pub fn run_without_context(self) -> T {
+        self.run(())
+    }
 }
 
 /// A harness execution request for one scenario.
@@ -136,7 +150,9 @@ impl<'a, C, T> ScenarioRunRequest<'a, C, T> {
 
     /// Returns immutable metadata for diagnostics or harness setup.
     #[must_use]
-    pub fn metadata(&self) -> &ScenarioMetadata { &self.metadata }
+    pub fn metadata(&self) -> &ScenarioMetadata {
+        &self.metadata
+    }
 
     /// Consumes the request and returns metadata and runner separately.
     #[must_use]
@@ -146,7 +162,9 @@ impl<'a, C, T> ScenarioRunRequest<'a, C, T> {
 
     /// Executes the runner with harness-provided context.
     #[must_use]
-    pub fn run(self, context: C) -> T { self.runner.run(context) }
+    pub fn run(self, context: C) -> T {
+        self.runner.run(context)
+    }
 }
 
 impl<'a, T> ScenarioRunRequest<'a, (), T> {
@@ -161,7 +179,9 @@ impl<'a, T> ScenarioRunRequest<'a, (), T> {
 
     /// Executes a unit-context request without explicitly passing `()`.
     #[must_use]
-    pub fn run_without_context(self) -> T { self.run(()) }
+    pub fn run_without_context(self) -> T {
+        self.run(())
+    }
 }
 
 /// Type alias for the common unit-context runner case.

@@ -5,8 +5,7 @@
 //! not part of the supported public API.
 
 use std::{
-    env,
-    fmt,
+    env, fmt,
     path::{Path, PathBuf},
     process::{Command, ExitStatus, Output},
 };
@@ -23,19 +22,27 @@ pub struct BinaryName<'a>(&'a str);
 impl<'a> BinaryName<'a> {
     /// Creates a `BinaryName` from the given string slice.
     #[must_use]
-    pub const fn new(name: &'a str) -> Self { Self(name) }
+    pub const fn new(name: &'a str) -> Self {
+        Self(name)
+    }
 
     /// Returns the binary name as a string slice.
     #[must_use]
-    pub const fn as_str(self) -> &'a str { self.0 }
+    pub const fn as_str(self) -> &'a str {
+        self.0
+    }
 }
 
 impl<'a> From<&'a str> for BinaryName<'a> {
-    fn from(s: &'a str) -> Self { Self(s) }
+    fn from(s: &'a str) -> Self {
+        Self(s)
+    }
 }
 
 impl std::fmt::Display for BinaryName<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { f.write_str(self.0) }
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.0)
+    }
 }
 
 /// Captured output from `cargo build --bin` when it exits unsuccessfully.

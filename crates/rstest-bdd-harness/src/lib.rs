@@ -25,11 +25,7 @@ pub use adapter::HarnessAdapter;
 pub use error::{HarnessError, HarnessResult};
 pub use policy::{AttributePolicy, DefaultAttributePolicy, TestAttribute};
 pub use runner::{
-    ScenarioMetadata,
-    ScenarioRunRequest,
-    ScenarioRunner,
-    StdScenarioRunRequest,
-    StdScenarioRunner,
+    ScenarioMetadata, ScenarioRunRequest, ScenarioRunner, StdScenarioRunRequest, StdScenarioRunner,
 };
 pub use std_harness::StdHarness;
 #[cfg(feature = "testing")]
