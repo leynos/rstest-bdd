@@ -14,7 +14,7 @@
       "--version"
     ],
     "exit_code": 0,
-    "stdout": "<CARGO_BDD_BINARY> <CARGO_PKG_VERSION>\n",
+    "stdout": "cargo-bdd <CARGO_PKG_VERSION>\n",
     "stderr": ""
   },
   {

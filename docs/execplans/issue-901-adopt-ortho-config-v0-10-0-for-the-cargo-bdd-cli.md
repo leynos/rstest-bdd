@@ -1124,17 +1124,36 @@ compatibility shim is warranted at any milestone.
 
 ## Revision note
 
-The latest hosted run passed Linux and failed both Windows test jobs on the
-baseline help snapshot: clap reports `cargo-bdd.exe` in Windows usage output,
-while the captured fixture used the Unix basename. This is a portability
-assertion failure, not a test timeout. The fixture now substitutes the
-platform-specific binary name in stdout and stderr. The correct PR worktree
-passed formatting, lint, typecheck, fixture-lockfile, Markdown, Mermaid,
-file-length, and diff checks. The focused baseline test passed after an
-offline, locked prewarm, and CodeRabbit reported no findings. The workspace
-typecheck took 58m59s under shared compiler admission; the focused test
-prewarm took 18m21s. A review of v0.10.0's published source also found that
-`PostMergeHook` is not invoked by the subcommand merge helpers; upstream issue
+Hosted run
+[#41766284928](https://github.com/leynos/rstest-bdd/actions/runs/41766284928) on
+`e46dd3e9` found two portability/documentation issues. Linux `make check-fmt`
+reported that the revised ExecPlan needed Markdown table/paragraph formatting.
+Both Windows coverage jobs reached `baseline_output` and found that `--version`
+prints `cargo-bdd` without `.exe`, while the fixture had substituted the
+Windows executable basename for every output. These were assertion/formatting
+failures, not test timeouts. The fixture now keeps the version banner basename
+fixed and substitutes the platform executable name only for clap usage output.
+
+Before this hosted run, the correct PR worktree passed formatting, lint,
+typecheck, fixture-lockfile, Markdown, Mermaid, file-length, and diff checks.
+The focused baseline test passed after an offline, locked prewarm, and
+CodeRabbit reported no findings. The workspace typecheck took 58m59s under
+shared compiler admission; the focused test prewarm took 18m21s. A review of
+v0.10.0's published source also found that `PostMergeHook` is not invoked by
+the subcommand merge helpers; upstream issue
 [#652](https://github.com/leynos/ortho-config/issues/652) records that API gap.
-The remaining delivery work is to commit, push, validate hosted CI on the new
-head, and refresh the draft PR's validation summary.
+`make fmt` has corrected the Markdown formatting, and the version-banner
+fixture now preserves `cargo-bdd` without a Windows extension. The remaining
+CodeRabbit review found an ambiguity about overriding file values when both
+`steps` settings are true; the users' guide now shows setting both environment
+values to `false` for one non-JSON run. Its next review found that the
+developers' guide names `cargo-bdd::invocation` in the 180 s `cargo-spawning`
+budget while nextest omitted that test binary. The filter and its regression
+contract now cover both `cargo-bdd` test binaries. The final local candidate
+passed `make check-fmt`, offline lint and typecheck, offline Markdown lint (137
+files), Mermaid, file-length and diff checks. Offline locked prewarms prepared
+the `nextest_config` and `baseline_output` targets; the focused tests passed
+4/4 and 1/1, with no compilation or package downloads during test execution.
+The final CodeRabbit review reported zero findings. The remaining delivery work
+is to commit, push, validate hosted CI on the corrected head, and refresh the
+draft PR's validation summary.
