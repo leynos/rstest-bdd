@@ -1,14 +1,10 @@
 //! Integration contract for the workspace's nextest override and timeout budget
 //! policy.
 //!
-//! The suite reads `.config/nextest.toml` as data rather than running
-//! cargo-nextest: `nextest_configuration` parses the file with `toml`, and the
-//! tests assert the budget policy a reviewer can see written down there. The
-//! run-level ceiling and the test group's thread limit come from the same
-//! parsed value, read through `default_profile_key` and
-//! `test_group_max_threads` respectively.
+//! The suite parses `.config/nextest.toml` with `toml` and asserts its timeout
+//! policy, including `global-timeout` and the `cargo-spawning` thread limit.
 //!
-//! Four contracts are pinned:
+//! Five contracts are pinned:
 //!
 //! * `preparation_nextest_override_preserves_timeout_contract` requires exactly one override to
 //!   match `test(/nested_fixture_preparation$/)`, at a 30 m period with the same termination
@@ -16,6 +12,8 @@
 //!   the default 0). It also requires the top-level `nextest-version` that `priority` needs, and
 //!   that the preparation override is the first one in the file, so the first-match precedence rule
 //!   keeps it authoritative if a future override ever matched the same tests.
+//! * `cargo_bdd_nextest_override_preserves_timeout_contract` requires both `cargo-bdd` test
+//!   binaries to use the 180 s timeout and `cargo-spawning`.
 //! * `trybuild_nextest_override_preserves_timeout_contract` requires exactly one override to name
 //!   any of the four compile-test binaries, and that override's filter to name all four and no
 //!   others. It then requires the override to keep a 20 m `slow-timeout` period, `terminate-after =
@@ -74,6 +72,52 @@ use support::{
 };
 
 const FEATURE_REBUILD_BINARY: &str = "rstest-bdd::feature_rebuild_invalidation";
+const CARGO_BDD_FILTER: &str = "binary_id(cargo-bdd::cli) | binary_id(cargo-bdd::invocation)";
+
+#[test]
+fn cargo_bdd_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn Error>> {
+    let configuration = nextest_configuration()?;
+    let overrides = default_overrides(&configuration)?;
+    let matching = overrides
+        .iter()
+        .filter(|override_value| {
+            override_value.get("filter").and_then(Value::as_str) == Some(CARGO_BDD_FILTER)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        matching.len(),
+        1,
+        "the cargo-bdd test binaries must share exactly one nextest override",
+    );
+
+    let override_value = matching
+        .first()
+        .expect("the asserted single cargo-bdd override must be present");
+    let slow_timeout = override_value
+        .get("slow-timeout")
+        .and_then(Value::as_table)
+        .expect("cargo-bdd override must contain a slow-timeout table");
+    assert_eq!(
+        slow_timeout.get("period").and_then(Value::as_str),
+        Some("180s")
+    );
+    assert_eq!(
+        slow_timeout
+            .get("terminate-after")
+            .and_then(Value::as_integer),
+        Some(1)
+    );
+    assert_eq!(
+        slow_timeout.get("grace-period").and_then(Value::as_str),
+        Some("5s")
+    );
+    assert_eq!(
+        override_value.get("test-group").and_then(Value::as_str),
+        Some("cargo-spawning")
+    );
+
+    Ok(())
+}
 
 /// The filter every preparation override must carry.
 const PREPARATION_FILTER: &str = "test(/nested_fixture_preparation$/)";
