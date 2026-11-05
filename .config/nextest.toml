@@ -45,13 +45,16 @@ max-threads = 1
 # normal lane spends only the stamp read. It bounds the genuinely cold case for
 # a single preparation test; the sibling preparations queue behind it in the
 # `cargo-spawning` group, and nextest starts a test's slow-timeout when the
-# test begins running, not while it waits for the group. The `rstest-bdd`
-# trybuild binary prepares the most, two graphs: its measured cold dependency
-# build was 386.8 s and the UI-lint crate's graph is the same shape but smaller,
-# so a fully cold preparation is comfortably inside 30 minutes. The four
-# trybuild binaries share one generated-crate directory, so whichever prepares
-# first warms the dependency graph and the rest stamp it in seconds. Exceeding
-# the budget is reported as a preparation failure naming the fixture, not as an
+# test begins running, not while it waits for the group. Measured on the
+# development host with every nested target empty, the two most expensive
+# families were the server crate's trybuild tree at 864.239 s and the
+# `rstest-bdd` trybuild binary's two graphs at 645.412 s, so a fully cold
+# preparation is comfortably inside 30 minutes. (Those two are single-host
+# figures taken behind a shared compile-admission pool, so they overstate the
+# compiler time and understate a two-vCPU lane's queueing.) The four trybuild
+# binaries share one generated-crate directory, so whichever prepares first
+# warms the dependency graph and the rest stamp it in seconds. Exceeding the
+# budget is reported as a preparation failure naming the fixture, not as an
 # assertion timeout.
 filter = "test(/nested_fixture_preparation$/)"
 slow-timeout = { period = "30m", terminate-after = 1, grace-period = "5s" }

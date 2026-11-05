@@ -1060,8 +1060,11 @@ The file sets the timeout policy for the test suite:
   `cargo-bdd` fixture, the trybuild tree, the UI-lint tree, and the
   rebuild-invalidation and feature-addition scratch fixtures. This is the one
   place in the file where a cold dependency build is meant to spend a test's
-  budget, and it is sized for that job rather than for an assertion: the
-  measured cold dependency build for the largest family was 386.8 s.
+  budget, and it is sized for that job rather than for an assertion: with every
+  nested target empty, the most expensive family took 864.239 s on the
+  development host, and the trybuild binary's two graphs took 645.412 s. Both
+  figures sit behind a shared compile-admission pool that the CI runner does
+  not use, so they bound compiler time rather than a two-vCPU lane's queueing.
 
   Two properties of nextest make its position load-bearing. Override precedence
   is first match in file order, not `priority`, so the entry must come before
@@ -1073,10 +1076,10 @@ The file sets the timeout policy for the test suite:
   `priority` at all, and
   `preparation_nextest_override_preserves_timeout_contract` pins the position,
   the period, the group, the priority and the version.
-- A further override raises the `slow-timeout` to 180 s
+- The second override raises the `slow-timeout` to 180 s
   for `cargo-bdd::cli`, whose smoke tests spawn `cargo` to build fixture crates
   and can legitimately exceed 60 s on cold caches.
-- Another override raises the `slow-timeout` further, to 20 minutes, for the
+- The third override raises the `slow-timeout` further, to 20 minutes, for the
   trybuild-based compile-test binaries:
   `rstest-bdd-harness-tokio::macro_compile`,
   `rstest-bdd-harness-gpui::macro_compile`, `rstest-bdd::trybuild_macros`, and
@@ -1089,7 +1092,7 @@ The file sets the timeout policy for the test suite:
   fixture set to rebuild on a cold cache without treating slow, healthy
   compiler work as a hung test. The strict 60 s default remains in force
   elsewhere.
-- A third override raises the `slow-timeout` to 600 s for
+- A fourth override raises the `slow-timeout` to 600 s for
   `rstest-bdd::feature_rebuild_invalidation`, whose three scenarios run nested
   `cargo` commands for dependency tracking, rebuilding, and file addition.
 - All four overrides also place matching tests in a `cargo-spawning` test
