@@ -66,6 +66,16 @@ fn variant() -> String {
 ///
 /// This is also the lazy path the timed test takes under plain `cargo test`,
 /// so preparation and assertion cannot drift apart.
+///
+/// Unlike the Tokio and GPUI harness trees, this crate's fixtures reference no
+/// feature file, so there are no support files to stage and `trybuild` panics
+/// rather than returning an error. The `io::Result` is therefore never `Err`;
+/// it is the shape `TrybuildTree::prepare_now` and `ensure_prepared` take so
+/// that a preparation needing a fallible first step can share the same gate.
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "the shared preparation contract takes a fallible closure"
+)]
 pub(crate) fn prepare() -> io::Result<PreparationSummary> {
     let tests = trybuild::TestCases::new();
     tests.pass(PROBE);
