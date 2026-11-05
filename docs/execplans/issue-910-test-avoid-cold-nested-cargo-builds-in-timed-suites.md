@@ -236,6 +236,20 @@ not half an hour:
 | `rstest-bdd::trybuild_macros runner::step_macros_compile`                                | 197.642 s            | 65.744 s             |
 | whole suite                                                                              | 1402.014 s           | 348.345 s            |
 
+Run
+[`42013457153`](https://github.com/leynos/rstest-bdd/actions/runs/42013457153)
+on head `5b872477` is the third measurement and the first on the final code. It
+passed all three required lanes — Linux in 30 m 44 s, both Windows lanes green
+— with a 95.71% Rust hit rate, so it is a warm run like `42005188689`. Its
+suite finished in 323.344 s across **2102** tests (2102 passed, 7 skipped): one
+more than the earlier runs, which is the new
+`preparation_command_bound_fires_before_the_runner_kills_the_test` contract
+test. The three issue-named assertions ran in 0.331 s, 1.783 s and 63.263 s
+against 180 s, 600 s and 20 m, and the largest preparation took 97.046 s —
+13.5% of its 30-minute budget, and 13.5% of the 12-minute per-command bound
+that sits inside it. This is the run that shows the corrected bound changes no
+outcome: the suite is the same speed as the previous warm run within noise.
+
 The largest cold preparation used 24.3% of its 30-minute budget and the three
 issue-named assertions used 0.3%, 0.3% and 16.5% of theirs. Every timed
 override is byte-identical to `main`'s — 180 s, 20 m, 600 s, and the 60 s
@@ -289,6 +303,11 @@ rather than by reading this branch's comments.
       worth remembering as a self-inflicted failure: `make markdownlint` does
       not run `mdtablefix`, so a table can pass the Markdown gate and still
       fail `check-fmt`, which is the gate that owns table reflow.
+- [x] Confirm CI run `42013457153` on head `5b872477` passes all three required
+      lanes: `build-test (linux, default features)` in 30 m 44 s, and both
+      Windows lanes. This is the first green run on the corrected bound, and it
+      is the gate the merge ruleset actually requires. Its suite ran 2102
+      tests, one more than the earlier runs because of the new contract test.
 
 ## Surprises & Discoveries
 
@@ -453,15 +472,20 @@ which is the cold-cache evidence acceptance criterion (a) asks for, and
 `42005188689` on the final head with a warm cache. Both passed every required
 lane.
 
-The evidence runs precede the two commits that answered CodeRabbit and fixed
+The two evidence runs precede the commits that answered CodeRabbit and fixed
 the formatting failure those commits carried, so the code they measured is not
 byte-identical to the final head. The only behavioural change after them is the
 per-command preparation bound, from 45 minutes to 12: a deadline inside the
 preparation test that no passing run approaches (the largest cold preparation
 measured 438.214 s, or 60.9% of 12 minutes). It removes no work from any test
-and adds none, so the recorded durations remain valid for the code they measure.
-`make test-workflow-contracts` (364 tests) and the `nextest_config` (5) and
-`rstest-bdd-harness` (51) suites pass on the final head.
+and adds none.
+
+Run `42013457153` closes that gap: it is the first run on the corrected code,
+and it passes all three required lanes with the same suite time as the earlier
+warm run (323.344 s against 348.345 s), which is what a change to an
+unapproached internal deadline should look like. `make test-workflow-contracts`
+(364 tests), `nextest_config` (5) and `rstest-bdd-harness` (51) also pass
+locally on the final head.
 
 Every suite that compiles a nested Cargo graph is prepared and stamped,
 including the harness and server trybuild trees. On the development host a cold
