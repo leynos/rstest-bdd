@@ -340,6 +340,35 @@ rather than by reading this branch's comments.
       Gates after both fixes: `make fmt`, `make check-fmt`, `make lint`,
       `make markdownlint`, `make test-workflow-contracts` (364) and
       `nextest_config` (5) all pass.
+- [x] Commit the fixes as `7d6bbd5a` and confirm CI run `42021251818` on that
+      head passes all three required lanes: both Windows lanes and
+      `build-test (linux, default features)`, conclusion `success`. This is the
+      timing evidence on the final bound. The Linux lane ran 32 m 09 s against
+      `42013457153`'s 30 m 44 s, and its suite ran 332.981 s across the same
+      2102 tests (2102 passed, 7 skipped) against 323.344 s — the same work
+      within run-to-run noise, which is what a change to an internal deadline
+      no run approaches should look like. The six preparations on that lane
+      took 20.210 s, 9.768 s, 94.240 s, 59.415 s, 11.658 s and 36.875 s, each
+      of which is 17.5% or less of the 540 s per-command bound and therefore
+      far inside the 27 m the three sequential commands may take. The three
+      issue-named assertions ran in 0.593 s, 1.864 s and 70.731 s. This run is
+      the final-head evidence acceptance criterion (c) asks for; the cold
+      run's 1402.014 s remains the evidence for criterion (a).
+- [x] Address the follow-up `coderabbit review --agent` pass, which reported
+      two documentation findings and no code findings. Both were valid. Four
+      passages still described the superseded 12-minute bound, and two of them
+      divided measured times by it: 97.046 s is 18.0% of 9 minutes, not 13.5%
+      of 12, and 438.214 s is 81.2% of 9 minutes (540 s), not 60.9%. The second
+      figure is the one worth keeping visible: 81.2% is not a comfortable
+      margin, so the text now says the bound still clears the largest cold
+      preparation without claiming a wide gap. The other corrections were an
+      attribution error — `cargo metadata` runs in
+      `macrotest_support::trybuild_target_root`, while `trybuild_crate_root`
+      only appends `target_subdir` — and an incomplete `nested_cargo` export
+      list, missing `MAX_SEQUENTIAL_COMMANDS`, `Sources` and
+      `ProfileDestination`. The same pass flagged first-person pronouns in
+      this plan, which the repository's Markdown path instructions forbid;
+      those are now impersonal.
 
 ## Surprises & Discoveries
 
