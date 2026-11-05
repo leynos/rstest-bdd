@@ -231,7 +231,16 @@ file, so `prepare` has no fallible step and Clippy reports
 the same gate. The signature therefore stays, with a scoped
 `#[expect(clippy::unnecessary_wraps, reason = ...)]` recording why the result
 is never `Err` — the repository denies `allow_attributes`, so this is the
-`#[expect]` idiom the lint policy is written for.
+`#[expect]` idiom the lint policy is written for. The `rstest-bdd` trybuild
+binary's own `prepare_trybuild` needed the same treatment for the same reason:
+`trybuild` panics on a failing fixture, so its result is never `Err` either.
+
+A narrower Clippy invocation is not a substitute for the gate. Checking with
+`cargo clippy -p <crate> --all-targets` compiled a
+`#[cfg(not(feature = "mutable_world_macro"))]` test that `main` has always had
+and reported an `uninlined_format_args` failure in it, while the gate — which
+passes `--all-features` and so never compiles that item — reports nothing.
+Reproduce a gate result with the gate's own flags, and prefer running the gate.
 
 The remaining caveat is about interpreting local measurements. This host routes
 `rustc` through a shared four-slot admission pool, and CI does not, so local
