@@ -56,7 +56,18 @@ use super::{NestedCargoEnv, ProfileDestination, env_from_vars};
 /// compile inside their own deadlines, so its bound is sized for a queued cold
 /// build on a two-vCPU CI runner rather than for a warm assertion. It is not,
 /// and must not become, the deadline of any test.
-pub const PREPARATION_COMMAND_TIMEOUT: Duration = Duration::from_secs(45 * 60);
+///
+/// It must stay **below** the 30-minute `slow-timeout` that `.config/nextest.toml`
+/// gives `nested_fixture_preparation`, even when a preparation test runs two
+/// commands in sequence: a combined bound at or above the test's own budget
+/// would let nextest kill the test first, discarding the captured child output
+/// that [`run_bounded_with_timeout`] puts in the error. Twelve minutes keeps the
+/// pair under half an hour while leaving more than double the largest cold
+/// preparation measured on CI (438 s), and keeps this path the one that reports
+/// a single wedged command by name.
+///
+/// [`run_bounded_with_timeout`]: super::run_bounded_with_timeout
+pub const PREPARATION_COMMAND_TIMEOUT: Duration = Duration::from_secs(12 * 60);
 
 /// Process-wide lock serializing lazy preparation under plain `cargo test`.
 static PREPARE_LOCK: Mutex<()> = Mutex::new(());

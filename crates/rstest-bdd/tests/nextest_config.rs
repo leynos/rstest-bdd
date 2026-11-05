@@ -49,6 +49,7 @@
 
 use std::{error::Error, io};
 
+use rstest_bdd_harness::nested_cargo;
 use toml::Value;
 
 #[path = "nextest_config/support.rs"]
@@ -308,6 +309,40 @@ fn feature_rebuild_nextest_override_preserves_timeout_contract() -> Result<(), B
 }
 
 /// Keep cold-build drift from consuming the run-level reserve again.
+/// The per-command preparation bound must fire before the runner's test bound.
+///
+/// A preparation test may run two sequential bounded commands — the rebuild
+/// family and the addition family each compile once — so the contract is
+/// `2 × PREPARATION_COMMAND_TIMEOUT < preparation period`. Any family that
+/// adds a third command has to widen this budget rather than silently lose the
+/// named timeout error, which is the only report that carries the child's
+/// captured output.
+#[test]
+fn preparation_command_bound_fires_before_the_runner_kills_the_test() -> Result<(), Box<dyn Error>>
+{
+    let configuration = nextest_configuration()?;
+    let overrides = default_overrides(&configuration)?;
+    let preparation = single_preparation_override(overrides)?;
+    let period = preparation
+        .get("slow-timeout")
+        .and_then(Value::as_table)
+        .and_then(|slow_timeout| slow_timeout.get("period"))
+        .and_then(Value::as_str)
+        .ok_or_else(|| {
+            io::Error::other("the preparation override must set a slow-timeout period")
+        })?;
+    let period_seconds = duration_seconds(period)?;
+    let sequential_commands = 2;
+    let command_seconds = nested_cargo::PREPARATION_COMMAND_TIMEOUT.as_secs();
+    assert!(
+        command_seconds * sequential_commands < period_seconds,
+        "the {command_seconds}s per-command preparation bound times {sequential_commands} \
+         sequential commands must stay below the preparation override's {period_seconds}s period, \
+         or nextest kills the test before the named timeout error can report it",
+    );
+    Ok(())
+}
+
 #[test]
 fn nested_cargo_run_retains_cold_build_reserve() -> Result<(), Box<dyn Error>> {
     let configuration = nextest_configuration()?;

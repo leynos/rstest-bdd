@@ -53,9 +53,14 @@ max-threads = 1
 # figures taken behind a shared compile-admission pool, so they overstate the
 # compiler time and understate a two-vCPU lane's queueing.) The four trybuild
 # binaries share one generated-crate directory, so whichever prepares first
-# warms the dependency graph and the rest stamp it in seconds. Exceeding the
-# budget is reported as a preparation failure naming the fixture, not as an
-# assertion timeout.
+# warms the dependency graph and the rest stamp it in seconds.
+#
+# Each nested preparation command carries its own bound
+# (`nested_cargo::PREPARATION_COMMAND_TIMEOUT`, 12 m) that keeps even two of them
+# inside this period, so a wedged command is reported by name with its captured
+# output rather than as a runner slow-timeout. This period bounds the whole
+# preparation *test*; only an overrun spanning several commands is reported by
+# nextest as a slow-timeout.
 filter = "test(/nested_fixture_preparation$/)"
 slow-timeout = { period = "30m", terminate-after = 1, grace-period = "5s" }
 test-group = "cargo-spawning"

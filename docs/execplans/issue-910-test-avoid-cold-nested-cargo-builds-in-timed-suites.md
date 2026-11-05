@@ -4,8 +4,8 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
 and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: IN PROGRESS — implementation complete; CI timing evidence still
-outstanding, see "A local-host measurement artefact" in Stage F.
+Status: COMPLETE — implementation finished and CI timing evidence recorded; see
+Progress for the cold and warm runs.
 
 `PLANS.md` is not present in this repository at the time of writing, so this
 ExecPlan is the governing plan for issue 910.
@@ -217,11 +217,11 @@ and is the second, independent measurement. Its suite finished in 348.345 s
 (2101 tests, 2101 passed, 7 skipped) — 4.0× faster than the figure above. That
 difference is not the branch improving something: **the two runs differ in
 compiler-cache state, and the timings must not be compared without saying so.**
-`sccache` reported a 13.80% Rust hit rate on run `41981885921` and 95.71% on
-run `42005188689`, so the first is the cold-cache case that acceptance
-criterion (a) is about and the second is a warm runner. The cold measurement
-stays the evidence for that criterion; the warm one shows a normal CI day costs
-minutes, not half an hour:
+`sccache` reported a 13.80% Rust hit rate on run `41981885921` and 95.71% on run
+`42005188689`, so the first is the cold-cache case that acceptance criterion
+(a) is about and the second is a warm runner. The cold measurement stays the
+evidence for that criterion; the warm one shows a normal CI day costs minutes,
+not half an hour:
 
 | Test                                                                                     | cold (`41981885921`) | warm (`42005188689`) |
 | ---------------------------------------------------------------------------------------- | -------------------- | -------------------- |
@@ -237,10 +237,10 @@ minutes, not half an hour:
 | whole suite                                                                              | 1402.014 s           | 348.345 s            |
 
 The largest cold preparation used 24.3% of its 30-minute budget and the three
-issue-named assertions used 0.3%, 0.3% and 16.5% of theirs. Every timed override
-is byte-identical to `main`'s — 180 s, 20 m, 600 s, and the 60 s default — which
-`git show origin/main:.config/nextest.toml` confirms directly rather than by
-reading this branch's comments.
+issue-named assertions used 0.3%, 0.3% and 16.5% of theirs. Every timed
+override is byte-identical to `main`'s — 180 s, 20 m, 600 s, and the 60 s
+default — which `git show origin/main:.config/nextest.toml` confirms directly
+rather than by reading this branch's comments.
 
 - [x] Push the final head `851c9b1c` and confirm it against the remote. The two
       commits it carries are execplan-only: the CodeScene CLI measurement note
@@ -263,6 +263,19 @@ reading this branch's comments.
       private function body and prose, so the targeted suites are the
       relevant evidence rather than a rerun of the whole workspace.
 
+- [x] Address the final `coderabbit review --agent` pass. It reported two
+      minor findings. The substantive one was a real ordering defect:
+      `PREPARATION_COMMAND_TIMEOUT` was 45 minutes while `.config/nextest.toml`
+      limits `nested_fixture_preparation` to 30, so under nextest the runner
+      always killed the test before the per-command bound could fire, and the
+      named error carrying the child's captured output was unreachable. The
+      bound is now 15 minutes — under the period even with the two sequential
+      commands a preparation test runs — the misleading `nextest.toml` comment
+      now says which path reports which overrun, and
+      `preparation_command_bound_fires_before_the_runner_kills_the_test` pins
+      the ordering so it cannot drift again. The other finding was stale
+      status text in this plan, corrected at all four sites.
+
 ## Surprises & Discoveries
 
 - **A required check and a quality signal are different things.** CodeScene
@@ -282,16 +295,16 @@ reading this branch's comments.
   distinguishes "this change made it worse" from "this change landed near an
   existing problem". It is also what stops a refactor aimed at the wrong file.
 - **A passing timing is not a comparable timing until you check the cache.** The
-  final CI run measured the whole suite in 348 s against the earlier run's
-  1402 s, which reads as a four-fold improvement from this branch and is
-  nothing of the kind: sccache served 95.71% of Rust compilations on that runner
-  and 13.80% on the other. The cold run is the one acceptance criterion (a)
-  asks about, because it is the run that actually pays for the dependency
-  graphs; quoting the warm number in its place would have made the evidence
-  look better while measuring the wrong condition. Both belong in the record,
-  labelled with their cache state. The lesson generalizes past this issue: any
-  CI duration is a joint measurement of the code and the runner's cache, and the
-  cache state is the half that changes without a commit.
+  final CI run measured the whole suite in 348 s against the earlier run's 1402
+  s, which reads as a four-fold improvement from this branch and is nothing of
+  the kind: sccache served 95.71% of Rust compilations on that runner and
+  13.80% on the other. The cold run is the one acceptance criterion (a) asks
+  about, because it is the run that actually pays for the dependency graphs;
+  quoting the warm number in its place would have made the evidence look better
+  while measuring the wrong condition. Both belong in the record, labelled with
+  their cache state. The lesson generalizes past this issue: any CI duration is
+  a joint measurement of the code and the runner's cache, and the cache state
+  is the half that changes without a commit.
 - **A figure can be true and still be the wrong figure.** The preparation
   budget's rationale cited 386.8 s as "the largest cold dependency build". That
   number is real, but it measures the old *timed* `step_macros_compile` run on
@@ -420,8 +433,11 @@ reading this branch's comments.
 
 ## Outcomes & Retrospective
 
-Implementation is complete; only the CI-lane timing evidence remains, and it
-can be collected only from the PR's own run.
+Implementation and evidence collection are complete. Two CI runs on the Linux
+coverage lane supply the figures: `41981885921` with an evicted compiler cache,
+which is the cold-cache evidence acceptance criterion (a) asks for, and
+`42005188689` on the final head with a warm cache. Both passed every required
+lane.
 
 Every suite that compiles a nested Cargo graph is prepared and stamped,
 including the harness and server trybuild trees. On the development host a cold
@@ -586,18 +602,18 @@ is no supported filter for this, and excluding
 `crates/rstest-bdd-harness/src/**` would drop the shared policy — the thing
 whose tests should catch a mutant — from mutation coverage altogether.
 
-### Stage F: documentation and evidence (in progress)
+### Stage F: documentation and evidence
 
 The prose is written: `docs/testing-strategy.md` carries the "Cold fixture
 builds belong to preparation, not to an assertion" section, and
 `docs/developers-guide.md` describes the preparation override, the timeout
 tiers, the `TrybuildTree` helper and the shared trybuild directory.
 
-The evidence remains. It is collected from the Linux PR coverage lane on a
-two-vCPU runner with a cold target: preparation elapsed times, `Compiling`
-counts, timed-test durations against their limits, and the rebuild counters.
-Notes say which figures are single-host observations rather than CI
-measurements.
+The evidence is recorded in Progress. It comes from the Linux PR coverage lane
+on a two-vCPU runner: preparation elapsed times, `Compiling` counts, timed-test
+durations against their limits, and the rebuild counters, for both the cold and
+the warm compiler-cache state. Notes say which figures are single-host
+observations rather than CI measurements.
 
 ### Collected evidence (single-host, 6-core Rocky 10, cold nested target)
 
