@@ -397,6 +397,15 @@ per-invocation cost on an uncontended 2-vCPU lane is a fraction of the queued
 cost measured here. The lane that can actually confirm criterion (c) is the CI
 coverage lane, and that is where the remaining timing evidence belongs.
 
+The second prepared-tree attempt is the clearest illustration of that gap. It
+ran the gate (accepted, no `NotFound`), then worked through the fixture set in
+order and was killed at 1200.018 s on the final `compile_fail` case, with 40
+`trybuild*` bins built and no fixture failure. Its 187 `waiting for a compile
+slot` lines name crates that were already cached — the pool, not the work, was
+the cost. The same run passed its per-fixture assertions throughout, so what it
+demonstrates is that every timed case reuses the prepared tree; it cannot
+demonstrate that the whole binary fits 1200 s when nothing else is compiling.
+
 ## Concrete steps
 
 All commands run from the worktree root.
