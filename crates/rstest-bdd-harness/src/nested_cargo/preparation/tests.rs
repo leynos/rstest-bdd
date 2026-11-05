@@ -122,6 +122,46 @@ fn prepare_now_runs_under_nextest_and_stamps_once() {
 }
 
 #[test]
+fn preparation_survives_the_build_output_it_creates() {
+    // The stamp is computed from the inputs before preparation runs, so
+    // anything that preparation itself writes inside an input root must not
+    // contribute to the hash. If it did, a cold preparation would write a
+    // stamp that was already stale, and the timed test that follows would
+    // fail its gate every time.
+    let directory = tempfile::tempdir().expect("temp dir");
+    let source = directory.path().join("fixture");
+    fs::create_dir_all(&source).expect("fixture dir");
+    fs::write(source.join("Cargo.toml"), "[package]\nname = \"f\"\n").expect("manifest");
+
+    let environment = environment();
+    let prepare = || {
+        // What `trybuild` and a nested Cargo leave behind: its WIP scratch
+        // beside the crate, and a target directory for the build output.
+        fs::create_dir_all(source.join("wip")).expect("wip dir");
+        fs::write(source.join("wip/.gitignore"), "*\n").expect("wip scratch");
+        fs::create_dir_all(source.join("target/debug")).expect("target dir");
+        fs::write(source.join("target/debug/artifact"), "binary").expect("artefact");
+        Ok(PreparationSummary::default())
+    };
+
+    let inputs = input_hash(&[source.clone()]).expect("inputs before preparation");
+    let family = preparation(&source, &environment, "v", &inputs);
+    prepare_now(&family, prepare).expect("preparation");
+
+    // A second run recomputes the hash over the now-populated tree; it must
+    // still match, or the first timed test would be refused its gate.
+    let after = input_hash(&[source.clone()]).expect("inputs after preparation");
+    let reopened = preparation(&source, &environment, "v", &after);
+    let mut runs = 0_u32;
+    ensure_prepared_with(&reopened, true, || {
+        runs += 1;
+        Ok(PreparationSummary::default())
+    })
+    .expect("a just-prepared family must satisfy the nextest gate");
+    assert_eq!(runs, 0, "the gate must not need to prepare again");
+}
+
+#[test]
 fn failed_preparation_leaves_no_stamp() {
     let directory = tempfile::tempdir().expect("temp dir");
     let environment = environment();
