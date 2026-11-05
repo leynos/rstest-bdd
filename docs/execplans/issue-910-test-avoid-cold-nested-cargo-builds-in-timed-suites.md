@@ -136,6 +136,13 @@ filtered `cargo nextest run` passes the timed tests in seconds.
       preparations are 864.239 s (server trybuild tree) and 645.412 s (the
       `rstest-bdd` trybuild binary's two graphs), both single-host figures
       behind the shared admission pool.
+- [x] Address the CodeRabbit review's seven findings. Two were behavioural: a
+      doc/code contradiction in `was_written_since` (an unreadable timestamp
+      was treated as stale, not fresh as documented), and three preparation
+      families whose stamps did not hash the workspace crates their fixtures
+      take as path dependencies. The rest corrected prose: the `#[serial]`
+      cross-process claim, the "parallel" and "quarter budget" claims about a
+      serial cold run, and a focused-run recipe that mixed `RUSTFLAGS`.
 - [ ] Record CI-lane timings for the affected suites once the PR runs, since
       only that lane answers acceptance criterion (c).
 
@@ -189,6 +196,22 @@ filtered `cargo nextest run` passes the timed tests in seconds.
   `is_build_output`, backed by a const slice the way `stamp.rs` records its
   fingerprint variables. Two different linters policing the same function is a
   reason to name the concept, not to silence one of them.
+
+- **A stamp is only as good as its input set.** Three families hashed their
+  fixture directory alone, and every fixture there declares a path dependency on
+  `crates/rstest-bdd` or `crates/rstest-bdd-macros`. Editing a workspace crate
+  therefore left the stamp valid while the timed assertion compiled the changed
+  crates itself. The rule the review implies: a family's inputs are everything
+  that changes what its artefacts compile, not everything that sits next to the
+  fixture. The cost is more frequent preparation; the alternative is a gate
+  that silently stops protecting anything.
+- **`is_ok_and` encodes failure as "does not match".** `was_written_since`
+  documented that an unreadable timestamp counts as fresh and then wrote
+  `is_ok_and(|modified| modified >= threshold)`, which counts it as stale. The
+  two readings differ only on platforms whose filesystems omit modification
+  times, which is why nothing caught it. Where a `Result` failure has a
+  documented meaning other than `false`, unwrap it with `let Ok(..) = .. else`
+  and state the default explicitly.
 
 ## Decision Log
 
