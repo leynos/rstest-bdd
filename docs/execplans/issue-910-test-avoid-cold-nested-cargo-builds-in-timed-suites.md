@@ -289,6 +289,15 @@ the assertion does not share.
   CodeScene means — the file's score fell below the gate — it was. But the
   duplicated pair predates the branch. That is not an argument for ignoring it:
   the gate compares the file, and the file now fails.
+- **The CodeScene CLI is installed at `~/.local/bin/cs` and answers this
+  offline.** `cs check <file>` scores one file; `cs review <file>` names the
+  duplicated *functions*, which the GitHub check summary never does. A whole
+  hypothesis cycle — edit, commit, push, wait for CI, read the check run —
+  costs minutes; `cs review` costs a second and points at the exact pair. Two
+  caveats learned the hard way: it needs a git repository (it shells out to
+  `git` and errors out of one), and `--check` and the in-place rewrite can
+  disagree by a few lines, so write the formatter's stdout to a file and copy
+  it in rather than trusting in-place mode.
 - **`input_hash` already skips `target` directories by entry name,** so
   `crates/rstest-bdd/target/tests/ui_lints_clippy` is excluded from the
   `crates` input root even though it lives inside it. No special case was
