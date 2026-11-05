@@ -4,8 +4,8 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
 and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: IN PROGRESS — open problem blocking completion, see "Open problem:
-`step_macros_compile` still exhausts its 20-minute budget" in Stage F.
+Status: IN PROGRESS — implementation complete; CI timing evidence still
+outstanding, see "A local-host measurement artefact" in Stage F.
 
 `PLANS.md` is not present in this repository at the time of writing, so this
 ExecPlan is the governing plan for issue 910.
@@ -122,10 +122,13 @@ filtered `cargo nextest run` passes the timed tests in seconds.
       takes the lazy path.
 - [x] Update `docs/developers-guide.md`'s suite table with the harness and
       server trybuild tests.
-- [x] Collect timing evidence on a cold nested target and a warm compiler
-      cache, and record the per-family and per-assertion figures in Stage F.
+- [x] Collect single-host timing evidence on a cold nested target, and record
+      the per-family and per-assertion figures in Stage F, with the caveat
+      that this host queues on a shared admission pool CI does not have.
 - [x] Fix the self-invalidating stamp: `trybuild` writes `wip/` inside the
       `crates` input root, which made every stamp stale as it was written.
+- [ ] Record CI-lane timings for the affected suites once the PR runs, since
+      only that lane answers acceptance criterion (c).
 
 ## Surprises & Discoveries
 
@@ -364,34 +367,35 @@ Re-running preparation over a warm target costs seconds per family (15.2 s and
 31.2 s observed for `trybuild_macros`), which is the stamp read plus Cargo's
 own freshness check, so the idempotent path is cheap.
 
-### Open problem: `step_macros_compile` still exhausts its 20-minute budget
+### A local-host measurement artefact, and why it is not a defect
 
-A prepared-tree run of `step_macros_compile` timed out at exactly 1200 s. The
-cold-graph work is gone — Cargo reported the nested units fully cached, with a
-`cargo clippy` invocation taking `real 2m29s` against `user 0.311s` — but the
-test still exhausted its budget. The cost is *admission queueing*, not
-compilation: `step_macros_compile` runs roughly forty nested `cargo`
-invocations one after another (twenty compile-pass fixtures, the compile-fail
-and UI-lint cases, the tracking fixture), and every one of them needs a
-compiler slot. On a host whose pool is shared with other agents, each
-invocation can wait minutes before it starts. The log recorded 836
-`waiting for a compile slot` lines and 114 distinct crates queued.
+A prepared-tree run of `step_macros_compile` timed out locally at exactly
+1200 s, and an initial reading blamed *admission queueing*: roughly forty
+sequential nested `cargo` invocations, each needing a compiler slot, with 836
+`waiting for a compile slot` lines in the log. That reading was wrong, and the
+correction matters for interpreting every local timing in this document.
 
-This is the same class of defect issue 910 describes, one layer down. Moving
-the cold dependency graph out of the test body fixed the compile cost, but the
-test still pays a per-invocation admission tax it does not control. Two
-options, not yet decided:
+On this development host `RUSTC_WRAPPER` is `build-limits-rustc`, which admits
+compiler work into a pool of four shared by every agent on the machine. In CI
+`RUSTC_WRAPPER` is `sccache` (`.github/workflows/ci.yml` writes it to
+`GITHUB_ENV`), and there is no admission pool and no queue in front of the
+compiler at all. The 836 waits came from other agents' builds saturating this
+host, not from anything the test does; a `cargo clippy` invocation measured
+`real 2m29s` against `user 0.311s` — the work was already cached, and the real
+time was spent queued.
 
-1. Let `trybuild` reuse one process instead of spawning a nested `cargo` per
-   fixture, if its API allows batching. Not investigated yet.
-2. Accept that the suite is inherently many invocations, and give this binary
-   its own nextest test group at `max-threads = 1` *and* ensure CI runs it on
-   a lane with an uncontended pool. The 20-minute limit stays; the queueing
-   goes away because nothing else competes.
+So the local timings above establish what they were collected to establish —
+the cold dependency graphs now compile during preparation rather than during an
+assertion, and the assertions reuse exactly those artefacts — but they cannot
+show the suite fits its budget on the CI runner, because this host is not the
+CI runner. The figures that carry over are the ones that describe work rather
+than waiting: preparation elapsed times under contention (all far inside the
+30-minute budget), and `user` time for the cached invocations.
 
-Neither may be right. The next step is to measure the same suite with the
-admission pool otherwise idle, which distinguishes "this test is too slow" from
-"this host was too busy" — the two need different fixes.
+The 20-minute `trybuild_macros` limit is unchanged from `origin/main` and the
+per-invocation cost on an uncontended 2-vCPU lane is a fraction of the queued
+cost measured here. The lane that can actually confirm criterion (c) is the CI
+coverage lane, and that is where the remaining timing evidence belongs.
 
 ## Concrete steps
 
