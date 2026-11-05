@@ -130,10 +130,25 @@ filtered `cargo nextest run` passes the timed tests in seconds.
 - [x] Clear the `clippy::unnecessary_wraps` diagnostics the shared contract
       produces for the two suites whose preparation has no fallible step, and
       the `cloned_ref_to_slice_refs` pair in the preparation tests.
+- [x] Correct the budget rationale's misattributed figure: the comments cited
+      386.8 s as the largest cold preparation, but that is the old *timed*
+      `step_macros_compile` run on CI with a partial sccache. The recorded cold
+      preparations are 864.239 s (server trybuild tree) and 645.412 s (the
+      `rstest-bdd` trybuild binary's two graphs), both single-host figures
+      behind the shared admission pool.
 - [ ] Record CI-lane timings for the affected suites once the PR runs, since
       only that lane answers acceptance criterion (c).
 
 ## Surprises & Discoveries
+
+- **A figure can be true and still be the wrong figure.** The preparation
+  budget's rationale cited 386.8 s as "the largest cold dependency build". That
+  number is real, but it measures the old *timed* `step_macros_compile` run on
+  `ubicloud-standard-2` against a partial sccache — the very cost this change
+  removes from the assertion. The cold *preparations* measured here are
+  645.412 s and 864.239 s. Quoting a correctly transposed number under a new
+  heading is easy to miss in review because every digit checks out; what fails
+  is the referent.
 
 - **`priority` is not precedence.** The first version of the nextest override
   comment claimed `priority` decided which override won. It does not: nextest
