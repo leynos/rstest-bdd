@@ -8,8 +8,14 @@
 //! parsed value, read through `default_profile_key` and
 //! `test_group_max_threads` respectively.
 //!
-//! Three contracts are pinned:
+//! Four contracts are pinned:
 //!
+//! * `preparation_nextest_override_preserves_timeout_contract` requires exactly one override to
+//!   match `test(/nested_fixture_preparation$/)`, at a 30 m period with the same termination
+//!   settings and group, and to be scheduled ahead of every other override (`priority` 100 against
+//!   the default 0). It also requires the top-level `nextest-version` that `priority` needs, and
+//!   that the preparation override is the first one in the file, so the first-match precedence rule
+//!   keeps it authoritative if a future override ever matched the same tests.
 //! * `trybuild_nextest_override_preserves_timeout_contract` requires exactly one override to name
 //!   any of the four compile-test binaries, and that override's filter to name all four and no
 //!   others. It then requires the override to keep a 20 m `slow-timeout` period, `terminate-after =
@@ -23,6 +29,11 @@
 //!   s reserve) and requires the default profile's `global-timeout` to cover it, and the
 //!   `cargo-spawning` group's `max-threads` to stay at 1 so nested builds keep serializing.
 //!
+//! The three timed overrides are asserted at their exact periods rather than only
+//! against the global timeout, because widening one is how a cold build gets
+//! hidden instead of moved: the preparation override is the only place in the
+//! file where a cold dependency build may spend a test's budget.
+//!
 //! The overrides, the group and the run-level ceiling are policy that a future
 //! edit could break silently, so these assertions fail loudly instead. They
 //! cover the two nextest tiers of the four-tier timeout budget: a per-test
@@ -30,24 +41,120 @@
 //! coverage watchdog and the job `timeout-minutes` are the outer two tiers,
 //! covered by the workflow contracts under `tests/workflow_contracts`;
 //! `.config/nextest.toml` asks that suite and this file to be kept in step.
+//!
+//! Reading the parsed value is `support`'s job, attached with
+//! `#[path = "nextest_config/support.rs"]` so Cargo does not also compile it as
+//! a second test target. This module states the policy; that one finds the keys
+//! it is stated about.
 
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    error::Error,
-    io,
-    path::{Path, PathBuf},
-};
+use std::{error::Error, io};
 
-use cap_std::{ambient_authority, fs::Dir};
 use toml::Value;
 
-const EXPECTED_TRYBUILD_BINARIES: [&str; 4] = [
-    "rstest-bdd-harness-tokio::macro_compile",
-    "rstest-bdd-harness-gpui::macro_compile",
-    "rstest-bdd::trybuild_macros",
-    "rstest-bdd-server::workspace_discovery_compile",
-];
+#[path = "nextest_config/support.rs"]
+mod support;
+use support::{
+    binary_id_report,
+    default_global_timeout,
+    default_overrides,
+    duration_seconds,
+    nextest_configuration,
+    nextest_version,
+    test_group_max_threads,
+    trybuild_override_candidates,
+};
+
 const FEATURE_REBUILD_BINARY: &str = "rstest-bdd::feature_rebuild_invalidation";
+
+#[test]
+fn preparation_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn Error>> {
+    let configuration = nextest_configuration()?;
+    let overrides = default_overrides(&configuration)?;
+    let filter = "test(/nested_fixture_preparation$/)";
+    let candidates = overrides
+        .iter()
+        .enumerate()
+        .filter(|(_, override_value)| {
+            override_value.get("filter").and_then(Value::as_str) == Some(filter)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        candidates.len(),
+        1,
+        "the preparation tests must have exactly one nextest override matching {filter}, found {}",
+        candidates.len(),
+    );
+    let (position, override_value) = candidates
+        .first()
+        .copied()
+        .ok_or_else(|| io::Error::other("expected one preparation nextest override"))?;
+    assert_eq!(
+        position, 0,
+        "the preparation override must be the first override in the file; nextest applies the \
+         first override that matches a test and configures a setting, so a later position would \
+         silently defer to an earlier match",
+    );
+
+    let slow_timeout = override_value
+        .get("slow-timeout")
+        .and_then(Value::as_table)
+        .expect("the preparation override must contain a slow-timeout table");
+    assert_eq!(
+        slow_timeout.get("period").and_then(Value::as_str),
+        Some("30m"),
+        "the preparation override must allow a 30-minute period, which is where a cold dependency \
+         build belongs; a timed assertion has no budget for one",
+    );
+    assert_eq!(
+        slow_timeout
+            .get("terminate-after")
+            .and_then(Value::as_integer),
+        Some(1),
+        "the preparation override must terminate after one slow-timeout period",
+    );
+    assert_eq!(
+        slow_timeout.get("grace-period").and_then(Value::as_str),
+        Some("5s"),
+        "the preparation override must retain the five-second grace period",
+    );
+    assert_eq!(
+        override_value.get("test-group").and_then(Value::as_str),
+        Some("cargo-spawning"),
+        "the preparation override must remain in the cargo-spawning group, so it serialises with \
+         the tests whose build trees it warms",
+    );
+    let priority = override_value.get("priority").and_then(Value::as_integer);
+    assert_eq!(
+        priority,
+        Some(100),
+        "the preparation override must carry the highest scheduling priority nextest accepts, so \
+         the preparations run before the timed assertions that depend on them",
+    );
+    let competing = overrides
+        .iter()
+        .filter(|other| {
+            !std::ptr::eq(*other, override_value)
+                && other
+                    .get("priority")
+                    .and_then(Value::as_integer)
+                    .unwrap_or(0)
+                    >= 100
+        })
+        .count();
+    assert_eq!(
+        competing, 0,
+        "no other override may share the preparation override's scheduling priority",
+    );
+
+    let version = nextest_version(&configuration)?;
+    assert!(
+        version >= (0, 9, 91),
+        "nextest-version must be at least 0.9.91 so `priority` is a setting the runner reads, \
+         found {version:?}",
+    );
+
+    Ok(())
+}
 
 #[test]
 fn trybuild_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn Error>> {
@@ -184,171 +291,4 @@ fn nested_cargo_run_retains_cold_build_reserve() -> Result<(), Box<dyn Error>> {
         "nested Cargo builds must remain serialized to avoid competing for compiler resources",
     );
     Ok(())
-}
-
-fn nextest_configuration() -> Result<Value, Box<dyn Error>> {
-    let configuration_directory = workspace_root()?.join(".config");
-    let configuration_directory =
-        Dir::open_ambient_dir(configuration_directory, ambient_authority())?;
-    let source = configuration_directory.read_to_string("nextest.toml")?;
-
-    Ok(toml::from_str(&source)?)
-}
-
-fn workspace_root() -> Result<PathBuf, io::Error> {
-    let manifest_directory = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let workspace_root = manifest_directory
-        .parent()
-        .and_then(Path::parent)
-        .ok_or_else(|| {
-            io::Error::other(
-                "rstest-bdd manifest directory must be nested under the workspace root",
-            )
-        })?;
-
-    Ok(workspace_root.to_path_buf())
-}
-
-fn default_profile_key<'a>(configuration: &'a Value, key: &str) -> Option<&'a Value> {
-    configuration
-        .get("profile")
-        .and_then(Value::as_table)
-        .and_then(|profiles| profiles.get("default"))
-        .and_then(Value::as_table)
-        .and_then(|default_profile| default_profile.get(key))
-}
-
-fn default_global_timeout(configuration: &Value) -> Result<&str, io::Error> {
-    default_profile_key(configuration, "global-timeout")
-        .and_then(Value::as_str)
-        .ok_or_else(|| {
-            io::Error::other("nextest configuration must set profile.default.global-timeout")
-        })
-}
-
-/// `test-groups` is a top-level nextest table, not a profile key, so it needs
-/// its own lookup rather than `default_profile_key`.
-fn test_group_max_threads(configuration: &Value, group_name: &str) -> Result<i64, io::Error> {
-    configuration
-        .get("test-groups")
-        .and_then(Value::as_table)
-        .and_then(|groups| groups.get(group_name))
-        .and_then(Value::as_table)
-        .and_then(|group| group.get("max-threads"))
-        .and_then(Value::as_integer)
-        .ok_or_else(|| {
-            io::Error::other(format!(
-                "nextest configuration must set test-groups.{group_name}.max-threads"
-            ))
-        })
-}
-
-fn duration_seconds(duration: &str) -> Result<u64, io::Error> {
-    let unit_start = duration
-        .find(|character: char| !character.is_ascii_digit())
-        .ok_or_else(|| io::Error::other(format!("duration {duration} names no unit")))?;
-    let (value, unit) = duration.split_at(unit_start);
-    let value: u64 = value
-        .parse()
-        .map_err(|_| io::Error::other(format!("duration {duration} names no count")))?;
-    let multiplier = match unit {
-        "s" => 1,
-        "m" => 60,
-        "h" => 3_600,
-        _ => {
-            return Err(io::Error::other(format!(
-                "duration {duration} uses unit {unit}"
-            )));
-        }
-    };
-
-    value
-        .checked_mul(multiplier)
-        .ok_or_else(|| io::Error::other(format!("duration {duration} overflows")))
-}
-
-fn default_overrides(configuration: &Value) -> Result<&[Value], io::Error> {
-    let overrides = default_profile(configuration)?
-        .get("overrides")
-        .and_then(Value::as_array)
-        .ok_or_else(|| {
-            io::Error::other("nextest configuration must contain profile.default.overrides")
-        })?;
-
-    Ok(overrides)
-}
-
-fn default_profile(configuration: &Value) -> Result<&toml::value::Table, io::Error> {
-    configuration
-        .get("profile")
-        .and_then(Value::as_table)
-        .and_then(|profiles| profiles.get("default"))
-        .and_then(Value::as_table)
-        .ok_or_else(|| io::Error::other("nextest configuration must contain profile.default"))
-}
-fn trybuild_override_candidates(overrides: &[Value]) -> Vec<usize> {
-    overrides
-        .iter()
-        .enumerate()
-        .filter_map(|(index, override_value)| {
-            let filter = override_value.get("filter")?.as_str()?;
-            binary_ids(filter)
-                .iter()
-                .any(|binary_id| EXPECTED_TRYBUILD_BINARIES.contains(binary_id))
-                .then_some(index)
-        })
-        .collect()
-}
-
-fn binary_id_report(overrides: &[Value], candidates: &[usize]) -> String {
-    let binary_ids = candidates.iter().flat_map(|index| {
-        overrides
-            .get(*index)
-            .and_then(|override_value| override_value.get("filter"))
-            .and_then(Value::as_str)
-            .map(binary_ids)
-            .unwrap_or_default()
-    });
-    let mut occurrences = BTreeMap::new();
-    for binary_id in binary_ids {
-        *occurrences.entry(binary_id).or_insert(0_usize) += 1;
-    }
-
-    let expected = BTreeSet::from(EXPECTED_TRYBUILD_BINARIES);
-    let actual = occurrences.keys().copied().collect::<BTreeSet<_>>();
-    let missing = expected
-        .difference(&actual)
-        .copied()
-        .collect::<BTreeSet<_>>();
-    let duplicate = occurrences
-        .iter()
-        .filter_map(|(binary_id, count)| (*count > 1).then_some(*binary_id))
-        .collect::<BTreeSet<_>>();
-    let unexpected = actual
-        .difference(&expected)
-        .copied()
-        .collect::<BTreeSet<_>>();
-
-    format!(
-        "missing binary IDs: {}; duplicate binary IDs: {}; unexpected binary IDs: {}",
-        format_binary_ids(&missing),
-        format_binary_ids(&duplicate),
-        format_binary_ids(&unexpected),
-    )
-}
-
-fn binary_ids(filter: &str) -> Vec<&str> {
-    filter
-        .split("binary_id(")
-        .skip(1)
-        .filter_map(|suffix| suffix.split_once(')').map(|(binary_id, _)| binary_id))
-        .collect()
-}
-
-fn format_binary_ids(binary_ids: &BTreeSet<&str>) -> String {
-    if binary_ids.is_empty() {
-        "<none>".to_owned()
-    } else {
-        binary_ids.iter().copied().collect::<Vec<_>>().join(", ")
-    }
 }
