@@ -15,7 +15,10 @@ use std::{
 };
 
 use rstest_bdd_harness::binary_test_support::{
-    BinaryLocateError, BinaryName, build_binary, locate_or_build_binary,
+    BinaryLocateError,
+    BinaryName,
+    build_binary,
+    locate_or_build_binary,
     target_directory_for_manifest,
 };
 

@@ -9,8 +9,16 @@ use std::{
 
 use rstest::{fixture, rstest};
 use rstest_bdd_harness::{
-    FailingHarness, HarnessAdapter, HarnessError, HarnessResult, ScenarioMetadata,
-    ScenarioRunRequest, ScenarioRunner, StdHarness, StdScenarioRunRequest, StdScenarioRunner,
+    FailingHarness,
+    HarnessAdapter,
+    HarnessError,
+    HarnessResult,
+    ScenarioMetadata,
+    ScenarioRunRequest,
+    ScenarioRunner,
+    StdHarness,
+    StdScenarioRunRequest,
+    StdScenarioRunner,
 };
 
 #[path = "../src/test_utils.rs"]
@@ -20,9 +28,7 @@ use test_utils::{STD_HARNESS_PANIC_MESSAGE, panic_payload_matches};
 
 #[rstest_bdd_test_macros::allow_fixture_expansion_lints]
 #[fixture]
-fn default_metadata() -> ScenarioMetadata {
-    ScenarioMetadata::default()
-}
+fn default_metadata() -> ScenarioMetadata { ScenarioMetadata::default() }
 
 #[derive(Debug)]
 struct MetadataProbeHarness {

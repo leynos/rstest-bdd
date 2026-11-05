@@ -48,15 +48,11 @@ impl TestAttribute {
 
     /// Returns the attribute path.
     #[must_use]
-    pub const fn path(self) -> &'static str {
-        self.path
-    }
+    pub const fn path(self) -> &'static str { self.path }
 
     /// Returns optional argument payload.
     #[must_use]
-    pub const fn arguments(self) -> Option<&'static str> {
-        self.arguments
-    }
+    pub const fn arguments(self) -> Option<&'static str> { self.arguments }
 
     /// Renders the attribute as text for diagnostics and tests.
     #[must_use]
@@ -93,9 +89,7 @@ pub struct DefaultAttributePolicy;
 const DEFAULT_TEST_ATTRIBUTES: [TestAttribute; 1] = [TestAttribute::new("rstest::rstest")];
 
 impl AttributePolicy for DefaultAttributePolicy {
-    fn test_attributes() -> &'static [TestAttribute] {
-        &DEFAULT_TEST_ATTRIBUTES
-    }
+    fn test_attributes() -> &'static [TestAttribute] { &DEFAULT_TEST_ATTRIBUTES }
 }
 
 #[cfg(test)]

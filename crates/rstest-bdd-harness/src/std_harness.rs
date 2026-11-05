@@ -12,9 +12,7 @@ pub struct StdHarness;
 impl StdHarness {
     /// Creates a new synchronous harness instance.
     #[must_use]
-    pub const fn new() -> Self {
-        Self
-    }
+    pub const fn new() -> Self { Self }
 }
 
 impl HarnessAdapter for StdHarness {
@@ -35,15 +33,17 @@ mod tests {
 
     use super::StdHarness;
     use crate::{
-        HarnessAdapter, ScenarioMetadata, ScenarioRunner, StdScenarioRunRequest, StdScenarioRunner,
+        HarnessAdapter,
+        ScenarioMetadata,
+        ScenarioRunner,
+        StdScenarioRunRequest,
+        StdScenarioRunner,
         test_utils::{STD_HARNESS_PANIC_MESSAGE, panic_payload_matches},
     };
 
     #[rstest_bdd_test_macros::allow_fixture_expansion_lints]
     #[fixture]
-    fn harness() -> StdHarness {
-        StdHarness::new()
-    }
+    fn harness() -> StdHarness { StdHarness::new() }
 
     #[rstest_bdd_test_macros::allow_fixture_expansion_lints]
     #[fixture]

@@ -94,30 +94,22 @@ mod tests {
 
     struct GoodPolicy;
     impl AttributePolicy for GoodPolicy {
-        fn test_attributes() -> &'static [TestAttribute] {
-            &GOOD
-        }
+        fn test_attributes() -> &'static [TestAttribute] { &GOOD }
     }
 
     struct WrongCountPolicy;
     impl AttributePolicy for WrongCountPolicy {
-        fn test_attributes() -> &'static [TestAttribute] {
-            &WRONG_COUNT
-        }
+        fn test_attributes() -> &'static [TestAttribute] { &WRONG_COUNT }
     }
 
     struct WrongRenderPolicy;
     impl AttributePolicy for WrongRenderPolicy {
-        fn test_attributes() -> &'static [TestAttribute] {
-            &WRONG_RENDER
-        }
+        fn test_attributes() -> &'static [TestAttribute] { &WRONG_RENDER }
     }
 
     struct RstestNotFirstPolicy;
     impl AttributePolicy for RstestNotFirstPolicy {
-        fn test_attributes() -> &'static [TestAttribute] {
-            &RSTEST_NOT_FIRST
-        }
+        fn test_attributes() -> &'static [TestAttribute] { &RSTEST_NOT_FIRST }
     }
 
     #[test]

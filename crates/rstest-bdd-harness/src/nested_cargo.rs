@@ -54,8 +54,14 @@ mod preparation;
 mod profile;
 
 pub use preparation::{
-    PREPARATION_COMMAND_TIMEOUT, Preparation, PreparationSummary, count_compiling, ensure_prepared,
-    input_hash, prepare_now, running_under_nextest,
+    PREPARATION_COMMAND_TIMEOUT,
+    Preparation,
+    PreparationSummary,
+    count_compiling,
+    ensure_prepared,
+    input_hash,
+    prepare_now,
+    running_under_nextest,
 };
 pub use profile::ProfileDestination;
 
@@ -162,9 +168,7 @@ impl NestedCargoEnv {
 
     /// Whether `key` is set in the filtered environment.
     #[must_use]
-    pub fn contains_key(&self, key: &str) -> bool {
-        self.0.contains_key(OsStr::new(key))
-    }
+    pub fn contains_key(&self, key: &str) -> bool { self.0.contains_key(OsStr::new(key)) }
 
     /// The value of `key` in the filtered environment, if present.
     #[must_use]
@@ -173,9 +177,7 @@ impl NestedCargoEnv {
     }
 
     /// Iterate the filtered environment as sorted `(key, value)` pairs.
-    pub fn iter(&self) -> impl Iterator<Item = (&OsString, &OsString)> {
-        self.0.iter()
-    }
+    pub fn iter(&self) -> impl Iterator<Item = (&OsString, &OsString)> { self.0.iter() }
 
     /// Apply the environment to `cmd`, starting from an empty environment.
     pub fn apply_to(&self, cmd: &mut Command) {
