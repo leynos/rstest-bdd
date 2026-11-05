@@ -159,8 +159,8 @@ filtered `cargo nextest run` passes the timed tests in seconds.
   beside the crate under test — not inside the target directory — and creates
   it during the very build the stamp describes. Hashing it meant the stamp was
   stale the moment it was written: the cold preparation passed in 645 s and
-  `step_macros_compile` then failed in 0.219 s with "missing or stale".
-  `wip` is now excluded by name, like `target` and `.git`, and
+  `step_macros_compile` then failed in 0.219 s with "missing or stale". `wip`
+  is now excluded by name, like `target` and `.git`, and
   `preparation_survives_the_build_output_it_creates` pins the ordering rule
   rather than just the name list. The other families hash source trees their
   builds do not write into, so the exclusion is what keeps them safe too.
@@ -196,10 +196,10 @@ can be collected only from the PR's own run.
 Every suite that compiles a nested Cargo graph is prepared and stamped,
 including the harness and server trybuild trees. On the development host a cold
 nested target prepared all six families in 2213.657 s, well inside their 30 m
-budgets, and the timed assertions then ran against those trees: `list_steps_runs`
-in 2.223 s against 180 s, `feature_addition_triggers_rebuild` in 224.433 s
-against 600 s, and the CLI and trybuild helper cases in seconds. No assertion
-deadline was widened.
+budgets, and the timed assertions then ran against those trees:
+`list_steps_runs` in 2.223 s against 180 s, `feature_addition_triggers_rebuild`
+in 224.433 s against 600 s, and the CLI and trybuild helper cases in seconds.
+No assertion deadline was widened.
 
 Two things surfaced while wiring the remaining suites. `trybuild` derives its
 build directory from the *workspace* target root, not from the crate being
@@ -226,8 +226,8 @@ The remaining caveat is about interpreting local measurements. This host routes
 `rustc` through a shared four-slot admission pool, and CI does not, so local
 elapsed times under contention measure the queue rather than the suite. The
 figures above establish that the cold work moved and that the assertions reuse
-the prepared trees; the CI coverage lane is what establishes that the suite fits
-its budget there.
+the prepared trees; the CI coverage lane is what establishes that the suite
+fits its budget there.
 
 ## Context and orientation
 
@@ -356,32 +356,32 @@ were empty when the run began; the workspace target was warm.
 
 `make prepare-nested-fixtures` on a cold nested target, six families:
 
-| Family                                            | Elapsed    | Budget |
-| ------------------------------------------------- | ---------- | ------ |
-| `cargo-bdd::cli`                                  | 169.847 s  | 30 m   |
-| `rstest-bdd::feature_rebuild_invalidation`        | 166.902 s  | 30 m   |
-| `rstest-bdd::trybuild_macros`                     | 645.412 s  | 30 m   |
-| `rstest-bdd-harness-gpui::macro_compile`          | 304.252 s  | 30 m   |
-| `rstest-bdd-harness-tokio::macro_compile`         | 62.976 s   | 30 m   |
-| `rstest-bdd-server::workspace_discovery_compile`  | 864.239 s  | 30 m   |
+| Family                                           | Elapsed   | Budget |
+| ------------------------------------------------ | --------- | ------ |
+| `cargo-bdd::cli`                                 | 169.847 s | 30 m   |
+| `rstest-bdd::feature_rebuild_invalidation`       | 166.902 s | 30 m   |
+| `rstest-bdd::trybuild_macros`                    | 645.412 s | 30 m   |
+| `rstest-bdd-harness-gpui::macro_compile`         | 304.252 s | 30 m   |
+| `rstest-bdd-harness-tokio::macro_compile`        | 62.976 s  | 30 m   |
+| `rstest-bdd-server::workspace_discovery_compile` | 864.239 s | 30 m   |
 
 Total 2213.657 s for six tests run in parallel under the `cargo-spawning`
 group, each on its own budget. Every family finished inside a quarter of its
 budget despite a saturated compiler pool (capacity 4, four slots held
-throughout, with waits of up to 115 compiles ahead). The trybuild families
-share `<target>/tests/trybuild`, so the first to run paid for the dependency
-graph and the others compiled only what their own generated manifests added.
+throughout, with waits of up to 115 compiles ahead). The trybuild families share
+`<target>/tests/trybuild`, so the first to run paid for the dependency graph
+and the others compiled only what their own generated manifests added.
 
-The timed assertions then ran against those prepared trees with no
-preparation in their bodies:
+The timed assertions then ran against those prepared trees with no preparation
+in their bodies:
 
-| Test                                                       | Elapsed   | Limit  |
-| ---------------------------------------------------------- | --------- | ------ |
-| `cargo-bdd::cli::list_steps_runs`                          | 2.223 s   | 180 s  |
-| `cargo-bdd::cli` smoke cases (12 others)                   | ≤ 1.8 s   | 180 s  |
-| `feature_rebuild_invalidation::feature_addition_triggers_rebuild` | 224.433 s | 600 s |
-| `feature_rebuild_invalidation::bound_feature_file_is_tracked_dependency` | 53.304 s | 600 s |
-| `trybuild_macros` helper tests                             | ≤ 0.022 s | 20 m   |
+| Test                                                                     | Elapsed   | Limit |
+| ------------------------------------------------------------------------ | --------- | ----- |
+| `cargo-bdd::cli::list_steps_runs`                                        | 2.223 s   | 180 s |
+| `cargo-bdd::cli` smoke cases (12 others)                                 | ≤ 1.8 s   | 180 s |
+| `feature_rebuild_invalidation::feature_addition_triggers_rebuild`        | 224.433 s | 600 s |
+| `feature_rebuild_invalidation::bound_feature_file_is_tracked_dependency` | 53.304 s  | 600 s |
+| `trybuild_macros` helper tests                                           | ≤ 0.022 s | 20 m  |
 
 `list_steps_runs` is the issue's headline case: it took 2.2 s against a 180 s
 limit, having previously exhausted that limit on a cold build. The rebuild
@@ -393,9 +393,9 @@ own freshness check, so the idempotent path is cheap.
 
 ### A local-host measurement artefact, and why it is not a defect
 
-A prepared-tree run of `step_macros_compile` timed out locally at exactly
-1200 s, and an initial reading blamed *admission queueing*: roughly forty
-sequential nested `cargo` invocations, each needing a compiler slot, with 836
+A prepared-tree run of `step_macros_compile` timed out locally at exactly 1200
+s, and an initial reading blamed *admission queueing*: roughly forty sequential
+nested `cargo` invocations, each needing a compiler slot, with 836
 `waiting for a compile slot` lines in the log. That reading was wrong, and the
 correction matters for interpreting every local timing in this document.
 
@@ -424,11 +424,12 @@ coverage lane, and that is where the remaining timing evidence belongs.
 The second prepared-tree attempt is the clearest illustration of that gap. It
 ran the gate (accepted, no `NotFound`), then worked through the fixture set in
 order and was killed at 1200.018 s on the final `compile_fail` case, with 40
-`trybuild*` bins built and no fixture failure. Its 187 `waiting for a compile
-slot` lines name crates that were already cached — the pool, not the work, was
-the cost. The same run passed its per-fixture assertions throughout, so what it
-demonstrates is that every timed case reuses the prepared tree; it cannot
-demonstrate that the whole binary fits 1200 s when nothing else is compiling.
+`trybuild*` bins built and no fixture failure. Its 187
+`waiting for a compile slot` lines name crates that were already cached — the
+pool, not the work, was the cost. The same run passed its per-fixture
+assertions throughout, so what it demonstrates is that every timed case reuses
+the prepared tree; it cannot demonstrate that the whole binary fits 1200 s when
+nothing else is compiling.
 
 ## Concrete steps
 
