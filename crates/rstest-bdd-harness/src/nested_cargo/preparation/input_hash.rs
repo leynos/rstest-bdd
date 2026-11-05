@@ -16,6 +16,22 @@ use std::{
 
 use super::stamp::{PREPARED_FILE_SUFFIX, STAMP_VERSION};
 
+/// Directory names that hold build output rather than fixture inputs.
+///
+/// `target` holds the nested build's artefacts, `wip` holds `trybuild`'s
+/// scratch files and `.git` holds version control state. None of them changes
+/// what the fixture compiles.
+const BUILD_OUTPUT_ENTRIES: [&str; 3] = ["target", "wip", ".git"];
+
+/// Whether an entry name is build output rather than an input.
+///
+/// The stamp files the preparation module writes are excluded too: they name
+/// the fingerprint computed from these inputs, so counting them would make
+/// every preparation invalidate the fingerprint that describes it.
+fn is_build_output(name: &str) -> bool {
+    BUILD_OUTPUT_ENTRIES.contains(&name) || name.ends_with(PREPARED_FILE_SUFFIX)
+}
+
 /// Hash the inputs a preparation family's artefacts derive from.
 ///
 /// `roots` may name files or directories; directories are walked in sorted
@@ -67,14 +83,7 @@ fn hash_entry(path: &Path, hasher: &mut impl Hasher) -> io::Result<()> {
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
             .unwrap_or_default();
-        // `target` holds build output, `wip` holds `trybuild`'s scratch files
-        // and the stamp names the fingerprint computed from these inputs, so
-        // none of them is an input.
-        if name == "target"
-            || name == "wip"
-            || name == ".git"
-            || name.ends_with(PREPARED_FILE_SUFFIX)
-        {
+        if is_build_output(&name) {
             continue;
         }
         name.hash(hasher);
