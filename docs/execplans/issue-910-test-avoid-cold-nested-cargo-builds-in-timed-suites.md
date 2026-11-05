@@ -212,6 +212,17 @@ The three tests the issue names as failures now run at 0.3%, 0.3% and 16.5% of
 their deadlines, with the cold graph compiled by a separate test under a budget
 the assertion does not share.
 
+- [x] Push the final head `851c9b1c` and confirm it against the remote. The two
+      commits it carries are execplan-only: the CodeScene CLI measurement note
+      and the record of check run `127148421451` passing. They were held back
+      until the in-flight rerun of `41998761582` finished, because
+      `cancel-in-progress: true` means a push starts a fresh run and cancels the
+      one already in progress. The push went over the explicit SSH URL with
+      `GIT_CONFIG_*`, `GH_TOKEN`, `GITHUB_TOKEN`, `BASH_ENV`, `GIT_SSH` and
+      `GIT_SSH_COMMAND` stripped, then the tracking ref was refreshed with a
+      leading-`+` refspec and `ls-remote` returned the same
+      `851c9b1caf8eaf92d9aed46365b305e99701dd20` as `git rev-parse HEAD`. The
+      resulting CI run is `42005188689`.
 - [x] Re-run `coderabbit review --agent` after the refactoring milestone. It
       completed over 33 changed files with zero findings. It was requested only
       after the deterministic gates it can be checked against had passed:
