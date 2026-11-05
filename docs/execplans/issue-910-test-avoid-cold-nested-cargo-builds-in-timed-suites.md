@@ -274,8 +274,9 @@ rather than by reading this branch's comments.
       replacement was 15 minutes, which the new contract test rejected:
       `2 × 900` is exactly the period, and the assertion requires strictly
       less. That is the test doing its job on a plausible but wrong value.
-      Twelve minutes still leaves more than double the largest cold
-      preparation measured on CI (438.214 s). The misleading `nextest.toml`
+      Twelve minutes still exceeds the largest cold preparation *test*
+      measured on CI (438.214 s), so every command inside one is covered — a
+      command cannot outlast the test that runs it. The misleading `nextest.toml`
       comment now says which path reports which overrun, and
       `preparation_command_bound_fires_before_the_runner_kills_the_test` pins
       the ordering so it cannot drift again. The other finding was stale
@@ -451,6 +452,16 @@ coverage lane supply the figures: `41981885921` with an evicted compiler cache,
 which is the cold-cache evidence acceptance criterion (a) asks for, and
 `42005188689` on the final head with a warm cache. Both passed every required
 lane.
+
+The evidence runs precede the two commits that answered CodeRabbit and fixed
+the formatting failure those commits carried, so the code they measured is not
+byte-identical to the final head. The only behavioural change after them is the
+per-command preparation bound, from 45 minutes to 12: a deadline inside the
+preparation test that no passing run approaches (the largest cold preparation
+measured 438.214 s, or 60.9% of 12 minutes). It removes no work from any test
+and adds none, so the recorded durations remain valid for the code they measure.
+`make test-workflow-contracts` (364 tests) and the `nextest_config` (5) and
+`rstest-bdd-harness` (51) suites pass on the final head.
 
 Every suite that compiles a nested Cargo graph is prepared and stamped,
 including the harness and server trybuild trees. On the development host a cold

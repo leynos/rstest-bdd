@@ -62,9 +62,11 @@ use super::{NestedCargoEnv, ProfileDestination, env_from_vars};
 /// commands in sequence: a combined bound at or above the test's own budget
 /// would let nextest kill the test first, discarding the captured child output
 /// that [`run_bounded_with_timeout`] puts in the error. Twelve minutes keeps the
-/// pair under half an hour while leaving more than double the largest cold
-/// preparation measured on CI (438 s), and keeps this path the one that reports
-/// a single wedged command by name.
+/// pair at 24 minutes, under the 30-minute period, and still exceeds the
+/// largest cold preparation *test* measured on CI (438 s) — so any single
+/// command inside such a test is covered, since a command cannot outlast the
+/// test that runs it. This keeps this path the one that reports a single
+/// wedged command by name.
 ///
 /// [`run_bounded_with_timeout`]: super::run_bounded_with_timeout
 pub const PREPARATION_COMMAND_TIMEOUT: Duration = Duration::from_secs(12 * 60);
