@@ -308,6 +308,36 @@ rather than by reading this branch's comments.
       Windows lanes. This is the first green run on the corrected bound, and it
       is the gate the merge ruleset actually requires. Its suite ran 2102
       tests, one more than the earlier runs because of the new contract test.
+- [x] Address the CodeRabbit pass on the accumulated diff. It reported two
+      findings, and both were valid. The first is the more serious: the
+      contract test pinned `sequential_commands` at 2, but
+      `feature_rebuild_invalidation`'s `prepare_all` runs **three** bounded
+      commands — `prepare_rebuild` compiles once, then `prepare_addition` runs
+      a `cargo metadata` preflight and a compile. My earlier reading counted
+      the two families rather than the commands inside them, so `3 × 12 m =
+      36 m` exceeded the 30 m period and a late third command would have lost
+      the named error. The bound is now 9 minutes and the count is a named
+      constant, `MAX_SEQUENTIAL_COMMANDS = 3`, which the contract test reads
+      rather than repeating a literal: `3 × 9 m = 27 m`.
+      The cold run shows how much headroom that leaves — the whole
+      three-command preparation took 31.154 s.
+      I chose to count the preflight rather than exempt it. It is a real
+      `cargo` invocation that can wedge on the package-cache lock, and
+      CodeRabbit's own second finding is that an unbounded child hangs the run;
+      moving the preflight off the bounded path would have created the hazard
+      the bound exists to prevent.
+      The second finding is also correct: `prepare_ui_clippy` used
+      `Command::output()`, which has no wall-clock bound, while
+      `.config/nextest.toml` claimed every preparation command was bounded. It
+      now goes through `run_bounded_with_timeout` with the same constant as
+      every other command.
+      The trybuild half of that family cannot be bounded the same way —
+      `trybuild` spawns its own `cargo` and offers no hook to control it — so
+      the `nextest.toml` comment and the developers guide now name that one
+      exception instead of implying universal coverage.
+      Gates after both fixes: `make fmt`, `make check-fmt`, `make lint`,
+      `make markdownlint`, `make test-workflow-contracts` (364) and
+      `nextest_config` (5) all pass.
 
 ## Surprises & Discoveries
 
@@ -346,6 +376,17 @@ rather than by reading this branch's comments.
   s and 864.239 s. Quoting a correctly transposed number under a new heading is
   easy to miss in review because every digit checks out; what fails is the
   referent.
+
+- **Count the commands, not the functions that call them.** The per-command
+  bound was first paired with a count of two, taken from the two preparation
+  families in `prepare_all`. The families are not the unit: one of them runs a
+  metadata preflight and then a compile, so the test issues three bounded
+  commands, and `3 × 12 m` exceeded the 30 m period the pair was supposed to
+  fit inside. A contract test that recomputes the inequality is only as good as
+  the constant it multiplies, and a constant chosen by reading the call
+  structure can be wrong in exactly the direction that matters — too low.
+  Counting the child processes the test actually spawns is the measurement;
+  counting the functions that spawn them is an inference.
 
 - **`priority` is not precedence.** The first version of the nextest override
   comment claimed `priority` decided which override won. It does not: nextest

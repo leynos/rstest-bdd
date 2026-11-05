@@ -311,12 +311,14 @@ fn feature_rebuild_nextest_override_preserves_timeout_contract() -> Result<(), B
 /// Keep cold-build drift from consuming the run-level reserve again.
 /// The per-command preparation bound must fire before the runner's test bound.
 ///
-/// A preparation test may run two sequential bounded commands — the rebuild
-/// family and the addition family each compile once — so the contract is
-/// `2 × PREPARATION_COMMAND_TIMEOUT < preparation period`. Any family that
-/// adds a third command has to widen this budget rather than silently lose the
-/// named timeout error, which is the only report that carries the child's
-/// captured output.
+/// A preparation test may run several sequential bounded commands: the
+/// rebuild-invalidation preparation compiles one fixture, then runs the
+/// addition fixture's metadata preflight and its compile. The contract is
+/// `MAX_SEQUENTIAL_COMMANDS × PREPARATION_COMMAND_TIMEOUT < preparation period`,
+/// recomputed from both constants rather than from a number repeated here, so
+/// raising the command count without resizing the bound fails loudly. The
+/// named timeout error this protects is the only report that carries the
+/// child's captured output; a runner slow-timeout discards it.
 #[test]
 fn preparation_command_bound_fires_before_the_runner_kills_the_test() -> Result<(), Box<dyn Error>>
 {
@@ -332,7 +334,7 @@ fn preparation_command_bound_fires_before_the_runner_kills_the_test() -> Result<
             io::Error::other("the preparation override must set a slow-timeout period")
         })?;
     let period_seconds = duration_seconds(period)?;
-    let sequential_commands = 2;
+    let sequential_commands = nested_cargo::MAX_SEQUENTIAL_COMMANDS;
     let command_seconds = nested_cargo::PREPARATION_COMMAND_TIMEOUT.as_secs();
     assert!(
         command_seconds * sequential_commands < period_seconds,

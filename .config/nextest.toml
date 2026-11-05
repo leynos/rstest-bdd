@@ -55,12 +55,15 @@ max-threads = 1
 # binaries share one generated-crate directory, so whichever prepares first
 # warms the dependency graph and the rest stamp it in seconds.
 #
-# Each nested preparation command carries its own bound
-# (`nested_cargo::PREPARATION_COMMAND_TIMEOUT`, 12 m) that keeps even two of them
-# inside this period, so a wedged command is reported by name with its captured
-# output rather than as a runner slow-timeout. This period bounds the whole
-# preparation *test*; only an overrun spanning several commands is reported by
-# nextest as a slow-timeout.
+# The preparation commands this repository spawns itself carry their own bound
+# (`nested_cargo::PREPARATION_COMMAND_TIMEOUT`, 9 m), and
+# `nested_cargo::MAX_SEQUENTIAL_COMMANDS` of them stay inside this period, so a
+# wedged command is reported by name with its captured output rather than as a
+# runner slow-timeout. One command is not bounded that way: `trybuild` spawns its
+# own nested `cargo`, and its API offers no hook to bound or capture that child,
+# so for the trybuild families this period is the only bound. This period also
+# bounds the whole preparation *test*; an overrun spanning several commands is
+# reported by nextest as a slow-timeout rather than by name.
 filter = "test(/nested_fixture_preparation$/)"
 slow-timeout = { period = "30m", terminate-after = 1, grace-period = "5s" }
 test-group = "cargo-spawning"

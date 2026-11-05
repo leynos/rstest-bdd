@@ -54,6 +54,7 @@ mod preparation;
 mod profile;
 
 pub use preparation::{
+    MAX_SEQUENTIAL_COMMANDS,
     PREPARATION_COMMAND_TIMEOUT,
     Preparation,
     PreparationSummary,

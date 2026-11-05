@@ -242,8 +242,19 @@ fn prepare_trybuild() -> io::Result<nested_cargo::PreparationSummary> {
 /// The probe bin is lint-clean, so this also proves the fixture crate builds.
 /// It deliberately asserts nothing about diagnostics: that stays the timed
 /// cases' job.
+///
+/// The child is bounded by [`nested_cargo::PREPARATION_COMMAND_TIMEOUT`] like
+/// every other preparation command. `Command::output()` would let a wedged
+/// `cargo clippy` — waiting on the package-cache lock, say — hang the run with
+/// no report: under nextest it would spend the preparation test's `slow-timeout`
+/// and lose its output, and under plain `cargo test` the lazy path has no
+/// runner bound at all.
 fn prepare_ui_clippy() -> io::Result<nested_cargo::PreparationSummary> {
-    let output = ui_clippy_command(UI_CLIPPY_PROBE).output()?;
+    let mut command = ui_clippy_command(UI_CLIPPY_PROBE);
+    let output = nested_cargo::run_bounded_with_timeout(
+        &mut command,
+        nested_cargo::PREPARATION_COMMAND_TIMEOUT,
+    )?;
     if !output.status.success() {
         return Err(io::Error::other(format!(
             "preparing the UI-lint fixture failed:\nstdout:\n{}\nstderr:\n{}",

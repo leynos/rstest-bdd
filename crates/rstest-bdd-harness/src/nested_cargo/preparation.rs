@@ -58,18 +58,36 @@ use super::{NestedCargoEnv, ProfileDestination, env_from_vars};
 /// and must not become, the deadline of any test.
 ///
 /// It must stay **below** the 30-minute `slow-timeout` that `.config/nextest.toml`
-/// gives `nested_fixture_preparation`, even when a preparation test runs two
+/// gives `nested_fixture_preparation`, even when a preparation test runs several
 /// commands in sequence: a combined bound at or above the test's own budget
 /// would let nextest kill the test first, discarding the captured child output
-/// that [`run_bounded_with_timeout`] puts in the error. Twelve minutes keeps the
-/// pair at 24 minutes, under the 30-minute period, and still exceeds the
-/// largest cold preparation *test* measured on CI (438 s) — so any single
-/// command inside such a test is covered, since a command cannot outlast the
-/// test that runs it. This keeps this path the one that reports a single
-/// wedged command by name.
+/// that [`run_bounded_with_timeout`] puts in the error. The worst case is
+/// [`MAX_SEQUENTIAL_COMMANDS`] commands — the rebuild-invalidation preparation
+/// compiles one fixture, then runs a metadata preflight and a second compile —
+/// so nine minutes keeps three of them at 27 minutes, under the 30-minute
+/// period.
+///
+/// Nine minutes is still far above any command measured on CI. The whole
+/// three-command preparation test took 31.154 s on the cold run
+/// `41981885921`, and a command cannot outlast the test that runs it, so every
+/// command inside that test is covered many times over.
 ///
 /// [`run_bounded_with_timeout`]: super::run_bounded_with_timeout
-pub const PREPARATION_COMMAND_TIMEOUT: Duration = Duration::from_secs(12 * 60);
+pub const PREPARATION_COMMAND_TIMEOUT: Duration = Duration::from_secs(9 * 60);
+
+/// The most bounded commands one preparation test runs in sequence.
+///
+/// `.config/nextest.toml` gives the preparation tests a single `slow-timeout`
+/// period, and the per-command bound above must keep this many commands inside
+/// it. The rebuild-invalidation preparation is the worst case: it compiles one
+/// fixture, then runs the addition fixture's metadata preflight and its
+/// compile. Every other family runs a single bounded command.
+///
+/// A new family that runs more commands than this must raise it and shrink
+/// [`PREPARATION_COMMAND_TIMEOUT`] to match, which
+/// `preparation_command_bound_fires_before_the_runner_kills_the_test` enforces
+/// rather than trusting this comment.
+pub const MAX_SEQUENTIAL_COMMANDS: u64 = 3;
 
 /// Process-wide lock serializing lazy preparation under plain `cargo test`.
 static PREPARE_LOCK: Mutex<()> = Mutex::new(());
