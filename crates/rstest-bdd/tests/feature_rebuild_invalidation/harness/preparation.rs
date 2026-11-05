@@ -71,9 +71,26 @@ pub(crate) fn ensure_addition_prepared() -> std::io::Result<()> {
     nested_cargo::ensure_prepared(&preparation, || prepare_addition(&env))
 }
 
+/// The workspace inputs both fixtures compile against.
+///
+/// Each fixture declares path dependencies on `rstest-bdd` and
+/// `rstest-bdd-macros`, so an edit to either crate changes what the fixture
+/// builds while leaving the fixture tree untouched. Hashing them keeps the
+/// stamp honest: without them the preparation would be skipped and the timed
+/// `cargo test` would compile the changed crates inside its own bound.
+fn workspace_inputs() -> Vec<std::path::PathBuf> {
+    let workspace = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    ["Cargo.toml", "Cargo.lock", "crates"]
+        .into_iter()
+        .map(|entry| workspace.join(entry))
+        .collect()
+}
+
 /// Describe the rebuild fixture's preparation family.
 fn rebuild_preparation(env: &process::ChildEnv) -> std::io::Result<nested_cargo::Preparation> {
-    let inputs = nested_cargo::input_hash(&[fixtures::source_fixture_dir()])?;
+    let mut roots = vec![fixtures::source_fixture_dir()];
+    roots.extend(workspace_inputs());
+    let inputs = nested_cargo::input_hash(&roots)?;
     Ok(nested_cargo::Preparation::new(
         REBUILD_FAMILY,
         fixtures::scratch_root(),
@@ -85,7 +102,9 @@ fn rebuild_preparation(env: &process::ChildEnv) -> std::io::Result<nested_cargo:
 
 /// Describe the addition fixture's preparation family.
 fn addition_preparation(env: &process::ChildEnv) -> std::io::Result<nested_cargo::Preparation> {
-    let inputs = nested_cargo::input_hash(&[fixtures::source_addition_dir()])?;
+    let mut roots = vec![fixtures::source_addition_dir()];
+    roots.extend(workspace_inputs());
+    let inputs = nested_cargo::input_hash(&roots)?;
     Ok(nested_cargo::Preparation::new(
         ADDITION_FAMILY,
         fixtures::add_addition_root(),

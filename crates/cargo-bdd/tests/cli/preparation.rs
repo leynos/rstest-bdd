@@ -31,7 +31,20 @@ fn cli_preparation() -> Result<(nested_cargo::NestedCargoEnv, PathBuf, String)> 
     // The whole fixture tree is an input: its manifest and lockfile fix the
     // dependency resolution, and its sources and feature files decide what the
     // nested workspace builds. `input_hash` skips any `target` directory.
-    let inputs = nested_cargo::input_hash(&[fixture_dir()])?;
+    //
+    // The workspace manifest, lockfile and `crates/` tree are inputs too. The
+    // fixture declares path dependencies on `rstest-bdd` and
+    // `rstest-bdd-macros`, so editing either crate changes what the nested
+    // workspace compiles while leaving the fixture tree untouched; without them
+    // the stamp would survive such an edit and the timed test would rebuild the
+    // changed crates inside its own limit.
+    let workspace = super::workspace_root();
+    let inputs = nested_cargo::input_hash(&[
+        fixture_dir(),
+        workspace.join("Cargo.toml"),
+        workspace.join("Cargo.lock"),
+        workspace.join("crates"),
+    ])?;
     Ok((child_env, target_root, inputs))
 }
 

@@ -410,12 +410,15 @@ were empty when the run began; the workspace target was warm.
 | `rstest-bdd-harness-tokio::macro_compile`        | 62.976 s  | 30 m   |
 | `rstest-bdd-server::workspace_discovery_compile` | 864.239 s | 30 m   |
 
-Total 2213.657 s for six tests run in parallel under the `cargo-spawning`
-group, each on its own budget. Every family finished inside a quarter of its
-budget despite a saturated compiler pool (capacity 4, four slots held
-throughout, with waits of up to 115 compiles ahead). The trybuild families share
-`<target>/tests/trybuild`, so the first to run paid for the dependency graph
-and the others compiled only what their own generated manifests added.
+Total 2213.657 s for six tests run serially under the `cargo-spawning` group
+(`max-threads = 1`), each on its own budget. The slowest family was the server
+crate's trybuild tree at 864.239 s, 48 % of its 1,800 s budget; the
+`rstest-bdd` trybuild binary's two graphs took 645.412 s, 36 %. All six
+finished inside half of their budget despite a saturated compiler pool
+(capacity 4, four slots held throughout, with waits of up to 115 compiles
+ahead). The trybuild families share `<target>/tests/trybuild`, so the first to
+run paid for the dependency graph and the others compiled only what their own
+generated manifests added.
 
 The timed assertions then ran against those prepared trees with no preparation
 in their bodies:
@@ -486,15 +489,21 @@ make lint
 make test
 ```
 
-For a focused run after a target eviction:
+For a focused run after a target eviction, prepare and assert under the same
+environment. The stamp fingerprints `RUSTFLAGS` and the feature selection, so a
+bare `cargo nextest run` after `make prepare-nested-fixtures` fails its gate:
+the `make` target sets `RUSTFLAGS`, the bare invocation does not, and the two
+describe different builds.
 
 ```bash
-make prepare-nested-fixtures
+export RUSTFLAGS="-D warnings -Clink-arg=-fuse-ld=mold"
+cargo nextest run -E 'test(/nested_fixture_preparation$/)'
 cargo nextest run -p rstest-bdd --test trybuild_macros
 ```
 
-The second command should pass the timed assertions in seconds, because the
-first already paid for the dependency graphs.
+Use the flags `make test` actually sets on the host. The second command then
+passes the timed assertions in seconds, because the first already paid for the
+dependency graphs.
 
 ## Validation and acceptance
 
