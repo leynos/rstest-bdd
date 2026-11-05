@@ -379,6 +379,15 @@ rather than by reading this branch's comments.
       grew 8.3%, from 332.981 s to 360.664 s, on code this diff does not touch.
       Neither figure is evidence about a Markdown-only change; the point of
       recording both is that the lane figure alone would have suggested one.
+- [x] Correct the plan's final-head claim and record the head that actually
+      ships. `434d8309` was itself superseded by `df26170d`, the commit that
+      made this correction, so the plan had the same defect one level down:
+      naming a head "final" while more commits followed it. The distinction
+      that survives is between the head whose *source* the timing evidence
+      describes (`434d8309`, and `42021251818` before it) and the head CI last
+      validated (whatever is on the branch now). Run `42048627869` on
+      `df26170d` passes all three required lanes with conclusion `success`,
+      which is the merge-gate evidence for the branch as pushed.
 - [x] Address the follow-up `coderabbit review --agent` pass, which reported
       two documentation findings and no code findings. Both were valid. Four
       passages still described the superseded 12-minute bound, and two of them
@@ -577,12 +586,20 @@ rather than by reading this branch's comments.
 
 ## Outcomes & Retrospective
 
-Implementation and evidence collection are complete, and the true final head
-`434d8309` passes all three required lanes in run `42028526380`. Two earlier CI
-runs on the Linux coverage lane supply the timing figures: `41981885921` with
-an evicted compiler cache, which is the cold-cache evidence acceptance
-criterion (a) asks for, and `42005188689` with a warm cache. All three runs
-passed every required lane.
+Implementation and evidence collection are complete. The head CI last validated
+is `df26170d`, and run `42048627869` passes all three required lanes on it. Two
+earlier CI runs on the Linux coverage lane supply the timing figures:
+`41981885921` with an evicted compiler cache, which is the cold-cache evidence
+acceptance criterion (a) asks for, and `42005188689` with a warm cache. Every
+run recorded in this plan passed every required lane.
+
+Naming a "final" head in a living document is a trap this plan fell into twice.
+`434d8309` was called final and then followed by `df26170d`; any commit that
+corrects the claim supersedes it again. The durable distinction is between the
+head whose source the timing evidence describes and the head CI last validated,
+because the second moves with every documentation commit while the first does
+not. The timing figures below are attributed to their runs rather than to "the
+head" for that reason.
 
 The two evidence runs precede the commits that answered CodeRabbit and fixed
 the formatting failure those commits carried, so the code they measured is not
