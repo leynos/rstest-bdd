@@ -352,8 +352,33 @@ rather than by reading this branch's comments.
       of which is 17.5% or less of the 540 s per-command bound and therefore
       far inside the 27 m the three sequential commands may take. The three
       issue-named assertions ran in 0.593 s, 1.864 s and 70.731 s. This run is
-      the final-head evidence acceptance criterion (c) asks for; the cold
-      run's 1402.014 s remains the evidence for criterion (a).
+      the timing evidence on the final source change; the cold run's
+      1402.014 s remains the evidence for criterion (a).
+- [x] Commit the evidence write-ups as `3034760b` and `434d8309`. Both are
+      documentation-only, and the later one narrows the earlier's claim that
+      `42021251818` was the final-head evidence: `3034760b` and `434d8309`
+      change prose after it, so that run measured near-identical but not
+      byte-identical source. `42027006140`, the attempt on `3034760b`, was
+      cancelled by the push that superseded it, which is the repository's
+      `cancel-in-progress: true` behaving as configured rather than a failure.
+- [x] Confirm CI run `42028526380` on the true final head `434d8309` passes all
+      three required lanes: both Windows lanes and
+      `build-test (linux, default features)`, conclusion `success`. Its suite
+      ran 360.664 s across the same 2102 tests (2102 passed, 7 skipped). The
+      six preparations took 17.054 s, 10.693 s, 100.523 s, 65.171 s, 8.918 s
+      and 38.427 s; the largest is 18.6% of the 540 s per-command bound. The
+      three issue-named assertions ran in 0.614 s, 2.127 s and 81.341 s, which
+      is 0.3%, 0.4% and 6.8% of their 180 s, 600 s and 20-minute deadlines.
+      The lane took 36 m 08 s against `42021251818`'s 32 m 09 s, which reads
+      like a regression until the two are decomposed. The nextest summary
+      occupies about a sixth of the lane in every run — 17.5% at
+      `42013457153`, 17.3% at `42021251818`, 16.6% here — so roughly 30 of the
+      36 minutes happen before and after it, in image setup, the Cargo build
+      and coverage handling. Those phases absorbed the 3.5-minute difference
+      (26.6 minutes outside the suite before, 30.1 now) while the suite itself
+      grew 8.3%, from 332.981 s to 360.664 s, on code this diff does not touch.
+      Neither figure is evidence about a Markdown-only change; the point of
+      recording both is that the lane figure alone would have suggested one.
 - [x] Address the follow-up `coderabbit review --agent` pass, which reported
       two documentation findings and no code findings. Both were valid. Four
       passages still described the superseded 12-minute bound, and two of them
@@ -552,11 +577,12 @@ rather than by reading this branch's comments.
 
 ## Outcomes & Retrospective
 
-Implementation and evidence collection are complete. Two CI runs on the Linux
-coverage lane supply the figures: `41981885921` with an evicted compiler cache,
-which is the cold-cache evidence acceptance criterion (a) asks for, and
-`42005188689` on the final head with a warm cache. Both passed every required
-lane.
+Implementation and evidence collection are complete, and the true final head
+`434d8309` passes all three required lanes in run `42028526380`. Two earlier CI
+runs on the Linux coverage lane supply the timing figures: `41981885921` with
+an evicted compiler cache, which is the cold-cache evidence acceptance
+criterion (a) asks for, and `42005188689` with a warm cache. All three runs
+passed every required lane.
 
 The two evidence runs precede the commits that answered CodeRabbit and fixed
 the formatting failure those commits carried, so the code they measured is not
@@ -572,10 +598,22 @@ Run `42013457153` closes part of that gap: it is the first run on the corrected
 ordering, and it passes all three required lanes with the same suite time as
 the earlier warm run (323.344 s against 348.345 s), which is what a change to
 an unapproached internal deadline should look like. It measures the 12-minute
-bound, though, not the 9-minute one, so the final head's evidence is the run
-recorded in the Progress entries above. `make test-workflow-contracts` (364
-tests), `nextest_config` (5) and `rstest-bdd-harness` (51) also pass locally on
-the final head.
+bound, though, not the 9-minute one.
+
+Run `42021251818` measures the 9-minute bound on the code the fix landed in,
+and run `42028526380` measures the true final head after the prose commits that
+followed it. The second matters for a reason the first does not cover. Its
+Linux lane took 36 m 08 s against the first's 32 m 09 s, which reads like a
+regression until the two are decomposed. In all three runs the nextest summary
+is about a sixth of the lane (17.5%, 17.3% and 16.6%), so roughly 30 minutes of
+each run happens before and after it — image setup, the Cargo build, coverage
+handling. That outside-the-suite time is where the 3.5-minute lane difference
+sits (26.6 minutes before, 30.1 now), while the suite grew 8.3% on code this
+diff does not touch. A diff that touches only Markdown cannot account for
+either figure. The lane duration is therefore not evidence about this change,
+and the suite duration is; recording both is what keeps the conclusion
+checkable. `make test-workflow-contracts` (364 tests), `nextest_config` (5) and
+`rstest-bdd-harness` (51) also pass locally on the final head.
 
 Every suite that compiles a nested Cargo graph is prepared and stamped,
 including the harness and server trybuild trees. On the development host a cold
