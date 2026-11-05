@@ -123,6 +123,8 @@ fn run_cli_case(
         .env("XDG_CONFIG_DIRS", &directories.xdg_config_dirs)
         .env("USERPROFILE", &directories.user_profile)
         .env("APPDATA", &directories.appdata)
+        // Registry discovery runs `cargo metadata`; keep this child offline.
+        .env("CARGO_NET_OFFLINE", "true")
         .current_dir(&directories.working_directory)
         .output()
 }
