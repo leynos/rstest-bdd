@@ -29,12 +29,17 @@ use std::{
 
 use serde_json::Value;
 
-/// Per-invocation wall-clock bound for each nested `cargo` call. Realistic
-/// warm invocations finish in well under 60 s even on a two-core runner; this
-/// bound exists to turn a hang into a named, readable failure rather than
-/// letting nextest's slow-timeout kill the test with a runner-generated
-/// message.
+/// Per-invocation wall-clock bound for each nested `cargo` call made by a
+/// timed assertion. Realistic warm invocations finish in well under 60 s even
+/// on a two-core runner; this bound exists to turn a hang into a named,
+/// readable failure rather than letting nextest's slow-timeout kill the test
+/// with a runner-generated message. It is not a build budget and must not be
+/// widened to absorb cold compilation: that work belongs to preparation.
 const CHILD_TIMEOUT: Duration = Duration::from_secs(300);
+
+/// Wall-clock bound for one preparation command, re-exported so the
+/// preparation module sizes its commands from the shared contract.
+pub(crate) use rstest_bdd_harness::nested_cargo::PREPARATION_COMMAND_TIMEOUT;
 
 /// The environment applied to every nested `cargo` invocation, built once so
 /// run 1 and run 2 of the rebuild experiment are byte-identical.
@@ -92,6 +97,21 @@ fn child_env_from_vars(mut vars: Vec<(std::ffi::OsString, std::ffi::OsString)>) 
     ChildEnv { vars }
 }
 
+/// The preparation policy's view of this harness's child environment.
+///
+/// The harness keeps its own [`ChildEnv`] so the two runs of each experiment
+/// stay byte-identical, including the coverage redirection that the shared
+/// helper performs only for [`ProfileDestination::ChildScratch`]. The view
+/// exists so the fingerprints, and therefore the stamps, of the preparation
+/// test and of the timed assertions are computed from the same variables.
+pub(crate) fn preparation_view(env: &ChildEnv) -> rstest_bdd_harness::nested_cargo::NestedCargoEnv {
+    rstest_bdd_harness::nested_cargo::env_from_vars(
+        env.vars.clone(),
+        Some(&super::fixtures::shared_target_dir()),
+        rstest_bdd_harness::nested_cargo::ProfileDestination::ChildScratch,
+    )
+}
+
 /// Build a `cargo` invocation against `.env_clear()` plus the shared child
 /// environment, so every invocation is byte-identical.
 pub(crate) fn cargo_command(env: &ChildEnv, cwd: &Path) -> Command {
@@ -138,8 +158,22 @@ impl From<Output> for Captured {
 }
 
 /// Run a child process to completion, killing it with a clear message if it
+/// exceeds [`PREPARATION_COMMAND_TIMEOUT`], and return its output.
+///
+/// Used only by fixture preparation, which compiles the dependency graph the
+/// timed assertions used to compile inside their own 300-second bound.
+pub(crate) fn run_preparation_bounded(cmd: &mut Command) -> io::Result<Output> {
+    run_bounded_with_timeout(cmd, PREPARATION_COMMAND_TIMEOUT)
+}
+
+/// Run a child process to completion, killing it with a clear message if it
 /// exceeds `CHILD_TIMEOUT`, and return its output.
 pub(crate) fn run_bounded(cmd: &mut Command) -> io::Result<Output> {
+    run_bounded_with_timeout(cmd, CHILD_TIMEOUT)
+}
+
+/// [`run_bounded`] with an explicit wall-clock bound.
+fn run_bounded_with_timeout(cmd: &mut Command, timeout: Duration) -> io::Result<Output> {
     let mut child = cmd.stdout(Stdio::piped()).stderr(Stdio::piped()).spawn()?;
     let Some(stdout) = child.stdout.take() else {
         panic!("piped stdout must be present; run_bounded always pipes");
@@ -150,7 +184,7 @@ pub(crate) fn run_bounded(cmd: &mut Command) -> io::Result<Output> {
     };
     let stderr = drain_pipe(stderr);
 
-    let deadline = Instant::now() + CHILD_TIMEOUT;
+    let deadline = Instant::now() + timeout;
     loop {
         match child.try_wait() {
             Ok(Some(_)) => break,
@@ -159,6 +193,7 @@ pub(crate) fn run_bounded(cmd: &mut Command) -> io::Result<Output> {
                     let _ = child.kill();
                     let _ = child.wait();
                     return Err(timeout_error(
+                        timeout,
                         &join_or_panic(stdout, "stdout"),
                         &join_or_panic(stderr, "stderr"),
                     ));
@@ -196,13 +231,13 @@ fn join_or_panic(handle: thread::JoinHandle<Vec<u8>>, what: &str) -> Vec<u8> {
     }
 }
 
-fn timeout_error(stdout: &[u8], stderr: &[u8]) -> io::Error {
+fn timeout_error(timeout: Duration, stdout: &[u8], stderr: &[u8]) -> io::Error {
     io::Error::new(
         io::ErrorKind::TimedOut,
         format!(
             "nested cargo exceeded its {} s wall-clock bound; the child was killed\nstdout so \
              far:\n{}\nstderr so far:\n{}",
-            CHILD_TIMEOUT.as_secs(),
+            timeout.as_secs(),
             String::from_utf8_lossy(stdout),
             String::from_utf8_lossy(stderr)
         ),

@@ -200,6 +200,19 @@ fn feature_edit_forces_rebuild_and_fresh_failure() {}
 #[serial]
 fn feature_addition_triggers_rebuild() {}
 
+/// Compile both scratch fixtures' dependency closures before any timed
+/// assertion.
+///
+/// The experiments still clean the fixture package and prove their rebuilds;
+/// this test only removes the cold graph build — the one piece of work they
+/// never asserted on — from their 300-second bound. `.config/nextest.toml`
+/// runs it first with the preparation budget.
+#[test]
+#[serial]
+fn nested_fixture_preparation() {
+    harness::preparation::prepare_all().expect("nested rebuild fixtures should be prepared");
+}
+
 /// A `scenarios!` directory with a `tags =` filter that excludes every
 /// scenario in one file must still track that file: it was parsed, so an
 /// edit to it must trigger a rebuild even though no test is generated from

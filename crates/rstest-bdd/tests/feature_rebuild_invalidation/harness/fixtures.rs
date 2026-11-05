@@ -151,7 +151,7 @@ pub(crate) fn source_addition_dir() -> PathBuf {
 }
 
 /// Root scratch directory owned exclusively by the addition experiment.
-fn add_addition_root() -> PathBuf { shared_target_dir().join("tests/feature-addition") }
+pub(crate) fn add_addition_root() -> PathBuf { shared_target_dir().join("tests/feature-addition") }
 
 /// The copied `feature_addition` fixture crate inside its scratch area.
 pub(crate) fn scratch_addition_dir() -> PathBuf { add_addition_root().join("fixture") }

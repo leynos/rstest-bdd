@@ -48,6 +48,18 @@ const ADDED_FILE_NAME: &str = "zzz_added.feature";
 const ADDED_TEST_NAME: &str = "zzz_added_the_added_scenario";
 
 fn run_addition_experiment() -> AdditionOutcome {
+    // The dependency closure was compiled by the preparation test; this gate
+    // only verifies it, because a timed experiment must not absorb a cold
+    // graph build.
+    if let Err(err) = super::preparation::ensure_addition_prepared() {
+        return AdditionOutcome {
+            baseline_error: Some(format!("addition fixture is not prepared: {err}")),
+            baseline_output: String::new(),
+            new_scenario_ran: false,
+            second_run_output: String::new(),
+            second_run_recompiled: false,
+        };
+    }
     fixtures::ensure_addition_fixture_copied();
     reset_added_file();
     if let Err(err) = write_build_script_from_docs() {
@@ -131,7 +143,7 @@ fn run_cargo(env: &process::ChildEnv, args: &[&str]) -> Result<process::Captured
 /// The example is the single source of truth: if the recipe in
 /// `docs/users-guide.md` stops working, this extraction fails (or the
 /// executed recipe fails the behavioural test).
-fn write_build_script_from_docs() -> Result<(), String> {
+pub(crate) fn write_build_script_from_docs() -> Result<(), String> {
     let example = documented_example("scenarios-build-script")
         .map_err(|err| format!("cannot load the documented build-script recipe: {err}"))?;
     if example.language.as_str() != "rust" {
@@ -163,7 +175,7 @@ fn preflight_manifest_lockfile_consistency(env: &process::ChildEnv) -> Result<()
 }
 
 /// Remove a leftover added file so every run observes the same baseline.
-fn reset_added_file() {
+pub(crate) fn reset_added_file() {
     let path = added_file_path();
     if path.exists()
         && let Err(err) = std::fs::remove_file(&path)
