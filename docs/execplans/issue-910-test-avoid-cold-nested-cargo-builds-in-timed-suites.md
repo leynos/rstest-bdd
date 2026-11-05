@@ -86,11 +86,11 @@ filtered `cargo nextest run` passes the timed tests in seconds.
   no stamp, because it makes a stale tree look prepared. The fingerprint covers
   the build-relevant environment, the toolchain identity, a variant label and a
   fixture-input hash, and the stamp lives inside the directory it describes.
-- **`--target-dir` blind spot.** `macrotest_support::trybuild_crate_root` runs
+- **`--target-dir` blind spot.** `macrotest_support::trybuild_target_root` runs
   `cargo metadata`, which sees `CARGO_TARGET_DIR` from the environment but
-  cannot see an outer `--target-dir` flag. A lane that passes the flag
-  directly, rather than through the environment, prepares a different tree than
-  it builds in.
+  cannot see an outer `--target-dir` flag. `trybuild_crate_root` only appends
+  `target_subdir` to that root. A lane that passes the flag directly, rather
+  than through the environment, prepares a different tree than it builds in.
 - **Runner divergence.** A preparation that passes under nextest can still be
   exercised only lazily under `cargo test`, so both paths need coverage.
 
@@ -246,8 +246,8 @@ more than the earlier runs, which is the new
 `preparation_command_bound_fires_before_the_runner_kills_the_test` contract
 test. The three issue-named assertions ran in 0.331 s, 1.783 s and 63.263 s
 against 180 s, 600 s and 20 m, and the largest preparation took 97.046 s —
-13.5% of its 30-minute budget, and 13.5% of the 12-minute per-command bound
-that sits inside it. This is the run that shows the corrected bound changes no
+13.5% of its 30-minute budget, and 18.0% of the 9-minute per-command bound that
+sits inside it. This is the run that shows the corrected bound changes no
 outcome: the suite is the same speed as the previous warm run within noise.
 
 The largest cold preparation used 24.3% of its 30-minute budget and the three
@@ -283,14 +283,16 @@ rather than by reading this branch's comments.
       limits `nested_fixture_preparation` to 30, so under nextest the runner
       always killed the test before the per-command bound could fire, and the
       named error carrying the child's captured output was unreachable. The
-      bound is now 12 minutes, so the two commands a preparation test may run
-      in sequence total 24 minutes, inside the 30-minute period. The first
-      replacement was 15 minutes, which the new contract test rejected:
+      bound became 12 minutes at this stage, on a count of two sequential
+      commands, which totalled 24 minutes inside the 30-minute period. The
+      first replacement was 15 minutes, which the new contract test rejected:
       `2 × 900` is exactly the period, and the assertion requires strictly
       less. That is the test doing its job on a plausible but wrong value.
       Twelve minutes still exceeds the largest cold preparation *test*
       measured on CI (438.214 s), so every command inside one is covered — a
-      command cannot outlast the test that runs it. The misleading `nextest.toml`
+      command cannot outlast the test that runs it. The count of two was wrong
+      and the bound moved to 9 minutes in the next entry; the 438.214 s figure
+      is 81.2% of that. The misleading `nextest.toml`
       comment now says which path reports which overrun, and
       `preparation_command_bound_fires_before_the_runner_kills_the_test` pins
       the ordering so it cannot drift again. The other finding was stale
@@ -313,7 +315,7 @@ rather than by reading this branch's comments.
       contract test pinned `sequential_commands` at 2, but
       `feature_rebuild_invalidation`'s `prepare_all` runs **three** bounded
       commands — `prepare_rebuild` compiles once, then `prepare_addition` runs
-      a `cargo metadata` preflight and a compile. My earlier reading counted
+      a `cargo metadata` preflight and a compile. The earlier reading counted
       the two families rather than the commands inside them, so `3 × 12 m =
       36 m` exceeded the 30 m period and a late third command would have lost
       the named error. The bound is now 9 minutes and the count is a named
@@ -321,7 +323,7 @@ rather than by reading this branch's comments.
       rather than repeating a literal: `3 × 9 m = 27 m`.
       The cold run shows how much headroom that leaves — the whole
       three-command preparation took 31.154 s.
-      I chose to count the preflight rather than exempt it. It is a real
+      The preflight is counted rather than exempted. It is a real
       `cargo` invocation that can wedge on the package-cache lock, and
       CodeRabbit's own second finding is that an unbounded child hangs the run;
       moving the preflight off the bounded path would have created the hazard
@@ -529,18 +531,22 @@ lane.
 
 The two evidence runs precede the commits that answered CodeRabbit and fixed
 the formatting failure those commits carried, so the code they measured is not
-byte-identical to the final head. The only behavioural change after them is the
-per-command preparation bound, from 45 minutes to 12: a deadline inside the
-preparation test that no passing run approaches (the largest cold preparation
-measured 438.214 s, or 60.9% of 12 minutes). It removes no work from any test
-and adds none.
+byte-identical to the final head. The behavioural change after them is the
+per-command preparation bound, from 45 minutes to 9 (three sequential commands
+at 9 minutes each total 27 minutes, inside the 30-minute period): a deadline
+inside the preparation test that no passing run approaches. The largest cold
+preparation measured 438.214 s, 81.2% of 9 minutes (540 s) — the bound still
+clears it, but the margin is no longer large, and the bound is not a budget any
+run is expected to spend.
 
-Run `42013457153` closes that gap: it is the first run on the corrected code,
-and it passes all three required lanes with the same suite time as the earlier
-warm run (323.344 s against 348.345 s), which is what a change to an
-unapproached internal deadline should look like. `make test-workflow-contracts`
-(364 tests), `nextest_config` (5) and `rstest-bdd-harness` (51) also pass
-locally on the final head.
+Run `42013457153` closes part of that gap: it is the first run on the corrected
+ordering, and it passes all three required lanes with the same suite time as
+the earlier warm run (323.344 s against 348.345 s), which is what a change to
+an unapproached internal deadline should look like. It measures the 12-minute
+bound, though, not the 9-minute one, so the final head's evidence is the run
+recorded in the Progress entries above. `make test-workflow-contracts` (364
+tests), `nextest_config` (5) and `rstest-bdd-harness` (51) also pass locally on
+the final head.
 
 Every suite that compiles a nested Cargo graph is prepared and stamped,
 including the harness and server trybuild trees. On the development host a cold
@@ -855,6 +861,8 @@ advance, and `step_macros_compile` passing after 6,864 s when run directly.
 ## Interfaces and dependencies
 
 `rstest_bdd_harness::nested_cargo` exposes `Preparation`, `PreparationSummary`,
-`prepare_now`, `ensure_prepared`, `input_hash`, `PREPARATION_COMMAND_TIMEOUT`,
+`Sources`, `prepare_now`, `ensure_prepared`, `input_hash`,
+`PREPARATION_COMMAND_TIMEOUT`, `MAX_SEQUENTIAL_COMMANDS`, `ProfileDestination`,
 `running_under_nextest` and `count_compiling`. The stamp and hashing modules
-stay private.
+stay private. `TrybuildTree`, which the harness and server crates share, lives
+one level up in `macrotest_support` rather than in `nested_cargo`.
