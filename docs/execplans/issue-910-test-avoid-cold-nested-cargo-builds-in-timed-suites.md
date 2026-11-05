@@ -386,8 +386,9 @@ rather than by reading this branch's comments.
       that survives is between the head whose *source* the timing evidence
       describes (`434d8309`, and `42021251818` before it) and the head CI last
       validated (whatever is on the branch now). Run `42048627869` on
-      `df26170d` passes all three required lanes with conclusion `success`,
-      which is the merge-gate evidence for the branch as pushed.
+      `df26170d` and run `42057352055` on `3ffa7295` both pass all three
+      required lanes with conclusion `success`, which is the merge-gate
+      evidence for the branch as pushed.
 - [x] Address the follow-up `coderabbit review --agent` pass, which reported
       two documentation findings and no code findings. Both were valid. Four
       passages still described the superseded 12-minute bound, and two of them
@@ -586,12 +587,12 @@ rather than by reading this branch's comments.
 
 ## Outcomes & Retrospective
 
-Implementation and evidence collection are complete. The head CI last validated
-is `df26170d`, and run `42048627869` passes all three required lanes on it. Two
-earlier CI runs on the Linux coverage lane supply the timing figures:
-`41981885921` with an evicted compiler cache, which is the cold-cache evidence
-acceptance criterion (a) asks for, and `42005188689` with a warm cache. Every
-run recorded in this plan passed every required lane.
+Implementation and evidence collection are complete. Every head pushed after the
+`.config/nextest.toml` change passes all three required lanes; the latest is
+`3ffa7295` in run `42057352055`. Two earlier CI runs on the Linux coverage lane
+supply the timing figures: `41981885921` with an evicted compiler cache, which
+is the cold-cache evidence acceptance criterion (a) asks for, and `42005188689`
+with a warm cache. Every run recorded in this plan passed every required lane.
 
 Naming a "final" head in a living document is a trap this plan fell into twice.
 `434d8309` was called final and then followed by `df26170d`; any commit that
