@@ -145,7 +145,11 @@ impl Preparation {
         inputs: impl Into<String>,
     ) -> Self {
         let environment = env_for_directory(&directory, ProfileDestination::Caller);
-        Self::new(Sources::new(family, variant, inputs), directory, environment)
+        Self::new(
+            Sources::new(family, variant, inputs),
+            directory,
+            environment,
+        )
     }
 }
 

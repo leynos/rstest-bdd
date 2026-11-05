@@ -177,12 +177,13 @@ filtered `cargo nextest run` passes the timed tests in seconds.
       arguments and a caller cannot pair one family's name with another's
       hash. All three previously flagged files now score 10.00.
 - **"Pre-existing" is a claim to verify, not a safe default.** Both the
-  execplan and a commit message described the `Preparation::new` argument
-  count as pre-existing at 9.69 on `main`. `git grep "struct Preparation"
-  origin/main` returns nothing: the module is new here. The claim survived
-  because it was phrased plausibly and never checked against `main` — the
-  same mistake, in a different guise, as the three wrong duplication
-  hypotheses. Check the base revision before calling a finding inherited.
+  execplan and a commit message described the `Preparation::new` argument count
+  as pre-existing at 9.69 on `main`.
+  `git grep "struct Preparation" origin/main` returns nothing: the module is
+  new here. The claim survived because it was phrased plausibly and never
+  checked against `main` — the same mistake, in a different guise, as the three
+  wrong duplication hypotheses. Check the base revision before calling a
+  finding inherited.
 - [x] Record CI-lane timings for the affected suites once the PR runs, since
       only that lane answers acceptance criterion (c). Run `41981885921`
       (head `bca39c7d`) passed all three required lanes; the figures below are
