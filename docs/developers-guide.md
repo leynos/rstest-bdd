@@ -1076,6 +1076,17 @@ The file sets the timeout policy for the test suite:
   `priority` at all, and
   `preparation_nextest_override_preserves_timeout_contract` pins the position,
   the period, the group, the priority and the version.
+
+  Inside that period, each nested preparation command carries its own bound,
+  `nested_cargo::PREPARATION_COMMAND_TIMEOUT`, currently 12 minutes. The two
+  are ordered deliberately: a preparation test may run two commands in
+  sequence, so `2 × 12 m = 24 m` must stay below the 30 m period, and
+  `preparation_command_bound_fires_before_the_runner_kills_the_test` recomputes
+  that inequality from the parsed configuration and the constant. The reason
+  the ordering matters is diagnostic: the per-command path is the only one that
+  reports a wedged command by name with the child's captured stdout and stderr,
+  and a bound at or above the period would let nextest kill the test first and
+  throw that output away.
 - The second override raises the `slow-timeout` to 180 s
   for `cargo-bdd::cli`, whose smoke tests spawn `cargo` to build fixture crates
   and can legitimately exceed 60 s on cold caches.

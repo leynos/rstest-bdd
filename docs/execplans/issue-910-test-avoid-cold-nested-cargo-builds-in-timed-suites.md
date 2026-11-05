@@ -269,12 +269,25 @@ rather than by reading this branch's comments.
       limits `nested_fixture_preparation` to 30, so under nextest the runner
       always killed the test before the per-command bound could fire, and the
       named error carrying the child's captured output was unreachable. The
-      bound is now 15 minutes — under the period even with the two sequential
-      commands a preparation test runs — the misleading `nextest.toml` comment
-      now says which path reports which overrun, and
+      bound is now 12 minutes, so the two commands a preparation test may run
+      in sequence total 24 minutes, inside the 30-minute period. The first
+      replacement was 15 minutes, which the new contract test rejected:
+      `2 × 900` is exactly the period, and the assertion requires strictly
+      less. That is the test doing its job on a plausible but wrong value.
+      Twelve minutes still leaves more than double the largest cold
+      preparation measured on CI (438.214 s). The misleading `nextest.toml`
+      comment now says which path reports which overrun, and
       `preparation_command_bound_fires_before_the_runner_kills_the_test` pins
       the ordering so it cannot drift again. The other finding was stale
       status text in this plan, corrected at all four sites.
+- [x] Commit the fix as `5b872477` and push it. The commit also reflows the
+      table added in `716d1985` through `mdtablefix`, repairing that commit's
+      CI "Check formatting" failure. `make check-fmt` and `make lint` both
+      passed on the working tree before the commit, and the remote head was
+      confirmed equal to `git rev-parse HEAD` after the push. `716d1985` is
+      worth remembering as a self-inflicted failure: `make markdownlint` does
+      not run `mdtablefix`, so a table can pass the Markdown gate and still
+      fail `check-fmt`, which is the gate that owns table reflow.
 
 ## Surprises & Discoveries
 
