@@ -86,32 +86,47 @@ fn workspace_inputs() -> Vec<std::path::PathBuf> {
         .collect()
 }
 
-/// Describe the rebuild fixture's preparation family.
-fn rebuild_preparation(env: &process::ChildEnv) -> std::io::Result<nested_cargo::Preparation> {
-    let mut roots = vec![fixtures::source_fixture_dir()];
+/// Describe one fixture's preparation family.
+///
+/// Both fixtures make up a `cargo test --no-run --locked --offline` closure
+/// over the same workspace inputs, so only the family name, the scratch tree
+/// and the fixture source differ between them. Everything else — the
+/// environment view and the variant label — is identical by construction
+/// rather than by copy.
+fn fixture_preparation(
+    env: &process::ChildEnv,
+    family: &str,
+    scratch_root: std::path::PathBuf,
+    source_dir: std::path::PathBuf,
+) -> std::io::Result<nested_cargo::Preparation> {
+    let mut roots = vec![source_dir];
     roots.extend(workspace_inputs());
     let inputs = nested_cargo::input_hash(&roots)?;
     Ok(nested_cargo::Preparation::new(
+        nested_cargo::Sources::new(family, "locked-offline-test-no-run", inputs),
+        scratch_root,
+        process::preparation_view(env),
+    ))
+}
+
+/// Describe the rebuild fixture's preparation family.
+fn rebuild_preparation(env: &process::ChildEnv) -> std::io::Result<nested_cargo::Preparation> {
+    fixture_preparation(
+        env,
         REBUILD_FAMILY,
         fixtures::scratch_root(),
-        process::preparation_view(env),
-        "locked-offline-test-no-run",
-        inputs,
-    ))
+        fixtures::source_fixture_dir(),
+    )
 }
 
 /// Describe the addition fixture's preparation family.
 fn addition_preparation(env: &process::ChildEnv) -> std::io::Result<nested_cargo::Preparation> {
-    let mut roots = vec![fixtures::source_addition_dir()];
-    roots.extend(workspace_inputs());
-    let inputs = nested_cargo::input_hash(&roots)?;
-    Ok(nested_cargo::Preparation::new(
+    fixture_preparation(
+        env,
         ADDITION_FAMILY,
         fixtures::add_addition_root(),
-        process::preparation_view(env),
-        "locked-offline-test-no-run",
-        inputs,
-    ))
+        fixtures::source_addition_dir(),
+    )
 }
 
 /// Copy the scratch trees and compile the rebuild fixture's test binaries.

@@ -28,7 +28,7 @@
 use std::{env, io, path::PathBuf, process::Command};
 
 use camino::{Utf8Path, Utf8PathBuf};
-use rstest_bdd_harness::nested_cargo::{self, ProfileDestination};
+use rstest_bdd_harness::nested_cargo;
 
 use super::{macros_fixture, staging};
 
@@ -118,23 +118,21 @@ fn trybuild_variant() -> String {
 /// Describe the trybuild preparation family.
 fn trybuild_preparation(target_directory: &Utf8Path) -> io::Result<nested_cargo::Preparation> {
     let directory = target_directory.join("tests/trybuild");
-    Ok(nested_cargo::Preparation::with_target_directory(
+    Ok(nested_cargo::Preparation::for_fixture(
         TRYBUILD_FAMILY,
         directory.into_std_path_buf(),
         trybuild_variant(),
         nested_cargo::input_hash(&input_roots())?,
-        ProfileDestination::Caller,
     ))
 }
 
 /// Describe the UI-lint preparation family.
 fn ui_clippy_preparation() -> io::Result<nested_cargo::Preparation> {
-    Ok(nested_cargo::Preparation::with_target_directory(
+    Ok(nested_cargo::Preparation::for_fixture(
         UI_CLIPPY_FAMILY,
         ui_clippy_target_directory().into_std_path_buf(),
         format!("clippy:{}", env!("CARGO_PKG_VERSION")),
         nested_cargo::input_hash(&input_roots())?,
-        ProfileDestination::Caller,
     ))
 }
 

@@ -53,11 +53,9 @@ fn cli_preparation_description() -> Result<(nested_cargo::Preparation, nested_ca
 {
     let (child_env, target_root, inputs) = cli_preparation()?;
     let preparation = nested_cargo::Preparation::new(
-        "cargo-bdd-cli",
+        nested_cargo::Sources::new("cargo-bdd-cli", env!("CARGO_PKG_VERSION"), inputs),
         target_root,
         child_env.clone(),
-        env!("CARGO_PKG_VERSION"),
-        inputs,
     );
     Ok((preparation, child_env))
 }

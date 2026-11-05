@@ -21,7 +21,7 @@ use std::{
     process::Command,
 };
 
-use crate::nested_cargo::{self, Preparation, PreparationSummary, ProfileDestination};
+use crate::nested_cargo::{self, Preparation, PreparationSummary};
 
 /// Returns `true` when the macrotest refresh workflow is enabled.
 ///
@@ -57,13 +57,16 @@ fn read_snapshot(path: &Path) -> String {
 /// from the snapshot contents.
 pub fn assert_snapshot_contains(path: &Path, needles: &[&str]) {
     let contents = read_snapshot(path);
-    for needle in needles {
-        assert!(
-            contents.contains(needle),
-            "expected {} to contain {needle:?}",
-            path.display(),
-        );
-    }
+    let missing = needles
+        .iter()
+        .copied()
+        .filter(|needle| !contents.contains(needle))
+        .collect::<Vec<_>>();
+    assert!(
+        missing.is_empty(),
+        "expected {} to contain {missing:?}",
+        path.display(),
+    );
 }
 
 /// Asserts that `needle` does not appear anywhere in the snapshot at `path`.
@@ -230,12 +233,11 @@ impl TrybuildTree {
                 manifest_path.display()
             ))
         })?;
-        Ok(Preparation::with_target_directory(
+        Ok(Preparation::for_fixture(
             self.family.clone(),
             target_root,
             self.variant.clone(),
             nested_cargo::input_hash(&self.inputs())?,
-            ProfileDestination::Caller,
         ))
     }
 

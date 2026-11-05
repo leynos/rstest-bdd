@@ -61,6 +61,39 @@ pub const PREPARATION_COMMAND_TIMEOUT: Duration = Duration::from_secs(45 * 60);
 /// Process-wide lock serializing lazy preparation under plain `cargo test`.
 static PREPARE_LOCK: Mutex<()> = Mutex::new(());
 
+/// What a preparation builds, as the caller describes it.
+///
+/// These three travel together: a family is named, it builds a variant, and
+/// what it builds is identified by a hash of its inputs. Grouping them keeps
+/// [`Preparation::new`] readable and stops a caller from pairing one family's
+/// name with another's input hash.
+#[derive(Debug, Clone)]
+pub struct Sources {
+    /// Stable kebab-case family name, used in the stamp file name and logs.
+    pub family: String,
+    /// Caller-supplied label for the feature set or tool variant, such as
+    /// `all-features` or the resolved Clippy version.
+    pub variant: String,
+    /// Caller-supplied hash of the fixture sources and lockfiles.
+    pub inputs: String,
+}
+
+impl Sources {
+    /// Name a family, its variant, and the hash of the inputs it builds.
+    #[must_use]
+    pub fn new(
+        family: impl Into<String>,
+        variant: impl Into<String>,
+        inputs: impl Into<String>,
+    ) -> Self {
+        Self {
+            family: family.into(),
+            variant: variant.into(),
+            inputs: inputs.into(),
+        }
+    }
+}
+
 /// One family of prepared fixture artefacts.
 #[derive(Debug, Clone)]
 pub struct Preparation {
@@ -81,19 +114,13 @@ pub struct Preparation {
 impl Preparation {
     /// Build a preparation description.
     #[must_use]
-    pub fn new(
-        family: impl Into<String>,
-        directory: PathBuf,
-        environment: NestedCargoEnv,
-        variant: impl Into<String>,
-        inputs: impl Into<String>,
-    ) -> Self {
+    pub fn new(sources: Sources, directory: PathBuf, environment: NestedCargoEnv) -> Self {
         Self {
-            family: family.into(),
+            family: sources.family,
             directory,
             environment,
-            variant: variant.into(),
-            inputs: inputs.into(),
+            variant: sources.variant,
+            inputs: sources.inputs,
         }
     }
 
@@ -108,23 +135,37 @@ impl Preparation {
     /// `inputs` is the caller-supplied hash of the fixture sources; callers
     /// derive it before preparation runs, because preparation writes inside
     /// the very roots it hashes.
+    /// Coverage stays with the caller: the fixture's own run is what the
+    /// coverage gate measures, so an inherited `LLVM_PROFILE_FILE` is kept.
     #[must_use]
-    pub fn with_target_directory(
+    pub fn for_fixture(
         family: impl Into<String>,
         directory: PathBuf,
         variant: impl Into<String>,
         inputs: impl Into<String>,
-        profile_destination: ProfileDestination,
     ) -> Self {
-        let environment = env_from_vars(
-            env::vars_os()
-                .filter(|(key, _)| key != "CARGO_TARGET_DIR")
-                .collect(),
-            Some(&directory),
-            profile_destination,
-        );
-        Self::new(family, directory, environment, variant, inputs)
+        let environment = env_for_directory(&directory, ProfileDestination::Caller);
+        Self::new(Sources::new(family, variant, inputs), directory, environment)
     }
+}
+
+/// Filter the inherited environment for a child that builds in `directory`.
+///
+/// `CARGO_TARGET_DIR` is dropped from the inherited values because the
+/// directory being stamped is the authority: a stale inherited value would
+/// point the build somewhere the stamp does not describe.
+#[must_use]
+pub fn env_for_directory(
+    directory: &Path,
+    profile_destination: ProfileDestination,
+) -> NestedCargoEnv {
+    env_from_vars(
+        env::vars_os()
+            .filter(|(key, _)| key != "CARGO_TARGET_DIR")
+            .collect(),
+        Some(directory),
+        profile_destination,
+    )
 }
 
 /// What one family's preparation did, for the log line.

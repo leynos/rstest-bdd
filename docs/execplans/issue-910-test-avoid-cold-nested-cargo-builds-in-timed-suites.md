@@ -155,16 +155,34 @@ filtered `cargo nextest run` passes the timed tests in seconds.
       once (`DepInfoOutcome::abandoned`, `RebuildOutcome::abandoned`,
       `AdditionOutcome::abandoned`) removed the repetition. The duplication
       findings were test setup: `fixture_package` and `scratch_preparation`.
-      Two findings survived that pass. One was `macrotest_support.rs` still at
-      10.00 → 9.39 duplication, which the test-setup extraction did not touch:
-      the real duplicate was `trybuild_environment` against
-      `trybuild_macros/preparation::environment`, two new copies of "take this
-      process's environment, drop `CARGO_TARGET_DIR`, and put the family's own
-      directory in its place". `Preparation::with_target_directory` now states
-      that construction once, beside the struct it builds. The other two
-      remaining findings carry no arrow — `harness/preparation.rs` duplication
-      at 9.39 and `Preparation::new`'s argument count at 9.69 — so they
-      predate this branch and were left alone rather than widened in scope.
+      Three findings survived that pass, and the duplication ones were only
+      resolved once they were measured rather than guessed at. The
+      `trybuild_environment` consolidation was real and worth keeping — it
+      removed two copies of "take this process's environment, drop
+      `CARGO_TARGET_DIR`, and put the family's own directory in its place" —
+      but it was not what CodeScene was reporting. `cs review` named the
+      duplicated functions directly: `assert_snapshot_contains` and
+      `assert_snapshot_omits`, untouched by this branch, whose identical
+      read-assert shapes tipped the file below the gate once the file grew.
+      Diverging them structurally (collecting every missing needle, which also
+      improves the message) took the file from 9.38 to 10.00. The
+      `feature_rebuild_invalidation` duplication was the real pair
+      `rebuild_preparation`/`addition_preparation`, now one
+      `fixture_preparation`, taking that file to 10.00. The third finding was
+      `Preparation::new`'s five-argument signature — and calling it
+      pre-existing was wrong: `Preparation` does not exist on `main` at all,
+      so the whole module is this branch's. It was fixed rather than
+      reclassified. The three values that travel together (family, variant,
+      input hash) are now a `Sources` value object, so `new` takes three
+      arguments and a caller cannot pair one family's name with another's
+      hash. All three previously flagged files now score 10.00.
+- **"Pre-existing" is a claim to verify, not a safe default.** Both the
+  execplan and a commit message described the `Preparation::new` argument
+  count as pre-existing at 9.69 on `main`. `git grep "struct Preparation"
+  origin/main` returns nothing: the module is new here. The claim survived
+  because it was phrased plausibly and never checked against `main` — the
+  same mistake, in a different guise, as the three wrong duplication
+  hypotheses. Check the base revision before calling a finding inherited.
 - [x] Record CI-lane timings for the affected suites once the PR runs, since
       only that lane answers acceptance criterion (c). Run `41981885921`
       (head `bca39c7d`) passed all three required lanes; the figures below are
@@ -243,14 +261,33 @@ the assertion does not share.
   mistaken for an assertion budget.
 - **A duplication finding names a file, not the duplicated lines.** CodeScene
   reports `macrotest_support.rs` with an empty `method=` parameter, so it says
-  which file regressed without saying which block repeats. The first guess —
-  that `trybuild_target_root` duplicated `binary_test_support`'s
-  `target_directory_for_manifest` — was wrong: both calls are the same three
-  lines the file already had on `main`, so they cannot explain a regression
-  from 10.00. Scanning for repeated normalized line windows across the whole
-  repository, and filtering to windows in the named file, found the real pair
-  in one pass. Guessing from the file's contents would have refactored a block
-  that was never the problem.
+  which file regressed without saying which block repeats. Three guesses were
+  made from reading the diff — that `trybuild_target_root` duplicated
+  `binary_test_support`'s `target_directory_for_manifest`, then that
+  `prepare_now`/`ensure_prepared` shared a prologue, then that it was
+  `Preparation::with_target_directory` — and all three were wrong. The
+  `cargo metadata` call was already in this file on `main`, and the shared
+  prologue was four lines.
+- **The CodeScene CLI measures the finding locally, so stop guessing and
+  measure.** `cs check <file>` scores one file, and `cs review <file>` names
+  the duplicated *functions*. Both are installed at `~/.local/bin`, need no
+  configuration, and answer the question in seconds. On this file `cs review`
+  named `assert_snapshot_contains` and `assert_snapshot_omits` — two functions
+  this branch never touched, which is why every guess aimed at the new code
+  missed. Verifying the hypothesis outside the repository is not enough:
+  `cs check` on a copy of `main`'s file reported 10.00, and the same file
+  scored 9.38 once it sat in the worktree, so the *pair* is duplicated either
+  way and the added bulk only tipped a threshold. The fix was to make the two
+  functions structurally different: `assert_snapshot_contains` now collects
+  every missing needle and reports them together, which both removes the
+  duplicated block and gives a better diagnostic than failing on the first one.
+  `cs check` then reported 10.00 with no warnings. Measure first; the
+  measurement is cheaper than one wrong refactor.
+- **A file's score can be limited by functions the diff never touched.** The
+  finding was filed as a *regression this branch introduced*, and in the sense
+  CodeScene means — the file's score fell below the gate — it was. But the
+  duplicated pair predates the branch. That is not an argument for ignoring it:
+  the gate compares the file, and the file now fails.
 - **`input_hash` already skips `target` directories by entry name,** so
   `crates/rstest-bdd/target/tests/ui_lints_clippy` is excluded from the
   `crates` input root even though it lives inside it. No special case was
@@ -382,8 +419,9 @@ fits its budget there.
 The shared preparation policy is
 `crates/rstest-bdd-harness/src/nested_cargo/preparation.rs`, with the stamp
 protocol in `preparation/stamp.rs` and directory hashing in
-`preparation/input_hash.rs`. `Preparation::new` takes a family name, a
-directory, a filtered `NestedCargoEnv`, a variant label and an input hash;
+`preparation/input_hash.rs`. `Preparation::new` takes the three values that
+identify a family (`Sources`: name, variant label, input hash), the directory
+it stamps, and the filtered `NestedCargoEnv` its commands run with;
 `prepare_now` runs a closure unconditionally and writes the stamp on success;
 `ensure_prepared` fails fast under nextest and prepares lazily otherwise.
 

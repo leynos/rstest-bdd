@@ -57,6 +57,7 @@ pub use preparation::{
     PREPARATION_COMMAND_TIMEOUT,
     Preparation,
     PreparationSummary,
+    Sources,
     count_compiling,
     ensure_prepared,
     input_hash,

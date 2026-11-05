@@ -15,7 +15,7 @@ use super::{
     prepare_now,
     stamp::{PREPARED_FILE_SUFFIX, fingerprint, stamp_path},
 };
-use crate::nested_cargo::{NestedCargoEnv, ProfileDestination, env_from_vars};
+use crate::nested_cargo::{NestedCargoEnv, ProfileDestination, Sources, env_from_vars};
 
 /// A filtered environment carrying only fingerprint-relevant variables.
 fn environment() -> NestedCargoEnv {
@@ -50,11 +50,9 @@ fn preparation(
     inputs: &str,
 ) -> Preparation {
     Preparation::new(
-        "unit",
+        Sources::new("unit", variant, inputs),
         directory.to_path_buf(),
         environment.clone(),
-        variant,
-        inputs,
     )
 }
 
