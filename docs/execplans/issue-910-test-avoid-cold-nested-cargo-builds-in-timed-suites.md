@@ -222,6 +222,17 @@ by excluding `wip` from the hash, with two regression tests: one for the
 exclusion and one asserting that a preparation survives the build output it
 creates.
 
+One consequence of sharing the gate is worth recording. The server suite is the
+only prepared tree with nothing to stage: its fixtures reference no feature
+file, so `prepare` has no fallible step and Clippy reports
+`clippy::unnecessary_wraps`. Returning the bare summary would not compile, since
+`TrybuildTree::prepare_now` and `ensure_prepared` both take an
+`io::Result`-returning closure so that a tree whose preparation can fail uses
+the same gate. The signature therefore stays, with a scoped
+`#[expect(clippy::unnecessary_wraps, reason = ...)]` recording why the result
+is never `Err` — the repository denies `allow_attributes`, so this is the
+`#[expect]` idiom the lint policy is written for.
+
 The remaining caveat is about interpreting local measurements. This host routes
 `rustc` through a shared four-slot admission pool, and CI does not, so local
 elapsed times under contention measure the queue rather than the suite. The
