@@ -143,11 +143,39 @@ filtered `cargo nextest run` passes the timed tests in seconds.
       take as path dependencies. The rest corrected prose: the `#[serial]`
       cross-process claim, the "parallel" and "quarter budget" claims about a
       serial cold run, and a focused-run recipe that mixed `RUSTFLAGS`.
+- [x] Answer the CodeScene advisory findings on the diff. Seven files were
+      flagged; four were regressions this branch introduced (10.00 → 9.19,
+      9.39, 9.53 and 9.59) and three were pre-existing. CodeScene is not a
+      required check — the `main-required-checks` ruleset names only the three
+      `build-test` lanes — but `clippy.toml` states that this repository's
+      thresholds follow CodeScene's ceiling, so a regression there is a real
+      one. The three Large Method findings shared a cause: each harness step
+      gained an early return whose whole struct literal was failing
+      placeholders, and four such literals already existed. Naming that value
+      once (`DepInfoOutcome::abandoned`, `RebuildOutcome::abandoned`,
+      `AdditionOutcome::abandoned`) removed the repetition. The duplication
+      findings were test setup: `fixture_package` and `scratch_preparation`.
 - [ ] Record CI-lane timings for the affected suites once the PR runs, since
       only that lane answers acceptance criterion (c).
 
 ## Surprises & Discoveries
 
+- **A required check and a quality signal are different things.** CodeScene
+  failed on every push to this branch, which looks like a blocker and is not
+  one: `gh api repos/leynos/rstest-bdd/rulesets/18427987` shows the merge gate
+  is `main-required-checks`, and it names only the three `build-test` contexts.
+  Classic branch protection is absent, so a failing CodeScene check neither
+  blocks nor reports a structural problem. The two are still worth separating
+  in the other direction as well — the repository means it about code health
+  (`clippy.toml` opens with "Align with CodeScene's ceiling"), so an advisory
+  regression is a regression even when the merge button stays green.
+- **A quality gate reports the files a diff touched, not only the lines it
+  changed.** Three of the seven CodeScene findings were in files this branch
+  already degraded — duplications scored 9.39 both before and after — while the
+  four with a `10.00 →` prefix were files the diff pushed below a perfect
+  score. Reading the arrow, rather than the presence of a filename, is what
+  distinguishes "this change made it worse" from "this change landed near an
+  existing problem". It is also what stops a refactor aimed at the wrong file.
 - **A figure can be true and still be the wrong figure.** The preparation
   budget's rationale cited 386.8 s as "the largest cold dependency build". That
   number is real, but it measures the old *timed* `step_macros_compile` run on
