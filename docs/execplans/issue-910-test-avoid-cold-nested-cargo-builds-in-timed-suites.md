@@ -165,8 +165,30 @@ filtered `cargo nextest run` passes the timed tests in seconds.
       remaining findings carry no arrow — `harness/preparation.rs` duplication
       at 9.39 and `Preparation::new`'s argument count at 9.69 — so they
       predate this branch and were left alone rather than widened in scope.
-- [ ] Record CI-lane timings for the affected suites once the PR runs, since
-      only that lane answers acceptance criterion (c).
+- [x] Record CI-lane timings for the affected suites once the PR runs, since
+      only that lane answers acceptance criterion (c). Run `41981885921`
+      (head `bca39c7d`) passed all three required lanes; the figures below are
+      from the Linux coverage step, which ran the whole suite in 1402.014 s —
+      2101 tests across 133 binaries, 2101 passed, 7 skipped.
+
+The six preparation families did the cold work inside their own 30-minute
+budget:
+
+| Test                                                                                     | CI time   | Limit |
+| ---------------------------------------------------------------------------------------- | --------- | ----- |
+| `cargo-bdd::cli preparation::nested_fixture_preparation`                                 | 89.382 s  | 30 m  |
+| `rstest-bdd::feature_rebuild_invalidation nested_fixture_preparation`                    | 31.154 s  | 30 m  |
+| `rstest-bdd::trybuild_macros preparation::nested_fixture_preparation`                    | 438.214 s | 30 m  |
+| `rstest-bdd-harness-gpui::macro_compile preparation::nested_fixture_preparation`         | 332.096 s | 30 m  |
+| `rstest-bdd-harness-tokio::macro_compile preparation::nested_fixture_preparation`        | 43.881 s  | 30 m  |
+| `rstest-bdd-server::workspace_discovery_compile preparation::nested_fixture_preparation` | 239.213 s | 30 m  |
+| `cargo-bdd::cli list_steps_runs`                                                         | 0.584 s   | 180 s |
+| `rstest-bdd::feature_rebuild_invalidation feature_addition_triggers_rebuild`             | 1.745 s   | 600 s |
+| `rstest-bdd::trybuild_macros runner::step_macros_compile`                                | 197.642 s | 20 m  |
+
+The three tests the issue names as failures now run at 0.3%, 0.3% and 16.5% of
+their deadlines, with the cold graph compiled by a separate test under a budget
+the assertion does not share.
 
 ## Surprises & Discoveries
 
