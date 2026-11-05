@@ -12,21 +12,18 @@
 //! This module moves the cold work into explicitly named preparation tests
 //! without widening any assertion deadline:
 //!
-//! * each preparation family writes a stamp inside the artefact directory it
-//!   protects, and only after its last preparation command succeeded, so
-//!   evicting the target directory also evicts the stamp;
-//! * the stamp records a fingerprint of the build-relevant environment, the
-//!   toolchain identity, a caller-supplied variant label and a caller-supplied
-//!   hash of the fixture inputs, so a changed compiler, feature set or fixture
-//!   source forces preparation again;
-//! * under `cargo nextest` a missing or stale stamp fails fast with the
-//!   command that prepares it, because nextest runs every test in its own
-//!   process and a timed test cannot prepare without paying the cost it is
-//!   meant to avoid;
-//! * under plain `cargo test` preparation runs lazily under a process-wide
-//!   lock, so the same suites stay usable without the extra Nextest pass.
-//!   `#[serial]` (which locks across processes) remains the caller's
-//!   responsibility for test binaries that share a family.
+//! * each preparation family writes a stamp inside the artefact directory it protects, and only
+//!   after its last preparation command succeeded, so evicting the target directory also evicts the
+//!   stamp;
+//! * the stamp records a fingerprint of the build-relevant environment, the toolchain identity, a
+//!   caller-supplied variant label and a caller-supplied hash of the fixture inputs, so a changed
+//!   compiler, feature set or fixture source forces preparation again;
+//! * under `cargo nextest` a missing or stale stamp fails fast with the command that prepares it,
+//!   because nextest runs every test in its own process and a timed test cannot prepare without
+//!   paying the cost it is meant to avoid;
+//! * under plain `cargo test` preparation runs lazily under a process-wide lock, so the same suites
+//!   stay usable without the extra Nextest pass. `#[serial]` (which locks across processes) remains
+//!   the caller's responsibility for test binaries that share a family.
 //!
 //! Preparation commands are bounded by [`PREPARATION_COMMAND_TIMEOUT`], which
 //! is deliberately separate from every assertion deadline.
@@ -87,37 +84,37 @@ const FINGERPRINT_PREFIXES: [&str; 5] = [
 
 /// One family of prepared fixture artefacts.
 #[derive(Debug, Clone)]
-pub struct Preparation<'a> {
+pub struct Preparation {
     /// Stable kebab-case family name, used in the stamp file name and logs.
-    pub family: &'a str,
+    pub family: String,
     /// Directory the prepared artefacts live in, and where the stamp is
     /// written.
     pub directory: PathBuf,
     /// The filtered environment the preparation commands run with.
-    pub environment: &'a NestedCargoEnv,
+    pub environment: NestedCargoEnv,
     /// Caller-supplied label for the feature set or tool variant, such as
     /// `all-features` or the resolved Clippy version.
-    pub variant: &'a str,
+    pub variant: String,
     /// Caller-supplied hash of the fixture sources and lockfiles.
-    pub inputs: &'a str,
+    pub inputs: String,
 }
 
-impl<'a> Preparation<'a> {
+impl Preparation {
     /// Build a preparation description.
     #[must_use]
     pub fn new(
-        family: &'a str,
+        family: impl Into<String>,
         directory: PathBuf,
-        environment: &'a NestedCargoEnv,
-        variant: &'a str,
-        inputs: &'a str,
+        environment: NestedCargoEnv,
+        variant: impl Into<String>,
+        inputs: impl Into<String>,
     ) -> Self {
         Self {
-            family,
+            family: family.into(),
             directory,
             environment,
-            variant,
-            inputs,
+            variant: variant.into(),
+            inputs: inputs.into(),
         }
     }
 }
@@ -141,7 +138,7 @@ pub struct PreparationSummary {
 ///
 /// Returns the closure's error when preparation fails, and the I/O error when
 /// the stamp cannot be read or written.
-pub fn ensure_prepared<F>(preparation: &Preparation<'_>, prepare: F) -> io::Result<()>
+pub fn ensure_prepared<F>(preparation: &Preparation, prepare: F) -> io::Result<()>
 where
     F: FnOnce() -> io::Result<PreparationSummary>,
 {
@@ -151,7 +148,7 @@ where
 /// [`ensure_prepared`] with the runner decision supplied, so the fail-fast and
 /// lazy paths are testable without mutating the process environment.
 fn ensure_prepared_with<F>(
-    preparation: &Preparation<'_>,
+    preparation: &Preparation,
     under_nextest: bool,
     prepare: F,
 ) -> io::Result<()>
@@ -161,11 +158,11 @@ where
     let fingerprint = fingerprint(preparation);
     let stamp = stamp_path(preparation);
     if stamp_matches(&stamp, &fingerprint) {
-        eprintln!(
-            "nested preparation: family={} is prepared ({})",
+        note(&format!(
+            "family={} is prepared ({})",
             preparation.family,
             stamp.display()
-        );
+        ));
         return Ok(());
     }
 
@@ -188,7 +185,7 @@ where
 /// # Errors
 ///
 /// As [`ensure_prepared`].
-pub fn prepare_now<F>(preparation: &Preparation<'_>, prepare: F) -> io::Result<()>
+pub fn prepare_now<F>(preparation: &Preparation, prepare: F) -> io::Result<()>
 where
     F: FnOnce() -> io::Result<PreparationSummary>,
 {
@@ -199,7 +196,7 @@ where
 /// Run `prepare` under the process-wide lock unless the family is already
 /// prepared, then stamp it.
 fn prepare_locked<F>(
-    preparation: &Preparation<'_>,
+    preparation: &Preparation,
     stamp: &Path,
     fingerprint: &str,
     prepare: F,
@@ -217,13 +214,13 @@ where
     let started = Instant::now();
     let summary = prepare()?;
     write_stamp(stamp, fingerprint)?;
-    eprintln!(
-        "nested preparation: family={} prepared in {:.1}s ({} Compiling lines); stamp {}",
+    note(&format!(
+        "family={} prepared in {:.1}s ({} Compiling lines); stamp {}",
         preparation.family,
         started.elapsed().as_secs_f64(),
         summary.compiled_units,
         stamp.display()
-    );
+    ));
     Ok(())
 }
 
@@ -294,17 +291,23 @@ fn hash_entry(path: &Path, hasher: &mut impl Hasher) -> io::Result<()> {
 
 /// Whether the current process was started by `cargo nextest`.
 #[must_use]
-pub fn running_under_nextest() -> bool {
-    env::var_os("NEXTEST_RUN_ID").is_some()
+pub fn running_under_nextest() -> bool { env::var_os("NEXTEST_RUN_ID").is_some() }
+
+/// Report preparation progress on standard error.
+///
+/// Preparation is intentionally visible in test logs: its elapsed time and
+/// compiled-unit count are the evidence that the cold work left the timed
+/// assertions.
+fn note(message: &str) {
+    use std::io::Write as _;
+    let _ = writeln!(io::stderr(), "nested preparation: {message}");
 }
 
 /// Take the process-wide preparation lock.
-fn lock() -> MutexGuard<'static, ()> {
-    PREPARE_LOCK.lock().unwrap_or_else(PoisonError::into_inner)
-}
+fn lock() -> MutexGuard<'static, ()> { PREPARE_LOCK.lock().unwrap_or_else(PoisonError::into_inner) }
 
 /// The stamp file protecting `preparation.directory`.
-fn stamp_path(preparation: &Preparation<'_>) -> PathBuf {
+fn stamp_path(preparation: &Preparation) -> PathBuf {
     preparation
         .directory
         .join(format!(".{}{}", preparation.family, PREPARED_FILE_SUFFIX))
@@ -316,10 +319,10 @@ fn stamp_matches(stamp: &Path, fingerprint: &str) -> bool {
         Ok(recorded) => recorded.trim_end() == fingerprint.trim_end(),
         Err(error) if error.kind() == io::ErrorKind::NotFound => false,
         Err(error) => {
-            eprintln!(
-                "nested preparation: could not read stamp {}: {error}; preparing again",
+            note(&format!(
+                "could not read stamp {}: {error}; preparing again",
                 stamp.display()
-            );
+            ));
             false
         }
     }
@@ -344,7 +347,7 @@ fn write_stamp(stamp: &Path, fingerprint: &str) -> io::Result<()> {
 }
 
 /// The fingerprint text recorded in the stamp.
-fn fingerprint(preparation: &Preparation<'_>) -> String {
+fn fingerprint(preparation: &Preparation) -> String {
     let mut text = String::new();
     let _ = writeln!(text, "version: {STAMP_VERSION}");
     let _ = writeln!(text, "toolchain: {}", toolchain_identity());
@@ -368,12 +371,12 @@ fn is_fingerprint_variable(key: &str) -> bool {
 }
 
 /// The fail-fast message for a timed test with no prepared artefacts.
-fn missing_stamp_message(preparation: &Preparation<'_>, stamp: &Path) -> String {
+fn missing_stamp_message(preparation: &Preparation, stamp: &Path) -> String {
     format!(
-        "nested fixture artefacts for family `{}` are not prepared ({} is missing or stale).\n\
-         Under nextest every test runs in its own process, so preparing here would make a \
-         timed test pay for the cold build it is meant to avoid.\n\
-         Prepare them first with `make prepare-nested-fixtures` (or `cargo nextest run -E \
+        "nested fixture artefacts for family `{}` are not prepared ({} is missing or \
+         stale).\nUnder nextest every test runs in its own process, so preparing here would make \
+         a timed test pay for the cold build it is meant to avoid.\nPrepare them first with `make \
+         prepare-nested-fixtures` (or `cargo nextest run -E \
          'test(/nested_fixture_preparation$/)'`).",
         preparation.family,
         stamp.display()
@@ -390,11 +393,11 @@ fn toolchain_identity() -> &'static str {
     IDENTITY.get_or_init(|| {
         let output = Command::new(env!("CARGO")).arg("-vV").output();
         let Ok(output) = output else {
-            eprintln!("nested preparation: could not run `cargo -vV`; toolchain unknown");
+            note("could not run `cargo -vV`; toolchain unknown");
             return "unknown".to_owned();
         };
         if !output.status.success() {
-            eprintln!("nested preparation: `cargo -vV` failed; toolchain unknown");
+            note("`cargo -vV` failed; toolchain unknown");
             return "unknown".to_owned();
         }
         let text = String::from_utf8_lossy(&output.stdout);
@@ -435,16 +438,16 @@ mod tests {
     }
 
     /// A preparation rooted at `directory`.
-    fn preparation<'a>(
+    fn preparation(
         directory: &Path,
-        environment: &'a NestedCargoEnv,
-        variant: &'a str,
-        inputs: &'a str,
-    ) -> Preparation<'a> {
+        environment: &NestedCargoEnv,
+        variant: &str,
+        inputs: &str,
+    ) -> Preparation {
         Preparation::new(
             "unit",
             directory.to_path_buf(),
-            environment,
+            environment.clone(),
             variant,
             inputs,
         )
@@ -582,7 +585,7 @@ mod tests {
         fs::create_dir_all(source.join("features")).expect("fixture dir");
         fs::write(source.join("Cargo.toml"), "[package]\nname = \"f\"\n").expect("manifest");
         fs::write(source.join("features/a.feature"), "Feature: a\n").expect("feature");
-        let before = input_hash(&[source.clone()]).expect("initial hash");
+        let before = input_hash(std::slice::from_ref(&source)).expect("initial hash");
 
         fs::create_dir_all(source.join("target/debug")).expect("target dir");
         fs::write(source.join("target/debug/artifact"), "binary").expect("artefact");
@@ -591,7 +594,7 @@ mod tests {
             "different fingerprint",
         )
         .expect("stamp");
-        let after = input_hash(&[source.clone()]).expect("hash after build");
+        let after = input_hash(std::slice::from_ref(&source)).expect("hash after build");
         assert_eq!(before, after, "build output must not change the inputs");
 
         fs::write(source.join("features/a.feature"), "Feature: changed\n").expect("edit");
