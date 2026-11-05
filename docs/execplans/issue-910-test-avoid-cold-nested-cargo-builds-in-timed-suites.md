@@ -127,6 +127,9 @@ filtered `cargo nextest run` passes the timed tests in seconds.
       that this host queues on a shared admission pool CI does not have.
 - [x] Fix the self-invalidating stamp: `trybuild` writes `wip/` inside the
       `crates` input root, which made every stamp stale as it was written.
+- [x] Clear the `clippy::unnecessary_wraps` diagnostics the shared contract
+      produces for the two suites whose preparation has no fallible step, and
+      the `cloned_ref_to_slice_refs` pair in the preparation tests.
 - [ ] Record CI-lane timings for the affected suites once the PR runs, since
       only that lane answers acceptance criterion (c).
 
