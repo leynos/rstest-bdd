@@ -190,6 +190,16 @@ The three tests the issue names as failures now run at 0.3%, 0.3% and 16.5% of
 their deadlines, with the cold graph compiled by a separate test under a budget
 the assertion does not share.
 
+- [x] Re-run `coderabbit review --agent` after the refactoring milestone. It
+      completed over 33 changed files with zero findings. It was requested only
+      after the deterministic gates it can be checked against had passed:
+      `make check-fmt`, `make markdownlint` and `make lint`, plus
+      `rstest-bdd-harness`'s 51 unit tests and the Tokio, GPUI and server test
+      binaries. The full `make test` and `make test-workflow-contracts` had
+      already passed at `bca39c7d` and again on CI; the later commits touch one
+      private function body and prose, so the targeted suites are the
+      relevant evidence rather than a rerun of the whole workspace.
+
 ## Surprises & Discoveries
 
 - **A required check and a quality signal are different things.** CodeScene
