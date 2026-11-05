@@ -190,9 +190,16 @@ filtered `cargo nextest run` passes the timed tests in seconds.
 
 ## Outcomes & Retrospective
 
-Not yet complete. Every suite that compiles a nested Cargo graph is prepared
-and stamped, including the harness and server trybuild trees; the mutation-lane
-decision, the docs table and the timing evidence remain.
+Implementation is complete; only the CI-lane timing evidence remains, and it
+can be collected only from the PR's own run.
+
+Every suite that compiles a nested Cargo graph is prepared and stamped,
+including the harness and server trybuild trees. On the development host a cold
+nested target prepared all six families in 2213.657 s, well inside their 30 m
+budgets, and the timed assertions then ran against those trees: `list_steps_runs`
+in 2.223 s against 180 s, `feature_addition_triggers_rebuild` in 224.433 s
+against 600 s, and the CLI and trybuild helper cases in seconds. No assertion
+deadline was widened.
 
 Two things surfaced while wiring the remaining suites. `trybuild` derives its
 build directory from the *workspace* target root, not from the crate being
@@ -204,6 +211,23 @@ crate's compile test previously ran with no preparation at all, so on a cold
 target its dependency graph — `async-lsp`, `tokio`, `tower`, `gherkin`, `syn` —
 was compiled inside a 20-minute assertion budget; it now follows the same
 pattern, which needed `rstest-bdd-harness` as a dev-dependency there.
+
+A third surfaced only by running a cold preparation end to end, and it would
+have defeated the whole design on CI. `trybuild` writes `wip/` beside the crate
+under test — inside `crates/`, which is one of the hashed input roots — and it
+creates that directory during the very build the stamp describes. The stamp
+records a hash computed *before* the build, so every cold preparation wrote a
+stamp that was stale on arrival and the timed test was refused its gate. Fixed
+by excluding `wip` from the hash, with two regression tests: one for the
+exclusion and one asserting that a preparation survives the build output it
+creates.
+
+The remaining caveat is about interpreting local measurements. This host routes
+`rustc` through a shared four-slot admission pool, and CI does not, so local
+elapsed times under contention measure the queue rather than the suite. The
+figures above establish that the cold work moved and that the assertions reuse
+the prepared trees; the CI coverage lane is what establishes that the suite fits
+its budget there.
 
 ## Context and orientation
 
