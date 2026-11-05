@@ -12,7 +12,6 @@ use std::{
     io,
     panic::{self, AssertUnwindSafe},
     path::Path as StdPath,
-    process::Command,
 };
 
 use camino::{Utf8Path, Utf8PathBuf};
@@ -28,6 +27,11 @@ use wrappers::{
 
 #[path = "trybuild_macros/staging.rs"]
 mod staging;
+
+// Preparation of the two nested build trees, in its own file so the timed
+// assertions and their setup stay separately readable.
+#[path = "trybuild_macros/preparation.rs"]
+mod preparation;
 
 #[path = "trybuild_macros/runner.rs"]
 mod runner;
@@ -176,21 +180,11 @@ fn run_lint_ui_tests() -> io::Result<()> {
 }
 
 fn run_lint_ui_case(bin: &str, lint_args: &[&str]) -> io::Result<()> {
-    let manifest_dir = Utf8Path::new(env!("CARGO_MANIFEST_DIR"));
-    let manifest_path = manifest_dir.join("tests/ui_lints/Cargo.toml");
     // Keep lint runs isolated from the workspace target directory to avoid
     // artefact/cache conflicts and cross-test contamination; this makes
-    // per-bin `cargo clippy` checks deterministic.
-    let target_dir = manifest_dir.join("target/tests/ui_lints_clippy");
-    let output = Command::new("cargo")
-        .current_dir(manifest_dir.as_std_path())
-        .env("CARGO_TARGET_DIR", target_dir.as_str())
-        .arg("clippy")
-        .arg("--locked")
-        .arg("--manifest-path")
-        .arg(manifest_path.as_str())
-        .arg("--bin")
-        .arg(bin)
+    // per-bin `cargo clippy` checks deterministic. The command shape is
+    // shared with preparation so the two warm the same graph.
+    let output = preparation::ui_clippy_command(bin)
         .arg("--")
         .args(lint_args)
         .output()?;
