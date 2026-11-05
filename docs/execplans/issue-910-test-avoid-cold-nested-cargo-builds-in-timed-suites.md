@@ -145,10 +145,10 @@ filtered `cargo nextest run` passes the timed tests in seconds.
   budget's rationale cited 386.8 s as "the largest cold dependency build". That
   number is real, but it measures the old *timed* `step_macros_compile` run on
   `ubicloud-standard-2` against a partial sccache — the very cost this change
-  removes from the assertion. The cold *preparations* measured here are
-  645.412 s and 864.239 s. Quoting a correctly transposed number under a new
-  heading is easy to miss in review because every digit checks out; what fails
-  is the referent.
+  removes from the assertion. The cold *preparations* measured here are 645.412
+  s and 864.239 s. Quoting a correctly transposed number under a new heading is
+  easy to miss in review because every digit checks out; what fails is the
+  referent.
 
 - **`priority` is not precedence.** The first version of the nextest override
   comment claimed `priority` decided which override won. It does not: nextest
