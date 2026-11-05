@@ -212,6 +212,36 @@ The three tests the issue names as failures now run at 0.3%, 0.3% and 16.5% of
 their deadlines, with the cold graph compiled by a separate test under a budget
 the assertion does not share.
 
+Run `42005188689` on the final head `851c9b1c` passed all three required lanes
+and is the second, independent measurement. Its suite finished in 348.345 s
+(2101 tests, 2101 passed, 7 skipped) — 4.0× faster than the figure above. That
+difference is not the branch improving something: **the two runs differ in
+compiler-cache state, and the timings must not be compared without saying so.**
+`sccache` reported a 13.80% Rust hit rate on run `41981885921` and 95.71% on
+run `42005188689`, so the first is the cold-cache case that acceptance
+criterion (a) is about and the second is a warm runner. The cold measurement
+stays the evidence for that criterion; the warm one shows a normal CI day costs
+minutes, not half an hour:
+
+| Test                                                                                     | cold (`41981885921`) | warm (`42005188689`) |
+| ---------------------------------------------------------------------------------------- | -------------------- | -------------------- |
+| `cargo-bdd::cli preparation::nested_fixture_preparation`                                 | 89.382 s             | 20.742 s             |
+| `rstest-bdd::feature_rebuild_invalidation nested_fixture_preparation`                    | 31.154 s             | 10.535 s             |
+| `rstest-bdd::trybuild_macros preparation::nested_fixture_preparation`                    | 438.214 s            | 100.781 s            |
+| `rstest-bdd-harness-gpui::macro_compile preparation::nested_fixture_preparation`         | 332.096 s            | 68.909 s             |
+| `rstest-bdd-harness-tokio::macro_compile preparation::nested_fixture_preparation`        | 43.881 s             | 11.955 s             |
+| `rstest-bdd-server::workspace_discovery_compile preparation::nested_fixture_preparation` | 239.213 s            | 41.501 s             |
+| `cargo-bdd::cli list_steps_runs`                                                         | 0.584 s              | 0.564 s              |
+| `rstest-bdd::feature_rebuild_invalidation feature_addition_triggers_rebuild`             | 1.745 s              | 1.597 s              |
+| `rstest-bdd::trybuild_macros runner::step_macros_compile`                                | 197.642 s            | 65.744 s             |
+| whole suite                                                                              | 1402.014 s           | 348.345 s            |
+
+The largest cold preparation used 24.3% of its 30-minute budget and the three
+issue-named assertions used 0.3%, 0.3% and 16.5% of theirs. Every timed override
+is byte-identical to `main`'s — 180 s, 20 m, 600 s, and the 60 s default — which
+`git show origin/main:.config/nextest.toml` confirms directly rather than by
+reading this branch's comments.
+
 - [x] Push the final head `851c9b1c` and confirm it against the remote. The two
       commits it carries are execplan-only: the CodeScene CLI measurement note
       and the record of check run `127148421451` passing. They were held back
@@ -251,6 +281,17 @@ the assertion does not share.
   score. Reading the arrow, rather than the presence of a filename, is what
   distinguishes "this change made it worse" from "this change landed near an
   existing problem". It is also what stops a refactor aimed at the wrong file.
+- **A passing timing is not a comparable timing until you check the cache.** The
+  final CI run measured the whole suite in 348 s against the earlier run's
+  1402 s, which reads as a four-fold improvement from this branch and is
+  nothing of the kind: sccache served 95.71% of Rust compilations on that runner
+  and 13.80% on the other. The cold run is the one acceptance criterion (a)
+  asks about, because it is the run that actually pays for the dependency
+  graphs; quoting the warm number in its place would have made the evidence
+  look better while measuring the wrong condition. Both belong in the record,
+  labelled with their cache state. The lesson generalizes past this issue: any
+  CI duration is a joint measurement of the code and the runner's cache, and the
+  cache state is the half that changes without a commit.
 - **A figure can be true and still be the wrong figure.** The preparation
   budget's rationale cited 386.8 s as "the largest cold dependency build". That
   number is real, but it measures the old *timed* `step_macros_compile` run on
