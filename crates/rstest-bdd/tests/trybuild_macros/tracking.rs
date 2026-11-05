@@ -156,9 +156,10 @@ fn collect_dep_info_matches(
 /// content check still has to match, so the risk of admitting a stale artefact
 /// is confined to that unusual platform.
 fn was_written_since(path: &StdPath, threshold: SystemTime) -> bool {
-    std::fs::metadata(path)
-        .and_then(|metadata| metadata.modified())
-        .is_ok_and(|modified| modified >= threshold)
+    let Ok(modified) = std::fs::metadata(path).and_then(|metadata| metadata.modified()) else {
+        return true;
+    };
+    modified >= threshold
 }
 
 #[cfg(test)]

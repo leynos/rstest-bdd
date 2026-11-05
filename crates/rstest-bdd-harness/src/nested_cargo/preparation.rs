@@ -21,9 +21,10 @@
 //! * under `cargo nextest` a missing or stale stamp fails fast with the command that prepares it,
 //!   because nextest runs every test in its own process and a timed test cannot prepare without
 //!   paying the cost it is meant to avoid;
-//! * under plain `cargo test` preparation runs lazily under a process-wide lock, so the same suites
-//!   stay usable without the extra Nextest pass. `#[serial]` (which locks across processes) remains
-//!   the caller's responsibility for test binaries that share a family.
+//! * under plain `cargo test`, preparation runs lazily under a process-wide lock, so the same
+//!   suites stay usable without the extra Nextest pass. `#[serial]` serializes within a single
+//!   process only; under nextest, ordering across processes comes from the `cargo-spawning` test
+//!   group, so a family whose test binary shares a directory must stay in that group.
 //!
 //! Preparation commands are bounded by [`PREPARATION_COMMAND_TIMEOUT`], which
 //! is deliberately separate from every assertion deadline. The stamp protocol

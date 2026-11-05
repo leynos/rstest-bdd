@@ -124,7 +124,9 @@ pub(super) fn missing_stamp_message(preparation: &Preparation, stamp: &Path) -> 
          stale).\nUnder nextest every test runs in its own process, so preparing here would make \
          a timed test pay for the cold build it is meant to avoid.\nPrepare them first with `make \
          prepare-nested-fixtures` (or `cargo nextest run -E \
-         'test(/nested_fixture_preparation$/)'`).",
+         'test(/nested_fixture_preparation$/)'`), under the same `RUSTFLAGS` and feature \
+         selection as the run that reads this stamp: the fingerprint covers both, so preparing \
+         under a different environment only warms a tree this run will not reuse.",
         preparation.family,
         stamp.display()
     )
