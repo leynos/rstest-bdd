@@ -32,6 +32,25 @@ pub(crate) struct AdditionOutcome {
     pub(crate) second_run_recompiled: bool,
 }
 
+impl AdditionOutcome {
+    /// The observation of a run that never reached the post-addition phase.
+    ///
+    /// Every flag that the scenario steps assert on stays at its failing
+    /// default, so a run abandoned at any precondition cannot look like a
+    /// satisfied addition assertion. `baseline_output` carries the captured
+    /// baseline output when one exists, and is empty when the run stopped
+    /// before producing any.
+    pub(crate) fn abandoned(reason: String, baseline_output: String) -> Self {
+        Self {
+            baseline_error: Some(reason),
+            baseline_output,
+            new_scenario_ran: false,
+            second_run_output: String::new(),
+            second_run_recompiled: false,
+        }
+    }
+}
+
 static ADDITION: OnceLock<AdditionOutcome> = OnceLock::new();
 
 /// Run the build-script addition experiment, once per process.
@@ -52,34 +71,19 @@ fn run_addition_experiment() -> AdditionOutcome {
     // only verifies it, because a timed experiment must not absorb a cold
     // graph build.
     if let Err(err) = super::preparation::ensure_addition_prepared() {
-        return AdditionOutcome {
-            baseline_error: Some(format!("addition fixture is not prepared: {err}")),
-            baseline_output: String::new(),
-            new_scenario_ran: false,
-            second_run_output: String::new(),
-            second_run_recompiled: false,
-        };
+        return AdditionOutcome::abandoned(
+            format!("addition fixture is not prepared: {err}"),
+            String::new(),
+        );
     }
     fixtures::ensure_addition_fixture_copied();
     reset_added_file();
     if let Err(err) = write_build_script_from_docs() {
-        return AdditionOutcome {
-            baseline_error: Some(err),
-            baseline_output: String::new(),
-            new_scenario_ran: false,
-            second_run_output: String::new(),
-            second_run_recompiled: false,
-        };
+        return AdditionOutcome::abandoned(err, String::new());
     }
     let env = process::build_child_env();
     if let Err(err) = preflight_manifest_lockfile_consistency(&env) {
-        return AdditionOutcome {
-            baseline_error: Some(err),
-            baseline_output: String::new(),
-            new_scenario_ran: false,
-            second_run_output: String::new(),
-            second_run_recompiled: false,
-        };
+        return AdditionOutcome::abandoned(err, String::new());
     }
     let outcome = run_cargo(&env, &["test", "--locked", "--offline"]);
     let (baseline_error, baseline_output) = match outcome {
@@ -90,23 +94,14 @@ fn run_addition_experiment() -> AdditionOutcome {
         ),
     };
     if let Some(reason) = baseline_error.clone() {
-        return AdditionOutcome {
-            baseline_error: Some(reason),
-            baseline_output,
-            new_scenario_ran: false,
-            second_run_output: String::new(),
-            second_run_recompiled: false,
-        };
+        return AdditionOutcome::abandoned(reason, baseline_output);
     }
 
     if let Err(err) = add_new_feature_file() {
-        return AdditionOutcome {
-            baseline_error: Some(format!("cannot add the new feature file: {err}")),
+        return AdditionOutcome::abandoned(
+            format!("cannot add the new feature file: {err}"),
             baseline_output,
-            new_scenario_ran: false,
-            second_run_output: String::new(),
-            second_run_recompiled: false,
-        };
+        );
     }
 
     let second_captured = run_cargo(&env, &["test", "--locked", "--offline"]);

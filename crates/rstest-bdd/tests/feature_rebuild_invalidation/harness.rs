@@ -69,13 +69,10 @@ fn build_dep_info_outcome() -> DepInfoOutcome {
     // Preparation owns the cold dependency build; the assertions below keep
     // their own 300-second bound for the fixture's single-unit rebuild.
     if let Err(err) = preparation::ensure_rebuild_prepared() {
-        return outcome::DepInfoOutcome {
-            dep_info_entry_count: 0,
-            scenarios_no_match_tracked: false,
-            dep_info_sample: String::new(),
-            child_env_detail: String::new(),
-            baseline_error: Some(format!("rebuild fixture is not prepared: {err}")),
-        };
+        return outcome::DepInfoOutcome::abandoned(
+            format!("rebuild fixture is not prepared: {err}"),
+            String::new(),
+        );
     }
     fixtures::ensure_fixture_copied();
     fixtures::restore_feature_file();
@@ -98,13 +95,9 @@ fn build_dep_info_outcome() -> DepInfoOutcome {
         Err(err) => (String::new(), Some(err)),
     };
     if let Some(baseline_error) = baseline_error {
-        return outcome::DepInfoOutcome {
-            dep_info_entry_count: 0,
-            scenarios_no_match_tracked: false,
-            dep_info_sample: stdout,
-            child_env_detail: process::describe_env(&env),
-            baseline_error: Some(baseline_error),
-        };
+        let mut abandoned = outcome::DepInfoOutcome::abandoned(baseline_error, stdout);
+        abandoned.child_env_detail = process::describe_env(&env);
+        return abandoned;
     }
 
     // Cargo's `target/debug/.fingerprint/<pkg>-<hash>/dep-test-<name>` is the
@@ -115,13 +108,9 @@ fn build_dep_info_outcome() -> DepInfoOutcome {
             "no `compiler-artifact` with a test-binary `executable` was reported by `cargo test \
              --no-run --message-format=json`; child output:\n{stdout}"
         );
-        return outcome::DepInfoOutcome {
-            dep_info_entry_count: 0,
-            scenarios_no_match_tracked: false,
-            dep_info_sample: stdout,
-            child_env_detail: process::describe_env(&env),
-            baseline_error: Some(error),
-        };
+        let mut abandoned = outcome::DepInfoOutcome::abandoned(error, stdout);
+        abandoned.child_env_detail = process::describe_env(&env);
+        return abandoned;
     };
     let dot_d = executable.with_extension("d");
     let dep_content = match std::fs::read_to_string(&dot_d) {
@@ -174,16 +163,9 @@ pub(crate) fn rebuild_outcome() -> &'static RebuildOutcome {
 
 fn build_rebuild_outcome() -> RebuildOutcome {
     if let Err(err) = preparation::ensure_rebuild_prepared() {
-        return outcome::RebuildOutcome {
-            baseline_passed: false,
-            baseline_output: format!("rebuild fixture is not prepared: {err}"),
-            second: outcome::SecondRun {
-                failed: false,
-                recompiled: false,
-                names_new_expectation: false,
-                output: String::new(),
-            },
-        };
+        return outcome::RebuildOutcome::abandoned(format!(
+            "rebuild fixture is not prepared: {err}"
+        ));
     }
     fixtures::ensure_fixture_copied();
     // A previous run may have left the scratch feature file edited (and, while

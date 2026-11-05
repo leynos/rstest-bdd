@@ -225,12 +225,15 @@ impl TrybuildTree {
     ///
     /// Returns the `cargo metadata` error when the manifest cannot be resolved.
     pub fn generated_crate_root(&self) -> Result<PathBuf, Box<dyn Error>> {
-        trybuild_crate_root(&self.crate_root.join("Cargo.toml"), &self.target_subdir)
+        trybuild_crate_root(&self.manifest_path(), &self.target_subdir)
     }
+
+    /// The manifest of the crate whose trybuild tree this is.
+    fn manifest_path(&self) -> PathBuf { self.crate_root.join("Cargo.toml") }
 
     /// Describe the family this tree belongs to.
     fn preparation(&self) -> io::Result<Preparation> {
-        let manifest_path = self.crate_root.join("Cargo.toml");
+        let manifest_path = self.manifest_path();
         let target_root = trybuild_target_root(&manifest_path).map_err(|error| {
             io::Error::other(format!(
                 "resolving the trybuild target root for {}: {error}",

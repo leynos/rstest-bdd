@@ -66,39 +66,66 @@ use support::{
 
 const FEATURE_REBUILD_BINARY: &str = "rstest-bdd::feature_rebuild_invalidation";
 
+/// The filter every preparation override must carry.
+const PREPARATION_FILTER: &str = "test(/nested_fixture_preparation$/)";
+
 #[test]
 fn preparation_nextest_override_preserves_timeout_contract() -> Result<(), Box<dyn Error>> {
     let configuration = nextest_configuration()?;
     let overrides = default_overrides(&configuration)?;
-    let filter = "test(/nested_fixture_preparation$/)";
+    let override_value = single_preparation_override(overrides)?;
+    assert_preparation_budget(override_value)?;
+    assert_preparation_scheduling(&configuration, overrides, override_value)?;
+    Ok(())
+}
+
+/// The one override that matches the preparation tests, asserting both its
+/// count and its position in the file.
+///
+/// nextest applies the first override that matches a test and configures a
+/// setting, so both are part of the contract: a second matching override would
+/// be dead policy, and a later position would silently defer to an earlier
+/// match.
+fn single_preparation_override(overrides: &[Value]) -> Result<&Value, Box<dyn Error>> {
     let candidates = overrides
         .iter()
         .enumerate()
         .filter(|(_, override_value)| {
-            override_value.get("filter").and_then(Value::as_str) == Some(filter)
+            override_value.get("filter").and_then(Value::as_str) == Some(PREPARATION_FILTER)
         })
         .collect::<Vec<_>>();
     assert_eq!(
         candidates.len(),
         1,
-        "the preparation tests must have exactly one nextest override matching {filter}, found {}",
+        "the preparation tests must have exactly one nextest override matching \
+         {PREPARATION_FILTER}, found {}",
         candidates.len(),
     );
-    let (position, override_value) = candidates
+    let (found_position, override_value) = candidates
         .first()
         .copied()
         .ok_or_else(|| io::Error::other("expected one preparation nextest override"))?;
     assert_eq!(
-        position, 0,
-        "the preparation override must be the first override in the file; nextest applies the \
-         first override that matches a test and configures a setting, so a later position would \
-         silently defer to an earlier match",
+        found_position, 0,
+        "the preparation override must be first in the file; nextest applies the first override \
+         that matches a test and configures a setting, so a later position would silently defer \
+         to an earlier match",
     );
+    Ok(override_value)
+}
 
+/// The preparation override's time budget and serialization group.
+///
+/// The 30-minute period is where a cold dependency build belongs. A timed
+/// assertion has no budget for one, so this is the only override in the file
+/// whose period may be sized for a build rather than an assertion.
+fn assert_preparation_budget(override_value: &Value) -> Result<(), Box<dyn Error>> {
     let slow_timeout = override_value
         .get("slow-timeout")
         .and_then(Value::as_table)
-        .expect("the preparation override must contain a slow-timeout table");
+        .ok_or_else(|| {
+            io::Error::other("the preparation override must contain a slow-timeout table")
+        })?;
     assert_eq!(
         slow_timeout.get("period").and_then(Value::as_str),
         Some("30m"),
@@ -123,6 +150,21 @@ fn preparation_nextest_override_preserves_timeout_contract() -> Result<(), Box<d
         "the preparation override must remain in the cargo-spawning group, so it serializes with \
          the tests whose build trees it warms",
     );
+    Ok(())
+}
+
+/// The preparation override's scheduling priority, and the runner version that
+/// makes `priority` meaningful.
+///
+/// Raising priority is only safe because no other override competes for the
+/// same value: nextest documents `priority` as ordering within a test group,
+/// so a rival override at the same priority would make the preparation's
+/// precedence over the assertions it warms accidental.
+fn assert_preparation_scheduling(
+    configuration: &Value,
+    overrides: &[Value],
+    override_value: &Value,
+) -> Result<(), Box<dyn Error>> {
     let priority = override_value.get("priority").and_then(Value::as_integer);
     assert_eq!(
         priority,
@@ -146,13 +188,12 @@ fn preparation_nextest_override_preserves_timeout_contract() -> Result<(), Box<d
         "no other override may share the preparation override's scheduling priority",
     );
 
-    let version = nextest_version(&configuration)?;
+    let version = nextest_version(configuration)?;
     assert!(
         version >= (0, 9, 91),
         "nextest-version must be at least 0.9.91 so `priority` is a setting the runner reads, \
          found {version:?}",
     );
-
     Ok(())
 }
 
