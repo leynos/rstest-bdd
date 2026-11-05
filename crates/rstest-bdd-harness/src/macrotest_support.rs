@@ -14,22 +14,14 @@
 //! sharing the helpers via this module avoids that per-crate coupling.
 
 use std::{
-    env,
     error::Error,
-    ffi::OsString,
     fs,
     io,
     path::{Path, PathBuf},
     process::Command,
 };
 
-use crate::nested_cargo::{
-    self,
-    NestedCargoEnv,
-    Preparation,
-    PreparationSummary,
-    ProfileDestination,
-};
+use crate::nested_cargo::{self, Preparation, PreparationSummary, ProfileDestination};
 
 /// Returns `true` when the macrotest refresh workflow is enabled.
 ///
@@ -240,12 +232,12 @@ impl TrybuildTree {
                 manifest_path.display()
             ))
         })?;
-        Ok(Preparation::new(
+        Ok(Preparation::with_target_directory(
             self.family.clone(),
-            target_root.clone(),
-            trybuild_environment(&target_root),
+            target_root,
             self.variant.clone(),
             nested_cargo::input_hash(&self.inputs())?,
+            ProfileDestination::Caller,
         ))
     }
 
@@ -272,21 +264,4 @@ impl TrybuildTree {
             .filter(|path| path.exists())
             .collect()
     }
-}
-
-/// The nested-Cargo environment a trybuild tree is built with.
-///
-/// `trybuild` inherits this process's environment and overrides
-/// `CARGO_TARGET_DIR` itself, so what is recorded here is the environment the
-/// generated crate is built *from*: the same variables, with the shared
-/// trybuild root in place of any inherited target directory.
-fn trybuild_environment(target_root: &Path) -> NestedCargoEnv {
-    let mut vars: Vec<(OsString, OsString)> = env::vars_os()
-        .filter(|(key, _)| key != "CARGO_TARGET_DIR")
-        .collect();
-    vars.push((
-        "CARGO_TARGET_DIR".into(),
-        target_root.as_os_str().to_os_string(),
-    ));
-    nested_cargo::env_from_vars(vars, Some(target_root), ProfileDestination::Caller)
 }

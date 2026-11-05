@@ -25,10 +25,10 @@
 //! cases build. A preparation that took a shortcut would warm a different
 //! graph than the one the assertions need.
 
-use std::{env, ffi::OsString, io, path::PathBuf, process::Command};
+use std::{env, io, path::PathBuf, process::Command};
 
 use camino::{Utf8Path, Utf8PathBuf};
-use rstest_bdd_harness::nested_cargo;
+use rstest_bdd_harness::nested_cargo::{self, ProfileDestination};
 
 use super::{macros_fixture, staging};
 
@@ -77,26 +77,6 @@ fn ui_clippy_target_directory() -> Utf8PathBuf {
     Utf8Path::new(env!("CARGO_MANIFEST_DIR")).join("target/tests/ui_lints_clippy")
 }
 
-/// The nested-Cargo environment a family's own build runs with.
-///
-/// Each family builds into its own directory, and both code paths set
-/// `CARGO_TARGET_DIR` to exactly that directory for the nested child, so
-/// recording it keeps the stamp and the artefacts in step.
-fn environment(directory: &Utf8Path) -> nested_cargo::NestedCargoEnv {
-    let mut vars: Vec<(OsString, OsString)> = env::vars_os()
-        .filter(|(key, _)| key != "CARGO_TARGET_DIR")
-        .collect();
-    vars.push((
-        "CARGO_TARGET_DIR".into(),
-        directory.as_os_str().to_os_string(),
-    ));
-    nested_cargo::env_from_vars(
-        vars,
-        Some(directory.as_std_path()),
-        nested_cargo::ProfileDestination::Caller,
-    )
-}
-
 /// The inputs whose change invalidates a prepared build.
 ///
 /// Both nested crates depend on workspace crates by path, so a change to any
@@ -138,24 +118,23 @@ fn trybuild_variant() -> String {
 /// Describe the trybuild preparation family.
 fn trybuild_preparation(target_directory: &Utf8Path) -> io::Result<nested_cargo::Preparation> {
     let directory = target_directory.join("tests/trybuild");
-    Ok(nested_cargo::Preparation::new(
+    Ok(nested_cargo::Preparation::with_target_directory(
         TRYBUILD_FAMILY,
-        directory.clone().into_std_path_buf(),
-        environment(&directory),
+        directory.into_std_path_buf(),
         trybuild_variant(),
         nested_cargo::input_hash(&input_roots())?,
+        ProfileDestination::Caller,
     ))
 }
 
 /// Describe the UI-lint preparation family.
 fn ui_clippy_preparation() -> io::Result<nested_cargo::Preparation> {
-    let directory = ui_clippy_target_directory();
-    Ok(nested_cargo::Preparation::new(
+    Ok(nested_cargo::Preparation::with_target_directory(
         UI_CLIPPY_FAMILY,
-        directory.clone().into_std_path_buf(),
-        environment(&directory),
+        ui_clippy_target_directory().into_std_path_buf(),
         format!("clippy:{}", env!("CARGO_PKG_VERSION")),
         nested_cargo::input_hash(&input_roots())?,
+        ProfileDestination::Caller,
     ))
 }
 

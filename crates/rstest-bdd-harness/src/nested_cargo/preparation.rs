@@ -48,7 +48,7 @@ use std::{
 pub use input_hash::input_hash;
 use stamp::{fingerprint, missing_stamp_message, note, stamp_matches, stamp_path, write_stamp};
 
-use super::NestedCargoEnv;
+use super::{NestedCargoEnv, ProfileDestination, env_from_vars};
 
 /// Wall-clock bound for one nested preparation command.
 ///
@@ -95,6 +95,35 @@ impl Preparation {
             variant: variant.into(),
             inputs: inputs.into(),
         }
+    }
+
+    /// Describe a family whose nested builds all run against `directory`.
+    ///
+    /// A family's code path sets `CARGO_TARGET_DIR` to exactly the directory
+    /// it stamps, so recording that directory as the child's target is what
+    /// keeps the stamp and the artefacts it vouches for in step. The rest of
+    /// the inherited environment is filtered by the shared rules, with the
+    /// caller's profile destination preserved.
+    ///
+    /// `inputs` is the caller-supplied hash of the fixture sources; callers
+    /// derive it before preparation runs, because preparation writes inside
+    /// the very roots it hashes.
+    #[must_use]
+    pub fn with_target_directory(
+        family: impl Into<String>,
+        directory: PathBuf,
+        variant: impl Into<String>,
+        inputs: impl Into<String>,
+        profile_destination: ProfileDestination,
+    ) -> Self {
+        let environment = env_from_vars(
+            env::vars_os()
+                .filter(|(key, _)| key != "CARGO_TARGET_DIR")
+                .collect(),
+            Some(&directory),
+            profile_destination,
+        );
+        Self::new(family, directory, environment, variant, inputs)
     }
 }
 
