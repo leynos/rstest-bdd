@@ -167,6 +167,13 @@ filtered `cargo nextest run` passes the timed tests in seconds.
   `preparation_survives_the_build_output_it_creates` pins the ordering rule
   rather than just the name list. The other families hash source trees their
   builds do not write into, so the exclusion is what keeps them safe too.
+- **A predicate four names wide is a Whitaker failure.** Clippy's
+  `pedantic` set accepted the four-term exclusion, so the gate reported it only
+  from the Dylint suite: `conditional_max_n_branches` allows two branches per
+  `if`. The fix is not an `#[expect]` in library code but the named predicate
+  `is_build_output`, backed by a const slice the way `stamp.rs` records its
+  fingerprint variables. Two different linters policing the same function is a
+  reason to name the concept, not to silence one of them.
 
 ## Decision Log
 
