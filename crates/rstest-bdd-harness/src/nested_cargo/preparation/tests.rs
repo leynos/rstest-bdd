@@ -193,6 +193,27 @@ fn input_hash_ignores_stamps_and_build_output() {
 }
 
 #[test]
+fn input_hash_ignores_trybuild_wip_scratch() {
+    // `trybuild` writes `wip/` beside the crate it tests, not inside the
+    // target directory, and it creates that directory during the very build a
+    // preparation stamps. Hashing it would invalidate every stamp the moment
+    // it was written, because the hash is taken before that build runs.
+    let directory = tempfile::tempdir().expect("temp dir");
+    let source = directory.path().join("fixture");
+    fs::create_dir_all(&source).expect("fixture dir");
+    fs::write(source.join("Cargo.toml"), "[package]\nname = \"f\"\n").expect("manifest");
+    let before = input_hash(std::slice::from_ref(&source)).expect("initial hash");
+
+    fs::create_dir_all(source.join("wip")).expect("wip dir");
+    fs::write(source.join("wip/.gitignore"), "*\n").expect("wip scratch");
+    let after = input_hash(std::slice::from_ref(&source)).expect("hash after build");
+    assert_eq!(
+        before, after,
+        "trybuild's wip scratch must not change the inputs"
+    );
+}
+
+#[test]
 fn compiling_lines_are_counted_from_stderr() {
     let stderr = b"   Compiling foo v0.1.0\nwarning: unused\n    Finished `dev` profile\n   \
                    Compiling bar v0.2.0\n";

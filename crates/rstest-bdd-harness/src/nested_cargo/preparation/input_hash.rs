@@ -20,9 +20,15 @@ use super::stamp::{PREPARED_FILE_SUFFIX, STAMP_VERSION};
 ///
 /// `roots` may name files or directories; directories are walked in sorted
 /// order and every regular file contributes its relative path, length and
-/// bytes. Directory entries named `target` or `.git` are skipped, as are the
-/// stamp files the preparation module writes, so a nested build never
+/// bytes. Directory entries named `target`, `.git` or `wip` are skipped, as
+/// are the stamp files the preparation module writes, so a nested build never
 /// invalidates the fingerprint that describes it.
+///
+/// `wip` is excluded because `trybuild` writes its scratch directory there,
+/// beside the crate under test rather than inside the target directory. The
+/// preparation computes this hash before it runs the build that creates that
+/// directory, so counting it would make every stamp stale the moment it was
+/// written.
 ///
 /// # Errors
 ///
@@ -61,9 +67,14 @@ fn hash_entry(path: &Path, hasher: &mut impl Hasher) -> io::Result<()> {
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
             .unwrap_or_default();
-        // `target` holds build output and the stamp names the fingerprint
-        // computed from these inputs, so neither is an input.
-        if name == "target" || name == ".git" || name.ends_with(PREPARED_FILE_SUFFIX) {
+        // `target` holds build output, `wip` holds `trybuild`'s scratch files
+        // and the stamp names the fingerprint computed from these inputs, so
+        // none of them is an input.
+        if name == "target"
+            || name == "wip"
+            || name == ".git"
+            || name.ends_with(PREPARED_FILE_SUFFIX)
+        {
             continue;
         }
         name.hash(hasher);
