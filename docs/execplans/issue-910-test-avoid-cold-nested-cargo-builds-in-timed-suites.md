@@ -175,7 +175,10 @@ filtered `cargo nextest run` passes the timed tests in seconds.
       reclassified. The three values that travel together (family, variant,
       input hash) are now a `Sources` value object, so `new` takes three
       arguments and a caller cannot pair one family's name with another's
-      hash. All three previously flagged files now score 10.00.
+      hash. All three previously flagged files now score 10.00 locally, and
+      CodeScene agrees on the pushed commit `8c97c2f7`: the check that had
+      failed on every earlier head reports `completed/success`, "Quality Gate
+      Passed", 6 gates, no findings.
 - **"Pre-existing" is a claim to verify, not a safe default.** Both the
   execplan and a commit message described the `Preparation::new` argument count
   as pre-existing at 9.69 on `main`.
