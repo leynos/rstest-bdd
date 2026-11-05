@@ -1,6 +1,10 @@
 //! Behavioural coverage for the stamp protocol and runner policy.
 
-use std::{fs, io, path::Path};
+use std::{
+    fs,
+    io,
+    path::{Path, PathBuf},
+};
 
 use super::{
     Preparation,
@@ -27,6 +31,17 @@ fn environment() -> NestedCargoEnv {
     )
 }
 
+/// A scratch preparation with variant `"v"` and input hash `"hash"`.
+///
+/// The `TempDir` is returned alongside so the caller keeps it alive; the
+/// preparation's directory is the temporary directory itself.
+fn scratch_preparation() -> (tempfile::TempDir, Preparation, NestedCargoEnv) {
+    let directory = tempfile::tempdir().expect("temp dir");
+    let environment = environment();
+    let preparation = preparation(directory.path(), &environment, "v", "hash");
+    (directory, preparation, environment)
+}
+
 /// A preparation rooted at `directory`.
 fn preparation(
     directory: &Path,
@@ -41,6 +56,20 @@ fn preparation(
         variant,
         inputs,
     )
+}
+
+/// A scratch root holding a minimal fixture package.
+///
+/// Every behavioural test below needs the same starting point: a temporary
+/// directory with a `fixture/` package inside it. The `TempDir` is returned so
+/// the caller keeps it alive for the duration of the test; dropping it removes
+/// the tree.
+fn fixture_package() -> (tempfile::TempDir, PathBuf) {
+    let directory = tempfile::tempdir().expect("temp dir");
+    let source = directory.path().join("fixture");
+    fs::create_dir_all(&source).expect("fixture dir");
+    fs::write(source.join("Cargo.toml"), "[package]\nname = \"f\"\n").expect("manifest");
+    (directory, source)
 }
 
 #[test]
@@ -88,9 +117,7 @@ fn fingerprint_changes_with_variant_and_inputs() {
 
 #[test]
 fn lazy_preparation_writes_the_stamp_and_is_idempotent() {
-    let directory = tempfile::tempdir().expect("temp dir");
-    let environment = environment();
-    let preparation = preparation(directory.path(), &environment, "v", "hash");
+    let (_directory, preparation, _environment) = scratch_preparation();
     let mut runs = 0_u32;
 
     for _ in 0..2 {
@@ -107,9 +134,7 @@ fn lazy_preparation_writes_the_stamp_and_is_idempotent() {
 
 #[test]
 fn prepare_now_runs_under_nextest_and_stamps_once() {
-    let directory = tempfile::tempdir().expect("temp dir");
-    let environment = environment();
-    let preparation = preparation(directory.path(), &environment, "v", "hash");
+    let (_directory, preparation, _environment) = scratch_preparation();
     let mut runs = 0_u32;
     for _ in 0..2 {
         prepare_now(&preparation, || {
@@ -128,10 +153,7 @@ fn preparation_survives_the_build_output_it_creates() {
     // contribute to the hash. If it did, a cold preparation would write a
     // stamp that was already stale, and the timed test that follows would
     // fail its gate every time.
-    let directory = tempfile::tempdir().expect("temp dir");
-    let source = directory.path().join("fixture");
-    fs::create_dir_all(&source).expect("fixture dir");
-    fs::write(source.join("Cargo.toml"), "[package]\nname = \"f\"\n").expect("manifest");
+    let (_directory, source) = fixture_package();
 
     let environment = environment();
     let prepare = || {
@@ -163,9 +185,7 @@ fn preparation_survives_the_build_output_it_creates() {
 
 #[test]
 fn failed_preparation_leaves_no_stamp() {
-    let directory = tempfile::tempdir().expect("temp dir");
-    let environment = environment();
-    let preparation = preparation(directory.path(), &environment, "v", "hash");
+    let (_directory, preparation, _environment) = scratch_preparation();
     let error = ensure_prepared_with(&preparation, false, || {
         Err(io::Error::other("nested build failed"))
     })
@@ -176,9 +196,7 @@ fn failed_preparation_leaves_no_stamp() {
 
 #[test]
 fn nextest_refuses_to_prepare_and_names_the_command() {
-    let directory = tempfile::tempdir().expect("temp dir");
-    let environment = environment();
-    let preparation = preparation(directory.path(), &environment, "v", "hash");
+    let (_directory, preparation, _environment) = scratch_preparation();
     let error = ensure_prepared_with(&preparation, true, || {
         panic!("nextest must not run preparation in a timed test")
     })
@@ -194,9 +212,7 @@ fn nextest_refuses_to_prepare_and_names_the_command() {
 
 #[test]
 fn stale_fingerprint_forces_preparation() {
-    let directory = tempfile::tempdir().expect("temp dir");
-    let environment = environment();
-    let first = preparation(directory.path(), &environment, "v", "hash");
+    let (directory, first, environment) = scratch_preparation();
     ensure_prepared_with(&first, false, || Ok(PreparationSummary::default()))
         .expect("initial preparation");
 
@@ -210,10 +226,8 @@ fn stale_fingerprint_forces_preparation() {
 
 #[test]
 fn input_hash_ignores_stamps_and_build_output() {
-    let directory = tempfile::tempdir().expect("temp dir");
-    let source = directory.path().join("fixture");
-    fs::create_dir_all(source.join("features")).expect("fixture dir");
-    fs::write(source.join("Cargo.toml"), "[package]\nname = \"f\"\n").expect("manifest");
+    let (_directory, source) = fixture_package();
+    fs::create_dir_all(source.join("features")).expect("features dir");
     fs::write(source.join("features/a.feature"), "Feature: a\n").expect("feature");
     let before = input_hash(std::slice::from_ref(&source)).expect("initial hash");
 
@@ -238,10 +252,7 @@ fn input_hash_ignores_trybuild_wip_scratch() {
     // target directory, and it creates that directory during the very build a
     // preparation stamps. Hashing it would invalidate every stamp the moment
     // it was written, because the hash is taken before that build runs.
-    let directory = tempfile::tempdir().expect("temp dir");
-    let source = directory.path().join("fixture");
-    fs::create_dir_all(&source).expect("fixture dir");
-    fs::write(source.join("Cargo.toml"), "[package]\nname = \"f\"\n").expect("manifest");
+    let (_directory, source) = fixture_package();
     let before = input_hash(std::slice::from_ref(&source)).expect("initial hash");
 
     fs::create_dir_all(source.join("wip")).expect("wip dir");
