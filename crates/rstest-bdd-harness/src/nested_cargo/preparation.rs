@@ -26,19 +26,26 @@
 //!   the caller's responsibility for test binaries that share a family.
 //!
 //! Preparation commands are bounded by [`PREPARATION_COMMAND_TIMEOUT`], which
-//! is deliberately separate from every assertion deadline.
+//! is deliberately separate from every assertion deadline. The stamp protocol
+//! lives in the private `stamp` submodule and input hashing in `input_hash`;
+//! only [`input_hash`] is re-exported.
+
+mod input_hash;
+mod stamp;
+
+#[cfg(test)]
+mod tests;
 
 use std::{
     env,
-    fmt::Write as _,
-    fs,
-    hash::{Hash as _, Hasher},
     io,
     path::{Path, PathBuf},
-    process::Command,
-    sync::{Mutex, MutexGuard, OnceLock, PoisonError},
+    sync::{Mutex, MutexGuard, PoisonError},
     time::{Duration, Instant},
 };
+
+pub use input_hash::input_hash;
+use stamp::{fingerprint, missing_stamp_message, note, stamp_matches, stamp_path, write_stamp};
 
 use super::NestedCargoEnv;
 
@@ -50,37 +57,8 @@ use super::NestedCargoEnv;
 /// and must not become, the deadline of any test.
 pub const PREPARATION_COMMAND_TIMEOUT: Duration = Duration::from_secs(45 * 60);
 
-/// Fingerprint format version; bump to invalidate every existing stamp.
-const STAMP_VERSION: &str = "1";
-
-/// Suffix of the hidden stamp file written inside a prepared artefact
-/// directory.
-const PREPARED_FILE_SUFFIX: &str = ".rstest-bdd-prepared";
-
 /// Process-wide lock serialising lazy preparation under plain `cargo test`.
 static PREPARE_LOCK: Mutex<()> = Mutex::new(());
-
-/// Environment variables that change what a nested preparation builds.
-///
-/// Everything else in the child environment (`NEXTEST_*`,
-/// `LLVM_PROFILE_FILE`, thread counts, logging filters) is excluded: a change
-/// to those must not force a rebuild.
-const FINGERPRINT_EXACT: [&str; 5] = [
-    "RUSTFLAGS",
-    "CARGO_ENCODED_RUSTFLAGS",
-    "CARGO_INCREMENTAL",
-    "RUSTDOCFLAGS",
-    "RUSTUP_TOOLCHAIN",
-];
-
-/// Prefixes whose whole variable set changes the compiled artefacts.
-const FINGERPRINT_PREFIXES: [&str; 5] = [
-    "RUSTC",
-    "RUSTDOC",
-    "CARGO_BUILD_",
-    "CARGO_PROFILE_",
-    "CARGO_TARGET_",
-];
 
 /// One family of prepared fixture artefacts.
 #[derive(Debug, Clone)]
@@ -233,379 +211,9 @@ pub fn count_compiling(stderr: &[u8]) -> usize {
         .count()
 }
 
-/// Hash the inputs a preparation family's artefacts derive from.
-///
-/// `roots` may name files or directories; directories are walked in sorted
-/// order and every regular file contributes its relative path, length and
-/// bytes. Directory entries named `target` or `.git` are skipped, as are the
-/// stamp files this module writes, so a nested build never invalidates the
-/// fingerprint that describes it.
-///
-/// # Errors
-///
-/// Returns the read error when a named input or one of its files cannot be
-/// read.
-pub fn input_hash(roots: &[PathBuf]) -> io::Result<String> {
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    STAMP_VERSION.hash(&mut hasher);
-    for root in roots {
-        hash_entry(root, &mut hasher)?;
-    }
-    Ok(format!("{:016x}", hasher.finish()))
-}
-
-/// Feed one file or directory tree into `hasher`.
-fn hash_entry(path: &Path, hasher: &mut impl Hasher) -> io::Result<()> {
-    let metadata = fs::symlink_metadata(path)?;
-    if metadata.is_file() {
-        path.file_name()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .hash(hasher);
-        let contents = fs::read(path)?;
-        contents.hash(hasher);
-        return Ok(());
-    }
-    if !metadata.is_dir() {
-        return Ok(());
-    }
-    let mut entries: Vec<PathBuf> = fs::read_dir(path)?
-        .map(|entry| entry.map(|entry| entry.path()))
-        .collect::<io::Result<_>>()?;
-    entries.sort();
-    for entry in entries {
-        let name = entry
-            .file_name()
-            .map(|name| name.to_string_lossy().into_owned())
-            .unwrap_or_default();
-        // `target` holds build output and the stamp names the fingerprint
-        // computed from these inputs, so neither is an input.
-        if name == "target" || name.ends_with(PREPARED_FILE_SUFFIX) {
-            continue;
-        }
-        name.hash(hasher);
-        hash_entry(&entry, hasher)?;
-    }
-    Ok(())
-}
-
 /// Whether the current process was started by `cargo nextest`.
 #[must_use]
 pub fn running_under_nextest() -> bool { env::var_os("NEXTEST_RUN_ID").is_some() }
 
-/// Report preparation progress on standard error.
-///
-/// Preparation is intentionally visible in test logs: its elapsed time and
-/// compiled-unit count are the evidence that the cold work left the timed
-/// assertions.
-fn note(message: &str) {
-    use std::io::Write as _;
-    let _ = writeln!(io::stderr(), "nested preparation: {message}");
-}
-
 /// Take the process-wide preparation lock.
 fn lock() -> MutexGuard<'static, ()> { PREPARE_LOCK.lock().unwrap_or_else(PoisonError::into_inner) }
-
-/// The stamp file protecting `preparation.directory`.
-fn stamp_path(preparation: &Preparation) -> PathBuf {
-    preparation
-        .directory
-        .join(format!(".{}{}", preparation.family, PREPARED_FILE_SUFFIX))
-}
-
-/// Whether the stamp exists and records exactly `fingerprint`.
-fn stamp_matches(stamp: &Path, fingerprint: &str) -> bool {
-    match fs::read_to_string(stamp) {
-        Ok(recorded) => recorded.trim_end() == fingerprint.trim_end(),
-        Err(error) if error.kind() == io::ErrorKind::NotFound => false,
-        Err(error) => {
-            note(&format!(
-                "could not read stamp {}: {error}; preparing again",
-                stamp.display()
-            ));
-            false
-        }
-    }
-}
-
-/// Write the stamp atomically, so a killed preparation never looks complete.
-fn write_stamp(stamp: &Path, fingerprint: &str) -> io::Result<()> {
-    let Some(parent) = stamp.parent() else {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            format!("stamp path {} has no parent directory", stamp.display()),
-        ));
-    };
-    fs::create_dir_all(parent)?;
-    let stamp_name = stamp.file_name().map_or_else(
-        || String::from("prepared"),
-        |name| name.to_string_lossy().into_owned(),
-    );
-    let temporary = parent.join(format!(".{stamp_name}.{}.tmp", std::process::id()));
-    fs::write(&temporary, fingerprint)?;
-    fs::rename(&temporary, stamp)
-}
-
-/// The fingerprint text recorded in the stamp.
-fn fingerprint(preparation: &Preparation) -> String {
-    let mut text = String::new();
-    let _ = writeln!(text, "version: {STAMP_VERSION}");
-    let _ = writeln!(text, "toolchain: {}", toolchain_identity());
-    for (key, value) in preparation.environment.iter() {
-        let key_text = key.to_string_lossy();
-        if is_fingerprint_variable(&key_text) {
-            let _ = writeln!(text, "{key_text}={}", value.to_string_lossy());
-        }
-    }
-    let _ = writeln!(text, "variant: {}", preparation.variant);
-    let _ = writeln!(text, "inputs: {}", preparation.inputs);
-    text
-}
-
-/// Whether `key` influences the compiled artefacts.
-fn is_fingerprint_variable(key: &str) -> bool {
-    FINGERPRINT_EXACT.contains(&key)
-        || FINGERPRINT_PREFIXES
-            .iter()
-            .any(|prefix| key.starts_with(prefix))
-}
-
-/// The fail-fast message for a timed test with no prepared artefacts.
-fn missing_stamp_message(preparation: &Preparation, stamp: &Path) -> String {
-    format!(
-        "nested fixture artefacts for family `{}` are not prepared ({} is missing or \
-         stale).\nUnder nextest every test runs in its own process, so preparing here would make \
-         a timed test pay for the cold build it is meant to avoid.\nPrepare them first with `make \
-         prepare-nested-fixtures` (or `cargo nextest run -E \
-         'test(/nested_fixture_preparation$/)'`).",
-        preparation.family,
-        stamp.display()
-    )
-}
-
-/// Identify the toolchain that produced the prepared artefacts.
-///
-/// `cargo -vV` reports the release, commit and host of the Cargo in use, which
-/// changes whenever the toolchain does. Resolved from the `CARGO`
-/// compile-time variable, never a `PATH` lookup.
-fn toolchain_identity() -> &'static str {
-    static IDENTITY: OnceLock<String> = OnceLock::new();
-    IDENTITY.get_or_init(|| {
-        let output = Command::new(env!("CARGO")).arg("-vV").output();
-        let Ok(output) = output else {
-            note("could not run `cargo -vV`; toolchain unknown");
-            return "unknown".to_owned();
-        };
-        if !output.status.success() {
-            note("`cargo -vV` failed; toolchain unknown");
-            return "unknown".to_owned();
-        }
-        let text = String::from_utf8_lossy(&output.stdout);
-        let kept: Vec<&str> = text
-            .lines()
-            .filter(|line| {
-                line.starts_with("release:")
-                    || line.starts_with("commit-hash:")
-                    || line.starts_with("host:")
-            })
-            .collect();
-        if kept.is_empty() {
-            "unknown".to_owned()
-        } else {
-            kept.join(" ")
-        }
-    })
-}
-
-#[cfg(test)]
-mod tests {
-    //! Behavioural coverage for the stamp protocol and runner policy.
-
-    use super::*;
-
-    /// A filtered environment carrying only fingerprint-relevant variables.
-    fn environment() -> NestedCargoEnv {
-        super::super::env_from_vars(
-            vec![
-                ("RUSTFLAGS".into(), "-Dwarnings".into()),
-                ("NEXTEST_RUN_ID".into(), "run-1".into()),
-                ("LLVM_PROFILE_FILE".into(), "/tmp/parent.profraw".into()),
-                ("PATH".into(), "/usr/bin".into()),
-            ],
-            Some(Path::new("/tmp/target")),
-            super::super::ProfileDestination::Caller,
-        )
-    }
-
-    /// A preparation rooted at `directory`.
-    fn preparation(
-        directory: &Path,
-        environment: &NestedCargoEnv,
-        variant: &str,
-        inputs: &str,
-    ) -> Preparation {
-        Preparation::new(
-            "unit",
-            directory.to_path_buf(),
-            environment.clone(),
-            variant,
-            inputs,
-        )
-    }
-
-    #[test]
-    fn fingerprint_excludes_runner_and_coverage_variables() {
-        let environment = environment();
-        let text = fingerprint(&preparation(
-            Path::new("/tmp/target"),
-            &environment,
-            "all-features",
-            "abc",
-        ));
-        assert!(text.contains("RUSTFLAGS=-Dwarnings"));
-        assert!(text.contains("CARGO_TARGET_DIR=/tmp/target"));
-        assert!(text.contains("variant: all-features"));
-        assert!(text.contains("inputs: abc"));
-        assert!(!text.contains("NEXTEST_RUN_ID"));
-        assert!(!text.contains("LLVM_PROFILE_FILE"));
-        assert!(!text.contains("PATH="));
-    }
-
-    #[test]
-    fn fingerprint_changes_with_variant_and_inputs() {
-        let environment = environment();
-        let one = fingerprint(&preparation(
-            Path::new("/tmp/target"),
-            &environment,
-            "all-features",
-            "abc",
-        ));
-        let other = fingerprint(&preparation(
-            Path::new("/tmp/target"),
-            &environment,
-            "no-default-features",
-            "abc",
-        ));
-        let third = fingerprint(&preparation(
-            Path::new("/tmp/target"),
-            &environment,
-            "all-features",
-            "def",
-        ));
-        assert_ne!(one, other);
-        assert_ne!(one, third);
-    }
-
-    #[test]
-    fn lazy_preparation_writes_the_stamp_and_is_idempotent() {
-        let directory = tempfile::tempdir().expect("temp dir");
-        let environment = environment();
-        let preparation = preparation(directory.path(), &environment, "v", "hash");
-        let mut runs = 0_u32;
-
-        for _ in 0..2 {
-            ensure_prepared_with(&preparation, false, || {
-                runs += 1;
-                Ok(PreparationSummary { compiled_units: 3 })
-            })
-            .expect("lazy preparation should succeed");
-        }
-
-        assert_eq!(runs, 1, "the second call should see the stamp");
-        assert!(stamp_path(&preparation).is_file());
-    }
-
-    #[test]
-    fn prepare_now_runs_under_nextest_and_stamps_once() {
-        let directory = tempfile::tempdir().expect("temp dir");
-        let environment = environment();
-        let preparation = preparation(directory.path(), &environment, "v", "hash");
-        let mut runs = 0_u32;
-        for _ in 0..2 {
-            prepare_now(&preparation, || {
-                runs += 1;
-                Ok(PreparationSummary { compiled_units: 1 })
-            })
-            .expect("explicit preparation should succeed");
-        }
-        assert_eq!(runs, 1, "a warm family should not prepare twice");
-    }
-
-    #[test]
-    fn failed_preparation_leaves_no_stamp() {
-        let directory = tempfile::tempdir().expect("temp dir");
-        let environment = environment();
-        let preparation = preparation(directory.path(), &environment, "v", "hash");
-        let error = ensure_prepared_with(&preparation, false, || {
-            Err(io::Error::other("nested build failed"))
-        })
-        .expect_err("preparation should fail");
-        assert_eq!(error.kind(), io::ErrorKind::Other);
-        assert!(!stamp_path(&preparation).exists());
-    }
-
-    #[test]
-    fn nextest_refuses_to_prepare_and_names_the_command() {
-        let directory = tempfile::tempdir().expect("temp dir");
-        let environment = environment();
-        let preparation = preparation(directory.path(), &environment, "v", "hash");
-        let error = ensure_prepared_with(&preparation, true, || {
-            panic!("nextest must not run preparation in a timed test")
-        })
-        .expect_err("a missing stamp under nextest must fail");
-        assert_eq!(error.kind(), io::ErrorKind::NotFound);
-        let message = error.to_string();
-        assert!(
-            message.contains("make prepare-nested-fixtures"),
-            "{message}"
-        );
-        assert!(message.contains("nested_fixture_preparation"), "{message}");
-    }
-
-    #[test]
-    fn stale_fingerprint_forces_preparation() {
-        let directory = tempfile::tempdir().expect("temp dir");
-        let environment = environment();
-        let first = preparation(directory.path(), &environment, "v", "hash");
-        ensure_prepared_with(&first, false, || Ok(PreparationSummary::default()))
-            .expect("initial preparation");
-
-        let changed = preparation(directory.path(), &environment, "v", "changed-hash");
-        let error = ensure_prepared_with(&changed, true, || {
-            panic!("a stale stamp must not count as prepared")
-        })
-        .expect_err("stale inputs must fail under nextest");
-        assert_eq!(error.kind(), io::ErrorKind::NotFound);
-    }
-
-    #[test]
-    fn input_hash_ignores_stamps_and_build_output() {
-        let directory = tempfile::tempdir().expect("temp dir");
-        let source = directory.path().join("fixture");
-        fs::create_dir_all(source.join("features")).expect("fixture dir");
-        fs::write(source.join("Cargo.toml"), "[package]\nname = \"f\"\n").expect("manifest");
-        fs::write(source.join("features/a.feature"), "Feature: a\n").expect("feature");
-        let before = input_hash(std::slice::from_ref(&source)).expect("initial hash");
-
-        fs::create_dir_all(source.join("target/debug")).expect("target dir");
-        fs::write(source.join("target/debug/artifact"), "binary").expect("artefact");
-        fs::write(
-            source.join(format!(".unit{PREPARED_FILE_SUFFIX}")),
-            "different fingerprint",
-        )
-        .expect("stamp");
-        let after = input_hash(std::slice::from_ref(&source)).expect("hash after build");
-        assert_eq!(before, after, "build output must not change the inputs");
-
-        fs::write(source.join("features/a.feature"), "Feature: changed\n").expect("edit");
-        let changed = input_hash(&[source]).expect("hash after edit");
-        assert_ne!(before, changed, "fixture edits must change the inputs");
-    }
-
-    #[test]
-    fn compiling_lines_are_counted_from_stderr() {
-        let stderr = b"   Compiling foo v0.1.0\nwarning: unused\n    Finished `dev` profile\n   \
-                       Compiling bar v0.2.0\n";
-        assert_eq!(count_compiling(stderr), 2);
-    }
-}
