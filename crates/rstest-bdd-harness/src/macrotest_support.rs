@@ -188,8 +188,7 @@ impl TrybuildTree {
     where
         F: FnOnce() -> io::Result<PreparationSummary>,
     {
-        let preparation = self.preparation()?;
-        nested_cargo::prepare_now(&preparation, prepare)
+        nested_cargo::prepare_now(&self.preparation()?, prepare)
     }
 
     /// Ensure the tree is prepared, failing fast under nextest when it is not.
@@ -204,8 +203,7 @@ impl TrybuildTree {
     where
         F: FnOnce() -> io::Result<PreparationSummary>,
     {
-        let preparation = self.preparation()?;
-        nested_cargo::ensure_prepared(&preparation, prepare)
+        nested_cargo::ensure_prepared(&self.preparation()?, prepare)
     }
 
     /// The generated crate's directory under the shared trybuild root.
