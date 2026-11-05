@@ -208,7 +208,7 @@ pub(crate) fn ensure_prepared(target_directory: &Utf8Path) -> io::Result<()> {
 
 /// Compile both nested build trees before the timed trybuild assertion.
 ///
-/// Runs the same scoping the timed test does — the same serialised target
+/// Runs the same scoping the timed test does — the same serialized target
 /// root, the same `CARGO_TARGET_DIR` value and the same `RUST_BACKTRACE`
 /// removal — so the stamps it writes describe the trees the timed test will
 /// use. `.config/nextest.toml` runs this first with the preparation budget.

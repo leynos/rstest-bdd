@@ -120,7 +120,7 @@ fn preparation_nextest_override_preserves_timeout_contract() -> Result<(), Box<d
     assert_eq!(
         override_value.get("test-group").and_then(Value::as_str),
         Some("cargo-spawning"),
-        "the preparation override must remain in the cargo-spawning group, so it serialises with \
+        "the preparation override must remain in the cargo-spawning group, so it serializes with \
          the tests whose build trees it warms",
     );
     let priority = override_value.get("priority").and_then(Value::as_integer);

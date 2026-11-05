@@ -57,7 +57,7 @@ use super::NestedCargoEnv;
 /// and must not become, the deadline of any test.
 pub const PREPARATION_COMMAND_TIMEOUT: Duration = Duration::from_secs(45 * 60);
 
-/// Process-wide lock serialising lazy preparation under plain `cargo test`.
+/// Process-wide lock serializing lazy preparation under plain `cargo test`.
 static PREPARE_LOCK: Mutex<()> = Mutex::new(());
 
 /// One family of prepared fixture artefacts.

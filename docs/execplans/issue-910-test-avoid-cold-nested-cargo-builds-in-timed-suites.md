@@ -72,7 +72,7 @@ filtered `cargo nextest run` passes the timed tests in seconds.
   record the measurement and revisit rather than raising the number.
 - Platform: if the Windows under-nextest deadlock documented for trybuild
   reappears in a new suite, skip that suite's preparation on that platform
-  combination as `step_macros_compile` does, rather than serialising
+  combination as `step_macros_compile` does, rather than serializing
   differently.
 
 ## Risks
@@ -343,7 +343,7 @@ the run continues from a cold target instead of stopping.
 
 Two costs are real and worth naming. First, that first invocation pays the cold
 compile on its own timeout, exactly the failure mode issue 910 fixes for
-nextest. Second, the preparation policy itself is mutatable source:
+nextest. Second, the preparation policy itself is mutable source:
 `nested_cargo/preparation.rs`, `preparation/stamp.rs` and
 `preparation/input_hash.rs` all carry mutants, so a run mutates the code that
 decides whether to prepare — usually changing the stamp's error paths rather

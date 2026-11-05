@@ -15,7 +15,7 @@
 //!
 //! This binary holds exactly two tests, and both reach the shared preparation
 //! lock before running `trybuild`, so it needs no `#[serial]` attribute of its
-//! own: `preparation::ensure_prepared` serialises the lazy path, and
+//! own: `preparation::ensure_prepared` serializes the lazy path, and
 //! `trybuild` itself takes a file lock on the generated project directory.
 
 use std::{io, path::PathBuf};
