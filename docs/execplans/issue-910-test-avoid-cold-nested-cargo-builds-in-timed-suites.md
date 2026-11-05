@@ -388,6 +388,20 @@ rather than by reading this branch's comments.
   Counting the child processes the test actually spawns is the measurement;
   counting the functions that spawn them is an inference.
 
+- **A blank line inside a list item can turn prose into a code block.** Adding
+  a second paragraph to this plan's `- [x]` bullet broke `make fmt` with two
+  `MD046/code-block-style` errors on fenced blocks a thousand lines further
+  down. The cause was not near the errors. The bullet's content column is 2, so
+  continuation lines at 6 spaces are indented exactly 4 columns past it, and
+  CommonMark reads an indented run after a blank line as a *code block*, not as
+  paragraph text. `MD046` runs in "consistent" mode, takes its expected style
+  from the document's first code block, and that block had just become the
+  indented one — so every later fence was reported. The renderer agrees with
+  the parser, so this would have shown up as a stray code block on GitHub too.
+  Joining the paragraphs fixed both. The lesson is that a Markdown error can be
+  caused by a blank line far away from where it is reported: bisect the diff,
+  do not read the reported line.
+
 - **`priority` is not precedence.** The first version of the nextest override
   comment claimed `priority` decided which override won. It does not: nextest
   documents `priority` as "higher values run sooner", a scheduling hint, and
