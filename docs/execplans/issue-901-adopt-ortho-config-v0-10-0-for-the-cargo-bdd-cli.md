@@ -477,13 +477,15 @@ Hard invariants. Violation requires escalation, not a workaround.
 - [x] (2026-11-03) Mark roadmap item 6.1.6 complete after implementing the
       configuration boundary, both CLI entry forms, and the documented MSRV
       split. Validation remains subject to the final gate cycle below.
-- [ ] (2026-11-03) The final CodeRabbit review found that Clap's `requires`
+- [x] (2026-11-03) The final CodeRabbit review found that Clap's `requires`
       rejected `steps --json` before TOML or environment `skipped = true` could
-      satisfy the rule. Remove that early constraint, merge first, then
-      validate; replay Clap's original exit-2 parse error when explicit `--json`
-      still has no effective `skipped = true`. Add injected-source and isolated
-      child-process coverage for file, environment, direct, and Cargo forms,
-      and correct the users' guide and ADR. The complete deterministic gate
+      satisfy the rule. Resolved by removing that early constraint and merging
+      configuration before `validate_steps`; the application replays Clap's
+      original exit-2 parse error only when explicit `--json` still has no
+      effective `skipped = true`. Injected-source and isolated child-process
+      coverage now exercises file, environment, direct, and Cargo forms, and
+      the users' guide and ADR describe the merged-settings validation. The
+      complete deterministic gate
       sequence is pending for the latest assertion-helper edits. The first
       `make check-fmt` passed; offline `make lint` then found missing Rustdoc,
       one missing code mark in a comment, and a duplicate test match arm. Fix
@@ -508,12 +510,26 @@ Hard invariants. Violation requires escalation, not a workaround.
       latest full focused run passed 28 unit/config, one baseline-output and
       eight invocation tests offline from prewarmed binaries. Formatting,
       offline lint/typecheck, documentation gates, file length, diff check and
-      CodeScene all passed. The full workspace suite remains incomplete under
-      the no-cold-child/no-network constraint, and the existing `tests/cli.rs`
-      target remains under #910 and #911.
-- [ ] §6: documentation, gates, follow-up review, commit, push, draft pull
-      request, and hosted CI validation. Draft PR #912 exists. Its first hosted
-      run, #41673314102, failed before tests started on Windows because the
+      CodeScene all passed. On the current candidate, `CARGO_NET_OFFLINE=true
+      make test` ran 2,052 tests successfully before
+      `feature_addition_triggers_rebuild` failed at 555.787 seconds because its
+      nested offline Cargo build exceeded its 300-second bound while compiling
+      the fixture and rustdoc. Seven tests were skipped and 51 were not run.
+      The unchanged `cargo-bdd::cli` and invocation suites passed, including
+      `list_steps_runs` in 2.800 seconds; no package downloads occurred. Keep
+      this explicit validation exception tracked under #910 and child-Cargo
+      network isolation under #911. Do not claim the workspace suite passed.
+- [ ] §6: documentation, gates, follow-up review, commit, push, hosted CI,
+      review reconciliation, and merge. Draft PR #912 is open at head
+      `63b01c4d1cb7e333d6039357daace37d1e435185`. Hosted CI run #41891162299
+      passed Linux default features and both Windows jobs on that pushed head.
+      Current local formatting, lint, typecheck and documentation checks
+      passed, and `cs delta` found no issues. The full workspace suite has the
+      #910 validation exception recorded above. Commit and push this candidate,
+      validate its hosted run, reconcile review and assessments, and merge only
+      when it reaches equilibrium. The
+      earlier delivery history follows. Its first hosted run #41673314102
+      failed before tests started on Windows because the
       Unix-only `ConfigFixture::local_directory` helper triggered `dead_code`
       under `-D warnings`; the helper now has a `#[cfg(unix)]` guard. Linux also
       found three stale fixture locks resolving `cargo-platform` 0.3.3 instead
@@ -529,9 +545,9 @@ Hard invariants. Violation requires escalation, not a workaround.
       `make check-fmt`, offline `make lint` and `make typecheck`, offline/locked
       prewarm and all 37 focused tests, Markdown and Mermaid checks, file length,
       diff check and CodeScene. CodeRabbit reviewed 37 files with zero findings.
-      Commit and push the candidate, update the draft PR description, then
-      validate the new hosted run and reconcile its checks before completing
-      this section. Do not merge or publish a release.
+      Subsequent commits and pushes produced the current head named above; the
+      latest hosted run on it passed, and this working-tree revision still
+      needs publication and hosted validation.
 
 ## Surprises & discoveries
 
@@ -744,8 +760,22 @@ Hard invariants. Violation requires escalation, not a workaround.
 
 ## Outcomes & retrospective
 
-Not yet applicable. To be completed at each milestone boundary and reconciled
-against the conformance basis before the plan is marked `COMPLETE`.
+Implementation, documentation, and the design decision are present in the
+candidate. The current full offline workspace run passed 2,052 tests, including
+all unchanged cargo-bdd CLI tests and the issue-specific invocation tests, then
+failed in `feature_addition_triggers_rebuild` when nested Cargo exceeded its
+300-second bound compiling the fixture and rustdoc. Seven tests were skipped
+and 51 were not run. The child command was offline and downloaded no packages;
+issue #910 tracks cold nested compilation, and #911 tracks child-Cargo network
+isolation. The exact trybuild prewarm compiled its generated check target and
+the harness build, but the suite stopped before `step_macros_compile` because
+the earlier feature fixture failure cancelled nextest. Retain this as an
+explicit local validation exception; do not present it as a passing full test
+run. Formatting, lint, typecheck and documentation checks passed on this
+candidate, and the working-tree CodeScene delta found no issues. The previous
+pushed head `63b01c4d1cb7e333d6039357daace37d1e435185` passed hosted CI run
+41891162299; this revision still needs commit, push, current-head CI, review
+reconciliation and merge before the plan can be marked `COMPLETE`.
 
 ## Context and orientation
 
@@ -1169,9 +1199,9 @@ configuration. Local `cs delta` now reports no findings. The full deterministic
 gate sequence passed on this working-tree candidate. The focused tests passed
 4/4 and 1/1 after offline, locked prewarms, with no compile or package-download
 output during test execution. CodeRabbit reported zero findings. These results
-include uncommitted changes after `eecb891b`. The remaining delivery work is to
-commit this refactor, let the `eecb891b` CI run finish, push the new head,
-validate hosted CI, and refresh the draft PR's validation summary.
+included working-tree changes after `eecb891b`; those changes were subsequently
+committed and pushed. They are historical evidence and are superseded by the
+current-head gate and hosted validation recorded above.
 
 Hosted run
 [#41782484279](https://github.com/leynos/rstest-bdd/actions/runs/41782484279) on
@@ -1191,9 +1221,8 @@ direct execution then passed `nextest_config` 4/4 and `baseline_output` 1/1
 with no compiler, download, or build-limit output during execution. Cargo-based
 test invocations emitted build-limit compiler-slot requests, so their output is
 not used as the no-compilation evidence. CodeRabbit reviewed the corrected
-source and plan files with zero findings. This evidence is on the dirty tree
-based at `7bacb672`; commit it, push the branch, then validate hosted CI and
-refresh the draft PR summary.
+source and plan files with zero findings. This evidence was on the dirty tree
+based at `7bacb672`; that candidate was subsequently committed and pushed.
 
 Hosted run
 [#41789683010](https://github.com/leynos/rstest-bdd/actions/runs/41789683010) on
@@ -1219,14 +1248,15 @@ Inspection of run #41789683010's Windows logs showed a second output context:
 failure uses `cargo-bdd`. Both Windows jobs failed quickly on the former
 fixture mismatch; neither was a timeout. The fixture now assigns the root-name
 marker to `help steps` and retains the extensionless subcommand marker for the
-parse failure. Linux passed on that head. The latest correction remains
-uncommitted. It passed the full sequential deterministic gate sequence; locked
-offline prewarms followed by direct test-binary execution passed
-`nextest_config` 4/4 and `baseline_output` 1/1, with no compiler, download, or
-build-limit output during execution. Local `cs delta` against the PR base
-reports no issues. After the requested cooldown, CodeRabbit reviewed this final
-tree with zero findings. Commit and push the correction, validate its hosted
-run, and refresh the draft PR summary.
+parse failure. Linux passed on that head. The latest correction was uncommitted
+at the time of this entry and was subsequently committed and pushed. It passed
+the full sequential deterministic gate sequence; locked offline prewarms
+followed by direct test-binary execution passed `nextest_config` 4/4 and
+`baseline_output` 1/1, with no compiler, download, or build-limit output during
+execution. Local `cs delta` against the PR base reports no issues. After the
+requested cooldown, CodeRabbit reviewed this final tree with zero findings. The
+correction was subsequently committed and pushed; later hosted runs found the
+Windows invocation-name issue recorded below.
 
 The correction was committed and pushed as `5a6acf35`. Hosted CI run
 [#41801681477](https://github.com/leynos/rstest-bdd/actions/runs/41801681477)
@@ -1240,6 +1270,7 @@ of 2,104 tests before
 `rstest-bdd::trybuild_macros::runner::step_macros_compile` timed out at its
 configured 20-minute limit while compiling its isolated UI fixture. This
 reproduces the cold nested-build concern tracked in #910; child Cargo remained
-offline. The Windows usage correction is uncommitted. After docs gates, review
-it with CodeRabbit, commit and push it, then validate the new hosted run and
-refresh the draft PR summary.
+offline. The Windows usage correction was subsequently committed and pushed in
+the revisions leading to current head
+`63b01c4d1cb7e333d6039357daace37d1e435185`. Finish the current-head validation
+and merge cycle described above.
