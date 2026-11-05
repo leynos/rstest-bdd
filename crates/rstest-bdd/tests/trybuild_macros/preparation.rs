@@ -238,6 +238,16 @@ fn nested_fixture_preparation() -> io::Result<()> {
 /// compile-pass fixture and dropping the value performs exactly the write and
 /// dependency-build phase the timed run performs, without asserting on any
 /// fixture under test.
+///
+/// `trybuild` panics on a missing or failing fixture instead of returning an
+/// error, so this never yields `Err`. The `io::Result` is the shape
+/// `TrybuildTree::prepare_now` and `ensure_prepared` take, so that a
+/// preparation with a fallible first step — as the UI-lint one has — shares the
+/// same gate.
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "the shared preparation contract takes a fallible closure"
+)]
 fn prepare_trybuild() -> io::Result<nested_cargo::PreparationSummary> {
     let probe = macros_fixture(TRYBUILD_PROBE);
     let tests = trybuild::TestCases::new();

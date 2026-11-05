@@ -144,13 +144,13 @@ fn preparation_survives_the_build_output_it_creates() {
         Ok(PreparationSummary::default())
     };
 
-    let inputs = input_hash(&[source.clone()]).expect("inputs before preparation");
+    let inputs = input_hash(std::slice::from_ref(&source)).expect("inputs before preparation");
     let family = preparation(&source, &environment, "v", &inputs);
     prepare_now(&family, prepare).expect("preparation");
 
     // A second run recomputes the hash over the now-populated tree; it must
     // still match, or the first timed test would be refused its gate.
-    let after = input_hash(&[source.clone()]).expect("inputs after preparation");
+    let after = input_hash(std::slice::from_ref(&source)).expect("inputs after preparation");
     let reopened = preparation(&source, &environment, "v", &after);
     let mut runs = 0_u32;
     ensure_prepared_with(&reopened, true, || {
