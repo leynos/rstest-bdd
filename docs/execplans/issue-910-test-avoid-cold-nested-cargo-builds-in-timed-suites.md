@@ -4,7 +4,8 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Tolerances`, `Risks`, `Progress`, `Surprises & Discoveries`, `Decision Log`,
 and `Outcomes & Retrospective` must be kept up to date as work proceeds.
 
-Status: IN PROGRESS
+Status: IN PROGRESS — open problem blocking completion, see "Open problem:
+`step_macros_compile` still exhausts its 20-minute budget" in Stage F.
 
 `PLANS.md` is not present in this repository at the time of writing, so this
 ExecPlan is the governing plan for issue 910.
@@ -121,7 +122,10 @@ filtered `cargo nextest run` passes the timed tests in seconds.
       takes the lazy path.
 - [x] Update `docs/developers-guide.md`'s suite table with the harness and
       server trybuild tests.
-- [ ] Collect timing evidence on a cold target and a cold compiler cache.
+- [x] Collect timing evidence on a cold nested target and a warm compiler
+      cache, and record the per-family and per-assertion figures in Stage F.
+- [x] Fix the self-invalidating stamp: `trybuild` writes `wip/` inside the
+      `crates` input root, which made every stamp stale as it was written.
 
 ## Surprises & Discoveries
 
@@ -146,6 +150,17 @@ filtered `cargo nextest run` passes the timed tests in seconds.
 - **`nextest-version` is a top-level key,** not a profile key, and nextest
   ignores settings a file does not declare itself new enough to use. A
   `priority` in a file without it would silently be ordinary.
+- **A preparation can invalidate its own stamp.** The input hash is computed
+  *before* the preparation runs, so anything the preparation writes inside an
+  input root becomes a new input. `trybuild` writes a `wip/` scratch directory
+  beside the crate under test — not inside the target directory — and creates
+  it during the very build the stamp describes. Hashing it meant the stamp was
+  stale the moment it was written: the cold preparation passed in 645 s and
+  `step_macros_compile` then failed in 0.219 s with "missing or stale".
+  `wip` is now excluded by name, like `target` and `.git`, and
+  `preparation_survives_the_build_output_it_creates` pins the ordering rule
+  rather than just the name list. The other families hash source trees their
+  builds do not write into, so the exclusion is what keeps them safe too.
 
 ## Decision Log
 
@@ -305,6 +320,78 @@ two-vCPU runner with a cold target: preparation elapsed times, `Compiling`
 counts, timed-test durations against their limits, and the rebuild counters.
 Notes say which figures are single-host observations rather than CI
 measurements.
+
+### Collected evidence (single-host, 6-core Rocky 10, cold nested target)
+
+These are observations on the development host, not the CI runner, so they
+understate the queueing a two-vCPU lane sees. The nested target directories
+were empty when the run began; the workspace target was warm.
+
+`make prepare-nested-fixtures` on a cold nested target, six families:
+
+| Family                                            | Elapsed    | Budget |
+| ------------------------------------------------- | ---------- | ------ |
+| `cargo-bdd::cli`                                  | 169.847 s  | 30 m   |
+| `rstest-bdd::feature_rebuild_invalidation`        | 166.902 s  | 30 m   |
+| `rstest-bdd::trybuild_macros`                     | 645.412 s  | 30 m   |
+| `rstest-bdd-harness-gpui::macro_compile`          | 304.252 s  | 30 m   |
+| `rstest-bdd-harness-tokio::macro_compile`         | 62.976 s   | 30 m   |
+| `rstest-bdd-server::workspace_discovery_compile`  | 864.239 s  | 30 m   |
+
+Total 2213.657 s for six tests run in parallel under the `cargo-spawning`
+group, each on its own budget. Every family finished inside a quarter of its
+budget despite a saturated compiler pool (capacity 4, four slots held
+throughout, with waits of up to 115 compiles ahead). The trybuild families
+share `<target>/tests/trybuild`, so the first to run paid for the dependency
+graph and the others compiled only what their own generated manifests added.
+
+The timed assertions then ran against those prepared trees with no
+preparation in their bodies:
+
+| Test                                                       | Elapsed   | Limit  |
+| ---------------------------------------------------------- | --------- | ------ |
+| `cargo-bdd::cli::list_steps_runs`                          | 2.223 s   | 180 s  |
+| `cargo-bdd::cli` smoke cases (12 others)                   | ≤ 1.8 s   | 180 s  |
+| `feature_rebuild_invalidation::feature_addition_triggers_rebuild` | 224.433 s | 600 s |
+| `feature_rebuild_invalidation::bound_feature_file_is_tracked_dependency` | 53.304 s | 600 s |
+| `trybuild_macros` helper tests                             | ≤ 0.022 s | 20 m   |
+
+`list_steps_runs` is the issue's headline case: it took 2.2 s against a 180 s
+limit, having previously exhausted that limit on a cold build. The rebuild
+cases keep their deliberate recompiles and finish well inside 600 s.
+
+Re-running preparation over a warm target costs seconds per family (15.2 s and
+31.2 s observed for `trybuild_macros`), which is the stamp read plus Cargo's
+own freshness check, so the idempotent path is cheap.
+
+### Open problem: `step_macros_compile` still exhausts its 20-minute budget
+
+A prepared-tree run of `step_macros_compile` timed out at exactly 1200 s. The
+cold-graph work is gone — Cargo reported the nested units fully cached, with a
+`cargo clippy` invocation taking `real 2m29s` against `user 0.311s` — but the
+test still exhausted its budget. The cost is *admission queueing*, not
+compilation: `step_macros_compile` runs roughly forty nested `cargo`
+invocations one after another (twenty compile-pass fixtures, the compile-fail
+and UI-lint cases, the tracking fixture), and every one of them needs a
+compiler slot. On a host whose pool is shared with other agents, each
+invocation can wait minutes before it starts. The log recorded 836
+`waiting for a compile slot` lines and 114 distinct crates queued.
+
+This is the same class of defect issue 910 describes, one layer down. Moving
+the cold dependency graph out of the test body fixed the compile cost, but the
+test still pays a per-invocation admission tax it does not control. Two
+options, not yet decided:
+
+1. Let `trybuild` reuse one process instead of spawning a nested `cargo` per
+   fixture, if its API allows batching. Not investigated yet.
+2. Accept that the suite is inherently many invocations, and give this binary
+   its own nextest test group at `max-threads = 1` *and* ensure CI runs it on
+   a lane with an uncontended pool. The 20-minute limit stays; the queueing
+   goes away because nothing else competes.
+
+Neither may be right. The next step is to measure the same suite with the
+admission pool otherwise idle, which distinguishes "this test is too slow" from
+"this host was too busy" — the two need different fixes.
 
 ## Concrete steps
 
