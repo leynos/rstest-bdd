@@ -155,6 +155,16 @@ filtered `cargo nextest run` passes the timed tests in seconds.
       once (`DepInfoOutcome::abandoned`, `RebuildOutcome::abandoned`,
       `AdditionOutcome::abandoned`) removed the repetition. The duplication
       findings were test setup: `fixture_package` and `scratch_preparation`.
+      Two findings survived that pass. One was `macrotest_support.rs` still at
+      10.00 → 9.39 duplication, which the test-setup extraction did not touch:
+      the real duplicate was `trybuild_environment` against
+      `trybuild_macros/preparation::environment`, two new copies of "take this
+      process's environment, drop `CARGO_TARGET_DIR`, and put the family's own
+      directory in its place". `Preparation::with_target_directory` now states
+      that construction once, beside the struct it builds. The other two
+      remaining findings carry no arrow — `harness/preparation.rs` duplication
+      at 9.39 and `Preparation::new`'s argument count at 9.69 — so they
+      predate this branch and were left alone rather than widened in scope.
 - [ ] Record CI-lane timings for the affected suites once the PR runs, since
       only that lane answers acceptance criterion (c).
 
@@ -199,6 +209,16 @@ filtered `cargo nextest run` passes the timed tests in seconds.
   global timeout plus a fixed cold-build allowance rather than from the largest
   per-test budget. It is recorded in the developers guide so the figure is not
   mistaken for an assertion budget.
+- **A duplication finding names a file, not the duplicated lines.** CodeScene
+  reports `macrotest_support.rs` with an empty `method=` parameter, so it says
+  which file regressed without saying which block repeats. The first guess —
+  that `trybuild_target_root` duplicated `binary_test_support`'s
+  `target_directory_for_manifest` — was wrong: both calls are the same three
+  lines the file already had on `main`, so they cannot explain a regression
+  from 10.00. Scanning for repeated normalized line windows across the whole
+  repository, and filtering to windows in the named file, found the real pair
+  in one pass. Guessing from the file's contents would have refactored a block
+  that was never the problem.
 - **`input_hash` already skips `target` directories by entry name,** so
   `crates/rstest-bdd/target/tests/ui_lints_clippy` is excluded from the
   `crates` input root even though it lives inside it. No special case was
