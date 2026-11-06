@@ -117,10 +117,10 @@ clean: ## Remove build artefacts
 	rm -rf .uv-cache .uv-tools
 
 test: build-python ## Run tests with warnings treated as errors
-	RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" $(CARGO) build --bin $(APP) --bin todo-cli $(BUILD_JOBS)
 	# Warm the package cache first, failing the target if it cannot be warmed, so
 	# nested builds in the tests resolve nothing under the shared cache lock.
 	$(CARGO) fetch --locked
+	RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" $(CARGO) build --bin $(APP) --bin todo-cli $(BUILD_JOBS)
 	if command -v cargo-nextest >/dev/null 2>&1; then \
 		RUSTFLAGS="$(RUST_FLAGS) $(STANDARD_RUSTFLAGS)" $(CARGO) nextest run $(CARGO_FLAGS) $(BUILD_JOBS); \
 	else \
