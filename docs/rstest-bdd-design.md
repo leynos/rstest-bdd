@@ -3224,7 +3224,8 @@ execution can inspect the match before deciding to record it. Execution marks
 the step itself at its command boundary.
 
 The ownership boundary and permitted call sites are recorded in the developer's
-guide under "Registry lookup usage-marking invariant", and the decision is
+guide under "Registry lookup and usage-marking invariants", and the decision
+is
 recorded in [ADR-024](adr-024-structural-usage-tracking-in-registry-lookups.md).
 
 ### 3.10 Implicit fixture injection implementation
