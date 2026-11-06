@@ -5,11 +5,12 @@ This ExecPlan (execution plan) is a living document. The sections `Constraints`,
 `Outcomes & retrospective`, `Conformance basis`, and `Verification plan` must
 be kept up to date as work proceeds.
 
-Status: DRAFT
+Status: APPROVED
 
 Tracking issue: <https://github.com/leynos/rstest-bdd/issues/911>
 
-Implementation must not begin until the user explicitly approves this plan.
+Approved by the user on 2026-11-06, with the instruction to implement through
+to a merged pull request.
 
 ## Purpose / big picture
 
@@ -144,9 +145,19 @@ All counts exclude this ExecPlan file, per the ExecPlan convention.
 - [x] (2026-11-05) Ran the Concordat rule for a baseline, and prototyped the
   mechanisms locally.
 - [x] (2026-11-05) Drafted this ExecPlan.
-- [ ] Obtain user approval.
-- [ ] `EP-M0`: prove namespace feasibility on real CI runners.
-- [ ] `EP-M1`: preflight and fail-fast verification.
+- [x] (2026-11-06) Obtained user approval and set the plan to `APPROVED`.
+- [ ] `EP-M0`: prove namespace feasibility on real CI runners. The first probe
+  (`0ba2766a`, run 42258902324) aborted at the stock `unshare`. On `3b8662c7`
+  (run 42266303024) the Ubicloud lane establishes `D7`: stock denial, a
+  successful relaxation of the apparmor sysctl, a working namespace afterwards,
+  no egress inside it, and a filesystem socket reachable across it. The
+  `ubuntu-latest` lane is still queued; the evidence is under
+  `Artifacts and notes`.
+- [x] `EP-M1`: preflight and fail-fast verification. Red observed on
+  2026-11-06 for all eight new assertions; green on the same day with
+  `make test-workflow-contracts` at 377 passed. The Concordat rule now reports
+  `verdict: indeterminate` with only the two `EP-M2` findings left, so the
+  Makefile and Nextest halves of NC-008 are satisfied.
 - [ ] `EP-M2`: explicit offline mode at every repository-owned spawn.
 - [ ] `EP-M3`: test-process offline default for third-party and indirect spawns.
 - [ ] `EP-M4`: CI network denial.
@@ -197,6 +208,42 @@ All counts exclude this ExecPlan file, per the ExecPlan convention.
   `cargo test` and `cargo nextest`, but does not configure the outer Cargo.
   Impact: it is a usable runner-wide default that does not disturb the outer
   build.
+- Observation: `ci.yml` declares all three `Test and Measure Coverage` steps in
+  the one `build-test` job, and their guards select at most one per lane.
+  Impact: "a prefetch step before each coverage step" is one step before the
+  first of them; three identical network fetches in one job would be redundant.
+  The contract asserts exactly one prefetch per job and that it precedes every
+  coverage step in that job, which is the same guarantee without the repetition.
+- Observation: the `nextest-version` floor is set to `0.9.115`, not the
+  `0.9.98` that introduced setup scripts. Evidence: a custom profile inherits
+  `profile.default.scripts` only from 0.9.115, and `EP-M4`'s `offline-proof`
+  profile depends on that inheritance. Impact: the shared coverage action's
+  installer pins cargo-nextest 0.9.120, so CI satisfies the floor; a developer
+  with an older local Nextest gets a refusal rather than a silently inert
+  configuration.
+- Observation: the Concordat reader never inspects a workflow file's `run:`
+  step. Evidence: after `EP-M1`, the `run: make prefetch-fixture-deps` steps
+  produced no finding at all, neither `compliant` evidence nor the `uncertain`
+  delegation the milestone anticipated, and the Makefile finding disappeared
+  only once the literal `$(CARGO) fetch --locked` recipe line was a
+  prerequisite of `test`. Impact: the plan's escalation clause for a delegated
+  step did not apply, and workflow ordering is covered by the contract test
+  rather than by the rule.
+- Observation: the reader's verdict moved from `noncompliant` to
+  `indeterminate`, not to `compliant`, once the Makefile and Nextest findings
+  cleared. Evidence: the two remaining warnings are the `EP-M2` spawns in
+  `harness/process.rs:98` and `trybuild_macros.rs:185`. Impact: `compliant` is
+  only reachable at the end of `EP-M2`, so `EP-M1`'s conformance check is the
+  removal of the two non-spawn findings, which the verdict's finding list shows
+  directly.
+- Observation: GitHub's `shell: bash` template runs the script as
+  `/usr/bin/bash --noprofile --norc -e -o pipefail {0}`, so a step-level
+  `set -uxo pipefail` does not turn `-e` off. Evidence: the second probe's
+  sccache step ended with `failed printing to stdout: Broken pipe` and exit
+  101, because `sccache --show-stats | head -5` closed the pipe under
+  `pipefail`. Impact: a probe step must guard every command itself and must not
+  pipe into `head`; the first probe's `set -e` assumption was wrong for the
+  same reason, not merely a missing `|| true`.
 
 ## Decision log
 
@@ -265,6 +312,13 @@ All counts exclude this ExecPlan file, per the ExecPlan convention.
   about child processes for contributors, with no user-visible behaviour to
   state in Gherkin. The subprocess test in `EP-M2` provides the end-to-end
   evidence. Date/Author: 2026-11-05, planning agent.
+- Decision `D11`: one prefetch step per job, not one per coverage step.
+  Rationale: `ci.yml`'s three coverage steps share the `build-test` job and are
+  mutually exclusive by guard, so a single step ahead of the first precedes all
+  three. The contract asserts exactly one prefetch per job and that its index
+  is below every coverage step's, which is the ordering guarantee `EP-M1` asks
+  for without three identical fetches. Date/Author: 2026-11-06, implementation
+  agent.
 
 ## Outcomes & retrospective
 
@@ -747,6 +801,22 @@ A scratch copy with `--offline` on the Clippy command, the variable in
 default-profile setup script of `cargo fetch --locked --offline` reported
 `compliant` with no findings.
 
+The candidate tree at the end of `EP-M1` reports `verdict: indeterminate` with
+two findings, both spawns that `EP-M2` fixes:
+
+```plaintext
+crates/rstest-bdd/tests/feature_rebuild_invalidation/harness/process.rs:98
+  starts cargo with arguments or environment the reader cannot see ...
+  flags ["--color"]
+crates/rstest-bdd/tests/trybuild_macros.rs:185
+  starts cargo with arguments or environment the reader cannot see ...
+  flags ["--locked", "--manifest-path", "--bin", "--"], environment CARGO_TARGET_DIR
+```
+
+The baseline's `.config/nextest.toml:1` and `Makefile:121` findings are gone,
+and no finding was raised against either workflow's
+`run: make prefetch-fixture-deps` step.
+
 A locked package that is not cached fails closed, whichever way offline mode is
 set:
 
@@ -802,7 +872,38 @@ All six lockfiles passed `cargo fetch --locked --offline` on this host.
 exited 0, and `CARGO_NET_OFFLINE=true make check-published-gpui-e2e-lock`
 exited 0.
 
-`EP-M0` run URL and output: to be recorded.
+`EP-M0`: run <https://github.com/leynos/rstest-bdd/actions/runs/42266303024>, on
+`3b8662c7`. The Ubicloud job (`ubicloud-standard-2`, Ubuntu 24.04.5, kernel
+6.14.0-1017-azure) reports both halves of `D7`:
+
+```plaintext
+=== unshare, stock image ===
+unshare: write failed /proc/self/uid_map: Operation not permitted
+STOCK_RC=1
+=== relax the apparmor restriction, then retry ===
+RELAX_RC=0
+RELAXED_RC=0
+=== egress from inside a namespace ===
+EGRESS_RC=2
+SUMMARY stock=1 relax=0 relaxed=0 egress=2
+UDS_ACROSS_NAMESPACE_RC 0
+SERVER_RECEIVED b'ping'
+```
+
+So the stock image refuses an unprivileged user namespace,
+`sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0` succeeds, the
+same `unshare` then succeeds, and a namespace so created cannot resolve
+`static.crates.io`. A filesystem socket opened in the parent namespace is
+reachable from inside the child, which is the property `EP-M4` needs for
+`sccache`. `sccache --start-server` printed
+`Listening on address /tmp/issue-911-sccache.sock`, and `sccache --show-stats`
+run under `unshare --net --map-current-user` reached it. The probe step then
+ended on `failed printing to stdout: Broken pipe`, because GitHub's
+`shell: bash` template runs the script under `-e -o pipefail` and `| head -5`
+closes the pipe; that failure is in the probe, not in the namespace. The wrapped
+`rustc` line was therefore not reached, and `EP-M4`'s real CI run is the
+evidence for it. The `ubuntu-latest` job was still queued when this was
+recorded.
 
 ## Interfaces and dependencies
 

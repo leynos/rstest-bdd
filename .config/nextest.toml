@@ -1,5 +1,11 @@
 # `priority` and the `slow-timeout` table form need nextest 0.9.91 or later.
-nextest-version = "0.9.91"
+# The setup scripts below prefetch every manifest a test spawns Cargo against,
+# so a run started with a cold cache fails before any test starts rather than
+# reaching the network mid-run. `setup-scripts` needs 0.9.98; the floor is set
+# to 0.9.115 because a custom profile only inherits `profile.default.scripts`
+# from that release, and the offline-proof profile relies on that inheritance.
+nextest-version = "0.9.115"
+experimental = ["setup-scripts"]
 
 [profile.default]
 # Kill any test once it crosses 60s.
@@ -19,6 +25,18 @@ slow-timeout = { period = "60s", terminate-after = 1, grace-period = "5s" }
 # Keep crates/rstest-bdd/tests/nextest_config.rs and the four-tier workflow
 # contracts in step with future policy changes.
 global-timeout = "90m"
+
+[[profile.default.scripts]]
+# Every test binary, on every platform, runs after the prefetch. A narrower
+# filter would leave some tests running against a cache nothing warmed.
+filter = "all()"
+setup = [
+    "root-workspace",
+    "cargo-bdd-minimal",
+    "feature-addition",
+    "rebuild-invalidation",
+    "ui-lints",
+]
 
 [test-groups.cargo-spawning]
 # Tests that shell out to `cargo` contend for the package-cache lock and for
@@ -215,3 +233,52 @@ test-group = "cargo-spawning"
 [profile.long]
 slow-timeout = { period = "180s", terminate-after = 1, grace-period = "5s" }
 global-timeout = "30m"
+
+# One setup script per manifest a test spawns Cargo against. The list is
+# literal because Nextest reads a static file; `offline_test_contract_test.py`
+# keeps it equal to the manifests the repository actually spawns, so a new
+# fixture cannot be added without a matching prefetch. `--offline` makes a
+# cold cache a hard failure here, before any test starts, instead of a network
+# request from inside a test.
+[scripts.setup.root-workspace]
+command = ["cargo", "fetch", "--locked", "--offline", "--manifest-path", "Cargo.toml"]
+
+[scripts.setup.cargo-bdd-minimal]
+command = [
+    "cargo",
+    "fetch",
+    "--locked",
+    "--offline",
+    "--manifest-path",
+    "crates/cargo-bdd/tests/fixtures/minimal/Cargo.toml",
+]
+
+[scripts.setup.feature-addition]
+command = [
+    "cargo",
+    "fetch",
+    "--locked",
+    "--offline",
+    "--manifest-path",
+    "crates/rstest-bdd/tests/fixtures/feature_addition/Cargo.toml",
+]
+
+[scripts.setup.rebuild-invalidation]
+command = [
+    "cargo",
+    "fetch",
+    "--locked",
+    "--offline",
+    "--manifest-path",
+    "crates/rstest-bdd/tests/fixtures/rebuild_invalidation/Cargo.toml",
+]
+
+[scripts.setup.ui-lints]
+command = [
+    "cargo",
+    "fetch",
+    "--locked",
+    "--offline",
+    "--manifest-path",
+    "crates/rstest-bdd/tests/ui_lints/Cargo.toml",
+]

@@ -272,6 +272,12 @@ jobs:
           installer-version: ${{ env.WHITAKER_INSTALLER_VERSION }}
           cache-provider: external
 
+      # The Nextest setup scripts fetch with `--offline`, so every package has
+      # to be in the cache before the suite starts. This is the one step in
+      # the test route allowed to reach the network.
+      - name: Prefetch fixture dependencies
+        run: make prefetch-fixture-deps
+
       # The single Linux execution. `--all-features` subsumes the former
       # strict-validation lane, because `strict-compile-time-validation`
       # only implies `compile-time-validation` and conflicts with nothing.
@@ -872,6 +878,12 @@ jobs:
           # Zero the counters before the first compilation so the reported
           # statistics describe this job's builds rather than installer noise.
           "$sccache_bin" --zero-stats
+
+      # The Nextest setup scripts fetch with `--offline`, so every package has
+      # to be in the cache before the suite starts. This is the one step in
+      # the test route allowed to reach the network.
+      - name: Prefetch fixture dependencies
+        run: make prefetch-fixture-deps
 
       # Mirrors the merge gate's Windows default-features lane, which is the
       # lane this baseline is written for.

@@ -1,11 +1,13 @@
 """Unit tests for the standalone fixture dependency prefetch.
 
-The mutation lane runs this mode before cargo-mutants so its nested fixture
-builds resolve from a warm registry cache while ``--offline``; these tests pin
-that the mode fetches every discovered fixture and reports failures without
-validating anything itself. A subprocess run against a recording Cargo stand-in
-covers the boundary the in-process tests mock out: the argv Cargo really
-receives, the process exit status, and the two output streams.
+``make test`` and the mutation lane both run this mode before any test, so the
+nested fixture builds resolve from a warm registry cache while ``--offline``;
+these tests pin that the mode fetches every discovered fixture and reports
+failures without validating anything itself. The Make target also fetches the
+workspace root first, because the root's own test binaries spawn Cargo too. A
+subprocess run against a recording Cargo stand-in covers the boundary the
+in-process tests mock out: the argv Cargo really receives, the process exit
+status, and the two output streams.
 """
 
 import json
@@ -164,12 +166,15 @@ def makefile_recipe(target: str) -> str:
 
 
 def test_makefile_prefetch_target_runs_the_fetch_mode() -> None:
-    """`make prefetch-fixture-deps` drives the gate's ``--fetch`` mode."""
+    """`make prefetch-fixture-deps` warms the root, then the fixtures."""
     recipe = makefile_recipe("prefetch-fixture-deps")
 
+    assert recipe.splitlines()[0] == "$(CARGO) fetch --locked", (
+        "the prefetch must warm the workspace root first: the root's own test "
+        "binaries spawn Cargo, and the fixture gate deliberately skips it"
+    )
     assert "scripts/check_fixture_lockfiles.py --fetch" in recipe, (
-        "the mutation lane's prefetch must run the fixture-lockfile gate in "
-        "its fetch mode"
+        "the prefetch must run the fixture-lockfile gate in its fetch mode"
     )
 
 
@@ -378,7 +383,7 @@ def test_fetch_mode_reports_a_failing_fixture_and_exits_nonzero(
 def test_make_target_runs_the_fetch_mode_and_propagates_a_failure(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The mutation lane's target delegates to the gate and fails with it."""
+    """The shared test route's target warms the root, then delegates."""
     manifests = discover_fixture_manifests(REPO_ROOT)
 
     result, invocations = run_fetch_with_fake_cargo(
@@ -389,9 +394,15 @@ def test_make_target_runs_the_fetch_mode_and_propagates_a_failure(
         "the prefetch target must fail the lane when a fixture does not download"
     )
     assert invocations == [
-        ["fetch", "--locked", "--manifest-path", str(manifest)]
-        for manifest in manifests
-    ], "the target must run one locked fetch per discovered fixture, in order"
+        ["fetch", "--locked"],
+        *(
+            ["fetch", "--locked", "--manifest-path", str(manifest)]
+            for manifest in manifests
+        ),
+    ], (
+        "the target must warm the workspace root, then run one locked fetch "
+        "per discovered fixture, in order"
+    )
     assert "failed to prefetch fixture dependencies" in result.stderr, (
         "the target must let the gate's failure report reach the lane's log"
     )
