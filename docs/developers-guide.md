@@ -3071,14 +3071,14 @@ the `KEYWORDS` const table consumed by `StepKeyword::from_str`
 
 ## Registry lookup usage-marking invariant
 
-`ResolvedStep` owns usage marking for a resolved `Step`: its constructor
-records `mark_used` before exposing the wrapped value. The canonical metadata
-pair, `lookup_step_with_metadata` (exact) and `find_step_with_metadata`
-(fuzzy), returns `Option<ResolvedStep>`.
+`ResolvedStep` owns usage marking for a resolved `Step`: its constructor records
+`mark_used` before exposing the wrapped value. The canonical metadata pair,
+`lookup_step_with_metadata` (exact) and `find_step_with_metadata` (fuzzy),
+returns `Option<ResolvedStep>`.
 
 - **Invariant:** every metadata lookup that returns `Some` marks exactly the
-  resolved step as used (feeding the unused-step diagnostics behind `cargo
-  bdd`); a lookup that returns `None` marks nothing.
+  resolved step as used (feeding the unused-step diagnostics behind
+  `cargo bdd`); a lookup that returns `None` marks nothing.
 - **Ownership and permitted call-sites:** only
   `lookup_step_with_metadata` and `find_step_with_metadata` construct a
   `ResolvedStep`. The deprecated projection variants delegate to that pair;
